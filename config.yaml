@@ -1,0 +1,226 @@
+# Configuration de l'IA Personnelle
+
+# ====================================
+# CONFIGURATION GÉNÉRALE
+# ====================================
+ai:
+  name: "My Personal AI"
+  version: "1.0.0"
+  description: "IA personnelle locale complète"
+  
+  # Paramètres généraux
+  max_tokens: 4096
+  temperature: 0.7
+  timeout: 60
+  
+  # Historique des conversations
+  conversation_history_limit: 10
+  save_conversations: true
+  
+  # Types de fichiers supportés
+  supported_file_types:
+    - ".pdf"
+    - ".docx"
+    - ".doc"
+    - ".txt"
+    - ".py"
+    - ".html"
+    - ".css"
+    - ".js"
+    - ".json"
+    - ".xml"
+    - ".md"
+
+# ====================================
+# MODÈLES DE LANGAGE
+# ====================================
+llm:
+  # Backend par défaut (local uniquement)
+  default_backend: "local"
+  
+  # Configuration locale
+  local:
+    model_type: "advanced_local_ai"
+    knowledge_base: "advanced_knowledge.json"
+    enable_learning: true
+    conversation_memory: 10
+    base_url: "http://localhost:11434"
+    default_model: "llama3.2"
+    timeout: 60
+    available_models:
+      - "llama3.2"
+      - "llama3.2:13b"
+      - "codellama"
+      - "mistral"
+  
+  # Configuration Transformers
+  transformers:
+    default_model: "microsoft/DialoGPT-medium"
+    device: "auto"  # auto, cpu, cuda
+    cache_dir: "models_cache"
+    models:
+      conversation:
+        - "microsoft/DialoGPT-medium"
+        - "microsoft/DialoGPT-large"
+      code:
+        - "Salesforce/codegen-350M-mono"
+        - "microsoft/CodeBERT-base"
+
+# ====================================
+# TRAITEMENT DE FICHIERS
+# ====================================
+file_processing:
+  # Taille maximale des fichiers (en MB)
+  max_file_size_mb: 50
+  
+  # Répertoires
+  temp_directory: "temp"
+  backup_directory: "backups"
+  output_directory: "outputs"
+  
+  # PDF
+  pdf:
+    preferred_library: "pymupdf"  # pymupdf, pypdf2
+    extract_images: false
+    extract_tables: true
+  
+  # DOCX
+  docx:
+    preserve_formatting: true
+    extract_tables: true
+    extract_images: false
+
+# ====================================
+# GÉNÉRATION DE CONTENU
+# ====================================
+generation:
+  # Répertoire de sortie
+  output_directory: "outputs"
+  
+  # Templates de code
+  code_templates:
+    python:
+      include_docstrings: true
+      include_type_hints: true
+      style: "pep8"
+    
+    javascript:
+      style: "modern"  # modern, classic
+      include_jsdoc: true
+    
+    html:
+      include_css: true
+      include_javascript: true
+      responsive: true
+  
+  # Documents
+  documents:
+    default_format: "pdf"  # pdf, docx, txt
+    include_metadata: true
+    include_timestamp: true
+    
+    pdf:
+      page_size: "A4"
+      margins: 20  # mm
+      font_family: "Arial"
+      font_size: 12
+    
+    docx:
+      style_template: "default"
+      include_toc: false
+
+# ====================================
+# INTERFACE UTILISATEUR
+# ====================================
+ui:
+  # CLI
+  cli:
+    prompt: "🤖 MyAI> "
+    show_typing_indicator: true
+    max_display_width: 80
+    colors:
+      primary: "blue"
+      success: "green"
+      error: "red"
+      warning: "yellow"
+  
+  # GUI (futur)
+  gui:
+    title: "My Personal AI Assistant"
+    theme: "light"  # light, dark
+    window_size: "800x600"
+
+# ====================================
+# SÉCURITÉ
+# ====================================
+security:
+  # Validation des entrées
+  validate_inputs: true
+  max_query_length: 10000
+  
+  # Fichiers
+  scan_uploads: true
+  allowed_extensions:
+    - ".pdf"
+    - ".docx"
+    - ".txt"
+    - ".py"
+    - ".html"
+    - ".css"
+    - ".js"
+  
+  # Contenu malveillant
+  block_scripts: true
+  block_exec_commands: true
+
+# ====================================
+# LOGGING
+# ====================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  directory: "logs"
+  max_file_size_mb: 10
+  backup_count: 5
+  
+  # Format des logs
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  
+  # Composants à logger
+  components:
+    ai_engine: true
+    llm_manager: true
+    file_processor: true
+    conversation: true
+
+# ====================================
+# PERFORMANCE
+# ====================================
+performance:
+  # Cache
+  enable_cache: true
+  cache_size_mb: 100
+  cache_ttl_hours: 24
+  
+  # Traitement parallèle
+  max_workers: 4
+  chunk_size: 1024
+  
+  # Mémoire
+  max_memory_usage_mb: 2048
+  gc_threshold: 1000
+
+# ====================================
+# DÉVELOPPEMENT
+# ====================================
+development:
+  debug_mode: false
+  profiling: false
+  
+  # Tests
+  test_data_directory: "tests/data"
+  mock_llm_responses: false
+  
+  # Métriques
+  collect_metrics: true
+  metrics_file: "logs/metrics.json"

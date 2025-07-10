@@ -1,0 +1,130 @@
+# My Personal AI - Dépendances Python
+
+# ====================================
+# DÉPENDANCES PRINCIPALES
+# ====================================
+
+# Interface en ligne de commande
+click>=8.0.0
+
+# Communication réseau locale uniquement
+aiohttp>=3.8.0
+aiofiles>=23.0.0
+
+# ====================================
+# MODÈLES DE LANGAGE LOCAUX
+# ====================================
+
+# IA 100% locale - Aucune dépendance externe
+# Système d'intelligence artificielle autonome intégré
+
+# ====================================
+# TRAITEMENT DE DOCUMENTS
+# ====================================
+
+# PDF
+PyMuPDF>=1.23.0  # Recommandé (fitz)
+PyPDF2>=3.0.0    # Alternative
+
+# Word/DOCX
+python-docx>=0.8.11
+
+# Autres formats
+openpyxl>=3.1.0   # Excel
+python-pptx>=0.6.21  # PowerPoint
+
+# ====================================
+# GÉNÉRATION DE DOCUMENTS
+# ====================================
+
+# PDF
+reportlab>=4.0.0
+
+# Markdown
+markdown>=3.4.0
+markdown2>=2.4.0
+
+# ====================================
+# INTERFACE UTILISATEUR
+# ====================================
+
+# Interface graphique (optionnel)
+tkinter  # Intégré à Python
+streamlit>=1.25.0  # Interface web moderne
+
+# Rich text dans le terminal
+rich>=13.0.0
+colorama>=0.4.6
+
+# ====================================
+# UTILITAIRES
+# ====================================
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Dates et temps
+python-dateutil>=2.8.0
+
+# Validation
+validators>=0.20.0
+
+# Expressions régulières avancées
+regex>=2023.0.0
+
+# ====================================
+# DÉVELOPPEMENT ET TESTS
+# ====================================
+
+# Tests
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+coverage>=7.0.0
+
+# Linting et formatage
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+
+# ====================================
+# OPTIONNEL - FONCTIONNALITÉS AVANCÉES
+# ====================================
+
+# Base de données locale
+sqlite3  # Intégré à Python
+sqlalchemy>=2.0.0
+
+# Cache
+diskcache>=5.6.0
+
+# Reconnaissance vocale (optionnel)
+# speech-recognition>=3.10.0
+# pyttsx3>=2.90
+
+# ====================================
+# SÉCURITÉ
+# ====================================
+
+# Chiffrement
+cryptography>=41.0.0
+
+# ====================================
+# NOTES D'INSTALLATION
+# ====================================
+
+# Installation basique:
+# pip install -r requirements.txt
+
+# Pour GPU (NVIDIA):
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Pour Ollama (recommandé):
+# Télécharger depuis: https://ollama.ai/
+# Puis: ollama pull llama3.2
+
+# ====================================
+# VERSIONS MINIMALES PYTHON
+# ====================================
+# Python >= 3.8 requis
+# Python >= 3.10 recommandé
