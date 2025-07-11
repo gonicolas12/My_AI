@@ -13,46 +13,46 @@
 
 ```
 my_ai/
-├── core/                    # Cœur de l'IA
+├── core/                      # Cœur de l'IA
 │   ├── __init__.py
-│   ├── ai_engine.py        # Moteur principal IA
-│   ├── conversation.py     # Gestion des conversations
-│   └── config.py          # Configuration globale
-├── models/                 # Modèles d'IA locaux avancés
+│   ├── ai_engine.py           # Moteur principal IA
+│   ├── conversation.py        # Gestion des conversations
+│   └── config.py              # Configuration globale
+├── models/                    # Modèles d'IA locaux avancés
 │   ├── __init__.py
-│   ├── custom_ai_model.py # Modèle IA principal avec intentions
+│   ├── custom_ai_model.py     # Modèle IA principal avec intentions
 │   ├── conversation_memory.py # Mémoire conversationnelle avancée
-│   ├── base_ai.py         # Interface de base
+│   ├── base_ai.py             # Interface de base
 │   ├── linguistic_patterns.py # Reconnaissance d'intentions et patterns
-│   ├── knowledge_base.py  # Base de connaissances locale
-│   ├── reasoning_engine.py # Moteur de raisonnement logique
-│   └── internet_search.py # Moteur de recherche internet
-├── processors/            # Processeurs de fichiers
+│   ├── knowledge_base.py      # Base de connaissances locale
+│   ├── reasoning_engine.py    # Moteur de raisonnement logique
+│   └── internet_search.py     # Moteur de recherche internet
+├── processors/                # Processeurs de fichiers
 │   ├── __init__.py
-│   ├── pdf_processor.py   # Traitement PDF
-│   ├── docx_processor.py  # Traitement DOCX
-│   └── code_processor.py  # Traitement de code
-├── generators/            # Générateurs de contenu
+│   ├── pdf_processor.py       # Traitement PDF
+│   ├── docx_processor.py      # Traitement DOCX
+│   └── code_processor.py      # Traitement de code
+├── generators/                # Générateurs de contenu
 │   ├── __init__.py
-│   ├── document_generator.py # Génération docs
-│   ├── code_generator.py    # Génération code
-│   └── report_generator.py  # Génération rapports
-├── interfaces/            # Interfaces utilisateur
+│   ├── document_generator.py  # Génération docs
+│   ├── code_generator.py      # Génération code
+│   └── report_generator.py    # Génération rapports
+├── interfaces/                # Interfaces utilisateur
 │   ├── __init__.py
-│   ├── cli.py            # Interface ligne de commande
-│   ├── gui.py            # Interface graphique
-│   └── vscode_extension.py # Extension VS Code
-├── utils/                 # Utilitaires
+│   ├── cli.py                 # Interface ligne de commande
+│   ├── gui.py                 # Interface graphique
+│   └── vscode_extension.py    # Extension VS Code
+├── utils/                     # Utilitaires
 │   ├── __init__.py
-│   ├── file_manager.py   # Gestion fichiers
-│   ├── logger.py         # Logging
-│   └── validators.py     # Validation
-├── tests/                # Tests unitaires
-├── docs/                 # Documentation
-├── examples/             # Exemples d'utilisation
-├── main.py              # Point d'entrée principal
-├── requirements.txt     # Dépendances
-└── config.yaml         # Configuration
+│   ├── file_manager.py        # Gestion fichiers
+│   ├── logger.py              # Logging
+│   └── validators.py          # Validation
+├── tests/                     # Tests unitaires
+├── docs/                      # Documentation
+├── examples/                  # Exemples d'utilisation
+├── main.py                    # Point d'entrée principal
+├── requirements.txt           # Dépendances
+└── config.yaml                # Configuration
 ```
 
 ## 🚀 Fonctionnalités Principales
