@@ -244,6 +244,61 @@ class LinguisticPatterns:
                     "indicators": ["aide", "help", "besoin"],
                     "weight": 0.9,
                     "priority": "medium"
+                },
+                
+                "thank_you": {
+                    "patterns": [
+                        r"^merci\s*$",
+                        r"^merci\s+beaucoup\s*$",
+                        r"^merci\s+bien\s*$",
+                        r"^merci\s+bcp\s*$",
+                        r"^grand\s+merci\s*$",
+                        r"^je\s+te\s+remercie\s*$",
+                        r"^je\s+vous\s+remercie\s*$",
+                        r"^thanks?\s*$",
+                        r"^thx\s*$",
+                        r"^mercy\s*$",
+                        r"^mrci\s*$",
+                        r"^(?:oui\s+)?merci\s*!*$",
+                        r"^merci\s+vraiment\s*$",
+                        r"^merci\s+énormément\s*$",
+                        r"^merci\s+infiniment\s*$"
+                    ],
+                    "indicators": ["merci", "thanks", "thx", "remercie"],
+                    "weight": 1.0,
+                    "priority": "high"
+                },
+                
+                "goodbye": {
+                    "patterns": [
+                        r"^(?:au revoir|bye|à bientôt|salut|ciao|adieu)\s*$",
+                        r"^(?:je dois y aller|je me sauve|à plus|@\+)\s*$",
+                        r"^(?:bonne journée|bonne soirée|bonne nuit)\s*$"
+                    ],
+                    "indicators": ["au revoir", "bye", "bientôt", "journée", "soirée"],
+                    "weight": 0.9,
+                    "priority": "medium"
+                },
+                
+                "affirmation": {
+                    "patterns": [
+                        r"^(?:oui|yes|yep|ouais|ok|d'accord|daccord)\s*$",
+                        r"^(?:parfait|excellent|super|génial|cool|top)\s*$",
+                        r"^(?:très bien|c'est bon|ça marche)\s*$"
+                    ],
+                    "indicators": ["oui", "ok", "parfait", "bien", "marche"],
+                    "weight": 0.8,
+                    "priority": "medium"
+                },
+                
+                "negation": {
+                    "patterns": [
+                        r"^(?:non|no|nope|pas|jamais|nan)\s*$",
+                        r"^(?:pas du tout|absolument pas|certainement pas)\s*$"
+                    ],
+                    "indicators": ["non", "pas", "jamais", "absolument"],
+                    "weight": 0.8,
+                    "priority": "medium"
                 }
             }
         }
