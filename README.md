@@ -1,23 +1,13 @@
-# 🤖Une IA personnelle **hybride locale/internet**, capable de :
+# 🤖 Une IA personnelle **hybride locale/internet**, capable de :
+
 - 💬 Conversations intelligentes avec reconnaissance d'intentions avancée
 - 🧠 Mémoire conversationnelle persistante et contextuelle
 - 📄 Traitement complet des documents PDF et DOCX
 - 💻 Analyse, génération et débogage de code
-- 🌐 **NOUVEAU v2.3.0** : Recherche internet intelligente avec résumés automatiques
+- 🌐 Recherche internet intelligente avec résumés automatiques
 - 🔍 Distinction automatique entre questions techniques, documents et conversations générales
 - 🖥️ Interface graphique moderne et intuitive
-- 🔧 Fonctionnement local avec recherche internet optionnelleonal AI - IA 100% Locale
-
-## 📋 Vue d'ensemble
-
-Une IA personnelle **entièrement locale**, sans dépendance à des services externes, capable de :
-- 💬 Conversations intelligentes avec reconnaissance d'intentions avancée
-- 🧠 Mémoire conversationnelle persistante et contextuelle
-- 📄 Traitement complet des documents PDF et DOCX
-- 💻 Analyse, génération et débogage de code
-- 🔍 Distinction automatique entre questions techniques, documents et conversations générales
-- �️ Interface graphique moderne et intuitive
-- 🔧 Fonctionnement 100% hors ligne (aucun LLM externe requis)
+- 🔧 Fonctionnement local avec recherche internet - IA 100% Locale
 
 ## 🏗️ Architecture Modulaire
 
@@ -36,7 +26,7 @@ my_ai/
 │   ├── linguistic_patterns.py # Reconnaissance d'intentions et patterns
 │   ├── knowledge_base.py  # Base de connaissances locale
 │   ├── reasoning_engine.py # Moteur de raisonnement logique
-│   └── internet_search.py # 🌐 NOUVEAU : Moteur de recherche internet
+│   └── internet_search.py # Moteur de recherche internet
 ├── processors/            # Processeurs de fichiers
 │   ├── __init__.py
 │   ├── pdf_processor.py   # Traitement PDF
