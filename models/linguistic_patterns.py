@@ -138,7 +138,7 @@ class LinguisticPatterns:
                     "indicators": ["comment", "ça", "va", "et toi", "et vous", "?"],
                     "weight": 1.0,
                     "priority": "high",
-                    "exclude_if_not": ["et toi", "et vous", "comment", "?"]
+                    "exclude_if": ["python", "liste", "créer", "fonction", "variable", "code", "programme", "script", "programmation"]
                 },
                 
                 # ✅ NOUVEAU: Affirmations simples "ça va" (sans question)
@@ -186,6 +186,24 @@ class LinguisticPatterns:
                     "weight": 1.1,
                     "priority": "high",
                     "context_boost": ["code_file_processed"]
+                },
+                
+                "programming_question": {
+                    "patterns": [
+                        r"comment\s+(?:créer|creer|faire|créé|cree)\s+(?:une|un|des).+(?:liste|dictionnaire|fonction|variable|classe|boucle|condition)",
+                        r"comment\s+(?:utiliser|employer|se servir de).+(?:python|javascript|html|css)",
+                        r"(?:créer|creer|faire|génère|genere).+(?:liste|array|dictionnaire|dict|fonction|def|classe|class)",
+                        r"qu[\'']?est[- ]ce qu[\'']?(?:une|un).+(?:liste|dictionnaire|fonction|variable|classe|objet|array)",
+                        r"comment\s+(?:on|peut[- ]on|faire|declare|déclare).+(?:variable|liste|fonction|dictionnaire)",
+                        r"(?:syntaxe|écriture).+(?:python|liste|fonction|boucle|condition)",
+                        r"comment\s+(?:écrit|ecrire|programmer|coder).+(?:en\s+python|une\s+fonction|une\s+liste)",
+                        r"(?:apprendre|comprendre).+(?:python|programmation|les\s+listes|les\s+fonctions)",
+                        r"(?:différence|difference)\s+entre.+(?:liste|dict|tuple|set)",
+                        r"comment\s+(?:marche|fonctionne).+(?:les\s+listes|les\s+dictionnaires|python)"
+                    ],
+                    "indicators": ["python", "liste", "dictionnaire", "fonction", "variable", "créer", "comment", "syntaxe", "programmation", "code"],
+                    "weight": 1.3,
+                    "priority": "high"
                 },
                 
                 "greeting": {

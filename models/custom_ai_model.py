@@ -6,6 +6,7 @@ Intègre tous les modules pour une IA 100% locale avec mémoire de conversation
 import re
 import json
 import time
+import random
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
@@ -76,6 +77,22 @@ class CustomAIModel(BaseAI):
                 "Je possède plusieurs modules spécialisés :\n• CodeGenerator : pour créer du code dans différents langages\n• KnowledgeBase : pour stocker et récupérer des connaissances\n• LinguisticPatterns : pour comprendre vos messages\n• ReasoningEngine : pour le raisonnement et la logique\n• ConversationMemory : pour mémoriser nos échanges\n\nTout fonctionne en local !"
             ]
         }
+        
+        # Stock de blagues
+        self.jokes = [
+            "Pourquoi les plongeurs plongent-ils toujours en arrière et jamais en avant ? Parce que sinon, ils tombent dans le bateau ! 😄",
+            "Que dit un escargot quand il croise une limace ? « Regarde, un nudiste ! » 🐌",
+            "Pourquoi les poissons n'aiment pas jouer au tennis ? Parce qu'ils ont peur du filet ! 🐟",
+            "Comment appelle-t-on un chat tombé dans un pot de peinture le jour de Noël ? Un chat-mallow ! 🎨",
+            "Que dit un informaticien quand il se noie ? F1 ! F1 ! 💻",
+            "Pourquoi les programmeurs préfèrent-ils le noir ? Parce que light attire les bugs ! 🐛",
+            "Comment appelle-t-on un boomerang qui ne revient pas ? Un bâton ! 🪃",
+            "Que dit un café qui arrive en retard au bureau ? « Désolé, j'ai eu un grain ! » ☕",
+            "Pourquoi les développeurs détestent-ils la nature ? Parce qu'elle a trop de bugs ! 🌿",
+            "Comment appelle-t-on un algorithme qui chante ? Un algo-rythme ! 🎵",
+            "Que dit Python quand il rencontre Java ? « Salut, tu veux que je t'indente ? » 🐍",
+            "Pourquoi les IA ne racontent jamais de mauvaises blagues ? Parce qu'elles ont un bon sense of humor ! 🤖"
+        ]
         
         print(f"✅ {self.name} v{self.version} initialisé avec succès")
         print(f"🧠 Modules chargés : Linguistique, Base de connaissances, Génération de code, Raisonnement, Mémoire")
@@ -272,6 +289,8 @@ class CustomAIModel(BaseAI):
             return self._generate_compliment_response(user_input, context)
         elif intent == "code_generation" or intent == "code_request":
             return self._generate_code_response(user_input, context)
+        elif intent == "programming_question":
+            return self._answer_programming_question(user_input, context)
         elif intent == "code_question":
             # Vérifier s'il y a du code en mémoire
             stored_docs = self.conversation_memory.get_document_content()
@@ -281,7 +300,19 @@ class CustomAIModel(BaseAI):
                 return self._answer_code_question(user_input, code_docs)
             else:
                 return "Je n'ai pas de code en mémoire à analyser. Traitez d'abord un fichier de code."
-            # Validation finale du type de réponse
+        
+        # Vérification spéciale pour les demandes de blagues
+        user_lower = user_input.lower()
+        joke_keywords = [
+            "dis moi une blague", "raconte moi une blague", "t'aurais une blague",
+            "aurais-tu une blague", "une blague", "raconte une blague",
+            "dis une blague", "tu connais une blague", "connais-tu une blague"
+        ]
+        
+        if any(keyword in user_lower for keyword in joke_keywords):
+            return self._tell_joke()
+            
+        # Validation finale du type de réponse
         if intent == "document_question":
             stored_docs = self.conversation_memory.get_document_content()
             response = self._answer_document_question(user_input, stored_docs)
@@ -568,6 +599,524 @@ Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'
         
         # Réponse encourageante par défaut
         return "Je ne suis pas sûr de bien comprendre. Pouvez-vous reformuler ? Je peux vous aider avec l'analyse de documents, la génération de code, ou simplement discuter !"
+    
+    def _tell_joke(self) -> str:
+        """Raconte une blague aléatoire du stock"""
+        if not self.jokes:
+            return "Désolé, je n'ai pas de blague en stock pour le moment ! 😅"
+        
+        joke = random.choice(self.jokes)
+        
+        # Phrases d'introduction variées
+        introductions = [
+            "Voici une petite blague pour vous ! 😄",
+            "Tiens, j'en ai une bonne ! 😆",
+            "Allez, une petite blague pour détendre l'atmosphère ! 😊",
+            "Haha, j'en connais une excellente ! 🤣",
+            "Prêt pour une blague ? 😄",
+            "Je vais vous faire sourire ! 😁"
+        ]
+        
+        intro = random.choice(introductions)
+        return f"{intro}\n\n{joke}"
+    
+    def _answer_programming_question(self, user_input: str, context: Dict[str, Any]) -> str:
+        """Répond aux questions de programmation avec des exemples pratiques"""
+        user_lower = user_input.lower()
+        
+        # Détection du type de question et réponse avec exemples
+        if any(word in user_lower for word in ["liste", "list"]):
+            return self._explain_python_lists()
+        elif any(word in user_lower for word in ["dictionnaire", "dict"]):
+            return self._explain_python_dictionaries()
+        elif any(word in user_lower for word in ["fonction", "def"]):
+            return self._explain_python_functions()
+        elif any(word in user_lower for word in ["variable"]):
+            return self._explain_python_variables()
+        elif any(word in user_lower for word in ["boucle", "for", "while"]):
+            return self._explain_python_loops()
+        elif any(word in user_lower for word in ["condition", "if", "else"]):
+            return self._explain_python_conditions()
+        elif any(word in user_lower for word in ["classe", "class", "objet"]):
+            return self._explain_python_classes()
+        else:
+            return self._generate_general_programming_help(user_input)
+    
+    def _explain_python_lists(self) -> str:
+        """Explique comment créer et utiliser les listes en Python"""
+        return """🐍 **Comment créer une liste en Python**
+
+Une liste est une collection ordonnée d'éléments modifiables. Voici comment s'y prendre :
+
+📝 **Création d'une liste :**
+```python
+# Liste vide
+ma_liste = []
+
+# Liste avec des éléments
+fruits = ["pomme", "banane", "orange"]
+nombres = [1, 2, 3, 4, 5]
+mixte = ["texte", 42, True, 3.14]
+```
+
+🔧 **Opérations courantes :**
+```python
+# Ajouter un élément
+fruits.append("kiwi")          # ["pomme", "banane", "orange", "kiwi"]
+
+# Insérer à une position
+fruits.insert(1, "fraise")     # ["pomme", "fraise", "banane", "orange", "kiwi"]
+
+# Accéder à un élément
+premier_fruit = fruits[0]       # "pomme"
+dernier_fruit = fruits[-1]      # "kiwi"
+
+# Modifier un élément
+fruits[0] = "poire"            # ["poire", "fraise", "banane", "orange", "kiwi"]
+
+# Supprimer un élément
+fruits.remove("fraise")        # ["poire", "banane", "orange", "kiwi"]
+del fruits[0]                  # ["banane", "orange", "kiwi"]
+
+# Longueur de la liste
+taille = len(fruits)           # 3
+```
+
+💡 **Conseils pratiques :**
+• Les listes sont indexées à partir de 0
+• Utilisez des indices négatifs pour partir de la fin
+• Les listes peuvent contenir différents types de données"""
+
+    def _explain_python_dictionaries(self) -> str:
+        """Explique comment créer et utiliser les dictionnaires en Python"""
+        return """🐍 **Comment créer un dictionnaire en Python**
+
+Un dictionnaire stocke des paires clé-valeur. Parfait pour associer des données !
+
+📝 **Création d'un dictionnaire :**
+```python
+# Dictionnaire vide
+mon_dict = {}
+
+# Dictionnaire avec des données
+personne = {
+    "nom": "Dupont",
+    "age": 30,
+    "ville": "Paris"
+}
+
+# Autre méthode
+coords = dict(x=10, y=20, z=5)
+```
+
+🔧 **Opérations courantes :**
+```python
+# Accéder à une valeur
+nom = personne["nom"]           # "Dupont"
+age = personne.get("age", 0)    # 30 (ou 0 si pas trouvé)
+
+# Ajouter/modifier une valeur
+personne["email"] = "dupont@example.com"
+personne["age"] = 31
+
+# Vérifier si une clé existe
+if "nom" in personne:
+    print("Nom trouvé !")
+
+# Supprimer un élément
+del personne["ville"]
+email = personne.pop("email", "")  # Récupère et supprime
+
+# Récupérer toutes les clés/valeurs
+cles = list(personne.keys())       # ["nom", "age"]
+valeurs = list(personne.values())  # ["Dupont", 31]
+```
+
+💡 **Conseils pratiques :**
+• Les clés doivent être uniques et immuables
+• Utilisez `get()` pour éviter les erreurs
+• Parfait pour structurer des données complexes"""
+
+    def _explain_python_functions(self) -> str:
+        """Explique comment créer des fonctions en Python"""
+        return """🐍 **Comment créer une fonction en Python**
+
+Les fonctions permettent de réutiliser du code et d'organiser votre programme.
+
+📝 **Syntaxe de base :**
+```python
+def nom_fonction(paramètres):
+    \"\"\"Description de la fonction\"\"\"
+    # Code de la fonction
+    return résultat  # optionnel
+```
+
+🔧 **Exemples pratiques :**
+```python
+# Fonction simple
+def dire_bonjour():
+    print("Bonjour !")
+
+# Fonction avec paramètres
+def saluer(nom, age=25):
+    return f"Salut {nom}, tu as {age} ans !"
+
+# Fonction avec calcul
+def calculer_aire_rectangle(longueur, largeur):
+    \"\"\"Calcule l'aire d'un rectangle\"\"\"
+    aire = longueur * largeur
+    return aire
+
+# Fonction avec plusieurs retours
+def diviser(a, b):
+    if b == 0:
+        return None, "Division par zéro impossible"
+    return a / b, "OK"
+
+# Utilisation
+dire_bonjour()                          # Affiche: Bonjour !
+message = saluer("Alice")               # "Salut Alice, tu as 25 ans !"
+message2 = saluer("Bob", 30)            # "Salut Bob, tu as 30 ans !"
+aire = calculer_aire_rectangle(5, 3)    # 15
+resultat, statut = diviser(10, 2)       # 5.0, "OK"
+```
+
+💡 **Bonnes pratiques :**
+• Utilisez des noms descriptifs
+• Ajoutez une docstring pour documenter
+• Une fonction = une responsabilité
+• Utilisez des paramètres par défaut quand c'est utile"""
+
+    def _explain_python_variables(self) -> str:
+        """Explique comment créer et utiliser les variables en Python"""
+        return """🐍 **Comment créer des variables en Python**
+
+Les variables stockent des données que vous pouvez utiliser dans votre programme.
+
+📝 **Création de variables :**
+```python
+# Texte (string)
+nom = "Alice"
+prenom = 'Bob'
+message = \"\"\"Texte
+sur plusieurs
+lignes\"\"\"
+
+# Nombres
+age = 25                    # Entier (int)
+taille = 1.75              # Décimal (float)
+complexe = 3 + 4j          # Nombre complexe
+
+# Booléens
+est_majeur = True
+est_mineur = False
+
+# Collections
+fruits = ["pomme", "banane"]        # Liste
+personne = {"nom": "Dupont"}        # Dictionnaire
+coordonnees = (10, 20)              # Tuple (immuable)
+```
+
+🔧 **Opérations avec variables :**
+```python
+# Assignation multiple
+x, y, z = 1, 2, 3
+nom, age = "Alice", 30
+
+# Échange de valeurs
+a, b = 5, 10
+a, b = b, a                # a=10, b=5
+
+# Opérations mathématiques
+somme = x + y              # 3
+produit = x * z            # 3
+puissance = x ** 3         # 1
+
+# Concaténation de texte
+nom_complet = prenom + " " + nom    # "Bob Alice"
+presentation = f"Je suis {nom}, {age} ans"  # f-string
+
+# Vérification du type
+type(age)                  # <class 'int'>
+isinstance(taille, float)  # True
+```
+
+💡 **Règles importantes :**
+• Noms en minuscules avec _ pour séparer
+• Pas d'espaces, pas de chiffres au début
+• Évitez les mots-clés Python (if, for, class...)
+• Soyez descriptifs : `age_utilisateur` plutôt que `a`"""
+
+    def _explain_python_loops(self) -> str:
+        """Explique les boucles en Python"""
+        return """🐍 **Comment utiliser les boucles en Python**
+
+Les boucles permettent de répéter du code automatiquement.
+
+📝 **Boucle for (pour itérer) :**
+```python
+# Boucle sur une liste
+fruits = ["pomme", "banane", "orange"]
+for fruit in fruits:
+    print(f"J'aime les {fruit}s")
+
+# Boucle avec un range
+for i in range(5):          # 0, 1, 2, 3, 4
+    print(f"Compteur: {i}")
+
+for i in range(2, 8, 2):    # 2, 4, 6 (début, fin, pas)
+    print(f"Nombre pair: {i}")
+
+# Boucle avec index et valeur
+for index, fruit in enumerate(fruits):
+    print(f"{index}: {fruit}")
+
+# Boucle sur un dictionnaire
+personne = {"nom": "Alice", "age": 30}
+for cle, valeur in personne.items():
+    print(f"{cle}: {valeur}")
+```
+
+🔄 **Boucle while (tant que) :**
+```python
+# Boucle while classique
+compteur = 0
+while compteur < 5:
+    print(f"Compteur: {compteur}")
+    compteur += 1          # Important: incrémenter !
+
+# Boucle infinie contrôlée
+while True:
+    reponse = input("Continuez ? (o/n): ")
+    if reponse.lower() == 'n':
+        break              # Sort de la boucle
+    print("On continue !")
+```
+
+🛑 **Contrôle des boucles :**
+```python
+# break : sort de la boucle
+for i in range(10):
+    if i == 5:
+        break              # Sort quand i=5
+    print(i)               # Affiche 0,1,2,3,4
+
+# continue : passe à l'itération suivante
+for i in range(5):
+    if i == 2:
+        continue           # Saute i=2
+    print(i)               # Affiche 0,1,3,4
+```
+
+💡 **Conseils pratiques :**
+• `for` pour un nombre connu d'itérations
+• `while` pour des conditions variables
+• Attention aux boucles infinies avec `while`
+• Utilisez `enumerate()` si vous avez besoin de l'index"""
+
+    def _explain_python_conditions(self) -> str:
+        """Explique les conditions en Python"""
+        return """🐍 **Comment utiliser les conditions en Python**
+
+Les conditions permettent d'exécuter du code selon certains critères.
+
+📝 **Structure if/elif/else :**
+```python
+age = 18
+
+if age >= 18:
+    print("Vous êtes majeur")
+elif age >= 16:
+    print("Vous pouvez conduire")
+elif age >= 13:
+    print("Vous êtes adolescent")
+else:
+    print("Vous êtes enfant")
+```
+
+🔍 **Opérateurs de comparaison :**
+```python
+# Égalité et inégalité
+x == y          # Égal à
+x != y          # Différent de
+x > y           # Supérieur à
+x >= y          # Supérieur ou égal
+x < y           # Inférieur à
+x <= y          # Inférieur ou égal
+
+# Appartenance
+"a" in "maison"     # True
+"pomme" in fruits   # True si pomme dans la liste
+
+# Identité
+x is None           # True si x vaut None
+x is not None       # True si x ne vaut pas None
+```
+
+🔗 **Opérateurs logiques :**
+```python
+age = 25
+nom = "Alice"
+
+# AND (et) - toutes les conditions doivent être vraies
+if age >= 18 and nom == "Alice":
+    print("Alice est majeure")
+
+# OR (ou) - au moins une condition doit être vraie
+if age < 18 or nom == "Bob":
+    print("Mineur ou Bob")
+
+# NOT (non) - inverse la condition
+if not (age < 18):
+    print("Pas mineur = majeur")
+```
+
+🎯 **Conditions avancées :**
+```python
+# Conditions multiples
+note = 85
+if 80 <= note <= 100:      # Équivalent à: note >= 80 and note <= 100
+    print("Excellent !")
+
+# Conditions avec fonctions
+def est_pair(nombre):
+    return nombre % 2 == 0
+
+if est_pair(4):
+    print("4 est pair")
+
+# Opérateur ternaire (condition courte)
+statut = "majeur" if age >= 18 else "mineur"
+resultat = "pair" if x % 2 == 0 else "impair"
+
+# Vérification d'existence
+if fruits:                 # True si la liste n'est pas vide
+    print("Il y a des fruits")
+
+if nom:                    # True si nom n'est pas vide
+    print(f"Bonjour {nom}")
+```
+
+💡 **Bonnes pratiques :**
+• Utilisez des parenthèses pour clarifier les conditions complexes
+• Préférez `is` et `is not` pour comparer avec `None`
+• Évitez les conditions trop imbriquées
+• Pensez aux cas limites (listes vides, valeurs None...)"""
+
+    def _explain_python_classes(self) -> str:
+        """Explique les classes en Python"""
+        return """🐍 **Comment créer des classes en Python**
+
+Les classes permettent de créer vos propres types d'objets avec propriétés et méthodes.
+
+📝 **Syntaxe de base :**
+```python
+class Personne:
+    \"\"\"Classe représentant une personne\"\"\"
+    
+    def __init__(self, nom, age):
+        \"\"\"Constructeur : appelé à la création\"\"\"
+        self.nom = nom          # Attribut
+        self.age = age          # Attribut
+        self.email = None       # Attribut optionnel
+    
+    def se_presenter(self):
+        \"\"\"Méthode pour se présenter\"\"\"
+        return f"Je suis {self.nom}, j'ai {self.age} ans"
+    
+    def avoir_anniversaire(self):
+        \"\"\"Méthode pour vieillir d'un an\"\"\"
+        self.age += 1
+        print(f"Joyeux anniversaire ! Maintenant {self.age} ans")
+```
+
+🏗️ **Utilisation de la classe :**
+```python
+# Créer des objets (instances)
+alice = Personne("Alice", 25)
+bob = Personne("Bob", 30)
+
+# Utiliser les méthodes
+print(alice.se_presenter())     # "Je suis Alice, j'ai 25 ans"
+bob.avoir_anniversaire()        # "Joyeux anniversaire ! Maintenant 31 ans"
+
+# Accéder/modifier les attributs
+alice.email = "alice@example.com"
+print(f"Email: {alice.email}")
+
+# Chaque objet est indépendant
+print(f"Alice: {alice.age} ans")    # 25
+print(f"Bob: {bob.age} ans")        # 31
+```
+
+🔧 **Exemple plus complet :**
+```python
+class CompteBancaire:
+    \"\"\"Classe pour gérer un compte bancaire\"\"\"
+    
+    def __init__(self, proprietaire, solde_initial=0):
+        self.proprietaire = proprietaire
+        self.solde = solde_initial
+        self.historique = []
+    
+    def deposer(self, montant):
+        \"\"\"Déposer de l'argent\"\"\"
+        if montant > 0:
+            self.solde += montant
+            self.historique.append(f"Dépôt: +{montant}€")
+            return True
+        return False
+    
+    def retirer(self, montant):
+        \"\"\"Retirer de l'argent\"\"\"
+        if 0 < montant <= self.solde:
+            self.solde -= montant
+            self.historique.append(f"Retrait: -{montant}€")
+            return True
+        return False
+    
+    def afficher_solde(self):
+        \"\"\"Afficher le solde\"\"\"
+        return f"Solde de {self.proprietaire}: {self.solde}€"
+
+# Utilisation
+compte = CompteBancaire("Alice", 1000)
+compte.deposer(500)
+compte.retirer(200)
+print(compte.afficher_solde())      # "Solde de Alice: 1300€"
+```
+
+💡 **Concepts clés :**
+• `__init__` : constructeur appelé à la création
+• `self` : référence à l'instance courante
+• Attributs : variables de l'objet
+• Méthodes : fonctions de l'objet
+• Encapsulation : regrouper données et comportements"""
+
+    def _generate_general_programming_help(self, user_input: str) -> str:
+        """Génère une aide générale sur la programmation"""
+        return """🐍 **Aide générale Python**
+
+Je peux vous aider avec de nombreux concepts Python ! Voici quelques exemples :
+
+📚 **Sujets disponibles :**
+• **Listes** : "Comment créer une liste en Python ?"
+• **Dictionnaires** : "Comment utiliser un dictionnaire ?"
+• **Fonctions** : "Comment créer une fonction ?"
+• **Variables** : "Comment déclarer une variable ?"
+• **Boucles** : "Comment faire une boucle for ?"
+• **Conditions** : "Comment utiliser if/else ?"
+• **Classes** : "Comment créer une classe ?"
+
+💡 **Exemples de questions :**
+• "Comment créer une liste en Python ?"
+• "Quelle est la différence entre une liste et un dictionnaire ?"
+• "Comment faire une boucle sur un dictionnaire ?"
+• "Comment créer une fonction avec des paramètres ?"
+
+🎯 **Soyez spécifique :** Plus votre question est précise, plus ma réponse sera adaptée à vos besoins !
+
+Que voulez-vous apprendre exactement ?"""
     
     def _get_random_response(self, responses: List[str]) -> str:
         """Sélectionne une réponse aléatoire"""
