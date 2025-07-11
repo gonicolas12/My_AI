@@ -271,7 +271,7 @@ class LinguisticPatterns:
                 
                 "goodbye": {
                     "patterns": [
-                        r"^(?:au revoir|bye|à bientôt|salut|ciao|adieu)\s*$",
+                        r"^(?:au revoir|bye|à bientôt|salut|ciao)\s*$",
                         r"^(?:je dois y aller|je me sauve|à plus|@\+)\s*$",
                         r"^(?:bonne journée|bonne soirée|bonne nuit)\s*$"
                     ],

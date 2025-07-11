@@ -47,6 +47,10 @@ class CustomAIModel(BaseAI):
             "current_document": None
         }
         
+        # Suivi des blagues pour éviter les répétitions
+        self.used_jokes = set()  # Index des blagues déjà utilisées
+        self.jokes_reset_threshold = 0.8  # Reset quand 80% des blagues sont utilisées
+        
         # Réponses personnalisées pour l'identité
         self.identity_responses = {
             "basic": [
@@ -93,7 +97,26 @@ class CustomAIModel(BaseAI):
             "Pourquoi les développeurs détestent-ils la nature ? Parce qu'elle a trop de bugs ! 🌿",
             "Comment appelle-t-on un algorithme qui chante ? Un algo-rythme ! 🎵",
             "Que dit Python quand il rencontre Java ? « Salut, tu veux que je t'indente ? » 🐍",
-            "Pourquoi les IA ne racontent jamais de mauvaises blagues ? Parce qu'elles ont un bon sense of humor ! 🤖"
+            "Pourquoi les IA ne racontent jamais de mauvaises blagues ? Parce qu'elles ont un bon sense of humor ! 🤖",
+            "Vous avez les cramptés ? QUOICOU... euuuuh nan. APANYAN. Ptit flop comme on dis sur twitt... euh X ! 😄",
+            "Pourquoi les ordinateurs n’aiment-ils pas le soleil ? Parce qu’ils préfèrent rester à l’ombre du cloud ! ☁️",
+            "Quel est le comble pour un développeur ? De ne pas avoir de classe ! 👨‍💻",
+            "Pourquoi les robots n’ont-ils jamais froid ? Parce qu’ils ont des processeurs ! 🤖",
+            "Que dit un serveur à un client fatigué ? Tu veux un cookie ? 🍪",
+            "Pourquoi le wifi est jaloux du bluetooth ? Parce que le bluetooth a plus de connexions rapprochées ! 📶",
+            "Comment appelle-t-on un bug qui danse ? Un buggie ! 🕺",
+            "Pourquoi les informaticiens aiment les pizzas ? Parce qu’il y a toujours des parts égales ! 🍕",
+            "Que fait un développeur quand il a faim ? Il mange des bytes ! 😋",
+            "Pourquoi le codeur a-t-il mis ses lunettes ? Pour mieux voir les exceptions ! 🤓",
+            "Comment appelle-t-on un ordinateur qui chante faux ? Un PC-cacophonie ! 🎤",
+            "Pourquoi les IA aiment les maths ? Parce qu’elles trouvent ça logique ! ➗",
+            "Que dit un fichier corrompu à son ami ? Je ne suis pas dans mon assiette ! 🥴",
+            "Pourquoi le clavier est toujours de bonne humeur ? Parce qu’il a plein de touches ! 🎹",
+            "Comment appelle-t-on un réseau qui fait du sport ? Un net-working ! 🏋️",
+            "Pourquoi les développeurs aiment les ascenseurs ? Parce qu’ils ont des niveaux ! 🛗",
+            "Que dit un bug à un autre bug ? On se retrouve dans le log ! 🐞",
+            "Pourquoi le serveur est fatigué ? Il a trop de requêtes ! 💤",
+            "Comment appelle-t-on un ordinateur qui fait du jardinage ? Un planteur de bits ! 🌱",
         ]
         
         print(f"✅ {self.name} v{self.version} initialisé avec succès")
@@ -311,7 +334,8 @@ class CustomAIModel(BaseAI):
         joke_keywords = [
             "dis moi une blague", "raconte moi une blague", "t'aurais une blague",
             "aurais-tu une blague", "une blague", "raconte une blague",
-            "dis une blague", "tu connais une blague", "connais-tu une blague"
+            "dis une blague", "tu connais une blague", "connais-tu une blague", "fais moi une blague", 
+            "une blague stp", "une autre blague"
         ]
         
         if any(keyword in user_lower for keyword in joke_keywords):
@@ -614,11 +638,34 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
         return "Je ne suis pas sûr de bien comprendre. Pouvez-vous reformuler ? Je peux vous aider avec l'analyse de documents, la génération de code, ou simplement discuter !"
     
     def _tell_joke(self) -> str:
-        """Raconte une blague aléatoire du stock"""
+        """Raconte une blague aléatoire du stock en évitant les répétitions"""
         if not self.jokes:
             return "Désolé, je n'ai pas de blague en stock pour le moment ! 😅"
         
-        joke = random.choice(self.jokes)
+        # Si on a utilisé la plupart des blagues, on reset
+        if len(self.used_jokes) >= len(self.jokes) * self.jokes_reset_threshold:
+            self.used_jokes.clear()
+            intro_reset = "Bon, j'ai épuisé mon stock, je recommence ! 😄\n\n"
+        else:
+            intro_reset = ""
+        
+        # Trouver les blagues non utilisées
+        available_jokes = []
+        for i, joke in enumerate(self.jokes):
+            if i not in self.used_jokes:
+                available_jokes.append((i, joke))
+        
+        # Si plus de blagues disponibles, reset complet
+        if not available_jokes:
+            self.used_jokes.clear()
+            available_jokes = [(i, joke) for i, joke in enumerate(self.jokes)]
+            intro_reset = "J'ai fait le tour de mes blagues, je recommence ! 😄\n\n"
+        
+        # Sélectionner une blague aléatoire parmi celles disponibles
+        joke_index, selected_joke = random.choice(available_jokes)
+        
+        # Marquer cette blague comme utilisée
+        self.used_jokes.add(joke_index)
         
         # Phrases d'introduction variées
         introductions = [
@@ -627,11 +674,31 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
             "Allez, une petite blague pour détendre l'atmosphère ! 😊",
             "Haha, j'en connais une excellente ! 🤣",
             "Prêt pour une blague ? 😄",
-            "Je vais vous faire sourire ! 😁"
+            "Je vais vous faire sourire ! 😁",
+            "En voici une qui va vous plaire ! 😉",
+            "Attendez, j'en ai une drôle ! 🤭"
         ]
         
-        intro = random.choice(introductions)
-        return f"{intro}\n\n{joke}"
+        # Choisir une introduction différente si possible
+        if hasattr(self, 'last_joke_intro'):
+            available_intros = [intro for intro in introductions if intro != self.last_joke_intro]
+            if available_intros:
+                intro = random.choice(available_intros)
+            else:
+                intro = random.choice(introductions)
+        else:
+            intro = random.choice(introductions)
+        
+        # Sauvegarder l'introduction pour éviter la répétition
+        self.last_joke_intro = intro
+        
+        # Message de statut si on approche de la fin du stock
+        status_message = ""
+        remaining = len(self.jokes) - len(self.used_jokes)
+        if remaining <= 2 and len(self.jokes) > 3:
+            status_message = f"\n\n😅 Plus que {remaining} blague(s) dans mon stock !"
+        
+        return f"{intro_reset}{intro}\n\n{selected_joke}{status_message}"
     
     def _handle_internet_search(self, user_input: str, context: Dict[str, Any]) -> str:
         """
