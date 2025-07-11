@@ -1,6 +1,6 @@
 # 📋 CHANGELOG - My Personal AI
 
-## 🌐 Version 2.3.0 - RECHERCHE INTERNET (Juillet 2025)
+## 🌐 Version 2.3.0 - RECHERCHE INTERNET (11 Juillet 2025)
 
 ### ✨ Nouvelles Fonctionnalités Majeures
 
@@ -47,7 +47,7 @@
 
 ---
 
-## 🚀 Version 2.2.0 - IA Locale Avancée (Janvier 2025)
+## 🚀 Version 2.2.0 - IA Locale Avancée (10 Juillet 2025)
 
 ### 🎯 Fonctionnalités Majeures
 
