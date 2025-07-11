@@ -1,5 +1,52 @@
 # 📋 CHANGELOG - My Personal AI
 
+## 🌐 Version 2.3.0 - RECHERCHE INTERNET (Juillet 2025)
+
+### ✨ Nouvelles Fonctionnalités Majeures
+
+#### 🌐 Recherche Internet Intelligente
+- **Moteur de recherche intégré** : Accès en temps réel aux informations web
+  - API DuckDuckGo pour recherches anonymes et rapides
+  - Extraction automatique du contenu des pages web
+  - Résumés intelligents des résultats de recherche
+  - Support multilingue avec priorité au français
+
+#### 🧠 IA Contextuelle Avancée
+- **Reconnaissance d'intentions étendues** :
+  - Nouveau pattern `internet_search` avec 15+ variations
+  - Détection automatique du type de recherche (actualités, tutoriels, définitions)
+  - Extraction intelligente des requêtes depuis le langage naturel
+  - Adaptation des réponses selon le contexte de recherche
+
+#### 🛠️ Architecture Technique
+- **Nouveau module** : `models/internet_search.py`
+  - Classe `InternetSearchEngine` complète et robuste
+  - Gestion d'erreurs avancée avec retry automatique
+  - Timeout adaptatif et headers anti-détection
+  - Traitement parallèle de multiples sources web
+
+### 🎯 Exemples d'Usage Nouveaux
+```bash
+🤖 "Cherche sur internet les actualités Python"
+🤖 "Recherche des informations sur l'IA en 2025"  
+🤖 "Trouve-moi comment faire du pain"
+🤖 "Peux-tu chercher les dernières news sur Tesla ?"
+🤖 "Informations sur le réchauffement climatique"
+```
+
+### 📦 Nouvelles Dépendances
+- `requests>=2.31.0` : Requêtes HTTP robustes
+- `beautifulsoup4>=4.12.0` : Extraction de contenu web
+- `lxml>=4.9.0` : Parsing HTML haute performance
+
+### 🔧 Améliorations Système
+- **Interface utilisateur** : Aide mise à jour avec exemples de recherche
+- **Documentation** : README et guides enrichis avec la recherche internet
+- **Configuration** : Support des proxies et paramètres réseau
+- **Logs** : Traçabilité complète des recherches internet
+
+---
+
 ## 🚀 Version 2.2.0 - IA Locale Avancée (Janvier 2025)
 
 ### 🎯 Fonctionnalités Majeures

@@ -1,8 +1,14 @@
-# 🚀 Guide de Démarrage Rapide - My Personal AI
+# 🚀 Guide de Démarrage Rapide - My Personal AI v2.3.0
 
 ## 📋 Qu'est-ce que My Personal AI ?
 
-Une IA **100% locale** qui fonctionne entièrement sur votre machine, sans connexion internet ni services externes. Elle comprend vos intentions, se souvient de vos documents, et vous aide dans vos tâches quotidiennes.
+Une IA **hybride locale/internet** qui fonctionne principalement sur votre machine, avec accès optionnel aux informations web en temps réel. Elle comprend vos intentions, se souvient de vos documents, et vous aide dans vos tâches quotidiennes.
+
+### 🌟 Nouveauté v2.3.0 : Recherche Internet
+- 🌐 Accès aux informations en temps réel
+- 🔍 Résumés automatiques des résultats web
+- 🤖 Intelligence contextuelle pour adapter les recherches
+- 🔒 Recherches anonymes via DuckDuckGo
 
 ## ⚡ Installation Express
 
@@ -45,7 +51,17 @@ python main.py
 ```
 ✅ L'IA distingue automatiquement les questions techniques et adapte ses réponses.
 
-### Étape 3 : Analyser un Document
+### Étape 3 : 🌐 NOUVEAU - Recherche Internet
+```
+🤖 Vous : Cherche sur internet les actualités Python
+🤖 IA : [Recherche et résumé des dernières actualités Python]
+
+🤖 Vous : Trouve-moi des infos sur l'IA en 2025
+🤖 IA : [Synthèse d'informations récentes sur l'IA]
+```
+✅ L'IA accède aux informations en temps réel et fait des résumés intelligents.
+
+### Étape 4 : Analyser un Document
 1. Glissez un fichier PDF ou DOCX dans l'interface
 2. Tapez : "résume ce document"
 ```

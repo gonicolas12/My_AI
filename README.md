@@ -1,4 +1,12 @@
-# 🤖 My Personal AI - IA 100% Locale
+# 🤖Une IA personnelle **hybride locale/internet**, capable de :
+- 💬 Conversations intelligentes avec reconnaissance d'intentions avancée
+- 🧠 Mémoire conversationnelle persistante et contextuelle
+- 📄 Traitement complet des documents PDF et DOCX
+- 💻 Analyse, génération et débogage de code
+- 🌐 **NOUVEAU v2.3.0** : Recherche internet intelligente avec résumés automatiques
+- 🔍 Distinction automatique entre questions techniques, documents et conversations générales
+- 🖥️ Interface graphique moderne et intuitive
+- 🔧 Fonctionnement local avec recherche internet optionnelleonal AI - IA 100% Locale
 
 ## 📋 Vue d'ensemble
 
@@ -27,7 +35,8 @@ my_ai/
 │   ├── base_ai.py         # Interface de base
 │   ├── linguistic_patterns.py # Reconnaissance d'intentions et patterns
 │   ├── knowledge_base.py  # Base de connaissances locale
-│   └── reasoning_engine.py # Moteur de raisonnement logique
+│   ├── reasoning_engine.py # Moteur de raisonnement logique
+│   └── internet_search.py # 🌐 NOUVEAU : Moteur de recherche internet
 ├── processors/            # Processeurs de fichiers
 │   ├── __init__.py
 │   ├── pdf_processor.py   # Traitement PDF
@@ -64,11 +73,19 @@ my_ai/
 - **Réponses adaptatives** : Format et contenu adaptés au type de question
 - **Apprentissage local** : Amélioration continue sans données externes
 
+### 🌐 Recherche Internet Intelligente (v2.3.0)
+- **Recherche web** : Accès aux informations en temps réel via DuckDuckGo
+- **Résumés automatiques** : Synthèse intelligente des résultats de recherche
+- **Extraction de contenu** : Analyse des pages web avec BeautifulSoup
+- **Traitement parallèle** : Analyse simultanée de plusieurs sources
+- **Réponses contextuelles** : Adaptation du format selon le type de recherche
+
 ### 💬 Interaction Intelligente
 - **Salutations naturelles** : Reconnaît "slt", "salut", "bonjour", "bjr", etc.
 - **Questions techniques** : Spécialisé dans l'aide au code et développement
 - **Analyse de documents** : Traitement et résumé de PDF/DOCX avec mémoire
 - **Conversations contextuelles** : Référence aux éléments précédemment traités
+- **Recherche internet** : "Cherche sur internet les actualités Python"
 
 ### 🖥️ Interface Utilisateur
 - **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
@@ -82,7 +99,6 @@ my_ai/
 - **Modèle customisé** : Aucune dépendance à OpenAI, Claude ou autres APIs
 - **Patterns linguistiques** : Reconnaissance avancée des intentions utilisateur
 - **Base de connaissances** : Stockage local des informations et contextes
-- **Mémoire persistante** : Sauvegarde et récupération des conversations
 
 ### Traitement de Documents
 - **PyPDF2/PyMuPDF** : Extraction complète de texte PDF
@@ -125,6 +141,12 @@ pip install -r requirements.txt
 
 🤖 Vous : résume le pdf
 🤖 IA : [Résumé du document PDF précédemment chargé]
+
+🤖 Vous : cherche sur internet les actualités Python
+🤖 IA : [Recherche et résumé des dernières actualités Python]
+
+🤖 Vous : trouve-moi des informations sur l'IA en 2025
+🤖 IA : [Recherche et synthèse d'informations récentes sur l'IA]
 ```
 
 ## 📖 Documentation Complète
@@ -136,14 +158,15 @@ pip install -r requirements.txt
 
 ## 🔧 Caractéristiques Techniques
 
-- **100% Local** : Aucune connexion internet requise après installation
+- **Hybride Local/Internet** : IA locale avec recherche internet optionnelle
 - **Multiplateforme** : Windows, macOS, Linux
 - **Léger** : Fonctionnement optimal sur machines modestes
 - **Extensible** : Architecture modulaire pour ajouts futurs
-- **Sécurisé** : Aucune donnée n'est envoyée à l'extérieur
+- **Sécurisé** : Données locales protégées, recherche internet anonyme
+- **Smart Search** : Moteur de recherche DuckDuckGo avec résumés intelligents
 
 ## 🚀 Évolutions Futures
 
-- 🌐 Recherche sur Internet
+- 🌐 Application Web
 - 📊 Amélioration interface
 - 🤖 Support de modèles LLM externes optionnels

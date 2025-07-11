@@ -16,6 +16,7 @@ from .knowledge_base import KnowledgeBase
 from .generators import CodeGenerator
 from .reasoning_engine import ReasoningEngine
 from .conversation_memory import ConversationMemory
+from .internet_search import InternetSearchEngine
 
 
 class CustomAIModel(BaseAI):
@@ -24,7 +25,7 @@ class CustomAIModel(BaseAI):
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "2.2.0"
+        self.version = "2.3.0"
         
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -32,6 +33,7 @@ class CustomAIModel(BaseAI):
         self.code_generator = CodeGenerator()
         self.reasoning_engine = ReasoningEngine()
         self.conversation_memory = conversation_memory or ConversationMemory()
+        self.internet_search = InternetSearchEngine()
         
         # Configuration
         self.confidence_threshold = 0.3
@@ -54,7 +56,7 @@ class CustomAIModel(BaseAI):
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre."
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 2.2.0. Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 2.3.0. Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine."
             ],
@@ -95,8 +97,9 @@ class CustomAIModel(BaseAI):
         ]
         
         print(f"✅ {self.name} v{self.version} initialisé avec succès")
-        print(f"🧠 Modules chargés : Linguistique, Base de connaissances, Génération de code, Raisonnement, Mémoire")
+        print(f"🧠 Modules chargés : Linguistique, Base de connaissances, Génération de code, Raisonnement, Mémoire, Recherche Internet")
         print(f"💾 Mémoire de conversation activée")
+        print(f"🌐 Recherche internet disponible")
     
     def generate_response(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Génère une réponse avec gestion améliorée des documents"""
@@ -291,6 +294,8 @@ class CustomAIModel(BaseAI):
             return self._generate_code_response(user_input, context)
         elif intent == "programming_question":
             return self._answer_programming_question(user_input, context)
+        elif intent == "internet_search":
+            return self._handle_internet_search(user_input, context)
         elif intent == "code_question":
             # Vérifier s'il y a du code en mémoire
             stored_docs = self.conversation_memory.get_document_content()
@@ -354,10 +359,12 @@ class CustomAIModel(BaseAI):
 
 🔍 **Analyse de documents :** Je peux lire et résumer vos fichiers PDF et Word
 💻 **Programmation :** Je génère du code Python, JavaScript, HTML/CSS
+🌐 **Recherche internet :** Je peux chercher des informations en ligne et faire des résumés
 💬 **Conversation :** Je réponds à vos questions et discute naturellement
 🧠 **Raisonnement :** J'analyse des problèmes et propose des solutions
+😄 **Humour :** Je peux raconter des blagues pour vous détendre
 
-Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'extérieur !"""
+Tout fonctionne en local sur votre machine - seule la recherche internet nécessite une connexion !"""
         
         # Ajouter des informations contextuelles
         if self._has_documents_in_memory():
@@ -510,13 +517,19 @@ Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'
         """Génère une réponse d'aide contextuelle"""
         help_text = """🤖 Aide 🤖
 
-💬 Pour discuter : Posez-moi vos questions naturellement
-📄 Pour les documents : Utilisez les boutons pour traiter vos PDF/DOCX, puis demandez-moi de les résumer ou de répondre à des questions
-💻 Pour le code : Traitez vos fichiers Python, puis demandez-moi de les expliquer ou de les améliorer
-🎯 Exemples :
+💬 **Pour discuter :** Posez-moi vos questions naturellement
+📄 **Pour les documents :** Utilisez les boutons pour traiter vos PDF/DOCX, puis demandez-moi de les résumer ou de répondre à des questions
+💻 **Pour le code :** Traitez vos fichiers Python, puis demandez-moi de les expliquer ou de les améliorer
+� **Pour la recherche internet :** Dites "Cherche sur internet [sujet]"
+😄 **Pour l'humour :** Demandez-moi une blague !
+
+�🎯 **Exemples :**
 • "Résume le document" - après avoir traité un PDF
 • "Explique ce code" - après avoir traité un fichier Python
 • "Génère une fonction pour..." - pour créer du code
+• "Cherche sur internet les actualités Python"
+• "Raconte-moi une blague"
+• "Comment créer une liste en Python ?"
 • "Qui es-tu ?" - pour connaître mes capacités"""
         
         if self._has_documents_in_memory():
@@ -619,6 +632,129 @@ Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'
         
         intro = random.choice(introductions)
         return f"{intro}\n\n{joke}"
+    
+    def _handle_internet_search(self, user_input: str, context: Dict[str, Any]) -> str:
+        """
+        Gère les demandes de recherche internet
+        
+        Args:
+            user_input: Question de l'utilisateur
+            context: Contexte de la conversation
+            
+        Returns:
+            str: Résumé des résultats de recherche
+        """
+        # Extraire la requête de recherche de l'input utilisateur
+        search_query = self._extract_search_query(user_input)
+        
+        if not search_query:
+            return """🔍 **Recherche internet**
+
+Je n'ai pas bien compris ce que vous voulez rechercher. 
+
+**Exemples de demandes :**
+• "Cherche sur internet les actualités Python"
+• "Recherche des informations sur l'intelligence artificielle"
+• "Trouve-moi des news sur Tesla"
+• "Peux-tu chercher comment faire du pain ?"
+
+Reformulez votre demande en précisant ce que vous voulez rechercher."""
+        
+        # Effectuer la recherche avec le moteur de recherche internet
+        try:
+            print(f"🌐 Lancement de la recherche pour: '{search_query}'")
+            search_context = {
+                "conversation_context": context,
+                "user_language": "français",
+                "search_type": self._detect_search_type(user_input)
+            }
+            
+            result = self.internet_search.search_and_summarize(search_query, search_context)
+            return result
+            
+        except Exception as e:
+            print(f"❌ Erreur lors de la recherche internet: {str(e)}")
+            return f"""❌ **Erreur de recherche**
+
+Désolé, je n'ai pas pu effectuer la recherche pour '{search_query}'.
+
+**Causes possibles :**
+• Pas de connexion internet
+• Problème temporaire avec les moteurs de recherche
+• Requête trop complexe
+
+**Solutions :**
+• Vérifiez votre connexion internet
+• Reformulez votre demande
+• Réessayez dans quelques instants
+
+Erreur technique : {str(e)}"""
+    
+    def _extract_search_query(self, user_input: str) -> str:
+        """
+        Extrait la requête de recherche de l'input utilisateur
+        
+        Args:
+            user_input: Input de l'utilisateur
+            
+        Returns:
+            str: Requête de recherche extraite
+        """
+        user_lower = user_input.lower().strip()
+        
+        # Patterns pour extraire la requête
+        patterns = [
+            r"(?:cherche|recherche|trouve)\s+(?:sur\s+)?(?:internet|web|google|en ligne)\s+(.+)",
+            r"(?:cherche|recherche)\s+(?:moi\s+)?(?:des\s+)?(?:informations?\s+)?(?:sur|à propos de)\s+(.+)",
+            r"cherche[-\s]moi\s+(.+)",
+            r"peux[-\s]tu\s+(?:chercher|rechercher|trouver)\s+(.+)",
+            r"(?:informations?|info|données|news|actualités?)\s+(?:sur|à propos de|concernant)\s+(.+)",
+            r"(?:dernières?\s+)?(?:actualités?|news|nouvelles?)\s+(?:sur|de|à propos de)\s+(.+)",
+            r"qu[\'']?est[-\s]ce\s+qu[\'']?on\s+dit\s+(?:sur|de)\s+(.+)",
+            r"(?:web|internet|google)\s+search\s+(.+)"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, user_lower)
+            if match:
+                query = match.group(1).strip()
+                # Nettoyer la requête
+                query = re.sub(r'\s+', ' ', query)  # Normaliser les espaces
+                query = query.strip('.,!?;')  # Supprimer la ponctuation finale
+                return query
+        
+        # Fallback: si aucun pattern ne correspond, essayer de deviner
+        # Supprimer les mots de commande du début
+        for word in ["cherche", "recherche", "trouve", "sur", "internet", "web", "google", "en", "ligne", "moi", "des", "informations"]:
+            if user_lower.startswith(word):
+                user_lower = user_lower[len(word):].strip()
+        
+        return user_lower if len(user_lower) > 2 else ""
+    
+    def _detect_search_type(self, user_input: str) -> str:
+        """
+        Détecte le type de recherche demandé
+        
+        Args:
+            user_input: Input de l'utilisateur
+            
+        Returns:
+            str: Type de recherche
+        """
+        user_lower = user_input.lower()
+        
+        if any(word in user_lower for word in ["actualité", "news", "dernières nouvelles", "récent"]):
+            return "news"
+        elif any(word in user_lower for word in ["comment", "how to", "tutorial", "guide", "étapes"]):
+            return "tutorial"
+        elif any(word in user_lower for word in ["qu'est-ce que", "définition", "c'est quoi", "define"]):
+            return "definition"
+        elif any(word in user_lower for word in ["prix", "coût", "combien", "price"]):
+            return "price"
+        elif any(word in user_lower for word in ["avis", "opinion", "review", "critique"]):
+            return "review"
+        else:
+            return "general"
     
     def _answer_programming_question(self, user_input: str, context: Dict[str, Any]) -> str:
         """Répond aux questions de programmation avec des exemples pratiques"""

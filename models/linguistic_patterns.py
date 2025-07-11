@@ -206,6 +206,24 @@ class LinguisticPatterns:
                     "priority": "high"
                 },
                 
+                "internet_search": {
+                    "patterns": [
+                        r"^(?:cherche|recherche|trouve|search).+(?:sur internet|sur le web|en ligne|sur google)",
+                        r"(?:cherche|recherche)\s+(?:sur\s+)?(?:internet|web|google|en ligne)\s+.+",
+                        r"(?:recherche|trouve|cherche)\s+(?:moi\s+)?(?:des\s+)?(?:informations?\s+)?(?:sur|à propos de)\s+.+",
+                        r"(?:que dit|qu[\'']?est[- ]ce que dit|quelles sont les informations sur).+(?:internet|web)",
+                        r"cherche[- ]moi\s+.+",
+                        r"peux[- ]tu\s+(?:chercher|rechercher|trouver)\s+.+",
+                        r"(?:informations?|info|données|news|actualités?)\s+(?:sur|à propos de|concernant)\s+.+",
+                        r"(?:dernières?\s+)?(?:actualités?|news|nouvelles?)\s+(?:sur|de|à propos de)\s+.+",
+                        r"qu[\'']?est[- ]ce\s+qu[\'']?on\s+dit\s+(?:sur|de)\s+.+\s+(?:sur internet|en ligne)",
+                        r"(?:web|internet|google)\s+search\s+.+"
+                    ],
+                    "indicators": ["cherche", "recherche", "internet", "web", "google", "informations", "actualités", "trouve", "news"],
+                    "weight": 1.4,
+                    "priority": "high"
+                },
+                
                 "greeting": {
                     "patterns": [
                         r"^(?:bonjour|salut|hello|hi|hey|coucou|slt|bjr|bsr)\b",
