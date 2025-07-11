@@ -1,4 +1,4 @@
-# 🤖 Une IA personnelle **hybride locale/internet**, capable de :
+# 🤖 Une IA personnelle, capable de :
 
 - 💬 Conversations intelligentes avec reconnaissance d'intentions avancée
 - 🧠 Mémoire conversationnelle persistante et contextuelle
@@ -103,17 +103,17 @@ my_ai/
 ## 🏃‍♂️ Démarrage Rapide
 
 ### Installation
+##### Installation des dépendances
 ```bash
-# Installation des dépendances
 pip install -r requirements.txt
 ```
 
 ### Lancement
+##### Lancement avec script batch (recommandé)
 ```bash
-# Lancement avec script batch (recommandé)
 .\launch.bat
-# Puis sélectionnez l'option 1 (Interface Graphique)
 ```
+Puis sélectionnez **l'option 1 (Interface Graphique)**
 
 ### Premiers Pas
 1. **Saluer l'IA** : "Salut", "Bonjour", "slt" - L'IA reconnaîtra votre salutation
