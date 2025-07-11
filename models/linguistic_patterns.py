@@ -57,8 +57,8 @@ class LinguisticPatterns:
             "document": ["fichier", "pdf", "doc", "docx"],
             
             # Questions sur l'identité
-            "tu_es_qui": ["tu es qui", "qui es-tu", "qui es tu", "tu es qui ?", "qui es-tu ?", "qui tu es"],
-            "qui_es_tu": ["qui es tu", "qui est tu", "qui es-tu", "qui êtes vous", "qui etes vous", "quel est ton nom", "ton nom", "comment tu t'appelles", "comment tu t'appelle", "comment t'appelles tu", "comment t'appelle tu", "tu es qui"],
+            "tu_es_qui": ["tu es qui", "qui es-tu", "qui es tu", "tu es qui ?", "qui es-tu ?", "qui tu es", "tu es quoi"],
+            "qui_es_tu": ["qui es tu", "qui est tu", "qui es-tu", "qui êtes vous", "qui etes vous", "quel est ton nom", "ton nom", "comment tu t'appelles", "comment tu t'appelle", "comment t'appelles tu", "comment t'appelle tu", "tu es qui", "tu es quoi"],
             "qu_est_ce_que_tu_es": ["qu'est-ce que tu es", "quest ce que tu es", "qu est ce que tu es"],
             
             # Questions sur les capacités
@@ -97,6 +97,7 @@ class LinguisticPatterns:
                     "patterns": [
                         r"(?:qui|quel|comment).+(?:es[- ]tu|êtes[- ]vous|est ton nom|t'appelles?[- ]tu)",
                         r"tu es qui\b",
+                        r"tu es quoi\b",
                         r"\bton nom\b",
                         r"comment (?:tu t'appelles?|t'appelles?[- ]tu)",
                         r"qui êtes[-\s]vous",
@@ -121,23 +122,26 @@ class LinguisticPatterns:
                     "exclude_if": ["code", "fichier", "programme", "script", "fonction"]
                 },
                 
-                # ✅ NOUVEAU: Amélioration détection "comment ça va"
+                # ✅ NOUVEAU: Questions réciproques "ça va et toi ?"
                 "how_are_you": {
                     "patterns": [
                         r"^comment\s+(ça|sa|ca)\s+va\s*\??$",
                         r"^(ça|sa|ca)\s+va\s+(et\s+toi|et\s+vous)\s*\??$",
-                        r"^(ça|sa|ca)\s+roule\s*\??$",
+                        r"^(ça|sa|ca)\s+va\s+et\s+toi\s*\??$",
+                        r"^(sa|ca|ça)\s+va\s+et\s+toi\s*\??$",
                         r"^comment\s+tu\s+vas\s*\??$",
                         r"^comment\s+vous\s+allez\s*\??$",
                         r"^tu\s+vas\s+bien\s*\??$",
-                        r"^vous\s+allez\s+bien\s*\??$"
+                        r"^vous\s+allez\s+bien\s*\??$",
+                        r"^(ça|sa|ca)\s+va\s*\?\s*$"
                     ],
-                    "indicators": ["comment", "ça", "va", "roule", "allez", "vas"],
+                    "indicators": ["comment", "ça", "va", "et toi", "et vous", "?"],
                     "weight": 1.0,
-                    "priority": "high"
+                    "priority": "high",
+                    "exclude_if_not": ["et toi", "et vous", "comment", "?"]
                 },
                 
-                # ✅ NOUVEAU: Détection des réponses "ça va"
+                # ✅ NOUVEAU: Affirmations simples "ça va" (sans question)
                 "affirm_doing_well": {
                     "patterns": [
                         r"^(ça|sa|ca)\s+va\s*$",
@@ -146,7 +150,9 @@ class LinguisticPatterns:
                         r"^je\s+vais\s+bien\s*$",
                         r"^tout\s+va\s+bien\s*$",
                         r"^très\s+bien\s*$",
-                        r"^bien\s*$"
+                        r"^bien\s*$",
+                        r"^super\s*$",
+                        r"^nickel\s*$"
                     ],
                     "indicators": ["ça", "va", "bien", "roule", "tout"],
                     "weight": 0.9,

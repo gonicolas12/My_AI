@@ -265,7 +265,7 @@ class CustomAIModel(BaseAI):
         elif intent == "greeting":
             return self._generate_greeting_response(user_input, context)
         elif intent == "how_are_you":
-            return self._generate_how_are_you_response(context)
+            return self._generate_how_are_you_response(user_input, context)
         elif intent == "affirm_doing_well":
             return self._generate_affirm_doing_well_response(context)
         elif intent == "compliment":
@@ -382,33 +382,55 @@ Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'
         
         return self._get_random_response(greetings)
     
-    def _generate_how_are_you_response(self, context: Dict[str, Any]) -> str:
-        """Génère une réponse à 'comment ça va'"""
-        responses = [
-            "Ça va très bien, merci ! Je suis toujours prêt à aider ! Et vous, comment allez-vous ?",
-            "Tout va bien ! Je suis en pleine forme et prêt à répondre à vos questions ! 😊",
-            "Ça roule ! Mon système fonctionne parfaitement et j'ai hâte de vous aider !",
-            "Excellent ! J'ai tous mes modules qui fonctionnent à merveille ! Et vous ?"
-        ]
+    def _generate_how_are_you_response(self, user_input: str, context: Dict[str, Any]) -> str:
+        """Génère une réponse adaptée selon si c'est une question réciproque ou non"""
+        user_lower = user_input.lower().strip()
+        
+        # Détecter si c'est une question réciproque "ça va et toi ?"
+        is_reciprocal = any(phrase in user_lower for phrase in [
+            "et toi", "et vous", "ça va et toi", "sa va et toi", "ca va et toi"
+        ])
+        
+        if is_reciprocal:
+            # Réponse sans redemander (éviter la boucle)
+            responses = [
+                "Ça va super merci ! Hâte de pouvoir t'aider au mieux !",
+                "Tout va bien de mon côté, merci ! 😊 En quoi puis-je t'aider ?",
+                "Parfait pour moi ! Tous mes systèmes fonctionnent nickel ! Et toi, de quoi as-tu besoin ?",
+                "Excellent ! Je suis en pleine forme ! Dis-moi, que puis-je faire pour toi ?",
+                "Super bien merci ! Prêt à t'aider sur ce que tu veux !",
+                "Ça roule de mon côté ! 🚀 Tu as une question ou un projet ?"
+            ]
+        else:
+            # Question initiale "comment ça va ?" - on peut demander en retour
+            responses = [
+                "Ça va très bien, merci ! Je suis toujours prêt à aider ! Et toi, comment ça va ?",
+                "Tout va bien ! Je suis en pleine forme et prêt à répondre à tes questions ! 😊 Et toi ?",
+                "Ça roule ! Mon système fonctionne parfaitement et j'ai hâte de t'aider ! Tu vas bien ?",
+                "Excellent ! J'ai tous mes modules qui fonctionnent à merveille ! Et de ton côté ?"
+            ]
         
         base_response = self._get_random_response(responses)
         
-        # Ajout d'informations sur la session
+        # Ajout d'informations sur la session pour les longues conversations
         session_duration = context.get("session_duration", 0)
         if session_duration > 300:  # Plus de 5 minutes
             minutes = int(session_duration // 60)
-            base_response += f"\n\nNous discutons depuis {minutes} minutes maintenant, c'est chouette !"
+            base_response += f"\n\nÇa fait {minutes} minutes qu'on discute, c'est chouette !"
         
         return base_response
     
     def _generate_affirm_doing_well_response(self, context: Dict[str, Any]) -> str:
-        """Génère une réponse aux affirmations 'ça va'"""
+        """Génère une réponse aux affirmations 'ça va' (simple, sans question)"""
         responses = [
-            "Super ! Content de savoir que ça va bien ! 😊 Comment puis-je vous aider ?",
-            "Parfait ! C'est toujours bien d'aller bien ! En quoi puis-je vous assister ?",
-            "Excellent ! Heureux de l'entendre ! Que puis-je faire pour vous ?",
-            "Génial ! Ça fait plaisir ! Sur quoi voulez-vous que je vous aide ?",
-            "Cool ! Et maintenant, que puis-je faire pour vous rendre service ?"
+            "Super ! Content de savoir que ça va bien ! 😊 Comment puis-je t'aider ?",
+            "Parfait ! C'est toujours bien d'aller bien ! En quoi puis-je t'assister ?",
+            "Excellent ! Heureux de l'entendre ! Que puis-je faire pour toi ?",
+            "Génial ! Ça fait plaisir ! Sur quoi veux-tu que je t'aide ?",
+            "Cool ! Et maintenant, que puis-je faire pour toi ?",
+            "Nickel ! Tu as une question ou un projet en tête ?",
+            "Top ! Dis-moi ce dont tu as besoin !",
+            "Parfait ! Je suis là si tu veux discuter de quelque chose !"
         ]
         
         return self._get_random_response(responses)
@@ -455,7 +477,7 @@ Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'
     
     def _generate_help_response(self, user_input: str, context: Dict[str, Any]) -> str:
         """Génère une réponse d'aide contextuelle"""
-        help_text = """🤖 Aide - Assistant IA Local
+        help_text = """🤖 Aide 🤖
 
 💬 Pour discuter : Posez-moi vos questions naturellement
 📄 Pour les documents : Utilisez les boutons pour traiter vos PDF/DOCX, puis demandez-moi de les résumer ou de répondre à des questions
@@ -910,7 +932,7 @@ Tout fonctionne en local sur votre machine - aucune donnée n'est envoyée à l'
         Détermine si une question concerne un document stocké
         """
         # Mots-clés qui indiquent une question sur l'identité ou les capacités (PAS sur un document)
-        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui"]
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
         capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu"]
         
         # Si la question contient un mot-clé d'identité ou de capacité, ce n'est pas une question sur un document

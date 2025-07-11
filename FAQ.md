@@ -13,8 +13,7 @@
 - **Confidentialité** : Vos données restent sur votre machine
 - **Pas d'abonnement** : Gratuit une fois installé
 - **Spécialisé** : Optimisé pour l'aide au développement et l'analyse de documents
-- **Mémoire persistante** : Se souvient de vos documents et conversations
-- **Intentions intelligentes** : Reconnaît automatiquement le type de vos questions
+- **Mémoire temporaire** : Se souvient de vos documents et conversations, jusqu'à ce que vous fermez le programme (pour des questions de sécurité)
 
 ## 🔧 Installation et Configuration
 
@@ -30,7 +29,7 @@
 ```bash
 cd My_AI
 pip install -r requirements.txt
-python main.py
+.\launch.bat
 ```
 
 ### Q: Que faire si l'installation échoue ?
@@ -49,20 +48,16 @@ python main.py
 - **Questions sur documents** : Après traitement d'un PDF/DOCX
 - **Conversation générale** : Discussion libre
 
-### Q: Puis-je poser des questions en français et en anglais ?
-**R:** Oui ! L'IA comprend les deux langues et peut répondre dans la langue de votre choix.
-
 ### Q: Comment traiter des documents PDF ou DOCX ?
 **R:** 
 1. **Interface graphique** : Glissez le fichier dans la zone de conversation
 2. **Ligne de commande** : `python main.py process votre_document.pdf`
 3. **Questions** : Ensuite, tapez "résume ce document" ou posez des questions spécifiques
 
-### Q: L'IA se souvient-elle de nos conversations précédentes ?
+### Q: L'IA se souvient-elle de ce que je lui dis ?
 **R:** Oui ! L'IA garde en mémoire :
 - Les documents que vous avez traités
 - Le code que vous avez analysé
-- L'historique de vos conversations
 - Le contexte pour des réponses cohérentes
 
 ### Q: Comment effacer l'historique et repartir à zéro ?
@@ -94,7 +89,7 @@ python main.py
 ### Q: L'interface graphique ne s'affiche pas
 **R:** 
 - Vérifiez que Tkinter est installé : `python -m tkinter`
-- Utilisez l'interface CLI : `python main.py --cli`
+- Utilisez l'interface CLI : `python launcher.py gui`
 - Sur Linux, installez : `sudo apt-get install python3-tk`
 
 ## 📚 Fonctionnalités Avancées
@@ -163,8 +158,7 @@ print(response)
 - Extension VS Code intégrée
 - Support de plus de types de fichiers
 - API REST locale
-- Interface web optionnelle
-- Plugins et extensions
+- Recherches Internet
 
 ### Q: Puis-je contribuer au développement ?
 **R:** Bien sûr ! Le projet est ouvert aux contributions :

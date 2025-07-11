@@ -203,7 +203,7 @@ class SimpleAIGUI:
             response = self.ai_engine.process_text("aide")
             self.add_message("Assistant", response)
         else:
-            help_text = """🤖 Aide - Assistant IA Local
+            help_text = """🤖 Aide 🤖
 
 📝 **Commandes possibles :**
 • "génère une fonction pour..."
