@@ -292,13 +292,15 @@ class PDFProcessor:
         """
         try:
             result = self.read_pdf(file_path)
-            
-            if result.get("success") and "content" in result:
-                return result["content"].get("text", "")
-            elif "error" in result:
-                return f"Erreur : {result['error']}"
+            if result['success']:
+                return result['content']['text']
             else:
-                return "Impossible d'extraire le texte du PDF"
-                
+                raise Exception(result.get('error', 'Erreur inconnue'))
         except Exception as e:
-            return f"Erreur lors de l'extraction : {str(e)}"
+            raise Exception(f"Erreur lors de l'extraction de texte: {str(e)}")
+    
+    def extract_text_from_pdf(self, file_path: str) -> str:
+        """
+        Méthode alias pour compatibilité avec l'interface GUI
+        """
+        return self.extract_text(file_path)

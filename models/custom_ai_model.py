@@ -25,7 +25,7 @@ class CustomAIModel(BaseAI):
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "2.3.0"
+        self.version = "3.0.0"
         
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -60,7 +60,7 @@ class CustomAIModel(BaseAI):
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre."
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 2.3.0. Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 3.0.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine."
             ],
@@ -313,6 +313,8 @@ class CustomAIModel(BaseAI):
             return self._generate_affirm_doing_well_response(context)
         elif intent == "compliment":
             return self._generate_compliment_response(user_input, context)
+        elif intent == "laughter":
+            return self._generate_laughter_response(user_input, context)
         elif intent == "code_generation" or intent == "code_request":
             return self._generate_code_response(user_input, context)
         elif intent == "programming_question":
@@ -513,6 +515,40 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
                 "Merci, vous êtes cool aussi ! 😄",
                 "C'est sympa de dire ça ! Merci !",
                 "Cool, merci ! On fait une bonne équipe !"
+            ])
+        elif "drôle" in user_input.lower() or "rigolo" in user_input.lower() or "marrant" in user_input.lower():
+            responses = [
+                "Merci ! J'aime bien faire rire ! 😄",
+                "Content que ça vous amuse ! J'aime l'humour !",
+                "Hihi, merci ! J'essaie d'être un peu drôle parfois ! 😊",
+                "Ça me fait plaisir de vous faire sourire ! 😁",
+                "Merci ! L'humour rend tout plus agréable !"
+            ]
+        
+        return self._get_random_response(responses)
+    
+    def _generate_laughter_response(self, user_input: str, context: Dict[str, Any]) -> str:
+        """Génère une réponse aux rires et expressions d'amusement"""
+        responses = [
+            "Content que ça vous fasse rire ! 😄",
+            "Hihi, j'aime bien quand on s'amuse ensemble ! 😊",
+            "Ah ça fait plaisir de vous entendre rire ! 😁",
+            "Super ! Rien de mieux qu'un bon moment de rigolade ! 🤣",
+            "Excellent ! J'aime votre réaction ! 😄",
+            "Parfait ! Un peu d'humour ça fait du bien ! 😊",
+            "Génial ! Vous avez l'air de bonne humeur ! 😁"
+        ]
+        
+        # Adaptation selon le type de rire
+        if "mdr" in user_input.lower() or "lol" in user_input.lower():
+            responses.extend([
+                "MDR ! Content que ça vous plaise autant ! 😂",
+                "LOL ! C'est parti pour la rigolade ! 🤣"
+            ])
+        elif len(user_input) > 6:  # Long rire type "hahahahaha"
+            responses.extend([
+                "Wow, ça vous a vraiment fait rire ! 😂",
+                "Carrément ! Vous riez aux éclats ! 🤣"
             ])
         
         return self._get_random_response(responses)

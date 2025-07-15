@@ -1,10 +1,10 @@
-# 🚀 Guide de Démarrage Rapide - My Personal AI v2.3.0
+# 🚀 Guide de Démarrage Rapide - My Personal AI v3.0.0
 
 ## 📋 Qu'est-ce que My Personal AI ?
 
 Une IA **hybride locale/internet** qui fonctionne principalement sur votre machine, avec accès optionnel aux informations web en temps réel. Elle comprend vos intentions, se souvient de vos documents, et vous aide dans vos tâches quotidiennes.
 
-### 🌟 Nouveauté v2.3.0 : Recherche Internet
+### 🌟 Recherche Internet
 - 🌐 Accès aux informations en temps réel
 - 🔍 Résumés automatiques des résultats web
 - 🤖 Intelligence contextuelle pour adapter les recherches

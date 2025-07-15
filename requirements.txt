@@ -53,9 +53,14 @@ markdown2>=2.4.0
 # INTERFACE UTILISATEUR
 # ====================================
 
-# Interface graphique (optionnel)
-tkinter  # Intégré à Python
-streamlit>=1.25.0  # Interface web moderne
+# Interface graphique moderne - Style Claude
+tkinter  # Intégré à Python (base)
+customtkinter>=5.2.0  # Interface moderne avec thèmes sombres
+tkinterdnd2>=0.3.0     # Drag & Drop pour fichiers
+pillow>=10.0.0         # Traitement d'images pour l'interface
+
+# Interface web (optionnel)
+streamlit>=1.25.0      # Interface web moderne
 
 # Rich text dans le terminal
 rich>=13.0.0

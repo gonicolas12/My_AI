@@ -95,15 +95,28 @@ def launch_cli(args):
 
 
 def launch_gui(args):
-    """Launch the GUI interface."""
+    """Launch the Modern GUI interface with fallback to standard GUI."""
     try:
-        from interfaces.gui import main as gui_main
-        print("🚀 Launching GUI interface...")
+        from interfaces.gui_modern import main as gui_main
+        print("🚀 Launching Modern GUI interface (v3.0.0 - Style Claude)...")
         gui_main()
+    except ImportError as e:
+        print(f"❌ Error importing modern GUI: {e}")
+        print("💡 Modern GUI requires: customtkinter, tkinterdnd2, pillow")
+        print("💡 Install with: python install_gui_deps.py")
+        print("💡 Falling back to standard GUI...")
+        try:
+            from interfaces.gui import main as gui_main
+            print("🚀 Launching Standard GUI interface...")
+            gui_main()
+        except Exception as e2:
+            print(f"❌ Error launching standard GUI: {e2}")
+            print("💡 tkinter is included with Python - check if GUI dependencies are installed")
+            print("💡 Try: python install_gui_deps.py")
+            return False
     except Exception as e:
         print(f"❌ Error launching GUI: {e}")
-        print("💡 tkinter is included with Python - check if GUI dependencies are installed")
-        print("💡 Try: pip install --user customtkinter (for modern GUI)")
+        print("💡 For modern interface, install: python install_gui_deps.py")
         return False
     return True
 
@@ -278,7 +291,8 @@ Examples:
     args = parser.parse_args()
     
     # Print banner
-    print("🤖 My AI Personal Assistant")
+    print("🤖 My AI Personal Assistant v3.0.0")
+    print("🎨 Interface Graphique Moderne - Style Claude")
     print("=" * 50)
     
     # Setup environment (unless skipped)

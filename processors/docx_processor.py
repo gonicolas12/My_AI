@@ -411,3 +411,23 @@ class DOCXProcessor:
                 "error": f"Erreur lors de la lecture du document: {str(e)}",
                 "error_type": "PROCESSING_ERROR"
             }
+    
+    def extract_text_from_docx(self, file_path: str) -> str:
+        """
+        Méthode pour extraire du texte d'un fichier DOCX (compatible avec l'interface GUI)
+        
+        Args:
+            file_path: Chemin vers le fichier DOCX
+            
+        Returns:
+            Texte extrait du fichier DOCX
+        """
+        try:
+            result = self.extract_text(file_path)
+            if result.get('success', False):
+                # Le contenu est directement dans 'content'
+                return result.get('content', '')
+            else:
+                raise Exception(result.get('error', 'Erreur inconnue'))
+        except Exception as e:
+            raise Exception(f"Erreur lors de l'extraction DOCX: {str(e)}")

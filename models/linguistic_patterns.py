@@ -146,15 +146,20 @@ class LinguisticPatterns:
                     "patterns": [
                         r"^(ça|sa|ca)\s+va\s*$",
                         r"^(ça|sa|ca)\s+va\s+bien\s*$",
+                        r"^(ça|sa|ca)\s+va\s+super\s*!*$",
+                        r"^(ça|sa|ca)\s+va\s+très\s+bien\s*!*$",
                         r"^(ça|sa|ca)\s+roule\s*$",
                         r"^je\s+vais\s+bien\s*$",
                         r"^tout\s+va\s+bien\s*$",
                         r"^très\s+bien\s*$",
                         r"^bien\s*$",
-                        r"^super\s*$",
-                        r"^nickel\s*$"
+                        r"^super\s*!*$",
+                        r"^nickel\s*!*$",
+                        r"^parfait\s*!*$",
+                        r"^excellent\s*!*$",
+                        r"^génial\s*!*$"
                     ],
-                    "indicators": ["ça", "va", "bien", "roule", "tout"],
+                    "indicators": ["ça", "va", "bien", "roule", "tout", "super", "parfait", "excellent", "génial"],
                     "weight": 0.9,
                     "priority": "medium"
                 }, 
@@ -289,6 +294,33 @@ class LinguisticPatterns:
                     "indicators": ["oui", "ok", "parfait", "bien", "marche"],
                     "weight": 0.8,
                     "priority": "medium"
+                },
+                
+                "laughter": {
+                    "patterns": [
+                        r"^(?:ha+h*a+|hé+hé+|hi+hi+|ho+ho+)\s*$",
+                        r"^(?:mdr|lol|ptdr|😂|😄|😁|🤣)\s*$",
+                        r"^(?:haha+|ahah+|héhé+|hihi+|hoho+)\s*$",
+                        r"^(?:xd|xDD|:D|:p|:-D)\s*$"
+                    ],
+                    "indicators": ["haha", "héhé", "hihi", "mdr", "lol", "😂", "😄"],
+                    "weight": 1.0,
+                    "priority": "high"
+                },
+                
+                "compliment": {
+                    "patterns": [
+                        r"^(?:c'est drôle|c'est rigolo|c est drole|c est rigolo)\s*!*$",
+                        r"^(?:tu es drôle|tu es rigolo|t'es drôle|t'es rigolo|tu es drole)\s*!*$",
+                        r"^(?:c'est marrant|c est marrant|marrant)\s*!*$",
+                        r"^(?:c'est cool|c est cool|cool|sympa|génial|super)\s*!*$",
+                        r"^(?:bien joué|bravo|excellent|parfait|top)\s*!*$",
+                        r"^(?:j'aime bien|j aime bien|très bien|tres bien)\s*!*$",
+                        r"^(?:c'est bien|c est bien|pas mal|nice)\s*!*$"
+                    ],
+                    "indicators": ["drôle", "rigolo", "marrant", "cool", "sympa", "génial", "bravo", "excellent"],
+                    "weight": 1.0,
+                    "priority": "high"
                 },
                 
                 "negation": {

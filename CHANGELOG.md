@@ -1,5 +1,66 @@
 # 📋 CHANGELOG - My Personal AI
 
+## 🎨 Version 3.0.0 - INTERFACE GRAPHIQUE MODERNE (15 Juillet 2025)
+
+### ✨ Révolution de l'Interface Utilisateur
+
+#### 🎨 Interface Graphique Moderne Style Claude
+- **Design moderne** : Interface sombre élégante inspirée de Claude
+- **Bulles de chat optimisées** : 
+  - Messages utilisateur avec bulles positionnées à droite
+  - Messages IA sans bulle, texte simple et lisible
+  - Hauteur adaptative automatique selon le contenu
+  - Positionnement optimisé pour tous types d'écrans
+
+#### 💬 Système de Messages Révolutionné
+- **Formatage de texte avancé** : Support complet du texte en **gras** avec Unicode
+- **Messages non-scrollables** : Remplacement des zones de texte par des labels simples
+- **Animation de réponse** : Indicateurs visuels de réflexion et recherche internet
+- **Timestamp automatique** : Horodatage discret pour chaque message
+
+#### 🖱️ Fonctionnalités Interactives
+- **Drag & Drop** : Glisser-déposer de fichiers PDF, DOCX et code directement
+- **Raccourcis clavier** : 
+  - Entrée : Envoyer message
+  - Shift+Entrée : Nouvelle ligne
+  - Ctrl+L : Effacer conversation
+- **Boutons d'action** : Clear Chat, Aide, chargement de fichiers
+
+#### 🎯 Design Responsive
+- **Adaptation écran** : Optimisation automatique selon la taille d'écran
+- **Polices adaptatives** : Tailles de police intelligentes par OS et résolution
+- **Plein écran automatique** : Lancement en mode maximisé avec focus
+
+### 🛠️ Architecture Technique Avancée
+
+#### 📦 Nouvelles Dépendances UI
+- `customtkinter>=5.2.0` : Framework UI moderne avec thèmes sombres
+- `tkinterdnd2>=0.3.0` : Support drag & drop natif
+- `pillow>=10.0.0` : Traitement d'images pour l'interface
+
+#### 🎨 Système de Style Moderne
+- **Couleurs modernes** : Palette sombre professionnelle avec accents colorés
+- **Typographie adaptative** : Polices système optimisées (Segoe UI, SF Pro, Ubuntu)
+- **Animations fluides** : Indicateurs de statut avec animations personnalisées
+
+#### 🔧 Optimisations Performance
+- **Rendu optimisé** : Labels au lieu de zones de texte pour de meilleures performances
+- **Scroll intelligent** : Défilement automatique vers les nouveaux messages
+- **Mémoire efficace** : Gestion optimisée de l'historique des conversations
+
+### 📝 Fonctionnalités Texte Avancées
+- **Unicode Bold** : Conversion automatique `**texte**` vers 𝐭𝐞𝐱𝐭𝐞 en gras Unicode
+- **Formatage intelligent** : Préservation de la mise en forme dans les labels
+- **Wrapping automatique** : Adaptation du texte à la largeur des bulles
+
+### 🚀 Expérience Utilisateur
+- **Interface intuitive** : Design inspiré des meilleures pratiques de Claude
+- **Feedback visuel** : Animations de réflexion et recherche internet
+- **Gestion d'erreurs** : Messages d'erreur élégants avec notifications temporaires
+- **Message de bienvenue** : Introduction claire des fonctionnalités disponibles
+
+---
+
 ## 🌐 Version 2.3.0 - RECHERCHE INTERNET (11 Juillet 2025)
 
 ### ✨ Nouvelles Fonctionnalités Majeures

@@ -1,13 +1,15 @@
 # 🤖 Une IA personnelle, capable de :
 
-- 💬 Conversations intelligentes avec reconnaissance d'intentions avancée
-- 🧠 Mémoire conversationnelle persistante et contextuelle
-- 📄 Traitement complet des documents PDF et DOCX
-- 💻 Analyse, génération et débogage de code
-- 🌐 Recherche internet intelligente avec résumés automatiques
-- 🔍 Distinction automatique entre questions techniques, documents et conversations générales
-- 🖥️ Interface graphique moderne et intuitive
-- 🔧 Fonctionnement local avec recherche internet - IA 100% Locale
+- 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée
+- 🧠 **Mémoire conversationnelle** persistante et contextuelle
+- 📄 **Traitement complet** des documents **PDF** et **DOCX** avec drag & drop
+- 💻 **Analyse**, **génération** et **débogage** de **code**
+- 🌐 **Recherche internet intelligente** avec résumés automatiques
+- 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
+- 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
+- 🖱️ **Drag & Drop intégré** pour fichiers PDF, DOCX et code
+- ✨ **Formatage de texte avancé** avec support **gras** Unicode
+- 🔧 **Fonctionnement local** avec recherche internet - IA 100% Locale
 
 ## 🏗️ Architecture Modulaire
 
@@ -40,7 +42,10 @@ my_ai/
 ├── interfaces/                # Interfaces utilisateur
 │   ├── __init__.py
 │   ├── cli.py                 # Interface ligne de commande
-│   ├── gui.py                 # Interface graphique
+│   ├── gui.py                 # Interface graphique basique
+│   ├── gui_modern.py          # Interface graphique moderne style Claude
+│   ├── gui_simple.py          # Interface graphique simplifiée
+│   ├── modern_styles.py       # Styles et thèmes modernes
 │   └── vscode_extension.py    # Extension VS Code
 ├── utils/                     # Utilitaires
 │   ├── __init__.py
@@ -63,7 +68,7 @@ my_ai/
 - **Réponses adaptatives** : Format et contenu adaptés au type de question
 - **Apprentissage local** : Amélioration continue sans données externes
 
-### 🌐 Recherche Internet Intelligente (v2.3.0)
+### 🌐 Recherche Internet Intelligente
 - **Recherche web** : Accès aux informations en temps réel via DuckDuckGo
 - **Résumés automatiques** : Synthèse intelligente des résultats de recherche
 - **Extraction de contenu** : Analyse des pages web avec BeautifulSoup
@@ -76,6 +81,22 @@ my_ai/
 - **Analyse de documents** : Traitement et résumé de PDF/DOCX avec mémoire
 - **Conversations contextuelles** : Référence aux éléments précédemment traités
 - **Recherche internet** : "Cherche sur internet les actualités Python"
+
+### 🖥️ Interface Utilisateur Moderne (v3.0.0)
+
+#### 🎨 Interface Graphique Style Claude
+- **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
+- **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
+- **Drag & Drop** : Glisser-déposer direct de fichiers PDF, DOCX et code
+- **Formatage avancé** : Support complet du **texte en gras** avec Unicode
+- **Animations fluides** : Indicateurs de réflexion et recherche internet
+- **Responsive design** : Adaptation automatique à tous types d'écrans
+
+#### 🖱️ Fonctionnalités Interactives
+- **Raccourcis clavier** : Entrée (envoyer), Shift+Entrée (nouvelle ligne), Ctrl+L (clear)
+- **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
+- **Messages non-scrollables** : Labels optimisés pour de meilleures performances
+- **Timestamp automatique** : Horodatage discret pour chaque message
 
 ### 🖥️ Interface Utilisateur
 - **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
@@ -96,8 +117,10 @@ my_ai/
 - **Mémoire documentaire** : Stockage et référencement des contenus traités
 
 ### Interface Utilisateur
-- **Tkinter** : GUI native Python multiplateforme
+- **Tkinter + CustomTkinter** : GUI native moderne avec thèmes sombres
+- **Drag & Drop** : Support natif avec tkinterdnd2
 - **Click** : CLI avancée avec commandes contextuelles
+- **Styles adaptatifs** : Polices et couleurs optimisées par OS
 - **Logging intégré** : Suivi des opérations et débogage
 
 ## 🏃‍♂️ Démarrage Rapide
@@ -113,7 +136,7 @@ pip install -r requirements.txt
 ```bash
 .\launch.bat
 ```
-Puis sélectionnez **l'option 1 (Interface Graphique)**
+Puis sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
 
 ### Premiers Pas
 1. **Saluer l'IA** : "Salut", "Bonjour", "slt" - L'IA reconnaîtra votre salutation

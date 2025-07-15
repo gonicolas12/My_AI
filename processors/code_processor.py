@@ -479,3 +479,15 @@ class CodeProcessor:
             return {"error": f"Erreur de syntaxe: {str(e)}"}
         except Exception as e:
             return {"error": f"Erreur lors de la validation: {str(e)}"}
+    
+    def extract_text_from_file(self, file_path: str) -> str:
+        """
+        Extrait le texte d'un fichier de code (compatible avec l'interface GUI)
+        
+        Args:
+            file_path: Chemin vers le fichier de code
+            
+        Returns:
+            Contenu du fichier de code
+        """
+        return self.read_code_file(file_path)

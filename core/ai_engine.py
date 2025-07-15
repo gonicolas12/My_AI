@@ -438,18 +438,26 @@ if __name__ == "__main__":
         """
         query_lower = query.lower()
         
-        # Mots-clés pour le traitement de fichiers
-        file_keywords = ["lire", "ouvrir", "analyser", "fichier", "pdf", "docx", "document"]
-        if any(keyword in query_lower for keyword in file_keywords):
-            return "file_processing"
+        # Vérifier d'abord si on a des documents et si la question les concerne
+        if hasattr(self.local_ai, 'conversation_memory'):
+            stored_docs = self.local_ai.conversation_memory.get_document_content()
+            if stored_docs:
+                # Mots-clés pour questions sur les documents
+                doc_question_keywords = [
+                    "résume", "explique", "analyse", "qu'est-ce que", "que dit", 
+                    "contenu", "parle", "traite", "sujet", "doc", "document", 
+                    "pdf", "docx", "fichier", "code"
+                ]
+                if any(keyword in query_lower for keyword in doc_question_keywords):
+                    return "file_processing"
         
-        # Mots-clés pour la génération de code
-        code_keywords = ["code", "programme", "script", "fonction", "classe", "python", "html"]
-        if any(keyword in query_lower for keyword in code_keywords):
+        # Mots-clés pour la génération de code (NOUVEAU code, pas analyse)
+        code_generation_keywords = ["génère", "crée", "écris", "développe", "programme", "script", "fonction", "classe"]
+        if any(keyword in query_lower for keyword in code_generation_keywords):
             return "code_generation"
         
         # Mots-clés pour la génération de documents
-        doc_keywords = ["créer", "générer", "rapport", "document", "résumé", "rédiger"]
+        doc_keywords = ["créer", "générer", "rapport", "rédiger", "documenter"]
         if any(keyword in query_lower for keyword in doc_keywords):
             return "document_generation"
         
@@ -466,69 +474,226 @@ if __name__ == "__main__":
             "user_context": context or {}
         }
         
+        # Ajouter les documents stockés dans la mémoire
+        if hasattr(self.local_ai, 'conversation_memory'):
+            stored_docs = self.local_ai.conversation_memory.stored_documents
+            if stored_docs:
+                full_context["stored_documents"] = stored_docs
+                full_context["document_order"] = self.local_ai.conversation_memory.document_order
+                self.logger.info(f"Contexte enrichi avec {len(stored_docs)} documents stockés")
+        
         return full_context
     
     async def _handle_conversation(self, query: str, context: Dict) -> Dict[str, Any]:
         """
         Gère les conversations générales
         """
-        response = self.local_ai.generate_response(query)
-        
-        return {
-            "type": "conversation",
-            "message": response,
-            "success": True
-        }
+        try:
+            # Si on a des documents, les inclure dans le contexte
+            prompt = query
+            if 'stored_documents' in context and context['stored_documents']:
+                prompt = f"""Contexte des documents disponibles:
+                
+"""
+                for doc_name in context['stored_documents'].keys():
+                    prompt += f"- {doc_name}\n"
+                
+                prompt += f"\nQuestion: {query}\n\nRéponds en tenant compte du contexte si pertinent."
+            
+            response = self.local_ai.generate_response(prompt)
+            
+            return {
+                "type": "conversation",
+                "message": response,
+                "success": True
+            }
+        except Exception as e:
+            self.logger.error(f"Erreur conversation: {e}")
+            return {
+                "type": "conversation",
+                "message": f"Erreur lors de la conversation: {str(e)}",
+                "success": False
+            }
     
     async def _handle_file_processing(self, query: str, context: Dict) -> Dict[str, Any]:
         """
-        Gère le traitement de fichiers
+        Gère le traitement de fichiers et questions sur les documents
         """
-        # Logique de traitement de fichiers
-        # À implémenter selon les besoins spécifiques
-        return {
-            "type": "file_processing",
-            "message": "Traitement de fichier en cours...",
-            "success": True
-        }
+        try:
+            query_lower = query.lower()
+            
+            # Déterminer quel document spécifique est demandé
+            target_document = None
+            all_docs = context.get('stored_documents', {})
+            document_order = context.get('document_order', [])
+            
+            # Log pour debug
+            self.logger.info(f"Query: '{query}' | Documents disponibles: {list(all_docs.keys())}")
+            
+            # Recherche de mots-clés spécifiques au type de document
+            if 'pdf' in query_lower:
+                # Chercher le PDF le plus récent
+                for doc_name in reversed(document_order):
+                    if doc_name.lower().endswith('.pdf'):
+                        target_document = doc_name
+                        self.logger.info(f"PDF sélectionné: {target_document}")
+                        break
+            elif 'docx' in query_lower:
+                # Recherche spécifique pour DOCX
+                for doc_name in reversed(document_order):
+                    if doc_name.lower().endswith('.docx'):
+                        target_document = doc_name
+                        self.logger.info(f"DOCX sélectionné: {target_document}")
+                        break
+            elif 'doc' in query_lower and 'pdf' not in query_lower:
+                # "doc" sans mention de PDF = chercher DOCX
+                for doc_name in reversed(document_order):
+                    if doc_name.lower().endswith('.docx'):
+                        target_document = doc_name
+                        self.logger.info(f"Document DOCX sélectionné: {target_document}")
+                        break
+            elif 'code' in query_lower or 'py' in query_lower:
+                # Chercher le fichier de code le plus récent
+                for doc_name in reversed(document_order):
+                    if doc_name.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c')):
+                        target_document = doc_name
+                        self.logger.info(f"Code sélectionné: {target_document}")
+                        break
+            
+            # Si aucun document spécifique n'est mentionné, prendre le plus récent
+            if not target_document and document_order:
+                target_document = document_order[-1]
+                self.logger.info(f"Document le plus récent sélectionné: {target_document}")
+            
+            # Construire le prompt avec le document ciblé
+            if target_document and target_document in all_docs:
+                doc_data = all_docs[target_document]
+                if isinstance(doc_data, dict) and 'content' in doc_data:
+                    doc_content = doc_data['content']
+                else:
+                    doc_content = str(doc_data)
+                
+                prompt = f"""Question: {query}
+
+Document analysé: {target_document}
+
+Contenu du document:
+{doc_content[:3000]}"""
+                
+                if len(doc_content) > 3000:
+                    prompt += "\n[... contenu tronqué ...]"
+                    
+                prompt += f"\n\nRéponds à la question en te basant uniquement sur le contenu du document '{target_document}' ci-dessus."
+            else:
+                # Fallback: utiliser tous les documents disponibles
+                self.logger.warning("Aucun document ciblé trouvé, utilisation de tous les documents")
+                prompt = f"""Question: {query}
+
+Contexte des documents disponibles:"""
+                
+                if 'stored_documents' in context:
+                    for doc_name, doc_data in context['stored_documents'].items():
+                        if isinstance(doc_data, dict) and 'content' in doc_data:
+                            doc_content = doc_data['content']
+                        else:
+                            doc_content = str(doc_data)
+                        
+                        prompt += f"\n\n--- Document: {doc_name} ---\n{doc_content[:2000]}"
+                        if len(doc_content) > 2000:
+                            prompt += "\n[... contenu tronqué ...]"
+                
+                prompt += f"\n\nRéponds à la question en te basant sur le contenu des documents ci-dessus."
+            
+            # Générer la réponse
+            response = self.local_ai.generate_response(prompt)
+            
+            return {
+                "type": "file_processing",
+                "message": response,
+                "success": True
+            }
+        except Exception as e:
+            self.logger.error(f"Erreur traitement fichier: {e}")
+            return {
+                "type": "file_processing",
+                "message": "Traitement de fichier en cours...",
+                "success": False
+            }
     
     async def _handle_code_generation(self, query: str, context: Dict) -> Dict[str, Any]:
         """
         Gère la génération de code
         """
-        code = await self.code_generator.generate_code(query, context)
-        
-        return {
-            "type": "code_generation",
-            "code": code,
-            "message": "Code généré avec succès",
-            "success": True
-        }
+        try:
+            # Générer le code sans await (methode sync)
+            code = self.code_generator.generate_code(query, context)
+            
+            return {
+                "type": "code_generation",
+                "code": code,
+                "message": "Code généré avec succès",
+                "success": True
+            }
+        except Exception as e:
+            self.logger.error(f"Erreur génération code: {e}")
+            return {
+                "type": "code_generation", 
+                "message": f"Erreur lors de la génération de code: {str(e)}",
+                "success": False
+            }
     
     async def _handle_document_generation(self, query: str, context: Dict) -> Dict[str, Any]:
         """
         Gère la génération de documents
         """
-        document = await self.document_generator.generate_document(query, context)
-        
-        return {
-            "type": "document_generation",
-            "document": document,
-            "message": "Document généré avec succès",
-            "success": True
-        }
+        try:
+            # Générer le document sans await (methode sync)
+            document = self.document_generator.generate_document(query, context)
+            
+            return {
+                "type": "document_generation",
+                "document": document,
+                "message": "Document généré avec succès",
+                "success": True
+            }
+        except Exception as e:
+            self.logger.error(f"Erreur génération document: {e}")
+            return {
+                "type": "document_generation",
+                "message": f"Erreur lors de la génération de document: {str(e)}",
+                "success": False
+            }
     
     async def _handle_general_query(self, query: str, context: Dict) -> Dict[str, Any]:
         """
         Gère les requêtes générales
         """
-        response = self.local_ai.generate_response(query)
-        
-        return {
-            "type": "general",
-            "message": response,
-            "success": True
-        }
+        try:
+            # Construire le prompt avec contexte si disponible
+            prompt = query
+            if 'stored_documents' in context and context['stored_documents']:
+                prompt = f"""Contexte des documents disponibles:
+                
+"""
+                for doc_name in context['stored_documents'].keys():
+                    prompt += f"- {doc_name}\n"
+                
+                prompt += f"\nQuestion: {query}\n\nRéponds en tenant compte du contexte si pertinent."
+            
+            response = self.local_ai.generate_response(prompt)
+            
+            return {
+                "type": "general",
+                "message": response,
+                "success": True
+            }
+        except Exception as e:
+            self.logger.error(f"Erreur requête générale: {e}")
+            return {
+                "type": "general",
+                "message": f"Erreur lors du traitement: {str(e)}",
+                "success": False
+            }
     
     def get_status(self) -> Dict[str, Any]:
         """
