@@ -2,12 +2,11 @@
 
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée
 - 🧠 **Mémoire conversationnelle** persistante et contextuelle
-- 📄 **Traitement complet** des documents **PDF** et **DOCX** avec drag & drop
+- 📄 **Traitement complet** des documents **PDF** et **DOCX**
 - 💻 **Analyse**, **génération** et **débogage** de **code**
 - 🌐 **Recherche internet intelligente** avec résumés automatiques
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
 - 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
-- 🖱️ **Drag & Drop intégré** pour fichiers PDF, DOCX et code
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode
 - 🔧 **Fonctionnement local** avec recherche internet - IA 100% Locale
 

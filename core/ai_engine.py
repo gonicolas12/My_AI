@@ -530,35 +530,38 @@ if __name__ == "__main__":
             # Log pour debug
             self.logger.info(f"Query: '{query}' | Documents disponibles: {list(all_docs.keys())}")
             
-            # Recherche de mots-clés spécifiques au type de document
-            if 'pdf' in query_lower:
-                # Chercher le PDF le plus récent
+            # Recherche de mots-clés spécifiques au type de document - LOGIQUE AMÉLIORÉE
+            if 'pdf' in query_lower and 'docx' not in query_lower:
+                # EXPLICITEMENT PDF seulement
                 for doc_name in reversed(document_order):
                     if doc_name.lower().endswith('.pdf'):
                         target_document = doc_name
                         self.logger.info(f"PDF sélectionné: {target_document}")
                         break
-            elif 'docx' in query_lower:
-                # Recherche spécifique pour DOCX
+            elif 'docx' in query_lower or ('doc' in query_lower and 'pdf' not in query_lower):
+                # DOCX explicite OU "doc" sans mention de PDF
                 for doc_name in reversed(document_order):
-                    if doc_name.lower().endswith('.docx'):
+                    if doc_name.lower().endswith('.docx') or doc_name.lower().endswith('.doc'):
                         target_document = doc_name
                         self.logger.info(f"DOCX sélectionné: {target_document}")
                         break
-            elif 'doc' in query_lower and 'pdf' not in query_lower:
-                # "doc" sans mention de PDF = chercher DOCX
-                for doc_name in reversed(document_order):
-                    if doc_name.lower().endswith('.docx'):
-                        target_document = doc_name
-                        self.logger.info(f"Document DOCX sélectionné: {target_document}")
-                        break
-            elif 'code' in query_lower or 'py' in query_lower:
+            elif 'code' in query_lower or 'py' in query_lower or 'fichier code' in query_lower:
                 # Chercher le fichier de code le plus récent
                 for doc_name in reversed(document_order):
-                    if doc_name.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c')):
+                    if doc_name.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json')):
                         target_document = doc_name
                         self.logger.info(f"Code sélectionné: {target_document}")
                         break
+            elif any(keyword in query_lower for keyword in ['résume', 'résumé', 'analyse', 'contenu']):
+                # Si c'est une demande de résumé sans type spécifique, prendre le DERNIER document ajouté
+                if document_order:
+                    target_document = document_order[-1]
+                    self.logger.info(f"Dernier document ajouté sélectionné pour résumé: {target_document}")
+            
+            # NOUVEAU : Log détaillé pour debug
+            self.logger.info(f"Analyse requête: '{query_lower}' -> Document ciblé: {target_document}")
+            if not target_document:
+                self.logger.warning(f"Aucun document spécifique détecté dans: '{query_lower}'")
             
             # Si aucun document spécifique n'est mentionné, prendre le plus récent
             if not target_document and document_order:
@@ -573,17 +576,33 @@ if __name__ == "__main__":
                 else:
                     doc_content = str(doc_data)
                 
-                prompt = f"""Question: {query}
+                # PROMPT PLUS SPÉCIFIQUE avec instruction claire
+                prompt = f"""INSTRUCTION IMPORTANTE: Tu dois répondre UNIQUEMENT en te basant sur le document spécifique mentionné ci-dessous.
 
-Document analysé: {target_document}
+Question: {query}
 
-Contenu du document:
+DOCUMENT CIBLE À ANALYSER: {target_document}
+TYPE DE FICHIER: {target_document.split('.')[-1].upper()}
+
+=== DÉBUT DU CONTENU DU DOCUMENT ===
 {doc_content[:3000]}"""
                 
                 if len(doc_content) > 3000:
                     prompt += "\n[... contenu tronqué ...]"
                     
-                prompt += f"\n\nRéponds à la question en te basant uniquement sur le contenu du document '{target_document}' ci-dessus."
+                prompt += f"""
+=== FIN DU CONTENU DU DOCUMENT ===
+
+RÈGLE STRICTE: 
+- Réponds UNIQUEMENT en analysant le contenu du document '{target_document}' ci-dessus
+- IGNORE tous les autres documents que tu pourrais connaître
+- Mentionne le nom du document '{target_document}' dans ta réponse
+- Si le document ne contient pas l'information demandée, dis-le clairement
+"""
+                
+                # Log pour debug - VÉRIFIE LE CONTENU
+                self.logger.info(f"PROMPT généré pour {target_document} (premiers 200 chars): {doc_content[:200]}...")
+                
             else:
                 # Fallback: utiliser tous les documents disponibles
                 self.logger.warning("Aucun document ciblé trouvé, utilisation de tous les documents")

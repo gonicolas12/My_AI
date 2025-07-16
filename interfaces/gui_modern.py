@@ -292,33 +292,66 @@ class ModernAIGUI:
         # Traiter le fichier
         self.process_file(file_path, file_type)
     
-    def show_notification(self, message, type_notif="info"):
-        """Affiche une notification temporaire"""
-        # Création d'une notification temporaire en haut de l'interface
-        notif_frame = self.create_frame(self.main_container, fg_color=self.colors['bg_secondary'])
+    def show_notification(self, message, type_notif="info", duration=2000):
+        """
+        Affiche une notification temporaire améliorée
         
-        if type_notif == "error":
-            bg_color = self.colors.get('error', '#ef4444')
-        elif type_notif == "success":
-            bg_color = self.colors.get('success', '#10b981')
-        elif type_notif == "warning":
-            bg_color = self.colors.get('warning', '#f59e0b')
+        Args:
+            message: Message à afficher
+            type_notif: Type de notification (info, success, error, warning)
+            duration: Durée d'affichage en millisecondes
+        """
+        # Couleurs selon le type
+        colors_map = {
+            "error": "#ef4444",
+            "success": "#10b981", 
+            "warning": "#f59e0b",
+            "info": "#3b82f6"
+        }
+        
+        bg_color = colors_map.get(type_notif, "#3b82f6")
+        
+        # Créer une notification en overlay
+        if self.use_ctk:
+            notif_frame = ctk.CTkFrame(
+                self.main_container,
+                fg_color=bg_color,
+                corner_radius=8,
+                border_width=0
+            )
+            
+            notif_label = ctk.CTkLabel(
+                notif_frame,
+                text=message,
+                text_color='#ffffff',
+                font=('Segoe UI', 12, 'bold'),
+                fg_color="transparent"
+            )
         else:
-            bg_color = self.colors.get('info', '#3b82f6')
+            notif_frame = tk.Frame(
+                self.main_container,
+                bg=bg_color,
+                relief="flat",
+                bd=0
+            )
+            
+            notif_label = tk.Label(
+                notif_frame,
+                text=message,
+                fg='#ffffff',
+                bg=bg_color,
+                font=('Segoe UI', 12, 'bold')
+            )
         
-        notif_label = self.create_label(
-            notif_frame,
-            text=message,
-            text_color='#ffffff',  # text_color au lieu de fg
-            fg_color=bg_color,     # fg_color au lieu de bg
-            font=self.fonts['body']
-        )
+        # Positionner en haut à droite
+        notif_frame.place(relx=0.98, rely=0.02, anchor="ne")
+        notif_label.pack(padx=15, pady=8)
         
-        notif_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=5)
-        notif_label.grid(row=0, column=0, padx=15, pady=8)
+        # Animation d'apparition (optionnelle)
+        notif_frame.lift()  # Mettre au premier plan
         
-        # Supprimer la notification après 3 secondes
-        self.root.after(3000, notif_frame.destroy)
+        # Supprimer automatiquement après la durée spécifiée
+        self.root.after(duration, lambda: notif_frame.destroy())
     
     def setup_fallback_style(self):
         """Style de base pour tkinter standard"""
@@ -660,15 +693,15 @@ class ModernAIGUI:
             return btn
     
     def add_message_bubble(self, text, is_user=True, message_type="text"):
-        """Ajoute un message style Claude - Bulles pour utilisateur, texte simple pour IA"""
+        """Version améliorée sans scroll interne"""
         # Vérifier que le texte est une chaîne
         if not isinstance(text, str):
             if isinstance(text, dict):
                 text = (text.get('response') or 
-                       text.get('text') or 
-                       text.get('content') or 
-                       text.get('message') or 
-                       str(text))
+                    text.get('text') or 
+                    text.get('content') or 
+                    text.get('message') or 
+                    str(text))
             else:
                 text = str(text)
         
@@ -680,30 +713,30 @@ class ModernAIGUI:
             'type': message_type
         })
         
-        # Container principal pour le message (centré)
+        # Container principal pour le message
         msg_container = self.create_frame(self.chat_frame, fg_color=self.colors['bg_chat'])
-        msg_container.grid(row=len(self.conversation_history)-1, column=0, sticky="ew", pady=(0, 25))
+        msg_container.grid(row=len(self.conversation_history)-1, column=0, sticky="ew", pady=(0, 15))  # REDUCED spacing
         msg_container.grid_columnconfigure(0, weight=1)
         
         if is_user:
-            # MESSAGE UTILISATEUR - AVEC BULLE (style Claude)
+            # MESSAGE UTILISATEUR - AVEC BULLE (sans scroll)
             self.create_user_message_bubble(msg_container, text)
         else:
-            # RÉPONSE IA - SANS BULLE (style Claude)
+            # RÉPONSE IA - SANS BULLE (sans scroll) 
             self.create_ai_message_simple(msg_container, text)
         
         # Scroll automatique vers le bas
         self.root.after(100, self.scroll_to_bottom)
     
     def create_user_message_bubble(self, parent, text):
-        """Crée une bulle de message utilisateur - Position optimisée et hauteur adaptative"""
-        # Frame principale décalée un peu plus vers la droite
+        """Crée une bulle de message utilisateur - CENTRÉ avec alignement parfait"""
+        # Frame principale DÉCALÉE comme avant (400px de la gauche)
         main_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        main_frame.grid(row=0, column=0, padx=(400, 0), pady=0, sticky="w")  # Décalé plus vers la droite
+        main_frame.grid(row=0, column=0, padx=(400, 0), pady=0, sticky="w")  # RETOUR au décalage original
         main_frame.grid_columnconfigure(0, weight=0)  # Icône fixe
         main_frame.grid_columnconfigure(1, weight=0)  # Bulle fixe
         
-        # Icône utilisateur à position fixe
+        # Icône utilisateur à GAUCHE (comme avant)
         icon_label = self.create_label(
             main_frame,
             text="👤",
@@ -713,74 +746,85 @@ class ModernAIGUI:
         )
         icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 15), pady=(5, 0))
         
-        # Calculer la taille de bulle VRAIMENT adaptative
+        # Calculer la largeur de bulle adaptative
         lines = text.split('\n')
         max_line_length = max(len(line) for line in lines) if lines else len(text)
         
-        # Largeur plus précise basée sur le contenu réel
         if max_line_length <= 5:
-            bubble_width = 80   # Très petite bulle pour "slt", "ok"
+            bubble_width = 80
         elif max_line_length <= 15:
-            bubble_width = max(100, max_line_length * 7)  # Petits messages
+            bubble_width = max(100, max_line_length * 7)
         elif max_line_length <= 30:
-            bubble_width = max(140, max_line_length * 6)  # Messages moyens
+            bubble_width = max(140, max_line_length * 6)
         elif max_line_length <= 50:
-            bubble_width = max(200, max_line_length * 5)  # Messages longs
+            bubble_width = max(200, max_line_length * 5)
         else:
-            bubble_width = min(400, max_line_length * 4)  # Très longs messages
+            bubble_width = min(400, max_line_length * 4)
         
-        # Ajuster pour multi-lignes
         if len(lines) > 1:
             bubble_width = max(bubble_width, 150)
         
-        # Bulle utilisateur avec hauteur AUTO-ADAPTATIVE
+        # Bulle utilisateur ALIGNÉE avec l'icône (même ligne verticale)
         if self.use_ctk:
             bubble = ctk.CTkFrame(main_frame, 
                                 fg_color=self.colors['bg_user'], 
                                 corner_radius=12,
-                                border_width=0,
-                                width=bubble_width)
+                                border_width=0)
         else:
             bubble = tk.Frame(main_frame, 
                             bg=self.colors['bg_user'], 
                             relief="flat", 
                             bd=0,
-                            highlightthickness=0,
-                            width=bubble_width)
+                            highlightthickness=0)
         
-        bubble.grid(row=0, column=1, sticky="w", padx=0, pady=5)
-        bubble.grid_propagate(True)  # PERMET à la bulle de s'adapter à son contenu
+        bubble.grid(row=0, column=1, sticky="w", padx=0, pady=(5, 5))  # ALIGNÉ avec l'icône
+        bubble.grid_columnconfigure(0, weight=1)
         
-        # Taille de police pour le texte
+        # TEXTE SÉLECTIONNABLE avec TextBox SANS SCROLL interne
         current_font_size = self.get_current_font_size('message')
         
         if self.use_ctk:
-            # Utiliser CTkTextbox en lecture seule pour la sélection SANS SCROLL
+            # CTkTextbox SÉLECTIONNABLE sans scroll
             text_widget = ctk.CTkTextbox(
                 bubble,
                 width=bubble_width - 16,
-                height=60,  # Sera ajusté automatiquement
+                height=1,  # Sera ajusté automatiquement
                 fg_color="transparent",
                 text_color='#ffffff',
                 font=('Segoe UI', current_font_size),
                 wrap="word",
                 state="normal"
             )
-            # Insérer le texte et passer en lecture seule
+            
+            # Insérer le texte avec formatage gras
             text_widget.delete("1.0", "end")
-            text_widget.insert("1.0", self.clean_text_for_label(text))
-            text_widget.configure(state="disabled")
-            # Désactiver le scroll avec la molette ET les touches
+            self.insert_formatted_text_ctk(text_widget, text)
+            text_widget.configure(state="disabled")  # Lecture seule mais sélectionnable
+            
+            # DÉSACTIVER COMPLÈTEMENT LE SCROLL INTERNE
             text_widget.bind("<MouseWheel>", lambda e: "break")
-            text_widget.bind("<Button-4>", lambda e: "break")  # Linux scroll up
-            text_widget.bind("<Button-5>", lambda e: "break")  # Linux scroll down
-            text_widget.bind("<Key>", lambda e: "break" if e.keysym in ["Up", "Down", "Page_Up", "Page_Down"] else None)
+            text_widget.bind("<Button-4>", lambda e: "break")  # Linux
+            text_widget.bind("<Button-5>", lambda e: "break")  # Linux
+            text_widget.bind("<Key-Up>", lambda e: "break")
+            text_widget.bind("<Key-Down>", lambda e: "break")
+            text_widget.bind("<Key-Prior>", lambda e: "break")  # Page Up
+            text_widget.bind("<Key-Next>", lambda e: "break")   # Page Down
+            
+            # PERMETTRE LA SÉLECTION en cliquant
+            def enable_selection(event):
+                text_widget.configure(state="normal")
+                # Repositionner le curseur où l'utilisateur a cliqué
+                text_widget.mark_set("insert", text_widget.index(f"@{event.x},{event.y}"))
+                return "break"
+            
+            text_widget.bind("<Button-1>", enable_selection)
+            
         else:
-            # Version tkinter avec Text en lecture seule SANS SCROLL
+            # Text widget tkinter SÉLECTIONNABLE sans scroll
             text_widget = tk.Text(
                 bubble,
                 width=(bubble_width - 16) // 8,
-                height=3,
+                height=1,
                 bg=self.colors['bg_user'],
                 fg='#ffffff',
                 font=('Segoe UI', current_font_size),
@@ -790,25 +834,37 @@ class ModernAIGUI:
                 highlightthickness=0,
                 state="normal"
             )
-            # Insérer le texte et passer en lecture seule
+            
+            # Insérer le texte avec formatage gras
             text_widget.delete("1.0", "end")
-            text_widget.insert("1.0", self.clean_text_for_label(text))
+            self.insert_formatted_text_tkinter(text_widget, text)
             text_widget.configure(state="disabled")
-            # Désactiver le scroll avec la molette ET les touches
+            
+            # DÉSACTIVER LE SCROLL INTERNE
             text_widget.bind("<MouseWheel>", lambda e: "break")
-            text_widget.bind("<Button-4>", lambda e: "break")  # Linux scroll up
-            text_widget.bind("<Button-5>", lambda e: "break")  # Linux scroll down
-            text_widget.bind("<Key>", lambda e: "break" if e.keysym in ["Up", "Down", "Page_Up", "Page_Down"] else None)
+            text_widget.bind("<Button-4>", lambda e: "break")
+            text_widget.bind("<Button-5>", lambda e: "break")
+            text_widget.bind("<Key-Up>", lambda e: "break")
+            text_widget.bind("<Key-Down>", lambda e: "break")
+            text_widget.bind("<Key-Prior>", lambda e: "break")
+            text_widget.bind("<Key-Next>", lambda e: "break")
+            
+            # PERMETTRE LA SÉLECTION
+            def enable_selection(event):
+                text_widget.configure(state="normal")
+                return "break"
+            
+            text_widget.bind("<Button-1>", enable_selection)
         
-        text_widget.grid(row=0, column=0, padx=8, pady=6, sticky="nsew")  # Permettre expansion
+        text_widget.grid(row=0, column=0, padx=8, pady=(6, 2), sticky="nw")  # REDUCED bottom padding
         
-        # Ajuster la hauteur selon le contenu après un délai plus long
-        self.root.after(50, lambda: self.adjust_text_height(text_widget, text))
+        # Ajuster la hauteur selon le contenu APRÈS insertion
+        self.root.after(50, lambda: self.adjust_text_height_no_scroll(text_widget, text))
         
-        # Retirer le menu contextuel (pas nécessaire avec TextBox sélectionnable)
-        # self.create_context_menu_for_label(text_widget, text)
+        # Menu contextuel pour copier
+        self.create_copy_menu(text_widget, text)
         
-        # Timestamp discret (aligné sous la bulle comme l'IA)
+        # Timestamp PROCHE de la bulle - RÉDUIT L'ESPACEMENT
         timestamp = datetime.now().strftime("%H:%M")
         time_label = self.create_label(
             main_frame,
@@ -817,60 +873,71 @@ class ModernAIGUI:
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['text_secondary']
         )
-        time_label.grid(row=1, column=1, sticky="w", padx=(0, 0), pady=(2, 0))  # Aligné sous la bulle
+        time_label.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(0, 0))  # REDUCED padding
     
     def create_ai_message_simple(self, parent, text):
-        """Crée un message IA simple sans bulle (style Claude) - CENTRÉ COMME AVANT"""
-        # Frame de centrage avec alignement au centre (comme avant)
+        """Crée un message IA simple sans bulle - CENTRÉ avec même alignement"""
+        # Frame de centrage IDENTIQUE au décalage utilisateur (400px)
         center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        center_frame.grid(row=0, column=0, padx=(80, 80), pady=0)  # Centré avec marges
+        center_frame.grid(row=0, column=0, padx=(400, 0), pady=0, sticky="w")  # MÊME décalage que l'utilisateur
         center_frame.grid_columnconfigure(0, weight=0)  # Icône fixe
         center_frame.grid_columnconfigure(1, weight=1)  # Zone de texte extensible
         
-        # Container horizontal pour icône + texte
-        content_frame = center_frame  # Utilise directement le frame centré
-        
-        # Icône IA (position fixe à gauche du texte)
+        # Icône IA à position IDENTIQUE à l'utilisateur
         icon_label = self.create_label(
-            content_frame,
+            center_frame,
             text="🤖",
             font=('Segoe UI', 16),
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['accent']
         )
-        icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 15), pady=(5, 0))
+        icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 15), pady=(5, 0))  # MÊME position que l'utilisateur
         
-        # Zone de texte IA (sans bulle, alignement au centre)
+        # Zone de texte IA SÉLECTIONNABLE sans scroll
         current_font_size = self.get_current_font_size('message')
         max_width = min(600, self.root.winfo_width() - 300) if self.root.winfo_width() > 300 else 500
         
         if self.use_ctk:
-            # Utiliser CTkTextbox en lecture seule pour la sélection SANS SCROLL
+            # CTkTextbox SÉLECTIONNABLE sans scroll
             text_widget = ctk.CTkTextbox(
-                content_frame,
+                center_frame,
                 width=max_width,
-                height=100,  # Sera ajusté automatiquement
+                height=1,  # Sera ajusté automatiquement
                 fg_color=self.colors['bg_chat'],
                 text_color=self.colors['text_primary'],
                 font=('Segoe UI', current_font_size),
                 wrap="word",
                 state="normal"
             )
-            # Insérer le texte et passer en lecture seule
+            
+            # Insérer le texte avec formatage gras
             text_widget.delete("1.0", "end")
-            text_widget.insert("1.0", self.clean_text_for_label(text))
-            text_widget.configure(state="disabled")
-            # Désactiver le scroll avec la molette ET les touches
+            self.insert_formatted_text_ctk(text_widget, text)
+            text_widget.configure(state="disabled")  # Lecture seule mais sélectionnable
+            
+            # DÉSACTIVER COMPLÈTEMENT LE SCROLL INTERNE
             text_widget.bind("<MouseWheel>", lambda e: "break")
-            text_widget.bind("<Button-4>", lambda e: "break")  # Linux scroll up
-            text_widget.bind("<Button-5>", lambda e: "break")  # Linux scroll down
-            text_widget.bind("<Key>", lambda e: "break" if e.keysym in ["Up", "Down", "Page_Up", "Page_Down"] else None)
+            text_widget.bind("<Button-4>", lambda e: "break")
+            text_widget.bind("<Button-5>", lambda e: "break")
+            text_widget.bind("<Key-Up>", lambda e: "break")
+            text_widget.bind("<Key-Down>", lambda e: "break")
+            text_widget.bind("<Key-Prior>", lambda e: "break")
+            text_widget.bind("<Key-Next>", lambda e: "break")
+            
+            # PERMETTRE LA SÉLECTION
+            def enable_selection(event):
+                text_widget.configure(state="normal")
+                text_widget.mark_set("insert", text_widget.index(f"@{event.x},{event.y}"))
+                return "break"
+            
+            text_widget.bind("<Button-1>", enable_selection)
+            
         else:
-            # Version tkinter avec Text en lecture seule SANS SCROLL
+            # Text widget tkinter SÉLECTIONNABLE sans scroll
             text_widget = tk.Text(
-                content_frame,
+                center_frame,
                 width=(max_width - 20) // 8,
-                height=5,
+                height=1,
                 bg=self.colors['bg_chat'],
                 fg=self.colors['text_primary'],
                 font=('Segoe UI', current_font_size),
@@ -880,25 +947,37 @@ class ModernAIGUI:
                 highlightthickness=0,
                 state="normal"
             )
-            # Insérer le texte et passer en lecture seule
+            
+            # Insérer le texte avec formatage gras
             text_widget.delete("1.0", "end")
-            text_widget.insert("1.0", self.clean_text_for_label(text))
+            self.insert_formatted_text_tkinter(text_widget, text)
             text_widget.configure(state="disabled")
-            # Désactiver le scroll avec la molette ET les touches
+            
+            # DÉSACTIVER LE SCROLL INTERNE
             text_widget.bind("<MouseWheel>", lambda e: "break")
-            text_widget.bind("<Button-4>", lambda e: "break")  # Linux scroll up
-            text_widget.bind("<Button-5>", lambda e: "break")  # Linux scroll down
-            text_widget.bind("<Key>", lambda e: "break" if e.keysym in ["Up", "Down", "Page_Up", "Page_Down"] else None)
+            text_widget.bind("<Button-4>", lambda e: "break")
+            text_widget.bind("<Button-5>", lambda e: "break")
+            text_widget.bind("<Key-Up>", lambda e: "break")
+            text_widget.bind("<Key-Down>", lambda e: "break")
+            text_widget.bind("<Key-Prior>", lambda e: "break")
+            text_widget.bind("<Key-Next>", lambda e: "break")
+            
+            # PERMETTRE LA SÉLECTION
+            def enable_selection(event):
+                text_widget.configure(state="normal")
+                return "break"
+            
+            text_widget.bind("<Button-1>", enable_selection)
         
-        text_widget.grid(row=0, column=1, sticky="nsew", padx=(0, 0), pady=(5, 10))
+        text_widget.grid(row=0, column=1, sticky="w", padx=(0, 0), pady=(5, 2))  # REDUCED bottom padding
         
-        # Ajuster la hauteur selon le contenu après un délai plus long
-        self.root.after(50, lambda: self.adjust_text_height(text_widget, text))
+        # Ajuster la hauteur selon le contenu
+        self.root.after(50, lambda: self.adjust_text_height_no_scroll(text_widget, text))
         
-        # Retirer le menu contextuel (pas nécessaire avec TextBox sélectionnable)
-        # self.create_context_menu_for_label(text_widget, text)
+        # Menu contextuel pour copier
+        self.create_copy_menu(text_widget, text)
         
-        # Timestamp discret (aligné avec le texte)
+        # Timestamp PROCHE du texte - RÉDUIT L'ESPACEMENT
         timestamp = datetime.now().strftime("%H:%M")
         time_label = self.create_label(
             center_frame,
@@ -907,7 +986,245 @@ class ModernAIGUI:
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['text_secondary']
         )
-        time_label.grid(row=1, column=1, sticky="w", padx=(0, 0), pady=(2, 0))
+        time_label.grid(row=1, column=1, sticky="w", padx=(0, 0), pady=(0, 0))  # REMOVED padding
+
+    def start_text_selection(self, widget, text, event):
+        """Démarre la sélection de texte sur un label"""
+        # Stocker les informations de sélection
+        self.selection_widget = widget
+        self.selection_text = text
+        self.selection_start = event.x, event.y
+        
+    def continue_text_selection(self, event):
+        """Continue la sélection de texte"""
+        # Mise à jour visuelle de la sélection (optionnel)
+        pass
+        
+    def end_text_selection(self, text):
+        """Termine la sélection et copie automatiquement le texte sélectionné"""
+        try:
+            # Copier automatiquement le texte complet dans le presse-papiers
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            # Notification discrète
+            print(f"✅ Texte copié: {text[:50]}...")
+        except Exception as e:
+            print(f"❌ Erreur copie: {e}")
+
+    def adjust_text_height_selectable(self, text_widget, text):
+        """NOUVELLE VERSION : Ajuste la hauteur pour texte sélectionnable SANS SCROLL"""
+        try:
+            if self.use_ctk:
+                # Pour CustomTkinter CTkTextbox - CALCUL TRÈS PRÉCIS
+                text_widget.update_idletasks()
+                
+                # Compter les lignes avec wrapping précis
+                lines = text.split('\n')
+                total_display_lines = 0
+                
+                # Largeur de widget disponible
+                try:
+                    widget_width = text_widget.winfo_width()
+                    if widget_width <= 50:
+                        widget_width = 350  # Largeur par défaut pour bulle
+                    
+                    # Caractères par ligne (estimation précise)
+                    chars_per_line = max(30, (widget_width - 25) // 8)  # -25 pour padding bulle
+                    
+                    for line in lines:
+                        if len(line) == 0:
+                            total_display_lines += 1
+                        else:
+                            # Calcul précis du nombre de lignes après wrap
+                            wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
+                            total_display_lines += wrapped_lines
+                            
+                except Exception:
+                    # Fallback conservateur
+                    total_display_lines = len(lines) * 2
+                
+                # Calcul hauteur GÉNÉREUSE pour bulles utilisateur
+                line_height = 18  # Lignes plus compactes pour bulles
+                padding = 20      # Padding pour bulle
+                min_height = 30   # Hauteur minimale bulle
+                max_height = 600  # Maximum pour une bulle
+                
+                calculated_height = max(min_height, min(total_display_lines * line_height + padding, max_height))
+                
+                # MARGE DE SÉCURITÉ 25% pour éviter tout scroll
+                calculated_height = int(calculated_height * 1.25)
+                
+                text_widget.configure(height=calculated_height)
+                
+            else:
+                # Pour tkinter standard Text
+                text_widget.update_idletasks()
+                
+                current_state = text_widget.cget("state")
+                text_widget.configure(state="normal")
+                
+                # Compter lignes après wrap
+                line_count = int(text_widget.index("end-1c").split('.')[0])
+                
+                text_widget.configure(state=current_state)
+                
+                # Hauteur généreuse pour éviter scroll
+                height = max(2, min(line_count + 2, 25))  # +2 de marge
+                text_widget.configure(height=height)
+                
+        except Exception as e:
+            # Hauteur par défaut généreuse
+            if self.use_ctk:
+                text_widget.configure(height=60)
+            else:
+                text_widget.configure(height=3)
+    
+    def insert_formatted_text_tkinter(self, text_widget, text):
+        """Insère du texte formaté avec VRAI gras dans tkinter Text"""
+        import re
+        
+        text_widget.delete("1.0", "end")
+        
+        # Configurer les tags de formatage
+        current_font_size = self.get_current_font_size('message')
+        text_widget.tag_configure("bold", font=('Segoe UI', current_font_size, 'bold'))
+        text_widget.tag_configure("normal", font=('Segoe UI', current_font_size))
+        
+        # Pattern pour détecter **texte en gras**
+        pattern = r'\*\*([^*]+)\*\*'
+        parts = re.split(pattern, text)
+        
+        for i, part in enumerate(parts):
+            if i % 2 == 0:  # Texte normal
+                if part:
+                    text_widget.insert("end", part, "normal")
+            else:  # Texte en gras
+                if part:
+                    text_widget.insert("end", part, "bold")
+
+    def adjust_text_height_no_scroll(self, text_widget, text):
+        """NOUVELLE VERSION : Ajuste la hauteur pour afficher TOUT le contenu sans JAMAIS avoir besoin de scroll"""
+        try:
+            if self.use_ctk:
+                # Pour CustomTkinter CTkTextbox - CALCUL PRÉCIS
+                text_widget.update_idletasks()
+                
+                # Compter les lignes réelles avec calcul précis du wrapping
+                lines = text.split('\n')
+                total_display_lines = 0
+                
+                # Calculer largeur disponible
+                try:
+                    widget_width = text_widget.winfo_width()
+                    if widget_width <= 50:  # Si pas encore affiché, utiliser largeur par défaut
+                        widget_width = 400  # Largeur par défaut
+                    
+                    # Estimation plus précise : caractères par ligne
+                    chars_per_line = max(35, (widget_width - 30) // 8)  # -30 pour padding
+                    
+                    for line in lines:
+                        if len(line) == 0:
+                            total_display_lines += 1  # Ligne vide compte pour 1
+                        else:
+                            # Calculer combien de lignes cette ligne va occuper avec le wrap
+                            wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
+                            total_display_lines += wrapped_lines
+                except Exception as e:
+                    # Fallback simple si erreur de calcul
+                    total_display_lines = len(lines) * 2  # Estimation conservatrice
+                
+                # Calculer hauteur en pixels - GÉNÉREUSE pour éviter tout scroll
+                line_height = 20  # Hauteur d'une ligne de texte
+                padding = 25      # Padding généreaux
+                min_height = 35   # Hauteur minimale
+                max_height = 800  # Hauteur maximale raisonnable
+                
+                calculated_height = max(min_height, min(total_display_lines * line_height + padding, max_height))
+                
+                # AJOUTER 20% de marge de sécurité pour éviter tout scroll
+                calculated_height = int(calculated_height * 1.2)
+                
+                text_widget.configure(height=calculated_height)
+                self.logger.debug(f"CTk hauteur ajustée: {calculated_height}px pour {total_display_lines} lignes")
+                
+            else:
+                # Pour tkinter standard Text - CALCUL EN LIGNES
+                text_widget.update_idletasks()
+                
+                # Compter les lignes réelles après insertion
+                current_state = text_widget.cget("state")
+                text_widget.configure(state="normal")
+                
+                # Mesurer le contenu affiché
+                line_count = int(text_widget.index("end-1c").split('.')[0])
+                
+                # Ajouter marge de sécurité
+                safe_height = max(2, line_count + 2)  # +2 lignes de marge
+                max_height = 35  # Pas plus de 35 lignes
+                
+                final_height = min(safe_height, max_height)
+                text_widget.configure(height=final_height)
+                
+                # Restaurer l'état
+                text_widget.configure(state=current_state)
+                
+                self.logger.debug(f"Tkinter hauteur ajustée: {final_height} lignes")
+                
+        except Exception as e:
+            self.logger.error(f"Erreur ajustement hauteur: {e}")
+            # Hauteur généreuse par défaut en cas d'erreur
+            if self.use_ctk:
+                text_widget.configure(height=120)
+            else:
+                text_widget.configure(height=6)
+
+    def create_copy_menu(self, widget, original_text):
+        """
+        Crée un menu contextuel pour copier le texte d'un widget
+        
+        Args:
+            widget: Widget auquel attacher le menu
+            original_text: Texte original à copier (sans formatage Unicode)
+        """
+        def copy_text():
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(original_text)
+                self.show_notification("📋 Texte copié dans le presse-papiers", "success")
+            except Exception as e:
+                self.show_notification(f"❌ Erreur lors de la copie: {e}", "error")
+        
+        def select_all_and_copy():
+            """Sélectionne tout le texte et le copie"""
+            copy_text()  # Pour l'instant, même action
+        
+        # Créer le menu contextuel
+        if self.use_ctk:
+            # Pour CustomTkinter, utiliser un menu tkinter standard
+            context_menu = tk.Menu(self.root, tearoff=0)
+        else:
+            context_menu = tk.Menu(self.root, tearoff=0)
+        
+        context_menu.add_command(label="📋 Copier le texte", command=copy_text)
+        context_menu.add_separator()
+        context_menu.add_command(label="🔍 Tout sélectionner et copier", command=select_all_and_copy)
+        
+        def show_context_menu(event):
+            try:
+                context_menu.tk_popup(event.x_root, event.y_root)
+            except Exception:
+                pass
+            finally:
+                context_menu.grab_release()
+        
+        # Bind du clic droit
+        widget.bind("<Button-3>", show_context_menu)  # Windows/Linux
+        widget.bind("<Button-2>", show_context_menu)  # macOS (parfois)
+        
+        # Pour CustomTkinter, essayer aussi Control+clic
+        widget.bind("<Control-Button-1>", show_context_menu)
+        
+        return context_menu
     
     def get_current_font_size(self, font_type='message'):
         """Obtient la taille de police adaptée à l'écran"""
@@ -931,29 +1248,28 @@ class ModernAIGUI:
                 return {'title': 24, 'subtitle': 14, 'body': 12, 'small': 10, 'message': 13, 'bold': 13}.get(font_type, 13)
     
     def insert_formatted_text_ctk(self, text_widget, text):
-        """Insère du texte formaté dans un widget CustomTkinter avec support du gras"""
+        """Insère du texte formaté avec gras dans CustomTkinter TextBox"""
         import re
         
         text_widget.delete("1.0", "end")
         
+        # Configurer les tags pour le formatage
+        current_font_size = self.get_current_font_size('message')
+        
         # Pattern pour détecter **texte en gras**
         pattern = r'\*\*([^*]+)\*\*'
+        
+        # Diviser le texte en parties normales et en gras
         parts = re.split(pattern, text)
         
         for i, part in enumerate(parts):
             if i % 2 == 0:  # Texte normal
                 if part:
                     text_widget.insert("end", part)
-            else:  # Texte en gras
+            else:  # Texte en gras (simulé avec majuscules pour CTk)
                 if part:
-                    # Pour CustomTkinter, on utilise des tags pour le gras
-                    start_pos = text_widget.index("end-1c")
-                    text_widget.insert("end", part)
-                    end_pos = text_widget.index("end-1c")
-                    # Note: CustomTkinter a des limitations pour les tags de format
-                    # On affiche le texte en majuscules pour simuler le gras
-                    text_widget.delete(start_pos, end_pos)
-                    text_widget.insert(start_pos, part.upper())
+                    # CustomTkinter ne supporte pas le gras dans TextBox, utiliser MAJUSCULES
+                    text_widget.insert("end", part.upper())
     
     def insert_formatted_text(self, text_widget, text):
         """Insère du texte formaté dans un widget tkinter standard avec support du gras"""
@@ -1171,13 +1487,14 @@ class ModernAIGUI:
             self.thinking_label.configure(text="")
     
     def clean_text_for_label(self, text):
-        """Convertit le texte avec **gras** en utilisant des caractères Unicode pour le gras"""
+        """
+        AMÉLIORATION : Convertit le texte avec **gras** en utilisant des caractères Unicode 
+        ET gère les longs textes pour éviter les débordements
+        """
         import re
         
-        # Fonction pour convertir en caractères gras Unicode
         def to_bold_unicode(match):
             bold_text = match.group(1)
-            # Conversion vers les caractères Unicode gras (Mathematical Bold)
             bold_chars = ""
             for char in bold_text:
                 if 'A' <= char <= 'Z':
@@ -1193,8 +1510,37 @@ class ModernAIGUI:
         # Remplacer **texte** par du texte en gras Unicode
         pattern = r'\*\*([^*]+)\*\*'
         formatted_text = re.sub(pattern, to_bold_unicode, text)
-        return formatted_text
-    
+        
+        # NOUVEAU : Gestion des très longs textes
+        lines = formatted_text.split('\n')
+        processed_lines = []
+        
+        for line in lines:
+            # Si une ligne est très longue, essayer de la découper intelligemment
+            if len(line) > 100:
+                # Découper aux espaces les plus proches
+                words = line.split(' ')
+                current_line = ""
+                
+                for word in words:
+                    if len(current_line + " " + word) <= 100:
+                        current_line += " " + word if current_line else word
+                    else:
+                        if current_line:
+                            processed_lines.append(current_line)
+                            current_line = word
+                        else:
+                            # Mot trop long, le garder tel quel
+                            processed_lines.append(word)
+                            current_line = ""
+                
+                if current_line:
+                    processed_lines.append(current_line)
+            else:
+                processed_lines.append(line)
+        
+        return '\n'.join(processed_lines)
+
     def create_context_menu_for_label(self, label_widget, text_content):
         """Crée un menu contextuel pour copier le texte d'un label"""
         def copy_text():
@@ -1227,11 +1573,7 @@ class ModernAIGUI:
         label_widget.bind("<Button-2>", show_context_menu)  # macOS
         
         return context_menu
-    
-    # ...existing code...
-    
-
-    
+   
     def send_message(self):
         """Envoie le message de l'utilisateur - AMÉLIORÉ"""
         message = self.input_text.get("1.0", "end-1c").strip()
