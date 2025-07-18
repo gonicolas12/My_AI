@@ -876,7 +876,9 @@ Tapez vos demandes directement dans le chat, par exemple :
         """Affiche le message de bienvenue au démarrage"""
         welcome_msg = """🎉 Bienvenue dans votre Assistant IA Local ! 🎉
 
-🚀 Votre IA personnelle est maintenant 100% locale et modulaire !
+� VOUS UTILISEZ GUI.PY - PAS CORRIGÉ ! 🔵
+
+�🚀 Votre IA personnelle est maintenant 100% locale et modulaire !
 
 ✨ Que puis-je faire pour vous ?
 • 💬 Conversations naturelles avec mémoire persistante

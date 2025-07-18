@@ -464,9 +464,17 @@ if __name__ == "__main__":
                     return "file_processing"
         
         # PRIORITÉ 4 : Mots-clés pour la génération de code (NOUVEAU code, pas analyse)
+        # Distinguer entre questions théoriques et demandes de génération
+        question_words = ["comment", "qu'est-ce que", "c'est quoi", "que signifie", "explique", "expliquer"]
+        is_theoretical_question = any(qword in query_lower for qword in question_words)
+        
         code_generation_keywords = ["génère", "crée", "écris", "développe", "programme", "script", "fonction", "classe"]
         if any(keyword in query_lower for keyword in code_generation_keywords):
-            return "code_generation"
+            # Si c'est une question théorique (ex: "comment créer une liste ?"), laisser le CustomAIModel s'en occuper
+            if is_theoretical_question:
+                return "general"  # Laisser le CustomAIModel traiter
+            else:
+                return "code_generation"  # Vraie demande de génération
         
         # PRIORITÉ 5 : Mots-clés pour la génération de documents
         doc_keywords = ["créer", "générer", "rapport", "rédiger", "documenter"]
@@ -708,17 +716,24 @@ Contexte des documents disponibles:"""
             # Générer le code sans await (methode sync)
             code = self.code_generator.generate_code(query, context)
             
+            # Créer un message d'accompagnement intelligent
+            language = self._detect_code_language(query)
+            accompaniment = self._create_code_accompaniment(query, language)
+            
+            # Formater la réponse complète
+            full_response = f"{accompaniment}\n\n```{language}\n{code}\n```"
+            
             return {
                 "type": "code_generation",
                 "code": code,
-                "message": "Code généré avec succès",
+                "message": full_response,
                 "success": True
             }
         except Exception as e:
             self.logger.error(f"Erreur génération code: {e}")
             return {
                 "type": "code_generation", 
-                "message": f"Erreur lors de la génération de code: {str(e)}",
+                "message": f"❌ Erreur lors de la génération de code: {str(e)}",
                 "success": False
             }
     
@@ -774,6 +789,50 @@ Contexte des documents disponibles:"""
                 "message": f"Erreur lors du traitement: {str(e)}",
                 "success": False
             }
+    
+    def _detect_code_language(self, query: str) -> str:
+        """Détecte le langage de programmation demandé"""
+        query_lower = query.lower()
+        
+        if any(word in query_lower for word in ["python", "py"]):
+            return "python"
+        elif any(word in query_lower for word in ["javascript", "js", "node"]):
+            return "javascript"
+        elif any(word in query_lower for word in ["html", "page web", "site"]):
+            return "html"
+        elif any(word in query_lower for word in ["css", "style"]):
+            return "css"
+        else:
+            return "python"  # Par défaut
+    
+    def _create_code_accompaniment(self, query: str, language: str) -> str:
+        """Crée un message d'accompagnement intelligent pour le code"""
+        query_lower = query.lower()
+        
+        # Messages spécifiques selon le type de code demandé
+        if any(word in query_lower for word in ["factorielle", "factorial"]):
+            return f"🔢 **Code pour calculer une factorielle en {language.capitalize()}**\n\nVoici une implémentation efficace avec gestion des cas d'erreur :"
+        
+        elif any(word in query_lower for word in ["hello", "world", "bonjour"]):
+            return f"👋 **Programme Hello World en {language.capitalize()}**\n\nLe classique pour débuter :"
+        
+        elif any(word in query_lower for word in ["fibonacci", "fibo"]):
+            return f"🌀 **Séquence de Fibonacci en {language.capitalize()}**\n\nCode optimisé pour générer la suite :"
+        
+        elif any(word in query_lower for word in ["tri", "sort", "trier"]):
+            return f"📊 **Algorithme de tri en {language.capitalize()}**\n\nImplémentation d'un tri efficace :"
+        
+        elif any(word in query_lower for word in ["classe", "class", "objet"]):
+            return f"🏗️ **Classe en {language.capitalize()}**\n\nStructure orientée objet :"
+        
+        elif any(word in query_lower for word in ["fonction", "function", "def"]):
+            return f"⚙️ **Fonction en {language.capitalize()}**\n\nCode modulaire et réutilisable :"
+        
+        elif any(word in query_lower for word in ["api", "web", "serveur"]):
+            return f"🌐 **Code pour API/Web en {language.capitalize()}**\n\nStructure pour service web :"
+        
+        else:
+            return f"💻 **Code généré en {language.capitalize()}**\n\nVoici une implémentation pour votre demande :"
     
     def get_status(self) -> Dict[str, Any]:
         """

@@ -211,30 +211,30 @@ class ModernAIGUI:
             sizes = FONT_SIZES[self.layout_size]
             self.style_config = FONT_SIZES  # Stocker pour utilisation ultérieure
         else:
-            # Fallback amélioré avec des tailles plus grandes
+            # Fallback amélioré avec des tailles plus raisonnables - UNIFIÉ À 11px
             sizes = {
-                'title': 28,
-                'subtitle': 16,
-                'body': 14,
-                'small': 12,
-                'chat': 15,
-                'code': 13,
-                'message': 15,
-                'bold': 15
+                'title': 20,      # Réduit de 28 à 20
+                'subtitle': 12,   # Réduit de 16 à 12
+                'body': 11,       # Unifié à 11 pour cohérence
+                'small': 10,      # Réduit de 12 à 10
+                'chat': 11,       # UNIFIÉ À 11 comme les messages
+                'code': 11,       # Réduit de 13 à 11
+                'message': 11,    # UNIFIÉ À 11 pour cohérence totale
+                'bold': 11        # UNIFIÉ À 11 pour cohérence
             }
-            # Créer style_config même en fallback
+            # Créer style_config même en fallback avec des tailles réduites - UNIFIÉ À 11px
             self.style_config = {
                 'large_screen': {
-                    'title': 32, 'subtitle': 18, 'body': 14, 'small': 12,
-                    'chat': 15, 'code': 13, 'message': 15, 'bold': 15
+                    'title': 22, 'subtitle': 14, 'body': 11, 'small': 10,
+                    'chat': 11, 'code': 11, 'message': 11, 'bold': 11
                 },
                 'medium_screen': {
-                    'title': 28, 'subtitle': 16, 'body': 13, 'small': 11,
-                    'chat': 14, 'code': 12, 'message': 14, 'bold': 14
+                    'title': 20, 'subtitle': 12, 'body': 11, 'small': 10,
+                    'chat': 11, 'code': 11, 'message': 11, 'bold': 11
                 },
                 'small_screen': {
-                    'title': 24, 'subtitle': 14, 'body': 12, 'small': 10,
-                    'chat': 13, 'code': 11, 'message': 13, 'bold': 13
+                    'title': 18, 'subtitle': 11, 'body': 11, 'small': 9,
+                    'chat': 11, 'code': 10, 'message': 11, 'bold': 11
                 }
             }
             
@@ -324,7 +324,7 @@ class ModernAIGUI:
                 notif_frame,
                 text=message,
                 text_color='#ffffff',
-                font=('Segoe UI', 12, 'bold'),
+                font=('Segoe UI', self.get_current_font_size('message'), 'bold'),
                 fg_color="transparent"
             )
         else:
@@ -340,7 +340,7 @@ class ModernAIGUI:
                 text=message,
                 fg='#ffffff',
                 bg=bg_color,
-                font=('Segoe UI', 12, 'bold')
+                font=('Segoe UI', self.get_current_font_size('message'), 'bold')
             )
         
         # Positionner en haut à droite
@@ -392,11 +392,11 @@ class ModernAIGUI:
         header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
         header_frame.grid_columnconfigure(1, weight=1)
         
-        # Logo/Icône
+        # Logo/Icône - taille réduite
         logo_label = self.create_label(
             header_frame, 
             text="🤖", 
-            font=('Segoe UI', 28),
+            font=('Segoe UI', self.get_current_font_size('header')),  # Dynamique
             text_color=self.colors['accent'],  # text_color au lieu de fg
             fg_color=self.colors['bg_primary']
         )
@@ -450,11 +450,11 @@ class ModernAIGUI:
         )
         help_btn.grid(row=0, column=1, padx=(0, 10))
         
-        # Indicateur de statut
+        # Indicateur de statut - taille réduite
         self.status_label = self.create_label(
             buttons_frame,
             text="●",
-            font=('Segoe UI', 16),
+            font=('Segoe UI', self.get_current_font_size('status')),  # Dynamique
             text_color='#00ff00',  # Vert = connecté (text_color au lieu de fg)
             fg_color=self.colors['bg_primary']
         )
@@ -503,7 +503,7 @@ class ModernAIGUI:
         self.thinking_label = self.create_label(
             self.thinking_frame,
             text="",
-            font=self.fonts['body'],
+            font=('Segoe UI', self.get_current_font_size('message')),  # UNIFIÉ AVEC LES MESSAGES
             text_color=self.colors['text_secondary'],  # text_color au lieu de fg
             fg_color=self.colors['bg_chat']
         )
@@ -533,7 +533,7 @@ class ModernAIGUI:
                 border_color=self.colors['border'],
                 border_width=1,
                 corner_radius=8,
-                font=self.fonts['chat']
+                font=('Segoe UI', self.get_current_font_size('message'))  # UNIFIÉ AVEC LES MESSAGES
             )
         else:
             self.input_text = tk.Text(
@@ -541,7 +541,7 @@ class ModernAIGUI:
                 height=3,
                 fg_color=self.colors['input_bg'],
                 fg=self.colors['text_primary'],
-                font=self.fonts['chat'],
+                font=('Segoe UI', self.get_current_font_size('message')),  # UNIFIÉ AVEC LES MESSAGES
                 border=1,
                 relief='solid',
                 wrap=tk.WORD
@@ -665,7 +665,7 @@ class ModernAIGUI:
                 fg_color=bg_color,
                 hover_color=hover_color,
                 text_color=text_color,
-                font=self.fonts['body'],
+                font=('Segoe UI', self.get_current_font_size('message')),  # UNIFIÉ AVEC LES MESSAGES
                 corner_radius=6,
                 height=32
             )
@@ -676,7 +676,7 @@ class ModernAIGUI:
                 command=command,
                 bg=bg_color,
                 fg=text_color,
-                font=self.fonts['body'],
+                font=('Segoe UI', self.get_current_font_size('message')),  # UNIFIÉ AVEC LES MESSAGES
                 border=0,
                 relief='flat'
             )
@@ -715,8 +715,8 @@ class ModernAIGUI:
         
         # Container principal pour le message
         msg_container = self.create_frame(self.chat_frame, fg_color=self.colors['bg_chat'])
-        # Espacement vertical AUGMENTÉ entre les messages pour plus de lisibilité
-        msg_container.grid(row=len(self.conversation_history)-1, column=0, sticky="ew", pady=(0, 15))  # ESPACEMENT AUGMENTÉ de 8 à 15
+        # Espacement vertical RÉDUIT entre les messages pour plus de compacité
+        msg_container.grid(row=len(self.conversation_history)-1, column=0, sticky="ew", pady=(0, 8))  # Réduit de 15 à 8
         msg_container.grid_columnconfigure(0, weight=1)
 
         if is_user:
@@ -739,7 +739,7 @@ class ModernAIGUI:
         icon_label = self.create_label(
             main_frame,
             text="👤",
-            font=('Segoe UI', 16),
+            font=('Segoe UI', self.get_current_font_size('icon')),  # Dynamique
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['text_primary']
         )
@@ -798,13 +798,13 @@ class ModernAIGUI:
         has_formatting = '**' in text or '*' in text or '`' in text or '```' in text
         max_line_length = max(len(line) for line in lines) if lines else 0
         
-        # Critères TRÈS STRICTS pour utiliser TextBox (éviter absolument le scroll sur messages courts)
+        # Critères ULTRA-STRICTS pour utiliser TextBox (éviter absolument le scroll sur messages courts)
         needs_textbox = (
-            has_formatting and total_chars > 100 or  # Formatage ET assez long
-            len(lines) > 7 or  # Plus de 7 lignes (vraiment multi-lignes)
-            total_chars > 400 or  # Très long
-            max_line_length > 90 or  # Ligne vraiment très longue
-            ('\n\n' in text and total_chars > 150)  # Paragraphes multiples ET assez long
+            has_formatting and total_chars > 250 or  # Formatage ET très long (augmenté de 100 à 250)
+            len(lines) > 10 or  # Plus de 10 lignes (augmenté de 7 à 10)
+            total_chars > 600 or  # Très très long (augmenté de 400 à 600)
+            max_line_length > 110 or  # Ligne vraiment très longue (augmenté de 90 à 110)
+            ('\n\n' in text and total_chars > 300)  # Paragraphes multiples ET très long (augmenté de 150 à 300)
         )
         
         # Pour tous les autres cas : TOUJOURS utiliser CTkLabel (jamais de scroll)
@@ -820,8 +820,8 @@ class ModernAIGUI:
                 chars_per_line = max(30, (bubble_width - 20) // 8)
                 wrapped_lines = sum(max(1, (len(line) + chars_per_line - 1) // chars_per_line) for line in lines)
                 
-                # Hauteur GÉNÉREUSE pour éviter tout scroll
-                exact_height = max(40, min(wrapped_lines * 22 + 20, 500))  # Plus généreux
+                # Hauteur OPTIMISÉE pour éviter les espaces vides
+                exact_height = max(30, min(wrapped_lines * 18 + 15, 350))  # Réduit pour compacité
                 
                 text_widget = ctk.CTkTextbox(
                     bubble,
@@ -834,9 +834,25 @@ class ModernAIGUI:
                     state="normal"
                 )
                 
-                # Insérer le texte avec formatage
+                # Insérer le texte avec formatage - TOUJOURS UTILISER TKINTER TEXT pour uniformité
                 text_widget.delete("1.0", "end")
-                self.insert_formatted_text_ctk(text_widget, text)
+                # FORCER tkinter Text pour TOUS les messages (uniformité totale)
+                text_widget.destroy()
+                
+                text_widget = tk.Text(
+                    bubble,
+                    width=int((bubble_width - 16) / 8),  # Approximation caractères
+                    height=max(2, min(int(wrapped_lines + 1), 25)),
+                    bg='#2b2b2b',
+                    fg='#ffffff',
+                    font=('Segoe UI', current_font_size),
+                    wrap="word",
+                    relief="flat",
+                    bd=0,
+                    highlightthickness=0,
+                    state="normal"
+                )
+                self.insert_formatted_text_tkinter(text_widget, text)
                 text_widget.configure(state="disabled")
                 
                 # DÉSACTIVER LE SCROLL INTERNE mais PERMETTRE le scroll global
@@ -868,6 +884,19 @@ class ModernAIGUI:
                     return "break"
                 
                 text_widget.bind("<Button-1>", enable_selection)
+                
+                # Ajouter la fonctionnalité de copie par double-clic
+                def copy_text_on_double_click(event):
+                    try:
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
+                        self.show_notification("✅ Texte copié", "success")
+                    except:
+                        pass
+                    return "break"
+                
+                text_widget.bind("<Double-Button-1>", copy_text_on_double_click)
+                text_widget.bind("<Button-3>", copy_text_on_double_click)  # Clic droit aussi
                 
             else:
                 # Pour textes courts : CTkLabel simple SÉLECTIONNABLE
@@ -979,10 +1008,6 @@ class ModernAIGUI:
         
         text_widget.grid(row=0, column=0, padx=8, pady=(1, 0), sticky="nw")
 
-        # Ajuster la hauteur seulement pour les TextBox (pas les Labels)
-        if needs_textbox:
-            self.root.after(50, lambda: self.adjust_text_height_no_scroll(text_widget, text))
-        
         # Menu contextuel pour copier (tous les widgets)
         self.create_copy_menu(text_widget, text)
         
@@ -991,12 +1016,12 @@ class ModernAIGUI:
         time_label = self.create_label(
             bubble,  # Dans la bulle, pas dans main_frame
             text=timestamp,
-            font=('Segoe UI', 8),
+            font=('Segoe UI', self.get_current_font_size('timestamp')),  # Dynamique
             fg_color=self.colors['bg_user'],  # Même couleur que la bulle
             text_color=self.colors['text_secondary']
         )
         # Placement DANS la bulle, row=1 pour être sous le texte
-        time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 3))
+        time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 1))
     
     def create_ai_message_simple(self, parent, text):
         """Crée un message IA simple sans bulle - CENTRÉ avec même alignement"""
@@ -1004,13 +1029,13 @@ class ModernAIGUI:
         center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
         center_frame.grid(row=0, column=0, padx=(400, 0), pady=(0, 0), sticky="w")
         center_frame.grid_columnconfigure(0, weight=0)
-        center_frame.grid_columnconfigure(1, weight=1)
+        center_frame.grid_columnconfigure(1, weight=0)  # Changé de weight=1 à weight=0
         
         # Icône IA à position IDENTIQUE à l'utilisateur
         icon_label = self.create_label(
             center_frame,
             text="🤖",
-            font=('Segoe UI', 16),
+            font=('Segoe UI', self.get_current_font_size('icon')),  # Dynamique
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['accent']
         )
@@ -1025,34 +1050,35 @@ class ModernAIGUI:
         has_formatting = '**' in text or '*' in text or '`' in text or '```' in text
         max_line_length = max(len(line) for line in lines) if lines else 0
         
-        # Calcul de largeur OPTIMALE pour IA (similaire à l'utilisateur)
+        # Calcul de largeur OPTIMALE pour IA (largeurs TRÈS réduites pour éviter les bulles trop larges)
         char_width = current_font_size * 0.6  # Approximation largeur caractère
         
         if max_line_length <= 10:
-            optimal_width = max(150, int(max_line_length * char_width * 1.8))
+            optimal_width = max(100, int(max_line_length * char_width * 1.2))  # Encore plus réduit
         elif max_line_length <= 25:
-            optimal_width = max(200, int(max_line_length * char_width * 1.5))
+            optimal_width = max(130, int(max_line_length * char_width * 1.1))  # Encore plus réduit
         elif max_line_length <= 50:
-            optimal_width = max(300, int(max_line_length * char_width * 1.3))
+            optimal_width = max(180, int(max_line_length * char_width * 1.0))  # Très réduit
         elif max_line_length <= 80:
-            optimal_width = max(400, int(max_line_length * char_width * 1.2))
+            optimal_width = max(220, int(max_line_length * char_width * 0.9))  # Très réduit
         else:
-            optimal_width = min(600, int(max_line_length * char_width * 1.1))
+            optimal_width = min(300, int(max_line_length * char_width * 0.8))  # Maximum très réduit
         
-        # Ajustement selon nombre de lignes
+        # Ajustement selon nombre de lignes - beaucoup plus conservateur
         if len(lines) > 4:
-            optimal_width = max(optimal_width, 350)
+            optimal_width = max(optimal_width, 200)  # Réduit de 250 à 200
         
-        # Limitation par la taille de l'écran
-        max_width = min(optimal_width, self.root.winfo_width() - 300) if self.root.winfo_width() > 300 else optimal_width
+        # Limitation par la taille de l'écran - TRÈS restrictive pour éviter les bulles trop larges
+        screen_available = self.root.winfo_width() - 500 if self.root.winfo_width() > 600 else 300
+        max_width = min(optimal_width, min(screen_available, 450))  # Maximum absolu de 450px
         
-        # Critères TRÈS STRICTS pour utiliser TextBox (éviter absolument le scroll sur messages courts)
+        # Critères ULTRA-STRICTS pour utiliser TextBox (éviter absolument le scroll sur messages courts)
         needs_textbox_ai = (
-            has_formatting and total_chars > 100 or  # Formatage ET assez long
-            len(lines) > 8 or  # Plus de 8 lignes (vraiment multi-lignes)
-            total_chars > 500 or  # Très long
-            max_line_length > 100 or  # Ligne vraiment très longue
-            ('\n\n' in text and total_chars > 200)  # Paragraphes multiples ET assez long
+            has_formatting and total_chars > 300 or  # Formatage ET très long (augmenté de 100 à 300)
+            len(lines) > 12 or  # Plus de 12 lignes (augmenté de 8 à 12)
+            total_chars > 800 or  # Très très long (augmenté de 500 à 800)
+            max_line_length > 120 or  # Ligne vraiment très longue (augmenté de 100 à 120)
+            ('\n\n' in text and total_chars > 400)  # Paragraphes multiples ET très long (augmenté de 200 à 400)
         )
         
         # Pour tous les autres cas : TOUJOURS utiliser CTkLabel (jamais de scroll)
@@ -1060,15 +1086,15 @@ class ModernAIGUI:
         
         if self.use_ctk:
             if needs_textbox_ai:
-                # CTkTextbox pour textes longs avec hauteur exacte
+                # CTkTextbox pour textes longs avec hauteur optimisée
                 lines_count = len(lines)
                 chars_per_line = max(40, (max_width - 20) // 8)
                 wrapped_lines = sum(max(1, (len(line) + chars_per_line - 1) // chars_per_line) for line in lines)
-                exact_height = max(50, min(wrapped_lines * 22 + 25, 600))  # Plus généreux
+                exact_height = max(35, min(wrapped_lines * 18 + 15, 400))  # Réduit pour éviter espaces vides
                 
                 text_widget = ctk.CTkTextbox(
                     center_frame,
-                    width=max_width,
+                    width=min(max_width, 400),  # Limiter davantage la largeur
                     height=exact_height,
                     fg_color=self.colors['bg_chat'],
                     text_color=self.colors['text_primary'],
@@ -1077,10 +1103,32 @@ class ModernAIGUI:
                     state="normal"
                 )
                 
-                # Insérer le texte avec formatage
+                # Insérer le texte avec formatage - UTILISER TKINTER TEXT pour vrai formatage
                 text_widget.delete("1.0", "end")
-                self.insert_formatted_text_ctk(text_widget, text)
-                text_widget.configure(state="disabled")
+                # Si on a du formatage, utiliser tkinter Text pour un vrai rendu
+                if '**' in text or '*' in text or '`' in text:
+                    # Créer un widget tkinter Text avec vrai formatage
+                    text_widget.destroy()
+                    
+                    text_widget = tk.Text(
+                        center_frame,
+                        width=min(int(max_width / 8), 50),  # Limiter la largeur en caractères
+                        height=max(2, min(int(wrapped_lines + 1), 30)),
+                        bg=self.colors['bg_chat'],
+                        fg=self.colors['text_primary'],
+                        font=('Segoe UI', current_font_size),
+                        wrap="word",
+                        relief="flat",
+                        bd=0,
+                        highlightthickness=0,
+                        state="normal"
+                    )
+                    self.insert_formatted_text_tkinter(text_widget, text)
+                    text_widget.configure(state="disabled")
+                else:
+                    # Texte simple sans formatage
+                    self.insert_formatted_text_ctk(text_widget, text)
+                    text_widget.configure(state="disabled")
                 
                 # DÉSACTIVER LE SCROLL INTERNE mais PERMETTRE le scroll global
                 def redirect_scroll_to_parent(event):
@@ -1111,16 +1159,29 @@ class ModernAIGUI:
                 
                 text_widget.bind("<Button-1>", enable_selection)
                 
+                # Ajouter la fonctionnalité de copie par double-clic
+                def copy_text_on_double_click(event):
+                    try:
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
+                        self.show_notification("✅ Texte copié", "success")
+                    except:
+                        pass
+                    return "break"
+                
+                text_widget.bind("<Double-Button-1>", copy_text_on_double_click)
+                text_widget.bind("<Button-3>", copy_text_on_double_click)  # Clic droit aussi
+                
             else:
-                # CTkLabel pour textes courts
+                # CTkLabel pour textes courts - largeur adaptée au contenu
                 text_widget = ctk.CTkLabel(
                     center_frame,
                     text=text,
-                    width=max_width,
+                    width=min(max_width, 350),  # Limiter la largeur maximum
                     fg_color=self.colors['bg_chat'],
                     text_color=self.colors['text_primary'],
                     font=('Segoe UI', current_font_size),
-                    wraplength=max_width - 20,
+                    wraplength=min(max_width - 20, 330),  # Wraplength également limitée
                     justify="left",
                     anchor="w"
                 )
@@ -1221,10 +1282,6 @@ class ModernAIGUI:
         
         text_widget.grid(row=0, column=1, sticky="w", padx=(0, 0), pady=(1, 0))
 
-        # Ajuster la hauteur seulement pour les TextBox (pas les Labels)
-        if needs_textbox_ai:
-            self.root.after(50, lambda: self.adjust_text_height_no_scroll(text_widget, text))
-        
         # Menu contextuel pour copier (tous les widgets)
         self.create_copy_menu(text_widget, text)
         
@@ -1233,104 +1290,13 @@ class ModernAIGUI:
         time_label = self.create_label(
             center_frame,
             text=timestamp,
-            font=('Segoe UI', 8),
+            font=('Segoe UI', self.get_current_font_size('timestamp')),  # Dynamique
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['text_secondary']
         )
-        # Placement SOUS le texte dans la même colonne, row=1
-        time_label.grid(row=1, column=1, sticky="w", padx=(0, 0), pady=(0, 3))
+        # Placement SOUS le texte dans la même colonne, row=1 avec padding minimal
+        time_label.grid(row=1, column=1, sticky="w", padx=(0, 0), pady=(0, 1))
 
-    def start_text_selection(self, widget, text, event):
-        """Démarre la sélection de texte sur un label"""
-        # Stocker les informations de sélection
-        self.selection_widget = widget
-        self.selection_text = text
-        self.selection_start = event.x, event.y
-        
-    def continue_text_selection(self, event):
-        """Continue la sélection de texte"""
-        # Mise à jour visuelle de la sélection (optionnel)
-        pass
-        
-    def end_text_selection(self, text):
-        """Termine la sélection et copie automatiquement le texte sélectionné"""
-        try:
-            # Copier automatiquement le texte complet dans le presse-papiers
-            self.root.clipboard_clear()
-            self.root.clipboard_append(text)
-            # Notification discrète
-            print(f"✅ Texte copié: {text[:50]}...")
-        except Exception as e:
-            print(f"❌ Erreur copie: {e}")
-
-    def adjust_text_height_selectable(self, text_widget, text):
-        """NOUVELLE VERSION : Ajuste la hauteur pour texte sélectionnable SANS SCROLL"""
-        try:
-            if self.use_ctk:
-                # Pour CustomTkinter CTkTextbox - CALCUL TRÈS PRÉCIS
-                text_widget.update_idletasks()
-                
-                # Compter les lignes avec wrapping précis
-                lines = text.split('\n')
-                total_display_lines = 0
-                
-                # Largeur de widget disponible
-                try:
-                    widget_width = text_widget.winfo_width()
-                    if widget_width <= 50:
-                        widget_width = 350  # Largeur par défaut pour bulle
-                    
-                    # Caractères par ligne (estimation précise)
-                    chars_per_line = max(30, (widget_width - 25) // 8)  # -25 pour padding bulle
-                    
-                    for line in lines:
-                        if len(line) == 0:
-                            total_display_lines += 1
-                        else:
-                            # Calcul précis du nombre de lignes après wrap
-                            wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
-                            total_display_lines += wrapped_lines
-                            
-                except Exception:
-                    # Fallback conservateur
-                    total_display_lines = len(lines) * 2
-                
-                # Calcul hauteur GÉNÉREUSE pour bulles utilisateur
-                line_height = 18  # Lignes plus compactes pour bulles
-                padding = 20      # Padding pour bulle
-                min_height = 30   # Hauteur minimale bulle
-                max_height = 600  # Maximum pour une bulle
-                
-                calculated_height = max(min_height, min(total_display_lines * line_height + padding, max_height))
-                
-                # MARGE DE SÉCURITÉ 25% pour éviter tout scroll
-                calculated_height = int(calculated_height * 1.25)
-                
-                text_widget.configure(height=calculated_height)
-                
-            else:
-                # Pour tkinter standard Text
-                text_widget.update_idletasks()
-                
-                current_state = text_widget.cget("state")
-                text_widget.configure(state="normal")
-                
-                # Compter lignes après wrap
-                line_count = int(text_widget.index("end-1c").split('.')[0])
-                
-                text_widget.configure(state=current_state)
-                
-                # Hauteur généreuse pour éviter scroll
-                height = max(2, min(line_count + 2, 25))  # +2 de marge
-                text_widget.configure(height=height)
-                
-        except Exception as e:
-            # Hauteur par défaut généreuse
-            if self.use_ctk:
-                text_widget.configure(height=60)
-            else:
-                text_widget.configure(height=3)
-    
     def insert_formatted_text_tkinter(self, text_widget, text):
         """Insère du texte formaté avec VRAI gras/italique/monospace dans tkinter Text"""
         import re
@@ -1512,36 +1478,46 @@ class ModernAIGUI:
         return context_menu
     
     def get_current_font_size(self, font_type='message'):
-        """Obtient la taille de police adaptée à l'écran"""
+        """Obtient la taille de police adaptée à l'écran - UNIFIÉ À 11px pour tout le contenu"""
         screen_width = self.root.winfo_screenwidth()
         
-        # Vérifier si style_config existe
-        if hasattr(self, 'style_config') and self.style_config:
-            if screen_width >= 1600:
-                return self.style_config['large_screen'].get(font_type, 15)
-            elif screen_width >= 1200:
-                return self.style_config['medium_screen'].get(font_type, 14)
-            else:
-                return self.style_config['small_screen'].get(font_type, 13)
-        else:
-            # Fallback si style_config n'existe pas
-            if screen_width >= 1600:
-                return {'title': 32, 'subtitle': 18, 'body': 14, 'small': 12, 'message': 15, 'bold': 15}.get(font_type, 15)
-            elif screen_width >= 1200:
-                return {'title': 28, 'subtitle': 16, 'body': 13, 'small': 11, 'message': 14, 'bold': 14}.get(font_type, 14)
-            else:
-                return {'title': 24, 'subtitle': 14, 'body': 12, 'small': 10, 'message': 13, 'bold': 13}.get(font_type, 13)
+        # FORCE L'UNIFICATION : tous les contenus textuels utilisent 11px
+        content_types = ['message', 'body', 'chat', 'bold', 'small']
+        if font_type in content_types:
+            return 11  # TAILLE UNIFIÉE POUR TOUT LE CONTENU
+        
+        # Seuls les éléments d'interface gardent leurs tailles spécifiques
+        interface_font_sizes = {
+            'timestamp': 9,     # Timestamps plus petits
+            'icon': 16,         # Icônes (🤖, 👤)
+            'header': 20,       # Éléments d'en-tête
+            'status': 12,       # Indicateurs de statut
+            'title': 32,        # Titres principaux
+            'subtitle': 18,     # Sous-titres
+        }
+        
+        return interface_font_sizes.get(font_type, 11)  # 11 par défaut
     
     def insert_formatted_text_ctk(self, text_widget, text):
-        """Insère du texte formaté avec VRAI formatage enrichi dans CustomTkinter TextBox"""
+        """Insère du texte formaté avec rendu visuel subtil dans CustomTkinter TextBox"""
         import re
+        
+        # Pour CustomTkinter, on utilise un rendu subtil quand le formatage tkinter n'est pas possible
+        
+        if not ('**' in text or '*' in text or '`' in text):
+            # Pas de formatage : insérer directement
+            text_widget.delete("1.0", "end")
+            text_widget.insert("end", text)
+            return
+        
+        # Traitement du formatage avec rendu subtil
         text_widget.delete("1.0", "end")
         
         # Patterns pour détecter **gras**, *italique*, `monospace`
         patterns = [
-            (r'\*\*([^*]+)\*\*', 'bold'),     # **texte** -> gras (simulé par MAJUSCULES)
-            (r'\*([^*]+)\*', 'italic'),       # *texte* -> italique (simulé par _texte_)
-            (r'`([^`]+)`', 'mono')            # `texte` -> monospace (simulé par [texte])
+            (r'\*\*([^*]+)\*\*', 'bold'),     # **texte** -> gras
+            (r'\*([^*]+)\*', 'italic'),       # *texte* -> italique  
+            (r'`([^`]+)`', 'mono')            # `texte` -> monospace
         ]
         
         # Traitement séquentiel du texte
@@ -1568,14 +1544,17 @@ class ModernAIGUI:
                     new_segments.append((segment_text, segment_style))
             segments = new_segments
         
-        # Insérer les segments avec le bon formatage
+        # Insérer les segments avec un rendu visuel subtil mais lisible
         for segment_text, style in segments:
             if style == 'bold':
-                text_widget.insert("end", segment_text.upper())  # Simuler gras par MAJUSCULES
+                # Gras : ajouter des espaces pour créer de l'emphase visuelle
+                text_widget.insert("end", f" {segment_text} ")
             elif style == 'italic':
-                text_widget.insert("end", f"_{segment_text}_")   # Simuler italique
+                # Italique : utiliser des guillemets pour l'emphase
+                text_widget.insert("end", f'"{segment_text}"')
             elif style == 'mono':
-                text_widget.insert("end", f"[{segment_text}]")   # Simuler monospace
+                # Code : utiliser backticks pour le style code
+                text_widget.insert("end", f"`{segment_text}`")
             else:
                 text_widget.insert("end", segment_text)           # Texte normal
     
@@ -1755,21 +1734,38 @@ class ModernAIGUI:
         self.animate_search()
     
     def animate_thinking(self):
-        """Animation de réflexion de l'IA"""
+        """Animation de réflexion de l'IA - VERSION WOW FACTOR"""
         if hasattr(self, 'thinking_label') and self.is_thinking:
-            # Animations de points qui bougent
-            animations = [
-                "🤖 L'IA réfléchit",
-                "🤖 L'IA réfléchit.",
-                "🤖 L'IA réfléchit..",
-                "🤖 L'IA réfléchit..."
+            # Animations avancées qui montrent l'intelligence de l'IA
+            advanced_animations = [
+                "� Analyse contextuelle...",
+                "⚡ Traitement neural en cours...",
+                "🔍 Détection d'intentions...",
+                "💡 Génération de réponse intelligente...",
+                "🎯 Optimisation de la réponse...",
+                "⚙️ Moteur de raisonnement actif...",
+                "📊 Analyse des patterns...",
+                "🚀 Finalisation de la réponse...",
+                "🔮 Prédiction des besoins...",
+                "💻 Processing linguistique avancé...",
+                "� Calculs d'inférence...",
+                "🎪 Préparation d'une réponse époustouflante..."
             ]
             
-            self.thinking_dots = (self.thinking_dots + 1) % len(animations)
-            self.thinking_label.configure(text=animations[self.thinking_dots])
+            # Choisir une animation aléatoire pour plus de variété
+            import random
+            if not hasattr(self, 'current_thinking_text') or self.thinking_dots % 4 == 0:
+                self.current_thinking_text = random.choice(advanced_animations)
             
-            # Continuer l'animation toutes les 500ms
-            self.root.after(500, self.animate_thinking)
+            # Animation de points progressifs
+            dots = ["", ".", "..", "..."][self.thinking_dots % 4]
+            display_text = self.current_thinking_text + dots
+            
+            self.thinking_dots = (self.thinking_dots + 1) % 4
+            self.thinking_label.configure(text=display_text)
+            
+            # Animation plus rapide pour donner l'impression de vitesse
+            self.root.after(400, self.animate_thinking)
         elif hasattr(self, 'thinking_label'):
             self.thinking_label.configure(text="")
     
@@ -1793,94 +1789,6 @@ class ModernAIGUI:
             self.root.after(800, self.animate_search)
         elif hasattr(self, 'thinking_label'):
             self.thinking_label.configure(text="")
-    
-    def clean_text_for_label(self, text):
-        """
-        AMÉLIORATION : Convertit le texte avec **gras** en utilisant des caractères Unicode 
-        ET gère les longs textes pour éviter les débordements
-        """
-        import re
-        
-        def to_bold_unicode(match):
-            bold_text = match.group(1)
-            bold_chars = ""
-            for char in bold_text:
-                if 'A' <= char <= 'Z':
-                    bold_chars += chr(ord(char) - ord('A') + ord('𝐀'))
-                elif 'a' <= char <= 'z':
-                    bold_chars += chr(ord(char) - ord('a') + ord('𝐚'))
-                elif '0' <= char <= '9':
-                    bold_chars += chr(ord(char) - ord('0') + ord('𝟎'))
-                else:
-                    bold_chars += char
-            return bold_chars
-        
-        # Remplacer **texte** par du texte en gras Unicode
-        pattern = r'\*\*([^*]+)\*\*'
-        formatted_text = re.sub(pattern, to_bold_unicode, text)
-        
-        # NOUVEAU : Gestion des très longs textes
-        lines = formatted_text.split('\n')
-        processed_lines = []
-        
-        for line in lines:
-            # Si une ligne est très longue, essayer de la découper intelligemment
-            if len(line) > 100:
-                # Découper aux espaces les plus proches
-                words = line.split(' ')
-                current_line = ""
-                
-                for word in words:
-                    if len(current_line + " " + word) <= 100:
-                        current_line += " " + word if current_line else word
-                    else:
-                        if current_line:
-                            processed_lines.append(current_line)
-                            current_line = word
-                        else:
-                            # Mot trop long, le garder tel quel
-                            processed_lines.append(word)
-                            current_line = ""
-                
-                if current_line:
-                    processed_lines.append(current_line)
-            else:
-                processed_lines.append(line)
-        
-        return '\n'.join(processed_lines)
-
-    def create_context_menu_for_label(self, label_widget, text_content):
-        """Crée un menu contextuel pour copier le texte d'un label"""
-        def copy_text():
-            try:
-                self.root.clipboard_clear()
-                self.root.clipboard_append(text_content)
-                # Notification temporaire
-                self.show_notification("📋 Texte copié dans le presse-papiers", "success")
-            except Exception as e:
-                self.show_notification(f"❌ Erreur lors de la copie: {e}", "error")
-        
-        def copy_selection():
-            # Pour une future implémentation de sélection
-            copy_text()
-        
-        # Créer le menu contextuel
-        context_menu = tk.Menu(self.root, tearoff=0)
-        context_menu.add_command(label="📋 Copier tout le texte", command=copy_text)
-        context_menu.add_separator()
-        context_menu.add_command(label="🔍 Sélectionner tout", command=copy_selection)
-        
-        def show_context_menu(event):
-            try:
-                context_menu.tk_popup(event.x_root, event.y_root)
-            except Exception:
-                pass
-        
-        # Bind du clic droit
-        label_widget.bind("<Button-3>", show_context_menu)  # Windows/Linux
-        label_widget.bind("<Button-2>", show_context_menu)  # macOS
-        
-        return context_menu
    
     def send_message(self):
         """Envoie le message de l'utilisateur - AMÉLIORÉ"""
@@ -2125,7 +2033,7 @@ class ModernAIGUI:
             messagebox.showerror("Erreur", f"Impossible d'effacer la conversation: {e}")
     
     def show_welcome_message(self):
-        """Affiche le message de bienvenue"""
+        """Affiche le message de bienvenue initial"""
         welcome_text = """Bonjour ! Je suis votre **Assistant IA Local** 🤖
 
 Je peux vous aider avec :
@@ -2136,7 +2044,8 @@ Je peux vous aider avec :
 
 **Commencez** par me dire bonjour ou posez-moi directement une question !"""
         
-        self.add_message_bubble(welcome_text, is_user=False)
+        # Utiliser la même fonction que pour les autres messages IA
+        self.add_message_bubble(welcome_text, is_user=False, message_type="text")
     
     def show_help(self):
         """Affiche l'aide"""
@@ -2154,9 +2063,8 @@ Je peux vous aider avec :
 • "Cherche sur internet les actualités IA" - Recherche web
 
 **🎯 Fonctionnalités :**
-• **Texte en gras** : Entourez avec **deux astérisques**
 • **Effacer** : Bouton "Clear Chat" pour recommencer
-• **Fichiers** : Drag & drop ou boutons de chargement
+• **Fichiers** : Boutons de chargement
 
 **🔧 Raccourcis :**
 • Entrée : Envoyer le message

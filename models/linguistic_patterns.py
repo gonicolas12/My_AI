@@ -20,7 +20,7 @@ class LinguisticPatterns:
             # Salutations avec fautes
             "bonjour": ["bonjour", "bnjour", "bonjourr", "bonj", "bjr", "bj", "bonsoir", "bsr", "bonsoirr"],
             "salut": ["salut", "salu", "saluu", "slt", "sl", "cc", "coucou", "ccc", "kikoo", "kikou"],
-            "hello": ["hello", "helo", "hllo", "hi", "hey", "yo", "wesh"],
+            "hello": ["hello", "helo", "hllo", "hi", "hey", "yo", "wesh", "wsh"],
             
             # Questions avec fautes
             "comment": ["comment", "commen", "comant", "cmnt", "coment"],
@@ -84,7 +84,7 @@ class LinguisticPatterns:
             "de_rien": ["de rien", "pas de quoi", "il n'y a pas de quoi", "je vous en prie"],
             
             # Expressions informelles
-            "wesh": ["wesh", "salut", "hey", "yo", "coucou"],
+            "wesh": ["wesh", "salut", "hey", "yo", "coucou", "wsh"],
             "mec": ["mec", "gars", "mon pote", "buddy", "bro"],
             "c'est_parti": ["c'est parti", "go", "allons-y", "on y va", "lets go"],
         }
@@ -233,7 +233,7 @@ class LinguisticPatterns:
                     "patterns": [
                         r"^(?:bonjour|salut|hello|hi|hey|coucou|slt|bjr|bsr)\b",
                         r"^(?:bonsoir|good evening)\b",
-                        r"^(?:wesh|yo)\b"
+                        r"^(?:wesh|yo|wsh)\b"
                     ],
                     "indicators": ["bonjour", "salut", "hello", "slt", "bjr"],
                     "weight": 0.9,
