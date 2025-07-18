@@ -213,7 +213,7 @@ class CustomAIModel(BaseAI):
             doc_type = "PDF"
         else:
             self.session_context["last_document_type"] = "DOCX"
-            doc_type = "document Word"
+            doc_type = "document"
         
         print(f"✅ Document '{filename}' stocké en mémoire et ajouté au contexte")
         
@@ -303,7 +303,7 @@ class CustomAIModel(BaseAI):
         # Réponses spécialisées par intention
         if intent == "identity_question":
             return self._generate_identity_response(user_input, context)
-        elif intent == "capabilities_question":
+        elif intent == "capabilities_question" or intent == "capability_question":
             return self._generate_capabilities_response(user_input, context)
         elif intent == "greeting":
             return self._generate_greeting_response(user_input, context)
@@ -381,6 +381,12 @@ class CustomAIModel(BaseAI):
     
     def _generate_capabilities_response(self, user_input: str, context: Dict[str, Any]) -> str:
         """Réponse sur les capacités"""
+        
+        # CORRECTION : Si c'est "ça va?" ou variantes, rediriger vers how_are_you
+        user_lower = user_input.lower().strip()
+        if any(phrase in user_lower for phrase in ["ça va", "ca va", "sa va", "comment vas tu", "comment ça va"]):
+            return self._generate_how_are_you_response(user_input, context)
+        
         base_response = """Je peux vous aider avec plusieurs choses :
 
 🔍 **Analyse de documents :** Je peux lire et résumer vos fichiers PDF et Word
@@ -1388,7 +1394,7 @@ Que voulez-vous apprendre exactement ?"""
         
         # Sauvegarde du contenu dans la mémoire de conversation pour les futures questions
         is_pdf = "pdf content" in user_input.lower()
-        doc_type = "PDF" if is_pdf else "document Word"
+        doc_type = "PDF" if is_pdf else "document"
         filename = "document"
         
         # Extraction du nom de fichier s'il existe dans la demande
@@ -1460,7 +1466,7 @@ Que voulez-vous apprendre exactement ?"""
         sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 20]
         
         if "docx" in filename.lower() or doc_type.lower() == "docx":
-            doc_type_display = "document Word"
+            doc_type_display = "document"
         elif "pdf" in filename.lower() or doc_type.lower() == "pdf":
             doc_type_display = "PDF"
         else:
@@ -1721,7 +1727,8 @@ Que voulez-vous apprendre exactement ?"""
         """
         # Mots-clés qui indiquent une question sur l'identité ou les capacités (PAS sur un document)
         identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
-        capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu"]
+        capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu", 
+                              "comment vas tu", "comment ça va", "ça va", "sa va", "ca va"]
         
         # Si la question contient un mot-clé d'identité ou de capacité, ce n'est pas une question sur un document
         user_lower = user_input.lower()
@@ -2067,10 +2074,38 @@ Que voulez-vous apprendre exactement ?"""
         return self._explain_code_functionality(user_input, stored_docs)
 
     def _answer_document_question(self, user_input: str, stored_docs: Dict[str, Any]) -> str:
-        """Répond aux questions sur les documents avec gestion améliorée"""
+        """Répond aux questions sur les documents - VERSION SIMPLIFIÉE qui respecte la sélection AI_ENGINE"""
         if not stored_docs:
             return "Je n'ai pas de documents en mémoire pour répondre à votre question."
         
+        # NOUVELLE LOGIQUE : Si le prompt contient déjà une instruction de document spécifique, la respecter
+        if "🚨 RÈGLE ABSOLUE ET OBLIGATOIRE 🚨" in user_input:
+            # Le prompt vient de ai_engine.py avec un document spécifique - NE PAS interférer
+            lines = user_input.split('\n')
+            document_content = ""
+            in_content_section = False
+            
+            for line in lines:
+                if "📄 CONTENU DU DOCUMENT" in line:
+                    in_content_section = True
+                    continue
+                elif "🔒 INSTRUCTIONS STRICTES:" in line:
+                    break
+                elif in_content_section and line.strip():
+                    document_content += line + "\n"
+            
+            if document_content.strip():
+                # Extraire le nom du document
+                doc_name = "document spécifié"
+                for line in lines:
+                    if "🎯 DOCUMENT UNIQUE À ANALYSER:" in line:
+                        doc_name = line.split(":", 1)[1].strip()
+                        break
+                
+                # Traiter UNIQUEMENT ce contenu
+                return self._create_universal_summary(document_content.strip(), doc_name, "DOCX")
+        
+        # ANCIENNE LOGIQUE pour les autres cas (garde pour compatibilité)
         user_lower = user_input.lower().strip()
         
         # Gestion des demandes de résumé avec sélection de document
@@ -2078,6 +2113,23 @@ Que voulez-vous apprendre exactement ?"""
         
         if any(keyword in user_lower for keyword in resume_keywords):
             
+            # Si seulement un document, l'utiliser directement
+            if len(stored_docs) == 1:
+                doc_name = list(stored_docs.keys())[0]
+                doc_data = stored_docs[doc_name]
+                content = doc_data.get("content", "")
+                
+                # Déterminer le type de document
+                if any(ext in doc_name.lower() for ext in ["pdf", "livret"]):
+                    doc_type = "PDF"
+                elif any(ext in doc_name.lower() for ext in ["docx", "doc", "notes"]):
+                    doc_type = "document"
+                else:
+                    doc_type = "document"
+                    
+                return self._create_universal_summary(content, doc_name, doc_type)
+            
+            # LOGIQUE MULTI-DOCUMENTS (ancienne logique conservée)
             # Gestion spécifique selon le type de document demandé
             if "pdf" in user_lower:
                 # L'utilisateur demande spécifiquement le PDF
@@ -2101,9 +2153,9 @@ Que voulez-vous apprendre exactement ?"""
                     doc_name = list(docx_docs.keys())[0]
                     doc_data = docx_docs[doc_name]
                     content = doc_data.get("content", "")
-                    return self._create_universal_summary(content, doc_name, "document Word")
+                    return self._create_universal_summary(content, doc_name, "document")
                 else:
-                    return "Je n'ai pas de document Word en mémoire."
+                    return "Je n'ai pas de document en mémoire."
             
             else:
                 # Résumé générique - prendre le dernier document ajouté
@@ -2117,7 +2169,7 @@ Que voulez-vous apprendre exactement ?"""
                         if any(word in last_doc.lower() for word in ["pdf", "livret"]):
                             doc_type = "PDF"
                         elif any(word in last_doc.lower() for word in ["notes", "stage", "docx"]):
-                            doc_type = "document Word"
+                            doc_type = "document"
                         else:
                             doc_type = "document"
                         
@@ -2142,7 +2194,7 @@ Que voulez-vous apprendre exactement ?"""
                 if any(ext in doc_name.lower() for ext in ["pdf", "livret"]):
                     doc_type = "PDF"
                 elif any(ext in doc_name.lower() for ext in ["docx", "doc", "notes"]):
-                    doc_type = "document Word"
+                    doc_type = "document"
                 else:
                     doc_type = "document"
                 
@@ -2152,7 +2204,7 @@ Que voulez-vous apprendre exactement ?"""
                 summaries = []
                 for doc_name, doc_data in target_docs.items():
                     doc_content = doc_data["content"]
-                    doc_type = "PDF" if "pdf" in doc_name.lower() else "document Word"
+                    doc_type = "PDF" if "pdf" in doc_name.lower() else "document"
                     summaries.append(self._create_universal_summary(doc_content, doc_name, doc_type))
                 return "\n\n".join(summaries)
         
@@ -2633,7 +2685,22 @@ Que voulez-vous apprendre exactement ?"""
         # Améliorer la détection des demandes de résumé
         user_lower = user_input.lower().strip()
         
-        # Règles spéciales pour les questions sur les documents
+        # PRIORITÉ 1 : Vérifier les questions d'identité AVANT tout (même avec des docs en mémoire)
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
+        capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu", 
+                              "comment vas tu", "comment ça va", "ça va", "sa va", "ca va"]
+        
+        if any(keyword in user_lower for keyword in identity_keywords):
+            return "identity_question", 1.0
+        if any(keyword in user_lower for keyword in capability_keywords):
+            return "capability_question", 1.0
+        
+        # PRIORITÉ 2 : Détecter le charabia/texte aléatoire
+        if len(user_lower) > 20 and not any(c.isspace() for c in user_lower[:20]):
+            # Plus de 20 caractères sans espaces = probablement du charabia
+            return "unknown", 0.5
+        
+        # PRIORITÉ 3 : Questions sur les documents (seulement si ce n'est pas de l'identité)
         if self._has_documents_in_memory():
             # Mots-clés qui indiquent clairement une question sur un document
             doc_indicators = [
@@ -2656,7 +2723,7 @@ Que voulez-vous apprendre exactement ?"""
                 else:
                     return "document_question", 0.8
         
-        # Sélection normale par score le plus élevé
+        # PRIORITÉ 4 : Sélection normale par score le plus élevé
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
         return best_intent[0], best_intent[1]
     

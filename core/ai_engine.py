@@ -438,11 +438,23 @@ if __name__ == "__main__":
         """
         query_lower = query.lower()
         
-        # Vérifier d'abord si on a des documents et si la question les concerne
+        # PRIORITÉ 1 : Vérifier d'abord les questions d'identité/capacités (AVANT documents)
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
+        capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu", "comment vas tu", "comment ça va"]
+        
+        if any(keyword in query_lower for keyword in identity_keywords + capability_keywords):
+            return "conversation"  # Questions sur l'IA elle-même
+        
+        # PRIORITÉ 2 : Vérifier si c'est un texte incompréhensible/aléatoire
+        if len(query_lower) > 20 and not any(c.isspace() for c in query_lower[:20]):
+            # Si plus de 20 caractères sans espaces = probablement du charabia
+            return "conversation"
+        
+        # PRIORITÉ 3 : Vérifier si on a des documents et si la question les concerne SPÉCIFIQUEMENT
         if hasattr(self.local_ai, 'conversation_memory'):
             stored_docs = self.local_ai.conversation_memory.get_document_content()
             if stored_docs:
-                # Mots-clés pour questions sur les documents
+                # Mots-clés SPÉCIFIQUES pour questions sur les documents
                 doc_question_keywords = [
                     "résume", "explique", "analyse", "qu'est-ce que", "que dit", 
                     "contenu", "parle", "traite", "sujet", "doc", "document", 
@@ -451,12 +463,12 @@ if __name__ == "__main__":
                 if any(keyword in query_lower for keyword in doc_question_keywords):
                     return "file_processing"
         
-        # Mots-clés pour la génération de code (NOUVEAU code, pas analyse)
+        # PRIORITÉ 4 : Mots-clés pour la génération de code (NOUVEAU code, pas analyse)
         code_generation_keywords = ["génère", "crée", "écris", "développe", "programme", "script", "fonction", "classe"]
         if any(keyword in query_lower for keyword in code_generation_keywords):
             return "code_generation"
         
-        # Mots-clés pour la génération de documents
+        # PRIORITÉ 5 : Mots-clés pour la génération de documents
         doc_keywords = ["créer", "générer", "rapport", "rédiger", "documenter"]
         if any(keyword in query_lower for keyword in doc_keywords):
             return "document_generation"
@@ -530,36 +542,70 @@ if __name__ == "__main__":
             # Log pour debug
             self.logger.info(f"Query: '{query}' | Documents disponibles: {list(all_docs.keys())}")
             
-            # Recherche de mots-clés spécifiques au type de document - LOGIQUE AMÉLIORÉE
-            if 'pdf' in query_lower and 'docx' not in query_lower:
-                # EXPLICITEMENT PDF seulement
-                for doc_name in reversed(document_order):
-                    if doc_name.lower().endswith('.pdf'):
-                        target_document = doc_name
-                        self.logger.info(f"PDF sélectionné: {target_document}")
-                        break
-            elif 'docx' in query_lower or ('doc' in query_lower and 'pdf' not in query_lower):
-                # DOCX explicite OU "doc" sans mention de PDF
-                for doc_name in reversed(document_order):
-                    if doc_name.lower().endswith('.docx') or doc_name.lower().endswith('.doc'):
-                        target_document = doc_name
-                        self.logger.info(f"DOCX sélectionné: {target_document}")
-                        break
-            elif 'code' in query_lower or 'py' in query_lower or 'fichier code' in query_lower:
-                # Chercher le fichier de code le plus récent
-                for doc_name in reversed(document_order):
-                    if doc_name.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json')):
-                        target_document = doc_name
-                        self.logger.info(f"Code sélectionné: {target_document}")
-                        break
-            elif any(keyword in query_lower for keyword in ['résume', 'résumé', 'analyse', 'contenu']):
-                # Si c'est une demande de résumé sans type spécifique, prendre le DERNIER document ajouté
-                if document_order:
-                    target_document = document_order[-1]
-                    self.logger.info(f"Dernier document ajouté sélectionné pour résumé: {target_document}")
+            # Recherche de mots-clés spécifiques au type de document - LOGIQUE RENFORCÉE
             
-            # NOUVEAU : Log détaillé pour debug
-            self.logger.info(f"Analyse requête: '{query_lower}' -> Document ciblé: {target_document}")
+            # 1. RECHERCHE EXPLICITE par mention du nom exact du fichier
+            for doc_name in all_docs.keys():
+                doc_name_clean = doc_name.lower().replace('.pdf', '').replace('.docx', '').replace('.doc', '').replace('.py', '')
+                if doc_name_clean in query_lower or doc_name.lower() in query_lower:
+                    target_document = doc_name
+                    self.logger.info(f"Document trouvé par nom exact: {target_document}")
+                    break
+            
+            # 2. Si pas trouvé par nom, rechercher par TYPE EXPLICITE - LOGIQUE CORRIGÉE
+            if not target_document:
+                # Détection PDF EXCLUSIVE (doit contenir "pdf" sans "docx" ou "doc")
+                if 'pdf' in query_lower and not any(term in query_lower for term in ['docx', 'doc ', '.doc', 'word']):
+                    for doc_name in reversed(document_order):
+                        if doc_name.lower().endswith('.pdf'):
+                            target_document = doc_name
+                            self.logger.info(f"PDF sélectionné par type EXCLUSIF: {target_document}")
+                            break
+                
+                # Détection DOCX RENFORCÉE (plus de variantes)
+                elif any(term in query_lower for term in ['docx', '.docx', 'word', 'document word']):
+                    for doc_name in reversed(document_order):
+                        if doc_name.lower().endswith(('.docx', '.doc')):
+                            target_document = doc_name
+                            self.logger.info(f"DOCX sélectionné par type EXPLICITE: {target_document}")
+                            break
+                
+                # Détection DOC court (mais attention aux faux positifs)
+                elif 'doc' in query_lower and not any(term in query_lower for term in ['pdf', 'document', 'documents', 'doc>']):
+                    # "doc" isolé sans contexte PDF
+                    query_words = query_lower.split()
+                    if 'doc' in query_words or 'du doc' in query_lower or 'le doc' in query_lower:
+                        for doc_name in reversed(document_order):
+                            if doc_name.lower().endswith(('.docx', '.doc')):
+                                target_document = doc_name
+                                self.logger.info(f"DOCX sélectionné par 'doc' isolé: {target_document}")
+                                break
+                
+                # Détection CODE
+                elif any(term in query_lower for term in ['code', 'py', 'python', 'script']):
+                    for doc_name in reversed(document_order):
+                        if doc_name.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json')):
+                            target_document = doc_name
+                            self.logger.info(f"Code sélectionné par type: {target_document}")
+                            break
+            
+            # 3. Si pas de type spécifique mais demande d'action (résumé, analyse, etc.)
+            if not target_document:
+                action_keywords = ['résume', 'résumé', 'analyse', 'contenu', 'explique', 'décris', 'que dit', 'que contient']
+                if any(keyword in query_lower for keyword in action_keywords):
+                    if document_order:
+                        target_document = document_order[-1]
+                        self.logger.info(f"Dernier document sélectionné pour action: {target_document}")
+            
+            # NOUVEAU : Log détaillé pour debug - VÉRIFIE LA SÉLECTION
+            self.logger.info(f"=== DEBUG SÉLECTION DOCUMENT ===")
+            self.logger.info(f"Query originale: '{query}'")
+            self.logger.info(f"Query lowercase: '{query_lower}'")
+            self.logger.info(f"Documents disponibles: {list(all_docs.keys())}")
+            self.logger.info(f"Ordre documents: {document_order}")
+            self.logger.info(f"Document ciblé FINAL: {target_document}")
+            self.logger.info(f"=== FIN DEBUG ===")
+            
             if not target_document:
                 self.logger.warning(f"Aucun document spécifique détecté dans: '{query_lower}'")
             
@@ -568,7 +614,7 @@ if __name__ == "__main__":
                 target_document = document_order[-1]
                 self.logger.info(f"Document le plus récent sélectionné: {target_document}")
             
-            # Construire le prompt avec le document ciblé
+            # Construire le prompt avec le document ciblé - PROTECTION RENFORCÉE
             if target_document and target_document in all_docs:
                 doc_data = all_docs[target_document]
                 if isinstance(doc_data, dict) and 'content' in doc_data:
@@ -576,32 +622,46 @@ if __name__ == "__main__":
                 else:
                     doc_content = str(doc_data)
                 
-                # PROMPT PLUS SPÉCIFIQUE avec instruction claire
-                prompt = f"""INSTRUCTION IMPORTANTE: Tu dois répondre UNIQUEMENT en te basant sur le document spécifique mentionné ci-dessous.
+                # PROTECTION SUPPLÉMENTAIRE : vérifier que c'est bien le bon document
+                self.logger.info(f"📄 DOCUMENT SÉLECTIONNÉ POUR TRAITEMENT: {target_document}")
+                self.logger.info(f"📊 Taille contenu: {len(doc_content)} caractères")
+                
+                # PROMPT ULTRA-SPÉCIFIQUE avec BLOCAGE des autres documents
+                prompt = f"""🚨 RÈGLE ABSOLUE ET OBLIGATOIRE 🚨
+JE TE DONNE ACCÈS À UN SEUL DOCUMENT. TU NE DOIS ANALYSER QUE CE DOCUMENT.
+IGNORE COMPLÈTEMENT TOUTE RÉFÉRENCE À D'AUTRES DOCUMENTS.
 
-Question: {query}
+🎯 DOCUMENT UNIQUE À ANALYSER: {target_document}
+� QUESTION: {query}
 
-DOCUMENT CIBLE À ANALYSER: {target_document}
-TYPE DE FICHIER: {target_document.split('.')[-1].upper()}
-
-=== DÉBUT DU CONTENU DU DOCUMENT ===
+📄 CONTENU DU DOCUMENT "{target_document}":
 {doc_content[:3000]}"""
                 
                 if len(doc_content) > 3000:
-                    prompt += "\n[... contenu tronqué ...]"
+                    prompt += "\n[... contenu tronqué pour économiser l'espace ...]"
                     
                 prompt += f"""
-=== FIN DU CONTENU DU DOCUMENT ===
 
-RÈGLE STRICTE: 
-- Réponds UNIQUEMENT en analysant le contenu du document '{target_document}' ci-dessus
-- IGNORE tous les autres documents que tu pourrais connaître
-- Mentionne le nom du document '{target_document}' dans ta réponse
-- Si le document ne contient pas l'information demandée, dis-le clairement
+🔒 INSTRUCTIONS STRICTES:
+1. Réponds UNIQUEMENT sur le contenu ci-dessus du fichier "{target_document}"
+2. Commence ta réponse par "📄 DOCX analysé : {target_document}"
+3. NE MENTIONNE AUCUN AUTRE DOCUMENT
+4. Base-toi EXCLUSIVEMENT sur le contenu fourni ci-dessus
+5. Si tu vois une référence à un autre document, IGNORE-LA COMPLÈTEMENT
 """
                 
-                # Log pour debug - VÉRIFIE LE CONTENU
-                self.logger.info(f"PROMPT généré pour {target_document} (premiers 200 chars): {doc_content[:200]}...")
+                # Log pour debug final
+                self.logger.info(f"🔍 PROMPT généré pour {target_document} (début): {prompt[:300]}...")
+                
+                # PROTECTION FINALE : créer un contexte isolé avec SEULEMENT le document ciblé
+                isolated_context = {
+                    'stored_documents': {target_document: all_docs[target_document]},
+                    'document_order': [target_document],
+                    'conversation_history': context.get('conversation_history', [])
+                }
+                
+                # Générer la réponse avec le contexte isolé
+                response = self.local_ai.generate_response(prompt)
                 
             else:
                 # Fallback: utiliser tous les documents disponibles
@@ -622,10 +682,11 @@ Contexte des documents disponibles:"""
                             prompt += "\n[... contenu tronqué ...]"
                 
                 prompt += f"\n\nRéponds à la question en te basant sur le contenu des documents ci-dessus."
+                
+                # Générer la réponse
+                response = self.local_ai.generate_response(prompt)
             
-            # Générer la réponse
-            response = self.local_ai.generate_response(prompt)
-            
+            # NE PLUS ajouter de préfixe ici car custom_ai_model s'en charge déjà
             return {
                 "type": "file_processing",
                 "message": response,
