@@ -1,6 +1,6 @@
 # 📋 CHANGELOG - My Personal AI
 
-## 🎨 Version 3.0.0 - INTERFACE GRAPHIQUE MODERNE (15 Juillet 2025)
+## 🎨 Version 3.0.0 - INTERFACE GRAPHIQUE MODERNE (18 Juillet 2025)
 
 ### ✨ Révolution de l'Interface Utilisateur
 

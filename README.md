@@ -8,7 +8,7 @@
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
 - 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode
-- 🔧 **Fonctionnement local** avec recherche internet - IA 100% Locale
+- 🔧 **Fonctionnement 100% Locale**
 
 ## 🏗️ Architecture Modulaire
 
