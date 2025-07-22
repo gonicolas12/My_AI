@@ -174,10 +174,16 @@ class CustomAIModel(BaseAI):
                 "has_documents": len(self.conversation_memory.get_document_content()) > 0
             }
             
-            intent_scores = self.linguistic_patterns.detect_intent(user_input, intent_context)
-            
-            # Sélection de l'intention primaire avec logique améliorée
-            primary_intent, confidence = self._select_primary_intent(intent_scores, user_input)
+            # PRIORITÉ ABSOLUE pour les recherches internet explicites
+            user_lower = user_input.lower()
+            if any(phrase in user_lower for phrase in ["cherche sur internet", "recherche sur internet", "trouve sur internet", "cherche sur le web", "recherche sur le web"]):
+                print(f"DEBUG: Recherche internet détectée explicitement dans: '{user_input}'")
+                primary_intent = "internet_search"
+                confidence = 1.0
+            else:
+                intent_scores = self.linguistic_patterns.detect_intent(user_input, intent_context)
+                # Sélection de l'intention primaire avec logique améliorée
+                primary_intent, confidence = self._select_primary_intent(intent_scores, user_input)
             
             print(f"DEBUG: Intent détecté: {primary_intent} (confiance: {confidence:.2f})")
             
@@ -1217,7 +1223,10 @@ Erreur technique : {str(e)}"""
         
         # Détection du type de question et réponse avec exemples
         if any(word in user_lower for word in ["liste", "list"]):
-            base_response = self._explain_python_lists()
+            if "différence" in user_lower and ("dictionnaire" in user_lower or "dict" in user_lower):
+                base_response = self._explain_list_vs_dict_difference()
+            else:
+                base_response = self._explain_python_lists()
         elif any(word in user_lower for word in ["dictionnaire", "dict"]):
             base_response = self._explain_python_dictionaries()
         elif any(word in user_lower for word in ["fonction", "def"]):
@@ -1230,6 +1239,8 @@ Erreur technique : {str(e)}"""
             base_response = self._explain_python_conditions()
         elif any(word in user_lower for word in ["classe", "class", "objet"]):
             base_response = self._explain_python_classes()
+        elif any(word in user_lower for word in ["déboguer", "debug", "débogage", "debugger", "erreur"]):
+            base_response = self._explain_python_debugging()
         else:
             base_response = self._generate_general_programming_help(user_input)
         
@@ -1788,13 +1799,237 @@ compte.retirer(200)
 print(compte.afficher_solde())      # "Solde de Alice: 1300€"
 ```
 
-💡 **Concepts clés :**
-• `__init__` : constructeur appelé à la création
 • `self` : référence à l'instance courante
 • Attributs : variables de l'objet
 • Méthodes : fonctions de l'objet
 • Encapsulation : regrouper données et comportements"""
 
+    def _explain_list_vs_dict_difference(self) -> str:
+        """Explique la différence entre les listes et les dictionnaires"""
+        return """� **Différence entre Liste et Dictionnaire en Python**
+
+Voici les principales différences entre ces deux structures de données :
+
+📋 **LISTES (list)**
+```python
+fruits = ["pomme", "banane", "orange"]
+nombres = [1, 2, 3, 4, 5]
+```
+
+✅ **Caractéristiques des listes :**
+• **Ordonnées** : Les éléments ont une position fixe
+• **Indexées par position** : fruits[0] = "pomme"
+• **Permettent les doublons** : [1, 1, 2, 2] est valide
+• **Modifiables** : Ajouter, supprimer, modifier des éléments
+• **Homogènes ou hétérogènes** : Même type ou types différents
+
+🗂️ **DICTIONNAIRES (dict)**
+```python
+personne = {"nom": "Alice", "age": 30, "ville": "Paris"}
+scores = {"Alice": 95, "Bob": 87, "Charlie": 92}
+```
+
+✅ **Caractéristiques des dictionnaires :**
+• **Associatifs** : Chaque valeur a une clé unique
+• **Indexés par clé** : personne["nom"] = "Alice"
+• **Clés uniques** : Pas de doublons de clés
+• **Modifiables** : Ajouter, supprimer, modifier des paires clé-valeur
+• **Clés immuables** : String, nombre, tuple (pas de liste comme clé)
+
+⚡ **Comparaison pratique :**
+```python
+# LISTE - Accès par position
+fruits = ["pomme", "banane", "orange"]
+print(fruits[1])        # "banane" (2ème élément)
+
+# DICTIONNAIRE - Accès par clé
+personne = {"nom": "Alice", "age": 30}
+print(personne["nom"])  # "Alice" (valeur associée à "nom")
+```
+
+🎯 **Quand utiliser quoi ?**
+
+**Utilisez une LISTE quand :**
+• Vous avez une collection ordonnée d'éléments
+• L'ordre importe (comme une playlist)
+• Vous voulez accéder par position
+• Vous pouvez avoir des doublons
+
+**Utilisez un DICTIONNAIRE quand :**
+• Vous voulez associer des clés à des valeurs
+• Vous cherchez par "nom" plutôt que par position
+• Vous stockez des propriétés d'un objet
+• Vous voulez des accès rapides par clé
+
+💡 **Exemple concret :**
+```python
+# Liste pour des courses (ordre peut importer)
+courses = ["pain", "lait", "œufs", "pain"]  # pain 2 fois = OK
+
+# Dictionnaire pour des informations personnelles
+personne = {
+    "nom": "Alice",
+    "age": 30,
+    "profession": "Développeuse"
+}  # Chaque info a sa clé unique
+```"""
+
+    def _explain_python_debugging(self) -> str:
+        """Explique comment déboguer du code Python"""
+        return """🐍 **Comment déboguer du code Python**
+
+Le débogage est essentiel pour identifier et corriger les erreurs dans votre code.
+
+🔍 **1. Types d'erreurs courantes**
+```python
+# Erreur de syntaxe
+print("Hello World"    # Manque la parenthèse fermante
+
+# Erreur de type
+age = "30"
+age + 5                # Erreur: str + int
+
+# Erreur d'index
+liste = [1, 2, 3]
+print(liste[5])        # Erreur: index n'existe pas
+
+# Erreur de clé
+person = {"nom": "Alice"}
+print(person["age"])   # Erreur: clé n'existe pas
+```
+
+🛠️ **2. Techniques de débogage simples**
+```python
+# A. Print pour tracer l'exécution
+def calculer_moyenne(notes):
+    print(f"Notes reçues: {notes}")        # Vérifier l'entrée
+    total = sum(notes)
+    print(f"Total calculé: {total}")       # Vérifier le calcul
+    moyenne = total / len(notes)
+    print(f"Moyenne: {moyenne}")           # Vérifier le résultat
+    return moyenne
+
+# B. Print avec étiquettes claires
+x = 10
+y = 0
+print(f"DEBUG: x={x}, y={y}")
+if y != 0:
+    resultat = x / y
+    print(f"DEBUG: Résultat division = {resultat}")
+else:
+    print("DEBUG: Division par zéro évitée!")
+```
+
+🔧 **3. Utilisation du debugger Python (pdb)**
+```python
+import pdb
+
+def fonction_problematique(a, b):
+    pdb.set_trace()                    # Point d'arrêt
+    resultat = a * b
+    final = resultat + 10
+    return final
+
+# Commandes pdb utiles:
+# n (next) : ligne suivante
+# s (step) : entrer dans les fonctions
+# l (list) : voir le code
+# p variable : afficher une variable
+# c (continue) : continuer l'exécution
+# q (quit) : quitter
+```
+
+🚀 **4. Debugging avec VS Code**
+```python
+# Ajoutez des points d'arrêt en cliquant à gauche des numéros de ligne
+# Utilisez F5 pour démarrer le débogage
+# F10 : Ligne suivante
+# F11 : Entrer dans la fonction
+# Shift+F11 : Sortir de la fonction
+
+def ma_fonction():
+    a = 5
+    b = 10
+    c = a + b      # <- Point d'arrêt ici
+    return c * 2
+```
+
+✅ **5. Bonnes pratiques de débogage**
+```python
+# A. Gestion d'erreurs avec try/except
+def diviser_nombres(a, b):
+    try:
+        resultat = a / b
+        return resultat
+    except ZeroDivisionError:
+        print("Erreur: Division par zéro!")
+        return None
+    except TypeError:
+        print("Erreur: Types incompatibles!")
+        return None
+
+# B. Assertions pour vérifier les conditions
+def calculer_racine(nombre):
+    assert nombre >= 0, f"Le nombre doit être positif, reçu: {nombre}"
+    return nombre ** 0.5
+
+# C. Logging pour un suivi permanent
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+def traiter_data(data):
+    logging.debug(f"Traitement de {len(data)} éléments")
+    for item in data:
+        logging.debug(f"Traitement de l'élément: {item}")
+        # ... traitement ...
+```
+
+🐛 **6. Stratégies de résolution**
+```python
+# A. Diviser pour régner - Isoler le problème
+def fonction_complexe(data):
+    # Au lieu de tout faire d'un coup:
+    etape1 = nettoyer_data(data)
+    print(f"Après nettoyage: {etape1}")
+    
+    etape2 = transformer_data(etape1)
+    print(f"Après transformation: {etape2}")
+    
+    resultat = calculer_final(etape2)
+    return resultat
+
+# B. Créer des cas de test simples
+def tester_fonction():
+    # Test avec cas simple
+    assert ma_fonction(1, 2) == 3
+    # Test avec cas limite
+    assert ma_fonction(0, 5) == 5
+    # Test avec cas d'erreur
+    try:
+        ma_fonction("a", 2)
+        assert False, "Devrait lever une erreur"
+    except TypeError:
+        pass  # Comportement attendu
+```
+
+💡 **7. Outils utiles**
+• **print()** : Le plus simple pour débuter
+• **pdb** : Debugger intégré Python
+• **VS Code Debugger** : Interface graphique
+• **logging** : Pour tracer en production
+• **assert** : Vérifier les conditions
+• **type()** : Vérifier le type d'une variable
+• **dir()** : Voir les méthodes disponibles
+• **help()** : Documentation intégrée
+
+🎯 **Méthode systématique :**
+1. **Reproduire** l'erreur de manière consistante
+2. **Localiser** où exactement ça plante
+3. **Comprendre** pourquoi ça plante
+4. **Corriger** le problème
+5. **Tester** que la correction fonctionne
+6. **Vérifier** qu'on n'a pas cassé autre chose"""
+    
     def _generate_general_programming_help(self, user_input: str) -> str:
         """Génère une aide générale sur la programmation"""
         return """🐍 **Aide générale Python**
@@ -1811,7 +2046,6 @@ Je peux vous aider avec de nombreux concepts Python ! Voici quelques exemples :
 • **Classes** : "Comment créer une classe ?"
 
 💡 **Exemples de questions :**
-• "Comment créer une liste en Python ?"
 • "Quelle est la différence entre une liste et un dictionnaire ?"
 • "Comment faire une boucle sur un dictionnaire ?"
 • "Comment créer une fonction avec des paramètres ?"

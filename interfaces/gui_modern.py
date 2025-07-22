@@ -833,7 +833,7 @@ class ModernAIGUI:
             height=text_height,
             bg=self.colors['bg_user'],
             fg='#ffffff',
-            font=('Segoe UI', 13),
+            font=('Segoe UI', 12),
             wrap=tk.WORD,
             relief="flat",
             bd=0,
@@ -972,7 +972,7 @@ class ModernAIGUI:
             height=text_height,
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
-            font=('Segoe UI', 13),
+            font=('Segoe UI', 12),
             wrap=tk.WORD,
             relief="flat",
             bd=0,
@@ -1132,12 +1132,12 @@ class ModernAIGUI:
         text_widget.delete("1.0", "end")
         
         # POLICE UNIFIÉE ABSOLUE - même pour tous les styles
-        BASE_FONT = ('Segoe UI', 13)
+        BASE_FONT = ('Segoe UI', 12)
         
         # Configurer TOUS les tags avec la même taille de police de base
-        text_widget.tag_configure("bold", font=('Segoe UI', 13, 'bold'))
-        text_widget.tag_configure("italic", font=('Segoe UI', 13, 'italic'))
-        text_widget.tag_configure("mono", font=('Consolas', 13))  # Même taille pour monospace
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
+        text_widget.tag_configure("mono", font=('Consolas', 12))  # Même taille pour monospace
         text_widget.tag_configure("normal", font=BASE_FONT)
         
         # Traitement du formatage (même logique qu'avant)
@@ -1333,7 +1333,7 @@ class ModernAIGUI:
         # UNIFICATION TOTALE : tous les contenus de messages utilisent la même taille
         message_types = ['message', 'body', 'chat', 'bold', 'small', 'content']
         if font_type in message_types:
-            return 13  # TAILLE UNIFIÉE POUR TOUS LES MESSAGES (comme le message de bienvenue)
+            return 12  # TAILLE UNIFIÉE POUR TOUS LES MESSAGES (réduite de 1)
         
         # Seuls les éléments d'interface gardent leurs tailles spécifiques
         interface_font_sizes = {
@@ -1345,7 +1345,7 @@ class ModernAIGUI:
             'subtitle': 18,     # Sous-titres
         }
         
-        return interface_font_sizes.get(font_type, 13)
+        return interface_font_sizes.get(font_type, 12)
     
     def insert_formatted_text_ctk(self, text_widget, text):
         """Insère du texte formaté avec rendu visuel subtil dans CustomTkinter TextBox"""

@@ -225,7 +225,7 @@ class LinguisticPatterns:
                         r"(?:web|internet|google)\s+search\s+.+"
                     ],
                     "indicators": ["cherche", "recherche", "internet", "web", "google", "informations", "actualités", "trouve", "news"],
-                    "weight": 1.4,
+                    "weight": 1.8,  # Augmenté pour prendre priorité sur programming_question
                     "priority": "high"
                 },
                 

@@ -135,7 +135,7 @@ pip install -r requirements.txt
 ```bash
 .\launch.bat
 ```
-Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
+Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 
 ### Premiers Pas
 1. **Saluer l'IA** : "Salut", "Bonjour", "slt" - L'IA reconnaîtra votre salutation
