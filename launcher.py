@@ -98,7 +98,7 @@ def launch_gui(args):
     """Launch the Modern GUI interface with fallback to standard GUI."""
     try:
         from interfaces.gui_modern import main as gui_main
-        print("🚀 Launching Modern GUI interface (v3.0.0 - Style Claude)...")
+        print("🚀 Launching Modern GUI interface (v3.1.0 - Style Claude)...")
         gui_main()
     except ImportError as e:
         print(f"❌ Error importing modern GUI: {e}")
@@ -291,7 +291,7 @@ Examples:
     args = parser.parse_args()
     
     # Print banner
-    print("🤖 My AI Personal Assistant v3.0.0")
+    print("🤖 My AI Personal Assistant v3.1.0")
     print("🎨 Interface Graphique Moderne - Style Claude")
     print("=" * 50)
     

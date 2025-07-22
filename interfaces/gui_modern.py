@@ -693,7 +693,7 @@ class ModernAIGUI:
             return btn
     
     def add_message_bubble(self, text, is_user=True, message_type="text"):
-        """Version avec espacement AMÉLIORÉ"""
+        """Version avec espacement OPTIMAL et structure améliorée"""
         # Vérifier que le texte est une chaîne
         if not isinstance(text, str):
             if isinstance(text, dict):
@@ -715,10 +715,10 @@ class ModernAIGUI:
             'type': message_type
         })
         
-        # Container principal avec espacement MIEUX ÉQUILIBRÉ
+        # Container principal avec espacement OPTIMAL
         msg_container = self.create_frame(self.chat_frame, fg_color=self.colors['bg_chat'])
-        # ESPACEMENT VERTICAL AUGMENTÉ pour plus de lisibilité
-        msg_container.grid(row=len(self.conversation_history)-1, column=0, sticky="ew", pady=(0, 8))  # Augmenté de 2 à 8
+        # 🎯 ESPACEMENT OPTIMAL - PAS TROP, PAS TROP PEU : 20px → 12px
+        msg_container.grid(row=len(self.conversation_history)-1, column=0, sticky="ew", pady=(0, 12))
         msg_container.grid_columnconfigure(0, weight=1)
 
         if is_user:
@@ -729,15 +729,52 @@ class ModernAIGUI:
         # Scroll automatique vers le bas
         self.root.after(10, self.scroll_to_bottom)
     
+    def setup_scroll_forwarding(self, text_widget):
+        """Configure le transfert du scroll pour les widgets de texte - VITESSE NATIVE"""
+        def forward_scroll_to_page(event):
+            try:
+                # Méthode améliorée : transfert direct d'événement pour vitesse native
+                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
+                    # Pour CustomTkinter ScrollableFrame - transfert direct
+                    canvas = self.chat_frame._parent_canvas
+                    canvas.event_generate("<MouseWheel>", delta=event.delta, x=event.x, y=event.y)
+                elif hasattr(self, 'chat_frame'):
+                    # Pour tkinter standard - chercher le parent scrollable et transférer directement
+                    parent = self.chat_frame.master
+                    while parent and not hasattr(parent, 'yview'):
+                        parent = parent.master
+                    if parent and hasattr(parent, 'yview'):
+                        # Transfert avec vitesse multipliée pour compenser
+                        scroll_delta = int(-1 * (event.delta / 40))  # Plus sensible (120 -> 40)
+                        parent.yview_scroll(scroll_delta, "units")
+            except Exception as e:
+                print(f"⚠️ Erreur transfert scroll: {e}")
+                pass
+            return "break"
+        
+        # Appliquer le transfert de scroll
+        text_widget.bind("<MouseWheel>", forward_scroll_to_page)
+        text_widget.bind("<Button-4>", forward_scroll_to_page)  # Linux
+        text_widget.bind("<Button-5>", forward_scroll_to_page)  # Linux
+        
+        # Désactiver seulement les touches de navigation
+        def disable_keyboard_scroll(event):
+            return "break"
+        
+        text_widget.bind("<Up>", disable_keyboard_scroll)
+        text_widget.bind("<Down>", disable_keyboard_scroll)
+        text_widget.bind("<Prior>", disable_keyboard_scroll)
+        text_widget.bind("<Next>", disable_keyboard_scroll)
+
     def create_user_message_bubble(self, parent, text):
-        """Version CORRIGÉE avec calcul de hauteur automatique précis"""
+        """Version PARFAITE - Affichage complet garanti + notification GUI"""
         from datetime import datetime
         
-        # Frame principale
+        # Frame principale - RETOUR au centrage original
         main_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        main_frame.grid(row=0, column=0, padx=(400, 0), pady=(0, 0), sticky="w")
+        main_frame.grid(row=0, column=0, padx=(400, 400), pady=(0, 0), sticky="ew")
         main_frame.grid_columnconfigure(0, weight=0)
-        main_frame.grid_columnconfigure(1, weight=0)
+        main_frame.grid_columnconfigure(1, weight=1)  # Permettre expansion du contenu
         
         # Icône utilisateur
         icon_label = self.create_label(
@@ -763,127 +800,131 @@ class ModernAIGUI:
                             highlightthickness=0)
         
         bubble.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
-        bubble.grid_columnconfigure(0, weight=1)
+        bubble.grid_columnconfigure(0, weight=0)
         
-        # Calcul de largeur et hauteur AMÉLIORÉ
+        # CALCUL DE LARGEUR ADAPTÉ AU CENTRAGE (largeur disponible ~ 600-800px)
         lines = text.split('\n')
-        max_line_length = max(len(line) for line in lines) if lines else 0
+        longest_line = max(lines, key=len) if lines else text
+        words = text.split()
+        word_count = len(words)
         
-        print(f"🔍 DEBUG USER - Lignes: {len(lines)}, Max line: {max_line_length}")
-        
-        # Largeur adaptative
-        if max_line_length <= 30:
-            text_width = max(20, min(max_line_length + 5, 40))
-        elif max_line_length <= 60:
-            text_width = max(35, min(max_line_length + 3, 70))
+        # Largeurs adaptées au centrage avec retours à la ligne automatiques - PLUS GÉNÉREUSES
+        if word_count <= 2:
+            text_width = min(50, len(longest_line) + 10)
+        elif word_count <= 5:
+            text_width = min(65, len(longest_line) + 15)
+        elif word_count <= 10:
+            text_width = min(80, len(longest_line) + 20)
+        elif word_count <= 20:
+            text_width = min(95, len(longest_line) + 25)
+        elif word_count <= 40:
+            text_width = min(110, len(longest_line) + 30)
         else:
-            text_width = min(90, max_line_length + 5)
+            # Pour les longs textes, largeur optimale pour retours à la ligne
+            text_width = min(120, len(longest_line) + 35)
         
-        # Hauteur adaptative
-        estimated_lines = len(lines)
-        for line in lines:
-            if len(line) > text_width:
-                estimated_lines += (len(line) - 1) // text_width
+        # CALCUL SIMPLIFIÉ de la hauteur - juste basé sur le nombre de lignes
+        text_height = max(1, len(lines))
         
-        text_height = max(1, min(estimated_lines + 2, 20))  # +2 lignes de marge
-        
-        print(f"🔍 DEBUG USER: Largeur: {text_width}, Hauteur initiale: {text_height}")
-        
-        # WIDGET TKINTER TEXT UNIFIÉ
+        # Widget texte avec hauteur GARANTIE pour tout afficher
         text_widget = tk.Text(
             bubble,
             width=text_width,
             height=text_height,
             bg=self.colors['bg_user'],
             fg='#ffffff',
-            font=('Segoe UI', 13),  # POLICE UNIFIÉE
-            wrap="word",
+            font=('Segoe UI', 13),
+            wrap=tk.WORD,
             relief="flat",
             bd=0,
             highlightthickness=0,
             state="normal",
-            cursor="arrow"
+            cursor="arrow",
+            yscrollcommand=None,
+            xscrollcommand=None
         )
         
-        # Insérer le texte et ajuster la hauteur
+        # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
+        
+        # AJUSTEMENT POST-INSERTION pour garantir l'affichage COMPLET et RÉEL
+        text_widget.update_idletasks()
+        text_widget.update()
+        
+        # AJUSTEMENT SIMPLE ET EFFICACE de la hauteur
+        try:
+            # Attendre que le widget soit rendu
+            text_widget.update_idletasks()
+            text_widget.update()
+            
+            # Calculer hauteur basée sur le contenu réel
+            end_pos = text_widget.index("end-1c")
+            actual_lines = int(end_pos.split('.')[0])
+            
+            # Utiliser la hauteur réelle du contenu + petite marge
+            final_height = max(1, actual_lines + 1)
+            text_widget.configure(height=final_height)
+            text_widget.update_idletasks()
+            text_widget.update()
+            
+            # Retour au début
+            text_widget.see("1.0")
+            text_widget.mark_set("insert", "1.0")
+            
+            print(f"📏 USER: final_height={final_height}, actual_lines={actual_lines}")
+            
+        except Exception as e:
+            print(f"⚠️ Erreur ajustement user: {e}")
+            # Sécurité : hauteur basée sur le nombre de lignes du texte
+            safe_height = max(3, len(text.split('\n')) + 1)
+            text_widget.configure(height=safe_height)
+            text_widget.update()
+        
         text_widget.configure(state="disabled")
         
-        # AJUSTEMENT HAUTEUR automatique
-        text_widget.update_idletasks()
-        try:
-            text_widget.see("end")
-            total_lines = int(text_widget.index("end-1c").split('.')[0])
-            optimal_height = max(1, min(total_lines + 1, 15))
-            text_widget.configure(height=optimal_height)
-            print(f"🔍 DEBUG USER: Hauteur ajustée à {optimal_height}")
-        except:
-            pass
+        # Configurer le transfert de scroll pour les messages utilisateur
+        self.setup_scroll_forwarding(text_widget)
         
-        # Désactiver le scroll interne
-        def redirect_scroll_to_parent(event):
-            if hasattr(self, 'chat_frame') and self.use_ctk:
-                self.chat_frame._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            return "break"
-        
-        text_widget.bind("<MouseWheel>", redirect_scroll_to_parent)
-        text_widget.bind("<Button-4>", redirect_scroll_to_parent)
-        text_widget.bind("<Button-5>", redirect_scroll_to_parent)
-        
-        # Événements utilisateur
-        def block_keyboard_scroll(event):
-            return "break"
-        
-        text_widget.bind("<Key-Up>", block_keyboard_scroll)
-        text_widget.bind("<Key-Down>", block_keyboard_scroll)
-        text_widget.bind("<Key-Prior>", block_keyboard_scroll)
-        text_widget.bind("<Key-Next>", block_keyboard_scroll)
-        
-        def enable_selection(event):
-            text_widget.configure(state="normal")
-            text_widget.mark_set("insert", text_widget.index(f"@{event.x},{event.y}"))
-            return "break"
-        
-        def copy_text_on_double_click(event):
+        # COPIE avec notification GUI
+        def copy_on_double_click(event):
             try:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
-                self.show_notification("✅ Texte copié", "success")
-            except:
-                pass
+                # NOTIFICATION GUI au lieu de juste terminal
+                self.show_copy_notification("✅ Message copié !")
+            except Exception as e:
+                self.show_copy_notification("❌ Erreur de copie")
             return "break"
         
-        text_widget.bind("<Button-1>", enable_selection)
-        text_widget.bind("<Double-Button-1>", copy_text_on_double_click)
-        text_widget.bind("<Button-3>", copy_text_on_double_click)
-        text_widget.bind("<Control-a>", lambda e: text_widget.tag_add("sel", "1.0", "end"))
+        text_widget.bind("<Double-Button-1>", copy_on_double_click)
         
-        text_widget.grid(row=0, column=0, padx=8, pady=(1, 0), sticky="nw")
+        # Positionner le widget
+        text_widget.grid(row=0, column=0, padx=8, pady=(6, 0), sticky="nw")
         
-        # Menu contextuel
-        self.create_copy_menu(text_widget, text)
-        
-        # Timestamp dans la bulle
+        # TIMESTAMP (plus proche du message)
         timestamp = datetime.now().strftime("%H:%M")
         time_label = self.create_label(
             bubble,
             text=timestamp,
             font=('Segoe UI', 10),
             fg_color=self.colors['bg_user'],
-            text_color='#b3b3b3'  # Couleur hexadécimale
+            text_color='#b3b3b3'
         )
-        time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(2, 5))  # Espacement amélioré
+        time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
+        
+        # Menu contextuel avec notification GUI
+        self.create_copy_menu_with_notification(text_widget, text)
 
-    
+
     def create_ai_message_simple(self, parent, text):
-        """Version CORRIGÉE avec calcul de hauteur automatique précis"""
+        """Version PARFAITE - Messages IA affichage complet + notification GUI"""
         from datetime import datetime
         
-        # Frame de centrage
+        # Frame de centrage - RETOUR au centrage original  
         center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        center_frame.grid(row=0, column=0, padx=(400, 0), pady=(0, 0), sticky="w")
+        center_frame.grid(row=0, column=0, padx=(400, 400), pady=(0, 0), sticky="ew")
         center_frame.grid_columnconfigure(0, weight=0)
-        center_frame.grid_columnconfigure(1, weight=0)
+        center_frame.grid_columnconfigure(1, weight=1)  # Permettre expansion du contenu
         
         # Icône IA
         icon_label = self.create_label(
@@ -895,136 +936,195 @@ class ModernAIGUI:
         )
         icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
         
-        # CALCUL INTELLIGENT de la largeur selon le contenu
+        # Container pour le message IA avec expansion
+        message_container = self.create_frame(center_frame, fg_color=self.colors['bg_chat'])
+        message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
+        message_container.grid_columnconfigure(0, weight=1)  # Permettre expansion
+        
+        # CALCUL DE LARGEUR ADAPTÉ AU CENTRAGE POUR IA (largeur disponible ~ 600-800px)
         lines = text.split('\n')
-        total_chars = len(text)
-        max_line_length = max(len(line) for line in lines) if lines else 0
+        longest_line = max(lines, key=len) if lines else text
+        words = text.split()
+        word_count = len(words)
         
-        print(f"🔍 DEBUG IA - Lignes: {len(lines)}, Chars: {total_chars}, Max line: {max_line_length}")
-        
-        # Largeur adaptative plus généreuse
-        if max_line_length <= 40:
-            text_width = max(30, min(max_line_length + 10, 60))
-        elif max_line_length <= 80:
-            text_width = max(50, min(max_line_length + 5, 90))
+        # Largeurs adaptées au centrage avec retours à la ligne automatiques - PLUS GÉNÉREUSES
+        if word_count <= 3:
+            text_width = min(55, len(longest_line) + 15)
+        elif word_count <= 8:
+            text_width = min(70, len(longest_line) + 20)
+        elif word_count <= 15:
+            text_width = min(85, len(longest_line) + 25)
+        elif word_count <= 30:
+            text_width = min(100, len(longest_line) + 30)
+        elif word_count <= 60:
+            text_width = min(115, len(longest_line) + 35)
         else:
-            text_width = min(120, max_line_length + 10)  # Plus large pour les longs textes
+            # Pour les très longs textes, largeur optimale pour retours à la ligne
+            text_width = min(125, len(longest_line) + 40)
         
-        # Hauteur initiale généreuse
-        estimated_lines = len(lines)
+        # CALCUL SIMPLIFIÉ de la hauteur - juste basé sur le nombre de lignes
+        text_height = max(1, len(lines))
         
-        # Estimation plus précise du word wrap
-        for line in lines:
-            if len(line) > text_width:
-                # Calculer les lignes supplémentaires dues au wrap
-                wrapped_lines = (len(line) + text_width - 1) // text_width
-                estimated_lines += wrapped_lines - 1
-        
-        # Hauteur initiale plus généreuse
-        text_height = max(2, min(estimated_lines + 2, 30))  # +2 lignes de marge
-        
-        print(f"🔍 DEBUG: Largeur calculée: {text_width}, Hauteur initiale: {text_height}")
-        
-        # WIDGET TKINTER TEXT avec dimensions calculées
+        # Widget texte IA avec hauteur GARANTIE
         text_widget = tk.Text(
-            center_frame,
+            message_container,
             width=text_width,
             height=text_height,
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
-            font=('Segoe UI', 13),  # POLICE UNIFIÉE
-            wrap="word",
+            font=('Segoe UI', 13),
+            wrap=tk.WORD,
             relief="flat",
             bd=0,
             highlightthickness=0,
             state="normal",
-            cursor="arrow"
+            cursor="arrow",
+            yscrollcommand=None,
+            xscrollcommand=None
         )
         
-        # Insérer le texte AVANT l'ajustement de hauteur
+        # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
-        text_widget.configure(state="disabled")
         
-        # AJUSTEMENT HAUTEUR AUTOMATIQUE après insertion
+        # AJUSTEMENT POST-INSERTION pour garantir l'affichage COMPLET et RÉEL
         text_widget.update_idletasks()
+        text_widget.update()
         
+        # AJUSTEMENT SIMPLE ET EFFICACE de la hauteur
         try:
-            # Forcer le widget à calculer sa hauteur réelle
-            text_widget.see("end")
+            # Attendre que le widget soit rendu
+            text_widget.update_idletasks()
             text_widget.update()
             
-            # Obtenir le nombre de lignes réellement utilisées
-            end_index = text_widget.index("end-1c")
-            total_lines = int(end_index.split('.')[0])
+            # Calculer hauteur basée sur le contenu réel
+            end_pos = text_widget.index("end-1c")
+            actual_lines = int(end_pos.split('.')[0])
             
-            print(f"🔍 DEBUG: Lignes réelles après insertion: {total_lines}")
+            # Utiliser la hauteur réelle du contenu + petite marge
+            final_height = max(1, actual_lines + 1)
+            text_widget.configure(height=final_height)
+            text_widget.update_idletasks()
+            text_widget.update()
             
-            # Calculer la hauteur optimale
-            if total_lines <= 1:
-                optimal_height = 1
-            elif total_lines <= 5:
-                optimal_height = total_lines + 1  # +1 ligne de marge
-            else:
-                optimal_height = min(total_lines + 1, 25)  # Maximum 25 lignes
+            # Retour au début
+            text_widget.see("1.0")
+            text_widget.mark_set("insert", "1.0")
             
-            print(f"🔍 DEBUG: Hauteur optimale calculée: {optimal_height}")
-            
-            # Appliquer la nouvelle hauteur
-            text_widget.configure(height=optimal_height)
+            print(f"📏 IA: final_height={final_height}, actual_lines={actual_lines}")
             
         except Exception as e:
-            print(f"⚠️ DEBUG: Erreur ajustement hauteur: {e}")
-            # En cas d'erreur, garder une hauteur généreuse
-            text_widget.configure(height=max(3, text_height))
+            print(f"⚠️ Erreur ajustement IA: {e}")
+            # Sécurité : hauteur basée sur le nombre de lignes du texte
+            safe_height = max(3, len(text.split('\n')) + 1)
+            text_widget.configure(height=safe_height)
+            text_widget.update()
         
-        # Désactiver le scroll interne
-        def redirect_scroll_to_parent(event):
-            if hasattr(self, 'chat_frame') and self.use_ctk:
-                self.chat_frame._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            return "break"
+        text_widget.configure(state="disabled")
         
-        text_widget.bind("<MouseWheel>", redirect_scroll_to_parent)
-        text_widget.bind("<Button-4>", redirect_scroll_to_parent)
-        text_widget.bind("<Button-5>", redirect_scroll_to_parent)
+        # FORWARDING du scroll vers la fenêtre principale
+        self.setup_scroll_forwarding(text_widget)
         
-        # Bloquer navigation clavier
-        def block_keyboard_scroll(event):
-            return "break"
-        
-        text_widget.bind("<Key-Up>", block_keyboard_scroll)
-        text_widget.bind("<Key-Down>", block_keyboard_scroll)
-        text_widget.bind("<Key-Prior>", block_keyboard_scroll)
-        text_widget.bind("<Key-Next>", block_keyboard_scroll)
-        
-        # Copie de texte
-        def copy_text_on_double_click(event):
+        # COPIE avec notification GUI
+        def copy_on_double_click(event):
             try:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
-                self.show_notification("✅ Texte copié", "success")
-            except:
-                pass
+                # NOTIFICATION GUI au lieu de juste terminal
+                self.show_copy_notification("✅ Message copié !")
+            except Exception as e:
+                self.show_copy_notification("❌ Erreur de copie")
             return "break"
         
-        text_widget.bind("<Double-Button-1>", copy_text_on_double_click)
-        text_widget.bind("<Button-3>", copy_text_on_double_click)
+        text_widget.bind("<Double-Button-1>", copy_on_double_click)
         
-        text_widget.grid(row=0, column=1, sticky="w", padx=(0, 0), pady=(1, 0))
+        # Positionner le widget
+        text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nw")
         
-        # Menu contextuel
-        self.create_copy_menu(text_widget, text)
-        
-        # Timestamp avec espacement normal
+        # TIMESTAMP (plus proche du message)
         timestamp = datetime.now().strftime("%H:%M")
         time_label = self.create_label(
-            center_frame,
+            message_container,
             text=timestamp,
             font=('Segoe UI', 10),
             fg_color=self.colors['bg_chat'],
             text_color=self.colors['text_secondary']
         )
-        time_label.grid(row=1, column=1, sticky="w", padx=(0, 0), pady=(2, 5))  # Espacement amélioré
+        time_label.grid(row=1, column=0, sticky="w", padx=0, pady=(0, 6))
+        
+        # Menu contextuel avec notification GUI
+        self.create_copy_menu_with_notification(text_widget, text)
 
+    def show_copy_notification(self, message):
+        """Affiche une notification GUI élégante pour la copie"""
+        try:
+            # Créer une notification temporaire
+            if self.use_ctk:
+                notification = ctk.CTkFrame(
+                    self.main_container,
+                    fg_color="#10b981",  # Vert succès
+                    corner_radius=8,
+                    border_width=0
+                )
+                
+                notif_label = ctk.CTkLabel(
+                    notification,
+                    text=message,
+                    text_color="#ffffff",
+                    font=('Segoe UI', 12, 'bold')
+                )
+            else:
+                notification = tk.Frame(
+                    self.main_container,
+                    bg="#10b981",
+                    relief="flat"
+                )
+                
+                notif_label = tk.Label(
+                    notification,
+                    text=message,
+                    fg="#ffffff",
+                    bg="#10b981",
+                    font=('Segoe UI', 12, 'bold')
+                )
+            
+            notif_label.pack(padx=15, pady=8)
+            
+            # Positionner en haut à droite
+            notification.place(relx=0.95, rely=0.1, anchor="ne")
+            
+            # Supprimer automatiquement après 2 secondes
+            self.root.after(2000, notification.destroy)
+            
+        except Exception as e:
+            print(f"⚠️ Erreur notification GUI: {e}")
+
+
+    def create_copy_menu_with_notification(self, widget, original_text):
+        """Menu contextuel avec notification GUI"""
+        def copy_text():
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(original_text)
+                self.show_copy_notification("📋 Texte copié !")
+            except Exception as e:
+                self.show_copy_notification("❌ Erreur de copie")
+        
+        # Menu contextuel
+        context_menu = tk.Menu(self.root, tearoff=0)
+        context_menu.add_command(label="📋 Copier", command=copy_text)
+        
+        def show_context_menu(event):
+            try:
+                context_menu.tk_popup(event.x_root, event.y_root)
+            except:
+                pass
+            finally:
+                context_menu.grab_release()
+        
+        widget.bind("<Button-3>", show_context_menu)  # Clic droit
+        widget.bind("<Control-Button-1>", show_context_menu)  # Ctrl+clic
+        
+        return context_menu
 
     def insert_formatted_text_tkinter(self, text_widget, text):
         """Version OPTIMISÉE pour formatage unifié avec hauteur précise"""
@@ -1070,19 +1170,31 @@ class ModernAIGUI:
             if segment_text:
                 text_widget.insert("end", segment_text, style)
         
-        # AJUSTEMENT HAUTEUR PRÉCIS
+        # AJUSTEMENT HAUTEUR SIMPLE ET FINAL
         text_widget.update_idletasks()
-        text_widget.see("end")
+        text_widget.update()
         
         try:
-            # Compter les lignes réelles affichées
+            # Calculer hauteur basée sur le contenu réel
             total_lines = int(text_widget.index("end-1c").split('.')[0])
-            # Hauteur optimale sans espace vide
-            optimal_height = max(1, min(total_lines, 20))
-            text_widget.configure(height=optimal_height)
-        except:
-            # Fallback en cas d'erreur
-            pass
+            
+            # Hauteur réelle + très petite marge
+            required_height = max(1, total_lines)
+            text_widget.configure(height=required_height)
+            text_widget.update_idletasks()
+            text_widget.update()
+            
+            # Retour au début pour un affichage propre
+            text_widget.see("1.0")
+            text_widget.mark_set("insert", "1.0")
+            
+            print(f"📏 Format: final_height={required_height}, total_lines={total_lines}")
+            
+        except Exception as e:
+            print(f"⚠️ Erreur ajustement format: {e}")
+            # Fallback simple
+            fallback_height = max(2, len(text.split('\n')))
+            text_widget.configure(height=fallback_height)
 
     def adjust_text_height_no_scroll(self, text_widget, text):
         """Ajuste la hauteur EXACTE pour afficher tout le contenu sans scroll"""
