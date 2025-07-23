@@ -918,7 +918,7 @@ class ModernAIGUI:
         self.create_copy_menu_with_notification(text_widget, text)
 
     def create_ai_message_simple(self, parent, text):
-        """Version SIMPLE - Hauteur naturelle qui s'adapte au contenu"""
+        """Version CORRIGÉE - Affichage complet des messages IA"""
         from datetime import datetime
         
         # Vérifier que le texte est une chaîne
@@ -953,14 +953,20 @@ class ModernAIGUI:
         message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
         message_container.grid_columnconfigure(0, weight=1)
         
-        # LARGEUR FIXE RAISONNABLE pour tous les messages
-        text_width = 130  # Largeur fixe comme WhatsApp/Telegram
+        # LARGEUR ADAPTÉE au contenu
+        text_length = len(text)
+        if text_length > 500:
+            text_width = 150  # Plus large pour les longs textes
+        elif text_length > 200:
+            text_width = 130  # Largeur standard
+        else:
+            text_width = 100  # Plus petit pour les courts textes
         
-        # Widget Text SIMPLE
+        # Widget Text avec hauteur ADAPTÉE au contenu
         text_widget = tk.Text(
             message_container,
             width=text_width,
-            height=1,  # Commencer petit
+            height=1,  # Sera calculé automatiquement
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
             font=('Segoe UI', 12),
@@ -974,41 +980,42 @@ class ModernAIGUI:
             pady=6
         )
 
-        # Insérer le texte
+        # Insérer le texte avec formatage
         self.insert_formatted_text_tkinter(text_widget, text)
 
-        # CALCUL SIMPLE ET NATUREL de la hauteur
+        # CALCUL AUTOMATIQUE de la hauteur basé sur le contenu réel
         text_widget.update_idletasks()
         text_widget.update()
         
-        # Méthode simple : juste compter les lignes après wrapping
+        # Méthode robuste pour calculer la hauteur nécessaire
         text_widget.see('end')
         last_line_index = text_widget.index('end-1c')
         num_lines = int(last_line_index.split('.')[0])
         
-        # Hauteur = nombre de lignes réelles + 1 ligne de marge
-        natural_height = num_lines + 1
+        # Hauteur adaptée avec marge de sécurité
+        if text_length > 800:
+            safety_margin = 5  # Plus de marge pour les très longs textes
+        elif text_length > 400:
+            safety_margin = 3  # Marge moyenne
+        else:
+            safety_margin = 2  # Marge minimale
         
-        # Limites raisonnables
-        min_height = 2   # Minimum pour éviter les messages trop écrasés
-        max_height = 25  # Maximum raisonnable
+        final_height = max(3, min(num_lines + safety_margin, 40))  # Min 3, Max 40 lignes
         
-        final_height = max(min_height, min(natural_height, max_height))
+        print(f"💬 MESSAGE: {len(text)} chars → {num_lines} lignes → hauteur finale {final_height}")
         
-        print(f"💬 MESSAGE: {len(text)} chars → {num_lines} lignes → hauteur {final_height}")
-        
-        # Appliquer la hauteur
+        # Appliquer la hauteur calculée
         text_widget.configure(height=final_height)
         text_widget.update_idletasks()
         
-        # Retourner au début
+        # Retourner au début pour l'affichage
         text_widget.see('1.0')
         text_widget.mark_set('insert', '1.0')
         
         text_widget.configure(state="disabled")
         self.setup_scroll_forwarding(text_widget)
         
-        # COPIE
+        # Fonction de copie
         def copy_on_double_click(event):
             try:
                 self.root.clipboard_clear()
@@ -1108,22 +1115,22 @@ class ModernAIGUI:
         return context_menu
 
     def insert_formatted_text_tkinter(self, text_widget, text):
-        """Version OPTIMISÉE avec wrap=WORD et hauteur précise"""
+        """Version OPTIMISÉE pour affichage complet du contenu"""
         import re
         text_widget.delete("1.0", "end")
         
-        # Configuration des tags avec police unifiée
+        # Configuration des tags avec police cohérente
         BASE_FONT = ('Segoe UI', 12)
         text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
         text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
-        text_widget.tag_configure("mono", font=('Consolas', 12))
+        text_widget.tag_configure("mono", font=('Consolas', 11))
         text_widget.tag_configure("normal", font=BASE_FONT)
         
-        # Traitement du formatage
+        # Traitement du formatage markdown simple
         patterns = [
-            (r'\*\*([^*]+)\*\*', 'bold'),
-            (r'\*([^*]+)\*', 'italic'),
-            (r'`([^`]+)`', 'mono')
+            (r'\*\*([^*]+)\*\*', 'bold'),   # **texte** -> gras
+            (r'\*([^*]+)\*', 'italic'),     # *texte* -> italique
+            (r'`([^`]+)`', 'mono')          # `texte` -> monospace
         ]
         
         segments = [(text, 'normal')]
@@ -1144,37 +1151,14 @@ class ModernAIGUI:
                     new_segments.append((segment_text, segment_style))
             segments = new_segments
         
-        # Insérer les segments
+        # Insérer les segments formatés
         for segment_text, style in segments:
             if segment_text:
                 text_widget.insert("end", segment_text, style)
         
-        # CORRECTION: Ajustement final de hauteur plus robuste
+        # S'assurer que tout le contenu est visible
         text_widget.update_idletasks()
-        text_widget.update()
-        
-        try:
-            # Forcer le widget à calculer le nombre de lignes avec wrap
-            text_widget.see("end")
-            end_index = text_widget.index("end-1c")
-            total_lines = int(end_index.split('.')[0])
-            
-            # Hauteur basée sur le contenu réel avec wrap=WORD
-            required_height = max(1, total_lines)
-            text_widget.configure(height=required_height)
-            
-            # Mise à jour finale
-            text_widget.update_idletasks()
-            text_widget.see("1.0")
-            text_widget.mark_set("insert", "1.0")
-            
-            print(f"📏 Format: final_height={required_height}, total_lines={total_lines}")
-            
-        except Exception as e:
-            print(f"⚠️ Erreur ajustement format: {e}")
-            # Fallback simple mais efficace
-            fallback_height = max(2, len(text.split('\n')))
-            text_widget.configure(height=fallback_height)
+        text_widget.see("1.0")  # Commencer par le début
 
     def adjust_text_height_no_scroll(self, text_widget, text):
         """Ajuste la hauteur EXACTE pour afficher tout le contenu sans scroll"""
@@ -1719,30 +1703,59 @@ class ModernAIGUI:
         threading.Thread(target=run_async_task, daemon=True).start()
     
     def add_ai_response(self, response):
-        """Ajoute une réponse de l'IA - VERSION CORRIGÉE pour réponses complètes"""
-        print(f"🔍 DEBUG add_ai_response: type={type(response)}, contenu={str(response)[:200]}...")
+        """Ajoute une réponse de l'IA - VERSION CORRIGÉE pour affichage complet"""
+        print(f"🔍 DEBUG add_ai_response: type={type(response)}")
+        print(f"🔍 DEBUG contenu (premiers 200 chars): {str(response)[:200]}...")
         
-        # CORRECTION : Extraire correctement le texte de la réponse
+        # EXTRACTION ROBUSTE du texte de réponse
         if isinstance(response, dict):
-            # Chercher le message dans l'ordre de priorité
-            if 'message' in response:
-                text_response = response['message']
-            elif 'text' in response:
-                text_response = response['text']
-            elif 'content' in response:
-                text_response = response['content']
-            elif 'response' in response:
-                text_response = response['response']
-            else:
+            # Ordre de priorité pour extraire le message
+            message_keys = ['message', 'text', 'content', 'response', 'ai_response']
+            
+            text_response = None
+            for key in message_keys:
+                if key in response and response[key]:
+                    text_response = response[key]
+                    break
+            
+            # Si aucune des clés principales n'existe, prendre la première valeur non-vide
+            if text_response is None:
+                for key, value in response.items():
+                    if value and isinstance(value, (str, dict)):
+                        text_response = value
+                        break
+            
+            # Si c'est encore un dictionnaire imbriqué, extraire récursivement
+            if isinstance(text_response, dict):
+                if 'message' in text_response:
+                    text_response = text_response['message']
+                elif 'text' in text_response:
+                    text_response = text_response['text']
+                else:
+                    text_response = str(text_response)
+            
+            # Convertir en string si nécessaire
+            if text_response is None:
                 text_response = str(response)
+            else:
+                text_response = str(text_response)
+        
         else:
             text_response = str(response)
         
-        print(f"🔍 DEBUG: Texte extrait pour affichage: '{text_response[:100]}...'")
+        print(f"🔍 DEBUG: Texte final extrait ({len(text_response)} chars): '{text_response[:100]}...'")
+        
+        # VÉRIFICATION que le texte n'est pas vide
+        if not text_response or text_response.strip() == "" or text_response == "None":
+            text_response = "⚠️ Réponse vide reçue"
+            print("⚠️ WARNING: Réponse vide détectée, utilisation d'un message par défaut")
         
         # Ajouter le message avec le texte complet
         self.add_message_bubble(text_response, is_user=False)
-        self.scroll_to_bottom()
+        
+        # Scroll vers le bas avec délai pour s'assurer que le message est rendu
+        self.root.after(100, self.scroll_to_bottom)
+        self.root.after(300, self.scroll_to_bottom)  # Double tentative
     
     def scroll_to_bottom(self):
         """Fait défiler vers le bas de la conversation (ROBUSTE et GARANTI)"""

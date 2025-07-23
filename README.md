@@ -56,6 +56,8 @@ my_ai/
 ├── examples/                  # Exemples d'utilisation
 ├── main.py                    # Point d'entrée principal
 ├── requirements.txt           # Dépendances
+├── launch.bat                 # Script pour lancer le programme
+├── clean_project.bat          # Script pour supprimer les fichiers temporaires
 └── config.yaml                # Configuration
 ```
 
