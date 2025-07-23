@@ -14,23 +14,23 @@ My Personal AI suit une architecture modulaire 100% locale basée sur les princi
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    INTERFACES UTILISATEUR                  │
+│                    INTERFACES UTILISATEUR                   │
 ├─────────────────────────────────────────────────────────────┤
-│  GUI Tkinter    │  CLI Click      │  Future: VS Code Ext.  │
+│  GUI Tkinter    │  CLI Click      │  Future: VS Code Ext.   │
 │  (Principal)    │  (Expert)       │  (Roadmap)              │
 └─────────────────┴─────────────────┴─────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                      MOTEUR IA PRINCIPAL                   │
+│                      MOTEUR IA PRINCIPAL                    │
 ├─────────────────────────────────────────────────────────────┤
-│  • Reconnaissance d'intentions (salutations, code, docs)   │
-│  • Gestion de la mémoire conversationnelle                 │
-│  • Routage intelligent vers modules spécialisés           │
-│  • Formatage adaptatif des réponses                        │
+│  • Reconnaissance d'intentions (salutations, code, docs)    │
+│  • Gestion de la mémoire conversationnelle                  │
+│  • Routage intelligent vers modules spécialisés             │
+│  • Formatage adaptatif des réponses                         │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│              COUCHE DE RECONNAISSANCE ET MÉMOIRE           │
+│              COUCHE DE RECONNAISSANCE ET MÉMOIRE            │
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │ PATTERNS LING.  │ CONVERSATION    │ KNOWLEDGE BASE          │
 │                 │ MEMORY          │                         │
@@ -41,7 +41,7 @@ My Personal AI suit une architecture modulaire 100% locale basée sur les princi
 └─────────────────┴─────────────────┴─────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                    MODULES SPÉCIALISÉS                     │
+│                    MODULES SPÉCIALISÉS                      │
 ├─────────────────┬─────────────────┬─────────────────────────┤
 │   PROCESSORS    │   GENERATORS    │    REASONING            │
 │                 │                 │                         │
@@ -51,9 +51,9 @@ My Personal AI suit une architecture modulaire 100% locale basée sur les princi
 └─────────────────┴─────────────────┴─────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                      UTILITAIRES                           │
+│                      UTILITAIRES                            │
 ├─────────────────────────────────────────────────────────────┤
-│  File Manager  │  Logger  │  Validators  │  Configuration  │
+│  File Manager  │  Logger  │  Validators  │  Configuration   │
 └─────────────────────────────────────────────────────────────┘
 ```
 

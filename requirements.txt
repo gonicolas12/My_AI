@@ -58,6 +58,7 @@ tkinter  # Intégré à Python (base)
 customtkinter>=5.2.0  # Interface moderne avec thèmes sombres
 tkinterdnd2>=0.3.0     # Drag & Drop pour fichiers
 pillow>=10.0.0         # Traitement d'images pour l'interface
+pygments
 
 # Interface web (optionnel)
 streamlit>=1.25.0      # Interface web moderne

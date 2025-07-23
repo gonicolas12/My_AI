@@ -4412,14 +4412,20 @@ Que voulez-vous apprendre exactement ?"""
             if any(word in user_lower for word in ["comment", "créer", "utiliser", "faire", "python", "liste", "dictionnaire", "fonction", "variable", "boucle", "condition", "classe"]):
                 return "programming_question", 0.9
         
-        # PRIORITÉ 3.6 : Questions générales avec structure "c'est quoi", "qu'est-ce que" => internet_search
+        # PRIORITÉ 3.6 : Questions générales avec structure "c'est quoi", "qu'est-ce que", "quelle est" => internet_search
         general_question_patterns = [
             "c'est quoi", "c est quoi", "quest ce que", "qu'est-ce que", "qu est ce que",
-            "qu'est ce que", "quel est", "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
+            "qu'est ce que", "quel est", "quelle est", "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
             "explique moi", "peux tu expliquer", "dis moi ce que c'est"
         ]
+        # Si le modèle IA a une réponse directe (intent déjà détecté avec un score élevé), ne pas faire de recherche internet
+        # On considère qu'un intent avec un score >= 0.85 est une réponse IA prioritaire
+        best_intent = max(intent_scores.items(), key=lambda x: x[1])
         if any(pattern in user_lower for pattern in general_question_patterns):
-            return "internet_search", 1.0
+            if best_intent[0] not in ["internet_search", "unknown"] and best_intent[1] >= 0.85:
+                return best_intent[0], best_intent[1]
+            else:
+                return "internet_search", 1.0
         
         # PRIORITÉ 4 : Sélection normale par score le plus élevé
         best_intent = max(intent_scores.items(), key=lambda x: x[1])

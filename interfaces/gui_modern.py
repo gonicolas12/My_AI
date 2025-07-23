@@ -90,6 +90,16 @@ except ImportError as e:
 
 
 class ModernAIGUI:
+    def set_input_state(self, enabled: bool):
+        """Active ou désactive la zone de saisie utilisateur."""
+        try:
+            state = "normal" if enabled else "disabled"
+            self.input_text.configure(state=state)
+            if enabled:
+                self.input_text.focus_set()
+        except Exception as e:
+            print(f"⚠️ Erreur set_input_state: {e}")
+
     """Interface Graphique Moderne pour l'Assistant IA - Style Claude"""
     
     def __init__(self):
@@ -983,32 +993,22 @@ class ModernAIGUI:
         # Insérer le texte avec formatage
         self.insert_formatted_text_tkinter(text_widget, text)
 
-        # CALCUL AUTOMATIQUE de la hauteur basé sur le contenu réel
+        # Calcul précis de la hauteur réelle affichée (y compris le wrapping)
         text_widget.update_idletasks()
         text_widget.update()
-        
-        # Méthode robuste pour calculer la hauteur nécessaire
-        text_widget.see('end')
-        last_line_index = text_widget.index('end-1c')
-        num_lines = int(last_line_index.split('.')[0])
-        
-        # Hauteur adaptée avec marge de sécurité
+        # Utilise count pour obtenir le nombre de lignes réelles (y compris le wrapping)
+        total_lines = int(text_widget.count("1.0", "end", "displaylines")[0])
+        # Marge de sécurité
         if text_length > 800:
-            safety_margin = 5  # Plus de marge pour les très longs textes
+            safety_margin = 6
         elif text_length > 400:
-            safety_margin = 3  # Marge moyenne
+            safety_margin = 4
         else:
-            safety_margin = 2  # Marge minimale
-        
-        final_height = max(3, min(num_lines + safety_margin, 40))  # Min 3, Max 40 lignes
-        
-        print(f"💬 MESSAGE: {len(text)} chars → {num_lines} lignes → hauteur finale {final_height}")
-        
-        # Appliquer la hauteur calculée
+            safety_margin = 2
+        final_height = max(4, min(total_lines + safety_margin, 60))
+        print(f"💬 MESSAGE: {len(text)} chars → {total_lines} lignes (affichées) → hauteur finale {final_height}")
         text_widget.configure(height=final_height)
         text_widget.update_idletasks()
-        
-        # Retourner au début pour l'affichage
         text_widget.see('1.0')
         text_widget.mark_set('insert', '1.0')
         
@@ -1127,17 +1127,51 @@ class ModernAIGUI:
         text_widget.tag_configure("mono", font=('Consolas', 11))
         text_widget.tag_configure("normal", font=BASE_FONT)
         text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        # Tags pour coloration syntaxique Python (Pygments)
+        try:
+            from pygments.styles import get_style_by_name
+            from pygments.token import Token
+            style = get_style_by_name("monokai")
+            for token, opts in style.list_styles():
+                fg = opts['color'] if 'color' in opts else None
+                font = ('Consolas', 11, 'bold') if opts.get('bold') else ('Consolas', 11)
+                if fg:
+                    text_widget.tag_configure(str(token), foreground=f"#{fg}", font=font)
+        except Exception:
+            # Fallback simple
+            text_widget.tag_configure("py_keyword", foreground="#ffb86c", font=('Consolas', 11, 'bold'))
+            text_widget.tag_configure("py_string", foreground="#50fa7b", font=('Consolas', 11))
+            text_widget.tag_configure("py_comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
+            text_widget.tag_configure("py_builtin", foreground="#8be9fd", font=('Consolas', 11))
 
-        # Fonction pour ouvrir le lien
         def open_link(event, url):
             webbrowser.open_new(url)
 
-        # Découper le texte en segments Markdown (gras, italique, code, lien)
-        # On commence par les liens Markdown
+        # Découper le texte en blocs (texte normal, blocs code python, liens)
+        # On traite d'abord les blocs ```python```
+        code_block_pattern = r"```python\s*([\s\S]+?)```"
+        pos = 0
+        for code_match in re.finditer(code_block_pattern, text, re.IGNORECASE):
+            # Texte avant le bloc code
+            if code_match.start() > pos:
+                self._insert_markdown_and_links(text_widget, text[pos:code_match.start()])
+            code_content = code_match.group(1)
+            self._insert_python_code_block(text_widget, code_content)
+            pos = code_match.end()
+        # Texte après le dernier bloc code
+        if pos < len(text):
+            self._insert_markdown_and_links(text_widget, text[pos:])
+
+        text_widget.update_idletasks()
+        text_widget.see("1.0")
+
+    def _insert_markdown_and_links(self, text_widget, text):
+        """Insère du texte avec gestion des liens Markdown et du markdown classique (gras, italique, etc.)"""
+        import re
+        import webbrowser
         link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
         last_end = 0
         for match in re.finditer(link_pattern, text):
-            # Texte avant le lien
             if match.start() > last_end:
                 self._insert_markdown_segments(text_widget, text[last_end:match.start()])
             link_text = match.group(1)
@@ -1145,17 +1179,44 @@ class ModernAIGUI:
             start_index = text_widget.index("end-1c")
             text_widget.insert("end", link_text, ("link",))
             end_index = text_widget.index("end-1c")
-            # Ajouter le binding sur la plage du lien
             text_widget.tag_add(f"link_{start_index}", start_index, end_index)
-            text_widget.tag_bind(f"link_{start_index}", "<Button-1>", lambda e, url=url: open_link(e, url))
+            text_widget.tag_bind(f"link_{start_index}", "<Button-1>", lambda e, url=url: webbrowser.open_new(url))
             last_end = match.end()
-        # Texte après le dernier lien
         if last_end < len(text):
             self._insert_markdown_segments(text_widget, text[last_end:])
 
-        # S'assurer que tout le contenu est visible
-        text_widget.update_idletasks()
-        text_widget.see("1.0")
+    def _insert_python_code_block(self, text_widget, code):
+        """Insère un bloc de code python avec coloration syntaxique simple"""
+        # Utilise Pygments pour une coloration réaliste
+        try:
+            from pygments import lex
+            from pygments.lexers import PythonLexer
+            code = code.strip('\n')
+            for token, value in lex(code, PythonLexer()):
+                tag = str(token)
+                text_widget.insert("end", value, (tag,))
+            text_widget.insert("end", "\n", ("mono",))
+        except Exception:
+            # Fallback simple
+            import keyword, re
+            code = code.strip('\n')
+            lines = code.split('\n')
+            for i, line in enumerate(lines):
+                tokens = re.split(r'(\s+|#.*|"[^"]*"|\'[^"]*\'|\b\w+\b)', line)
+                for token in tokens:
+                    if not token:
+                        continue
+                    if token.startswith('#'):
+                        text_widget.insert("end", token, ("py_comment",))
+                    elif token.startswith('"') or token.startswith("'"):
+                        text_widget.insert("end", token, ("py_string",))
+                    elif token in keyword.kwlist:
+                        text_widget.insert("end", token, ("py_keyword",))
+                    elif token in dir(__builtins__):
+                        text_widget.insert("end", token, ("py_builtin",))
+                    else:
+                        text_widget.insert("end", token, ("mono",))
+                text_widget.insert("end", "\n", ("mono",))
 
     def _insert_markdown_segments(self, text_widget, text):
         """Insère du texte avec gras, italique, monospace (hors liens)"""

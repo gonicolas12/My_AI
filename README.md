@@ -126,7 +126,7 @@ my_ai/
 
 ## 🏃‍♂️ Démarrage Rapide
 
-### Clonez le dépôt
+### Clonez ce dépôt
 ```bash
 git clone https://github.com/gonicolas12/My_AI
 cd My_AI

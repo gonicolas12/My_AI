@@ -24,7 +24,7 @@ cd My_AI
 pip install -r requirements.txt
 
 # 3. Lancement immédiat
-python main.py
+.\launch.bat
 ```
 
 C'est tout ! Votre IA locale est prête à fonctionner.
