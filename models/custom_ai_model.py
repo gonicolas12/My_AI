@@ -2700,54 +2700,102 @@ Que voulez-vous apprendre exactement ?"""
         return detected_themes
 
     def _extract_key_sentences(self, content: str, max_sentences: int = 5) -> List[str]:
-        """
-        Extrait les phrases clés d'un document de manière universelle
+        """Version CORRIGÉE - Ne coupe JAMAIS les mots"""
+        import re
         
-        Args:
-            content: Contenu du document
-            max_sentences: Nombre maximum de phrases à extraire
-            
-        Returns:
-            Liste des phrases clés
-        """
         # Nettoyage et séparation en phrases
         content_clean = re.sub(r'\s+', ' ', content.strip())
         
-        # Séparation en phrases (approximative)
+        # Séparation en phrases plus robuste
         sentences = re.split(r'[.!?]+\s+', content_clean)
-        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]  # Phrases significatives
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 15]
         
         key_sentences = []
         
+        def smart_truncate_sentence(sentence, max_len=200):
+            """Coupe intelligemment sans casser les mots"""
+            if len(sentence) <= max_len:
+                return sentence
+            
+            # Trouver le dernier espace avant max_len
+            truncated = sentence[:max_len-3]
+            last_space = truncated.rfind(' ')
+            
+            # Si on trouve un espace convenable
+            if last_space > max_len * 0.7:  # Au moins 70% de la longueur souhaitée
+                return truncated[:last_space] + "..."
+            else:
+                # Chercher le premier espace après 70% de la longueur
+                min_acceptable = int(max_len * 0.7)
+                space_after = sentence.find(' ', min_acceptable)
+                if space_after != -1 and space_after < max_len + 20:
+                    return sentence[:space_after] + "..."
+                else:
+                    # En dernier recours, couper au dernier espace trouvé
+                    return truncated[:last_space] + "..." if last_space > 50 else sentence[:max_len-3] + "..."
+        
         # Première phrase (souvent importante)
         if sentences:
-            key_sentences.append(sentences[0][:200] + "..." if len(sentences[0]) > 200 else sentences[0])
+            first_sentence = smart_truncate_sentence(sentences[0])
+            key_sentences.append(first_sentence)
         
-        # Phrases avec des mots d'importance (mots de transition, etc.)
+        # Phrases avec mots d'importance
         importance_words = ['important', 'essentiel', 'principal', 'objectif', 'but', 'conclusion', 
-                          'résultat', 'efficace', 'nécessaire', 'recommandé', 'obligatoire']
+                        'résultat', 'efficace', 'nécessaire', 'recommandé', 'obligatoire']
         
         for sentence in sentences[1:]:
             if any(word in sentence.lower() for word in importance_words):
                 if len(key_sentences) < max_sentences:
-                    key_sentences.append(sentence[:200] + "..." if len(sentence) > 200 else sentence)
+                    processed_sentence = smart_truncate_sentence(sentence)
+                    key_sentences.append(processed_sentence)
         
-        # Si pas assez de phrases "importantes", prendre des phrases du milieu et de la fin
+        # Compléter avec d'autres phrases si nécessaire
         if len(key_sentences) < max_sentences and len(sentences) > 2:
             # Phrase du milieu
             mid_idx = len(sentences) // 2
             if mid_idx < len(sentences) and len(key_sentences) < max_sentences:
                 mid_sentence = sentences[mid_idx]
-                if mid_sentence not in key_sentences:
-                    key_sentences.append(mid_sentence[:200] + "..." if len(mid_sentence) > 200 else mid_sentence)
+                if mid_sentence not in [ks.replace("...", "") for ks in key_sentences]:
+                    processed_sentence = smart_truncate_sentence(mid_sentence)
+                    key_sentences.append(processed_sentence)
             
-            # Dernière phrase si elle est substantielle
+            # Dernière phrase
             if len(sentences) > 1 and len(key_sentences) < max_sentences:
                 last_sentence = sentences[-1]
-                if len(last_sentence) > 30 and last_sentence not in key_sentences:
-                    key_sentences.append(last_sentence[:200] + "..." if len(last_sentence) > 200 else last_sentence)
+                if len(last_sentence) > 30:
+                    processed_sentence = smart_truncate_sentence(last_sentence)
+                    if processed_sentence not in [ks.replace("...", "") for ks in key_sentences]:
+                        key_sentences.append(processed_sentence)
         
         return key_sentences[:max_sentences]
+    
+    def smart_truncate(text: str, max_length: int = 200, min_length: int = 100) -> str:
+        """
+        Coupe intelligemment un texte sans couper les mots
+        
+        Args:
+            text: Texte à couper
+            max_length: Longueur maximale
+            min_length: Longueur minimale garantie
+            
+        Returns:
+            Texte coupé intelligemment
+        """
+        if len(text) <= max_length:
+            return text
+        
+        # Couper à max_length - 3 pour laisser place aux "..."
+        truncated = text[:max_length - 3]
+        
+        # Trouver le dernier espace pour éviter de couper un mot
+        last_space = truncated.rfind(' ')
+        
+        # Si on trouve un espace et qu'il laisse suffisamment de texte
+        if last_space > min_length:
+            return truncated[:last_space] + "..."
+        else:
+            # Si pas d'espace approprié, couper quand même mais avertir
+            return truncated + "..."
     
     def _detect_document_themes(self, content: str) -> Dict[str, List[str]]:
         """

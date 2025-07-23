@@ -767,14 +767,19 @@ class ModernAIGUI:
         text_widget.bind("<Next>", disable_keyboard_scroll)
 
     def create_user_message_bubble(self, parent, text):
-        """Version PARFAITE - Affichage complet garanti + notification GUI"""
+        """Version DÉFINITIVE - Messages utilisateur toujours complets"""
         from datetime import datetime
         
-        # Frame principale - RETOUR au centrage original
+        if not isinstance(text, str):
+            text = str(text)
+        
+        print(f"👤 DEBUG USER: '{text}' ({len(text)} chars)")
+        
+        # Frame principale
         main_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        main_frame.grid(row=0, column=0, padx=(400, 400), pady=(0, 0), sticky="ew")
+        main_frame.grid(row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew")
         main_frame.grid_columnconfigure(0, weight=0)
-        main_frame.grid_columnconfigure(1, weight=1)  # Permettre expansion du contenu
+        main_frame.grid_columnconfigure(1, weight=1)
         
         # Icône utilisateur
         icon_label = self.create_label(
@@ -802,24 +807,25 @@ class ModernAIGUI:
         bubble.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
         bubble.grid_columnconfigure(0, weight=0)
         
-        # Largeur fixe plus large pour les longs messages, pour forcer le retour à la ligne et permettre plus de hauteur
-        max_width = 120
-        min_width = 60
-        lines = text.split('\n')
-        longest_line = max(lines, key=len) if lines else text
-        words = text.split()
-        word_count = len(words)
-        # Pour les très longs messages, largeur maximale
-        if word_count > 40 or len(longest_line) > 100:
-            text_width = max_width
+        # Analyse message utilisateur
+        word_count = len(text.split())
+        char_count = len(text)
+        
+        # Largeur adaptée mais généreuse
+        if word_count > 25:
+            text_width = 120  # Large pour longs messages utilisateur
+        elif word_count > 10:
+            text_width = 90   # Moyen
+        elif word_count > 3:
+            text_width = 70   # Court
         else:
-            text_width = min(max_width, max(min_width, len(longest_line) + 10))
-
-        # Créer le widget texte avec un scroll vertical si besoin
+            text_width = max(30, len(text) + 10)  # Très court, largeur minimale
+        
+        # Widget Text
         text_widget = tk.Text(
             bubble,
             width=text_width,
-            height=10,  # Valeur initiale, ajustée après
+            height=1,  # Sera calculé
             bg=self.colors['bg_user'],
             fg='#ffffff',
             font=('Segoe UI', 12),
@@ -829,56 +835,75 @@ class ModernAIGUI:
             highlightthickness=0,
             state="normal",
             cursor="arrow",
-            yscrollcommand=None,
-            xscrollcommand=None
+            padx=10,
+            pady=8
         )
 
         # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
 
-        # Calculer le nombre de lignes affichées après wrapping
+        # Calcul de hauteur généreux pour utilisateur aussi
         text_widget.update_idletasks()
         text_widget.update()
+        
         try:
-            total_pixels = text_widget.dlineinfo('end-1c')[1] if text_widget.dlineinfo('end-1c') else 0
-            line_height = text_widget.dlineinfo('1.0')[3] if text_widget.dlineinfo('1.0') else 20
-            widget_height = text_widget.winfo_height()
-            # Nombre de lignes visibles (approx)
-            num_lines = int(text_widget.index('end-1c').split('.')[0])
-            # Pour les très longs textes, forcer une hauteur max et ajouter un scroll vertical
-            max_height = 25
-            final_height = min(max_height, num_lines + 2)
+            # Estimation pour messages utilisateur
+            chars_per_line = max(1, text_width * 0.7)
+            estimated_lines = max(1, int(char_count / chars_per_line))
+            
+            text_widget.see('end')
+            end_index = text_widget.index('end-1c')
+            tkinter_lines = int(end_index.split('.')[0]) if end_index else 1
+            
+            # Prendre le maximum + petite marge
+            base_height = max(estimated_lines, tkinter_lines)
+            
+            if word_count > 20:
+                safety_margin = 3  # Marge pour longs messages utilisateur
+            elif word_count > 5:
+                safety_margin = 2  # Petite marge
+            else:
+                safety_margin = 1  # Minimale
+            
+            final_height = base_height + safety_margin
+            final_height = max(1, min(final_height, 15))  # Limite pour utilisateur
+            
+            print(f"👤 USER HAUTEUR: {word_count} mots, estimated={estimated_lines}, tk={tkinter_lines}, final={final_height}")
+            
             text_widget.configure(height=final_height)
             text_widget.update_idletasks()
-            text_widget.update()
             text_widget.see('1.0')
-            text_widget.mark_set('insert', '1.0')
-            print(f"📏 USER: final_height={final_height}, num_lines={num_lines}")
+            
         except Exception as e:
-            print(f"⚠️ Erreur ajustement user: {e}")
-            safe_height = min(25, max(3, len(text.split('\n')) + 2))
-            text_widget.configure(height=safe_height)
-            text_widget.update()
+            print(f"⚠️ Erreur hauteur user: {e}")
+            # Fallback généreux pour utilisateur
+            if word_count > 20:
+                fallback = 8
+            elif word_count > 10:
+                fallback = 5
+            elif word_count > 3:
+                fallback = 3
+            else:
+                fallback = 2
+            text_widget.configure(height=fallback)
+        
         text_widget.configure(state="disabled")
         self.setup_scroll_forwarding(text_widget)
         
-        # COPIE avec notification GUI
+        # COPIE
         def copy_on_double_click(event):
             try:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
-                # NOTIFICATION GUI au lieu de juste terminal
                 self.show_copy_notification("✅ Message copié !")
             except Exception as e:
                 self.show_copy_notification("❌ Erreur de copie")
             return "break"
         
         text_widget.bind("<Double-Button-1>", copy_on_double_click)
-        
-        # Positionner le widget
         text_widget.grid(row=0, column=0, padx=8, pady=(6, 0), sticky="nw")
         
-        # TIMESTAMP (plus proche du message)
+        # Timestamp
         timestamp = datetime.now().strftime("%H:%M")
         time_label = self.create_label(
             bubble,
@@ -889,19 +914,29 @@ class ModernAIGUI:
         )
         time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
         
-        # Menu contextuel avec notification GUI
+        # Menu contextuel
         self.create_copy_menu_with_notification(text_widget, text)
 
-
     def create_ai_message_simple(self, parent, text):
-        """Version PARFAITE - Messages IA affichage complet + notification GUI"""
+        """Version SIMPLE - Hauteur naturelle qui s'adapte au contenu"""
         from datetime import datetime
         
-        # Frame de centrage - RETOUR au centrage original  
+        # Vérifier que le texte est une chaîne
+        if not isinstance(text, str):
+            if isinstance(text, dict):
+                text = (text.get('response') or 
+                    text.get('text') or 
+                    text.get('content') or 
+                    text.get('message') or 
+                    str(text))
+            else:
+                text = str(text)
+        
+        # Frame de centrage
         center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        center_frame.grid(row=0, column=0, padx=(400, 400), pady=(0, 0), sticky="ew")
+        center_frame.grid(row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew")
         center_frame.grid_columnconfigure(0, weight=0)
-        center_frame.grid_columnconfigure(1, weight=1)  # Permettre expansion du contenu
+        center_frame.grid_columnconfigure(1, weight=1)
         
         # Icône IA
         icon_label = self.create_label(
@@ -913,82 +948,80 @@ class ModernAIGUI:
         )
         icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
         
-        # Container pour le message IA avec expansion
+        # Container pour le message IA
         message_container = self.create_frame(center_frame, fg_color=self.colors['bg_chat'])
         message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
-        message_container.grid_columnconfigure(0, weight=1)  # Permettre expansion
+        message_container.grid_columnconfigure(0, weight=1)
         
-        # Largeur fixe plus large pour les longs messages, pour forcer le retour à la ligne et permettre plus de hauteur
-        max_width = 125
-        min_width = 60
-        lines = text.split('\n')
-        longest_line = max(lines, key=len) if lines else text
-        words = text.split()
-        word_count = len(words)
-        if word_count > 60 or len(longest_line) > 120:
-            text_width = max_width
-        else:
-            text_width = min(max_width, max(min_width, len(longest_line) + 10))
-
+        # LARGEUR FIXE RAISONNABLE pour tous les messages
+        text_width = 130  # Largeur fixe comme WhatsApp/Telegram
+        
+        # Widget Text SIMPLE
         text_widget = tk.Text(
             message_container,
             width=text_width,
-            height=10,  # Valeur initiale, ajustée après
+            height=1,  # Commencer petit
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
             font=('Segoe UI', 12),
-            wrap=tk.WORD,
+            wrap=tk.WORD,  # Important pour éviter les mots coupés
             relief="flat",
             bd=0,
             highlightthickness=0,
             state="normal",
             cursor="arrow",
-            yscrollcommand=None,
-            xscrollcommand=None
+            padx=8,
+            pady=6
         )
 
+        # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
 
+        # CALCUL SIMPLE ET NATUREL de la hauteur
         text_widget.update_idletasks()
         text_widget.update()
-        try:
-            total_pixels = text_widget.dlineinfo('end-1c')[1] if text_widget.dlineinfo('end-1c') else 0
-            line_height = text_widget.dlineinfo('1.0')[3] if text_widget.dlineinfo('1.0') else 20
-            widget_height = text_widget.winfo_height()
-            num_lines = int(text_widget.index('end-1c').split('.')[0])
-            max_height = 30
-            final_height = min(max_height, num_lines + 2)
-            text_widget.configure(height=final_height)
-            text_widget.update_idletasks()
-            text_widget.update()
-            text_widget.see('1.0')
-            text_widget.mark_set('insert', '1.0')
-            print(f"📏 IA: final_height={final_height}, num_lines={num_lines}")
-        except Exception as e:
-            print(f"⚠️ Erreur ajustement IA: {e}")
-            safe_height = min(30, max(3, len(text.split('\n')) + 2))
-            text_widget.configure(height=safe_height)
-            text_widget.update()
+        
+        # Méthode simple : juste compter les lignes après wrapping
+        text_widget.see('end')
+        last_line_index = text_widget.index('end-1c')
+        num_lines = int(last_line_index.split('.')[0])
+        
+        # Hauteur = nombre de lignes réelles + 1 ligne de marge
+        natural_height = num_lines + 1
+        
+        # Limites raisonnables
+        min_height = 2   # Minimum pour éviter les messages trop écrasés
+        max_height = 25  # Maximum raisonnable
+        
+        final_height = max(min_height, min(natural_height, max_height))
+        
+        print(f"💬 MESSAGE: {len(text)} chars → {num_lines} lignes → hauteur {final_height}")
+        
+        # Appliquer la hauteur
+        text_widget.configure(height=final_height)
+        text_widget.update_idletasks()
+        
+        # Retourner au début
+        text_widget.see('1.0')
+        text_widget.mark_set('insert', '1.0')
+        
         text_widget.configure(state="disabled")
         self.setup_scroll_forwarding(text_widget)
         
-        # COPIE avec notification GUI
+        # COPIE
         def copy_on_double_click(event):
             try:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
-                # NOTIFICATION GUI au lieu de juste terminal
                 self.show_copy_notification("✅ Message copié !")
             except Exception as e:
                 self.show_copy_notification("❌ Erreur de copie")
             return "break"
         
         text_widget.bind("<Double-Button-1>", copy_on_double_click)
-        
-        # Positionner le widget
         text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nw")
         
-        # TIMESTAMP (plus proche du message)
+        # Timestamp
         timestamp = datetime.now().strftime("%H:%M")
         time_label = self.create_label(
             message_container,
@@ -999,7 +1032,7 @@ class ModernAIGUI:
         )
         time_label.grid(row=1, column=0, sticky="w", padx=0, pady=(0, 6))
         
-        # Menu contextuel avec notification GUI
+        # Menu contextuel
         self.create_copy_menu_with_notification(text_widget, text)
 
     def show_copy_notification(self, message):
@@ -1075,20 +1108,18 @@ class ModernAIGUI:
         return context_menu
 
     def insert_formatted_text_tkinter(self, text_widget, text):
-        """Version OPTIMISÉE pour formatage unifié avec hauteur précise"""
+        """Version OPTIMISÉE avec wrap=WORD et hauteur précise"""
         import re
         text_widget.delete("1.0", "end")
         
-        # POLICE UNIFIÉE ABSOLUE - même pour tous les styles
+        # Configuration des tags avec police unifiée
         BASE_FONT = ('Segoe UI', 12)
-        
-        # Configurer TOUS les tags avec la même taille de police de base
         text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
         text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
-        text_widget.tag_configure("mono", font=('Consolas', 12))  # Même taille pour monospace
+        text_widget.tag_configure("mono", font=('Consolas', 12))
         text_widget.tag_configure("normal", font=BASE_FONT)
         
-        # Traitement du formatage (même logique qu'avant)
+        # Traitement du formatage
         patterns = [
             (r'\*\*([^*]+)\*\*', 'bold'),
             (r'\*([^*]+)\*', 'italic'),
@@ -1113,26 +1144,27 @@ class ModernAIGUI:
                     new_segments.append((segment_text, segment_style))
             segments = new_segments
         
-        # Insérer les segments avec les tags appropriés
+        # Insérer les segments
         for segment_text, style in segments:
             if segment_text:
                 text_widget.insert("end", segment_text, style)
         
-        # AJUSTEMENT HAUTEUR SIMPLE ET FINAL
+        # CORRECTION: Ajustement final de hauteur plus robuste
         text_widget.update_idletasks()
         text_widget.update()
         
         try:
-            # Calculer hauteur basée sur le contenu réel
-            total_lines = int(text_widget.index("end-1c").split('.')[0])
+            # Forcer le widget à calculer le nombre de lignes avec wrap
+            text_widget.see("end")
+            end_index = text_widget.index("end-1c")
+            total_lines = int(end_index.split('.')[0])
             
-            # Hauteur réelle + très petite marge
+            # Hauteur basée sur le contenu réel avec wrap=WORD
             required_height = max(1, total_lines)
             text_widget.configure(height=required_height)
-            text_widget.update_idletasks()
-            text_widget.update()
             
-            # Retour au début pour un affichage propre
+            # Mise à jour finale
+            text_widget.update_idletasks()
             text_widget.see("1.0")
             text_widget.mark_set("insert", "1.0")
             
@@ -1140,7 +1172,7 @@ class ModernAIGUI:
             
         except Exception as e:
             print(f"⚠️ Erreur ajustement format: {e}")
-            # Fallback simple
+            # Fallback simple mais efficace
             fallback_height = max(2, len(text.split('\n')))
             text_widget.configure(height=fallback_height)
 
@@ -1882,13 +1914,13 @@ class ModernAIGUI:
         """Affiche le message de bienvenue initial"""
         welcome_text = """Bonjour ! Je suis votre **Assistant IA Local** 🤖
 
-Je peux vous aider avec :
-• **Conversations naturelles** et réponses à vos questions
-• **Analyse de documents** PDF et DOCX
-• **Génération et analyse de code**
-• **Recherche internet** avec résumés intelligents
+    Je peux vous aider avec :
+    • **Conversations naturelles** : Discutez avec moi, posez-moi toutes vos questions et obtenez des réponses claires.
+    • **Analyse de documents PDF et DOCX** : Importez-les, et je pourrai les résumer ou répondre à vos questions sur leur contenu.
+    • **Génération et analyse de code** : Demandez-moi de générer, corriger ou expliquer du code.
+    • **Recherche internet avec résumés intelligents** : Je peux effectuer des recherches sur internet pour vous !
 
-**Commencez** par me dire bonjour ou posez-moi directement une question !"""
+    **Commencez** par me dire bonjour ou posez-moi directement une question !"""
         
         # Utiliser la même fonction que pour les autres messages IA
         self.add_message_bubble(welcome_text, is_user=False, message_type="text")
@@ -1900,17 +1932,13 @@ Je peux vous aider avec :
 **📝 Comment utiliser :**
 • Tapez votre message et appuyez sur Entrée
 • Utilisez Shift+Entrée pour un saut de ligne
-• Glissez des fichiers ou utilisez les boutons PDF/DOCX/Code
+• Utilisez les boutons PDF/DOCX/Code
 
 **💬 Exemples de messages :**
 • "Bonjour" - Salutation
 • "Résume ce document" - Analyse de fichier
 • "Génère une fonction Python" - Création de code
 • "Cherche sur internet les actualités IA" - Recherche web
-
-**🎯 Fonctionnalités :**
-• **Effacer** : Bouton "Clear Chat" pour recommencer
-• **Fichiers** : Boutons de chargement
 
 **🔧 Raccourcis :**
 • Entrée : Envoyer le message
