@@ -4415,7 +4415,7 @@ Que voulez-vous apprendre exactement ?"""
         # PRIORITÉ 3.6 : Questions générales avec structure "c'est quoi", "qu'est-ce que" => internet_search
         general_question_patterns = [
             "c'est quoi", "c est quoi", "quest ce que", "qu'est-ce que", "qu est ce que",
-            "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
+            "qu'est ce que", "quel est", "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
             "explique moi", "peux tu expliquer", "dis moi ce que c'est"
         ]
         if any(pattern in user_lower for pattern in general_question_patterns):
