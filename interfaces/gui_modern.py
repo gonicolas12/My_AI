@@ -802,35 +802,24 @@ class ModernAIGUI:
         bubble.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
         bubble.grid_columnconfigure(0, weight=0)
         
-        # CALCUL DE LARGEUR ADAPTÉ AU CENTRAGE (largeur disponible ~ 600-800px)
+        # Largeur fixe plus large pour les longs messages, pour forcer le retour à la ligne et permettre plus de hauteur
+        max_width = 120
+        min_width = 60
         lines = text.split('\n')
         longest_line = max(lines, key=len) if lines else text
         words = text.split()
         word_count = len(words)
-        
-        # Largeurs adaptées au centrage avec retours à la ligne automatiques - PLUS GÉNÉREUSES
-        if word_count <= 2:
-            text_width = min(50, len(longest_line) + 10)
-        elif word_count <= 5:
-            text_width = min(65, len(longest_line) + 15)
-        elif word_count <= 10:
-            text_width = min(80, len(longest_line) + 20)
-        elif word_count <= 20:
-            text_width = min(95, len(longest_line) + 25)
-        elif word_count <= 40:
-            text_width = min(110, len(longest_line) + 30)
+        # Pour les très longs messages, largeur maximale
+        if word_count > 40 or len(longest_line) > 100:
+            text_width = max_width
         else:
-            # Pour les longs textes, largeur optimale pour retours à la ligne
-            text_width = min(120, len(longest_line) + 35)
-        
-        # CALCUL SIMPLIFIÉ de la hauteur - juste basé sur le nombre de lignes
-        text_height = max(1, len(lines))
-        
-        # Widget texte avec hauteur GARANTIE pour tout afficher
+            text_width = min(max_width, max(min_width, len(longest_line) + 10))
+
+        # Créer le widget texte avec un scroll vertical si besoin
         text_widget = tk.Text(
             bubble,
             width=text_width,
-            height=text_height,
+            height=10,  # Valeur initiale, ajustée après
             bg=self.colors['bg_user'],
             fg='#ffffff',
             font=('Segoe UI', 12),
@@ -843,46 +832,34 @@ class ModernAIGUI:
             yscrollcommand=None,
             xscrollcommand=None
         )
-        
+
         # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
-        
-        # AJUSTEMENT POST-INSERTION pour garantir l'affichage COMPLET et RÉEL
+
+        # Calculer le nombre de lignes affichées après wrapping
         text_widget.update_idletasks()
         text_widget.update()
-        
-        # AJUSTEMENT SIMPLE ET EFFICACE de la hauteur
         try:
-            # Attendre que le widget soit rendu
-            text_widget.update_idletasks()
-            text_widget.update()
-            
-            # Calculer hauteur basée sur le contenu réel
-            end_pos = text_widget.index("end-1c")
-            actual_lines = int(end_pos.split('.')[0])
-            
-            # Utiliser la hauteur réelle du contenu + petite marge
-            final_height = max(1, actual_lines + 1)
+            total_pixels = text_widget.dlineinfo('end-1c')[1] if text_widget.dlineinfo('end-1c') else 0
+            line_height = text_widget.dlineinfo('1.0')[3] if text_widget.dlineinfo('1.0') else 20
+            widget_height = text_widget.winfo_height()
+            # Nombre de lignes visibles (approx)
+            num_lines = int(text_widget.index('end-1c').split('.')[0])
+            # Pour les très longs textes, forcer une hauteur max et ajouter un scroll vertical
+            max_height = 25
+            final_height = min(max_height, num_lines + 2)
             text_widget.configure(height=final_height)
             text_widget.update_idletasks()
             text_widget.update()
-            
-            # Retour au début
-            text_widget.see("1.0")
-            text_widget.mark_set("insert", "1.0")
-            
-            print(f"📏 USER: final_height={final_height}, actual_lines={actual_lines}")
-            
+            text_widget.see('1.0')
+            text_widget.mark_set('insert', '1.0')
+            print(f"📏 USER: final_height={final_height}, num_lines={num_lines}")
         except Exception as e:
             print(f"⚠️ Erreur ajustement user: {e}")
-            # Sécurité : hauteur basée sur le nombre de lignes du texte
-            safe_height = max(3, len(text.split('\n')) + 1)
+            safe_height = min(25, max(3, len(text.split('\n')) + 2))
             text_widget.configure(height=safe_height)
             text_widget.update()
-        
         text_widget.configure(state="disabled")
-        
-        # Configurer le transfert de scroll pour les messages utilisateur
         self.setup_scroll_forwarding(text_widget)
         
         # COPIE avec notification GUI
@@ -941,35 +918,22 @@ class ModernAIGUI:
         message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
         message_container.grid_columnconfigure(0, weight=1)  # Permettre expansion
         
-        # CALCUL DE LARGEUR ADAPTÉ AU CENTRAGE POUR IA (largeur disponible ~ 600-800px)
+        # Largeur fixe plus large pour les longs messages, pour forcer le retour à la ligne et permettre plus de hauteur
+        max_width = 125
+        min_width = 60
         lines = text.split('\n')
         longest_line = max(lines, key=len) if lines else text
         words = text.split()
         word_count = len(words)
-        
-        # Largeurs adaptées au centrage avec retours à la ligne automatiques - PLUS GÉNÉREUSES
-        if word_count <= 3:
-            text_width = min(55, len(longest_line) + 15)
-        elif word_count <= 8:
-            text_width = min(70, len(longest_line) + 20)
-        elif word_count <= 15:
-            text_width = min(85, len(longest_line) + 25)
-        elif word_count <= 30:
-            text_width = min(100, len(longest_line) + 30)
-        elif word_count <= 60:
-            text_width = min(115, len(longest_line) + 35)
+        if word_count > 60 or len(longest_line) > 120:
+            text_width = max_width
         else:
-            # Pour les très longs textes, largeur optimale pour retours à la ligne
-            text_width = min(125, len(longest_line) + 40)
-        
-        # CALCUL SIMPLIFIÉ de la hauteur - juste basé sur le nombre de lignes
-        text_height = max(1, len(lines))
-        
-        # Widget texte IA avec hauteur GARANTIE
+            text_width = min(max_width, max(min_width, len(longest_line) + 10))
+
         text_widget = tk.Text(
             message_container,
             width=text_width,
-            height=text_height,
+            height=10,  # Valeur initiale, ajustée après
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
             font=('Segoe UI', 12),
@@ -982,46 +946,30 @@ class ModernAIGUI:
             yscrollcommand=None,
             xscrollcommand=None
         )
-        
-        # Insérer le texte
+
         self.insert_formatted_text_tkinter(text_widget, text)
-        
-        # AJUSTEMENT POST-INSERTION pour garantir l'affichage COMPLET et RÉEL
+
         text_widget.update_idletasks()
         text_widget.update()
-        
-        # AJUSTEMENT SIMPLE ET EFFICACE de la hauteur
         try:
-            # Attendre que le widget soit rendu
-            text_widget.update_idletasks()
-            text_widget.update()
-            
-            # Calculer hauteur basée sur le contenu réel
-            end_pos = text_widget.index("end-1c")
-            actual_lines = int(end_pos.split('.')[0])
-            
-            # Utiliser la hauteur réelle du contenu + petite marge
-            final_height = max(1, actual_lines + 1)
+            total_pixels = text_widget.dlineinfo('end-1c')[1] if text_widget.dlineinfo('end-1c') else 0
+            line_height = text_widget.dlineinfo('1.0')[3] if text_widget.dlineinfo('1.0') else 20
+            widget_height = text_widget.winfo_height()
+            num_lines = int(text_widget.index('end-1c').split('.')[0])
+            max_height = 30
+            final_height = min(max_height, num_lines + 2)
             text_widget.configure(height=final_height)
             text_widget.update_idletasks()
             text_widget.update()
-            
-            # Retour au début
-            text_widget.see("1.0")
-            text_widget.mark_set("insert", "1.0")
-            
-            print(f"📏 IA: final_height={final_height}, actual_lines={actual_lines}")
-            
+            text_widget.see('1.0')
+            text_widget.mark_set('insert', '1.0')
+            print(f"📏 IA: final_height={final_height}, num_lines={num_lines}")
         except Exception as e:
             print(f"⚠️ Erreur ajustement IA: {e}")
-            # Sécurité : hauteur basée sur le nombre de lignes du texte
-            safe_height = max(3, len(text.split('\n')) + 1)
+            safe_height = min(30, max(3, len(text.split('\n')) + 2))
             text_widget.configure(height=safe_height)
             text_widget.update()
-        
         text_widget.configure(state="disabled")
-        
-        # FORWARDING du scroll vers la fenêtre principale
         self.setup_scroll_forwarding(text_widget)
         
         # COPIE avec notification GUI

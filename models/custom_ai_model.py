@@ -519,7 +519,7 @@ class CustomAIModel(BaseAI):
         responses = [
             "Je suis votre assistant IA local ! Je m'appelle Assistant IA Local et je suis conçu pour vous aider avec la programmation, l'analyse de documents, et bien plus encore.",
             "Salut ! Moi c'est Assistant IA Local. Je suis votre compagnon virtuel pour coder, analyser des documents, et discuter avec vous. Tout fonctionne en local !",
-            "Je suis Assistant IA Local, votre assistant personnel qui fonctionne entièrement sur votre machine. Je peux analyser des documents, générer du code, et avoir des conversations naturelles avec vous."
+            "Je suis votre assistant IA personnel qui fonctionne entièrement sur votre machine. C'est mieux pour la sécurité et la confidentialité ;)"
         ]
         
         import random
@@ -598,7 +598,7 @@ class CustomAIModel(BaseAI):
         else:
             base_response = """🎯 **Votre Assistant IA Personnel - Simple et Puissant !**
 
-🔍 **J'analyse tout :**
+🔍 **J'analyse :**
 • 📄 Vos documents PDF et Word → Résumés clairs
 • 💻 Vos besoins de code → Solutions sur mesure  
 • 🌐 Vos questions → Recherches internet + synthèses
@@ -2147,54 +2147,537 @@ Que voulez-vous apprendre exactement ?"""
         return self._create_universal_summary(document_content, filename, doc_type)
     
     def _create_universal_summary(self, content: str, filename: str, doc_type: str) -> str:
-        """Crée un résumé universel et naturel"""
-        # Statistiques de base
+        """Génère un résumé de document style Claude avec plusieurs modèles"""
+        import random
+        
+        # Choisir un style de résumé aléatoirement ou en fonction du contenu
         word_count = len(content.split())
-        char_count = len(content)
-        paragraph_count = len([p for p in content.split('\n\n') if p.strip()])
         
-        # Extraction des phrases clés
-        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 20]
-        
-        if "docx" in filename.lower() or doc_type.lower() == "docx":
-            doc_type_display = "document"
-        elif "pdf" in filename.lower() or doc_type.lower() == "pdf":
-            doc_type_display = "PDF"
+        # Sélectionner un style en fonction de la longueur du contenu
+        if word_count < 200:
+            style_func = random.choice([self._create_structured_summary, self._create_bullet_points_summary])
+        elif word_count < 800:
+            style_func = random.choice([self._create_executive_summary, self._create_structured_summary])
         else:
-            doc_type_display = doc_type
+            style_func = random.choice([self._create_detailed_summary, self._create_executive_summary])
         
-        # Début du résumé
-        summary = f"📄 **Résumé du {doc_type_display} '{filename}'**\n\n"
+        return style_func(content, filename, doc_type)
+    
+    def _create_structured_summary(self, content: str, doc_name: str, doc_type: str) -> str:
+        """Style de résumé structuré bien rédigé avec introduction, développement et conclusion"""
         
-        if word_count < 50:
-            summary += "⚠️ Ce document contient très peu de texte.\n\n"
-        
-        summary += f"📊 **Contenu analysé :** {word_count} mots, {paragraph_count} paragraphes\n\n"
-        
-        # Contenu principal
-        if sentences:
-            summary += "📝 **Contenu principal :**\n"
-            if len(sentences) >= 1:
-                summary += f"Le document commence par : \"{sentences[0][:150]}{'...' if len(sentences[0]) > 150 else ''}\"\n\n"
-            
-            if len(sentences) > 1:
-                summary += "🔍 **Points clés :**\n"
-                key_sentences = sentences[1:4]  # 2-4ème phrases
-                for i, sentence in enumerate(key_sentences, 1):
-                    if len(sentence) > 200:
-                        sentence = sentence[:197] + "..."
-                    summary += f"• {sentence}\n"
-                summary += "\n"
-        
-        # Analyse thématique simple
+        # Analyser le contenu
         themes = self._analyze_content_themes(content)
-        if themes:
-            summary += "🏷️ **Thèmes identifiés :** " + ", ".join(themes[:5]) + "\n\n"
+        key_sentences = self._extract_key_sentences(content, 4)
+        word_count = len(content.split())
         
-        # Message de mémorisation
-        summary += "💾 **Document mémorisé :** Vous pouvez maintenant me poser des questions spécifiques sur ce contenu."
+        # **Titre en gras**
+        summary = f"**RÉSUMÉ DU DOCUMENT : {doc_name.upper()}**\n\n"
+        
+        # **Introduction**
+        summary += f"**Introduction**\n\n"
+        if doc_type.lower() == "pdf":
+            summary += f"Ce document PDF de {word_count} mots présente "
+        else:
+            summary += f"Ce document de {word_count} mots aborde "
+        
+        if themes:
+            summary += f"principalement les thématiques de {', '.join(themes[:2]).lower()}. "
+        else:
+            summary += "diverses informations importantes. "
+        
+        if key_sentences:
+            summary += f"Le document s'ouvre sur l'idée que {key_sentences[0][:100].lower()}..."
+        
+        summary += "\n\n"
+        
+        # **Développement sous forme de liste rédigée**
+        summary += f"**Développement**\n\n"
+        points = []
+        if len(key_sentences) >= 2:
+            points.append(f"- Le document met en avant l'importance de **{themes[0] if themes else 'la thématique principale'}**.")
+            points.append(f"- Il précise que {key_sentences[1][:100].replace('.', '').capitalize()}.")
+            if len(key_sentences) >= 3:
+                points.append(f"- Un autre point clé concerne **{themes[1] if themes and len(themes)>1 else 'un aspect complémentaire'}** : {key_sentences[2][:100].replace('.', '').capitalize()}.")
+            if len(key_sentences) >= 4:
+                points.append(f"- Enfin, il est souligné que {key_sentences[3][:100].replace('.', '').capitalize()}.")
+        else:
+            points.append(f"- Le document présente des informations structurées autour de **{themes[0] if themes else 'son thème principal'}**.")
+            points.append(f"- Les éléments exposés permettent de comprendre les **enjeux** et les **modalités** présentés.")
+        summary += "\n".join(points)
+        summary += "\n\n"
+        
+        # Conclusion enrichie (toujours au moins 3 phrases, contextuelle)
+        summary += f"**Conclusion**\n\n"
+        import random
+        conclusion_patterns = [
+            lambda: (
+                f"En résumé, ce document offre une synthèse {'approfondie' if word_count>1000 else 'pertinente'} sur **{themes[0] if themes else 'le sujet'}**. "
+                f"Les informations sont structurées de façon à faciliter la compréhension et la mise en application. "
+                f"Il met en lumière les enjeux majeurs, notamment {', '.join(themes[:2]) if themes else 'les thématiques principales'}, et propose des pistes de réflexion pour approfondir le sujet."
+            ),
+            lambda: (
+                f"Pour conclure, ce document met en exergue les points essentiels liés à **{themes[0] if themes else 'la thématique principale'}**. "
+                f"La richesse des informations présentées permet d'acquérir une vision globale et nuancée du sujet. "
+                f"Il constitue une base solide pour toute personne souhaitant approfondir ses connaissances ou engager une réflexion sur {themes[0] if themes else 'ce domaine'}."
+            ),
+            lambda: (
+                f"Ce document constitue une ressource {'incontournable' if word_count>1000 else 'utile'} pour quiconque souhaite comprendre les enjeux de **{themes[0] if themes else 'ce domaine'}**. "
+                f"La diversité des points abordés et la clarté de l'exposé en font un outil de référence. "
+                f"Il est recommandé de s'y référer pour obtenir une compréhension approfondie et structurée du sujet traité."
+            ),
+            lambda: (
+                f"La lecture de ce document permet d'appréhender efficacement les enjeux de **{themes[0] if themes else 'la thématique'}**. "
+                f"Les éléments clés sont mis en avant de manière synthétique et argumentée. "
+                f"Ce résumé invite à poursuivre l'exploration du sujet pour en saisir toutes les subtilités."
+            ),
+        ]
+        summary += random.choice(conclusion_patterns)()
+        return summary
+    
+    def _create_executive_summary(self, content: str, doc_name: str, doc_type: str) -> str:
+        """Style de résumé exécutif bien rédigé"""
+        
+        themes = self._analyze_content_themes(content)
+        key_sentences = self._extract_key_sentences(content, 3)
+        word_count = len(content.split())
+        
+        # **Titre en gras**
+        summary = f"**SYNTHÈSE EXÉCUTIVE : {doc_name.upper()}**\n\n"
+        
+        # **Introduction**
+        summary += f"**Aperçu général**\n\n"
+        summary += f"Le présent document {doc_type.lower()} constitue "
+        
+        if any(word in content.lower() for word in ["procédure", "guide", "manuel"]):
+            summary += "un guide opérationnel destiné à fournir des instructions pratiques. "
+        elif any(word in content.lower() for word in ["rapport", "analyse", "étude"]):
+            summary += "un rapport d'analyse présentant des données et des conclusions. "
+        elif any(word in content.lower() for word in ["formation", "cours", "apprentissage"]):
+            summary += "un support de formation visant à transmettre des connaissances. "
+        else:
+            summary += "une ressource documentaire contenant des informations structurées. "
+        
+        if themes:
+            summary += f"Les thématiques centrales portent sur {', '.join(themes[:2]).lower()}."
+        
+        summary += "\n\n"
+        
+        # **Développement sous forme de liste rédigée**
+        summary += f"**Points essentiels**\n\n"
+        dev_patterns = [
+            lambda: "\n".join([
+                f"1. **{themes[0].capitalize() if themes else 'Thème principal'}** : {key_sentences[0][:100].capitalize() if key_sentences else ''}",
+                f"2. **{themes[1].capitalize() if themes and len(themes)>1 else 'Aspect complémentaire'}** : {key_sentences[1][:100].capitalize() if len(key_sentences)>1 else ''}",
+                f"3. **Synthèse** : {key_sentences[2][:100].capitalize() if len(key_sentences)>2 else ''}"
+            ]),
+            lambda: "\n".join([
+                f"- Le document insiste sur l'importance de **{themes[0] if themes else 'la thématique principale'}**.",
+                f"- Il met en avant que {key_sentences[0][:100].replace('.', '').capitalize() if key_sentences else ''}.",
+                f"- Enfin, il propose une réflexion sur {themes[1] if themes and len(themes)>1 else 'un aspect complémentaire'}."
+            ]),
+            lambda: "\n".join([
+                f"• **{themes[0].capitalize() if themes else 'Thème principal'}** : {key_sentences[0][:100].capitalize() if key_sentences else ''}",
+                f"• **{themes[1].capitalize() if themes and len(themes)>1 else 'Aspect complémentaire'}** : {key_sentences[1][:100].capitalize() if len(key_sentences)>1 else ''}",
+                f"• **Synthèse** : {key_sentences[2][:100].capitalize() if len(key_sentences)>2 else ''}"
+            ]),
+        ]
+        summary += random.choice(dev_patterns)()
+        summary += "\n\n"
+        
+        # **Conclusion**
+        summary += f"**Recommandations**\n\n"
+        
+        summary += f"Cette synthèse met en évidence la valeur informative du document. "
+        
+        if word_count > 1000:
+            summary += f"Avec ses {word_count} mots, il offre une couverture exhaustive du sujet. "
+        else:
+            summary += f"Malgré sa concision ({word_count} mots), il couvre efficacement les aspects essentiels. "
+        
+        summary += f"Il est recommandé de consulter ce document pour obtenir "
+        if themes:
+            summary += f"une compréhension approfondie des enjeux liés à {themes[0].lower()}."
+        else:
+            summary += f"les informations nécessaires sur le sujet traité."
         
         return summary
+    
+    def _create_detailed_summary(self, content: str, doc_name: str, doc_type: str) -> str:
+        """Style de résumé détaillé bien rédigé"""
+        
+        themes = self._analyze_content_themes(content)
+        key_sentences = self._extract_key_sentences(content, 5)
+        sections = self._split_content_sections_claude(content)
+        word_count = len(content.split())
+        
+        # **Titre en gras**
+        summary = f"**ANALYSE DÉTAILLÉE : {doc_name.upper()}**\n\n"
+        
+        # **Introduction développée**
+        summary += f"**Introduction**\n\n"
+        summary += f"Le document '{doc_name}' se présente comme un {doc_type.lower()} de {word_count} mots "
+        summary += f"organisé en {len(sections)} sections principales. "
+        
+        if themes:
+            summary += f"Son contenu s'articule autour de {len(themes)} thématiques majeures : "
+            summary += f"{', '.join(themes).lower()}. "
+        
+        summary += f"Cette analyse propose une lecture structurée des éléments constitutifs "
+        summary += f"et des enjeux soulevés dans ce document."
+        
+        summary += "\n\n"
+        
+        # **Développement multi-parties**
+        summary += f"**Analyse du contenu**\n\n"
+        
+        if key_sentences:
+            summary += f"**Premier axe d'analyse :** Le document établit d'emblée que "
+            summary += f"{key_sentences[0][:150].lower()}. Cette approche pose les fondements "
+            summary += f"de l'ensemble de la démarche présentée.\n\n"
+            
+            if len(key_sentences) >= 2:
+                summary += f"**Deuxième axe d'analyse :** L'auteur développe ensuite l'idée selon laquelle "
+                summary += f"{key_sentences[1][:150].lower()}. Cette perspective enrichit "
+                summary += f"la compréhension globale du sujet.\n\n"
+            
+            if len(key_sentences) >= 3:
+                summary += f"**Troisième axe d'analyse :** Le document précise également que "
+                summary += f"{key_sentences[2][:150].lower()}. Cet élément apporte "
+                summary += f"des nuances importantes à l'analyse.\n\n"
+            
+            if len(key_sentences) >= 4:
+                summary += f"**Compléments d'information :** En outre, il convient de souligner que "
+                summary += f"{key_sentences[3][:150].lower()}. Ces données complémentaires "
+                summary += f"renforcent la pertinence de l'ensemble."
+        else:
+            summary += f"Le contenu se déploie de manière progressive et méthodique. "
+            summary += f"Chaque section apporte des éléments spécifiques qui s'articulent "
+            summary += f"harmonieusement avec l'ensemble du propos."
+        
+        summary += "\n\n"
+        
+        # **Conclusion développée**
+        summary += f"**Conclusion et perspectives**\n\n"
+        
+        summary += f"Cette analyse révèle la richesse et la cohérence du document étudié. "
+        
+        if word_count > 1500:
+            summary += f"La densité informationnelle ({word_count} mots) témoigne d'un travail "
+            summary += f"approfondi et d'une volonté de couvrir exhaustivement le sujet. "
+        elif word_count > 800:
+            summary += f"L'équilibre entre concision et exhaustivité ({word_count} mots) "
+            summary += f"démontre une approche réfléchie et structurée. "
+        else:
+            summary += f"La synthèse proposée ({word_count} mots) va à l'essentiel "
+            summary += f"tout en préservant la richesse informationnelle. "
+        
+        if themes:
+            summary += f"Les thématiques abordées ({', '.join(themes[:2]).lower()}) "
+            summary += f"offrent des perspectives d'approfondissement intéressantes. "
+        
+        summary += f"Ce document constitue une ressource précieuse pour quiconque "
+        summary += f"souhaite appréhender les enjeux présentés de manière structurée et complète."
+        
+        return summary
+    
+    def _create_bullet_points_summary(self, content: str, doc_name: str, doc_type: str) -> str:
+        """Style de résumé synthétique bien rédigé (même si appelé bullet points)"""
+        
+        themes = self._analyze_content_themes(content)
+        key_sentences = self._extract_key_sentences(content, 3)
+        word_count = len(content.split())
+        
+        # **Titre en gras**
+        summary = f"**RÉSUMÉ SYNTHÉTIQUE : {doc_name.upper()}**\n\n"
+        
+        # **Introduction**
+        summary += f"**Présentation**\n\n"
+        summary += f"Ce document {doc_type.lower()} de {word_count} mots propose "
+        
+        if themes:
+            summary += f"une approche structurée des questions liées à {themes[0].lower()}. "
+            if len(themes) > 1:
+                summary += f"Il aborde également les aspects relatifs à {themes[1].lower()}. "
+        else:
+            summary += f"un ensemble d'informations organisées et pertinentes. "
+        
+        summary += f"L'objectif est de fournir une vision claire et accessible du sujet traité."
+        
+        summary += "\n\n"
+        
+        # **Développement**
+        summary += f"**Contenu principal**\n\n"
+        
+        if key_sentences:
+            summary += f"Le document développe principalement l'idée que "
+            summary += f"{key_sentences[0][:120].lower()}. "
+            
+            if len(key_sentences) >= 2:
+                summary += f"Il établit également que {key_sentences[1][:120].lower()}. "
+            
+            if len(key_sentences) >= 3:
+                summary += f"En complément, il précise que {key_sentences[2][:120].lower()}."
+        else:
+            summary += f"Le contenu présente de manière structurée les informations "
+            summary += f"essentielles relatives au domaine concerné."
+        
+        summary += "\n\n"
+        
+        # **Conclusion**
+        summary += f"**Utilité**\n\n"
+        
+        summary += f"Cette ressource se révèle particulièrement utile pour "
+        if themes:
+            summary += f"comprendre les enjeux liés à {themes[0].lower()}. "
+        else:
+            summary += f"appréhender les questions abordées. "
+        
+        summary += f"Sa structure claire et son approche méthodique en font "
+        summary += f"un outil de référence approprié pour les personnes "
+        summary += f"cherchant à s'informer sur ce domaine."
+        
+        return summary
+    
+    def _create_short_summary(self, content: str, filename: str, doc_type: str, themes: List[str]) -> str:
+        """Résumé court pour documents de moins de 100 mots"""
+        # Introduction simple
+        summary = f"Ce {doc_type} '{filename}' présente un contenu concis "
+        
+        if themes:
+            summary += f"centré sur {', '.join(themes[:2])}. "
+        else:
+            summary += "abordant quelques points essentiels. "
+        
+        # Développement condensé
+        key_points = self._extract_main_points(content, max_points=2)
+        if key_points:
+            summary += f"Le document mentionne notamment {key_points[0].lower()}"
+            if len(key_points) > 1:
+                summary += f", ainsi que {key_points[1].lower()}"
+            summary += ". "
+        
+        summary += f"**Utilité**\n\n"
+        # Conclusion enrichie (toujours au moins 3 phrases, contextuelle)
+        if themes:
+            summary += (
+                f"Cette ressource se révèle particulièrement utile pour comprendre les enjeux liés à {themes[0].lower()}. "
+                f"Elle permet d'acquérir une vision structurée et synthétique des principaux aspects abordés, notamment {', '.join(themes[:2])}. "
+                f"Grâce à sa clarté et à son organisation, ce document constitue un outil de référence pour toute personne souhaitant approfondir ce domaine."
+            )
+        else:
+            summary += (
+                f"Ce document permet d'appréhender les questions abordées de manière claire et concise. "
+                f"Sa structure méthodique facilite la compréhension des points essentiels. "
+                f"Il s'adresse à toute personne désireuse de s'informer efficacement sur le sujet traité."
+            )
+        return summary
+        if themes:
+            primary_theme = themes[0]
+            summary += f"une approche {primary_theme} "
+            if len(themes) > 1:
+                summary += f"en abordant également des aspects liés à {', '.join(themes[1:3])}. "
+            else:
+                summary += "avec une perspective claire et structurée. "
+        else:
+            summary += "plusieurs aspects importants du sujet traité. "
+        
+        # Développement avec points clés
+        key_points = self._extract_main_points(content, max_points=3)
+        if key_points:
+            summary += f"\n\nLe document met l'accent sur {key_points[0].lower()}"
+            if len(key_points) > 1:
+                summary += f". Il explore ensuite {key_points[1].lower()}"
+                if len(key_points) > 2:
+                    summary += f", tout en détaillant {key_points[2].lower()}"
+            summary += ". "
+        
+        # Ajout des concepts techniques si pertinents
+        if concepts:
+            technical_concepts = [c for c in concepts if len(c) > 3][:2]
+            if technical_concepts:
+                summary += f"Des éléments techniques comme {', '.join(technical_concepts)} sont également abordés pour une compréhension approfondie. "
+        
+        # Conclusion synthétique
+        summary += f"\n\nCe document offre une vision {self._get_document_tone(content)} du sujet, "
+        summary += "permettant une bonne compréhension des enjeux et des solutions proposées."
+        
+        return summary
+    
+    def _create_long_summary(self, content: str, filename: str, doc_type: str, themes: List[str], concepts: List[str], sentences: List[str]) -> str:
+        """Résumé détaillé pour documents de plus de 500 mots"""
+        # Introduction élaborée
+        summary = f"Le {doc_type} '{filename}' présente une analyse "
+        
+        if themes:
+            primary_theme = themes[0]
+            summary += f"{primary_theme} complète et détaillée. "
+            if len(themes) > 1:
+                summary += f"Le document explore les dimensions {', '.join(themes[1:4])}, "
+                summary += "offrant une perspective multifacette sur le sujet. "
+            else:
+                summary += "L'approche adoptée permet une compréhension approfondie des enjeux. "
+        else:
+            summary += "approfondie du sujet traité, structurée de manière logique et progressive. "
+        
+        # Premier paragraphe de développement
+        summary += f"\n\nDans sa première partie, le document établit le contexte en présentant "
+        key_points = self._extract_main_points(content, max_points=5)
+        if key_points:
+            summary += f"{key_points[0].lower()}. "
+            if len(key_points) > 1:
+                summary += f"Cette base permet ensuite d'aborder {key_points[1].lower()}, "
+                summary += "élément central de l'argumentation développée. "
+        
+        # Deuxième paragraphe de développement
+        if len(key_points) > 2:
+            summary += f"\n\nLe développement se poursuit avec l'examen de {key_points[2].lower()}. "
+            if len(key_points) > 3:
+                summary += f"L'auteur analyse également {key_points[3].lower()}, "
+                summary += "apportant des précisions importantes sur les modalités d'application. "
+            
+            # Ajout des éléments techniques
+            if concepts:
+                technical_elements = [c for c in concepts if len(c) > 4][:3]
+                if technical_elements:
+                    summary += f"Les aspects techniques, notamment {', '.join(technical_elements)}, "
+                    summary += "sont traités avec le niveau de détail nécessaire à leur mise en œuvre. "
+        
+        # Conclusion nuancée
+        summary += f"\n\nEn conclusion, ce document constitue une ressource {self._get_document_value(content)} "
+        summary += f"pour comprendre les enjeux {themes[0] if themes else 'abordés'}. "
+        
+        document_tone = self._get_document_tone(content)
+        if document_tone in ["pratique", "opérationnelle"]:
+            summary += "Son approche pratique en fait un outil utilisable directement dans le contexte professionnel. "
+        elif document_tone in ["technique", "spécialisée"]:
+            summary += "Son niveau technique permet aux spécialistes d'approfondir leurs connaissances. "
+        else:
+            summary += "Sa structure claire facilite l'appropriation des concepts présentés. "
+        
+        # Note de mémorisation discrète
+        summary += f"\n\n💾 Le contenu de ce {doc_type} est maintenant disponible pour des questions spécifiques."
+        
+        return summary
+    
+    def _extract_main_themes_for_summary(self, content: str) -> List[str]:
+        """Extrait les thèmes principaux pour le résumé rédigé"""
+        content_lower = content.lower()
+        
+        theme_patterns = {
+            "technique": ["technique", "technologie", "système", "méthode", "processus", "procédure"],
+            "gestion": ["gestion", "organisation", "management", "équipe", "projet", "planification"],
+            "sécurité": ["sécurité", "sécurisé", "protection", "risque", "prévention", "contrôle"],
+            "qualité": ["qualité", "performance", "excellence", "amélioration", "optimisation"],
+            "formation": ["formation", "apprentissage", "développement", "compétence", "éducation"],
+            "stratégique": ["stratégie", "objectif", "vision", "mission", "développement"],
+            "opérationnelle": ["opération", "production", "mise en œuvre", "application", "exécution"],
+            "analytique": ["analyse", "évaluation", "mesure", "indicateur", "données", "statistique"]
+        }
+        
+        detected_themes = []
+        theme_scores = {}
+        
+        for theme, keywords in theme_patterns.items():
+            score = sum(1 for keyword in keywords if keyword in content_lower)
+            if score > 0:
+                theme_scores[theme] = score
+        
+        # Trier par score et prendre les plus pertinents
+        sorted_themes = sorted(theme_scores.items(), key=lambda x: x[1], reverse=True)
+        detected_themes = [theme for theme, score in sorted_themes[:4] if score >= 1]
+        
+        return detected_themes
+    
+    def _extract_key_concepts(self, content: str) -> List[str]:
+        """Extrait les concepts clés du document"""
+        # Mots de plus de 5 caractères qui reviennent souvent
+        words = re.findall(r'\b[A-Za-zÀ-ÿ]{5,}\b', content)
+        word_freq = {}
+        
+        # Mots vides étendus
+        stop_words = {
+            "dans", "avec", "pour", "cette", "comme", "plus", "moins", "très", "bien", 
+            "tout", "tous", "être", "avoir", "faire", "aller", "voir", "dire", "donc", 
+            "mais", "ainsi", "alors", "après", "avant", "depuis", "pendant", "entre",
+            "document", "texte", "fichier", "contenu", "information"
+        }
+        
+        for word in words:
+            word_lower = word.lower()
+            if word_lower not in stop_words and not word_lower.isdigit():
+                word_freq[word_lower] = word_freq.get(word_lower, 0) + 1
+        
+        # Garder les mots qui apparaissent plus d'une fois
+        significant_concepts = [word for word, freq in word_freq.items() if freq > 1]
+        return sorted(significant_concepts, key=lambda x: word_freq[x], reverse=True)[:8]
+    
+    def _extract_main_points(self, content: str, max_points: int = 3) -> List[str]:
+        """Extrait les points principaux du contenu"""
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 30]
+        
+        # Mots-clés qui indiquent des points importants
+        importance_indicators = [
+            "important", "essentiel", "principal", "objectif", "but", "nécessaire",
+            "recommandé", "obligatoire", "crucial", "fondamental", "primordial",
+            "permet", "vise", "consiste", "comprend", "inclut"
+        ]
+        
+        scored_sentences = []
+        for sentence in sentences[:20]:  # Limiter pour la performance
+            score = 0
+            sentence_lower = sentence.lower()
+            
+            # Score basé sur les indicateurs d'importance
+            for indicator in importance_indicators:
+                if indicator in sentence_lower:
+                    score += 2
+            
+            # Score basé sur la position (début = plus important)
+            position_bonus = max(0, 3 - sentences.index(sentence) // 3)
+            score += position_bonus
+            
+            # Score basé sur la longueur (ni trop court ni trop long)
+            length = len(sentence.split())
+            if 8 <= length <= 25:
+                score += 1
+            
+            if score > 0:
+                scored_sentences.append((sentence, score))
+        
+        # Trier et sélectionner les meilleurs
+        scored_sentences.sort(key=lambda x: x[1], reverse=True)
+        main_points = [sentence for sentence, score in scored_sentences[:max_points]]
+        
+        return main_points
+    
+    def _get_document_tone(self, content: str) -> str:
+        """Détermine le ton du document"""
+        content_lower = content.lower()
+        
+        if any(word in content_lower for word in ["procédure", "étape", "méthode", "application", "mise en œuvre"]):
+            return "pratique"
+        elif any(word in content_lower for word in ["technique", "système", "technologie", "algorithme", "configuration"]):
+            return "technique"
+        elif any(word in content_lower for word in ["stratégie", "objectif", "vision", "développement", "croissance"]):
+            return "stratégique"
+        elif any(word in content_lower for word in ["analyse", "étude", "recherche", "évaluation", "données"]):
+            return "analytique"
+        else:
+            return "générale"
+    
+    def _get_document_value(self, content: str) -> str:
+        """Évalue la valeur du document"""
+        word_count = len(content.split())
+        
+        if word_count > 1000:
+            return "exhaustive"
+        elif word_count > 500:
+            return "complète"
+        elif word_count > 200:
+            return "utile"
+        else:
+            return "concise"
 
     def _analyze_content_themes(self, content: str) -> List[str]:
         """Analyse simple des thèmes du contenu"""
@@ -2486,63 +2969,219 @@ Que voulez-vous apprendre exactement ?"""
         return "J'ai du code en mémoire mais je ne sais pas lequel vous intéresse. Précisez votre question !"
     
     def _explain_code_naturally(self, code: str, filename: str, language: str) -> str:
-        """Explique le code de manière naturelle et accessible"""
+        """Explique le code avec un résumé rédigé dans le style Claude"""
+        
+        # Analyse du code
+        analysis = self._analyze_code_structure(code, language)
+        complexity = self._assess_code_complexity(code, analysis)
+        purpose = self._infer_code_purpose(code, filename, analysis)
+        
+        # Génération du résumé selon la complexité
+        if complexity == "simple":
+            return self._create_simple_code_summary(code, filename, language, analysis, purpose)
+        elif complexity == "medium":
+            return self._create_medium_code_summary(code, filename, language, analysis, purpose)
+        else:
+            return self._create_complex_code_summary(code, filename, language, analysis, purpose)
+    
+    def _analyze_code_structure(self, code: str, language: str) -> dict:
+        """Analyse la structure du code"""
         lines = code.split('\n')
         
-        # Analyse basique
-        functions = []
-        classes = []
-        imports = []
+        analysis = {
+            "total_lines": len(lines),
+            "functions": [],
+            "classes": [],
+            "imports": [],
+            "main_patterns": [],
+            "frameworks": []
+        }
         
         for i, line in enumerate(lines, 1):
             line_stripped = line.strip()
+            
+            # Fonctions
             if line_stripped.startswith('def '):
                 func_name = line_stripped.split('(')[0].replace('def ', '')
-                functions.append(f"'{func_name}()' (ligne {i})")
+                analysis["functions"].append({"name": func_name, "line": i})
+            
+            # Classes
             elif line_stripped.startswith('class '):
                 class_name = line_stripped.split(':')[0].replace('class ', '').split('(')[0]
-                classes.append(f"'{class_name}' (ligne {i})")
+                analysis["classes"].append({"name": class_name, "line": i})
+            
+            # Imports
             elif line_stripped.startswith(('import ', 'from ')):
-                imports.append(line_stripped)
+                analysis["imports"].append(line_stripped)
         
-        response = f"📄 **Explication du code '{filename}'**\n\n"
+        # Détection de frameworks/bibliothèques
+        code_lower = code.lower()
+        if "tkinter" in code_lower or "tk." in code_lower:
+            analysis["frameworks"].append("interface graphique Tkinter")
+        if "flask" in code_lower:
+            analysis["frameworks"].append("framework web Flask")
+        if "django" in code_lower:
+            analysis["frameworks"].append("framework web Django")
+        if "pandas" in code_lower:
+            analysis["frameworks"].append("analyse de données Pandas")
+        if "matplotlib" in code_lower or "pyplot" in code_lower:
+            analysis["frameworks"].append("visualisation Matplotlib")
+        if "requests" in code_lower:
+            analysis["frameworks"].append("requêtes HTTP")
         
-        # Structure générale
-        response += f"Ce fichier {language} fait {len(lines)} lignes. Voici ce qu'il contient :\n\n"
+        return analysis
+    
+    def _assess_code_complexity(self, code: str, analysis: dict) -> str:
+        """Évalue la complexité du code"""
+        score = 0
         
-        if imports:
-            response += f"📦 **Modules utilisés :** {len(imports)} imports\n"
-            for imp in imports[:3]:  # Montrer les 3 premiers
-                response += f"• {imp}\n"
-            if len(imports) > 3:
-                response += f"• ... et {len(imports)-3} autres\n"
-            response += "\n"
+        # Critères de complexité
+        score += len(analysis["functions"]) * 2
+        score += len(analysis["classes"]) * 3
+        score += len(analysis["frameworks"]) * 2
+        score += analysis["total_lines"] // 20
         
-        if classes:
-            response += f"🏗️ **Classes définies :** {len(classes)}\n"
-            for cls in classes:
-                response += f"• Classe {cls}\n"
-            response += "\n"
+        if score < 8:
+            return "simple"
+        elif score < 20:
+            return "medium"
+        else:
+            return "complex"
+    
+    def _infer_code_purpose(self, code: str, filename: str, analysis: dict) -> str:
+        """Infère le but du code"""
+        code_lower = code.lower()
         
-        if functions:
-            response += f"⚙️ **Fonctions principales :** {len(functions)}\n"
-            for func in functions[:5]:  # Montrer les 5 premières
-                response += f"• Fonction {func}\n"
-            if len(functions) > 5:
-                response += f"• ... et {len(functions)-5} autres\n"
-            response += "\n"
+        # Analyse du nom de fichier
+        if "gui" in filename.lower() or "interface" in filename.lower():
+            return "interface utilisateur"
+        elif "test" in filename.lower():
+            return "tests unitaires"
+        elif "main" in filename.lower():
+            return "programme principal"
+        elif "config" in filename.lower():
+            return "configuration"
+        elif "utils" in filename.lower() or "util" in filename.lower():
+            return "utilitaires"
         
         # Analyse du contenu
-        if "tkinter" in code.lower():
-            response += "🖥️ **Type :** Interface graphique (Tkinter)\n"
-        elif "flask" in code.lower() or "django" in code.lower():
-            response += "🌐 **Type :** Application web\n"
-        elif "class" in code and "def __init__" in code:
-            response += "🏛️ **Style :** Programmation orientée objet\n"
+        if analysis["frameworks"]:
+            if "tkinter" in code_lower:
+                return "application avec interface graphique"
+            elif "flask" in code_lower or "django" in code_lower:
+                return "application web"
+            elif "pandas" in code_lower:
+                return "traitement de données"
         
-        response += "\n💬 **Questions :** N'hésitez pas à me demander des détails sur une fonction spécifique ou la logique générale !"
+        # Analyse des patterns
+        if "class" in code and "__init__" in code:
+            return "module orienté objet"
+        elif len(analysis["functions"]) > 3:
+            return "module fonctionnel"
+        else:
+            return "script"
+    
+    def _create_simple_code_summary(self, code: str, filename: str, language: str, analysis: dict, purpose: str) -> str:
+        """Résumé pour code simple"""
+        summary = f"Ce fichier {language} '{filename}' constitue un {purpose} relativement simple. "
         
-        return response
+        if analysis["functions"]:
+            if len(analysis["functions"]) == 1:
+                func_name = analysis["functions"][0]["name"]
+                summary += f"Il définit une fonction principale '{func_name}' qui encapsule la logique métier. "
+            else:
+                summary += f"Il organise sa fonctionnalité autour de {len(analysis['functions'])} fonctions principales. "
+        
+        if analysis["frameworks"]:
+            summary += f"Le code utilise {analysis['frameworks'][0]} pour réaliser ses objectifs. "
+        
+        summary += f"Avec ses {analysis['total_lines']} lignes, ce module reste facilement compréhensible et maintenable."
+        
+        if analysis["imports"]:
+            summary += f" Il s'appuie sur {len(analysis['imports'])} dépendance(s) externe(s) pour son fonctionnement."
+        
+        return summary
+    
+    def _create_medium_code_summary(self, code: str, filename: str, language: str, analysis: dict, purpose: str) -> str:
+        """Résumé pour code de complexité moyenne"""
+        summary = f"Le fichier {language} '{filename}' implémente un {purpose} structuré. "
+        
+        # Introduction avec contexte
+        if analysis["classes"]:
+            summary += f"Il adopte une approche orientée objet avec {len(analysis['classes'])} classe(s) "
+            if analysis["functions"]:
+                summary += f"et {len(analysis['functions'])} fonction(s) complémentaires. "
+            else:
+                summary += "pour organiser la logique applicative. "
+        elif len(analysis["functions"]) > 3:
+            summary += f"Sa structure fonctionnelle s'articule autour de {len(analysis['functions'])} fonctions spécialisées. "
+        
+        # Développement technique
+        if analysis["frameworks"]:
+            framework_list = ", ".join(analysis["frameworks"])
+            summary += f"\n\nL'implémentation repose sur {framework_list}, "
+            summary += "permettant une approche robuste et bien intégrée dans l'écosystème Python. "
+        
+        if analysis["classes"]:
+            main_classes = [cls["name"] for cls in analysis["classes"][:2]]
+            if len(main_classes) == 1:
+                summary += f"La classe '{main_classes[0]}' centralise les fonctionnalités principales. "
+            else:
+                summary += f"Les classes '{main_classes[0]}' et '{main_classes[1]}' collaborent pour structurer l'application. "
+        
+        # Conclusion
+        summary += f"\n\nCe module de {analysis['total_lines']} lignes présente un bon équilibre entre simplicité et fonctionnalité. "
+        summary += "Son architecture facilite la maintenance et les évolutions futures."
+        
+        return summary
+    
+    def _create_complex_code_summary(self, code: str, filename: str, language: str, analysis: dict, purpose: str) -> str:
+        """Résumé pour code complexe"""
+        summary = f"Le fichier {language} '{filename}' constitue un {purpose} d'envergure, développant une architecture sophistiquée. "
+        
+        # Introduction détaillée
+        if analysis["classes"] and analysis["functions"]:
+            summary += f"Il combine une approche orientée objet avec {len(analysis['classes'])} classe(s) "
+            summary += f"et {len(analysis['functions'])} fonction(s), démontrant une conception modulaire avancée. "
+        elif len(analysis["classes"]) >= 3:
+            summary += f"Son design orienté objet s'appuie sur {len(analysis['classes'])} classes interconnectées, "
+            summary += "révélant une architecture complexe et bien structurée. "
+        elif len(analysis["functions"]) >= 10:
+            summary += f"Sa structure fonctionnelle comprend {len(analysis['functions'])} fonctions spécialisées, "
+            summary += "témoignant d'une décomposition minutieuse des responsabilités. "
+        
+        # Premier développement - Technologies
+        if analysis["frameworks"]:
+            summary += f"\n\nL'implémentation technique s'appuie sur plusieurs technologies clés : {', '.join(analysis['frameworks'])}. "
+            summary += "Cette combinaison technologique permet de bénéficier d'un écosystème riche et éprouvé. "
+        
+        # Deuxième développement - Architecture
+        if analysis["classes"]:
+            main_classes = [cls["name"] for cls in analysis["classes"][:3]]
+            summary += f"\n\nL'architecture s'organise principalement autour des classes "
+            if len(main_classes) >= 3:
+                summary += f"'{main_classes[0]}', '{main_classes[1]}' et '{main_classes[2]}'. "
+            elif len(main_classes) == 2:
+                summary += f"'{main_classes[0]}' et '{main_classes[1]}'. "
+            else:
+                summary += f"'{main_classes[0]}'. "
+            
+            summary += "Cette séparation claire des responsabilités facilite la compréhension et la maintenance du code. "
+        
+        # Conclusion évaluative
+        summary += f"\n\nAvec ses {analysis['total_lines']} lignes, ce module représente un développement conséquent qui "
+        
+        if analysis["total_lines"] > 500:
+            summary += "nécessite une approche méthodique pour sa compréhension complète. "
+        else:
+            summary += "reste néanmoins accessible grâce à sa structure bien organisée. "
+        
+        summary += "Il constitue un exemple de programmation Python avancée, alliant fonctionnalité et qualité architecturale."
+        
+        # Note de mémorisation
+        summary += f"\n\n💾 Le code de ce fichier {language} est maintenant disponible pour des analyses détaillées."
+        
+        return summary
 
     def _suggest_improvements_naturally(self, code: str, filename: str) -> str:
         """Suggère des améliorations de manière naturelle"""
@@ -2764,8 +3403,200 @@ Que voulez-vous apprendre exactement ?"""
         """Analyse générale du code"""
         return self._explain_code_functionality(user_input, stored_docs)
 
+    # ===== FONCTIONS D'ASSISTANCE CLAUDE POUR LES NOUVEAUX STYLES DE RÉSUMÉ =====
+    
+    def _extract_key_points_claude(self, content: str) -> str:
+        """Extrait les points clés style Claude"""
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 20][:6]
+        points = []
+        for i, sentence in enumerate(sentences):
+            if len(sentence) > 30:
+                points.append(f"• {sentence[:120]}{'...' if len(sentence) > 120 else ''}")
+        return "\n".join(points[:4]) if points else "• Points clés à analyser en cours..."
+    
+    def _extract_main_themes_claude(self, content: str) -> str:
+        """Extrait les thèmes principaux style Claude"""
+        themes = self._analyze_content_themes(content)
+        if themes:
+            return f"**Thèmes identifiés :** {', '.join(themes).title()}\n**Focus principal :** {themes[0].title()}"
+        return "**Analyse thématique en cours...**"
+    
+    def _extract_important_info_claude(self, content: str) -> str:
+        """Extrait les informations importantes style Claude"""
+        key_sentences = self._extract_key_sentences(content, 3)
+        if key_sentences:
+            info = "\n".join([f"📌 {sentence[:100]}{'...' if len(sentence) > 100 else ''}" for sentence in key_sentences])
+            return info
+        return "📌 Informations importantes en cours d'extraction..."
+    
+    def _get_document_purpose_claude(self, content: str) -> str:
+        """Détermine l'objectif du document style Claude"""
+        content_lower = content.lower()
+        if any(word in content_lower for word in ["procédure", "guide", "manuel"]):
+            return "un guide pratique avec des instructions détaillées"
+        elif any(word in content_lower for word in ["rapport", "analyse", "étude"]):
+            return "une analyse ou un rapport d'étude"
+        elif any(word in content_lower for word in ["formation", "cours", "apprentissage"]):
+            return "du matériel de formation et d'apprentissage"
+        else:
+            return "des informations et données diverses"
+    
+    def _extract_essential_elements_claude(self, content: str) -> str:
+        """Extrait les éléments essentiels style Claude"""
+        key_points = self._extract_key_sentences(content, 4)
+        elements = []
+        for i, point in enumerate(key_points, 1):
+            elements.append(f"**{i}.** {point[:80]}{'...' if len(point) > 80 else ''}")
+        return "\n".join(elements) if elements else "**Éléments en cours d'identification...**"
+    
+    def _extract_actionable_items_claude(self, content: str) -> str:
+        """Extrait les éléments actionnables style Claude"""
+        action_words = ["doit", "devra", "recommandé", "nécessaire", "obligatoire", "conseillé"]
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 15]
+        
+        actionable = []
+        for sentence in sentences:
+            if any(word in sentence.lower() for word in action_words):
+                actionable.append(f"⚡ {sentence[:90]}{'...' if len(sentence) > 90 else ''}")
+                if len(actionable) >= 3:
+                    break
+        
+        return "\n".join(actionable) if actionable else "⚡ Actions recommandées à identifier..."
+    
+    def _generate_conclusion_claude(self, content: str) -> str:
+        """Génère une conclusion style Claude"""
+        word_count = len(content.split())
+        themes = self._analyze_content_themes(content)
+        
+        if word_count > 1000:
+            conclusion = f"Document complet de {word_count} mots abordant {len(themes)} thématiques principales."
+        elif word_count > 300:
+            conclusion = f"Document concis de {word_count} mots avec des informations ciblées."
+        else:
+            conclusion = f"Document bref de {word_count} mots allant à l'essentiel."
+        
+        if themes:
+            conclusion += f" Focus sur : {themes[0]}."
+        
+        return conclusion
+    
+    def _split_content_sections_claude(self, content: str) -> list:
+        """Divise le contenu en sections style Claude"""
+        # Diviser par paragraphes ou par sauts de ligne doubles
+        sections = re.split(r'\n\s*\n', content)
+        return [section.strip() for section in sections if len(section.strip()) > 50][:5]
+    
+    def _extract_main_theme_claude(self, content: str) -> str:
+        """Extrait le thème principal style Claude"""
+        themes = self._analyze_content_themes(content)
+        if themes:
+            return f"**{themes[0].upper()} :** {content[:150]}{'...' if len(content) > 150 else ''}"
+        return f"**CONTENU PRINCIPAL :** {content[:150]}{'...' if len(content) > 150 else ''}"
+    
+    def _extract_key_developments_claude(self, content: str) -> str:
+        """Extrait les développements clés style Claude"""
+        sentences = self._extract_key_sentences(content, 5)
+        developments = []
+        for i, sentence in enumerate(sentences, 1):
+            developments.append(f"**Développement {i} :** {sentence[:100]}{'...' if len(sentence) > 100 else ''}")
+        return "\n\n".join(developments) if developments else "**Développements en cours d'analyse...**"
+    
+    def _extract_technical_details_claude(self, content: str) -> str:
+        """Extrait les détails techniques style Claude"""
+        technical_words = ["système", "méthode", "technique", "procédure", "algorithme", "configuration"]
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 20]
+        
+        technical_sentences = []
+        for sentence in sentences:
+            if any(word in sentence.lower() for word in technical_words):
+                technical_sentences.append(f"🔧 {sentence[:100]}{'...' if len(sentence) > 100 else ''}")
+                if len(technical_sentences) >= 3:
+                    break
+        
+        return "\n".join(technical_sentences) if technical_sentences else "🔧 Aspects techniques en cours d'identification..."
+    
+    def _analyze_themes_claude(self, content: str) -> str:
+        """Analyse thématique style Claude"""
+        themes = self._analyze_content_themes(content)
+        analysis = []
+        
+        for theme in themes[:3]:
+            sentences = [s for s in re.split(r'[.!?]+', content) if theme in s.lower()]
+            if sentences:
+                analysis.append(f"**{theme.upper()} :** {sentences[0][:80]}{'...' if len(sentences[0]) > 80 else ''}")
+        
+        return "\n".join(analysis) if analysis else "**Analyse thématique en préparation...**"
+    
+    def _extract_implications_claude(self, content: str) -> str:
+        """Extrait les implications style Claude"""
+        implication_words = ["implique", "conséquence", "résultat", "effet", "impact", "influence"]
+        sentences = [s.strip() for s in re.split(r'[.!?]+', content) if len(s.strip()) > 20]
+        
+        implications = []
+        for sentence in sentences:
+            if any(word in sentence.lower() for word in implication_words):
+                implications.append(f"📈 {sentence[:90]}{'...' if len(sentence) > 90 else ''}")
+                if len(implications) >= 2:
+                    break
+        
+        if not implications:
+            implications.append("📈 Implications stratégiques à analyser selon le contexte d'utilisation")
+        
+        return "\n".join(implications)
+    
+    def _create_bullet_points_claude(self, content: str) -> str:
+        """Crée des points bullet style Claude"""
+        key_sentences = self._extract_key_sentences(content, 5)
+        bullets = []
+        
+        for sentence in key_sentences:
+            # Extraire la partie la plus importante de la phrase
+            words = sentence.split()
+            if len(words) > 15:
+                bullet_text = " ".join(words[:12]) + "..."
+            else:
+                bullet_text = sentence
+            
+            bullets.append(f"⚡ {bullet_text}")
+        
+        return "\n".join(bullets) if bullets else "⚡ Points essentiels en cours d'extraction..."
+    
+    def _extract_keywords_claude(self, content: str) -> str:
+        """Extrait les mots-clés style Claude"""
+        words = re.findall(r'\b[A-Za-zÀ-ÿ]{4,}\b', content.lower())
+        word_freq = {}
+        
+        # Compter les mots (hors mots vides)
+        stop_words = {"dans", "avec", "pour", "sans", "cette", "comme", "plus", "très", "tout", "bien", "être", "avoir"}
+        for word in words:
+            if word not in stop_words and len(word) > 4:
+                word_freq[word] = word_freq.get(word, 0) + 1
+        
+        # Prendre les plus fréquents
+        top_keywords = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:8]
+        keywords = [word.title() for word, freq in top_keywords]
+        
+        return " • ".join(keywords) if keywords else "Mots-clés en cours d'identification..."
+    
+    def _extract_quick_facts_claude(self, content: str) -> str:
+        """Extrait des faits rapides style Claude"""
+        # Rechercher des chiffres, dates, noms propres
+        numbers = re.findall(r'\b\d+(?:[.,]\d+)?\b', content)
+        dates = re.findall(r'\b\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b', content)
+        
+        facts = []
+        if numbers:
+            facts.append(f"📊 Contient {len(numbers)} valeurs numériques")
+        if dates:
+            facts.append(f"📅 {len(dates)} dates mentionnées")
+        
+        word_count = len(content.split())
+        facts.append(f"📝 {word_count} mots au total")
+        
+        return "\n".join(facts) if facts else "📊 Informations quantitatives en cours d'extraction..."
+
     def _answer_document_question(self, user_input: str, stored_docs: Dict[str, Any]) -> str:
-        """Répond aux questions sur les documents - VERSION SIMPLIFIÉE qui respecte la sélection AI_ENGINE"""
+        """Répond aux questions sur les documents avec gestion améliorée des références multiples"""
         if not stored_docs:
             return "Je n'ai pas de documents en mémoire pour répondre à votre question."
         
@@ -2796,75 +3627,165 @@ Que voulez-vous apprendre exactement ?"""
                 # Traiter UNIQUEMENT ce contenu
                 return self._create_universal_summary(document_content.strip(), doc_name, "DOCX")
         
-        # ANCIENNE LOGIQUE pour les autres cas (garde pour compatibilité)
+        # LOGIQUE AMÉLIORÉE pour la sélection de documents multiples
         user_lower = user_input.lower().strip()
+        
+        # Détection de références à des documents spécifiques
+        selected_doc = self._identify_target_document(user_input, stored_docs)
         
         # Gestion des demandes de résumé avec sélection de document
         resume_keywords = ["résume", "resume", "résumé"]
         
         if any(keyword in user_lower for keyword in resume_keywords):
             
+            if selected_doc:
+                # Document spécifique identifié
+                doc_data = stored_docs[selected_doc]
+                content = doc_data.get("content", "")
+                doc_type = doc_data.get("type", "document")
+                
+                if content:
+                    return self._create_universal_summary(content, selected_doc, doc_type)
+                else:
+                    return f"Le document '{selected_doc}' semble vide ou non accessible."
+            
             # Si seulement un document, l'utiliser directement
-            if len(stored_docs) == 1:
+            elif len(stored_docs) == 1:
                 doc_name = list(stored_docs.keys())[0]
                 doc_data = stored_docs[doc_name]
                 content = doc_data.get("content", "")
                 
-                # Déterminer le type de document
-                if any(ext in doc_name.lower() for ext in ["pdf", "livret"]):
-                    doc_type = "PDF"
-                elif any(ext in doc_name.lower() for ext in ["docx", "doc", "notes"]):
-                    doc_type = "document"
+                if content:
+                    return self._create_universal_summary(content, doc_name, doc_data.get("type", "document"))
                 else:
-                    doc_type = "document"
-                    
-                return self._create_universal_summary(content, doc_name, doc_type)
+                    return f"Le document '{doc_name}' semble vide."
             
-            # LOGIQUE MULTI-DOCUMENTS (ancienne logique conservée)
-            # Gestion spécifique selon le type de document demandé
-            if "pdf" in user_lower:
-                # L'utilisateur demande spécifiquement le PDF
-                pdf_docs = {name: doc for name, doc in stored_docs.items() 
-                        if any(word in name.lower() for word in ["pdf", "livret", "cauquillous"])}
-                
-                if pdf_docs:
-                    doc_name = list(pdf_docs.keys())[0]
-                    doc_data = pdf_docs[doc_name]
-                    content = doc_data.get("content", "")
-                    return self._create_universal_summary(content, doc_name, "PDF")
-                else:
-                    return "Je n'ai pas de document PDF en mémoire."
-            
-            elif any(word in user_lower for word in ["doc", "docx", "word"]):
-                # L'utilisateur demande spécifiquement le document Word
-                docx_docs = {name: doc for name, doc in stored_docs.items() 
-                            if any(word in name.lower() for word in ["notes", "stage", "docx"])}
-                
-                if docx_docs:
-                    doc_name = list(docx_docs.keys())[0]
-                    doc_data = docx_docs[doc_name]
-                    content = doc_data.get("content", "")
-                    return self._create_universal_summary(content, doc_name, "document")
-                else:
-                    return "Je n'ai pas de document en mémoire."
-            
+            # Plusieurs documents disponibles - demander de préciser
             else:
-                # Résumé générique - prendre le dernier document ajouté
-                if self.conversation_memory.document_order:
-                    last_doc = self.conversation_memory.document_order[-1]
-                    if last_doc in stored_docs:
-                        doc_data = stored_docs[last_doc]
-                        content = doc_data.get("content", "")
-                        
-                        # Déterminer le type correct
-                        if any(word in last_doc.lower() for word in ["pdf", "livret"]):
-                            doc_type = "PDF"
-                        elif any(word in last_doc.lower() for word in ["notes", "stage", "docx"]):
-                            doc_type = "document"
-                        else:
-                            doc_type = "document"
-                        
-                        return self._create_universal_summary(content, last_doc, doc_type)
+                doc_list = list(stored_docs.keys())
+                summary = "**Plusieurs documents sont disponibles**\n\n"
+                summary += "Voici les documents que j'ai en mémoire :\n\n"
+                
+                for i, doc_name in enumerate(doc_list, 1):
+                    doc_data = stored_docs[doc_name]
+                    doc_type = doc_data.get("type", "document")
+                    word_count = len(doc_data.get("content", "").split()) if doc_data.get("content") else 0
+                    summary += f"**{i}.** `{doc_name}` ({doc_type.upper()}, ~{word_count} mots)\n"
+                
+                summary += f"\n**Précisez votre demande :**\n"
+                summary += f"• \"résume le document 1\" ou \"résume le premier\"\n"
+                summary += f"• \"résume {doc_list[0]}\" (nom complet)\n"
+                summary += f"• \"résume le dernier document\"\n"
+                
+                return summary
+        
+        # Pour les autres questions sur documents, utiliser le dernier ou chercher le plus pertinent
+        if selected_doc:
+            doc_data = stored_docs[selected_doc]
+            content = doc_data.get("content", "")
+            
+            # Réponse contextuelle sur le document spécifique
+            return f"Concernant le document '{selected_doc}' : {content[:200]}..."
+        
+        # Fallback : utiliser le dernier document
+        if stored_docs:
+            last_doc = list(stored_docs.keys())[-1]
+            doc_data = stored_docs[last_doc]
+            content = doc_data.get("content", "")
+            
+            return f"D'après le document '{last_doc}' : {content[:200]}..."
+        
+        return "Je n'ai pas trouvé d'information pertinente dans les documents disponibles."
+    
+    def _identify_target_document(self, user_input: str, stored_docs: Dict[str, Any]) -> str:
+        """Identifie le document cible à partir de l'input utilisateur"""
+        user_lower = user_input.lower().strip()
+        doc_list = list(stored_docs.keys())
+        
+        # Références numériques
+        if "premier" in user_lower or "1er" in user_lower or ("document 1" in user_lower) or ("le 1" in user_lower):
+            return doc_list[0] if doc_list else None
+        
+        if "deuxième" in user_lower or "2ème" in user_lower or ("document 2" in user_lower) or ("le 2" in user_lower):
+            return doc_list[1] if len(doc_list) > 1 else None
+        
+        if "troisième" in user_lower or "3ème" in user_lower or ("document 3" in user_lower) or ("le 3" in user_lower):
+            return doc_list[2] if len(doc_list) > 2 else None
+        
+        if "dernier" in user_lower or "dernière" in user_lower:
+            return doc_list[-1] if doc_list else None
+        
+        # Références par nom partiel
+        for doc_name in doc_list:
+            # Vérifier si le nom du document (ou une partie) est mentionné
+            doc_name_lower = doc_name.lower()
+            doc_base_name = doc_name_lower.replace('.pdf', '').replace('.docx', '')
+            
+            if doc_name_lower in user_lower or doc_base_name in user_lower:
+                return doc_name
+            
+            # Vérifier les mots individuels du nom de fichier
+            doc_words = doc_base_name.replace('_', ' ').replace('-', ' ').split()
+            if len(doc_words) > 1:
+                matches = sum(1 for word in doc_words if len(word) > 3 and word in user_lower)
+                if matches >= len(doc_words) // 2:  # Au moins la moitié des mots significatifs
+                    return doc_name
+        
+        return None
+        
+        # Pour les autres questions sur documents, utiliser le dernier ou chercher le plus pertinent
+        if selected_doc:
+            doc_data = stored_docs[selected_doc]
+            content = doc_data.get("content", "")
+            
+            # Réponse contextuelle sur le document spécifique
+            return f"Concernant le document '{selected_doc}' : {content[:200]}..."
+        
+        # Fallback : utiliser le dernier document
+        if stored_docs:
+            last_doc = list(stored_docs.keys())[-1]
+            doc_data = stored_docs[last_doc]
+            content = doc_data.get("content", "")
+            
+            return f"D'après le document '{last_doc}' : {content[:200]}..."
+        
+        return "Je n'ai pas trouvé d'information pertinente dans les documents disponibles."
+    
+    def _identify_target_document(self, user_input: str, stored_docs: Dict[str, Any]) -> str:
+        """Identifie le document cible à partir de l'input utilisateur"""
+        user_lower = user_input.lower().strip()
+        doc_list = list(stored_docs.keys())
+        
+        # Références numériques
+        if "premier" in user_lower or "1er" in user_lower or ("document 1" in user_lower) or ("le 1" in user_lower):
+            return doc_list[0] if doc_list else None
+        
+        if "deuxième" in user_lower or "2ème" in user_lower or ("document 2" in user_lower) or ("le 2" in user_lower):
+            return doc_list[1] if len(doc_list) > 1 else None
+        
+        if "troisième" in user_lower or "3ème" in user_lower or ("document 3" in user_lower) or ("le 3" in user_lower):
+            return doc_list[2] if len(doc_list) > 2 else None
+        
+        if "dernier" in user_lower or "dernière" in user_lower:
+            return doc_list[-1] if doc_list else None
+        
+        # Références par nom partiel
+        for doc_name in doc_list:
+            # Vérifier si le nom du document (ou une partie) est mentionné
+            doc_name_lower = doc_name.lower()
+            doc_base_name = doc_name_lower.replace('.pdf', '').replace('.docx', '')
+            
+            if doc_name_lower in user_lower or doc_base_name in user_lower:
+                return doc_name
+            
+            # Vérifier les mots individuels du nom de fichier
+            doc_words = doc_base_name.replace('_', ' ').replace('-', ' ').split()
+            if len(doc_words) > 1:
+                matches = sum(1 for word in doc_words if len(word) > 3 and word in user_lower)
+                if matches >= len(doc_words) // 2:  # Au moins la moitié des mots significatifs
+                    return doc_name
+        
+        return None
         
         # Autres questions spécifiques
         return f"J'ai {len(stored_docs)} document(s) en mémoire : {', '.join(stored_docs.keys())}. Que voulez-vous savoir précisément ?"

@@ -551,51 +551,98 @@ if __name__ == "__main__":
             self.logger.info(f"Query: '{query}' | Documents disponibles: {list(all_docs.keys())}")
             
             # Recherche de mots-clés spécifiques au type de document - LOGIQUE RENFORCÉE
+
+            # Définir les flags de référence numérique AVANT leur utilisation
+            is_first_requested = any(term in query_lower for term in ['premier', '1er', '1ère', 'première', 'document 1', 'le 1'])
+            is_second_requested = any(term in query_lower for term in ['deuxième', '2ème', '2eme', 'seconde', 'document 2', 'le 2'])
+            is_last_requested = any(term in query_lower for term in ['dernier', 'dernière', 'last'])
             
             # 1. RECHERCHE EXPLICITE par mention du nom exact du fichier
             for doc_name in all_docs.keys():
                 doc_name_clean = doc_name.lower().replace('.pdf', '').replace('.docx', '').replace('.doc', '').replace('.py', '')
-                if doc_name_clean in query_lower or doc_name.lower() in query_lower:
-                    target_document = doc_name
-                    self.logger.info(f"Document trouvé par nom exact: {target_document}")
-                    break
-            
-            # 2. Si pas trouvé par nom, rechercher par TYPE EXPLICITE - LOGIQUE CORRIGÉE
-            if not target_document:
-                # Détection PDF EXCLUSIVE (doit contenir "pdf" sans "docx" ou "doc")
-                if 'pdf' in query_lower and not any(term in query_lower for term in ['docx', 'doc ', '.doc', 'word']):
-                    for doc_name in reversed(document_order):
-                        if doc_name.lower().endswith('.pdf'):
-                            target_document = doc_name
-                            self.logger.info(f"PDF sélectionné par type EXCLUSIF: {target_document}")
-                            break
-                
-                # Détection DOCX RENFORCÉE (plus de variantes)
-                elif any(term in query_lower for term in ['docx', '.docx', 'word', 'document word']):
-                    for doc_name in reversed(document_order):
-                        if doc_name.lower().endswith(('.docx', '.doc')):
-                            target_document = doc_name
-                            self.logger.info(f"DOCX sélectionné par type EXPLICITE: {target_document}")
-                            break
-                
-                # Détection DOC court (mais attention aux faux positifs)
-                elif 'doc' in query_lower and not any(term in query_lower for term in ['pdf', 'document', 'documents', 'doc>']):
+                # Construire le prompt avec le document ciblé - PROTECTION RENFORCÉE
+                if target_document and target_document in all_docs:
+                    doc_data = all_docs[target_document]
+                    if isinstance(doc_data, dict) and 'content' in doc_data:
+                        doc_content = doc_data['content']
+                    else:
+                        doc_content = str(doc_data)
+
+                    # Provide more content for more detailed summaries
+                    max_len = 8000
+                    self.logger.info(f"📄 DOCUMENT SÉLECTIONNÉ POUR TRAITEMENT: {target_document}")
+                    self.logger.info(f"📊 Taille contenu: {len(doc_content)} caractères")
+
+                    prompt = f"""🚨 RÈGLE ABSOLUE ET OBLIGATOIRE 🚨
+ JE TE DONNE ACCÈS À UN SEUL DOCUMENT. TU NE DOIS ANALYSER QUE CE DOCUMENT.
+ IGNORE COMPLÈTEMENT TOUTE RÉFÉRENCE À D'AUTRES DOCUMENTS.
+
+ 🎯 DOCUMENT UNIQUE À ANALYSER: {target_document}
+ � QUESTION: {query}
+
+ 📄 CONTENU DU DOCUMENT \"{target_document}\":
+ {doc_content[:max_len]}"""
+                    if len(doc_content) > max_len:
+                        prompt += "\n[... contenu tronqué pour économiser l'espace ...]"
+
+                    prompt += f"""
+
+ 🔒 INSTRUCTIONS STRICTES:
+ 1. Réponds UNIQUEMENT sur le contenu ci-dessus du fichier \"{target_document}\"
+ 2. Commence ta réponse par \"📄 DOCX analysé : {target_document}\"
+ 3. NE MENTIONNE AUCUN AUTRE DOCUMENT
+ 4. Base-toi EXCLUSIVEMENT sur le contenu fourni ci-dessus
+ 5. Si tu vois une référence à un autre document, IGNORE-LA COMPLÈTEMENT
+ 6. Fais un résumé TRÈS DÉTAILLÉ, structuré, avec une introduction, un développement en plusieurs points, et une conclusion riche. Utilise des listes, des titres en gras, et mets en valeur les mots importants.
+ """
+                    # Log pour debug final
+                    self.logger.info(f"🔍 PROMPT généré pour {target_document} (début): {prompt[:300]}...")
+
+                    # PROTECTION FINALE : créer un contexte isolé avec SEULEMENT le document ciblé
+                    isolated_context = {
+                        'stored_documents': {target_document: all_docs[target_document]},
+                        'document_order': [target_document],
+                        'conversation_history': context.get('conversation_history', [])
+                    }
+
+                    # Générer la réponse avec le contexte isolé
+                    response = self.local_ai.generate_response(prompt)
                     # "doc" isolé sans contexte PDF
                     query_words = query_lower.split()
                     if 'doc' in query_words or 'du doc' in query_lower or 'le doc' in query_lower:
-                        for doc_name in reversed(document_order):
-                            if doc_name.lower().endswith(('.docx', '.doc')):
-                                target_document = doc_name
+                        docx_docs = [doc for doc in document_order if doc.lower().endswith(('.docx', '.doc'))]
+                        
+                        if docx_docs:
+                            if is_first_requested and len(docx_docs) >= 1:
+                                target_document = docx_docs[0]
+                                self.logger.info(f"PREMIER DOC sélectionné: {target_document}")
+                            else:
+                                target_document = docx_docs[-1]
                                 self.logger.info(f"DOCX sélectionné par 'doc' isolé: {target_document}")
-                                break
                 
                 # Détection CODE
                 elif any(term in query_lower for term in ['code', 'py', 'python', 'script']):
-                    for doc_name in reversed(document_order):
-                        if doc_name.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json')):
-                            target_document = doc_name
+                    code_docs = [doc for doc in document_order if doc.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json'))]
+                    
+                    if code_docs:
+                        if is_first_requested and len(code_docs) >= 1:
+                            target_document = code_docs[0]
+                            self.logger.info(f"PREMIER CODE sélectionné: {target_document}")
+                        else:
+                            target_document = code_docs[-1]
                             self.logger.info(f"Code sélectionné par type: {target_document}")
-                            break
+                
+                # GESTION GÉNÉRALE DES RÉFÉRENCES NUMÉRIQUES (tous types confondus)
+                elif is_first_requested or is_second_requested or is_last_requested:
+                    if is_first_requested and len(document_order) >= 1:
+                        target_document = document_order[0]
+                        self.logger.info(f"PREMIER DOCUMENT (tous types) sélectionné: {target_document}")
+                    elif is_second_requested and len(document_order) >= 2:
+                        target_document = document_order[1]
+                        self.logger.info(f"DEUXIÈME DOCUMENT (tous types) sélectionné: {target_document}")
+                    elif is_last_requested and document_order:
+                        target_document = document_order[-1]
+                        self.logger.info(f"DERNIER DOCUMENT (tous types) sélectionné: {target_document}")
             
             # 3. Si pas de type spécifique mais demande d'action (résumé, analyse, etc.)
             if not target_document:
