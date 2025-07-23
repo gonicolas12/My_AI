@@ -1115,26 +1115,57 @@ class ModernAIGUI:
         return context_menu
 
     def insert_formatted_text_tkinter(self, text_widget, text):
-        """Version OPTIMISÉE pour affichage complet du contenu"""
+        """Affichage complet du contenu avec support des liens Markdown cliquables et soulignés"""
         import re
+        import webbrowser
         text_widget.delete("1.0", "end")
-        
-        # Configuration des tags avec police cohérente
+
+        # Configurer les tags
         BASE_FONT = ('Segoe UI', 12)
         text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
         text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
         text_widget.tag_configure("mono", font=('Consolas', 11))
         text_widget.tag_configure("normal", font=BASE_FONT)
-        
-        # Traitement du formatage markdown simple
+        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+
+        # Fonction pour ouvrir le lien
+        def open_link(event, url):
+            webbrowser.open_new(url)
+
+        # Découper le texte en segments Markdown (gras, italique, code, lien)
+        # On commence par les liens Markdown
+        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        last_end = 0
+        for match in re.finditer(link_pattern, text):
+            # Texte avant le lien
+            if match.start() > last_end:
+                self._insert_markdown_segments(text_widget, text[last_end:match.start()])
+            link_text = match.group(1)
+            url = match.group(2)
+            start_index = text_widget.index("end-1c")
+            text_widget.insert("end", link_text, ("link",))
+            end_index = text_widget.index("end-1c")
+            # Ajouter le binding sur la plage du lien
+            text_widget.tag_add(f"link_{start_index}", start_index, end_index)
+            text_widget.tag_bind(f"link_{start_index}", "<Button-1>", lambda e, url=url: open_link(e, url))
+            last_end = match.end()
+        # Texte après le dernier lien
+        if last_end < len(text):
+            self._insert_markdown_segments(text_widget, text[last_end:])
+
+        # S'assurer que tout le contenu est visible
+        text_widget.update_idletasks()
+        text_widget.see("1.0")
+
+    def _insert_markdown_segments(self, text_widget, text):
+        """Insère du texte avec gras, italique, monospace (hors liens)"""
+        import re
         patterns = [
             (r'\*\*([^*]+)\*\*', 'bold'),   # **texte** -> gras
             (r'\*([^*]+)\*', 'italic'),     # *texte* -> italique
             (r'`([^`]+)`', 'mono')          # `texte` -> monospace
         ]
-        
         segments = [(text, 'normal')]
-        
         for pattern, style in patterns:
             new_segments = []
             for segment_text, segment_style in segments:
@@ -1150,15 +1181,9 @@ class ModernAIGUI:
                 else:
                     new_segments.append((segment_text, segment_style))
             segments = new_segments
-        
-        # Insérer les segments formatés
         for segment_text, style in segments:
             if segment_text:
                 text_widget.insert("end", segment_text, style)
-        
-        # S'assurer que tout le contenu est visible
-        text_widget.update_idletasks()
-        text_widget.see("1.0")  # Commencer par le début
 
     def adjust_text_height_no_scroll(self, text_widget, text):
         """Ajuste la hauteur EXACTE pour afficher tout le contenu sans scroll"""
@@ -1560,7 +1585,6 @@ class ModernAIGUI:
         if hasattr(self, 'thinking_label') and self.is_thinking:
             # Animations avancées qui montrent l'intelligence de l'IA
             advanced_animations = [
-                "� Analyse contextuelle...",
                 "⚡ Traitement neural en cours...",
                 "🔍 Détection d'intentions...",
                 "💡 Génération de réponse intelligente...",
@@ -1570,7 +1594,6 @@ class ModernAIGUI:
                 "🚀 Finalisation de la réponse...",
                 "🔮 Prédiction des besoins...",
                 "💻 Processing linguistique avancé...",
-                "� Calculs d'inférence...",
                 "🎪 Préparation d'une réponse époustouflante..."
             ]
             

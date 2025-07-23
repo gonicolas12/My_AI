@@ -329,12 +329,17 @@ class InternetSearchEngine:
                 source_count += 1
                 title = result["title"][:100] + "..." if len(result["title"]) > 100 else result["title"]
                 snippet = result["snippet"][:150] + "..." if len(result["snippet"]) > 150 else result["snippet"]
-                
-                summary += f"\n**{source_count}. {title}**\n"
+
+                # Lien cliquable en Markdown uniquement (pas de HTML)
+                url = result.get("url")
+                if url and url.startswith("http"):
+                    markdown_link = f'[{title}]({url})'
+                else:
+                    markdown_link = f'**{title}**'
+
+                summary += f"\n{source_count}. {markdown_link}\n"
                 summary += f"   {snippet}\n"
-                
-                if result.get("url") and result["url"].startswith("http"):
-                    summary += f"   🌐 Source: {result['url']}\n"
+                # Optionnel : garder le lien direct "Ouvrir la page" si besoin, ou le retirer pour plus de clarté
         
         # Ajouter des suggestions
         suggestions = self._generate_search_suggestions(query)

@@ -925,7 +925,7 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
 � **Pour la recherche internet :** Dites "Cherche sur internet [sujet]"
 😄 **Pour l'humour :** Demandez-moi une blague !
 
-�🎯 **Exemples :**
+🎯 **Exemples :**
 • "Résume le document" - après avoir traité un PDF
 • "Explique ce code" - après avoir traité un fichier Python
 • "Génère une fonction pour..." - pour créer du code
@@ -4412,15 +4412,14 @@ Que voulez-vous apprendre exactement ?"""
             if any(word in user_lower for word in ["comment", "créer", "utiliser", "faire", "python", "liste", "dictionnaire", "fonction", "variable", "boucle", "condition", "classe"]):
                 return "programming_question", 0.9
         
-        # PRIORITÉ 3.6 : Questions générales avec structure "c'est quoi", "qu'est-ce que"
+        # PRIORITÉ 3.6 : Questions générales avec structure "c'est quoi", "qu'est-ce que" => internet_search
         general_question_patterns = [
             "c'est quoi", "c est quoi", "quest ce que", "qu'est-ce que", "qu est ce que",
             "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
             "explique moi", "peux tu expliquer", "dis moi ce que c'est"
         ]
-        
         if any(pattern in user_lower for pattern in general_question_patterns):
-            return "general_question", 0.9
+            return "internet_search", 1.0
         
         # PRIORITÉ 4 : Sélection normale par score le plus élevé
         best_intent = max(intent_scores.items(), key=lambda x: x[1])

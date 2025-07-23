@@ -126,6 +126,12 @@ my_ai/
 
 ## 🏃‍♂️ Démarrage Rapide
 
+### Clonez le dépôt
+```bash
+git clone https://github.com/gonicolas12/My_AI
+cd My_AI
+```
+
 ### Installation
 ##### Installation des dépendances
 ```bash
@@ -142,7 +148,7 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 ### Premiers Pas
 1. **Saluer l'IA** : "Salut", "Bonjour", "slt" - L'IA reconnaîtra votre salutation
 2. **Poser une question technique** : "Comment créer une liste en Python ?"
-3. **Analyser un document** : Glissez un fichier PDF/DOCX, puis "résume ce document"
+3. **Analyser un document** : Importez un fichier PDF/DOCX, puis "résume ce document"
 4. **Vider le chat** : Utilisez le bouton "Clear Chat" pour recommencer
 
 ### Exemples d'Usage
