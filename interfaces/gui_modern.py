@@ -91,14 +91,50 @@ except ImportError as e:
 
 class ModernAIGUI:
     def set_input_state(self, enabled: bool):
-        """Active ou désactive la zone de saisie utilisateur."""
+        """Active ou désactive la zone de saisie - VERSION CORRIGÉE"""
         try:
-            state = "normal" if enabled else "disabled"
-            self.input_text.configure(state=state)
-            if enabled:
-                self.input_text.focus_set()
+            if hasattr(self, 'input_text'):
+                if enabled:
+                    self.input_text.configure(state="normal")
+                    # Remettre le focus avec un délai
+                    self.root.after(100, lambda: self._safe_focus_input())
+                else:
+                    # Sauvegarder le contenu avant de désactiver
+                    if hasattr(self, 'input_text'):
+                        try:
+                            self._saved_input_content = self.input_text.get("1.0", "end-1c")
+                        except:
+                            self._saved_input_content = ""
+                    self.input_text.configure(state="disabled")
+            
+            # Gérer l'état du bouton d'envoi
+            if hasattr(self, 'send_button'):
+                try:
+                    if self.use_ctk:
+                        self.send_button.configure(state="normal" if enabled else "disabled")
+                    else:
+                        self.send_button.configure(state="normal" if enabled else "disabled")
+                except Exception as e:
+                    print(f"⚠️ Erreur bouton envoi: {e}")
+                    
         except Exception as e:
             print(f"⚠️ Erreur set_input_state: {e}")
+
+    def _safe_focus_input(self):
+        """Met le focus sur l'input de manière sécurisée"""
+        try:
+            if hasattr(self, 'input_text'):
+                current_state = self.input_text.cget("state")
+                if current_state == "normal":
+                    self.input_text.focus_set()
+                    # Restaurer le contenu sauvegardé s'il existe
+                    if hasattr(self, '_saved_input_content') and self._saved_input_content:
+                        current_content = self.input_text.get("1.0", "end-1c").strip()
+                        if not current_content:  # Seulement si vide
+                            self.input_text.insert("1.0", self._saved_input_content)
+                        delattr(self, '_saved_input_content')
+        except Exception as e:
+            print(f"⚠️ Erreur focus: {e}")
 
     """Interface Graphique Moderne pour l'Assistant IA - Style Claude"""
     
@@ -131,6 +167,7 @@ class ModernAIGUI:
         
         # Initialisation IA en arrière-plan
         self.initialize_ai_async()
+        self.ensure_input_is_ready()
     
     def setup_modern_gui(self):
         """Configure l'interface principale style Claude"""
@@ -596,7 +633,7 @@ class ModernAIGUI:
         self.send_button = self.create_modern_button(
             button_frame,
             text="Envoyer ↗",
-            command=self.send_message,
+            command=lambda: self.send_message(),  # Lambda pour s'assurer de la bonne référence
             style="primary"
         )
         self.send_button.grid(row=0, column=2, sticky="e")
@@ -740,44 +777,44 @@ class ModernAIGUI:
             self.create_ai_message_simple(msg_container, text)
     
     def setup_scroll_forwarding(self, text_widget):
-        """Configure le transfert du scroll pour les widgets de texte - VITESSE NATIVE"""
+        """Configure le transfert du scroll - Version améliorée"""
         def forward_scroll_to_page(event):
             try:
-                # Méthode améliorée : transfert direct d'événement pour vitesse native
-                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
-                    # Pour CustomTkinter ScrollableFrame - transfert direct
-                    canvas = self.chat_frame._parent_canvas
-                    canvas.event_generate("<MouseWheel>", delta=event.delta, x=event.x, y=event.y)
-                elif hasattr(self, 'chat_frame'):
-                    # Pour tkinter standard - chercher le parent scrollable et transférer directement
-                    parent = self.chat_frame.master
-                    while parent and not hasattr(parent, 'yview'):
-                        parent = parent.master
-                    if parent and hasattr(parent, 'yview'):
-                        # Transfert avec vitesse multipliée pour compenser
-                        scroll_delta = int(-1 * (event.delta / 40))  # Plus sensible (120 -> 40)
-                        parent.yview_scroll(scroll_delta, "units")
+                # Transférer le scroll à la zone de conversation principale
+                if hasattr(self, 'chat_frame'):
+                    if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                        # Pour CustomTkinter ScrollableFrame
+                        canvas = self.chat_frame._parent_canvas
+                        # Transférer l'événement avec la bonne sensibilité
+                        scroll_delta = -1 * (event.delta // 120) if event.delta else (-1 if event.num == 4 else 1)
+                        canvas.yview_scroll(scroll_delta, "units")
+                    else:
+                        # Pour tkinter standard
+                        parent = self.chat_frame.master
+                        while parent and not hasattr(parent, 'yview_scroll'):
+                            parent = parent.master
+                        if parent:
+                            scroll_delta = -1 * (event.delta // 120) if event.delta else (-1 if event.num == 4 else 1)
+                            parent.yview_scroll(scroll_delta, "units")
             except Exception as e:
                 print(f"⚠️ Erreur transfert scroll: {e}")
-                pass
-            return "break"
+            return "break"  # Empêcher le scroll local
         
         # Appliquer le transfert de scroll
         text_widget.bind("<MouseWheel>", forward_scroll_to_page)
-        text_widget.bind("<Button-4>", forward_scroll_to_page)  # Linux
-        text_widget.bind("<Button-5>", forward_scroll_to_page)  # Linux
+        text_widget.bind("<Button-4>", forward_scroll_to_page)  # Linux scroll up
+        text_widget.bind("<Button-5>", forward_scroll_to_page)  # Linux scroll down
         
-        # Désactiver seulement les touches de navigation
-        def disable_keyboard_scroll(event):
-            return "break"
-        
-        text_widget.bind("<Up>", disable_keyboard_scroll)
-        text_widget.bind("<Down>", disable_keyboard_scroll)
-        text_widget.bind("<Prior>", disable_keyboard_scroll)
-        text_widget.bind("<Next>", disable_keyboard_scroll)
+        # Désactiver toutes les autres formes de scroll
+        text_widget.bind("<Up>", lambda e: "break")
+        text_widget.bind("<Down>", lambda e: "break")
+        text_widget.bind("<Prior>", lambda e: "break")  # Page Up
+        text_widget.bind("<Next>", lambda e: "break")   # Page Down
+        text_widget.bind("<Home>", lambda e: "break")
+        text_widget.bind("<End>", lambda e: "break")
 
     def create_user_message_bubble(self, parent, text):
-        """Version DÉFINITIVE - Messages utilisateur toujours complets"""
+        """Version avec hauteur précise pour les messages utilisateur aussi"""
         from datetime import datetime
         
         if not isinstance(text, str):
@@ -817,25 +854,30 @@ class ModernAIGUI:
         bubble.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
         bubble.grid_columnconfigure(0, weight=0)
         
-        # Analyse message utilisateur
+        # Calcul de hauteur PRÉCISE pour utilisateur
         word_count = len(text.split())
         char_count = len(text)
+        line_count = text.count('\n') + 1
         
-        # Largeur adaptée mais généreuse
+        # Largeur adaptée
         if word_count > 25:
-            text_width = 120  # Large pour longs messages utilisateur
+            text_width = 120
         elif word_count > 10:
-            text_width = 90   # Moyen
+            text_width = 90
         elif word_count > 3:
-            text_width = 70   # Court
+            text_width = 70
         else:
-            text_width = max(30, len(text) + 10)  # Très court, largeur minimale
+            text_width = max(30, len(text) + 10)
+        
+        # Hauteur PRÉCISE
+        estimated_lines = max(line_count, char_count // 120 + 1)
+        precise_height = max(1, min(estimated_lines + 1, 10))  # +1 marge, max 10
         
         # Widget Text
         text_widget = tk.Text(
             bubble,
             width=text_width,
-            height=1,  # Sera calculé
+            height=precise_height,  # Hauteur précise
             bg=self.colors['bg_user'],
             fg='#ffffff',
             font=('Segoe UI', 12),
@@ -851,54 +893,13 @@ class ModernAIGUI:
 
         # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
-
-        # Calcul de hauteur généreux pour utilisateur aussi
-        text_widget.update_idletasks()
-        text_widget.update()
         
-        try:
-            # Estimation pour messages utilisateur
-            chars_per_line = max(1, text_width * 0.7)
-            estimated_lines = max(1, int(char_count / chars_per_line))
-            
-            text_widget.see('end')
-            end_index = text_widget.index('end-1c')
-            tkinter_lines = int(end_index.split('.')[0]) if end_index else 1
-            
-            # Prendre le maximum + petite marge
-            base_height = max(estimated_lines, tkinter_lines)
-            
-            if word_count > 20:
-                safety_margin = 3  # Marge pour longs messages utilisateur
-            elif word_count > 5:
-                safety_margin = 2  # Petite marge
-            else:
-                safety_margin = 1  # Minimale
-            
-            final_height = base_height + safety_margin
-            final_height = max(1, min(final_height, 15))  # Limite pour utilisateur
-            
-            print(f"👤 USER HAUTEUR: {word_count} mots, estimated={estimated_lines}, tk={tkinter_lines}, final={final_height}")
-            
-            text_widget.configure(height=final_height)
-            text_widget.update_idletasks()
-            text_widget.see('1.0')
-            
-        except Exception as e:
-            print(f"⚠️ Erreur hauteur user: {e}")
-            # Fallback généreux pour utilisateur
-            if word_count > 20:
-                fallback = 8
-            elif word_count > 10:
-                fallback = 5
-            elif word_count > 3:
-                fallback = 3
-            else:
-                fallback = 2
-            text_widget.configure(height=fallback)
+        print(f"👤 USER HAUTEUR PRÉCISE: {word_count} mots → {precise_height} lignes")
         
         text_widget.configure(state="disabled")
-        self.setup_scroll_forwarding(text_widget)
+        
+        # Scroll rapide uniforme pour les messages utilisateur aussi
+        self.setup_fast_scroll_forwarding(text_widget)
         
         # COPIE
         def copy_on_double_click(event):
@@ -928,7 +929,7 @@ class ModernAIGUI:
         self.create_copy_menu_with_notification(text_widget, text)
 
     def create_ai_message_simple(self, parent, text):
-        """Version FINALE sans limite de hauteur"""
+        """Version DÉFINITIVE - Messages IA complets sans AUCUN scroll interne"""
         from datetime import datetime
         
         # Vérifier que le texte est une chaîne
@@ -963,16 +964,14 @@ class ModernAIGUI:
         message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
         message_container.grid_columnconfigure(0, weight=1)
         
-        # NOUVEAU : Calcul sans limite
-        estimated_lines = self._calculate_text_lines_unlimited(text)
+        # Stocker le container pour l'affichage du timestamp
+        self.current_message_container = message_container
         
-        print(f"💬 MESSAGE IA ILLIMITÉ: {len(text)} chars → hauteur {estimated_lines} (sans limite)")
-        
-        # Widget Text avec hauteur ILLIMITÉE
+        # SOLUTION RADICALE : Widget Text sans hauteur fixe - laisse tkinter décider
         text_widget = tk.Text(
             message_container,
             width=120,
-            height=estimated_lines,  # Hauteur calculée sans limite
+            # SUPPRESSION TOTALE de height= - laisse tkinter s'adapter
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
             font=('Segoe UI', 12),
@@ -986,10 +985,16 @@ class ModernAIGUI:
             pady=6
         )
 
-        text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nw")
+        text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")  # sticky="nsew" pour expansion
         
-        # Configuration du scroll forwarding
-        self.setup_scroll_forwarding(text_widget)
+        # CRUCIAL : Configurations pour empêcher TOUT scroll interne
+        text_widget.configure(
+            yscrollcommand=lambda *args: None,  # Ignore les commandes de scroll Y
+            xscrollcommand=lambda *args: None,  # Ignore les commandes de scroll X
+        )
+        
+        # NOUVEAU : Configuration pour scroll externe rapide
+        self.setup_fast_scroll_forwarding(text_widget)
         
         # Fonction de copie
         def copy_on_double_click(event):
@@ -1003,25 +1008,61 @@ class ModernAIGUI:
         
         text_widget.bind("<Double-Button-1>", copy_on_double_click)
         
-        # Timestamp
-        timestamp = datetime.now().strftime("%H:%M")
-        time_label = self.create_label(
-            message_container,
-            text=timestamp,
-            font=('Segoe UI', 10),
-            fg_color=self.colors['bg_chat'],
-            text_color=self.colors['text_secondary']
-        )
-        time_label.grid(row=1, column=0, sticky="w", padx=0, pady=(2, 6))
-        
         # Menu contextuel
         self.create_copy_menu_with_notification(text_widget, text)
         
-        # Démarrer l'animation de frappe
-        self.start_typing_animation(text_widget, text)
+        # Démarrer l'animation de frappe avec hauteur dynamique
+        self.start_typing_animation_dynamic(text_widget, text)
 
-    def start_typing_animation(self, text_widget, full_text):
-        """Démarre l'animation de frappe avec formatage en temps réel"""
+    def setup_fast_scroll_forwarding(self, text_widget):
+        """Scroll rapide UNIFORME peu importe où est la souris"""
+        def ultra_fast_scroll_forward(event):
+            try:
+                if hasattr(self, 'chat_frame'):
+                    if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                        # Pour CustomTkinter - scroll ULTRA rapide
+                        canvas = self.chat_frame._parent_canvas
+                        # Sensibilité MAXIMUM pour vitesse uniforme
+                        scroll_delta = -1 * (event.delta // 30)  # Encore plus rapide (30 au lieu de 40)
+                        canvas.yview_scroll(scroll_delta, "units")
+                    else:
+                        # Pour tkinter standard - scroll ULTRA rapide
+                        parent = self.chat_frame.master
+                        while parent and not hasattr(parent, 'yview_scroll'):
+                            parent = parent.master
+                        if parent:
+                            scroll_delta = -1 * (event.delta // 30)  # Plus rapide
+                            parent.yview_scroll(scroll_delta, "units")
+            except Exception as e:
+                print(f"⚠️ Erreur ultra scroll: {e}")
+            return "break"  # IMPORTANT : Empêcher complètement le scroll local
+        
+        # Appliquer le scroll ultra rapide
+        text_widget.bind("<MouseWheel>", ultra_fast_scroll_forward)
+        text_widget.bind("<Button-4>", ultra_fast_scroll_forward)  # Linux
+        text_widget.bind("<Button-5>", ultra_fast_scroll_forward)  # Linux
+        
+        # Désactiver TOUTES les formes de scroll et navigation locale
+        disabled_events = [
+            "<Up>", "<Down>", "<Left>", "<Right>",
+            "<Prior>", "<Next>", "<Home>", "<End>",
+            "<Control-Home>", "<Control-End>", 
+            "<Page_Up>", "<Page_Down>",
+            "<Shift-Up>", "<Shift-Down>",
+            "<Control-Up>", "<Control-Down>"
+        ]
+        for event in disabled_events:
+            text_widget.bind(event, lambda e: "break")
+        
+        # IMPORTANT : Empêcher le focus sur le widget pour éviter la lenteur
+        text_widget.bind("<Button-1>", lambda e: "break")  # Empêche le focus sur clic
+        text_widget.configure(takefocus=False)  # Pas de focus possible
+
+    def start_typing_animation_dynamic(self, text_widget, full_text):
+        """Animation avec désactivation de la saisie"""
+        # DÉSACTIVER la saisie pendant l'animation
+        self.set_input_state(False)
+        
         # Réinitialiser le widget
         text_widget.configure(state="normal")
         text_widget.delete("1.0", "end")
@@ -1030,13 +1071,142 @@ class ModernAIGUI:
         self.typing_index = 0
         self.typing_text = full_text
         self.typing_widget = text_widget
-        self.typing_speed = 4
+        self.typing_speed = 3
         
-        # NOUVEAU : Pré-configurer tous les tags de formatage
+        # Configurer tous les tags de formatage
         self._configure_formatting_tags(text_widget)
         
         # Démarrer l'animation
-        self.continue_typing_animation()
+        self.continue_typing_animation_dynamic()
+
+    def continue_typing_animation_dynamic(self):
+        """Animation avec scroll plus fluide et synchronisé"""
+        if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
+            return
+        
+        if self.typing_index < len(self.typing_text):
+            current_text = self.typing_text[:self.typing_index + 1]
+            
+            # Insérer le texte avec formatage
+            self.typing_widget.configure(state="normal")
+            self.typing_widget.delete("1.0", "end")
+            self._insert_formatted_text_progressive(self.typing_widget, current_text)
+            
+            # Ajustement de hauteur plus conservateur
+            self._adjust_widget_height_dynamically(self.typing_widget)
+            
+            # Scroll automatique MOINS fréquent pour éviter les saccades
+            if self.typing_index % 10 == 0:  # Scroll seulement tous les 10 caractères
+                self.typing_widget.see("end")
+                self.root.after(2, self._perform_scroll_to_bottom)
+            
+            self.typing_index += 1
+            
+            # Programmer le caractère suivant
+            self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
+        else:
+            # Animation terminée
+            self.finish_typing_animation_dynamic()
+
+    def _adjust_widget_height_dynamically(self, text_widget):
+        """Ajustement dynamique PRÉCIS pendant l'animation"""
+        try:
+            text_widget.update_idletasks()
+            
+            # Obtenir le nombre de lignes actuelles
+            end_index = text_widget.index("end-1c")
+            if end_index:
+                current_lines = int(end_index.split('.')[0])
+                
+                # Ajuster avec une marge MINIMALE
+                new_height = max(2, current_lines + 1)  # +1 seulement pour l'animation
+                
+                # Limiter pour éviter les bulles énormes
+                new_height = min(new_height, 20)
+                
+                text_widget.configure(height=new_height)
+                
+        except Exception as e:
+            print(f"⚠️ Erreur ajustement dynamique: {e}")
+
+    def finish_typing_animation_dynamic(self):
+        """Termine l'animation et RÉACTIVE la saisie"""
+        if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
+            # Appliquer le formatage final complet
+            self.typing_widget.configure(state="normal")
+            self.typing_widget.delete("1.0", "end")
+            self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
+            
+            # Ajustement final de la hauteur
+            self._adjust_widget_height_final(self.typing_widget, self.typing_text)
+            
+            # Désactiver le widget
+            self.typing_widget.configure(state="disabled")
+            
+            # Afficher le timestamp
+            self._show_timestamp_for_current_message()
+            
+            # RÉACTIVER la saisie utilisateur
+            self.set_input_state(True)
+            
+            # Nettoyer les variables
+            delattr(self, 'typing_widget')
+            delattr(self, 'typing_text')
+            delattr(self, 'typing_index')
+            
+            # Scroll final
+            self.root.after(100, self.scroll_to_bottom)
+
+    def is_animation_running(self):
+        """Vérifie si une animation d'écriture est en cours"""
+        return (hasattr(self, 'typing_widget') and 
+                hasattr(self, 'typing_text') and 
+                hasattr(self, 'typing_index'))
+
+    def _adjust_widget_height_final(self, text_widget, full_text):
+        """Ajustement PRÉCIS de la hauteur - plus de bulles trop hautes"""
+        try:
+            text_widget.update_idletasks()
+            
+            # Méthode 1: Compter les lignes réelles après formatage
+            end_index = text_widget.index("end-1c")
+            actual_lines = 1
+            if end_index:
+                actual_lines = int(end_index.split('.')[0])
+            
+            # Méthode 2: Estimation conservatrice basée sur le contenu
+            text_lines = full_text.count('\n') + 1
+            char_count = len(full_text)
+            
+            # Estimation plus précise du wrapping
+            estimated_wrapped = max(text_lines, char_count // 120)  # 120 chars par ligne
+            
+            # Prendre le MINIMUM des estimations + petite marge seulement
+            base_height = min(actual_lines, estimated_wrapped, text_lines + 3)
+            
+            # Marge de sécurité RÉDUITE (seulement 1-2 lignes)
+            if char_count < 100:
+                safety_margin = 1  # Très petite marge pour courts textes
+            elif char_count < 500:
+                safety_margin = 2  # Petite marge pour textes moyens
+            else:
+                safety_margin = 3  # Marge normale pour longs textes
+            
+            final_height = base_height + safety_margin
+            
+            # Limites raisonnables
+            final_height = max(2, min(final_height, 25))  # Entre 2 et 25 lignes max
+            
+            text_widget.configure(height=final_height)
+            
+            print(f"📐 Hauteur PRÉCISE: {char_count} chars → {actual_lines} réelles → {final_height} finale")
+            
+        except Exception as e:
+            print(f"⚠️ Erreur ajustement précis: {e}")
+            # Fallback plus conservateur
+            line_count = full_text.count('\n') + 1
+            fallback_height = max(2, min(line_count + 2, 15))
+            text_widget.configure(height=fallback_height)
 
     def _configure_formatting_tags(self, text_widget):
         """Configure tous les tags de formatage avant l'animation"""
@@ -1053,29 +1223,6 @@ class ModernAIGUI:
         text_widget.tag_configure("python_number", foreground="#bd93f9", font=('Consolas', 11))
         text_widget.tag_configure("python_builtin", foreground="#8be9fd", font=('Consolas', 11))
 
-    def continue_typing_animation(self):
-        """Continue l'animation avec formatage en temps réel"""
-        if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
-            return
-        
-        if self.typing_index < len(self.typing_text):
-            current_text = self.typing_text[:self.typing_index + 1]
-            
-            # NOUVEAU : Appliquer le formatage à chaque étape
-            self.typing_widget.configure(state="normal")
-            self.typing_widget.delete("1.0", "end")
-            self._insert_formatted_text_progressive(self.typing_widget, current_text)
-            
-            # Scroll automatique pendant la frappe
-            self.typing_widget.see("end")
-            
-            self.typing_index += 1
-            
-            # Programmer le caractère suivant
-            self.root.after(self.typing_speed, self.continue_typing_animation)
-        else:
-            # Animation terminée
-            self.finish_typing_animation()
 
     def _insert_formatted_text_progressive(self, text_widget, text):
         """Insère le texte avec formatage progressif (version simplifiée pour l'animation)"""
@@ -1121,61 +1268,56 @@ class ModernAIGUI:
             if italic_pos < len(remaining_text):
                 text_widget.insert("end", remaining_text[italic_pos:], "normal")
 
-    def finish_typing_animation(self):
-        """Termine l'animation et applique le formatage complet"""
-        if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
-            # Appliquer le formatage final complet
-            self.typing_widget.configure(state="normal")
-            self.typing_widget.delete("1.0", "end")
-            self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
-            
-            # Désactiver le widget
-            self.typing_widget.configure(state="disabled")
-            
-            # Nettoyer les variables
-            delattr(self, 'typing_widget')
-            delattr(self, 'typing_text')
-            delattr(self, 'typing_index')
-            
-            # Scroll final
-            self.root.after(100, self.scroll_to_bottom)
+
+    def _show_timestamp_for_current_message(self):
+        """Affiche le timestamp pour le message actuel"""
+        from datetime import datetime
+        
+        # Trouver le dernier message container
+        if hasattr(self, 'current_message_container'):
+            timestamp = datetime.now().strftime("%H:%M")
+            time_label = self.create_label(
+                self.current_message_container,
+                text=timestamp,
+                font=('Segoe UI', 10),
+                fg_color=self.colors['bg_chat'],
+                text_color=self.colors['text_secondary']
+            )
+            time_label.grid(row=1, column=0, sticky="w", padx=0, pady=(2, 6))
 
     def _calculate_text_lines(self, text, chars_per_line=120):
         """Version finale sans limite"""
         return self._calculate_text_lines_unlimited(text)
     
     def _calculate_text_lines_unlimited(self, text):
-        """Calcul de hauteur PRÉCIS - plus d'espaces vides (SOLUTION 1)"""
+        """Calcul de hauteur EXACT - Méthode corrigée pour éviter les bulles avec scroll"""
         if not text:
             return 2
         
-        # 1. Compter les vraies lignes de contenu
+        # Compter les vraies lignes
         lines = text.split('\n')
-        content_lines = 0
+        content_lines = len([line for line in lines if line.strip()])
         
-        for line in lines:
-            if line.strip():  # Seulement les lignes avec du contenu
-                content_lines += 1
-            else:
-                content_lines += 1  # Compter les lignes vides aussi
-        
-        # 2. Estimation du wrapping (plus précise)
-        total_chars = len(text.replace('\n', ' '))  # Remplacer \n par espace pour compter
-        chars_per_line = 100  # Plus conservateur
+        # Estimation du wrapping avec une approche plus conservatrice
+        total_chars = len(text.replace('\n', ' '))
+        chars_per_line = 120  # Largeur de référence
         wrapped_lines = max(content_lines, (total_chars + chars_per_line - 1) // chars_per_line)
         
-        # 3. Ajustement pour les blocs de code (mais moins généreux)
-        code_blocks = text.count('```python')
-        if code_blocks > 0:
-            wrapped_lines += code_blocks * 1  # Seulement +1 par bloc au lieu de +2
+        # CORRECTION MAJEURE : Calcul plus généreux pour éviter le scroll dans les bulles
+        # Au lieu de 1.05, utiliser 1.25 pour avoir plus de marge
+        safety_margin = max(3, int(wrapped_lines * 0.25))  # 25% de marge minimum 3
+        final_lines = wrapped_lines + safety_margin
         
-        # 4. Marge de sécurité TRÈS RÉDUITE (5% seulement)
-        final_lines = int(wrapped_lines * 1.05)
+        # Pour les longs messages, être encore plus généreux
+        if len(text) > 2000:
+            final_lines = int(final_lines * 1.3)
+        elif len(text) > 1000:
+            final_lines = int(final_lines * 1.2)
         
-        # 5. Minimum raisonnable
-        result = max(3, final_lines)
+        # Minimum raisonnable
+        result = max(5, final_lines)
         
-        print(f"📏 CALCUL PRÉCIS: {len(text)} chars → {content_lines} lignes content → {wrapped_lines} wrapped → {result} final")
+        print(f"📏 CALCUL GÉNÉREUX: {len(text)} chars → {content_lines} lignes → {wrapped_lines} wrapped → {result} final (marge: {safety_margin})")
         
         return result
 
@@ -1808,20 +1950,41 @@ class ModernAIGUI:
     
     def on_enter_key(self, event):
         """Gère la touche Entrée - VERSION CORRIGÉE"""
-        # Vérifier l'état de la touche Shift
-        shift_pressed = bool(event.state & 0x1)
-        
-        if shift_pressed:
-            # Shift+Entrée : insérer une nouvelle ligne (comportement par défaut)
-            return None  # Laisser tkinter gérer l'insertion de nouvelle ligne
-        else:
-            # Entrée seule : envoyer le message
-            try:
-                self.send_message()
-                return "break"  # Empêcher l'insertion d'une nouvelle ligne
-            except Exception as e:
-                print(f"❌ Erreur lors de l'envoi du message: {e}")
+        try:
+            # Vérifier si une animation est en cours
+            if self.is_animation_running():
+                print("⚠️ Animation en cours, Entrée ignorée")
                 return "break"
+            
+            # Vérifier l'état de la touche Shift
+            shift_pressed = bool(event.state & 0x1)
+            
+            if shift_pressed:
+                # Shift+Entrée : insérer une nouvelle ligne (comportement par défaut)
+                return None  # Laisser tkinter gérer l'insertion de nouvelle ligne
+            else:
+                # Entrée seule : envoyer le message
+                try:
+                    self.send_message()
+                    return "break"  # Empêcher l'insertion d'une nouvelle ligne
+                except Exception as e:
+                    print(f"❌ Erreur lors de l'envoi du message: {e}")
+                    return "break"
+        except Exception as e:
+            print(f"❌ Erreur on_enter_key: {e}")
+            return "break"
+        
+    def ensure_input_is_ready(self):
+        """S'assure que l'input est prêt à recevoir du texte"""
+        try:
+            if hasattr(self, 'input_text'):
+                # S'assurer que l'input est activé au démarrage
+                self.input_text.configure(state="normal")
+                # Mettre le focus
+                self.root.after(200, lambda: self.input_text.focus_set())
+                print("✅ Input ready")
+        except Exception as e:
+            print(f"⚠️ Erreur ensure_input_ready: {e}")
     
     def on_shift_enter(self, event):
         """Gère Shift+Entrée pour nouvelle ligne - VERSION CORRIGÉE"""
@@ -1937,19 +2100,40 @@ class ModernAIGUI:
             self.thinking_label.configure(text="")
    
     def send_message(self):
-        """Envoie le message de l'utilisateur - VERSION AVEC DEBUG"""
+        """Envoie le message - VERSION CORRIGÉE"""
         try:
             print("🔍 DEBUG: send_message appelé")
             
-            # Récupérer le texte de l'input
-            message = self.input_text.get("1.0", "end-1c").strip()
+            # CORRECTION : Vérifier si on est en cours d'animation au lieu de l'état du widget
+            if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
+                print("⚠️ Animation en cours, envoi bloqué")
+                return
+            
+            # Récupérer le texte AVANT de vérifier l'état
+            message = ""
+            try:
+                message = self.input_text.get("1.0", "end-1c").strip()
+            except Exception as e:
+                print(f"❌ Erreur lecture input: {e}")
+                return
+                
             print(f"🔍 DEBUG: Message récupéré: '{message}'")
             
             if not message:
                 print("⚠️ DEBUG: Message vide, abandon")
                 return
             
-            # Cacher les indicateurs de statut
+            # S'assurer que la saisie est activée pour pouvoir lire et effacer
+            was_disabled = False
+            try:
+                current_state = self.input_text.cget("state")
+                if current_state == "disabled":
+                    was_disabled = True
+                    self.input_text.configure(state="normal")
+            except:
+                pass
+            
+            # Cacher les indicateurs
             self.hide_status_indicators()
             
             # Ajouter le message utilisateur
@@ -1957,8 +2141,15 @@ class ModernAIGUI:
             self.add_message_bubble(message, is_user=True)
             
             # Effacer la zone de saisie
-            self.input_text.delete("1.0", "end")
-            print("🔍 DEBUG: Zone de saisie effacée")
+            try:
+                self.input_text.delete("1.0", "end")
+                print("🔍 DEBUG: Zone de saisie effacée")
+            except Exception as e:
+                print(f"❌ Erreur effacement: {e}")
+            
+            # Remettre l'état précédent si nécessaire
+            if was_disabled:
+                self.input_text.configure(state="disabled")
             
             # Scroll vers le bas
             self.scroll_to_bottom()
@@ -1981,6 +2172,12 @@ class ModernAIGUI:
             print(f"❌ ERROR: Erreur dans send_message: {e}")
             import traceback
             traceback.print_exc()
+            
+            # En cas d'erreur, s'assurer que la saisie est réactivée
+            try:
+                self.set_input_state(True)
+            except:
+                pass
     
     def process_user_message(self, message):
         """Traite le message utilisateur en arrière-plan - VERSION AVEC DEBUG"""
@@ -2087,9 +2284,14 @@ class ModernAIGUI:
         self.root.after(200, self._perform_scroll_to_bottom)
     
     def _perform_scroll_to_bottom(self):
-        """Effectue le scroll après que le contenu soit rendu"""
+        """Scroll synchronisé pour éviter le décalage entre icônes et texte"""
         try:
+            # Forcer la mise à jour de TOUT l'interface avant le scroll
             self.root.update_idletasks()
+            self.main_container.update_idletasks()
+            
+            if hasattr(self, 'chat_frame'):
+                self.chat_frame.update_idletasks()
             
             if self.use_ctk:
                 # CustomTkinter
@@ -2099,17 +2301,21 @@ class ModernAIGUI:
                         parent = parent.master
                     
                     if parent and hasattr(parent, 'yview_moveto'):
+                        # Double mise à jour pour synchronisation parfaite
                         parent.update_idletasks()
                         parent.yview_moveto(1.0)
+                        # Petite pause pour éviter le décalage
+                        self.root.after(1, lambda: parent.yview_moveto(1.0))
             else:
                 # Tkinter standard
                 parent = self.chat_frame.master
                 if hasattr(parent, 'yview_moveto'):
                     parent.update_idletasks()
                     parent.yview_moveto(1.0)
+                    self.root.after(1, lambda: parent.yview_moveto(1.0))
                     
         except Exception as e:
-            print(f"Erreur scroll: {e}")
+            print(f"Erreur scroll synchronisé: {e}")
     
     def _force_scroll_bottom(self):
         """Force le scroll vers le bas - tentative secondaire"""
