@@ -922,7 +922,7 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
 💬 **Pour discuter :** Posez-moi vos questions naturellement
 📄 **Pour les documents :** Utilisez les boutons pour traiter vos PDF/DOCX, puis demandez-moi de les résumer ou de répondre à des questions
 💻 **Pour le code :** Traitez vos fichiers Python, puis demandez-moi de les expliquer ou de les améliorer
-� **Pour la recherche internet :** Dites "Cherche sur internet [sujet]"
+🌐 **Pour la recherche internet :** Dites "Cherche sur internet [sujet]"
 😄 **Pour l'humour :** Demandez-moi une blague !
 
 🎯 **Exemples :**
@@ -1806,7 +1806,7 @@ print(compte.afficher_solde())      # "Solde de Alice: 1300€"
 
     def _explain_list_vs_dict_difference(self) -> str:
         """Explique la différence entre les listes et les dictionnaires"""
-        return """� **Différence entre Liste et Dictionnaire en Python**
+        return """📋 **Différence entre Liste et Dictionnaire en Python**
 
 Voici les principales différences entre ces deux structures de données :
 
