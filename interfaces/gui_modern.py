@@ -91,32 +91,45 @@ except ImportError as e:
 
 class ModernAIGUI:
     def set_input_state(self, enabled: bool):
-        """Active ou désactive la zone de saisie - VERSION CORRIGÉE"""
+        """Active ou désactive la zone de saisie ET les boutons d'action"""
         try:
+            # Zone de saisie
             if hasattr(self, 'input_text'):
+                state = "normal" if enabled else "disabled"
+                try:
+                    self.input_text.configure(state=state)
+                except Exception:
+                    pass
                 if enabled:
-                    self.input_text.configure(state="normal")
-                    # Remettre le focus avec un délai
                     self.root.after(100, lambda: self._safe_focus_input())
                 else:
                     # Sauvegarder le contenu avant de désactiver
-                    if hasattr(self, 'input_text'):
-                        try:
-                            self._saved_input_content = self.input_text.get("1.0", "end-1c")
-                        except:
-                            self._saved_input_content = ""
-                    self.input_text.configure(state="disabled")
-            
-            # Gérer l'état du bouton d'envoi
+                    try:
+                        self._saved_input_content = self.input_text.get("1.0", "end-1c")
+                    except:
+                        self._saved_input_content = ""
+            # Bouton d'envoi
             if hasattr(self, 'send_button'):
                 try:
-                    if self.use_ctk:
-                        self.send_button.configure(state="normal" if enabled else "disabled")
-                    else:
-                        self.send_button.configure(state="normal" if enabled else "disabled")
-                except Exception as e:
+                    self.send_button.configure(state="normal" if enabled else "disabled")
+                except Exception:
                     pass
-                    
+            # Boutons PDF, DOCX, Code
+            for btn_name in ["pdf_btn", "docx_btn", "code_btn"]:
+                if hasattr(self, btn_name):
+                    btn = getattr(self, btn_name)
+                    try:
+                        btn.configure(state="normal" if enabled else "disabled")
+                    except Exception:
+                        pass
+            # Boutons Clear Chat et Aide
+            for btn_name in ["clear_btn", "help_btn"]:
+                if hasattr(self, btn_name):
+                    btn = getattr(self, btn_name)
+                    try:
+                        btn.configure(state="normal" if enabled else "disabled")
+                    except Exception:
+                        pass
         except Exception as e:
             pass
 
@@ -480,22 +493,22 @@ class ModernAIGUI:
         buttons_frame.grid(row=0, column=2, padx=(10, 0))
         
         # Bouton Clear Chat
-        clear_btn = self.create_modern_button(
+        self.clear_btn = self.create_modern_button(
             buttons_frame,
             text="🗑️ Clear Chat",
             command=self.clear_chat,
             style="secondary"
         )
-        clear_btn.grid(row=0, column=0, padx=(0, 10))
-        
-        # Bouton Help
-        help_btn = self.create_modern_button(
+        self.clear_btn.grid(row=0, column=0, padx=(0, 10))
+
+        # Bonton Help
+        self.help_btn = self.create_modern_button(
             buttons_frame,
             text="❓ Aide",
             command=self.show_help,
             style="secondary"
         )
-        help_btn.grid(row=0, column=1, padx=(0, 10))
+        self.help_btn.grid(row=0, column=1, padx=(0, 10))
         
         # Indicateur de statut - taille réduite
         self.status_label = self.create_label(
@@ -605,29 +618,29 @@ class ModernAIGUI:
         file_buttons = self.create_frame(button_frame, fg_color=self.colors['bg_primary'])
         file_buttons.grid(row=0, column=0, sticky="w")
         
-        pdf_btn = self.create_modern_button(
+        self.pdf_btn = self.create_modern_button(
             file_buttons,
             text="📄 PDF",
             command=self.load_pdf_file,
             style="file"
         )
-        pdf_btn.grid(row=0, column=0, padx=(0, 5))
-        
-        docx_btn = self.create_modern_button(
+        self.pdf_btn.grid(row=0, column=0, padx=(0, 5))
+
+        self.docx_btn = self.create_modern_button(
             file_buttons,
             text="📝 DOCX",
             command=self.load_docx_file,
             style="file"
         )
-        docx_btn.grid(row=0, column=1, padx=(0, 5))
-        
-        code_btn = self.create_modern_button(
+        self.docx_btn.grid(row=0, column=1, padx=(0, 5))
+
+        self.code_btn = self.create_modern_button(
             file_buttons,
             text="💻 Code",
             command=self.load_code_file,
             style="file"
         )
-        code_btn.grid(row=0, column=2, padx=(0, 10))
+        self.code_btn.grid(row=0, column=2, padx=(0, 10))
         
         # Bouton d'envoi principal
         self.send_button = self.create_modern_button(

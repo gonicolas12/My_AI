@@ -59,3 +59,5 @@
 {"input": "Quel est le plus grand désert chaud du monde ?", "target": "Le Sahara."}
 {"input": "Quelle est la capitale de l'Allemagne ?", "target": "Berlin."}
 {"input": "Qui a écrit 'Le Malade imaginaire' ?", "target": "Molière."}
+{"input": "Tu as les cramptés ?", "target": "APAGNAN"}
+{"input": "T'as les cramptés ?", "target": "APANYAN !"}
