@@ -84,6 +84,12 @@ validators>=0.20.0
 # Expressions régulières avancées
 regex>=2023.0.0
 
+# Machine learning
+torch
+transformers
+scikit-learn
+rapidfuzz
+
 # ====================================
 # DÉVELOPPEMENT ET TESTS
 # ====================================

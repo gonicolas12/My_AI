@@ -52,15 +52,19 @@ class AIEngine:
         # Modèle IA local personnalisé avec mémoire de conversation (100% autonome)
         try:
             from models.custom_ai_model import CustomAIModel
+            from models.ml_faq_model import MLFAQModel
             self.local_ai = CustomAIModel(conversation_memory=self.conversation_memory)
+            self.ml_ai = MLFAQModel()  # Modèle ML local (TF-IDF)
             self.model = self.local_ai  # Alias pour compatibilité avec l'interface graphique
             self.logger.info("✅ Modèle IA local avec mémoire initialisé")
+            self.logger.info("✅ Modèle ML (TF-IDF) initialisé")
             # Initialisation du gestionnaire de LLM
             self.llm_manager = self.local_ai  # Pour compatibilité avec les fonctions qui utilisent llm_manager
         except Exception as e:
             self.logger.error(f"❌ Erreur lors de l'initialisation du modèle IA : {e}")
             # Fallback sur l'ancien système
             self.local_ai = CustomAIModel()
+            self.ml_ai = None
             self.model = self.local_ai
             self.llm_manager = self.local_ai
         
@@ -77,37 +81,51 @@ class AIEngine:
     
     def process_text(self, text: str) -> str:
         """
-        Traite un texte en utilisant le modèle IA local personnalisé
-        
-        Args:
-            text: Texte à traiter
-            
-        Returns:
-            Réponse de l'IA sous forme de texte
+        Traite un texte en donnant la priorité à la FAQ ML (TF-IDF), puis au modèle IA custom.
         """
         try:
             self.logger.info(f"Processing text: {text[:50]}...")
-            
-            # Utilisation du modèle IA local 100% autonome
-            response = self.local_ai.generate_response(text)
-            
-            self.logger.info(f"AI model response: {response[:50]}...")
-            
-            # On sauvegarde l'échange sans utiliser add_message qui cause des erreurs
+            print(f"[AIEngine] Appel FAQ pour: '{text}'")
+            # 1. Tenter la FAQ ML d'abord
+            response_ml = None
+            if self.ml_ai is not None:
+                try:
+                    response_ml = self.ml_ai.predict(text)
+                    self.logger.info(f"ML model response: {str(response_ml)[:50]}...")
+                except Exception as e:
+                    self.logger.warning(f"Erreur modèle ML: {e}")
+            if response_ml is not None and str(response_ml).strip():
+                # On sauvegarde l'échange
+                try:
+                    self.conversation_manager.add_exchange(text, {"message": response_ml})
+                except:
+                    self.logger.warning("Impossible de sauvegarder la conversation")
+                return response_ml
+
+            # 2. Sinon, générer la réponse custom
+            response_custom = self.local_ai.generate_response(text)
+            self.logger.info(f"Custom model response: {response_custom[:50]}...")
+
+            # On sauvegarde l'échange
             try:
-                # Tente d'utiliser add_exchange qui est une autre méthode disponible
-                self.conversation_manager.add_exchange(text, {"message": response})
+                self.conversation_manager.add_exchange(text, {"message": response_custom})
             except:
-                # Si ça échoue aussi, on ne fait rien - l'important est de ne pas planter
                 self.logger.warning("Impossible de sauvegarder la conversation")
-            
-            return response
-        
+            return response_custom
+
         except Exception as e:
             self.logger.error(f"Erreur dans process_text: {e}")
             self.logger.warning("Utilisation du fallback response")
             fallback_response = self._generate_fallback_response(text)
             return fallback_response
+
+    def _merge_responses(self, response_custom, response_ml):
+        """
+        Donne la priorité à la FAQ ML : si une réponse MLFAQ existe, elle est utilisée, sinon on utilise la réponse custom.
+        """
+        if response_ml is not None and str(response_ml).strip():
+            return str(response_ml)
+        return response_custom
     
     def _generate_simple_function(self, text: str) -> str:
         """Génère une fonction simple basée sur la demande"""
@@ -394,13 +412,28 @@ if __name__ == "__main__":
         """
         try:
             self.logger.info(f"Traitement de la requête: {query[:100]}...")
-            
+            print(f"[AIEngine] Appel FAQ pour: '{query}' (async)")
+            # 1. Tenter la FAQ ML d'abord
+            response_ml = None
+            if hasattr(self, 'ml_ai') and self.ml_ai is not None:
+                try:
+                    response_ml = self.ml_ai.predict(query)
+                    self.logger.info(f"ML model response: {str(response_ml)[:50]}...")
+                except Exception as e:
+                    self.logger.warning(f"Erreur modèle ML: {e}")
+            if response_ml is not None and str(response_ml).strip():
+                # On sauvegarde l'échange
+                try:
+                    self.conversation_manager.add_exchange(query, {"message": response_ml})
+                except:
+                    self.logger.warning("Impossible de sauvegarder la conversation (FAQ async)")
+                return {"type": "faq", "message": response_ml, "success": True}
+
+            # 2. Sinon, routage normal
             # Analyse de la requête
             query_type = self._analyze_query_type(query)
-            
             # Préparation du contexte
             full_context = self._prepare_context(query, context)
-            
             # Traitement selon le type
             if query_type == "conversation":
                 response = await self._handle_conversation(query, full_context)
@@ -412,12 +445,9 @@ if __name__ == "__main__":
                 response = await self._handle_document_generation(query, full_context)
             else:
                 response = await self._handle_general_query(query, full_context)
-            
             # Sauvegarde dans l'historique
             self.conversation_manager.add_exchange(query, response)
-            
             return response
-            
         except Exception as e:
             self.logger.error(f"Erreur lors du traitement: {e}")
             return {

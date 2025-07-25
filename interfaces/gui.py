@@ -590,7 +590,7 @@ class AIAssistantGUI:
                                 self.ai_engine.session_context["documents_processed"].append(clean_filename)
                                 self.ai_engine.session_context["last_document_type"] = "PDF"
                                 self.ai_engine.session_context["current_document"] = clean_filename
-                                print(f"✅ PDF '{filename}' immédiatement stocké dans la mémoire IA")
+                                # Debug removed
                         
                         # Generate summary through AI
                         if self.ai_engine and len(text.strip()) > 10:
@@ -642,7 +642,7 @@ class AIAssistantGUI:
                                 self.ai_engine.session_context["documents_processed"].append(clean_filename)
                                 self.ai_engine.session_context["last_document_type"] = "DOCX"
                                 self.ai_engine.session_context["current_document"] = clean_filename
-                                print(f"✅ DOCX '{filename}' immédiatement stocké dans la mémoire IA")
+                                # Debug removed
                         
                         # Generate analysis through AI
                         if self.ai_engine and content:
@@ -713,7 +713,7 @@ class AIAssistantGUI:
                                 # Update session context
                                 self.ai_engine.session_context["code_files_processed"].append(clean_filename)
                                 self.ai_engine.session_context["current_document"] = clean_filename
-                                print(f"✅ Code '{filename}' immédiatement stocké dans la mémoire IA")
+                                # Debug removed
                         
                         # Generate initial analysis message
                         initial_message = (
@@ -797,7 +797,7 @@ Tapez vos demandes directement dans le chat, par exemple :
                         "last_document_type": None,
                         "current_document": None
                     }
-                    print("✅ Mémoire IA et contexte de session effacés")
+                    # Debug removed
                 
                 self.show_welcome_message()
                 self.update_status("Conversation et mémoire effacées")

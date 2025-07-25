@@ -10,7 +10,7 @@
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode
 - 🔧 **Fonctionnement 100% Locale**
 
-## 🏗️ Architecture Modulaire
+## 🏗️ Architecture Modulaire & FAQ Thématique
 
 ```
 my_ai/
@@ -51,6 +51,8 @@ my_ai/
 │   ├── file_manager.py        # Gestion fichiers
 │   ├── logger.py              # Logging
 │   └── validators.py          # Validation
+├── data/                      # Données d'enrichissement FAQ
+│   └── enrichissement/        # Exemples thématiques
 ├── tests/                     # Tests unitaires
 ├── docs/                      # Documentation
 ├── examples/                  # Exemples d'utilisation
@@ -62,6 +64,12 @@ my_ai/
 ```
 
 ## 🚀 Fonctionnalités Principales
+
+### 📚 FAQ Thématique Prioritaire (v4.0.0)
+- **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data/` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
+- **Chargement automatique** : Toutes les questions/réponses sont fusionnées et accessibles instantanément
+- **Matching prioritaire** : La FAQ répond avant tout autre modèle
+- **Personnalisation** : Ajoutez, modifiez ou supprimez des fichiers à la volée
 
 ### 🧠 IA Locale Avancée
 - **Reconnaissance d'intentions** : Différencie automatiquement salutations, questions techniques, demandes sur documents

@@ -28,14 +28,14 @@ try:
     CTK_AVAILABLE = True
 except ImportError:
     CTK_AVAILABLE = False
-    print("⚠️  CustomTkinter non disponible, utilisation de tkinter standard")
+    # CustomTkinter non disponible, utilisation de tkinter standard
 
 try:
     from tkinterdnd2 import TkinterDnD
     DND_AVAILABLE = True
 except ImportError:
     DND_AVAILABLE = False
-    print("⚠️  TkinterDnD2 non disponible, drag & drop désactivé")
+    # TkinterDnD2 non disponible, drag & drop désactivé
 
 try:
     from interfaces.modern_styles import *
@@ -61,7 +61,7 @@ try:
     CTK_AVAILABLE = True
 except ImportError:
     CTK_AVAILABLE = False
-    print("⚠️  CustomTkinter non disponible, utilisation de tkinter standard")
+    # CustomTkinter non disponible, utilisation de tkinter standard
 
 try:
     from core.ai_engine import AIEngine
@@ -115,10 +115,10 @@ class ModernAIGUI:
                     else:
                         self.send_button.configure(state="normal" if enabled else "disabled")
                 except Exception as e:
-                    print(f"⚠️ Erreur bouton envoi: {e}")
+                    pass
                     
         except Exception as e:
-            print(f"⚠️ Erreur set_input_state: {e}")
+            pass
 
     def _safe_focus_input(self):
         """Met le focus sur l'input de manière sécurisée"""
@@ -134,7 +134,7 @@ class ModernAIGUI:
                             self.input_text.insert("1.0", self._saved_input_content)
                         delattr(self, '_saved_input_content')
         except Exception as e:
-            print(f"⚠️ Erreur focus: {e}")
+            pass
 
     """Interface Graphique Moderne pour l'Assistant IA - Style Claude"""
     
@@ -754,7 +754,7 @@ class ModernAIGUI:
             else:
                 text = str(text)
         
-        print(f"🔍 DEBUG add_message_bubble: is_user={is_user}, text_length={len(text)}, preview='{text[:50]}...'")
+        # Debug removed
         
         # Ajouter à l'historique
         self.conversation_history.append({
@@ -783,20 +783,20 @@ class ModernAIGUI:
                 canvas = self.chat_frame._parent_canvas
                 canvas.update_idletasks()
                 yview = canvas.yview()
-                print(f"[DEBUG] USER scroll: yview avant={yview}, height={canvas.winfo_height()}")
+        # Debug removed
                 if yview and yview[1] < 1.0:
                     canvas.yview_moveto(1.0)
-                    print(f"[DEBUG] USER scroll: yview après={canvas.yview()}, height={canvas.winfo_height()}")
+                    pass
             else:
                 parent = self.chat_frame.master
                 parent.update_idletasks()
                 yview = parent.yview() if hasattr(parent, 'yview') else None
-                print(f"[DEBUG] USER scroll: yview avant={yview}, height={parent.winfo_height()}")
+                pass
                 if yview and yview[1] < 1.0:
                     parent.yview_moveto(1.0)
-                    print(f"[DEBUG] USER scroll: yview après={parent.yview()}, height={parent.winfo_height()}")
+                    pass
         except Exception as e:
-            print(f"⚠️ Erreur USER scroll: {e}")
+            pass
     
     def setup_scroll_forwarding(self, text_widget):
         """Configure le transfert du scroll - Version améliorée"""
@@ -819,7 +819,7 @@ class ModernAIGUI:
                             scroll_delta = -1 * (event.delta // 120) if event.delta else (-1 if event.num == 4 else 1)
                             parent.yview_scroll(scroll_delta, "units")
             except Exception as e:
-                print(f"⚠️ Erreur transfert scroll: {e}")
+                pass
             return "break"  # Empêcher le scroll local
         
         # Appliquer le transfert de scroll
@@ -842,7 +842,7 @@ class ModernAIGUI:
         if not isinstance(text, str):
             text = str(text)
         
-        print(f"👤 DEBUG USER: '{text}' ({len(text)} chars)")
+        # Debug removed
         
         # Frame principale
         main_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
@@ -921,11 +921,10 @@ class ModernAIGUI:
         self.insert_formatted_text_tkinter(text_widget, text)
         # Correction : attendre que le widget soit bien rendu avant d'ajuster la hauteur
         def adjust_height_later():
-            print(f"[DEBUG] (USER) Avant ajustement, largeur widget={text_widget.winfo_width()}px")
             self._adjust_widget_height_final(text_widget, text)
         text_widget.after(30, adjust_height_later)
 
-        print(f"👤 USER HAUTEUR PRÉCISE: {word_count} mots → {precise_height} lignes")
+        # Debug removed
         
         # Empêcher l'édition mais permettre la sélection
         def on_key_press(event):
@@ -1036,7 +1035,7 @@ class ModernAIGUI:
                 context_menu.tk_popup(event.x_root, event.y_root)
                 
             except Exception as e:
-                print(f"Erreur menu contextuel: {e}")
+                pass
             finally:
                 try:
                     context_menu.grab_release()
@@ -1109,13 +1108,13 @@ class ModernAIGUI:
         text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
         # Ajustement final pour garantir aucune barre de scroll interne
         self._adjust_widget_height_final(text_widget, text)
-        print(f"[DEBUG] Création widget IA: text_widget height={text_widget.cget('height')}, lines={text.count(chr(10))+1}")
+        # Debug removed
         if hasattr(self, 'chat_frame'):
             try:
                 parent_widget = self.chat_frame.master
-                if hasattr(parent_widget, 'yview'): print(f"[DEBUG] chat_frame yview={parent_widget.yview()}")
-            except Exception as e:
-                print(f"[DEBUG] Erreur lecture yview: {e}")
+                pass
+            except Exception:
+                pass
         
         # NOUVELLE APPROCHE : Bind minimal pour permettre la sélection
         def prevent_editing_only(event):
@@ -1266,7 +1265,7 @@ class ModernAIGUI:
 
             # Ajustement dynamique de la hauteur à CHAQUE étape
             self._adjust_widget_height_dynamically(self.typing_widget)
-            print(f"[DEBUG] Animation: typing_index={self.typing_index}, widget height={self.typing_widget.cget('height')}")
+            # Debug removed
 
             # Scroll pendant l'animation uniquement si le bas n'est pas visible
             if hasattr(self, 'chat_frame') and self.typing_index % 10 == 0:
@@ -1274,25 +1273,25 @@ class ModernAIGUI:
                     if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
                         canvas = self.chat_frame._parent_canvas
                         yview = canvas.yview()
-                        print(f"[DEBUG] Animation IA: yview={yview}, height={canvas.winfo_height()}, widget_height={self.typing_widget.winfo_height()}")
+                        pass
                         widget_bottom = self.typing_widget.winfo_rooty() + self.typing_widget.winfo_height()
                         container_bottom = canvas.winfo_rooty() + canvas.winfo_height()
-                        print(f"[DEBUG] Animation IA: widget_bottom={widget_bottom}, container_bottom={container_bottom}")
+                        pass
                         if widget_bottom > container_bottom or (yview and yview[1] < 1.0):
                             self.root.after(1, self._gentle_scroll_to_bottom)
-                            print(f"[DEBUG] Animation scroll triggered: yview={yview}")
+                            pass
                     else:
                         parent = self.chat_frame.master
                         yview = parent.yview() if hasattr(parent, 'yview') else None
-                        print(f"[DEBUG] Animation IA: yview={yview}, height={parent.winfo_height()}, widget_height={self.typing_widget.winfo_height()}")
+                        pass
                         widget_bottom = self.typing_widget.winfo_rooty() + self.typing_widget.winfo_height()
                         container_bottom = parent.winfo_rooty() + parent.winfo_height()
-                        print(f"[DEBUG] Animation IA: widget_bottom={widget_bottom}, container_bottom={container_bottom}")
+                        pass
                         if widget_bottom > container_bottom or (yview and yview[1] < 1.0):
                             self.root.after(1, self._gentle_scroll_to_bottom)
-                            print(f"[DEBUG] Animation scroll triggered: yview={yview}")
+                            pass
                 except Exception as e:
-                    print(f"[DEBUG] Erreur lecture yview anim: {e}")
+                    pass
 
             self.typing_index += 1
 
@@ -1309,18 +1308,18 @@ class ModernAIGUI:
                 if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
                     canvas = self.chat_frame._parent_canvas
                     yview = canvas.yview()
-                    print(f"[DEBUG] Avant gentle_scroll_to_bottom CTK: yview={yview}, height={canvas.winfo_height()}")
+                    pass
                     canvas.yview_moveto(1.0)
-                    print(f"[DEBUG] Après gentle_scroll_to_bottom CTK: yview={canvas.yview()}, height={canvas.winfo_height()}")
+                    pass
             else:
                 parent = self.chat_frame.master
                 yview = parent.yview() if hasattr(parent, 'yview') else None
-                print(f"[DEBUG] Avant gentle_scroll_to_bottom Tk: yview={yview}, height={parent.winfo_height()}")
+                pass
                 if hasattr(parent, 'yview_moveto'):
                     parent.yview_moveto(1.0)
-                    print(f"[DEBUG] Après gentle_scroll_to_bottom Tk: yview={parent.yview()}, height={parent.winfo_height()}")
+                pass
         except Exception as e:
-            print(f"⚠️ Erreur scroll doux: {e}")
+            pass
 
     def _adjust_widget_height_dynamically(self, text_widget):
         """Ajustement dynamique PRÉCIS pendant l'animation"""
@@ -1469,7 +1468,6 @@ class ModernAIGUI:
             for i in range(10):
                 text_widget.update_idletasks()
                 widget_width = text_widget.winfo_width()
-                print(f"[DEBUG] (ajustement) Essai {i+1}/10 : largeur widget={widget_width}px")
                 if widget_width > 50:
                     break
                 if hasattr(self, 'root'):
@@ -1477,7 +1475,6 @@ class ModernAIGUI:
                 time.sleep(0.01)
             else:
                 # Fallback si la largeur reste anormale
-                print(f"[WARN] Largeur widget anormale après 10 essais, fallback 400px")
                 widget_width = 400
             # Largeur moyenne d'un caractère (en pixels)
             font = text_widget.cget('font')
@@ -1505,9 +1502,7 @@ class ModernAIGUI:
                 height += 1
                 text_widget.configure(height=height)
                 text_widget.update_idletasks()
-            print(f"[DEBUG] Ajustement dynamique: width={widget_width}px, chars/line={chars_per_line}, lines={total_lines}, height={height}, yview={text_widget.yview()}")
-        except Exception as e:
-            print(f"⚠️ Erreur ajustement précis: {e}")
+        except Exception:
             text_widget.configure(height=7)
 
     def _configure_formatting_tags(self, text_widget):
@@ -1665,7 +1660,7 @@ class ModernAIGUI:
             self.root.after(2000, notification.destroy)
             
         except Exception as e:
-            print(f"⚠️ Erreur notification GUI: {e}")
+            pass
 
 
     def create_copy_menu_with_notification(self, widget, original_text):
@@ -2051,7 +2046,7 @@ class ModernAIGUI:
                     if yview[1] < 0.99:
                         if hasattr(self.chat_frame, 'yview_moveto'):
                             self.chat_frame.yview_moveto(1.0)
-            print(f"[DEBUG] gentle_scroll_to_bottom: yview={getattr(self.chat_frame, 'yview', lambda: None)()}")
+            pass
         except Exception as e:
             print(f"⚠️ Erreur scroll doux: {e}")
     
@@ -2408,11 +2403,11 @@ class ModernAIGUI:
     def send_message(self):
         """Envoie le message - VERSION CORRIGÉE"""
         try:
-            print("🔍 DEBUG: send_message appelé")
+            # Debug removed
             
             # CORRECTION : Vérifier si on est en cours d'animation au lieu de l'état du widget
             if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
-                print("⚠️ Animation en cours, envoi bloqué")
+                return
                 return
             
             # Récupérer le texte AVANT de vérifier l'état
@@ -2423,10 +2418,10 @@ class ModernAIGUI:
                 print(f"❌ Erreur lecture input: {e}")
                 return
                 
-            print(f"🔍 DEBUG: Message récupéré: '{message}'")
+            # Debug removed
             
             if not message:
-                print("⚠️ DEBUG: Message vide, abandon")
+                return
                 return
             
             # S'assurer que la saisie est activée pour pouvoir lire et effacer
@@ -2443,13 +2438,13 @@ class ModernAIGUI:
             self.hide_status_indicators()
             
             # Ajouter le message utilisateur
-            print("🔍 DEBUG: Ajout du message utilisateur")
+            # Debug removed
             self.add_message_bubble(message, is_user=True)
             
             # Effacer la zone de saisie
             try:
                 self.input_text.delete("1.0", "end")
-                print("🔍 DEBUG: Zone de saisie effacée")
+                # Debug removed
             except Exception as e:
                 print(f"❌ Erreur effacement: {e}")
             
@@ -2462,22 +2457,20 @@ class ModernAIGUI:
             
             # Afficher l'animation de réflexion
             self.show_thinking_animation()
-            print("🔍 DEBUG: Animation de réflexion lancée")
+            # Debug removed
             
             # Traitement en arrière-plan
-            print("🔍 DEBUG: Lancement du thread de traitement")
+            # Debug removed
             threading.Thread(
                 target=self.process_user_message,
                 args=(message,),
                 daemon=True
             ).start()
             
-            print("✅ DEBUG: send_message terminé avec succès")
+            # Debug removed
             
         except Exception as e:
-            print(f"❌ ERROR: Erreur dans send_message: {e}")
-            import traceback
-            traceback.print_exc()
+            # Debug removed
             
             # En cas d'erreur, s'assurer que la saisie est réactivée
             try:
@@ -2487,38 +2480,36 @@ class ModernAIGUI:
     
     def process_user_message(self, message):
         """Traite le message utilisateur en arrière-plan - VERSION AVEC DEBUG"""
-        print(f"🔍 DEBUG: process_user_message démarré avec '{message}'")
+        # Debug removed
         
         def run_async_task():
             """Exécute la tâche asynchrone dans un thread séparé"""
             try:
-                print("🔍 DEBUG: run_async_task démarré")
+                # Debug removed
                 
                 # Créer une nouvelle boucle d'événements pour ce thread
                 import asyncio
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 
-                print("🔍 DEBUG: Boucle asyncio créée")
+                # Debug removed
                 
                 # Exécuter la tâche asynchrone
-                print("🔍 DEBUG: Appel de ai_engine.process_query")
+                # Debug removed
                 response = loop.run_until_complete(self.ai_engine.process_query(message))
-                print(f"🔍 DEBUG: Réponse reçue: {type(response)} - {str(response)[:100]}...")
+                # Debug removed
                 
                 # Fermer la boucle
                 loop.close()
-                print("🔍 DEBUG: Boucle asyncio fermée")
+                # Debug removed
                 
                 # Mettre à jour l'interface dans le thread principal
                 self.root.after(0, self.hide_status_indicators)
                 self.root.after(0, lambda r=response: self.add_ai_response(r))
-                print("🔍 DEBUG: Réponse envoyée à l'interface")
+                # Debug removed
                 
             except Exception as e:
-                print(f"❌ ERROR: Erreur dans run_async_task: {e}")
-                import traceback
-                traceback.print_exc()
+                # Debug removed
                 
                 self.root.after(0, self.hide_status_indicators)
                 error_msg = f"❌ Erreur: {str(e)}"
@@ -2531,8 +2522,7 @@ class ModernAIGUI:
     
     def add_ai_response(self, response):
         """Ajoute une réponse de l'IA - VERSION CORRIGÉE pour affichage complet"""
-        print(f"🔍 DEBUG add_ai_response: type={type(response)}")
-        print(f"🔍 DEBUG contenu (premiers 200 chars): {str(response)[:200]}...")
+        # Debug removed
         
         # EXTRACTION ROBUSTE du texte de réponse
         if isinstance(response, dict):
@@ -2570,12 +2560,12 @@ class ModernAIGUI:
         else:
             text_response = str(response)
         
-        print(f"🔍 DEBUG: Texte final extrait ({len(text_response)} chars): '{text_response[:100]}...'")
+        # Debug removed
         
         # VÉRIFICATION que le texte n'est pas vide
         if not text_response or text_response.strip() == "" or text_response == "None":
             text_response = "⚠️ Réponse vide reçue"
-            print("⚠️ WARNING: Réponse vide détectée, utilisation d'un message par défaut")
+            pass
         
         # Ajouter le message avec le texte complet
         self.add_message_bubble(text_response, is_user=False)
