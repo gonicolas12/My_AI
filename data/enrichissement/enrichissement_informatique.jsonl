@@ -1,0 +1,5 @@
+{"input": "Quel est le code pour une condition en Python ?", "target": "if x > 0: print('Positif')"}
+{"input": "Comment afficher un nombre aléatoire en Python ?", "target": "import random; print(random.randint(1, 10))"}
+{"input": "Quel est le code pour une fonction lambda en Python ?", "target": "lambda x: x + 1"}
+{"input": "Comment afficher tous les éléments d'une liste en Python ?", "target": "for x in ma_liste: print(x)"}
+{"input": "Comment afficher le type d'une variable en Python ?", "target": "type(ma_var)"}

@@ -1,5 +1,34 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🧠 Version 4.0.0 - FAQ Thématique & Robustesse (25 Juillet 2025)
+
+### ✨ Nouveautés Majeures
+
+#### 📚 FAQ locale multi-fichiers thématiques
+- Chargement automatique de tous les fichiers `enrichissement*.jsonl` du dossier `data/`
+- Organisation possible par thèmes (culture, informatique, langues, sciences, synonymes, etc.)
+- Ajout, modification ou suppression de fichiers sans redémarrage du code
+
+#### 🧠 Matching FAQ prioritaire et ajustable
+- La FAQ est toujours consultée en premier, même en mode asynchrone (GUI moderne)
+- Seuils de tolérance aux fautes d’orthographe ajustables (TF-IDF et fuzzy)
+- Matching exact, TF-IDF, puis fuzzy (rapide et robuste)
+
+#### 🔧 Debug et logs simplifiés
+- Suppression des logs verbeux (diffs, fuzzy, etc.)
+- Logs clairs sur la normalisation et le matching
+
+#### 🏗️ Robustesse et modularité
+- Correction du routage asynchrone (FAQ prioritaire partout)
+- Code plus modulaire pour l’enrichissement et la FAQ
+- Support de l’enrichissement par thèmes pour une personnalisation maximale
+
+### 📚 Documentation et guides mis à jour
+- Tous les guides (README, QUICKSTART, etc.) expliquent le fonctionnement de la FAQ thématique
+- Exemples d’organisation par thèmes et d’ajustement des seuils
+
+---
+
 ## 🎨 Version 3.0.0 - INTERFACE GRAPHIQUE MODERNE (18 Juillet 2025)
 
 ### ✨ Révolution de l'Interface Utilisateur

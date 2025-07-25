@@ -1,4 +1,10 @@
-# 🚀 Guide de Démarrage Rapide - My Personal AI v3.3.0
+# 🚀 Guide de Démarrage Rapide - My Personal AI v4.0.0 (25 juillet 2025)
+
+## 🆕 Nouveautés 4.0.0
+- FAQ locale multi-fichiers thématiques : placez autant de fichiers `enrichissement*.jsonl` que vous voulez dans `data/` (par thème, domaine, etc.)
+- Matching FAQ prioritaire et typo-tolérant (ajustable)
+- Debug simplifié et logs épurés
+- Correction du routage asynchrone (FAQ prioritaire partout)
 
 ## 📋 Qu'est-ce que My Personal AI ?
 
@@ -44,12 +50,18 @@ python main.py
 ```
 ✅ L'IA reconnaît les salutations naturelles : "slt", "salut", "bonjour", "bjr", etc.
 
-### Étape 2 : Poser une Question Technique
+### Étape 2 : Poser une Question Technique ou Thématique
 ```
 🤖 Vous : Comment créer une liste en Python ?
 🤖 IA : [Réponse technique complète avec exemples]
+
+🤖 Vous : Qui a peint la Joconde ?
+🤖 IA : Léonard de Vinci.
+
+🤖 Vous : Donne-moi un synonyme de "beau"
+🤖 IA : Joli, charmant, séduisant, gracieux.
 ```
-✅ L'IA distingue automatiquement les questions techniques et adapte ses réponses.
+✅ L'IA distingue automatiquement les questions techniques, culturelles, linguistiques, etc. grâce à la FAQ thématique prioritaire.
 
 ### Étape 3 : 🌐 NOUVEAU - Recherche Internet
 ```
@@ -74,6 +86,11 @@ python main.py
 ✅ Conversation et mémoire effacées proprement.
 
 ## 🧠 Fonctionnalités Intelligentes
+
+### 📚 FAQ Thématique Prioritaire
+- Placez vos fichiers d’enrichissement dans `data/` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
+- Toutes les questions/réponses sont fusionnées et accessibles instantanément
+- La FAQ répond avant tout autre modèle
 
 ### Reconnaissance d'Intentions
 L'IA détecte automatiquement :

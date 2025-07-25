@@ -1,6 +1,11 @@
-# 🎨 Interface Graphique Moderne - My Personal AI v3.0.0
+# 🎨 Interface Graphique Moderne - My Personal AI
 
-Une interface graphique moderne et élégante inspirée de Claude, avec des animations fluides, un design responsive et des fonctionnalités avancées de drag & drop.
+## 🆕 Nouveautés 4.0.0
+- FAQ locale multi-fichiers thématiques : tous les fichiers `enrichissement*.jsonl` du dossier `data/` sont chargés automatiquement
+- Matching FAQ prioritaire, même en mode asynchrone (GUI moderne)
+- Debug simplifié et logs épurés
+- Organisation des données d’enrichissement par thèmes
+- Robustesse accrue et correction du routage FAQ
 
 ## ✨ Nouvelles Fonctionnalités v3.0.0
 

@@ -1,4 +1,9 @@
-# 🤖 My Personal AI - IA 100% Locale
+# 🤖 My Personal AI v4.0.0 - IA 100% Locale (25 juillet 2025)
+
+## 🚀 Nouveautés 4.0.0
+- FAQ locale multi-fichiers thématiques : placez autant de fichiers `enrichissement*.jsonl` que vous voulez dans `data/` (par thème, domaine, etc.)
+- Matching FAQ prioritaire et typo-tolérant (ajustable)
+- Debug simplifié et logs épurés
 
 > **Assistant IA personnel entièrement local - Prêt en 30 secondes !**
 
@@ -24,6 +29,8 @@ python main.py
 ```
 
 ## ✨ Que fait cette IA Locale ?
+
+- 📚 FAQ thématique prioritaire : toutes vos questions/réponses sont accessibles instantanément, organisées par fichiers thématiques
 
 - **💬 Conversations intelligentes** : Reconnaît vos intentions (salutations, questions techniques, etc.)
 - **📄 Analyse de documents** : Résume vos PDF/DOCX avec mémoire contextuelle
