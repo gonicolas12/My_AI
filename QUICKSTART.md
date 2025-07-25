@@ -1,4 +1,4 @@
-# 🚀 Guide de Démarrage Rapide - My Personal AI v3.2.0
+# 🚀 Guide de Démarrage Rapide - My Personal AI v3.3.0
 
 ## 📋 Qu'est-ce que My Personal AI ?
 

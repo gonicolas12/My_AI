@@ -771,10 +771,32 @@ class ModernAIGUI:
 
         if is_user:
             self.create_user_message_bubble(msg_container, text)
-            # Pour les messages utilisateur, scroll rapide
-            self.root.after(50, self.scroll_to_bottom)
+            # Scroll utilisateur : scroller uniquement si le bas n'est pas visible
+            self.root.after(50, lambda: self._scroll_if_needed_user())
         else:
             self.create_ai_message_simple(msg_container, text)
+
+    def _scroll_if_needed_user(self):
+        """Scroll pour le message utilisateur uniquement si le bas n'est pas visible"""
+        try:
+            if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                canvas = self.chat_frame._parent_canvas
+                canvas.update_idletasks()
+                yview = canvas.yview()
+                print(f"[DEBUG] USER scroll: yview avant={yview}, height={canvas.winfo_height()}")
+                if yview and yview[1] < 1.0:
+                    canvas.yview_moveto(1.0)
+                    print(f"[DEBUG] USER scroll: yview après={canvas.yview()}, height={canvas.winfo_height()}")
+            else:
+                parent = self.chat_frame.master
+                parent.update_idletasks()
+                yview = parent.yview() if hasattr(parent, 'yview') else None
+                print(f"[DEBUG] USER scroll: yview avant={yview}, height={parent.winfo_height()}")
+                if yview and yview[1] < 1.0:
+                    parent.yview_moveto(1.0)
+                    print(f"[DEBUG] USER scroll: yview après={parent.yview()}, height={parent.winfo_height()}")
+        except Exception as e:
+            print(f"⚠️ Erreur USER scroll: {e}")
     
     def setup_scroll_forwarding(self, text_widget):
         """Configure le transfert du scroll - Version améliorée"""
@@ -814,7 +836,7 @@ class ModernAIGUI:
         text_widget.bind("<End>", lambda e: "break")
 
     def create_user_message_bubble(self, parent, text):
-        """Version avec hauteur précise pour les messages utilisateur aussi"""
+        """Version avec hauteur précise et sélection activée pour les messages utilisateur"""
         from datetime import datetime
         
         if not isinstance(text, str):
@@ -868,16 +890,16 @@ class ModernAIGUI:
             text_width = 70
         else:
             text_width = max(30, len(text) + 10)
-        
-        # Hauteur PRÉCISE
-        estimated_lines = max(line_count, char_count // 120 + 1)
-        precise_height = max(1, min(estimated_lines + 1, 10))  # +1 marge, max 10
-        
-        # Widget Text
+
+        # Hauteur PRÉCISE : calculée pour éviter tout scroll interne
+        chars_per_line = 60
+        estimated_lines = max(line_count, (char_count // chars_per_line) + 1)
+        precise_height = min(max(estimated_lines, 2), 25)  # min 2, max 25
+
         text_widget = tk.Text(
             bubble,
             width=text_width,
-            height=precise_height,  # Hauteur précise
+            height=precise_height,
             bg=self.colors['bg_user'],
             fg='#ffffff',
             font=('Segoe UI', 12),
@@ -886,27 +908,78 @@ class ModernAIGUI:
             bd=0,
             highlightthickness=0,
             state="normal",
-            cursor="arrow",
+            cursor="xterm",
             padx=10,
-            pady=8
+            pady=8,
+            selectbackground="#2563eb",
+            selectforeground="#ffffff",
+            exportselection=True,
+            takefocus=False,
+            insertwidth=0
         )
 
-        # Insérer le texte
         self.insert_formatted_text_tkinter(text_widget, text)
-        
+        # Correction : attendre que le widget soit bien rendu avant d'ajuster la hauteur
+        def adjust_height_later():
+            print(f"[DEBUG] (USER) Avant ajustement, largeur widget={text_widget.winfo_width()}px")
+            self._adjust_widget_height_final(text_widget, text)
+        text_widget.after(30, adjust_height_later)
+
         print(f"👤 USER HAUTEUR PRÉCISE: {word_count} mots → {precise_height} lignes")
         
-        text_widget.configure(state="disabled")
+        # Empêcher l'édition mais permettre la sélection
+        def on_key_press(event):
+            """Permet les raccourcis de sélection et copie, bloque l'édition"""
+            # Autoriser Ctrl+A (tout sélectionner)
+            if event.state & 0x4 and event.keysym.lower() == 'a':
+                text_widget.tag_add("sel", "1.0", "end")
+                return "break"
+            
+            # Autoriser Ctrl+C (copier)
+            elif event.state & 0x4 and event.keysym.lower() == 'c':
+                try:
+                    selected_text = text_widget.selection_get()
+                    if selected_text:
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(selected_text)
+                        if hasattr(self, 'show_copy_notification'):
+                            self.show_copy_notification("📋 Sélection copiée !")
+                except tk.TclError:
+                    pass
+                return "break"
+            
+            # Autoriser les touches de sélection (Shift + flèches, etc.)
+            elif event.keysym in ['Left', 'Right', 'Up', 'Down', 'Home', 'End'] and (event.state & 0x1):
+                return None  # Laisser le widget gérer la sélection
+            
+            # Bloquer toutes les autres touches (édition)
+            else:
+                return "break"
         
-        # Scroll rapide uniforme pour les messages utilisateur aussi
-        self.setup_fast_scroll_forwarding(text_widget)
+        text_widget.bind("<Key>", on_key_press)
+        text_widget.bind("<KeyPress>", on_key_press)
         
-        # COPIE
+        # Configuration du scroll amélioré
+        self.setup_improved_scroll_forwarding(text_widget)
+        
+        # COPIE avec double-clic
         def copy_on_double_click(event):
             try:
+                # Essayer de copier la sélection d'abord
+                try:
+                    selected_text = text_widget.selection_get()
+                    if selected_text.strip():
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(selected_text)
+                        self.show_copy_notification("📋 Sélection copiée !")
+                        return "break"
+                except tk.TclError:
+                    pass
+                
+                # Si pas de sélection, copier tout le message
                 self.root.clipboard_clear()
                 self.root.clipboard_append(text)
-                self.show_copy_notification("✅ Message copié !")
+                self.show_copy_notification("📋 Message copié !")
             except Exception as e:
                 self.show_copy_notification("❌ Erreur de copie")
             return "break"
@@ -925,8 +998,52 @@ class ModernAIGUI:
         )
         time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
         
-        # Menu contextuel
-        self.create_copy_menu_with_notification(text_widget, text)
+        # Menu contextuel amélioré
+        def show_context_menu(event):
+            try:
+                context_menu = tk.Menu(self.root, tearoff=0, bg='#3b82f6', fg='white', 
+                                    activebackground='#2563eb', activeforeground='white')
+                
+                # Vérifier s'il y a une sélection
+                has_selection = False
+                try:
+                    selected = text_widget.selection_get()
+                    has_selection = bool(selected.strip())
+                except tk.TclError:
+                    pass
+                
+                if has_selection:
+                    context_menu.add_command(
+                        label="📋 Copier la sélection", 
+                        command=lambda: copy_on_double_click(None)
+                    )
+                    context_menu.add_separator()
+                
+                context_menu.add_command(
+                    label="📄 Copier tout le message", 
+                    command=lambda: (
+                        self.root.clipboard_clear(),
+                        self.root.clipboard_append(text),
+                        self.show_copy_notification("📋 Message copié !")
+                    )
+                )
+                
+                context_menu.add_command(
+                    label="🔍 Tout sélectionner", 
+                    command=lambda: text_widget.tag_add("sel", "1.0", "end")
+                )
+                
+                context_menu.tk_popup(event.x_root, event.y_root)
+                
+            except Exception as e:
+                print(f"Erreur menu contextuel: {e}")
+            finally:
+                try:
+                    context_menu.grab_release()
+                except:
+                    pass
+        
+        text_widget.bind("<Button-3>", show_context_menu)  # Clic droit
 
     def create_ai_message_simple(self, parent, text):
         """Version DÉFINITIVE - Messages IA complets sans AUCUN scroll interne"""
@@ -971,7 +1088,6 @@ class ModernAIGUI:
         text_widget = tk.Text(
             message_container,
             width=120,
-            # SUPPRESSION TOTALE de height= - laisse tkinter s'adapter
             bg=self.colors['bg_chat'],
             fg=self.colors['text_primary'],
             font=('Segoe UI', 12),
@@ -980,21 +1096,57 @@ class ModernAIGUI:
             bd=0,
             highlightthickness=0,
             state="normal",
-            cursor="arrow",
+            cursor="xterm",
             padx=8,
-            pady=6
+            pady=6,
+            selectbackground="#4a90e2",
+            selectforeground="#ffffff",
+            exportselection=True,
+            takefocus=False,
+            insertwidth=0  # AJOUTÉ
         )
 
-        text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")  # sticky="nsew" pour expansion
+        text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
+        # Ajustement final pour garantir aucune barre de scroll interne
+        self._adjust_widget_height_final(text_widget, text)
+        print(f"[DEBUG] Création widget IA: text_widget height={text_widget.cget('height')}, lines={text.count(chr(10))+1}")
+        if hasattr(self, 'chat_frame'):
+            try:
+                parent_widget = self.chat_frame.master
+                if hasattr(parent_widget, 'yview'): print(f"[DEBUG] chat_frame yview={parent_widget.yview()}")
+            except Exception as e:
+                print(f"[DEBUG] Erreur lecture yview: {e}")
         
-        # CRUCIAL : Configurations pour empêcher TOUT scroll interne
-        text_widget.configure(
-            yscrollcommand=lambda *args: None,  # Ignore les commandes de scroll Y
-            xscrollcommand=lambda *args: None,  # Ignore les commandes de scroll X
-        )
+        # NOUVELLE APPROCHE : Bind minimal pour permettre la sélection
+        def prevent_editing_only(event):
+            """Empêche SEULEMENT l'édition, permet tout le reste"""
+            # Liste des touches qui modifient le texte
+            editing_keys = [
+                'BackSpace', 'Delete', 'Return', 'KP_Enter', 'Tab',
+                'space', 'Insert'
+            ]
+            
+            # Permettre Ctrl+A et Ctrl+C
+            if event.state & 0x4:  # Ctrl est pressé
+                if event.keysym.lower() in ['a', 'c']:
+                    return None  # Laisser passer
+            
+            # Bloquer seulement les touches d'édition
+            if event.keysym in editing_keys:
+                return "break"
+            
+            # Bloquer la saisie de caractères normaux
+            if len(event.keysym) == 1 and event.keysym.isprintable():
+                return "break"
+            
+            # Laisser passer tout le reste (sélection, navigation, etc.)
+            return None
         
-        # NOUVEAU : Configuration pour scroll externe rapide
-        self.setup_fast_scroll_forwarding(text_widget)
+        # Bind SEULEMENT pour les touches, pas pour la souris
+        text_widget.bind("<KeyPress>", prevent_editing_only)
+        
+        # Configuration du scroll SANS bloquer la sélection
+        self.setup_improved_scroll_forwarding(text_widget)
         
         # Fonction de copie
         def copy_on_double_click(event):
@@ -1014,49 +1166,69 @@ class ModernAIGUI:
         # Démarrer l'animation de frappe avec hauteur dynamique
         self.start_typing_animation_dynamic(text_widget, text)
 
-    def setup_fast_scroll_forwarding(self, text_widget):
-        """Scroll rapide UNIFORME peu importe où est la souris"""
-        def ultra_fast_scroll_forward(event):
+    def setup_improved_scroll_forwarding(self, text_widget):
+        """Version CORRIGÉE - Scroll sans conflit avec sélection"""
+        
+        def smooth_scroll_forward(event):
+            """Transfère le scroll vers le container principal"""
             try:
                 if hasattr(self, 'chat_frame'):
                     if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
-                        # Pour CustomTkinter - scroll ULTRA rapide
                         canvas = self.chat_frame._parent_canvas
-                        # Sensibilité MAXIMUM pour vitesse uniforme
-                        scroll_delta = -1 * (event.delta // 30)  # Encore plus rapide (30 au lieu de 40)
+                        if hasattr(event, 'delta') and event.delta:
+                            scroll_delta = -1 * (event.delta // 120)
+                        elif hasattr(event, 'num'):
+                            scroll_delta = -1 if event.num == 4 else 1
+                        else:
+                            scroll_delta = -1
                         canvas.yview_scroll(scroll_delta, "units")
                     else:
-                        # Pour tkinter standard - scroll ULTRA rapide
                         parent = self.chat_frame.master
                         while parent and not hasattr(parent, 'yview_scroll'):
                             parent = parent.master
-                        if parent:
-                            scroll_delta = -1 * (event.delta // 30)  # Plus rapide
+                        if parent and hasattr(parent, 'yview_scroll'):
+                            if hasattr(event, 'delta') and event.delta:
+                                scroll_delta = -1 * (event.delta // 120)
+                            elif hasattr(event, 'num'):
+                                scroll_delta = -1 if event.num == 4 else 1
+                            else:
+                                scroll_delta = -1
                             parent.yview_scroll(scroll_delta, "units")
             except Exception as e:
-                print(f"⚠️ Erreur ultra scroll: {e}")
-            return "break"  # IMPORTANT : Empêcher complètement le scroll local
+                print(f"⚠️ Erreur scroll: {e}")
+            
+            # IMPORTANT : Ne pas retourner "break"
+            return None
         
-        # Appliquer le scroll ultra rapide
-        text_widget.bind("<MouseWheel>", ultra_fast_scroll_forward)
-        text_widget.bind("<Button-4>", ultra_fast_scroll_forward)  # Linux
-        text_widget.bind("<Button-5>", ultra_fast_scroll_forward)  # Linux
+        def handle_focus_events(event):
+            """Version CORRIGÉE sans erreur state"""
+            try:
+                # Transférer le focus vers l'input principal
+                if hasattr(self, 'input_text'):
+                    try:
+                        if self.input_text.winfo_exists():
+                            self.input_text.focus_set()
+                    except:
+                        pass
+            except:
+                pass
+            return None
         
-        # Désactiver TOUTES les formes de scroll et navigation locale
-        disabled_events = [
-            "<Up>", "<Down>", "<Left>", "<Right>",
-            "<Prior>", "<Next>", "<Home>", "<End>",
-            "<Control-Home>", "<Control-End>", 
-            "<Page_Up>", "<Page_Down>",
-            "<Shift-Up>", "<Shift-Down>",
-            "<Control-Up>", "<Control-Down>"
-        ]
-        for event in disabled_events:
-            text_widget.bind(event, lambda e: "break")
+        # Bind des événements de scroll
+        text_widget.bind("<MouseWheel>", smooth_scroll_forward)
+        text_widget.bind("<Button-4>", smooth_scroll_forward)
+        text_widget.bind("<Button-5>", smooth_scroll_forward)
         
-        # IMPORTANT : Empêcher le focus sur le widget pour éviter la lenteur
-        text_widget.bind("<Button-1>", lambda e: "break")  # Empêche le focus sur clic
-        text_widget.configure(takefocus=False)  # Pas de focus possible
+        # Bind du focus CORRIGÉ
+        text_widget.bind("<FocusIn>", handle_focus_events)
+        
+        # Configuration du widget SANS insertwidth=0 qui peut causer des problèmes
+        text_widget.configure(
+            takefocus=False,
+            wrap=tk.WORD
+        )
+        
+        print(f"✅ Scroll amélioré configuré pour widget Text")
 
     def start_typing_animation_dynamic(self, text_widget, full_text):
         """Animation avec désactivation de la saisie"""
@@ -1080,57 +1252,107 @@ class ModernAIGUI:
         self.continue_typing_animation_dynamic()
 
     def continue_typing_animation_dynamic(self):
-        """Animation avec scroll plus fluide et synchronisé"""
+        """Animation AVEC scroll automatique qui suit l'écriture"""
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
         
         if self.typing_index < len(self.typing_text):
             current_text = self.typing_text[:self.typing_index + 1]
-            
+
             # Insérer le texte avec formatage
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             self._insert_formatted_text_progressive(self.typing_widget, current_text)
-            
-            # Ajustement de hauteur plus conservateur
+
+            # Ajustement dynamique de la hauteur à CHAQUE étape
             self._adjust_widget_height_dynamically(self.typing_widget)
-            
-            # Scroll automatique MOINS fréquent pour éviter les saccades
-            if self.typing_index % 10 == 0:  # Scroll seulement tous les 10 caractères
-                self.typing_widget.see("end")
-                self.root.after(2, self._perform_scroll_to_bottom)
-            
+            print(f"[DEBUG] Animation: typing_index={self.typing_index}, widget height={self.typing_widget.cget('height')}")
+
+            # Scroll pendant l'animation uniquement si le bas n'est pas visible
+            if hasattr(self, 'chat_frame') and self.typing_index % 10 == 0:
+                try:
+                    if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                        canvas = self.chat_frame._parent_canvas
+                        yview = canvas.yview()
+                        print(f"[DEBUG] Animation IA: yview={yview}, height={canvas.winfo_height()}, widget_height={self.typing_widget.winfo_height()}")
+                        widget_bottom = self.typing_widget.winfo_rooty() + self.typing_widget.winfo_height()
+                        container_bottom = canvas.winfo_rooty() + canvas.winfo_height()
+                        print(f"[DEBUG] Animation IA: widget_bottom={widget_bottom}, container_bottom={container_bottom}")
+                        if widget_bottom > container_bottom or (yview and yview[1] < 1.0):
+                            self.root.after(1, self._gentle_scroll_to_bottom)
+                            print(f"[DEBUG] Animation scroll triggered: yview={yview}")
+                    else:
+                        parent = self.chat_frame.master
+                        yview = parent.yview() if hasattr(parent, 'yview') else None
+                        print(f"[DEBUG] Animation IA: yview={yview}, height={parent.winfo_height()}, widget_height={self.typing_widget.winfo_height()}")
+                        widget_bottom = self.typing_widget.winfo_rooty() + self.typing_widget.winfo_height()
+                        container_bottom = parent.winfo_rooty() + parent.winfo_height()
+                        print(f"[DEBUG] Animation IA: widget_bottom={widget_bottom}, container_bottom={container_bottom}")
+                        if widget_bottom > container_bottom or (yview and yview[1] < 1.0):
+                            self.root.after(1, self._gentle_scroll_to_bottom)
+                            print(f"[DEBUG] Animation scroll triggered: yview={yview}")
+                except Exception as e:
+                    print(f"[DEBUG] Erreur lecture yview anim: {e}")
+
             self.typing_index += 1
-            
+
             # Programmer le caractère suivant
             self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
         else:
             # Animation terminée
             self.finish_typing_animation_dynamic()
 
+    def _gentle_scroll_to_bottom(self):
+        """Scroll doux pendant l'animation sans clignotement, avec debug détaillé"""
+        try:
+            if self.use_ctk:
+                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
+                    canvas = self.chat_frame._parent_canvas
+                    yview = canvas.yview()
+                    print(f"[DEBUG] Avant gentle_scroll_to_bottom CTK: yview={yview}, height={canvas.winfo_height()}")
+                    canvas.yview_moveto(1.0)
+                    print(f"[DEBUG] Après gentle_scroll_to_bottom CTK: yview={canvas.yview()}, height={canvas.winfo_height()}")
+            else:
+                parent = self.chat_frame.master
+                yview = parent.yview() if hasattr(parent, 'yview') else None
+                print(f"[DEBUG] Avant gentle_scroll_to_bottom Tk: yview={yview}, height={parent.winfo_height()}")
+                if hasattr(parent, 'yview_moveto'):
+                    parent.yview_moveto(1.0)
+                    print(f"[DEBUG] Après gentle_scroll_to_bottom Tk: yview={parent.yview()}, height={parent.winfo_height()}")
+        except Exception as e:
+            print(f"⚠️ Erreur scroll doux: {e}")
+
     def _adjust_widget_height_dynamically(self, text_widget):
         """Ajustement dynamique PRÉCIS pendant l'animation"""
         try:
             text_widget.update_idletasks()
-            
-            # Obtenir le nombre de lignes actuelles
-            end_index = text_widget.index("end-1c")
-            if end_index:
-                current_lines = int(end_index.split('.')[0])
-                
-                # Ajuster avec une marge MINIMALE
-                new_height = max(2, current_lines + 1)  # +1 seulement pour l'animation
-                
-                # Limiter pour éviter les bulles énormes
-                new_height = min(new_height, 20)
-                
-                text_widget.configure(height=new_height)
-                
+            # Récupérer le texte actuellement affiché
+            current_text = text_widget.get("1.0", "end-1c")
+            lines = current_text.split('\n')
+            total_lines = 0
+            widget_width = text_widget.winfo_width()
+            font = text_widget.cget('font')
+            char_width = 7.2
+            try:
+                import tkinter.font as tkfont
+                f = tkfont.Font(font=font)
+                char_width = f.measure('n')
+                if char_width < 5: char_width = 7.2
+            except Exception:
+                pass
+            chars_per_line = max(10, int(widget_width // char_width))
+            for l in lines:
+                wrapped = max(1, int((len(l) + chars_per_line - 1) // chars_per_line))
+                total_lines += wrapped
+            new_height = max(2, total_lines + 1)
+            # Limiter pour éviter les bulles énormes pendant l'animation
+            new_height = min(new_height, 50)
+            text_widget.configure(height=new_height)
         except Exception as e:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
     def finish_typing_animation_dynamic(self):
-        """Termine l'animation et RÉACTIVE la saisie"""
+        """Version FINALE avec scroll qui marche"""
         if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
             # Appliquer le formatage final complet
             self.typing_widget.configure(state="normal")
@@ -1140,8 +1362,8 @@ class ModernAIGUI:
             # Ajustement final de la hauteur
             self._adjust_widget_height_final(self.typing_widget, self.typing_text)
             
-            # Désactiver le widget
-            self.typing_widget.configure(state="disabled")
+            # GARDER en state="normal" pour la sélection
+            self.typing_widget.configure(state="normal")
             
             # Afficher le timestamp
             self._show_timestamp_for_current_message()
@@ -1149,13 +1371,89 @@ class ModernAIGUI:
             # RÉACTIVER la saisie utilisateur
             self.set_input_state(True)
             
+            # Scroll final AMÉLIORÉ avec délais progressifs
+            self.root.after(100, self.scroll_to_bottom_smooth)
+            self.root.after(300, self.scroll_to_bottom_smooth)  # Double scroll pour sécurité
+            
             # Nettoyer les variables
             delattr(self, 'typing_widget')
             delattr(self, 'typing_text')
             delattr(self, 'typing_index')
+
+    def scroll_to_bottom_smooth(self):
+        """Scroll vers le bas en douceur, sans clignotement"""
+        try:
+            # Une seule mise à jour, puis scroll
+            self.root.update_idletasks()
             
-            # Scroll final
-            self.root.after(100, self.scroll_to_bottom)
+            if self.use_ctk:
+                if hasattr(self, 'chat_frame'):
+                    parent = self.chat_frame.master
+                    while parent and not hasattr(parent, 'yview_moveto'):
+                        parent = parent.master
+                    
+                    if parent and hasattr(parent, 'yview_moveto'):
+                        parent.yview_moveto(1.0)
+            else:
+                parent = self.chat_frame.master
+                if hasattr(parent, 'yview_moveto'):
+                    parent.yview_moveto(1.0)
+                    
+        except Exception as e:
+            print(f"Erreur scroll doux: {e}")
+
+    def setup_text_copy_functionality(self, text_widget, original_text):
+        """Configure la fonctionnalité de copie pour un widget Text"""
+        
+        def copy_selected_text():
+            """Copie le texte sélectionné ou tout le texte si rien n'est sélectionné"""
+            try:
+                # Essayer de récupérer la sélection
+                selected_text = text_widget.selection_get()
+                if selected_text:
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(selected_text)
+                    self.show_copy_notification("📋 Sélection copiée !")
+                else:
+                    # Si rien n'est sélectionné, copier tout le texte
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(original_text)
+                    self.show_copy_notification("📋 Message entier copié !")
+            except tk.TclError:
+                # Aucune sélection, copier tout le texte
+                self.root.clipboard_clear()
+                self.root.clipboard_append(original_text)
+                self.show_copy_notification("📋 Message copié !")
+            except Exception as e:
+                self.show_copy_notification("❌ Erreur de copie")
+        
+        # Menu contextuel amélioré
+        def show_context_menu(event):
+            context_menu = tk.Menu(self.root, tearoff=0)
+            
+            # Vérifier s'il y a une sélection
+            try:
+                selected = text_widget.selection_get()
+                if selected:
+                    context_menu.add_command(label="📋 Copier la sélection", command=copy_selected_text)
+                    context_menu.add_separator()
+            except:
+                pass
+            
+            context_menu.add_command(label="📄 Copier tout le message", command=copy_selected_text)
+            context_menu.add_command(label="🔍 Tout sélectionner", command=lambda: text_widget.tag_add("sel", "1.0", "end"))
+            
+            try:
+                context_menu.tk_popup(event.x_root, event.y_root)
+            except:
+                pass
+            finally:
+                context_menu.grab_release()
+        
+        # Binds pour la copie
+        text_widget.bind("<Button-3>", show_context_menu)  # Clic droit
+        text_widget.bind("<Control-c>", lambda e: copy_selected_text())  # Ctrl+C
+        text_widget.bind("<Control-a>", lambda e: text_widget.tag_add("sel", "1.0", "end"))  # Ctrl+A
 
     def is_animation_running(self):
         """Vérifie si une animation d'écriture est en cours"""
@@ -1164,49 +1462,53 @@ class ModernAIGUI:
                 hasattr(self, 'typing_index'))
 
     def _adjust_widget_height_final(self, text_widget, full_text):
-        """Ajustement PRÉCIS de la hauteur - plus de bulles trop hautes"""
+        """Ajustement dynamique parfait : hauteur adaptée au texte et à la largeur réelle du widget (padx inclus), sans scroll interne ni espace vide. Correction spéciale pour les bulles user (largeur à 1px au début)."""
+        import math, time
         try:
-            text_widget.update_idletasks()
-            
-            # Méthode 1: Compter les lignes réelles après formatage
-            end_index = text_widget.index("end-1c")
-            actual_lines = 1
-            if end_index:
-                actual_lines = int(end_index.split('.')[0])
-            
-            # Méthode 2: Estimation conservatrice basée sur le contenu
-            text_lines = full_text.count('\n') + 1
-            char_count = len(full_text)
-            
-            # Estimation plus précise du wrapping
-            estimated_wrapped = max(text_lines, char_count // 120)  # 120 chars par ligne
-            
-            # Prendre le MINIMUM des estimations + petite marge seulement
-            base_height = min(actual_lines, estimated_wrapped, text_lines + 3)
-            
-            # Marge de sécurité RÉDUITE (seulement 1-2 lignes)
-            if char_count < 100:
-                safety_margin = 1  # Très petite marge pour courts textes
-            elif char_count < 500:
-                safety_margin = 2  # Petite marge pour textes moyens
+            # Forcer le rendu complet du widget (pour bulles user)
+            for i in range(10):
+                text_widget.update_idletasks()
+                widget_width = text_widget.winfo_width()
+                print(f"[DEBUG] (ajustement) Essai {i+1}/10 : largeur widget={widget_width}px")
+                if widget_width > 50:
+                    break
+                if hasattr(self, 'root'):
+                    self.root.update_idletasks()
+                time.sleep(0.01)
             else:
-                safety_margin = 3  # Marge normale pour longs textes
-            
-            final_height = base_height + safety_margin
-            
-            # Limites raisonnables
-            final_height = max(2, min(final_height, 25))  # Entre 2 et 25 lignes max
-            
-            text_widget.configure(height=final_height)
-            
-            print(f"📐 Hauteur PRÉCISE: {char_count} chars → {actual_lines} réelles → {final_height} finale")
-            
+                # Fallback si la largeur reste anormale
+                print(f"[WARN] Largeur widget anormale après 10 essais, fallback 400px")
+                widget_width = 400
+            # Largeur moyenne d'un caractère (en pixels)
+            font = text_widget.cget('font')
+            char_width = 7.2
+            try:
+                import tkinter.font as tkfont
+                f = tkfont.Font(font=font)
+                char_width = f.measure('n')
+                if char_width < 5: char_width = 7.2
+            except Exception:
+                pass
+            chars_per_line = max(10, int(widget_width // char_width))
+            lines = full_text.split('\n')
+            total_lines = 0
+            for l in lines:
+                wrapped = max(1, math.ceil(len(l) / chars_per_line))
+                total_lines += wrapped
+            height = total_lines + 1
+            text_widget.configure(height=height)
+            text_widget.update_idletasks()
+            for j in range(20):
+                yview = text_widget.yview()
+                if yview[1] >= 1.0:
+                    break
+                height += 1
+                text_widget.configure(height=height)
+                text_widget.update_idletasks()
+            print(f"[DEBUG] Ajustement dynamique: width={widget_width}px, chars/line={chars_per_line}, lines={total_lines}, height={height}, yview={text_widget.yview()}")
         except Exception as e:
             print(f"⚠️ Erreur ajustement précis: {e}")
-            # Fallback plus conservateur
-            line_count = full_text.count('\n') + 1
-            fallback_height = max(2, min(line_count + 2, 15))
-            text_widget.configure(height=fallback_height)
+            text_widget.configure(height=7)
 
     def _configure_formatting_tags(self, text_widget):
         """Configure tous les tags de formatage avant l'animation"""
@@ -1372,13 +1674,45 @@ class ModernAIGUI:
             try:
                 self.root.clipboard_clear()
                 self.root.clipboard_append(original_text)
-                self.show_copy_notification("📋 Texte copié !")
+                self.show_copy_notification("Texte copié !")
             except Exception as e:
                 self.show_copy_notification("❌ Erreur de copie")
         
         # Menu contextuel
         context_menu = tk.Menu(self.root, tearoff=0)
         context_menu.add_command(label="📋 Copier", command=copy_text)
+
+        def select_all_and_copy():
+            """Sélectionne tout le texte et le copie"""
+            copy_text()  # Pour l'instant, même action
+            
+            # Créer le menu contextuel
+            if self.use_ctk:
+                # Pour CustomTkinter, utiliser un menu tkinter standard
+                context_menu = tk.Menu(self.root, tearoff=0)
+            else:
+                context_menu = tk.Menu(self.root, tearoff=0)
+            
+                context_menu.add_command(label="📋 Copier le texte", command=copy_text)
+                context_menu.add_separator()
+                context_menu.add_command(label="🔍 Tout sélectionner et copier", command=select_all_and_copy)
+            
+        def show_context_menu(event):
+            try:
+                context_menu.tk_popup(event.x_root, event.y_root)
+            except Exception:
+                pass
+            finally:
+                context_menu.grab_release()
+            
+            # Bind du clic droit
+            widget.bind("<Button-3>", show_context_menu)  # Windows/Linux
+            widget.bind("<Button-2>", show_context_menu)  # macOS (parfois)
+            
+            # Pour CustomTkinter, essayer aussi Control+clic
+            widget.bind("<Control-Button-1>", show_context_menu)
+        
+            return context_menu
         
         def show_context_menu(event):
             try:
@@ -1706,53 +2040,24 @@ class ModernAIGUI:
     def create_copy_menu(self, widget, original_text):
         """
         Crée un menu contextuel pour copier le texte d'un widget
-        
-        Args:
-            widget: Widget auquel attacher le menu
-            original_text: Texte original à copier (sans formatage Unicode)
         """
-        def copy_text():
-            try:
-                self.root.clipboard_clear()
-                self.root.clipboard_append(original_text)
-                self.show_notification("📋 Texte copié dans le presse-papiers", "success")
-            except Exception as e:
-                self.show_notification(f"❌ Erreur lors de la copie: {e}", "error")
-        
-        def select_all_and_copy():
-            """Sélectionne tout le texte et le copie"""
-            copy_text()  # Pour l'instant, même action
-        
-        # Créer le menu contextuel
-        if self.use_ctk:
-            # Pour CustomTkinter, utiliser un menu tkinter standard
-            context_menu = tk.Menu(self.root, tearoff=0)
-        else:
-            context_menu = tk.Menu(self.root, tearoff=0)
-        
-        context_menu.add_command(label="📋 Copier le texte", command=copy_text)
-        context_menu.add_separator()
-        context_menu.add_command(label="🔍 Tout sélectionner et copier", command=select_all_and_copy)
-        
-        def show_context_menu(event):
-            try:
-                context_menu.tk_popup(event.x_root, event.y_root)
-            except Exception:
-                pass
-            finally:
-                context_menu.grab_release()
-        
-        # Bind du clic droit
-        widget.bind("<Button-3>", show_context_menu)  # Windows/Linux
-        widget.bind("<Button-2>", show_context_menu)  # macOS (parfois)
-        
-        # Pour CustomTkinter, essayer aussi Control+clic
-        widget.bind("<Control-Button-1>", show_context_menu)
-        
-        return context_menu
+        try:
+            # Scroll le chat_frame pour que le bas du dernier message soit visible, sans overshoot
+            if hasattr(self, 'chat_frame'):
+                self.chat_frame.update_idletasks()
+                if hasattr(self.chat_frame, 'yview'):
+                    yview = self.chat_frame.yview()
+                    # Scroll uniquement si le bas n'est pas visible
+                    if yview[1] < 0.99:
+                        if hasattr(self.chat_frame, 'yview_moveto'):
+                            self.chat_frame.yview_moveto(1.0)
+            print(f"[DEBUG] gentle_scroll_to_bottom: yview={getattr(self.chat_frame, 'yview', lambda: None)()}")
+        except Exception as e:
+            print(f"⚠️ Erreur scroll doux: {e}")
     
     def get_current_font_size(self, font_type='message'):
         """NOUVELLE VERSION - Taille de police unifiée pour tous les messages"""
+        # Cette fonction retourne la taille de police pour chaque type
         # UNIFICATION TOTALE : tous les contenus de messages utilisent la même taille
         message_types = ['message', 'body', 'chat', 'bold', 'small', 'content']
         if font_type in message_types:
@@ -1772,6 +2077,7 @@ class ModernAIGUI:
     
     def insert_formatted_text_ctk(self, text_widget, text):
         """Insère du texte formaté avec rendu visuel subtil dans CustomTkinter TextBox"""
+        # Cette fonction insère le texte formaté dans le widget CTk
         import re
         
         # Pour CustomTkinter, on utilise un rendu subtil quand le formatage tkinter n'est pas possible
