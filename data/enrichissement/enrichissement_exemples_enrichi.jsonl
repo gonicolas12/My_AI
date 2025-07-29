@@ -1,97 +1,96 @@
-{"input": "Quelle est la capitale de l'Italie ?", "target": "Rome."}
-{"input": "Qui a peint la Joconde ?", "target": "Léonard de Vinci."}
-{"input": "Quel est le plus grand océan du monde ?", "target": "L'océan Pacifique."}
-{"input": "Combien de continents existe-t-il ?", "target": "Il y a 7 continents."}
-{"input": "Quelle est la racine carrée de 144 ?", "target": "12"}
-{"input": "Donne-moi un synonyme de 'beau'", "target": "Joli, charmant, séduisant, gracieux."}
-{"input": "Traduis en anglais : 'Merci'", "target": "Thank you"}
-{"input": "Traduis en allemand : 'Bonjour'", "target": "Guten Tag"}
-{"input": "Comment dit-on 'chat' en espagnol ?", "target": "Gato"}
-{"input": "Explique le concept de gravité.", "target": "La gravité est la force qui attire les objets vers le centre de la Terre."}
-{"input": "Qui a inventé le téléphone ?", "target": "Alexander Graham Bell."}
-{"input": "Quel est le symbole chimique du fer ?", "target": "Fe"}
-{"input": "Quelle est la distance Terre-Lune ?", "target": "Environ 384 400 km."}
-{"input": "Quel est l'animal le plus rapide du monde ?", "target": "Le faucon pèlerin."}
-{"input": "Donne-moi une citation de Victor Hugo.", "target": "La liberté commence où l'ignorance finit."}
-{"input": "Quel est le résultat de 9 x 8 ?", "target": "72"}
-{"input": "Quel est le plus long fleuve du monde ?", "target": "Le Nil."}
-{"input": "Qui a écrit '1984' ?", "target": "George Orwell."}
-{"input": "Quel est le plus haut sommet du monde ?", "target": "L'Everest."}
-{"input": "Quelle est la formule de l'aire d'un cercle ?", "target": "A = π × r²"}
-{"input": "Donne-moi un proverbe français.", "target": "Rien ne sert de courir, il faut partir à point."}
-{"input": "Quel est le synonyme de 'intelligent' ?", "target": "Brillant, malin, futé, perspicace."}
-{"input": "Comment dire 'merci' en italien ?", "target": "Grazie"}
-{"input": "Quelle est la capitale du Japon ?", "target": "Tokyo."}
-{"input": "Qui a découvert l'Amérique ?", "target": "Christophe Colomb."}
-{"input": "Quel est le plus grand désert du monde ?", "target": "Le Sahara."}
-{"input": "Quelle est la date de la Révolution française ?", "target": "1789"}
-{"input": "Donne-moi une blague courte.", "target": "Pourquoi les canards ont-ils autant de plumes ? Pour couvrir leur derrière !"}
-{"input": "Quel est le résultat de 100 divisé par 4 ?", "target": "25"}
-{"input": "Quel est le synonyme de 'rapide' ?", "target": "Vif, prompt, agile, expéditif."}
-{"input": "Quelle est la capitale du Canada ?", "target": "Ottawa."}
-{"input": "Qui a écrit 'Le Rouge et le Noir' ?", "target": "Stendhal."}
-{"input": "Quel est le plus grand pays du monde ?", "target": "La Russie."}
-{"input": "Quelle est la langue la plus parlée au monde ?", "target": "Le mandarin."}
-{"input": "Comment dire 'bonjour' en japonais ?", "target": "Konnichiwa"}
-{"input": "Quel est le symbole chimique de l'eau ?", "target": "H2O"}
-{"input": "Donne-moi une expression idiomatique française.", "target": "Avoir le cafard."}
-{"input": "Quel est le résultat de 7 + 6 ?", "target": "13"}
-{"input": "Qui a peint 'Les Nymphéas' ?", "target": "Claude Monet."}
-{"input": "Quel est le plus petit pays du monde ?", "target": "Le Vatican."}
-{"input": "Quelle est la capitale de l'Espagne ?", "target": "Madrid."}
-{"input": "Donne-moi un synonyme de 'difficile' ?", "target": "Compliqué, ardu, laborieux, complexe."}
-{"input": "Quel est le résultat de 5 puissance 3 ?", "target": "125"}
-{"input": "Comment dire 'au revoir' en anglais ?", "target": "Goodbye"}
-{"input": "Qui a écrit 'Les Misérables' ?", "target": "Victor Hugo."}
-{"input": "Quel est le plus grand lac d'Afrique ?", "target": "Le lac Victoria."}
-{"input": "Quelle est la capitale de l'Allemagne ?", "target": "Berlin."}
-{"input": "Donne-moi une devise française.", "target": "Liberté, Égalité, Fraternité."}
-{"input": "Quel est le synonyme de 'content' ?", "target": "Heureux, satisfait, réjoui, comblé."}
-{"input": "Comment dire 'merci' en portugais ?", "target": "Obrigado"}
-{"input": "Quelle est la capitale de la Suisse ?", "target": "Berne."}
-{"input": "Qui a inventé l'ampoule ?", "target": "Thomas Edison."}
-{"input": "Quel est le plus grand mammifère terrestre ?", "target": "L'éléphant d'Afrique."}
-{"input": "Quelle est la capitale de la Chine ?", "target": "Pékin."}
-{"input": "Donne-moi un synonyme de 'petit' ?", "target": "Minuscule, réduit, exigu, menu."}
-{"input": "Quel est le résultat de 11 x 11 ?", "target": "121"}
-{"input": "Qui a écrit 'L'Étranger' ?", "target": "Albert Camus."}
-{"input": "Quel est le plus grand archipel du monde ?", "target": "L'Indonésie."}
-{"input": "Quelle est la capitale de la Grèce ?", "target": "Athènes."}
-{"input": "Donne-moi une expression anglaise courante.", "target": "Break a leg!"}
-{"input": "Quel est le synonyme de 'fort' ?", "target": "Robuste, solide, vigoureux, puissant."}
-{"input": "Comment dire 'bonne nuit' en espagnol ?", "target": "Buenas noches"}
-{"input": "Quelle est la capitale de la Belgique ?", "target": "Bruxelles."}
-{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "Antoine de Saint-Exupéry."}
-{"input": "Quel est le plus grand volcan du monde ?", "target": "Le Mauna Loa."}
-{"input": "Quelle est la capitale de l'Australie ?", "target": "Canberra."}
-{"input": "Donne-moi un synonyme de 'triste' ?", "target": "Mélancolique, morose, abattu, déprimé."}
-{"input": "Quel est le résultat de 8 x 7 ?", "target": "56"}
-{"input": "Comment afficher la date du jour en Python ?", "target": "from datetime import date; print(date.today())"}
-{"input": "Qui a écrit 'Le Cid' ?", "target": "Pierre Corneille."}
-{"input": "Quel est le plus grand port du monde ?", "target": "Shanghai."}
-{"input": "Quelle est la capitale du Brésil ?", "target": "Brasilia."}
-{"input": "Donne-moi une devise latine.", "target": "Carpe diem."}
-{"input": "Quel est le synonyme de 'rapide' ?", "target": "Vif, prompt, agile, expéditif."}
-{"input": "Comment dire 'je t'aime' en italien ?", "target": "Ti amo"}
-{"input": "Quelle est la capitale de la Norvège ?", "target": "Oslo."}
-{"input": "Qui a écrit 'Candide' ?", "target": "Voltaire."}
-{"input": "Quel est le plus grand stade du monde ?", "target": "Rungrado 1er Mai."}
-{"input": "Quelle est la capitale de la Suède ?", "target": "Stockholm."}
-{"input": "Donne-moi un synonyme de 'facile' ?", "target": "Simple, aisé, évident, limpide."}
-{"input": "Quel est le résultat de 6 x 9 ?", "target": "54"}
-{"input": "Qui a écrit 'Notre-Dame de Paris' ?", "target": "Victor Hugo."}
-{"input": "Quel est le plus grand aéroport du monde ?", "target": "Aéroport international de Pékin."}
-{"input": "Quelle est la capitale de la Turquie ?", "target": "Ankara."}
-{"input": "Donne-moi une expression espagnole courante.", "target": "¡Hasta luego!"}
-{"input": "Quel est le synonyme de 'important' ?", "target": "Essentiel, majeur, capital, primordial."}
-{"input": "Comment dire 'bonne chance' en anglais ?", "target": "Good luck!"}
-{"input": "Quelle est la capitale du Maroc ?", "target": "Rabat."}
-{"input": "Qui a écrit 'Germinal' ?", "target": "Émile Zola."}
-{"input": "Quel est le plus grand musée du monde ?", "target": "Le Louvre."}
-{"input": "Quelle est la capitale de l'Argentine ?", "target": "Buenos Aires."}
-{"input": "Donne-moi un synonyme de 'drôle' ?", "target": "Amusant, comique, hilarant, cocasse."}
-{"input": "Quel est le résultat de 10 x 10 ?", "target": "100"}
-{"input": "Qui a écrit 'Le Père Goriot' ?", "target": "Honoré de Balzac."}
-{"input": "Quel est le plus grand zoo du monde ?", "target": "Le zoo de San Diego."}
-{"input": "Quelle est la capitale de la Russie ?", "target": "Moscou."}
-{"input": "Donne-moi une devise anglaise.", "target": "In God We Trust."}
+{"input": "Quelle est la capitale de l'Italie ?", "target": "**Rome**."}
+{"input": "Qui a peint la Joconde ?", "target": "**Léonard de Vinci**."}
+{"input": "Quel est le plus grand océan du monde ?", "target": "**L'océan Pacifique**."}
+{"input": "Combien de continents existe-t-il ?", "target": "Il y a **7 continents**."}
+{"input": "Quelle est la racine carrée de 144 ?", "target": "**12**"}
+{"input": "Donne-moi un synonyme de 'beau'", "target": "**Joli**, **charmant**, **séduisant**, **gracieux**."}
+{"input": "Traduis en anglais : 'Merci'", "target": "**Thank you**"}
+{"input": "Traduis en allemand : 'Bonjour'", "target": "**Guten Tag**"}
+{"input": "Comment dit-on 'chat' en espagnol ?", "target": "**Gato**"}
+{"input": "Explique le concept de gravité.", "target": "La **gravité** est la **force** qui attire les **objets** vers le **centre de la Terre**."}
+{"input": "Qui a inventé le téléphone ?", "target": "**Alexander Graham Bell**."}
+{"input": "Quel est le symbole chimique du fer ?", "target": "**Fe**"}
+{"input": "Quelle est la distance Terre-Lune ?", "target": "Environ **384 400 km**."}
+{"input": "Quel est l'animal le plus rapide du monde ?", "target": "**Le faucon pèlerin**."}
+{"input": "Donne-moi une citation de Victor Hugo.", "target": "**La liberté commence où l'ignorance finit**."}
+{"input": "Quel est le résultat de 9 x 8 ?", "target": "**72**"}
+{"input": "Quel est le plus long fleuve du monde ?", "target": "**Le Nil**."}
+{"input": "Qui a écrit '1984' ?", "target": "**George Orwell**."}
+{"input": "Quel est le plus haut sommet du monde ?", "target": "**L'Everest**."}
+{"input": "Quelle est la formule de l'aire d'un cercle ?", "target": "**A = π × r²**"}
+{"input": "Donne-moi un proverbe français.", "target": "**Rien ne sert de courir, il faut partir à point**."}
+{"input": "Quel est le synonyme de 'intelligent' ?", "target": "**Brillant**, **malin**, **futé**, **perspicace**."}
+{"input": "Comment dire 'merci' en italien ?", "target": "**Grazie**"}
+{"input": "Quelle est la capitale du Japon ?", "target": "**Tokyo**."}
+{"input": "Qui a découvert l'Amérique ?", "target": "**Christophe Colomb**."}
+{"input": "Quel est le plus grand désert du monde ?", "target": "**Le Sahara**."}
+{"input": "Quelle est la date de la Révolution française ?", "target": "**1789**"}
+{"input": "Donne-moi une blague courte.", "target": "Pourquoi les canards ont-ils autant de plumes ? **Pour couvrir leur derrière !**"}
+{"input": "Quel est le résultat de 100 divisé par 4 ?", "target": "**25**"}
+{"input": "Quel est le synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
+{"input": "Quelle est la capitale du Canada ?", "target": "**Ottawa**."}
+{"input": "Qui a écrit 'Le Rouge et le Noir' ?", "target": "**Stendhal**."}
+{"input": "Quel est le plus grand pays du monde ?", "target": "**La Russie**."}
+{"input": "Quelle est la langue la plus parlée au monde ?", "target": "**Le mandarin**."}
+{"input": "Comment dire 'bonjour' en japonais ?", "target": "**Konnichiwa**"}
+{"input": "Quel est le symbole chimique de l'eau ?", "target": "**H2O**"}
+{"input": "Donne-moi une expression idiomatique française.", "target": "**Avoir le cafard**."}
+{"input": "Quel est le résultat de 7 + 6 ?", "target": "**13**"}
+{"input": "Qui a peint 'Les Nymphéas' ?", "target": "**Claude Monet**."}
+{"input": "Quel est le plus petit pays du monde ?", "target": "**Le Vatican**."}
+{"input": "Quelle est la capitale de l'Espagne ?", "target": "**Madrid**."}
+{"input": "Donne-moi un synonyme de 'difficile' ?", "target": "**Compliqué**, **ardu**, **laborieux**, **complexe**."}
+{"input": "Quel est le résultat de 5 puissance 3 ?", "target": "**125**"}
+{"input": "Comment dire 'au revoir' en anglais ?", "target": "**Goodbye**"}
+{"input": "Qui a écrit 'Les Misérables' ?", "target": "**Victor Hugo**."}
+{"input": "Quel est le plus grand lac d'Afrique ?", "target": "**Le lac Victoria**."}
+{"input": "Quelle est la capitale de l'Allemagne ?", "target": "**Berlin**."}
+{"input": "Donne-moi une devise française.", "target": "**Liberté, Égalité, Fraternité**."}
+{"input": "Quel est le synonyme de 'content' ?", "target": "**Heureux**, **satisfait**, **réjoui**, **comblé**."}
+{"input": "Comment dire 'merci' en portugais ?", "target": "**Obrigado**"}
+{"input": "Quelle est la capitale de la Suisse ?", "target": "**Berne**."}
+{"input": "Qui a inventé l'ampoule ?", "target": "**Thomas Edison**."}
+{"input": "Quel est le plus grand mammifère terrestre ?", "target": "**L'éléphant d'Afrique**."}
+{"input": "Quelle est la capitale de la Chine ?", "target": "**Pékin**."}
+{"input": "Donne-moi un synonyme de 'petit' ?", "target": "**Minuscule**, **réduit**, **exigu**, **menu**."}
+{"input": "Quel est le résultat de 11 x 11 ?", "target": "**121**"}
+{"input": "Qui a écrit 'L'Étranger' ?", "target": "**Albert Camus**."}
+{"input": "Quel est le plus grand archipel du monde ?", "target": "**L'Indonésie**."}
+{"input": "Quelle est la capitale de la Grèce ?", "target": "**Athènes**."}
+{"input": "Donne-moi une expression anglaise courante.", "target": "**Break a leg!**"}
+{"input": "Quel est le synonyme de 'fort' ?", "target": "**Robuste**, **solide**, **vigoureux**, **puissant**."}
+{"input": "Comment dire 'bonne nuit' en espagnol ?", "target": "**Buenas noches**"}
+{"input": "Quelle est la capitale de la Belgique ?", "target": "**Bruxelles**."}
+{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "**Antoine de Saint-Exupéry**."}
+{"input": "Quel est le plus grand volcan du monde ?", "target": "**Le Mauna Loa**."}
+{"input": "Quelle est la capitale de l'Australie ?", "target": "**Canberra**."}
+{"input": "Donne-moi un synonyme de 'triste' ?", "target": "**Mélancolique**, **morose**, **abattu**, **déprimé**."}
+{"input": "Quel est le résultat de 8 x 7 ?", "target": "**56**"}
+{"input": "Comment afficher la date du jour en Python ?", "target": "**from datetime import date; print(date.today())**"}
+{"input": "Qui a écrit 'Le Cid' ?", "target": "**Pierre Corneille**."}
+{"input": "Quel est le plus grand port du monde ?", "target": "**Shanghai**."}
+{"input": "Quelle est la capitale du Brésil ?", "target": "**Brasilia**."}
+{"input": "Donne-moi une devise latine.", "target": "**Carpe diem**."}
+{"input": "Quel est le synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
+{"input": "Comment dire 'je t'aime' en italien ?", "target": "**Ti amo**"}
+{"input": "Quelle est la capitale de la Norvège ?", "target": "**Oslo**."}
+{"input": "Qui a écrit 'Candide' ?", "target": "**Voltaire**."}
+{"input": "Quel est le plus grand stade du monde ?", "target": "**Rungrado 1er Mai**."}
+{"input": "Quelle est la capitale de la Suède ?", "target": "**Stockholm**."}
+{"input": "Donne-moi un synonyme de 'facile' ?", "target": "**Simple**, **aisé**, **évident**, **limpide**."}
+{"input": "Quel est le résultat de 6 x 9 ?", "target": "**54**"}
+{"input": "Qui a écrit 'Notre-Dame de Paris' ?", "target": "**Victor Hugo**."}
+{"input": "Quel est le plus grand aéroport du monde ?", "target": "**Aéroport international de Pékin**."}
+{"input": "Quelle est la capitale de la Turquie ?", "target": "**Ankara**."}
+{"input": "Donne-moi une expression espagnole courante.", "target": "**¡Hasta luego!**"}
+{"input": "Quel est le synonyme de 'important' ?", "target": "**Essentiel**, **majeur**, **capital**, **primordial**."}
+{"input": "Quelle est la capitale du Maroc ?", "target": "**Rabat**."}
+{"input": "Qui a écrit 'Germinal' ?", "target": "**Émile Zola**."}
+{"input": "Quel est le plus grand musée du monde ?", "target": "**Le Louvre**."}
+{"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
+{"input": "Donne-moi un synonyme de 'drôle' ?", "target": "**Amusant**, **comique**, **hilarant**, **cocasse**."}
+{"input": "Quel est le résultat de 10 x 10 ?", "target": "**100**"}
+{"input": "Qui a écrit 'Le Père Goriot' ?", "target": "**Honoré de Balzac**."}
+{"input": "Quel est le plus grand zoo du monde ?", "target": "**Le zoo de San Diego**."}
+{"input": "Quelle est la capitale de la Russie ?", "target": "**Moscou**."}
+{"input": "Donne-moi une devise anglaise.", "target": "**In God We Trust**."}

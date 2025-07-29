@@ -1,63 +1,63 @@
-{"input": "Quelle est la capitale de l'Italie ?", "target": "Rome."}
-{"input": "Qui a peint la Joconde ?", "target": "Léonard de Vinci."}
-{"input": "Quel est le plus grand océan du monde ?", "target": "L'océan Pacifique."}
-{"input": "Combien de continents existe-t-il ?", "target": "Il y a 7 continents."}
-{"input": "Qui a écrit '1984' ?", "target": "George Orwell."}
-{"input": "Quelle est la date de la Révolution française ?", "target": "1789"}
-{"input": "Qui a découvert l'Amérique ?", "target": "Christophe Colomb."}
-{"input": "Qui a écrit 'Le Rouge et le Noir' ?", "target": "Stendhal."}
-{"input": "Qui a écrit 'Les Misérables' ?", "target": "Victor Hugo."}
-{"input": "Qui a écrit 'Notre-Dame de Paris' ?", "target": "Victor Hugo."}
-{"input": "Quel est le plus long fleuve du monde ?", "target": "Le Nil."}
-{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "Antoine de Saint-Exupéry."}
-{"input": "Quel est le plus grand désert du monde ?", "target": "Le Sahara."}
-{"input": "Quelle est la capitale du Japon ?", "target": "Tokyo."}
-{"input": "Qui a écrit 'L'Étranger' ?", "target": "Albert Camus."}
-{"input": "Quel est le plus haut sommet du monde ?", "target": "L'Everest."}
-{"input": "Qui a peint 'Les Nymphéas' ?", "target": "Claude Monet."}
-{"input": "Quelle est la capitale de l'Espagne ?", "target": "Madrid."}
-{"input": "Qui a écrit 'Germinal' ?", "target": "Émile Zola."}
-{"input": "Quel est le plus grand musée du monde ?", "target": "Le Louvre."}
-{"input": "Quelle est la capitale de la Russie ?", "target": "Moscou."}
-{"input": "Qui a écrit 'Le Cid' ?", "target": "Pierre Corneille."}
-{"input": "Quel est le plus grand archipel du monde ?", "target": "L'Indonésie."}
-{"input": "Quelle est la capitale de la Grèce ?", "target": "Athènes."}
-{"input": "Qui a écrit 'Candide' ?", "target": "Voltaire."}
-{"input": "Quel est le plus grand port du monde ?", "target": "Shanghai."}
-{"input": "Quelle est la capitale du Brésil ?", "target": "Brasilia."}
-{"input": "Qui a écrit 'Le Père Goriot' ?", "target": "Honoré de Balzac."}
-{"input": "Quel est le plus grand zoo du monde ?", "target": "Le zoo de San Diego."}
-{"input": "Quelle est la capitale de la Suisse ?", "target": "Berne."}
-{"input": "Qui a inventé l'imprimerie ?", "target": "Johannes Gutenberg."}
-{"input": "Quel est le plus grand lac d'Afrique ?", "target": "Le lac Victoria."}
-{"input": "Quelle est la capitale de la Belgique ?", "target": "Bruxelles."}
-{"input": "Qui a écrit 'Les Fleurs du mal' ?", "target": "Charles Baudelaire."}
-{"input": "Quel est le plus grand stade du monde ?", "target": "Rungrado 1er Mai."}
-{"input": "Quelle est la capitale de la Suède ?", "target": "Stockholm."}
-{"input": "Qui a écrit 'Madame Bovary' ?", "target": "Gustave Flaubert."}
-{"input": "Quel est le plus grand aéroport du monde ?", "target": "Aéroport international de Pékin."}
-{"input": "Quelle est la capitale de la Turquie ?", "target": "Ankara."}
-{"input": "Qui a écrit 'La Peste' ?", "target": "Albert Camus."}
-{"input": "Quel est le plus grand volcan du monde ?", "target": "Le Mauna Loa."}
-{"input": "Quelle est la capitale de l'Australie ?", "target": "Canberra."}
-{"input": "Qui a écrit 'Les Trois Mousquetaires' ?", "target": "Alexandre Dumas."}
-{"input": "Quel est le plus petit pays du monde ?", "target": "Le Vatican."}
-{"input": "Quelle est la capitale de la Chine ?", "target": "Pékin."}
-{"input": "Qui a écrit 'Bel-Ami' ?", "target": "Guy de Maupassant."}
-{"input": "Quel est le plus grand pays du monde ?", "target": "La Russie."}
-{"input": "Quelle est la capitale du Canada ?", "target": "Ottawa."}
-{"input": "Qui a écrit 'Voyage au centre de la Terre' ?", "target": "Jules Verne."}
-{"input": "Quel est le plus grand fleuve d'Amérique du Sud ?", "target": "L'Amazone."}
-{"input": "Quelle est la capitale de l'Argentine ?", "target": "Buenos Aires."}
-{"input": "Qui a écrit 'Le Comte de Monte-Cristo' ?", "target": "Alexandre Dumas."}
-{"input": "Quel est le plus grand lac d'Amérique du Nord ?", "target": "Le lac Supérieur."}
-{"input": "Quelle est la capitale de la Norvège ?", "target": "Oslo."}
-{"input": "Qui a écrit 'La Condition humaine' ?", "target": "André Malraux."}
-{"input": "Quel est le plus grand océan du monde ?", "target": "L'océan Pacifique."}
-{"input": "Quelle est la capitale du Maroc ?", "target": "Rabat."}
-{"input": "Qui a écrit 'L'Assommoir' ?", "target": "Émile Zola."}
-{"input": "Quel est le plus grand désert chaud du monde ?", "target": "Le Sahara."}
-{"input": "Quelle est la capitale de l'Allemagne ?", "target": "Berlin."}
-{"input": "Qui a écrit 'Le Malade imaginaire' ?", "target": "Molière."}
-{"input": "Tu as les cramptés ?", "target": "APAGNAN"}
-{"input": "T'as les cramptés ?", "target": "APANYAN !"}
+{"input": "Quelle est la capitale de l'Italie ?", "target": "**Rome**."}
+{"input": "Qui a peint la Joconde ?", "target": "**Léonard de Vinci**."}
+{"input": "Quel est le plus grand océan du monde ?", "target": "**L'océan Pacifique**."}
+{"input": "Combien de continents existe-t-il ?", "target": "Il y a **7 continents**."}
+{"input": "Qui a écrit '1984' ?", "target": "**George Orwell**."}
+{"input": "Quelle est la date de la Révolution française ?", "target": "**1789**"}
+{"input": "Qui a découvert l'Amérique ?", "target": "**Christophe Colomb**."}
+{"input": "Qui a écrit 'Le Rouge et le Noir' ?", "target": "**Stendhal**."}
+{"input": "Qui a écrit 'Les Misérables' ?", "target": "**Victor Hugo**."}
+{"input": "Qui a écrit 'Notre-Dame de Paris' ?", "target": "**Victor Hugo**."}
+{"input": "Quel est le plus long fleuve du monde ?", "target": "**Le Nil**."}
+{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "**Antoine de Saint-Exupéry**."}
+{"input": "Quel est le plus grand désert du monde ?", "target": "**Le Sahara**."}
+{"input": "Quelle est la capitale du Japon ?", "target": "**Tokyo**."}
+{"input": "Qui a écrit 'L'Étranger' ?", "target": "**Albert Camus**."}
+{"input": "Quel est le plus haut sommet du monde ?", "target": "**L'Everest**."}
+{"input": "Qui a peint 'Les Nymphéas' ?", "target": "**Claude Monet**."}
+{"input": "Quelle est la capitale de l'Espagne ?", "target": "**Madrid**."}
+{"input": "Qui a écrit 'Germinal' ?", "target": "**Émile Zola**."}
+{"input": "Quel est le plus grand musée du monde ?", "target": "**Le Louvre**."}
+{"input": "Quelle est la capitale de la Russie ?", "target": "**Moscou**."}
+{"input": "Qui a écrit 'Le Cid' ?", "target": "**Pierre Corneille**."}
+{"input": "Quel est le plus grand archipel du monde ?", "target": "**L'Indonésie**."}
+{"input": "Quelle est la capitale de la Grèce ?", "target": "**Athènes**."}
+{"input": "Qui a écrit 'Candide' ?", "target": "**Voltaire**."}
+{"input": "Quel est le plus grand port du monde ?", "target": "**Shanghai**."}
+{"input": "Quelle est la capitale du Brésil ?", "target": "**Brasilia**."}
+{"input": "Qui a écrit 'Le Père Goriot' ?", "target": "**Honoré de Balzac**."}
+{"input": "Quel est le plus grand zoo du monde ?", "target": "**Le zoo de San Diego**."}
+{"input": "Quelle est la capitale de la Suisse ?", "target": "**Berne**."}
+{"input": "Qui a inventé l'imprimerie ?", "target": "**Johannes Gutenberg**."}
+{"input": "Quel est le plus grand lac d'Afrique ?", "target": "**Le lac Victoria**."}
+{"input": "Quelle est la capitale de la Belgique ?", "target": "**Bruxelles**."}
+{"input": "Qui a écrit 'Les Fleurs du mal' ?", "target": "**Charles Baudelaire**."}
+{"input": "Quel est le plus grand stade du monde ?", "target": "**Rungrado 1er Mai**."}
+{"input": "Quelle est la capitale de la Suède ?", "target": "**Stockholm**."}
+{"input": "Qui a écrit 'Madame Bovary' ?", "target": "**Gustave Flaubert**."}
+{"input": "Quel est le plus grand aéroport du monde ?", "target": "**Aéroport international de Pékin**."}
+{"input": "Quelle est la capitale de la Turquie ?", "target": "**Ankara**."}
+{"input": "Qui a écrit 'La Peste' ?", "target": "**Albert Camus**."}
+{"input": "Quel est le plus grand volcan du monde ?", "target": "**Le Mauna Loa**."}
+{"input": "Quelle est la capitale de l'Australie ?", "target": "**Canberra**."}
+{"input": "Qui a écrit 'Les Trois Mousquetaires' ?", "target": "**Alexandre Dumas**."}
+{"input": "Quel est le plus petit pays du monde ?", "target": "**Le Vatican**."}
+{"input": "Quelle est la capitale de la Chine ?", "target": "**Pékin**."}
+{"input": "Qui a écrit 'Bel-Ami' ?", "target": "**Guy de Maupassant**."}
+{"input": "Quel est le plus grand pays du monde ?", "target": "**La Russie**."}
+{"input": "Quelle est la capitale du Canada ?", "target": "**Ottawa**."}
+{"input": "Qui a écrit 'Voyage au centre de la Terre' ?", "target": "**Jules Verne**."}
+{"input": "Quel est le plus grand fleuve d'Amérique du Sud ?", "target": "**L'Amazone**."}
+{"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
+{"input": "Qui a écrit 'Le Comte de Monte-Cristo' ?", "target": "**Alexandre Dumas**."}
+{"input": "Quel est le plus grand lac d'Amérique du Nord ?", "target": "**Le lac Supérieur**."}
+{"input": "Quelle est la capitale de la Norvège ?", "target": "**Oslo**."}
+{"input": "Qui a écrit 'La Condition humaine' ?", "target": "**André Malraux**."}
+{"input": "Quel est le plus grand océan du monde ?", "target": "**L'océan Pacifique**."}
+{"input": "Quelle est la capitale du Maroc ?", "target": "**Rabat**."}
+{"input": "Qui a écrit 'L'Assommoir' ?", "target": "**Émile Zola**."}
+{"input": "Quel est le plus grand désert chaud du monde ?", "target": "**Le Sahara**."}
+{"input": "Quelle est la capitale de l'Allemagne ?", "target": "**Berlin**."}
+{"input": "Qui a écrit 'Le Malade imaginaire' ?", "target": "**Molière**."}
+{"input": "Tu as les cramptés ?", "target": "**APAGNAN**"}
+{"input": "T'as les cramptés ?", "target": "**APANYAN !**"}

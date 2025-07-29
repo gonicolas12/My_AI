@@ -65,7 +65,7 @@ my_ai/
 
 ## 🚀 Fonctionnalités Principales
 
-### 📚 FAQ Thématique Prioritaire (v4.0.0)
+### 📚 FAQ Thématique Prioritaire
 - **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data/` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
 - **Chargement automatique** : Toutes les questions/réponses sont fusionnées et accessibles instantanément
 - **Matching prioritaire** : La FAQ répond avant tout autre modèle

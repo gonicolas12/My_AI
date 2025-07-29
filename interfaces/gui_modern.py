@@ -90,8 +90,15 @@ except ImportError as e:
 
 
 class ModernAIGUI:
+    def add_ai_response(self, response):
+        # Ne surtout pas réactiver l'input ici !
+        self.add_message_bubble(response, is_user=False)
+        # (Aucun set_input_state(True) ici)
     def set_input_state(self, enabled: bool):
-        """Active ou désactive la zone de saisie ET les boutons d'action"""
+        """Active/désactive la zone de saisie et les boutons d'action, mais le bouton Envoyer devient STOP si IA occupe."""
+        import traceback
+        # if enabled:
+        #     traceback.print_stack()
         try:
             # Zone de saisie
             if hasattr(self, 'input_text'):
@@ -106,14 +113,8 @@ class ModernAIGUI:
                     # Sauvegarder le contenu avant de désactiver
                     try:
                         self._saved_input_content = self.input_text.get("1.0", "end-1c")
-                    except:
+                    except Exception:
                         self._saved_input_content = ""
-            # Bouton d'envoi
-            if hasattr(self, 'send_button'):
-                try:
-                    self.send_button.configure(state="normal" if enabled else "disabled")
-                except Exception:
-                    pass
             # Boutons PDF, DOCX, Code
             for btn_name in ["pdf_btn", "docx_btn", "code_btn"]:
                 if hasattr(self, btn_name):
@@ -130,7 +131,106 @@ class ModernAIGUI:
                         btn.configure(state="normal" if enabled else "disabled")
                     except Exception:
                         pass
-        except Exception as e:
+            # Bouton d'envoi :
+            if hasattr(self, 'send_button'):
+                if enabled:
+                    self._set_send_button_normal()
+                else:
+                    self._set_send_button_stop()
+        except Exception:
+            pass
+
+    def _set_send_button_normal(self):
+        """Affiche le bouton Envoyer normal et réactive l'envoi."""
+        try:
+            if hasattr(self, 'send_button'):
+                # Orange vif, texte blanc, style moderne
+                if self.use_ctk:
+                    self.send_button.configure(
+                        text="Envoyer ↗",
+                        command=lambda: self.send_message(),
+                        state="normal",
+                        fg_color=self.colors['accent'],
+                        hover_color="#ff5730",
+                        text_color="#ffffff",
+                        border_width=0
+                    )
+                else:
+                    self.send_button.configure(
+                        text="Envoyer ↗",
+                        command=lambda: self.send_message(),
+                        state="normal",
+                        bg=self.colors['accent'],
+                        fg="#ffffff",
+                        activebackground="#ff5730",
+                        relief="flat",
+                        border=0
+                    )
+        except Exception:
+            pass
+
+    def _set_send_button_stop(self):
+        """Affiche le bouton STOP (carré noir dans cercle blanc, fond blanc, bord noir) pour interrompre l'IA."""
+        try:
+            if hasattr(self, 'send_button'):
+                icon = "  ■  "
+                if self.use_ctk:
+                    self.send_button.configure(
+                        text=icon,
+                        command=self.interrupt_ai,
+                        state="normal",
+                        fg_color="#ffffff",
+                        hover_color="#f3f3f3",
+                        text_color="#111111",
+                        border_color="#111111",
+                        border_width=2
+                    )
+                else:
+                    self.send_button.configure(
+                        text=icon,
+                        command=self.interrupt_ai,
+                        state="normal",
+                        bg="#ffffff",
+                        fg="#111111",
+                        activebackground="#f3f3f3",
+                        activeforeground="#111111",
+                        highlightbackground="#111111",
+                        highlightcolor="#111111",
+                        highlightthickness=2,
+                        relief="solid"
+                    )
+        except Exception:
+            pass
+
+    def interrupt_ai(self):
+        """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
+        try:
+            self.is_interrupted = True
+            self.current_request_id += 1  # Invalide toutes les requêtes en cours
+
+            # Arrêter l'animation de frappe IA (si en cours)
+            if hasattr(self, 'stop_typing_animation'):
+                try:
+                    self.stop_typing_animation()
+                except Exception:
+                    pass
+            # Arrêter la recherche internet (si en cours)
+            if hasattr(self, 'stop_internet_search'):
+                try:
+                    self.stop_internet_search()
+                except Exception:
+                    pass
+            # Arrêter la réflexion IA (si en cours)
+            if hasattr(self, 'stop_thinking'):
+                try:
+                    self.stop_thinking()
+                except Exception:
+                    pass
+            # Remettre l'UI en état normal
+            self.set_input_state(True)
+            self.is_thinking = False
+            self.is_searching = False
+        except Exception:
             pass
 
     def _safe_focus_input(self):
@@ -153,25 +253,26 @@ class ModernAIGUI:
     
     def __init__(self):
         """Initialise l'interface moderne"""
+        self.is_interrupted = False  # Pour interruption robuste
         self.logger = Logger.get_logger("modern_ai_gui")
         self.config = Config()
         self.ai_engine = AIEngine(self.config)
         self.file_manager = FileManager()
-        
+
         # Processors
         self.pdf_processor = PDFProcessor()
         self.docx_processor = DOCXProcessor()
         self.code_processor = CodeProcessor()
-        
+
         # État de l'application
         self.is_thinking = False
         self.is_searching = False
         self.conversation_history = []
-        
+
         # Variables d'animation
         self.thinking_dots = 0
         self.search_frame = 0
-        
+
         # Configuration de l'interface
         self.setup_modern_gui()
         self.create_modern_layout()
@@ -754,6 +855,7 @@ class ModernAIGUI:
     
     def add_message_bubble(self, text, is_user=True, message_type="text"):
         """Version FINALE avec animation de frappe pour les messages IA"""
+        # Debug removed
         from datetime import datetime
         
         # Vérifier que le texte est une chaîne
@@ -787,7 +889,86 @@ class ModernAIGUI:
             # Scroll utilisateur : scroller uniquement si le bas n'est pas visible
             self.root.after(50, lambda: self._scroll_if_needed_user())
         else:
-            self.create_ai_message_simple(msg_container, text)
+            # Crée la bulle IA mais insère le texte vide, puis lance l'animation de frappe
+            from datetime import datetime
+            # Frame de centrage
+            center_frame = self.create_frame(msg_container, fg_color=self.colors['bg_chat'])
+            center_frame.grid(row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew")
+            center_frame.grid_columnconfigure(0, weight=0)
+            center_frame.grid_columnconfigure(1, weight=1)
+
+            # Icône IA
+            icon_label = self.create_label(
+                center_frame,
+                text="🤖",
+                font=('Segoe UI', 16),
+                fg_color=self.colors['bg_chat'],
+                text_color=self.colors['accent']
+            )
+            icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+
+            # Container pour le message IA
+            message_container = self.create_frame(center_frame, fg_color=self.colors['bg_chat'])
+            message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
+            message_container.grid_columnconfigure(0, weight=1)
+
+            # Stocker le container pour l'affichage du timestamp
+            self.current_message_container = message_container
+
+            # Widget Text vide pour l'animation
+            import tkinter as tk
+            text_widget = tk.Text(
+                message_container,
+                width=120,
+                bg=self.colors['bg_chat'],
+                fg=self.colors['text_primary'],
+                font=('Segoe UI', 12),
+                wrap=tk.WORD,
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                state="normal",
+                cursor="xterm",
+                padx=8,
+                pady=6,
+                selectbackground="#4a90e2",
+                selectforeground="#ffffff",
+                exportselection=True,
+                takefocus=False,
+                insertwidth=0
+            )
+            text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
+            self._adjust_widget_height_final(text_widget, "")
+
+            # Bind SEULEMENT pour les touches, pas pour la souris
+            def prevent_editing_only(event):
+                editing_keys = [
+                    'BackSpace', 'Delete', 'Return', 'KP_Enter', 'Tab',
+                    'space', 'Insert'
+                ]
+                if event.state & 0x4:
+                    if event.keysym.lower() in ['a', 'c']:
+                        return None
+                if event.keysym in editing_keys:
+                    return "break"
+                if len(event.keysym) == 1 and event.keysym.isprintable():
+                    return "break"
+                return None
+            text_widget.bind("<KeyPress>", prevent_editing_only)
+            self.setup_improved_scroll_forwarding(text_widget)
+            def copy_on_double_click(event):
+                try:
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(text)
+                    self.show_copy_notification("✅ Message copié !")
+                except Exception as e:
+                    self.show_copy_notification("❌ Erreur de copie")
+                return "break"
+            text_widget.bind("<Double-Button-1>", copy_on_double_click)
+            self.create_copy_menu_with_notification(text_widget, text)
+
+            # Démarrer l'animation de frappe avec hauteur dynamique
+            self.start_typing_animation_dynamic(text_widget, text)
 
     def _scroll_if_needed_user(self):
         """Scroll pour le message utilisateur uniquement si le bas n'est pas visible"""
@@ -847,6 +1028,8 @@ class ModernAIGUI:
         text_widget.bind("<Next>", lambda e: "break")   # Page Down
         text_widget.bind("<Home>", lambda e: "break")
         text_widget.bind("<End>", lambda e: "break")
+
+
 
     def create_user_message_bubble(self, parent, text):
         """Version avec hauteur précise et sélection activée pour les messages utilisateur"""
@@ -1059,6 +1242,7 @@ class ModernAIGUI:
 
     def create_ai_message_simple(self, parent, text):
         """Version DÉFINITIVE - Messages IA complets sans AUCUN scroll interne"""
+        # Debug removed
         from datetime import datetime
         
         # Vérifier que le texte est une chaîne
@@ -1245,6 +1429,7 @@ class ModernAIGUI:
     def start_typing_animation_dynamic(self, text_widget, full_text):
         """Animation avec désactivation de la saisie"""
         # DÉSACTIVER la saisie pendant l'animation
+        # Debug removed
         self.set_input_state(False)
         
         # Réinitialiser le widget
@@ -1259,15 +1444,35 @@ class ModernAIGUI:
         
         # Configurer tous les tags de formatage
         self._configure_formatting_tags(text_widget)
+
+        # Flag d'interruption
+        self._typing_interrupted = False
         
+        # Debug removed
         # Démarrer l'animation
         self.continue_typing_animation_dynamic()
 
     def continue_typing_animation_dynamic(self):
         """Animation AVEC scroll automatique qui suit l'écriture"""
+        idx = getattr(self, 'typing_index', None)
+        if idx == 0:
+            pass
+        elif idx is not None and idx % 100 == 0:
+            pass
+
+        # SÉCURITÉ : aucun set_input_state(True) ne doit être appelé ici !
+        # Si jamais cela arrive, on logue une erreur (détection de bug/régression)
+        # (AUCUN set_input_state(True) dans cette fonction !)
+
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
-        
+            return
+
+        if getattr(self, '_typing_interrupted', False):
+            # Debug removed
+            self.finish_typing_animation_dynamic(interrupted=True)
+            return
+
         if self.typing_index < len(self.typing_text):
             current_text = self.typing_text[:self.typing_index + 1]
 
@@ -1278,40 +1483,32 @@ class ModernAIGUI:
 
             # Ajustement dynamique de la hauteur à CHAQUE étape
             self._adjust_widget_height_dynamically(self.typing_widget)
-            # Debug removed
-
             # Scroll pendant l'animation uniquement si le bas n'est pas visible
             if hasattr(self, 'chat_frame') and self.typing_index % 10 == 0:
                 try:
                     if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
                         canvas = self.chat_frame._parent_canvas
                         yview = canvas.yview()
-                        pass
                         widget_bottom = self.typing_widget.winfo_rooty() + self.typing_widget.winfo_height()
                         container_bottom = canvas.winfo_rooty() + canvas.winfo_height()
-                        pass
                         if widget_bottom > container_bottom or (yview and yview[1] < 1.0):
                             self.root.after(1, self._gentle_scroll_to_bottom)
-                            pass
                     else:
                         parent = self.chat_frame.master
                         yview = parent.yview() if hasattr(parent, 'yview') else None
-                        pass
                         widget_bottom = self.typing_widget.winfo_rooty() + self.typing_widget.winfo_height()
                         container_bottom = parent.winfo_rooty() + parent.winfo_height()
-                        pass
                         if widget_bottom > container_bottom or (yview and yview[1] < 1.0):
                             self.root.after(1, self._gentle_scroll_to_bottom)
-                            pass
                 except Exception as e:
                     pass
 
             self.typing_index += 1
 
             # Programmer le caractère suivant
-            self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
+            self._typing_animation_after_id = self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
         else:
-            # Animation terminée
+            # Debug removed
             self.finish_typing_animation_dynamic()
 
     def _gentle_scroll_to_bottom(self):
@@ -1363,37 +1560,55 @@ class ModernAIGUI:
         except Exception as e:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
-    def finish_typing_animation_dynamic(self):
-        """Version FINALE avec scroll qui marche"""
+    def finish_typing_animation_dynamic(self, interrupted=False):
+        """Version FINALE avec scroll qui marche, support interruption"""
+        # Debug removed
         if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
-            # Appliquer le formatage final complet
+            # Debug removed
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
-            self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
-            
+            if interrupted:
+                # Affiche le texte à l'endroit où on a stoppé
+                partial_text = self.typing_text[:self.typing_index]
+                self.insert_formatted_text_tkinter(self.typing_widget, partial_text)
+            else:
+                self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
             # Ajustement final de la hauteur
             self._adjust_widget_height_final(self.typing_widget, self.typing_text)
-            
             # GARDER en state="normal" pour la sélection
             self.typing_widget.configure(state="normal")
-            
-            # Afficher le timestamp
+            # Afficher le timestamp à l'arrêt de l'animation (même si interrompu)
             self._show_timestamp_for_current_message()
-            
             # RÉACTIVER la saisie utilisateur
             self.set_input_state(True)
-            
             # Scroll final AMÉLIORÉ avec délais progressifs
             self.root.after(100, self.scroll_to_bottom_smooth)
             self.root.after(300, self.scroll_to_bottom_smooth)  # Double scroll pour sécurité
-            
             # Nettoyer les variables
+            if hasattr(self, '_typing_animation_after_id'):
+                try:
+                    self.root.after_cancel(self._typing_animation_after_id)
+                except Exception:
+                    pass
+                del self._typing_animation_after_id
             delattr(self, 'typing_widget')
             delattr(self, 'typing_text')
             delattr(self, 'typing_index')
+            self._typing_interrupted = False
+
+    def stop_typing_animation(self):
+        """Stoppe proprement l'animation de frappe IA (interruption utilisateur)"""
+        self._typing_interrupted = True
+        if hasattr(self, '_typing_animation_after_id'):
+            try:
+                self.root.after_cancel(self._typing_animation_after_id)
+            except Exception:
+                pass
+            del self._typing_animation_after_id
 
     def scroll_to_bottom_smooth(self):
         """Scroll vers le bas en douceur, sans clignotement"""
+        # Debug removed
         try:
             # Une seule mise à jour, puis scroll
             self.root.update_idletasks()
@@ -2174,6 +2389,10 @@ class ModernAIGUI:
         self.is_searching = False
         
         # NOUVEAU : Réactiver la zone de saisie
+        # Correction : ne réactive l'input que si aucune animation IA n'est en cours
+        if hasattr(self, 'is_animation_running') and self.is_animation_running():
+            # Debug removed
+            return
         self.set_input_state(True)
         
         if hasattr(self, 'thinking_frame'):
@@ -2265,22 +2484,20 @@ class ModernAIGUI:
     def on_enter_key(self, event):
         """Gère la touche Entrée - VERSION CORRIGÉE"""
         try:
-            # Vérifier si une animation est en cours
+            # Permettre l'envoi même si animation interrompue
             if self.is_animation_running():
-                print("⚠️ Animation en cours, Entrée ignorée")
-                return "break"
-            
+                if getattr(self, '_typing_interrupted', False):
+                    self.finish_typing_animation_dynamic(interrupted=True)
+                else:
+                    return "break"
             # Vérifier l'état de la touche Shift
             shift_pressed = bool(event.state & 0x1)
-            
             if shift_pressed:
-                # Shift+Entrée : insérer une nouvelle ligne (comportement par défaut)
                 return None  # Laisser tkinter gérer l'insertion de nouvelle ligne
             else:
-                # Entrée seule : envoyer le message
                 try:
                     self.send_message()
-                    return "break"  # Empêcher l'insertion d'une nouvelle ligne
+                    return "break"
                 except Exception as e:
                     print(f"❌ Erreur lors de l'envoi du message: {e}")
                     return "break"
@@ -2372,7 +2589,7 @@ class ModernAIGUI:
                 "🚀 Finalisation de la réponse...",
                 "🔮 Prédiction des besoins...",
                 "💻 Processing linguistique avancé...",
-                "🎪 Préparation d'une réponse époustouflante..."
+                "🎪 Préparation d'une réponse..."
             ]
             
             # Choisir une animation aléatoire pour plus de variété
@@ -2414,15 +2631,15 @@ class ModernAIGUI:
             self.thinking_label.configure(text="")
    
     def send_message(self):
+        # Debug removed
         """Envoie le message - VERSION CORRIGÉE"""
         try:
-            # Debug removed
-            
-            # CORRECTION : Vérifier si on est en cours d'animation au lieu de l'état du widget
-            if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
-                return
-                return
-            
+            # Permettre l'envoi même si animation interrompue
+            if self.is_animation_running():
+                if getattr(self, '_typing_interrupted', False):
+                    self.finish_typing_animation_dynamic(interrupted=True)
+                else:
+                    return
             # Récupérer le texte AVANT de vérifier l'état
             message = ""
             try:
@@ -2470,13 +2687,20 @@ class ModernAIGUI:
             
             # Afficher l'animation de réflexion
             self.show_thinking_animation()
-            # Debug removed
             
-            # Traitement en arrière-plan
-            # Debug removed
+            # Incrémente l'ID de requête
+            if not hasattr(self, 'current_request_id'):
+                self.current_request_id = 0
+            self.current_request_id += 1
+            request_id = self.current_request_id
+
+            # Réinitialise l'interruption à chaque nouveau message
+            self.is_interrupted = False
+
+            # Lancer le traitement avec l'ID
             threading.Thread(
-                target=self.process_user_message,
-                args=(message,),
+                target=self.quel_handle_message_with_id,
+                args=(message, request_id),
                 daemon=True
             ).start()
             
@@ -2490,8 +2714,45 @@ class ModernAIGUI:
                 self.set_input_state(True)
             except:
                 pass
-    
+
+    def quel_handle_message_with_id(self, user_text, request_id):
+        """
+        Traite le message utilisateur avec gestion de l'ID de requête et de l'aiguillage.
+        """
+        # Détection d'intention (à adapter selon votre logique)
+        intent = None
+        confidence = 0.0
+        try:
+            # Si votre AIEngine expose une méthode d'intent, utilisez-la, sinon adaptez ici
+            if hasattr(self.ai_engine, 'detect_intent'):
+                intent, confidence = self.ai_engine.detect_intent(user_text)
+            else:
+                # Fallback simple : détection par mot-clé
+                if 'internet' in user_text.lower() or 'cherche sur internet' in user_text.lower():
+                    intent = 'internet_search'
+                    confidence = 1.0
+                elif 'qui es-tu' in user_text.lower() or 'tu es qui' in user_text.lower():
+                    intent = 'identity_question'
+                    confidence = 1.0
+                else:
+                    intent = 'unknown'
+                    confidence = 0.0
+        except Exception:
+            intent = 'unknown'
+            confidence = 0.0
+
+        # Correction : toujours passer la question à AIEngine.process_text pour garantir la priorité FAQ/ML
+        print(f"[DEBUG] (ModernAIGUI) Question transmise à AIEngine.process_text : {repr(user_text)}")
+        try:
+            response = self.ai_engine.process_text(user_text)
+        except Exception as e:
+            response = f"❌ Erreur IA : {e}"
+        if self.current_request_id == request_id and not self.is_interrupted:
+            self.root.after(0, lambda: self.add_ai_response(response))
+        self.root.after(0, self.hide_status_indicators)
+        
     def process_user_message(self, message):
+        print(f"[DEBUG] process_user_message called with message: {message}")
         """Traite le message utilisateur en arrière-plan - VERSION AVEC DEBUG"""
         # Debug removed
         
@@ -2534,6 +2795,7 @@ class ModernAIGUI:
         threading.Thread(target=run_async_task, daemon=True).start()
     
     def add_ai_response(self, response):
+        print(f"[DEBUG] add_ai_response called with response: {str(response)[:60]}")
         """Ajoute une réponse de l'IA - VERSION CORRIGÉE pour affichage complet"""
         # Debug removed
         
@@ -2580,9 +2842,11 @@ class ModernAIGUI:
             text_response = "⚠️ Réponse vide reçue"
             pass
         
-        # Ajouter le message avec le texte complet
+        # Désactiver explicitement l'input pendant l'animation IA
+        self.set_input_state(False)
+        # Ajouter le message avec le texte complet (déclenche l'animation de frappe IA)
         self.add_message_bubble(text_response, is_user=False)
-        
+
         # Scroll vers le bas avec délai pour s'assurer que le message est rendu
         self.root.after(100, self.scroll_to_bottom)
         self.root.after(300, self.scroll_to_bottom)  # Double tentative

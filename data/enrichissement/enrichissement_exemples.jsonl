@@ -1,19 +1,28 @@
-{"input": "Quelle est la capitale de la France ?", "target": "Paris."}
-{"input": "2 + 2", "target": "4"}
-{"input": "2+2", "target": "4"}
-{"input": "Explique le code suivant : for i in range(3): print(i)", "target": "Ce code affiche les nombres de 0 à 2."}
+{"input": "Quelle est la capitale de la France ?", "target": "**Paris**."}
+{"input": "2 + 2", "target": "**4**"}
+{"input": "2+2", "target": "**4**"}
+{"input": "Explique le code suivant : for i in range(3): print(i)", "target": "Ce code affiche les nombres de **0 à 2**."}
 {"input": "Donne-moi la météo à Toulouse.", "target": "Je ne peux pas accéder à Internet, mais tu peux consulter un site météo local."}
-{"input": "Traduis en anglais : 'Bonjour tout le monde'", "target": "Hello everyone"}
-{"input": "Résume ce texte : L'IA est un domaine en plein essor.", "target": "L'intelligence artificielle se développe rapidement."}
-{"input": "Génère un email professionnel pour demander un rendez-vous.", "target": "Bonjour,\nJe souhaite convenir d'un rendez-vous à votre convenance. Cordialement."}
-{"input": "Quel est le résultat de 15 * 3 ?", "target": "45"}
-{"input": "Complète la phrase : L'eau bout à ...", "target": "100°C"}
-{"input": "Code Python pour inverser une liste.", "target": "ma_liste[::-1]"}
-{"input": "Donne-moi un synonyme de 'rapide'", "target": "Vif, prompt, agile, expéditif."}
-{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "Antoine de Saint-Exupéry."}
-{"input": "Donne-moi la racine carrée de 81.", "target": "9"}
-{"input": "Explique le concept de machine learning.", "target": "Le machine learning consiste à entraîner un modèle à partir de données pour qu'il réalise des prédictions ou des classifications."}
-{"input": "Traduis en espagnol : 'Merci beaucoup'", "target": "Muchas gracias"}
+{"input": "Traduis en anglais : 'Bonjour tout le monde'", "target": "**Hello everyone**"}
+{"input": "Résume ce texte : L'IA est un domaine en plein essor.", "target": "L'intelligence artificielle se développe **rapidement**."}
+{"input": "Génère un email professionnel pour demander un rendez-vous.", "target": "Bonjour,\nJe souhaite convenir d'un **rendez-vous** à votre convenance. Cordialement."}
+{"input": "Quel est le résultat de 15 * 3 ?", "target": "**45**"}
+{"input": "Complète la phrase : L'eau bout à ...", "target": "**100°C**"}
+{"input": "Code Python pour inverser une liste.", "target": "**ma_liste[::-1]**"}
+{"input": "Donne-moi un synonyme de 'rapide'", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
+{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "**Antoine de Saint-Exupéry**."}
+{"input": "Donne-moi la racine carrée de 81.", "target": "**9**"}
+{"input": "Explique le concept de machine learning.", "target": "Le **machine learning** consiste à entraîner un **modèle** à partir de **données** pour qu'il réalise des **prédictions** ou des **classifications**."}
+{"input": "Traduis en espagnol : 'Merci beaucoup'", "target": "**Muchas gracias**"}
 {"input": "Quelle est la date d'aujourd'hui ?", "target": "Je ne peux pas accéder à la date actuelle, mais tu peux la consulter sur ton appareil."}
-{"input": "Complète : Python est un langage ...", "target": "de programmation."}
-{"input": "Donne-moi la formule chimique de l'eau.", "target": "H2O"}
+{"input": "Complète : Python est un langage ...", "target": "de **programmation**."}
+{"input": "Donne-moi la formule chimique de l'eau.", "target": "**H2O**"}
+{"input": "Donne-moi un antonyme de 'facile'", "target": "**Difficile**, **compliqué**, **ardu**."}
+{"input": "Quel est le plus grand océan du monde ?", "target": "L'**océan Pacifique**."}
+{"input": "Traduis en allemand : 'Bonne nuit'", "target": "**Gute Nacht**"}
+{"input": "Quelle est la couleur du ciel par temps clair ?", "target": "**Bleu**."}
+{"input": "Code Python pour additionner deux nombres a et b.", "target": "**a + b**"}
+{"input": "Donne-moi la capitale de l'Italie.", "target": "**Rome**."}
+{"input": "Explique le terme 'biodiversité'.", "target": "La **biodiversité** désigne la variété des **espèces vivantes** sur Terre."}
+{"input": "Quel est le symbole chimique du fer ?", "target": "**Fe**"}
+{"input": "Complète : Le soleil se lève à l'...", "target": "**est**."}

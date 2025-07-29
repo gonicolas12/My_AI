@@ -36,6 +36,8 @@ class AIEngine:
         
         # Initialisation des composants
         self.file_manager = FileManager()
+
+        self.current_request_id = 0
         
         # Initialiser session_context AVANT tout le reste
         self.session_context = {
@@ -55,6 +57,7 @@ class AIEngine:
             from models.ml_faq_model import MLFAQModel
             self.local_ai = CustomAIModel(conversation_memory=self.conversation_memory)
             self.ml_ai = MLFAQModel()  # Modèle ML local (TF-IDF)
+            # Debug supprimé : plus de log sur le chargement de la base FAQ/ML
             self.model = self.local_ai  # Alias pour compatibilité avec l'interface graphique
             self.logger.info("✅ Modèle IA local avec mémoire initialisé")
             self.logger.info("✅ Modèle ML (TF-IDF) initialisé")
@@ -82,35 +85,42 @@ class AIEngine:
     def process_text(self, text: str) -> str:
         """
         Traite un texte en donnant la priorité à la FAQ ML (TF-IDF), puis au modèle IA custom.
+        Ajoute des logs détaillés pour la prise de décision et garantit qu'aucune recherche internet n'est lancée si la FAQ locale répond.
+        Priorité ABSOLUE à la FAQ locale : si une réponse existe, elle est TOUJOURS utilisée, peu importe l'intention détectée.
         """
         try:
-            self.logger.info(f"Processing text: {text[:50]}...")
+            self.logger.info(f"[DEBUG] process_text: question utilisateur brute: {repr(text)}")
             print(f"[AIEngine] Appel FAQ pour: '{text}'")
             # 1. Tenter la FAQ ML d'abord
             response_ml = None
             if self.ml_ai is not None:
                 try:
+                    self.logger.info(f"[DEBUG] Passage de la question à FAQ/ML: {repr(text)}")
                     response_ml = self.ml_ai.predict(text)
-                    self.logger.info(f"ML model response: {str(response_ml)[:50]}...")
+                    self.logger.info(f"[DEBUG] ML model response: {repr(response_ml)}")
                 except Exception as e:
                     self.logger.warning(f"Erreur modèle ML: {e}")
+            else:
+                print(f"[AIEngine] Modèle FAQ ML non initialisé. Passage direct au modèle custom.")
+
+            # Priorité absolue : si la FAQ locale a une réponse, on la retourne DIRECTEMENT
             if response_ml is not None and str(response_ml).strip():
-                # On sauvegarde l'échange
+                print(f"[AIEngine] Réponse trouvée dans la FAQ locale. Priorité absolue. Pas de recherche internet ni d'appel au modèle custom.")
                 try:
                     self.conversation_manager.add_exchange(text, {"message": response_ml})
-                except:
-                    self.logger.warning("Impossible de sauvegarder la conversation")
+                except Exception as e:
+                    self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
                 return response_ml
 
-            # 2. Sinon, générer la réponse custom
+            # Sinon, générer la réponse custom
             response_custom = self.local_ai.generate_response(text)
             self.logger.info(f"Custom model response: {response_custom[:50]}...")
 
             # On sauvegarde l'échange
             try:
                 self.conversation_manager.add_exchange(text, {"message": response_custom})
-            except:
-                self.logger.warning("Impossible de sauvegarder la conversation")
+            except Exception as e:
+                self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
             return response_custom
 
         except Exception as e:
