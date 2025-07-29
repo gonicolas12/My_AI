@@ -6,7 +6,7 @@ REM ====================================
 
 echo.
 echo MY PERSONAL AI - Lanceur Universel
-echo ================================
+echo ===================================
 echo.
 
 REM Verifier Python

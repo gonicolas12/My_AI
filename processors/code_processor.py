@@ -41,6 +41,111 @@ class CodeProcessor:
             'csharp': ['.cs'],
             'php': ['.php']
         }
+
+    def generate_detailed_explanation(self, file_path: str, real_file_name: str = None) -> str:
+        """
+        Génère une explication détaillée, structurée et pédagogique d'un fichier Python (Markdown/balises pour affichage riche).
+        """
+        analysis = self.analyze_code(file_path)
+        if not analysis.get("success"):
+            return f"**Erreur lors de l'analyse du fichier** : {analysis.get('error', 'Inconnue')}"
+
+        content = analysis.get("content", "")
+        language = analysis.get("language", "unknown")
+        lines = content.splitlines()
+        docstring = ""
+        # Chercher un docstring de module
+        if lines and lines[0].strip().startswith('"""'):
+            docstring_lines = []
+            for line in lines[1:]:
+                if line.strip().startswith('"""'):
+                    break
+                docstring_lines.append(line)
+            docstring = '\n'.join(docstring_lines).strip()
+
+        explanation = []
+        # Titre principal
+        file_display = real_file_name if real_file_name else os.path.basename(file_path)
+        explanation.append(f"# Explication détaillée du fichier `{file_display}`\n")
+
+        # 1. Objectif général
+        explanation.append("## 1. Objectif général\n")
+        if docstring:
+            explanation.append(f"'''docstring\n{docstring}\n'''\n")
+        else:
+            explanation.append("> Ce fichier ne contient pas de docstring de module explicite. Il s'agit d'un fichier de code en Python.\n")
+
+        # 2. Modules et bibliothèques utilisés
+        explanation.append("## 2. Modules et bibliothèques utilisés\n")
+        imports = analysis.get("imports", [])
+        if imports:
+            for imp in imports:
+                if imp["type"] == "import":
+                    mod = imp["module"]
+                    alias = f" (alias : `{imp['alias']}`)" if imp["alias"] else ""
+                    explanation.append(f"- `{mod}`{alias}")
+                elif imp["type"] == "from_import":
+                    mod = imp["module"]
+                    name = imp["name"]
+                    alias = f" (alias : `{imp['alias']}`)" if imp["alias"] else ""
+                    explanation.append(f"- `from {mod} import {name}`{alias}")
+        else:
+            explanation.append("Aucun import détecté.")
+
+        # 3. Structure principale
+        explanation.append("## 3. Structure principale\n")
+        classes = analysis.get("classes", [])
+        functions = analysis.get("functions", [])
+        if classes:
+            explanation.append(f"Le fichier contient **{len(classes)} classe(s)** :\n")
+            for c in classes:
+                bases = f" (hérite de {', '.join([f'`{b}`' for b in c['bases']])})" if c['bases'] else ""
+                doc = f"\n'''docstring\n{c['docstring']}\n'''" if c['docstring'] else ""
+                explanation.append(f"- **Classe `{c['name']}`**{bases} _(ligne {c['line']})_{doc}")
+        else:
+            explanation.append("Aucune classe définie dans ce fichier.")
+        if functions:
+            explanation.append(f"\nLe fichier contient **{len(functions)} fonction(s)** :\n")
+            for f in functions:
+                args = ', '.join([f'`{a}`' for a in f['args']])
+                doc = f"\n'''docstring\n{f['docstring']}\n'''" if f['docstring'] else ""
+                explanation.append(f"- **Fonction `{f['name']}`**(**args**: {args}) _(ligne {f['line']})_{doc}")
+        else:
+            explanation.append("Aucune fonction définie dans ce fichier.")
+
+        # 4. Points particuliers
+        explanation.append("## 4. Points particuliers\n")
+        # Gestion d'erreurs
+        if 'try' in content or 'except' in content:
+            explanation.append("- Ce fichier gère des exceptions avec des blocs `try/except`.")
+        # Fallbacks
+        if 'fallback' in content.lower():
+            explanation.append("- Des mécanismes de **fallback** sont présents pour garantir la robustesse.")
+        # Patterns
+        if 'class ' in content and '__init__' in content:
+            explanation.append("- Utilisation de classes avec constructeurs (`__init__`) pour structurer le code.")
+        # Validation
+        if 'validate' in content or 'validation' in content:
+            explanation.append("- Le code inclut des fonctions de **validation**.")
+        # Analyse
+        if 'analyze' in content or 'analyse' in content:
+            explanation.append("- Le code inclut des fonctions d'**analyse** de code.")
+        # Multi-langages
+        if 'supported_languages' in content:
+            explanation.append("- Ce fichier gère plusieurs langages de programmation.")
+
+        # 5. Résumé technique
+        explanation.append("## 5. Résumé technique\n")
+        explanation.append(f"- Langage détecté : **{language}**")
+        explanation.append(f"- Nombre de lignes : **{analysis.get('line_count', '?')}**")
+        explanation.append(f"- Nombre de caractères : **{analysis.get('character_count', '?')}**")
+        explanation.append(f"- Taille du fichier : **{analysis.get('file_size', '?')} octets**")
+
+        # Bloc code complet (optionnel)
+        explanation.append("\n## 6. Code source complet\n")
+        explanation.append("```python\n" + content.strip() + "\n```")
+
+        return '\n'.join(explanation)
     
     def read_code_file(self, file_path: str) -> str:
         """

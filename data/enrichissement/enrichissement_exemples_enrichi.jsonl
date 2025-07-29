@@ -94,3 +94,22 @@
 {"input": "Quel est le plus grand zoo du monde ?", "target": "**Le zoo de San Diego**."}
 {"input": "Quelle est la capitale de la Russie ?", "target": "**Moscou**."}
 {"input": "Donne-moi une devise anglaise.", "target": "**In God We Trust**."}
+{"input": "Quel est le plus grand océan de la Terre ?", "target": "**L'océan Pacifique**."}
+{"input": "Quel est le symbole chimique de l'or ?", "target": "**Au**"}
+{"input": "Quelle est la capitale de l'Inde ?", "target": "**New Delhi**."}
+{"input": "Qui a écrit 'Roméo et Juliette' ?", "target": "**William Shakespeare**."}
+{"input": "Quel est le plus haut gratte-ciel du monde ?", "target": "**Burj Khalifa**."}
+{"input": "Comment dit-on 'pain' en anglais ?", "target": "**Bread**"}
+{"input": "Quel est le résultat de 15 - 7 ?", "target": "**8**"}
+{"input": "Donne-moi un synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
+{"input": "Quelle est la capitale de l'Égypte ?", "target": "**Le Caire**."}
+{"input": "Qui a inventé l'imprimerie ?", "target": "**Johannes Gutenberg**."}
+{"input": "Quel est le plus grand animal marin ?", "target": "**La baleine bleue**."}
+{"input": "Comment dire 'bonjour' en allemand ?", "target": "**Guten Tag**"}
+{"input": "Quel est le résultat de 3 x 12 ?", "target": "**36**"}
+{"input": "Donne-moi une expression française sur la météo.", "target": "**Il pleut des cordes**."}
+{"input": "Quel est le synonyme de 'beaucoup' ?", "target": "**Nombreux**, **abondant**, **pléthorique**, **profus**."}
+{"input": "Quelle est la capitale du Mexique ?", "target": "**Mexico**."}
+{"input": "Qui a peint 'La Nuit étoilée' ?", "target": "**Vincent van Gogh**."}
+{"input": "Quel est le plus grand continent ?", "target": "**L'Asie**."}
+{"input": "Comment dit-on 'merci' en russe ?", "target": "**Spasibo**"}

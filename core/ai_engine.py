@@ -1,7 +1,10 @@
+
 """
 Moteur principal de l'IA personnelle
 Gère l'orchestration entre les différents modules
 """
+
+import asyncio
 
 import logging
 from typing import Dict, Any, Optional, List
@@ -84,9 +87,7 @@ class AIEngine:
     
     def process_text(self, text: str) -> str:
         """
-        Traite un texte en donnant la priorité à la FAQ ML (TF-IDF), puis au modèle IA custom.
-        Ajoute des logs détaillés pour la prise de décision et garantit qu'aucune recherche internet n'est lancée si la FAQ locale répond.
-        Priorité ABSOLUE à la FAQ locale : si une réponse existe, elle est TOUJOURS utilisée, peu importe l'intention détectée.
+        Traite un texte en donnant la priorité à la FAQ ML (TF-IDF), puis utilise la logique avancée (process_query) pour router la demande (explication code, etc).
         """
         try:
             self.logger.info(f"[DEBUG] process_text: question utilisateur brute: {repr(text)}")
@@ -112,20 +113,39 @@ class AIEngine:
                     self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
                 return response_ml
 
-            # Sinon, générer la réponse custom
-            response_custom = self.local_ai.generate_response(text)
-            self.logger.info(f"Custom model response: {response_custom[:50]}...")
-
-            # On sauvegarde l'échange
+            # Sinon, router via process_query pour bénéficier de la logique avancée (explication code, etc)
             try:
-                self.conversation_manager.add_exchange(text, {"message": response_custom})
+                # Utilise asyncio pour appeler la méthode async
+                loop = None
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = None
+                if loop and loop.is_running():
+                    # Si déjà dans un event loop (rare hors notebook), patch avec nest_asyncio si dispo
+                    try:
+                        import nest_asyncio  # type: ignore
+                        nest_asyncio.apply()
+                    except ImportError:
+                        self.logger.warning("nest_asyncio non installé : l'appel async peut échouer si déjà dans un event loop.")
+                    future = self.process_query(text)
+                    response = loop.run_until_complete(future)
+                else:
+                    response = asyncio.run(self.process_query(text))
+                # On sauvegarde l'échange
+                try:
+                    self.conversation_manager.add_exchange(text, response)
+                except Exception as e:
+                    self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
+                return response.get("message", "[Aucune réponse générée]")
             except Exception as e:
-                self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
-            return response_custom
-
+                self.logger.error(f"Erreur lors de l'appel à process_query: {e}")
+                self.logger.warning("Utilisation du fallback response (process_query)")
+                fallback_response = self._generate_fallback_response(text)
+                return fallback_response
         except Exception as e:
             self.logger.error(f"Erreur dans process_text: {e}")
-            self.logger.warning("Utilisation du fallback response")
+            self.logger.warning("Utilisation du fallback response (global)")
             fallback_response = self._generate_fallback_response(text)
             return fallback_response
 
@@ -661,9 +681,8 @@ if __name__ == "__main__":
                                 self.logger.info(f"DOCX sélectionné par 'doc' isolé: {target_document}")
                 
                 # Détection CODE
-                elif any(term in query_lower for term in ['code', 'py', 'python', 'script']):
+                elif any(term in query_lower for term in ['code', 'py', 'python', 'script', 'programme']):
                     code_docs = [doc for doc in document_order if doc.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json'))]
-                    
                     if code_docs:
                         if is_first_requested and len(code_docs) >= 1:
                             target_document = code_docs[0]
@@ -671,6 +690,54 @@ if __name__ == "__main__":
                         else:
                             target_document = code_docs[-1]
                             self.logger.info(f"Code sélectionné par type: {target_document}")
+                        
+                        # Si c'est un fichier Python, fournir une explication détaillée
+                        if target_document.lower().endswith('.py'):
+                            file_path = target_document
+                            self.logger.info(f"[DEBUG] Appel generate_detailed_explanation pour: {file_path}")
+                            import os, tempfile
+                            
+                            # Chercher le contenu en mémoire
+                            doc_data = all_docs.get(target_document, {})
+                            doc_content = doc_data.get('content') if isinstance(doc_data, dict) else str(doc_data)
+                            if not os.path.exists(file_path):
+                                
+                                # Créer un fichier temporaire avec le contenu
+                                with tempfile.NamedTemporaryFile('w', delete=False, suffix='.py', encoding='utf-8') as tmpf:
+                                    tmpf.write(doc_content)
+                                    tmp_path = tmpf.name
+                                temp_used = True
+                                self.logger.info(f"[DEBUG] Fichier temporaire créé pour explication: {tmp_path}")
+                            else:
+                                tmp_path = file_path
+                                temp_used = False
+                            try:
+                                # Passer le vrai nom de fichier pour l'affichage correct
+                                real_file_name = os.path.basename(file_path)
+                                explanation = self.code_processor.generate_detailed_explanation(tmp_path, real_file_name=real_file_name)
+                                self.logger.info(f"[DEBUG] Explication détaillée générée pour {tmp_path} (longueur: {len(explanation)}):\n{explanation[:300]}...")
+                                # Plus de post-traitement de balises/couleurs ici. Toute la coloration est gérée dans gui_modern.py si besoin.
+                                # Nettoyage du fichier temporaire si besoin
+                                if temp_used:
+                                    try:
+                                        os.remove(tmp_path)
+                                    except Exception as e:
+                                        self.logger.warning(f"[DEBUG] Impossible de supprimer le fichier temporaire: {e}")
+                                return {
+                                    "type": "file_processing",
+                                    "message": explanation,
+                                    "success": True
+                                }
+                            except Exception as e:
+                                self.logger.error(f"[DEBUG] Erreur lors de l'explication détaillée du code: {e}")
+                                
+                                # Nettoyage du fichier temporaire si besoin
+                                if temp_used:
+                                    try:
+                                        os.remove(tmp_path)
+                                    except Exception as e2:
+                                        self.logger.warning(f"[DEBUG] Impossible de supprimer le fichier temporaire: {e2}")
+                                # fallback: continuer le prompt classique
                 
                 # GESTION GÉNÉRALE DES RÉFÉRENCES NUMÉRIQUES (tous types confondus)
                 elif is_first_requested or is_second_requested or is_last_requested:

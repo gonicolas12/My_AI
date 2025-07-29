@@ -23,3 +23,13 @@
 {"input": "Donne-moi un synonyme de 'nouveau' ?", "target": "**Récent**, **moderne**, **neuf**, **innovant**."}
 {"input": "Donne-moi un synonyme de 'difficile' ?", "target": "**Compliqué**, **ardu**, **laborieux**, **complexe**."}
 {"input": "Donne-moi un synonyme de 'facile' ?", "target": "**Simple**, **aisé**, **évident**, **limpide**."}
+{"input": "Donne-moi un synonyme de 'amour' ?", "target": "**Affection**, **tendresse**, **passion**, **attachement**."}
+{"input": "Donne-moi un synonyme de 'peur' ?", "target": "**Crainte**, **terreur**, **appréhension**, **angoisse**."}
+{"input": "Donne-moi un synonyme de 'courage' ?", "target": "**Bravoure**, **audace**, **vaillance**, **intrépidité**."}
+{"input": "Donne-moi un synonyme de 'colère' ?", "target": "**Fureur**, **rage**, **irritation**, **exaspération**."}
+{"input": "Donne-moi un synonyme de 'travail' ?", "target": "**Emploi**, **occupation**, **tâche**, **activité**."}
+{"input": "Donne-moi un synonyme de 'beauté' ?", "target": "**Grâce**, **élégance**, **charme**, **splendeur**."}
+{"input": "Donne-moi un synonyme de 'paix' ?", "target": "**Tranquillité**, **calme**, **sérénité**, **harmonie**."}
+{"input": "Donne-moi un synonyme de 'guerre' ?", "target": "**Conflit**, **bataille**, **combat**, **affrontement**."}
+{"input": "Donne-moi un synonyme de 'amitié' ?", "target": "**Camaraderie**, **compagnonnage**, **affection**, **sympathie**."}
+{"input": "Donne-moi un synonyme de 'mensonge' ?", "target": "**Fausseté**, **tromperie**, **duperie**, **supercherie**."}

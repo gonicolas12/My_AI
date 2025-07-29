@@ -90,6 +90,26 @@ except ImportError as e:
 
 
 class ModernAIGUI:
+    def _show_timestamp_for_current_message(self):
+        """Affiche le timestamp sous la bulle du dernier message IA (comme pour l'utilisateur)."""
+        from datetime import datetime
+        if hasattr(self, 'current_message_container') and self.current_message_container is not None:
+            # Vérifier qu'il n'y a pas déjà un timestamp (évite doublons)
+            for child in self.current_message_container.winfo_children():
+                if isinstance(child, (tk.Label,)):
+                    if getattr(child, 'is_timestamp', False):
+                        return  # Déjà affiché
+            timestamp = datetime.now().strftime("%H:%M")
+            time_label = self.create_label(
+                self.current_message_container,
+                text=timestamp,
+                font=('Segoe UI', 10),
+                fg_color=self.colors['bg_chat'],
+                text_color='#b3b3b3'
+            )
+            time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
+            time_label.is_timestamp = True
+        # Sinon, rien à faire (pas de container)
     def add_ai_response(self, response):
         # Ne surtout pas réactiver l'input ici !
         self.add_message_bubble(response, is_user=False)
@@ -207,26 +227,12 @@ class ModernAIGUI:
         try:
             self.is_interrupted = True
             self.current_request_id += 1  # Invalide toutes les requêtes en cours
-
-            # Arrêter l'animation de frappe IA (si en cours)
             if hasattr(self, 'stop_typing_animation'):
-                try:
-                    self.stop_typing_animation()
-                except Exception:
-                    pass
-            # Arrêter la recherche internet (si en cours)
+                self.stop_typing_animation()
             if hasattr(self, 'stop_internet_search'):
-                try:
-                    self.stop_internet_search()
-                except Exception:
-                    pass
-            # Arrêter la réflexion IA (si en cours)
+                self.stop_internet_search()
             if hasattr(self, 'stop_thinking'):
-                try:
-                    self.stop_thinking()
-                except Exception:
-                    pass
-            # Remettre l'UI en état normal
+                self.stop_thinking()
             self.set_input_state(True)
             self.is_thinking = False
             self.is_searching = False
@@ -283,6 +289,29 @@ class ModernAIGUI:
         self.initialize_ai_async()
         self.ensure_input_is_ready()
     
+    def _configure_formatting_tags(self, text_widget):
+        """Configure tous les tags de formatage pour le widget Text (Markdown et coloration Python)."""
+        BASE_FONT = ('Segoe UI', 12)
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
+        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
+        text_widget.tag_configure("normal", font=BASE_FONT)
+        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        # Pygments-like tags (Python syntax)
+        text_widget.tag_configure("Token.Keyword", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Constant", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Type", foreground="#8be9fd", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Literal.String", foreground="#f1fa8c", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
+        text_widget.tag_configure("Token.Name.Function", foreground="#50fa7b", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name.Class", foreground="#50fa7b", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Name.Builtin", foreground="#8be9fd", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Literal.Number", foreground="#bd93f9", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Operator", foreground="#ff79c6", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Punctuation", foreground="#f8f8f2", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name", foreground="#f8f8f2", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name.Constant", foreground="#bd93f9", font=('Consolas', 11, 'bold'))
+
     def setup_modern_gui(self):
         """Configure l'interface principale style Claude"""
         if CTK_AVAILABLE:
@@ -1241,126 +1270,126 @@ class ModernAIGUI:
         text_widget.bind("<Button-3>", show_context_menu)  # Clic droit
 
     def create_ai_message_simple(self, parent, text):
-        """Version DÉFINITIVE - Messages IA complets sans AUCUN scroll interne"""
-        # Debug removed
+        """Version DÉFINITIVE - Messages IA complets sans AUCUN scroll interne, avec formattage Args/Returns et debug"""
+        import re
         from datetime import datetime
-        
-        # Vérifier que le texte est une chaîne
-        if not isinstance(text, str):
-            if isinstance(text, dict):
-                text = (text.get('response') or 
-                    text.get('text') or 
-                    text.get('content') or 
-                    text.get('message') or 
-                    str(text))
-            else:
-                text = str(text)
-        
-        # Frame de centrage
-        center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
-        center_frame.grid(row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew")
-        center_frame.grid_columnconfigure(0, weight=0)
-        center_frame.grid_columnconfigure(1, weight=1)
-        
-        # Icône IA
-        icon_label = self.create_label(
-            center_frame,
-            text="🤖",
-            font=('Segoe UI', 16),
-            fg_color=self.colors['bg_chat'],
-            text_color=self.colors['accent']
-        )
-        icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
-        
-        # Container pour le message IA
-        message_container = self.create_frame(center_frame, fg_color=self.colors['bg_chat'])
-        message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
-        message_container.grid_columnconfigure(0, weight=1)
-        
-        # Stocker le container pour l'affichage du timestamp
-        self.current_message_container = message_container
-        
-        # SOLUTION RADICALE : Widget Text sans hauteur fixe - laisse tkinter décider
-        text_widget = tk.Text(
-            message_container,
-            width=120,
-            bg=self.colors['bg_chat'],
-            fg=self.colors['text_primary'],
-            font=('Segoe UI', 12),
-            wrap=tk.WORD,
-            relief="flat",
-            bd=0,
-            highlightthickness=0,
-            state="normal",
-            cursor="xterm",
-            padx=8,
-            pady=6,
-            selectbackground="#4a90e2",
-            selectforeground="#ffffff",
-            exportselection=True,
-            takefocus=False,
-            insertwidth=0  # AJOUTÉ
-        )
+        try:
+            # Vérifier que le texte est une chaîne
+            if not isinstance(text, str):
+                if isinstance(text, dict):
+                    text = (text.get('response') or 
+                        text.get('text') or 
+                        text.get('content') or 
+                        text.get('message') or 
+                        str(text))
+                else:
+                    text = str(text)
 
-        text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
-        # Ajustement final pour garantir aucune barre de scroll interne
-        self._adjust_widget_height_final(text_widget, text)
-        # Debug removed
-        if hasattr(self, 'chat_frame'):
+            # Correction Markdown : mettre **Args:** et **Returns:** (seulement les titres)
+            def bold_args_returns(match):
+                return f"**{match.group(1)}**"
+            # Remplacer uniquement les titres en début de ligne (même précédés d'espaces)
+            text = re.sub(r'^(\s*)Args:', lambda m: f"{m.group(1)}**Args:**", text, flags=re.MULTILINE)
+            text = re.sub(r'^(\s*)Returns:', lambda m: f"{m.group(1)}**Returns:**", text, flags=re.MULTILINE)
+
+            # Debug : log le texte après correction
+            if hasattr(self, 'logger'):
+                self.logger.info(f"[DEBUG] Texte IA après formattage Args/Returns:\n{text[:500]}")
+
+            # Frame de centrage
+            center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
+            center_frame.grid(row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew")
+            center_frame.grid_columnconfigure(0, weight=0)
+            center_frame.grid_columnconfigure(1, weight=1)
+
+            # Icône IA
+            icon_label = self.create_label(
+                center_frame,
+                text="🤖",
+                font=('Segoe UI', 16),
+                fg_color=self.colors['bg_chat'],
+                text_color=self.colors['accent']
+            )
+            icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+
+            # Container pour le message IA
+            message_container = self.create_frame(center_frame, fg_color=self.colors['bg_chat'])
+            message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
+            message_container.grid_columnconfigure(0, weight=1)
+
+            # Stocker le container pour l'affichage du timestamp
+            self.current_message_container = message_container
+
+            # Widget Text sans hauteur fixe
+            text_widget = tk.Text(
+                message_container,
+                width=120,
+                bg=self.colors['bg_chat'],
+                fg=self.colors['text_primary'],
+                font=('Segoe UI', 12),
+                wrap=tk.WORD,
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                state="normal",
+                cursor="xterm",
+                padx=8,
+                pady=6,
+                selectbackground="#4a90e2",
+                selectforeground="#ffffff",
+                exportselection=True,
+                takefocus=False,
+                insertwidth=0
+            )
+
+            text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
+            self._adjust_widget_height_final(text_widget, text)
+
+            # Debug : log après création du widget
+            if hasattr(self, 'logger'):
+                self.logger.info("[DEBUG] Widget Text IA créé et hauteur ajustée.")
+
+            # Bind minimal pour permettre la sélection
+            def prevent_editing_only(event):
+                editing_keys = [
+                    'BackSpace', 'Delete', 'Return', 'KP_Enter', 'Tab',
+                    'space', 'Insert'
+                ]
+                if event.state & 0x4:
+                    if event.keysym.lower() in ['a', 'c']:
+                        return None
+                if event.keysym in editing_keys:
+                    return "break"
+                if len(event.keysym) == 1 and event.keysym.isprintable():
+                    return "break"
+                return None
+            text_widget.bind("<KeyPress>", prevent_editing_only)
+            self.setup_improved_scroll_forwarding(text_widget)
+            def copy_on_double_click(event):
+                try:
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(text)
+                    self.show_copy_notification("✅ Message copié !")
+                except Exception as e:
+                    self.show_copy_notification("❌ Erreur de copie")
+                return "break"
+            text_widget.bind("<Double-Button-1>", copy_on_double_click)
+            self.create_copy_menu_with_notification(text_widget, text)
+
+            # Démarrer l'animation de frappe avec hauteur dynamique
+            self.start_typing_animation_dynamic(text_widget, text)
+        except Exception as e:
+            # Log l'erreur et affiche un message d'erreur dans le chat
+            import traceback
+            err_msg = f"[ERREUR affichage IA] {e}\n{traceback.format_exc()}"
+            if hasattr(self, 'logger'):
+                self.logger.error(err_msg)
+            # Affiche une bulle d'erreur visible
+            fallback_text = f"❌ Erreur d'affichage du message IA :\n{e}"
             try:
-                parent_widget = self.chat_frame.master
-                pass
+                self.add_message_bubble(fallback_text, is_user=False)
             except Exception:
                 pass
-        
-        # NOUVELLE APPROCHE : Bind minimal pour permettre la sélection
-        def prevent_editing_only(event):
-            """Empêche SEULEMENT l'édition, permet tout le reste"""
-            # Liste des touches qui modifient le texte
-            editing_keys = [
-                'BackSpace', 'Delete', 'Return', 'KP_Enter', 'Tab',
-                'space', 'Insert'
-            ]
-            
-            # Permettre Ctrl+A et Ctrl+C
-            if event.state & 0x4:  # Ctrl est pressé
-                if event.keysym.lower() in ['a', 'c']:
-                    return None  # Laisser passer
-            
-            # Bloquer seulement les touches d'édition
-            if event.keysym in editing_keys:
-                return "break"
-            
-            # Bloquer la saisie de caractères normaux
-            if len(event.keysym) == 1 and event.keysym.isprintable():
-                return "break"
-            
-            # Laisser passer tout le reste (sélection, navigation, etc.)
-            return None
-        
-        # Bind SEULEMENT pour les touches, pas pour la souris
-        text_widget.bind("<KeyPress>", prevent_editing_only)
-        
-        # Configuration du scroll SANS bloquer la sélection
-        self.setup_improved_scroll_forwarding(text_widget)
-        
-        # Fonction de copie
-        def copy_on_double_click(event):
-            try:
-                self.root.clipboard_clear()
-                self.root.clipboard_append(text)
-                self.show_copy_notification("✅ Message copié !")
-            except Exception as e:
-                self.show_copy_notification("❌ Erreur de copie")
-            return "break"
-        
-        text_widget.bind("<Double-Button-1>", copy_on_double_click)
-        
-        # Menu contextuel
-        self.create_copy_menu_with_notification(text_widget, text)
-        
-        # Démarrer l'animation de frappe avec hauteur dynamique
-        self.start_typing_animation_dynamic(text_widget, text)
 
     def setup_improved_scroll_forwarding(self, text_widget):
         """Version CORRIGÉE - Scroll sans conflit avec sélection"""
@@ -1510,6 +1539,29 @@ class ModernAIGUI:
         else:
             # Debug removed
             self.finish_typing_animation_dynamic()
+            
+    def _insert_formatted_text_progressive(self, text_widget, text):
+        """Insère le texte avec formatage progressif (version simplifiée pour l'animation de frappe IA)."""
+        import re
+        # Pour l'animation, on affiche le texte sans les marqueurs mais on garde le formatage
+        current_pos = 0
+        # Gras **texte**
+        for match in re.finditer(r'\*\*([^*]+)\*\*', text):
+            if match.start() > current_pos:
+                text_widget.insert("end", text[current_pos:match.start()], "normal")
+            text_widget.insert("end", match.group(1), "bold")
+            current_pos = match.end()
+        # Reste du texte
+        if current_pos < len(text):
+            remaining_text = text[current_pos:]
+            italic_pos = 0
+            for italic_match in re.finditer(r'\*([^*]+)\*', remaining_text):
+                if italic_match.start() > italic_pos:
+                    text_widget.insert("end", remaining_text[italic_pos:italic_match.start()], "normal")
+                text_widget.insert("end", italic_match.group(1), "italic")
+                italic_pos = italic_match.end()
+            if italic_pos < len(remaining_text):
+                text_widget.insert("end", remaining_text[italic_pos:], "normal")
 
     def _gentle_scroll_to_bottom(self):
         """Scroll doux pendant l'animation sans clignotement, avec debug détaillé"""
@@ -1733,88 +1785,128 @@ class ModernAIGUI:
         except Exception:
             text_widget.configure(height=7)
 
-    def _configure_formatting_tags(self, text_widget):
-        """Configure tous les tags de formatage avant l'animation"""
-        # Tags pour le formatage markdown
-        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
+    def insert_formatted_text_tkinter(self, text_widget, text):
+        """Affiche du texte riche Markdown (titres, gras, italique, code, docstring, liens) et code Python coloré dans un widget Tkinter Text."""
+        import re, webbrowser, os
+        text_widget.delete("1.0", "end")
+
+        # --- Tag configuration (robust, idempotent) ---
+        BASE_FONT = ('Segoe UI', 12)
+        text_widget.tag_configure("bold", font=('Segoe UI', 13, 'bold'), foreground=self.colors['accent'])
+        text_widget.tag_configure("title1", font=('Segoe UI', 18, 'bold'), foreground=self.colors['accent'])
+        text_widget.tag_configure("title2", font=('Segoe UI', 15, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_secondary'])
         text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
         text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        text_widget.tag_configure("normal", font=('Segoe UI', 12))
-        
-        # Tags pour la coloration Python
-        text_widget.tag_configure("python_keyword", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("python_string", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("python_comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("python_number", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("python_builtin", foreground="#8be9fd", font=('Consolas', 11))
+        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#10b981")
+        text_widget.tag_configure("normal", font=BASE_FONT)
+        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        # Pygments-like tags (Python syntax)
+        text_widget.tag_configure("Token.Keyword", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Constant", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Type", foreground="#8be9fd", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Literal.String", foreground="#10b981", font=('Consolas', 11))  # vert docstring
+        text_widget.tag_configure("Token.Comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
+        text_widget.tag_configure("Token.Name.Function", foreground="#50fa7b", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name.Class", foreground="#50fa7b", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Name.Builtin", foreground="#8be9fd", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Literal.Number", foreground="#bd93f9", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Operator", foreground="#ff79c6", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Punctuation", foreground="#f8f8f2", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name", foreground="#f8f8f2", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name.Constant", foreground="#bd93f9", font=('Consolas', 11, 'bold'))
 
+        # Correction du nom de fichier temporaire si possible (plus robuste)
+        temp_file_match = re.search(r'Explication détaillée du fichier [`"]?(tmp\w+\.py)[`"]?', text)
+        if temp_file_match and hasattr(self, 'conversation_history'):
+            for hist in reversed(self.conversation_history):
+                if 'text' in hist and isinstance(hist['text'], str):
+                    real_file = re.search(r"document: '([\w\-.]+\.py)'", hist['text'])
+                    if real_file:
+                        text = text.replace(temp_file_match.group(1), real_file.group(1))
+                        break
+            else:
+                py_files = [f for f in os.listdir('.') if f.endswith('.py')]
+                if py_files:
+                    text = text.replace(temp_file_match.group(1), py_files[0])
 
-    def _insert_formatted_text_progressive(self, text_widget, text):
-        """Insère le texte avec formatage progressif (version simplifiée pour l'animation)"""
+        # --- Markdown block parsing (titles, code blocks, docstrings, paragraphs) ---
+        block_pattern = re.compile(r'(\n|^)(```python[\s\S]+?```|''' + "'''docstring[\s\S]+?'''" + r'|#+ .+|\n)', re.IGNORECASE)
+        pos = 0
+        for m in block_pattern.finditer(text):
+            start, end = m.start(2), m.end(2)
+            before = text[pos:m.start(2)]
+            block = m.group(2)
+            if before:
+                self._insert_markdown_and_links(text_widget, before)
+            if block:
+                if block.startswith('```python'):
+                    code = block[len('```python'):].strip(' \n`')
+                    self._insert_python_code_block_corrected(text_widget, code)
+                elif block.startswith("'''docstring"):
+                    doc = block[len("'''docstring"):].strip(" \n'")
+                    text_widget.insert("end", doc + "\n", "docstring")
+                elif block.lstrip().startswith('#'):
+                    hashes, title = re.match(r'(#+)\s+(.+)', block.lstrip()).groups()
+                    level = min(len(hashes), 3)
+                    tag = f"title{level}"
+                    text_widget.insert("end", title.strip() + "\n", tag)
+                else:
+                    self._insert_markdown_and_links(text_widget, block)
+            pos = end
+        if pos < len(text):
+            self._insert_markdown_and_links(text_widget, text[pos:])
+
+        text_widget.update_idletasks()
+        text_widget.see("1.0")
+
+    def _insert_markdown_and_links(self, text_widget, text):
+        """Insère du texte avec gestion des liens Markdown et du markdown classique (gras, italique, code, titres)."""
+        import re, webbrowser
+        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        last_end = 0
+        for match in re.finditer(link_pattern, text):
+            if match.start() > last_end:
+                self._insert_markdown_segments(text_widget, text[last_end:match.start()])
+            link_text = match.group(1)
+            url = match.group(2)
+            start_index = text_widget.index("end-1c")
+            text_widget.insert("end", link_text, ("link",))
+            end_index = text_widget.index("end-1c")
+            tag_name = f"link_{start_index}"
+            text_widget.tag_add(tag_name, start_index, end_index)
+            text_widget.tag_bind(tag_name, "<Button-1>", lambda e, url=url: webbrowser.open_new(url))
+            last_end = match.end()
+        if last_end < len(text):
+            self._insert_markdown_segments(text_widget, text[last_end:])
+
+    def _insert_markdown_segments(self, text_widget, text):
+        """Insère du texte avec gras, italique, monospace (hors liens), gère les balises non fermées et imbriquées."""
         import re
-        
-        # Traitement simplifié pour l'animation - pas de blocs de code complexes
-        # Remplacer les marqueurs markdown basiques
-        formatted_text = text
-        
-        # Traiter le gras **texte**
-        def replace_bold(match):
-            return match.group(1)  # Retourner juste le texte sans les **
-        
-        # Traiter l'italique *texte*
-        def replace_italic(match):
-            return match.group(1)  # Retourner juste le texte sans les *
-        
-        # Pour l'animation, on affiche le texte sans les marqueurs mais on garde le formatage
-        current_pos = 0
-        
-        # Traitement du gras **texte**
-        for match in re.finditer(r'\*\*([^*]+)\*\*', text):
-            # Texte avant
-            if match.start() > current_pos:
-                text_widget.insert("end", text[current_pos:match.start()], "normal")
-            
-            # Texte en gras
-            text_widget.insert("end", match.group(1), "bold")
-            current_pos = match.end()
-        
-        # Reste du texte
-        if current_pos < len(text):
-            remaining_text = text[current_pos:]
-            
-            # Traitement de l'italique dans le reste
-            italic_pos = 0
-            for italic_match in re.finditer(r'\*([^*]+)\*', remaining_text):
-                if italic_match.start() > italic_pos:
-                    text_widget.insert("end", remaining_text[italic_pos:italic_match.start()], "normal")
-                text_widget.insert("end", italic_match.group(1), "italic")
-                italic_pos = italic_match.end()
-            
-            if italic_pos < len(remaining_text):
-                text_widget.insert("end", remaining_text[italic_pos:], "normal")
-
-
-    def _show_timestamp_for_current_message(self):
-        """Affiche le timestamp pour le message actuel"""
-        from datetime import datetime
-        
-        # Trouver le dernier message container
-        if hasattr(self, 'current_message_container'):
-            timestamp = datetime.now().strftime("%H:%M")
-            time_label = self.create_label(
-                self.current_message_container,
-                text=timestamp,
-                font=('Segoe UI', 10),
-                fg_color=self.colors['bg_chat'],
-                text_color=self.colors['text_secondary']
-            )
-            time_label.grid(row=1, column=0, sticky="w", padx=0, pady=(2, 6))
-
-    def _calculate_text_lines(self, text, chars_per_line=120):
-        """Version finale sans limite"""
-        return self._calculate_text_lines_unlimited(text)
-    
-    def _calculate_text_lines_unlimited(self, text):
+        # Order: code > bold > italic (to avoid conflicts)
+        def parse_segments(text, patterns):
+            if not patterns:
+                return [(text, 'normal')]
+            pattern, style = patterns[0]
+            segments = []
+            last = 0
+            for m in re.finditer(pattern, text):
+                if m.start() > last:
+                    segments.extend(parse_segments(text[last:m.start()], patterns[1:]))
+                segments.append((m.group(1), style))
+                last = m.end()
+            if last < len(text):
+                segments.extend(parse_segments(text[last:], patterns[1:]))
+            return segments
+        # Patterns: code, bold, italic
+        patterns = [
+            (r'`([^`]+)`', 'mono'),
+            (r'\*\*([^*]+)\*\*', 'bold'),
+            (r'\*([^*]+)\*', 'italic'),
+        ]
+        for segment, style in parse_segments(text, patterns):
+            if segment:
+                text_widget.insert("end", segment, style)
         """Calcul de hauteur EXACT - Méthode corrigée pour éviter les bulles avec scroll"""
         if not text:
             return 2

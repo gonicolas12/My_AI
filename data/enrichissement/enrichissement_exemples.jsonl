@@ -26,3 +26,13 @@
 {"input": "Explique le terme 'biodiversité'.", "target": "La **biodiversité** désigne la variété des **espèces vivantes** sur Terre."}
 {"input": "Quel est le symbole chimique du fer ?", "target": "**Fe**"}
 {"input": "Complète : Le soleil se lève à l'...", "target": "**est**."}
+{"input": "Quel est l'animal le plus rapide du monde ?", "target": "Le **faucon pèlerin** est l'animal le plus rapide."}
+{"input": "Donne-moi la formule de l'aire d'un cercle.", "target": "**π × rayon²**"}
+{"input": "Qui a peint la Joconde ?", "target": "**Léonard de Vinci**."}
+{"input": "Traduis en italien : 'Bonne journée'", "target": "**Buona giornata**"}
+{"input": "Quel est le plus long fleuve du monde ?", "target": "Le **Nil** est le plus long fleuve du monde."}
+{"input": "Code Python pour afficher 'Bonjour'", "target": "**print('Bonjour')**"}
+{"input": "Donne-moi un synonyme de 'heureux'", "target": "**Joyeux**, **content**, **satisfait**, **ravi**."}
+{"input": "Complète : La Terre tourne autour du ...", "target": "**Soleil**."}
+{"input": "Quel est le résultat de 9 / 3 ?", "target": "**3**"}
+{"input": "Explique le terme 'photosynthèse'.", "target": "La **photosynthèse** est le processus par lequel les plantes transforment la lumière en énergie."}
