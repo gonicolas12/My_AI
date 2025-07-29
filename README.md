@@ -183,6 +183,7 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 - **[Installation](docs/INSTALLATION.md)** : Guide d'installation complet
 - **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
 - **[Exemples](examples/)** : Scripts d'exemple et cas d'usage
+- **[Changelog](CHANGELOG.md)** : Historique des mises à jour
 
 ## 🔧 Caractéristiques Techniques
 
