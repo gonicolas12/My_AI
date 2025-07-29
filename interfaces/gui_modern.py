@@ -1481,7 +1481,7 @@ class ModernAIGUI:
         self.typing_index = 0
         self.typing_text = full_text
         self.typing_widget = text_widget
-        self.typing_speed = 3
+        self.typing_speed = 2
         
         # Configurer tous les tags de formatage
         self._configure_formatting_tags(text_widget)
@@ -1553,27 +1553,63 @@ class ModernAIGUI:
             self.finish_typing_animation_dynamic()
             
     def _insert_formatted_text_progressive(self, text_widget, text):
-        """Insère le texte avec formatage progressif (version simplifiée pour l'animation de frappe IA)."""
+        """Insère le texte avec formatage progressif (gras, italique, code, titres, docstring, etc)."""
         import re
-        # Pour l'animation, on affiche le texte sans les marqueurs mais on garde le formatage
-        current_pos = 0
-        # Gras **texte**
-        for match in re.finditer(r'\*\*([^*]+)\*\*', text):
-            if match.start() > current_pos:
-                text_widget.insert("end", text[current_pos:match.start()], "normal")
-            text_widget.insert("end", match.group(1), "bold")
-            current_pos = match.end()
-        # Reste du texte
-        if current_pos < len(text):
-            remaining_text = text[current_pos:]
-            italic_pos = 0
-            for italic_match in re.finditer(r'\*([^*]+)\*', remaining_text):
-                if italic_match.start() > italic_pos:
-                    text_widget.insert("end", remaining_text[italic_pos:italic_match.start()], "normal")
-                text_widget.insert("end", italic_match.group(1), "italic")
-                italic_pos = italic_match.end()
-            if italic_pos < len(remaining_text):
-                text_widget.insert("end", remaining_text[italic_pos:], "normal")
+
+        # Ajout d'un saut de ligne avant les titres spécifiques (avant toute la ligne du titre)
+        text = re.sub(r'(?<!\n)(^##5\. Résumé technique.*$)', r'\n\1', text, flags=re.MULTILINE)
+        text = re.sub(r'(?<!\n)(^##3\. Structure principale.*$)', r'\n\1', text, flags=re.MULTILINE)
+
+        # Patterns dans l'ordre de priorité (docstring_strip, docstring, titres, code, gras, italique)
+        patterns = [
+            (r"'''docstring([\s\S]+?)'''|\"\"\"docstring([\s\S]+?)\"\"\"", 'docstring_strip'),
+            (r"'''([\s\S]+?)'''|\"\"\"([\s\S]+?)\"\"\"", 'docstring'),
+            (r'^(#+) (.+)$', 'title'),
+            (r'`([^`]+)`', 'mono'),
+            (r'\*\*([^*]+)\*\*', 'bold'),
+            (r'\*([^*]+)\*', 'italic'),
+        ]
+
+        # Fonction récursive pour appliquer les patterns
+
+        def parse_segments(txt, pat_idx=0):
+            if pat_idx >= len(patterns):
+                return [(txt, 'normal')]
+            pattern, style = patterns[pat_idx]
+            segments = []
+            last = 0
+            for m in re.finditer(pattern, txt, re.MULTILINE):
+                start, end = m.start(), m.end()
+                if start > last:
+                    segments.extend(parse_segments(txt[last:start], pat_idx+1))
+                if style == 'docstring_strip':
+                    doc = m.group(1) or m.group(2)
+                    if doc is not None:
+                        doc = doc.lstrip('\n').rstrip("'\" ")
+                    segments.append((doc, 'docstring'))
+                elif style == 'docstring':
+                    doc = m.group(1) or m.group(2)
+                    segments.append((doc, 'docstring'))
+                elif style == 'title':
+                    hashes = m.group(1)
+                    title_text = m.group(2)
+                    tag = f"title{min(len(hashes),5)}"
+                    segments.append((title_text, tag))
+                else:
+                    segments.append((m.group(1), style))
+                last = end
+            if last < len(txt):
+                segments.extend(parse_segments(txt[last:], pat_idx+1))
+            return segments
+
+        # Animation progressive : on affiche caractère par caractère, mais applique le style sur chaque segment
+        segments = parse_segments(text)
+        for segment, style in segments:
+            if not segment:
+                continue
+            # Pour chaque segment, on insère caractère par caractère pour l'effet progressif
+            for c in segment:
+                text_widget.insert("end", c, style)
 
     def _gentle_scroll_to_bottom(self):
         """Scroll doux pendant l'animation sans clignotement, avec debug détaillé"""
@@ -2041,6 +2077,9 @@ class ModernAIGUI:
         # CORRECTION DU TEXTE avant parsing
         text = re.sub(r'^(\s*)Args:\s*$', r'\1**Args:**', text, flags=re.MULTILINE)
         text = re.sub(r'^(\s*)Returns:\s*$', r'\1**Returns:**', text, flags=re.MULTILINE)
+        # Ajout d'un saut de ligne avant les titres spécifiques (avant toute la ligne du titre)
+        text = re.sub(r'(?<!\n)(^##5\. Résumé technique.*$)', r'\n\1', text, flags=re.MULTILINE)
+        text = re.sub(r'(?<!\n)(^##3\. Structure principale.*$)', r'\n\1', text, flags=re.MULTILINE)
 
         # Correction du nom de fichier temporaire
         temp_file_match = re.search(r'Explication détaillée du fichier [`"]?(tmp\w+\.py)[`"]?', text)
@@ -2056,45 +2095,51 @@ class ModernAIGUI:
                 if py_files:
                     text = text.replace(temp_file_match.group(1), py_files[0])
 
-        # --- Parsing par blocs ---
-        block_pattern = re.compile(
-            r'(\n|^)(```python[\s\S]+?```|''' + "'''docstring[\s\S]+?'''" + r'|#+\s+.+|\n)', 
-            re.IGNORECASE
-        )
-        
-        pos = 0
-        for m in block_pattern.finditer(text):
-            start, end = m.start(2), m.end(2)
-            before = text[pos:m.start(2)]
-            block = m.group(2)
-            
-            if before:
-                self._insert_markdown_and_links(text_widget, before)
-            
-            if block:
-                if block.startswith('```python'):
-                    code = block[len('```python'):].strip(' \n`')
-                    self._insert_python_code_block_corrected(text_widget, code)
-                    
-                elif block.startswith("'''docstring"):
-                    doc = block[len("'''docstring"):].strip(" \n'")
-                    text_widget.insert("end", doc + "\n", "docstring")
-                    
-                elif block.lstrip().startswith('#'):
-                    line = block.strip()
-                    match = re.match(r'(#+)\s+(.+)', line)
-                    if match:
-                        hashes, title_text = match.groups()
-                        level = min(len(hashes), 5)
-                        tag = f"title{level}"
-                        # CORRECTION : Espacement réduit après les titres
-                        text_widget.insert("end", title_text.strip() + "\n", tag)  # UNE seule ligne au lieu de deux
-                else:
-                    self._insert_markdown_and_links(text_widget, block)
-            pos = end
-        
-        if pos < len(text):
-            self._insert_markdown_and_links(text_widget, text[pos:])
+        # --- Parsing progressif comme pour l'animation ---
+        def parse_segments(txt):
+            patterns = [
+                (r"'''docstring([\s\S]+?)'''|\"\"\"docstring([\s\S]+?)\"\"\"", 'docstring_strip'),
+                (r"'''([\s\S]+?)'''|\"\"\"([\s\S]+?)\"\"\"", 'docstring'),
+                (r'^(#+) (.+)$', 'title'),
+                (r'`([^`]+)`', 'mono'),
+                (r'\*\*([^*]+)\*\*', 'bold'),
+                (r'\*([^*]+)\*', 'italic'),
+            ]
+            def _parse(txt, pat_idx=0):
+                if pat_idx >= len(patterns):
+                    return [(txt, 'normal')]
+                pattern, style = patterns[pat_idx]
+                segments = []
+                last = 0
+                for m in re.finditer(pattern, txt, re.MULTILINE):
+                    start, end = m.start(), m.end()
+                    if start > last:
+                        segments.extend(_parse(txt[last:start], pat_idx+1))
+                    if style == 'docstring_strip':
+                        doc = m.group(1) or m.group(2)
+                        if doc is not None:
+                            doc = doc.lstrip('\n').rstrip("'\" ")
+                        segments.append((doc, 'docstring'))
+                    elif style == 'docstring':
+                        doc = m.group(1) or m.group(2)
+                        segments.append((doc, 'docstring'))
+                    elif style == 'title':
+                        hashes = m.group(1)
+                        title_text = m.group(2)
+                        tag = f"title{min(len(hashes),5)}"
+                        segments.append((title_text, tag))
+                    else:
+                        segments.append((m.group(1), style))
+                    last = end
+                if last < len(txt):
+                    segments.extend(_parse(txt[last:], pat_idx+1))
+                return segments
+            return _parse(txt)
+
+        for segment, style in parse_segments(text):
+            if not segment:
+                continue
+            text_widget.insert("end", segment, style)
 
         text_widget.update_idletasks()
         text_widget.see("1.0")
