@@ -290,27 +290,34 @@ class ModernAIGUI:
         self.ensure_input_is_ready()
     
     def _configure_formatting_tags(self, text_widget):
-        """Configure tous les tags de formatage pour le widget Text (Markdown et coloration Python)."""
+        """Configure tous les tags de formatage pour l'animation"""
         BASE_FONT = ('Segoe UI', 12)
-        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
-        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
+        
+        # Configuration IDENTIQUE à insert_formatted_text_tkinter
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title1", font=('Segoe UI', 16, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title2", font=('Segoe UI', 14, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title4", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title5", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        text_widget.tag_configure("normal", font=BASE_FONT)
+        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
+        text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
         text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
-        # Pygments-like tags (Python syntax)
-        text_widget.tag_configure("Token.Keyword", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Constant", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Type", foreground="#8be9fd", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Literal.String", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Name.Function", foreground="#50fa7b", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Class", foreground="#50fa7b", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Name.Builtin", foreground="#8be9fd", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Operator", foreground="#ff79c6", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Punctuation", foreground="#f8f8f2", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name", foreground="#f8f8f2", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Constant", foreground="#bd93f9", font=('Consolas', 11, 'bold'))
+        
+        # Couleurs Python VS Code
+        text_widget.tag_configure("Token.Keyword", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Literal.String", foreground="#ce9178", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Comment", foreground="#6a9955", font=('Consolas', 11, 'italic'))
+        text_widget.tag_configure("Token.Name.Function", foreground="#dcdcaa", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name.Class", foreground="#4ec9b0", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Name.Builtin", foreground="#dcdcaa", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Literal.Number", foreground="#b5cea8", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Operator", foreground="#d4d4d4", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Punctuation", foreground="#d4d4d4", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name", foreground="#9cdcfe", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Name.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
 
     def setup_modern_gui(self):
         """Configure l'interface principale style Claude"""
@@ -1286,11 +1293,16 @@ class ModernAIGUI:
                     text = str(text)
 
             # Correction Markdown : mettre **Args:** et **Returns:** (seulement les titres)
-            def bold_args_returns(match):
-                return f"**{match.group(1)}**"
-            # Remplacer uniquement les titres en début de ligne (même précédés d'espaces)
-            text = re.sub(r'^(\s*)Args:', lambda m: f"{m.group(1)}**Args:**", text, flags=re.MULTILINE)
-            text = re.sub(r'^(\s*)Returns:', lambda m: f"{m.group(1)}**Returns:**", text, flags=re.MULTILINE)
+            def format_args_returns(text_input):
+                """Formate spécifiquement Args: et Returns: pour le Markdown"""
+                text_input = re.sub(r'^(\s*)Args:\s*$', r'\1**Args:**', text_input, flags=re.MULTILINE)
+                text_input = re.sub(r'^(\s*)Returns:\s*$', r'\1**Returns:**', text_input, flags=re.MULTILINE)
+                text_input = re.sub(r'^(\s*)Args:\s+(.+)$', r'\1**Args:** \2', text_input, flags=re.MULTILINE)
+                text_input = re.sub(r'^(\s*)Returns:\s+(.+)$', r'\1**Returns:** \2', text_input, flags=re.MULTILINE)
+                return text_input
+            
+            # APPLIQUER LA CORRECTION
+            text = format_args_returns(text)
 
             # Debug : log le texte après correction
             if hasattr(self, 'logger'):
@@ -1785,81 +1797,6 @@ class ModernAIGUI:
         except Exception:
             text_widget.configure(height=7)
 
-    def insert_formatted_text_tkinter(self, text_widget, text):
-        """Affiche du texte riche Markdown (titres, gras, italique, code, docstring, liens) et code Python coloré dans un widget Tkinter Text."""
-        import re, webbrowser, os
-        text_widget.delete("1.0", "end")
-
-        # --- Tag configuration (robust, idempotent) ---
-        BASE_FONT = ('Segoe UI', 12)
-        text_widget.tag_configure("bold", font=('Segoe UI', 13, 'bold'), foreground=self.colors['accent'])
-        text_widget.tag_configure("title1", font=('Segoe UI', 18, 'bold'), foreground=self.colors['accent'])
-        text_widget.tag_configure("title2", font=('Segoe UI', 15, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_secondary'])
-        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
-        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#10b981")
-        text_widget.tag_configure("normal", font=BASE_FONT)
-        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
-        # Pygments-like tags (Python syntax)
-        text_widget.tag_configure("Token.Keyword", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Constant", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Type", foreground="#8be9fd", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Literal.String", foreground="#10b981", font=('Consolas', 11))  # vert docstring
-        text_widget.tag_configure("Token.Comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Name.Function", foreground="#50fa7b", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Class", foreground="#50fa7b", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Name.Builtin", foreground="#8be9fd", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Operator", foreground="#ff79c6", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Punctuation", foreground="#f8f8f2", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name", foreground="#f8f8f2", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Constant", foreground="#bd93f9", font=('Consolas', 11, 'bold'))
-
-        # Correction du nom de fichier temporaire si possible (plus robuste)
-        temp_file_match = re.search(r'Explication détaillée du fichier [`"]?(tmp\w+\.py)[`"]?', text)
-        if temp_file_match and hasattr(self, 'conversation_history'):
-            for hist in reversed(self.conversation_history):
-                if 'text' in hist and isinstance(hist['text'], str):
-                    real_file = re.search(r"document: '([\w\-.]+\.py)'", hist['text'])
-                    if real_file:
-                        text = text.replace(temp_file_match.group(1), real_file.group(1))
-                        break
-            else:
-                py_files = [f for f in os.listdir('.') if f.endswith('.py')]
-                if py_files:
-                    text = text.replace(temp_file_match.group(1), py_files[0])
-
-        # --- Markdown block parsing (titles, code blocks, docstrings, paragraphs) ---
-        block_pattern = re.compile(r'(\n|^)(```python[\s\S]+?```|''' + "'''docstring[\s\S]+?'''" + r'|#+ .+|\n)', re.IGNORECASE)
-        pos = 0
-        for m in block_pattern.finditer(text):
-            start, end = m.start(2), m.end(2)
-            before = text[pos:m.start(2)]
-            block = m.group(2)
-            if before:
-                self._insert_markdown_and_links(text_widget, before)
-            if block:
-                if block.startswith('```python'):
-                    code = block[len('```python'):].strip(' \n`')
-                    self._insert_python_code_block_corrected(text_widget, code)
-                elif block.startswith("'''docstring"):
-                    doc = block[len("'''docstring"):].strip(" \n'")
-                    text_widget.insert("end", doc + "\n", "docstring")
-                elif block.lstrip().startswith('#'):
-                    hashes, title = re.match(r'(#+)\s+(.+)', block.lstrip()).groups()
-                    level = min(len(hashes), 3)
-                    tag = f"title{level}"
-                    text_widget.insert("end", title.strip() + "\n", tag)
-                else:
-                    self._insert_markdown_and_links(text_widget, block)
-            pos = end
-        if pos < len(text):
-            self._insert_markdown_and_links(text_widget, text[pos:])
-
-        text_widget.update_idletasks()
-        text_widget.see("1.0")
-
     def _insert_markdown_and_links(self, text_widget, text):
         """Insère du texte avec gestion des liens Markdown et du markdown classique (gras, italique, code, titres)."""
         import re, webbrowser
@@ -1881,62 +1818,45 @@ class ModernAIGUI:
             self._insert_markdown_segments(text_widget, text[last_end:])
 
     def _insert_markdown_segments(self, text_widget, text):
-        """Insère du texte avec gras, italique, monospace (hors liens), gère les balises non fermées et imbriquées."""
+        """Insère du texte avec formatage - ÉVITE les (args: ...) dans les fonctions"""
         import re
-        # Order: code > bold > italic (to avoid conflicts)
+        
         def parse_segments(text, patterns):
             if not patterns:
                 return [(text, 'normal')]
+            
             pattern, style = patterns[0]
             segments = []
             last = 0
+            
             for m in re.finditer(pattern, text):
                 if m.start() > last:
                     segments.extend(parse_segments(text[last:m.start()], patterns[1:]))
-                segments.append((m.group(1), style))
+                
+                # TRAITEMENT SPÉCIAL pour **Args:** et **Returns:**
+                if style == 'args_returns':
+                    word = m.group(1)  # "Args" ou "Returns"
+                    segments.append((f"{word}:", 'bold'))
+                else:
+                    segments.append((m.group(1), style))
                 last = m.end()
+                
             if last < len(text):
                 segments.extend(parse_segments(text[last:], patterns[1:]))
             return segments
-        # Patterns: code, bold, italic
+        
+        # PATTERNS dans l'ordre - Args/Returns spécifiques en premier
         patterns = [
-            (r'`([^`]+)`', 'mono'),
-            (r'\*\*([^*]+)\*\*', 'bold'),
-            (r'\*([^*]+)\*', 'italic'),
+            # SEULEMENT les **Args:** et **Returns:** isolés (pas dans les args de fonctions)
+            (r'\*\*(Args|Returns):\*\*(?!\s*[a-z])', 'args_returns'),  # Negative lookahead pour éviter "args: self"
+            (r'`([^`]+)`', 'mono'),                                    # `code`
+            (r'\*\*([^*]+)\*\*', 'bold'),                              # **texte** (autres)
+            (r'\*([^*]+)\*', 'italic'),                                # *texte*
         ]
+        
         for segment, style in parse_segments(text, patterns):
             if segment:
                 text_widget.insert("end", segment, style)
-        """Calcul de hauteur EXACT - Méthode corrigée pour éviter les bulles avec scroll"""
-        if not text:
-            return 2
-        
-        # Compter les vraies lignes
-        lines = text.split('\n')
-        content_lines = len([line for line in lines if line.strip()])
-        
-        # Estimation du wrapping avec une approche plus conservatrice
-        total_chars = len(text.replace('\n', ' '))
-        chars_per_line = 120  # Largeur de référence
-        wrapped_lines = max(content_lines, (total_chars + chars_per_line - 1) // chars_per_line)
-        
-        # CORRECTION MAJEURE : Calcul plus généreux pour éviter le scroll dans les bulles
-        # Au lieu de 1.05, utiliser 1.25 pour avoir plus de marge
-        safety_margin = max(3, int(wrapped_lines * 0.25))  # 25% de marge minimum 3
-        final_lines = wrapped_lines + safety_margin
-        
-        # Pour les longs messages, être encore plus généreux
-        if len(text) > 2000:
-            final_lines = int(final_lines * 1.3)
-        elif len(text) > 1000:
-            final_lines = int(final_lines * 1.2)
-        
-        # Minimum raisonnable
-        result = max(5, final_lines)
-        
-        print(f"📏 CALCUL GÉNÉREUX: {len(text)} chars → {content_lines} lignes → {wrapped_lines} wrapped → {result} final (marge: {safety_margin})")
-        
-        return result
 
     def show_copy_notification(self, message):
         """Affiche une notification GUI élégante pour la copie"""
@@ -2043,84 +1963,136 @@ class ModernAIGUI:
         return context_menu
 
     def insert_formatted_text_tkinter(self, text_widget, text):
-        """Version CORRIGÉE avec les bonnes couleurs Pygments"""
-        import re
-        import webbrowser
+        """Version CORRIGÉE - Tailles normales, couleurs correctes, formatage pendant animation"""
+        import re, webbrowser, os
         text_widget.delete("1.0", "end")
 
-        # Configuration des couleurs CORRIGÉES pour thème sombre
+        # --- Configuration des tags CORRIGÉES ---
         BASE_FONT = ('Segoe UI', 12)
-        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'))
-        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'))
+        
+        # CORRECTION : Tailles RÉDUITES et couleurs BLANCHES pour les éléments normaux
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])  # BLANC
+        
+        # TITRES avec tailles RÉDUITES
+        text_widget.tag_configure("title1", font=('Segoe UI', 16, 'bold'), foreground=self.colors['text_primary'])  # 16 au lieu de 18
+        text_widget.tag_configure("title2", font=('Segoe UI', 14, 'bold'), foreground=self.colors['text_primary'])  # 14 au lieu de 16
+        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])  # 13 au lieu de 14
+        text_widget.tag_configure("title4", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])  # 12 au lieu de 13
+        text_widget.tag_configure("title5", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])  # 12
+        
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        text_widget.tag_configure("normal", font=BASE_FONT)
+        
+        # DOCSTRING en orange mais taille normale
+        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
+        
+        text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
         text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
         
-        # CORRECTION MAJEURE : Configuration précise des couleurs Pygments
-        # Mots-clés (def, class, if, for, etc.)
-        text_widget.tag_configure("Token.Keyword", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Constant", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Declaration", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Namespace", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Pseudo", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Reserved", foreground="#ff79c6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Type", foreground="#8be9fd", font=('Consolas', 11, 'bold'))
+        # Configuration PYTHON avec VRAIES couleurs VS Code
+        text_widget.tag_configure("Token.Keyword", foreground="#569cd6", font=('Consolas', 11, 'bold'))  # Bleu VS Code
+        text_widget.tag_configure("Token.Keyword.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Declaration", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Namespace", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Pseudo", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Reserved", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        text_widget.tag_configure("Token.Keyword.Type", foreground="#4ec9b0", font=('Consolas', 11, 'bold'))  # Cyan VS Code
         
-        # Strings (entre guillemets)
-        text_widget.tag_configure("Token.Literal.String", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.String.Double", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.String.Single", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String.Double", foreground="#f1fa8c", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String.Single", foreground="#f1fa8c", font=('Consolas', 11))
+        # Strings - VERT VS Code
+        text_widget.tag_configure("Token.Literal.String", foreground="#ce9178", font=('Consolas', 11))  # Orange-brun VS Code
+        text_widget.tag_configure("Token.Literal.String.Double", foreground="#ce9178", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Literal.String.Single", foreground="#ce9178", font=('Consolas', 11))
+        text_widget.tag_configure("Token.String", foreground="#ce9178", font=('Consolas', 11))
+        text_widget.tag_configure("Token.String.Double", foreground="#ce9178", font=('Consolas', 11))
+        text_widget.tag_configure("Token.String.Single", foreground="#ce9178", font=('Consolas', 11))
         
-        # Commentaires
-        text_widget.tag_configure("Token.Comment", foreground="#6272a4", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Comment.Single", foreground="#6272a4", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Comment.Multiline", foreground="#6272a4", font=('Consolas', 11, 'italic'))
+        # Commentaires - VERT VS Code
+        text_widget.tag_configure("Token.Comment", foreground="#6a9955", font=('Consolas', 11, 'italic'))  # Vert VS Code
+        text_widget.tag_configure("Token.Comment.Single", foreground="#6a9955", font=('Consolas', 11, 'italic'))
+        text_widget.tag_configure("Token.Comment.Multiline", foreground="#6a9955", font=('Consolas', 11, 'italic'))
         
-        # Fonctions et méthodes
-        text_widget.tag_configure("Token.Name.Function", foreground="#50fa7b", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Class", foreground="#50fa7b", font=('Consolas', 11, 'bold'))
+        # Fonctions et classes - JAUNE VS Code
+        text_widget.tag_configure("Token.Name.Function", foreground="#dcdcaa", font=('Consolas', 11))  # Jaune VS Code
+        text_widget.tag_configure("Token.Name.Class", foreground="#4ec9b0", font=('Consolas', 11, 'bold'))  # Cyan VS Code
         
-        # Builtins (print, len, etc.)
-        text_widget.tag_configure("Token.Name.Builtin", foreground="#8be9fd", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Builtin.Pseudo", foreground="#8be9fd", font=('Consolas', 11))
+        # Builtins - JAUNE VS Code
+        text_widget.tag_configure("Token.Name.Builtin", foreground="#dcdcaa", font=('Consolas', 11))  # Jaune VS Code
+        text_widget.tag_configure("Token.Name.Builtin.Pseudo", foreground="#dcdcaa", font=('Consolas', 11))
         
-        # Nombres
-        text_widget.tag_configure("Token.Literal.Number", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number.Integer", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number.Float", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number.Integer", foreground="#bd93f9", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number.Float", foreground="#bd93f9", font=('Consolas', 11))
+        # Nombres - VERT CLAIR VS Code
+        text_widget.tag_configure("Token.Literal.Number", foreground="#b5cea8", font=('Consolas', 11))  # Vert clair VS Code
+        text_widget.tag_configure("Token.Literal.Number.Integer", foreground="#b5cea8", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Literal.Number.Float", foreground="#b5cea8", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Number", foreground="#b5cea8", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Number.Integer", foreground="#b5cea8", font=('Consolas', 11))
+        text_widget.tag_configure("Token.Number.Float", foreground="#b5cea8", font=('Consolas', 11))
         
-        # Opérateurs
-        text_widget.tag_configure("Token.Operator", foreground="#ff79c6", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Punctuation", foreground="#f8f8f2", font=('Consolas', 11))
+        # Opérateurs - BLANC VS Code
+        text_widget.tag_configure("Token.Operator", foreground="#d4d4d4", font=('Consolas', 11))  # Blanc-gris VS Code
+        text_widget.tag_configure("Token.Punctuation", foreground="#d4d4d4", font=('Consolas', 11))
         
-        # Variables et noms
-        text_widget.tag_configure("Token.Name", foreground="#f8f8f2", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Variable", foreground="#f8f8f2", font=('Consolas', 11))
+        # Variables et noms - BLANC VS Code
+        text_widget.tag_configure("Token.Name", foreground="#9cdcfe", font=('Consolas', 11))  # Bleu clair VS Code
+        text_widget.tag_configure("Token.Name.Variable", foreground="#9cdcfe", font=('Consolas', 11))
         
-        # Valeurs spéciales (True, False, None)
-        text_widget.tag_configure("Token.Name.Constant", foreground="#bd93f9", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Constant", foreground="#bd93f9", font=('Consolas', 11, 'bold'))
+        # Constantes spéciales - BLEU VS Code
+        text_widget.tag_configure("Token.Name.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
 
-        def open_link(event, url):
-            webbrowser.open_new(url)
+        # CORRECTION DU TEXTE avant parsing
+        text = re.sub(r'^(\s*)Args:\s*$', r'\1**Args:**', text, flags=re.MULTILINE)
+        text = re.sub(r'^(\s*)Returns:\s*$', r'\1**Returns:**', text, flags=re.MULTILINE)
 
-        # Traitement du texte avec blocs de code
-        code_block_pattern = r"```python\s*([\s\S]+?)```"
+        # Correction du nom de fichier temporaire
+        temp_file_match = re.search(r'Explication détaillée du fichier [`"]?(tmp\w+\.py)[`"]?', text)
+        if temp_file_match and hasattr(self, 'conversation_history'):
+            for hist in reversed(self.conversation_history):
+                if 'text' in hist and isinstance(hist['text'], str):
+                    real_file = re.search(r"document: '([\w\-.]+\.py)'", hist['text'])
+                    if real_file:
+                        text = text.replace(temp_file_match.group(1), real_file.group(1))
+                        break
+            else:
+                py_files = [f for f in os.listdir('.') if f.endswith('.py')]
+                if py_files:
+                    text = text.replace(temp_file_match.group(1), py_files[0])
+
+        # --- Parsing par blocs ---
+        block_pattern = re.compile(
+            r'(\n|^)(```python[\s\S]+?```|''' + "'''docstring[\s\S]+?'''" + r'|#+\s+.+|\n)', 
+            re.IGNORECASE
+        )
+        
         pos = 0
-        for code_match in re.finditer(code_block_pattern, text, re.IGNORECASE):
-            # Texte avant le bloc code
-            if code_match.start() > pos:
-                self._insert_markdown_and_links(text_widget, text[pos:code_match.start()])
-            code_content = code_match.group(1)
-            self._insert_python_code_block_corrected(text_widget, code_content)
-            pos = code_match.end()
-        # Texte après le dernier bloc code
+        for m in block_pattern.finditer(text):
+            start, end = m.start(2), m.end(2)
+            before = text[pos:m.start(2)]
+            block = m.group(2)
+            
+            if before:
+                self._insert_markdown_and_links(text_widget, before)
+            
+            if block:
+                if block.startswith('```python'):
+                    code = block[len('```python'):].strip(' \n`')
+                    self._insert_python_code_block_corrected(text_widget, code)
+                    
+                elif block.startswith("'''docstring"):
+                    doc = block[len("'''docstring"):].strip(" \n'")
+                    text_widget.insert("end", doc + "\n", "docstring")
+                    
+                elif block.lstrip().startswith('#'):
+                    line = block.strip()
+                    match = re.match(r'(#+)\s+(.+)', line)
+                    if match:
+                        hashes, title_text = match.groups()
+                        level = min(len(hashes), 5)
+                        tag = f"title{level}"
+                        # CORRECTION : Espacement réduit après les titres
+                        text_widget.insert("end", title_text.strip() + "\n", tag)  # UNE seule ligne au lieu de deux
+                else:
+                    self._insert_markdown_and_links(text_widget, block)
+            pos = end
+        
         if pos < len(text):
             self._insert_markdown_and_links(text_widget, text[pos:])
 
@@ -2239,34 +2211,6 @@ class ModernAIGUI:
                     else:
                         text_widget.insert("end", token, ("mono",))
                 text_widget.insert("end", "\n", ("mono",))
-
-    def _insert_markdown_segments(self, text_widget, text):
-        """Insère du texte avec gras, italique, monospace (hors liens)"""
-        import re
-        patterns = [
-            (r'\*\*([^*]+)\*\*', 'bold'),   # **texte** -> gras
-            (r'\*([^*]+)\*', 'italic'),     # *texte* -> italique
-            (r'`([^`]+)`', 'mono')          # `texte` -> monospace
-        ]
-        segments = [(text, 'normal')]
-        for pattern, style in patterns:
-            new_segments = []
-            for segment_text, segment_style in segments:
-                if segment_style == 'normal':
-                    pos = 0
-                    for match in re.finditer(pattern, segment_text):
-                        if match.start() > pos:
-                            new_segments.append((segment_text[pos:match.start()], 'normal'))
-                        new_segments.append((match.group(1), style))
-                        pos = match.end()
-                    if pos < len(segment_text):
-                        new_segments.append((segment_text[pos:], 'normal'))
-                else:
-                    new_segments.append((segment_text, segment_style))
-            segments = new_segments
-        for segment_text, style in segments:
-            if segment_text:
-                text_widget.insert("end", segment_text, style)
 
     def adjust_text_height_no_scroll(self, text_widget, text):
         """Ajuste la hauteur EXACTE pour afficher tout le contenu sans scroll"""

@@ -44,7 +44,7 @@ class CodeProcessor:
 
     def generate_detailed_explanation(self, file_path: str, real_file_name: str = None) -> str:
         """
-        Génère une explication détaillée, structurée et pédagogique d'un fichier Python (Markdown/balises pour affichage riche).
+        Génère une explication détaillée, structurée et pédagogique d'un fichier Python.
         """
         analysis = self.analyze_code(file_path)
         if not analysis.get("success"):
@@ -54,6 +54,7 @@ class CodeProcessor:
         language = analysis.get("language", "unknown")
         lines = content.splitlines()
         docstring = ""
+        
         # Chercher un docstring de module
         if lines and lines[0].strip().startswith('"""'):
             docstring_lines = []
@@ -96,55 +97,66 @@ class CodeProcessor:
         explanation.append("## 3. Structure principale\n")
         classes = analysis.get("classes", [])
         functions = analysis.get("functions", [])
+        
         if classes:
             explanation.append(f"Le fichier contient **{len(classes)} classe(s)** :\n")
             for c in classes:
                 bases = f" (hérite de {', '.join([f'`{b}`' for b in c['bases']])})" if c['bases'] else ""
                 doc = f"\n'''docstring\n{c['docstring']}\n'''" if c['docstring'] else ""
-                explanation.append(f"- **Classe `{c['name']}`**{bases} _(ligne {c['line']})_{doc}")
+                # CORRECTION : Supprimer les underscores autour de (ligne X)
+                explanation.append(f"- **Classe `{c['name']}`**{bases} (ligne {c['line']}){doc}")
         else:
             explanation.append("Aucune classe définie dans ce fichier.")
+        
         if functions:
             explanation.append(f"\nLe fichier contient **{len(functions)} fonction(s)** :\n")
             for f in functions:
-                args = ', '.join([f'`{a}`' for a in f['args']])
-                doc = f"\n'''docstring\n{f['docstring']}\n'''" if f['docstring'] else ""
-                explanation.append(f"- **Fonction `{f['name']}`**(**args**: {args}) _(ligne {f['line']})_{doc}")
+                # CORRECTION : Formatage spécifique des Args pour ne cibler que les titres
+                args_list = ', '.join([f'`{a}`' for a in f['args']])
+                
+                # CORRECTION : Gestion spéciale de la docstring pour extraire Args: et Returns:
+                doc_formatted = ""
+                if f['docstring']:
+                    doc_lines = f['docstring'].split('\n')
+                    formatted_lines = []
+                    for line in doc_lines:
+                        line_stripped = line.strip()
+                        # CIBLER SPÉCIFIQUEMENT Args: et Returns: en début de ligne
+                        if line_stripped == "Args:" or line_stripped.startswith("Args:"):
+                            formatted_lines.append(line.replace("Args:", "**Args:**"))
+                        elif line_stripped == "Returns:" or line_stripped.startswith("Returns:"):
+                            formatted_lines.append(line.replace("Returns:", "**Returns:**"))
+                        else:
+                            formatted_lines.append(line)
+                    doc_formatted = f"\n'''docstring\n{chr(10).join(formatted_lines)}\n'''"
+                
+                # CORRECTION : Supprimer les underscores autour de (ligne X)
+                explanation.append(f"- **Fonction `{f['name']}`**(args: {args_list}) (ligne {f['line']}){doc_formatted}")
         else:
             explanation.append("Aucune fonction définie dans ce fichier.")
 
         # 4. Points particuliers
         explanation.append("## 4. Points particuliers\n")
-        # Gestion d'erreurs
         if 'try' in content or 'except' in content:
             explanation.append("- Ce fichier gère des exceptions avec des blocs `try/except`.")
-        # Fallbacks
         if 'fallback' in content.lower():
             explanation.append("- Des mécanismes de **fallback** sont présents pour garantir la robustesse.")
-        # Patterns
         if 'class ' in content and '__init__' in content:
             explanation.append("- Utilisation de classes avec constructeurs (`__init__`) pour structurer le code.")
-        # Validation
         if 'validate' in content or 'validation' in content:
             explanation.append("- Le code inclut des fonctions de **validation**.")
-        # Analyse
         if 'analyze' in content or 'analyse' in content:
             explanation.append("- Le code inclut des fonctions d'**analyse** de code.")
-        # Multi-langages
         if 'supported_languages' in content:
             explanation.append("- Ce fichier gère plusieurs langages de programmation.")
 
         # 5. Résumé technique
         explanation.append("## 5. Résumé technique\n")
-        explanation.append(f"- Langage détecté : **{language}**")
-        explanation.append(f"- Nombre de lignes : **{analysis.get('line_count', '?')}**")
-        explanation.append(f"- Nombre de caractères : **{analysis.get('character_count', '?')}**")
-        explanation.append(f"- Taille du fichier : **{analysis.get('file_size', '?')} octets**")
-
-        # Bloc code complet (optionnel)
-        explanation.append("\n## 6. Code source complet\n")
-        explanation.append("```python\n" + content.strip() + "\n```")
-
+        explanation.append(f"- **Langage détecté :** {language}")
+        explanation.append(f"- **Nombre de lignes :** {analysis.get('line_count', '?')}")
+        explanation.append(f"- **Nombre de caractères :** {analysis.get('character_count', '?')}")
+        explanation.append(f"- **Taille du fichier :** {analysis.get('file_size', '?')} octets")
+        
         return '\n'.join(explanation)
     
     def read_code_file(self, file_path: str) -> str:
