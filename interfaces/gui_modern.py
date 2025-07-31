@@ -91,32 +91,16 @@ except ImportError as e:
 
 class ModernAIGUI:
     def adjust_text_widget_height(self, text_widget):
-        """Ajuste dynamiquement la hauteur du widget Text pour afficher tout le texte, sans limite arbitraire, en tenant compte du wrapping."""
+        """Ajuste dynamiquement la hauteur du widget Text pour afficher tout le texte, sans limite arbitraire."""
         try:
             text_widget.update_idletasks()
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
-            text = text_widget.get("1.0", "end-1c")
-            lines = text.split("\n")
-            font = text_widget.cget("font")
-            widget_width = text_widget.winfo_width()
-            if widget_width <= 1:
-                text_widget.update_idletasks()
-                widget_width = text_widget.winfo_width()
-            import tkinter.font as tkfont
-            tk_font = tkfont.Font(font=font)
-            total_lines = 0
-            for line in lines:
-                line_width_px = tk_font.measure(line)
-                if widget_width > 0:
-                    wrapped_lines = max(1, int((line_width_px / widget_width) + 0.999))
-                else:
-                    wrapped_lines = 1
-                total_lines += wrapped_lines
-            text_widget.configure(height=total_lines)
+            line_count = int(text_widget.index("end-1c").split('.')[0])
+            text_widget.configure(height=max(1, line_count))
             text_widget.configure(state=current_state)
-        except Exception as e:
-            print(f"Erreur ajustement hauteur Text: {e}")
+        except Exception:
+            pass
         
     def _disable_text_scroll(self, text_widget):
         """Désactive tout scroll interne (molette, flèches, PageUp/Down) sur un widget Text."""
