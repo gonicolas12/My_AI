@@ -292,37 +292,83 @@ class InternetSearchEngine:
         Returns:
             str: Résumé intelligent
         """
+        import re
         # Construire le résumé
         summary = f"🔍 **Résultats de recherche pour '{query}'**\n\n"
-        
-        # Analyser le type de requête
-        query_lower = query.lower()
-        is_definition = any(word in query_lower for word in ["qu'est-ce que", "définition", "c'est quoi", "define"])
-        is_howto = any(word in query_lower for word in ["comment", "how to", "tutorial", "guide"])
-        is_news = any(word in query_lower for word in ["actualité", "news", "dernières nouvelles"])
-        is_comparison = any(word in query_lower for word in ["vs", "versus", "différence", "comparaison"])
-        
-        # Résumé adapté selon le type de requête
-        if is_definition:
-            summary += "📖 **Définition :**\n"
-        elif is_howto:
-            summary += "🛠️ **Guide pratique :**\n"
-        elif is_news:
-            summary += "📰 **Actualités :**\n"
-        elif is_comparison:
-            summary += "⚖️ **Comparaison :**\n"
+
+        # Extraire toutes les phrases des snippets et contenus
+        all_sentences = []
+        for result in page_contents:
+            for field in ["snippet", "full_content"]:
+                text = result.get(field, "")
+                if text:
+                    # Découper en phrases
+                    sentences = re.split(r'(?<=[.!?])\s+', text)
+                    all_sentences.extend([s.strip() for s in sentences if len(s.strip()) > 0])
+
+        # Calculer la similarité entre la question et chaque phrase (heuristique simple)
+        def score(sentence, query):
+            # Basé sur le nombre de mots en commun (en ignorant la casse et la ponctuation)
+            import string
+            s_words = set(w.strip(string.punctuation).lower() for w in sentence.split())
+            q_words = set(w.strip(string.punctuation).lower() for w in query.split())
+            # Bonus si la phrase commence par une réponse directe (ex: "La taille de la tour Eiffel est ...")
+            direct_answer_bonus = 0
+            if any(w in s_words for w in q_words):
+                if s_words and list(s_words)[0] in q_words:
+                    direct_answer_bonus = 2
+            return len(s_words & q_words) + direct_answer_bonus
+
+        # Nouvelle logique : consensus multi-sources
+        import string
+        from collections import Counter, defaultdict
+
+        def normalize_sentence(s):
+            # Minuscule, sans ponctuation, sans espaces multiples
+            s = s.lower()
+            s = s.translate(str.maketrans('', '', string.punctuation))
+            s = ' '.join(s.split())
+            return s
+
+        def extract_numbers(s):
+            return set(re.findall(r'\d+', s))
+
+        q_words = set(w.lower() for w in query.split() if len(w) > 2)
+        # Filtrer les phrases candidates
+        candidates = []
+        for s in all_sentences:
+            if len(s.split()) < 8:
+                continue
+            if not any(w in s.lower() for w in q_words):
+                continue
+            candidates.append(s)
+
+        # Grouper par similarité (mots communs et chiffres communs)
+        groups = defaultdict(list)
+        for s in candidates:
+            norm = normalize_sentence(s)
+            nums = tuple(sorted(extract_numbers(norm)))
+            # Clé = mots triés + chiffres trouvés
+            key = tuple(sorted(set(norm.split()) & q_words)) + nums
+            groups[key].append(s)
+
+        # Prendre le groupe le plus fréquent (plusieurs sources disent la même chose)
+        if groups:
+            best_group = max(groups.values(), key=len)
+            # Dans ce groupe, prendre la phrase la plus longue
+            best_sentence = max(best_group, key=len)
+            summary += f"{best_sentence}\n\n"
         else:
-            summary += "📝 **Synthèse des informations :**\n"
-        
-        # Extraire les informations clés
-        key_info = self._extract_key_information(page_contents, query)
-        
-        if key_info:
-            summary += key_info + "\n\n"
-        
+            # Fallback : prendre la phrase la plus longue contenant au moins un mot de la question
+            fallback = [s for s in all_sentences if any(w in s.lower() for w in q_words)]
+            if fallback:
+                best_sentence = max(fallback, key=lambda s: len(s))
+                summary += f"{best_sentence}\n\n"
+            else:
+                summary += "Aucune réponse directe trouvée.\n\n"
+
         # Ajouter les sources principales
         summary += "🔗 **Sources principales :**\n"
-        
         source_count = 0
         for result in page_contents[:3]:  # Top 3 résultats
             if result.get("title") and result.get("snippet"):
@@ -339,17 +385,7 @@ class InternetSearchEngine:
 
                 summary += f"\n{source_count}. {markdown_link}\n"
                 summary += f"   {snippet}\n"
-                # Optionnel : garder le lien direct "Ouvrir la page" si besoin, ou le retirer pour plus de clarté
-        
-        # Ajouter des suggestions
-        suggestions = self._generate_search_suggestions(query)
-        if suggestions:
-            summary += f"\n💡 **Recherches suggérées :**\n{suggestions}"
-        
-        # Ajouter timestamp
-        timestamp = datetime.now().strftime("%H:%M")
-        summary += f"\n\n⏰ *Recherche effectuée à {timestamp}*"
-        
+
         return summary
     
     def _extract_key_information(self, page_contents: List[Dict[str, Any]], query: str) -> str:
