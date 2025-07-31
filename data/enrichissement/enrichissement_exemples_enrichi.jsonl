@@ -113,3 +113,13 @@
 {"input": "Qui a peint 'La Nuit étoilée' ?", "target": "**Vincent van Gogh**."}
 {"input": "Quel est le plus grand continent ?", "target": "**L'Asie**."}
 {"input": "Comment dit-on 'merci' en russe ?", "target": "**Spasibo**"}
+{"input": "Quel est le plus grand fleuve d'Amérique du Sud ?", "target": "**L'Amazone**."}
+{"input": "Comment dit-on 'amour' en espagnol ?", "target": "**Amor**"}
+{"input": "Qui a écrit 'Les Fleurs du mal' ?", "target": "**Charles Baudelaire**."}
+{"input": "Quelle est la capitale de la Finlande ?", "target": "**Helsinki**."}
+{"input": "Donne-moi un synonyme de 'rapide' en anglais.", "target": "**Fast**, **quick**, **swift**, **speedy**."}
+{"input": "Quel est le plus grand désert de glace ?", "target": "**L'Antarctique**."}
+{"input": "Comment dire 'bonne chance' en italien ?", "target": "**Buona fortuna**"}
+{"input": "Qui a inventé la radio ?", "target": "**Guglielmo Marconi**."}
+{"input": "Quel est le symbole chimique du sodium ?", "target": "**Na**"}
+{"input": "Quelle est la capitale de la Corée du Sud ?", "target": "**Séoul**."}

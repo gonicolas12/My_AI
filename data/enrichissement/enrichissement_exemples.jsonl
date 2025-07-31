@@ -36,3 +36,13 @@
 {"input": "Complète : La Terre tourne autour du ...", "target": "**Soleil**."}
 {"input": "Quel est le résultat de 9 / 3 ?", "target": "**3**"}
 {"input": "Explique le terme 'photosynthèse'.", "target": "La **photosynthèse** est le processus par lequel les plantes transforment la lumière en énergie."}
+{"input": "Quel est le plus haut sommet du monde ?", "target": "L'**Everest** est le plus haut sommet du monde."}
+{"input": "Traduis en anglais : 'Je t'aime'", "target": "**I love you**"}
+{"input": "Donne-moi la capitale du Japon.", "target": "**Tokyo**."}
+{"input": "Code Python pour calculer la longueur d'une liste nommée 'ma_liste'.", "target": "**len(ma_liste)**"}
+{"input": "Complète : Le sang circule dans les ...", "target": "**veines** et **artères**."}
+{"input": "Qui a inventé le téléphone ?", "target": "**Alexander Graham Bell**."}
+{"input": "Donne-moi la racine carrée de 49.", "target": "**7**"}
+{"input": "Explique le terme 'écosystème'.", "target": "Un **écosystème** est un ensemble d'êtres vivants et leur environnement."}
+{"input": "Quel est le symbole chimique de l'or ?", "target": "**Au**"}
+{"input": "Traduis en espagnol : 'Bonne chance'", "target": "**Buena suerte**"}

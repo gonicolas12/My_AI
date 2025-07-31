@@ -93,8 +93,8 @@ class CodeProcessor:
         else:
             explanation.append("Aucun import détecté.")
 
-        # 3. Structure principale
-        explanation.append("## 3. Structure principale\n")
+        # CORRECTION : Ajouter retour à la ligne AVANT le titre 3
+        explanation.append("\n## 3. Structure principale\n")
         classes = analysis.get("classes", [])
         functions = analysis.get("functions", [])
         
@@ -103,18 +103,16 @@ class CodeProcessor:
             for c in classes:
                 bases = f" (hérite de {', '.join([f'`{b}`' for b in c['bases']])})" if c['bases'] else ""
                 doc = f"\n'''docstring\n{c['docstring']}\n'''" if c['docstring'] else ""
-                # CORRECTION : Supprimer les underscores autour de (ligne X)
-                explanation.append(f"- **Classe `{c['name']}`**{bases} (ligne {c['line']}){doc}")
+                explanation.append(f"- Classe `{c['name']}`{bases} (ligne {c['line']}){doc}")
         else:
             explanation.append("Aucune classe définie dans ce fichier.")
         
         if functions:
             explanation.append(f"\nLe fichier contient **{len(functions)} fonction(s)** :\n")
             for f in functions:
-                # CORRECTION : Formatage spécifique des Args pour ne cibler que les titres
                 args_list = ', '.join([f'`{a}`' for a in f['args']])
                 
-                # CORRECTION : Gestion spéciale de la docstring pour extraire Args: et Returns:
+                # Gestion spéciale de la docstring pour extraire Args: et Returns:
                 doc_formatted = ""
                 if f['docstring']:
                     doc_lines = f['docstring'].split('\n')
@@ -130,13 +128,12 @@ class CodeProcessor:
                             formatted_lines.append(line)
                     doc_formatted = f"\n'''docstring\n{chr(10).join(formatted_lines)}\n'''"
                 
-                # CORRECTION : Supprimer les underscores autour de (ligne X)
-                explanation.append(f"- **Fonction `{f['name']}`**(args: {args_list}) (ligne {f['line']}){doc_formatted}")
+                explanation.append(f"- Fonction `{f['name']}`(args: {args_list}) (ligne {f['line']}){doc_formatted}")
         else:
             explanation.append("Aucune fonction définie dans ce fichier.")
 
         # 4. Points particuliers
-        explanation.append("## 4. Points particuliers\n")
+        explanation.append("\n## 4. Points particuliers\n")  # AJOUT d'un retour à la ligne ici aussi
         if 'try' in content or 'except' in content:
             explanation.append("- Ce fichier gère des exceptions avec des blocs `try/except`.")
         if 'fallback' in content.lower():
@@ -150,8 +147,8 @@ class CodeProcessor:
         if 'supported_languages' in content:
             explanation.append("- Ce fichier gère plusieurs langages de programmation.")
 
-        # 5. Résumé technique
-        explanation.append("## 5. Résumé technique\n")
+        # CORRECTION : Ajouter retour à la ligne AVANT le titre 5
+        explanation.append("\n## 5. Résumé technique\n")
         explanation.append(f"- **Langage détecté :** {language}")
         explanation.append(f"- **Nombre de lignes :** {analysis.get('line_count', '?')}")
         explanation.append(f"- **Nombre de caractères :** {analysis.get('character_count', '?')}")
