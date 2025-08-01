@@ -91,27 +91,90 @@ except ImportError as e:
 
 class ModernAIGUI:
     def adjust_text_widget_height(self, text_widget):
-        """Ajuste dynamiquement la hauteur du widget Text pour afficher tout le texte, sans limite arbitraire."""
+        """Version améliorée pour ajuster la hauteur ET désactiver le scroll"""
         try:
             text_widget.update_idletasks()
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
+            
+            # Obtenir le nombre de lignes
             line_count = int(text_widget.index("end-1c").split('.')[0])
-            text_widget.configure(height=max(1, line_count))
+            
+            # Calculer une hauteur généreuse
+            generous_height = max(2, line_count + 1)
+            
+            # Vérifier s'il y a du scroll et ajuster
+            for _ in range(5):  # Maximum 5 tentatives
+                text_widget.configure(height=generous_height)
+                text_widget.update_idletasks()
+                
+                yview = text_widget.yview()
+                if yview and yview[1] >= 1.0:
+                    break  # Plus de scroll, parfait
+                
+                generous_height += 1
+            
             text_widget.configure(state=current_state)
+            
+            # 🔧 IMPORTANT : Désactiver le scroll interne
+            self._disable_text_scroll(text_widget)
+            
         except Exception:
-            pass
+            # Fallback sécurisé
+            try:
+                text_widget.configure(height=10)
+                self._disable_text_scroll(text_widget)
+            except:
+                pass
         
     def _disable_text_scroll(self, text_widget):
-        """Désactive tout scroll interne (molette, flèches, PageUp/Down) sur un widget Text."""
-        def _block_scroll(event):
+        """Désactive complètement le scroll interne du widget Text"""
+        def block_scroll(event):
             return "break"
-        for seq in [
-            '<MouseWheel>', '<Button-4>', '<Button-5>',
-            '<Up>', '<Down>', '<Prior>', '<Next>',
-            '<Shift-MouseWheel>', '<Control-MouseWheel>'
-        ]:
-            text_widget.bind(seq, _block_scroll)
+        
+        # Désactiver tous les événements de scroll
+        scroll_events = [
+            '<MouseWheel>', '<Button-4>', '<Button-5>',  # Molette souris
+            '<Up>', '<Down>',                             # Flèches haut/bas
+            '<Prior>', '<Next>',                          # Page Up/Down
+            '<Control-Home>', '<Control-End>',            # Ctrl+Home/End
+            '<Shift-MouseWheel>',                         # Shift+molette
+            '<Control-MouseWheel>'                        # Ctrl+molette
+        ]
+        
+        for event in scroll_events:
+            text_widget.bind(event, block_scroll)
+        
+        # Transférer le scroll vers le conteneur principal
+        def forward_to_main_scroll(event):
+            try:
+                if hasattr(self, 'chat_frame'):
+                    if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                        canvas = self.chat_frame._parent_canvas
+                        if hasattr(event, 'delta') and event.delta:
+                            scroll_delta = -1 * (event.delta // 120)
+                        else:
+                            scroll_delta = -1 if event.num == 4 else 1
+                        canvas.yview_scroll(scroll_delta, "units")
+                    else:
+                        parent = self.chat_frame.master
+                        while parent and not hasattr(parent, 'yview_scroll'):
+                            parent = parent.master
+                        if parent:
+                            if hasattr(event, 'delta') and event.delta:
+                                scroll_delta = -1 * (event.delta // 120)
+                            else:
+                                scroll_delta = -1 if event.num == 4 else 1
+                            parent.yview_scroll(scroll_delta, "units")
+            except Exception:
+                pass
+            return "break"
+        
+        # Appliquer le transfert de scroll uniquement pour la molette
+        text_widget.bind('<MouseWheel>', forward_to_main_scroll)
+        text_widget.bind('<Button-4>', forward_to_main_scroll)
+        text_widget.bind('<Button-5>', forward_to_main_scroll)
+
     def _show_timestamp_for_current_message(self):
         """Affiche le timestamp sous la bulle du dernier message IA (comme pour l'utilisateur)."""
         from datetime import datetime
@@ -313,43 +376,54 @@ class ModernAIGUI:
         self.ensure_input_is_ready()
     
     def _configure_formatting_tags(self, text_widget):
-        """Configure tous les tags de formatage pour l'animation avec coloration Python améliorée"""
+        """Configure tous les tags de formatage pour l'animation avec coloration Python COMPLÈTE"""
         BASE_FONT = ('Segoe UI', 12)
         
-        # Configuration IDENTIQUE à insert_formatted_text_tkinter
+        # 🔧 CONFIGURATION IDENTIQUE à insert_formatted_text_tkinter
         text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        
+        # 🔧 TITRES MARKDOWN avec tailles progressives
         text_widget.tag_configure("title1", font=('Segoe UI', 16, 'bold'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("title2", font=('Segoe UI', 14, 'bold'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("title4", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("title5", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        
         text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
+        
+        # 🔧 DOCSTRING - ESSENTIEL pour le code Python
         text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
+        
         text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
         text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
         
-        # CORRECTION : Couleurs Python VS Code COMPLÈTES
-        text_widget.tag_configure("Token.Keyword", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Declaration", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Namespace", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Pseudo", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Reserved", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        # 🔧 PYTHON COMPLET - Couleurs VS Code EXACTES
+        
+        # Keywords - BLEU VS Code
+        python_keyword_tags = [
+            "Token.Keyword", "Token.Keyword.Constant", "Token.Keyword.Declaration",
+            "Token.Keyword.Namespace", "Token.Keyword.Pseudo", "Token.Keyword.Reserved"
+        ]
+        for tag in python_keyword_tags:
+            text_widget.tag_configure(tag, foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        
         text_widget.tag_configure("Token.Keyword.Type", foreground="#4ec9b0", font=('Consolas', 11, 'bold'))
         
         # Strings - ORANGE-BRUN VS Code
-        text_widget.tag_configure("Token.Literal.String", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.String.Double", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.String.Single", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String.Double", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String.Single", foreground="#ce9178", font=('Consolas', 11))
+        string_tags = [
+            "Token.Literal.String", "Token.Literal.String.Double", "Token.Literal.String.Single",
+            "Token.String", "Token.String.Double", "Token.String.Single"
+        ]
+        for tag in string_tags:
+            text_widget.tag_configure(tag, foreground="#ce9178", font=('Consolas', 11))
         
         # Commentaires - VERT VS Code
-        text_widget.tag_configure("Token.Comment", foreground="#6a9955", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Comment.Single", foreground="#6a9955", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Comment.Multiline", foreground="#6a9955", font=('Consolas', 11, 'italic'))
+        comment_tags = [
+            "Token.Comment", "Token.Comment.Single", "Token.Comment.Multiline"
+        ]
+        for tag in comment_tags:
+            text_widget.tag_configure(tag, foreground="#6a9955", font=('Consolas', 11, 'italic'))
         
         # Fonctions et classes - JAUNE VS Code
         text_widget.tag_configure("Token.Name.Function", foreground="#dcdcaa", font=('Consolas', 11))
@@ -361,21 +435,23 @@ class ModernAIGUI:
         text_widget.tag_configure("Token.Name.Builtin.Pseudo", foreground="#dcdcaa", font=('Consolas', 11))
         
         # Nombres - VERT CLAIR VS Code
-        text_widget.tag_configure("Token.Literal.Number", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number.Integer", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number.Float", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number.Integer", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number.Float", foreground="#b5cea8", font=('Consolas', 11))
+        number_tags = [
+            "Token.Literal.Number", "Token.Literal.Number.Integer", "Token.Literal.Number.Float",
+            "Token.Number", "Token.Number.Integer", "Token.Number.Float"
+        ]
+        for tag in number_tags:
+            text_widget.tag_configure(tag, foreground="#b5cea8", font=('Consolas', 11))
         
         # Opérateurs - BLANC VS Code
         text_widget.tag_configure("Token.Operator", foreground="#d4d4d4", font=('Consolas', 11))
         text_widget.tag_configure("Token.Punctuation", foreground="#d4d4d4", font=('Consolas', 11))
         
         # Variables et noms - BLEU CLAIR VS Code
-        text_widget.tag_configure("Token.Name", foreground="#9cdcfe", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Variable", foreground="#9cdcfe", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Name.Attribute", foreground="#9cdcfe", font=('Consolas', 11))
+        name_tags = [
+            "Token.Name", "Token.Name.Variable", "Token.Name.Attribute"
+        ]
+        for tag in name_tags:
+            text_widget.tag_configure(tag, foreground="#9cdcfe", font=('Consolas', 11))
         
         # Constantes spéciales - BLEU VS Code
         text_widget.tag_configure("Token.Name.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
@@ -384,6 +460,7 @@ class ModernAIGUI:
         text_widget.tag_configure("code_block", font=('Consolas', 11), background="#1e1e1e", foreground="#d4d4d4")
         
         print("✅ Tags de coloration Python configurés pour l'animation")
+
 
     def setup_modern_gui(self):
         """Configure l'interface principale style Claude"""
@@ -1343,7 +1420,7 @@ class ModernAIGUI:
         text_widget.bind("<Button-3>", show_context_menu)  # Clic droit
 
     def create_ai_message_simple(self, parent, text):
-        """Version DÉFINITIVE - Messages IA complets sans AUCUN scroll interne, avec formattage Args/Returns et debug"""
+        """Version CORRIGÉE pour les résumés - Hauteur automatique sans scroll interne"""
         import re
         from datetime import datetime
         try:
@@ -1357,10 +1434,6 @@ class ModernAIGUI:
                         str(text))
                 else:
                     text = str(text)
-
-            # Debug : log le texte après correction
-            if hasattr(self, 'logger'):
-                self.logger.info(f"[DEBUG] Texte IA après formattage Args/Returns:\n{text[:500]}")
 
             # Frame de centrage
             center_frame = self.create_frame(parent, fg_color=self.colors['bg_chat'])
@@ -1386,10 +1459,14 @@ class ModernAIGUI:
             # Stocker le container pour l'affichage du timestamp
             self.current_message_container = message_container
 
-            # Widget Text sans hauteur fixe
+            # 🔧 CALCUL INTELLIGENT DE LA HAUTEUR BASÉ SUR LE CONTENU
+            estimated_height = self._calculate_text_height_for_widget(text)
+
+            # Widget Text avec hauteur calculée
             text_widget = tk.Text(
                 message_container,
                 width=120,
+                height=estimated_height,  # Hauteur calculée intelligemment
                 bg=self.colors['bg_chat'],
                 fg=self.colors['text_primary'],
                 font=('Segoe UI', 12),
@@ -1407,15 +1484,11 @@ class ModernAIGUI:
                 takefocus=False,
                 insertwidth=0
             )
-            # Désactiver tout scroll interne
+            
+            # 🔧 DÉSACTIVER LE SCROLL INTERNE DÈS LA CRÉATION
             self._disable_text_scroll(text_widget)
 
             text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
-            self.adjust_text_widget_height(text_widget)
-
-            # Debug : log après création du widget
-            if hasattr(self, 'logger'):
-                self.logger.info("[DEBUG] Widget Text IA créé et hauteur ajustée.")
 
             # Bind minimal pour permettre la sélection
             def prevent_editing_only(event):
@@ -1431,8 +1504,9 @@ class ModernAIGUI:
                 if len(event.keysym) == 1 and event.keysym.isprintable():
                     return "break"
                 return None
+            
             text_widget.bind("<KeyPress>", prevent_editing_only)
-            self.setup_improved_scroll_forwarding(text_widget)
+            
             def copy_on_double_click(event):
                 try:
                     self.root.clipboard_clear()
@@ -1441,23 +1515,77 @@ class ModernAIGUI:
                 except Exception as e:
                     self.show_copy_notification("❌ Erreur de copie")
                 return "break"
+            
             text_widget.bind("<Double-Button-1>", copy_on_double_click)
             self.create_copy_menu_with_notification(text_widget, text)
 
-            # Démarrer l'animation de frappe avec hauteur dynamique
+            # Démarrer l'animation de frappe avec hauteur pré-calculée
             self.start_typing_animation_dynamic(text_widget, text)
+            
         except Exception as e:
-            # Log l'erreur et affiche un message d'erreur dans le chat
             import traceback
             err_msg = f"[ERREUR affichage IA] {e}\n{traceback.format_exc()}"
             if hasattr(self, 'logger'):
                 self.logger.error(err_msg)
-            # Affiche une bulle d'erreur visible
             fallback_text = f"❌ Erreur d'affichage du message IA :\n{e}"
             try:
                 self.add_message_bubble(fallback_text, is_user=False)
             except Exception:
                 pass
+
+    def debug_text_widget_scroll(self, text_widget, widget_name="Widget"):
+        """Debug pour vérifier l'état du scroll d'un widget Text"""
+        try:
+            text_widget.update_idletasks()
+            
+            # Obtenir les informations de scroll
+            yview = text_widget.yview()
+            height = text_widget.cget("height")
+            
+            # Compter les lignes réelles
+            line_count = int(text_widget.index("end-1c").split('.')[0])
+            
+            print(f"🔍 DEBUG {widget_name}:")
+            print(f"   Hauteur configurée: {height} lignes")
+            print(f"   Lignes réelles: {line_count}")
+            print(f"   YView (scroll): {yview}")
+            print(f"   Scroll nécessaire: {'OUI' if yview and yview[1] < 1.0 else 'NON'}")
+            print(f"   État: {'✅ OK' if not yview or yview[1] >= 1.0 else '❌ SCROLL INTERNE'}")
+            print()
+            
+        except Exception as e:
+            print(f"❌ Erreur debug {widget_name}: {e}")
+
+    def _calculate_text_height_for_widget(self, text):
+        """Calcule la hauteur optimale pour un texte donné"""
+        if not text:
+            return 5
+        
+        # Compter les lignes de base
+        lines = text.split('\n')
+        base_lines = len(lines)
+        
+        # Estimer les lignes wrappées
+        estimated_width_chars = 100  # Estimation conservative
+        wrapped_lines = 0
+        
+        for line in lines:
+            if len(line) > estimated_width_chars:
+                # Cette ligne va être wrappée
+                additional_lines = (len(line) - 1) // estimated_width_chars
+                wrapped_lines += additional_lines
+        
+        # Calcul final avec marge de sécurité
+        total_estimated_lines = base_lines + wrapped_lines
+        
+        # Ajouter une marge généreuse pour éviter tout scroll
+        margin = max(3, int(total_estimated_lines * 0.2))  # 20% de marge minimum 3 lignes
+        final_height = total_estimated_lines + margin
+        
+        # Limites raisonnables
+        final_height = max(5, min(final_height, 80))  # Entre 5 et 80 lignes
+        
+        return final_height
 
     def setup_improved_scroll_forwarding(self, text_widget):
         """Version CORRIGÉE - Scroll sans conflit avec sélection"""
@@ -1524,9 +1652,8 @@ class ModernAIGUI:
         print(f"✅ Scroll amélioré configuré pour widget Text")
 
     def start_typing_animation_dynamic(self, text_widget, full_text):
-        """Animation avec désactivation de la saisie"""
+        """Animation avec désactivation de la saisie - CORRIGÉ pour hauteur dynamique"""
         # DÉSACTIVER la saisie pendant l'animation
-        # Debug removed
         self.set_input_state(False)
         
         # Réinitialiser le widget
@@ -1545,12 +1672,11 @@ class ModernAIGUI:
         # Flag d'interruption
         self._typing_interrupted = False
         
-        # Debug removed
         # Démarrer l'animation
         self.continue_typing_animation_dynamic()
 
     def continue_typing_animation_dynamic(self):
-        """Animation AVEC formatage en temps réel - VERSION FINALE"""
+        """Animation AVEC formatage en temps réel - CORRIGÉE pour suivi et formatage Python"""
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
         
@@ -1564,26 +1690,165 @@ class ModernAIGUI:
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             
-            # Pendant l'animation : formatage simplifié (sans liens pour la performance)
-            self._insert_formatted_text_animated(self.typing_widget, current_text)
+            # 🔧 CORRECTION : Utiliser le formatage complet même pendant l'animation
+            self.insert_formatted_text_tkinter(self.typing_widget, current_text)
             
-            self.adjust_text_widget_height(self.typing_widget)
+            # Ajuster la hauteur
+            self._adjust_height_during_animation(self.typing_widget, current_text)
+            
             self.typing_widget.configure(state="disabled")
             self.typing_index += 1
-            self._gentle_scroll_to_bottom()
+            
+            # 🔧 CORRECTION CLÉE : Scroll intelligent qui suit l'animation
+            self._smart_scroll_follow_animation()
+            
             self._typing_animation_after_id = self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
         else:
             # À la fin : formatage complet avec liens
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             
-            print(f"[DEBUG] Fin animation, application formatage complet")
+            # 🔧 FORMATAGE FINAL COMPLET
             self._insert_markdown_and_links(self.typing_widget, self.typing_text)
             
-            self.adjust_text_widget_height(self.typing_widget)
-            # CORRECTION : NE PAS remettre en "disabled" pour garder les liens actifs
+            # Ajustement final de hauteur
+            self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
             
             self.finish_typing_animation_dynamic(interrupted=False)
+
+    def _smart_scroll_follow_animation(self):
+        """Scroll intelligent qui suit l'animation sans sauter à la fin"""
+        try:
+            if self.use_ctk:
+                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
+                    canvas = self.chat_frame._parent_canvas
+                    canvas.update_idletasks()
+                    
+                    # Obtenir la position actuelle et la hauteur totale
+                    yview = canvas.yview()
+                    if yview:
+                        current_top, current_bottom = yview
+                        
+                        # Si on n'est pas déjà en bas, scroller progressivement
+                        if current_bottom < 0.95:  # Pas complètement en bas
+                            # Scroll progressif de quelques pixels seulement
+                            scroll_amount = 0.02  # Très petit increment
+                            new_position = min(1.0, current_top + scroll_amount)
+                            canvas.yview_moveto(new_position)
+            else:
+                parent = self.chat_frame.master
+                if hasattr(parent, 'yview') and hasattr(parent, 'yview_moveto'):
+                    parent.update_idletasks()
+                    yview = parent.yview()
+                    if yview:
+                        current_top, current_bottom = yview
+                        if current_bottom < 0.95:
+                            scroll_amount = 0.02
+                            new_position = min(1.0, current_top + scroll_amount)
+                            parent.yview_moveto(new_position)
+                            
+        except Exception as e:
+            pass  # Scroll silencieux en cas d'erreur
+
+    def _adjust_height_final_no_scroll(self, text_widget, full_text):
+        """Ajustement final de hauteur pour éliminer complètement le scroll interne"""
+        try:
+            text_widget.update_idletasks()
+            
+            # Méthode 1 : Compter les lignes réelles dans le widget
+            current_state = text_widget.cget("state")
+            text_widget.configure(state="normal")
+            
+            # Obtenir le nombre de lignes réellement affichées
+            line_count = int(text_widget.index("end-1c").split('.')[0])
+            
+            # Méthode 2 : Vérifier s'il y a du scroll interne
+            max_attempts = 10
+            for attempt in range(max_attempts):
+                text_widget.update_idletasks()
+                
+                # Vérifier si le contenu déborde (yview indique s'il y a du scroll)
+                yview = text_widget.yview()
+                
+                if yview and yview[1] < 1.0:
+                    # Il y a du scroll interne, augmenter la hauteur
+                    current_height = text_widget.cget("height")
+                    new_height = current_height + 2
+                    text_widget.configure(height=new_height)
+                else:
+                    # Plus de scroll interne, on s'arrête
+                    break
+            
+            # Restaurer l'état
+            text_widget.configure(state=current_state)
+            
+            # Méthode 3 : Vérification finale avec calcul manuel si nécessaire
+            if yview and yview[1] < 1.0:
+                # Calcul manuel en dernier recours
+                lines = full_text.split('\n')
+                total_lines = 0
+                
+                widget_width = text_widget.winfo_width()
+                if widget_width <= 50:
+                    widget_width = 800
+                
+                char_width = 7.2
+                chars_per_line = max(50, int((widget_width - 30) / char_width))
+                
+                for line in lines:
+                    if len(line) == 0:
+                        total_lines += 1
+                    else:
+                        wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
+                        total_lines += wrapped_lines
+                
+                # Hauteur finale avec marge généreuse
+                final_height = total_lines + 3
+                text_widget.configure(height=final_height)
+            
+        except Exception as e:
+            # En cas d'erreur, utiliser une hauteur généreuse
+            text_widget.configure(height=20)
+
+    def _adjust_height_during_animation(self, text_widget, current_text):
+        """Ajuste la hauteur pendant l'animation pour éviter tout scroll interne"""
+        try:
+            text_widget.update_idletasks()
+            
+            # Compter les lignes réelles du texte actuel
+            lines = current_text.split('\n')
+            
+            # Calculer la hauteur nécessaire en tenant compte du wrapping
+            total_lines = 0
+            widget_width = text_widget.winfo_width()
+            
+            # Si la largeur n'est pas encore calculée, utiliser une valeur par défaut
+            if widget_width <= 50:
+                widget_width = 800  # Largeur approximative
+            
+            # Estimation du nombre de caractères par ligne
+            char_width = 7.2  # Largeur moyenne d'un caractère
+            chars_per_line = max(50, int((widget_width - 30) / char_width))  # -30 pour padding
+            
+            for line in lines:
+                if len(line) == 0:
+                    total_lines += 1
+                else:
+                    # Calculer le nombre de lignes wrapped pour cette ligne
+                    wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
+                    total_lines += wrapped_lines
+            
+            # Ajouter une marge de sécurité
+            safe_height = total_lines + 2
+            
+            # Limiter la hauteur maximale pour éviter des bulles énormes
+            final_height = min(safe_height, 50)
+            
+            text_widget.configure(height=final_height)
+            
+        except Exception as e:
+            # En cas d'erreur, utiliser une hauteur conservative
+            text_widget.configure(height=10)   
 
     def _insert_formatted_text_animated(self, text_widget, text):
         """Version allégée du formatage pour l'animation (sans liens pour éviter les ralentissements)"""
@@ -1679,28 +1944,26 @@ class ModernAIGUI:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
     def finish_typing_animation_dynamic(self, interrupted=False):
-        """Version FINALE avec préservation des liens et formatage complet"""
+        """Version CORRIGÉE qui préserve le formatage Python"""
         if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             
             if interrupted:
                 partial_text = self.typing_text[:self.typing_index]
-                print(f"[DEBUG] Animation interrompue, formatage partiel: {len(partial_text)} caractères")
-                # CORRECTION : Utiliser _insert_markdown_and_links pour préserver les liens
-                self._insert_markdown_and_links(self.typing_widget, partial_text)
+                # 🔧 CORRECTION : Utiliser le formatage Python complet, pas _insert_markdown_and_links
+                self.insert_formatted_text_tkinter(self.typing_widget, partial_text)
             else:
-                print(f"[DEBUG] Animation terminée, formatage complet: {len(self.typing_text)} caractères")
-                # CORRECTION : Utiliser _insert_markdown_and_links pour préserver les liens
-                self._insert_markdown_and_links(self.typing_widget, self.typing_text)
+                # 🔧 CORRECTION CLÉE : Ne pas écraser avec _insert_markdown_and_links
+                # Utiliser directement insert_formatted_text_tkinter qui préserve le formatage Python
+                self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
             
-            # Ajustement final EXACT de la hauteur (aucun espace vide)
-            self.adjust_text_widget_height(self.typing_widget)
+            # Ajustement final EXACT de la hauteur
+            self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
             
-            # CORRECTION CRUCIALE : NE PAS remettre en "disabled" 
-            # Car cela désactive les événements de clic sur les liens
+            # 🔧 CORRECTION : NE PAS remettre en "disabled" pour préserver les liens
             # Les liens ont besoin que le widget reste en état "normal" pour être cliquables
-            print(f"[DEBUG] Widget gardé en état 'normal' pour préserver les liens")
+            print(f"[DEBUG] Widget gardé en état 'normal' pour préserver le formatage et les liens")
             
             # Afficher le timestamp sous le message IA
             self._show_timestamp_for_current_message()
@@ -1708,28 +1971,71 @@ class ModernAIGUI:
             # Réactiver la saisie utilisateur
             self.set_input_state(True)
             
-            # Scroll vers le bas avec délai pour s'assurer que le message est rendu
-            self.root.after(100, self.scroll_to_bottom_smooth)
-            self.root.after(300, self.scroll_to_bottom_smooth)
+            # Scroll final contrôlé
+            self.root.after(200, self._final_smooth_scroll_to_bottom)
             
             # Nettoyage des variables d'animation
             if hasattr(self, '_typing_animation_after_id'):
                 try:
                     self.root.after_cancel(self._typing_animation_after_id)
-                    print(f"[DEBUG] Animation timer annulé")
-                except Exception as e:
-                    print(f"[DEBUG] Erreur annulation timer: {e}")
+                except Exception:
+                    pass
                 del self._typing_animation_after_id
             
-            # Supprimer les variables d'animation
             delattr(self, 'typing_widget')
             delattr(self, 'typing_text')
             delattr(self, 'typing_index')
             self._typing_interrupted = False
             
-            print(f"[DEBUG] Animation terminée et nettoyée")
-        else:
-            print(f"[DEBUG] finish_typing_animation_dynamic appelée sans variables d'animation")
+            print(f"[DEBUG] Animation terminée et formatage préservé")
+
+    def _final_smooth_scroll_to_bottom(self):
+        """Scroll final en douceur sans saut brutal"""
+        try:
+            # Une seule mise à jour, puis scroll progressif
+            self.root.update_idletasks()
+            
+            if self.use_ctk:
+                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
+                    canvas = self.chat_frame._parent_canvas
+                    
+                    # Scroll progressif vers le bas
+                    for i in range(5):  # 5 étapes progressives
+                        current_yview = canvas.yview()
+                        if current_yview and current_yview[1] < 1.0:
+                            # Calculer la position intermédiaire
+                            current_top = current_yview[0]
+                            step = (1.0 - current_top) / (5 - i)
+                            new_position = min(1.0, current_top + step)
+                            canvas.yview_moveto(new_position)
+                            canvas.update_idletasks()
+                        else:
+                            break
+            else:
+                parent = self.chat_frame.master
+                if hasattr(parent, 'yview_moveto'):
+                    for i in range(5):
+                        current_yview = parent.yview()
+                        if current_yview and current_yview[1] < 1.0:
+                            current_top = current_yview[0]
+                            step = (1.0 - current_top) / (5 - i)
+                            new_position = min(1.0, current_top + step)
+                            parent.yview_moveto(new_position)
+                            parent.update_idletasks()
+                        else:
+                            break
+                            
+        except Exception as e:
+            # Fallback : scroll simple
+            try:
+                if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                    self.chat_frame._parent_canvas.yview_moveto(1.0)
+                else:
+                    parent = self.chat_frame.master
+                    if hasattr(parent, 'yview_moveto'):
+                        parent.yview_moveto(1.0)
+            except:
+                pass
 
     def stop_typing_animation(self):
         """Stoppe proprement l'animation de frappe IA (interruption utilisateur)"""
@@ -2153,87 +2459,17 @@ class ModernAIGUI:
         return context_menu
 
     def insert_formatted_text_tkinter(self, text_widget, text):
-        """Version CORRIGÉE - Tailles normales, couleurs correctes, formatage pendant animation"""
+        """Version AMÉLIORÉE qui gère les liens ET le formatage Python"""
         import re, webbrowser, os
         text_widget.delete("1.0", "end")
 
-        # --- Configuration des tags CORRIGÉES ---
-        BASE_FONT = ('Segoe UI', 12)
-        
-        # CORRECTION : Tailles RÉDUITES et couleurs BLANCHES pour les éléments normaux
-        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])  # BLANC
-        
-        # TITRES avec tailles RÉDUITES
-        text_widget.tag_configure("title1", font=('Segoe UI', 16, 'bold'), foreground=self.colors['text_primary'])  # 16 au lieu de 18
-        text_widget.tag_configure("title2", font=('Segoe UI', 14, 'bold'), foreground=self.colors['text_primary'])  # 14 au lieu de 16
-        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])  # 13 au lieu de 14
-        text_widget.tag_configure("title4", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])  # 12 au lieu de 13
-        text_widget.tag_configure("title5", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])  # 12
-        
-        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        
-        # DOCSTRING en orange mais taille normale
-        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
-        
-        text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
-        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
-        
-        # Configuration PYTHON avec VRAIES couleurs VS Code
-        text_widget.tag_configure("Token.Keyword", foreground="#569cd6", font=('Consolas', 11, 'bold'))  # Bleu VS Code
-        text_widget.tag_configure("Token.Keyword.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Declaration", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Namespace", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Pseudo", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Reserved", foreground="#569cd6", font=('Consolas', 11, 'bold'))
-        text_widget.tag_configure("Token.Keyword.Type", foreground="#4ec9b0", font=('Consolas', 11, 'bold'))  # Cyan VS Code
-        
-        # Strings - VERT VS Code
-        text_widget.tag_configure("Token.Literal.String", foreground="#ce9178", font=('Consolas', 11))  # Orange-brun VS Code
-        text_widget.tag_configure("Token.Literal.String.Double", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.String.Single", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String.Double", foreground="#ce9178", font=('Consolas', 11))
-        text_widget.tag_configure("Token.String.Single", foreground="#ce9178", font=('Consolas', 11))
-        
-        # Commentaires - VERT VS Code
-        text_widget.tag_configure("Token.Comment", foreground="#6a9955", font=('Consolas', 11, 'italic'))  # Vert VS Code
-        text_widget.tag_configure("Token.Comment.Single", foreground="#6a9955", font=('Consolas', 11, 'italic'))
-        text_widget.tag_configure("Token.Comment.Multiline", foreground="#6a9955", font=('Consolas', 11, 'italic'))
-        
-        # Fonctions et classes - JAUNE VS Code
-        text_widget.tag_configure("Token.Name.Function", foreground="#dcdcaa", font=('Consolas', 11))  # Jaune VS Code
-        text_widget.tag_configure("Token.Name.Class", foreground="#4ec9b0", font=('Consolas', 11, 'bold'))  # Cyan VS Code
-        
-        # Builtins - JAUNE VS Code
-        text_widget.tag_configure("Token.Name.Builtin", foreground="#dcdcaa", font=('Consolas', 11))  # Jaune VS Code
-        text_widget.tag_configure("Token.Name.Builtin.Pseudo", foreground="#dcdcaa", font=('Consolas', 11))
-        
-        # Nombres - VERT CLAIR VS Code
-        text_widget.tag_configure("Token.Literal.Number", foreground="#b5cea8", font=('Consolas', 11))  # Vert clair VS Code
-        text_widget.tag_configure("Token.Literal.Number.Integer", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Literal.Number.Float", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number.Integer", foreground="#b5cea8", font=('Consolas', 11))
-        text_widget.tag_configure("Token.Number.Float", foreground="#b5cea8", font=('Consolas', 11))
-        
-        # Opérateurs - BLANC VS Code
-        text_widget.tag_configure("Token.Operator", foreground="#d4d4d4", font=('Consolas', 11))  # Blanc-gris VS Code
-        text_widget.tag_configure("Token.Punctuation", foreground="#d4d4d4", font=('Consolas', 11))
-        
-        # Variables et noms - BLANC VS Code
-        text_widget.tag_configure("Token.Name", foreground="#9cdcfe", font=('Consolas', 11))  # Bleu clair VS Code
-        text_widget.tag_configure("Token.Name.Variable", foreground="#9cdcfe", font=('Consolas', 11))
-        
-        # Constantes spéciales - BLEU VS Code
-        text_widget.tag_configure("Token.Name.Constant", foreground="#569cd6", font=('Consolas', 11, 'bold'))
+        # Configuration complète des tags
+        self._configure_all_formatting_tags(text_widget)
 
-        # CORRECTION DU TEXTE avant parsing
+        # 🔧 CORRECTION DU TEXTE avant parsing
         text = re.sub(r'^(\s*)Args:\s*$', r'\1**Args:**', text, flags=re.MULTILINE)
         text = re.sub(r'^(\s*)Returns:\s*$', r'\1**Returns:**', text, flags=re.MULTILINE)
-        # Ajout d'un saut de ligne avant les titres spécifiques (avant toute la ligne du titre)
-        text = re.sub(r'(?<!\n)(^##5\. Résumé technique.*$)', r'\n\1', text, flags=re.MULTILINE)
-        text = re.sub(r'(?<!\n)(^##3\. Structure principale.*$)', r'\n\1', text, flags=re.MULTILINE)
+        text = re.sub(r'(?<!\n)(^##\d+\.\s+.*$)', r'\n\1', text, flags=re.MULTILINE)
 
         # Correction du nom de fichier temporaire
         temp_file_match = re.search(r'Explication détaillée du fichier [`"]?(tmp\w+\.py)[`"]?', text)
@@ -2249,26 +2485,38 @@ class ModernAIGUI:
                 if py_files:
                     text = text.replace(temp_file_match.group(1), py_files[0])
 
-        # --- Parsing progressif comme pour l'animation ---
+        # 🔧 NOUVEAU : Traitement des liens AVANT le parsing général
+        text_with_links_processed = self._process_links_preserve_formatting(text, text_widget)
+        
+        # Parsing avec formatage Python complet
         def parse_segments(txt):
             patterns = [
+                # DOCSTRINGS - Priorité maximale
                 (r"'''docstring([\s\S]+?)'''|\"\"\"docstring([\s\S]+?)\"\"\"", 'docstring_strip'),
                 (r"'''([\s\S]+?)'''|\"\"\"([\s\S]+?)\"\"\"", 'docstring'),
+                
+                # TITRES MARKDOWN
                 (r'^(#+) (.+)$', 'title'),
+                
+                # FORMATAGE STANDARD
                 (r'`([^`]+)`', 'mono'),
                 (r'\*\*([^*]+)\*\*', 'bold'),
                 (r'\*([^*]+)\*', 'italic'),
             ]
+            
             def _parse(txt, pat_idx=0):
                 if pat_idx >= len(patterns):
                     return [(txt, 'normal')]
+                
                 pattern, style = patterns[pat_idx]
                 segments = []
                 last = 0
+                
                 for m in re.finditer(pattern, txt, re.MULTILINE):
                     start, end = m.start(), m.end()
                     if start > last:
                         segments.extend(_parse(txt[last:start], pat_idx+1))
+                    
                     if style == 'docstring_strip':
                         doc = m.group(1) or m.group(2)
                         if doc is not None:
@@ -2285,18 +2533,207 @@ class ModernAIGUI:
                     else:
                         segments.append((m.group(1), style))
                     last = end
+                
                 if last < len(txt):
                     segments.extend(_parse(txt[last:], pat_idx+1))
                 return segments
+            
             return _parse(txt)
 
-        for segment, style in parse_segments(text):
+        # Insertion avec formatage complet
+        for segment, style in parse_segments(text_with_links_processed):
             if not segment:
                 continue
             text_widget.insert("end", segment, style)
 
         text_widget.update_idletasks()
         text_widget.see("1.0")
+
+    def _configure_all_formatting_tags(self, text_widget):
+        """Configure TOUS les tags de formatage - Version unifiée"""
+        BASE_FONT = ('Segoe UI', 12)
+        
+        # Tags de base
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title1", font=('Segoe UI', 16, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title2", font=('Segoe UI', 14, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title4", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("title5", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
+        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
+        text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
+        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        
+        # Tags Python complets
+        python_tags = {
+            "Token.Keyword": ("#569cd6", 'bold'),
+            "Token.Keyword.Constant": ("#569cd6", 'bold'),
+            "Token.Keyword.Declaration": ("#569cd6", 'bold'),
+            "Token.Keyword.Namespace": ("#569cd6", 'bold'),
+            "Token.Keyword.Pseudo": ("#569cd6", 'bold'),
+            "Token.Keyword.Reserved": ("#569cd6", 'bold'),
+            "Token.Keyword.Type": ("#4ec9b0", 'bold'),
+            "Token.Literal.String": ("#ce9178", 'normal'),
+            "Token.Literal.String.Double": ("#ce9178", 'normal'),
+            "Token.Literal.String.Single": ("#ce9178", 'normal'),
+            "Token.String": ("#ce9178", 'normal'),
+            "Token.String.Double": ("#ce9178", 'normal'),
+            "Token.String.Single": ("#ce9178", 'normal'),
+            "Token.Comment": ("#6a9955", 'italic'),
+            "Token.Comment.Single": ("#6a9955", 'italic'),
+            "Token.Comment.Multiline": ("#6a9955", 'italic'),
+            "Token.Name.Function": ("#dcdcaa", 'normal'),
+            "Token.Name.Function.Magic": ("#dcdcaa", 'normal'),
+            "Token.Name.Class": ("#4ec9b0", 'bold'),
+            "Token.Name.Builtin": ("#dcdcaa", 'normal'),
+            "Token.Name.Builtin.Pseudo": ("#dcdcaa", 'normal'),
+            "Token.Literal.Number": ("#b5cea8", 'normal'),
+            "Token.Literal.Number.Integer": ("#b5cea8", 'normal'),
+            "Token.Literal.Number.Float": ("#b5cea8", 'normal'),
+            "Token.Number": ("#b5cea8", 'normal'),
+            "Token.Number.Integer": ("#b5cea8", 'normal'),
+            "Token.Number.Float": ("#b5cea8", 'normal'),
+            "Token.Operator": ("#d4d4d4", 'normal'),
+            "Token.Punctuation": ("#d4d4d4", 'normal'),
+            "Token.Name": ("#9cdcfe", 'normal'),
+            "Token.Name.Variable": ("#9cdcfe", 'normal'),
+            "Token.Name.Attribute": ("#9cdcfe", 'normal'),
+            "Token.Name.Constant": ("#569cd6", 'bold'),
+        }
+        
+        for tag, (color, weight) in python_tags.items():
+            if weight == 'bold':
+                text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11, 'bold'))
+            elif weight == 'italic':
+                text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11, 'italic'))
+            else:
+                text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11))
+        
+        text_widget.tag_configure("code_block", font=('Consolas', 11), background="#1e1e1e", foreground="#d4d4d4")
+
+    def _process_links_preserve_formatting(self, text, text_widget):
+        """Traite les liens tout en préservant le formatage du reste du texte"""
+        import re, webbrowser
+        
+        # Configuration des liens
+        text_widget.tag_configure("link", 
+                                foreground="#3b82f6", 
+                                underline=True,
+                                font=('Segoe UI', 12))
+        
+        # Pattern pour liens Markdown : [texte](url)
+        markdown_link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        # Pattern pour liens HTTP directs
+        http_link_pattern = r'(https?://[^\s\)]+)'
+        
+        # Combinaison des patterns
+        combined_pattern = f'(?P<markdown>{markdown_link_pattern})|(?P<direct>{http_link_pattern})'
+        
+        processed_text = text
+        link_count = 0
+        
+        # Remplacer les liens par des marqueurs temporaires pour éviter les conflits
+        link_replacements = {}
+        
+        for match in re.finditer(combined_pattern, text):
+            if match.group('markdown'):
+                # Lien Markdown [texte](url)
+                markdown_match = re.match(markdown_link_pattern, match.group('markdown'))
+                if markdown_match:
+                    link_text = markdown_match.group(1)
+                    url = markdown_match.group(2)
+                    
+                    if url and url.strip() and url != 'None':
+                        # Créer un marqueur unique
+                        marker = f"__LINK_MARKER_{link_count}__"
+                        link_replacements[marker] = {
+                            'text': link_text,
+                            'url': url,
+                            'original': match.group(0)
+                        }
+                        
+                        # Remplacer dans le texte
+                        processed_text = processed_text.replace(match.group(0), marker, 1)
+                        link_count += 1
+            
+            elif match.group('direct'):
+                # Lien direct HTTP
+                url = match.group('direct')
+                link_text = url if len(url) <= 50 else url[:47] + "..."
+                
+                if url and url.strip():
+                    marker = f"__LINK_MARKER_{link_count}__"
+                    link_replacements[marker] = {
+                        'text': link_text,
+                        'url': url,
+                        'original': match.group(0)
+                    }
+                    
+                    processed_text = processed_text.replace(match.group(0), marker, 1)
+                    link_count += 1
+        
+        # Programmer l'insertion des liens après que le texte soit inséré
+        def insert_links_after():
+            try:
+                current_content = text_widget.get("1.0", "end-1c")
+                
+                for marker, link_info in link_replacements.items():
+                    if marker in current_content:
+                        # Trouver la position du marqueur
+                        start_pos = current_content.find(marker)
+                        if start_pos != -1:
+                            # Calculer les positions tkinter
+                            lines_before = current_content[:start_pos].count('\n')
+                            chars_in_line = len(current_content[:start_pos].split('\n')[-1])
+                            
+                            start_index = f"{lines_before + 1}.{chars_in_line}"
+                            end_index = f"{lines_before + 1}.{chars_in_line + len(marker)}"
+                            
+                            # Remplacer le marqueur par le texte du lien
+                            text_widget.delete(start_index, end_index)
+                            text_widget.insert(start_index, link_info['text'])
+                            
+                            # Calculer la nouvelle position de fin
+                            end_index = f"{lines_before + 1}.{chars_in_line + len(link_info['text'])}"
+                            
+                            # Créer un tag unique pour ce lien
+                            tag_name = f"link_{link_count}_{start_pos}"
+                            text_widget.tag_add(tag_name, start_index, end_index)
+                            
+                            # Callback pour ouvrir le lien
+                            def create_callback(target_url):
+                                def on_click(event):
+                                    try:
+                                        webbrowser.open(str(target_url).strip())
+                                        print(f"[DEBUG] ✅ Lien ouvert: {target_url}")
+                                    except Exception as e:
+                                        print(f"[DEBUG] ❌ Erreur ouverture lien: {e}")
+                                    return "break"
+                                return on_click
+                            
+                            # Bind des événements
+                            callback = create_callback(link_info['url'])
+                            text_widget.tag_bind(tag_name, "<Button-1>", callback)
+                            text_widget.tag_bind(tag_name, "<Enter>", 
+                                            lambda e: text_widget.configure(cursor="hand2"))
+                            text_widget.tag_bind(tag_name, "<Leave>", 
+                                            lambda e: text_widget.configure(cursor="xterm"))
+                            
+                            # Assurer la priorité du tag
+                            text_widget.tag_raise(tag_name)
+                            
+                            # Mettre à jour le contenu pour les prochaines recherches
+                            current_content = text_widget.get("1.0", "end-1c")
+            
+            except Exception as e:
+                print(f"[DEBUG] Erreur insertion liens: {e}")
+        
+        # Programmer l'insertion des liens après un délai
+        text_widget.after(50, insert_links_after)
+        
+        return processed_text
 
     def _insert_python_code_block_corrected(self, text_widget, code):
         """Version CORRIGÉE de l'insertion de code Python avec Pygments"""
