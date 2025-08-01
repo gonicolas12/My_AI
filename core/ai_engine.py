@@ -597,268 +597,250 @@ if __name__ == "__main__":
     
     async def _handle_file_processing(self, query: str, context: Dict) -> Dict[str, Any]:
         """
-        Gère le traitement de fichiers et questions sur les documents
+        Gère le traitement de fichiers et questions sur les documents - VERSION CORRIGÉE
         """
         try:
             query_lower = query.lower()
             
-            # Déterminer quel document spécifique est demandé
-            target_document = None
+            # Récupérer les documents disponibles
             all_docs = context.get('stored_documents', {})
             document_order = context.get('document_order', [])
             
-            # Log pour debug
-            self.logger.info(f"Query: '{query}' | Documents disponibles: {list(all_docs.keys())}")
+            # NOUVELLE LOGIQUE : Détecter le type de document demandé VS disponible
+            requested_type = self._detect_requested_document_type(query_lower)
+            available_types = self._get_available_document_types(all_docs)
             
-            # Recherche de mots-clés spécifiques au type de document - LOGIQUE RENFORCÉE
-
-            # Définir les flags de référence numérique AVANT leur utilisation
+            print(f"[DEBUG] Type demandé: {requested_type}")
+            print(f"[DEBUG] Types disponibles: {available_types}")
+            
+            # VÉRIFICATION DE COHÉRENCE
+            if requested_type and requested_type not in available_types:
+                return self._generate_type_mismatch_response(requested_type, available_types, all_docs)
+            
+            # Déterminer le document cible selon le type demandé
+            target_document = None
+            
+            if requested_type:
+                # Chercher un document du type demandé
+                target_document = self._find_document_by_type(all_docs, document_order, requested_type)
+            
+            # Gestion des références numériques (premier, deuxième, etc.)
             is_first_requested = any(term in query_lower for term in ['premier', '1er', '1ère', 'première', 'document 1', 'le 1'])
             is_second_requested = any(term in query_lower for term in ['deuxième', '2ème', '2eme', 'seconde', 'document 2', 'le 2'])
             is_last_requested = any(term in query_lower for term in ['dernier', 'dernière', 'last'])
             
-            # 1. RECHERCHE EXPLICITE par mention du nom exact du fichier
-            for doc_name in all_docs.keys():
-                doc_name_clean = doc_name.lower().replace('.pdf', '').replace('.docx', '').replace('.doc', '').replace('.py', '')
-                # Construire le prompt avec le document ciblé - PROTECTION RENFORCÉE
-                if target_document and target_document in all_docs:
-                    doc_data = all_docs[target_document]
-                    if isinstance(doc_data, dict) and 'content' in doc_data:
-                        doc_content = doc_data['content']
-                    else:
-                        doc_content = str(doc_data)
-
-                    # Provide more content for more detailed summaries
-                    max_len = 8000
-                    self.logger.info(f"📄 DOCUMENT SÉLECTIONNÉ POUR TRAITEMENT: {target_document}")
-                    self.logger.info(f"📊 Taille contenu: {len(doc_content)} caractères")
-
-                    prompt = f"""🚨 RÈGLE ABSOLUE ET OBLIGATOIRE 🚨
- JE TE DONNE ACCÈS À UN SEUL DOCUMENT. TU NE DOIS ANALYSER QUE CE DOCUMENT.
- IGNORE COMPLÈTEMENT TOUTE RÉFÉRENCE À D'AUTRES DOCUMENTS.
-
- 🎯 DOCUMENT UNIQUE À ANALYSER: {target_document}
- � QUESTION: {query}
-
- 📄 CONTENU DU DOCUMENT \"{target_document}\":
- {doc_content[:max_len]}"""
-                    if len(doc_content) > max_len:
-                        prompt += "\n[... contenu tronqué pour économiser l'espace ...]"
-
-                    prompt += f"""
-
- 🔒 INSTRUCTIONS STRICTES:
- 1. Réponds UNIQUEMENT sur le contenu ci-dessus du fichier \"{target_document}\"
- 2. Commence ta réponse par \"📄 DOCX analysé : {target_document}\"
- 3. NE MENTIONNE AUCUN AUTRE DOCUMENT
- 4. Base-toi EXCLUSIVEMENT sur le contenu fourni ci-dessus
- 5. Si tu vois une référence à un autre document, IGNORE-LA COMPLÈTEMENT
- 6. Fais un résumé TRÈS DÉTAILLÉ, structuré, avec une introduction, un développement en plusieurs points, et une conclusion riche. Utilise des listes, des titres en gras, et mets en valeur les mots importants.
- """
-                    # Log pour debug final
-                    self.logger.info(f"🔍 PROMPT généré pour {target_document} (début): {prompt[:300]}...")
-
-                    # PROTECTION FINALE : créer un contexte isolé avec SEULEMENT le document ciblé
-                    isolated_context = {
-                        'stored_documents': {target_document: all_docs[target_document]},
-                        'document_order': [target_document],
-                        'conversation_history': context.get('conversation_history', [])
-                    }
-
-                    # Générer la réponse avec le contexte isolé
-                    response = self.local_ai.generate_response(prompt)
-                    # "doc" isolé sans contexte PDF
-                    query_words = query_lower.split()
-                    if 'doc' in query_words or 'du doc' in query_lower or 'le doc' in query_lower:
-                        docx_docs = [doc for doc in document_order if doc.lower().endswith(('.docx', '.doc'))]
-                        
-                        if docx_docs:
-                            if is_first_requested and len(docx_docs) >= 1:
-                                target_document = docx_docs[0]
-                                self.logger.info(f"PREMIER DOC sélectionné: {target_document}")
-                            else:
-                                target_document = docx_docs[-1]
-                                self.logger.info(f"DOCX sélectionné par 'doc' isolé: {target_document}")
-                
-                # Détection CODE
-                elif any(term in query_lower for term in ['code', 'py', 'python', 'script', 'programme']):
-                    code_docs = [doc for doc in document_order if doc.lower().endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.html', '.css', '.json'))]
-                    if code_docs:
-                        if is_first_requested and len(code_docs) >= 1:
-                            target_document = code_docs[0]
-                            self.logger.info(f"PREMIER CODE sélectionné: {target_document}")
-                        else:
-                            target_document = code_docs[-1]
-                            self.logger.info(f"Code sélectionné par type: {target_document}")
-                        
-                        # Si c'est un fichier Python, fournir une explication détaillée
-                        if target_document.lower().endswith('.py'):
-                            file_path = target_document
-                            self.logger.info(f"[DEBUG] Appel generate_detailed_explanation pour: {file_path}")
-                            import os, tempfile
-                            
-                            # Chercher le contenu en mémoire
-                            doc_data = all_docs.get(target_document, {})
-                            doc_content = doc_data.get('content') if isinstance(doc_data, dict) else str(doc_data)
-                            if not os.path.exists(file_path):
-                                
-                                # Créer un fichier temporaire avec le contenu
-                                with tempfile.NamedTemporaryFile('w', delete=False, suffix='.py', encoding='utf-8') as tmpf:
-                                    tmpf.write(doc_content)
-                                    tmp_path = tmpf.name
-                                temp_used = True
-                                self.logger.info(f"[DEBUG] Fichier temporaire créé pour explication: {tmp_path}")
-                            else:
-                                tmp_path = file_path
-                                temp_used = False
-                            try:
-                                # Passer le vrai nom de fichier pour l'affichage correct
-                                real_file_name = os.path.basename(file_path)
-                                explanation = self.code_processor.generate_detailed_explanation(tmp_path, real_file_name=real_file_name)
-                                self.logger.info(f"[DEBUG] Explication détaillée générée pour {tmp_path} (longueur: {len(explanation)}):\n{explanation[:300]}...")
-                                # Plus de post-traitement de balises/couleurs ici. Toute la coloration est gérée dans gui_modern.py si besoin.
-                                # Nettoyage du fichier temporaire si besoin
-                                if temp_used:
-                                    try:
-                                        os.remove(tmp_path)
-                                    except Exception as e:
-                                        self.logger.warning(f"[DEBUG] Impossible de supprimer le fichier temporaire: {e}")
-                                return {
-                                    "type": "file_processing",
-                                    "message": explanation,
-                                    "success": True
-                                }
-                            except Exception as e:
-                                self.logger.error(f"[DEBUG] Erreur lors de l'explication détaillée du code: {e}")
-                                
-                                # Nettoyage du fichier temporaire si besoin
-                                if temp_used:
-                                    try:
-                                        os.remove(tmp_path)
-                                    except Exception as e2:
-                                        self.logger.warning(f"[DEBUG] Impossible de supprimer le fichier temporaire: {e2}")
-                                # fallback: continuer le prompt classique
-                
-                # GESTION GÉNÉRALE DES RÉFÉRENCES NUMÉRIQUES (tous types confondus)
-                elif is_first_requested or is_second_requested or is_last_requested:
-                    if is_first_requested and len(document_order) >= 1:
-                        target_document = document_order[0]
-                        self.logger.info(f"PREMIER DOCUMENT (tous types) sélectionné: {target_document}")
-                    elif is_second_requested and len(document_order) >= 2:
-                        target_document = document_order[1]
-                        self.logger.info(f"DEUXIÈME DOCUMENT (tous types) sélectionné: {target_document}")
-                    elif is_last_requested and document_order:
-                        target_document = document_order[-1]
-                        self.logger.info(f"DERNIER DOCUMENT (tous types) sélectionné: {target_document}")
+            if is_first_requested and len(document_order) >= 1:
+                target_document = document_order[0]
+            elif is_second_requested and len(document_order) >= 2:
+                target_document = document_order[1]
+            elif is_last_requested and document_order:
+                target_document = document_order[-1]
             
-            # 3. Si pas de type spécifique mais demande d'action (résumé, analyse, etc.)
-            if not target_document:
-                action_keywords = ['résume', 'résumé', 'analyse', 'contenu', 'explique', 'décris', 'que dit', 'que contient']
-                if any(keyword in query_lower for keyword in action_keywords):
-                    if document_order:
-                        target_document = document_order[-1]
-                        self.logger.info(f"Dernier document sélectionné pour action: {target_document}")
-            
-            # NOUVEAU : Log détaillé pour debug - VÉRIFIE LA SÉLECTION
-            self.logger.info(f"=== DEBUG SÉLECTION DOCUMENT ===")
-            self.logger.info(f"Query originale: '{query}'")
-            self.logger.info(f"Query lowercase: '{query_lower}'")
-            self.logger.info(f"Documents disponibles: {list(all_docs.keys())}")
-            self.logger.info(f"Ordre documents: {document_order}")
-            self.logger.info(f"Document ciblé FINAL: {target_document}")
-            self.logger.info(f"=== FIN DEBUG ===")
-            
-            if not target_document:
-                self.logger.warning(f"Aucun document spécifique détecté dans: '{query_lower}'")
-            
-            # Si aucun document spécifique n'est mentionné, prendre le plus récent
+            # Si aucun document spécifique trouvé, prendre le plus récent
             if not target_document and document_order:
                 target_document = document_order[-1]
-                self.logger.info(f"Document le plus récent sélectionné: {target_document}")
             
-            # Construire le prompt avec le document ciblé - PROTECTION RENFORCÉE
+            # Traitement spécial pour les fichiers Python (explication détaillée)
+            if target_document and target_document.lower().endswith('.py'):
+                if any(word in query_lower for word in ['explique', 'analyse', 'code']):
+                    return self._handle_python_code_explanation(target_document, all_docs)
+            
+            # Traitement standard pour les autres documents
             if target_document and target_document in all_docs:
                 doc_data = all_docs[target_document]
-                if isinstance(doc_data, dict) and 'content' in doc_data:
-                    doc_content = doc_data['content']
-                else:
-                    doc_content = str(doc_data)
+                doc_content = doc_data.get('content') if isinstance(doc_data, dict) else str(doc_data)
                 
-                # PROTECTION SUPPLÉMENTAIRE : vérifier que c'est bien le bon document
-                self.logger.info(f"📄 DOCUMENT SÉLECTIONNÉ POUR TRAITEMENT: {target_document}")
-                self.logger.info(f"📊 Taille contenu: {len(doc_content)} caractères")
-                
-                # PROMPT ULTRA-SPÉCIFIQUE avec BLOCAGE des autres documents
-                prompt = f"""🚨 RÈGLE ABSOLUE ET OBLIGATOIRE 🚨
-JE TE DONNE ACCÈS À UN SEUL DOCUMENT. TU NE DOIS ANALYSER QUE CE DOCUMENT.
-IGNORE COMPLÈTEMENT TOUTE RÉFÉRENCE À D'AUTRES DOCUMENTS.
-
-🎯 DOCUMENT UNIQUE À ANALYSER: {target_document}
-� QUESTION: {query}
-
-📄 CONTENU DU DOCUMENT "{target_document}":
-{doc_content[:3000]}"""
-                
-                if len(doc_content) > 3000:
-                    prompt += "\n[... contenu tronqué pour économiser l'espace ...]"
+                if doc_content:
+                    # Générer le résumé approprié selon le type de document
+                    doc_type = self._determine_document_type(target_document)
                     
-                prompt += f"""
+                    # Déléguer la création du résumé au modèle IA local
+                    response = self.local_ai._create_universal_summary(doc_content, target_document, doc_type)
+                    
+                    return {
+                        "type": "file_processing",
+                        "message": response,
+                        "success": True
+                    }
+            
+            return {
+                "type": "file_processing",
+                "message": "Aucun document approprié trouvé pour traiter votre demande.",
+                "success": False
+            }
+            
+        except Exception as e:
+            print(f"❌ Erreur traitement fichier: {e}")
+            return {
+                "type": "file_processing",
+                "message": f"Erreur lors du traitement : {str(e)}",
+                "success": False
+            }
 
-🔒 INSTRUCTIONS STRICTES:
-1. Réponds UNIQUEMENT sur le contenu ci-dessus du fichier "{target_document}"
-2. Commence ta réponse par "📄 DOCX analysé : {target_document}"
-3. NE MENTIONNE AUCUN AUTRE DOCUMENT
-4. Base-toi EXCLUSIVEMENT sur le contenu fourni ci-dessus
-5. Si tu vois une référence à un autre document, IGNORE-LA COMPLÈTEMENT
-"""
+    def _detect_requested_document_type(self, query_lower: str) -> Optional[str]:
+        """
+        Détecte le type de document spécifiquement demandé dans la requête
+        
+        Returns:
+            'pdf', 'docx', 'code', ou None si pas spécifique
+        """
+        # Détection PDF
+        if any(term in query_lower for term in ['pdf', 'le pdf', 'du pdf', 'ce pdf']):
+            return 'pdf'
+        
+        # Détection DOCX/Word
+        if any(term in query_lower for term in ['docx', 'doc', 'word', 'le docx', 'du docx', 'le doc', 'du doc']):
+            return 'docx'
+        
+        # Détection Code
+        if any(term in query_lower for term in ['code', 'py', 'python', 'script', 'programme', 'le code', 'du code']):
+            return 'code'
+        
+        return None
+
+    def _get_available_document_types(self, all_docs: Dict) -> List[str]:
+        """
+        Détermine les types de documents disponibles
+        
+        Returns:
+            Liste des types disponibles: ['pdf', 'docx', 'code']
+        """
+        available_types = []
+        
+        for doc_name, doc_data in all_docs.items():
+            doc_type = self._determine_document_type(doc_name, doc_data)
+            if doc_type not in available_types:
+                available_types.append(doc_type)
+        
+        return available_types
+
+    def _determine_document_type(self, doc_name: str, doc_data: Any = None) -> str:
+        """
+        Détermine le type d'un document
+        
+        Returns:
+            'pdf', 'docx', ou 'code'
+        """
+        doc_name_lower = doc_name.lower()
+        
+        if doc_name_lower.endswith('.pdf'):
+            return 'pdf'
+        elif doc_name_lower.endswith(('.docx', '.doc')):
+            return 'docx'
+        elif doc_name_lower.endswith(('.py', '.js', '.html', '.css', '.java', '.cpp', '.c')):
+            return 'code'
+        elif isinstance(doc_data, dict) and doc_data.get('type') == 'code':
+            return 'code'
+        else:
+            # Par défaut, considérer comme document texte
+            return 'docx'
+
+    def _find_document_by_type(self, all_docs: Dict, document_order: List, requested_type: str) -> Optional[str]:
+        """
+        Trouve un document du type demandé
+        
+        Returns:
+            Nom du document trouvé ou None
+        """
+        # Chercher dans l'ordre inverse (le plus récent en premier)
+        for doc_name in reversed(document_order):
+            if doc_name in all_docs:
+                doc_type = self._determine_document_type(doc_name, all_docs[doc_name])
+                if doc_type == requested_type:
+                    return doc_name
+        
+        return None
+
+    def _generate_type_mismatch_response(self, requested_type: str, available_types: List[str], all_docs: Dict) -> Dict[str, Any]:
+        """
+        Génère une réponse quand le type demandé n'est pas disponible
+        """
+        # Mappage pour un langage plus naturel
+        type_names = {
+            'pdf': 'fichier PDF',
+            'docx': 'document Word/DOCX', 
+            'code': 'fichier de code'
+        }
+        
+        requested_name = type_names.get(requested_type, requested_type)
+        
+        # Construire la liste des documents disponibles
+        available_docs = []
+        for doc_name in all_docs.keys():
+            doc_type = self._determine_document_type(doc_name, all_docs[doc_name])
+            type_name = type_names.get(doc_type, doc_type)
+            available_docs.append(f"• **{doc_name}** ({type_name})")
+        
+        available_names = [type_names.get(t, t) for t in available_types]
+        
+        response = f"❌ **Document non trouvé**\n\n"
+        response += f"Vous demandez l'analyse d'un **{requested_name}**, mais je n'ai pas ce type de document en mémoire.\n\n"
+        
+        if available_docs:
+            response += f"📁 **Documents actuellement disponibles :**\n"
+            response += "\n".join(available_docs)
+            response += f"\n\n💡 **Suggestion :** Reformulez votre demande en utilisant le bon type :\n"
+            
+            if 'pdf' in available_types:
+                response += f"• \"résume le PDF\" ou \"explique le PDF\"\n"
+            if 'docx' in available_types:
+                response += f"• \"résume le DOCX\" ou \"explique le document\"\n"
+            if 'code' in available_types:
+                response += f"• \"explique le code\" ou \"analyse le Python\"\n"
+        else:
+            response += f"Aucun document n'est actuellement en mémoire."
+        
+        return {
+            "type": "file_processing",
+            "message": response,
+            "success": False
+        }
+
+    def _handle_python_code_explanation(self, target_document: str, all_docs: Dict) -> Dict[str, Any]:
+        """
+        Gère l'explication détaillée des fichiers Python
+        """
+        try:
+            doc_data = all_docs.get(target_document, {})
+            doc_content = doc_data.get('content') if isinstance(doc_data, dict) else str(doc_data)
+            
+            if not doc_content:
+                return {
+                    "type": "file_processing", 
+                    "message": f"Le fichier {target_document} semble vide.",
+                    "success": False
+                }
+            
+            # Créer un fichier temporaire pour l'analyse
+            import os, tempfile
+            with tempfile.NamedTemporaryFile('w', delete=False, suffix='.py', encoding='utf-8') as tmpf:
+                tmpf.write(doc_content)
+                tmp_path = tmpf.name
+            
+            try:
+                # Utiliser le code_processor pour l'explication détaillée
+                explanation = self.code_processor.generate_detailed_explanation(
+                    tmp_path, 
+                    real_file_name=os.path.basename(target_document)
+                )
                 
-                # Log pour debug final
-                self.logger.info(f"🔍 PROMPT généré pour {target_document} (début): {prompt[:300]}...")
-                
-                # PROTECTION FINALE : créer un contexte isolé avec SEULEMENT le document ciblé
-                isolated_context = {
-                    'stored_documents': {target_document: all_docs[target_document]},
-                    'document_order': [target_document],
-                    'conversation_history': context.get('conversation_history', [])
+                return {
+                    "type": "file_processing",
+                    "message": explanation,
+                    "success": True
                 }
                 
-                # Générer la réponse avec le contexte isolé
-                response = self.local_ai.generate_response(prompt)
-                
-            else:
-                # Fallback: utiliser tous les documents disponibles
-                self.logger.warning("Aucun document ciblé trouvé, utilisation de tous les documents")
-                prompt = f"""Question: {query}
-
-Contexte des documents disponibles:"""
-                
-                if 'stored_documents' in context:
-                    for doc_name, doc_data in context['stored_documents'].items():
-                        if isinstance(doc_data, dict) and 'content' in doc_data:
-                            doc_content = doc_data['content']
-                        else:
-                            doc_content = str(doc_data)
-                        
-                        prompt += f"\n\n--- Document: {doc_name} ---\n{doc_content[:2000]}"
-                        if len(doc_content) > 2000:
-                            prompt += "\n[... contenu tronqué ...]"
-                
-                prompt += f"\n\nRéponds à la question en te basant sur le contenu des documents ci-dessus."
-                
-                # Générer la réponse
-                response = self.local_ai.generate_response(prompt)
-            
-            # NE PLUS ajouter de préfixe ici car custom_ai_model s'en charge déjà
-            return {
-                "type": "file_processing",
-                "message": response,
-                "success": True
-            }
+            finally:
+                # Nettoyer le fichier temporaire
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+                    
         except Exception as e:
-            self.logger.error(f"Erreur traitement fichier: {e}")
             return {
                 "type": "file_processing",
-                "message": "Traitement de fichier en cours...",
+                "message": f"Erreur lors de l'explication du code : {str(e)}",
                 "success": False
             }
     
