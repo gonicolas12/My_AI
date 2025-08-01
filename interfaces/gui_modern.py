@@ -1550,46 +1550,84 @@ class ModernAIGUI:
         self.continue_typing_animation_dynamic()
 
     def continue_typing_animation_dynamic(self):
-        """Animation AVEC scroll automatique qui suit l'écriture"""
-        idx = getattr(self, 'typing_index', None)
-        if idx == 0:
-            pass
-        elif idx is not None and idx % 100 == 0:
-            pass
-
-        # SÉCURITÉ : aucun set_input_state(True) ne doit être appelé ici !
-        # Si jamais cela arrive, on logue une erreur (détection de bug/régression)
-        # (AUCUN set_input_state(True) dans cette fonction !)
-
+        """Animation AVEC formatage en temps réel - VERSION FINALE"""
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
-            return
-
+        
         if getattr(self, '_typing_interrupted', False):
-            # Debug removed
             self.finish_typing_animation_dynamic(interrupted=True)
             return
-
+        
         if self.typing_index < len(self.typing_text):
             current_text = self.typing_text[:self.typing_index + 1]
+            
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
-            # Pendant l'animation, on affiche le texte sans liens cliquables (juste du texte brut)
-            self.typing_widget.insert("end", current_text)
+            
+            # Pendant l'animation : formatage simplifié (sans liens pour la performance)
+            self._insert_formatted_text_animated(self.typing_widget, current_text)
+            
             self.adjust_text_widget_height(self.typing_widget)
             self.typing_widget.configure(state="disabled")
             self.typing_index += 1
             self._gentle_scroll_to_bottom()
             self._typing_animation_after_id = self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
         else:
-            # À la fin de l'animation, on applique la fonction qui rend les liens cliquables et stylés
+            # À la fin : formatage complet avec liens
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
+            
+            print(f"[DEBUG] Fin animation, application formatage complet")
             self._insert_markdown_and_links(self.typing_widget, self.typing_text)
+            
             self.adjust_text_widget_height(self.typing_widget)
-            self.typing_widget.configure(state="disabled")
+            # CORRECTION : NE PAS remettre en "disabled" pour garder les liens actifs
+            
             self.finish_typing_animation_dynamic(interrupted=False)
 
+    def _insert_formatted_text_animated(self, text_widget, text):
+        """Version allégée du formatage pour l'animation (sans liens pour éviter les ralentissements)"""
+        import re
+        
+        # Configuration des tags essentiels
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
+        text_widget.tag_configure("normal", font=('Segoe UI', 12), foreground=self.colors['text_primary'])
+        
+        # Formatage simplifié pour l'animation
+        def parse_simple_segments(txt):
+            patterns = [
+                (r'\*\*([^*]+)\*\*', 'bold'),     # **texte**
+                (r'\*([^*]+)\*', 'italic'),       # *texte*
+                (r'`([^`]+)`', 'mono')            # `code`
+            ]
+            
+            def _parse(txt, pat_idx=0):
+                if pat_idx >= len(patterns):
+                    return [(txt, 'normal')]
+                
+                pattern, style = patterns[pat_idx]
+                segments = []
+                last = 0
+                
+                for m in re.finditer(pattern, txt):
+                    start, end = m.start(), m.end()
+                    if start > last:
+                        segments.extend(_parse(txt[last:start], pat_idx+1))
+                    segments.append((m.group(1), style))
+                    last = end
+                
+                if last < len(txt):
+                    segments.extend(_parse(txt[last:], pat_idx+1))
+                return segments
+            
+            return _parse(txt)
+        
+        # Insérer avec formatage
+        for segment, style in parse_simple_segments(text):
+            if segment:
+                text_widget.insert("end", segment, style)
 
     def _gentle_scroll_to_bottom(self):
         """Scroll doux pendant l'animation sans clignotement, avec debug détaillé"""
@@ -1641,32 +1679,57 @@ class ModernAIGUI:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
     def finish_typing_animation_dynamic(self, interrupted=False):
-        """Version FINALE avec scroll qui marche, support interruption et hauteur exacte (aucun espace vide)"""
+        """Version FINALE avec préservation des liens et formatage complet"""
         if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
+            
             if interrupted:
                 partial_text = self.typing_text[:self.typing_index]
-                self.insert_formatted_text_tkinter(self.typing_widget, partial_text)
+                print(f"[DEBUG] Animation interrompue, formatage partiel: {len(partial_text)} caractères")
+                # CORRECTION : Utiliser _insert_markdown_and_links pour préserver les liens
+                self._insert_markdown_and_links(self.typing_widget, partial_text)
             else:
-                self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
+                print(f"[DEBUG] Animation terminée, formatage complet: {len(self.typing_text)} caractères")
+                # CORRECTION : Utiliser _insert_markdown_and_links pour préserver les liens
+                self._insert_markdown_and_links(self.typing_widget, self.typing_text)
+            
             # Ajustement final EXACT de la hauteur (aucun espace vide)
             self.adjust_text_widget_height(self.typing_widget)
-            self.typing_widget.configure(state="normal")
+            
+            # CORRECTION CRUCIALE : NE PAS remettre en "disabled" 
+            # Car cela désactive les événements de clic sur les liens
+            # Les liens ont besoin que le widget reste en état "normal" pour être cliquables
+            print(f"[DEBUG] Widget gardé en état 'normal' pour préserver les liens")
+            
+            # Afficher le timestamp sous le message IA
             self._show_timestamp_for_current_message()
+            
+            # Réactiver la saisie utilisateur
             self.set_input_state(True)
+            
+            # Scroll vers le bas avec délai pour s'assurer que le message est rendu
             self.root.after(100, self.scroll_to_bottom_smooth)
             self.root.after(300, self.scroll_to_bottom_smooth)
+            
+            # Nettoyage des variables d'animation
             if hasattr(self, '_typing_animation_after_id'):
                 try:
                     self.root.after_cancel(self._typing_animation_after_id)
-                except Exception:
-                    pass
+                    print(f"[DEBUG] Animation timer annulé")
+                except Exception as e:
+                    print(f"[DEBUG] Erreur annulation timer: {e}")
                 del self._typing_animation_after_id
+            
+            # Supprimer les variables d'animation
             delattr(self, 'typing_widget')
             delattr(self, 'typing_text')
             delattr(self, 'typing_index')
             self._typing_interrupted = False
+            
+            print(f"[DEBUG] Animation terminée et nettoyée")
+        else:
+            print(f"[DEBUG] finish_typing_animation_dynamic appelée sans variables d'animation")
 
     def stop_typing_animation(self):
         """Stoppe proprement l'animation de frappe IA (interruption utilisateur)"""
@@ -1828,36 +1891,121 @@ class ModernAIGUI:
             text_widget.configure(height=7)
 
     def _insert_markdown_and_links(self, text_widget, text):
-        """Insère du texte avec gestion des liens Markdown et du markdown classique (gras, italique, code, titres)."""
+        """Version CORRIGÉE avec regex fixé pour les liens Markdown"""
         import re
-        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
-        last_end = 0
-        link_count = 0
-        # S'assurer que le widget est en mode normal pour l'insertion des tags
+        import webbrowser
+        
+        print(f"[DEBUG] _insert_markdown_and_links appelée avec: {repr(text[:100])}")
+        
         prev_state = text_widget.cget("state")
         text_widget.configure(state="normal")
-        for match in re.finditer(link_pattern, text):
+        
+        # Configuration des tags
+        text_widget.tag_configure("link", 
+                                foreground="#3b82f6", 
+                                underline=True,
+                                font=('Segoe UI', 12))
+        
+        text_widget.tag_configure("bold", 
+                                font=('Segoe UI', 12, 'bold'), 
+                                foreground=self.colors['text_primary'])
+        
+        # CORRECTION : Patterns corrigés pour les liens
+        # Pattern pour liens Markdown : [texte](url)
+        markdown_link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        # Pattern pour liens HTTP directs
+        http_link_pattern = r'(https?://[^\s\)]+)'
+        
+        # CORRECTION : Combinaison des patterns avec groupes nommés pour éviter la confusion
+        combined_pattern = f'(?P<markdown>{markdown_link_pattern})|(?P<direct>{http_link_pattern})'
+        
+        print(f"[DEBUG] Pattern utilisé: {combined_pattern}")
+        
+        last_end = 0
+        link_count = 0
+        
+        # Traiter chaque lien trouvé
+        for match in re.finditer(combined_pattern, text):
+            print(f"[DEBUG] Match trouvé: {match.groupdict()}")
+            
+            # Insérer le texte avant le lien avec formatage
             if match.start() > last_end:
-                self._insert_markdown_segments(text_widget, text[last_end:match.start()])
-            link_text = match.group(1)
-            url = match.group(2)
+                text_before = text[last_end:match.start()]
+                self._insert_markdown_segments(text_widget, text_before)
+            
+            # CORRECTION : Extraction correcte selon le type de lien
+            if match.group('markdown'):  # Lien Markdown [texte](url)
+                # Pour les liens Markdown, on re-match pour extraire les groupes
+                markdown_match = re.match(markdown_link_pattern, match.group('markdown'))
+                if markdown_match:
+                    link_text = markdown_match.group(1)  # Texte entre []
+                    url = markdown_match.group(2)        # URL entre ()
+                    print(f"[DEBUG] Lien Markdown corrigé: texte='{link_text}', url='{url}'")
+                else:
+                    print(f"[DEBUG] Erreur parsing Markdown: {match.group('markdown')}")
+                    last_end = match.end()
+                    continue
+            else:  # Lien HTTP direct
+                url = match.group('direct')
+                link_text = url if len(url) <= 50 else url[:47] + "..."
+                print(f"[DEBUG] Lien direct: url='{url}'")
+            
+            # Vérification de l'URL
+            if not url or not url.strip() or url == 'None':
+                print(f"[DEBUG] URL invalide: {repr(url)}, insertion comme texte normal")
+                text_widget.insert("end", link_text if 'link_text' in locals() else match.group(0))
+                last_end = match.end()
+                continue
+            
+            # Insérer le lien avec formatage
             start_index = text_widget.index("end-1c")
             text_widget.insert("end", link_text, ("link",))
             end_index = text_widget.index("end-1c")
-            tag_name = f"link_{start_index}_{link_count}"
+            
+            # Créer un tag unique pour ce lien
+            tag_name = f"link_{link_count}"
             text_widget.tag_add(tag_name, start_index, end_index)
-            # Important: utiliser une closure pour capturer l'url correcte
-            def callback(event, url=url):
-                webbrowser.open_new(url)
+            
+            # Callback pour ouvrir le lien
+            def create_callback(target_url):
+                def on_click(event):
+                    try:
+                        clean_url = str(target_url).strip()
+                        print(f"[DEBUG] Tentative d'ouverture: {clean_url}")
+                        
+                        if not clean_url.startswith(('http://', 'https://')):
+                            print(f"[DEBUG] URL mal formatée: {clean_url}")
+                            return "break"
+                        
+                        webbrowser.open(clean_url)
+                        print(f"[DEBUG] ✅ Lien ouvert: {clean_url}")
+                        
+                    except Exception as e:
+                        print(f"[DEBUG] ❌ Erreur: {e}")
+                    
+                    return "break"
+                return on_click
+            
+            # Bind des événements
+            callback = create_callback(url)
             text_widget.tag_bind(tag_name, "<Button-1>", callback)
-            # S'assurer que le tag 'link' est le dernier (priorité du binding)
+            text_widget.tag_bind(tag_name, "<Enter>", 
+                            lambda e: text_widget.configure(cursor="hand2"))
+            text_widget.tag_bind(tag_name, "<Leave>", 
+                            lambda e: text_widget.configure(cursor="xterm"))
+            
+            # Assurer la priorité du tag
             text_widget.tag_raise(tag_name)
+            
             link_count += 1
             last_end = match.end()
+        
+        # Insérer le reste du texte
         if last_end < len(text):
-            self._insert_markdown_segments(text_widget, text[last_end:])
-        # Remettre l'état initial
-        text_widget.configure(state=prev_state)
+            remaining_text = text[last_end:]
+            self._insert_markdown_segments(text_widget, remaining_text)
+        
+        print(f"[DEBUG] {link_count} liens traités avec succès")
 
     def _insert_markdown_segments(self, text_widget, text):
         """Insère du texte avec formatage - ÉVITE les (args: ...) dans les fonctions"""
@@ -2648,16 +2796,13 @@ class ModernAIGUI:
         if hasattr(self, 'thinking_label') and self.is_thinking:
             # Animations avancées qui montrent l'intelligence de l'IA
             advanced_animations = [
-                "⚡ Traitement neural en cours...",
-                "🔍 Détection d'intentions...",
-                "💡 Génération de réponse intelligente...",
-                "🎯 Optimisation de la réponse...",
-                "⚙️ Moteur de raisonnement actif...",
-                "📊 Analyse des patterns...",
-                "🚀 Finalisation de la réponse...",
-                "🔮 Prédiction des besoins...",
-                "💻 Processing linguistique avancé...",
-                "🎪 Préparation d'une réponse..."
+                "⚡ Traitement neural en cours.",
+                "💡 Génération de réponse intelligente.",
+                "🎯 Optimisation de la réponse.",
+                "⚙️ Moteur de raisonnement actif.",
+                "📊 Analyse des patterns.",
+                "💻 Processing linguistique avancé.",
+                "🎪 Préparation d'une réponse."
             ]
             
             # Choisir une animation aléatoire pour plus de variété

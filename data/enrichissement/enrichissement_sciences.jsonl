@@ -63,3 +63,23 @@
 {"input": "Quel est le plus grand animal terrestre vivant ?", "target": "L'**éléphant d'Afrique**"}
 {"input": "Quel est le plus grand animal ayant jamais vécu ?", "target": "La **baleine bleue**"}
 {"input": "Quel est le plus grand dinosaure connu ?", "target": "L'**Argentinosaurus**"}
+{"input": "Quel est le plus grand canyon du monde ?", "target": "Le **Grand Canyon**"}
+{"input": "Quel est le plus grand glacier du monde ?", "target": "Le **glacier Lambert**"}
+{"input": "Quel est le plus grand animal volant ?", "target": "Le **quetzalcoatlus** (dinosaure volant)"}
+{"input": "Quel est le plus grand animal carnivore terrestre ?", "target": "L'**ours polaire**"}
+{"input": "Quel est le plus grand animal herbivore terrestre ?", "target": "L'**éléphant d'Afrique**"}
+{"input": "Quel est le plus grand animal marin prédateur ?", "target": "L'**orque**"}
+{"input": "Quel est le plus grand arbre fruitier du monde ?", "target": "Le **jaquier**"}
+{"input": "Quel est le plus grand papillon du monde ?", "target": "L'**Attacus atlas**"}
+{"input": "Quel est le plus grand serpent du monde ?", "target": "L'**anaconda vert**"}
+{"input": "Quel est le plus grand amphithéâtre romain ?", "target": "Le **Colisée** à Rome"}
+{"input": "Quel est le plus grand désert froid du monde ?", "target": "L'**Antarctique**"}
+{"input": "Quel est le plus grand lac salé du monde ?", "target": "La **mer Caspienne**"}
+{"input": "Quel est le plus grand récif corallien du monde ?", "target": "La **Grande Barrière de corail**"}
+{"input": "Quel est le plus grand animal invertébré ?", "target": "Le **calmar géant**"}
+{"input": "Quel est le plus grand organe du système digestif humain ?", "target": "L'**intestin grêle**"}
+{"input": "Quel est le plus grand organe du système immunitaire humain ?", "target": "La **rate**"}
+{"input": "Quel est le plus grand organe du système circulatoire humain ?", "target": "Le **cœur**"}
+{"input": "Quel est le plus grand organe du système respiratoire humain ?", "target": "Les **poumons**"}
+{"input": "Quel est le plus grand organe du système nerveux humain ?", "target": "Le **cerveau**"}
+{"input": "Quel est le plus grand organe du système urinaire humain ?", "target": "Le **rein**"}

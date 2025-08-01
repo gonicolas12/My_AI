@@ -365,38 +365,40 @@ class EnhancedInternetSearchEngine:
         return None
     
     def _generate_answer_focused_summary(self, query: str, direct_answer: Optional[str], 
-                                       page_contents: List[Dict[str, Any]]) -> str:
-        """Génère un résumé centré sur la réponse directe"""
-        summary = f""
+                                    page_contents: List[Dict[str, Any]]) -> str:
+        """Génère un résumé centré sur la réponse directe - VERSION CORRIGÉE"""
+        summary = ""
         
         if direct_answer:
-            # Nettoyer la réponse directe et ajouter des mots en gras
-            cleaned_answer = self._enhance_answer_formatting(direct_answer)
-            summary += f"{cleaned_answer}\n\n"
+            # Appliquer TOUTES les corrections dans l'ordre
+            cleaned_answer = self._universal_word_spacing_fix(direct_answer)
+            enhanced_answer = self._intelligent_bold_formatting(cleaned_answer)
+            summary += f"{enhanced_answer}\n\n"
         else:
-            # Si pas de réponse directe, essayer un résumé intelligent concentré
             key_info = self._extract_concentrated_summary(query, page_contents)
-            cleaned_info = self._enhance_answer_formatting(key_info)
-            summary += f"📍 **Information trouvée :**\n{cleaned_info}\n\n"
+            cleaned_info = self._universal_word_spacing_fix(key_info)
+            enhanced_info = self._intelligent_bold_formatting(cleaned_info)
+            summary += f"📍 **Information trouvée :**\n{enhanced_info}\n\n"
         
-        # Ajouter les sources principales - FORMAT SIMPLIFIÉ
-        summary += "🔗 Sources :"
+        # CORRECTION : Format correct pour "Sources" avec bon placement des **
+        summary += "🔗 **Sources** :\n"
         
-        for result in page_contents[:3]:  # Top 3 sources
+        for i, result in enumerate(page_contents[:3], 1):
             if result.get("title") and result.get("url"):
                 title = self._clean_title(result["title"])
+                clean_title = self._universal_word_spacing_fix(title)
                 url = result.get("url")
                 
                 if url and url.startswith("http"):
-                    # Format simple: numéro + lien cliquable
-                    summary += f"[{title}]({url}) "
+                    # CORRECTION : URL complète pour éviter l'erreur None
+                    summary += f"{i}. [{clean_title}]({url})\n"
                 else:
-                    summary += f"{title}"
+                    summary += f"{i}. {clean_title}\n"
         
-        return summary + "\n"
+        return summary
     
     def _enhance_answer_formatting(self, text: str) -> str:
-        """Améliore le formatage de la réponse - VERSION UNIVERSELLE"""
+        """Améliore le formatage de la réponse"""
         if not text:
             return text
         
@@ -408,157 +410,108 @@ class EnhancedInternetSearchEngine:
         
         return formatted_text
     
-    def _universal_word_spacing_fix(self, text: str) -> str:
-        """Correction universelle des problèmes d'espacement pour TOUTES les recherches"""
-        import re
-        
-        # Étape 1: Séparer TOUS les mots collés (minuscule suivie de majuscule)
-        # Ceci fonctionne pour: appelaitlatour, drapeaufrançais, motscollés, etc.
-        text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
-        
-        # Étape 2: Séparer les mots collés avec des chiffres
-        # Ex: "mesure300mètres" -> "mesure 300 mètres"
-        text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
-        text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
-        
-        # Étape 3: Corriger la ponctuation collée
-        # Ex: "mots.Autres" -> "mots. Autres"
-        text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
-        text = re.sub(r'([,;:])([a-zA-Z])', r'\1 \2', text)
-        
-        # Étape 4: Séparer les mots de liaison collés courants
-        # Ex: "motde", "elet", "avec", etc.
-        liaison_words = ['de', 'du', 'des', 'le', 'la', 'les', 'un', 'une', 'et', 'ou', 'avec', 
-                        'dans', 'sur', 'pour', 'par', 'elle', 'il', 'qui', 'que', 'son', 'sa', 
-                        'ses', 'cette', 'ce', 'ces', 'tout', 'tous', 'plus']
-        
-        for word in liaison_words:
-            # Séparer si collé à droite: "mot" + "de" + "Autre"
-            pattern = f'([a-z])({word})([A-Z])'
-            text = re.sub(pattern, r'\1 \2 \3', text, flags=re.IGNORECASE)
-        
-        # Étape 5: Nettoyer les espaces multiples
-        text = re.sub(r'\s+', ' ', text)
-        
-        # Étape 6: Corriger les espaces autour de la ponctuation
-        text = re.sub(r'\s+([.!?:;,])', r'\1', text)
-        text = re.sub(r'([.!?:;,])([a-zA-Z])', r'\1 \2', text)
-        
-        return text.strip()
-    
     def _intelligent_bold_formatting(self, text: str) -> str:
-        """Formatage intelligent en gras - UNIVERSEL pour tous types de données"""
+        """Formatage intelligent en gras"""
         import re
         
-        # 1. CHIFFRES + UNITÉS (universel pour toutes mesures)
-        # Mètres, kilomètres, centimètres
-        text = re.sub(r'(\d+(?:[,.\s]\d+)?)\s*(mètres?|m\b|km|centimètres?|cm|kilomètres?)', 
-                     r'**\1 \2**', text, flags=re.IGNORECASE)
+        if not text:
+            return text
         
-        # Poids: kilogrammes, tonnes, grammes
-        text = re.sub(r'(\d+(?:[,.\s]\d+)?)\s*(kilogrammes?|kg|tonnes?|grammes?|g\b)', 
-                     r'**\1 \2**', text, flags=re.IGNORECASE)
+        # 1. CHIFFRES + UNITÉS
+        text = re.sub(r'\b(\d+(?:[,.\s]\d+)?)\s*(mètres?|kilomètres?|centimètres?|m|km|cm)(?!\w)', 
+                    r'**\1 \2**', text, flags=re.IGNORECASE)
         
-        # Monnaie: euros, dollars
-        text = re.sub(r'(\d+(?:[,.\s]\d+)?)\s*(euros?|dollars?|\$|€)', 
-                     r'**\1 \2**', text, flags=re.IGNORECASE)
+        # Poids
+        text = re.sub(r'\b(\d+(?:[,.\s]\d+)?)\s*(kilogrammes?|tonnes?|grammes?|kg|g)(?!\w)', 
+                    r'**\1 \2**', text, flags=re.IGNORECASE)
         
-        # Population: habitants, personnes
-        text = re.sub(r'(\d+(?:[,.\s]\d+)?)\s*(?:millions?|milliards?)?\s*(habitants?|personnes?)', 
-                     r'**\1 \2**', text, flags=re.IGNORECASE)
+        # Monnaie
+        text = re.sub(r'\b(\d+(?:[,.\s]\d+)?)\s*(euros?|dollars?|\$|€)(?!\w)', 
+                    r'**\1 \2**', text, flags=re.IGNORECASE)
         
-        # Pourcentages
-        text = re.sub(r'(\d+(?:[,.\s]\d+)?)\s*%', r'**\1%**', text)
-        
-        # 2. DATES (années, dates complètes)
+        # 2. DATES
         text = re.sub(r'\b(\d{4})\b', r'**\1**', text)
-        text = re.sub(r'(\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+(\d{4})', 
-                     r'**\1 \2 \3**', text, flags=re.IGNORECASE)
         
-        # 3. NOMS PROPRES IMPORTANTS (adaptatif selon le contexte)
-        # Détecter automatiquement les noms propres répétés
-        words = text.split()
-        word_count = {}
-        for word in words:
-            clean_word = re.sub(r'[^\w]', '', word)
-            if len(clean_word) > 2 and clean_word[0].isupper():
-                word_count[clean_word] = word_count.get(clean_word, 0) + 1
-        
-        # Mettre en gras les noms propres qui apparaissent plus d'une fois
-        for word, count in word_count.items():
-            if count > 1 and len(word) > 3:
-                text = re.sub(f'\\b{re.escape(word)}\\b', f'**{word}**', text)
-        
-        # 4. MOTS D'IMPORTANCE UNIVERSELS
-        important_words = [
-            # Mesures et tailles
-            'hauteur', 'taille', 'mesure', 'poids', 'longueur', 'largeur',
-            # Temps
-            'actuellement', 'aujourd\'hui', 'maintenant', 'désormais', 'récemment',
-            # Précision
-            'exactement', 'précisément', 'officiellement', 'environ', 'approximativement',
-            # Importance
-            'important', 'principal', 'majeur', 'essentiel', 'fondamental',
-            # Superlatifs
-            'plus grand', 'plus petit', 'plus haut', 'plus important', 'premier', 'dernier'
+        # 3. Noms propres importants
+        important_names = [
+            r'\bTour\s+Eiffel\b', r'\bNotre[-\s]Dame\b', r'\bLouvre\b'
         ]
         
-        for word in important_words:
-            text = re.sub(f'\\b{re.escape(word)}\\b', f'**{word}**', text, flags=re.IGNORECASE)
+        for pattern in important_names:
+            text = re.sub(pattern, lambda m: f'**{m.group(0)}**', text, flags=re.IGNORECASE)
         
-        # 5. NETTOYER LE FORMATAGE EN GRAS
-        # Éviter les doubles gras
-        text = re.sub(r'\*{4,}', '**', text)
-        text = re.sub(r'\*\*\s*\*\*', '**', text)
-        
-        # Éviter les gras vides
+        # 4. Nettoyer le formatage
+        text = re.sub(r'\*{3,}', '**', text)
         text = re.sub(r'\*\*\s*\*\*', '', text)
         
         return text
-    
+
     def _universal_word_spacing_fix(self, text: str) -> str:
-        """Correction douce des problèmes d'espacement (évite de casser les mots valides)"""
-        # 1. Séparer chiffres collés à des lettres (ex: "324m" -> "324 m")
-        text = re.sub(r'([a-zA-Z])([0-9])', r'\1 \2', text)
-        text = re.sub(r'([0-9])([a-zA-Z])', r'\1 \2', text)
-        # 2. Corriger la ponctuation collée (ex: "mots.Autres" -> "mots. Autres")
-        text = re.sub(r'([.!?])([A-Z])', r'\1 \2', text)
-        text = re.sub(r'([,;:])([a-zA-Z])', r'\1 \2', text)
-        # 3. Nettoyer les espaces multiples
+        """Correction AMÉLIORÉE qui ne casse pas les mots valides"""
+        import re
+        
+        if not text:
+            return text
+        
+        print(f"[DEBUG] Avant correction: {repr(text)}")
+        
+        # Étape 1: Séparer SEULEMENT les mots vraiment collés (minuscule + majuscule)
+        text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+        print(f"[DEBUG] Après min->MAJ: {repr(text)}")
+        
+        # Étape 2: Séparer les chiffres des lettres
+        text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
+        text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
+        print(f"[DEBUG] Après chiffres: {repr(text)}")
+        
+        # Étape 3: CORRECTION - Seulement les cas évidents de mots collés
+        # Ne pas toucher aux mots valides comme "mesure", "actuellement", etc.
+        
+        # Liste RESTREINTE aux vrais cas de mots collés courants
+        obvious_splits = [
+            # Cas très évidents uniquement
+            (r'\b(la|le|les)(tour|ville|monde|france|paris)\b', r'\1 \2'),
+            (r'\b(tour|ville)(eiffel|paris|france)\b', r'\1 \2'),
+            (r'\b(de|du|des)(la|le|les)\b', r'\1 \2'),
+            # Prépositions collées évidentes
+            (r'\b(dans|sur|pour|avec|sans)(le|la|les|un|une)\b', r'\1 \2'),
+        ]
+        
+        # Appliquer SEULEMENT les cas évidents
+        for pattern, replacement in obvious_splits:
+            old_text = text
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+            if text != old_text:
+                print(f"[DEBUG] Appliqué: {pattern} -> changé en: {repr(text)}")
+        
+        # Étape 4: Nettoyer les espaces
         text = re.sub(r'\s+', ' ', text)
-        # 4. Corriger les espaces autour de la ponctuation
         text = re.sub(r'\s+([.!?:;,])', r'\1', text)
         text = re.sub(r'([.!?:;,])([a-zA-Z])', r'\1 \2', text)
-        return text.strip()
-        result = text
-        for pattern, replacement in fixes:
-            try:
-                result = re.sub(pattern, replacement, result)
-            except re.error:
-                # Ignorer les patterns problématiques
-                continue
         
-        return result.strip()
+        result = text.strip()
+        print(f"[DEBUG] Résultat final: {repr(result)}")
+        return result
     
     def _clean_title(self, title: str) -> str:
-        """Nettoie le titre des sources pour un affichage optimal"""
+        """Nettoie le titre et s'assure qu'il n'est pas None"""
+        if not title:
+            return "Source"
+        
+        cleaned = str(title)  # Conversion sécurisée en string
+        
         # Supprimer les parties indésirables
-        cleaned = title
-        
-        # Supprimer les références de site entre crochets ou parenthèses à la fin
         cleaned = re.sub(r'\s*[\[\(].*?[\]\)]\s*$', '', cleaned)
-        
-        # Supprimer les tirets et barres en fin de titre
         cleaned = re.sub(r'\s*[-|—]\s*[^-]+$', '', cleaned)
         
         # Limiter la longueur
         if len(cleaned) > 60:
             cleaned = cleaned[:57] + "..."
         
-        # Corriger l'espacement
+        # Appliquer la correction d'espacement
         cleaned = self._universal_word_spacing_fix(cleaned)
         
-        return cleaned.strip()
+        return cleaned.strip() if cleaned.strip() else "Source"
     
     def _extract_concentrated_summary(self, query: str, page_contents: List[Dict[str, Any]]) -> str:
         """Extrait un résumé concentré quand pas de réponse directe"""
