@@ -54,7 +54,7 @@ markdown2>=2.4.0
 # ====================================
 
 # Interface graphique moderne - Style Claude
-tkinter  # Intégré à Python (base)
+# tkinter  # Intégré à Python (base) - NE PAS INSTALLER VIA PIP
 customtkinter>=5.2.0  # Interface moderne avec thèmes sombres
 tkinterdnd2>=0.3.0     # Drag & Drop pour fichiers
 pillow>=10.0.0         # Traitement d'images pour l'interface
@@ -109,7 +109,7 @@ isort>=5.12.0
 # ====================================
 
 # Base de données locale
-sqlite3  # Intégré à Python
+# sqlite3  # Intégré à Python - NE PAS INSTALLER VIA PIP
 sqlalchemy>=2.0.0
 
 # Cache
