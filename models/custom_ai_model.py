@@ -1095,13 +1095,18 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
         Args:
             user_input: Question de l'utilisateur
             context: Contexte de la conversation
-            
         Returns:
             str: Résumé des résultats de recherche
         """
+        # Si la question ne mentionne pas explicitement un document, on ignore le contexte documentaire
+        if not any(word in user_input.lower() for word in ["document", "pdf", "docx", "fichier", "rapport", "contenu"]):
+            context = context.copy() if context else {}
+            # Supprimer toutes les clés contenant 'document', 'pdf' ou 'docx' (nettoyage renforcé)
+            for k in list(context.keys()):
+                if any(x in k.lower() for x in ["document", "pdf", "docx"]):
+                    context.pop(k)
         # Extraire la requête de recherche de l'input utilisateur
         search_query = self._extract_search_query(user_input)
-        
         if not search_query:
             return """🔍 **Recherche internet**
 
@@ -1114,7 +1119,6 @@ Je n'ai pas bien compris ce que vous voulez rechercher.
 • "Peux-tu chercher comment faire du pain ?"
 
 Reformulez votre demande en précisant ce que vous voulez rechercher."""
-        
         # Effectuer la recherche avec le moteur de recherche internet
         try:
             print(f"🌐 Lancement de la recherche pour: '{search_query}'")
@@ -1123,10 +1127,8 @@ Reformulez votre demande en précisant ce que vous voulez rechercher."""
                 "user_language": "français",
                 "search_type": self._detect_search_type(user_input)
             }
-            
             result = self.internet_search.search_and_summarize(search_query, search_context)
             return result
-            
         except Exception as e:
             print(f"❌ Erreur lors de la recherche internet: {str(e)}")
             return f"""❌ **Erreur de recherche**
@@ -1155,8 +1157,21 @@ Erreur technique : {str(e)}"""
         Returns:
             str: Requête de recherche extraite
         """
-        user_lower = user_input.lower().strip()
-        
+        import re
+        # Nettoyage du prompt pour retirer tout contexte documentaire ou artefact système
+        cleaned = user_input
+        # Supprimer les lignes contenant des mentions de contexte documentaire
+        cleaned = re.sub(r"(?im)^.*(contexte des documents disponibles|contexte:|mémoire:).*$", "", cleaned)
+        # Supprimer tout ce qui précède 'question:' (y compris la ligne)
+        cleaned = re.sub(r"(?is)^.*question\s*:\s*", "", cleaned)
+        # Supprimer les artefacts de prompt système (ex: 'system:', 'assistant:', etc.)
+        cleaned = re.sub(r"(?im)^\s*(system|assistant|user)\s*:\s*", "", cleaned)
+        # Supprimer les lignes vides
+        cleaned = "\n".join([line for line in cleaned.splitlines() if line.strip()])
+        # Nettoyer les espaces
+        cleaned = cleaned.strip()
+
+        user_lower = cleaned.lower().strip()
         # Patterns pour extraire la requête
         patterns = [
             r"(?:cherche|recherche|trouve)\s+(?:sur\s+)?(?:internet|web|google|en ligne)\s+(.+)",
@@ -1165,25 +1180,22 @@ Erreur technique : {str(e)}"""
             r"peux[-\s]tu\s+(?:chercher|rechercher|trouver)\s+(.+)",
             r"(?:informations?|info|données|news|actualités?)\s+(?:sur|à propos de|concernant)\s+(.+)",
             r"(?:dernières?\s+)?(?:actualités?|news|nouvelles?)\s+(?:sur|de|à propos de)\s+(.+)",
-            r"qu[\'']?est[-\s]ce\s+qu[\'']?on\s+dit\s+(?:sur|de)\s+(.+)",
+            r"qu[\'\"]?est[-\s]ce\s+qu[\'\"]?on\s+dit\s+(?:sur|de)\s+(.+)",
             r"(?:web|internet|google)\s+search\s+(.+)"
         ]
-        
         for pattern in patterns:
             match = re.search(pattern, user_lower)
             if match:
                 query = match.group(1).strip()
-                # Nettoyer la requête
-                query = re.sub(r'\s+', ' ', query)  # Normaliser les espaces
-                query = query.strip('.,!?;')  # Supprimer la ponctuation finale
+                query = re.sub(r'\s+', ' ', query)
+                query = query.strip('.,!?;')
                 return query
-        
+
         # Fallback: si aucun pattern ne correspond, essayer de deviner
-        # Supprimer les mots de commande du début
         for word in ["cherche", "recherche", "trouve", "sur", "internet", "web", "google", "en", "ligne", "moi", "des", "informations"]:
             if user_lower.startswith(word):
                 user_lower = user_lower[len(word):].strip()
-        
+
         return user_lower if len(user_lower) > 2 else ""
     
     def _detect_search_type(self, user_input: str) -> str:
