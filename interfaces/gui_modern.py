@@ -1358,18 +1358,6 @@ class ModernAIGUI:
                 else:
                     text = str(text)
 
-            # Correction Markdown : mettre **Args:** et **Returns:** (seulement les titres)
-            def format_args_returns(text_input):
-                """Formate spécifiquement Args: et Returns: pour le Markdown"""
-                text_input = re.sub(r'^(\s*)Args:\s*$', r'\1**Args:**', text_input, flags=re.MULTILINE)
-                text_input = re.sub(r'^(\s*)Returns:\s*$', r'\1**Returns:**', text_input, flags=re.MULTILINE)
-                text_input = re.sub(r'^(\s*)Args:\s+(.+)$', r'\1**Args:** \2', text_input, flags=re.MULTILINE)
-                text_input = re.sub(r'^(\s*)Returns:\s+(.+)$', r'\1**Returns:** \2', text_input, flags=re.MULTILINE)
-                return text_input
-            
-            # APPLIQUER LA CORRECTION
-            text = format_args_returns(text)
-
             # Debug : log le texte après correction
             if hasattr(self, 'logger'):
                 self.logger.info(f"[DEBUG] Texte IA après formattage Args/Returns:\n{text[:500]}")
@@ -1584,86 +1572,24 @@ class ModernAIGUI:
 
         if self.typing_index < len(self.typing_text):
             current_text = self.typing_text[:self.typing_index + 1]
-
-            # Insérer le texte avec formatage
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
-            self._insert_formatted_text_progressive(self.typing_widget, current_text)
-
-            # N'ajuste la hauteur que tous les 8 caractères pour éviter le freeze
-            if self.typing_index % 8 == 0 or self.typing_index == len(self.typing_text) - 1:
-                self.adjust_text_widget_height(self.typing_widget)
-
-            # Scroll pendant l'animation uniquement si le bas n'est pas visible
-            if hasattr(self, 'chat_frame') and self.typing_index % 10 == 0:
-                try:
-                    self._gentle_scroll_to_bottom()
-                except Exception as e:
-                    pass
-
+            # Pendant l'animation, on affiche le texte sans liens cliquables (juste du texte brut)
+            self.typing_widget.insert("end", current_text)
+            self.adjust_text_widget_height(self.typing_widget)
+            self.typing_widget.configure(state="disabled")
             self.typing_index += 1
+            self._gentle_scroll_to_bottom()
             self._typing_animation_after_id = self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
         else:
-            self.finish_typing_animation_dynamic()
-            
-    def _insert_formatted_text_progressive(self, text_widget, text):
-        """Insère le texte avec formatage progressif (gras, italique, code, titres, docstring, etc)."""
-        import re
+            # À la fin de l'animation, on applique la fonction qui rend les liens cliquables et stylés
+            self.typing_widget.configure(state="normal")
+            self.typing_widget.delete("1.0", "end")
+            self._insert_markdown_and_links(self.typing_widget, self.typing_text)
+            self.adjust_text_widget_height(self.typing_widget)
+            self.typing_widget.configure(state="disabled")
+            self.finish_typing_animation_dynamic(interrupted=False)
 
-        # Ajout d'un saut de ligne avant les titres spécifiques (avant toute la ligne du titre)
-        text = re.sub(r'(?<!\n)(^##5\. Résumé technique.*$)', r'\n\1', text, flags=re.MULTILINE)
-        text = re.sub(r'(?<!\n)(^##3\. Structure principale.*$)', r'\n\1', text, flags=re.MULTILINE)
-
-        # Patterns dans l'ordre de priorité (docstring_strip, docstring, titres, code, gras, italique)
-        patterns = [
-            (r"'''docstring([\s\S]+?)'''|\"\"\"docstring([\s\S]+?)\"\"\"", 'docstring_strip'),
-            (r"'''([\s\S]+?)'''|\"\"\"([\s\S]+?)\"\"\"", 'docstring'),
-            (r'^(#+) (.+)$', 'title'),
-            (r'`([^`]+)`', 'mono'),
-            (r'\*\*([^*]+)\*\*', 'bold'),
-            (r'\*([^*]+)\*', 'italic'),
-        ]
-
-        # Fonction récursive pour appliquer les patterns
-
-        def parse_segments(txt, pat_idx=0):
-            if pat_idx >= len(patterns):
-                return [(txt, 'normal')]
-            pattern, style = patterns[pat_idx]
-            segments = []
-            last = 0
-            for m in re.finditer(pattern, txt, re.MULTILINE):
-                start, end = m.start(), m.end()
-                if start > last:
-                    segments.extend(parse_segments(txt[last:start], pat_idx+1))
-                if style == 'docstring_strip':
-                    doc = m.group(1) or m.group(2)
-                    if doc is not None:
-                        doc = doc.lstrip('\n').rstrip("'\" ")
-                    segments.append((doc, 'docstring'))
-                elif style == 'docstring':
-                    doc = m.group(1) or m.group(2)
-                    segments.append((doc, 'docstring'))
-                elif style == 'title':
-                    hashes = m.group(1)
-                    title_text = m.group(2)
-                    tag = f"title{min(len(hashes),5)}"
-                    segments.append((title_text, tag))
-                else:
-                    segments.append((m.group(1), style))
-                last = end
-            if last < len(txt):
-                segments.extend(parse_segments(txt[last:], pat_idx+1))
-            return segments
-
-        # Animation progressive : on affiche caractère par caractère, mais applique le style sur chaque segment
-        segments = parse_segments(text)
-        for segment, style in segments:
-            if not segment:
-                continue
-            # Pour chaque segment, on insère caractère par caractère pour l'effet progressif
-            for c in segment:
-                text_widget.insert("end", c, style)
 
     def _gentle_scroll_to_bottom(self):
         """Scroll doux pendant l'animation sans clignotement, avec debug détaillé"""
@@ -1903,9 +1829,13 @@ class ModernAIGUI:
 
     def _insert_markdown_and_links(self, text_widget, text):
         """Insère du texte avec gestion des liens Markdown et du markdown classique (gras, italique, code, titres)."""
-        import re, webbrowser
+        import re
         link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
         last_end = 0
+        link_count = 0
+        # S'assurer que le widget est en mode normal pour l'insertion des tags
+        prev_state = text_widget.cget("state")
+        text_widget.configure(state="normal")
         for match in re.finditer(link_pattern, text):
             if match.start() > last_end:
                 self._insert_markdown_segments(text_widget, text[last_end:match.start()])
@@ -1914,12 +1844,20 @@ class ModernAIGUI:
             start_index = text_widget.index("end-1c")
             text_widget.insert("end", link_text, ("link",))
             end_index = text_widget.index("end-1c")
-            tag_name = f"link_{start_index}"
+            tag_name = f"link_{start_index}_{link_count}"
             text_widget.tag_add(tag_name, start_index, end_index)
-            text_widget.tag_bind(tag_name, "<Button-1>", lambda e, url=url: webbrowser.open_new(url))
+            # Important: utiliser une closure pour capturer l'url correcte
+            def callback(event, url=url):
+                webbrowser.open_new(url)
+            text_widget.tag_bind(tag_name, "<Button-1>", callback)
+            # S'assurer que le tag 'link' est le dernier (priorité du binding)
+            text_widget.tag_raise(tag_name)
+            link_count += 1
             last_end = match.end()
         if last_end < len(text):
             self._insert_markdown_segments(text_widget, text[last_end:])
+        # Remettre l'état initial
+        text_widget.configure(state=prev_state)
 
     def _insert_markdown_segments(self, text_widget, text):
         """Insère du texte avec formatage - ÉVITE les (args: ...) dans les fonctions"""
@@ -2272,25 +2210,6 @@ class ModernAIGUI:
             
             text_widget.insert("end", "\n", ("mono",))
 
-    def _insert_markdown_and_links(self, text_widget, text):
-        """Insère du texte avec gestion des liens Markdown et du markdown classique (gras, italique, etc.)"""
-        import re
-        import webbrowser
-        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
-        last_end = 0
-        for match in re.finditer(link_pattern, text):
-            if match.start() > last_end:
-                self._insert_markdown_segments(text_widget, text[last_end:match.start()])
-            link_text = match.group(1)
-            url = match.group(2)
-            start_index = text_widget.index("end-1c")
-            text_widget.insert("end", link_text, ("link",))
-            end_index = text_widget.index("end-1c")
-            text_widget.tag_add(f"link_{start_index}", start_index, end_index)
-            text_widget.tag_bind(f"link_{start_index}", "<Button-1>", lambda e, url=url: webbrowser.open_new(url))
-            last_end = match.end()
-        if last_end < len(text):
-            self._insert_markdown_segments(text_widget, text[last_end:])
 
     def _insert_python_code_block(self, text_widget, code):
         """Insère un bloc de code python avec coloration syntaxique simple"""
