@@ -96,7 +96,6 @@ my_ai/
 #### 🎨 Interface Graphique Style Claude
 - **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
 - **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
-- **Drag & Drop** : Glisser-déposer direct de fichiers PDF, DOCX et code
 - **Formatage avancé** : Support complet du **texte en gras** avec Unicode
 - **Animations fluides** : Indicateurs de réflexion et recherche internet
 - **Responsive design** : Adaptation automatique à tous types d'écrans
@@ -107,11 +106,10 @@ my_ai/
 - **Messages non-scrollables** : Labels optimisés pour de meilleures performances
 - **Timestamp automatique** : Horodatage discret pour chaque message
 
-### 🖥️ Interface Utilisateur
+#### 🖥️ Différentes Interfaces
 - **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
 - **CLI avancée** : Ligne de commande pour utilisateurs experts
 - **Gestion d'erreurs** : Messages clairs et récupération gracieuse
-- **Bouton Clear Chat** : Remise à zéro complète de la conversation
 
 ## 🛠️ Technologies Locales
 
@@ -127,7 +125,6 @@ my_ai/
 
 ### Interface Utilisateur
 - **Tkinter + CustomTkinter** : GUI native moderne avec thèmes sombres
-- **Drag & Drop** : Support natif avec tkinterdnd2
 - **Click** : CLI avancée avec commandes contextuelles
 - **Styles adaptatifs** : Polices et couleurs optimisées par OS
 - **Logging intégré** : Suivi des opérations et débogage
