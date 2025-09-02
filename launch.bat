@@ -1,12 +1,12 @@
 @echo off
 chcp 65001 >nul
 REM ====================================
-REM My Personal AI - Lanceur Universel
+REM My Personal AI ULTRA - Lanceur v6.0
 REM ====================================
 
 echo.
-echo MY PERSONAL AI - Lanceur Universel
-echo ===================================
+echo MY PERSONAL AI ULTRA v6.0 - 1M TOKENS
+echo =======================================
 echo.
 
 REM Verifier Python
@@ -43,20 +43,20 @@ REM Menu de choix
 :menu
 echo.
 echo Que voulez-vous faire ?
-echo 1. Lancer l'interface graphique (GUI)
-echo 2. Lancer l'interface ligne de commande (CLI)
-echo 3. Executer la demonstration
-echo 4. Verifier le statut du systeme
-echo 5. Installer toutes les dependances
+echo 1. Interface ULTRA (1M tokens) - RECOMMANDE
+echo 2. Interface moderne (optimisee)
+echo 3. Test complet de tous les modules
+echo 4. Audit et validation du systeme
+echo 5. Menu de demarrage interactif
 echo.
-set /p choice="Votre choix (1-5, ou Entree pour GUI): "
+set /p choice="Votre choix (1-5, ou Entree pour ULTRA): "
 
 if "%choice%"=="" set choice=1
-if "%choice%"=="1" goto gui
-if "%choice%"=="2" goto cli
-if "%choice%"=="3" goto demo
-if "%choice%"=="4" goto status
-if "%choice%"=="5" goto install
+if "%choice%"=="1" goto ultra
+if "%choice%"=="2" goto modern
+if "%choice%"=="3" goto test_complet
+if "%choice%"=="4" goto audit
+if "%choice%"=="5" goto menu_interactif
 
 REM Gestion des choix invalides
 echo.
@@ -65,31 +65,30 @@ echo Veuillez choisir un numero entre 1 et 5.
 echo.
 goto menu
 
-:gui
-echo [INFO] Lancement GUI...
-python launcher.py gui
+:ultra
+echo [INFO] Lancement Interface ULTRA (1M tokens)...
+echo [CONFIG] Configuration ultra activee
+python launch_ultra.py
 goto end
 
-:cli
-echo [INFO] Lancement CLI...
-python launcher.py cli
+:modern
+echo [INFO] Lancement Interface Moderne...
+python interfaces/gui_modern.py
 goto end
 
-:demo
-echo [INFO] Lancement demo...
-python launcher.py demo
+:test_complet
+echo [INFO] Test complet de tous les modules...
+python test_final_ultra.py
 goto end
 
-:status
-echo [INFO] Verification statut...
-python launcher.py status
-python diagnostic.py
+:audit
+echo [INFO] Audit et validation...
+python audit.py
 goto end
 
-:install
-echo [INFO] Installation complete...
-pip install --user -r requirements.txt
-echo [OK] Installation terminee
+:menu_interactif
+echo [INFO] Menu de demarrage interactif...
+python start_ultra.py
 goto end
 
 :end

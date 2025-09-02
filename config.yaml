@@ -8,13 +8,13 @@ ai:
   version: "4.3.0"
   description: "IA personnelle locale complète"
   
-  # Paramètres généraux
-  max_tokens: 4096
+  # Paramètres généraux - OPTIMISÉ POUR CONTEXTE ÉTENDU
+  max_tokens: 131072  # 128K tokens - 4x augmentation !
   temperature: 0.7
-  timeout: 60
+  timeout: 120  # Timeout étendu pour gros contextes
   
-  # Historique des conversations
-  conversation_history_limit: 10
+  # Historique des conversations - MÉMOIRE PROFONDE
+  conversation_history_limit: 100  # 10x plus de mémoire
   save_conversations: true
   
   # Types de fichiers supportés
@@ -224,3 +224,48 @@ development:
   # Métriques
   collect_metrics: true
   metrics_file: "logs/metrics.json"
+
+
+# === OPTIMISATIONS AVANC�ES ===
+optimization:
+  # RAG (Retrieval-Augmented Generation)
+  rag:
+    enabled: true
+    chunk_size: 512
+    chunk_overlap: 50
+    max_retrieved_chunks: 3
+    embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+    vector_store_path: "./data/vector_store"
+    
+  # Context Window Optimization
+  context_optimization:
+    enabled: true
+    max_context_tokens: 8192
+    compression_enabled: true
+    sliding_window_size: 4096
+    memory_efficient_attention: true
+    
+  # Fine-tuning
+  fine_tuning:
+    enabled: false  # Activer manuellement
+    model_base: "microsoft/DialoGPT-medium"
+    lora_r: 8
+    lora_alpha: 16
+    lora_dropout: 0.1
+    learning_rate: 2e-5
+    batch_size: 4
+    num_epochs: 3
+    
+  # Performance Monitoring
+  monitoring:
+    enabled: true
+    log_performance_metrics: true
+    benchmark_interval: 3600  # 1 heure
+    max_memory_usage_mb: 2048
+    
+  # Cache System
+  cache:
+    enabled: true
+    embedding_cache_size: 1000
+    response_cache_size: 500
+    cache_ttl: 3600  # 1 heure

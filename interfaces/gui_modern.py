@@ -1690,8 +1690,8 @@ class ModernAIGUI:
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             
-            # 🔧 CORRECTION : Utiliser le formatage complet même pendant l'animation
-            self.insert_formatted_text_tkinter(self.typing_widget, current_text)
+            # 🔧 CORRECTION : Formatage complet avec liens même pendant l'animation
+            self._insert_markdown_and_links(self.typing_widget, current_text)
             
             # Ajuster la hauteur
             self._adjust_height_during_animation(self.typing_widget, current_text)
@@ -1951,19 +1951,21 @@ class ModernAIGUI:
             
             if interrupted:
                 partial_text = self.typing_text[:self.typing_index]
-                # 🔧 CORRECTION : Utiliser le formatage Python complet, pas _insert_markdown_and_links
-                self.insert_formatted_text_tkinter(self.typing_widget, partial_text)
+                # 🔧 CORRECTION : Utiliser le formatage complet avec liens même pour texte partiel
+                self._insert_markdown_and_links(self.typing_widget, partial_text)
             else:
-                # 🔧 CORRECTION CLÉE : Ne pas écraser avec _insert_markdown_and_links
-                # Utiliser directement insert_formatted_text_tkinter qui préserve le formatage Python
-                self.insert_formatted_text_tkinter(self.typing_widget, self.typing_text)
+                # 🔧 CORRECTION FINALE : Utiliser _insert_markdown_and_links pour préserver les liens
+                self._insert_markdown_and_links(self.typing_widget, self.typing_text)
             
             # Ajustement final EXACT de la hauteur
             self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
             
-            # 🔧 CORRECTION : NE PAS remettre en "disabled" pour préserver les liens
-            # Les liens ont besoin que le widget reste en état "normal" pour être cliquables
-            print(f"[DEBUG] Widget gardé en état 'normal' pour préserver le formatage et les liens")
+            # 🔧 CORRECTION FINALE : Remettre en disabled APRÈS avoir appliqué les liens
+            # Mais préserver le formatage des liens avec force preservation
+            self._preserve_link_tags(self.typing_widget)
+            self.typing_widget.configure(state="disabled")
+            
+            print(f"[DEBUG] Animation terminée, formatage et liens préservés et forcés")
             
             # Afficher le timestamp sous le message IA
             self._show_timestamp_for_current_message()
@@ -2036,6 +2038,25 @@ class ModernAIGUI:
                         parent.yview_moveto(1.0)
             except:
                 pass
+
+    def _preserve_link_tags(self, text_widget):
+        """Force la préservation des tags de liens même en mode disabled"""
+        try:
+            # Reconfigurer les tags de liens pour être plus persistants
+            text_widget.tag_configure("link", 
+                                    foreground="#3b82f6", 
+                                    underline=True,
+                                    font=('Segoe UI', 12),
+                                    selectforeground="#3b82f6",
+                                    selectbackground="#e1f5fe")
+            
+            # Forcer la mise à jour des tags existants
+            link_ranges = text_widget.tag_ranges("link")
+            if link_ranges:
+                print(f"[DEBUG] {len(link_ranges)//2} liens préservés avec style forcé")
+            
+        except Exception as e:
+            print(f"[DEBUG] Erreur préservation liens: {e}")
 
     def stop_typing_animation(self):
         """Stoppe proprement l'animation de frappe IA (interruption utilisateur)"""
