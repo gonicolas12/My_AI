@@ -1,51 +1,72 @@
-# 📚 Guide d'Utilisation - My Personal AI (100% Local)
+# 📚 Guide d'Utilisation Ultra - My Personal AI v5.0.0 (1M Tokens RÉEL)
 
-## 🚀 Démarrage Rapide
+## 🚀 Démarrage Ultra
 
-### Lancement de l'IA
+### Lancement de l'IA Ultra 1M Tokens
 
 ```bash
-# Interface graphique (recommandée)
-python main.py
+# 🚀 Interface graphique ULTRA (recommandée)
+python launch_ultra.py
+# OU via launcher interactif
+python launcher.py   # Choisir option 1 pour Ultra
 
-# Mode CLI pour utilisateurs experts
-python main.py --cli
+# Interface graphique moderne avec 1M tokens
+python -m interfaces.gui_modern  --ultra
 
-# Commande directe en une ligne
-python main.py chat "Explique-moi les listes en Python"
+# Mode CLI Ultra pour utilisateurs experts
+python main_ultra.py --cli
 
-# Vérifier le statut du système
-python main.py status
+# Commande directe Ultra avec contexte étendu
+python main_ultra.py chat "Analyse ce document complexe en profondeur" --context-1m
+
+# Vérifier le statut du système Ultra
+python main_ultra.py status --ultra-stats
 ```
 
-## 💬 Interactions Intelligentes
+## � Capacités Ultra 1M Tokens
 
-### Reconnaissance d'Intentions
+### 🧠 Contexte Révolutionnaire
 
-L'IA reconnaît automatiquement le type de votre requête :
+Avec **1,048,576 tokens réels**, vous pouvez désormais :
 
-#### 👋 Salutations
+- **Analyser des documents entiers** : PDFs de 50+ pages, code complet
+- **Conversations ultra-longues** : Contexte maintenu sur des heures
+- **Projets complexes** : Analyse multi-fichiers avec mémoire totale
+- **Recherches approfondies** : Internet + contexte massif simultané
+
+### 🔍 Reconnaissance d'Intentions Ultra
+
+L'IA Ultra reconnaît automatiquement et traite avec le contexte étendu :
+
+#### 👋 Salutations avec Stats Ultra
 ```
 🤖 Vous : slt
-🤖 IA : Salut ! Comment puis-je t'aider aujourd'hui ?
+🤖 IA Ultra : Salut ! 🚀 Système 1M tokens opérationnel !
+         📊 Contexte actuel: 0 / 1,048,576 tokens
+         💾 Documents traités: 0
+         🧩 Chunks actifs: 0
+         Comment puis-je t'aider avec ce système ultra-étendu ?
 
 🤖 Vous : bonjour
-🤖 IA : Bonjour ! Que puis-je faire pour vous ?
-
-🤖 Vous : bjr
-🤖 IA : Bjr ! En quoi puis-je vous assister ?
+🤖 IA Ultra : Bonjour ! 🎯 Mode Ultra 1M tokens activé !
+         Capacités : analyse complète documents, contexte massif,
+         mémoire persistante. Que souhaitez-vous explorer ?
 ```
 
-#### 💻 Questions Techniques/Code
+#### 💻 Questions Techniques Ultra avec Contexte Massif
 ```
-🤖 Vous : Comment créer une fonction en Python ?
-🤖 IA : [Réponse technique détaillée avec exemples de code]
+🤖 Vous : Analyse complète de ce projet Python de 50 fichiers
+🤖 IA Ultra : [Analyse ultra-détaillée avec :
+              - Contexte de TOUS les fichiers simultanément
+              - Relations entre modules complètes
+              - Suggestions d'optimisation globales
+              - Patterns de design détectés
+              - Documentation générée automatiquement]
 
-🤖 Vous : Explique les décorateurs Python
-🤖 IA : [Explication approfondie avec exemples pratiques]
-
-🤖 Vous : Comment déboguer ce code ?
-🤖 IA : [Conseils de débogage et bonnes pratiques]
+🤖 Vous : Continue cette conversation de 2000 messages
+🤖 IA Ultra : [Accès immédiat à TOUT l'historique de conversation
+              grâce au contexte 1M tokens, réponses cohérentes
+              avec références précises aux échanges précédents]
 ```
 
 #### 📄 Questions sur Documents

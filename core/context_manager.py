@@ -5,6 +5,25 @@ import os
 import json
 from typing import List, Dict, Any
 
+class ContextManager:
+    """Gestionnaire de contexte pour l'IA"""
+    
+    def __init__(self, max_length: int = 2048):
+        self.max_length = max_length
+        self.context_history = []
+    
+    def add_context(self, text: str):
+        """Ajoute du contexte"""
+        self.context_history.append(text)
+    
+    def get_context(self) -> str:
+        """Récupère le contexte avec fenêtre glissante"""
+        return sliding_window_context(self.context_history, self.max_length)
+    
+    def clear_context(self):
+        """Vide le contexte"""
+        self.context_history = []
+
 def sliding_window_context(history: List[str], max_len: int = 2048) -> str:
     """Concatène l'historique en gardant les derniers tokens jusqu'à max_len."""
     context = ""

@@ -6,7 +6,7 @@ import sys
 import os
 
 def main():
-    print("🎊 MY_AI ULTRA v6.0")
+    print("🎊 MY_AI ULTRA v5.0")
     print("🎯 1 Million de tokens disponibles")
     print("=" * 40)
     

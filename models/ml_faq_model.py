@@ -113,14 +113,12 @@ class MLFAQModel:
             fuzzy_scores = [fuzz.ratio(norm_q, q) for q in self.questions]
             best_fuzzy_idx = int(max(range(len(fuzzy_scores)), key=lambda i: fuzzy_scores[i]))
             best_fuzzy_score = fuzzy_scores[best_fuzzy_idx]
-            print(f"[MLFAQModel] Fuzzy best score: {best_fuzzy_score} for '{self.questions[best_fuzzy_idx]}'")
             if best_fuzzy_score >= seuil_fuzzy:
                 print(f"[MLFAQModel] Match fuzzy trouvé pour: '{norm_q}' (score={best_fuzzy_score})")
                 return self.answers[best_fuzzy_idx]
         except ImportError:
             print("[MLFAQModel] rapidfuzz non installé, pas de fuzzy matching")
             return None
-        print(f"[MLFAQModel] Aucun match trouvé pour: '{norm_q}'")
         return None
 
     def reload(self):

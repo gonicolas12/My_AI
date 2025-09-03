@@ -1,12 +1,12 @@
 @echo off
 chcp 65001 >nul
 REM ====================================
-REM My Personal AI ULTRA - Lanceur v6.0
+REM My Personal AI ULTRA - Lanceur v5.0
 REM ====================================
 
 echo.
-echo MY PERSONAL AI ULTRA v6.0 - 1M TOKENS
-echo =======================================
+echo MY PERSONAL AI v5.0
+echo ======================
 echo.
 
 REM Verifier Python
@@ -43,8 +43,8 @@ REM Menu de choix
 :menu
 echo.
 echo Que voulez-vous faire ?
-echo 1. Interface ULTRA (1M tokens) - RECOMMANDE
-echo 2. Interface moderne (optimisee)
+echo 1. Interface Graphique Moderne - RECOMMANDE
+echo 2. Interface optimisee
 echo 3. Test complet de tous les modules
 echo 4. Audit et validation du systeme
 echo 5. Menu de demarrage interactif
@@ -95,7 +95,7 @@ goto end
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Une erreur s'est produite
-    echo [AIDE] Essayez: python diagnostic.py
+    echo [AIDE] Essayez: python main.py
     pause
 )
 echo.

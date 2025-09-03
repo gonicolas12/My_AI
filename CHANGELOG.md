@@ -1,4 +1,49 @@
-# 📋 CHANGELOG - My Personal AI
+# 📋 CHANGELOG - My Personal AI Ultra
+
+# 🚀 Version 5.0.0 - SYSTÈME 1 MILLION DE TOKENS RÉEL (3 Septembre 2025)
+
+### 🎯 RÉVOLUTION ULTRA : 1,048,576 TOKENS DE CONTEXTE RÉEL
+
+#### 💥 Capacités Ultra-Étendues
+- **1,048,576 tokens de contexte RÉEL** (1M tokens, vs 4K-8K standards)
+- **Architecture 100% locale** avec persistance SQLite optimisée
+- **Compression intelligente multi-niveaux** : 2.4:1 à 52:1 selon le contenu
+- **Gestion automatique de la mémoire** et auto-optimisation
+- **Recherche sémantique ultra-rapide** avec TF-IDF et similarité cosinus
+
+#### 🧠 Nouveaux Composants Ultra
+- **UltraCustomAI** : Modèle principal avec contexte étendu
+- **IntelligentContextManager** : Gestionnaire de contexte intelligent avec ML
+- **MillionTokenContextManager** : Persistance et compression avancée
+- **FileProcessor** : Processeur unifié pour tous types de fichiers
+- **GUI Ultra Modern** : Interface optimisée pour le système 1M tokens
+
+#### 🔧 Améliorations Techniques Majeures
+- **Chunking intelligent** avec détection automatique de blocs logiques
+- **Compression adaptative** : texte, code, documents selon leur nature
+- **Base de données SQLite** avec indexation pour performances optimales
+- **Système de fallback** pour toutes les dépendances optionnelles (sklearn, etc.)
+- **Architecture modulaire** avec imports robustes et gestion d'erreurs
+
+#### 🎨 Interface Utilisateur Ultra
+- **Support des blocs de code Python** avec coloration syntaxique Pygments
+- **Formatage Markdown avancé** avec gras, italique, liens cliquables
+- **Animation de frappe** optimisée pour les réponses longues (1M tokens)
+- **Hauteur adaptative** automatique selon le contenu des réponses
+- **Nettoyage des messages de debug** pour une expérience utilisateur fluide
+
+#### 🐛 Corrections et Stabilité
+- **Résolution des erreurs d'import** : chemins corrigés, dépendances installées
+- **Compatibility multiplateforme** avec fallbacks pour toutes les librairies
+- **Gestion d'erreurs robuste** dans tous les composants critiques
+- **Optimisation mémoire** pour éviter les débordements avec 1M tokens
+
+#### 📊 Statistiques et Monitoring
+- **Métriques en temps réel** : tokens utilisés, documents traités, chunks créés
+- **Vérification système** automatique des composants Ultra
+- **Logs optimisés** pour le débogage sans spam utilisateur
+
+---
 
 # 🧠 Version 4.0.0 - FAQ Thématique & Robustesse (25 Juillet 2025)
 

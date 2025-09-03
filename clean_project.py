@@ -183,7 +183,7 @@ import sys
 import os
 
 def main():
-    print("🎊 MY_AI ULTRA v6.0")
+    print("🎊 MY_AI ULTRA v5.0")
     print("🎯 1 Million de tokens disponibles")
     print("=" * 40)
     
@@ -235,7 +235,7 @@ def main():
     create_final_launcher()
     
     print(f"\n🎊 NETTOYAGE DÉFINITIF TERMINÉ !")
-    print(f"🔥 My_AI Ultra v6.0 est maintenant PROPRE et OPTIMISÉ !")
+    print(f"🔥 My_AI Ultra v5.0 est maintenant PROPRE et OPTIMISÉ !")
     
     print(f"\n💡 RÉPONSE À VOS QUESTIONS:")
     print(f"✅ OUI, launch.bat utilise maintenant les 1M tokens")

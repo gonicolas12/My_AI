@@ -1,52 +1,59 @@
-# 📖 Guide d'Installation - My Personal AI (100% Local)
+# 📖 Guide d'Installation - My Personal AI ULTRA v5.0.0 (1M Tokens RÉEL)
 
-## 🎯 Vue d'Ensemble
+## 🎯 Vue d'Ensemble Ultra
 
-My Personal AI est conçu pour fonctionner **entièrement localement** sans dépendance à des services externes comme OpenAI, Claude, ou autres APIs. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI Ultra v5.0.0 introduit le **système révolutionnaire de 1 Million de tokens RÉEL** fonctionnant **entièrement localement** sans dépendance à des services externes. Cette installation vous guide pour mettre en place votre IA ultra-performante, privée et sécurisée avec capacités étendues.
 
-## 🚀 Installation Express (5 minutes)
+## 🚀 Installation Express Ultra (7 minutes)
 
-### 1. Prérequis Minimaux
+### 1. Prérequis Pour le Système Ultra
 
-- **Python 3.8+** (recommandé: Python 3.10+)
-- **~100 MB d'espace disque**
-- **4 GB RAM minimum** (8 GB recommandé)
+- **Python 3.9+** (REQUIS: Python 3.10+ pour performances optimales 1M tokens)
+- **~500 MB d'espace disque** (pour la base SQLite et cache intelligent)
+- **8 GB RAM minimum** (16 GB recommandé pour 1M tokens)
 - **Windows/Linux/macOS** supportés
 - **Aucune connexion internet requise** après installation
+- **Processeur moderne** (pour compression et recherche sémantique)
 
-### 2. Installation Automatique
+### 2. Installation Automatique Ultra
 
 ```bash
 # 1. Aller dans le répertoire du projet
 cd My_AI
 
-# 2. Installer toutes les dépendances
+# 2. Installer TOUTES les dépendances Ultra (ML inclus)
 pip install -r requirements.txt
 
-# 3. Lancement immédiat
-.\launch.bat
+# Dépendances Ultra spécifiques :
+pip install scikit-learn customtkinter pdfplumber python-docx requests beautifulsoup4 pygments
+
+# 3. Lancement Ultra immédiat
+.\launch_ultra.bat   # 🚀 NOUVEAU : Lancement mode Ultra
+# OU
+python launch_ultra.py
 ```
 
-C'est tout ! Votre IA locale est prête à fonctionner.
-
-### 3. Vérification de l'Installation
+### 3. Vérification du Système Ultra
 
 ```bash
-# Test rapide de fonctionnement
-python main.py chat "slt"
+# Test du système 1M tokens
+python launch_ultra.py
 
-# Vérification du statut
-python main.py status
+# Vérification du statut Ultra
+python main_ultra.py status
 
-# Test de traitement de fichier (si vous avez un PDF/DOCX)
-python main.py process votre_document.pdf
+# Test de traitement de gros documents (NOUVEAU)
+python main_ultra.py process gros_document.pdf --ultra
+
+# Statistiques contexte 1M tokens
+python -c "from models.ultra_custom_ai import UltraCustomAI; print(UltraCustomAI().get_context_stats())"
 ```
 
-## 🧠 Architecture 100% Locale
+## 🧠 Architecture Ultra 1M Tokens 100% Locale
 
-### Composants Internes
+### Nouveaux Composants Ultra
 
-L'IA utilise exclusivement des composants locaux :
+L'IA Ultra utilise exclusivement des composants locaux révolutionnaires :
 
 - **Moteur IA Custom** : Logique de raisonnement développée spécialement
 - **Reconnaissance d'intentions** : Patterns linguistiques locaux

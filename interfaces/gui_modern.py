@@ -1,6 +1,7 @@
 """
 Interface Graphique Moderne - My AI Personal Assistant
 Inspirée de l'interface Claude avec animations et design moderne
+🚀 MAINTENANT AVEC SYSTÈME 1M TOKENS !
 """
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
@@ -19,6 +20,15 @@ import webbrowser
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 🚀 NOUVEAU: Import du système 1M tokens
+try:
+    from models.ultra_custom_ai import UltraCustomAIModel
+    ULTRA_1M_AVAILABLE = True
+    print("🚀 Système 1M tokens intégré à l'interface moderne !")
+except ImportError:
+    ULTRA_1M_AVAILABLE = False
+    print("📝 Interface moderne en mode standard")
+
 # Imports pour asyncio
 import asyncio
 import concurrent.futures
@@ -29,6 +39,7 @@ try:
 except ImportError:
     CTK_AVAILABLE = False
     # CustomTkinter non disponible, utilisation de tkinter standard
+    import tkinter as ctk  # Fallback vers tkinter standard
 
 try:
     from tkinterdnd2 import TkinterDnD
@@ -62,15 +73,13 @@ try:
 except ImportError:
     CTK_AVAILABLE = False
     # CustomTkinter non disponible, utilisation de tkinter standard
+    import tkinter as ctk  # Fallback vers tkinter standard
 
 try:
     from core.ai_engine import AIEngine
     from core.config import Config
-    from processors.pdf_processor import PDFProcessor
-    from processors.docx_processor import DOCXProcessor
-    from processors.code_processor import CodeProcessor
-    from utils.logger import Logger
-    from utils.file_manager import FileManager
+    from utils.file_processor import FileProcessor
+    from utils.logger import setup_logger
 except ImportError as e:
     # Fallback for direct execution
     import sys
@@ -82,11 +91,8 @@ except ImportError as e:
     
     from core.ai_engine import AIEngine
     from core.config import Config
-    from processors.pdf_processor import PDFProcessor
-    from processors.docx_processor import DOCXProcessor
-    from processors.code_processor import CodeProcessor
-    from utils.logger import Logger
-    from utils.file_manager import FileManager
+    from utils.file_processor import FileProcessor
+    from utils.logger import setup_logger
 
 
 class ModernAIGUI:
@@ -344,17 +350,33 @@ class ModernAIGUI:
     """Interface Graphique Moderne pour l'Assistant IA - Style Claude"""
     
     def __init__(self):
-        """Initialise l'interface moderne"""
+        """Initialise l'interface moderne avec système 1M tokens"""
         self.is_interrupted = False  # Pour interruption robuste
-        self.logger = Logger.get_logger("modern_ai_gui")
+        self.logger = setup_logger("modern_ai_gui")
         self.config = Config()
+        
+        # 🚀 NOUVEAU: Initialisation avec système 1M tokens si disponible
+        if ULTRA_1M_AVAILABLE:
+            print("🚀 Interface moderne avec système 1M tokens !")
+            try:
+                base_ai = AIEngine(self.config)
+                self.ultra_ai = UltraCustomAIModel(base_ai)
+                # Afficher les stats initiales
+                stats = self.ultra_ai.get_context_stats()
+                print(f"📊 Contexte initial: {stats.get('current_tokens', 0):,} / {stats.get('max_context_length', 1000000):,} tokens")
+                print(f"� Documents: {stats.get('documents_processed', 0)}")
+            except Exception as e:
+                print(f"⚠️ Erreur initialisation Ultra: {e}")
+                self.ultra_ai = None
+        else:
+            print("📝 Interface moderne en mode standard")
+            self.ultra_ai = None
+        
+        # AIEngine classique pour compatibilité
         self.ai_engine = AIEngine(self.config)
-        self.file_manager = FileManager()
-
-        # Processors
-        self.pdf_processor = PDFProcessor()
-        self.docx_processor = DOCXProcessor()
-        self.code_processor = CodeProcessor()
+        
+        # File processor unifié
+        self.file_processor = FileProcessor()
 
         # État de l'application
         self.is_thinking = False
@@ -397,6 +419,9 @@ class ModernAIGUI:
         
         text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
         text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        
+        # 🔧 NOUVEAU : Tag pour placeholder de code
+        text_widget.tag_configure("code_placeholder", font=BASE_FONT, foreground=self.colors['text_primary'])
         
         # 🔧 PYTHON COMPLET - Couleurs VS Code EXACTES
         
@@ -1664,7 +1689,7 @@ class ModernAIGUI:
         self.typing_index = 0
         self.typing_text = full_text
         self.typing_widget = text_widget
-        self.typing_speed = 2
+        self.typing_speed = 1
         
         # Configurer tous les tags de formatage
         self._configure_formatting_tags(text_widget)
@@ -1676,7 +1701,7 @@ class ModernAIGUI:
         self.continue_typing_animation_dynamic()
 
     def continue_typing_animation_dynamic(self):
-        """Animation AVEC formatage en temps réel - CORRIGÉE pour suivi et formatage Python"""
+        """Animation simplifiée - BLOCS PYTHON EN TEXTE BRUT pendant animation"""
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
         
@@ -1690,8 +1715,7 @@ class ModernAIGUI:
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             
-            # 🔧 CORRECTION : Formatage complet avec liens même pendant l'animation
-            self._insert_markdown_and_links(self.typing_widget, current_text)
+            self._insert_markdown_segments(self.typing_widget, current_text)
             
             # Ajuster la hauteur
             self._adjust_height_during_animation(self.typing_widget, current_text)
@@ -1699,25 +1723,250 @@ class ModernAIGUI:
             self.typing_widget.configure(state="disabled")
             self.typing_index += 1
             
-            # 🔧 CORRECTION CLÉE : Scroll intelligent qui suit l'animation
+            # 🔧 DÉTECTION DE BLOCS PYTHON pour ajuster le délai
+            next_chars = self.typing_text[self.typing_index:self.typing_index + 10] if self.typing_index < len(self.typing_text) - 10 else ""
+            delay = self.typing_speed
+            
+            # Si on vient d'insérer ou on va insérer du code Python, ralentir
+            if "```python" in current_text[-50:] or "```python" in next_chars:
+                delay = self.typing_speed * 3  # 3x plus lent pour les blocs Python
+                print(f"[DEBUG] Bloc Python détecté, délai augmenté à {delay}ms")
+            
+            # 🔧 SCROLL SIMPLE mais appelé APRÈS les mises à jour
             self._smart_scroll_follow_animation()
             
-            self._typing_animation_after_id = self.root.after(self.typing_speed, self.continue_typing_animation_dynamic)
+            self._typing_animation_after_id = self.root.after(delay, self.continue_typing_animation_dynamic)
         else:
-            # À la fin : formatage complet avec liens
+            # À la fin : formatage complet avec liens ET blocs de code Python
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
             
-            # 🔧 FORMATAGE FINAL COMPLET
-            self._insert_markdown_and_links(self.typing_widget, self.typing_text)
+            # 🔧 FORMATAGE FINAL COMPLET avec support des blocs ```python```
+            self._insert_complete_markdown_with_code(self.typing_widget, self.typing_text)
             
             # Ajustement final de hauteur
             self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
             
+            # Force refresh pour s'assurer que les blocs Python sont affichés
+            self.typing_widget.update_idletasks()
+            
             self.finish_typing_animation_dynamic(interrupted=False)
 
     def _smart_scroll_follow_animation(self):
-        """Scroll intelligent qui suit l'animation sans sauter à la fin"""
+        """Scroll simple mais efficace qui suit toujours l'animation"""
+        try:
+            if self.use_ctk:
+                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
+                    canvas = self.chat_frame._parent_canvas
+                    
+                    # 🔧 APPROCHE SIMPLE : Toujours aller vers le bas
+                    canvas.update_idletasks()
+                    
+                    # Forcer le scroll vers le bas à chaque fois
+                    canvas.yview_moveto(1.0)
+                    
+                    # Mise à jour immédiate
+                    canvas.update()
+                        
+            else:
+                # Version tkinter standard
+                parent = self.chat_frame.master
+                if hasattr(parent, 'yview_moveto'):
+                    parent.update_idletasks()
+                    parent.yview_moveto(1.0)
+                    parent.update()
+                    
+        except Exception as e:
+            print(f"[DEBUG] Erreur scroll animation: {e}")
+
+    def _force_scroll_to_bottom(self):
+        """Force un scroll vers le bas quand un gros contenu est ajouté"""
+        try:
+            if self.use_ctk:
+                if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
+                    canvas = self.chat_frame._parent_canvas
+                    canvas.update_idletasks()
+                    # Scroll directement vers le bas avec une petite marge
+                    canvas.yview_moveto(0.9)  # Pas tout à fait au bas pour laisser de l'espace
+                    canvas.update()
+            else:
+                parent = self.chat_frame.master
+                if hasattr(parent, 'yview_moveto'):
+                    parent.update_idletasks()
+                    parent.yview_moveto(0.9)
+                    parent.update()
+        except Exception as e:
+            print(f"[DEBUG] Erreur force scroll: {e}")
+
+    def _is_internet_search_message(self):
+        """Détecte si le message en cours de frappe contient des sources de recherche internet"""
+        if not hasattr(self, 'typing_text') or not self.typing_text:
+            return False
+        
+        text = self.typing_text
+        
+        # 🔧 AMÉLIORATION : Indicateurs plus précis pour les sources de recherche internet
+        search_indicators = [
+            # Patterns spécifiques aux sources
+            'Sources :',
+            'Sources:',
+            'Source :',
+            'Source:',
+            
+            # Patterns de liens numérotés (typiques des sources)
+            '1. [',
+            '2. [',
+            '3. [',
+            '4. [',
+            '5. [',
+            
+            # Patterns d'URLs avec contexte de source
+            '] (http',
+            '] (https',
+            '](http',
+            '](https',
+            
+            # Autres indicateurs de recherche web
+            'Visitez',
+            'consultez',
+            'source officielle',
+            'selon',
+            'D\'après'
+        ]
+        
+        # Vérifier la présence de patterns spécifiques
+        strong_indicators = ['Sources :', 'Sources:', 'Source :', 'Source:']
+        weak_indicators = ['http://', 'https://']
+        
+        # Vérification forte : présence d'indicateurs de sources
+        has_strong_indicator = any(indicator in text for indicator in strong_indicators)
+        
+        # Vérification faible : présence de liens
+        link_count = sum(text.count(indicator) for indicator in weak_indicators)
+        
+        # Vérification des liens numérotés (pattern typique des sources)
+        numbered_links = sum(1 for i in range(1, 6) if f'{i}. [' in text)
+        
+        # 🔧 LOGIQUE DE DÉCISION AMÉLIORÉE
+        # C'est une source de recherche si :
+        # - Il y a un indicateur fort (Sources:) OU
+        # - Il y a au moins 2 liens ET au moins 1 lien numéroté OU
+        # - Il y a au moins 3 liens (probable liste de sources)
+        is_search_result = (
+            has_strong_indicator or
+            (link_count >= 2 and numbered_links >= 1) or
+            link_count >= 3
+        )
+        
+        return is_search_result
+
+    def _is_in_incomplete_code_block(self, text):
+        """Détecte si le texte contient un bloc de code Python incomplet"""
+        import re
+        
+        # Compter les balises d'ouverture et de fermeture
+        opening_tags = len(re.findall(r'```python', text))
+        closing_tags = len(re.findall(r'```(?!\w)', text))  # ``` non suivi d'une lettre
+        
+        # Si on a plus d'ouvertures que de fermetures, on est dans un bloc incomplet
+        in_incomplete_block = opening_tags > closing_tags
+        
+        # 🔧 CORRECTION : Vérifier aussi si le dernier bloc ouvert est complet
+        if in_incomplete_block:
+            # Trouver la dernière balise d'ouverture
+            last_opening = text.rfind('```python')
+            if last_opening != -1:
+                # Vérifier s'il y a une balise de fermeture après
+                text_after_opening = text[last_opening + 9:]  # 9 = len('```python')
+                has_closing = '```' in text_after_opening
+                
+                # Si pas de fermeture OU si le texte finit par une fermeture partielle
+                if not has_closing or text_after_opening.rstrip().endswith('``'):
+                    return True
+        
+        return False
+
+    def _insert_text_with_safe_formatting(self, text_widget, text):
+        """Formatage sécurisé qui ne traite que les blocs de code complets"""
+        import re
+        
+        # 🔧 STRATÉGIE : Séparer le texte en deux parties
+        # 1. La partie avec blocs complets qu'on peut formatter
+        # 2. La partie avec bloc incomplet qu'on affiche en texte brut
+        
+        # Trouver tous les blocs de code complets
+        complete_blocks_pattern = r'```python\n(.*?)```'
+        matches = list(re.finditer(complete_blocks_pattern, text, re.DOTALL))
+        
+        if not matches:
+            # Pas de blocs complets, vérifier s'il y a un bloc en cours
+            if '```python' in text:
+                # Il y a un bloc en cours mais incomplet
+                # Trouver où commence le bloc incomplet
+                incomplete_start = text.rfind('```python')
+                if incomplete_start != -1:
+                    # Formatter la partie avant le bloc incomplet
+                    text_before_incomplete = text[:incomplete_start]
+                    incomplete_part = text[incomplete_start:]
+                    
+                    if text_before_incomplete:
+                        self._insert_markdown_segments(text_widget, text_before_incomplete)
+                    
+                    # Afficher la partie incomplète en texte brut (sans formatage)
+                    text_widget.insert("end", incomplete_part, "normal")
+                    return
+            
+            # Pas de blocs Python du tout, formatage normal
+            self._insert_markdown_segments(text_widget, text)
+            return
+        
+        # Il y a des blocs complets, les traiter normalement
+        last_end = 0
+        
+        for match in matches:
+            # Formatter le texte avant ce bloc
+            if match.start() > last_end:
+                text_before = text[last_end:match.start()]
+                self._insert_markdown_segments(text_widget, text_before)
+            
+            # Afficher le bloc complet avec formatage
+            block_text = match.group(0)  # Le bloc complet avec ```python```
+            self._insert_markdown_segments(text_widget, block_text)
+            
+            last_end = match.end()
+        
+        # Traiter le reste du texte après le dernier bloc complet
+        if last_end < len(text):
+            remaining_text = text[last_end:]
+            
+            # Vérifier si le reste contient un bloc incomplet
+            if '```python' in remaining_text:
+                incomplete_start = remaining_text.find('```python')
+                text_before_incomplete = remaining_text[:incomplete_start]
+                incomplete_part = remaining_text[incomplete_start:]
+                
+                if text_before_incomplete:
+                    self._insert_markdown_segments(text_widget, text_before_incomplete)
+                
+                # Afficher la partie incomplète sans formatage
+                text_widget.insert("end", incomplete_part, "normal")
+            else:
+                # Pas de bloc incomplet, formatage normal
+                self._insert_markdown_segments(text_widget, remaining_text)
+
+    def _insert_text_simple_during_animation(self, text_widget, text):
+        """Insertion ULTRA-SIMPLE pendant l'animation - AUCUN formatage"""
+        # 🔧 SOLUTION RADICALE : Zéro formatage pendant l'animation
+        # Tout le formatage se fait à la fin seulement
+        
+        # Configuration du tag normal seulement
+        text_widget.tag_configure("normal", font=('Segoe UI', 12), foreground=self.colors['text_primary'])
+        
+        # Insertion brute sans aucun formatage
+        text_widget.insert("end", text, "normal")
+
+    def _normal_scroll_follow_animation(self):
+        """Scroll normal pour les messages non-recherche internet"""
         try:
             if self.use_ctk:
                 if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
@@ -1729,10 +1978,10 @@ class ModernAIGUI:
                     if yview:
                         current_top, current_bottom = yview
                         
-                        # Si on n'est pas déjà en bas, scroller progressivement
+                        # Scroll normal - plus agressif pour le suivi standard
                         if current_bottom < 0.95:  # Pas complètement en bas
-                            # Scroll progressif de quelques pixels seulement
-                            scroll_amount = 0.02  # Très petit increment
+                            # Scroll progressif normal
+                            scroll_amount = 0.02  # Increment standard
                             new_position = min(1.0, current_top + scroll_amount)
                             canvas.yview_moveto(new_position)
             else:
@@ -1811,44 +2060,60 @@ class ModernAIGUI:
             text_widget.configure(height=20)
 
     def _adjust_height_during_animation(self, text_widget, current_text):
-        """Ajuste la hauteur pendant l'animation pour éviter tout scroll interne"""
+        """Ajustement PROGRESSIF et STABLE de la hauteur pendant l'animation"""
         try:
             text_widget.update_idletasks()
             
-            # Compter les lignes réelles du texte actuel
+            # 🔧 CORRECTION : Ajustement restrictif seulement pour les sources de recherche internet
+            is_internet_search = self._is_internet_search_message()
+            
+            # Calcul conservateur du nombre de lignes
             lines = current_text.split('\n')
-            
-            # Calculer la hauteur nécessaire en tenant compte du wrapping
             total_lines = 0
-            widget_width = text_widget.winfo_width()
-            
-            # Si la largeur n'est pas encore calculée, utiliser une valeur par défaut
-            if widget_width <= 50:
-                widget_width = 800  # Largeur approximative
-            
-            # Estimation du nombre de caractères par ligne
-            char_width = 7.2  # Largeur moyenne d'un caractère
-            chars_per_line = max(50, int((widget_width - 30) / char_width))  # -30 pour padding
+            widget_width = 80  # Largeur estimée en caractères
             
             for line in lines:
-                if len(line) == 0:
+                if not line.strip():
                     total_lines += 1
                 else:
-                    # Calculer le nombre de lignes wrapped pour cette ligne
-                    wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
+                    # 🔧 AMÉLIORATION : Tenir compte des liens raccourcis SEULEMENT pour recherche internet
+                    effective_length = len(line)
+                    if is_internet_search and 'http' in line and len(line) > 80:
+                        # Estimation de la longueur effective après raccourcissement
+                        url_count = line.count('http')
+                        effective_length = len(line) - (url_count * 30)  # Réduction moyenne
+                    
+                    wrapped_lines = max(1, (effective_length + widget_width - 1) // widget_width)
                     total_lines += wrapped_lines
             
-            # Ajouter une marge de sécurité
-            safe_height = total_lines + 2
+            # 🔧 NOUVEAU : Ajustement différencié selon le type de message
+            current_height = text_widget.cget('height')
             
-            # Limiter la hauteur maximale pour éviter des bulles énormes
-            final_height = min(safe_height, 50)
+            if is_internet_search:
+                # Pour les sources de recherche : ajustement progressif et limité
+                target_height = max(2, min(total_lines + 1, 15))  # Limiter la hauteur maximale
+                # Ajustement graduel plutôt que brutal
+                if target_height > current_height:
+                    new_height = min(current_height + 2, target_height)  # Augmenter progressivement
+                else:
+                    new_height = target_height
+            else:
+                # Pour les autres messages : ajustement normal plus permissif
+                target_height = max(2, min(total_lines + 2, 25))  # Plus de hauteur autorisée
+                new_height = target_height  # Ajustement direct
             
-            text_widget.configure(height=final_height)
+            text_widget.configure(height=new_height)
             
+            # 🔧 CORRECTION : Vérifier si le contenu dépasse et ajuster si nécessaire
+            text_widget.update_idletasks()
+            yview = text_widget.yview()
+            max_height = 15 if is_internet_search else 25
+            if yview and yview[1] < 1.0 and new_height < max_height:
+                text_widget.configure(height=new_height + 1)
+                
         except Exception as e:
-            # En cas d'erreur, utiliser une hauteur conservative
-            text_widget.configure(height=10)   
+            # Fallback sécurisé
+            text_widget.configure(height=min(8, len(current_text.split('\n')) + 2))   
 
     def _insert_formatted_text_animated(self, text_widget, text):
         """Version allégée du formatage pour l'animation (sans liens pour éviter les ralentissements)"""
@@ -1951,11 +2216,11 @@ class ModernAIGUI:
             
             if interrupted:
                 partial_text = self.typing_text[:self.typing_index]
-                # 🔧 CORRECTION : Utiliser le formatage complet avec liens même pour texte partiel
-                self._insert_markdown_and_links(self.typing_widget, partial_text)
+                # 🔧 CORRECTION : Utiliser le formatage complet même pour texte partiel
+                self._insert_complete_markdown_with_code(self.typing_widget, partial_text)
             else:
-                # 🔧 CORRECTION FINALE : Utiliser _insert_markdown_and_links pour préserver les liens
-                self._insert_markdown_and_links(self.typing_widget, self.typing_text)
+                # 🔧 CORRECTION FINALE : Utiliser le formatage complet avec blocs Python
+                self._insert_complete_markdown_with_code(self.typing_widget, self.typing_text)
             
             # Ajustement final EXACT de la hauteur
             self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
@@ -2218,7 +2483,7 @@ class ModernAIGUI:
             text_widget.configure(height=7)
 
     def _insert_markdown_and_links(self, text_widget, text):
-        """Version CORRIGÉE avec regex fixé pour les liens Markdown"""
+        """Version CORRIGÉE avec regex fixé pour les liens Markdown - AMÉLIORATION scroll"""
         import re
         import webbrowser
         
@@ -2274,8 +2539,14 @@ class ModernAIGUI:
                     continue
             else:  # Lien HTTP direct
                 url = match.group('direct')
-                link_text = url if len(url) <= 50 else url[:47] + "..."
-                print(f"[DEBUG] Lien direct: url='{url}'")
+                # 🔧 CORRECTION CLÉE : Raccourcir intelligemment SEULEMENT pour sources de recherche
+                if self._is_internet_search_message() and len(url) > 60:
+                    # Garder le début et la fin pour rester informatif
+                    link_text = url[:30] + "..." + url[-20:]
+                else:
+                    # Pour les autres messages, laisser le lien tel quel ou raccourcir légèrement
+                    link_text = url if len(url) <= 80 else url[:77] + "..."
+                print(f"[DEBUG] Lien direct: url='{url}', display='{link_text}'")
             
             # Vérification de l'URL
             if not url or not url.strip() or url == 'None':
@@ -2284,7 +2555,7 @@ class ModernAIGUI:
                 last_end = match.end()
                 continue
             
-            # Insérer le lien avec formatage
+            # 🔧 NOUVELLE AMÉLIORATION : Insérer le lien sans forcer le wrap
             start_index = text_widget.index("end-1c")
             text_widget.insert("end", link_text, ("link",))
             end_index = text_widget.index("end-1c")
@@ -2292,6 +2563,13 @@ class ModernAIGUI:
             # Créer un tag unique pour ce lien
             tag_name = f"link_{link_count}"
             text_widget.tag_add(tag_name, start_index, end_index)
+            
+            # 🔧 OPTIMISATION : Configuration du tag pour éviter le wrap agressif
+            text_widget.tag_configure(tag_name, 
+                                    foreground="#3b82f6", 
+                                    underline=True,
+                                    font=('Segoe UI', 12),
+                                    wrap="none")  # Empêcher le wrap automatique
             
             # Callback pour ouvrir le lien
             def create_callback(target_url):
@@ -2334,46 +2612,301 @@ class ModernAIGUI:
         
         print(f"[DEBUG] {link_count} liens traités avec succès")
 
-    def _insert_markdown_segments(self, text_widget, text):
-        """Insère du texte avec formatage - ÉVITE les (args: ...) dans les fonctions"""
+    def _insert_complete_markdown_with_code(self, text_widget, text):
+        """Formatage complet : liens + blocs ```python``` + markdown"""
         import re
+        import webbrowser
+        
+        prev_state = text_widget.cget("state")
+        text_widget.configure(state="normal")
+        
+        # Configuration COMPLÈTE de tous les tags
+        self._configure_all_formatting_tags(text_widget)
+        
+        # 🔧 APPROCHE SIMPLIFIÉE : Traiter directement le texte original SANS placeholders compliqués
+        # Diviser le texte en sections : texte normal et blocs python
+        import re
+        code_pattern = r'```python\n(.*?)```'
+        
+        # Trouver tous les blocs de code
+        code_matches = list(re.finditer(code_pattern, text, flags=re.DOTALL))
+        
+        if not code_matches:
+            # Pas de blocs Python, traitement normal avec liens
+            self._process_text_with_links_only(text_widget, text)
+            return
+        
+        # Traiter section par section
+        last_end = 0
+        link_count = 0
+        
+        for code_match in code_matches:
+            # 1. Traiter le texte AVANT le bloc de code
+            if code_match.start() > last_end:
+                text_before = text[last_end:code_match.start()]
+                link_count += self._process_text_with_links_only(text_widget, text_before, link_count)
+            
+            # 2. Insérer le bloc de code Python
+            code_content = code_match.group(1)
+            text_widget.insert("end", "\n")
+            self._insert_python_code_block_corrected(text_widget, code_content)
+            text_widget.insert("end", "\n")
+            
+            last_end = code_match.end()
+        
+        # 3. Traiter le texte APRÈS le dernier bloc
+        if last_end < len(text):
+            remaining_text = text[last_end:]
+            self._process_text_with_links_only(text_widget, remaining_text, link_count)
+        
+        print(f"[DEBUG] Formatage complet terminé avec approche simplifiée")
+        
+        # Configurer l'état final
+        text_widget.configure(state=prev_state)
+
+    def _process_text_with_links_only(self, text_widget, text, start_link_count=0):
+        """Traite le texte avec liens et markdown, sans blocs de code"""
+        import re
+        import webbrowser
+        
+        # Pattern pour liens Markdown : [texte](url)
+        markdown_link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        # Pattern pour liens HTTP directs
+        http_link_pattern = r'(https?://[^\s\)]+)'
+        # Combinaison des patterns
+        combined_pattern = f'(?P<markdown>{markdown_link_pattern})|(?P<direct>{http_link_pattern})'
+        
+        last_end = 0
+        link_count = start_link_count
+        
+        # Traiter chaque lien
+        for match in re.finditer(combined_pattern, text):
+            # Insérer le texte avant le lien avec formatage markdown
+            if match.start() > last_end:
+                text_before = text[last_end:match.start()]
+                self._insert_simple_markdown(text_widget, text_before)
+            
+            # Traiter le lien
+            if match.group('markdown'):  # Lien Markdown [texte](url)
+                markdown_match = re.match(markdown_link_pattern, match.group('markdown'))
+                if markdown_match:
+                    link_text = markdown_match.group(1)
+                    url = markdown_match.group(2)
+                else:
+                    last_end = match.end()
+                    continue
+            else:  # Lien HTTP direct
+                url = match.group('direct')
+                # Raccourcissement intelligent selon le type de message
+                if len(url) > 60:
+                    link_text = url[:30] + "..." + url[-20:]
+                else:
+                    link_text = url if len(url) <= 80 else url[:77] + "..."
+            
+            # Insérer le lien avec formatage
+            if url and url.strip() and url != 'None':
+                self._insert_link_with_callback(text_widget, link_text, url, link_count)
+                link_count += 1
+            
+            last_end = match.end()
+        
+        # Insérer le reste du texte
+        if last_end < len(text):
+            remaining_text = text[last_end:]
+            self._insert_simple_markdown(text_widget, remaining_text)
+        
+        return link_count - start_link_count
+        
+    def _insert_simple_markdown(self, text_widget, text):
+        """Insère du texte avec formatage markdown simple (bold, italic, mono, titles)"""
+        import re
+        patterns = [
+            (r'^(#{1,6})\s+(.+)$', 'title_markdown'),
+            (r'`([^`]+)`', 'mono'),
+            (r'\*\*([^*\n]+?)\*\*', 'bold'),
+            (r'\*([^*\n]+?)\*', 'italic'),
+        ]
         
         def parse_segments(text, patterns):
             if not patterns:
                 return [(text, 'normal')]
-            
             pattern, style = patterns[0]
             segments = []
             last = 0
-            
-            for m in re.finditer(pattern, text):
+            for m in re.finditer(pattern, text, flags=re.MULTILINE):
                 if m.start() > last:
                     segments.extend(parse_segments(text[last:m.start()], patterns[1:]))
-                
-                # TRAITEMENT SPÉCIAL pour **Args:** et **Returns:**
-                if style == 'args_returns':
-                    word = m.group(1)  # "Args" ou "Returns"
-                    segments.append((f"{word}:", 'bold'))
+                if style == 'title_markdown':
+                    level = len(m.group(1))
+                    title_text = m.group(2)
+                    segments.append((title_text, f'title{min(level, 5)}'))
                 else:
                     segments.append((m.group(1), style))
                 last = m.end()
-                
             if last < len(text):
                 segments.extend(parse_segments(text[last:], patterns[1:]))
             return segments
         
-        # PATTERNS dans l'ordre - Args/Returns spécifiques en premier
-        patterns = [
-            # SEULEMENT les **Args:** et **Returns:** isolés (pas dans les args de fonctions)
-            (r'\*\*(Args|Returns):\*\*(?!\s*[a-z])', 'args_returns'),  # Negative lookahead pour éviter "args: self"
-            (r'`([^`]+)`', 'mono'),                                    # `code`
-            (r'\*\*([^*]+)\*\*', 'bold'),                              # **texte** (autres)
-            (r'\*([^*]+)\*', 'italic'),                                # *texte*
-        ]
-        
-        for segment, style in parse_segments(text, patterns):
-            if segment:
+        segments = parse_segments(text, patterns)
+        for segment, style in segments:
+            if not segment:
+                continue
+            if style.startswith('title'):
+                text_widget.insert("end", segment + "\n", style)
+            else:
                 text_widget.insert("end", segment, style)
+
+    def _insert_link_with_callback(self, text_widget, link_text, url, link_count):
+        """Insère un lien avec callback et formatage"""
+        import webbrowser
+        
+        start_index = text_widget.index("end-1c")
+        text_widget.insert("end", link_text, ("link",))
+        end_index = text_widget.index("end-1c")
+        
+        # Créer un tag unique pour ce lien
+        tag_name = f"link_{link_count}"
+        text_widget.tag_add(tag_name, start_index, end_index)
+        
+        # Configuration du tag
+        text_widget.tag_configure(tag_name, 
+                                foreground="#3b82f6", 
+                                underline=True,
+                                font=('Segoe UI', 12))
+        
+        # Callback pour ouvrir le lien
+        def create_callback(target_url):
+            def on_click(event):
+                try:
+                    clean_url = str(target_url).strip()
+                    if clean_url.startswith(('http://', 'https://')):
+                        webbrowser.open(clean_url)
+                    return "break"
+                except Exception as e:
+                    print(f"[DEBUG] Erreur ouverture lien: {e}")
+                    return "break"
+            return on_click
+        
+        # Bind des événements
+        callback = create_callback(url)
+        text_widget.tag_bind(tag_name, "<Button-1>", callback)
+        text_widget.tag_bind(tag_name, "<Enter>", 
+                        lambda e: text_widget.configure(cursor="hand2"))
+        text_widget.tag_bind(tag_name, "<Leave>", 
+                        lambda e: text_widget.configure(cursor="xterm"))
+        
+        # Assurer la priorité du tag
+        text_widget.tag_raise(tag_name)
+
+    def _insert_markdown_segments(self, text_widget, text, code_blocks=None):
+        """Insère du texte avec formatage amélioré - Support des blocs ```python```"""
+        import re
+        
+        if code_blocks is None:
+            # Formatage progressif pour tous les styles, y compris python
+            def parse_segments(text):
+                segments = []
+                code_pattern = r'```python\n(.*?)(```|$)'
+                pos = 0
+                for match in re.finditer(code_pattern, text, flags=re.DOTALL):
+                    start, end = match.span()
+                    # Avant le bloc python : appliquer markdown normal
+                    if start > pos:
+                        before = text[pos:start]
+                        segments.extend(self._parse_markdown_styles(before))
+                    code_content = match.group(1)
+                    closing = match.group(2)
+                    if closing == '```':
+                        segments.append((code_content, 'code_complete'))
+                    else:
+                        segments.append(('```python\n' + code_content, 'normal'))
+                    pos = end
+                # Après le dernier bloc
+                if pos < len(text):
+                    after = text[pos:]
+                    segments.extend(self._parse_markdown_styles(after))
+                return segments
+            segment_generator = ((seg, style) for seg, style in parse_segments(text))
+        else:
+            print(f"[DEBUG] Nombre de code_blocks à traiter: {len(code_blocks)}")
+            def parse_segments(text, patterns):
+                if not patterns:
+                    return [(text, 'normal')]
+                pattern, style = patterns[0]
+                segments = []
+                last = 0
+                for m in re.finditer(pattern, text):
+                    if m.start() > last:
+                        segments.extend(parse_segments(text[last:m.start()], patterns[1:]))
+                    # TRAITEMENT SPÉCIAL pour **Args:** et **Returns:**
+                    if style == 'args_returns':
+                        word = m.group(1)
+                        segments.append((f"{word}:", 'bold'))
+                    else:
+                        segments.append((m.group(1), style))
+                    last = m.end()
+                if last < len(text):
+                    segments.extend(parse_segments(text[last:], patterns[1:]))
+                return segments
+            # PATTERNS améliorés dans l'ordre
+            patterns = [
+                (r'__CODE_BLOCK_(\d+)__', 'code_placeholder'),
+                (r'\*\*(Args|Returns):\*\*(?!\s*[a-z])', 'args_returns'),
+                (r'^(#{1,6})\s+(.+)$', 'title_markdown'),
+                (r'`([^`]+)`', 'mono'),
+                (r'\*\*([^*\n]+?)\*\*', 'bold'),
+                (r'\*([^*\n]+?)\*', 'italic'),
+            ]
+            segment_generator = ((seg, style) for seg, style in parse_segments(text, patterns))
+        
+        for segment, style in segment_generator:
+            if not segment:
+                continue
+            if style == 'code_complete':
+                text_widget.insert("end", "\n")
+                self._insert_python_code_block_corrected(text_widget, segment)
+                text_widget.insert("end", "\n")
+            elif style == 'code_placeholder':
+                match = re.match(r'__CODE_BLOCK_(\d+)__', segment)
+                if match:
+                    code_index = int(match.group(1))
+                    print(f"[DEBUG] Insertion du bloc de code index={code_index}")
+                    if code_index < len(code_blocks):
+                        text_widget.insert("end", "\n")
+                        self._insert_python_code_block_corrected(text_widget, code_blocks[code_index])
+                        text_widget.insert("end", "\n")
+            elif style.startswith('title'):
+                text_widget.insert("end", segment + "\n", style)
+            else:
+                text_widget.insert("end", segment, style)
+
+    def _parse_markdown_styles(self, text):
+        """Parse markdown styles (bold, italic, titles, inline code) for non-python segments."""
+        import re
+        patterns = [
+            (r'^(#{1,6})\s+(.+)$', 'title_markdown'),
+            (r'`([^`]+)`', 'mono'),
+            (r'\*\*([^*\n]+?)\*\*', 'bold'),
+            (r'\*([^*\n]+?)\*', 'italic'),
+        ]
+        segments = []
+        last = 0
+        for pattern, style in patterns:
+            for m in re.finditer(pattern, text, flags=re.MULTILINE):
+                if m.start() > last:
+                    segments.append((text[last:m.start()], 'normal'))
+                if style == 'title_markdown':
+                    level = len(m.group(1))
+                    title_text = m.group(2)
+                    segments.append((title_text, f'title{min(level, 5)}'))
+                else:
+                    segments.append((m.group(1), style))
+                last = m.end()
+            text = text[last:]
+            last = 0
+        if text:
+            segments.append((text, 'normal'))
+        return segments
 
     def show_copy_notification(self, message):
         """Affiche une notification GUI élégante pour la copie"""
@@ -3412,10 +3945,24 @@ class ModernAIGUI:
             intent = 'unknown'
             confidence = 0.0
 
-        # Correction : toujours passer la question à AIEngine.process_text pour garantir la priorité FAQ/ML
-        print(f"[DEBUG] (ModernAIGUI) Question transmise à AIEngine.process_text : {repr(user_text)}")
+        # 🚀 NOUVEAU: Utiliser le système 1M tokens si disponible
+        print(f"[DEBUG] (ModernAIGUI) Question transmise - Mode {'Ultra 1M' if self.ultra_ai else 'Standard'} : {repr(user_text)}")
         try:
-            response = self.ai_engine.process_text(user_text)
+            if self.ultra_ai:
+                # 🚀 Utiliser le système 1M tokens
+                print("🚀 Traitement avec système 1M tokens...")
+                response = self.ultra_ai.generate_response(user_text)
+                
+                # Afficher les stats après traitement (optionnel)
+                try:
+                    stats = self.ultra_ai.get_ultra_stats()
+                    if stats['active_tokens'] > 100000:  # Plus de 100K tokens
+                        print(f"📊 Contexte après traitement: {stats['active_tokens']:,} tokens")
+                except:
+                    pass
+            else:
+                # Mode standard avec AIEngine classique
+                response = self.ai_engine.process_text(user_text)
         except Exception as e:
             response = f"❌ Erreur IA : {e}"
         if self.current_request_id == request_id and not self.is_interrupted:
@@ -3466,7 +4013,6 @@ class ModernAIGUI:
         threading.Thread(target=run_async_task, daemon=True).start()
     
     def add_ai_response(self, response):
-        print(f"[DEBUG] add_ai_response called with response: {str(response)[:60]}")
         """Ajoute une réponse de l'IA - VERSION CORRIGÉE pour affichage complet"""
         # Debug removed
         
@@ -3674,7 +4220,12 @@ class ModernAIGUI:
     
     def show_welcome_message(self):
         """Affiche le message de bienvenue initial"""
-        welcome_text = """Bonjour ! Je suis votre **Assistant IA Local** 🤖
+        # Détection des capacités Ultra (1M tokens)
+        ultra_status = ""
+        if hasattr(self, 'ultra_ai') and self.ultra_ai:
+            ultra_status = """ (Mode **Ultra**)"""
+        
+        welcome_text = f"""Bonjour ! Je suis votre **Assistant IA Local** 🤖{ultra_status}
 
     Je peux vous aider avec :
     • **Conversations naturelles** : Discutez avec moi, posez-moi toutes vos questions et obtenez des réponses claires.
@@ -3765,42 +4316,77 @@ class ModernAIGUI:
             messagebox.showerror("Erreur", f"Impossible de charger le fichier: {e}")
     
     def process_file_background(self, file_path, file_type, filename):
-        """Traite le fichier en arrière-plan"""
+        """Traite le fichier en arrière-plan avec système 1M tokens"""
         try:
             self.logger.info(f"Traitement du fichier: {filename} (type: {file_type})")
             
-            if file_type == "PDF":
-                self.logger.info("Extraction PDF en cours...")
-                content = self.pdf_processor.extract_text_from_pdf(file_path)
-                self.logger.info(f"PDF extrait: {len(content)} caractères")
-            elif file_type == "DOCX":
-                self.logger.info("Extraction DOCX en cours...")
-                content = self.docx_processor.extract_text_from_docx(file_path)
-                self.logger.info(f"DOCX extrait: {len(content)} caractères")
-            elif file_type == "Code":
-                self.logger.info("Extraction code en cours...")
-                content = self.code_processor.extract_text_from_file(file_path)
-                self.logger.info(f"Code extrait: {len(content)} caractères")
-            else:
-                raise ValueError(f"Type de fichier non supporté: {file_type}")
+            # Utiliser le processeur unifié
+            result = self.file_processor.process_file(file_path)
+            
+            if result.get('error'):
+                raise ValueError(result['error'])
+            
+            content = result.get('content', '')
+            self.logger.info(f"Fichier traité: {len(content)} caractères")
             
             # Vérifier que le contenu n'est pas vide
             if not content or not content.strip():
                 raise ValueError(f"Le fichier {filename} semble vide ou illisible")
             
-            # Stocker dans la mémoire de l'IA
+            # 🚀 NOUVEAU: Stocker dans le système 1M tokens si disponible
+            chunks_created = 0
+            if self.ultra_ai:
+                try:
+                    self.logger.info(f"🚀 Ajout au système 1M tokens: {filename}")
+                    
+                    if file_type == "Code":
+                        chunk_ids = self.ultra_ai.add_code_to_mega_context(content, filename)
+                    else:
+                        chunk_ids = self.ultra_ai.add_document_to_mega_context(content, filename)
+                    
+                    chunks_created = len(chunk_ids)
+                    
+                    # Statistiques après ajout
+                    stats = self.ultra_ai.get_ultra_stats()
+                    self.logger.info(f"📊 Nouveau contexte: {stats['active_tokens']:,} tokens ({stats['utilization_percent']:.1f}%)")
+                    
+                    print(f"🚀 Document ajouté au système 1M tokens: {chunks_created} chunks créés")
+                    
+                except Exception as e:
+                    self.logger.warning(f"Erreur ajout système 1M tokens: {e}")
+                    chunks_created = 0
+            
+            # Stocker aussi dans la mémoire classique pour compatibilité
             if hasattr(self.ai_engine, 'local_ai') and hasattr(self.ai_engine.local_ai, 'conversation_memory'):
                 self.ai_engine.local_ai.conversation_memory.store_document_content(filename, content)
-                self.logger.info(f"Contenu stocké dans la mémoire de l'IA pour {filename}")
+                self.logger.info(f"Contenu stocké dans la mémoire classique pour {filename}")
             else:
-                self.logger.warning("Mémoire de conversation non disponible")
+                self.logger.warning("Mémoire de conversation classique non disponible")
             
             # Arrêter l'animation
             self.is_thinking = False
             
-            # Confirmer le traitement avec un aperçu du contenu
+            # Confirmer le traitement avec informations système 1M tokens
             preview = content[:200] + "..." if len(content) > 200 else content
-            success_msg = f"✅ **{filename}** traité avec succès !\n\n**Aperçu du contenu:**\n{preview}\n\nVous pouvez maintenant me poser des questions dessus."
+            
+            if chunks_created > 0:
+                # Message avec informations 1M tokens
+                stats = self.ultra_ai.get_ultra_stats()
+                success_msg = f"""✅ **{filename}** traité avec succès !
+
+🚀 **Ajouté au système 1M tokens:**
+• {chunks_created} chunks créés
+• Contexte total: {stats['active_tokens']:,} / {stats['max_tokens']:,} tokens
+• Utilisation: {stats['utilization_percent']:.1f}%
+
+**Aperçu du contenu:**
+{preview}
+
+Vous pouvez maintenant me poser des questions sur ce document. Le système 1M tokens permettra une analyse approfondie !"""
+            else:
+                # Message standard
+                success_msg = f"✅ **{filename}** traité avec succès !\n\n**Aperçu du contenu:**\n{preview}\n\nVous pouvez maintenant me poser des questions dessus."
+            
             self.root.after(0, lambda: self.add_ai_response(success_msg))
             
         except Exception as e:

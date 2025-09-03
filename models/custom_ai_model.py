@@ -18,6 +18,14 @@ from .reasoning_engine import ReasoningEngine
 from .conversation_memory import ConversationMemory
 from .internet_search import InternetSearchEngine
 
+# Import du calculateur intelligent
+try:
+    from utils.intelligent_calculator import intelligent_calculator
+    CALCULATOR_AVAILABLE = True
+except ImportError:
+    CALCULATOR_AVAILABLE = False
+    print("⚠️ Calculateur intelligent non disponible")
+
 
 class CustomAIModel(BaseAI):
     """Modèle IA personnalisé avec architecture modulaire et mémoire persistante"""
@@ -25,7 +33,7 @@ class CustomAIModel(BaseAI):
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "4.3.0"
+        self.version = "5.0.0"
         
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -60,7 +68,7 @@ class CustomAIModel(BaseAI):
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre."
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 4.3.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 5.0.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine."
             ],
@@ -154,6 +162,16 @@ class CustomAIModel(BaseAI):
     def generate_response(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Génère une réponse avec gestion améliorée des documents"""
         try:
+            # 🧮 PRIORITÉ 1: Vérification si c'est un calcul
+            if CALCULATOR_AVAILABLE and intelligent_calculator.is_calculation_request(user_input):
+                print(f"🧮 Calcul détecté: {user_input}")
+                calc_result = intelligent_calculator.calculate(user_input)
+                response = intelligent_calculator.format_response(calc_result)
+                
+                # Sauvegarder dans la mémoire de conversation
+                self.conversation_memory.add_exchange(user_input, response, "calculation")
+                return response
+            
             # Vérification spéciale pour résumés simples
             user_lower = user_input.lower().strip()
             if user_lower in ["résume", "resume", "résumé"] and self._has_documents_in_memory():

@@ -1,32 +1,36 @@
-# 🏗️ Architecture - My Personal AI (100% Local)
+# 🏗️ Architecture Ultra - My Personal AI
 
-## 📋 Vue d'Ensemble de l'Architecture
+## 📋 Vue d'Ensemble de l'Architecture Ultra
 
-My Personal AI suit une architecture modulaire 100% locale basée sur les principes suivants:
+My Personal AI Ultra v5.0.0 révolutionne l'IA locale avec un **système de contexte de 1 Million de tokens RÉEL**, suivant les principes suivants:
 
-- **Fonctionnement entièrement local** : Aucune dépendance externe requise
+- **Contexte Ultra-Étendu** : 1,048,576 tokens de contexte réel (vs 4K-8K standards)
+- **Architecture 100% Locale** : Aucune dépendance externe, persistance SQLite
+- **Compression Intelligente** : Multi-niveaux avec ratios de 2.4:1 à 52:1
 - **Reconnaissance d'intentions avancée** : Analyse linguistique des requêtes utilisateur
-- **Mémoire conversationnelle intelligente** : Contextualisation des réponses
-- **Modularité et réutilisabilité** : Composants indépendants et testables
-- **Extensibilité** : Architecture ouverte pour évolutions futures
+- **Mémoire conversationnelle ultra-intelligente** : Contextualisation avec ML et recherche sémantique
+- **Modularité et réutilisabilité** : Composants indépendants avec fallbacks robustes
+- **Auto-optimisation** : Gestion automatique de la mémoire et performances
 
-## 🏛️ Architecture Générale
+## 🚀 Architecture Ultra 1M Tokens
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    INTERFACES UTILISATEUR                   │
-├─────────────────────────────────────────────────────────────┤
-│  GUI Tkinter    │  CLI Click      │  Future: VS Code Ext.   │
-│  (Principal)    │  (Expert)       │  (Roadmap)              │
-└─────────────────┴─────────────────┴─────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                  INTERFACES UTILISATEUR ULTRA                  │
+├────────────────────────────────────────────────────────────────┤
+│  GUI Ultra Modern  │  CLI Enhanced   │  Future: VS Code Ultra  │
+│  (1M tokens UI)    │  (Ultra mode)   │  (Roadmap v6.0)         │
+│  + Pygments Code   │  + Stats 1M     │  + Context Sync         │
+└────────────────────┴─────────────────┴─────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                      MOTEUR IA PRINCIPAL                    │
+│                   MOTEUR IA ULTRA 1M TOKENS                 │
 ├─────────────────────────────────────────────────────────────┤
-│  • Reconnaissance d'intentions (salutations, code, docs)    │
-│  • Gestion de la mémoire conversationnelle                  │
-│  • Routage intelligent vers modules spécialisés             │
-│  • Formatage adaptatif des réponses                         │
+│     UltraCustomAI : Modèle principal 1M tokens              │
+│     IntelligentContextManager : Gestion contexte avec ML    │
+│     MillionTokenContextManager : Persistance + compression  │
+│     Recherche sémantique ultra-rapide (TF-IDF + cosinus)    │
+│     Auto-optimisation et gestion mémoire intelligente       │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
