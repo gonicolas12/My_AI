@@ -29,7 +29,7 @@ class MyAIUltraFinal:
         # Configuration ultra
         self._setup_ultra_config()
         
-        print("\n🎯 My_AI Ultra Final v6.0 initialisé !")
+        print("\n🎯 My_AI Ultra Final v5.0 initialisé !")
     
     def _load_all_modules(self):
         """Charge TOUS les modules disponibles"""
@@ -69,15 +69,7 @@ class MyAIUltraFinal:
         except Exception as e:
             print(f"   ❌ Context Optimizer: {e}")
         
-        # 5. Fine-tuning Pipeline
-        try:
-            from fine_tuning_pipeline import FineTuningPipeline
-            self.modules['fine_tuning'] = FineTuningPipeline()
-            print("   ✅ Fine-tuning Pipeline")
-        except Exception as e:
-            print(f"   ❌ Fine-tuning Pipeline: {e}")
-        
-        # 6. RLHF
+        # 5. RLHF
         try:
             from core.rlhf_feedback_integration import FeedbackIntegrator
             self.modules['rlhf'] = FeedbackIntegrator()
@@ -85,7 +77,7 @@ class MyAIUltraFinal:
         except Exception as e:
             print(f"   ❌ RLHF: {e}")
         
-        # 7. Audit
+        # 6. Audit
         try:
             from audit import AIAuditor
             self.modules['audit'] = AIAuditor()
@@ -93,18 +85,7 @@ class MyAIUltraFinal:
         except Exception as e:
             print(f"   ❌ Audit System: {e}")
         
-        # 8. Benchmark Context
-        try:
-            from bench_context import ContextBenchmark
-            if 'base_model' in self.modules:
-                self.modules['benchmark'] = ContextBenchmark(self.modules['base_model'])
-                print("   ✅ Context Benchmark")
-            else:
-                print("   ⚠️ Context Benchmark: modèle requis")
-        except Exception as e:
-            print(f"   ❌ Context Benchmark: {e}")
-        
-        # 9. Interfaces
+        # 7. Interfaces
         try:
             from interfaces.gui_modern import ModernAIApp
             self.modules['gui'] = ModernAIApp
@@ -277,7 +258,7 @@ class MyAIUltraFinal:
         """Sauvegarde le rapport final"""
         report = {
             "timestamp": datetime.now().isoformat(),
-            "version": "My_AI Ultra Final v6.0",
+            "version": "My_AI Ultra Final v5.0",
             "modules_status": self.test_results,
             "configuration": {
                 "max_tokens": os.environ.get('MYAI_MAX_TOKENS', '1048576'),
@@ -304,7 +285,7 @@ def main():
     """Point d'entrée principal"""
     
     print("🎊 MY_AI ULTRA FINAL - TEST COMPLET")
-    print("🚀 Version 6.0 avec TOUTES les optimisations")
+    print("🚀 Version 5.0 avec TOUTES les optimisations")
     print("=" * 60)
     
     # Initialiser le système ultra

@@ -44,19 +44,17 @@ REM Menu de choix
 echo.
 echo Que voulez-vous faire ?
 echo 1. Interface Graphique Moderne - RECOMMANDE
-echo 2. Interface optimisee
+echo 2. Menu de demarrage interactif
 echo 3. Test complet de tous les modules
 echo 4. Audit et validation du systeme
-echo 5. Menu de demarrage interactif
 echo.
-set /p choice="Votre choix (1-5, ou Entree pour ULTRA): "
+set /p choice="Votre choix (1-4, ou Entree pour ULTRA): "
 
 if "%choice%"=="" set choice=1
 if "%choice%"=="1" goto ultra
-if "%choice%"=="2" goto modern
+if "%choice%"=="2" goto menu_interactif
 if "%choice%"=="3" goto test_complet
 if "%choice%"=="4" goto audit
-if "%choice%"=="5" goto menu_interactif
 
 REM Gestion des choix invalides
 echo.
@@ -71,9 +69,9 @@ echo [CONFIG] Configuration ultra activee
 python launch_ultra.py
 goto end
 
-:modern
-echo [INFO] Lancement Interface Moderne...
-python interfaces/gui_modern.py
+:menu_interactif
+echo [INFO] Menu de demarrage interactif...
+python start_ultra.py
 goto end
 
 :test_complet
@@ -84,11 +82,6 @@ goto end
 :audit
 echo [INFO] Audit et validation...
 python audit.py
-goto end
-
-:menu_interactif
-echo [INFO] Menu de demarrage interactif...
-python start_ultra.py
 goto end
 
 :end
