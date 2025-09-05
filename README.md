@@ -1,4 +1,4 @@
-# 🤖 Une IA personnelle, capable de :
+# 🤖 Une IA personnelle, confidentielle et locale
 
 - 🧠 **Contexte Ultra-Étendu** : **1,048,576 tokens RÉELS** pour des conversations et analyses approfondies
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
@@ -9,7 +9,7 @@
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
 - 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode et blocs de code Python colorisés
-- � **Architecture 100% Locale** avec persistance SQLite optimisée
+- 🏗️ **Architecture 100% Locale** avec persistance SQLite optimisée
 - ⚡ **Gestion automatique de la mémoire** et optimisations en temps réel
 
 ## 🚀 NOUVELLE ARCHITECTURE ULTRA 1M TOKENS
@@ -196,6 +196,9 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 
 - **[Architecture](docs/ARCHITECTURE.md)** : Structure technique détaillée
 - **[Installation](docs/INSTALLATION.md)** : Guide d'installation complet
+- **[Recherche Internet](docs/INTERNET_SEARCH.md)** : Guide complet sur la recherche web
+- **[Optimisation](docs/OPTIMIZATION.md)** : Conseils et techniques d'optimisation locale
+- **[Ultra 1M Tokens](docs/ULTRA_1M_TOKENS.md)** : Détails sur la gestion du contexte étendu
 - **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
 - **[Exemples](examples/)** : Scripts d'exemple et cas d'usage
 - **[Changelog](CHANGELOG.md)** : Historique des mises à jour
