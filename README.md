@@ -1,6 +1,4 @@
-# 🤖 MY AI ULTRA v5.0.0 - Système 1 Million de Tokens RÉEL
-
-Une IA personnelle révolutionnaire avec **contexte étendu de 1 Million de tokens**, capable de :
+# 🤖 Une IA personnelle, capable de :
 
 - 🧠 **Contexte Ultra-Étendu** : **1,048,576 tokens RÉELS** pour des conversations et analyses approfondies
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
@@ -20,7 +18,6 @@ Une IA personnelle révolutionnaire avec **contexte étendu de 1 Million de toke
 
 - **1,048,576 tokens de contexte réel** (contre 4K-8K traditionnels)
 - **Compression intelligente multi-niveaux** : texte, code, documents
-- **Persistance SQLite** : contexte sauvegardé entre sessions
 - **Recherche sémantique ultra-rapide** avec TF-IDF et similarité cosinus
 - **Chunking intelligent** avec détection automatique de blocs logiques
 - **Auto-optimisation** de la mémoire selon l'usage
@@ -28,60 +25,60 @@ Une IA personnelle révolutionnaire avec **contexte étendu de 1 Million de toke
 ## 🏗️ Architecture Ultra 1M Tokens & FAQ Thématique
 
 ```
-my_ai_ultra/
-├── core/                           # Cœur de l'IA
+my_ai/
+├── core/                                # Cœur de l'IA
 │   ├── __init__.py
-│   ├── ai_engine.py                # Moteur principal IA
-│   ├── conversation.py             # Gestion des conversations
-│   ├── context_manager.py          # Gestionnaire de contexte standard
-│   └── config.py                   # Configuration globale
-├── models/                         # Modèles d'IA Ultra avec 1M tokens
+│   ├── ai_engine.py                     # Moteur principal IA
+│   ├── conversation.py                  # Gestion des conversations
+│   ├── context_manager.py               # Gestionnaire de contexte standard
+│   └── config.py                        # Configuration globale
+├── models/                              # Modèles d'IA Ultra avec 1M tokens
 │   ├── __init__.py
-│   ├── ultra_custom_ai.py          # 🚀 MODÈLE ULTRA 1M TOKENS
-│   ├── intelligent_context_manager.py # 🧠 GESTIONNAIRE CONTEXTE INTELLIGENT
-│   ├── million_token_context_manager.py # 💾 PERSISTENCE 1M TOKENS
-│   ├── custom_ai_model.py          # Modèle IA principal avec intentions
-│   ├── conversation_memory.py      # Mémoire conversationnelle avancée
-│   ├── base_ai.py                  # Interface de base
-│   ├── linguistic_patterns.py     # Reconnaissance d'intentions et patterns
-│   ├── knowledge_base.py           # Base de connaissances locale
-│   ├── reasoning_engine.py         # Moteur de raisonnement logique
-│   ├── ml_faq_model.py             # FAQ avec ML et fuzzy matching
-│   └── internet_search.py          # Moteur de recherche internet
-├── processors/                     # Processeurs de fichiers Ultra
+│   ├── ultra_custom_ai.py               # Modèle ULTRA
+│   ├── intelligent_context_manager.py   # Gestionnaire contexte intelligent
+│   ├── million_token_context_manager.py # Persistance 1M tokens
+│   ├── custom_ai_model.py               # Modèle IA principal avec intentions
+│   ├── conversation_memory.py           # Mémoire conversationnelle avancée
+│   ├── base_ai.py                       # Interface de base
+│   ├── linguistic_patterns.py           # Reconnaissance d'intentions et patterns
+│   ├── knowledge_base.py                # Base de connaissances locale
+│   ├── reasoning_engine.py              # Moteur de raisonnement logique
+│   ├── ml_faq_model.py                  # FAQ avec ML et fuzzy matching
+│   └── internet_search.py               # Moteur de recherche internet
+├── processors/                          # Processeurs de fichiers Ultra
 │   ├── __init__.py
-│   ├── pdf_processor.py            # Traitement PDF avec chunking intelligent
-│   ├── docx_processor.py           # Traitement DOCX avec compression
-│   ├── code_processor.py           # Traitement de code avec analyse sémantique
-│   └── file_processor.py           # 🔧 PROCESSEUR UNIFIÉ ULTRA
-├── generators/                     # Générateurs de contenu
+│   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
+│   ├── docx_processor.py                # Traitement DOCX avec compression
+│   ├── code_processor.py                # Traitement de code avec analyse sémantique
+│   └── file_processor.py                # Processeur unifié
+├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
-│   ├── document_generator.py       # Génération docs avec contexte étendu
-│   ├── code_generator.py           # Génération code avec analyse ultra
-│   └── report_generator.py         # Génération rapports détaillés
-├── interfaces/                     # Interfaces utilisateur Ultra
+│   ├── document_generator.py            # Génération docs avec contexte étendu
+│   ├── code_generator.py                # Génération code avec analyse ultra
+│   └── report_generator.py              # Génération rapports détaillés
+├── interfaces/                          # Interfaces utilisateur Ultra
 │   ├── __init__.py
-│   ├── cli.py                      # Interface ligne de commande
-│   ├── gui.py                      # Interface graphique basique
-│   ├── gui_modern.py               # 🎨 INTERFACE ULTRA MODERNE + 1M TOKENS
-│   ├── gui_simple.py               # Interface graphique simplifiée
-│   ├── modern_styles.py            # Styles et thèmes modernes
-│   └── vscode_extension.py         # Extension VS Code
-├── utils/                          # Utilitaires Ultra
+│   ├── cli.py                           # Interface ligne de commande
+│   ├── gui.py                           # Interface graphique basique
+│   ├── gui_modern.py                    # Interface moderne
+│   ├── gui_simple.py                    # Interface graphique simplifiée
+│   ├── modern_styles.py                 # Styles et thèmes modernes
+│   └── vscode_extension.py              # Extension VS Code
+├── utils/                               # Utilitaires Ultra
 │   ├── __init__.py
-│   ├── file_manager.py        # Gestion fichiers
-│   ├── logger.py              # Logging
-│   └── validators.py          # Validation
-├── data/                      # Données d'enrichissement FAQ
-│   └── enrichissement/        # Exemples thématiques
-├── tests/                     # Tests unitaires
-├── docs/                      # Documentation
-├── examples/                  # Exemples d'utilisation
-├── main.py                    # Point d'entrée principal
-├── requirements.txt           # Dépendances
-├── launch.bat                 # Script pour lancer le programme
-├── clean_project.bat          # Script pour supprimer les fichiers temporaires
-└── config.yaml                # Configuration
+│   ├── file_manager.py                  # Gestion fichiers
+│   ├── logger.py                        # Logging
+│   └── validators.py                    # Validation
+├── data/                                # Données d'enrichissement FAQ
+│   └── enrichissement/                  # Exemples thématiques
+├── tests/                               # Tests unitaires
+├── docs/                                # Documentation
+├── examples/                            # Exemples d'utilisation
+├── main.py                              # Point d'entrée principal
+├── requirements.txt                     # Dépendances
+├── launch.bat                           # Script pour lancer le programme
+├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
+└── config.yaml                          # Configuration
 ```
 
 ## 🚀 Fonctionnalités Principales

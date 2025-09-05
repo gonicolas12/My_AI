@@ -36,6 +36,7 @@ class IntelligentCalculator:
             'divisé': '/',
             'sur': '/',
             'divisée': '/',
+            'divisé par': '/',
             
             # Opérations avancées
             'puissance': '**',

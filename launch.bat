@@ -64,9 +64,9 @@ echo.
 goto menu
 
 :ultra
-echo [INFO] Lancement Interface ULTRA (1M tokens)...
-echo [CONFIG] Configuration ultra activee
-python launch_ultra.py
+echo [INFO] Lancement Interface UNIFIEE (CustomAI avec 1M tokens)...
+echo [CONFIG] Configuration unifiee activee
+python launch_unified.py
 goto end
 
 :menu_interactif

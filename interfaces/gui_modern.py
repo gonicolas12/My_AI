@@ -20,11 +20,11 @@ import webbrowser
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 🚀 NOUVEAU: Import du système 1M tokens
+# 🚀 NOUVEAU: Import du modèle CustomAI unifié avec support 1M tokens
 try:
-    from models.ultra_custom_ai import UltraCustomAIModel
+    from models.custom_ai_model import CustomAIModel
     ULTRA_1M_AVAILABLE = True
-    print("🚀 Système 1M tokens intégré à l'interface moderne !")
+    print("🚀 Modèle CustomAI unifié avec système 1M tokens intégré !")
 except ImportError:
     ULTRA_1M_AVAILABLE = False
     print("📝 Interface moderne en mode standard")
@@ -97,38 +97,31 @@ except ImportError as e:
 
 class ModernAIGUI:
     def adjust_text_widget_height(self, text_widget):
-        """Version améliorée pour ajuster la hauteur ET désactiver le scroll"""
+        """NOUVELLE VERSION : Hauteur illimitée pour éviter les scrollbars internes"""
         try:
             text_widget.update_idletasks()
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
             
-            # Obtenir le nombre de lignes
+            # ⚡ CORRECTION MAJEURE : Obtenir la hauteur RÉELLE nécessaire
             line_count = int(text_widget.index("end-1c").split('.')[0])
             
-            # Calculer une hauteur généreuse
-            generous_height = max(2, line_count + 1)
+            # ⚡ HAUTEUR GÉNÉREUSE : Toujours assez pour tout afficher
+            generous_height = max(line_count + 5, 10)  # Au moins 10 lignes, +5 de marge
             
-            # Vérifier s'il y a du scroll et ajuster
-            for _ in range(5):  # Maximum 5 tentatives
-                text_widget.configure(height=generous_height)
-                text_widget.update_idletasks()
-                
-                yview = text_widget.yview()
-                if yview and yview[1] >= 1.0:
-                    break  # Plus de scroll, parfait
-                
-                generous_height += 1
+            text_widget.configure(height=generous_height)
+            text_widget.update_idletasks()
             
             text_widget.configure(state=current_state)
             
-            # 🔧 IMPORTANT : Désactiver le scroll interne
-            self._disable_text_scroll(text_widget)
+            # ⚡ DÉSACTIVER COMPLÈTEMENT LES SCROLLBARS INTERNES
+            # COMMENTÉ CAR CELA ÉCRASE NOS BINDINGS DE FORWARDING !
+            # self._disable_text_scroll(text_widget)
+            # self._disable_text_scroll(text_widget)
             
         except Exception:
-            # Fallback sécurisé
+            # Fallback sécurisé : laisser la hauteur par défaut
             try:
-                text_widget.configure(height=10)
                 self._disable_text_scroll(text_widget)
             except:
                 pass
@@ -353,27 +346,35 @@ class ModernAIGUI:
         """Initialise l'interface moderne avec système 1M tokens"""
         self.is_interrupted = False  # Pour interruption robuste
         self.logger = setup_logger("modern_ai_gui")
+        # AIEngine principal pour toute l'interface
         self.config = Config()
+        self.ai_engine = AIEngine(self.config)
         
-        # 🚀 NOUVEAU: Initialisation avec système 1M tokens si disponible
+        # 🚀 NOUVEAU: Initialisation avec CustomAI unifié (avec support 1M tokens)
         if ULTRA_1M_AVAILABLE:
-            print("🚀 Interface moderne avec système 1M tokens !")
+            print("🚀 Interface moderne avec modèle CustomAI unifié !")
             try:
-                base_ai = AIEngine(self.config)
-                self.ultra_ai = UltraCustomAIModel(base_ai)
+                # Utiliser CustomAIModel avec support 1M tokens intégré
+                self.custom_ai = CustomAIModel()
+                
+                # 🔗 IMPORTANT: Partager la même ConversationMemory entre AIEngine et CustomAI
+                if hasattr(self.ai_engine, 'local_ai') and hasattr(self.ai_engine.local_ai, 'conversation_memory'):
+                    print("🔗 Synchronisation des mémoires de conversation...")
+                    # Utiliser la mémoire de CustomAI comme référence
+                    self.ai_engine.local_ai.conversation_memory = self.custom_ai.conversation_memory
+                    print("✅ Mémoires synchronisées")
+                
                 # Afficher les stats initiales
-                stats = self.ultra_ai.get_context_stats()
-                print(f"📊 Contexte initial: {stats.get('current_tokens', 0):,} / {stats.get('max_context_length', 1000000):,} tokens")
-                print(f"� Documents: {stats.get('documents_processed', 0)}")
+                stats = self.custom_ai.get_context_stats()
+                print(f"📊 Contexte initial: {stats.get('context_size', 0):,} / {stats.get('max_context_length', 1000000):,} tokens")
+                print(f"📚 Documents: {len(self.custom_ai.conversation_memory.stored_documents)}")
+                print(f"🧠 Mode: {'Ultra 1M' if self.custom_ai.ultra_mode else 'Classique'}")
             except Exception as e:
-                print(f"⚠️ Erreur initialisation Ultra: {e}")
-                self.ultra_ai = None
+                print(f"⚠️ Erreur initialisation CustomAI: {e}")
+                self.custom_ai = None
         else:
             print("📝 Interface moderne en mode standard")
-            self.ultra_ai = None
-        
-        # AIEngine classique pour compatibilité
-        self.ai_engine = AIEngine(self.config)
+            self.custom_ai = None
         
         # File processor unifié
         self.file_processor = FileProcessor()
@@ -1116,14 +1117,39 @@ class ModernAIGUI:
             message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
             message_container.grid_columnconfigure(0, weight=1)
 
+            # ⚡ SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
+            def setup_container_scroll_forwarding(container):
+                """Configure le scroll forwarding sur le container IA pour égaler la vitesse utilisateur"""
+                def forward_from_container(event):
+                    try:
+                        if hasattr(self, 'chat_frame') and self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                            canvas = self.chat_frame._parent_canvas
+                            if hasattr(event, 'delta') and event.delta:
+                                # AMPLIFICATION 60x pour égaler la vitesse utilisateur
+                                scroll_delta = -1 * (event.delta // 6) * 60
+                            else:
+                                scroll_delta = -20 * 60
+                            canvas.yview_scroll(scroll_delta, "units")
+                        return "break"
+                    except Exception as e:
+                        return "break"
+                
+                container.bind("<MouseWheel>", forward_from_container)
+                container.bind("<Button-4>", forward_from_container)
+                container.bind("<Button-5>", forward_from_container)
+            
+            setup_container_scroll_forwarding(message_container)
+
             # Stocker le container pour l'affichage du timestamp
             self.current_message_container = message_container
 
-            # Widget Text vide pour l'animation
+            # Widget Text avec hauteur ILLIMITÉE pour éviter les scrollbars internes
+            estimated_lines = max(1, len(text.split('\n')))  # Estimation basique
             import tkinter as tk
             text_widget = tk.Text(
                 message_container,
                 width=120,
+                height=1,
                 bg=self.colors['bg_chat'],
                 fg=self.colors['text_primary'],
                 font=('Segoe UI', 12),
@@ -1139,9 +1165,13 @@ class ModernAIGUI:
                 selectforeground="#ffffff",
                 exportselection=True,
                 takefocus=False,
-                insertwidth=0
+                insertwidth=0,
+                # DÉSACTIVER COMPLÈTEMENT LE SCROLL INTERNE
+                yscrollcommand=None,
+                xscrollcommand=None
             )
             text_widget.grid(row=0, column=0, padx=0, pady=(0, 0), sticky="nsew")
+            # ⚡ NOUVEAU : Ajustement avec hauteur généreuse pour éviter les scrollbars
             self.adjust_text_widget_height(text_widget)
 
             # Bind SEULEMENT pour les touches, pas pour la souris
@@ -1159,7 +1189,103 @@ class ModernAIGUI:
                     return "break"
                 return None
             text_widget.bind("<KeyPress>", prevent_editing_only)
-            self.setup_improved_scroll_forwarding(text_widget)
+            
+            # UTILISER LA MÊME FONCTION QUE LES BULLES USER !
+            # MAIS ON VA FORCER LA VITESSE A ÊTRE IDENTIQUE AUX USER !
+            def setup_identical_scroll_to_user(text_widget_ia):
+                """SCROLL IDENTIQUE AUX BULLES USER - Version finale"""
+                def forward_user_style(event):
+                    try:
+                        if hasattr(self, 'chat_frame') and self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                            canvas = self.chat_frame._parent_canvas
+                            if hasattr(event, 'delta') and event.delta:
+                                scroll_delta = -1 * (event.delta // 6)  # EXACTEMENT comme USER
+                            elif hasattr(event, 'num'):
+                                scroll_delta = -20 if event.num == 4 else 20  # EXACTEMENT comme USER
+                            else:
+                                scroll_delta = -20
+                            canvas.yview_scroll(scroll_delta, "units")
+                    except Exception as e:
+                        pass
+                    return "break"
+                
+                # Bindings IDENTIQUES aux USER
+                text_widget_ia.bind("<MouseWheel>", forward_user_style)
+                text_widget_ia.bind("<Button-4>", forward_user_style)
+                text_widget_ia.bind("<Button-5>", forward_user_style)
+                text_widget_ia.bind("<Up>", lambda e: "break")
+                text_widget_ia.bind("<Down>", lambda e: "break")
+                text_widget_ia.bind("<Prior>", lambda e: "break")
+                text_widget_ia.bind("<Next>", lambda e: "break")
+                text_widget_ia.bind("<Home>", lambda e: "break")
+                text_widget_ia.bind("<End>", lambda e: "break")
+            
+            setup_identical_scroll_to_user(text_widget)
+            
+            # SOLUTION DÉFINITIVE : Copier EXACTEMENT le système des bulles USER
+            def apply_exact_user_scroll_system():
+                """Applique EXACTEMENT le même système que les bulles USER"""
+                
+                def forward_scroll_to_page_IA(event):
+                    try:
+                        # Transférer le scroll à la zone de conversation principale
+                        if hasattr(self, 'chat_frame'):
+                            if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                                # Pour CustomTkinter ScrollableFrame - SCROLL ULTRA RAPIDE
+                                canvas = self.chat_frame._parent_canvas
+                                # Amplifier le delta pour scroll ultra rapide (x20 plus rapide)
+                                if hasattr(event, 'delta') and event.delta:
+                                    scroll_delta = -1 * (event.delta // 6)  # 6 au lieu de 120 = 20x plus rapide
+                                elif hasattr(event, 'num'):
+                                    scroll_delta = -20 if event.num == 4 else 20  # 20x plus rapide
+                                else:
+                                    scroll_delta = -20
+                                canvas.yview_scroll(scroll_delta, "units")
+                    except Exception as e:
+                        pass
+                    return "break"  # Empêcher le scroll local
+                
+                # Appliquer le transfert de scroll EXACTEMENT comme USER
+                text_widget.bind("<MouseWheel>", forward_scroll_to_page_IA)
+                text_widget.bind("<Button-4>", forward_scroll_to_page_IA)  # Linux scroll up
+                text_widget.bind("<Button-5>", forward_scroll_to_page_IA)  # Linux scroll down
+                
+                # Désactiver toutes les autres formes de scroll EXACTEMENT comme USER
+                text_widget.bind("<Up>", lambda e: "break")
+                text_widget.bind("<Down>", lambda e: "break")
+                text_widget.bind("<Prior>", lambda e: "break")  # Page Up
+                text_widget.bind("<Next>", lambda e: "break")   # Page Down
+                text_widget.bind("<Home>", lambda e: "break")
+                text_widget.bind("<End>", lambda e: "break")
+            
+            apply_exact_user_scroll_system()
+            
+            # FORCER L'APPLICATION APRÈS TOUS LES AUTRES SETUPS !
+            def force_final_bindings():
+                """Force finale après que tout soit terminé"""
+                def final_scroll_handler(event):
+                    try:
+                        if hasattr(self, 'chat_frame') and self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                            canvas = self.chat_frame._parent_canvas
+                            if hasattr(event, 'delta') and event.delta:
+                                scroll_delta = -1 * (event.delta // 6)
+                            else:
+                                scroll_delta = -20
+                            canvas.yview_scroll(scroll_delta, "units")
+                    except Exception as e:
+                        pass
+                    return "break"
+                
+                # Override avec force absolue
+                text_widget.bind("<MouseWheel>", final_scroll_handler, add=False)
+                text_widget.bind("<Button-4>", final_scroll_handler, add=False) 
+                text_widget.bind("<Button-5>", final_scroll_handler, add=False)
+            
+            # Appliquer après TOUS les autres setups (délais multiples)
+            text_widget.after(200, force_final_bindings)
+            text_widget.after(500, force_final_bindings)
+            text_widget.after(1000, force_final_bindings)
+            
             def copy_on_double_click(event):
                 try:
                     self.root.clipboard_clear()
@@ -1197,24 +1323,36 @@ class ModernAIGUI:
             pass
     
     def setup_scroll_forwarding(self, text_widget):
-        """Configure le transfert du scroll - Version améliorée"""
+        """Configure le transfert du scroll - Version ultra rapide pour bulles USER"""
+        
         def forward_scroll_to_page(event):
             try:
                 # Transférer le scroll à la zone de conversation principale
                 if hasattr(self, 'chat_frame'):
                     if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
-                        # Pour CustomTkinter ScrollableFrame
+                        # Pour CustomTkinter ScrollableFrame - SCROLL ULTRA RAPIDE
                         canvas = self.chat_frame._parent_canvas
-                        # Transférer l'événement avec la bonne sensibilité
-                        scroll_delta = -1 * (event.delta // 120) if event.delta else (-1 if event.num == 4 else 1)
+                        # Amplifier le delta pour scroll ultra rapide (x20 plus rapide)
+                        if hasattr(event, 'delta') and event.delta:
+                            scroll_delta = -1 * (event.delta // 6)  # 6 au lieu de 120 = 20x plus rapide
+                        elif hasattr(event, 'num'):
+                            scroll_delta = -20 if event.num == 4 else 20  # 20x plus rapide
+                        else:
+                            scroll_delta = -20
                         canvas.yview_scroll(scroll_delta, "units")
                     else:
-                        # Pour tkinter standard
+                        # Pour tkinter standard - SCROLL ULTRA RAPIDE
                         parent = self.chat_frame.master
                         while parent and not hasattr(parent, 'yview_scroll'):
                             parent = parent.master
                         if parent:
-                            scroll_delta = -1 * (event.delta // 120) if event.delta else (-1 if event.num == 4 else 1)
+                            # Amplifier le delta pour scroll MEGA ULTRA rapide (x60 plus rapide !)
+                            if hasattr(event, 'delta') and event.delta:
+                                scroll_delta = -1 * (event.delta // 2)  # 2 au lieu de 120 = 60x plus rapide !
+                            elif hasattr(event, 'num'):
+                                scroll_delta = -60 if event.num == 4 else 60  # 60x plus rapide
+                            else:
+                                scroll_delta = -60
                             parent.yview_scroll(scroll_delta, "units")
             except Exception as e:
                 pass
@@ -1291,15 +1429,11 @@ class ModernAIGUI:
         else:
             text_width = max(30, len(text) + 10)
 
-        # Hauteur PRÉCISE : calculée pour éviter tout scroll interne
-        chars_per_line = 60
-        estimated_lines = max(line_count, (char_count // chars_per_line) + 1)
-        precise_height = min(max(estimated_lines, 2), 25)  # min 2, max 25
 
         text_widget = tk.Text(
             bubble,
             width=text_width,
-            height=precise_height,
+            height=2,  # Valeur initiale minimale
             bg=self.colors['bg_user'],
             fg='#ffffff',
             font=('Segoe UI', 12),
@@ -1318,10 +1452,18 @@ class ModernAIGUI:
             insertwidth=0
         )
 
+        print(f"[DEBUG] Bulle USER: hauteur={text_widget.cget('height')}, parent={text_widget.master}")
+
         self.insert_formatted_text_tkinter(text_widget, text)
-        # Correction : attendre que le widget soit bien rendu avant d'ajuster la hauteur
+        # Ajustement parfait de la hauteur après rendu
         def adjust_height_later():
-            self.adjust_text_widget_height(text_widget)
+            text_widget.update_idletasks()
+            line_count = int(text_widget.index("end-1c").split(".")[0])
+            text_widget.configure(height=max(2, line_count))
+            text_widget.update_idletasks()
+            # Scroll automatique après ajustement
+            if hasattr(self, '_force_scroll_to_bottom'):
+                self._force_scroll_to_bottom()
         text_widget.after(30, adjust_height_later)
 
         # Debug removed
@@ -1359,7 +1501,7 @@ class ModernAIGUI:
         text_widget.bind("<KeyPress>", on_key_press)
         
         # Configuration du scroll amélioré
-        self.setup_improved_scroll_forwarding(text_widget)
+        self.setup_scroll_forwarding(text_widget)
         
         # COPIE avec double-clic
         def copy_on_double_click(event):
@@ -1480,6 +1622,29 @@ class ModernAIGUI:
             message_container = self.create_frame(center_frame, fg_color=self.colors['bg_chat'])
             message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
             message_container.grid_columnconfigure(0, weight=1)
+
+            # ⚡ SOLUTION: Appliquer le scroll forwarding SUR LE CONTAINER aussi ici !
+            def setup_container_scroll_forwarding_simple(container):
+                """Configure le scroll forwarding sur le container IA (version simple)"""
+                def forward_from_container(event):
+                    try:
+                        if hasattr(self, 'chat_frame') and self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                            canvas = self.chat_frame._parent_canvas
+                            if hasattr(event, 'delta') and event.delta:
+                                # AMPLIFICATION 60x pour égaler la vitesse utilisateur
+                                scroll_delta = -1 * (event.delta // 6) * 60
+                            else:
+                                scroll_delta = -20 * 60
+                            canvas.yview_scroll(scroll_delta, "units")
+                        return "break"
+                    except Exception as e:
+                        return "break"
+                
+                container.bind("<MouseWheel>", forward_from_container)
+                container.bind("<Button-4>", forward_from_container)
+                container.bind("<Button-5>", forward_from_container)
+            
+            setup_container_scroll_forwarding_simple(message_container)
 
             # Stocker le container pour l'affichage du timestamp
             self.current_message_container = message_container
@@ -1613,68 +1778,104 @@ class ModernAIGUI:
         return final_height
 
     def setup_improved_scroll_forwarding(self, text_widget):
-        """Version CORRIGÉE - Scroll sans conflit avec sélection"""
+        """Transfert ultra rapide du scroll pour les bulles IA"""
+        # SOLUTION FINALE: Désactiver COMPLÈTEMENT le scroll interne du Text widget
+        text_widget.configure(state="disabled")  # Désactiver temporairement
         
-        def smooth_scroll_forward(event):
-            """Transfère le scroll vers le container principal"""
+        # Supprimer TOUTES les fonctions de scroll par défaut
+        text_widget.bind("<MouseWheel>", lambda e: "break")
+        text_widget.bind("<Button-4>", lambda e: "break") 
+        text_widget.bind("<Button-5>", lambda e: "break")
+        text_widget.bind("<Control-MouseWheel>", lambda e: "break")
+        text_widget.bind("<Shift-MouseWheel>", lambda e: "break")
+        
+        # Remettre en mode normal mais sans scroll interne
+        text_widget.configure(state="normal")
+        
+        # SOLUTION FINALE: Utiliser EXACTEMENT la même logique que les bulles USER
+        def forward_scroll_to_page(event):
             try:
+                print(f"[DEBUG IA SCROLL] Event reçu: delta={getattr(event, 'delta', None)}, num={getattr(event, 'num', None)}")
+                # Transférer le scroll à la zone de conversation principale
                 if hasattr(self, 'chat_frame'):
                     if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
+                        print("[DEBUG IA SCROLL] Using CustomTkinter branch")
+                        # Pour CustomTkinter ScrollableFrame - MÊME LOGIQUE QUE USER
                         canvas = self.chat_frame._parent_canvas
+                        # EXACTEMENT la même amplification que les bulles USER
                         if hasattr(event, 'delta') and event.delta:
-                            scroll_delta = -1 * (event.delta // 120)
+                            scroll_delta = -1 * (event.delta // 6)  # MÊME que USER
                         elif hasattr(event, 'num'):
-                            scroll_delta = -1 if event.num == 4 else 1
+                            scroll_delta = -20 if event.num == 4 else 20  # MÊME que USER
                         else:
-                            scroll_delta = -1
+                            scroll_delta = -20
+                        print(f"[DEBUG IA SCROLL] Scroll delta calculated: {scroll_delta}")
                         canvas.yview_scroll(scroll_delta, "units")
+                        print("[DEBUG IA SCROLL] Canvas scroll executed")
                     else:
+                        print("[DEBUG IA SCROLL] Using tkinter standard branch")
+                        # Pour tkinter standard - MÊME LOGIQUE QUE USER
                         parent = self.chat_frame.master
                         while parent and not hasattr(parent, 'yview_scroll'):
                             parent = parent.master
-                        if parent and hasattr(parent, 'yview_scroll'):
+                        if parent:
+                            print(f"[DEBUG IA SCROLL] Found scrollable parent: {parent}")
+                            # EXACTEMENT la même amplification que les bulles USER
                             if hasattr(event, 'delta') and event.delta:
-                                scroll_delta = -1 * (event.delta // 120)
+                                scroll_delta = -1 * (event.delta // 6)  # MÊME que USER
                             elif hasattr(event, 'num'):
-                                scroll_delta = -1 if event.num == 4 else 1
+                                scroll_delta = -20 if event.num == 4 else 20  # MÊME que USER
                             else:
-                                scroll_delta = -1
+                                scroll_delta = -20
+                            print(f"[DEBUG IA SCROLL] Scroll delta calculated: {scroll_delta}")
                             parent.yview_scroll(scroll_delta, "units")
+                            print("[DEBUG IA SCROLL] Parent scroll executed")
+                        else:
+                            print("[DEBUG IA SCROLL] No scrollable parent found!")
             except Exception as e:
-                print(f"⚠️ Erreur scroll: {e}")
-            
-            # IMPORTANT : Ne pas retourner "break"
-            return None
-        
-        def handle_focus_events(event):
-            """Version CORRIGÉE sans erreur state"""
-            try:
-                # Transférer le focus vers l'input principal
-                if hasattr(self, 'input_text'):
-                    try:
-                        if self.input_text.winfo_exists():
-                            self.input_text.focus_set()
-                    except:
-                        pass
-            except:
+                print(f"[DEBUG IA SCROLL] Exception: {e}")
                 pass
-            return None
+            return "break"  # Empêcher le scroll local - MÊME que USER
         
-        # Bind des événements de scroll
-        text_widget.bind("<MouseWheel>", smooth_scroll_forward)
-        text_widget.bind("<Button-4>", smooth_scroll_forward)
-        text_widget.bind("<Button-5>", smooth_scroll_forward)
+        # SOLUTION: Désactiver les bindings par défaut de Tkinter qui interceptent le scroll
+        text_widget.unbind("<MouseWheel>")
+        text_widget.unbind("<Button-4>")
+        text_widget.unbind("<Button-5>")
         
-        # Bind du focus CORRIGÉ
-        text_widget.bind("<FocusIn>", handle_focus_events)
+        # Appliquer le transfert de scroll ultra rapide
+        text_widget.bind("<MouseWheel>", forward_scroll_to_page)
+        text_widget.bind("<Button-4>", forward_scroll_to_page)
+        text_widget.bind("<Button-5>", forward_scroll_to_page)
         
-        # Configuration du widget SANS insertwidth=0 qui peut causer des problèmes
-        text_widget.configure(
-            takefocus=False,
-            wrap=tk.WORD
-        )
+        # DEBUG: Test direct des événements
+        def test_event(event):
+            print(f"[DEBUG IA SCROLL TEST] Event capturé: {event}")
+            return forward_scroll_to_page(event)
         
-        print(f"✅ Scroll amélioré configuré pour widget Text")
+        text_widget.bind("<MouseWheel>", test_event)
+        text_widget.bind("<Button-4>", test_event)
+        text_widget.bind("<Button-5>", test_event)
+        
+        # Vérifier l'état du widget
+        print(f"[DEBUG IA SCROLL SETUP] Widget state: {text_widget.cget('state')}")
+        print(f"[DEBUG IA SCROLL SETUP] Widget class: {text_widget.__class__}")
+        print(f"[DEBUG IA SCROLL SETUP] Widget bindings: {text_widget.bind()}")
+        
+        # DEBUG: Tester les événements au niveau du PARENT aussi
+        parent_frame = text_widget.master
+        print(f"[DEBUG IA SCROLL SETUP] Parent class: {parent_frame.__class__}")
+        
+        def parent_test_event(event):
+            print(f"[DEBUG IA SCROLL PARENT] Event capturé par parent: {event}")
+            # Transférer vers notre fonction
+            return forward_scroll_to_page(event)
+        
+        # Ajouter les bindings au parent ET au text widget
+        parent_frame.bind("<MouseWheel>", parent_test_event)
+        parent_frame.bind("<Button-4>", parent_test_event)
+        parent_frame.bind("<Button-5>", parent_test_event)
+        
+        print(f"✅ Scroll ultra rapide configuré pour widget Text IA ET son parent")
 
     def start_typing_animation_dynamic(self, text_widget, full_text):
         """Animation avec désactivation de la saisie - CORRIGÉ pour hauteur dynamique"""
@@ -1685,14 +1886,14 @@ class ModernAIGUI:
         text_widget.configure(state="normal")
         text_widget.delete("1.0", "end")
         
-        # Variables pour l'animation
+        # Variables pour l'animation - VITESSE OPTIMISÉE
         self.typing_index = 0
         self.typing_text = full_text
         self.typing_widget = text_widget
-        self.typing_speed = 1
+        self.typing_speed = 1  # Plus rapide maintenant
         
         # Configurer tous les tags de formatage
-        self._configure_formatting_tags(text_widget)
+        self._configure_all_formatting_tags(text_widget)
 
         # Flag d'interruption
         self._typing_interrupted = False
@@ -1701,6 +1902,9 @@ class ModernAIGUI:
         self.continue_typing_animation_dynamic()
 
     def continue_typing_animation_dynamic(self):
+        # S'assurer que le widget Text IA n'attrape pas le focus après animation
+        if hasattr(self, 'typing_widget'):
+            self.typing_widget.configure(takefocus=False, state='disabled')
         """Animation simplifiée - BLOCS PYTHON EN TEXTE BRUT pendant animation"""
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
@@ -1708,62 +1912,41 @@ class ModernAIGUI:
         if getattr(self, '_typing_interrupted', False):
             self.finish_typing_animation_dynamic(interrupted=True)
             return
-        
+
         if self.typing_index < len(self.typing_text):
             current_text = self.typing_text[:self.typing_index + 1]
-            
             self.typing_widget.configure(state="normal")
             self.typing_widget.delete("1.0", "end")
-            
             self._insert_markdown_segments(self.typing_widget, current_text)
-            
             # Ajuster la hauteur
             self._adjust_height_during_animation(self.typing_widget, current_text)
-            
             self.typing_widget.configure(state="disabled")
-            self.typing_index += 1
-            
-            # 🔧 DÉTECTION DE BLOCS PYTHON pour ajuster le délai
-            next_chars = self.typing_text[self.typing_index:self.typing_index + 10] if self.typing_index < len(self.typing_text) - 10 else ""
-            delay = self.typing_speed
-            
-            # Si on vient d'insérer ou on va insérer du code Python, ralentir
-            if "```python" in current_text[-50:] or "```python" in next_chars:
-                delay = self.typing_speed * 3  # 3x plus lent pour les blocs Python
-                print(f"[DEBUG] Bloc Python détecté, délai augmenté à {delay}ms")
-            
-            # 🔧 SCROLL SIMPLE mais appelé APRÈS les mises à jour
+            # Scroll fluide à chaque tick d'animation
             self._smart_scroll_follow_animation()
-            
+            self.typing_index += 1
+            delay = self.typing_speed
             self._typing_animation_after_id = self.root.after(delay, self.continue_typing_animation_dynamic)
         else:
-            # À la fin : formatage complet avec liens ET blocs de code Python
-            self.typing_widget.configure(state="normal")
-            self.typing_widget.delete("1.0", "end")
-            
-            # 🔧 FORMATAGE FINAL COMPLET avec support des blocs ```python```
-            self._insert_complete_markdown_with_code(self.typing_widget, self.typing_text)
-            
-            # Ajustement final de hauteur
-            self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
-            
-            # Force refresh pour s'assurer que les blocs Python sont affichés
-            self.typing_widget.update_idletasks()
-            
+            # Toujours finir proprement même si interrompu ou index out of range
             self.finish_typing_animation_dynamic(interrupted=False)
 
     def _smart_scroll_follow_animation(self):
-        """Scroll simple mais efficace qui suit toujours l'animation"""
+        """Scroll optimisé qui évite le clignotement"""
         try:
             if self.use_ctk:
                 if hasattr(self, 'chat_frame') and hasattr(self.chat_frame, '_parent_canvas'):
                     canvas = self.chat_frame._parent_canvas
                     
-                    # 🔧 APPROCHE SIMPLE : Toujours aller vers le bas
+                    # 🔧 OPTIMISATION : Ne scroll que si nécessaire
                     canvas.update_idletasks()
                     
-                    # Forcer le scroll vers le bas à chaque fois
-                    canvas.yview_moveto(1.0)
+                    # Vérifier la position actuelle pour éviter les scrolls inutiles
+                    current_scroll = canvas.canvasy(canvas.winfo_height())
+                    total_height = canvas.bbox("all")[3] if canvas.bbox("all") else 0
+                    
+                    # Ne scroll que si on n'est pas déjà proche du bas (tolérance de 50px)
+                    if total_height - current_scroll > 50:
+                        canvas.yview_moveto(1.0)
                     
                     # Mise à jour immédiate
                     canvas.update()
@@ -2000,120 +2183,31 @@ class ModernAIGUI:
             pass  # Scroll silencieux en cas d'erreur
 
     def _adjust_height_final_no_scroll(self, text_widget, full_text):
-        """Ajustement final de hauteur pour éliminer complètement le scroll interne"""
+        """Ajuste la hauteur du widget Text pour qu'il n'y ait aucun scroll interne ni espace vide, basé sur le nombre de lignes réelles tkinter. Désactive aussi le scroll interne."""
         try:
             text_widget.update_idletasks()
-            
-            # Méthode 1 : Compter les lignes réelles dans le widget
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
-            
-            # Obtenir le nombre de lignes réellement affichées
-            line_count = int(text_widget.index("end-1c").split('.')[0])
-            
-            # Méthode 2 : Vérifier s'il y a du scroll interne
-            max_attempts = 10
-            for attempt in range(max_attempts):
-                text_widget.update_idletasks()
-                
-                # Vérifier si le contenu déborde (yview indique s'il y a du scroll)
-                yview = text_widget.yview()
-                
-                if yview and yview[1] < 1.0:
-                    # Il y a du scroll interne, augmenter la hauteur
-                    current_height = text_widget.cget("height")
-                    new_height = current_height + 2
-                    text_widget.configure(height=new_height)
-                else:
-                    # Plus de scroll interne, on s'arrête
-                    break
-            
-            # Restaurer l'état
+            line_count = int(text_widget.index("end-1c").split(".")[0])
+            text_widget.configure(height=max(2, line_count))
+            text_widget.update_idletasks()
             text_widget.configure(state=current_state)
-            
-            # Méthode 3 : Vérification finale avec calcul manuel si nécessaire
-            if yview and yview[1] < 1.0:
-                # Calcul manuel en dernier recours
-                lines = full_text.split('\n')
-                total_lines = 0
-                
-                widget_width = text_widget.winfo_width()
-                if widget_width <= 50:
-                    widget_width = 800
-                
-                char_width = 7.2
-                chars_per_line = max(50, int((widget_width - 30) / char_width))
-                
-                for line in lines:
-                    if len(line) == 0:
-                        total_lines += 1
-                    else:
-                        wrapped_lines = max(1, (len(line) + chars_per_line - 1) // chars_per_line)
-                        total_lines += wrapped_lines
-                
-                # Hauteur finale avec marge généreuse
-                final_height = total_lines + 3
-                text_widget.configure(height=final_height)
-            
+            self._disable_text_scroll(text_widget)
         except Exception as e:
-            # En cas d'erreur, utiliser une hauteur généreuse
-            text_widget.configure(height=20)
+            text_widget.configure(height=10)
+            self._disable_text_scroll(text_widget)
 
     def _adjust_height_during_animation(self, text_widget, current_text):
-        """Ajustement PROGRESSIF et STABLE de la hauteur pendant l'animation"""
+        """Ajuste la hauteur du widget Text pendant l'animation pour qu'il n'y ait aucun scroll interne, basé sur le nombre de lignes réelles tkinter."""
         try:
             text_widget.update_idletasks()
-            
-            # 🔧 CORRECTION : Ajustement restrictif seulement pour les sources de recherche internet
-            is_internet_search = self._is_internet_search_message()
-            
-            # Calcul conservateur du nombre de lignes
-            lines = current_text.split('\n')
-            total_lines = 0
-            widget_width = 80  # Largeur estimée en caractères
-            
-            for line in lines:
-                if not line.strip():
-                    total_lines += 1
-                else:
-                    # 🔧 AMÉLIORATION : Tenir compte des liens raccourcis SEULEMENT pour recherche internet
-                    effective_length = len(line)
-                    if is_internet_search and 'http' in line and len(line) > 80:
-                        # Estimation de la longueur effective après raccourcissement
-                        url_count = line.count('http')
-                        effective_length = len(line) - (url_count * 30)  # Réduction moyenne
-                    
-                    wrapped_lines = max(1, (effective_length + widget_width - 1) // widget_width)
-                    total_lines += wrapped_lines
-            
-            # 🔧 NOUVEAU : Ajustement différencié selon le type de message
-            current_height = text_widget.cget('height')
-            
-            if is_internet_search:
-                # Pour les sources de recherche : ajustement progressif et limité
-                target_height = max(2, min(total_lines + 1, 15))  # Limiter la hauteur maximale
-                # Ajustement graduel plutôt que brutal
-                if target_height > current_height:
-                    new_height = min(current_height + 2, target_height)  # Augmenter progressivement
-                else:
-                    new_height = target_height
-            else:
-                # Pour les autres messages : ajustement normal plus permissif
-                target_height = max(2, min(total_lines + 2, 25))  # Plus de hauteur autorisée
-                new_height = target_height  # Ajustement direct
-            
-            text_widget.configure(height=new_height)
-            
-            # 🔧 CORRECTION : Vérifier si le contenu dépasse et ajuster si nécessaire
+            line_count = int(text_widget.index("end-1c").split(".")[0])
+            text_widget.configure(height=max(2, line_count))
             text_widget.update_idletasks()
-            yview = text_widget.yview()
-            max_height = 15 if is_internet_search else 25
-            if yview and yview[1] < 1.0 and new_height < max_height:
-                text_widget.configure(height=new_height + 1)
-                
+            self._disable_text_scroll(text_widget)
         except Exception as e:
-            # Fallback sécurisé
-            text_widget.configure(height=min(8, len(current_text.split('\n')) + 2))   
+            text_widget.configure(height=10)
+            self._disable_text_scroll(text_widget)
 
     def _insert_formatted_text_animated(self, text_widget, text):
         """Version allégée du formatage pour l'animation (sans liens pour éviter les ralentissements)"""
@@ -2613,56 +2707,53 @@ class ModernAIGUI:
         print(f"[DEBUG] {link_count} liens traités avec succès")
 
     def _insert_complete_markdown_with_code(self, text_widget, text):
-        """Formatage complet : liens + blocs ```python``` + markdown"""
+        """Formatage complet : liens + blocs ```python``` + markdown + docstrings orange"""
         import re
         import webbrowser
-        
         prev_state = text_widget.cget("state")
         text_widget.configure(state="normal")
-        
-        # Configuration COMPLÈTE de tous les tags
         self._configure_all_formatting_tags(text_widget)
-        
-        # 🔧 APPROCHE SIMPLIFIÉE : Traiter directement le texte original SANS placeholders compliqués
-        # Diviser le texte en sections : texte normal et blocs python
+        # D'abord, découper le texte sur les docstrings ('''...''' ou """...""")
+        docstring_pattern = r"('''[\s\S]*?'''|\"\"\"[\s\S]*?\"\"\")"
+        last_end = 0
+        for m in re.finditer(docstring_pattern, text):
+            # Texte avant la docstring
+            if m.start() > last_end:
+                self._insert_complete_markdown_with_code_no_docstring(text_widget, text[last_end:m.start()])
+            # Docstring
+            docstring = m.group(0)
+            import re as _re
+            docstring_clean = _re.sub(r"^([\"']{3})docstring", r"\1", docstring, flags=_re.IGNORECASE)
+            text_widget.insert("end", docstring_clean, "docstring")
+            last_end = m.end()
+        # Reste du texte
+        if last_end < len(text):
+            self._insert_complete_markdown_with_code_no_docstring(text_widget, text[last_end:])
+        text_widget.configure(state=prev_state)
+
+    def _insert_complete_markdown_with_code_no_docstring(self, text_widget, text):
+        """Ancienne logique de _insert_complete_markdown_with_code, sans gestion docstring (pour découpage)."""
         import re
+        import webbrowser
         code_pattern = r'```python\n(.*?)```'
-        
-        # Trouver tous les blocs de code
         code_matches = list(re.finditer(code_pattern, text, flags=re.DOTALL))
-        
         if not code_matches:
-            # Pas de blocs Python, traitement normal avec liens
             self._process_text_with_links_only(text_widget, text)
             return
-        
-        # Traiter section par section
         last_end = 0
         link_count = 0
-        
         for code_match in code_matches:
-            # 1. Traiter le texte AVANT le bloc de code
             if code_match.start() > last_end:
                 text_before = text[last_end:code_match.start()]
                 link_count += self._process_text_with_links_only(text_widget, text_before, link_count)
-            
-            # 2. Insérer le bloc de code Python
             code_content = code_match.group(1)
             text_widget.insert("end", "\n")
             self._insert_python_code_block_corrected(text_widget, code_content)
             text_widget.insert("end", "\n")
-            
             last_end = code_match.end()
-        
-        # 3. Traiter le texte APRÈS le dernier bloc
         if last_end < len(text):
             remaining_text = text[last_end:]
             self._process_text_with_links_only(text_widget, remaining_text, link_count)
-        
-        print(f"[DEBUG] Formatage complet terminé avec approche simplifiée")
-        
-        # Configurer l'état final
-        text_widget.configure(state=prev_state)
 
     def _process_text_with_links_only(self, text_widget, text, start_link_count=0):
         """Traite le texte avec liens et markdown, sans blocs de code"""
@@ -3045,9 +3136,9 @@ class ModernAIGUI:
         # Parsing avec formatage Python complet
         def parse_segments(txt):
             patterns = [
-                # DOCSTRINGS - Priorité maximale
-                (r"'''docstring([\s\S]+?)'''|\"\"\"docstring([\s\S]+?)\"\"\"", 'docstring_strip'),
-                (r"'''([\s\S]+?)'''|\"\"\"([\s\S]+?)\"\"\"", 'docstring'),
+                # DOCSTRINGS - Correctement détectés SANS le mot "docstring"
+                (r"'''([\s\S]*?)'''|\"\"\"([\s\S]*?)\"\"\"", 'docstring'),
+                (r"```python\s*([\s\S]*?)\s*```", 'python_code'),
                 
                 # TITRES MARKDOWN
                 (r'^(#+) (.+)$', 'title'),
@@ -3071,14 +3162,15 @@ class ModernAIGUI:
                     if start > last:
                         segments.extend(_parse(txt[last:start], pat_idx+1))
                     
-                    if style == 'docstring_strip':
+                    if style == 'docstring':
+                        # Prendre le premier groupe qui match (''' ou """)
                         doc = m.group(1) or m.group(2)
                         if doc is not None:
-                            doc = doc.lstrip('\n').rstrip("'\" ")
+                            doc = doc.strip()  # Nettoyer les espaces uniquement
                         segments.append((doc, 'docstring'))
-                    elif style == 'docstring':
-                        doc = m.group(1) or m.group(2)
-                        segments.append((doc, 'docstring'))
+                    elif style == 'python_code':
+                        code = m.group(1)
+                        segments.append((code, 'python_code'))
                     elif style == 'title':
                         hashes = m.group(1)
                         title_text = m.group(2)
@@ -3117,6 +3209,7 @@ class ModernAIGUI:
         text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
         text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
         text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
+        text_widget.tag_configure("python_code", font=('Consolas', 10), foreground="#f8f8f2", background="#2b2b2b")
         text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
         text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
         
@@ -3739,43 +3832,84 @@ class ModernAIGUI:
         self.root.after(100, lambda: self.input_text.focus())
     
     def set_placeholder(self):
-        """Définit le texte de placeholder"""
-        placeholder_text = "Tapez votre message ici... (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)"
+        """Définit le texte de placeholder correctement (non éditable)"""
+        self.placeholder_text = "Tapez votre message ici... (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)"
+        self.placeholder_active = True
         
         if self.use_ctk:
-            # CustomTkinter gère le placeholder différemment
-            self.input_text.insert("1.0", placeholder_text)
-            self.input_text.configure(text_color=self.colors['text_secondary'])
+            # CustomTkinter avec placeholder natif si disponible
+            try:
+                # Essayer d'utiliser le placeholder natif de CustomTkinter
+                if hasattr(self.input_text, 'configure') and 'placeholder_text' in self.input_text.configure():
+                    self.input_text.configure(placeholder_text=self.placeholder_text)
+                    self.placeholder_active = False
+                    return
+            except:
+                pass
+            
+            # Fallback pour CustomTkinter
+            self._show_placeholder()
             
             def on_focus_in(event):
-                if self.input_text.get("1.0", "end-1c") == placeholder_text:
-                    self.input_text.delete("1.0", "end")
-                    self.input_text.configure(text_color=self.colors['text_primary'])
+                self._hide_placeholder()
             
             def on_focus_out(event):
                 if not self.input_text.get("1.0", "end-1c").strip():
-                    self.input_text.insert("1.0", placeholder_text)
-                    self.input_text.configure(text_color=self.colors['text_secondary'])
+                    self._show_placeholder()
+            
+            def on_key_press(event):
+                if self.placeholder_active:
+                    self._hide_placeholder()
             
             self.input_text.bind("<FocusIn>", on_focus_in)
             self.input_text.bind("<FocusOut>", on_focus_out)
+            self.input_text.bind("<KeyPress>", on_key_press)
         else:
             # Pour tkinter standard
-            self.input_text.insert("1.0", placeholder_text)
-            self.input_text.configure(fg=self.colors['text_secondary'])
+            self._show_placeholder()
             
             def on_focus_in(event):
-                if self.input_text.get("1.0", "end-1c") == placeholder_text:
-                    self.input_text.delete("1.0", "end")
-                    self.input_text.configure(fg=self.colors['text_primary'])
+                self._hide_placeholder()
             
             def on_focus_out(event):
                 if not self.input_text.get("1.0", "end-1c").strip():
-                    self.input_text.insert("1.0", placeholder_text)
-                    self.input_text.configure(fg=self.colors['text_secondary'])
+                    self._show_placeholder()
+            
+            def on_key_press(event):
+                if self.placeholder_active:
+                    self._hide_placeholder()
             
             self.input_text.bind("<FocusIn>", on_focus_in)
             self.input_text.bind("<FocusOut>", on_focus_out)
+            self.input_text.bind("<KeyPress>", on_key_press)
+    
+    def _show_placeholder(self):
+        """Affiche le placeholder de manière non éditable"""
+        if not self.placeholder_active:
+            self.input_text.delete("1.0", "end")
+            self.input_text.insert("1.0", self.placeholder_text)
+            
+            if self.use_ctk:
+                self.input_text.configure(text_color=self.colors['placeholder'])
+            else:
+                self.input_text.configure(fg=self.colors['placeholder'])
+            
+            # Rendre le texte non sélectionnable et transparent visuellement
+            self.input_text.configure(state='disabled')
+            self.input_text.configure(state='normal')
+            self.placeholder_active = True
+    
+    def _hide_placeholder(self):
+        """Cache le placeholder et permet la saisie normale"""
+        if self.placeholder_active:
+            self.input_text.delete("1.0", "end")
+            
+            if self.use_ctk:
+                self.input_text.configure(text_color=self.colors['text_primary'])
+            else:
+                self.input_text.configure(fg=self.colors['text_primary'])
+            
+            self.placeholder_active = False
     
     def start_animations(self):
         """Démarre les animations de l'interface"""
@@ -3835,8 +3969,7 @@ class ModernAIGUI:
             self.thinking_label.configure(text="")
    
     def send_message(self):
-        # Debug removed
-        """Envoie le message - VERSION CORRIGÉE"""
+        """Envoie le message - VERSION CORRIGÉE avec gestion placeholder"""
         try:
             # Permettre l'envoi même si animation interrompue
             if self.is_animation_running():
@@ -3844,6 +3977,11 @@ class ModernAIGUI:
                     self.finish_typing_animation_dynamic(interrupted=True)
                 else:
                     return
+            
+            # Vérifier si le placeholder est actif
+            if getattr(self, 'placeholder_active', False):
+                return  # Ne pas envoyer si seul le placeholder est présent
+            
             # Récupérer le texte AVANT de vérifier l'état
             message = ""
             try:
@@ -3851,11 +3989,9 @@ class ModernAIGUI:
             except Exception as e:
                 print(f"❌ Erreur lecture input: {e}")
                 return
-                
-            # Debug removed
             
-            if not message:
-                return
+            # Vérifier que ce n'est pas le texte du placeholder
+            if message == getattr(self, 'placeholder_text', '') or not message:
                 return
             
             # S'assurer que la saisie est activée pour pouvoir lire et effacer
@@ -3872,13 +4008,13 @@ class ModernAIGUI:
             self.hide_status_indicators()
             
             # Ajouter le message utilisateur
-            # Debug removed
             self.add_message_bubble(message, is_user=True)
             
-            # Effacer la zone de saisie
+            # Effacer la zone de saisie et remettre le placeholder
             try:
                 self.input_text.delete("1.0", "end")
-                # Debug removed
+                # Remettre le placeholder après effacement
+                self._show_placeholder()
             except Exception as e:
                 print(f"❌ Erreur effacement: {e}")
             
@@ -3945,19 +4081,19 @@ class ModernAIGUI:
             intent = 'unknown'
             confidence = 0.0
 
-        # 🚀 NOUVEAU: Utiliser le système 1M tokens si disponible
-        print(f"[DEBUG] (ModernAIGUI) Question transmise - Mode {'Ultra 1M' if self.ultra_ai else 'Standard'} : {repr(user_text)}")
+        # 🚀 NOUVEAU: Utiliser CustomAI unifié si disponible
+        print(f"[DEBUG] (ModernAIGUI) Question transmise - Mode {'CustomAI' if self.custom_ai else 'Standard'} : {repr(user_text)}")
         try:
-            if self.ultra_ai:
-                # 🚀 Utiliser le système 1M tokens
-                print("🚀 Traitement avec système 1M tokens...")
-                response = self.ultra_ai.generate_response(user_text)
+            if self.custom_ai:
+                # 🚀 Utiliser CustomAI unifié (avec support 1M tokens intégré)
+                print("🚀 Traitement avec CustomAI unifié...")
+                response = self.custom_ai.generate_response(user_text)
                 
                 # Afficher les stats après traitement (optionnel)
                 try:
-                    stats = self.ultra_ai.get_ultra_stats()
-                    if stats['active_tokens'] > 100000:  # Plus de 100K tokens
-                        print(f"📊 Contexte après traitement: {stats['active_tokens']:,} tokens")
+                    stats = self.custom_ai.get_context_stats()
+                    if stats.get('context_size', 0) > 100000:  # Plus de 100K tokens
+                        print(f"📊 Contexte après traitement: {stats.get('context_size', 0):,} tokens")
                 except:
                     pass
             else:
@@ -4220,10 +4356,13 @@ class ModernAIGUI:
     
     def show_welcome_message(self):
         """Affiche le message de bienvenue initial"""
-        # Détection des capacités Ultra (1M tokens)
+        # Détection des capacités CustomAI
         ultra_status = ""
-        if hasattr(self, 'ultra_ai') and self.ultra_ai:
-            ultra_status = """ (Mode **Ultra**)"""
+        if hasattr(self, 'custom_ai') and self.custom_ai:
+            if self.custom_ai.ultra_mode:
+                ultra_status = """ (Mode **Ultra**)"""
+            else:
+                ultra_status = """ (Mode **Classique**)"""
         
         welcome_text = f"""Bonjour ! Je suis votre **Assistant IA Local** 🤖{ultra_status}
 
@@ -4333,27 +4472,39 @@ class ModernAIGUI:
             if not content or not content.strip():
                 raise ValueError(f"Le fichier {filename} semble vide ou illisible")
             
-            # 🚀 NOUVEAU: Stocker dans le système 1M tokens si disponible
+            # 🚀 NOUVEAU: Stocker dans CustomAI unifié avec processeurs avancés
             chunks_created = 0
-            if self.ultra_ai:
+            if self.custom_ai:
                 try:
-                    self.logger.info(f"🚀 Ajout au système 1M tokens: {filename}")
+                    self.logger.info(f"🚀 Ajout au CustomAI avec processeurs avancés: {filename}")
                     
-                    if file_type == "Code":
-                        chunk_ids = self.ultra_ai.add_code_to_mega_context(content, filename)
+                    # Utiliser la nouvelle méthode qui exploite les processeurs PDF/DOCX/Code
+                    if hasattr(self.custom_ai, 'add_file_to_context'):
+                        # Méthode avancée qui utilise les processeurs spécialisés
+                        result = self.custom_ai.add_file_to_context(file_path)
+                        chunk_ids = result.get('chunk_ids', [])
+                        chunks_created = result.get('chunks_created', len(chunk_ids) if chunk_ids else 0)
+                        
+                        if result.get('success'):
+                            processor_used = result.get('processor_used', 'advanced')
+                            analysis_info = result.get('analysis_info', f'{len(content)} caractères')
+                            self.logger.info(f"📄 Processeur {processor_used} utilisé: {analysis_info}")
+                            print(f"🔧 Traitement avancé: {processor_used} - {analysis_info}")
+                        else:
+                            self.logger.warning(f"Échec traitement avancé: {result.get('message', 'Erreur inconnue')}")
                     else:
-                        chunk_ids = self.ultra_ai.add_document_to_mega_context(content, filename)
-                    
-                    chunks_created = len(chunk_ids)
+                        # Méthode de fallback - utiliser add_document_to_context
+                        result = self.custom_ai.add_document_to_context(content, filename)
+                        chunks_created = result.get('chunks_created', 0)
                     
                     # Statistiques après ajout
-                    stats = self.ultra_ai.get_ultra_stats()
-                    self.logger.info(f"📊 Nouveau contexte: {stats['active_tokens']:,} tokens ({stats['utilization_percent']:.1f}%)")
+                    stats = self.custom_ai.get_context_stats()
+                    self.logger.info(f"📊 Nouveau contexte: {stats.get('context_size', 0):,} tokens ({stats.get('utilization_percent', 0):.1f}%)")
                     
-                    print(f"🚀 Document ajouté au système 1M tokens: {chunks_created} chunks créés")
+                    print(f"🚀 Document ajouté au CustomAI: {chunks_created} chunks créés")
                     
                 except Exception as e:
-                    self.logger.warning(f"Erreur ajout système 1M tokens: {e}")
+                    self.logger.warning(f"Erreur ajout CustomAI: {e}")
                     chunks_created = 0
             
             # Stocker aussi dans la mémoire classique pour compatibilité
@@ -4370,19 +4521,19 @@ class ModernAIGUI:
             preview = content[:200] + "..." if len(content) > 200 else content
             
             if chunks_created > 0:
-                # Message avec informations 1M tokens
-                stats = self.ultra_ai.get_ultra_stats()
+                # Message avec informations CustomAI
+                stats = self.custom_ai.get_context_stats()
                 success_msg = f"""✅ **{filename}** traité avec succès !
 
-🚀 **Ajouté au système 1M tokens:**
+🚀 **Ajouté au CustomAI {'Ultra' if self.custom_ai.ultra_mode else 'Classique'}:**
 • {chunks_created} chunks créés
-• Contexte total: {stats['active_tokens']:,} / {stats['max_tokens']:,} tokens
-• Utilisation: {stats['utilization_percent']:.1f}%
+• Contexte total: {stats.get('context_size', 0):,} / {stats.get('max_context_length', 1000000):,} tokens
+• Utilisation: {stats.get('utilization_percent', 0):.1f}%
 
 **Aperçu du contenu:**
 {preview}
 
-Vous pouvez maintenant me poser des questions sur ce document. Le système 1M tokens permettra une analyse approfondie !"""
+Vous pouvez maintenant me poser des questions sur ce document. Le système {'1M tokens' if self.custom_ai.ultra_mode else 'classique'} permettra une analyse approfondie !"""
             else:
                 # Message standard
                 success_msg = f"✅ **{filename}** traité avec succès !\n\n**Aperçu du contenu:**\n{preview}\n\nVous pouvez maintenant me poser des questions dessus."

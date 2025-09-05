@@ -26,6 +26,24 @@ except ImportError:
     CALCULATOR_AVAILABLE = False
     print("⚠️ Calculateur intelligent non disponible")
 
+# Import du gestionnaire 1M tokens
+try:
+    from .million_token_context_manager import MillionTokenContextManager
+    MILLION_TOKEN_AVAILABLE = True
+except ImportError:
+    MILLION_TOKEN_AVAILABLE = False
+    print("⚠️ Gestionnaire 1M tokens non disponible")
+
+# Import des processeurs avancés
+try:
+    from processors.pdf_processor import PDFProcessor
+    from processors.docx_processor import DOCXProcessor  
+    from processors.code_processor import CodeProcessor
+    ADVANCED_PROCESSORS_AVAILABLE = True
+except ImportError:
+    ADVANCED_PROCESSORS_AVAILABLE = False
+    print("⚠️ Processeurs avancés non disponibles")
+
 
 class CustomAIModel(BaseAI):
     """Modèle IA personnalisé avec architecture modulaire et mémoire persistante"""
@@ -42,6 +60,27 @@ class CustomAIModel(BaseAI):
         self.reasoning_engine = ReasoningEngine()
         self.conversation_memory = conversation_memory or ConversationMemory()
         self.internet_search = InternetSearchEngine()
+        
+        # Gestionnaire 1M tokens
+        if MILLION_TOKEN_AVAILABLE:
+            self.context_manager = MillionTokenContextManager()
+            self.ultra_mode = True
+            print("🚀 Mode Ultra 1M tokens activé")
+        else:
+            self.context_manager = None
+            self.ultra_mode = False
+            print("📝 Mode standard activé")
+        
+        # Processeurs avancés
+        if ADVANCED_PROCESSORS_AVAILABLE:
+            self.pdf_processor = PDFProcessor()
+            self.docx_processor = DOCXProcessor()
+            self.code_processor = CodeProcessor()
+            print("🔧 Processeurs avancés initialisés: PDF, DOCX, Code")
+        else:
+            self.pdf_processor = None
+            self.docx_processor = None
+            self.code_processor = None
         
         # Configuration
         self.confidence_threshold = 0.3
@@ -169,7 +208,7 @@ class CustomAIModel(BaseAI):
                 response = intelligent_calculator.format_response(calc_result)
                 
                 # Sauvegarder dans la mémoire de conversation
-                self.conversation_memory.add_exchange(user_input, response, "calculation")
+                self.conversation_memory.add_conversation(user_input, response, "calculation")
                 return response
             
             # Vérification spéciale pour résumés simples
@@ -234,7 +273,7 @@ class CustomAIModel(BaseAI):
                 user_input.lower().startswith("please analyze this document content"))
     
     def _handle_document_processing(self, user_input: str) -> str:
-        """Traite les demandes de résumé de documents avec mémorisation immédiate"""
+        """Traite les demandes de résumé de documents avec système Ultra ou mémoire classique"""
         print(f"🔍 Traitement de document détecté")
         
         # Extraire le nom du fichier et le contenu
@@ -243,8 +282,18 @@ class CustomAIModel(BaseAI):
         if not content:
             return "Je n'ai pas pu extraire le contenu du document."
         
-        # **IMMÉDIATEMENT** stocker dans la mémoire
-        self.conversation_memory.store_document_content(filename, content)
+        # Stocker le document selon le mode
+        if self.ultra_mode:
+            print("📄 [ULTRA] Ajout au contexte 1M tokens")
+            result = self.add_document_to_context(content, filename)
+            if result.get("success"):
+                print(f"✅ [ULTRA] Document '{filename}' ajouté avec succès")
+            else:
+                print(f"⚠️ [ULTRA] Erreur: {result.get('message')}")
+        else:
+            print("📄 [CLASSIC] Stockage en mémoire classique")
+            # Stocker en mémoire classique
+            self.conversation_memory.store_document_content(filename, content)
         
         # Vérifier que session_context existe avant mise à jour
         if not hasattr(self, 'session_context'):
@@ -2534,6 +2583,25 @@ Que voulez-vous apprendre exactement ?"""
         
         return summary
     
+    def _explain_code_content(self, content: str, filename: str) -> str:
+        """Génère une explication détaillée du code en utilisant la fonction d'analyse existante"""
+        
+        # Détecter le langage
+        language = "Python"  # Par défaut
+        if filename.endswith('.js'):
+            language = "JavaScript"
+        elif filename.endswith('.java'):
+            language = "Java"
+        elif filename.endswith('.cpp') or filename.endswith('.c'):
+            language = "C/C++"
+        elif filename.endswith('.go'):
+            language = "Go"
+        elif filename.endswith('.rs'):
+            language = "Rust"
+        
+        # Utiliser la fonction d'explication existante qui est plus sophistiquée
+        return self._explain_code_naturally(content, filename, language)
+    
     def _create_long_summary(self, content: str, filename: str, doc_type: str, themes: List[str], concepts: List[str], sentences: List[str]) -> str:
         """Résumé détaillé pour documents de plus de 500 mots"""
         # Introduction élaborée
@@ -3674,7 +3742,197 @@ Que voulez-vous apprendre exactement ?"""
         return "\n".join(facts) if facts else "📊 Informations quantitatives en cours d'extraction..."
 
     def _answer_document_question(self, user_input: str, stored_docs: Dict[str, Any]) -> str:
-        """Répond aux questions sur les documents avec gestion améliorée des références multiples"""
+        """Répond aux questions sur les documents avec gestion améliorée et support Ultra"""
+        
+        # D'abord essayer de récupérer le contenu depuis le système Ultra
+        if self.ultra_mode and self.context_manager:
+            try:
+                ultra_context = self.search_in_context(user_input)
+                if ultra_context and ultra_context.strip():
+                    print("🚀 [ULTRA] Utilisation du contexte Ultra pour la réponse")
+                    return self._generate_ultra_response(user_input, ultra_context)
+            except Exception as e:
+                print(f"⚠️ [ULTRA] Erreur recherche Ultra: {e}")
+        
+        # Fallback vers la méthode classique
+        if not stored_docs:
+            # Essayer de récupérer depuis conversation_memory.stored_documents
+            if hasattr(self.conversation_memory, 'stored_documents') and self.conversation_memory.stored_documents:
+                print("📚 [CLASSIC] Utilisation des documents stockés")
+                return self._generate_classic_response(user_input, self.conversation_memory.stored_documents)
+            else:
+                return "Je n'ai pas de documents en mémoire pour répondre à votre question."
+        
+        return self._generate_classic_response(user_input, stored_docs)
+    
+    def _generate_ultra_response(self, user_input: str, context: str) -> str:
+        """Génère une réponse basée sur le contexte Ultra"""
+        # Déterminer le type de question
+        user_lower = user_input.lower()
+        
+        # Si c'est une demande d'explication de code, cibler les fichiers de code
+        code_keywords = ["explique le code", "analyse le code", "décris le code", "code python", "fichier python", "script python"]
+        detailed_keywords = ["explique le code en détail", "explique le code de manière détaillé", "fais une analyse détaillé du code", 
+                           "analyse détaillée du code", "explication détaillée du code", "analyse complète du code", "analyse approfondie du code"]
+        
+        # Vérifier d'abord si c'est une demande d'analyse détaillée
+        is_detailed_request = any(keyword in user_lower for keyword in detailed_keywords)
+        is_code_request = any(keyword in user_lower for keyword in code_keywords) or "explique" in user_lower
+        
+        if is_detailed_request or (is_code_request and ("détail" in user_lower or "détaillé" in user_lower or "détaillée" in user_lower)):
+            print("🔍 [ULTRA] Détection d'une demande d'explication de code DÉTAILLÉE")
+            
+            # Chercher spécifiquement les fichiers de code
+            if hasattr(self.conversation_memory, 'stored_documents') and self.conversation_memory.stored_documents:
+                docs = self.conversation_memory.stored_documents
+                
+                # Filtrer les fichiers de code (extensions .py, .js, .java, etc.)
+                code_docs = {}
+                for doc_name, doc_data in docs.items():
+                    if (doc_name.endswith(('.py', '.js', '.java', '.cpp', '.c', '.ts', '.go', '.rs', '.php')) or 
+                        doc_data.get('type') == 'code'):
+                        code_docs[doc_name] = doc_data
+                
+                if code_docs:
+                    # Prendre le fichier de code le plus récent ou le seul disponible
+                    latest_code_file = list(code_docs.keys())[-1]  # Dernier ajouté
+                    doc_data = code_docs[latest_code_file]
+                    content = doc_data.get('content', '')
+                    
+                    print(f"� [ULTRA] Analyse détaillée de code pour: {latest_code_file} ({len(content)} caractères)")
+                    
+                    if content:
+                        # Utiliser le processeur de code pour l'analyse détaillée
+                        try:
+                            from processors.code_processor import CodeProcessor
+                            code_processor = CodeProcessor()
+                            
+                            # Créer un fichier temporaire pour l'analyse
+                            import tempfile
+                            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as temp_file:
+                                temp_file.write(content)
+                                temp_file_path = temp_file.name
+                            
+                            # Générer l'explication détaillée
+                            detailed_explanation = code_processor.generate_detailed_explanation(temp_file_path, latest_code_file)
+                            
+                            # Nettoyer le fichier temporaire
+                            import os
+                            os.unlink(temp_file_path)
+                            
+                            return detailed_explanation
+                            
+                        except Exception as e:
+                            print(f"⚠️ [ULTRA] Erreur analyse détaillée: {e}")
+                            # Fallback vers l'analyse simple
+                            return self._explain_code_content(content, latest_code_file)
+                    else:
+                        return f"Le fichier de code {latest_code_file} semble vide."
+                else:
+                    return "Je n'ai pas trouvé de fichiers de code en mémoire pour une analyse détaillée. Veuillez d'abord traiter un fichier Python, JavaScript ou autre langage de programmation."
+        
+        elif is_code_request:
+            print("�🐍 [ULTRA] Détection d'une demande d'explication de code standard")
+            
+            # Chercher spécifiquement les fichiers de code
+            if hasattr(self.conversation_memory, 'stored_documents') and self.conversation_memory.stored_documents:
+                docs = self.conversation_memory.stored_documents
+                
+                # Filtrer les fichiers de code (extensions .py, .js, .java, etc.)
+                code_docs = {}
+                for doc_name, doc_data in docs.items():
+                    if (doc_name.endswith(('.py', '.js', '.java', '.cpp', '.c', '.ts', '.go', '.rs', '.php')) or 
+                        doc_data.get('type') == 'code'):
+                        code_docs[doc_name] = doc_data
+                
+                if code_docs:
+                    # Prendre le fichier de code le plus récent ou le seul disponible
+                    latest_code_file = list(code_docs.keys())[-1]  # Dernier ajouté
+                    doc_data = code_docs[latest_code_file]
+                    content = doc_data.get('content', '')
+                    
+                    print(f"🐍 [ULTRA] Explication de code pour: {latest_code_file} ({len(content)} caractères)")
+                    
+                    if content:
+                        return self._explain_code_content(content, latest_code_file)
+                    else:
+                        return f"Le fichier de code {latest_code_file} semble vide."
+                else:
+                    return "Je n'ai pas trouvé de fichiers de code en mémoire. Veuillez d'abord traiter un fichier Python, JavaScript ou autre langage de programmation."
+        
+        # Si c'est une demande de résumé, utiliser create_universal_summary
+        if any(word in user_lower for word in ["résume", "résumé", "summary", "synthèse"]):
+            print("🔍 [ULTRA] Recherche de documents pour résumé universel...")
+            
+            # Debug détaillé
+            print(f"🔍 [DEBUG] conversation_memory.stored_documents: {len(self.conversation_memory.stored_documents)}")
+            print(f"🔍 [DEBUG] documents keys: {list(self.conversation_memory.stored_documents.keys())}")
+            
+            # Fallback vers mémoire classique pour le résumé
+            if hasattr(self.conversation_memory, 'stored_documents') and self.conversation_memory.stored_documents:
+                # Prendre le dernier document ajouté ou tous si pas de préférence
+                docs = self.conversation_memory.stored_documents
+                print(f"🔍 [DEBUG] Trouvé {len(docs)} documents dans stored_documents")
+                
+                if len(docs) == 1:
+                    doc_name = list(docs.keys())[0]
+                    doc_data = docs[doc_name]
+                    content = doc_data.get('content', '')
+                    print(f"📄 [ULTRA] Résumé universel pour: {doc_name} ({len(content)} caractères)")
+                    if content:
+                        return self._create_universal_summary(content, doc_name, "PDF")
+                    else:
+                        print("⚠️ [DEBUG] Contenu vide dans doc_data")
+                        return "Le document trouvé semble vide."
+                else:
+                    # Multiple documents - créer un résumé combiné
+                    print(f"📄 [ULTRA] Résumé de {len(docs)} documents")
+                    summaries = []
+                    for doc_name, doc_data in docs.items():
+                        content = doc_data.get('content', '')
+                        if content:
+                            summaries.append(self._create_universal_summary(content, doc_name, "document"))
+                    if summaries:
+                        return "\n\n" + "="*50 + "\n\n".join(summaries)
+                    else:
+                        return "Aucun document avec du contenu trouvé."
+            else:
+                print("⚠️ [DEBUG] Aucun document dans stored_documents")
+                # Essayer aussi get_document_content()
+                classic_content = self.conversation_memory.get_document_content()
+                print(f"🔍 [DEBUG] get_document_content(): {len(classic_content)}")
+                if classic_content:
+                    # Utiliser le contenu classique
+                    return self._create_universal_summary(str(classic_content), "document", "unknown")
+                
+                return "Je n'ai pas de documents en mémoire pour créer un résumé."
+            
+        elif any(word in user_lower for word in ["analyse", "analyze", "explique", "détail"]):
+            if not context or context.strip() == "Aucun contexte pertinent trouvé.":
+                # Fallback vers mémoire classique
+                return self._generate_classic_response(user_input, self.conversation_memory.stored_documents)
+            
+            return f"""🔍 **Analyse détaillée**
+
+D'après le document en mémoire:
+
+{context[:1500]}...
+
+📊 Cette analyse exploite la capacité du système 1M tokens pour une compréhension approfondie."""
+            
+        else:
+            if not context or context.strip() == "Aucun contexte pertinent trouvé.":
+                # Fallback vers mémoire classique  
+                return self._generate_classic_response(user_input, self.conversation_memory.stored_documents)
+                
+            return f"""📚 **Réponse basée sur le document**
+
+{context[:1000]}...
+
+✨ Réponse générée grâce au système 1M tokens pour une précision maximale."""
+    
+    def _generate_classic_response(self, user_input: str, stored_docs: dict) -> str:
+        """Génère une réponse basée sur la mémoire classique"""
         if not stored_docs:
             return "Je n'ai pas de documents en mémoire pour répondre à votre question."
         
@@ -4462,8 +4720,18 @@ Que voulez-vous apprendre exactement ?"""
         return best_intent[0], best_intent[1]
     
     def _has_documents_in_memory(self) -> bool:
-        """Vérifie si des documents sont en mémoire"""
-        return len(self.conversation_memory.get_document_content()) > 0
+        """Vérifie si des documents sont en mémoire (Ultra ou classique)"""
+        # Vérifier le système Ultra
+        if self.ultra_mode and self.context_manager:
+            stats = self.context_manager.get_stats()
+            if stats.get('documents_added', 0) > 0:
+                return True
+        
+        # Vérifier la mémoire classique
+        classic_docs = len(self.conversation_memory.get_document_content()) > 0
+        stored_docs = len(self.conversation_memory.stored_documents) > 0
+        
+        return classic_docs or stored_docs
     
     def _get_document_position_description(self, doc_name: str) -> str:
         """
@@ -4495,6 +4763,221 @@ Que voulez-vous apprendre exactement ?"""
         except ValueError:
             return ""
     
+    # =============== MÉTHODES ULTRA 1M TOKENS ===============
+    
+    def add_document_to_context(self, document_content: str, document_name: str = "") -> Dict[str, Any]:
+        """
+        Ajoute un document au contexte 1M tokens
+        """
+        if not self.ultra_mode:
+            # Mode standard - utiliser la mémoire classique
+            return self._add_document_to_classic_memory(document_content, document_name)
+        
+        try:
+            # Mode Ultra - utiliser le gestionnaire 1M tokens
+            result = self.context_manager.add_document(
+                content=document_content,
+                document_name=document_name
+            )
+            
+            # Stocker aussi dans la mémoire classique pour compatibilité
+            self._add_document_to_classic_memory(document_content, document_name)
+            
+            return {
+                "success": True,
+                "message": f"Document '{document_name}' ajouté au contexte Ultra",
+                "chunks_created": result.get("chunks_created", 0),
+                "context_size": self.context_manager.current_tokens
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Erreur lors de l'ajout du document: {str(e)}"
+            }
+    
+    def _add_document_to_classic_memory(self, content: str, doc_name: str) -> Dict[str, Any]:
+        """Ajoute un document à la mémoire classique"""
+        try:
+            word_count = len(content.split())
+            
+            # Stocker le document avec métadonnées
+            self.conversation_memory.stored_documents[doc_name] = {
+                'content': content,
+                'timestamp': time.time(),
+                'word_count': word_count,
+                'order_index': len(self.conversation_memory.document_order)
+            }
+            
+            # Mettre à jour l'ordre chronologique
+            if doc_name not in self.conversation_memory.document_order:
+                self.conversation_memory.document_order.append(doc_name)
+            
+            return {
+                "success": True,
+                "message": f"Document '{doc_name}' stocké en mémoire classique",
+                "word_count": word_count
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Erreur mémoire classique: {str(e)}"
+            }
+    
+    def add_file_to_context(self, file_path: str) -> Dict[str, Any]:
+        """Ajoute un fichier au contexte en utilisant les processeurs avancés"""
+        try:
+            import os
+            file_name = os.path.basename(file_path)
+            file_ext = os.path.splitext(file_path)[1].lower()
+            
+            # Traitement selon le type de fichier
+            content = ""
+            processor_used = "basic"
+            
+            if file_ext == '.pdf' and self.pdf_processor:
+                try:
+                    result = self.pdf_processor.read_pdf(file_path)
+                    if result.get('error'):
+                        print(f"⚠️ Erreur PDF: {result['error']}")
+                        content = ""
+                    elif result.get('success'):
+                        # Structure: result["content"]["text"]
+                        content_data = result.get('content', {})
+                        content = content_data.get('text', '')
+                        pages = content_data.get('page_count', 0)
+                        processor_used = "PDF"
+                        print(f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères")
+                    else:
+                        # Structure: result["text"] (fallback)
+                        content = result.get('text', '')
+                        pages = result.get('page_count', 0)
+                        processor_used = "PDF"
+                        print(f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères")
+                except Exception as e:
+                    print(f"⚠️ Erreur processeur PDF: {e}")
+                    # Fallback vers lecture basique
+                    try:
+                        with open(file_path, 'rb') as f:
+                            content = f.read().decode('utf-8', errors='ignore')
+                    except Exception:
+                        content = ""
+                        
+            elif file_ext in ['.docx', '.doc'] and self.docx_processor:
+                try:
+                    result = self.docx_processor.read_docx(file_path)
+                    content = result.get('text', '')
+                    processor_used = "DOCX"
+                    print(f"📄 [DOCX] Traitement DOCX: {result.get('paragraphs', 0)} paragraphes")
+                except Exception as e:
+                    print(f"⚠️ Erreur processeur DOCX: {e}")
+                    # Fallback vers lecture basique
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        
+            elif file_ext in ['.py', '.js', '.html', '.css', '.cpp', '.java'] and self.code_processor:
+                try:
+                    result = self.code_processor.analyze_code(file_path)
+                    content = result.get('content', '')
+                    processor_used = "Code"
+                    print(f"📄 [CODE] Traitement code: {result.get('language', 'unknown')}")
+                except Exception as e:
+                    print(f"⚠️ Erreur processeur Code: {e}")
+                    # Fallback vers lecture basique
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+            else:
+                # Lecture basique
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    processor_used = "basic"
+                except UnicodeDecodeError:
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        content = f.read()
+                    processor_used = "basic-latin1"
+            
+            if not content:
+                return {
+                    "success": False,
+                    "message": "Contenu vide après traitement"
+                }
+            
+            # Ajouter au contexte
+            result = self.add_document_to_context(content, file_name)
+            result.update({
+                "processor_used": processor_used,
+                "analysis_info": f"Pages: N/A, Caractères: {len(content)}"
+            })
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Erreur lors du traitement du fichier: {str(e)}"
+            }
+    
+    def search_in_context(self, query: str) -> str:
+        """Recherche dans le contexte 1M tokens"""
+        if not self.ultra_mode:
+            return self._search_in_classic_memory(query)
+        
+        try:
+            # Recherche dans le contexte Ultra
+            context = self.context_manager.get_relevant_context(query, max_chunks=5)
+            
+            if not context:
+                # Fallback vers mémoire classique
+                return self._search_in_classic_memory(query)
+            
+            return context
+            
+        except Exception as e:
+            print(f"⚠️ Erreur recherche Ultra: {e}")
+            return self._search_in_classic_memory(query)
+    
+    def _search_in_classic_memory(self, query: str) -> str:
+        """Recherche dans la mémoire classique"""
+        try:
+            query_lower = query.lower()
+            found_docs = []
+            
+            for doc_name, doc_data in self.conversation_memory.stored_documents.items():
+                content = doc_data.get('content', '')
+                if any(word in content.lower() for word in query_lower.split()):
+                    found_docs.append(content)
+            
+            return "\n\n".join(found_docs) if found_docs else ""
+            
+        except Exception as e:
+            print(f"⚠️ Erreur recherche classique: {e}")
+            return ""
+    
+    def get_context_stats(self) -> Dict[str, Any]:
+        """Obtient les statistiques du contexte"""
+        if self.ultra_mode and self.context_manager:
+            stats = self.context_manager.get_stats()
+            # Ajouter les informations manquantes pour compatibilité
+            stats.update({
+                'context_size': self.context_manager.current_tokens,
+                'max_context_length': self.context_manager.max_tokens,
+                'utilization_percent': round((self.context_manager.current_tokens / self.context_manager.max_tokens) * 100, 2)
+            })
+            return stats
+        else:
+            # Stats de la mémoire classique
+            doc_count = len(self.conversation_memory.stored_documents)
+            total_words = sum(doc.get('word_count', 0) for doc in self.conversation_memory.stored_documents.values())
+            
+            return {
+                "mode": "classic",
+                "documents": doc_count,
+                "total_words": total_words,
+                "context_size": total_words * 1.3,  # Estimation approximative en tokens
+                "max_context_length": 100000,  # Limite approximative mode classique
+                "utilization_percent": min(100, (total_words * 1.3 / 100000) * 100)
+            }
+
 
 # Alias pour compatibilité avec l'ancien nom
 AdvancedLocalAI = CustomAIModel
