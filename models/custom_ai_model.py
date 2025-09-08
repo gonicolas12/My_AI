@@ -201,7 +201,20 @@ class CustomAIModel(BaseAI):
     def generate_response(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Génère une réponse avec gestion améliorée des documents"""
         try:
-            # 🧮 PRIORITÉ 1: Vérification si c'est un calcul
+            # 🎯 PRIORITÉ ABSOLUE: Vérification FAQ/ML d'abord
+            try:
+                from models.ml_faq_model import MLFAQModel
+                ml_model = MLFAQModel()
+                faq_response = ml_model.predict(user_input)
+                if faq_response is not None and str(faq_response).strip():
+                    print(f"🎯 FAQ/ML: Réponse trouvée pour '{user_input}'")
+                    # Sauvegarder dans la mémoire
+                    self.conversation_memory.add_conversation(user_input, faq_response, "faq")
+                    return faq_response
+            except Exception as e:
+                print(f"⚠️ Erreur FAQ/ML: {e}")
+            
+            # 🧮 PRIORITÉ 2: Vérification si c'est un calcul
             if CALCULATOR_AVAILABLE and intelligent_calculator.is_calculation_request(user_input):
                 print(f"🧮 Calcul détecté: {user_input}")
                 calc_result = intelligent_calculator.calculate(user_input)
