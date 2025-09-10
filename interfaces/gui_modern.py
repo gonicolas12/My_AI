@@ -174,6 +174,29 @@ class ModernAIGUI:
         text_widget.bind('<Button-4>', forward_to_main_scroll)
         text_widget.bind('<Button-5>', forward_to_main_scroll)
 
+    def _reactivate_text_scroll(self, text_widget):
+        """Réactive le scroll après l'animation"""
+        try:
+            # Supprimer tous les bindings de blocage
+            scroll_events = [
+                '<MouseWheel>', '<Button-4>', '<Button-5>',
+                '<Up>', '<Down>', '<Prior>', '<Next>',
+                '<Control-Home>', '<Control-End>', '<Shift-MouseWheel>'
+            ]
+            
+            for event in scroll_events:
+                try:
+                    text_widget.unbind(event)
+                except:
+                    pass
+            
+            # Réactiver le scroll normal via le système de forwarding
+            self.setup_improved_scroll_forwarding(text_widget)
+            print("✅ Scroll réactivé après animation")
+            
+        except Exception as e:
+            print(f"[DEBUG] Erreur réactivation scroll: {e}")
+
     def _show_timestamp_for_current_message(self):
         """Affiche le timestamp sous la bulle du dernier message IA (comme pour l'utilisateur)."""
         from datetime import datetime
@@ -1795,11 +1818,9 @@ class ModernAIGUI:
         # SOLUTION FINALE: Utiliser EXACTEMENT la même logique que les bulles USER
         def forward_scroll_to_page(event):
             try:
-                print(f"[DEBUG IA SCROLL] Event reçu: delta={getattr(event, 'delta', None)}, num={getattr(event, 'num', None)}")
                 # Transférer le scroll à la zone de conversation principale
                 if hasattr(self, 'chat_frame'):
                     if self.use_ctk and hasattr(self.chat_frame, '_parent_canvas'):
-                        print("[DEBUG IA SCROLL] Using CustomTkinter branch")
                         # Pour CustomTkinter ScrollableFrame - MÊME LOGIQUE QUE USER
                         canvas = self.chat_frame._parent_canvas
                         # EXACTEMENT la même amplification que les bulles USER
@@ -1809,17 +1830,13 @@ class ModernAIGUI:
                             scroll_delta = -20 if event.num == 4 else 20  # MÊME que USER
                         else:
                             scroll_delta = -20
-                        print(f"[DEBUG IA SCROLL] Scroll delta calculated: {scroll_delta}")
                         canvas.yview_scroll(scroll_delta, "units")
-                        print("[DEBUG IA SCROLL] Canvas scroll executed")
                     else:
-                        print("[DEBUG IA SCROLL] Using tkinter standard branch")
                         # Pour tkinter standard - MÊME LOGIQUE QUE USER
                         parent = self.chat_frame.master
                         while parent and not hasattr(parent, 'yview_scroll'):
                             parent = parent.master
                         if parent:
-                            print(f"[DEBUG IA SCROLL] Found scrollable parent: {parent}")
                             # EXACTEMENT la même amplification que les bulles USER
                             if hasattr(event, 'delta') and event.delta:
                                 scroll_delta = -1 * (event.delta // 6)  # MÊME que USER
@@ -1827,13 +1844,8 @@ class ModernAIGUI:
                                 scroll_delta = -20 if event.num == 4 else 20  # MÊME que USER
                             else:
                                 scroll_delta = -20
-                            print(f"[DEBUG IA SCROLL] Scroll delta calculated: {scroll_delta}")
                             parent.yview_scroll(scroll_delta, "units")
-                            print("[DEBUG IA SCROLL] Parent scroll executed")
-                        else:
-                            print("[DEBUG IA SCROLL] No scrollable parent found!")
             except Exception as e:
-                print(f"[DEBUG IA SCROLL] Exception: {e}")
                 pass
             return "break"  # Empêcher le scroll local - MÊME que USER
         
@@ -1847,23 +1859,10 @@ class ModernAIGUI:
         text_widget.bind("<Button-4>", forward_scroll_to_page)
         text_widget.bind("<Button-5>", forward_scroll_to_page)
         
-        # DEBUG: Test direct des événements
-        def test_event(event):
-            print(f"[DEBUG IA SCROLL TEST] Event capturé: {event}")
-            return forward_scroll_to_page(event)
-        
-        text_widget.bind("<MouseWheel>", test_event)
-        text_widget.bind("<Button-4>", test_event)
-        text_widget.bind("<Button-5>", test_event)
-        
         # Vérifier l'état du widget
-        print(f"[DEBUG IA SCROLL SETUP] Widget state: {text_widget.cget('state')}")
-        print(f"[DEBUG IA SCROLL SETUP] Widget class: {text_widget.__class__}")
-        print(f"[DEBUG IA SCROLL SETUP] Widget bindings: {text_widget.bind()}")
         
-        # DEBUG: Tester les événements au niveau du PARENT aussi
+        # Tester les événements au niveau du PARENT aussi
         parent_frame = text_widget.master
-        print(f"[DEBUG IA SCROLL SETUP] Parent class: {parent_frame.__class__}")
         
         def parent_test_event(event):
             print(f"[DEBUG IA SCROLL PARENT] Event capturé par parent: {event}")
@@ -1878,7 +1877,7 @@ class ModernAIGUI:
         print(f"✅ Scroll ultra rapide configuré pour widget Text IA ET son parent")
 
     def start_typing_animation_dynamic(self, text_widget, full_text):
-        """Animation avec désactivation de la saisie - CORRIGÉ pour hauteur dynamique"""
+        """Animation caractère par caractère avec formatage progressif intelligent"""
         # DÉSACTIVER la saisie pendant l'animation
         self.set_input_state(False)
         
@@ -1886,49 +1885,548 @@ class ModernAIGUI:
         text_widget.configure(state="normal")
         text_widget.delete("1.0", "end")
         
-        # Variables pour l'animation - VITESSE OPTIMISÉE
+        # DÉSACTIVER le scroll pendant l'animation pour éviter les saccades
+        self._disable_text_scroll(text_widget)
+        
+        # NOUVEAU : Pré-traiter le texte pour remplacer les liens par leurs titres
+        processed_text, link_mapping = self._preprocess_links_for_animation(full_text)
+        
+        # Variables pour l'animation CARACTÈRE PAR CARACTÈRE
         self.typing_index = 0
-        self.typing_text = full_text
+        self.typing_text = processed_text  # Utiliser le texte pré-traité
         self.typing_widget = text_widget
-        self.typing_speed = 1  # Plus rapide maintenant
+        self.typing_speed = 5
+        
+        # Stocker le mapping des liens pour plus tard
+        if link_mapping:
+            self._pending_links = link_mapping
+        
+        # NOUVEAU : Réinitialiser les positions formatées
+        self._formatted_positions = set()
+        
+        print(f"[DEBUG] Animation caractère par caractère - {len(processed_text)} caractères total")
         
         # Configurer tous les tags de formatage
         self._configure_all_formatting_tags(text_widget)
+        
+        # Configuration spéciale du tag 'normal' pour l'animation SANS formatage
+        text_widget.tag_configure("normal", font=('Segoe UI', 12), foreground=self.colors['text_primary'])
 
         # Flag d'interruption
         self._typing_interrupted = False
         
-        # Démarrer l'animation
+        # Démarrer l'animation caractère par caractère
         self.continue_typing_animation_dynamic()
 
+    def _preprocess_links_for_animation(self, text):
+        """Pré-traite le texte pour remplacer les liens [titre](url) par juste le titre pendant l'animation"""
+        import re
+        
+        # Pattern pour détecter [titre](url)
+        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        
+        # Initialiser le mapping des liens pour la conversion finale
+        if not hasattr(self, '_pending_links'):
+            self._pending_links = {}
+        
+        def replace_link(match):
+            title = match.group(1)
+            url = match.group(2)
+            
+            # Stocker dans _pending_links avec le titre comme clé
+            self._pending_links[title] = {
+                'title': title,
+                'url': url,
+                'original': match.group(0)
+            }
+            
+            # Retourner juste le titre (sans marqueur)
+            return title
+        
+        # Remplacer tous les liens par leurs titres
+        processed_text = re.sub(link_pattern, replace_link, text)
+        
+        print(f"[DEBUG] Liens prétraités: {len(self._pending_links)} liens trouvés")
+        for title, data in self._pending_links.items():
+            print(f"  '{data['title']}' -> {data['url']}")
+        
+        return processed_text, self._pending_links
+
+    def _split_text_for_progressive_formatting(self, text):
+        """Divise le texte en segments plus larges pour une animation fluide"""
+        import re
+        segments = []
+        
+        # Diviser par phrases ou groupes de mots (5-10 caractères par segment)
+        words = re.findall(r'\S+\s*', text)
+        
+        current_segment = ""
+        target_length = 8  # Caractères par segment pour une animation fluide
+        
+        for word in words:
+            # Si ajouter ce mot dépasse la longueur cible, finir le segment actuel
+            if len(current_segment) + len(word) > target_length and current_segment:
+                segments.append(current_segment)
+                current_segment = word
+            else:
+                current_segment += word
+        
+        # Ajouter le dernier segment s'il existe
+        if current_segment:
+            segments.append(current_segment)
+        
+        # Nettoyer les segments vides
+        segments = [s for s in segments if s.strip()]
+        
+        return segments
+
     def continue_typing_animation_dynamic(self):
-        # S'assurer que le widget Text IA n'attrape pas le focus après animation
-        if hasattr(self, 'typing_widget'):
-            self.typing_widget.configure(takefocus=False, state='disabled')
-        """Animation simplifiée - BLOCS PYTHON EN TEXTE BRUT pendant animation"""
+        """Animation caractère par caractère avec formatage progressif UNIFIÉ"""
         if not hasattr(self, 'typing_widget') or not hasattr(self, 'typing_text'):
             return
         
         if getattr(self, '_typing_interrupted', False):
             self.finish_typing_animation_dynamic(interrupted=True)
             return
-
-        if self.typing_index < len(self.typing_text):
-            current_text = self.typing_text[:self.typing_index + 1]
-            self.typing_widget.configure(state="normal")
-            self.typing_widget.delete("1.0", "end")
-            self._insert_markdown_segments(self.typing_widget, current_text)
-            # Ajuster la hauteur
-            self._adjust_height_during_animation(self.typing_widget, current_text)
-            self.typing_widget.configure(state="disabled")
-            # Scroll fluide à chaque tick d'animation
-            self._smart_scroll_follow_animation()
+        
+        # Vérifier si on a terminé
+        if self.typing_index >= len(self.typing_text):
+            self.finish_typing_animation_dynamic()
+            return
+        
+        try:
+            # Ajouter le caractère suivant
+            char = self.typing_text[self.typing_index]
+            
+            self.typing_widget.configure(state='normal')
+            self.typing_widget.insert('end', char, 'normal')
+            
+            # Incrémenter l'index
             self.typing_index += 1
-            delay = self.typing_speed
-            self._typing_animation_after_id = self.root.after(delay, self.continue_typing_animation_dynamic)
-        else:
-            # Toujours finir proprement même si interrompu ou index out of range
-            self.finish_typing_animation_dynamic(interrupted=False)
+            
+            # === FORMATAGE PROGRESSIF INTELLIGENT ===
+            should_format = False
+            
+            # Détecter completion d'éléments markdown UNIQUEMENT pour les vrais patterns
+            if char == '*':
+                current_content = self.typing_widget.get("1.0", "end-1c")
+                # NOUVELLE LOGIQUE : Ne formater QUE si on a un vrai pattern **texte**
+                if current_content.endswith('**') and len(current_content) >= 4:
+                    # Vérifier qu'il y a vraiment un pattern **texte** complet
+                    import re
+                    # Chercher le dernier pattern **texte** complet dans le contenu
+                    bold_pattern = r'\*\*([^*\n]{1,200}?)\*\*$'
+                    if re.search(bold_pattern, current_content):
+                        should_format = True
+                    else:
+                        pass
+            elif char == '`':
+                # Fin possible de `code` - vérifier que c'est un vrai pattern
+                current_content = self.typing_widget.get("1.0", "end-1c")
+                import re
+                code_pattern = r'`([^`\n]+)`$'
+                if re.search(code_pattern, current_content):
+                    should_format = True
+                else:
+                    pass
+            elif char == "'":
+                # Fin possible de '''docstring''' - vérifier qu'on a 3 quotes
+                current_content = self.typing_widget.get("1.0", "end-1c")
+                if current_content.endswith("'''"):
+                    import re
+                    docstring_pattern = r"'''([^']*?)'''$"
+                    if re.search(docstring_pattern, current_content, re.DOTALL):
+                        should_format = True
+                    else:
+                        pass
+            elif char == ' ':
+                # NE PAS formater pendant l'écriture d'un titre - attendre la fin de ligne
+                # Ancien code qui causait le formatage partiel des titres
+                pass  # On attend le \n pour formater les titres complets
+            elif char == '\n':
+                # Nouvelle ligne - MAINTENANT on peut formater les titres complets
+                should_format = True
+            elif self.typing_index % 50 == 0:  # Formatage périodique moins fréquent
+                should_format = True
+            
+            # Appliquer le formatage unifié si nécessaire
+            if should_format:
+                self._apply_unified_progressive_formatting(self.typing_widget)
+            
+            # Ajuster la hauteur aux retours à la ligne
+            if char == '\n':
+                self.adjust_text_widget_height(self.typing_widget)
+                self.root.after(5, self._smart_scroll_follow_animation)
+                        
+            self.typing_widget.configure(state='disabled')
+            
+            # Planifier le prochain caractère (animation fluide)
+            delay = 10
+            self.root.after(delay, self.continue_typing_animation_dynamic)
+            
+        except tk.TclError:
+            self.finish_typing_animation_dynamic(interrupted=True)
+
+    def _apply_unified_progressive_formatting(self, text_widget):
+        """MÉTHODE UNIFIÉE SIMPLIFIÉE : Formatage progressif sécurisé"""
+        import re
+        
+        try:
+            # Initialiser le tracking si nécessaire
+            if not hasattr(self, '_formatted_positions'):
+                self._formatted_positions = set()
+            
+            text_widget.configure(state='normal')
+            
+            # === FORMATAGE GRAS **texte** AVEC SEARCH TKINTER ===
+            start_pos = "1.0"
+            while True:
+                # Chercher le prochain **
+                pos_start = text_widget.search("**", start_pos, "end")
+                if not pos_start:
+                    break
+                
+                # Chercher le ** de fermeture
+                search_start = text_widget.index(f"{pos_start}+2c")
+                pos_end = text_widget.search("**", search_start, "end")
+                
+                if pos_end:
+                    # Vérifier que le contenu entre les ** est valide (pas de *, pas trop long)
+                    content_start = text_widget.index(f"{pos_start}+2c")
+                    content = text_widget.get(content_start, pos_end)
+                    
+                    # Valider le contenu
+                    if content and len(content) <= 200 and '*' not in content and '\n' not in content:
+                        # Position string pour tracking
+                        pos_str = str(pos_start)
+                        
+                        if pos_str not in self._formatted_positions:
+                            # Supprimer **texte**
+                            end_pos_full = text_widget.index(f"{pos_end}+2c")
+                            text_widget.delete(pos_start, end_pos_full)
+                            
+                            # Insérer juste texte en gras
+                            text_widget.insert(pos_start, content, 'bold')
+                            
+                            self._formatted_positions.add(pos_str)
+                            
+                            # Continuer à partir de la position actuelle
+                            start_pos = pos_start
+                        else:
+                            start_pos = text_widget.index(f"{pos_end}+1c")
+                    else:
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+            
+            # === FORMATAGE LIENS PRÉTRAITÉS (DÉTECTION DES TITRES) ===
+            # Les liens ont été remplacés par leurs titres, on doit les détecter et les marquer
+            if hasattr(self, '_pending_links'):
+                for title, link_data in self._pending_links.items():
+                    # Chercher toutes les occurrences de ce titre
+                    start_pos = "1.0"
+                    while True:
+                        pos_start = text_widget.search(title, start_pos, "end")
+                        if not pos_start:
+                            break
+                        
+                        pos_end = text_widget.index(f"{pos_start}+{len(title)}c")
+                        pos_str = str(pos_start)
+                        
+                        # Vérifier que ce n'est pas déjà formaté et que c'est exactement le titre
+                        current_text = text_widget.get(pos_start, pos_end)
+                        if current_text == title and pos_str not in self._formatted_positions:
+                            # Marquer comme lien temporaire
+                            text_widget.tag_add('link_temp', pos_start, pos_end)
+                            self._formatted_positions.add(pos_str)
+                        
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+
+            # === FORMATAGE LIENS [titre](url) AVEC PRIORITÉ SUR TITRES (ANCIEN SYSTÈME POUR COMPATIBILITÉ) ===
+            import re
+            start_pos = "1.0"
+            while True:
+                # Chercher le prochain [
+                pos_start = text_widget.search("[", start_pos, "end")
+                if not pos_start:
+                    break
+                
+                # Obtenir la ligne complète pour analyser le pattern
+                line_start = text_widget.index(f"{pos_start} linestart")
+                line_end = text_widget.index(f"{pos_start} lineend")
+                line_content = text_widget.get(line_start, line_end)
+                
+                # Pattern pour détecter [titre](url)
+                link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+                match = re.search(link_pattern, line_content)
+                
+                if match:
+                    title = match.group(1)
+                    url = match.group(2)
+                    
+                    # Calculer les positions dans le widget
+                    char_offset = line_content.find(match.group(0))
+                    link_start = text_widget.index(f"{line_start}+{char_offset}c")
+                    link_end = text_widget.index(f"{link_start}+{len(match.group(0))}c")
+                    
+                    pos_str = str(link_start)
+                    
+                    if pos_str not in self._formatted_positions:
+                        # Remplacer [titre](url) par juste "titre" pendant l'animation
+                        text_widget.delete(link_start, link_end)
+                        text_widget.insert(link_start, title, 'link_temp')
+                        
+                        # Stocker l'URL pour plus tard
+                        if not hasattr(self, '_pending_links'):
+                            self._pending_links = {}
+                        self._pending_links[pos_str] = {'title': title, 'url': url, 'position': link_start}
+                        
+                        self._formatted_positions.add(pos_str)
+                        
+                        start_pos = link_start
+                    else:
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+            
+            # === FORMATAGE CODE `code` ===
+            start_pos = "1.0"
+            while True:
+                # Chercher le prochain `
+                pos_start = text_widget.search("`", start_pos, "end")
+                if not pos_start:
+                    break
+                
+                # Chercher le ` de fermeture
+                search_start = text_widget.index(f"{pos_start}+1c")
+                pos_end = text_widget.search("`", search_start, "end")
+                
+                if pos_end:
+                    # Vérifier le contenu
+                    content_start = text_widget.index(f"{pos_start}+1c")
+                    content = text_widget.get(content_start, pos_end)
+                    
+                    if content and len(content) <= 100 and '`' not in content and '\n' not in content:
+                        pos_str = str(pos_start)
+                        
+                        if pos_str not in self._formatted_positions:
+                            # Supprimer `code`
+                            end_pos_full = text_widget.index(f"{pos_end}+1c")
+                            text_widget.delete(pos_start, end_pos_full)
+                            
+                            # Insérer code formaté
+                            text_widget.insert(pos_start, content, 'code')
+                            
+                            self._formatted_positions.add(pos_str)
+                            
+                            start_pos = pos_start
+                        else:
+                            start_pos = text_widget.index(f"{pos_end}+1c")
+                    else:
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+            
+            # === FORMATAGE TITRES # ## ### ===
+            start_pos = "1.0"
+            while True:
+                # Chercher le prochain # en début de ligne
+                pos_start = text_widget.search("#", start_pos, "end")
+                if not pos_start:
+                    break
+                
+                # Vérifier que c'est bien en début de ligne
+                line_start = text_widget.index(f"{pos_start} linestart")
+                if pos_start != line_start:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+                
+                # Obtenir la ligne complète
+                line_end = text_widget.index(f"{pos_start} lineend")
+                line_content = text_widget.get(pos_start, line_end)
+                
+                # Analyser la ligne pour détecter le niveau de titre
+                import re
+                title_match = re.match(r'^(#{1,3})\s+(.+)$', line_content)
+                if title_match:
+                    level = len(title_match.group(1))
+                    # CORRECTION : Enlever les # mais garder tout le titre
+                    title_without_hashes = title_match.group(2)  # "1. Objectif général"
+                    
+                    pos_str = str(pos_start)
+                    if pos_str not in self._formatted_positions:
+                        # Remplacer "## titre" par "titre" formaté (sans les ##)
+                        text_widget.delete(pos_start, line_end)
+                        text_widget.insert(pos_start, title_without_hashes, f'title_{level}')
+                        
+                        self._formatted_positions.add(pos_str)
+                        
+                        start_pos = text_widget.index(f"{pos_start}+1l")
+                    else:
+                        start_pos = text_widget.index(f"{pos_start}+1l")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+            
+            # === FORMATAGE FINAL TITRES SANS # (pour re-formatage complet) ===
+            # NOUVEAU : Détecter les titres qui n'ont plus de # (après le premier formatage)
+            import re
+            lines = text_widget.get("1.0", "end-1c").split('\n')
+            
+            for i, line in enumerate(lines):
+                # Debug de toutes les lignes qui pourraient être des titres
+                if line.strip() and (line.strip().startswith('1.') or line.strip().startswith('2.') or line.strip().startswith('3.') or line.strip().startswith('4.') or line.strip().startswith('5.')):
+                    
+                    line_start = f"{i+1}.0"
+                    line_end = f"{i+1}.end"
+                    line_content = text_widget.get(line_start, line_end)
+                    
+                    # Vérifier si ce n'est pas déjà formaté avec un tag de titre
+                    existing_tags = text_widget.tag_names(line_start)
+                    has_title_tag = any(tag.startswith('title_') for tag in existing_tags)
+                    
+                    # CORRECTION : Re-formater même si il y a déjà un tag, pour s'assurer que TOUTE la ligne est formatée
+                    if line_content.strip():
+                        # D'abord enlever tous les tags de titre existants
+                        for tag in ['title_1', 'title_2', 'title_3']:
+                            text_widget.tag_remove(tag, line_start, line_end)
+                        
+                        # Puis appliquer le formatage sur TOUTE la ligne
+                        text_widget.tag_add('title_2', line_start, line_end)
+                    else:
+                        pass
+            
+            # === FORMATAGE DOCSTRINGS '''docstring''' ===
+            start_pos = "1.0"
+            while True:
+                # Chercher le prochain '''
+                pos_start = text_widget.search("'''", start_pos, "end")
+                if not pos_start:
+                    break
+                
+                # Chercher le ''' de fermeture
+                search_start = text_widget.index(f"{pos_start}+3c")
+                pos_end = text_widget.search("'''", search_start, "end")
+                
+                if pos_end:
+                    # Obtenir le contenu COMPLET avec les '''
+                    end_pos_full = text_widget.index(f"{pos_end}+3c")
+                    full_docstring = text_widget.get(pos_start, end_pos_full)  # '''contenu'''
+                    
+                    # Obtenir juste le contenu pour validation
+                    content_start = text_widget.index(f"{pos_start}+3c")
+                    content = text_widget.get(content_start, pos_end)
+                    
+                    # Valider que c'est une vraie docstring (pas trop courte)
+                    if content and len(content.strip()) > 0:
+                        pos_str = str(pos_start)
+                        
+                        if pos_str not in self._formatted_positions:
+                            # CORRECTION : Garder les ''' et formater le tout
+                            text_widget.delete(pos_start, end_pos_full)
+                            
+                            # Insérer docstring formatée AVEC les '''
+                            text_widget.insert(pos_start, full_docstring, 'docstring')
+                            
+                            self._formatted_positions.add(pos_str)
+                            
+                            start_pos = pos_start
+                        else:
+                            start_pos = text_widget.index(f"{pos_end}+1c")
+                    else:
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+            
+            text_widget.configure(state='disabled')
+            
+        except Exception as e:
+            print(f"[ERREUR] Formatage unifié: {e}")
+            if hasattr(text_widget, 'configure'):
+                text_widget.configure(state='disabled')
+
+    def _apply_immediate_progressive_formatting(self, text_widget):
+        """Formatage progressif IMMÉDIAT et DIRECT"""
+        import re
+        
+        try:
+            # Obtenir le contenu actuel
+            current_content = text_widget.get("1.0", "end-1c")
+            
+            # Pattern pour **texte** complet seulement
+            bold_pattern = r'\*\*([^*\n]{1,50}?)\*\*'
+            
+            # Chercher et formater tous les **texte** complets
+            for match in re.finditer(bold_pattern, current_content):
+                try:
+                    # Positions des balises et du contenu
+                    full_start = match.start()
+                    content_start = match.start(1)
+                    content_end = match.end(1)
+                    full_end = match.end()
+                    
+                    # Convertir en positions tkinter
+                    tk_full_start = self._char_to_tkinter_position(current_content, full_start)
+                    tk_content_start = self._char_to_tkinter_position(current_content, content_start)
+                    tk_content_end = self._char_to_tkinter_position(current_content, content_end)
+                    tk_full_end = self._char_to_tkinter_position(current_content, full_end)
+                    
+                    if all([tk_full_start, tk_content_start, tk_content_end, tk_full_end]):
+                        # Supprimer les anciens tags sur cette zone
+                        text_widget.tag_remove('bold', tk_full_start, tk_full_end)
+                        text_widget.tag_remove('hidden', tk_full_start, tk_full_end)
+                        text_widget.tag_remove('normal', tk_full_start, tk_full_end)
+                        
+                        # Configurer les tags s'ils n'existent pas
+                        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+                        text_widget.tag_configure("hidden", elide=True)
+                        
+                        # Appliquer le formatage : cacher ** et mettre en gras le contenu
+                        text_widget.tag_add('hidden', tk_full_start, tk_content_start)  # Cacher **
+                        text_widget.tag_add('bold', tk_content_start, tk_content_end)   # Gras
+                        text_widget.tag_add('hidden', tk_content_end, tk_full_end)      # Cacher **
+                        
+                        print(f"[DEBUG] Formaté en gras: {match.group(1)}")
+                
+                except Exception as e:
+                    print(f"[DEBUG] Erreur formatage match: {e}")
+                    continue
+            
+            # Pattern pour *texte* italique (pas **texte**)
+            italic_pattern = r'(?<!\*)\*([^*\n]{1,50}?)\*(?!\*)'
+            
+            for match in re.finditer(italic_pattern, current_content):
+                try:
+                    full_start = match.start()
+                    content_start = match.start(1)
+                    content_end = match.end(1)
+                    full_end = match.end()
+                    
+                    tk_full_start = self._char_to_tkinter_position(current_content, full_start)
+                    tk_content_start = self._char_to_tkinter_position(current_content, content_start)
+                    tk_content_end = self._char_to_tkinter_position(current_content, content_end)
+                    tk_full_end = self._char_to_tkinter_position(current_content, full_end)
+                    
+                    if all([tk_full_start, tk_content_start, tk_content_end, tk_full_end]):
+                        # Nettoyer la zone
+                        text_widget.tag_remove('italic', tk_full_start, tk_full_end)
+                        text_widget.tag_remove('hidden', tk_full_start, tk_full_end)
+                        
+                        # Configurer tag italique
+                        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
+                        
+                        # Appliquer : cacher * et mettre en italique
+                        text_widget.tag_add('hidden', tk_full_start, tk_content_start)
+                        text_widget.tag_add('italic', tk_content_start, tk_content_end)
+                        text_widget.tag_add('hidden', tk_content_end, tk_full_end)
+                        
+                        print(f"[DEBUG] Formaté en italique: {match.group(1)}")
+                
+                except Exception as e:
+                    continue
+            
+        except Exception as e:
+            print(f"[DEBUG] Erreur formatage immédiat: {e}")
+
 
     def _smart_scroll_follow_animation(self):
         """Scroll optimisé qui évite le clignotement"""
@@ -2197,6 +2695,30 @@ class ModernAIGUI:
             text_widget.configure(height=10)
             self._disable_text_scroll(text_widget)
 
+    def _adjust_height_smoothly_during_animation(self, text_widget, current_text):
+        """Ajustement de hauteur SMOOTH pendant l'animation pour éviter le scroll dans la bulle"""
+        try:
+            # Calculer le nombre de lignes nécessaires
+            lines_needed = current_text.count('\n') + 1
+            
+            # Hauteur minimum et maximum
+            min_height = 2
+            max_height = 15  # Limiter pour éviter des bulles trop grandes
+            
+            # Calculer la hauteur idéale
+            ideal_height = min(max(min_height, lines_needed), max_height)
+            current_height = int(text_widget.cget('height'))
+            
+            # Ajuster SEULEMENT si nécessaire (éviter les changements constants)
+            if abs(ideal_height - current_height) > 1:
+                text_widget.configure(height=ideal_height)
+                
+                # IMPORTANT: Réinitialiser la vue SANS scroll
+                text_widget.yview_moveto(0.0)  # Toujours commencer du haut
+                
+        except Exception as e:
+            print(f"[DEBUG] Erreur ajustement hauteur smooth: {e}")
+
     def _adjust_height_during_animation(self, text_widget, current_text):
         """Ajuste la hauteur du widget Text pendant l'animation pour qu'il n'y ait aucun scroll interne, basé sur le nombre de lignes réelles tkinter."""
         try:
@@ -2303,28 +2825,48 @@ class ModernAIGUI:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
     def finish_typing_animation_dynamic(self, interrupted=False):
-        """Version CORRIGÉE qui préserve le formatage Python"""
+        """Version CORRIGÉE avec formatage unifié final"""
         if hasattr(self, 'typing_widget') and hasattr(self, 'typing_text'):
-            self.typing_widget.configure(state="normal")
-            self.typing_widget.delete("1.0", "end")
             
             if interrupted:
-                partial_text = self.typing_text[:self.typing_index]
-                # 🔧 CORRECTION : Utiliser le formatage complet même pour texte partiel
-                self._insert_complete_markdown_with_code(self.typing_widget, partial_text)
+                # Pour l'interruption, appliquer quand même le formatage final
+                current_content = self.typing_widget.get("1.0", "end-1c")
+                
+                # NOUVEAU : Réinitialiser les positions pour forcer un formatage complet
+                if hasattr(self, '_formatted_positions'):
+                    self._formatted_positions.clear()
+                
+                # Formatage final même en cas d'interruption
+                self.typing_widget.configure(state="normal")
+                self._apply_unified_progressive_formatting(self.typing_widget)
+                
+                # NOUVEAU : Convertir les liens temporaires en liens clickables
+                self._convert_temp_links_to_clickable(self.typing_widget)
+                
+                self.typing_widget.configure(state="disabled")
             else:
-                # 🔧 CORRECTION FINALE : Utiliser le formatage complet avec blocs Python
-                self._insert_complete_markdown_with_code(self.typing_widget, self.typing_text)
+                # Animation complète : formatage FINAL COMPLET
+                
+                # NOUVEAU : Réinitialiser les positions pour forcer un formatage complet
+                if hasattr(self, '_formatted_positions'):
+                    self._formatted_positions.clear()
+                
+                # Formatage final unifié
+                self.typing_widget.configure(state="normal")
+                self._apply_unified_progressive_formatting(self.typing_widget)
+                
+                # NOUVEAU : Convertir les liens temporaires en liens clickables
+                self._convert_temp_links_to_clickable(self.typing_widget)
+                
+                self.typing_widget.configure(state="disabled")
             
-            # Ajustement final EXACT de la hauteur
+            # Ajustement final de la hauteur
             self._adjust_height_final_no_scroll(self.typing_widget, self.typing_text)
             
-            # 🔧 CORRECTION FINALE : Remettre en disabled APRÈS avoir appliqué les liens
-            # Mais préserver le formatage des liens avec force preservation
-            self._preserve_link_tags(self.typing_widget)
-            self.typing_widget.configure(state="disabled")
+            # RÉACTIVER le scroll maintenant que l'animation est finie
+            self._reactivate_text_scroll(self.typing_widget)
             
-            print(f"[DEBUG] Animation terminée, formatage et liens préservés et forcés")
+            self.typing_widget.configure(state="disabled")
             
             # Afficher le timestamp sous le message IA
             self._show_timestamp_for_current_message()
@@ -2348,7 +2890,84 @@ class ModernAIGUI:
             delattr(self, 'typing_index')
             self._typing_interrupted = False
             
-            print(f"[DEBUG] Animation terminée et formatage préservé")
+            # Nettoyer le cache de formatage
+            if hasattr(self, '_formatted_positions'):
+                delattr(self, '_formatted_positions')
+            
+            print(f"[DEBUG] Animation terminée et formatage progressif définitivement préservé")
+
+    def _convert_temp_links_to_clickable(self, text_widget):
+        """Convertit les liens temporaires en liens bleus clicables à la fin de l'animation"""
+        try:
+            if not hasattr(self, '_pending_links'):
+                return
+            
+            text_widget.configure(state='normal')
+            
+            # Parcourir tous les liens en attente (organisés par titre maintenant)
+            link_counter = 0
+            for title, link_data in self._pending_links.items():
+                url = link_data['url']
+                
+                # Chercher toutes les zones avec le tag link_temp qui correspondent à ce titre
+                ranges = text_widget.tag_ranges('link_temp')
+                
+                for i in range(0, len(ranges), 2):
+                    start_range = ranges[i]
+                    end_range = ranges[i + 1]
+                    range_text = text_widget.get(start_range, end_range)
+                    
+                    if range_text == title:
+                        # Créer un tag unique pour ce lien
+                        unique_tag = f'clickable_link_{link_counter}'
+                        link_counter += 1
+                        
+                        # Remplacer le tag link_temp par le tag unique
+                        text_widget.tag_remove('link_temp', start_range, end_range)
+                        text_widget.tag_add(unique_tag, start_range, end_range)
+                        
+                        # Configurer le style du tag unique
+                        text_widget.tag_configure(unique_tag, foreground="#3b82f6", underline=1, font=('Segoe UI', 12))
+                        
+                        # CORRECTION CLOSURE : Créer une fonction avec l'URL capturée
+                        def create_click_handler(url_to_open):
+                            def click_handler(event):
+                                print(f"[DEBUG] Clic sur lien: {url_to_open}")
+                                import webbrowser
+                                webbrowser.open(url_to_open)
+                                return "break"
+                            return click_handler
+                        
+                        # Lier l'événement avec l'URL correcte
+                        text_widget.tag_bind(unique_tag, '<Button-1>', create_click_handler(url))
+                        print(f"[DEBUG] Lien configuré: '{title}' -> {url} (tag: {unique_tag})")
+            
+            # Nettoyer les liens en attente
+            delattr(self, '_pending_links')
+            
+            text_widget.configure(state='disabled')
+            
+        except Exception as e:
+            print(f"[DEBUG] Erreur conversion liens: {e}")
+
+    def _apply_final_cleanup_formatting(self, text_widget):
+        """Applique les derniers formatages manqués sans effacer le contenu"""
+        try:
+            current_content = text_widget.get("1.0", "end-1c")
+            
+            # Vérifier s'il reste des ** non formatés
+            import re
+            remaining_bold = re.findall(r'\*\*([^*\n]{1,50}?)\*\*', current_content)
+            
+            if remaining_bold:
+                print(f"[DEBUG] Formatage final de {len(remaining_bold)} éléments manqués")
+                # Utiliser la même méthode que pendant l'animation
+                self._apply_smart_formatting_once(text_widget)
+            else:
+                print(f"[DEBUG] Aucun formatage manqué, tout est déjà correct")
+                
+        except Exception as e:
+            print(f"[DEBUG] Erreur formatage final: {e}")
 
     def _final_smooth_scroll_to_bottom(self):
         """Scroll final en douceur sans saut brutal"""
@@ -2889,9 +3508,239 @@ class ModernAIGUI:
         # Assurer la priorité du tag
         text_widget.tag_raise(tag_name)
 
+    def _apply_smart_progressive_formatting(self, text_widget, current_text):
+        """Applique le formatage progressif INTELLIGENT qui cache les balises"""
+        import re
+        
+        try:
+            # Obtenir le contenu RÉEL du widget pour éviter les décalages
+            text_widget.configure(state='normal')
+            actual_content = text_widget.get("1.0", "end-1c")
+            
+            # NOUVEAU : Appliquer un formatage progressif SIMPLE et EFFICACE
+            self._apply_simple_progressive_formatting(text_widget, actual_content)
+            
+            text_widget.configure(state='disabled')
+            
+        except Exception as e:
+            print(f"[DEBUG] Erreur formatage smart: {e}")
+            text_widget.configure(state='disabled')
+    
+    def _apply_simple_progressive_formatting(self, text_widget, content):
+        """MÉTHODE DÉSACTIVÉE - Remplacée par _apply_unified_progressive_formatting"""
+        # Cette méthode a été remplacée par le système unifié pour éviter les conflits
+        print("[INFO] Méthode de formatage legacy désactivée - utilisation du système unifié")
+        return
+    
+    def _char_to_tkinter_position(self, text, char_index):
+        """Convertit un index de caractère en position Tkinter (ligne.colonne)"""
+        try:
+            if char_index < 0 or char_index > len(text):
+                return None
+            
+            lines_before = text[:char_index].split('\n')
+            line_num = len(lines_before)
+            char_num = len(lines_before[-1]) if lines_before else 0
+            
+            return f"{line_num}.{char_num}"
+        except Exception:
+            return None
+    
+    def _format_complete_elements_hide_markers_safe(self, text_widget, actual_content):
+        """Version SÉCURISÉE qui travaille directement avec le contenu du widget"""
+        import re
+        
+        # Patterns pour éléments COMPLETS uniquement
+        patterns = [
+            # Gras complet **texte** -> formater "texte" et cacher ** **
+            (r'\*\*([^*\n]+?)\*\*', 'bold'),
+            # Italique complet *texte* -> formater "texte" et cacher * *
+            (r'(?<!\*)\*([^*\n]+?)\*(?!\*)', 'italic'),
+            # Code inline complet `texte` -> formater "texte" et cacher ` `
+            (r'`([^`\n]+?)`', 'mono'),
+            # Titres complets ## Titre -> formater "Titre" et cacher ##
+            (r'^(#{1,6})\s+(.+)$', 'title'),
+        ]
+        
+        # Traiter chaque pattern de manière sécurisée
+        for pattern, style_base in patterns:
+            flags = re.MULTILINE if style_base == 'title' else 0
+            
+            # Chercher tous les matches dans le contenu actuel
+            for match in re.finditer(pattern, actual_content, flags=flags):
+                try:
+                    # Calculer les positions de manière sécurisée
+                    if style_base == 'title':
+                        content_text = match.group(2)
+                        level = min(len(match.group(1)), 5)
+                        tag_name = f'title{level}'
+                        
+                        # Pour les titres: cacher # et formater le texte
+                        hash_start = self._safe_char_to_tk(actual_content, match.start())
+                        content_start = self._safe_char_to_tk(actual_content, match.start(2))
+                        content_end = self._safe_char_to_tk(actual_content, match.end(2))
+                        
+                        # Vérifier que les positions sont valides ET pas déjà formatées
+                        if hash_start and content_start and content_end:
+                            # Vérifier si cette zone n'est pas déjà formatée
+                            existing_tags = text_widget.tag_names(content_start)
+                            if not any(tag.startswith('title') or tag == 'hidden' for tag in existing_tags):
+                                # Masquer les # et l'espace
+                                text_widget.tag_add('hidden', hash_start, content_start)
+                                # Formater le titre
+                                text_widget.tag_add(tag_name, content_start, content_end)
+                    else:
+                        content_text = match.group(1)
+                        tag_name = style_base
+                        
+                        # Calculer positions ouverture, contenu, fermeture
+                        opening_start = self._safe_char_to_tk(actual_content, match.start())
+                        content_start = self._safe_char_to_tk(actual_content, match.start(1))
+                        content_end = self._safe_char_to_tk(actual_content, match.end(1))
+                        closing_end = self._safe_char_to_tk(actual_content, match.end())
+                        
+                        # Vérifier que toutes les positions sont valides ET pas déjà formatées
+                        if all([opening_start, content_start, content_end, closing_end]):
+                            # Vérifier si cette zone n'est pas déjà formatée
+                            existing_tags = text_widget.tag_names(content_start)
+                            if not any(tag in ['bold', 'italic', 'mono', 'hidden'] for tag in existing_tags):
+                                # Masquer la balise d'ouverture
+                                text_widget.tag_add('hidden', opening_start, content_start)
+                                # Formater le contenu
+                                text_widget.tag_add(tag_name, content_start, content_end)
+                                # Masquer la balise de fermeture  
+                                text_widget.tag_add('hidden', content_end, closing_end)
+                    
+                    print(f"[DEBUG] Formaté et caché balises: {content_text[:20]}...")
+                    
+                except Exception as e:
+                    print(f"[DEBUG] Erreur formatage élément: {e}")
+                    continue
+
+    def _safe_char_to_tk(self, text, char_index):
+        """Conversion SÉCURISÉE d'index caractère vers position Tkinter"""
+        try:
+            if char_index < 0 or char_index > len(text):
+                return None
+                
+            lines_before = text[:char_index].split('\n')
+            line_num = len(lines_before)
+            char_num = len(lines_before[-1]) if lines_before else 0
+            
+            # Position Tkinter (1-indexé pour les lignes)
+            return f"{line_num}.{char_num}"
+        except Exception:
+            return None
+    
+    def _is_already_formatted(self, text_widget, start_tk, end_tk):
+        """Vérifie si une zone est déjà formatée"""
+        try:
+            # Vérifier s'il y a déjà des tags de formatage ou hidden dans cette zone
+            tags_in_range = text_widget.tag_names(start_tk)
+            return any(tag in ['bold', 'italic', 'mono', 'hidden'] or tag.startswith('title') 
+                      for tag in tags_in_range)
+        except:
+            return False
+    
+    def _char_index_to_tk_position(self, text, char_index):
+        """Convertit un index de caractère en position Tkinter (ligne.colonne)"""
+        try:
+            lines_before = text[:char_index].split('\n')
+            line_num = len(lines_before)
+            char_num = len(lines_before[-1]) if lines_before else 0
+            return f"{line_num}.{char_num}"
+        except:
+            return None
+
+    def _apply_markdown_formatting(self, text_widget, text):
+        """Applique le formatage Markdown progressif sans effacer le contenu"""
+        import re
+        
+        # Sauvegarder l'état actuel
+        current_state = text_widget.cget('state')
+        
+        # Activer l'édition temporairement
+        text_widget.configure(state='normal')
+        
+        try:
+            # Appliquer les styles markdown par regex sur le texte existant
+            self._apply_progressive_markdown_styles(text_widget, text)
+            
+        except Exception as e:
+            print(f"[DEBUG] Erreur formatage markdown: {e}")
+        finally:
+            # Restaurer l'état
+            text_widget.configure(state=current_state)
+    
+    def _apply_progressive_markdown_styles(self, text_widget, text):
+        """Applique les styles markdown sans effacer le contenu"""
+        import re
+        
+        # CORRECTION : Utiliser le contenu RÉEL du widget au lieu du paramètre text
+        actual_content = text_widget.get("1.0", "end-1c")
+        
+        # Patterns markdown dans l'ordre de priorité
+        patterns = [
+            # Titres markdown
+            (r'^(#{1,6})\s+(.+)$', 'title_markdown', lambda m: (m.group(2), f'title{min(len(m.group(1)), 5)}')),
+            # Gras
+            (r'\*\*([^*\n]+?)\*\*', 'bold', lambda m: (m.group(1), 'bold')),
+            # Italique  
+            (r'\*([^*\n]+?)\*', 'italic', lambda m: (m.group(1), 'italic')),
+            # Code inline
+            (r'`([^`]+)`', 'mono', lambda m: (m.group(1), 'mono')),
+        ]
+        
+        # Appliquer chaque pattern
+        for pattern, style_name, extract_func in patterns:
+            flags = re.MULTILINE if style_name == 'title_markdown' else 0
+            for match in re.finditer(pattern, actual_content, flags=flags):
+                start_pos = self._find_text_position_widget_based(text_widget, match.start())
+                end_pos = self._find_text_position_widget_based(text_widget, match.end())
+                
+                if start_pos and end_pos:
+                    # Extraire le texte et le style
+                    display_text, tag_style = extract_func(match)
+                    
+                    # Appliquer le tag au texte correspondant
+                    text_widget.tag_add(tag_style, start_pos, end_pos)
+    
+    def _find_text_position_widget_based(self, text_widget, char_index):
+        """Trouve la position dans le widget basée directement sur le contenu du widget"""
+        try:
+            # Obtenir le contenu actuel du widget
+            widget_content = text_widget.get("1.0", "end-1c")
+            
+            # Vérifier que l'index est valide
+            if char_index < 0 or char_index > len(widget_content):
+                return None
+            
+            # Convertir l'index de caractère en position Tkinter
+            lines = widget_content[:char_index].split('\n')
+            line_num = len(lines)
+            char_num = len(lines[-1]) if lines else 0
+            return f"{line_num}.{char_num}"
+        except:
+            return None
+
+    def _find_text_position(self, text_widget, full_text, char_index):
+        """Trouve la position dans le widget correspondant à l'index dans le texte"""
+        try:
+            # Convertir l'index de caractère en position Tkinter
+            lines = full_text[:char_index].split('\n')
+            line_num = len(lines)
+            char_num = len(lines[-1]) if lines else 0
+            return f"{line_num}.{char_num}"
+        except:
+            return None
+
     def _insert_markdown_segments(self, text_widget, text, code_blocks=None):
         """Insère du texte avec formatage amélioré - Support des blocs ```python```"""
         import re
+        
+        # Debug pour voir si le formatage est appliqué
+        if "##" in text or "**" in text or "`" in text:
+            print(f"[DEBUG] Formatage Markdown détecté dans: {text[:50]}...")
         
         if code_blocks is None:
             # Formatage progressif pour tous les styles, y compris python
@@ -3193,27 +4042,29 @@ class ModernAIGUI:
             text_widget.insert("end", segment, style)
 
         text_widget.update_idletasks()
-        text_widget.see("1.0")
 
     def _configure_all_formatting_tags(self, text_widget):
-        """Configure TOUS les tags de formatage - Version unifiée"""
+        """Configure TOUS les tags de formatage - Version unifiée et optimisée"""
         BASE_FONT = ('Segoe UI', 12)
         
-        # Tags de base
-        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("title1", font=('Segoe UI', 16, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("title2", font=('Segoe UI', 14, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("title3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("title4", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("title5", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
-        text_widget.tag_configure("python_code", font=('Consolas', 10), foreground="#f8f8f2", background="#2b2b2b")
+        # === TAGS DE FORMATAGE UNIFIÉ ===
         text_widget.tag_configure("normal", font=BASE_FONT, foreground=self.colors['text_primary'])
-        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
+        text_widget.tag_configure("code", font=('Consolas', 11), foreground="#f8f8f2", background="#2b2b2b")
         
-        # Tags Python complets
+        # === TAGS DE TITRES ===
+        text_widget.tag_configure("title_1", font=('Segoe UI', 15, 'bold'), foreground=self.colors['text_primary'])  # Réduit de 18 à 16
+        text_widget.tag_configure("title_2", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])  # Réduit de 16 à 14
+        text_widget.tag_configure("title_3", font=('Segoe UI', 13, 'bold'), foreground=self.colors['text_primary'])
+        
+        # === TAGS SPÉCIAUX ===
+        text_widget.tag_configure("link", foreground="#3b82f6", underline=1, font=BASE_FONT)
+        text_widget.tag_configure("link_temp", font=BASE_FONT, foreground=self.colors['text_primary'])  # Lien pendant animation
+        text_widget.tag_configure("docstring", font=('Consolas', 11, 'italic'), foreground="#ff8c00")
+        text_widget.tag_configure("hidden", elide=True)  # Pour masquer les balises
+        
+        # === TAGS PYTHON (compatibilité) ===
         python_tags = {
             "Token.Keyword": ("#569cd6", 'bold'),
             "Token.Keyword.Constant": ("#569cd6", 'bold'),
@@ -3527,8 +4378,7 @@ class ModernAIGUI:
                 current_state = text_widget.cget("state")
                 text_widget.configure(state="normal")
                 
-                # Forcer le rendu puis mesurer
-                text_widget.see("end")
+                # Forcer le rendu puis mesurer SANS déplacer la vue
                 text_widget.update_idletasks()
                 
                 # Compter lignes réelles affichées
@@ -4530,10 +5380,7 @@ class ModernAIGUI:
 • Contexte total: {stats.get('context_size', 0):,} / {stats.get('max_context_length', 1000000):,} tokens
 • Utilisation: {stats.get('utilization_percent', 0):.1f}%
 
-**Aperçu du contenu:**
-{preview}
-
-Vous pouvez maintenant me poser des questions sur ce document. Le système {'1M tokens' if self.custom_ai.ultra_mode else 'classique'} permettra une analyse approfondie !"""
+Vous pouvez maintenant me poser des questions sur ce document."""
             else:
                 # Message standard
                 success_msg = f"✅ **{filename}** traité avec succès !\n\n**Aperçu du contenu:**\n{preview}\n\nVous pouvez maintenant me poser des questions dessus."

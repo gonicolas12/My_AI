@@ -74,6 +74,7 @@ colorama>=0.4.6
 # Configuration
 pyyaml>=6.0
 python-dotenv>=1.0.0
+spacy
 
 # Dates et temps
 python-dateutil>=2.8.0
@@ -108,6 +109,7 @@ isort>=5.12.0
 sentence_transformers
 faiss-cpu
 peft
+tiktoken
 
 # ====================================
 # OPTIONNEL - FONCTIONNALITÃ‰S AVANCÃ‰ES
@@ -152,8 +154,8 @@ cryptography>=41.0.0
 # Python >= 3.10 recommandÃ©
 
 
-# === OPTIMISATIONS AVANCÉES (Optionnel) ===
-# Pour RAG et embeddings sémantiques
+# === OPTIMISATIONS AVANCï¿½ES (Optionnel) ===
+# Pour RAG et embeddings sï¿½mantiques
 faiss-cpu>=1.7.4
 sentence-transformers>=2.2.0
 
@@ -168,10 +170,10 @@ matplotlib>=3.7.0
 seaborn>=0.12.0
 pandas>=2.0.0
 
-# Pour monitoring avancé
+# Pour monitoring avancï¿½
 psutil>=5.9.0
 memory-profiler>=0.60.0
 
-# === NOUVELLES FONCTIONNALITÉS ===
+# === NOUVELLES FONCTIONNALITï¿½S ===
 numpy>=1.24.0
 scikit-learn>=1.3.0

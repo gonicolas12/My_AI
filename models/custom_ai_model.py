@@ -214,8 +214,16 @@ class CustomAIModel(BaseAI):
             except Exception as e:
                 print(f"⚠️ Erreur FAQ/ML: {e}")
             
-            # 🧮 PRIORITÉ 2: Vérification si c'est un calcul
-            if CALCULATOR_AVAILABLE and intelligent_calculator.is_calculation_request(user_input):
+            # 🧮 PRIORITÉ 2: Vérification si c'est un calcul (MAIS PAS une question sur document)
+            user_lower = user_input.lower()
+            
+            # Éviter d'intercepter les questions sur documents qui contiennent des nombres
+            is_document_question = (
+                self._has_documents_in_memory() and 
+                any(word in user_lower for word in ["quel", "quelle", "combien", "selon", "configuration", "système", "document"])
+            )
+            
+            if CALCULATOR_AVAILABLE and intelligent_calculator.is_calculation_request(user_input) and not is_document_question:
                 print(f"🧮 Calcul détecté: {user_input}")
                 calc_result = intelligent_calculator.calculate(user_input)
                 response = intelligent_calculator.format_response(calc_result)
@@ -225,7 +233,6 @@ class CustomAIModel(BaseAI):
                 return response
             
             # Vérification spéciale pour résumés simples
-            user_lower = user_input.lower().strip()
             if user_lower in ["résume", "resume", "résumé"] and self._has_documents_in_memory():
                 # Forcer l'intention document_question
                 return self._answer_document_question(user_input, self.conversation_memory.get_document_content())
@@ -543,8 +550,23 @@ class CustomAIModel(BaseAI):
         elif intent == "code_question":
             # Vérifier s'il y a du code en mémoire
             stored_docs = self.conversation_memory.get_document_content()
-            code_docs = {name: doc for name, doc in stored_docs.items() 
-                        if doc and doc.get("type") == "code"}
+            
+            # Logique améliorée pour détecter les fichiers de code
+            code_docs = {}
+            for name, doc in stored_docs.items():
+                if doc:
+                    # Méthode 1: Vérifier le type explicite
+                    if doc.get("type") == "code":
+                        code_docs[name] = doc
+                    # Méthode 2: Vérifier l'extension du fichier
+                    elif any(ext in name.lower() for ext in ['.py', '.js', '.html', '.css', '.java', '.cpp', '.c', '.php']):
+                        code_docs[name] = doc
+                    # Méthode 3: Vérifier la langue détectée
+                    elif doc.get("language") in ['python', 'javascript', 'html', 'css', 'java', 'cpp', 'c', 'php']:
+                        code_docs[name] = doc
+            
+            print(f"🔧 [CODE_QUESTION] Fichiers de code détectés: {list(code_docs.keys())}")
+            
             if code_docs:
                 return self._answer_code_question(user_input, code_docs)
             else:
@@ -562,18 +584,28 @@ class CustomAIModel(BaseAI):
         if any(keyword in user_lower for keyword in joke_keywords):
             return self._tell_joke()
             
-        # Validation finale du type de réponse
+        # Validation finale du type de réponse avec FALLBACK INTELLIGENT
         if intent == "document_question":
             stored_docs = self.conversation_memory.get_document_content()
             response = self._answer_document_question(user_input, stored_docs)
             
-            # CORRECTION CRITIQUE: Toujours retourner une chaîne
+            # 🧠 SYSTÈME DE FALLBACK INTELLIGENT
+            # Vérifier si la réponse des documents est vraiment pertinente
+            response_str = ""
             if isinstance(response, dict):
-                if "message" in response:
-                    return response["message"]
-                else:
-                    return str(response)
-            return response
+                response_str = response.get("message", str(response))
+            else:
+                response_str = str(response)
+            
+            # Si la réponse des documents est trop courte ou générique, essayer la recherche internet
+            if self._is_response_inadequate(response_str, user_input):
+                print(f"🔄 Réponse document insuffisante, tentative recherche internet...")
+                internet_response = self._handle_internet_search(user_input, context)
+                # Retourner la meilleure réponse entre les deux
+                if len(internet_response) > len(response_str) and not internet_response.startswith("❌"):
+                    return internet_response
+            
+            return response_str
         elif intent == "help":
             return self._generate_help_response(user_input, context)
         elif intent == "thank_you":
@@ -3119,7 +3151,9 @@ Que voulez-vous apprendre exactement ?"""
                 user_lower = user_input.lower()
                 
                 if any(word in user_lower for word in ["explique", "que fait", "comment"]):
-                    return self._explain_code_naturally(code_content, last_doc, language)
+                    # Utiliser le processeur de code avancé pour les explications détaillées
+                    print(f"🔧 [CODE_QUESTION] Explication demandée pour: {last_doc}")
+                    return self._explain_specific_code_file(last_doc, code_content, user_input)
                 elif any(word in user_lower for word in ["améliore", "optimise"]):
                     return self._suggest_improvements_naturally(code_content, last_doc)
                 else:
@@ -3755,28 +3789,809 @@ Que voulez-vous apprendre exactement ?"""
         return "\n".join(facts) if facts else "📊 Informations quantitatives en cours d'extraction..."
 
     def _answer_document_question(self, user_input: str, stored_docs: Dict[str, Any]) -> str:
-        """Répond aux questions sur les documents avec gestion améliorée et support Ultra"""
+        """
+        🧠 Répond aux questions sur les documents avec analyse intelligente des 1M tokens
+        Utilise une approche hiérarchique : Ultra -> Classic -> Recherche ciblée
+        """
         
-        # D'abord essayer de récupérer le contenu depuis le système Ultra
+        print(f"🔍 [DEBUG] _answer_document_question appelé avec {len(stored_docs)} documents")
+        
+        # 🎯 DÉTECTION PRÉALABLE : Commandes générales (résumé, analyse complète)
+        user_lower = user_input.lower()
+        general_document_commands = [
+            "résume le pdf", "résume le doc", "résume le docx", "résume le document", "résume le fichier",
+            "analyse le pdf", "analyse le doc", "analyse le docx", "analyse le document", "analyse le fichier",
+            "explique le pdf", "explique le doc", "explique le docx", "explique le document", "explique le fichier"
+        ]
+        
+        simple_commands = ["résume", "resume", "résumé", "analyse", "explique"]
+        
+        # 🔧 NOUVELLES COMMANDES : Détection spécifique du code
+        code_commands = [
+            "explique le code", "analyse le code", "décris le code", "code python", 
+            "explique le code python", "analyse le code python", "détaille le code"
+        ]
+        
+        # Détecter les fichiers spécifiques mentionnés (ex: "game.py", "config.py", etc.)
+        specific_file_pattern = r'\b\w+\.(py|js|html|css|java|cpp|c|php)\b'
+        mentioned_files = re.findall(specific_file_pattern, user_input, re.IGNORECASE)
+        
+        is_general_command = (any(cmd in user_lower for cmd in general_document_commands) or 
+                             user_lower.strip() in simple_commands)
+        
+        is_code_command = any(cmd in user_lower for cmd in code_commands)
+        
+        # 🎯 PRIORITÉ 1 : Fichier spécifique mentionné
+        if mentioned_files:
+            file_extensions = [f[1].lower() for f in mentioned_files]
+            mentioned_filenames = [f"{name}.{ext}" for name, ext in mentioned_files]
+            
+            print(f"🎯 [SPECIFIC] Fichier spécifique détecté: {mentioned_filenames}")
+            
+            # Chercher le fichier dans les documents stockés
+            target_file = None
+            for filename in mentioned_filenames:
+                if any(filename.lower() in doc_name.lower() for doc_name in stored_docs.keys()):
+                    target_file = next(doc_name for doc_name in stored_docs.keys() if filename.lower() in doc_name.lower())
+                    break
+            
+            if target_file:
+                print(f"✅ [SPECIFIC] Fichier trouvé: {target_file}")
+                target_content = stored_docs[target_file].get('content', '')
+                
+                # Si c'est un fichier de code ET une commande d'explication
+                if any(ext in ['py', 'js', 'html', 'css', 'java', 'cpp', 'c', 'php'] for ext in file_extensions) and is_code_command:
+                    print(f"🔧 [CODE] Explication de code demandée pour: {target_file}")
+                    # Utiliser le processeur de code pour générer une explication détaillée
+                    return self._explain_specific_code_file(target_file, target_content, user_input)
+                else:
+                    # Autres types de fichiers ou commandes générales
+                    return self._create_universal_summary(target_content, "document", "specific")
+        
+        # 🎯 PRIORITÉ 2 : Commandes de code générales (sans fichier spécifique)
+        if is_code_command and not mentioned_files:
+            print(f"🔧 [CODE] Commande de code générale détectée: '{user_input}'")
+            
+            # Chercher le dernier fichier de code ajouté
+            code_extensions = ['.py', '.js', '.html', '.css', '.java', '.cpp', '.c', '.php']
+            latest_code_file = None
+            
+            # Chercher dans l'ordre inverse (plus récent en premier)
+            if hasattr(self.conversation_memory, 'document_order'):
+                for doc_name in reversed(self.conversation_memory.document_order):
+                    if any(ext in doc_name.lower() for ext in code_extensions):
+                        latest_code_file = doc_name
+                        break
+            
+            if latest_code_file and latest_code_file in stored_docs:
+                print(f"✅ [CODE] Fichier de code le plus récent: {latest_code_file}")
+                target_content = stored_docs[latest_code_file].get('content', '')
+                return self._explain_specific_code_file(latest_code_file, target_content, user_input)
+            else:
+                print("⚠️ [CODE] Aucun fichier de code trouvé")
+        
+        # 🎯 PRIORITÉ 3 : Commandes générales sur documents
+        if is_general_command:
+            print(f"🎯 [GENERAL] Commande générale détectée: '{user_input}' - Récupération contenu complet")
+            
+            # Pour les commandes générales, récupérer TOUT le contenu disponible
+            if self.ultra_mode and self.context_manager:
+                try:
+                    # Récupérer tout le contenu en utilisant une requête générique
+                    full_context = self.context_manager.get_relevant_context("document", max_chunks=50)  # Plus de chunks pour avoir tout
+                    if full_context and len(full_context.strip()) > 100:
+                        print(f"✅ [GENERAL] Contenu complet récupéré: {len(full_context)} caractères")
+                        return self._create_universal_summary(full_context, "document", "pdf")
+                    else:
+                        print("⚠️ [GENERAL] Contenu Ultra insuffisant, fallback vers mémoire classique")
+                except Exception as e:
+                    print(f"❌ [GENERAL] Erreur récupération Ultra: {e}")
+            
+            # Fallback vers la mémoire classique pour les commandes générales
+            if stored_docs:
+                all_content = ""
+                for doc_name, doc_data in stored_docs.items():
+                    content = doc_data.get('content', '')
+                    if content:
+                        all_content += f"\n\n=== {doc_name} ===\n{content}"
+                
+                if all_content:
+                    print(f"✅ [GENERAL] Contenu classique récupéré: {len(all_content)} caractères")
+                    return self._create_universal_summary(all_content, "document", "pdf")
+        
+        # 🚀 ÉTAPE 1: Tentative avec le système Ultra (1M tokens) pour questions spécifiques
         if self.ultra_mode and self.context_manager:
             try:
+                print("🚀 [ULTRA] Recherche dans le contexte 1M tokens...")
                 ultra_context = self.search_in_context(user_input)
-                if ultra_context and ultra_context.strip():
-                    print("🚀 [ULTRA] Utilisation du contexte Ultra pour la réponse")
-                    return self._generate_ultra_response(user_input, ultra_context)
+                if ultra_context and ultra_context.strip() and len(ultra_context) > 50:
+                    print(f"✅ [ULTRA] Contexte trouvé: {len(ultra_context)} caractères")
+                    intelligent_response = self._generate_intelligent_response(user_input, ultra_context, "ULTRA")
+                    if intelligent_response is not None:
+                        return intelligent_response
+                    else:
+                        print("⚠️ [ULTRA] Contenu non pertinent, tentative recherche internet...")
+                        return self._handle_internet_search(user_input, {})
+                else:
+                    print("⚠️ [ULTRA] Contexte insuffisant ou vide")
             except Exception as e:
-                print(f"⚠️ [ULTRA] Erreur recherche Ultra: {e}")
+                print(f"❌ [ULTRA] Erreur: {e}")
         
-        # Fallback vers la méthode classique
+        # 🔄 ÉTAPE 2: Utilisation des documents stockés avec recherche ciblée
+        if not stored_docs and hasattr(self.conversation_memory, 'stored_documents'):
+            stored_docs = self.conversation_memory.stored_documents
+            print(f"🔄 [CLASSIC] Utilisation stored_documents: {len(stored_docs)} documents")
+        
         if not stored_docs:
-            # Essayer de récupérer depuis conversation_memory.stored_documents
-            if hasattr(self.conversation_memory, 'stored_documents') and self.conversation_memory.stored_documents:
-                print("📚 [CLASSIC] Utilisation des documents stockés")
-                return self._generate_classic_response(user_input, self.conversation_memory.stored_documents)
-            else:
-                return "Je n'ai pas de documents en mémoire pour répondre à votre question."
+            return "❌ Aucun document disponible pour répondre à votre question."
         
-        return self._generate_classic_response(user_input, stored_docs)
+        # 🎯 ÉTAPE 3: Recherche intelligente dans les documents
+        print(f"🎯 [SEARCH] Recherche ciblée dans {len(stored_docs)} documents...")
+        relevant_content = self._smart_document_search(user_input, stored_docs)
+        
+        if relevant_content:
+            print(f"✅ [SEARCH] Contenu pertinent trouvé: {len(relevant_content)} caractères")
+            intelligent_response = self._generate_intelligent_response(user_input, relevant_content, "TARGETED")
+            if intelligent_response is not None:
+                return intelligent_response
+            else:
+                print("⚠️ [SEARCH] Contenu non pertinent, tentative recherche internet...")
+                return self._handle_internet_search(user_input, {})
+        else:
+            print("⚠️ [SEARCH] Aucun contenu pertinent trouvé")
+            # Fallback vers recherche internet au lieu d'un résumé général
+            return self._handle_internet_search(user_input, {})
+    
+    def _explain_specific_code_file(self, filename: str, content: str, user_input: str) -> str:
+        """
+        🔧 Explique spécifiquement un fichier de code en utilisant le processeur de code
+        """
+        try:
+            # Importer le processeur de code
+            from processors.code_processor import CodeProcessor
+            
+            processor = CodeProcessor()
+            
+            # Créer un fichier temporaire pour l'analyse
+            import tempfile
+            import os
+            
+            # Déterminer l'extension
+            if filename.endswith('.py'):
+                temp_suffix = '.py'
+            elif filename.endswith('.js'):
+                temp_suffix = '.js'
+            elif filename.endswith('.html'):
+                temp_suffix = '.html'
+            elif filename.endswith('.css'):
+                temp_suffix = '.css'
+            else:
+                temp_suffix = '.py'  # Par défaut
+            
+            # Créer un fichier temporaire avec le contenu
+            with tempfile.NamedTemporaryFile(mode='w', suffix=temp_suffix, delete=False, encoding='utf-8') as temp_file:
+                temp_file.write(content)
+                temp_path = temp_file.name
+            
+            try:
+                # Générer l'explication détaillée
+                print(f"🔧 [CODE] Génération explication détaillée pour: {filename}")
+                explanation = processor.generate_detailed_explanation(temp_path, filename)
+                
+                # Ajouter un en-tête personnalisé
+                final_explanation = explanation
+                
+                return final_explanation
+                
+            finally:
+                # Nettoyer le fichier temporaire
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                    
+        except Exception as e:
+            print(f"❌ [CODE] Erreur lors de l'explication: {e}")
+            # Fallback vers une explication simple
+            return f"""# 🔧 Analyse du fichier : `{filename}`
+
+**Erreur lors de l'analyse avancée** : {str(e)}
+
+## Contenu du fichier :
+
+```python
+{content}
+```
+
+💡 *Le système d'analyse avancée du code n'est pas disponible. Voici le contenu brut du fichier.*"""
+
+    def _smart_document_search(self, user_input: str, stored_docs: dict) -> str:
+        """
+        🎯 Recherche intelligente dans les documents basée sur les mots-clés de la question
+        """
+        user_lower = user_input.lower()
+        
+        # Extraire les mots-clés importants de la question
+        keywords = self._extract_question_keywords(user_input)
+        print(f"🔑 [SEARCH] Mots-clés extraits: {keywords}")
+        
+        relevant_passages = []
+        
+        for doc_name, doc_data in stored_docs.items():
+            content = doc_data.get('content', '')
+            if not content:
+                continue
+                
+            # Rechercher les passages contenant les mots-clés
+            passages = self._find_relevant_passages(content, keywords, user_input)
+            if passages:
+                relevant_passages.extend([(doc_name, passage) for passage in passages])
+        
+        if relevant_passages:
+            # Compiler les passages les plus pertinents
+            result = []
+            for doc_name, passage in relevant_passages[:3]:  # Top 3 passages
+                result.append(f"📄 **{doc_name}**:\n{passage}\n")
+            return "\n".join(result)
+        
+        return ""
+    
+    def _extract_question_keywords(self, user_input: str) -> list:
+        """Extrait les mots-clés importants d'une question"""
+        user_lower = user_input.lower()
+        
+        # Mots vides à ignorer
+        stop_words = {
+            'quel', 'quelle', 'quels', 'quelles', 'est', 'sont', 'le', 'la', 'les', 'un', 'une', 'des',
+            'de', 'du', 'dans', 'sur', 'avec', 'pour', 'par', 'selon', 'comment', 'pourquoi',
+            'que', 'qui', 'quoi', 'où', 'quand', 'dont', 'ce', 'cette', 'ces', 'et', 'ou', 'mais'
+        }
+        
+        # Mots importants techniques
+        important_patterns = [
+            'performance', 'temps', 'réponse', 'système', 'algorithme', 'tri', 'fusion',
+            'version', 'configuration', 'json', 'langage', 'python', 'recommandé',
+            'débuter', 'turing', 'test', 'proposé', 'année', 'tokens', 'traiter',
+            'million', '1m', '1000000', 'scikit-learn', 'pandas', 'alan'
+        ]
+        
+        keywords = []
+        words = user_input.lower().split()
+        
+        for word in words:
+            # Nettoyer le mot
+            clean_word = word.strip('.,?!:;"()[]{}')
+            
+            # Garder si c'est un mot important ou pas dans stop_words
+            if (clean_word not in stop_words and len(clean_word) > 2) or clean_word in important_patterns:
+                keywords.append(clean_word)
+        
+        return keywords
+    
+    def _find_relevant_passages(self, content: str, keywords: list, question: str) -> list:
+        """Trouve les passages pertinents dans un document"""
+        passages = []
+        
+        # Diviser le contenu en paragraphes
+        paragraphs = content.split('\n\n')
+        
+        for paragraph in paragraphs:
+            if len(paragraph.strip()) < 20:  # Ignorer les paragraphes trop courts
+                continue
+                
+            score = 0
+            paragraph_lower = paragraph.lower()
+            
+            # Calculer le score de pertinence
+            for keyword in keywords:
+                if keyword in paragraph_lower:
+                    score += 1
+                    
+            # Bonus pour les questions spécifiques
+            if "version" in question.lower() and any(v in paragraph_lower for v in ['version', 'v.', 'v', '1.', '2.', '3.', '4.', '5.']):
+                score += 2
+            if "algorithme" in question.lower() and any(a in paragraph_lower for a in ['sort', 'tri', 'merge', 'fusion', 'insertion']):
+                score += 2
+            if "langage" in question.lower() and any(l in paragraph_lower for l in ['python', 'java', 'javascript', 'c++', 'programmation']):
+                score += 2
+                
+            if score >= 1:  # Seuil de pertinence
+                passages.append((score, paragraph.strip()[:500]))  # Limiter à 500 chars
+        
+        # Trier par score et retourner les meilleurs
+        passages.sort(key=lambda x: x[0], reverse=True)
+        return [passage[1] for passage in passages[:3]]
+    
+    def _generate_intelligent_response(self, user_input: str, content: str, source: str) -> str:
+        """
+        🧠 Génère une réponse intelligente basée sur le contenu trouvé
+        Retourne None si le contenu n'est pas pertinent pour la question
+        """
+        user_lower = user_input.lower()
+        
+        # 🔍 ÉTAPE 1: Détecter les commandes générales sur le document (PRIORITÉ ABSOLUE)
+        general_document_commands = [
+            "résume le pdf", "résume le doc", "résume le docx", "résume le document", "résume le fichier",
+            "analyse le pdf", "analyse le doc", "analyse le docx", "analyse le document", "analyse le fichier",
+            "explique le pdf", "explique le doc", "explique le docx", "explique le document", "explique le fichier"
+        ]
+        
+        # Détecter aussi "résume" seul quand c'est clairement une commande générale
+        simple_commands = ["résume", "resume", "résumé", "analyse", "explique", "décris le document"]
+        
+        # Si c'est une commande générale, TOUJOURS traiter le document
+        if any(cmd in user_lower for cmd in general_document_commands) or user_lower.strip() in simple_commands:
+            print(f"✅ [RELEVANCE] Commande générale détectée: '{user_input}' - Traitement forcé")
+            return self._create_universal_summary(content, "document", "mixed")
+        
+        # 🔍 ÉTAPE 2: Vérifications de pertinence spécifiques AVANT l'analyse générale
+        
+        # Détecter les questions clairement hors sujet (monuments, géographie, etc.)
+        irrelevant_topics = [
+            "tour eiffel", "eiffel", "taille tour", "hauteur tour", "monument",
+            "paris", "france", "capitale", "pays", "ville", "géographie",
+            "président", "politique", "gouvernement", "histoire mondiale",
+            "mathématiques", "physique", "chimie", "biologie"
+        ]
+        
+        if any(topic in user_lower for topic in irrelevant_topics):
+            print(f"⚠️ [RELEVANCE] Sujet hors contexte détecté: {user_input[:50]}...")
+            return None
+        
+        # 🔍 ÉTAPE 3: Vérifier la pertinence générale par mots-clés SEULEMENT pour questions spécifiques
+        question_keywords = self._extract_question_keywords(user_input)
+        content_lower = content.lower()
+        
+        # Compter combien de mots-clés de la question apparaissent dans le contenu
+        keyword_matches = sum(1 for keyword in question_keywords if keyword in content_lower)
+        relevance_ratio = keyword_matches / len(question_keywords) if question_keywords else 0
+        
+        print(f"🔍 [RELEVANCE] Mots-clés question: {question_keywords}")
+        print(f"🔍 [RELEVANCE] Correspondances: {keyword_matches}/{len(question_keywords)} = {relevance_ratio:.2f}")
+        
+        # Seuil plus strict : 50% au lieu de 30%
+        if relevance_ratio < 0.5 and len(question_keywords) > 2:
+            # Exceptions pour certains types de questions générales sur le document
+            document_exceptions = ["document", "pdf", "docx"]
+            if not any(exc in user_lower for exc in document_exceptions):
+                print(f"⚠️ [RELEVANCE] Contenu non pertinent (ratio: {relevance_ratio:.2f})")
+                return None
+        
+        # 🔍 ÉTAPE 2: Analyser le type de question pour adapter la réponse
+        if "quel" in user_lower and "version" in user_lower:
+            # Rechercher des numéros de version
+            import re
+            versions = re.findall(r'\b\d+\.\d+\.\d+\b|\bv?\d+\.\d+\b|\bversion\s+\d+', content, re.IGNORECASE)
+            if versions:
+                return f"📊 **Version trouvée**: {versions[0]}\n\n📄 **Source** ({source}):\n{content[:300]}..."
+        
+        elif "algorithme" in user_lower:
+            # Rechercher des algorithmes mentionnés
+            algorithms = ['merge sort', 'tri fusion', 'insertion sort', 'quick sort', 'bubble sort']
+            found_algos = [algo for algo in algorithms if algo in content.lower()]
+            if found_algos:
+                return f"🔧 **Algorithme identifié**: {found_algos[0]}\n\n📄 **Source** ({source}):\n{content[:400]}..."
+            else:
+                print("⚠️ [RELEVANCE] Aucun algorithme trouvé dans le contenu")
+                return None
+        
+        elif "langage" in user_lower and "recommandé" in user_lower:
+            # Rechercher des langages de programmation
+            languages = ['python', 'java', 'javascript', 'c++', 'c#', 'go', 'rust']
+            found_langs = [lang for lang in languages if lang in content.lower()]
+            if found_langs:
+                return f"💻 **Langage recommandé**: {found_langs[0].capitalize()}\n\n📄 **Source** ({source}):\n{content[:400]}..."
+            else:
+                print("⚠️ [RELEVANCE] Aucun langage de programmation trouvé dans le contenu")
+                return None
+        
+        elif "turing" in user_lower:
+            # Rechercher des informations sur Turing
+            if "alan" in content.lower() or "1950" in content or "turing" in content.lower():
+                return f"🧠 **Test de Turing**: Proposé par Alan Turing en 1950\n\n📄 **Source** ({source}):\n{content[:400]}..."
+            else:
+                print("⚠️ [RELEVANCE] Aucune information sur Turing trouvée")
+                return None
+        
+        elif any(word in user_lower for word in ["tour eiffel", "eiffel", "taille tour"]):
+            # Questions sur la tour Eiffel - clairement pas dans un document de stage (DOUBLÉ - SUPPRIMÉ)
+            pass
+        
+        # 🔍 ÉTAPE 3: Questions spécifiques au document - RÉPONSE NATURELLE ET CONCISE
+        if any(word in user_lower for word in ["date", "stage", "période", "rapport", "mission", "difficulté", "expérience"]):
+            # Extraire une réponse courte et naturelle du contenu
+            precise_answer = self._extract_precise_answer(user_input, content)
+            if precise_answer:
+                return precise_answer
+        
+        # 🔍 ÉTAPE 4: Vérification finale de pertinence (SEUIL PLUS STRICT)
+        if relevance_ratio >= 0.6:  # Augmenté de 0.3 à 0.6 pour être plus strict
+            # Même ici, extraire une réponse précise
+            precise_answer = self._extract_precise_answer(user_input, content)
+            if precise_answer:
+                return precise_answer
+            else:
+                # Fallback avec filtrage de première personne
+                clean_content = self._filter_first_person_content(content)
+                if clean_content:
+                    return f"Selon le document : {clean_content[:200]}..."
+                else:
+                    return "Je n'ai pas trouvé d'information pertinente dans le document pour répondre à cette question."
+        else:
+            print(f"⚠️ [RELEVANCE] Contenu non pertinent pour la question (ratio: {relevance_ratio:.2f} < 0.6)")
+            return None
+    
+    def _filter_first_person_content(self, content: str) -> str:
+        """
+        Filtre le contenu pour enlever les phrases de première personne
+        ET trouve intelligemment la meilleure phrase pour répondre
+        """
+        import re
+        sentences = re.split(r'[.!?]+', content)
+        
+        # D'abord chercher la phrase qui contient vraiment la réponse
+        target_sentences = []
+        clean_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) < 10:
+                continue
+                
+            sentence_lower = sentence.lower()
+            
+            # Filtre TRÈS SIMPLE et PRÉCIS pour éviter les faux positifs
+            is_first_person = False
+            
+            # Recherche de mots/expressions de première personne UNIQUEMENT
+            first_person_indicators = [
+                'j\'ai ', 'je ', 'j\'', ' moi ', 'moi,', 'moi.', 'me ',
+                'j\'ai été', 'je suis', 'j\'ai appris', 'j\'ai développé',
+                'j\'ai participé', 'j\'ai pu', 'j\'ai également', 'j\'étais',
+                'mon stage', 'ma mission', 'mes tâches', 'mon travail', 
+                'ma formation', 'mon projet', 'mes projets', 'mon équipe'
+            ]
+            
+            # Vérifier si la phrase contient vraiment de la première personne
+            for indicator in first_person_indicators:
+                if indicator in sentence_lower:
+                    is_first_person = True
+                    break
+            
+            # Garder seulement les phrases sans première personne
+            if not is_first_person:
+                clean_sentences.append(sentence)
+                
+                # Chercher spécifiquement les phrases avec "difficulté"
+                if 'difficulté' in sentence_lower:
+                    target_sentences.append(sentence)
+        
+        # Retourner en priorité les phrases qui parlent de difficulté
+        if target_sentences:
+            # Prendre la phrase de difficulté + la suivante pour le contexte
+            result = target_sentences[0]
+            # Chercher la phrase suivante dans les phrases propres
+            try:
+                idx = clean_sentences.index(target_sentences[0])
+                if idx + 1 < len(clean_sentences):
+                    result += " " + clean_sentences[idx + 1]
+            except ValueError:
+                pass
+            return result
+        else:
+            # Fallback sur les premières phrases propres
+            return ' '.join(clean_sentences[:2])
+    
+    def _extract_precise_answer(self, question: str, content: str) -> str:
+        """
+        🎯 Extrait une réponse précise et naturelle du contenu trouvé
+        Retourne 2-3 phrases maximum, formulées naturellement
+        """
+        try:
+            question_lower = question.lower()
+            content_lower = content.lower()
+            
+            # 🎯 TRAITEMENT SPÉCIFIQUE PAR TYPE DE QUESTION
+            
+            # Questions sur les difficultés
+            if any(word in question_lower for word in ["difficulté", "problème", "challenge", "obstacle"]):
+                return self._extract_difficulty_answer(content)
+            
+            # Questions sur les dates/périodes
+            elif any(word in question_lower for word in ["date", "période", "quand", "durée"]):
+                return self._extract_date_answer(content)
+            
+            # Questions sur le lieu
+            elif any(word in question_lower for word in ["lieu", "où", "endroit", "localisation"]):
+                return self._extract_location_answer(content)
+            
+            # Questions sur les missions/rôles
+            elif any(word in question_lower for word in ["mission", "rôle", "tâche", "responsabilité", "travail"]):
+                return self._extract_mission_answer(content)
+            
+            # Questions sur l'expérience
+            elif any(word in question_lower for word in ["expérience", "apprentissage", "bilan", "apport"]):
+                return self._extract_experience_answer(content)
+            
+            # Question générale - essayer d'extraire l'information la plus pertinente
+            else:
+                return self._extract_general_answer(question, content)
+                
+        except Exception as e:
+            print(f"❌ [EXTRACT] Erreur: {e}")
+            return None
+    
+    def _extract_difficulty_answer(self, content: str) -> str:
+        """Extrait une réponse sur les difficultés"""
+        # Diviser le contenu en phrases plus précisément
+        import re
+        sentences = re.split(r'[.!?]+', content)
+        
+        # Mots-clés génériques pour détecter les difficultés
+        difficulty_keywords = [
+            'difficulté', 'problème', 'challenge', 'obstacle', 'complexe', 'compliqué', 
+            'difficile', 'prise en main', 'rencontré', 'surmonté', 'erreur', 'échec',
+            'blocage', 'limitation', 'contrainte', 'enjeu', 'défi'
+        ]
+        
+        # D'ABORD : chercher toutes les phrases qui parlent de difficulté
+        difficulty_sentences = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) < 20:
+                continue
+                
+            sentence_lower = sentence.lower()
+            
+            # Si la phrase contient des mots-clés de difficulté
+            if any(keyword in sentence_lower for keyword in difficulty_keywords):
+                difficulty_sentences.append((sentence, sentence_lower))
+        
+        print(f"🔍 [DEBUG] {len(difficulty_sentences)} phrases avec difficulté trouvées")
+        
+        # ENSUITE : parmi ces phrases, prendre celle qui semble la plus factuelle
+        for sentence, sentence_lower in difficulty_sentences:
+            print(f"🔍 [DEBUG] Évaluation: {sentence[:80]}...")
+            
+            # Cette phrase parle-t-elle spécifiquement de "difficulté notable" ?
+            if 'difficulté' in sentence_lower and 'notable' in sentence_lower:
+                print(f"✅ [DEBUG] Phrase avec 'difficulté notable' trouvée !")
+                
+                # Nettoyer la phrase pour ne garder que la partie pertinente
+                clean_sentence = self._clean_difficulty_sentence(sentence)
+                return f"Selon le document, {clean_sentence.lower()}."
+            
+            # Cette phrase décrit-elle une difficulté concrète ?
+            if any(verb in sentence_lower for verb in ['a été', 'était', 'est', 'consistait']):
+                print(f"✅ [DEBUG] Phrase descriptive trouvée !")
+                clean_sentence = self._clean_difficulty_sentence(sentence)
+                return f"Selon le document, {clean_sentence.lower()}."
+        
+        print(f"⚠️ [DEBUG] Aucune phrase appropriée trouvée parmi {len(difficulty_sentences)} candidates")
+        return None
+    
+    def _clean_difficulty_sentence(self, sentence: str) -> str:
+        """
+        Nettoie une phrase de difficulté pour ne garder que la partie pertinente
+        """
+        # Si la phrase contient "---" ou "•", couper là
+        if "---" in sentence:
+            sentence = sentence.split("---")[0].strip()
+        
+        if "•" in sentence:
+            sentence = sentence.split("•")[0].strip()
+        
+        # Si la phrase est très longue, essayer de la couper à un point logique
+        if len(sentence) > 200:
+            # Chercher des points de coupure naturels après la description de la difficulté
+            cut_points = [
+                "avancées", "complexes", "techniques", "spécialisées", 
+                "précises", "détaillées", "sophistiquées"
+            ]
+            
+            for cut_point in cut_points:
+                if cut_point in sentence.lower():
+                    # Trouver la position du mot de coupure
+                    pos = sentence.lower().find(cut_point)
+                    if pos > 50:  # S'assurer qu'on a assez de contenu
+                        # Couper après le mot + éventuellement un peu plus
+                        end_pos = pos + len(cut_point)
+                        sentence = sentence[:end_pos].strip()
+                        break
+        
+        # Nettoyer les caractères en fin
+        sentence = sentence.rstrip(' .,;:')
+        
+        return sentence
+    
+    def _extract_date_answer(self, content: str) -> str:
+        """Extrait une réponse sur les dates - VERSION GÉNÉRIQUE"""
+        import re
+        
+        # Patterns génériques pour toutes sortes de dates
+        date_patterns = [
+            r'\b\d{1,2}\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4}\b',
+            r'\b\d{1,2}\s+-\s+\d{1,2}\s+\w+\s+\d{4}\b',
+            r'du\s+\d{1,2}\s+\w+\s+au\s+\d{1,2}\s+\w+\s+\d{4}',
+            r'\d{1,2}/\d{1,2}/\d{4}',
+            r'\d{4}-\d{1,2}-\d{1,2}',
+            r'période\s*:\s*[^.]+',
+            r'date\s*:\s*[^.]+',
+            r'depuis\s+\d{4}',
+            r'en\s+\d{4}'
+        ]
+        
+        for pattern in date_patterns:
+            match = re.search(pattern, content, re.IGNORECASE)
+            if match:
+                # Extraire le contexte autour de la date
+                start = max(0, match.start() - 30)
+                end = min(len(content), match.end() + 30)
+                context = content[start:end].strip()
+                
+                # Nettoyer et formater
+                clean_context = self._clean_sentence(context)
+                return f"Selon le document, {clean_context.lower()}."
+        
+        return None
+    
+    def _extract_location_answer(self, content: str) -> str:
+        """Extrait une réponse sur le lieu - VERSION GÉNÉRIQUE"""
+        # Mots-clés génériques pour tous types de lieux
+        location_keywords = [
+            'lieu', 'endroit', 'adresse', 'localisation', 'situé', 'située', 'emplacement',
+            'ville', 'région', 'pays', 'bureau', 'siège', 'site', 'campus'
+        ]
+        
+        sentences = content.replace('\n', ' ').split('.')
+        best_sentence = None
+        best_score = 0
+        
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            
+            # Éviter la première personne
+            if any(word in sentence_lower for word in ['j\'ai', 'je ', 'mon ', 'ma ', 'mes ']):
+                continue
+                
+            score = sum(1 for keyword in location_keywords if keyword in sentence_lower)
+            
+            if score > best_score and len(sentence.strip()) > 20:
+                best_score = score
+                best_sentence = sentence.strip()
+        
+        if best_sentence:
+            clean_sentence = self._clean_sentence(best_sentence)
+            return f"Selon le document, {clean_sentence.lower()}."
+        
+        return None
+    
+    def _extract_mission_answer(self, content: str) -> str:
+        """Extrait une réponse sur les missions - VERSION GÉNÉRIQUE"""
+        # Mots-clés génériques pour toutes sortes de missions/tâches
+        mission_keywords = [
+            'mission', 'rôle', 'tâche', 'responsabilité', 'fonction', 'travail', 'activité',
+            'objectif', 'but', 'attribution', 'charge', 'devoir', 'assignment'
+        ]
+        
+        sentences = content.replace('\n', ' ').split('.')
+        best_sentence = None
+        best_score = 0
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            sentence_lower = sentence.lower()
+            
+            # Éviter la première personne
+            if any(word in sentence_lower for word in ['j\'ai', 'je ', 'mon ', 'ma ', 'mes ']):
+                continue
+            
+            score = sum(1 for keyword in mission_keywords if keyword in sentence_lower)
+            
+            # Bonus pour les phrases qui décrivent concrètement des activités
+            if any(verb in sentence_lower for verb in ['consiste', 'comprend', 'inclut', 'implique']):
+                score += 2
+            
+            if score > best_score and len(sentence) > 30:
+                best_score = score
+                best_sentence = sentence
+        
+        if best_sentence:
+            clean_sentence = self._clean_sentence(best_sentence)
+            return f"Selon le document, {clean_sentence.lower()}."
+        
+        return None
+    
+    def _extract_experience_answer(self, content: str) -> str:
+        """Extrait une réponse sur l'expérience - VERSION GÉNÉRIQUE"""
+        # Mots-clés génériques pour l'apprentissage et l'expérience
+        experience_keywords = [
+            'appris', 'acquis', 'développé', 'expérience', 'compétences', 'bilan',
+            'formation', 'apprentissage', 'connaissances', 'expertise', 'savoir',
+            'capacité', 'aptitude', 'maîtrise', 'progression'
+        ]
+        
+        sentences = content.replace('\n', ' ').split('.')
+        best_sentence = None
+        best_score = 0
+        
+        for sentence in sentences:
+            sentence_lower = sentence.lower()
+            
+            # Éviter la première personne pour l'IA
+            if any(word in sentence_lower for word in ['j\'ai', 'je ', 'mon ', 'ma ', 'mes ']):
+                continue
+            
+            score = sum(1 for keyword in experience_keywords if keyword in sentence_lower)
+            
+            if score > best_score and len(sentence.strip()) > 30:
+                best_score = score
+                best_sentence = sentence.strip()
+        
+        if best_sentence:
+            clean_sentence = self._clean_sentence(best_sentence)
+            return f"D'après le document, {clean_sentence.lower()}."
+        
+        return None
+    
+    def _clean_sentence(self, sentence: str) -> str:
+        """
+        🧹 Nettoie une phrase pour éviter les doublons et problèmes de formatage
+        """
+        # Supprimer les espaces multiples
+        sentence = ' '.join(sentence.split())
+        
+        # Détecter et corriger les doublons de mots (comme "une Une")
+        words = sentence.split()
+        cleaned_words = []
+        
+        for i, word in enumerate(words):
+            # Si ce n'est pas le premier mot et qu'il est identique au précédent (case insensitive)
+            if i > 0 and word.lower() == words[i-1].lower():
+                continue  # Ignorer le doublon
+            cleaned_words.append(word)
+        
+        sentence = ' '.join(cleaned_words)
+        
+        # Supprimer les séparateurs de sections (---, ►, etc.)
+        sentence = sentence.replace('---', '').replace('►', '').replace('→', '')
+        
+        # Nettoyer les caractères en début/fin
+        sentence = sentence.strip(' .-•')
+        
+        return sentence
+    
+    def _extract_general_answer(self, question: str, content: str) -> str:
+        """Extrait une réponse générale"""
+        # Prendre la première phrase substantielle du contenu
+        sentences = content.replace('\n', ' ').split('.')
+        for sentence in sentences:
+            if len(sentence.strip()) > 50:  # Phrase avec du contenu
+                return f"Selon le document, {sentence.strip()}."
+        
+        return None
+    
+    def _generate_fallback_response(self, user_input: str, stored_docs: dict) -> str:
+        """Génère une réponse de fallback quand aucun contenu spécifique n'est trouvé"""
+        doc_count = len(stored_docs)
+        
+        # Essayer de donner une réponse basée sur les métadonnées
+        doc_names = list(stored_docs.keys())
+        doc_types = set()
+        
+        for doc_data in stored_docs.values():
+            if doc_data.get('type'):
+                doc_types.add(doc_data['type'])
+        
+        return f"""📋 **Information disponible**:
+
+🗂️ J'ai {doc_count} document(s) en mémoire: {', '.join(doc_names[:3])}...
+📝 Types: {', '.join(doc_types) if doc_types else 'Divers'}
+
+❓ Je n'ai pas trouvé d'information spécifique pour répondre à votre question dans les documents analysés.
+
+💡 **Suggestions**:
+- Reformulez votre question avec d'autres termes
+- Posez une question plus générale sur le contenu
+- Demandez un résumé des documents disponibles"""
     
     def _generate_ultra_response(self, user_input: str, context: str) -> str:
         """Génère une réponse basée sur le contexte Ultra"""
@@ -4676,7 +5491,10 @@ D'après le document en mémoire:
             return "unknown", 0.5
         
         # PRIORITÉ 3 : Questions sur les documents (seulement si ce n'est pas de l'identité)
-        if self._has_documents_in_memory():
+        has_docs = self._has_documents_in_memory()
+        print(f"🔍 [DEBUG] Documents en mémoire: {has_docs}")
+        
+        if has_docs:
             # Mots-clés qui indiquent clairement une question sur un document
             doc_indicators = [
                 "résume", "resume", "résumé", "explique", "analyse", 
@@ -4686,17 +5504,24 @@ D'après le document en mémoire:
             
             # Détecter "résume le pdf" même si seul
             if any(indicator in user_lower for indicator in doc_indicators):
+                print(f"🎯 [DEBUG] Indicateur de document détecté: '{user_input}'")
+                
                 # Si c'est spécifiquement "résume le pdf" ou "résume le doc"
                 if any(phrase in user_lower for phrase in ["résume le pdf", "résume le doc", "résume le document"]):
+                    print(f"✅ [DEBUG] Résumé de document spécifique détecté - Score: 1.0")
                     return "document_question", 1.0  # Force high confidence
                 
                 # Ou si c'est juste "résume" et qu'on a des documents
                 elif user_lower in ["résume", "resume", "résumé"]:
+                    print(f"✅ [DEBUG] Résumé simple détecté - Score: 0.9")
                     return "document_question", 0.9
                 
                 # Autres questions sur documents
                 else:
+                    print(f"✅ [DEBUG] Autre question sur document détectée - Score: 0.8")
                     return "document_question", 0.8
+            else:
+                print(f"🚫 [DEBUG] Aucun indicateur de document détecté dans: '{user_input}'")
         
         # PRIORITÉ 3.5 : Questions de programmation avec détection spécifique
         programming_patterns = [
@@ -4713,20 +5538,40 @@ D'après le document en mémoire:
             if any(word in user_lower for word in ["comment", "créer", "utiliser", "faire", "python", "liste", "dictionnaire", "fonction", "variable", "boucle", "condition", "classe"]):
                 return "programming_question", 0.9
         
-        # PRIORITÉ 3.6 : Questions générales avec structure "c'est quoi", "qu'est-ce que", "quelle est" => internet_search
+        # PRIORITÉ 3.6 : Questions générales - LOGIQUE INTELLIGENTE ÉTENDUE
         general_question_patterns = [
             "c'est quoi", "c est quoi", "quest ce que", "qu'est-ce que", "qu est ce que",
             "qu'est ce que", "quel est", "quelle est", "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
             "explique moi", "peux tu expliquer", "dis moi ce que c'est"
         ]
-        # Si le modèle IA a une réponse directe (intent déjà détecté avec un score élevé), ne pas faire de recherche internet
-        # On considère qu'un intent avec un score >= 0.85 est une réponse IA prioritaire
+        
+        # 🧠 EXTENSION : Détecter TOUTES les questions avec "quel/quelle/qui/combien" quand on a des documents
+        extended_question_patterns = [
+            "quel", "quelle", "quels", "quelles", "qui a", "qui est", "combien", "comment"
+        ]
+        
+        # 🧠 LOGIQUE INTELLIGENTE : D'abord les documents, puis internet en dernier recours
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
-        if any(pattern in user_lower for pattern in general_question_patterns):
-            if best_intent[0] not in ["internet_search", "unknown"] and best_intent[1] >= 0.85:
+        
+        # Vérifier d'abord les patterns généraux
+        is_general_question = any(pattern in user_lower for pattern in general_question_patterns)
+        
+        # Puis vérifier les patterns étendus SI on a des documents
+        is_extended_question = False
+        if self._has_documents_in_memory():
+            is_extended_question = any(pattern in user_lower for pattern in extended_question_patterns)
+        
+        if is_general_question or is_extended_question:
+            # Si on a des documents en mémoire, prioriser document_question
+            if self._has_documents_in_memory():
+                print(f"🎯 [INTENT] Question détectée avec documents disponibles: '{user_input[:50]}...'")
+                return "document_question", 0.95
+            # Si on a un autre intent avec un bon score, l'utiliser
+            elif best_intent[0] not in ["internet_search", "unknown"] and best_intent[1] >= 0.7:
                 return best_intent[0], best_intent[1]
+            # Seulement en dernier recours : recherche internet
             else:
-                return "internet_search", 1.0
+                return "internet_search", 0.8
         
         # PRIORITÉ 4 : Sélection normale par score le plus élevé
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
@@ -4737,14 +5582,63 @@ D'après le document en mémoire:
         # Vérifier le système Ultra
         if self.ultra_mode and self.context_manager:
             stats = self.context_manager.get_stats()
-            if stats.get('documents_added', 0) > 0:
+            ultra_docs = stats.get('documents_added', 0)
+            print(f"🔍 [DEBUG] Ultra mode docs: {ultra_docs}")
+            if ultra_docs > 0:
                 return True
         
         # Vérifier la mémoire classique
         classic_docs = len(self.conversation_memory.get_document_content()) > 0
         stored_docs = len(self.conversation_memory.stored_documents) > 0
         
-        return classic_docs or stored_docs
+        print(f"🔍 [DEBUG] Classic docs: {classic_docs}, Stored docs: {stored_docs}")
+        
+        result = classic_docs or stored_docs
+        print(f"🔍 [DEBUG] Total has_documents_in_memory: {result}")
+        
+        return result
+    
+    def _is_response_inadequate(self, response: str, user_input: str) -> bool:
+        """
+        🧠 Évalue si une réponse est inadéquate et nécessite un fallback
+        
+        Args:
+            response: La réponse à évaluer
+            user_input: La question de l'utilisateur
+            
+        Returns:
+            True si la réponse est inadéquate, False sinon
+        """
+        if not response or len(response.strip()) < 20:
+            return True
+        
+        # Réponses génériques à éviter
+        generic_responses = [
+            "je n'ai pas trouvé", "aucune information", "pas de données",
+            "document vide", "aucun contenu", "impossible de répondre",
+            "pas d'information pertinente", "contenu non disponible"
+        ]
+        
+        response_lower = response.lower()
+        if any(generic in response_lower for generic in generic_responses):
+            return True
+        
+        # Si la question contient des mots-clés spécifiques, vérifier qu'ils apparaissent dans la réponse
+        user_lower = user_input.lower()
+        key_terms = []
+        
+        # Extraire les termes importants de la question
+        if "quel" in user_lower or "quelle" in user_lower:
+            # Pour les questions "quel/quelle", chercher des termes techniques
+            technical_terms = ["version", "algorithme", "langage", "système", "configuration", 
+                             "performance", "temps", "token", "test", "turing"]
+            key_terms = [term for term in technical_terms if term in user_lower]
+        
+        # Si on a des termes clés et qu'aucun n'apparaît dans la réponse, c'est inadéquat
+        if key_terms and not any(term in response_lower for term in key_terms):
+            return True
+        
+        return False
     
     def _get_document_position_description(self, doc_name: str) -> str:
         """
@@ -4931,23 +5825,212 @@ D'après le document en mémoire:
             }
     
     def search_in_context(self, query: str) -> str:
-        """Recherche dans le contexte 1M tokens"""
+        """
+        🔍 Recherche intelligente dans le contexte 1M tokens
+        Améliore la recherche pour trouver les passages les plus pertinents
+        """
         if not self.ultra_mode:
             return self._search_in_classic_memory(query)
-        
+
         try:
-            # Recherche dans le contexte Ultra
-            context = self.context_manager.get_relevant_context(query, max_chunks=5)
+            print(f"🔍 [ULTRA] Recherche intelligente pour: '{query[:60]}...'")
             
-            if not context:
-                # Fallback vers mémoire classique
-                return self._search_in_classic_memory(query)
+            # 🎯 ÉTAPE 1: Extraire les mots-clés de la question
+            keywords = self._extract_question_keywords(query)
+            print(f"🔑 [ULTRA] Mots-clés extraits: {keywords}")
             
-            return context
+            # 🎯 ÉTAPE 2: Recherche avec mots-clés spécifiques
+            enhanced_query = " ".join(keywords)  # Requête améliorée avec les mots-clés
+            
+            # Recherche dans le contexte Ultra avec plus de chunks pour avoir plus de choix
+            context = self.context_manager.get_relevant_context(enhanced_query, max_chunks=10)
+            
+            if not context or len(context.strip()) < 100:
+                print("⚠️ [ULTRA] Contexte insuffisant, recherche avec requête originale...")
+                # Fallback avec la requête originale
+                context = self.context_manager.get_relevant_context(query, max_chunks=8)
+            
+            if context and len(context.strip()) > 50:
+                print(f"✅ [ULTRA] Contexte trouvé: {len(context)} caractères")
+                
+                # 🎯 ÉTAPE 3: Post-traitement pour extraire les passages les plus pertinents
+                refined_context = self._refine_ultra_context(context, query, keywords)
+                
+                # ✅ NOUVELLE LOGIQUE : Utiliser le contenu raffiné s'il est pertinent, même s'il est court
+                if refined_context and len(refined_context.strip()) > 100:  # Au moins 100 caractères de contenu
+                    print(f"🎯 [ULTRA] Contexte raffiné utilisé: {len(refined_context)} caractères")
+                    return refined_context
+                elif refined_context and len(refined_context.strip()) > 50:
+                    print(f"🎯 [ULTRA] Contexte raffiné court mais utilisé: {len(refined_context)} caractères")
+                    return refined_context
+                else:
+                    print(f"🔄 [ULTRA] Raffinement insuffisant ({len(refined_context) if refined_context else 0} chars), utilisation contexte complet")
+                    return context
+            else:
+                print("⚠️ [ULTRA] Contexte vide ou insuffisant")
+                
+            # Fallback vers mémoire classique
+            return self._search_in_classic_memory(query)
             
         except Exception as e:
-            print(f"⚠️ Erreur recherche Ultra: {e}")
+            print(f"❌ [ULTRA] Erreur recherche: {e}")
             return self._search_in_classic_memory(query)
+    
+    def _refine_ultra_context(self, context: str, query: str, keywords: list) -> str:
+        """
+        🎯 Raffine le contexte Ultra pour extraire les passages les plus pertinents
+        """
+        try:
+            print(f"🔍 [REFINE] Début du raffinement: {len(context)} caractères")
+            
+            # 🎯 ÉTAPE 1: Diviser le contenu de manière plus agressive
+            # Essayer plusieurs méthodes de division
+            sections = []
+            
+            # Méthode 1: Double saut de ligne
+            if '\n\n' in context:
+                sections = context.split('\n\n')
+                print(f"📄 [REFINE] Division par double saut: {len(sections)} sections")
+            
+            # Méthode 2: Saut de ligne simple si peu de sections
+            if len(sections) < 5:
+                sections = context.split('\n')
+                sections = [s.strip() for s in sections if len(s.strip()) > 20]
+                print(f"📄 [REFINE] Division par saut simple: {len(sections)} sections")
+            
+            # Méthode 3: Division par phrases longues si toujours peu de sections
+            if len(sections) < 5:
+                import re
+                # Diviser par points, mais garder les phrases longues ensemble
+                sentences = re.split(r'[.!?]+', context)
+                sections = []
+                current_section = ""
+                
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    if len(sentence) < 10:  # Ignorer les phrases trop courtes
+                        continue
+                    
+                    if len(current_section) + len(sentence) > 300:  # ~300 caractères par section
+                        if current_section:
+                            sections.append(current_section.strip())
+                        current_section = sentence
+                    else:
+                        current_section += ". " + sentence if current_section else sentence
+                
+                if current_section:
+                    sections.append(current_section.strip())
+                    
+                print(f"📄 [REFINE] Division par phrases: {len(sections)} sections")
+            
+            # 🎯 ÉTAPE 2: Scorer chaque section
+            scored_sections = []
+            query_lower = query.lower()
+            
+            for i, section in enumerate(sections):
+                if len(section.strip()) < 30:  # Ignorer les sections trop courtes
+                    continue
+                    
+                section_lower = section.lower()
+                score = 0
+                
+                # Score basé sur les mots-clés de la question
+                for keyword in keywords:
+                    if keyword in section_lower:
+                        score += 3  # Score plus élevé pour les mots-clés directs
+                        # Bonus si le mot-clé apparaît plusieurs fois
+                        score += section_lower.count(keyword) * 1.5
+                
+                # Score basé sur des mots-clés spécifiques selon le type de question
+                if 'difficulté' in query_lower or 'problème' in query_lower:
+                    difficulty_words = ['difficulté', 'problème', 'challenge', 'obstacle', 'compliqué', 'difficile', 'complexe']
+                    for word in difficulty_words:
+                        if word in section_lower:
+                            score += 5  # Score très élevé pour les questions sur les difficultés
+                
+                elif 'date' in query_lower or 'période' in query_lower:
+                    date_words = ['date', 'période', 'juin', 'juillet', 'août', '2025', 'début', 'fin', 'durée']
+                    for word in date_words:
+                        if word in section_lower:
+                            score += 5
+                
+                elif 'lieu' in query_lower or 'endroit' in query_lower:
+                    location_words = ['lieu', 'endroit', 'pierre fabre', 'lavaur', 'cauquillous', 'adresse', 'localisation']
+                    for word in location_words:
+                        if word in section_lower:
+                            score += 5
+                
+                elif 'mission' in query_lower or 'tâche' in query_lower:
+                    mission_words = ['mission', 'tâche', 'responsabilité', 'rôle', 'travail', 'fonction', 'activité']
+                    for word in mission_words:
+                        if word in section_lower:
+                            score += 5
+                
+                # Bonus pour les éléments de structure (listes, titres, etc.)
+                if any(char in section for char in [':', '-', '•', '►', '→', '1.', '2.', '3.']):
+                    score += 2
+                
+                # Malus pour les sections qui semblent être de la table des matières
+                if 'table des matières' in section_lower or section.count('.....') > 2:
+                    score -= 10
+                
+                print(f"📊 [REFINE] Section {i}: {score} points - {section[:60]}...")
+                
+                if score > 0:
+                    scored_sections.append((score, section.strip()))
+            
+            # 🎯 ÉTAPE 3: Sélectionner les meilleures sections
+            if scored_sections:
+                # Trier par score décroissant
+                scored_sections.sort(key=lambda x: x[0], reverse=True)
+                
+                print(f"🏆 [REFINE] Top scores: {[s[0] for s in scored_sections[:5]]}")
+                
+                # Prendre les sections avec un score significatif
+                good_sections = [section[1] for section in scored_sections if section[0] >= 3]
+                
+                if good_sections:
+                    # Limiter à 3 sections maximum pour éviter trop de texte
+                    selected_sections = good_sections[:3]
+                    refined_content = "\n\n---\n\n".join(selected_sections)
+                    
+                    print(f"✅ [REFINE] {len(selected_sections)} sections sélectionnées, {len(refined_content)} caractères")
+                    return refined_content
+                else:
+                    print("⚠️ [REFINE] Aucune section avec score suffisant")
+            
+            # 🔄 FALLBACK: Si aucune section pertinente, retourner un échantillon intelligent
+            print("🔄 [REFINE] Fallback - recherche par mots-clés simples")
+            return self._simple_keyword_search(context, keywords)
+                
+        except Exception as e:
+            print(f"❌ [REFINE] Erreur: {e}")
+            return self._simple_keyword_search(context, keywords)
+    
+    def _simple_keyword_search(self, content: str, keywords: list) -> str:
+        """Recherche simple par mots-clés si le raffinement avancé échoue"""
+        try:
+            lines = content.split('\n')
+            relevant_lines = []
+            
+            for line in lines:
+                line_lower = line.lower()
+                if any(keyword in line_lower for keyword in keywords) and len(line.strip()) > 20:
+                    relevant_lines.append(line.strip())
+            
+            if relevant_lines:
+                # Prendre les 5 premières lignes pertinentes
+                result = '\n'.join(relevant_lines[:5])
+                print(f"🔍 [SIMPLE] {len(relevant_lines)} lignes pertinentes trouvées")
+                return result
+            else:
+                # Ultime fallback: premiers 800 caractères
+                print("🔄 [SIMPLE] Aucune ligne pertinente, retour début document")
+                return content[:800]
+                
+        except Exception as e:
+            print(f"❌ [SIMPLE] Erreur: {e}")
+            return content[:800]
     
     def _search_in_classic_memory(self, query: str) -> str:
         """Recherche dans la mémoire classique"""

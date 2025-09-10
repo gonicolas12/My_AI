@@ -72,7 +72,8 @@ class CodeProcessor:
         # 1. Objectif général
         explanation.append("## 1. Objectif général\n")
         if docstring:
-            explanation.append(f"'''docstring\n{docstring}\n'''\n")
+            # CORRECTION : Enlever le mot "docstring" et garder juste le contenu dans '''
+            explanation.append(f"'''{docstring}'''\n")
         else:
             explanation.append("> Ce fichier ne contient pas de docstring de module explicite. Il s'agit d'un fichier de code en Python.\n")
 
@@ -102,7 +103,8 @@ class CodeProcessor:
             explanation.append(f"Le fichier contient **{len(classes)} classe(s)** :\n")
             for c in classes:
                 bases = f" (hérite de {', '.join([f'`{b}`' for b in c['bases']])})" if c['bases'] else ""
-                doc = f"\n'''docstring\n{c['docstring']}\n'''" if c['docstring'] else ""
+                # CORRECTION : Enlever le mot "docstring"
+                doc = f"\n'''{c['docstring']}'''" if c['docstring'] else ""
                 explanation.append(f"- Classe `{c['name']}`{bases} (ligne {c['line']}){doc}")
         else:
             explanation.append("Aucune classe définie dans ce fichier.")
@@ -126,7 +128,8 @@ class CodeProcessor:
                             formatted_lines.append(line.replace("Returns:", "**Returns:**"))
                         else:
                             formatted_lines.append(line)
-                    doc_formatted = f"\n'''docstring\n{chr(10).join(formatted_lines)}\n'''"
+                    # CORRECTION : Enlever le mot "docstring"
+                    doc_formatted = f"\n'''{chr(10).join(formatted_lines)}'''"
                 
                 explanation.append(f"- Fonction `{f['name']}`(args: {args_list}) (ligne {f['line']}){doc_formatted}")
         else:

@@ -1,0 +1,131 @@
+{
+  "test_date": "2025-09-09T11:49:05.077581",
+  "test_type": "REAL AI 1M TOKENS TEST",
+  "system_used": "CustomAIModel (Production)",
+  "total_tokens_processed": 1035090,
+  "comprehension_score": 100.0,
+  "performance_metrics": {
+    "total_questions": 6,
+    "correct_answers": 6,
+    "detailed_results": [
+      {
+        "question": "Quel est l'objectif de performance pour le temps de réponse du système ?",
+        "section": "Documentation Technique",
+        "response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈ...",
+        "full_response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique - Modules spécialisés: calcul, code, documents, recherche internet - Optimisations de performance pour temps de réponse < 3s ### Composants Principaux #### 1. CustomAIModel - Modèle principal de généra...\n\n✨ *Analyse effectuée sur 86001 caractères grâce au système d'analyse intelligente*",
+        "keywords_expected": [
+          "3 secondes",
+          "3000ms",
+          "performance"
+        ],
+        "keywords_found": [
+          "performance"
+        ],
+        "correct": true,
+        "response_time": 3.6844482421875
+      },
+      {
+        "question": "Quel algorithme est utilisé dans l'exemple de tri fusion ?",
+        "section": "Code Examples",
+        "response": "🔧 **Algorithme identifié**: tri fusion\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique #...",
+        "full_response": "🔧 **Algorithme identifié**: tri fusion\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique -...",
+        "keywords_expected": [
+          "merge sort",
+          "tri fusion",
+          "insertion sort"
+        ],
+        "keywords_found": [
+          "merge sort",
+          "tri fusion"
+        ],
+        "correct": true,
+        "response_time": 0.025033950805664062
+      },
+      {
+        "question": "Quelle est la version du système selon la configuration JSON ?",
+        "section": "Structured Data",
+        "response": "📊 **Version trouvée**: 5.0.0\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTA...",
+        "full_response": "📊 **Version trouvée**: 5.0.0\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de co...",
+        "keywords_expected": [
+          "5.0.0",
+          "version"
+        ],
+        "keywords_found": [
+          "5.0.0",
+          "version"
+        ],
+        "correct": true,
+        "response_time": 0.03326416015625
+      },
+      {
+        "question": "Quel langage est recommandé pour débuter en IA selon la conversation ?",
+        "section": "Conversations",
+        "response": "💻 **Langage recommandé**: Python\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUM...",
+        "full_response": "💻 **Langage recommandé**: Python\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique -...",
+        "keywords_expected": [
+          "Python",
+          "scikit-learn",
+          "pandas"
+        ],
+        "keywords_found": [
+          "Python"
+        ],
+        "correct": true,
+        "response_time": 0.03336143493652344
+      },
+      {
+        "question": "Qui a proposé le Test de Turing et en quelle année ?",
+        "section": "Educational Content",
+        "response": "🧠 **Test de Turing**: Proposé par Alan Turing en 1950\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 1) ---\n! Pour une app web moderne, voici ma recommandation basée sur les tendances 2025 : **🎯 Stack...",
+        "full_response": "🧠 **Test de Turing**: Proposé par Alan Turing en 1950\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 1) ---\n! Pour une app web moderne, voici ma recommandation basée sur les tendances 2025 : **🎯 Stack recommandée** : **Frontend** : - **React 18** + TypeScript : Composants réactifs type-safe - **Next.js 14** : Framework full-stack avec App Router - **Tailwind CSS** : Styling utilitaire rapide - **Zustand** : Gestion d'état simple **Backend** : - **Node.js** + **Express** ou...",
+        "keywords_expected": [
+          "Alan Turing",
+          "1950"
+        ],
+        "keywords_found": [
+          "Alan Turing",
+          "1950"
+        ],
+        "correct": true,
+        "response_time": 0.02627277374267578
+      },
+      {
+        "question": "Combien de tokens peut traiter le système selon la configuration ?",
+        "section": "Multiple Sections",
+        "response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈ...",
+        "full_response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique - Modules spécialisés: calcul, code, documents, recherche internet - Optimisations de performance pour temps de réponse < 3s ### Composants Principaux #### 1. CustomAIModel - Modèle principal de généra...\n\n✨ *Analyse effectuée sur 86001 caractères grâce au système d'analyse intelligente*",
+        "keywords_expected": [
+          "1000000",
+          "1M",
+          "million"
+        ],
+        "keywords_found": [
+          "1000000",
+          "1M",
+          "million"
+        ],
+        "correct": true,
+        "response_time": 0.024544477462768555
+      }
+    ],
+    "response_times": [
+      3.6844482421875,
+      0.025033950805664062,
+      0.03326416015625,
+      0.03336143493652344,
+      0.02627277374267578,
+      0.024544477462768555
+    ],
+    "comprehension_score": 100.0,
+    "avg_response_time": 0.637820839881897,
+    "avg_query_time": 0.02020851771036784,
+    "total_test_time": 50.722471475601196
+  },
+  "test_status": "VALIDÉ",
+  "validation_criteria": {
+    "tokens_processed": true,
+    "comprehension_score": true,
+    "avg_response_time": true,
+    "no_errors": true
+  }
+}
