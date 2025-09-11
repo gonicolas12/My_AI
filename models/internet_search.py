@@ -380,20 +380,25 @@ class EnhancedInternetSearchEngine:
             enhanced_info = self._intelligent_bold_formatting(cleaned_info)
             summary += f"📍 **Information trouvée :**\n{enhanced_info}\n\n"
         
-        # CORRECTION : Format correct pour "Sources" avec bon placement des **
-        summary += "🔗 **Sources** :\n"
+        # Format horizontal pour les sources
+        summary += "🔗 **Sources** : "
         
-        for i, result in enumerate(page_contents[:3], 1):
+        source_links = []
+        for result in page_contents[:3]:
             if result.get("title") and result.get("url"):
                 title = self._clean_title(result["title"])
                 clean_title = self._universal_word_spacing_fix(title)
                 url = result.get("url")
                 
                 if url and url.startswith("http"):
-                    # CORRECTION : URL complète pour éviter l'erreur None
-                    summary += f"{i}. [{clean_title}]({url})\n"
+                    source_links.append(f"[{clean_title}]({url})")
                 else:
-                    summary += f"{i}. {clean_title}\n"
+                    source_links.append(f"[{clean_title}]")
+        
+        if source_links:
+            summary += ", ".join(source_links) + "\n"
+        else:
+            summary += "Aucune source disponible\n"
         
         return summary
     
@@ -499,6 +504,13 @@ class EnhancedInternetSearchEngine:
             return "Source"
         
         cleaned = str(title)  # Conversion sécurisée en string
+        
+        # CORRECTION : Remplacer les caractères problématiques pour les liens
+        cleaned = cleaned.replace(":", " -")
+        
+        # Remplacer d'autres caractères potentiellement problématiques
+        cleaned = cleaned.replace("|", "-")
+        cleaned = cleaned.replace("[", "(").replace("]", ")")
         
         # Supprimer les parties indésirables
         cleaned = re.sub(r'\s*[\[\(].*?[\]\)]\s*$', '', cleaned)

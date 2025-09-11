@@ -1,18 +1,18 @@
 {
-  "test_date": "2025-09-09T11:49:05.077581",
+  "test_date": "2025-09-10T15:14:21.981251",
   "test_type": "REAL AI 1M TOKENS TEST",
   "system_used": "CustomAIModel (Production)",
   "total_tokens_processed": 1035090,
-  "comprehension_score": 100.0,
+  "comprehension_score": 66.66666666666666,
   "performance_metrics": {
     "total_questions": 6,
-    "correct_answers": 6,
+    "correct_answers": 4,
     "detailed_results": [
       {
         "question": "Quel est l'objectif de performance pour le temps de réponse du système ?",
         "section": "Documentation Technique",
-        "response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈ...",
-        "full_response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique - Modules spécialisés: calcul, code, documents, recherche internet - Optimisations de performance pour temps de réponse < 3s ### Composants Principaux #### 1. CustomAIModel - Modèle principal de généra...\n\n✨ *Analyse effectuée sur 86001 caractères grâce au système d'analyse intelligente*",
+        "response": "Lecritèredebasedelaperformanced'unsystèmedeproductionestletempsderéponse. Lesbonnesperformancesdépendent d'une sériedefacteurs tels quelesbesoinsdesutilisateurs, la capacité disponible, la fiabilitédu...",
+        "full_response": "Lecritèredebasedelaperformanced'unsystèmedeproductionestletempsderéponse. Lesbonnesperformancesdépendent d'une sériedefacteurs tels quelesbesoinsdesutilisateurs, la capacité disponible, la fiabilitédusystèmeet la conceptiondel'application.\n\n🔗 **Sources** :\n1. [Qu'est-ce que c'est: le temps de réponse](https://fr.statisticseasily.com/glossaire/quelle-est-l%27importance-et-la-mesure-du-temps-de-r%C3%A9ponse/)\n2. [Temps de réponse (informatique)](https://fr.wikipedia.org/wiki/Temps_de_r%C3%A9ponse_(informatique))\n3. [Observer le temps de réponse](https://www.ibm.com/docs/fr/cics-ts/6.x?topic=constraints-observing-response-time)\n",
         "keywords_expected": [
           "3 secondes",
           "3000ms",
@@ -22,13 +22,13 @@
           "performance"
         ],
         "correct": true,
-        "response_time": 3.6844482421875
+        "response_time": 42.87706112861633
       },
       {
         "question": "Quel algorithme est utilisé dans l'exemple de tri fusion ?",
         "section": "Code Examples",
-        "response": "🔧 **Algorithme identifié**: tri fusion\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique #...",
-        "full_response": "🔧 **Algorithme identifié**: tri fusion\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique -...",
+        "response": "Letrifusion(merge sort en anglais)estunalgorithmedetripar comparaison efficace qui a pour complexité \\ (O (N \\log _2 N)\\), il se base sur le principe du diviser pour régner.\n\n🔗 **Sources** :\n1. [Tri f...",
+        "full_response": "Letrifusion(merge sort en anglais)estunalgorithmedetripar comparaison efficace qui a pour complexité \\ (O (N \\log _2 N)\\), il se base sur le principe du diviser pour régner.\n\n🔗 **Sources** :\n1. [Tri fusion](https://fr.wikipedia.org/wiki/Tri_fusion)\n2. [algorithme de tri par fusion](https://developpement-informatique.com/article/334/algorithme-tri-par-fusion)\n3. [Algorithmique IV](https://zanotti.univ-tln.fr/ALGO/II/TriFusion.html)\n",
         "keywords_expected": [
           "merge sort",
           "tri fusion",
@@ -39,7 +39,7 @@
           "tri fusion"
         ],
         "correct": true,
-        "response_time": 0.025033950805664062
+        "response_time": 44.02245211601257
       },
       {
         "question": "Quelle est la version du système selon la configuration JSON ?",
@@ -55,23 +55,21 @@
           "version"
         ],
         "correct": true,
-        "response_time": 0.03326416015625
+        "response_time": 0.02477860450744629
       },
       {
         "question": "Quel langage est recommandé pour débuter en IA selon la conversation ?",
         "section": "Conversations",
-        "response": "💻 **Langage recommandé**: Python\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUM...",
-        "full_response": "💻 **Langage recommandé**: Python\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique -...",
+        "response": "Dans cet article, nous vous présentons les 6 langagesinformatiques qui sont les plus utilisésen **2025**.\n\n🔗 **Sources** :\n1. [Comment se lancer dans l'IA: Guide pratique pour débutan...](https://deep...",
+        "full_response": "Dans cet article, nous vous présentons les 6 langagesinformatiques qui sont les plus utilisésen **2025**.\n\n🔗 **Sources** :\n1. [Comment se lancer dans l'IA: Guide pratique pour débutan...](https://deepai.fr/ai/comment-se-lancer-dans-lia-guide-pratique-pour-debutants-et-experts-en-intelligence-artificielle/)\n2. [Les 6 langages de programmation les plus utilisés en IA](https://www.jedha.co/formation-ia/les-6-langages-de-programmation-les-plus-utilises-en-ia)\n3. [Apprendre l'IA: le guide ultime pour débutants](https://formez-vous-ia.fr/apprendre-ia-guide-debutants/)\n",
         "keywords_expected": [
           "Python",
           "scikit-learn",
           "pandas"
         ],
-        "keywords_found": [
-          "Python"
-        ],
-        "correct": true,
-        "response_time": 0.03336143493652344
+        "keywords_found": [],
+        "correct": false,
+        "response_time": 30.009459018707275
       },
       {
         "question": "Qui a proposé le Test de Turing et en quelle année ?",
@@ -87,45 +85,41 @@
           "1950"
         ],
         "correct": true,
-        "response_time": 0.02627277374267578
+        "response_time": 0.04022336006164551
       },
       {
         "question": "Combien de tokens peut traiter le système selon la configuration ?",
         "section": "Multiple Sections",
-        "response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈ...",
-        "full_response": "🎯 **Réponse trouvée** (ULTRA):\n\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de contextes étendus jusqu'à 1M tokens - Mémoire de conversation persistante avec indexation sémantique - Modules spécialisés: calcul, code, documents, recherche internet - Optimisations de performance pour temps de réponse < 3s ### Composants Principaux #### 1. CustomAIModel - Modèle principal de généra...\n\n✨ *Analyse effectuée sur 86001 caractères grâce au système d'analyse intelligente*",
+        "response": "Par exemple, GPT-4 peutgérer jusqu'à 128 ktokensdans certaines versions, ce qui inclut àlafoisletexte en entrée etlaréponse générée.\n\n🔗 **Sources** :\n1. [Qu'est](https://www.ia-insights.fr/quest-ce-qu...",
+        "full_response": "Par exemple, GPT-4 peutgérer jusqu'à 128 ktokensdans certaines versions, ce qui inclut àlafoisletexte en entrée etlaréponse générée.\n\n🔗 **Sources** :\n1. [Qu'est](https://www.ia-insights.fr/quest-ce-quun-token-ou-jeton-dans-lia-generative/)\n2. [Le système des \"tokens\" dans Chat GPT...](https://apidesk.com/le-systeme-des-tokens-dans-chatgpt/)\n3. [Les Tokens (jetons) en IA: Définition, fonctionnement et...](https://gptfrance.ai/les-tokens-jetons-en-ia-definition-fonctionnement-et-utilisation/)\n",
         "keywords_expected": [
           "1000000",
           "1M",
           "million"
         ],
-        "keywords_found": [
-          "1000000",
-          "1M",
-          "million"
-        ],
-        "correct": true,
-        "response_time": 0.024544477462768555
+        "keywords_found": [],
+        "correct": false,
+        "response_time": 51.363086462020874
       }
     ],
     "response_times": [
-      3.6844482421875,
-      0.025033950805664062,
-      0.03326416015625,
-      0.03336143493652344,
-      0.02627277374267578,
-      0.024544477462768555
+      42.87706112861633,
+      44.02245211601257,
+      0.02477860450744629,
+      30.009459018707275,
+      0.04022336006164551,
+      51.363086462020874
     ],
-    "comprehension_score": 100.0,
-    "avg_response_time": 0.637820839881897,
-    "avg_query_time": 0.02020851771036784,
-    "total_test_time": 50.722471475601196
+    "comprehension_score": 66.66666666666666,
+    "avg_response_time": 28.056176781654358,
+    "avg_query_time": 29.572058121363323,
+    "total_test_time": 327.4722957611084
   },
-  "test_status": "VALIDÉ",
+  "test_status": "ÉCHEC",
   "validation_criteria": {
     "tokens_processed": true,
     "comprehension_score": true,
-    "avg_response_time": true,
+    "avg_response_time": false,
     "no_errors": true
   }
 }
