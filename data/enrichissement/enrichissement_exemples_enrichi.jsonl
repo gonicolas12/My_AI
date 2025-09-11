@@ -35,7 +35,6 @@
 {"input": "Comment dire 'bonjour' en japonais ?", "target": "**Konnichiwa**"}
 {"input": "Quel est le symbole chimique de l'eau ?", "target": "**H2O**"}
 {"input": "Donne-moi une expression idiomatique française.", "target": "**Avoir le cafard**."}
-{"input": "Quel est le résultat de 7 + 6 ?", "target": "**13**"}
 {"input": "Qui a peint 'Les Nymphéas' ?", "target": "**Claude Monet**."}
 {"input": "Quel est le plus petit pays du monde ?", "target": "**Le Vatican**."}
 {"input": "Quelle est la capitale de l'Espagne ?", "target": "**Madrid**."}
@@ -78,7 +77,6 @@
 {"input": "Quel est le plus grand stade du monde ?", "target": "**Rungrado 1er Mai**."}
 {"input": "Quelle est la capitale de la Suède ?", "target": "**Stockholm**."}
 {"input": "Donne-moi un synonyme de 'facile' ?", "target": "**Simple**, **aisé**, **évident**, **limpide**."}
-{"input": "Quel est le résultat de 6 x 9 ?", "target": "**54**"}
 {"input": "Qui a écrit 'Notre-Dame de Paris' ?", "target": "**Victor Hugo**."}
 {"input": "Quel est le plus grand aéroport du monde ?", "target": "**Aéroport international de Pékin**."}
 {"input": "Quelle est la capitale de la Turquie ?", "target": "**Ankara**."}
@@ -89,7 +87,6 @@
 {"input": "Quel est le plus grand musée du monde ?", "target": "**Le Louvre**."}
 {"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
 {"input": "Donne-moi un synonyme de 'drôle' ?", "target": "**Amusant**, **comique**, **hilarant**, **cocasse**."}
-{"input": "Quel est le résultat de 10 x 10 ?", "target": "**100**"}
 {"input": "Qui a écrit 'Le Père Goriot' ?", "target": "**Honoré de Balzac**."}
 {"input": "Quel est le plus grand zoo du monde ?", "target": "**Le zoo de San Diego**."}
 {"input": "Quelle est la capitale de la Russie ?", "target": "**Moscou**."}
@@ -100,13 +97,11 @@
 {"input": "Qui a écrit 'Roméo et Juliette' ?", "target": "**William Shakespeare**."}
 {"input": "Quel est le plus haut gratte-ciel du monde ?", "target": "**Burj Khalifa**."}
 {"input": "Comment dit-on 'pain' en anglais ?", "target": "**Bread**"}
-{"input": "Quel est le résultat de 15 - 7 ?", "target": "**8**"}
 {"input": "Donne-moi un synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
 {"input": "Quelle est la capitale de l'Égypte ?", "target": "**Le Caire**."}
 {"input": "Qui a inventé l'imprimerie ?", "target": "**Johannes Gutenberg**."}
 {"input": "Quel est le plus grand animal marin ?", "target": "**La baleine bleue**."}
 {"input": "Comment dire 'bonjour' en allemand ?", "target": "**Guten Tag**"}
-{"input": "Quel est le résultat de 3 x 12 ?", "target": "**36**"}
 {"input": "Donne-moi une expression française sur la météo.", "target": "**Il pleut des cordes**."}
 {"input": "Quel est le synonyme de 'beaucoup' ?", "target": "**Nombreux**, **abondant**, **pléthorique**, **profus**."}
 {"input": "Quelle est la capitale du Mexique ?", "target": "**Mexico**."}
@@ -119,7 +114,6 @@
 {"input": "Quelle est la capitale de la Finlande ?", "target": "**Helsinki**."}
 {"input": "Donne-moi un synonyme de 'rapide' en anglais.", "target": "**Fast**, **quick**, **swift**, **speedy**."}
 {"input": "Quel est le plus grand désert de glace ?", "target": "**L'Antarctique**."}
-{"input": "Comment dire 'bonne chance' en italien ?", "target": "**Buona fortuna**"}
 {"input": "Qui a inventé la radio ?", "target": "**Guglielmo Marconi**."}
 {"input": "Quel est le symbole chimique du sodium ?", "target": "**Na**"}
 {"input": "Quelle est la capitale de la Corée du Sud ?", "target": "**Séoul**."}

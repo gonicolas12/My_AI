@@ -110,8 +110,7 @@ my_ai/
 - **Recherche internet** : "Cherche sur internet les actualités Python"
 
 ### 🖥️ Interface Utilisateur Moderne
-
-#### 🎨 Interface Graphique Style Claude
+#### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
 - **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
 - **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
 - **Formatage avancé** : Support complet du **texte en gras** avec Unicode

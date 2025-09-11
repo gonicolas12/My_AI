@@ -1,12 +1,9 @@
 {"input": "Quelle est la capitale de la France ?", "target": "**Paris**."}
-{"input": "2 + 2", "target": "**4**"}
-{"input": "2+2", "target": "**4**"}
 {"input": "Explique le code suivant : for i in range(3): print(i)", "target": "Ce code affiche les nombres de **0 à 2**."}
 {"input": "Donne-moi la météo à Toulouse.", "target": "Je ne peux pas accéder à Internet, mais tu peux consulter un site météo local."}
 {"input": "Traduis en anglais : 'Bonjour tout le monde'", "target": "**Hello everyone**"}
 {"input": "Résume ce texte : L'IA est un domaine en plein essor.", "target": "L'intelligence artificielle se développe **rapidement**."}
 {"input": "Génère un email professionnel pour demander un rendez-vous.", "target": "Bonjour,\nJe souhaite convenir d'un **rendez-vous** à votre convenance. Cordialement."}
-{"input": "Quel est le résultat de 15 * 3 ?", "target": "**45**"}
 {"input": "Complète la phrase : L'eau bout à ...", "target": "**100°C**"}
 {"input": "Code Python pour inverser une liste.", "target": "**ma_liste[::-1]**"}
 {"input": "Donne-moi un synonyme de 'rapide'", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
@@ -34,7 +31,6 @@
 {"input": "Code Python pour afficher 'Bonjour'", "target": "**print('Bonjour')**"}
 {"input": "Donne-moi un synonyme de 'heureux'", "target": "**Joyeux**, **content**, **satisfait**, **ravi**."}
 {"input": "Complète : La Terre tourne autour du ...", "target": "**Soleil**."}
-{"input": "Quel est le résultat de 9 / 3 ?", "target": "**3**"}
 {"input": "Explique le terme 'photosynthèse'.", "target": "La **photosynthèse** est le processus par lequel les plantes transforment la lumière en énergie."}
 {"input": "Quel est le plus haut sommet du monde ?", "target": "L'**Everest** est le plus haut sommet du monde."}
 {"input": "Traduis en anglais : 'Je t'aime'", "target": "**I love you**"}
@@ -42,7 +38,5 @@
 {"input": "Code Python pour calculer la longueur d'une liste nommée 'ma_liste'.", "target": "**len(ma_liste)**"}
 {"input": "Complète : Le sang circule dans les ...", "target": "**veines** et **artères**."}
 {"input": "Qui a inventé le téléphone ?", "target": "**Alexander Graham Bell**."}
-{"input": "Donne-moi la racine carrée de 49.", "target": "**7**"}
 {"input": "Explique le terme 'écosystème'.", "target": "Un **écosystème** est un ensemble d'êtres vivants et leur environnement."}
 {"input": "Quel est le symbole chimique de l'or ?", "target": "**Au**"}
-{"input": "Traduis en espagnol : 'Bonne chance'", "target": "**Buena suerte**"}

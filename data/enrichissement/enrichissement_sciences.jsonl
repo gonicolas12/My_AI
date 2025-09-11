@@ -83,3 +83,19 @@
 {"input": "Quel est le plus grand organe du système respiratoire humain ?", "target": "Les **poumons**"}
 {"input": "Quel est le plus grand organe du système nerveux humain ?", "target": "Le **cerveau**"}
 {"input": "Quel est le plus grand organe du système urinaire humain ?", "target": "Le **rein**"}
+{"input": "Quel est le symbole chimique du cuivre ?", "target": "**Cu**"}
+{"input": "Quelle est la masse de l'électron ?", "target": "**9.109×10^-31 kg**"}
+{"input": "Quel organe contrôle la production hormonale principale du corps humain ?", "target": "**Hypophyse (glande pituitaire)**"}
+{"input": "Quelle est la formule de la vitesse ?", "target": "**v = d / t**"}
+{"input": "Quelle est la planète la plus froide du système solaire ?", "target": "**Uranus**"}
+{"input": "Quelle est la principale source d'énergie pour la Terre ?", "target": "**Le Soleil**"}
+{"input": "Quelle est l'unité de mesure de la résistance électrique ?", "target": "**Ohm (Ω)**"}
+{"input": "Quelle est la vitesse du son dans l'air à 20°C ?", "target": "**≈ 343 m/s**"}
+{"input": "Qu'est-ce qu'un atome ?", "target": "La plus petite **unité** d'un **élément chimique** conservant ses propriétés."}
+{"input": "Qu'est-ce que la photosynthèse ?", "target": "La **photosynthèse** est le processus par lequel les plantes utilisent la **lumière**, le **CO₂** et l'**eau** pour produire de l'**oxygène** et du **glucose**."}
+{"input": "Quel est le pH neutre ?", "target": "**7**"}
+{"input": "Combien de jours dure la révolution de la Terre autour du Soleil ?", "target": "**Environ 365,25 jours**"}
+{"input": "Quelle est la formule chimique du sel de table ?", "target": "**NaCl**"}
+{"input": "Quelle loi décrit l'attraction entre deux masses ?", "target": "**Loi de la gravitation universelle de Newton**"}
+{"input": "Que sont les isotopes ?", "target": "Des **atomes** du même **élément** ayant un **nombre différent de neutrons**."}
+{"input": "Quelle est l'unité SI de la force ?", "target": "**Newton (N)**"}

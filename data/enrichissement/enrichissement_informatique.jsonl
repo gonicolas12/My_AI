@@ -59,3 +59,18 @@
 {"input": "Par qui tu as été codé ?", "target": "J'ai été codé par **Nicolas GOUY**. Retrouvez-le sur [GitHub](https://github.com/gonicolas12) et sur [LinkedIn](https://www.linkedin.com/in/nicolas-gouy-99120932b/)."}
 {"input": "Par qui as tu été codé ?", "target": "J'ai été codé par **Nicolas GOUY**. Retrouvez-le sur [GitHub](https://github.com/gonicolas12) et sur [LinkedIn](https://www.linkedin.com/in/nicolas-gouy-99120932b/)."}
 {"input": "Par qui as tu été programmé ?", "target": "J'ai été programmé par **Nicolas GOUY**. Retrouvez-le sur [GitHub](https://github.com/gonicolas12) et sur [LinkedIn](https://www.linkedin.com/in/nicolas-gouy-99120932b/)."}
+{"input": "Qu'est-ce que l'authentification multifacteur (MFA) ?", "target": "La MFA exige plusieurs preuves d'identité (mot de passe, code temporaire, biométrie) pour renforcer la sécurité d'accès."}
+{"input": "Quelle est la différence entre chiffrement symétrique et asymétrique ?", "target": "Le chiffrement symétrique utilise une même clé pour chiffrer/déchiffrer; l'asymétrique utilise une paire de clés publique/privée pour sécuriser les échanges et l'authentification."}
+{"input": "Qu'est-ce qu'une clé SSH ?", "target": "Une clé SSH est une paire de clés publique/privée utilisée pour authentifier de façon sécurisée l'accès à des serveurs sans mot de passe."}
+{"input": "Qu'est-ce qu'un conteneur (ex : Docker) ?", "target": "Un conteneur encapsule une application et ses dépendances pour l'exécuter isolément et de façon portable sur n'importe quel hôte compatible."}
+{"input": "À quoi sert Kubernetes ?", "target": "Kubernetes orchestre le déploiement, la mise à l'échelle et la gestion des conteneurs dans des clusters de serveurs."}
+{"input": "Qu'est-ce que l'edge computing ?", "target": "L'edge computing traite les données proche de leur source (capteurs, appareils) pour réduire la latence et la charge réseau."}
+{"input": "Qu'est-ce que l'Internet des objets (IoT) ?", "target": "L'IoT désigne des objets connectés qui collectent et échangent des données via Internet pour automatiser et monitorer des processus."}
+{"input": "Qu'est-ce qu'une API REST ?", "target": "Une API REST permet la communication entre systèmes via HTTP en utilisant des ressources identifiables et des méthodes standard (GET, POST, PUT, DELETE)."}
+{"input": "Qu'est-ce que OAuth ?", "target": "OAuth est un protocole d'autorisation qui permet à une application d'accéder à des ressources utilisateur sans partager les identifiants."}
+{"input": "Qu'est-ce que la latence réseau ?", "target": "La latence est le délai de transmission d'une donnée entre deux points d'un réseau, mesuré en millisecondes."}
+{"input": "Qu'est-ce que la bande passante (débit) ?", "target": "La bande passante correspond à la quantité de données transférables par unité de temps sur une connexion réseau (exprimée en Mbps)."}
+{"input": "Quelle est la différence entre SSD et HDD ?", "target": "Les SSD utilisent de la mémoire flash pour des accès rapides; les HDD sont des disques magnétiques plus lents mais souvent moins coûteux par Go."}
+{"input": "Qu'est-ce qu'un RAID ?", "target": "Le RAID combine plusieurs disques pour améliorer la performance, la redondance ou les deux, selon le niveau (RAID 0, 1, 5, 10, ...)."}
+{"input": "Qu'est-ce que la haute disponibilité (HA) ?", "target": "La HA vise à minimiser les interruptions de service via la redondance, le basculement automatique et la tolérance aux pannes."}
+{"input": "Qu'est-ce qu'un certificat SSL/TLS ?", "target": "Un certificat SSL/TLS chiffre les communications entre un client et un serveur et authentifie l'identité du serveur via une autorité de certification."}
