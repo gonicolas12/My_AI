@@ -48,6 +48,96 @@
 {"input": "Quelle est la capitale du Canada ?", "target": "**Ottawa**."}
 {"input": "Qui a écrit 'Voyage au centre de la Terre' ?", "target": "**Jules Verne**."}
 {"input": "Quel est le plus grand fleuve d'Amérique du Sud ?", "target": "**L'Amazone**."}
+{"input": "Quelle est la capitale du Mexique ?", "target": "**Mexico**."}
+{"input": "Qui a écrit 'Le Comte de Monte-Cristo' ?", "target": "**Alexandre Dumas**."}
+{"input": "Quel est le plus grand continent du monde ?", "target": "**L'Asie**."}
+{"input": "Quelle est la capitale de l'Inde ?", "target": "**New Delhi**."}
+{"input": "Qui a écrit 'Les Contemplations' ?", "target": "**Victor Hugo**."}
+{"input": "Quel est le plus grand pays d'Afrique ?", "target": "**L'Algérie**."}
+{"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
+{"input": "Qui a écrit 'L'Avare' ?", "target": "**Molière**."}
+{"input": "Quel est le plus grand mont d'Europe ?", "target": "**Le mont Elbrouz**."}
+{"input": "Quelle est la capitale du Pérou ?", "target": "**Lima**."}
+{"input": "Qui a écrit 'Le Tartuffe' ?", "target": "**Molière**."}
+{"input": "Quel est le plus grand fleuve d'Europe ?", "target": "**La Volga**."}
+{"input": "Qui a composé 'La Symphonie n°9' avec l'Ode à la joie ?", "target": "**Ludwig van Beethoven**. Cette symphonie, composée en 1824, est célèbre pour son final qui met en musique le\npoème de **Friedrich Schiller**."}
+{"input": "Quelle est la période artistique de Léonard de Vinci ?", "target": "**La Renaissance italienne** (15e-16e siècle). De Vinci était un génie universel : peintre, inventeur,\nanatomiste, ingénieur et scientifique."}
+{"input": "Qui a écrit 'Hamlet' ?", "target": "**William Shakespeare**. Cette tragédie, écrite vers 1600-1601, est l'une des pièces les plus célèbres du\nthéâtre anglais."}
+{"input": "Quelle est l'œuvre la plus célèbre de Michel-Ange au plafond ?", "target": "**La Chapelle Sixtine** au Vatican. Il a peint ces fresques monumentales entre 1508 et 1512, représentant des\nscènes de la Genèse."}
+{"input": "Qui a composé 'Les Quatre Saisons' ?", "target": "**Antonio Vivaldi**. Ce concerto pour violon, composé vers 1723, est l'une des œuvres les plus populaires de\nla musique classique."}
+{"input": "Quelle civilisation a construit Machu Picchu ?", "target": "**Les Incas**. Cette cité perchée dans les Andes péruviennes fut construite vers 1450 et redécouverte en 1911\npar Hiram Bingham."}
+{"input": "Qui a peint 'La Nuit étoilée' ?", "target": "**Vincent van Gogh**. Cette œuvre emblématique a été peinte en 1889 pendant son séjour à l'asile de\nSaint-Rémy-de-Provence."}
+{"input": "Quelle est la plus ancienne université de France ?", "target": "**L'Université de la Sorbonne** à Paris, fondée vers 1150-1200 par Robert de Sorbon."}
+{"input": "Qui a écrit 'Don Quichotte' ?", "target": "**Miguel de Cervantes**. Ce roman espagnol, publié en 1605-1615, est considéré comme l'un des premiers romans\nmodernes."}
+{"input": "Quelle est la dynastie qui a construit la Cité interdite ?", "target": "**La dynastie Ming**, construite entre 1406 et 1420. Elle fut la résidence des empereurs chinois pendant plus\nde 500 ans."}
+{"input": "Qui a composé 'Le Lac des cygnes' ?", "target": "**Piotr Ilitch Tchaïkovski**. Ce ballet, créé en 1877, est l'un des ballets les plus célèbres au monde."}
+{"input": "Quelle est la période de l'art gothique en France ?", "target": "**Du 12e au 16e siècle**. Style architectural caractérisé par les voûtes sur croisées d'ogives, les\narcs-boutants et les grandes verrières."}
+{"input": "Qui a écrit 'L'Odyssée' ?", "target": "**Homère**. Cette épopée grecque antique, avec l'Iliade, constitue l'un des fondements de la littérature\noccidentale."}
+{"input": "Quelle est la technique picturale inventée par les impressionnistes ?", "target": "**La peinture en plein air** et les **touches divisées** pour capter les effets de lumière. Mouvement né vers\n1870 avec Monet, Renoir, Degas..."}
+{"input": "Qui a écrit 'Guerre et Paix' ?", "target": "**Léon Tolstoï**. Ce monument de la littérature russe, publié entre 1865 et 1869, dépeint la société russe à\nl'époque des guerres napoléoniennes."}
+{"input": "Quelle est la période de la Renaissance italienne ?", "target": "**Du 14e au 16e siècle**. Mouvement culturel caractérisé par le renouveau artistique, scientifique et\nintellectuel, avec Florence comme berceau."}
+{"input": "Qui a composé 'La Flûte enchantée' ?", "target": "**Wolfgang Amadeus Mozart**. Cet opéra en deux actes, créé en 1791, fut l'une des dernières œuvres du\ncompositeur avant sa mort."}
+{"input": "Quelle civilisation a édifié les pyramides de Gizeh ?", "target": "**L'Égypte antique** sous l'Ancien Empire (vers 2580-2510 av. J.-C.). La plus grande est celle de **Khéops**,\nune des Sept Merveilles du monde antique."}
+{"input": "Qui a peint 'Le Déjeuner sur l'herbe' ?", "target": "**Édouard Manet**. Cette œuvre de 1863 fit scandale au Salon des Refusés et marqua une rupture avec l'art\nacadémique."}
+{"input": "Quelle est la période du siècle des Lumières ?", "target": "**Le 18e siècle** (1715-1789). Mouvement intellectuel européen prônant la raison, les sciences et le progrès,\navec Voltaire, Diderot, Rousseau..."}
+{"input": "Qui a écrit 'Le Nom de la rose' ?", "target": "**Umberto Eco**. Ce roman publié en 1980 mélange enquête policière, philosophie médiévale et érudition\nhistorique."}
+{"input": "Quelle est la technique de sculpture de Rodin ?", "target": "**Le modelé expressif** et l'**assemblage de fragments**. Rodin révolutionna la sculpture en s'éloignant de\nl'idéalisation classique."}
+{"input": "Qui a peint 'Les Demoiselles d'Avignon' ?", "target": "**Pablo Picasso**. Cette œuvre de 1907 marque la naissance du **cubisme** et révolutionne l'art moderne."}
+{"input": "Quelle est la période de l'art baroque ?", "target": "**Du 17e au début du 18e siècle**. Style artistique caractérisé par la grandeur, le mouvement, les contrastes\net la théâtralité."}
+{"input": "Qui a écrit 'Cent ans de solitude' ?", "target": "**Gabriel García Márquez**. Ce chef-d'œuvre du **réalisme magique** latino-américain, publié en 1967, lui\nvalut le Prix Nobel de littérature."}
+{"input": "Quelle est la technique d'impression inventée par les Japonais ?", "target": "**L'estampe ukiyo-e** (images du monde flottant). Technique de gravure sur bois popularisée du 17e au 19e\nsiècle avec Hokusai, Hiroshige..."}
+{"input": "Qui a composé 'Le Messie' ?", "target": "**Georg Friedrich Händel**. Cet oratorio, composé en 1741, est célèbre pour son 'Hallelujah Chorus' et reste\nl'une des œuvres chorales les plus populaires."}
+{"input": "Quelle civilisation a créé l'écriture cunéiforme ?", "target": "**Les Sumériens** en Mésopotamie vers 3200 av. J.-C. Premier système d'écriture de l'humanité, gravé sur des\ntablettes d'argile."}
+{"input": "Qui a peint 'La Persistance de la mémoire' (les montres molles) ?", "target": "**Salvador Dalí**. Cette œuvre surréaliste de 1931 explore le concept du temps et est devenue l'une des images\nles plus iconiques de l'art moderne."}
+{"input": "Quelle est la période de l'art roman ?", "target": "**Du 10e au 12e siècle**. Style architectural caractérisé par les murs épais, les voûtes en berceau et les\nsculptures ornementales."}
+{"input": "Qui a écrit 'À la recherche du temps perdu' ?", "target": "**Marcel Proust**. Cette œuvre monumentale de 7 volumes, publiée entre 1913 et 1927, explore la mémoire et le\ntemps."}
+{"input": "Quelle est la danse traditionnelle du flamenco ?", "target": "Originaire d'**Andalousie** (Espagne), le flamenco combine **chant** (cante), **danse** (baile) et **guitare**\n(toque). Inscrit au patrimoine de l'UNESCO."}
+{"input": "Qui a composé 'Clair de lune' ?", "target": "**Claude Debussy**. Cette pièce pour piano, composée en 1905, est l'une des œuvres les plus célèbres de la\nmusique impressionniste."}
+{"input": "Quelle est la période de l'art Art nouveau ?", "target": "**Fin 19e - début 20e siècle** (1890-1910). Style décoratif inspiré de la nature, avec des courbes organiques\net des motifs floraux."}
+{"input": "Qui a écrit 'Les Fleurs du mal' ?", "target": "**Charles Baudelaire**. Ce recueil de poèmes, publié en 1857, révolutionna la poésie française et influença le\nmouvement symboliste."}
+{"input": "Quelle civilisation a construit Angkor Wat ?", "target": "**L'Empire khmer** au Cambodge (12e siècle). Ce complexe religieux hindouiste puis bouddhiste est le plus\ngrand monument religieux au monde."}
+{"input": "Qui a peint 'Le Cri' ?", "target": "**Edvard Munch**. Cette œuvre expressionniste de 1893 est devenue un symbole universel de l'angoisse\nexistentielle moderne."}
+{"input": "Quelle est la période de la Grèce antique classique ?", "target": "**5e-4e siècle av. J.-C.** Âge d'or d'Athènes avec Périclès, Socrate, Platon, Aristote. Apogée de l'art, de la\nphilosophie et de la démocratie."}
+{"input": "Qui a composé 'La Marseillaise' ?", "target": "**Claude Joseph Rouget de Lisle** en 1792. Chant révolutionnaire devenu hymne national français, composé en\nune nuit à Strasbourg."}
+{"input": "Quelle est la technique artistique du pointillisme ?", "target": "Technique consistant à **juxtaposer des points de couleurs pure** qui se mélangent optiquement. Développée par\n**Georges Seurat** et **Paul Signac** vers 1880."}
+{"input": "Qui a écrit 'Crime et Châtiment' ?", "target": "**Fiodor Dostoïevski**. Ce roman psychologique russe de 1866 explore les tourments moraux de Raskolnikov après\nun double meurtre."}
+{"input": "Quelle est la période de l'art égyptien antique ?", "target": "**Environ 3100-30 av. J.-C.** Art caractérisé par la **frontalité**, la **hiérarchie des tailles** et les\n**canons de proportions** très codifiés."}
+{"input": "Qui a peint 'La Joconde' ?", "target": "**Léonard de Vinci** entre 1503 et 1519. Ce portrait de **Monna Lisa** est conservé au Louvre et demeure\nl'œuvre d'art la plus célèbre au monde."}
+{"input": "Quelle est la technique de l'art de la calligraphie chinoise ?", "target": "Art millénaire utilisant **pinceau**, **encre** et **papier de riz**. Considérée comme la plus noble des arts\nen Chine, alliant esthétique et spiritualité."}
+{"input": "Qui a composé 'L'Art de la fugue' ?", "target": "**Jean-Sébastien Bach**. Cette œuvre inachevée (vers 1745-1750) représente l'apogée de l'art du contrepoint et\nde la composition baroque."}
+{"input": "Quelle civilisation a développé l'art de la céramique grecque ?", "target": "**La Grèce antique** (8e-4e siècle av. J.-C.). Techniques de la céramique à **figures noires** puis à\n**figures rouges**, narrant mythologie et vie quotidienne."}
+{"input": "Qui a écrit 'Le Décaméron' ?", "target": "**Giovanni Boccaccio**. Cette œuvre italienne du 14e siècle, composée de 100 nouvelles, influença profondément\nla littérature européenne."}
+{"input": "Quelle est la période de l'art byzantin ?", "target": "**4e-15e siècle ap. J.-C.** Art de l'Empire byzantin caractérisé par les **mosaïques**, les **icônes** et\nl'architecture religieuse comme Sainte-Sophie."}
+{"input": "Qui a peint 'Les Tournesols' ?", "target": "**Vincent van Gogh**. Cette série de toiles peintes entre 1888-1889 à Arles illustre l'évolution de son style\npost-impressionniste."}
+{"input": "Quelle est la tradition des griots en Afrique ?", "target": "**Gardiens de la tradition orale** en Afrique de l'Ouest. Musiciens, conteurs et historiens qui transmettent\nl'histoire, les généalogies et les valeurs culturelles."}
+{"input": "Qui a composé 'Boléro' ?", "target": "**Maurice Ravel** en 1928. Cette œuvre orchestrale hypnotique, construite sur un crescendo de 15 minutes, est\nl'une des pièces les plus populaires du répertoire classique."}
+{"input": "Quelle est la période de l'art précolombien maya ?", "target": "**Environ 2000 av. J.-C. - 1500 ap. J.-C.** Civilisation développant architecture, sculpture, peinture et\nécriture hiéroglyphique en Mésoamérique."}
+{"input": "Qui a écrit 'L'Iliade' ?", "target": "**Homère**. Cette épopée grecque antique (8e siècle av. J.-C.) raconte la guerre de Troie et les exploits\nd'**Achille**."}
+{"input": "Quelle est la technique de la peinture à fresque ?", "target": "Technique consistant à peindre sur **enduit de chaux fraîche**. Les pigments pénètrent dans la chaux et\ndurcissent, comme dans la Chapelle Sixtine."}
+{"input": "Qui a composé 'Le Carnaval des animaux' ?", "target": "**Camille Saint-Saëns** en 1886. Cette suite musicale humoristique dépeint différents animaux, notamment le\ncélèbre 'Cygne' joué au violoncelle."}
+{"input": "Quelle civilisation a créé les statues de l'île de Pâques ?", "target": "**Les Rapanuis** (Polynésiens) entre 1250-1500 ap. J.-C. Ces **moaï** monumentaux, au nombre de près de 900,\ngardent les mystères de cette culture isolée."}
+{"input": "Qui a peint 'Guernica' ?", "target": "**Pablo Picasso** en 1937. Cette œuvre cubiste dénonce le bombardement de Guernica pendant la guerre civile\nespagnole et symbolise les horreurs de la guerre."}
+{"input": "Quelle est la période de l'art japonais Edo ?", "target": "**1603-1868**. Période de paix favorisant l'épanouissement de l'art populaire : **ukiyo-e**, **kabuki**,\n**architecture** et **jardins japonais**."}
+{"input": "Qui a écrit 'Madame Butterfly' ?", "target": "Livret de **Luigi Illica** et **Giuseppe Giacosa**, musique de **Giacomo Puccini** (1904). Opéra inspiré d'une\nnouvelle de John Luther Long."}
+{"input": "Quelle est la tradition du tango argentin ?", "target": "Danse et musique née dans les **faubourgs de Buenos Aires** vers 1880. Mélange d'influences européennes,\nafricaines et créoles, inscrite au patrimoine de l'UNESCO."}
+{"input": "Qui a composé 'La Moldau' ?", "target": "**Bedřich Smetana**. Ce poème symphonique de 1874 évoque le cours de la rivière Vltava à travers la Bohême,\npartie du cycle 'Ma Patrie'."}
+{"input": "Quelle civilisation a développé l'art islamique ?", "target": "**Monde musulman** depuis le 7e siècle. Art caractérisé par la **géométrie**, l'**arabesque**, la\n**calligraphie** et l'interdiction de représenter le divin."}
+{"input": "Qui a peint 'Las Meninas' ?", "target": "**Diego Velázquez** en 1656. Cette œuvre magistrale de la peinture espagnole joue avec les perspectives et les\nreflets dans l'atelier du peintre."}
+{"input": "Quelle est la période de l'art africain traditionnel ?", "target": "**Art millénaire** varié selon les ethnies : **masques**, **sculptures**, **textiles**. Influence majeure sur\nl'art moderne européen (Picasso, Matisse...)."}
+{"input": "Qui a écrit 'Le Seigneur des anneaux' ?", "target": "**J.R.R. Tolkien**. Cette trilogie fantasy, publiée entre 1954-1955, a révolutionné le genre et influencé\ntoute la littérature fantasy moderne."}
+{"input": "Quelle est la technique de l'origami japonais ?", "target": "**Art du pliage de papier** sans découpage ni collage. Tradition japonaise développant patience, précision et\ncréativité, symbolisant l'harmonie et la perfection."}
+{"input": "Qui a composé 'Rhapsody in Blue' ?", "target": "**George Gershwin** en 1924. Cette œuvre fusionne **jazz** et **musique classique**, incarnant l'esprit de\nl'Amérique des années 1920."}
+{"input": "Quelle civilisation a construit Petra ?", "target": "**Les Nabatéens** (4e siècle av. J.-C. - 2e siècle ap. J.-C.). Cette cité rose sculptée dans la roche en\nJordanie était un carrefour commercial majeur."}
+{"input": "Qui a peint 'L'École d'Athènes' ?", "target": "**Raphaël** entre 1509-1511. Cette fresque du Vatican représente les plus grands philosophes de l'Antiquité\ndans un décor architectural idéal."}
+{"input": "Quelle est la période de la Belle Époque ?", "target": "**1871-1914** en Europe. Période de prospérité, d'innovations artistiques et techniques, d'**Art nouveau** et\nd'insouciance avant la Première Guerre mondiale."}
+{"input": "Qui a écrit 'Les Métamorphoses' ?", "target": "**Ovide**. Ce poème épique latin (vers 8 ap. J.-C.) raconte les transformations de la mythologie gréco-romaine\net influença durablement l'art occidental."}
+{"input": "Quelle est la tradition du Día de los Muertos au Mexique ?", "target": "**Fête mexicaine** (1-2 novembre) célébrant les défunts avec **autels**, **calaveras**, **fleurs** et\n**offrandes**. Synthèse des traditions préhispaniques et catholiques."}
+{"input": "Qui a composé 'Carmina Burana' ?", "target": "**Carl Orff** en 1937. Cette cantate basée sur des poèmes médiévaux latins est célèbre pour son 'O Fortuna'\ndramatique et puissant."}
+{"input": "Quelle civilisation a développé l'art viking ?", "target": "**Civilisation nordique** (8e-11e siècle). Art décoratif caractérisé par les **entrelacs**, les **animaux\nstylisés** et les **runes** sur bois, métal et pierre."}
+{"input": "Qui a peint 'Le Baiser' ?", "target": "**Gustav Klimt** en 1907-1908. Cette œuvre symboliste autrichienne, avec ses **dorures** et motifs\nornementaux, illustre l'Art nouveau viennois."}
+{"input": "Quelle est la période de l'art préraphaélite ?", "target": "**Milieu 19e siècle** en Angleterre. Mouvement prônant un retour à l'art d'avant Raphaël, privilégiant le\n**naturalisme** et les **sujets littéraires**."}
+{"input": "Qui a écrit 'Candide' ?", "target": "**Voltaire** en 1759. Ce conte philosophique satirique des Lumières critique l'optimisme leibnizien à travers\nles mésaventures de Candide."}
+{"input": "Quelle est la tradition du flamenco andalou ?", "target": "**Art populaire** du sud de l'Espagne alliant **chant** (cante), **danse** (baile) et **guitare** (toque).\nExpression de l'âme gitane et de la passion ibérique."}
 {"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
 {"input": "Qui a écrit 'Le Comte de Monte-Cristo' ?", "target": "**Alexandre Dumas**."}
 {"input": "Quel est le plus grand lac d'Amérique du Nord ?", "target": "**Le lac Supérieur**."}

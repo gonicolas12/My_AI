@@ -1891,6 +1891,9 @@ class ModernAIGUI:
         # NOUVEAU : Pré-traiter le texte pour remplacer les liens par leurs titres
         processed_text, link_mapping = self._preprocess_links_for_animation(full_text)
         
+        # NOUVEAU : Pré-analyser les blocs de code pour la coloration en temps réel
+        self._code_blocks_map = self._preanalyze_code_blocks(processed_text)
+        
         # Variables pour l'animation CARACTÈRE PAR CARACTÈRE
         self.typing_index = 0
         self.typing_text = processed_text  # Utiliser le texte pré-traité
@@ -1952,6 +1955,224 @@ class ModernAIGUI:
         
         return processed_text, self._pending_links
 
+    def _preanalyze_code_blocks(self, text):
+        """Pré-analyse les blocs de code pour la coloration en temps réel"""
+        import re
+        
+        code_blocks_map = {}  # Position -> (language, token_type)
+        
+        # Pattern pour détecter les blocs de code avec langage
+        code_block_pattern = r'```(\w+)?\n?(.*?)```'
+        
+        print(f"[DEBUG] Pré-analyse des blocs de code dans {len(text)} caractères")
+        
+        for match in re.finditer(code_block_pattern, text, re.DOTALL):
+            language = (match.group(1) or "text").lower()
+            code_content = match.group(2).strip() if match.group(2) else ""
+            
+            if not code_content:
+                continue
+                
+            print(f"[DEBUG] Bloc trouvé: {language}, position {match.start()}-{match.end()}")
+            
+            # Marquer la zone des backticks d'ouverture comme "hidden"
+            opening_start = match.start()
+            opening_end = match.start() + len(f"```{match.group(1) or ''}")
+            for pos in range(opening_start, opening_end + 1):
+                if pos < len(text):
+                    code_blocks_map[pos] = (language, "code_block_marker")
+            
+            # Analyser le contenu du code selon le langage
+            code_start = match.start() + len(f"```{match.group(1) or ''}")
+            # Chercher le \n après ```language
+            newline_pos = text.find('\n', code_start)
+            if newline_pos != -1:
+                code_start = newline_pos + 1
+            else:
+                code_start += 1  # Pas de \n trouvé, continuer quand même
+            
+            if language == 'python':
+                self._analyze_python_tokens(code_content, code_start, code_blocks_map)
+            elif language in ['javascript', 'js']:
+                self._analyze_javascript_tokens(code_content, code_start, code_blocks_map)
+            elif language == 'css':
+                self._analyze_css_tokens(code_content, code_start, code_blocks_map)
+            elif language in ['html', 'xml']:
+                self._analyze_html_tokens(code_content, code_start, code_blocks_map)
+            elif language in ['bash', 'shell', 'sh']:
+                self._analyze_bash_tokens(code_content, code_start, code_blocks_map)
+            elif language in ['sql', 'mysql', 'postgresql', 'sqlite']:
+                self._analyze_sql_tokens(code_content, code_start, code_blocks_map)
+            else:
+                # Code générique
+                for i, char in enumerate(code_content):
+                    pos = code_start + i
+                    # Pas besoin de vérifier self.typing_text ici car on travaille sur le texte passé en paramètre
+                    code_blocks_map[pos] = (language, "code_block")
+            
+            # Marquer la zone des backticks de fermeture comme "hidden"
+            closing_start = match.end() - 3
+            for pos in range(closing_start, match.end()):
+                if pos < len(text):
+                    code_blocks_map[pos] = (language, "code_block_marker")
+        
+        print(f"[DEBUG] Pré-analyse terminée: {len(code_blocks_map)} positions mappées")
+        return code_blocks_map
+
+    def _analyze_python_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Python pour la coloration en temps réel"""
+        try:
+            from pygments import lex
+            from pygments.lexers import PythonLexer
+            
+            lexer = PythonLexer()
+            current_pos = start_offset
+            
+            for token_type, value in lex(code, lexer):
+                for i in range(len(value)):
+                    # Utiliser la longueur totale du texte passé en paramètre
+                    pos = current_pos + i
+                    if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                        tag = str(token_type)
+                        code_map[pos] = ("python", tag)
+                current_pos += len(value)
+                
+        except ImportError:
+            # Fallback sans Pygments
+            self._analyze_python_simple(code, start_offset, code_map)
+    
+    def _analyze_python_simple(self, code, start_offset, code_map):
+        """Analyse Python simple sans Pygments"""
+        import keyword
+        import re
+        
+        keywords = set(keyword.kwlist)
+        
+        # Pattern pour identifier différents éléments
+        token_pattern = r'''
+            (#.*$)|                      # Commentaires
+            (""".*?""")|                 # Docstrings triple quotes
+            ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+            ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+            (\b\d+\.?\d*\b)|             # Nombres
+            (\b[a-zA-Z_]\w*\b)|          # Identifiants
+            ([+\-*/%=<>!&|^~]|//|\*\*|<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|==|!=|<=|>=|and|or|not|\+=|-=)  # Opérateurs
+        '''
+        
+        lines = code.split('\n')
+        current_pos = start_offset
+        
+        for line in lines:
+            for match in re.finditer(token_pattern, line, re.VERBOSE):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+                
+                if match.group(1):  # Commentaire
+                    tag = "Token.Comment.Single"
+                elif match.group(2) or match.group(3) or match.group(4):  # Chaînes
+                    tag = "Token.Literal.String"
+                elif match.group(5):  # Nombres
+                    tag = "Token.Literal.Number"
+                elif match.group(6):  # Identifiants
+                    if value in keywords:
+                        tag = "Token.Keyword"
+                    else:
+                        tag = "Token.Name"
+                else:  # Opérateurs
+                    tag = "Token.Operator"
+                
+                for i in range(len(value)):
+                    pos = match_start + i
+                    if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                        code_map[pos] = ("python", tag)
+            
+            current_pos += len(line) + 1  # +1 pour le \n
+    
+    def _analyze_javascript_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens JavaScript pour la coloration en temps réel"""
+        import re
+        
+        js_keywords = {
+            'var', 'let', 'const', 'function', 'return', 'if', 'else', 'for', 'while', 'do',
+            'switch', 'case', 'default', 'break', 'continue', 'try', 'catch', 'finally',
+            'throw', 'new', 'this', 'super', 'class', 'extends', 'import', 'export',
+            'from', 'async', 'await', 'yield', 'typeof', 'instanceof', 'in', 'of',
+            'true', 'false', 'null', 'undefined'
+        }
+        
+        # Pattern pour identifier différents éléments JS
+        token_pattern = r'''
+            (//.*$)|                     # Commentaires //
+            (/\*.*?\*/)|                 # Commentaires /* */
+            ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+            ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+            (`(?:[^`\\]|\\.)*`)|         # Template literals
+            (\b\d+\.?\d*\b)|             # Nombres
+            (\b[a-zA-Z_$]\w*\b)|         # Identifiants
+            ([+\-*/%=<>!&|^~]|===|!==|==|!=|<=|>=|&&|\|\||<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|\+\+|--) # Opérateurs
+        '''
+        
+        lines = code.split('\n')
+        current_pos = start_offset
+        
+        for line in lines:
+            for match in re.finditer(token_pattern, line, re.VERBOSE):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+                
+                if match.group(1) or match.group(2):  # Commentaires
+                    tag = "js_comment"
+                elif match.group(3) or match.group(4) or match.group(5):  # Chaînes
+                    tag = "js_string"
+                elif match.group(6):  # Nombres
+                    tag = "js_number"
+                elif match.group(7):  # Identifiants
+                    if value in js_keywords:
+                        tag = "js_keyword"
+                    else:
+                        tag = "js_variable"
+                else:  # Opérateurs
+                    tag = "js_operator"
+                
+                for i in range(len(value)):
+                    pos = match_start + i
+                    if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                        code_map[pos] = ("javascript", tag)
+            
+            current_pos += len(line) + 1
+    
+    def _analyze_css_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens CSS pour la coloration en temps réel"""
+        # Implémentation simplifiée pour CSS
+        for i, char in enumerate(code):
+            pos = start_offset + i
+            if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                code_map[pos] = ("css", "css_selector")  # Tag générique pour l'instant
+    
+    def _analyze_html_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens HTML pour la coloration en temps réel"""
+        # Implémentation simplifiée pour HTML
+        for i, char in enumerate(code):
+            pos = start_offset + i
+            if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                code_map[pos] = ("html", "html_tag")  # Tag générique pour l'instant
+    
+    def _analyze_bash_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Bash pour la coloration en temps réel"""
+        # Implémentation simplifiée pour Bash
+        for i, char in enumerate(code):
+            pos = start_offset + i
+            if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                code_map[pos] = ("bash", "bash_command")  # Tag générique pour l'instant
+    
+    def _analyze_sql_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens SQL pour la coloration en temps réel"""
+        # Implémentation simplifiée pour SQL
+        for i, char in enumerate(code):
+            pos = start_offset + i
+            if hasattr(self, 'typing_text') and pos < len(self.typing_text):
+                code_map[pos] = ("sql", "sql_keyword")  # Tag générique pour l'instant
+
     def _split_text_for_progressive_formatting(self, text):
         """Divise le texte en segments plus larges pour une animation fluide"""
         import re
@@ -1999,7 +2220,27 @@ class ModernAIGUI:
             char = self.typing_text[self.typing_index]
             
             self.typing_widget.configure(state='normal')
-            self.typing_widget.insert('end', char, 'normal')
+            
+            # NOUVEAU : Déterminer le tag à utiliser selon la position
+            tag_to_use = "normal"  # Tag par défaut
+            
+            # Vérifier si ce caractère est dans un bloc de code
+            if hasattr(self, '_code_blocks_map') and self.typing_index in self._code_blocks_map:
+                language, token_type = self._code_blocks_map[self.typing_index]
+                
+                # Masquer les marqueurs de blocs de code (```)
+                if token_type == "code_block_marker":
+                    tag_to_use = "hidden"  # Les ``` seront cachés
+                else:
+                    tag_to_use = token_type  # Utiliser le tag de coloration syntaxique
+                    
+                print(f"[DEBUG] Position {self.typing_index}: char='{char}' -> tag='{tag_to_use}' (langue={language})")
+            
+            # Insérer le caractère avec le bon tag
+            self.typing_widget.insert('end', char, tag_to_use)
+            
+            # NOUVEAU : Appliquer la coloration syntaxique en temps réel pour les blocs de code
+            self._apply_realtime_syntax_coloring(self.typing_widget, self.typing_index, char)
             
             # Incrémenter l'index
             self.typing_index += 1
@@ -2066,6 +2307,351 @@ class ModernAIGUI:
             
         except tk.TclError:
             self.finish_typing_animation_dynamic(interrupted=True)
+
+    def _apply_realtime_syntax_coloring(self, text_widget, current_index, current_char):
+        """Applique la coloration syntaxique en temps réel pendant l'animation"""
+        try:
+            # Obtenir le contenu actuel
+            current_text = text_widget.get("1.0", "end-1c")
+            
+            # Détecter si on est dans un bloc de code
+            in_code_block, language, code_start = self._detect_current_code_block(current_text, current_index)
+            
+            if in_code_block and language:
+                # Récupérer juste le bout de code qui nous intéresse (derniers mots/tokens)
+                analysis_start = max(0, current_index - 50)  # Analyser les 50 derniers caractères
+                text_to_analyze = current_text[analysis_start:current_index + 1]
+                
+                # Appliquer la coloration selon le langage
+                if language == 'python':
+                    self._apply_python_realtime_coloring(text_widget, text_to_analyze, analysis_start)
+                elif language in ['javascript', 'js']:
+                    self._apply_javascript_realtime_coloring(text_widget, text_to_analyze, analysis_start)
+                elif language == 'css':
+                    self._apply_css_realtime_coloring(text_widget, text_to_analyze, analysis_start)
+                elif language in ['html', 'xml']:
+                    self._apply_html_realtime_coloring(text_widget, text_to_analyze, analysis_start)
+                elif language in ['bash', 'shell', 'sh']:
+                    self._apply_bash_realtime_coloring(text_widget, text_to_analyze, analysis_start)
+                elif language in ['sql', 'mysql', 'postgresql', 'sqlite']:
+                    self._apply_sql_realtime_coloring(text_widget, text_to_analyze, analysis_start)
+                    
+        except Exception as e:
+            # Ignorer les erreurs de coloration pour ne pas casser l'animation
+            pass
+
+    def _detect_current_code_block(self, text, current_index):
+        """Détecte si on est actuellement dans un bloc de code et retourne le langage"""
+        import re
+        
+        # Chercher tous les blocs de code jusqu'à la position actuelle
+        text_up_to_current = text[:current_index + 1]
+        
+        # Pattern pour détecter les blocs de code
+        code_block_pattern = r'```(\w+)?\n?(.*?)(?:```|$)'
+        
+        # Trouver tous les blocs de code
+        blocks = list(re.finditer(code_block_pattern, text_up_to_current, re.DOTALL))
+        
+        for block in reversed(blocks):  # Commencer par le dernier bloc
+            block_start = block.start()
+            language = (block.group(1) or "text").lower()
+            
+            # Vérifier si on est dans ce bloc
+            content_start = block.start() + len(f"```{block.group(1) or ''}")
+            # Trouver le newline après ```language
+            newline_pos = text_up_to_current.find('\n', content_start)
+            if newline_pos != -1:
+                content_start = newline_pos + 1
+            
+            # Si la position actuelle est dans ce bloc et qu'il n'est pas fermé
+            if content_start <= current_index and not text_up_to_current[block.start():].count('```') >= 2:
+                return True, language, content_start
+        
+        return False, None, None
+
+    def _apply_python_realtime_coloring(self, text_widget, text_segment, start_offset):
+        """Applique la coloration Python en temps réel sur un segment de texte"""
+        import re
+        import keyword
+        
+        # Mots-clés Python
+        python_keywords = set(keyword.kwlist)
+        python_builtins = {'print', 'len', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple', 'range', 'enumerate', 'zip', 'open', 'input', 'type', 'isinstance', 'hasattr', 'getattr', 'setattr'}
+        
+        # Patterns pour différents éléments
+        patterns = [
+            (r'#.*$', 'Token.Comment'),                    # Commentaires
+            (r'""".*?"""', 'docstring'),                   # Docstrings
+            (r'"(?:[^"\\]|\\.)*"', 'Token.Literal.String'),# Chaînes double quotes
+            (r"'(?:[^'\\]|\\.)*'", 'Token.Literal.String'),# Chaînes simple quotes
+            (r'\b\d+\.?\d*\b', 'Token.Literal.Number'),   # Nombres
+            (r'\b[a-zA-Z_]\w*\b', 'identifier'),          # Identifiants
+        ]
+        
+        # Analyser chaque pattern
+        for pattern, token_type in patterns:
+            for match in re.finditer(pattern, text_segment, re.MULTILINE):
+                match_start = start_offset + match.start()
+                match_end = start_offset + match.end()
+                
+                # Convertir en positions Tkinter
+                start_line, start_col = self._index_to_line_col(text_widget, match_start)
+                end_line, end_col = self._index_to_line_col(text_widget, match_end)
+                
+                start_pos = f"{start_line}.{start_col}"
+                end_pos = f"{end_line}.{end_col}"
+                
+                # Déterminer le tag final
+                final_tag = token_type
+                if token_type == 'identifier':
+                    word = match.group()
+                    if word in python_keywords:
+                        final_tag = 'Token.Keyword'
+                    elif word in python_builtins:
+                        final_tag = 'Token.Name.Builtin'
+                    else:
+                        final_tag = 'Token.Name'
+                
+                # Appliquer le tag
+                try:
+                    text_widget.tag_add(final_tag, start_pos, end_pos)
+                except:
+                    pass
+
+    def _apply_javascript_realtime_coloring(self, text_widget, text_segment, start_offset):
+        """Applique la coloration JavaScript en temps réel"""
+        import re
+        
+        js_keywords = {'var', 'let', 'const', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super', 'class', 'extends', 'import', 'export', 'from', 'async', 'await', 'yield', 'typeof', 'instanceof', 'in', 'of', 'true', 'false', 'null', 'undefined'}
+        
+        patterns = [
+            (r'//.*$', 'Token.Comment'),
+            (r'/\*.*?\*/', 'Token.Comment'),
+            (r'"(?:[^"\\]|\\.)*"', 'Token.Literal.String'),
+            (r"'(?:[^'\\]|\\.)*'", 'Token.Literal.String'),
+            (r'`(?:[^`\\]|\\.)*`', 'Token.Literal.String'),
+            (r'\b\d+\.?\d*\b', 'Token.Literal.Number'),
+            (r'\b[a-zA-Z_$]\w*\b', 'identifier'),
+        ]
+        
+        for pattern, token_type in patterns:
+            for match in re.finditer(pattern, text_segment, re.MULTILINE):
+                match_start = start_offset + match.start()
+                match_end = start_offset + match.end()
+                
+                start_line, start_col = self._index_to_line_col(text_widget, match_start)
+                end_line, end_col = self._index_to_line_col(text_widget, match_end)
+                
+                start_pos = f"{start_line}.{start_col}"
+                end_pos = f"{end_line}.{end_col}"
+                
+                final_tag = token_type
+                if token_type == 'identifier':
+                    word = match.group()
+                    if word in js_keywords:
+                        final_tag = 'Token.Keyword'
+                    else:
+                        final_tag = 'Token.Name'
+                
+                try:
+                    text_widget.tag_add(final_tag, start_pos, end_pos)
+                except:
+                    pass
+
+    def _apply_css_realtime_coloring(self, text_widget, text_segment, start_offset):
+        """Applique la coloration CSS en temps réel"""
+        import re
+        
+        css_properties = {'color', 'background', 'font-size', 'margin', 'padding', 'border', 'width', 'height', 'display', 'position', 'top', 'left', 'right', 'bottom', 'z-index', 'opacity', 'transform', 'transition', 'animation', 'flex', 'grid'}
+        css_values = {'auto', 'none', 'inherit', 'initial', 'unset', 'block', 'inline', 'flex', 'grid', 'absolute', 'relative', 'fixed', 'sticky', 'hidden', 'visible'}
+        css_pseudos = {'hover', 'active', 'focus', 'visited', 'first-child', 'last-child', 'nth-child', 'before', 'after'}
+        
+        patterns = [
+            (r'/\*.*?\*/', 'Token.Comment'),                      # Commentaires /* */
+            (r'"(?:[^"\\]|\\.)*"', 'Token.Literal.String'),       # Chaînes double quotes
+            (r"'(?:[^'\\]|\\.)*'", 'Token.Literal.String'),       # Chaînes simple quotes
+            (r'#[0-9a-fA-F]{3,6}\b', 'Token.Literal.Number'),     # Couleurs hexadécimales
+            (r'\b\d+(?:px|em|rem|%|vh|vw|pt)?\b', 'Token.Literal.Number'), # Dimensions
+            (r'\.[a-zA-Z_][\w-]*', 'Token.Name.Class'),           # Sélecteurs de classe .class
+            (r'#[a-zA-Z_][\w-]*', 'Token.Name.Variable'),         # Sélecteurs d'ID #id
+            (r':[a-zA-Z-]+', 'Token.Name.Function'),              # Pseudo-sélecteurs :hover
+            (r'[a-zA-Z-]+(?=\s*:)', 'Token.Name.Attribute'),      # Propriétés CSS
+            (r'\b[a-zA-Z_][\w-]*\b', 'identifier'),               # Identifiants
+        ]
+        
+        for pattern, token_type in patterns:
+            for match in re.finditer(pattern, text_segment, re.MULTILINE):
+                match_start = start_offset + match.start()
+                match_end = start_offset + match.end()
+                
+                start_line, start_col = self._index_to_line_col(text_widget, match_start)
+                end_line, end_col = self._index_to_line_col(text_widget, match_end)
+                
+                start_pos = f"{start_line}.{start_col}"
+                end_pos = f"{end_line}.{end_col}"
+                
+                final_tag = token_type
+                if token_type == 'identifier':
+                    word = match.group()
+                    if word in css_properties:
+                        final_tag = 'Token.Name.Attribute'  # Propriétés en couleur attribut
+                    elif word in css_values:
+                        final_tag = 'Token.Keyword'  # Valeurs en couleur keyword
+                    else:
+                        final_tag = 'Token.Name'
+                
+                try:
+                    text_widget.tag_add(final_tag, start_pos, end_pos)
+                except:
+                    pass
+
+    def _apply_html_realtime_coloring(self, text_widget, text_segment, start_offset):
+        """Applique la coloration HTML en temps réel"""
+        import re
+        
+        html_tags = {'html', 'head', 'body', 'title', 'meta', 'link', 'script', 'style', 'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'img', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'form', 'input', 'button', 'textarea', 'select', 'option', 'nav', 'header', 'footer', 'section', 'article', 'aside', 'main'}
+        html_attributes = {'id', 'class', 'src', 'href', 'alt', 'title', 'style', 'type', 'name', 'value', 'placeholder', 'required', 'disabled', 'readonly', 'checked', 'selected'}
+        
+        patterns = [
+            (r'<!--.*?-->', 'Token.Comment'),                     # Commentaires HTML
+            (r'"(?:[^"\\]|\\.)*"', 'Token.Literal.String'),       # Chaînes double quotes (valeurs d'attributs)
+            (r"'(?:[^'\\]|\\.)*'", 'Token.Literal.String'),       # Chaînes simple quotes
+            (r'<!\s*DOCTYPE[^>]*>', 'Token.Keyword'),             # DOCTYPE
+            (r'</?[a-zA-Z][a-zA-Z0-9]*', 'Token.Name.Tag'),       # Balises <div>, </div>
+            (r'\b[a-zA-Z-]+(?=\s*=)', 'Token.Name.Attribute'),    # Attributs HTML
+            (r'[&][a-zA-Z]+[;]', 'Token.Name.Entity'),            # Entités HTML &nbsp;
+            (r'[<>=/]', 'Token.Operator'),                        # Opérateurs HTML
+        ]
+        
+        for pattern, token_type in patterns:
+            for match in re.finditer(pattern, text_segment, re.MULTILINE | re.DOTALL):
+                match_start = start_offset + match.start()
+                match_end = start_offset + match.end()
+                
+                start_line, start_col = self._index_to_line_col(text_widget, match_start)
+                end_line, end_col = self._index_to_line_col(text_widget, match_end)
+                
+                start_pos = f"{start_line}.{start_col}"
+                end_pos = f"{end_line}.{end_col}"
+                
+                final_tag = token_type
+                
+                try:
+                    text_widget.tag_add(final_tag, start_pos, end_pos)
+                except:
+                    pass
+
+    def _apply_bash_realtime_coloring(self, text_widget, text_segment, start_offset):
+        """Applique la coloration Bash en temps réel"""
+        import re
+        
+        bash_keywords = {'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'do', 'done', 'case', 'esac', 'function', 'return', 'exit', 'break', 'continue', 'local', 'export', 'declare', 'readonly', 'unset', 'source', 'alias', 'history', 'jobs', 'bg', 'fg', 'nohup', 'disown'}
+        bash_commands = {'ls', 'cd', 'pwd', 'mkdir', 'rmdir', 'rm', 'cp', 'mv', 'touch', 'find', 'grep', 'sed', 'awk', 'sort', 'uniq', 'head', 'tail', 'cat', 'less', 'more', 'chmod', 'chown', 'ps', 'top', 'kill', 'jobs', 'wget', 'curl', 'ssh', 'scp', 'rsync', 'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'git', 'npm', 'pip', 'docker', 'sudo', 'su', 'which', 'whereis', 'man', 'info', 'help', 'echo', 'printf', 'read', 'test'}
+        
+        patterns = [
+            (r'#.*$', 'Token.Comment'),                           # Commentaires
+            (r'"(?:[^"\\]|\\.)*"', 'Token.Literal.String'),       # Chaînes double quotes
+            (r"'(?:[^'\\]|\\.)*'", 'Token.Literal.String'),       # Chaînes simple quotes
+            (r'`(?:[^`\\]|\\.)*`', 'Token.Literal.String'),       # Commandes entre backticks
+            (r'\$\{[^}]+\}', 'Token.Name.Variable'),              # Variables ${var}
+            (r'\$[a-zA-Z_][a-zA-Z0-9_]*', 'Token.Name.Variable'), # Variables $var
+            (r'\$[0-9]+', 'Token.Name.Variable'),                 # Arguments $1, $2, etc.
+            (r'\$[@*#?$!0]', 'Token.Name.Variable'),              # Variables spéciales $@, $*, etc.
+            (r'\b\d+\b', 'Token.Literal.Number'),                 # Nombres
+            (r'[|&;()<>]|\|\||\&\&', 'Token.Operator'),           # Opérateurs
+            (r'--?[a-zA-Z-]+', 'Token.Name.Attribute'),           # Options --option, -o
+            (r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', 'identifier'),        # Identifiants
+        ]
+        
+        for pattern, token_type in patterns:
+            for match in re.finditer(pattern, text_segment, re.MULTILINE):
+                match_start = start_offset + match.start()
+                match_end = start_offset + match.end()
+                
+                start_line, start_col = self._index_to_line_col(text_widget, match_start)
+                end_line, end_col = self._index_to_line_col(text_widget, match_end)
+                
+                start_pos = f"{start_line}.{start_col}"
+                end_pos = f"{end_line}.{end_col}"
+                
+                final_tag = token_type
+                if token_type == 'identifier':
+                    word = match.group()
+                    if word in bash_keywords:
+                        final_tag = 'Token.Keyword'
+                    elif word in bash_commands:
+                        final_tag = 'Token.Name.Builtin'  # Commandes en couleur builtin
+                    else:
+                        final_tag = 'Token.Name'
+                
+                try:
+                    text_widget.tag_add(final_tag, start_pos, end_pos)
+                except:
+                    pass
+
+    def _apply_sql_realtime_coloring(self, text_widget, text_segment, start_offset):
+        """Applique la coloration SQL en temps réel"""
+        import re
+        
+        sql_keywords = {'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TABLE', 'DATABASE', 'INDEX', 'VIEW', 'PROCEDURE', 'FUNCTION', 'TRIGGER', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER', 'ON', 'AS', 'AND', 'OR', 'NOT', 'IN', 'BETWEEN', 'LIKE', 'IS', 'NULL', 'GROUP', 'BY', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'UNION', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IF', 'EXISTS'}
+        sql_types = {'INT', 'INTEGER', 'VARCHAR', 'CHAR', 'TEXT', 'BOOLEAN', 'BOOL', 'DATE', 'DATETIME', 'TIMESTAMP', 'TIME', 'FLOAT', 'DOUBLE', 'DECIMAL', 'NUMERIC', 'BLOB', 'JSON', 'XML'}
+        
+        patterns = [
+            (r'--.*$', 'Token.Comment'),                          # Commentaires --
+            (r'/\*.*?\*/', 'Token.Comment'),                      # Commentaires /* */
+            (r"'(?:[^'\\]|\\.)*'", 'Token.Literal.String'),       # Chaînes simple quotes
+            (r'"(?:[^"\\]|\\.)*"', 'Token.Literal.String'),       # Chaînes double quotes
+            (r'\b\d+\.?\d*\b', 'Token.Literal.Number'),           # Nombres
+            (r'[=<>!]+|<=|>=|<>|!=', 'Token.Operator'),           # Opérateurs de comparaison
+            (r'[+\-*/%]', 'Token.Operator'),                      # Opérateurs arithmétiques
+            (r'[(),;]', 'Token.Punctuation'),                     # Ponctuation
+            (r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', 'identifier'),        # Identifiants
+        ]
+        
+        for pattern, token_type in patterns:
+            for match in re.finditer(pattern, text_segment, re.MULTILINE | re.DOTALL):
+                match_start = start_offset + match.start()
+                match_end = start_offset + match.end()
+                
+                start_line, start_col = self._index_to_line_col(text_widget, match_start)
+                end_line, end_col = self._index_to_line_col(text_widget, match_end)
+                
+                start_pos = f"{start_line}.{start_col}"
+                end_pos = f"{end_line}.{end_col}"
+                
+                final_tag = token_type
+                if token_type == 'identifier':
+                    word = match.group().upper()  # SQL est case-insensitive
+                    if word in sql_keywords:
+                        final_tag = 'Token.Keyword'
+                    elif word in sql_types:
+                        final_tag = 'Token.Keyword.Type'
+                    else:
+                        final_tag = 'Token.Name'
+                
+                try:
+                    text_widget.tag_add(final_tag, start_pos, end_pos)
+                except:
+                    pass
+
+    def _index_to_line_col(self, text_widget, char_index):
+        """Convertit un index de caractère en position ligne.colonne pour Tkinter"""
+        try:
+            # Obtenir le contenu jusqu'à cet index
+            content = text_widget.get("1.0", "end-1c")
+            if char_index >= len(content):
+                char_index = len(content) - 1
+            
+            # Compter les lignes et colonnes
+            content_up_to_index = content[:char_index]
+            lines = content_up_to_index.split('\n')
+            line_num = len(lines)
+            col_num = len(lines[-1]) if lines else 0
+            
+            return line_num, col_num
+        except:
+            return 1, 0
 
     def _apply_unified_progressive_formatting(self, text_widget):
         """MÉTHODE UNIFIÉE SIMPLIFIÉE : Formatage progressif sécurisé"""
@@ -2542,50 +3128,69 @@ class ModernAIGUI:
         return is_search_result
 
     def _is_in_incomplete_code_block(self, text):
-        """Détecte si le texte contient un bloc de code Python incomplet"""
+        """Détecte si le texte contient un bloc de code incomplet (tous langages)"""
         import re
         
-        # Compter les balises d'ouverture et de fermeture
-        opening_tags = len(re.findall(r'```python', text))
-        closing_tags = len(re.findall(r'```(?!\w)', text))  # ``` non suivi d'une lettre
+        # Langages supportés
+        supported_languages = ['python', 'javascript', 'js', 'html', 'xml', 'css', 'bash', 'shell', 'sh', 'sql', 'mysql', 'postgresql', 'sqlite', 'dockerfile', 'docker', 'json']
         
-        # Si on a plus d'ouvertures que de fermetures, on est dans un bloc incomplet
-        in_incomplete_block = opening_tags > closing_tags
-        
-        # 🔧 CORRECTION : Vérifier aussi si le dernier bloc ouvert est complet
-        if in_incomplete_block:
-            # Trouver la dernière balise d'ouverture
-            last_opening = text.rfind('```python')
-            if last_opening != -1:
-                # Vérifier s'il y a une balise de fermeture après
-                text_after_opening = text[last_opening + 9:]  # 9 = len('```python')
-                has_closing = '```' in text_after_opening
+        for lang in supported_languages:
+            # Compter les balises d'ouverture et de fermeture pour ce langage
+            opening_pattern = rf'```{lang}\b'
+            opening_tags = len(re.findall(opening_pattern, text, re.IGNORECASE))
+            
+            if opening_tags > 0:
+                # Compter les fermetures après chaque ouverture
+                closing_tags = len(re.findall(r'```(?!\w)', text))  # ``` non suivi d'une lettre
                 
-                # Si pas de fermeture OU si le texte finit par une fermeture partielle
-                if not has_closing or text_after_opening.rstrip().endswith('``'):
-                    return True
+                # Si on a plus d'ouvertures que de fermetures, on est dans un bloc incomplet
+                if opening_tags > closing_tags:
+                    # Vérifier si le dernier bloc ouvert est complet
+                    last_opening = text.rfind(f'```{lang}')
+                    if last_opening == -1:
+                        # Essayer avec case insensitive
+                        for match in re.finditer(opening_pattern, text, re.IGNORECASE):
+                            last_opening = match.start()
+                    
+                    if last_opening != -1:
+                        # Vérifier s'il y a une balise de fermeture après
+                        text_after_opening = text[last_opening + len(f'```{lang}'):]
+                        has_closing = '```' in text_after_opening
+                        
+                        # Si pas de fermeture OU si le texte finit par une fermeture partielle
+                        if not has_closing or text_after_opening.rstrip().endswith('``'):
+                            return True
         
         return False
 
     def _insert_text_with_safe_formatting(self, text_widget, text):
-        """Formatage sécurisé qui ne traite que les blocs de code complets"""
+        """Formatage sécurisé qui ne traite que les blocs de code complets (tous langages)"""
         import re
         
         # 🔧 STRATÉGIE : Séparer le texte en deux parties
         # 1. La partie avec blocs complets qu'on peut formatter
         # 2. La partie avec bloc incomplet qu'on affiche en texte brut
         
-        # Trouver tous les blocs de code complets
-        complete_blocks_pattern = r'```python\n(.*?)```'
-        matches = list(re.finditer(complete_blocks_pattern, text, re.DOTALL))
+        # Pattern pour tous les langages supportés
+        supported_languages = ['python', 'javascript', 'js', 'html', 'xml', 'css', 'bash', 'shell', 'sh', 'sql', 'mysql', 'postgresql', 'sqlite', 'dockerfile', 'docker', 'json']
+        languages_pattern = '|'.join(supported_languages)
+        
+        # Trouver tous les blocs de code complets (tous langages)
+        complete_blocks_pattern = rf'```({languages_pattern})\n?(.*?)```'
+        matches = list(re.finditer(complete_blocks_pattern, text, re.DOTALL | re.IGNORECASE))
         
         if not matches:
             # Pas de blocs complets, vérifier s'il y a un bloc en cours
-            if '```python' in text:
+            incomplete_pattern = rf'```({languages_pattern})\b'
+            if re.search(incomplete_pattern, text, re.IGNORECASE):
                 # Il y a un bloc en cours mais incomplet
                 # Trouver où commence le bloc incomplet
-                incomplete_start = text.rfind('```python')
-                if incomplete_start != -1:
+                incomplete_match = None
+                for match in re.finditer(incomplete_pattern, text, re.IGNORECASE):
+                    incomplete_match = match
+                
+                if incomplete_match:
+                    incomplete_start = incomplete_match.start()
                     # Formatter la partie avant le bloc incomplet
                     text_before_incomplete = text[:incomplete_start]
                     incomplete_part = text[incomplete_start:]
@@ -2597,7 +3202,7 @@ class ModernAIGUI:
                     text_widget.insert("end", incomplete_part, "normal")
                     return
             
-            # Pas de blocs Python du tout, formatage normal
+            # Pas de blocs de code du tout, formatage normal
             self._insert_markdown_segments(text_widget, text)
             return
         
@@ -2611,7 +3216,7 @@ class ModernAIGUI:
                 self._insert_markdown_segments(text_widget, text_before)
             
             # Afficher le bloc complet avec formatage
-            block_text = match.group(0)  # Le bloc complet avec ```python```
+            block_text = match.group(0)  # Le bloc complet avec ```language```
             self._insert_markdown_segments(text_widget, block_text)
             
             last_end = match.end()
@@ -2621,8 +3226,11 @@ class ModernAIGUI:
             remaining_text = text[last_end:]
             
             # Vérifier si le reste contient un bloc incomplet
-            if '```python' in remaining_text:
-                incomplete_start = remaining_text.find('```python')
+            incomplete_pattern = rf'```({languages_pattern})\b'
+            incomplete_match = re.search(incomplete_pattern, remaining_text, re.IGNORECASE)
+            
+            if incomplete_match:
+                incomplete_start = incomplete_match.start()
                 text_before_incomplete = remaining_text[:incomplete_start]
                 incomplete_part = remaining_text[incomplete_start:]
                 
@@ -2732,48 +3340,14 @@ class ModernAIGUI:
             self._disable_text_scroll(text_widget)
 
     def _insert_formatted_text_animated(self, text_widget, text):
-        """Version allégée du formatage pour l'animation (sans liens pour éviter les ralentissements)"""
+        """Version améliorée du formatage pour l'animation avec support des blocs Python"""
         import re
         
-        # Configuration des tags essentiels
-        text_widget.tag_configure("bold", font=('Segoe UI', 12, 'bold'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("italic", font=('Segoe UI', 12, 'italic'), foreground=self.colors['text_primary'])
-        text_widget.tag_configure("mono", font=('Consolas', 11), foreground="#f8f8f2")
-        text_widget.tag_configure("normal", font=('Segoe UI', 12), foreground=self.colors['text_primary'])
+        # Configuration complète des tags pour l'animation
+        self._configure_formatting_tags(text_widget)
         
-        # Formatage simplifié pour l'animation
-        def parse_simple_segments(txt):
-            patterns = [
-                (r'\*\*([^*]+)\*\*', 'bold'),     # **texte**
-                (r'\*([^*]+)\*', 'italic'),       # *texte*
-                (r'`([^`]+)`', 'mono')            # `code`
-            ]
-            
-            def _parse(txt, pat_idx=0):
-                if pat_idx >= len(patterns):
-                    return [(txt, 'normal')]
-                
-                pattern, style = patterns[pat_idx]
-                segments = []
-                last = 0
-                
-                for m in re.finditer(pattern, txt):
-                    start, end = m.start(), m.end()
-                    if start > last:
-                        segments.extend(_parse(txt[last:start], pat_idx+1))
-                    segments.append((m.group(1), style))
-                    last = end
-                
-                if last < len(txt):
-                    segments.extend(_parse(txt[last:], pat_idx+1))
-                return segments
-            
-            return _parse(txt)
-        
-        # Insérer avec formatage
-        for segment, style in parse_simple_segments(text):
-            if segment:
-                text_widget.insert("end", segment, style)
+        # Utiliser le nouveau système de formatage amélioré même pour l'animation
+        self._insert_markdown_segments(text_widget, text)
 
     def _gentle_scroll_to_bottom(self):
         """Scroll doux pendant l'animation sans clignotement, avec debug détaillé"""
@@ -2843,6 +3417,9 @@ class ModernAIGUI:
                 # NOUVEAU : Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
                 
+                # SOLUTION FINALE : Appliquer la coloration syntaxique directement
+                self._apply_final_syntax_highlighting(self.typing_widget)
+                
                 self.typing_widget.configure(state="disabled")
             else:
                 # Animation complète : formatage FINAL COMPLET
@@ -2857,6 +3434,9 @@ class ModernAIGUI:
                 
                 # NOUVEAU : Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
+                
+                # SOLUTION FINALE : Appliquer la coloration syntaxique directement
+                self._apply_final_syntax_highlighting(self.typing_widget)
                 
                 self.typing_widget.configure(state="disabled")
             
@@ -3326,7 +3906,7 @@ class ModernAIGUI:
         print(f"[DEBUG] {link_count} liens traités avec succès")
 
     def _insert_complete_markdown_with_code(self, text_widget, text):
-        """Formatage complet : liens + blocs ```python``` + markdown + docstrings orange"""
+        """Formatage complet : liens + blocs de code (tous langages) + markdown + docstrings orange"""
         import re
         import webbrowser
         prev_state = text_widget.cget("state")
@@ -3351,11 +3931,16 @@ class ModernAIGUI:
         text_widget.configure(state=prev_state)
 
     def _insert_complete_markdown_with_code_no_docstring(self, text_widget, text):
-        """Ancienne logique de _insert_complete_markdown_with_code, sans gestion docstring (pour découpage)."""
+        """Ancienne logique de _insert_complete_markdown_with_code, sans gestion docstring (pour découpage) - TOUS LANGAGES."""
         import re
         import webbrowser
-        code_pattern = r'```python\n(.*?)```'
-        code_matches = list(re.finditer(code_pattern, text, flags=re.DOTALL))
+        
+        # Pattern pour tous les langages supportés
+        supported_languages = ['python', 'javascript', 'js', 'html', 'xml', 'css', 'bash', 'shell', 'sh', 'sql', 'mysql', 'postgresql', 'sqlite', 'dockerfile', 'docker', 'json']
+        languages_pattern = '|'.join(supported_languages)
+        code_pattern = rf'```({languages_pattern})\n?(.*?)```'
+        
+        code_matches = list(re.finditer(code_pattern, text, flags=re.DOTALL | re.IGNORECASE))
         if not code_matches:
             self._process_text_with_links_only(text_widget, text)
             return
@@ -3365,11 +3950,36 @@ class ModernAIGUI:
             if code_match.start() > last_end:
                 text_before = text[last_end:code_match.start()]
                 link_count += self._process_text_with_links_only(text_widget, text_before, link_count)
-            code_content = code_match.group(1)
+            
+            language = code_match.group(1).lower()
+            code_content = code_match.group(2)
+            
             text_widget.insert("end", "\n")
-            self._insert_python_code_block_corrected(text_widget, code_content)
+            
+            # Utiliser la fonction appropriée selon le langage
+            if language == 'python':
+                self._insert_python_code_block_corrected(text_widget, code_content)
+            elif language in ['javascript', 'js']:
+                # Utiliser la version sans newlines automatiques (le \n est géré par la fonction appelante)
+                self._insert_javascript_code_block_without_newlines(text_widget, code_content)
+            elif language in ['html', 'xml']:
+                self._insert_html_code_block_without_newlines(text_widget, code_content)
+            elif language == 'css':
+                self._insert_css_code_block_without_newlines(text_widget, code_content)
+            elif language in ['bash', 'shell', 'sh']:
+                self._insert_bash_code_block_without_newlines(text_widget, code_content)
+            elif language in ['sql', 'mysql', 'postgresql', 'sqlite']:
+                self._insert_sql_code_block_without_newlines(text_widget, code_content)
+            elif language in ['dockerfile', 'docker']:
+                self._insert_dockerfile_code_block_without_newlines(text_widget, code_content)
+            elif language == 'json':
+                self._insert_json_code_block_without_newlines(text_widget, code_content)
+            else:
+                text_widget.insert("end", code_content, "code_block")
+                
             text_widget.insert("end", "\n")
             last_end = code_match.end()
+            
         if last_end < len(text):
             remaining_text = text[last_end:]
             self._process_text_with_links_only(text_widget, remaining_text, link_count)
@@ -3735,90 +4345,1449 @@ class ModernAIGUI:
             return None
 
     def _insert_markdown_segments(self, text_widget, text, code_blocks=None):
-        """Insère du texte avec formatage amélioré - Support des blocs ```python```"""
+        """Insère du texte avec formatage markdown amélioré - Support optimal des blocs ```python```"""
         import re
         
         # Debug pour voir si le formatage est appliqué
-        if "##" in text or "**" in text or "`" in text:
-            print(f"[DEBUG] Formatage Markdown détecté dans: {text[:50]}...")
+        if "```python" in text:
+            print(f"[DEBUG] Bloc Python détecté dans le texte")
         
-        if code_blocks is None:
-            # Formatage progressif pour tous les styles, y compris python
-            def parse_segments(text):
-                segments = []
-                code_pattern = r'```python\n(.*?)(```|$)'
-                pos = 0
-                for match in re.finditer(code_pattern, text, flags=re.DOTALL):
-                    start, end = match.span()
-                    # Avant le bloc python : appliquer markdown normal
-                    if start > pos:
-                        before = text[pos:start]
-                        segments.extend(self._parse_markdown_styles(before))
-                    code_content = match.group(1)
-                    closing = match.group(2)
-                    if closing == '```':
-                        segments.append((code_content, 'code_complete'))
-                    else:
-                        segments.append(('```python\n' + code_content, 'normal'))
-                    pos = end
-                # Après le dernier bloc
-                if pos < len(text):
-                    after = text[pos:]
-                    segments.extend(self._parse_markdown_styles(after))
-                return segments
-            segment_generator = ((seg, style) for seg, style in parse_segments(text))
-        else:
-            print(f"[DEBUG] Nombre de code_blocks à traiter: {len(code_blocks)}")
-            def parse_segments(text, patterns):
-                if not patterns:
-                    return [(text, 'normal')]
-                pattern, style = patterns[0]
-                segments = []
-                last = 0
-                for m in re.finditer(pattern, text):
-                    if m.start() > last:
-                        segments.extend(parse_segments(text[last:m.start()], patterns[1:]))
-                    # TRAITEMENT SPÉCIAL pour **Args:** et **Returns:**
-                    if style == 'args_returns':
-                        word = m.group(1)
-                        segments.append((f"{word}:", 'bold'))
-                    else:
-                        segments.append((m.group(1), style))
-                    last = m.end()
-                if last < len(text):
-                    segments.extend(parse_segments(text[last:], patterns[1:]))
-                return segments
-            # PATTERNS améliorés dans l'ordre
-            patterns = [
-                (r'__CODE_BLOCK_(\d+)__', 'code_placeholder'),
-                (r'\*\*(Args|Returns):\*\*(?!\s*[a-z])', 'args_returns'),
-                (r'^(#{1,6})\s+(.+)$', 'title_markdown'),
-                (r'`([^`]+)`', 'mono'),
-                (r'\*\*([^*\n]+?)\*\*', 'bold'),
-                (r'\*([^*\n]+?)\*', 'italic'),
-            ]
-            segment_generator = ((seg, style) for seg, style in parse_segments(text, patterns))
+        # Pattern amélioré pour détecter les blocs de code avec langage
+        code_block_pattern = r'```(\w+)?\n?(.*?)```'
         
-        for segment, style in segment_generator:
-            if not segment:
-                continue
-            if style == 'code_complete':
+        current_pos = 0
+        
+        # Traiter chaque bloc de code trouvé
+        for match in re.finditer(code_block_pattern, text, re.DOTALL):
+            # Insérer le texte avant le bloc de code
+            if match.start() > current_pos:
+                pre_text = text[current_pos:match.start()]
+                self._insert_simple_markdown(text_widget, pre_text)
+            
+            # Extraire les informations du bloc de code
+            language = match.group(1) or "text"
+            code_content = match.group(2).strip()
+            
+            print(f"[DEBUG] Bloc de code détecté - Langage: {language}, Contenu: {len(code_content)} caractères")
+            
+            # Traitement spécialisé selon le langage
+            if language.lower() == 'python':
                 text_widget.insert("end", "\n")
-                self._insert_python_code_block_corrected(text_widget, segment)
+                self._insert_python_code_block_with_syntax_highlighting(text_widget, code_content)
                 text_widget.insert("end", "\n")
-            elif style == 'code_placeholder':
-                match = re.match(r'__CODE_BLOCK_(\d+)__', segment)
-                if match:
-                    code_index = int(match.group(1))
-                    print(f"[DEBUG] Insertion du bloc de code index={code_index}")
-                    if code_index < len(code_blocks):
-                        text_widget.insert("end", "\n")
-                        self._insert_python_code_block_corrected(text_widget, code_blocks[code_index])
-                        text_widget.insert("end", "\n")
-            elif style.startswith('title'):
-                text_widget.insert("end", segment + "\n", style)
+            elif language.lower() in ['javascript', 'js']:
+                self._insert_javascript_code_block(text_widget, code_content)
+            elif language.lower() in ['html', 'xml']:
+                self._insert_html_code_block(text_widget, code_content)
+            elif language.lower() == 'css':
+                self._insert_css_code_block(text_widget, code_content)
+            elif language.lower() in ['bash', 'shell', 'sh']:
+                self._insert_bash_code_block(text_widget, code_content)
+            elif language.lower() in ['sql', 'mysql', 'postgresql', 'sqlite']:
+                self._insert_sql_code_block(text_widget, code_content)
+            elif language.lower() in ['dockerfile', 'docker']:
+                self._insert_dockerfile_code_block(text_widget, code_content)
+            elif language.lower() in ['json']:
+                self._insert_json_code_block(text_widget, code_content)
             else:
-                text_widget.insert("end", segment, style)
+                # Bloc de code générique
+                text_widget.insert("end", "\n")
+                text_widget.insert("end", code_content, "code_block")
+                text_widget.insert("end", "\n")
+            
+            current_pos = match.end()
+        
+        # Insérer le texte restant après le dernier bloc
+        if current_pos < len(text):
+            remaining_text = text[current_pos:]
+            self._insert_simple_markdown(text_widget, remaining_text)
+
+    def _insert_python_code_block_with_syntax_highlighting(self, text_widget, code):
+        """Version optimisée pour la coloration syntaxique Python avec support VS Code"""
+        try:
+            from pygments import lex
+            from pygments.lexers import PythonLexer
+            from pygments.token import Token
+            
+            code = code.strip()
+            if not code:
+                return
+            
+            lexer = PythonLexer()
+            
+            print(f"[DEBUG] Traitement Pygments du code Python: {len(code)} caractères")
+            
+            # Appliquer la coloration avec Pygments
+            for token_type, value in lex(code, lexer):
+                if not value.strip() and value != '\n':
+                    text_widget.insert("end", value, "mono")
+                else:
+                    tag_name = str(token_type)
+                    text_widget.insert("end", value, tag_name)
+            
+            print(f"[DEBUG] Coloration Pygments appliquée avec succès")
+            
+        except ImportError:
+            print("[DEBUG] Pygments non disponible, utilisation du fallback")
+            self._insert_python_code_fallback_enhanced(text_widget, code)
+        except Exception as e:
+            print(f"[DEBUG] Erreur Pygments: {e}, utilisation du fallback")
+            self._insert_python_code_fallback_enhanced(text_widget, code)
+
+    def _insert_python_code_fallback_enhanced(self, text_widget, code):
+        """Fallback amélioré avec reconnaissance étendue des patterns Python"""
+        import keyword
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Builtins Python étendus
+        python_builtins = {
+            'print', 'len', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple', 
+            'range', 'enumerate', 'zip', 'map', 'filter', 'sorted', 'reversed',
+            'sum', 'min', 'max', 'abs', 'round', 'pow', 'divmod', 'isinstance',
+            'issubclass', 'hasattr', 'getattr', 'setattr', 'delattr', 'vars',
+            'dir', 'type', 'id', 'callable', 'iter', 'next', 'open', 'input'
+        }
+        
+        lines = code.split('\n')
+        
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "mono")
+            
+            # Tokenisation améliorée avec regex plus précise
+            token_pattern = r'''
+                (""".*?"""|\'\'\'.*?\'\'\')|  # Triple quotes (docstrings)
+                ("#.*$)|                      # Comments
+                ("(?:[^"\\]|\\.)*")|         # Double quoted strings
+                ('(?:[^'\\]|\\.)*')|         # Single quoted strings
+                (\b\d+\.?\d*\b)|             # Numbers
+                (\b[a-zA-Z_]\w*\b)|          # Identifiers
+                ([+\-*/%=<>!&|^~]|//|\*\*|==|!=|<=|>=|<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=)|  # Operators
+                ([\(\)\[\]{},;:.])           # Punctuation
+            '''
+            
+            tokens = re.findall(token_pattern, line, re.VERBOSE | re.DOTALL)
+            
+            pos = 0
+            for token_groups in tokens:
+                # Trouver quel groupe a matché
+                token = next(t for t in token_groups if t)
+                
+                # Insérer les espaces avant le token si nécessaire
+                token_start = line.find(token, pos)
+                if token_start > pos:
+                    text_widget.insert("end", line[pos:token_start], "mono")
+                
+                # Appliquer la coloration selon le type de token
+                if token.startswith('"""') or token.startswith("'''"):
+                    text_widget.insert("end", token, "Token.Literal.String.Doc")
+                elif token.startswith('#'):
+                    text_widget.insert("end", token, "Token.Comment")
+                elif token.startswith(('"', "'")):
+                    text_widget.insert("end", token, "Token.Literal.String")
+                elif token in keyword.kwlist:
+                    text_widget.insert("end", token, "Token.Keyword")
+                elif token in ['True', 'False', 'None']:
+                    text_widget.insert("end", token, "Token.Keyword.Constant")
+                elif token in python_builtins:
+                    text_widget.insert("end", token, "Token.Name.Builtin")
+                elif re.match(r'^\d+\.?\d*$', token):
+                    text_widget.insert("end", token, "Token.Literal.Number")
+                elif re.match(r'^[+\-*/%=<>!&|^~]|//|\*\*|==|!=|<=|>=|<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=', token):
+                    text_widget.insert("end", token, "Token.Operator")
+                elif re.match(r'^[\(\)\[\]{},;:.]$', token):
+                    text_widget.insert("end", token, "Token.Punctuation")
+                elif re.match(r'^[a-zA-Z_]\w*$', token):
+                    # Détection des fonctions (suivies de '(')
+                    remaining = line[token_start + len(token):].lstrip()
+                    if remaining.startswith('('):
+                        text_widget.insert("end", token, "Token.Name.Function")
+                    else:
+                        text_widget.insert("end", token, "Token.Name")
+                else:
+                    text_widget.insert("end", token, "mono")
+                
+                pos = token_start + len(token)
+            
+            # Insérer le reste de la ligne
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "mono")
+
+    def _insert_simple_markdown(self, text_widget, text):
+        """Traite le markdown simple (gras, italique, titres) sans les blocs de code"""
+        import re
+        
+        # Patterns pour le markdown de base
+        patterns = [
+            (r'^(#{1,6})\s+(.+)$', 'title_markdown'),  # Titres
+            (r'\*\*([^*\n]+?)\*\*', 'bold'),           # Gras
+            (r'\*([^*\n]+?)\*', 'italic'),             # Italique  
+            (r'`([^`]+)`', 'mono'),                    # Code inline
+        ]
+        
+        def apply_formatting(text, patterns):
+            if not patterns:
+                text_widget.insert("end", text, "normal")
+                return
+            
+            pattern, style = patterns[0]
+            remaining_patterns = patterns[1:]
+            
+            last_pos = 0
+            for match in re.finditer(pattern, text, re.MULTILINE):
+                # Texte avant le match
+                if match.start() > last_pos:
+                    pre_text = text[last_pos:match.start()]
+                    apply_formatting(pre_text, remaining_patterns)
+                
+                # Appliquer le style
+                if style == 'title_markdown':
+                    level = len(match.group(1))
+                    title_text = match.group(2)
+                    text_widget.insert("end", title_text + "\n", f'title{min(level, 5)}')
+                else:
+                    content = match.group(1)
+                    text_widget.insert("end", content, style)
+                
+                last_pos = match.end()
+            
+            # Texte après le dernier match
+            if last_pos < len(text):
+                remaining_text = text[last_pos:]
+                apply_formatting(remaining_text, remaining_patterns)
+        
+        apply_formatting(text, patterns)
+
+    def _insert_javascript_code_block(self, text_widget, code):
+        """Coloration syntaxique pour JavaScript avec couleurs VS Code"""
+        import re
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Mots-clés JavaScript
+        js_keywords = {
+            'var', 'let', 'const', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 
+            'switch', 'case', 'default', 'break', 'continue', 'try', 'catch', 'finally',
+            'throw', 'new', 'this', 'super', 'class', 'extends', 'import', 'export',
+            'from', 'async', 'await', 'yield', 'typeof', 'instanceof', 'in', 'of',
+            'true', 'false', 'null', 'undefined'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Tokenisation JavaScript
+            # Pattern pour capturer différents éléments
+            token_pattern = r'''
+                (//.*$)|                     # Commentaires //
+                (/\*.*?\*/)|                 # Commentaires /* */
+                ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (`(?:[^`\\]|\\.)*`)|         # Template literals
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_$]\w*\b)|         # Identifiants
+                ([+\-*/%=<>!&|^~]|===|!==|==|!=|<=|>=|&&|\|\||<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|\+\+|--)|  # Opérateurs
+                ([\(\)\[\]{},;:.])|          # Ponctuation
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+                # Ajouter le texte avant le match si nécessaire
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1):  # Commentaire //
+                    text_widget.insert("end", token, "js_comment")
+                elif match.group(2):  # Commentaire /* */
+                    text_widget.insert("end", token, "js_comment")
+                elif match.group(3) or match.group(4) or match.group(5):  # Chaînes
+                    text_widget.insert("end", token, "js_string")
+                elif match.group(6):  # Nombres
+                    text_widget.insert("end", token, "js_number")
+                elif match.group(7):  # Identifiants
+                    if token in js_keywords:
+                        text_widget.insert("end", token, "js_keyword")
+                    else:
+                        # Vérifier si c'est une fonction (suivi de '(')
+                        remaining = line[match.end():].lstrip()
+                        if remaining.startswith('('):
+                            text_widget.insert("end", token, "js_function")
+                        else:
+                            text_widget.insert("end", token, "js_variable")
+                elif match.group(8):  # Opérateurs
+                    text_widget.insert("end", token, "js_operator")
+                elif match.group(9):  # Ponctuation
+                    text_widget.insert("end", token, "js_punctuation")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            # Ajouter le reste de la ligne
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+        
+        text_widget.insert("end", "\n")
+
+    def _insert_html_code_block(self, text_widget, code):
+        """Coloration syntaxique pour HTML avec couleurs VS Code"""
+        import re
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Pattern pour les balises HTML
+        html_pattern = r'''
+            (<!--.*?-->)|                    # Commentaires HTML
+            (</?[a-zA-Z][\w-]*(?:\s+[^>]*)?>) | # Balises ouvrantes/fermantes
+            ([^<]+)                          # Contenu texte
+        '''
+        
+        for match in re.finditer(html_pattern, code, re.VERBOSE | re.DOTALL):
+            content = match.group(0)
+            
+            if match.group(1):  # Commentaire
+                text_widget.insert("end", content, "html_comment")
+            elif match.group(2):  # Balise
+                self._parse_html_tag(text_widget, content)
+            else:  # Texte
+                text_widget.insert("end", content, "html_text")
+        
+        text_widget.insert("end", "\n")
+    
+    def _parse_html_tag(self, text_widget, tag_content):
+        """Parse une balise HTML pour colorer ses composants"""
+        import re
+        
+        # Pattern pour décomposer une balise
+        tag_pattern = r'(</?)([\w-]+)(\s+[^>]*)?(>)'
+        match = re.match(tag_pattern, tag_content)
+        
+        if match:
+            text_widget.insert("end", match.group(1), "html_punctuation")  # < ou </
+            text_widget.insert("end", match.group(2), "html_tag")          # nom de balise
+            
+            # Attributs s'il y en a
+            if match.group(3):
+                self._parse_html_attributes(text_widget, match.group(3))
+            
+            text_widget.insert("end", match.group(4), "html_punctuation")  # >
+        else:
+            text_widget.insert("end", tag_content, "html_tag")
+    
+    def _parse_html_attributes(self, text_widget, attr_content):
+        """Parse les attributs HTML"""
+        import re
+        
+        # Pattern pour les attributs
+        attr_pattern = r'(\s*)([\w-]+)(=)("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|\S+)?'
+        
+        pos = 0
+        for match in re.finditer(attr_pattern, attr_content):
+            # Espaces avant l'attribut
+            if match.start() > pos:
+                text_widget.insert("end", attr_content[pos:match.start()], "html_text")
+            
+            text_widget.insert("end", match.group(1), "html_text")        # espaces
+            text_widget.insert("end", match.group(2), "html_attribute")   # nom attribut
+            text_widget.insert("end", match.group(3), "html_punctuation") # =
+            
+            if match.group(4):  # valeur
+                text_widget.insert("end", match.group(4), "html_value")
+            
+            pos = match.end()
+        
+        # Reste du texte
+        if pos < len(attr_content):
+            text_widget.insert("end", attr_content[pos:], "html_text")
+
+    def _insert_css_code_block(self, text_widget, code):
+        """Coloration syntaxique pour CSS avec couleurs VS Code"""
+        import re
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Pattern CSS global
+        css_pattern = r'''
+            (/\*.*?\*/)|                     # Commentaires
+            ([\w\-#\.:\[\](),\s>+~*]+)(\s*\{)|  # Sélecteurs + {
+            ([\w-]+)(\s*:\s*)([^;}]+)(;?)|   # Propriété: valeur;
+            (\})|                            # }
+            ([^{}]+)                         # Autres contenus
+        '''
+        
+        for match in re.finditer(css_pattern, code, re.VERBOSE | re.DOTALL):
+            if match.group(1):  # Commentaire
+                text_widget.insert("end", match.group(1), "css_comment")
+            elif match.group(2) and match.group(3):  # Sélecteur + {
+                text_widget.insert("end", match.group(2), "css_selector")
+                text_widget.insert("end", match.group(3), "css_punctuation")
+            elif match.group(4):  # Propriété CSS
+                text_widget.insert("end", match.group(4), "css_property")
+                text_widget.insert("end", match.group(5), "css_punctuation")  # :
+                self._parse_css_value(text_widget, match.group(6))  # valeur
+                if match.group(7):  # ;
+                    text_widget.insert("end", match.group(7), "css_punctuation")
+            elif match.group(8):  # }
+                text_widget.insert("end", match.group(8), "css_punctuation")
+            else:
+                text_widget.insert("end", match.group(0), "code_block")
+        
+        text_widget.insert("end", "\n")
+    
+    def _parse_css_value(self, text_widget, value):
+        """Parse une valeur CSS pour la colorer"""
+        import re
+        
+        # Pattern pour les valeurs CSS
+        value_pattern = r'''
+            ("(?:[^"\\]|\\.)*")|            # Chaînes double quotes
+            ('(?:[^'\\]|\\.)*')|            # Chaînes simple quotes
+            (\b\d+(?:\.\d+)?(?:px|em|rem|%|vh|vw|pt|pc|in|cm|mm|ex|ch|vmin|vmax|deg|rad|turn|s|ms)?\b)| # Nombres avec unités
+            (#[0-9a-fA-F]{3,8})|            # Couleurs hexadécimales
+            (\b(?:rgb|rgba|hsl|hsla|var|calc|url)\([^)]*\))| # Fonctions CSS
+            ([^;}\s]+)                      # Autres valeurs
+        '''
+        
+        for match in re.finditer(value_pattern, value, re.VERBOSE):
+            token = match.group(0)
+            
+            if match.group(1) or match.group(2):  # Chaînes
+                text_widget.insert("end", token, "css_string")
+            elif match.group(3):  # Nombres avec unités
+                text_widget.insert("end", token, "css_number")
+            elif match.group(4):  # Couleurs hex
+                text_widget.insert("end", token, "css_number")
+            elif match.group(5):  # Fonctions CSS
+                text_widget.insert("end", token, "css_value")
+            else:  # Autres valeurs
+                text_widget.insert("end", token, "css_value")
+
+    def _insert_bash_code_block(self, text_widget, code):
+        """Coloration syntaxique pour Bash/Shell avec couleurs VS Code"""
+        import re
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Mots-clés Bash
+        bash_keywords = {
+            'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'until', 'do', 'done',
+            'case', 'esac', 'in', 'function', 'return', 'exit', 'break', 'continue',
+            'local', 'export', 'readonly', 'declare', 'set', 'unset', 'source',
+            'alias', 'unalias', 'type', 'which', 'whereis', 'echo', 'printf',
+            'test', 'true', 'false'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Skip shebang
+            if line.startswith('#!'):
+                text_widget.insert("end", line, "bash_comment")
+                continue
+            
+            # Tokenisation Bash
+            token_pattern = r'''
+                (\#.*$)|                     # Commentaires
+                ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (\$\{[^}]*\}|\$\w+|\$\d+)|   # Variables
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_]\w*\b)|          # Identifiants
+                ([<>=!&|;()\[\]{}]|<<|>>|\|\||&&|==|!=|<=|>=|\+=|-=|\*=|/=|%=)| # Opérateurs
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE):
+                # Ajouter le texte avant le match
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1):  # Commentaire
+                    text_widget.insert("end", token, "bash_comment")
+                elif match.group(2) or match.group(3):  # Chaînes
+                    text_widget.insert("end", token, "bash_string")
+                elif match.group(4):  # Variables
+                    text_widget.insert("end", token, "bash_variable")
+                elif match.group(5):  # Nombres
+                    text_widget.insert("end", token, "bash_number")
+                elif match.group(6):  # Identifiants
+                    if token in bash_keywords:
+                        text_widget.insert("end", token, "bash_keyword")
+                    else:
+                        text_widget.insert("end", token, "bash_command")
+                elif match.group(7):  # Opérateurs
+                    text_widget.insert("end", token, "bash_operator")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            # Reste de la ligne
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+        
+        text_widget.insert("end", "\n")
+
+    def _insert_sql_code_block(self, text_widget, code):
+        """Coloration syntaxique pour SQL avec couleurs VS Code"""
+        import re
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Mots-clés SQL
+        sql_keywords = {
+            'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER',
+            'ON', 'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'IS', 'NULL',
+            'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'CREATE', 'TABLE',
+            'ALTER', 'DROP', 'INDEX', 'VIEW', 'DATABASE', 'SCHEMA', 'PRIMARY', 'KEY',
+            'FOREIGN', 'REFERENCES', 'UNIQUE', 'CHECK', 'DEFAULT', 'AUTO_INCREMENT',
+            'ORDER', 'BY', 'GROUP', 'HAVING', 'DISTINCT', 'LIMIT', 'OFFSET', 'UNION',
+            'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'AS', 'ASC', 'DESC'
+        }
+        
+        # Fonctions SQL communes
+        sql_functions = {
+            'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ROUND', 'ABS', 'UPPER', 'LOWER',
+            'LENGTH', 'SUBSTRING', 'CONCAT', 'NOW', 'DATE', 'YEAR', 'MONTH', 'DAY'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Tokenisation SQL
+            token_pattern = r'''
+                (--.*$)|                     # Commentaires --
+                (/\*.*?\*/)|                 # Commentaires /* */
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_]\w*\b)|          # Identifiants
+                ([=<>!]+|<=|>=|<>|\|\|)|     # Opérateurs
+                ([(),;.])|                   # Ponctuation
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+                # Ajouter le texte avant le match
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1) or match.group(2):  # Commentaires
+                    text_widget.insert("end", token, "sql_comment")
+                elif match.group(3):  # Chaînes
+                    text_widget.insert("end", token, "sql_string")
+                elif match.group(4):  # Nombres
+                    text_widget.insert("end", token, "sql_number")
+                elif match.group(5):  # Identifiants
+                    token_upper = token.upper()
+                    if token_upper in sql_keywords:
+                        text_widget.insert("end", token, "sql_keyword")
+                    elif token_upper in sql_functions:
+                        text_widget.insert("end", token, "sql_function")
+                    else:
+                        text_widget.insert("end", token, "sql_identifier")
+                elif match.group(6):  # Opérateurs
+                    text_widget.insert("end", token, "sql_operator")
+                elif match.group(7):  # Ponctuation
+                    text_widget.insert("end", token, "sql_punctuation")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            # Reste de la ligne
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+        
+        text_widget.insert("end", "\n")
+
+    def _insert_dockerfile_code_block(self, text_widget, code):
+        """Coloration syntaxique pour Dockerfile avec couleurs VS Code"""
+        import re
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Instructions Dockerfile
+        dockerfile_instructions = {
+            'FROM', 'RUN', 'COPY', 'ADD', 'CMD', 'ENTRYPOINT', 'WORKDIR', 'EXPOSE',
+            'ENV', 'ARG', 'VOLUME', 'USER', 'LABEL', 'MAINTAINER', 'ONBUILD',
+            'STOPSIGNAL', 'HEALTHCHECK', 'SHELL'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            line_stripped = line.strip()
+            
+            # Commentaires
+            if line_stripped.startswith('#'):
+                text_widget.insert("end", line, "dockerfile_comment")
+                continue
+            
+            # Instructions Dockerfile
+            instruction_match = re.match(r'^(\s*)(\w+)(\s+)(.*)', line)
+            if instruction_match:
+                indent, instruction, space, rest = instruction_match.groups()
+                
+                text_widget.insert("end", indent, "code_block")
+                
+                if instruction.upper() in dockerfile_instructions:
+                    text_widget.insert("end", instruction, "dockerfile_instruction")
+                else:
+                    text_widget.insert("end", instruction, "code_block")
+                
+                text_widget.insert("end", space, "code_block")
+                
+                # Parser le reste selon l'instruction
+                self._parse_dockerfile_rest(text_widget, instruction.upper(), rest)
+            else:
+                text_widget.insert("end", line, "code_block")
+        
+        text_widget.insert("end", "\n")
+    
+    def _parse_dockerfile_rest(self, text_widget, instruction, rest):
+        """Parse le reste d'une ligne Dockerfile selon l'instruction"""
+        import re
+        
+        # Variables ${VAR} ou $VAR
+        var_pattern = r'(\$\{[^}]*\}|\$\w+)'
+        # Chaînes entre guillemets
+        string_pattern = r'("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')'
+        # Flags comme --from=
+        flag_pattern = r'(--[\w-]+(?:=\S+)?)'
+        
+        pos = 0
+        
+        # Traiter les flags d'abord (pour certaines instructions)
+        if instruction in ['COPY', 'ADD', 'RUN']:
+            for match in re.finditer(flag_pattern, rest):
+                if match.start() > pos:
+                    self._parse_simple_dockerfile_content(text_widget, rest[pos:match.start()])
+                text_widget.insert("end", match.group(1), "dockerfile_flag")
+                pos = match.end()
+        
+        # Traiter le reste
+        remaining = rest[pos:]
+        self._parse_simple_dockerfile_content(text_widget, remaining)
+    
+    def _parse_simple_dockerfile_content(self, text_widget, content):
+        """Parse le contenu simple d'une ligne Dockerfile"""
+        import re
+        
+        # Pattern pour variables et chaînes
+        pattern = r'(\$\{[^}]*\}|\$\w+)|("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')'
+        
+        pos = 0
+        for match in re.finditer(pattern, content):
+            if match.start() > pos:
+                text_widget.insert("end", content[pos:match.start()], "code_block")
+            
+            if match.group(1):  # Variable
+                text_widget.insert("end", match.group(1), "dockerfile_variable")
+            elif match.group(2):  # Chaîne
+                text_widget.insert("end", match.group(2), "dockerfile_string")
+            
+            pos = match.end()
+        
+        if pos < len(content):
+            # Vérifier si le reste ressemble à un chemin
+            remaining = content[pos:]
+            if re.match(r'^[/.\w-]+$', remaining.strip()):
+                text_widget.insert("end", remaining, "dockerfile_path")
+            else:
+                text_widget.insert("end", remaining, "code_block")
+
+    def _insert_json_code_block(self, text_widget, code):
+        """Coloration syntaxique pour JSON avec couleurs VS Code"""
+        import re
+        import json
+        
+        text_widget.insert("end", "\n")
+        code = code.strip()
+        if not code:
+            text_widget.insert("end", "\n")
+            return
+        
+        # Essayer de parser le JSON pour une coloration plus précise
+        try:
+            # Vérifier si c'est du JSON valide
+            json.loads(code)
+            
+            # Pattern JSON
+            json_pattern = r'''
+                ("(?:[^"\\]|\\.)*")(\s*:\s*)|  # Clés JSON
+                ("(?:[^"\\]|\\.)*")|           # Chaînes
+                (\b(?:true|false|null)\b)|     # Mots-clés JSON
+                (\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)| # Nombres
+                ([\[\]{},:])|                  # Structures JSON
+                (\s+)                          # Espaces
+            '''
+            
+            for match in re.finditer(json_pattern, code, re.VERBOSE):
+                if match.group(1) and match.group(2):  # Clé + :
+                    text_widget.insert("end", match.group(1), "js_property")  # Clé en couleur propriété
+                    text_widget.insert("end", match.group(2), "js_punctuation")  # :
+                elif match.group(3):  # Chaîne valeur
+                    text_widget.insert("end", match.group(3), "js_string")
+                elif match.group(4):  # true/false/null
+                    text_widget.insert("end", match.group(4), "js_keyword")
+                elif match.group(5):  # Nombres
+                    text_widget.insert("end", match.group(5), "js_number")
+                elif match.group(6):  # Structures
+                    text_widget.insert("end", match.group(6), "js_punctuation")
+                else:
+                    text_widget.insert("end", match.group(0), "code_block")
+                    
+        except json.JSONDecodeError:
+            # JSON invalide, coloration basique
+            text_widget.insert("end", code, "code_block")
+        
+        text_widget.insert("end", "\n")
+
+    # === NOUVELLES FONCTIONS SANS NEWLINES AUTOMATIQUES ===
+    
+    def _insert_javascript_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour JavaScript"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Mots-clés JavaScript
+        js_keywords = {
+            'var', 'let', 'const', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 
+            'switch', 'case', 'default', 'break', 'continue', 'try', 'catch', 'finally',
+            'throw', 'new', 'this', 'super', 'class', 'extends', 'import', 'export',
+            'from', 'async', 'await', 'yield', 'typeof', 'instanceof', 'in', 'of',
+            'true', 'false', 'null', 'undefined'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Tokenisation JavaScript
+            token_pattern = r'''
+                (//.*$)|                     # Commentaires //
+                (/\*.*?\*/)|                 # Commentaires /* */
+                ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (`(?:[^`\\]|\\.)*`)|         # Template literals
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_$]\w*\b)|         # Identifiants
+                ([+\-*/%=<>!&|^~]|===|!==|==|!=|<=|>=|&&|\|\||<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|\+\+|--)|  # Opérateurs
+                ([\(\)\[\]{},;:.])|          # Ponctuation
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+                # Ajouter le texte avant le match si nécessaire
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1):  # Commentaire //
+                    text_widget.insert("end", token, "js_comment")
+                elif match.group(2):  # Commentaire /* */
+                    text_widget.insert("end", token, "js_comment")
+                elif match.group(3) or match.group(4) or match.group(5):  # Chaînes
+                    text_widget.insert("end", token, "js_string")
+                elif match.group(6):  # Nombres
+                    text_widget.insert("end", token, "js_number")
+                elif match.group(7):  # Identifiants
+                    if token in js_keywords:
+                        text_widget.insert("end", token, "js_keyword")
+                    else:
+                        # Vérifier si c'est une fonction (suivi de '(')
+                        remaining = line[match.end():].lstrip()
+                        if remaining.startswith('('):
+                            text_widget.insert("end", token, "js_function")
+                        else:
+                            text_widget.insert("end", token, "js_variable")
+                elif match.group(8):  # Opérateurs
+                    text_widget.insert("end", token, "js_operator")
+                elif match.group(9):  # Ponctuation
+                    text_widget.insert("end", token, "js_punctuation")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            # Ajouter le reste de la ligne
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+
+    def _insert_html_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour HTML"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Pattern pour les balises HTML
+        html_pattern = r'''
+            (<!--.*?-->)|                    # Commentaires HTML
+            (</?[a-zA-Z][\w-]*(?:\s+[^>]*)?>) | # Balises ouvrantes/fermantes
+            ([^<]+)                          # Contenu texte
+        '''
+        
+        for match in re.finditer(html_pattern, code, re.VERBOSE | re.DOTALL):
+            content = match.group(0)
+            
+            if match.group(1):  # Commentaire
+                text_widget.insert("end", content, "html_comment")
+            elif match.group(2):  # Balise
+                self._parse_html_tag(text_widget, content)
+            else:  # Texte
+                text_widget.insert("end", content, "html_text")
+
+    def _insert_css_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour CSS"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Pattern CSS global (version simplifiée)
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            line_stripped = line.strip()
+            
+            # Commentaires CSS
+            if '/*' in line and '*/' in line:
+                text_widget.insert("end", line, "css_comment")
+            # Sélecteurs (lignes se terminant par {)
+            elif line_stripped.endswith('{'):
+                selector = line_stripped[:-1].strip()
+                text_widget.insert("end", selector, "css_selector")
+                text_widget.insert("end", " {", "css_punctuation")
+            # Propriétés CSS (contenant :)
+            elif ':' in line and not line_stripped.startswith('/*'):
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    prop = parts[0].strip()
+                    value = parts[1].strip()
+                    
+                    text_widget.insert("end", " " * (len(line) - len(line.lstrip())), "code_block")  # Indentation
+                    text_widget.insert("end", prop, "css_property")
+                    text_widget.insert("end", ": ", "css_punctuation")
+                    
+                    # Enlever le ; final si présent
+                    if value.endswith(';'):
+                        value_content = value[:-1]
+                        text_widget.insert("end", value_content, "css_value")
+                        text_widget.insert("end", ";", "css_punctuation")
+                    else:
+                        text_widget.insert("end", value, "css_value")
+                else:
+                    text_widget.insert("end", line, "code_block")
+            # Fermeture de bloc
+            elif line_stripped == '}':
+                text_widget.insert("end", line, "css_punctuation")
+            else:
+                text_widget.insert("end", line, "code_block")
+
+    def _insert_bash_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour Bash"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Mots-clés Bash essentiels
+        bash_keywords = {
+            'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'do', 'done',
+            'case', 'esac', 'function', 'return', 'exit', 'break', 'continue',
+            'export', 'local', 'echo', 'printf'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Shebang
+            if line.startswith('#!'):
+                text_widget.insert("end", line, "bash_comment")
+                continue
+            
+            # Commentaires
+            if line.strip().startswith('#'):
+                text_widget.insert("end", line, "bash_comment")
+                continue
+            
+            # Tokenisation simple
+            words = line.split()
+            current_pos = 0
+            
+            for word in words:
+                # Trouver la position du mot dans la ligne
+                word_start = line.find(word, current_pos)
+                
+                # Ajouter les espaces avant le mot
+                if word_start > current_pos:
+                    text_widget.insert("end", line[current_pos:word_start], "code_block")
+                
+                # Colorer le mot
+                if word.startswith('$'):
+                    text_widget.insert("end", word, "bash_variable")
+                elif word.startswith('"') or word.startswith("'"):
+                    text_widget.insert("end", word, "bash_string")
+                elif word.isdigit():
+                    text_widget.insert("end", word, "bash_number")
+                elif word in bash_keywords:
+                    text_widget.insert("end", word, "bash_keyword")
+                else:
+                    text_widget.insert("end", word, "bash_command")
+                
+                current_pos = word_start + len(word)
+            
+            # Ajouter le reste de la ligne (espaces finaux, etc.)
+            if current_pos < len(line):
+                text_widget.insert("end", line[current_pos:], "code_block")
+
+    def _insert_sql_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour SQL"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Mots-clés SQL essentiels
+        sql_keywords = {
+            'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'ON', 
+            'AND', 'OR', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
+            'CREATE', 'TABLE', 'ALTER', 'DROP', 'ORDER', 'BY', 'GROUP', 'HAVING'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Commentaires
+            if line.strip().startswith('--'):
+                text_widget.insert("end", line, "sql_comment")
+                continue
+            
+            # Tokenisation simple par mots
+            words = re.findall(r'\S+|\s+', line)
+            
+            for word in words:
+                if word.isspace():
+                    text_widget.insert("end", word, "code_block")
+                elif word.startswith("'") and word.endswith("'"):
+                    text_widget.insert("end", word, "sql_string")
+                elif word.replace('.', '').isdigit():
+                    text_widget.insert("end", word, "sql_number")
+                elif word.upper() in sql_keywords:
+                    text_widget.insert("end", word, "sql_keyword")
+                elif word in [',', ';', '(', ')', '=', '<', '>', '<=', '>=']:
+                    text_widget.insert("end", word, "sql_punctuation")
+                else:
+                    text_widget.insert("end", word, "sql_identifier")
+
+    def _insert_dockerfile_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour Dockerfile"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Instructions Dockerfile
+        dockerfile_instructions = {
+            'FROM', 'RUN', 'COPY', 'ADD', 'CMD', 'ENTRYPOINT', 'WORKDIR', 'EXPOSE',
+            'ENV', 'ARG', 'VOLUME', 'USER', 'LABEL'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            line_stripped = line.strip()
+            
+            # Commentaires
+            if line_stripped.startswith('#'):
+                text_widget.insert("end", line, "dockerfile_comment")
+                continue
+            
+            # Instructions
+            words = line.split()
+            if words and words[0].upper() in dockerfile_instructions:
+                # Indentation
+                indent = len(line) - len(line.lstrip())
+                if indent > 0:
+                    text_widget.insert("end", line[:indent], "code_block")
+                
+                # Instruction
+                text_widget.insert("end", words[0], "dockerfile_instruction")
+                
+                # Reste de la ligne
+                rest = line[indent + len(words[0]):]
+                if rest:
+                    # Variables simples
+                    if '$' in rest:
+                        parts = re.split(r'(\$\w+|\$\{[^}]*\})', rest)
+                        for part in parts:
+                            if part.startswith('$'):
+                                text_widget.insert("end", part, "dockerfile_variable")
+                            else:
+                                text_widget.insert("end", part, "dockerfile_string")
+                    else:
+                        text_widget.insert("end", rest, "dockerfile_string")
+            else:
+                text_widget.insert("end", line, "code_block")
+
+    def _insert_json_code_block_without_newlines(self, text_widget, code):
+        """Version sans newlines automatiques pour JSON"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Tokenisation JSON simple
+        json_pattern = r'''
+            ("(?:[^"\\]|\\.)*")(\s*:\s*)|  # Clés JSON + :
+            ("(?:[^"\\]|\\.)*")|           # Chaînes
+            (\b(?:true|false|null)\b)|     # Mots-clés JSON
+            (\b-?\d+(?:\.\d+)?\b)|         # Nombres
+            ([\[\]{},:])|                  # Structures JSON
+            (\s+)                          # Espaces
+        '''
+        
+        for match in re.finditer(json_pattern, code, re.VERBOSE):
+            if match.group(1) and match.group(2):  # Clé + :
+                text_widget.insert("end", match.group(1), "js_property")
+                text_widget.insert("end", match.group(2), "js_punctuation")
+            elif match.group(3):  # Chaîne
+                text_widget.insert("end", match.group(3), "js_string")
+            elif match.group(4):  # true/false/null
+                text_widget.insert("end", match.group(4), "js_keyword")
+            elif match.group(5):  # Nombres
+                text_widget.insert("end", match.group(5), "js_number")
+            elif match.group(6):  # Structures
+                text_widget.insert("end", match.group(6), "js_punctuation")
+            else:
+                text_widget.insert("end", match.group(0), "code_block")
+
+    def _insert_javascript_code_block_content(self, text_widget, code):
+        """Version content pour JavaScript (sans newlines automatiques)"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Mots-clés JavaScript
+        js_keywords = {
+            'var', 'let', 'const', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 
+            'switch', 'case', 'default', 'break', 'continue', 'try', 'catch', 'finally',
+            'throw', 'new', 'this', 'super', 'class', 'extends', 'import', 'export',
+            'from', 'async', 'await', 'yield', 'typeof', 'instanceof', 'in', 'of',
+            'true', 'false', 'null', 'undefined'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Tokenisation JavaScript (version simplifiée)
+            token_pattern = r'''
+                (//.*$)|                     # Commentaires //
+                (/\*.*?\*/)|                 # Commentaires /* */
+                ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (`(?:[^`\\]|\\.)*`)|         # Template literals
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_$]\w*\b)|         # Identifiants
+                ([+\-*/%=<>!&|^~]|===|!==|==|!=|<=|>=|&&|\|\||<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|\+\+|--)|  # Opérateurs
+                ([\(\)\[\]{},;:.])|          # Ponctuation
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1) or match.group(2):  # Commentaires
+                    text_widget.insert("end", token, "js_comment")
+                elif match.group(3) or match.group(4) or match.group(5):  # Chaînes
+                    text_widget.insert("end", token, "js_string")
+                elif match.group(6):  # Nombres
+                    text_widget.insert("end", token, "js_number")
+                elif match.group(7):  # Identifiants
+                    if token in js_keywords:
+                        text_widget.insert("end", token, "js_keyword")
+                    else:
+                        remaining = line[match.end():].lstrip()
+                        if remaining.startswith('('):
+                            text_widget.insert("end", token, "js_function")
+                        else:
+                            text_widget.insert("end", token, "js_variable")
+                elif match.group(8):  # Opérateurs
+                    text_widget.insert("end", token, "js_operator")
+                elif match.group(9):  # Ponctuation
+                    text_widget.insert("end", token, "js_punctuation")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+
+    def _insert_html_code_block_content(self, text_widget, code):
+        """Version content pour HTML (sans newlines automatiques)"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Pattern pour les balises HTML
+        html_pattern = r'''
+            (<!--.*?-->)|                    # Commentaires HTML
+            (</?[a-zA-Z][\w-]*(?:\s+[^>]*)?>) | # Balises ouvrantes/fermantes
+            ([^<]+)                          # Contenu texte
+        '''
+        
+        for match in re.finditer(html_pattern, code, re.VERBOSE | re.DOTALL):
+            content = match.group(0)
+            
+            if match.group(1):  # Commentaire
+                text_widget.insert("end", content, "html_comment")
+            elif match.group(2):  # Balise
+                self._parse_html_tag(text_widget, content)
+            else:  # Texte
+                text_widget.insert("end", content, "html_text")
+
+    def _insert_css_code_block_content(self, text_widget, code):
+        """Version content pour CSS (sans newlines automatiques)"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Pattern CSS global
+        css_pattern = r'''
+            (/\*.*?\*/)|                     # Commentaires
+            ([\w\-#\.:\[\](),\s>+~*]+)(\s*\{)|  # Sélecteurs + {
+            ([\w-]+)(\s*:\s*)([^;}]+)(;?)|   # Propriété: valeur;
+            (\})|                            # }
+            ([^{}]+)                         # Autres contenus
+        '''
+        
+        for match in re.finditer(css_pattern, code, re.VERBOSE | re.DOTALL):
+            if match.group(1):  # Commentaire
+                text_widget.insert("end", match.group(1), "css_comment")
+            elif match.group(2) and match.group(3):  # Sélecteur + {
+                text_widget.insert("end", match.group(2), "css_selector")
+                text_widget.insert("end", match.group(3), "css_punctuation")
+            elif match.group(4):  # Propriété CSS
+                text_widget.insert("end", match.group(4), "css_property")
+                text_widget.insert("end", match.group(5), "css_punctuation")  # :
+                self._parse_css_value(text_widget, match.group(6))  # valeur
+                if match.group(7):  # ;
+                    text_widget.insert("end", match.group(7), "css_punctuation")
+            elif match.group(8):  # }
+                text_widget.insert("end", match.group(8), "css_punctuation")
+            else:
+                text_widget.insert("end", match.group(0), "code_block")
+
+    def _insert_bash_code_block_content(self, text_widget, code):
+        """Version content pour Bash (sans newlines automatiques)"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Mots-clés Bash
+        bash_keywords = {
+            'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'until', 'do', 'done',
+            'case', 'esac', 'in', 'function', 'return', 'exit', 'break', 'continue',
+            'local', 'export', 'readonly', 'declare', 'set', 'unset', 'source',
+            'alias', 'unalias', 'type', 'which', 'whereis', 'echo', 'printf',
+            'test', 'true', 'false'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Skip shebang
+            if line.startswith('#!'):
+                text_widget.insert("end", line, "bash_comment")
+                continue
+            
+            # Tokenisation Bash
+            token_pattern = r'''
+                (\#.*$)|                     # Commentaires
+                ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (\$\{[^}]*\}|\$\w+|\$\d+)|   # Variables
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_]\w*\b)|          # Identifiants
+                ([<>=!&|;()\[\]{}]|<<|>>|\|\||&&|==|!=|<=|>=|\+=|-=|\*=|/=|%=)| # Opérateurs
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE):
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1):  # Commentaire
+                    text_widget.insert("end", token, "bash_comment")
+                elif match.group(2) or match.group(3):  # Chaînes
+                    text_widget.insert("end", token, "bash_string")
+                elif match.group(4):  # Variables
+                    text_widget.insert("end", token, "bash_variable")
+                elif match.group(5):  # Nombres
+                    text_widget.insert("end", token, "bash_number")
+                elif match.group(6):  # Identifiants
+                    if token in bash_keywords:
+                        text_widget.insert("end", token, "bash_keyword")
+                    else:
+                        text_widget.insert("end", token, "bash_command")
+                elif match.group(7):  # Opérateurs
+                    text_widget.insert("end", token, "bash_operator")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+
+    def _insert_sql_code_block_content(self, text_widget, code):
+        """Version content pour SQL (sans newlines automatiques)"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Mots-clés SQL
+        sql_keywords = {
+            'SELECT', 'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER',
+            'ON', 'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'IS', 'NULL',
+            'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'CREATE', 'TABLE',
+            'ALTER', 'DROP', 'INDEX', 'VIEW', 'DATABASE', 'SCHEMA', 'PRIMARY', 'KEY',
+            'FOREIGN', 'REFERENCES', 'UNIQUE', 'CHECK', 'DEFAULT', 'AUTO_INCREMENT',
+            'ORDER', 'BY', 'GROUP', 'HAVING', 'DISTINCT', 'LIMIT', 'OFFSET', 'UNION',
+            'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'AS', 'ASC', 'DESC'
+        }
+        
+        sql_functions = {
+            'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ROUND', 'ABS', 'UPPER', 'LOWER',
+            'LENGTH', 'SUBSTRING', 'CONCAT', 'NOW', 'DATE', 'YEAR', 'MONTH', 'DAY'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            # Tokenisation SQL
+            token_pattern = r'''
+                (--.*$)|                     # Commentaires --
+                (/\*.*?\*/)|                 # Commentaires /* */
+                ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
+                (\b\d+\.?\d*\b)|             # Nombres
+                (\b[a-zA-Z_]\w*\b)|          # Identifiants
+                ([=<>!]+|<=|>=|<>|\|\|)|     # Opérateurs
+                ([(),;.])|                   # Ponctuation
+                (\s+)                        # Espaces
+            '''
+            
+            pos = 0
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+                if match.start() > pos:
+                    text_widget.insert("end", line[pos:match.start()], "code_block")
+                
+                token = match.group(0)
+                
+                if match.group(1) or match.group(2):  # Commentaires
+                    text_widget.insert("end", token, "sql_comment")
+                elif match.group(3):  # Chaînes
+                    text_widget.insert("end", token, "sql_string")
+                elif match.group(4):  # Nombres
+                    text_widget.insert("end", token, "sql_number")
+                elif match.group(5):  # Identifiants
+                    token_upper = token.upper()
+                    if token_upper in sql_keywords:
+                        text_widget.insert("end", token, "sql_keyword")
+                    elif token_upper in sql_functions:
+                        text_widget.insert("end", token, "sql_function")
+                    else:
+                        text_widget.insert("end", token, "sql_identifier")
+                elif match.group(6):  # Opérateurs
+                    text_widget.insert("end", token, "sql_operator")
+                elif match.group(7):  # Ponctuation
+                    text_widget.insert("end", token, "sql_punctuation")
+                else:
+                    text_widget.insert("end", token, "code_block")
+                
+                pos = match.end()
+            
+            if pos < len(line):
+                text_widget.insert("end", line[pos:], "code_block")
+
+    def _insert_dockerfile_code_block_content(self, text_widget, code):
+        """Version content pour Dockerfile (sans newlines automatiques)"""
+        import re
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Instructions Dockerfile
+        dockerfile_instructions = {
+            'FROM', 'RUN', 'COPY', 'ADD', 'CMD', 'ENTRYPOINT', 'WORKDIR', 'EXPOSE',
+            'ENV', 'ARG', 'VOLUME', 'USER', 'LABEL', 'MAINTAINER', 'ONBUILD',
+            'STOPSIGNAL', 'HEALTHCHECK', 'SHELL'
+        }
+        
+        lines = code.split('\n')
+        for i, line in enumerate(lines):
+            if i > 0:
+                text_widget.insert("end", "\n", "code_block")
+            
+            line_stripped = line.strip()
+            
+            # Commentaires
+            if line_stripped.startswith('#'):
+                text_widget.insert("end", line, "dockerfile_comment")
+                continue
+            
+            # Instructions Dockerfile
+            instruction_match = re.match(r'^(\s*)(\w+)(\s+)(.*)', line)
+            if instruction_match:
+                indent, instruction, space, rest = instruction_match.groups()
+                
+                text_widget.insert("end", indent, "code_block")
+                
+                if instruction.upper() in dockerfile_instructions:
+                    text_widget.insert("end", instruction, "dockerfile_instruction")
+                else:
+                    text_widget.insert("end", instruction, "code_block")
+                
+                text_widget.insert("end", space, "code_block")
+                
+                # Parser le reste selon l'instruction
+                self._parse_dockerfile_rest(text_widget, instruction.upper(), rest)
+            else:
+                text_widget.insert("end", line, "code_block")
+
+    def _insert_json_code_block_content(self, text_widget, code):
+        """Version content pour JSON (sans newlines automatiques)"""
+        import re
+        import json
+        
+        code = code.strip()
+        if not code:
+            return
+        
+        # Essayer de parser le JSON pour une coloration plus précise
+        try:
+            # Vérifier si c'est du JSON valide
+            json.loads(code)
+            
+            # Pattern JSON
+            json_pattern = r'''
+                ("(?:[^"\\]|\\.)*")(\s*:\s*)|  # Clés JSON
+                ("(?:[^"\\]|\\.)*")|           # Chaînes
+                (\b(?:true|false|null)\b)|     # Mots-clés JSON
+                (\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)| # Nombres
+                ([\[\]{},:])|                  # Structures JSON
+                (\s+)                          # Espaces
+            '''
+            
+            for match in re.finditer(json_pattern, code, re.VERBOSE):
+                if match.group(1) and match.group(2):  # Clé + :
+                    text_widget.insert("end", match.group(1), "js_property")  # Clé en couleur propriété
+                    text_widget.insert("end", match.group(2), "js_punctuation")  # :
+                elif match.group(3):  # Chaîne valeur
+                    text_widget.insert("end", match.group(3), "js_string")
+                elif match.group(4):  # true/false/null
+                    text_widget.insert("end", match.group(4), "js_keyword")
+                elif match.group(5):  # Nombres
+                    text_widget.insert("end", match.group(5), "js_number")
+                elif match.group(6):  # Structures
+                    text_widget.insert("end", match.group(6), "js_punctuation")
+                else:
+                    text_widget.insert("end", match.group(0), "code_block")
+                    
+        except json.JSONDecodeError:
+            # JSON invalide, coloration basique
+            text_widget.insert("end", code, "code_block")
 
     def _parse_markdown_styles(self, text):
         """Parse markdown styles (bold, italic, titles, inline code) for non-python segments."""
@@ -3982,64 +5951,8 @@ class ModernAIGUI:
         # 🔧 NOUVEAU : Traitement des liens AVANT le parsing général
         text_with_links_processed = self._process_links_preserve_formatting(text, text_widget)
         
-        # Parsing avec formatage Python complet
-        def parse_segments(txt):
-            patterns = [
-                # DOCSTRINGS - Correctement détectés SANS le mot "docstring"
-                (r"'''([\s\S]*?)'''|\"\"\"([\s\S]*?)\"\"\"", 'docstring'),
-                (r"```python\s*([\s\S]*?)\s*```", 'python_code'),
-                
-                # TITRES MARKDOWN
-                (r'^(#+) (.+)$', 'title'),
-                
-                # FORMATAGE STANDARD
-                (r'`([^`]+)`', 'mono'),
-                (r'\*\*([^*]+)\*\*', 'bold'),
-                (r'\*([^*]+)\*', 'italic'),
-            ]
-            
-            def _parse(txt, pat_idx=0):
-                if pat_idx >= len(patterns):
-                    return [(txt, 'normal')]
-                
-                pattern, style = patterns[pat_idx]
-                segments = []
-                last = 0
-                
-                for m in re.finditer(pattern, txt, re.MULTILINE):
-                    start, end = m.start(), m.end()
-                    if start > last:
-                        segments.extend(_parse(txt[last:start], pat_idx+1))
-                    
-                    if style == 'docstring':
-                        # Prendre le premier groupe qui match (''' ou """)
-                        doc = m.group(1) or m.group(2)
-                        if doc is not None:
-                            doc = doc.strip()  # Nettoyer les espaces uniquement
-                        segments.append((doc, 'docstring'))
-                    elif style == 'python_code':
-                        code = m.group(1)
-                        segments.append((code, 'python_code'))
-                    elif style == 'title':
-                        hashes = m.group(1)
-                        title_text = m.group(2)
-                        tag = f"title{min(len(hashes),5)}"
-                        segments.append((title_text, tag))
-                    else:
-                        segments.append((m.group(1), style))
-                    last = end
-                
-                if last < len(txt):
-                    segments.extend(_parse(txt[last:], pat_idx+1))
-                return segments
-            
-            return _parse(txt)
-
-        # Insertion avec formatage complet
-        for segment, style in parse_segments(text_with_links_processed):
-            if not segment:
-                continue
-            text_widget.insert("end", segment, style)
+        # 🔧 UTILISATION DU NOUVEAU SYSTÈME DE FORMATAGE AMÉLIORÉ
+        self._insert_markdown_segments(text_widget, text_with_links_processed)
 
         text_widget.update_idletasks()
 
@@ -4109,7 +6022,192 @@ class ModernAIGUI:
             else:
                 text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11))
         
+        # === TAGS POUR AUTRES LANGAGES VS CODE ===
+        
+        # JavaScript tags
+        js_tags = {
+            "js_keyword": ("#569cd6", 'bold'),      # var, let, const, function, if, else, etc.
+            "js_string": ("#ce9178", 'normal'),     # Chaînes de caractères
+            "js_comment": ("#6a9955", 'italic'),    # Commentaires
+            "js_number": ("#b5cea8", 'normal'),     # Nombres
+            "js_function": ("#dcdcaa", 'normal'),   # Noms de fonctions
+            "js_operator": ("#d4d4d4", 'normal'),   # Opérateurs
+            "js_punctuation": ("#d4d4d4", 'normal'),# Ponctuation
+            "js_variable": ("#9cdcfe", 'normal'),   # Variables
+            "js_property": ("#9cdcfe", 'normal'),   # Propriétés d'objets
+        }
+        
+        # CSS tags
+        css_tags = {
+            "css_selector": ("#d7ba7d", 'normal'),   # Sélecteurs CSS
+            "css_property": ("#9cdcfe", 'normal'),   # Propriétés CSS
+            "css_value": ("#ce9178", 'normal'),      # Valeurs
+            "css_comment": ("#6a9955", 'italic'),    # Commentaires
+            "css_number": ("#b5cea8", 'normal'),     # Nombres/unités
+            "css_string": ("#ce9178", 'normal'),     # Chaînes
+            "css_punctuation": ("#d4d4d4", 'normal'),# Ponctuation
+            "css_pseudo": ("#dcdcaa", 'normal'),     # Pseudo-classes/éléments
+        }
+        
+        # HTML tags
+        html_tags = {
+            "html_tag": ("#569cd6", 'bold'),         # Balises HTML
+            "html_attribute": ("#9cdcfe", 'normal'), # Attributs
+            "html_value": ("#ce9178", 'normal'),     # Valeurs d'attributs
+            "html_comment": ("#6a9955", 'italic'),   # Commentaires
+            "html_text": ("#d4d4d4", 'normal'),      # Texte contenu
+            "html_punctuation": ("#d4d4d4", 'normal'),# < > = " /
+            "Token.Name.Tag": ("#569cd6", 'bold'),   # NOUVEAU: Balises HTML
+            "Token.Name.Entity": ("#dcdcaa", 'normal'), # NOUVEAU: Entités HTML
+        }
+        
+        # Bash/Shell tags
+        bash_tags = {
+            "bash_keyword": ("#569cd6", 'bold'),     # if, then, else, fi, for, while, etc.
+            "bash_command": ("#dcdcaa", 'normal'),   # Commandes
+            "bash_string": ("#ce9178", 'normal'),    # Chaînes
+            "bash_comment": ("#6a9955", 'italic'),   # Commentaires
+            "bash_variable": ("#9cdcfe", 'normal'),  # Variables $VAR
+            "bash_operator": ("#d4d4d4", 'normal'),  # Opérateurs
+            "bash_number": ("#b5cea8", 'normal'),    # Nombres
+            "bash_punctuation": ("#d4d4d4", 'normal'),# Ponctuation
+            "Token.Name.Variable": ("#9cdcfe", 'normal'), # NOUVEAU: Variables
+        }
+        
+        # SQL tags
+        sql_tags = {
+            "sql_keyword": ("#569cd6", 'bold'),      # SELECT, FROM, WHERE, etc.
+            "sql_function": ("#dcdcaa", 'normal'),   # COUNT, SUM, etc.
+            "sql_string": ("#ce9178", 'normal'),     # Chaînes
+            "sql_comment": ("#6a9955", 'italic'),    # Commentaires
+            "sql_number": ("#b5cea8", 'normal'),     # Nombres
+            "sql_operator": ("#d4d4d4", 'normal'),   # =, >, <, etc.
+            "sql_punctuation": ("#d4d4d4", 'normal'),# Ponctuation
+            "sql_identifier": ("#9cdcfe", 'normal'), # Noms de tables/colonnes
+        }
+        
+        # HTML tags
+        html_tags = {
+            "html_tag": ("#569cd6", 'bold'),         # Balises HTML
+            "html_attribute": ("#9cdcfe", 'normal'), # Attributs
+            "html_value": ("#ce9178", 'normal'),     # Valeurs d'attributs
+            "html_comment": ("#6a9955", 'italic'),   # Commentaires
+            "html_text": ("#d4d4d4", 'normal'),      # Texte contenu
+            "html_punctuation": ("#d4d4d4", 'normal'),# < > = " /
+        }
+        
+        # Bash/Shell tags
+        bash_tags = {
+            "bash_keyword": ("#569cd6", 'bold'),     # if, then, else, fi, for, while, etc.
+            "bash_command": ("#dcdcaa", 'normal'),   # Commandes
+            "bash_string": ("#ce9178", 'normal'),    # Chaînes
+            "bash_comment": ("#6a9955", 'italic'),   # Commentaires
+            "bash_variable": ("#9cdcfe", 'normal'),  # Variables $VAR
+            "bash_operator": ("#d4d4d4", 'normal'),  # Opérateurs
+            "bash_number": ("#b5cea8", 'normal'),    # Nombres
+            "bash_punctuation": ("#d4d4d4", 'normal'),# Ponctuation
+        }
+        
+        # SQL tags
+        sql_tags = {
+            "sql_keyword": ("#569cd6", 'bold'),      # SELECT, FROM, WHERE, etc.
+            "sql_function": ("#dcdcaa", 'normal'),   # COUNT, SUM, etc.
+            "sql_string": ("#ce9178", 'normal'),     # Chaînes
+            "sql_comment": ("#6a9955", 'italic'),    # Commentaires
+            "sql_number": ("#b5cea8", 'normal'),     # Nombres
+            "sql_operator": ("#d4d4d4", 'normal'),   # =, >, <, etc.
+            "sql_punctuation": ("#d4d4d4", 'normal'),# Ponctuation
+            "sql_identifier": ("#9cdcfe", 'normal'), # Noms de tables/colonnes
+        }
+        
+        # Dockerfile tags
+        dockerfile_tags = {
+            "dockerfile_instruction": ("#569cd6", 'bold'), # FROM, RUN, COPY, etc.
+            "dockerfile_string": ("#ce9178", 'normal'),    # Chaînes
+            "dockerfile_comment": ("#6a9955", 'italic'),   # Commentaires
+            "dockerfile_variable": ("#9cdcfe", 'normal'),  # Variables ${}
+            "dockerfile_path": ("#ce9178", 'normal'),      # Chemins de fichiers
+            "dockerfile_flag": ("#dcdcaa", 'normal'),      # Flags --from, etc.
+        }
+        
+        # Configuration de tous les tags
+        all_language_tags = {**js_tags, **css_tags, **html_tags, **bash_tags, **sql_tags, **dockerfile_tags}
+        
+        for tag, (color, weight) in all_language_tags.items():
+            if weight == 'bold':
+                text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11, 'bold'))
+            elif weight == 'italic':
+                text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11, 'italic'))
+            else:
+                text_widget.tag_configure(tag, foreground=color, font=('Consolas', 11))
+        
         text_widget.tag_configure("code_block", font=('Consolas', 11), background="#1e1e1e", foreground="#d4d4d4")
+
+    def _apply_final_syntax_highlighting(self, text_widget):
+        """Applique la coloration syntaxique finale à tous les blocs de code détectés"""
+        try:
+            text_widget.configure(state="normal")
+            
+            # Récupérer tout le contenu du widget
+            content = text_widget.get("1.0", "end-1c")
+            
+            print(f"[DEBUG] Application de la coloration finale sur {len(content)} caractères")
+            
+            # Pattern pour détecter les blocs de code avec langage
+            code_block_pattern = r'```(\w+)?\n?(.*?)```'
+            
+            # Parcourir tous les blocs de code trouvés
+            for match in re.finditer(code_block_pattern, content, re.DOTALL):
+                language = match.group(1) or "text"
+                code_content = match.group(2).strip() if match.group(2) else ""
+                
+                if not code_content:
+                    continue
+                    
+                print(f"[DEBUG] Bloc de code trouvé - Langage: {language}, Contenu: {len(code_content)} caractères")
+                
+                # Trouver la position du bloc dans le widget
+                start_pos = f"1.0+{match.start()}c"
+                end_pos = f"1.0+{match.end()}c"
+                
+                # Supprimer le bloc existant
+                text_widget.delete(start_pos, end_pos)
+                
+                # Réinsérer avec la coloration syntaxique appropriée
+                text_widget.mark_set("insert", start_pos)
+                
+                # Appliquer la coloration selon le langage
+                if language.lower() == 'python':
+                    self._insert_python_code_block_with_syntax_highlighting(text_widget, code_content)
+                elif language.lower() in ['javascript', 'js']:
+                    self._insert_javascript_code_block(text_widget, code_content)
+                elif language.lower() in ['html', 'xml']:
+                    self._insert_html_code_block(text_widget, code_content)
+                elif language.lower() == 'css':
+                    self._insert_css_code_block(text_widget, code_content)
+                elif language.lower() in ['bash', 'shell', 'sh']:
+                    self._insert_bash_code_block(text_widget, code_content)
+                elif language.lower() in ['sql', 'mysql', 'postgresql', 'sqlite']:
+                    self._insert_sql_code_block(text_widget, code_content)
+                elif language.lower() in ['dockerfile', 'docker']:
+                    self._insert_dockerfile_code_block(text_widget, code_content)
+                elif language.lower() in ['json']:
+                    self._insert_json_code_block(text_widget, code_content)
+                else:
+                    # Bloc de code générique
+                    text_widget.insert("insert", "\n")
+                    text_widget.insert("insert", code_content, "code_block")
+                    text_widget.insert("insert", "\n")
+                
+                # Mettre à jour le contenu pour les prochaines itérations
+                content = text_widget.get("1.0", "end-1c")
+            
+            print(f"[DEBUG] Coloration syntaxique finale appliquée")
+            
+        except Exception as e:
+            print(f"[ERROR] Erreur lors de l'application de la coloration finale: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _process_links_preserve_formatting(self, text, text_widget):
         """Traite les liens tout en préservant le formatage du reste du texte"""

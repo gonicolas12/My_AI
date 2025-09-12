@@ -28,6 +28,91 @@
 {"input": "Donne-moi un synonyme de 'beauté' ?", "target": "**Grâce**, **élégance**, **charme**, **splendeur**."}
 {"input": "Donne-moi un synonyme de 'paix' ?", "target": "**Tranquillité**, **calme**, **sérénité**, **harmonie**."}
 {"input": "Donne-moi un synonyme de 'guerre' ?", "target": "**Conflit**, **bataille**, **combat**, **affrontement**."}
+{"input": "Donne-moi un synonyme de 'magnifique' ?", "target": "**Splendide**, **superbe**, **éblouissant**, **grandiose**, **somptueux**."}
+{"input": "Donne-moi un synonyme de 'minuscule' ?", "target": "**Infime**, **microscopique**, **lilliputien**, **imperceptible**, **ténu**."}
+{"input": "Donne-moi un synonyme de 'énorme' ?", "target": "**Gigantesque**, **colossal**, **titanesque**, **monumental**, **démesuré**."}
+{"input": "Donne-moi un synonyme de 'intelligent' ?", "target": "**Brillant**, **astucieux**, **perspicace**, **ingénieux**, **lucide**, **sagace**."}
+{"input": "Donne-moi un synonyme de 'stupide' ?", "target": "**Sot**, **imbécile**, **nigaud**, **benêt**, **niais**, **inepte**."}
+{"input": "Donne-moi un synonyme de 'créatif' ?", "target": "**Inventif**, **imaginatif**, **innovant**, **original**, **ingénieux**."}
+{"input": "Donne-moi un synonyme de 'mystérieux' ?", "target": "**Énigmatique**, **obscur**, **hermétique**, **sibyllin**, **ésotérique**."}
+{"input": "Donne-moi un synonyme de 'évident' ?", "target": "**Manifeste**, **flagrant**, **patent**, **incontestable**, **indéniable**."}
+{"input": "Donne-moi un synonyme de 'complexe' ?", "target": "**Compliqué**, **sophistiqué**, **alambiqué**, **intriqué**, **tortueux**."}
+{"input": "Donne-moi un synonyme de 'élégant' ?", "target": "**Raffiné**, **distingué**, **chic**, **gracieux**, **stylé**, **sophistiqué**."}
+{"input": "Donne-moi un synonyme de 'rustre' ?", "target": "**Grossier**, **vulgaire**, **malotru**, **goujat**, **rusaud**, **inculte**."}
+{"input": "Donne-moi un synonyme de 'généreux' ?", "target": "**Libéral**, **munificent**, **prodigue**, **altruiste**, **désintéressé**."}
+{"input": "Donne-moi un synonyme de 'avare' ?", "target": "**Pingre**, **chiche**, **mesquin**, **radin**, **parcimonieux**, **ladre**."}
+{"input": "Donne-moi un synonyme de 'courageux' ?", "target": "**Brave**, **vaillant**, **intrépide**, **audacieux**, **téméraire**, **héroïque**."}
+{"input": "Donne-moi un synonyme de 'lâche' ?", "target": "**Poltron**, **couard**, **pusillanime**, **timoré**, **craintif**."}
+{"input": "Donne-moi un synonyme de 'passionnant' ?", "target": "**Captivant**, **fascinant**, **palpitant**, **envoûtant**, **passionnant**."}
+{"input": "Donne-moi un synonyme de 'ennuyeux' ?", "target": "**Fastidieux**, **rébarbatif**, **assommant**, **soporifique**, **monotone**."}
+{"input": "Donne-moi un synonyme de 'joyeux' ?", "target": "**Gai**, **enjoué**, **allègre**, **euphorique**, **hilare**, **radieux**."}
+{"input": "Donne-moi un synonyme de 'mélancolique' ?", "target": "**Nostalgique**, **spleen**, **morose**, **chagrin**, **cafardeux**."}
+{"input": "Donne-moi un synonyme de 'perfectionniste' ?", "target": "**Méticuleux**, **minutieux**, **scrupuleux**, **pointilleux**, **tatillon**."}
+{"input": "Donne-moi un synonyme de 'négligent' ?", "target": "**Insouciant**, **désinvolte**, **nonchalant**, **relâché**, **bâclé**."}
+{"input": "Donne-moi un synonyme de 'authentique' ?", "target": "**Véritable**, **genuine**, **sincère**, **pur**, **naturel**, **spontané**."}
+{"input": "Donne-moi un synonyme de 'artificiel' ?", "target": "**Factice**, **feint**, **simulé**, **contrefait**, **postiche**, **synthétique**."}
+{"input": "Donne-moi un synonyme de 'prospère' ?", "target": "**Florissant**, **fructueux**, **lucratif**, **rentable**, **opulent**."}
+{"input": "Donne-moi un synonyme de 'déclin' ?", "target": "**Décadence**, **dégénérescence**, **déliquescence**, **dépérissement**."}
+{"input": "Donne-moi un synonyme de 'innovant' ?", "target": "**Révolutionnaire**, **pionnier**, **avant-gardiste**, **novateur**, **précurseur**."}
+{"input": "Donne-moi un synonyme de 'traditionnel' ?", "target": "**Conventionnel**, **classique**, **orthodoxe**, **établi**, **ancestral**."}
+{"input": "Donne-moi un synonyme de 'flexible' ?", "target": "**Souple**, **adaptable**, **malléable**, **modulable**, **versatile**."}
+{"input": "Donne-moi un synonyme de 'rigide' ?", "target": "**Inflexible**, **intransigeant**, **strict**, **austère**, **draconien**."}
+{"input": "Donne-moi un synonyme de 'optimiste' ?", "target": "**Confiant**, **espérant**, **positif**, **enjoué**, **serein**."}
+{"input": "Donne-moi un synonyme de 'pessimiste' ?", "target": "**Défaitiste**, **sombre**, **négatif**, **alarmiste**, **catastrophiste**."}
+{"input": "Donne-moi un synonyme de 'efficace' ?", "target": "**Performant**, **opérant**, **productif**, **efficient**, **concluant**."}
+{"input": "Donne-moi un synonyme de 'inefficace' ?", "target": "**Stérile**, **vain**, **improductif**, **inopérant**, **velléitaire**."}
+{"input": "Donne-moi un synonyme de 'harmonieux' ?", "target": "**Équilibré**, **cohérent**, **mélodieux**, **symphonique**, **concordant**."}
+{"input": "Donne-moi un synonyme de 'discordant' ?", "target": "**Dissonant**, **cacophonique**, **criard**, **strident**, **grinçant**."}
+{"input": "Donne-moi un synonyme de 'patient' ?", "target": "**Persévérant**, **tenace**, **résigné**, **stoïque**, **endurant**."}
+{"input": "Donne-moi un synonyme de 'impatient' ?", "target": "**Febrilet**, **nerveux**, **agité**, **trépignant**, **bouillant**."}
+{"input": "Donne-moi un synonyme de 'confidentiel' ?", "target": "**Secret**, **privé**, **discret**, **réservé**, **intime**, **clandestin**."}
+{"input": "Donne-moi un synonyme de 'public' ?", "target": "**Notoire**, **manifeste**, **ouvert**, **transparent**, **officiel**."}
+{"input": "Donne-moi un synonyme de 'audacieux' ?", "target": "**Téméraire**, **hardi**, **entreprenant**, **osé**, **risqué**."}
+{"input": "Donne-moi un synonyme de 'prudent' ?", "target": "**Circonspect**, **prévoyant**, **avisé**, **réfléchi**, **mesuré**."}
+{"input": "Donne-moi un synonyme de 'prestigieux' ?", "target": "**Illustre**, **renommé**, **éminent**, **noble**, **vénérable**."}
+{"input": "Donne-moi un synonyme de 'médiocre' ?", "target": "**Quelconque**, **terne**, **fade**, **insipide**, **moyen**."}
+{"input": "Donne-moi un synonyme de 'dynamique' ?", "target": "**Énergique**, **actif**, **vigoureux**, **entreprenant**, **volontaire**."}
+{"input": "Donne-moi un synonyme de 'apathique' ?", "target": "**Léthargique**, **inerte**, **indolent**, **amorphe**, **atone**."}
+{"input": "Donne-moi un synonyme de 'respectueux' ?", "target": "**Révérencieux**, **déférent**, **courtois**, **poli**, **civilisé**."}
+{"input": "Donne-moi un synonyme de 'irrespectueux' ?", "target": "**Insolent**, **impertinent**, **effronté**, **grossier**, **malappris**."}
+{"input": "Donne-moi un synonyme de 'abondant' ?", "target": "**Copieux**, **profus**, **foisonnant**, **luxuriant**, **pléthorique**."}
+{"input": "Donne-moi un synonyme de 'rare' ?", "target": "**Exceptionnel**, **inusité**, **singulier**, **précieux**, **clairsemé**."}
+{"input": "Donne-moi un synonyme de 'moderne' ?", "target": "**Contemporain**, **actuel**, **récent**, **branché**, **tendance**."}
+{"input": "Donne-moi un synonyme de 'démodé' ?", "target": "**Suranné**, **obsolète**, **ringard**, **périmé**, **vieillot**."}
+{"input": "Donne-moi un synonyme de 'prolifique' ?", "target": "**Fécond**, **productif**, **fertile**, **créateur**, **générateur**."}
+{"input": "Donne-moi un synonyme de 'stérile' ?", "target": "**Infécond**, **aride**, **improductif**, **vain**, **inutile**."}
+{"input": "Donne-moi un synonyme de 'logique' ?", "target": "**Rationnel**, **cohérent**, **sensé**, **raisonnable**, **cartésien**."}
+{"input": "Donne-moi un synonyme de 'illogique' ?", "target": "**Irrationnel**, **absurde**, **incohérent**, **aberrant**, **déraisonnable**."}
+{"input": "Donne-moi un synonyme de 'transparent' ?", "target": "**Limpide**, **cristallin**, **diaphane**, **translucide**, **clair**."}
+{"input": "Donne-moi un synonyme de 'opaque' ?", "target": "**Obscur**, **ténébreux**, **sombre**, **hermétique**, **impénétrable**."}
+{"input": "Donne-moi un synonyme de 'luxueux' ?", "target": "**Somptueux**, **fastueux**, **opulent**, **princier**, **grandiose**."}
+{"input": "Donne-moi un synonyme de 'modeste' ?", "target": "**Simple**, **humble**, **sobre**, **discret**, **effacé**."}
+{"input": "Donne-moi un synonyme de 'turbulent' ?", "target": "**Agité**, **bouillonnant**, **tumultueux**, **chaotique**, **effervescent**."}
+{"input": "Donne-moi un synonyme de 'paisible' ?", "target": "**Serein**, **tranquille**, **calme**, **placide**, **zen**."}
+{"input": "Donne-moi un synonyme de 'spontané' ?", "target": "**Naturel**, **impulsif**, **instinctif**, **improvisé**, **automatique**."}
+{"input": "Donne-moi un synonyme de 'calculé' ?", "target": "**Prémédité**, **réfléchi**, **étudié**, **délibéré**, **concerté**."}
+{"input": "Donne-moi un synonyme de 'vivace' ?", "target": "**Vif**, **alerte**, **pétillant**, **fringant**, **enjoué**."}
+{"input": "Donne-moi un synonyme de 'terne' ?", "target": "**Morne**, **fade**, **plat**, **éteint**, **blafard**."}
+{"input": "Donne-moi un synonyme de 'précis' ?", "target": "**Exact**, **rigoureux**, **minutieux**, **strict**, **chirurgical**."}
+{"input": "Donne-moi un synonyme de 'vague' ?", "target": "**Flou**, **imprécis**, **nébuleux**, **confus**, **indéterminé**."}
+{"input": "Donne-moi un synonyme de 'chaleureux' ?", "target": "**Cordial**, **affectueux**, **bienveillant**, **amical**, **accueillant**."}
+{"input": "Donne-moi un synonyme de 'froid' ?", "target": "**Distant**, **glacial**, **indifférent**, **sec**, **austère**."}
+{"input": "Donne-moi un synonyme de 'fougueux' ?", "target": "**Ardent**, **passionné**, **impétueux**, **véhément**, **enflammé**."}
+{"input": "Donne-moi un synonyme de 'mesuré' ?", "target": "**Pondéré**, **modéré**, **équilibré**, **raisonnable**, **tempéré**."}
+{"input": "Donne-moi un synonyme de 'authentique' dans le sens d'original ?", "target": "**Unique**, **inédit**, **exclusif**, **premier**, **innovant**."}
+{"input": "Donne-moi un synonyme de 'copie' ?", "target": "**Imitation**, **reproduction**, **réplique**, **duplicata**, **clone**."}
+{"input": "Donne-moi un synonyme de 'constructif' ?", "target": "**Positif**, **enrichissant**, **fructueux**, **bénéfique**, **profitable**."}
+{"input": "Donne-moi un synonyme de 'destructeur' ?", "target": "**Néfaste**, **ravageur**, **dévastateur**, **délétère**, **nuisible**."}
+{"input": "Donne-moi un synonyme de 'cohérent' ?", "target": "**Logique**, **homogène**, **unifié**, **harmonieux**, **consistent**."}
+{"input": "Donne-moi un synonyme de 'incohérent' ?", "target": "**Disparate**, **hétéroclite**, **contradictoire**, **décousu**, **épars**."}
+{"input": "Donne-moi un synonyme de 'délicat' dans le sens de fragile ?", "target": "**Fragile**, **vulnérable**, **précaire**, **ténu**, **sensible**."}
+{"input": "Donne-moi un synonyme de 'robuste' ?", "target": "**Solide**, **résistant**, **costaud**, **vigoureux**, **inébranlable**."}
+{"input": "Donne-moi un synonyme de 'persévérant' ?", "target": "**Obstiné**, **tenace**, **opiniâtre**, **déterminé**, **acharné**."}
+{"input": "Donne-moi un synonyme de 'abandonnant' ?", "target": "**Résigné**, **défaitiste**, **démissionnaire**, **capitulard**, **renonçant**."}
+{"input": "Donne-moi un synonyme de 'raffiné' ?", "target": "**Sophistiqué**, **subtil**, **distingué**, **recherché**, **exquis**."}
+{"input": "Donne-moi un synonyme de 'grossier' ?", "target": "**Vulgaire**, **trivial**, **rudimentaire**, **rustique**, **fruste**."}
+{"input": "Donne-moi un synonyme de 'proliférant' ?", "target": "**Grouillant**, **pullulant**, **foisonnant**, **bouillonnant**, **effervescent**."}
+{"input": "Donne-moi un synonyme de 'déclinant' ?", "target": "**Périclitant**, **s'étiolant**, **dépérissant**, **s'amenuisant**, **s'affaiblissant**."}
 {"input": "Donne-moi un synonyme de 'amitié' ?", "target": "**Camaraderie**, **compagnonnage**, **affection**, **sympathie**."}
 {"input": "Donne-moi un synonyme de 'mensonge' ?", "target": "**Fausseté**, **tromperie**, **duperie**, **supercherie**."}
 {"input": "Donne-moi un synonyme de 'liberté' ?", "target": "**Indépendance**, **autonomie**, **émancipation**, **franchise**."}

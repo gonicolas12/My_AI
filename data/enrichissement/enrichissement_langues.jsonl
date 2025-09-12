@@ -28,6 +28,115 @@
 {"input": "Comment dire 'pomme' en espagnol ?", "target": "**Manzana**"}
 {"input": "Comment dire 'amour' en italien ?", "target": "**Amore**"}
 {"input": "Comment dit-on 'chat' en anglais ?", "target": "**Cat**"}
+{"input": "Traduis en chinois mandarin : 'Bonjour'", "target": "**你好** (Nǐ hǎo)"}
+{"input": "Comment dire 'Je t'aime' en russe ?", "target": "**Я тебя люблю** (Ya tebya lyublyu)"}
+{"input": "Traduis en arabe : 'Paix'", "target": "**سلام** (Salam)"}
+{"input": "Comment dit-on 'eau' en swahili ?", "target": "**Maji**"}
+{"input": "Traduis en hindi : 'Merci'", "target": "**धन्यवाद** (Dhanyawad)"}
+{"input": "Comment dire 'ami' en coréen ?", "target": "**친구** (Chingu)"}
+{"input": "Traduis en vietnamien : 'Bonne nuit'", "target": "**Chúc ngủ ngon**"}
+{"input": "Comment dit-on 'famille' en turc ?", "target": "**Aile**"}
+{"input": "Traduis en thaï : 'Comment allez-vous ?'", "target": "**สบายดีไหม** (Sabai dee mai)"}
+{"input": "Comment dire 'livre' en hébreu ?", "target": "**ספר** (Sefer)"}
+{"input": "Traduis en persan : 'Bienvenue'", "target": "**خوش آمدید** (Khosh amadid)"}
+{"input": "Comment dit-on 'étoile' en grec moderne ?", "target": "**Αστέρι** (Astéri)"}
+{"input": "Traduis en polonais : 'Excuse-moi'", "target": "**Przepraszam**"}
+{"input": "Comment dire 'travail' en néerlandais ?", "target": "**Werk**"}
+{"input": "Traduis en suédois : 'Joyeux anniversaire'", "target": "**Grattis på födelsedagen**"}
+{"input": "Comment dit-on 'rouge' en finnois ?", "target": "**Punainen**"}
+{"input": "Traduis en norvégien : 'À bientôt'", "target": "**Vi sees snart**"}
+{"input": "Comment dire 'musique' en danois ?", "target": "**Musik**"}
+{"input": "Traduis en hongrois : 'S'il vous plaît'", "target": "**Kérem**"}
+{"input": "Comment dit-on 'chien' en tchèque ?", "target": "**Pes**"}
+{"input": "Traduis en slovaque : 'Comment t'appelles-tu ?'", "target": "**Ako sa voláš?**"}
+{"input": "Comment dire 'montagne' en croate ?", "target": "**Planina**"}
+{"input": "Traduis en serbe : 'Où est la gare ?'", "target": "**Где је станица?** (Gde je stanica?)"}
+{"input": "Comment dit-on 'temps' en bulgare ?", "target": "**Време** (Vreme)"}
+{"input": "Traduis en roumain : 'Combien ça coûte ?'", "target": "**Cât costă?**"}
+{"input": "Comment dire 'pain' en lituanien ?", "target": "**Duona**"}
+{"input": "Traduis en letton : 'Bon voyage'", "target": "**Laimīgu ceļojumu**"}
+{"input": "Comment dit-on 'fleur' en estonien ?", "target": "**Lill**"}
+{"input": "Traduis en maltais : 'Où habitez-vous ?'", "target": "**Fejn toqgħod?**"}
+{"input": "Comment dire 'océan' en islandais ?", "target": "**Hafið**"}
+{"input": "Traduis en gaélique irlandais : 'Santé !'", "target": "**Sláinte!**"}
+{"input": "Comment dit-on 'soleil' en gallois ?", "target": "**Haul**"}
+{"input": "Traduis en basque : 'Comment ça va ?'", "target": "**Zer moduz?**"}
+{"input": "Comment dire 'liberté' en catalan ?", "target": "**Llibertat**"}
+{"input": "Comment dit-on 'hiver' en ukrainien ?", "target": "**Зима** (Zyma)"}
+{"input": "Traduis en biélorusse : 'Félicitations'", "target": "**Віншую** (Vinshuyu)"}
+{"input": "Comment dire 'espoir' en géorgien ?", "target": "**იმედი** (Imedi)"}
+{"input": "Traduis en arménien : 'Bonsoir'", "target": "**Բարի երեկո** (Bari yereko)"}
+{"input": "Comment dit-on 'paix' en kurde ?", "target": "**Aştî**"}
+{"input": "Traduis en pachto : 'Bonjour'", "target": "**سلام ورور** (Salam wror)"}
+{"input": "Comment dire 'maison' en ourdou ?", "target": "**گھر** (Ghar)"}
+{"input": "Traduis en bengali : 'Comment vous appelez-vous ?'", "target": "**আপনার নাম কি?** (Apnar nam ki?)"}
+{"input": "Comment dit-on 'rivière' en tamoul ?", "target": "**ஆறு** (Aaru)"}
+{"input": "Traduis en télougou : 'Merci beaucoup'", "target": "**చాలా ధన్యవాదాలు** (Chaala dhanyavaadaalu)"}
+{"input": "Comment dire 'montagne' en népalais ?", "target": "**पहाड** (Pahaad)"}
+{"input": "Traduis en tibétain : 'Paix'", "target": "**ཞི་བདེ** (Zhi-de)"}
+{"input": "Comment dit-on 'dragon' en mongol ?", "target": "**Луу** (Luu)"}
+{"input": "Traduis en ouzbek : 'Bon appétit'", "target": "**Yoqimli ishtaha**"}
+{"input": "Comment dire 'désert' en kazakh ?", "target": "**Шөл** (Shöl)"}
+{"input": "Traduis en kirghize : 'Bonne nuit'", "target": "**Жакшы түн** (Jakshı tün)"}
+{"input": "Comment dit-on 'cheval' en tatar ?", "target": "**Ат** (At)"}
+{"input": "Traduis en azéri : 'Comment allez-vous ?'", "target": "**Necəsiniz?**"}
+{"input": "Comment dire 'feu' en indonésien ?", "target": "**Api**"}
+{"input": "Traduis en malais : 'Où est l'hôpital ?'", "target": "**Di mana hospital?**"}
+{"input": "Comment dit-on 'île' en tagalog ?", "target": "**Pulo**"}
+{"input": "Traduis en birman : 'Merci'", "target": "**ကျေးဇူးတင်ပါတယ်** (Kyay zu tin pa te)"}
+{"input": "Comment dire 'temple' en khmer ?", "target": "**ប្រាសាទ** (Brasat)"}
+{"input": "Traduis en lao : 'Bonjour'", "target": "**ສະບາຍດີ** (Sabaidee)"}
+{"input": "Comment dit-on 'riz' en vietnamien ?", "target": "**Gạo**"}
+{"input": "Traduis en javanais : 'Au revoir'", "target": "**Sampun ngertos**"}
+{"input": "Comment dire 'forêt' en amharique ?", "target": "**ደን** (Den)"}
+{"input": "Traduis en tigrigna : 'Paix'", "target": "**ሰላም** (Selam)"}
+{"input": "Comment dit-on 'eau' en yoruba ?", "target": "**Omi**"}
+{"input": "Traduis en igbo : 'Bienvenue'", "target": "**Nnọọ**"}
+{"input": "Comment dire 'soleil' en haoussa ?", "target": "**Rana**"}
+{"input": "Traduis en zoulou : 'Comment ça va ?'", "target": "**Unjani?**"}
+{"input": "Comment dit-on 'lion' en xhosa ?", "target": "**Ingonyama**"}
+{"input": "Traduis en afrikaans : 'Joyeux Noël'", "target": "**Geseënde Kersfees**"}
+{"input": "Comment dire 'éléphant' en wolof ?", "target": "**Ñey**"}
+{"input": "Traduis en bambara : 'Merci'", "target": "**I ni ce**"}
+{"input": "Comment dit-on 'palabre' en lingala ?", "target": "**Liloba**"}
+{"input": "Traduis en kinyarwanda : 'Bonsoir'", "target": "**Muriwe**"}
+{"input": "Comment dire 'ubuntu' en shona ?", "target": "**Hunhu**"}
+{"input": "Traduis en ndébélé : 'Comment t'appelles-tu ?'", "target": "**Ungubani igama lakho?**"}
+{"input": "Comment dit-on 'liberté' en quechua ?", "target": "**Qhispikay**"}
+{"input": "Traduis en guarani : 'Bonjour'", "target": "**Mba'éichapa**"}
+{"input": "Comment dire 'condor' en aymara ?", "target": "**Kunturi**"}
+{"input": "Traduis en nahuatl : 'Fleur'", "target": "**Xochitl**"}
+{"input": "Comment dit-on 'jaguar' en maya ?", "target": "**B'alam**"}
+{"input": "Traduis en inuktitut : 'Merci'", "target": "**ᖁᔭᓐᓇᒥᒃ** (Qujanamiik)"}
+{"input": "Comment dire 'ours polaire' en groenlandais ?", "target": "**Nanoq**"}
+{"input": "Traduis en hawaïen : 'Aloha'", "target": "**Aloha** (Bonjour/Au revoir/Amour)"}
+{"input": "Comment dit-on 'sagesse' en maori ?", "target": "**Mārama**"}
+{"input": "Traduis en aborigène australien (Yolŋu) : 'Pays'", "target": "**Larrakia**"}
+{"input": "Quelle est l'origine du mot 'algorithme' ?", "target": "Du nom du mathématicien persan **Al-Khwarizmi** (9e siècle), père de l'algèbre. Le terme latin 'algorismus'\ndérivait de son nom."}
+{"input": "Explique l'étymologie du mot 'avatar'.", "target": "Du sanskrit **अवतार** (avatāra) signifiant 'descente', désignant l'incarnation d'une divinité hindoue sur\nTerre. Popularisé en informatique pour désigner une représentation numérique."}
+{"input": "D'où vient l'expression 'avoir du pain sur la planche' ?", "target": "Expression française du 19e siècle. Le **pain sur la planche** symbolise les réserves de nourriture, donc du\ntravail en attente pour subvenir aux besoins."}
+{"input": "Explique le phénomène linguistique des 'faux-amis'.", "target": "**Faux-amis** : mots similaires entre langues mais de sens différents. Exemples : 'library' (bibliothèque) ≠\n'librairie', 'actually' (en fait) ≠ 'actuellement'. Piège fréquent en traduction."}
+{"input": "Qu'est-ce que la langue des signes française (LSF) ?", "target": "**LSF** : langue visuelle complète avec grammaire propre, utilisée par la communauté sourde française.\nDifférente des autres langues des signes nationales. Reconnaissance officielle en France depuis 2005."}
+{"input": "Comment fonctionne la politesse linguistique en japonais ?", "target": "**Keigo** (敬語) : système complexe de **niveaux de politesse** selon le statut social, l'âge, la relation.\nTypes : Sonkeigo (respectueux), Kenjōgo (humble), Teineigo (poli). Transforme verbes, noms, expressions."}
+{"input": "Qu'est-ce qu'une langue tonale ? Donne des exemples.", "target": "**Langue tonale** : le **ton** (hauteur) change le sens du mot. **Mandarin** : 4 tons principaux. Exemple :\n'ma' = mère/chanvre/cheval/gronder selon le ton. Autres : vietnamien, thaï, langues africaines."}
+{"input": "Explique le concept de 'créole' en linguistique.", "target": "**Créole** : langue mixte stabilisée née du contact entre populations de langues différentes. Développement :\npidgin → créole → langue native. Exemples : créole haïtien, réunionnais, mauricien. Grammaire simplifiée mais\ncomplète."}
+{"input": "Qu'est-ce que l'Esperanto et pourquoi a-t-il été créé ?", "target": "**Esperanto** : langue construite (1887) par L.L. Zamenhof pour la communication internationale. Grammaire\nrégulière, vocabulaire indo-européen. Objectif : **paix mondiale** via langue commune neutre. ~2 millions de\nlocuteurs aujourd'hui."}
+{"input": "Comment fonctionnent les cases grammaticales ?", "target": "**Cases** : formes que prennent noms/pronoms selon leur fonction. **Latin** : nominatif (sujet), accusatif\n(objet), génitif (possession), datif (destinataire), ablatif (moyen). **Allemand** : 4 cases. **Finnois** : 15\ncases."}
+{"input": "Qu'est-ce que la diglossie linguistique ?", "target": "**Diglossie** : coexistence de deux variétés d'une langue avec fonctions différentes. **Variété haute**\n(formelle, écrite) vs **variété basse** (familière, orale). Exemples : arabe classique/dialectal, grec\nkatharévousa/démotique."}
+{"input": "Explique le phénomène d'emprunt linguistique.", "target": "**Emprunt** : adoption de mots d'une langue par une autre. Types : **lexical** (mots), **phonétique** (sons),\n**syntaxique** (structures). Causes : contact culturel, prestige, nécessité. Exemples français : 'week-end',\n'software', 'tsunami'."}
+{"input": "Qu'est-ce que la typologie linguistique ?", "target": "**Typologie** : classification langues selon structures grammaticales. Types d'ordre : **SVO** (français),\n**SOV** (japonais), **VSO** (gallois). Types morphologiques : **isolant** (chinois), **agglutinant** (turc),\n**fusionnel** (latin)."}
+{"input": "Comment fonctionne l'accent tonique en anglais ?", "target": "**Accent tonique** anglais : syllabe accentuée dans le mot. Règles complexes : généralement sur racine,\npréfixes non accentués. Exemples : PHOtograph → phoTOGraphy → photoGRAphic. Déplacement change parfois le sens\n(CONtent/conTENT)."}
+{"input": "Qu'est-ce que l'argot et comment évolue-t-il ?", "target": "**Argot** : variété familière avec vocabulaire spécialisé par groupe social. Fonctions : identité, exclusion,\ncréativité. Évolution rapide : verlan français, cockney rhyming slang. Exemples : 'thune' (argent), 'bosser'\n(travailler)."}
+{"input": "Explique les registres de langue en français.", "target": "**Registres français** : 1) **Soutenu** (littéraire, recherché), 2) **Courant** (standard, neutre), 3)\n**Familier** (décontracté), 4) **Populaire/vulgaire** (très relâché). Adaptation selon contexte social,\nrelation, situation communicative."}
+{"input": "Qu'est-ce que la pragmatique linguistique ?", "target": "**Pragmatique** : étude du langage en contexte, sens implicite. **Actes de parole** : promettre, ordonner,\nquestionner. **Implicatures** : sous-entendus. **Deixis** : références contextuelles (ici, maintenant, je).\n**Politesse** linguistique."}
+{"input": "Comment fonctionne l'écriture chinoise ?", "target": "**Écriture chinoise** : système **logographique** avec caractères représentant morphèmes.\n**Sinogrammes** : pictogrammes, idéogrammes, phonogrammes.\n**Radicaux** : composants sémantiques/phonétiques. Milliers de caractères, ~3000 pour lecture courante. Simplifié vs traditionnel."}
+{"input": "Qu'est-ce que l'alphabet phonétique international (API) ?", "target": "**API/IPA** : système notation standardisé pour tous les sons de langues humaines. **Consonnes** : lieu/mode\nd'articulation. **Voyelles** : position langue/lèvres. **Diacritiques** : modifications. Outil essentiel\nlinguistique, enseignement, dictionnaires."}
+{"input": "Explique le concept de famille de langues.", "target": "**Famille linguistique** : langues descendant d'un **ancêtre commun**. **Indo-européen** : français, anglais,\nhindi, russe. **Sino-tibétain** : chinois, tibétain. **Afro-asiatique** : arabe, hébreu. Reconstruction par\n**linguistique comparée** et correspondances phonétiques."}
+{"input": "Qu'est-ce que la sociolinguistique ?", "target": "**Sociolinguistique** : étude relations langue-société. Variables : classe, âge, genre, région. **Variation**\n: accents, dialectes, registres. **Politique linguistique** : statut officiel, standardisation. **Contact** :\nbilinguisme, créolisation, mort des langues."}
+{"input": "Comment fonctionnent les langues agglutinantes ?", "target": "**Agglutination** : formation mots par ajout **affixes** avec sens précis. **Turc** : ev-ler-im-de\n(maison-PLUR-mon-DANS = 'dans mes maisons'). **Finnois**, **hongrois**, **japonais**. Chaque morphème =\nfonction claire, frontières nettes."}
+{"input": "Qu'est-ce que la langue de bois ?", "target": "**Langue de bois** : discours **intentionnellement vague** évitant engagement précis. Techniques :\n**euphémismes**, **périphrases**, **formules creuses**. Contextes : politique, administration, entreprise.\nObjectif : masquer réalité, éviter responsabilité, gagner temps."}
+{"input": "Explique le phénomène de convergence linguistique.", "target": "**Convergence** : langues en contact développent **traits similaires** sans parenté génétique. **Aire\nlinguistique** : Balkans (bulgare, roumain, grec, albanais). Mécanismes : emprunt, calque, réanalyse. vs\n**Divergence** (langues apparentées s'éloignent)."}
+{"input": "Qu'est-ce que la linguistique computationnelle ?", "target": "**Linguistique computationnelle** : traitement automatique du langage. Applications : **traduction**\nautomatique, **reconnaissance** vocale, **analyse sentiment**, **chatbots**. Techniques : **NLP**, réseaux\nneurones, **transformers**. Défis : ambiguïté, contexte, pragmatique."}
 {"input": "Traduis en portugais : 'Merci'", "target": "**Obrigado**"}
 {"input": "Comment dire 'soleil' en espagnol ?", "target": "**Sol**"}
 {"input": "Comment dit-on 'livre' en allemand ?", "target": "**Buch**"}
