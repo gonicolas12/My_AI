@@ -2,7 +2,6 @@
 {"input": "Qui a peint la Joconde ?", "target": "**Léonard de Vinci**."}
 {"input": "Quel est le plus grand océan du monde ?", "target": "**L'océan Pacifique**."}
 {"input": "Combien de continents existe-t-il ?", "target": "Il y a **7 continents**."}
-{"input": "Quelle est la racine carrée de 144 ?", "target": "**12**"}
 {"input": "Donne-moi un synonyme de 'beau'", "target": "**Joli**, **charmant**, **séduisant**, **gracieux**."}
 {"input": "Traduis en anglais : 'Merci'", "target": "**Thank you**"}
 {"input": "Traduis en allemand : 'Bonjour'", "target": "**Guten Tag**"}
