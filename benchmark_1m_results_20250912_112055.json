@@ -1,0 +1,181 @@
+{
+  "benchmark_date": "2025-09-12T11:20:49.468671",
+  "system_version": "My Personal AI Ultra v5.0.0",
+  "test_environment": "Production Ready",
+  "performance_metrics": {
+    "storage_performance": {
+      "1000": {
+        "avg_time_seconds": 0.0009,
+        "std_deviation": 0.0003,
+        "tokens_per_second": 1115407.0,
+        "chunks_created": 4,
+        "efficiency_score": 1115.41
+      },
+      "5000": {
+        "avg_time_seconds": 0.0026,
+        "std_deviation": 0.0002,
+        "tokens_per_second": 1938711.0,
+        "chunks_created": 17,
+        "efficiency_score": 1938.71
+      },
+      "10000": {
+        "avg_time_seconds": 0.005,
+        "std_deviation": 0.0002,
+        "tokens_per_second": 1994336.0,
+        "chunks_created": 35,
+        "efficiency_score": 1994.34
+      },
+      "25000": {
+        "avg_time_seconds": 0.0131,
+        "std_deviation": 0.001,
+        "tokens_per_second": 1910502.0,
+        "chunks_created": 86,
+        "efficiency_score": 1910.5
+      },
+      "50000": {
+        "avg_time_seconds": 0.0266,
+        "std_deviation": 0.0007,
+        "tokens_per_second": 1883007.0,
+        "chunks_created": 172,
+        "efficiency_score": 1883.01
+      },
+      "100000": {
+        "avg_time_seconds": 0.0994,
+        "std_deviation": 0.0677,
+        "tokens_per_second": 1006194.0,
+        "chunks_created": 344,
+        "efficiency_score": 1006.19
+      },
+      "250000": {
+        "avg_time_seconds": 0.4112,
+        "std_deviation": 0.0328,
+        "tokens_per_second": 607955.0,
+        "chunks_created": 859,
+        "efficiency_score": 607.96
+      }
+    },
+    "search_performance": {
+      "10000": {
+        "avg_search_time_ms": 0.0,
+        "searches_per_second": 2688172.1,
+        "avg_results_found": 10,
+        "search_efficiency": 26881720.8
+      },
+      "50000": {
+        "avg_search_time_ms": 0.0,
+        "searches_per_second": 3846154.2,
+        "avg_results_found": 10,
+        "search_efficiency": 38461541.6
+      },
+      "100000": {
+        "avg_search_time_ms": 0.0,
+        "searches_per_second": 3846153.1,
+        "avg_results_found": 10,
+        "search_efficiency": 38461530.8
+      },
+      "500000": {
+        "avg_search_time_ms": 0.0,
+        "searches_per_second": 1308900.6,
+        "avg_results_found": 10,
+        "search_efficiency": 13089005.9
+      }
+    },
+    "memory_efficiency": {
+      "initial_memory_mb": 162.0,
+      "final_memory_mb": 171.2,
+      "total_memory_used_mb": 9.2,
+      "final_tokens_loaded": 1048231,
+      "overall_efficiency_mb_per_1k": 0.009,
+      "memory_progression": [
+        {
+          "tokens_loaded": 105235,
+          "memory_used_mb": 0.1,
+          "mb_per_1k_tokens": 0.001,
+          "efficiency_rating": "Excellent"
+        },
+        {
+          "tokens_loaded": 315701,
+          "memory_used_mb": 1.2,
+          "mb_per_1k_tokens": 0.004,
+          "efficiency_rating": "Excellent"
+        },
+        {
+          "tokens_loaded": 736836,
+          "memory_used_mb": 4.0,
+          "mb_per_1k_tokens": 0.005,
+          "efficiency_rating": "Excellent"
+        },
+        {
+          "tokens_loaded": 1048231,
+          "memory_used_mb": 9.2,
+          "mb_per_1k_tokens": 0.009,
+          "efficiency_rating": "Excellent"
+        }
+      ],
+      "efficiency_grade": "A+"
+    },
+    "scalability_analysis": {
+      "max_tokens_achieved": 1048231,
+      "stages_completed": 5,
+      "performance_ratio": 0.41,
+      "scalability_grade": "Moderate",
+      "stage_details": [
+        {
+          "stage": "Charge l\u00e9g\u00e8re",
+          "tokens_added": 10000,
+          "cumulative_tokens": 21049,
+          "add_time_seconds": 0.007,
+          "search_time_ms": 0.0,
+          "tokens_per_second": 1359804.0,
+          "chunks_total": 35,
+          "utilization": "2.0%"
+        },
+        {
+          "stage": "Charge mod\u00e9r\u00e9e",
+          "tokens_added": 50000,
+          "cumulative_tokens": 126284,
+          "add_time_seconds": 0.028,
+          "search_time_ms": 0.0,
+          "tokens_per_second": 1791678.0,
+          "chunks_total": 207,
+          "utilization": "12.0%"
+        },
+        {
+          "stage": "Charge \u00e9lev\u00e9e",
+          "tokens_added": 100000,
+          "cumulative_tokens": 336750,
+          "add_time_seconds": 0.061,
+          "search_time_ms": 0.0,
+          "tokens_per_second": 1640977.0,
+          "chunks_total": 551,
+          "utilization": "32.1%"
+        },
+        {
+          "stage": "Charge intensive",
+          "tokens_added": 250000,
+          "cumulative_tokens": 863321,
+          "add_time_seconds": 0.177,
+          "search_time_ms": 0.0,
+          "tokens_per_second": 1415647.0,
+          "chunks_total": 1410,
+          "utilization": "82.3%"
+        },
+        {
+          "stage": "Charge maximale",
+          "tokens_added": 500000,
+          "cumulative_tokens": 1048231,
+          "add_time_seconds": 0.899,
+          "search_time_ms": 0.01,
+          "tokens_per_second": 556461.0,
+          "chunks_total": 1710,
+          "utilization": "100.0%"
+        }
+      ],
+      "linear_scalability": false
+    }
+  },
+  "scalability_analysis": {},
+  "memory_efficiency": {},
+  "professional_grade": "A+ (Excellence Industrielle)",
+  "total_benchmark_time": 5.55
+}

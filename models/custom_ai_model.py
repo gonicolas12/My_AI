@@ -589,7 +589,7 @@ class CustomAIModel(BaseAI):
             stored_docs = self.conversation_memory.get_document_content()
             response = self._answer_document_question(user_input, stored_docs)
             
-            # 🧠 SYSTÈME DE FALLBACK INTELLIGENT
+            # 🧠 SYSTÈME DE FALLBACK INTELLIGENT (DÉSACTIVÉ EN MODE ULTRA)
             # Vérifier si la réponse des documents est vraiment pertinente
             response_str = ""
             if isinstance(response, dict):
@@ -597,13 +597,21 @@ class CustomAIModel(BaseAI):
             else:
                 response_str = str(response)
             
-            # Si la réponse des documents est trop courte ou générique, essayer la recherche internet
-            if self._is_response_inadequate(response_str, user_input):
-                print(f"🔄 Réponse document insuffisante, tentative recherche internet...")
-                internet_response = self._handle_internet_search(user_input, context)
-                # Retourner la meilleure réponse entre les deux
-                if len(internet_response) > len(response_str) and not internet_response.startswith("❌"):
-                    return internet_response
+            # ⚠️ MODIFICATION : En mode Ultra, ne PAS faire de fallback vers internet
+            # Le système Ultra 1M tokens est suffisamment intelligent pour trouver la bonne information
+            ultra_mode_active = self.ultra_mode and self.context_manager
+            print(f"🔍 [DEBUG] Ultra mode check: ultra_mode={self.ultra_mode}, context_manager={self.context_manager is not None}, active={ultra_mode_active}")
+            
+            if not ultra_mode_active:
+                # Si la réponse des documents est trop courte ou générique, essayer la recherche internet
+                if self._is_response_inadequate(response_str, user_input):
+                    print(f"🔄 Réponse document insuffisante, tentative recherche internet...")
+                    internet_response = self._handle_internet_search(user_input, context)
+                    # Retourner la meilleure réponse entre les deux
+                    if len(internet_response) > len(response_str) and not internet_response.startswith("❌"):
+                        return internet_response
+            else:
+                print(f"🚀 [ULTRA] Mode Ultra détecté - Pas de fallback vers internet, réponse conservée")
             
             return response_str
         elif intent == "help":
@@ -3910,8 +3918,10 @@ Que voulez-vous apprendre exactement ?"""
                     if intelligent_response is not None:
                         return intelligent_response
                     else:
-                        print("⚠️ [ULTRA] Contenu non pertinent, tentative recherche internet...")
-                        return self._handle_internet_search(user_input, {})
+                        # 🧠 MODIFICATION : En mode Ultra, même si "non pertinent", générer une réponse basée sur le contenu trouvé
+                        print("⚠️ [ULTRA] Génération d'une réponse forcée basée sur le contexte trouvé...")
+                        # Générer une réponse universelle plutôt que de passer à internet
+                        return self._create_universal_summary(ultra_context, "document", "ultra") + "\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*"
                 else:
                     print("⚠️ [ULTRA] Contexte insuffisant ou vide")
             except Exception as e:
@@ -3935,11 +3945,12 @@ Que voulez-vous apprendre exactement ?"""
             if intelligent_response is not None:
                 return intelligent_response
             else:
-                print("⚠️ [SEARCH] Contenu non pertinent, tentative recherche internet...")
-                return self._handle_internet_search(user_input, {})
+                # 🧠 MODIFICATION : Même si "non pertinent", générer une réponse basée sur le contenu trouvé
+                print("⚠️ [SEARCH] Génération d'une réponse forcée basée sur le contenu trouvé...")
+                return self._create_universal_summary(relevant_content, "document", "targeted") + "\n\n*Note: Réponse basée sur le contenu disponible*"
         else:
             print("⚠️ [SEARCH] Aucun contenu pertinent trouvé")
-            # Fallback vers recherche internet au lieu d'un résumé général
+            # Fallback vers recherche internet seulement si vraiment aucun document
             return self._handle_internet_search(user_input, {})
     
     def _explain_specific_code_file(self, filename: str, content: str, user_input: str) -> str:
@@ -4147,8 +4158,14 @@ Que voulez-vous apprendre exactement ?"""
         print(f"🔍 [RELEVANCE] Mots-clés question: {question_keywords}")
         print(f"🔍 [RELEVANCE] Correspondances: {keyword_matches}/{len(question_keywords)} = {relevance_ratio:.2f}")
         
-        # Seuil plus strict : 50% au lieu de 30%
-        if relevance_ratio < 0.5 and len(question_keywords) > 2:
+        # Seuil adaptatif selon le mode et le type de question
+        if self.ultra_mode and self.context_manager:
+            # En mode Ultra, être plus tolérant car le système trouve intelligemment le bon contenu
+            base_threshold = 0.3  # Assoupli de 0.5 à 0.3 pour mode Ultra
+        else:
+            base_threshold = 0.4  # Assoupli de 0.5 à 0.4 pour mode classique
+            
+        if relevance_ratio < base_threshold and len(question_keywords) > 2:
             # Exceptions pour certains types de questions générales sur le document
             document_exceptions = ["document", "pdf", "docx"]
             if not any(exc in user_lower for exc in document_exceptions):
@@ -4163,6 +4180,24 @@ Que voulez-vous apprendre exactement ?"""
             if versions:
                 return f"📊 **Version trouvée**: {versions[0]}\n\n📄 **Source** ({source}):\n{content[:300]}..."
         
+        elif ("performance" in user_lower and "temps" in user_lower) or ("objectif" in user_lower and "performance" in user_lower):
+            # Rechercher des informations sur les performances et temps de réponse
+            import re
+            # Chercher des patterns de temps : "< 2 secondes", "3 secondes", "3000ms", etc.
+            time_patterns = re.findall(r'[<>]?\s*\d+\s*(secondes?|ms|milliseconds?|s)\b', content, re.IGNORECASE)
+            perf_patterns = re.findall(r'(temps de (?:réponse|traitement|réponse))[:\s]*[<>]?\s*\d+\s*(secondes?|ms|milliseconds?|s)', content, re.IGNORECASE)
+            
+            if time_patterns or perf_patterns:
+                found_info = time_patterns[0] if time_patterns else f"{perf_patterns[0][0]}: {perf_patterns[0][1]}"
+                return f"⚡ **Performance système**: {found_info}\n\n📄 **Source** ({source}):\n{content[:400]}..."
+            else:
+                # Chercher des mentions générales de performance
+                if any(word in content.lower() for word in ['performance', 'temps de réponse', 'rapidité', 'latence']):
+                    return f"📊 **Information performance trouvée**\n\n📄 **Source** ({source}):\n{content[:300]}..."
+                else:
+                    print("⚠️ [RELEVANCE] Aucune information de performance trouvée dans le contenu")
+                    return None
+
         elif "algorithme" in user_lower:
             # Rechercher des algorithmes mentionnés
             algorithms = ['merge sort', 'tri fusion', 'insertion sort', 'quick sort', 'bubble sort']
@@ -4202,8 +4237,14 @@ Que voulez-vous apprendre exactement ?"""
             if precise_answer:
                 return precise_answer
         
-        # 🔍 ÉTAPE 4: Vérification finale de pertinence (SEUIL PLUS STRICT)
-        if relevance_ratio >= 0.6:  # Augmenté de 0.3 à 0.6 pour être plus strict
+        # 🔍 ÉTAPE 4: Vérification finale de pertinence (SEUIL ASSOUPLI POUR MODE ULTRA)
+        if self.ultra_mode and self.context_manager:
+            # En mode Ultra, être plus tolérant car le système trouve intelligemment le bon contenu
+            final_threshold = 0.4  # Assoupli de 0.6 à 0.4 pour mode Ultra
+        else:
+            final_threshold = 0.5  # Assoupli de 0.6 à 0.5 pour mode classique
+            
+        if relevance_ratio >= final_threshold:
             # Même ici, extraire une réponse précise
             precise_answer = self._extract_precise_answer(user_input, content)
             if precise_answer:
@@ -4216,7 +4257,7 @@ Que voulez-vous apprendre exactement ?"""
                 else:
                     return "Je n'ai pas trouvé d'information pertinente dans le document pour répondre à cette question."
         else:
-            print(f"⚠️ [RELEVANCE] Contenu non pertinent pour la question (ratio: {relevance_ratio:.2f} < 0.6)")
+            print(f"⚠️ [RELEVANCE] Contenu non pertinent pour la question (ratio: {relevance_ratio:.2f} < {final_threshold})")
             return None
     
     def _filter_first_person_content(self, content: str) -> str:
@@ -5495,11 +5536,28 @@ D'après le document en mémoire:
         print(f"🔍 [DEBUG] Documents en mémoire: {has_docs}")
         
         if has_docs:
-            # Mots-clés qui indiquent clairement une question sur un document
+            # NOUVELLE LOGIQUE : Mode Ultra privilégié - toute question est traitée comme document_question
+            if self.ultra_mode and self.context_manager:
+                stats = self.context_manager.get_stats()
+                ultra_docs = stats.get('documents_added', 0)
+                if ultra_docs > 0:
+                    print(f"🚀 [DEBUG] Mode Ultra avec {ultra_docs} docs - Priorisation forcée des documents")
+                    # En mode Ultra, TOUTE question (y compris "quel", "quelle", etc.) va aux documents
+                    if any(q in user_lower for q in ["quel", "quelle", "qui", "combien", "comment", "que", "quoi", "où", "quand", "pourquoi"]):
+                        print(f"🎯 [DEBUG] Mode Ultra - Question interrogative forcée vers documents")
+                        return "document_question", 0.99  # Priorité absolue
+                    
+                    return "document_question", 0.98  # Très haute confiance en mode Ultra
+            
+            # Mots-clés qui indiquent clairement une question sur un document - ÉTENDUS
             doc_indicators = [
                 "résume", "resume", "résumé", "explique", "analyse", 
                 "que dit", "contient", "résume le pdf", "résume le doc",
-                "résume le document", "résume le fichier"
+                "résume le document", "résume le fichier",
+                # AJOUT : Questions interrogatives courantes
+                "quel est", "quelle est", "quels sont", "quelles sont",
+                "qui a", "qui est", "combien de", "comment",
+                "où se", "pourquoi", "quand"
             ]
             
             # Détecter "résume le pdf" même si seul
@@ -5515,6 +5573,11 @@ D'après le document en mémoire:
                 elif user_lower in ["résume", "resume", "résumé"]:
                     print(f"✅ [DEBUG] Résumé simple détecté - Score: 0.9")
                     return "document_question", 0.9
+                
+                # Questions interrogatives avec documents (NOUVEAU)
+                elif any(q in user_lower for q in ["quel", "quelle", "qui", "combien", "comment"]):
+                    print(f"✅ [DEBUG] Question interrogative avec documents détectée - Score: 0.95")
+                    return "document_question", 0.95
                 
                 # Autres questions sur documents
                 else:
@@ -5545,7 +5608,7 @@ D'après le document en mémoire:
             "explique moi", "peux tu expliquer", "dis moi ce que c'est"
         ]
         
-        # 🧠 EXTENSION : Détecter TOUTES les questions avec "quel/quelle/qui/combien" quand on a des documents
+        # 🧠 EXTENSION : Détecter TOUTES les questions avec "quel/quelle/qui/combien" quand on a des documents (SEULEMENT SI PAS EN MODE ULTRA)
         extended_question_patterns = [
             "quel", "quelle", "quels", "quelles", "qui a", "qui est", "combien", "comment"
         ]
@@ -5556,9 +5619,9 @@ D'après le document en mémoire:
         # Vérifier d'abord les patterns généraux
         is_general_question = any(pattern in user_lower for pattern in general_question_patterns)
         
-        # Puis vérifier les patterns étendus SI on a des documents
+        # Puis vérifier les patterns étendus SI on a des documents ET qu'on n'est PAS en mode Ultra
         is_extended_question = False
-        if self._has_documents_in_memory():
+        if self._has_documents_in_memory() and not (self.ultra_mode and self.context_manager):
             is_extended_question = any(pattern in user_lower for pattern in extended_question_patterns)
         
         if is_general_question or is_extended_question:
