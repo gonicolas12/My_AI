@@ -126,8 +126,8 @@ class IntelligentCalculator:
         
         # Patterns de détection
         calc_patterns = [
-            r'^(calcule|calculate|combien font?|combien fait|combien|résultat|result)',
-            r'^(qu[ae]l est le résultat|que fait|que font)',
+            r'^(calcule|calcul|calcule moi|calculate|combien font?|combien fait|combien|résultat|result)',
+            r'^(qu[ae]l est le résultat|qu[ae]l est le résultat de|que fait|que font)',
             r'^\d+\s*[\+\-\*/]',  # Commence par un nombre et opération
             r'calcul',
             r'mathématique',
@@ -148,11 +148,11 @@ class IntelligentCalculator:
         """Extrait l'expression mathématique du texte"""
         text = text.strip()
         
-        # Supprimer les mots de début
+        # Supprimer les mots de début - ordre important (plus longs d'abord)
         prefixes = [
-            'calcule', 'calculate', 'combien font', 'combien fait', 'combien',
+            'calcule moi', 'calcule', 'combien font', 'combien fait', 'combien',
             'quel est le résultat de', 'que fait', 'que font', 'résultat de',
-            'calcul de', 'mathématique'
+            'calcul de', 'calcul', 'calculate', 'mathématique'
         ]
         
         text_lower = text.lower()
@@ -160,6 +160,15 @@ class IntelligentCalculator:
             if text_lower.startswith(prefix):
                 text = text[len(prefix):].strip()
                 break
+        
+        # Supprimer les mots parasites courants
+        parasites = ['moi', 'le', 'la', 'les', 'de', 'du', 'des']
+        words = text.split()
+        filtered_words = []
+        for word in words:
+            if word.lower() not in parasites or word.isdigit():
+                filtered_words.append(word)
+        text = ' '.join(filtered_words)
         
         # Supprimer les mots de fin
         suffixes = ['?', 'stp', 's\'il te plaît', 'please', 'merci']
@@ -195,8 +204,8 @@ class IntelligentCalculator:
     def safe_eval(self, expression: str) -> Union[float, int, str]:
         """Évaluation sécurisée d'expressions mathématiques"""
         try:
-            # Nettoyer l'expression
-            expr = expression.replace(' ', '')
+            # Nettoyer l'expression en préservant les espaces entre nombres et opérateurs
+            expr = expression.strip()
             
             # Remplacer les fonctions mathématiques
             for func_name, func in self.math_functions.items():
@@ -205,6 +214,9 @@ class IntelligentCalculator:
             # Remplacer les constantes
             for const_name, const_value in self.math_constants.items():
                 expr = expr.replace(const_name, str(const_value))
+            
+            # Supprimer les espaces seulement après avoir traité les fonctions et constantes
+            expr = expr.replace(' ', '')
             
             # Vérifier que l'expression ne contient que des caractères sûrs
             allowed_chars = set('0123456789+-*/.()%** \t')

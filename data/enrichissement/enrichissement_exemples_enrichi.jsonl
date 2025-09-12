@@ -13,7 +13,6 @@
 {"input": "Quelle est la distance Terre-Lune ?", "target": "Environ **384 400 km**."}
 {"input": "Quel est l'animal le plus rapide du monde ?", "target": "**Le faucon pèlerin**."}
 {"input": "Donne-moi une citation de Victor Hugo.", "target": "**La liberté commence où l'ignorance finit**."}
-{"input": "Quel est le résultat de 9 x 8 ?", "target": "**72**"}
 {"input": "Quel est le plus long fleuve du monde ?", "target": "**Le Nil**."}
 {"input": "Qui a écrit '1984' ?", "target": "**George Orwell**."}
 {"input": "Quel est le plus haut sommet du monde ?", "target": "**L'Everest**."}
@@ -26,7 +25,6 @@
 {"input": "Quel est le plus grand désert du monde ?", "target": "**Le Sahara**."}
 {"input": "Quelle est la date de la Révolution française ?", "target": "**1789**"}
 {"input": "Donne-moi une blague courte.", "target": "Pourquoi les canards ont-ils autant de plumes ? **Pour couvrir leur derrière !**"}
-{"input": "Quel est le résultat de 100 divisé par 4 ?", "target": "**25**"}
 {"input": "Quel est le synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
 {"input": "Quelle est la capitale du Canada ?", "target": "**Ottawa**."}
 {"input": "Qui a écrit 'Le Rouge et le Noir' ?", "target": "**Stendhal**."}
@@ -39,7 +37,6 @@
 {"input": "Quel est le plus petit pays du monde ?", "target": "**Le Vatican**."}
 {"input": "Quelle est la capitale de l'Espagne ?", "target": "**Madrid**."}
 {"input": "Donne-moi un synonyme de 'difficile' ?", "target": "**Compliqué**, **ardu**, **laborieux**, **complexe**."}
-{"input": "Quel est le résultat de 5 puissance 3 ?", "target": "**125**"}
 {"input": "Comment dire 'au revoir' en anglais ?", "target": "**Goodbye**"}
 {"input": "Qui a écrit 'Les Misérables' ?", "target": "**Victor Hugo**."}
 {"input": "Quel est le plus grand lac d'Afrique ?", "target": "**Le lac Victoria**."}
@@ -52,7 +49,6 @@
 {"input": "Quel est le plus grand mammifère terrestre ?", "target": "**L'éléphant d'Afrique**."}
 {"input": "Quelle est la capitale de la Chine ?", "target": "**Pékin**."}
 {"input": "Donne-moi un synonyme de 'petit' ?", "target": "**Minuscule**, **réduit**, **exigu**, **menu**."}
-{"input": "Quel est le résultat de 11 x 11 ?", "target": "**121**"}
 {"input": "Qui a écrit 'L'Étranger' ?", "target": "**Albert Camus**."}
 {"input": "Quel est le plus grand archipel du monde ?", "target": "**L'Indonésie**."}
 {"input": "Quelle est la capitale de la Grèce ?", "target": "**Athènes**."}
@@ -64,7 +60,6 @@
 {"input": "Quel est le plus grand volcan du monde ?", "target": "**Le Mauna Loa**."}
 {"input": "Quelle est la capitale de l'Australie ?", "target": "**Canberra**."}
 {"input": "Donne-moi un synonyme de 'triste' ?", "target": "**Mélancolique**, **morose**, **abattu**, **déprimé**."}
-{"input": "Quel est le résultat de 8 x 7 ?", "target": "**56**"}
 {"input": "Comment afficher la date du jour en Python ?", "target": "**from datetime import date; print(date.today())**"}
 {"input": "Qui a écrit 'Le Cid' ?", "target": "**Pierre Corneille**."}
 {"input": "Quel est le plus grand port du monde ?", "target": "**Shanghai**."}
