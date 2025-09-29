@@ -12,7 +12,7 @@
 - 🏗️ **Architecture 100% Locale** avec persistance SQLite optimisée
 - ⚡ **Gestion automatique de la mémoire** et optimisations en temps réel
 
-## 🚀 NOUVELLE ARCHITECTURE ULTRA 1M TOKENS
+## 🏗️ Architecture Ultra 1M Tokens & FAQ Thématique
 
 ### 💥 Capacités Révolutionnaires
 
@@ -21,8 +21,6 @@
 - **Recherche sémantique ultra-rapide** avec TF-IDF et similarité cosinus
 - **Chunking intelligent** avec détection automatique de blocs logiques
 - **Auto-optimisation** de la mémoire selon l'usage
-
-## 🏗️ Architecture Ultra 1M Tokens & FAQ Thématique
 
 ```
 my_ai/
