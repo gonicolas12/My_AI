@@ -2,7 +2,7 @@
 
 ## 📋 Vue d'Ensemble de l'Architecture Ultra
 
-My Personal AI Ultra v5.0.0 révolutionne l'IA locale avec un **système de contexte de 1 Million de tokens RÉEL**, suivant les principes suivants:
+My Personal AI Ultra v5.5.0 révolutionne l'IA locale avec un **système de contexte de 1 Million de tokens RÉEL**, suivant les principes suivants:
 
 - **Contexte Ultra-Étendu** : 1,048,576 tokens de contexte réel (vs 4K-8K standards)
 - **Architecture 100% Locale** : Aucune dépendance externe, persistance SQLite

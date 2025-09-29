@@ -7,7 +7,7 @@ from .custom_ai_model import CustomAIModel, AdvancedLocalAI
 from .base_ai import BaseAI
 from .linguistic_patterns import LinguisticPatterns
 from .knowledge_base import KnowledgeBase
-from .generators import CodeGenerator
+from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
 from .reasoning_engine import ReasoningEngine
 from .conversation_memory import ConversationMemory
 

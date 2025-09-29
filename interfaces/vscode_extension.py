@@ -19,7 +19,7 @@ from core.config import Config
 from processors.pdf_processor import PDFProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.code_processor import CodeProcessor
-from models.generators import CodeGenerator
+from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
 from utils.logger import Logger
 from utils.file_manager import FileManager
 

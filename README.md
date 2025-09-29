@@ -4,7 +4,7 @@
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
-- 💻 **Analyse**, **génération** et **débogage** de **code** avec contexte massif
+- 💻 **Analyse**, **génération (via [clé API GitHub](#-utilisation-de-la-clé-api-github))** et **débogage** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
 - 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
@@ -128,10 +128,33 @@ my_ai/
 - **CLI avancée** : Ligne de commande pour utilisateurs experts
 - **Gestion d'erreurs** : Messages clairs et récupération gracieuse
 
+## 🔑 Utilisation de la clé API GitHub
+
+Certaines **fonctionnalités** (**génération** de code, accès à **GitHub**, etc.) nécessitent une clé **API GitHub**. Pour que **votre IA** ai accès à **Github**, c'est simple :
+
+### 1. Générer une clé API GitHub
+1. **Rendez-vous** sur [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Cliquez sur **"Generate new token"** (classic ou fine-grained)
+3. Donnez les **permissions nécessaires** (repo, user, etc.)
+4. Copiez la **clé générée**
+
+### 2. Configurer la clé API sur votre machine
+Dans votre **terminal**, entrez :
+```powershell
+$env:GITHUB_TOKEN="votre_token_github"
+```
+Et voilà ! Votre **IA personnelle** aura accès à l'**API Github**.
+
+### 3. Utilisation sans clé API
+Si **aucune clé** n'est configurée, l'**IA** utilisera automatiquement le **backend local**. Les fonctionnalités dépendantes de **GitHub** seront **désactivées**.
+
+---
+N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les backends et modèles utilisés.
+
 ## 🛠️ Technologies Locales
 
 ### Moteur IA 100% Local
-- **Modèle customisé** : Aucune dépendance à OpenAI, Claude ou autres APIs
+- **Modèle customisé** : Aucune dépendance à OpenAI, Claude, etc...
 - **Patterns linguistiques** : Reconnaissance avancée des intentions utilisateur
 - **Base de connaissances** : Stockage local des informations et contextes
 
@@ -167,6 +190,12 @@ pip install -r requirements.txt
 ```
 Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 
+##### Nettoyage des fichiers temporaires
+```bash
+.\clean_project.bat
+```
+Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpliqués**, des **erreurs** ou des **comportements inattendus**, lancez ce **script** pour supprimer les **fichiers temporaires** générés par l'application (logs, caches, historiques, etc.). Cela permet de repartir sur une base **propre** avant de relancer l'**IA**.
+
 ### Premiers Pas
 1. **Saluer l'IA** : "Salut", "Bonjour", "slt" - L'IA reconnaîtra votre salutation
 2. **Poser une question technique** : "Comment créer une liste en Python ?"
@@ -199,8 +228,9 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 - **[Optimisation](docs/OPTIMIZATION.md)** : Conseils et techniques d'optimisation locale
 - **[Ultra 1M Tokens](docs/ULTRA_1M_TOKENS.md)** : Détails sur la gestion du contexte étendu
 - **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
-- **[Exemples](examples/)** : Scripts d'exemple et cas d'usage
 - **[Changelog](CHANGELOG.md)** : Historique des mises à jour
+- **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
+- **[Exemples](examples/)** : Scripts d'exemple et cas d'usage
 
 ## 🔧 Caractéristiques Techniques
 

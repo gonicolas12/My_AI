@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "5.0.0"
+  version: "5.5.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux - OPTIMISÉ POUR CONTEXTE ÉTENDU
@@ -269,3 +269,9 @@ optimization:
     embedding_cache_size: 1000
     response_cache_size: 500
     cache_ttl: 3600  # 1 heure
+
+# ====================================
+# CLÉS API
+# ====================================
+github:
+  token: "${GITHUB_TOKEN}"

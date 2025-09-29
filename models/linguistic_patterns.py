@@ -138,7 +138,7 @@ class LinguisticPatterns:
                     "indicators": ["comment", "ça", "va", "et toi", "et vous", "?"],
                     "weight": 1.0,
                     "priority": "high",
-                    "exclude_if": ["python", "liste", "créer", "fonction", "variable", "code", "programme", "script", "programmation"]
+                    "exclude_if": ["python", "liste", "créer", "fonction", "variable", "code", "programme", "script", "programmation", "habitants", "population", "combien", "nombre", "statistiques", "chiffres", "france", "pays"]
                 },
                 
                 # ✅ NOUVEAU: Affirmations simples "ça va" (sans question)
@@ -193,20 +193,37 @@ class LinguisticPatterns:
                     "context_boost": ["code_file_processed"]
                 },
                 
+                "code_generation": {
+                    "patterns": [
+                        r"(?:génère|genere|generate|crée|cree|create|écris|ecris|write|développe|developpe|develop).+(?:fonction|function|def|code|programme|script)",
+                        r"(?:génère|genere|generate|crée|cree|create).+(?:une|un|des).+(?:fonction|classe|class|api|script|programme)",
+                        r"(?:écris|ecris|write|fais|fait|faire).+(?:du|un|une|le|la).+(?:code|programme|fonction|script|classe)",
+                        r"(?:génère|genere|generate).+(?:code|programme).+(?:pour|qui|de).+",
+                        r"(?:crée|cree|create).+(?:fonction|classe|script).+(?:pour|qui|de).+",
+                        r"(?:développe|developpe|develop).+(?:une|un).+(?:application|api|fonction|classe)",
+                        r"(?:implémente|implemente|implement).+(?:fonction|algorithme|classe|code)",
+                        r"peux[- ]tu\s+(?:génère|genere|crée|cree|écris|ecris|faire|créer).+(?:code|fonction|classe|script)",
+                        r"j'ai besoin d'(?:une|un).+(?:fonction|code|script|classe).+(?:pour|qui|de)",
+                        r"(?:code|programme|script|fonction).+(?:pour|qui).+(?:ajoute|concat|lit|lire|tri|trier|calcul)"
+                    ],
+                    "indicators": ["génère", "genere", "generate", "crée", "cree", "create", "écris", "ecris", "write", "fonction", "code", "programme", "script", "classe", "développe", "implémente"],
+                    "weight": 2.0,  # Poids très élevé pour prioriser la génération
+                    "priority": "highest"
+                },
+
                 "programming_question": {
                     "patterns": [
-                        r"comment\s+(?:créer|creer|faire|créé|cree)\s+(?:une|un|des).+(?:liste|dictionnaire|fonction|variable|classe|boucle|condition)",
                         r"comment\s+(?:utiliser|employer|se servir de).+(?:python|javascript|html|css)",
-                        r"(?:créer|creer|faire|génère|genere).+(?:liste|array|dictionnaire|dict|fonction|def|classe|class)",
                         r"qu[\'']?est[- ]ce qu[\'']?(?:une|un).+(?:liste|dictionnaire|fonction|variable|classe|objet|array)",
                         r"comment\s+(?:on|peut[- ]on|faire|declare|déclare).+(?:variable|liste|fonction|dictionnaire)",
                         r"(?:syntaxe|écriture).+(?:python|liste|fonction|boucle|condition)",
                         r"comment\s+(?:écrit|ecrire|programmer|coder).+(?:en\s+python|une\s+fonction|une\s+liste)",
                         r"(?:apprendre|comprendre).+(?:python|programmation|les\s+listes|les\s+fonctions)",
                         r"(?:différence|difference)\s+entre.+(?:liste|dict|tuple|set)",
-                        r"comment\s+(?:marche|fonctionne).+(?:les\s+listes|les\s+dictionnaires|python)"
+                        r"comment\s+(?:marche|fonctionne).+(?:les\s+listes|les\s+dictionnaires|python)",
+                        r"c'est quoi.+(?:une liste|un dictionnaire|une fonction|une classe)"
                     ],
-                    "indicators": ["python", "liste", "dictionnaire", "fonction", "variable", "créer", "comment", "syntaxe", "programmation", "code"],
+                    "indicators": ["python", "liste", "dictionnaire", "fonction", "variable", "comment", "syntaxe", "programmation", "différence"],
                     "weight": 1.3,
                     "priority": "high"
                 },
@@ -222,11 +239,14 @@ class LinguisticPatterns:
                         r"(?:informations?|info|données|news|actualités?)\s+(?:sur|à propos de|concernant)\s+.+",
                         r"(?:dernières?\s+)?(?:actualités?|news|nouvelles?)\s+(?:sur|de|à propos de)\s+.+",
                         r"qu[\'']?est[- ]ce\s+qu[\'']?on\s+dit\s+(?:sur|de)\s+.+\s+(?:sur internet|en ligne)",
-                        r"(?:web|internet|google)\s+search\s+.+"
+                        r"(?:web|internet|google)\s+search\s+.+",
+                        r"combien\s+(?:d[\'']?\s*)?(?:habitants?|personnes?|gens?).+(?:en?\s+)?(?:france|paris|lyon|marseille|toulouse)",
+                        r"population\s+(?:de\s+la\s+)?france",
+                        r"nombre\s+(?:d[\'']?\s*)?habitants?\s+(?:en?\s+)?france"
                     ],
-                    "indicators": ["cherche", "recherche", "internet", "web", "google", "informations", "actualités", "trouve", "news"],
-                    "weight": 1.8,  # Augmenté pour prendre priorité sur programming_question
-                    "priority": "high"
+                    "indicators": ["cherche", "recherche", "internet", "web", "google", "informations", "actualités", "trouve", "news", "combien", "habitants", "population", "nombre", "france"],
+                    "weight": 2.0,  # Augmenté encore plus pour garantir la priorité
+                    "priority": "highest"
                 },
                 
                 "greeting": {

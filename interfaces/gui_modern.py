@@ -1898,7 +1898,7 @@ class ModernAIGUI:
         self.typing_index = 0
         self.typing_text = processed_text  # Utiliser le texte pré-traité
         self.typing_widget = text_widget
-        self.typing_speed = 5
+        self.typing_speed = 1
         
         # Stocker le mapping des liens pour plus tard
         if link_mapping:

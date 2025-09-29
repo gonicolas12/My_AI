@@ -1,5 +1,24 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🟢 Version 5.5.0 - Génération de code par API & Simplification Architecture (29 Septembre 2025)
+
+### 🚀 Nouveautés principales
+
+#### 🌐 Génération de code par API
+- Ajout de la génération de code automatisée via des APIs externes : GitHub, Stack Overflow, etc.
+- Recherche et intégration de solutions de code en temps réel depuis des sources web spécialisées.
+
+#### 🏗️ Simplification de l'architecture
+- Refactoring et simplification des modules principaux pour une meilleure maintenabilité.
+- Réduction de la complexité des imports et des dépendances internes.
+- Documentation technique mise à jour pour refléter la nouvelle structure.
+
+#### 🐞 Corrections et améliorations
+- Optimisation des performances lors de la génération et de l'intégration de code externe.
+- Correction de bugs mineurs liés à la gestion des API et à la modularité.
+
+---
+
 # 🚀 Version 5.0.0 - SYSTÈME 1 MILLION DE TOKENS RÉEL (3 Septembre 2025)
 
 ### 🎯 RÉVOLUTION ULTRA : 1,048,576 TOKENS DE CONTEXTE RÉEL

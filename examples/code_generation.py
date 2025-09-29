@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.ai_engine import AIEngine
 from core.config import Config
-from generators.code_generator import CodeGenerator
+from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
 from processors.code_processor import CodeProcessor
 from utils.logger import Logger
 from utils.file_manager import FileManager

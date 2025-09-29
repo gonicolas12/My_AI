@@ -1,5 +1,5 @@
 """
-Calculateur Intelligent - My Personal AI Ultra v5.0.0
+Calculateur Intelligent
 Système de calcul avancé avec reconnaissance en français et symboles
 """
 
@@ -126,7 +126,7 @@ class IntelligentCalculator:
         
         # Patterns de détection
         calc_patterns = [
-            r'^(calcule|calcul|calcule moi|calculate|combien font?|combien fait|combien|résultat|result)',
+            r'^(calcule|calcul|calcule moi|calculate|combien font?|combien fait|résultat|result)',
             r'^(qu[ae]l est le résultat|qu[ae]l est le résultat de|que fait|que font)',
             r'^\d+\s*[\+\-\*/]',  # Commence par un nombre et opération
             r'calcul',
@@ -150,7 +150,7 @@ class IntelligentCalculator:
         
         # Supprimer les mots de début - ordre important (plus longs d'abord)
         prefixes = [
-            'calcule moi', 'calcule', 'combien font', 'combien fait', 'combien',
+            'calcule moi', 'calcule', 'combien font', 'combien fait',
             'quel est le résultat de', 'que fait', 'que font', 'résultat de',
             'calcul de', 'calcul', 'calculate', 'mathématique'
         ]

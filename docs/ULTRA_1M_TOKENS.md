@@ -225,7 +225,7 @@ python -c "from models.intelligent_context_manager import UltraIntelligentContex
 - **Recherche vectorielle** : Integration d'embeddings locaux
 - **API REST** : Interface HTTP pour intégrations
 
-### Version 6.0.0 (Prévue : Décembre 2025)
+### Version 5.5.0 (Prévue : Décembre 2025)
 - **10M tokens de contexte** : Contexte ultra-massif
 - **IA multimodale** : Images, audio, vidéo dans le contexte
 - **Distributed context** : Partage contexte multi-machines

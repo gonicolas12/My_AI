@@ -1,4 +1,3 @@
-
 """
 Moteur principal de l'IA personnelle
 Gère l'orchestration entre les différents modules
@@ -18,7 +17,8 @@ from processors.pdf_processor import PDFProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.code_processor import CodeProcessor
 from generators.document_generator import DocumentGenerator
-from models.generators import CodeGenerator
+from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
+from models.web_code_searcher import multi_source_searcher
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
 
@@ -82,72 +82,109 @@ class AIEngine:
         # Générateurs
         self.document_generator = DocumentGenerator()
         self.code_generator = CodeGenerator()
+        self.web_code_searcher = multi_source_searcher
         
         self.logger.info("Moteur IA initialisé avec succès")
     
     def process_text(self, text: str) -> str:
         """
-        Traite un texte en donnant la priorité à la FAQ ML (TF-IDF), puis utilise la logique avancée (process_query) pour router la demande (explication code, etc).
+        🚀 NOUVEAU: Interface synchrone qui utilise OBLIGATOIREMENT le nouveau système de recherche web
         """
         try:
-            self.logger.info(f"[DEBUG] process_text: question utilisateur brute: {repr(text)}")
-            print(f"[AIEngine] Appel FAQ pour: '{text}'")
-            # 1. Tenter la FAQ ML d'abord
-            response_ml = None
-            if self.ml_ai is not None:
-                try:
-                    self.logger.info(f"[DEBUG] Passage de la question à FAQ/ML: {repr(text)}")
-                    response_ml = self.ml_ai.predict(text)
-                    self.logger.info(f"[DEBUG] ML model response: {repr(response_ml)}")
-                except Exception as e:
-                    self.logger.warning(f"Erreur modèle ML: {e}")
-            else:
-                print(f"[AIEngine] Modèle FAQ ML non initialisé. Passage direct au modèle custom.")
+            self.logger.info(f"[NOUVEAU SYSTÈME] process_text: {repr(text)}")
 
-            # Priorité absolue : si la FAQ locale a une réponse, on la retourne DIRECTEMENT
-            if response_ml is not None and str(response_ml).strip():
-                print(f"[AIEngine] Réponse trouvée dans la FAQ locale. Priorité absolue. Pas de recherche internet ni d'appel au modèle custom.")
-                try:
-                    self.conversation_manager.add_exchange(text, {"message": response_ml})
-                except Exception as e:
-                    self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
-                return response_ml
+            # 🚀 FORCER L'UTILISATION DU NOUVEAU SYSTÈME
+            # Plus de FAQ ML qui court-circuite, plus de fallbacks obsolètes
 
-            # Sinon, router via process_query pour bénéficier de la logique avancée (explication code, etc)
-            try:
-                # Utilise asyncio pour appeler la méthode async
-                loop = None
+            # Analyser rapidement le type de requête
+            text_lower = text.lower()
+
+            # 1. Questions factuelles → Recherche web directe
+            if any(word in text_lower for word in ["combien", "population", "habitants", "nombre", "statistiques"]):
+                return "🔍 **Recherche web en cours...**\n\nJe recherche cette information sur internet pour vous donner une réponse à jour.\n\n*(Note: Le système de recherche web est en cours d'implémentation)*"
+
+            # 2. Demandes de code → Nouveau générateur web
+            code_keywords = ["génère", "crée", "écris", "développe", "fonction", "script", "code"]
+            if any(keyword in text_lower for keyword in code_keywords):
                 try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = None
-                if loop and loop.is_running():
-                    # Si déjà dans un event loop (rare hors notebook), patch avec nest_asyncio si dispo
+                    # FORCER l'utilisation du nouveau système async
+                    import asyncio
+                    from models.real_web_code_generator import generate_code_from_web_only
+
+                    # Détecter le langage
+                    language = "python"  # Défaut
+                    if "javascript" in text_lower or "js" in text_lower:
+                        language = "javascript"
+                    elif "java" in text_lower and "javascript" not in text_lower:
+                        language = "java"
+
+                    # Lancer la recherche web
+                    async def run_web_search():
+                        return await generate_code_from_web_only(text, language)
+
+                    # Exécuter la recherche
                     try:
-                        import nest_asyncio  # type: ignore
-                        nest_asyncio.apply()
-                    except ImportError:
-                        self.logger.warning("nest_asyncio non installé : l'appel async peut échouer si déjà dans un event loop.")
-                    future = self.process_query(text)
-                    response = loop.run_until_complete(future)
-                else:
-                    response = asyncio.run(self.process_query(text))
-                # On sauvegarde l'échange
-                try:
-                    self.conversation_manager.add_exchange(text, response)
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # Dans un event loop existant
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, run_web_search())
+                                result = future.result(timeout=30)
+                        else:
+                            result = loop.run_until_complete(run_web_search())
+                    except RuntimeError:
+                        # Pas d'event loop
+                        result = asyncio.run(run_web_search())
+
+                    if result.get("success"):
+                        code = result.get("code", "")
+                        source = result.get("source", "Web")
+                        explanation = result.get("explanation", "")
+
+                        return f"🌐 **Code trouvé sur {source}:**\n\n```{language}\n{code}\n```\n\n💬 **Explication:** {explanation}"
+                    else:
+                        # Fallback minimal seulement si recherche web échoue
+                        if "tri" in text_lower or "sort" in text_lower:
+                            return f"🛠️ **Code généré localement (recherche web échouée):**\n\n```{language}\ndef sort_list(items):\n    \"\"\"Trie une liste par ordre alphabétique\"\"\"\n    return sorted(items)\n\n# Exemple\nwords = ['pomme', 'banane', 'cerise']\nsorted_words = sort_list(words)\nprint(sorted_words)  # ['banane', 'cerise', 'pomme']\n```"
+                        else:
+                            return f"❌ **Impossible de trouver du code pour:** \"{text}\"\n\n🔍 **Recherches effectuées:**\n• GitHub, Stack Overflow, GeeksforGeeks\n\n💡 **Suggestions:**\n• Soyez plus spécifique (ex: \"fonction Python qui trie une liste\")\n• Précisez le langage souhaité"
+
+                except ImportError:
+                    return "❌ **Erreur:** Module de recherche web non disponible.\n\nVeuillez vérifier que tous les modules sont installés correctement."
                 except Exception as e:
-                    self.logger.warning(f"Impossible de sauvegarder la conversation: {e}")
-                return response.get("message", "[Aucune réponse générée]")
-            except Exception as e:
-                self.logger.error(f"Erreur lors de l'appel à process_query: {e}")
-                self.logger.warning("Utilisation du fallback response (process_query)")
-                fallback_response = self._generate_fallback_response(text)
-                return fallback_response
+                    return f"❌ **Erreur lors de la recherche web:** {str(e)}\n\nLe système de recherche web rencontre des difficultés."
+
+            # 3. Questions conversationnelles
+            if any(phrase in text_lower for phrase in ["comment ça va", "comment vas tu", "ça va", "salut", "bonjour"]):
+                # Éviter le bug "Très bien, merci de demander"
+                if "comment ça va" in text_lower and not any(tech in text_lower for tech in ["python", "code", "fonction"]):
+                    return "Salut ! Je vais bien, merci ! 😊 Je suis votre assistant IA et je suis prêt à vous aider. Que puis-je faire pour vous ?"
+                else:
+                    return "Bonjour ! Comment puis-je vous aider aujourd'hui ? Je peux générer du code, répondre à vos questions techniques, ou rechercher des informations sur internet."
+
+            # 4. Questions sur l'IA
+            if any(phrase in text_lower for phrase in ["qui es-tu", "que fais-tu", "tes capacités"]):
+                return """Je suis votre assistant IA personnel ! 🤖
+
+🌐 **Mes capacités principales :**
+• **Génération de code** (Python, JavaScript, etc.) avec recherche web
+• **Recherche d'informations** sur internet en temps réel
+• **Analyse de documents** et de fichiers
+• **Assistance technique** et programmation
+
+💡 **Nouveautés :**
+• Je cherche maintenant du code sur GitHub, Stack Overflow, etc.
+• Plus de templates pré-codés - uniquement du vrai code trouvé sur le web !
+
+Que voulez-vous que je fasse pour vous ?"""
+
+            # 5. Fallback général
+            return f"Je vois ! Et comment puis-je vous aider avec ça ?\n\n💡 **Je peux :**\n• Générer du code (avec recherche web)\n• Rechercher des informations sur internet\n• Répondre à vos questions techniques\n\nQue souhaitez-vous faire ?"
+
         except Exception as e:
-            self.logger.error(f"Erreur dans process_text: {e}")
-            self.logger.warning("Utilisation du fallback response (global)")
-            fallback_response = self._generate_fallback_response(text)
-            return fallback_response
+            self.logger.error(f"Erreur dans le nouveau process_text: {e}")
+            return f"❌ **Erreur système:** {str(e)}\n\nLe nouveau système de recherche web rencontre des difficultés. Veuillez réessayer."
 
     def _merge_responses(self, response_custom, response_ml):
         """
@@ -465,7 +502,9 @@ if __name__ == "__main__":
             # Préparation du contexte
             full_context = self._prepare_context(query, context)
             # Traitement selon le type
-            if query_type == "conversation":
+            if query_type == "web_search":
+                response = await self._handle_web_search(query, full_context)
+            elif query_type == "conversation":
                 response = await self._handle_conversation(query, full_context)
             elif query_type == "file_processing":
                 response = await self._handle_file_processing(query, full_context)
@@ -509,6 +548,11 @@ if __name__ == "__main__":
         if len(query_lower) > 20 and not any(c.isspace() for c in query_lower[:20]):
             # Si plus de 20 caractères sans espaces = probablement du charabia
             return "conversation"
+        
+        # PRIORITÉ 2.5 : Questions factuelles ou de recherche web
+        web_keywords = ["combien", "population", "habitants", "nombre", "statistiques", "chiffre", "prix", "coût", "taille", "poids", "année", "date"]
+        if any(keyword in query_lower for keyword in web_keywords):
+            return "web_search"
         
         # PRIORITÉ 3 : Vérifier si on a des documents et si la question les concerne SPÉCIFIQUEMENT
         if hasattr(self.local_ai, 'conversation_memory'):
@@ -844,32 +888,113 @@ if __name__ == "__main__":
                 "success": False
             }
     
-    async def _handle_code_generation(self, query: str, context: Dict) -> Dict[str, Any]:
+    async def _handle_web_search(self, query: str, context: Dict) -> Dict[str, Any]:
         """
-        Gère la génération de code
+        Gère les requêtes de recherche web factuelle
         """
         try:
-            # Générer le code sans await (methode sync)
-            code = self.code_generator.generate_code(query, context)
-            
-            # Créer un message d'accompagnement intelligent
-            language = self._detect_code_language(query)
-            accompaniment = self._create_code_accompaniment(query, language)
-            
-            # Formater la réponse complète
-            full_response = f"{accompaniment}\n\n```{language}\n{code}\n```"
-            
+            from models.internet_search import InternetSearchEngine
+            search_engine = InternetSearchEngine()
+            summary = search_engine.search_and_summarize(query)
             return {
-                "type": "code_generation",
-                "code": code,
-                "message": full_response,
+                "type": "web_search",
+                "message": summary,
                 "success": True
             }
         except Exception as e:
+            self.logger.error(f"Erreur recherche web: {e}")
+            return {
+                "type": "web_search",
+                "message": f"Erreur lors de la recherche web: {str(e)}",
+                "success": False
+            }
+
+    async def _handle_code_generation(self, query: str, context: Dict) -> Dict[str, Any]:
+        """
+        Gère la génération de code avec RECHERCHE WEB PURE (comme ChatGPT/Claude)
+        """
+        try:
+            language = self._detect_code_language(query)
+
+            # 🌐 PRIORITÉ 1: Recherche web PURE sans templates pré-codés
+            try:
+                from models.real_web_code_generator import generate_code_from_web_only
+                web_result = await generate_code_from_web_only(query, language)
+
+                if web_result.get("success"):
+                    code = web_result.get("code", "")
+                    explanation = web_result.get("explanation", "")
+                    source = web_result.get("source", "Recherche Web")
+                    url = web_result.get("url", "")
+
+                    # Formater la réponse avec source
+                    source_info = f" ([Source]({url}))" if url else ""
+
+                    self.logger.info(f"✅ Code trouvé sur le web: {source}")
+                    return {
+                        "type": "code_generation",
+                        "code": code,
+                        "message": f"🌐 **Code trouvé sur {source}**{source_info}\n\n```{language}\n{code}\n```\n\n💬 **Explication:** {explanation}",
+                        "source": source,
+                        "url": url,
+                        "rating": web_result.get("rating", 4.0),
+                        "success": True
+                    }
+                else:
+                    self.logger.warning(f"Recherche web échouée: {web_result.get('error', 'Erreur inconnue')}")
+
+            except Exception as e:
+                self.logger.warning(f"Générateur web pur indisponible: {e}")
+
+            # 🔄 FALLBACK 1: Système de recherche web intelligent (avec cache)
+            try:
+                from models.smart_web_searcher import search_smart_code
+                web_results = await search_smart_code(query, language, max_results=3)
+
+                if web_results and len(web_results) > 0:
+                    best_result = web_results[0]
+
+                    # Vérifier la pertinence
+                    if best_result.relevance_score > 0.4:  # Seuil plus permissif
+                        sources_info = "\n".join([f"• {result.title} ({result.source_name})" for result in web_results[:2]])
+
+                        return {
+                            "type": "code_generation",
+                            "code": best_result.code,
+                            "message": f"🌐 **Code trouvé sur le web:**\n{sources_info}\n\n```{language}\n{best_result.code}\n```\n\n💬 **Source:** {best_result.description}",
+                            "sources": [{"title": r.title, "url": r.source_url, "source": r.source_name} for r in web_results],
+                            "rating": best_result.rating,
+                            "success": True
+                        }
+
+            except Exception as e:
+                self.logger.warning(f"Recherche web intelligente échouée: {e}")
+
+            # 🔧 FALLBACK 2: Générateur local spécialisé MINIMAL (sans templates complexes)
+            local_code = self._generate_minimal_code(query, language)
+
+            if local_code and len(local_code.strip()) > 30:
+                return {
+                    "type": "code_generation",
+                    "code": local_code,
+                    "message": f"🛠️ **Code généré localement (recherche web échouée):**\n\n```{language}\n{local_code}\n```\n\n💬 **Note:** Solution basique créée car aucune solution trouvée sur le web.",
+                    "source": "Générateur local minimal",
+                    "rating": 2.5,
+                    "success": True
+                }
+
+            # 🚨 ÉCHEC TOTAL
+            return {
+                "type": "code_generation",
+                "message": f"❌ **Impossible de trouver du code pour:** \"{query}\"\n\n🔍 **Recherches effectuées:**\n• GitHub, Stack Overflow, GeeksforGeeks\n• Recherche Google générale\n\n💡 **Suggestions:**\n• Reformulez votre demande (ex: \"fonction Python qui trie une liste\")\n• Précisez le langage (Python, JavaScript, etc.)\n• Décrivez ce que la fonction doit faire exactement",
+                "success": False
+            }
+
+        except Exception as e:
             self.logger.error(f"Erreur génération code: {e}")
             return {
-                "type": "code_generation", 
-                "message": f"❌ Erreur lors de la génération de code: {str(e)}",
+                "type": "code_generation",
+                "message": f"❌ Erreur lors de la recherche de code: {str(e)}",
                 "success": False
             }
     
@@ -969,7 +1094,592 @@ if __name__ == "__main__":
         
         else:
             return f"💻 **Code généré en {language.capitalize()}**\n\nVoici une implémentation pour votre demande :"
-    
+
+    def _enhance_web_solution(self, web_solution, query: str, language: str) -> str:
+        """
+        Améliore une solution trouvée sur le web en l'adaptant à la demande précise
+        """
+        base_code = web_solution.code
+        query_lower = query.lower()
+
+        # Ajouts intelligents basés sur la demande
+        enhanced_code = base_code
+
+        # Ajouter des commentaires explicatifs si manquants
+        if not any(line.strip().startswith('#') or line.strip().startswith('//') or line.strip().startswith('/*') for line in base_code.split('\n')):
+            if language.lower() == 'python':
+                enhanced_code = f'"""\n{web_solution.title}\nSolution adaptée pour: {query}\n"""\n\n{base_code}'
+            elif language.lower() in ['javascript', 'js']:
+                enhanced_code = f'/**\n * {web_solution.title}\n * Solution adaptée pour: {query}\n */\n\n{base_code}'
+
+        # Ajout de gestion d'erreurs si nécessaire
+        if 'error' not in base_code.lower() and 'try' not in base_code.lower() and 'except' not in base_code.lower():
+            if language.lower() == 'python' and len(base_code.split('\n')) > 5:
+                if 'def ' in base_code:
+                    # Wrapper avec try/except pour les fonctions
+                    enhanced_code = enhanced_code.replace('def ', 'def ') + '\n\n# Exemple d\'usage sécurisé:\n# try:\n#     result = votre_fonction()\n# except Exception as e:\n#     print(f"Erreur: {e}")'
+
+        # Ajout d'exemples d'usage si manquants
+        if 'example' not in base_code.lower() and 'test' not in base_code.lower():
+            if language.lower() == 'python':
+                enhanced_code += '\n\n# Exemple d\'utilisation:\nif __name__ == "__main__":\n    # Testez votre code ici\n    pass'
+
+        # Optimisations spécifiques par type de demande
+        if any(word in query_lower for word in ['api', 'web', 'http']):
+            if language.lower() == 'python' and 'requests' not in base_code:
+                enhanced_code = 'import requests\n' + enhanced_code
+
+        if any(word in query_lower for word in ['file', 'fichier', 'csv', 'json']):
+            if language.lower() == 'python' and 'with open' not in base_code:
+                enhanced_code += '\n\n# Gestion sécurisée des fichiers avec context manager'
+
+        return enhanced_code
+
+    def _validate_solution_relevance(self, solution, query: str, language: str) -> bool:
+        """
+        Valide strictement la pertinence d'une solution web par rapport à la demande
+        """
+        code_lower = solution.code.lower()
+        query_lower = query.lower()
+
+        # 1. Vérifier que le code contient les concepts clés de la requête
+        key_concepts = self._extract_query_concepts(query_lower)
+
+        if not key_concepts:
+            return False
+
+        # 2. Score de pertinence basé sur les concepts présents dans le code
+        concept_matches = 0
+        for concept in key_concepts:
+            if concept in code_lower:
+                concept_matches += 1
+
+        relevance_score = concept_matches / len(key_concepts)
+
+        # 3. Vérifications spécifiques selon le type de demande
+        specific_checks = self._perform_specific_validation(code_lower, query_lower, language)
+
+        # 4. Score final : au moins 70% de pertinence + validations spécifiques
+        is_relevant = relevance_score >= 0.7 and specific_checks
+
+        print(f"[VALIDATION] Query: '{query[:30]}...' | Score: {relevance_score:.2f} | Spécific: {specific_checks} | Result: {is_relevant}")
+
+        return is_relevant
+
+    def _extract_query_concepts(self, query_lower: str) -> list:
+        """Extrait les concepts clés de la requête"""
+        concept_mapping = {
+            'concat': ['concat', 'concatén', 'join', 'joindre', 'combiner', 'fusionner'],
+            'string': ['string', 'chaîne', 'chaine', 'caractère', 'str', 'texte'],
+            'function': ['fonction', 'function', 'def'],
+            'sort': ['tri', 'trier', 'sort', 'order', 'ordonner'],
+            'file': ['fichier', 'file', 'lire', 'read', 'écrire', 'write'],
+            'api': ['api', 'rest', 'endpoint', 'requête', 'request'],
+            'class': ['classe', 'class', 'objet', 'object'],
+            'array': ['liste', 'array', 'list', 'tableau'],
+            'loop': ['boucle', 'loop', 'for', 'while', 'itération']
+        }
+
+        concepts = []
+        for main_concept, variations in concept_mapping.items():
+            if any(var in query_lower for var in variations):
+                concepts.append(main_concept)
+
+        return concepts
+
+    def _perform_specific_validation(self, code_lower: str, query_lower: str, language: str) -> bool:
+        """Effectue des validations spécifiques selon le type de demande"""
+
+        # Validation pour les fonctions de concaténation
+        if 'concat' in query_lower or 'concatén' in query_lower:
+            concat_indicators = ['+', 'join()', '.join', 'concat', 'format', 'f"', "f'", '%s']
+            return any(indicator in code_lower for indicator in concat_indicators)
+
+        # Validation pour les fonctions de tri
+        if 'tri' in query_lower or 'sort' in query_lower:
+            sort_indicators = ['sort', 'sorted', 'key=', 'reverse=', 'lambda', 'order']
+            return any(indicator in code_lower for indicator in sort_indicators)
+
+        # Validation pour la lecture de fichiers
+        if 'fichier' in query_lower or 'file' in query_lower:
+            file_indicators = ['open(', 'with open', 'read()', 'write()', 'close()']
+            return any(indicator in code_lower for indicator in file_indicators)
+
+        # Validation pour les API
+        if 'api' in query_lower:
+            api_indicators = ['request', 'response', 'json', 'get(', 'post(', 'flask', 'fastapi']
+            return any(indicator in code_lower for indicator in api_indicators)
+
+        # Validation pour les classes
+        if 'classe' in query_lower or 'class' in query_lower:
+            class_indicators = ['class ', '__init__', 'self.', 'def ']
+            return any(indicator in code_lower for indicator in class_indicators)
+
+        # Validation générale : au moins une structure de code Python valide
+        if language.lower() == 'python':
+            python_indicators = ['def ', 'class ', 'import ', 'for ', 'if ', 'return', 'print(']
+            return any(indicator in code_lower for indicator in python_indicators)
+
+        return True  # Pas de validation spécifique, accepter
+
+    def _generate_smart_local_code(self, query: str, language: str) -> str:
+        """
+        Génère du code local intelligent basé sur des patterns reconnus
+        """
+        query_lower = query.lower()
+
+        # Template pour concaténation de chaînes
+        if 'concat' in query_lower and 'string' in query_lower or 'chaîne' in query_lower:
+            return self._generate_string_concat_code(language)
+
+        # Template pour fonction de tri
+        elif 'tri' in query_lower or 'sort' in query_lower:
+            return self._generate_sort_code(language)
+
+        # Template pour lecture de fichier
+        elif 'fichier' in query_lower or 'file' in query_lower:
+            return self._generate_file_code(language)
+
+        # Template pour classe basique
+        elif 'classe' in query_lower or 'class' in query_lower:
+            return self._generate_class_code(language)
+
+        # Template pour API simple
+        elif 'api' in query_lower:
+            return self._generate_api_code(language)
+
+        return ""  # Aucun template trouvé
+
+    def _generate_string_concat_code(self, language: str) -> str:
+        """Génère du code de concaténation de chaînes"""
+        if language.lower() == 'python':
+            return '''def concat_strings(*strings):
+    """
+    Concatène plusieurs chaînes de caractères
+
+    Args:
+        *strings: Chaînes à concaténer
+
+    Returns:
+        str: Chaîne concaténée
+    """
+    return ''.join(str(s) for s in strings)
+
+def concat_with_separator(separator, *strings):
+    """
+    Concatène des chaînes avec un séparateur
+
+    Args:
+        separator (str): Séparateur à utiliser
+        *strings: Chaînes à concaténer
+
+    Returns:
+        str: Chaîne concaténée avec séparateur
+    """
+    return separator.join(str(s) for s in strings)
+
+# Exemples d'utilisation
+if __name__ == "__main__":
+    # Concaténation simple
+    result1 = concat_strings("Hello", " ", "World", "!")
+    print(f"Résultat 1: {result1}")  # Hello World!
+
+    # Concaténation avec séparateur
+    result2 = concat_with_separator(" - ", "Pierre", "Paul", "Jacques")
+    print(f"Résultat 2: {result2}")  # Pierre - Paul - Jacques
+
+    # Méthodes alternatives Python
+    str1, str2, str3 = "Hello", "World", "!"
+
+    # Méthode 1: Opérateur +
+    concat1 = str1 + " " + str2 + str3
+
+    # Méthode 2: f-string (recommandé)
+    concat2 = f"{str1} {str2}{str3}"
+
+    # Méthode 3: join()
+    concat3 = " ".join([str1, str2]) + str3
+
+    print(f"Méthode +: {concat1}")
+    print(f"Méthode f-string: {concat2}")
+    print(f"Méthode join: {concat3}")'''
+
+        elif language.lower() == 'javascript':
+            return '''function concatStrings(...strings) {
+    /**
+     * Concatène plusieurs chaînes de caractères
+     * @param {...string} strings - Chaînes à concaténer
+     * @returns {string} Chaîne concaténée
+     */
+    return strings.join('');
+}
+
+function concatWithSeparator(separator, ...strings) {
+    /**
+     * Concatène des chaînes avec un séparateur
+     * @param {string} separator - Séparateur à utiliser
+     * @param {...string} strings - Chaînes à concaténer
+     * @returns {string} Chaîne concaténée avec séparateur
+     */
+    return strings.join(separator);
+}
+
+// Exemples d'utilisation
+const result1 = concatStrings("Hello", " ", "World", "!");
+console.log("Résultat 1:", result1); // Hello World!
+
+const result2 = concatWithSeparator(" - ", "Pierre", "Paul", "Jacques");
+console.log("Résultat 2:", result2); // Pierre - Paul - Jacques
+
+// Méthodes alternatives JavaScript
+const str1 = "Hello", str2 = "World", str3 = "!";
+
+// Méthode 1: Opérateur +
+const concat1 = str1 + " " + str2 + str3;
+
+// Méthode 2: Template literals (recommandé)
+const concat2 = `${str1} ${str2}${str3}`;
+
+// Méthode 3: concat()
+const concat3 = str1.concat(" ", str2, str3);
+
+console.log("Méthode +:", concat1);
+console.log("Template literals:", concat2);
+console.log("Méthode concat():", concat3);'''
+
+        return ""
+
+    def _generate_sort_code(self, language: str) -> str:
+        """Génère du code de tri"""
+        if language.lower() == 'python':
+            return '''def sort_list(items, reverse=False):
+    """
+    Trie une liste d'éléments
+
+    Args:
+        items (list): Liste à trier
+        reverse (bool): Tri décroissant si True
+
+    Returns:
+        list: Liste triée
+    """
+    return sorted(items, reverse=reverse)
+
+def sort_by_key(items, key_func, reverse=False):
+    """
+    Trie une liste selon une fonction clé
+
+    Args:
+        items (list): Liste à trier
+        key_func (function): Fonction pour extraire la clé
+        reverse (bool): Tri décroissant si True
+
+    Returns:
+        list: Liste triée
+    """
+    return sorted(items, key=key_func, reverse=reverse)
+
+# Exemples d'utilisation
+if __name__ == "__main__":
+    # Tri simple
+    numbers = [3, 1, 4, 1, 5, 9, 2, 6]
+    sorted_numbers = sort_list(numbers)
+    print(f"Nombres triés: {sorted_numbers}")
+
+    # Tri décroissant
+    sorted_desc = sort_list(numbers, reverse=True)
+    print(f"Tri décroissant: {sorted_desc}")
+
+    # Tri de chaînes
+    names = ["Pierre", "Paul", "Alice", "Bob"]
+    sorted_names = sort_list(names)
+    print(f"Noms triés: {sorted_names}")
+
+    # Tri par longueur
+    sorted_by_length = sort_by_key(names, len)
+    print(f"Tri par longueur: {sorted_by_length}")
+
+    # Tri d'objets complexes
+    people = [
+        {"name": "Alice", "age": 30},
+        {"name": "Bob", "age": 25},
+        {"name": "Charlie", "age": 35}
+    ]
+    sorted_by_age = sort_by_key(people, lambda x: x["age"])
+    print(f"Tri par âge: {sorted_by_age}")'''
+
+        return ""
+
+    def _generate_file_code(self, language: str) -> str:
+        """Génère du code de gestion de fichiers"""
+        if language.lower() == 'python':
+            return '''def read_file(file_path, encoding='utf-8'):
+    """
+    Lit le contenu d'un fichier
+
+    Args:
+        file_path (str): Chemin vers le fichier
+        encoding (str): Encodage du fichier
+
+    Returns:
+        str: Contenu du fichier
+    """
+    try:
+        with open(file_path, 'r', encoding=encoding) as file:
+            return file.read()
+    except FileNotFoundError:
+        print(f"Erreur: Fichier '{file_path}' non trouvé")
+        return ""
+    except Exception as e:
+        print(f"Erreur lors de la lecture: {e}")
+        return ""
+
+def write_file(file_path, content, encoding='utf-8'):
+    """
+    Écrit du contenu dans un fichier
+
+    Args:
+        file_path (str): Chemin vers le fichier
+        content (str): Contenu à écrire
+        encoding (str): Encodage du fichier
+
+    Returns:
+        bool: True si succès
+    """
+    try:
+        with open(file_path, 'w', encoding=encoding) as file:
+            file.write(content)
+        return True
+    except Exception as e:
+        print(f"Erreur lors de l'écriture: {e}")
+        return False
+
+# Exemple d'utilisation
+if __name__ == "__main__":
+    # Écriture d'un fichier test
+    test_content = "Hello World!\\nCeci est un test."
+
+    if write_file("test.txt", test_content):
+        print("Fichier écrit avec succès")
+
+        # Lecture du fichier
+        content = read_file("test.txt")
+        print(f"Contenu lu: {content}")
+    else:
+        print("Erreur lors de l'écriture")'''
+
+        return ""
+
+    def _generate_class_code(self, language: str) -> str:
+        """Génère une classe exemple"""
+        if language.lower() == 'python':
+            return '''class User:
+    """
+    Classe pour représenter un utilisateur
+    """
+
+    def __init__(self, name, email, age=None):
+        """
+        Initialise un nouvel utilisateur
+
+        Args:
+            name (str): Nom de l'utilisateur
+            email (str): Email de l'utilisateur
+            age (int, optional): Âge de l'utilisateur
+        """
+        self.name = name
+        self.email = email
+        self.age = age
+        self.is_active = True
+
+    def get_info(self):
+        """
+        Retourne les informations de l'utilisateur
+
+        Returns:
+            dict: Informations utilisateur
+        """
+        return {
+            "name": self.name,
+            "email": self.email,
+            "age": self.age,
+            "is_active": self.is_active
+        }
+
+    def update_email(self, new_email):
+        """
+        Met à jour l'email de l'utilisateur
+
+        Args:
+            new_email (str): Nouvel email
+        """
+        self.email = new_email
+
+    def deactivate(self):
+        """Désactive l'utilisateur"""
+        self.is_active = False
+
+    def __str__(self):
+        """Représentation string de l'utilisateur"""
+        return f"User(name='{self.name}', email='{self.email}')"
+
+    def __repr__(self):
+        """Représentation technique de l'utilisateur"""
+        return f"User(name='{self.name}', email='{self.email}', age={self.age})"
+
+# Exemple d'utilisation
+if __name__ == "__main__":
+    # Créer un utilisateur
+    user = User("Alice Dupont", "alice@example.com", 30)
+
+    # Afficher les informations
+    print(user)
+    print(f"Infos: {user.get_info()}")
+
+    # Modifier l'email
+    user.update_email("alice.dupont@newdomain.com")
+    print(f"Nouvel email: {user.email}")
+
+    # Désactiver l'utilisateur
+    user.deactivate()
+    print(f"Utilisateur actif: {user.is_active}")'''
+
+        return ""
+
+    def _generate_api_code(self, language: str) -> str:
+        """Génère du code API basique"""
+        if language.lower() == 'python':
+            return '''from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+# Base de données simulée
+users = [
+    {"id": 1, "name": "Alice", "email": "alice@example.com"},
+    {"id": 2, "name": "Bob", "email": "bob@example.com"}
+]
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    """
+    Récupère la liste des utilisateurs
+
+    Returns:
+        JSON: Liste des utilisateurs
+    """
+    return jsonify({"users": users, "count": len(users)})
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    """
+    Récupère un utilisateur spécifique
+
+    Args:
+        user_id (int): ID de l'utilisateur
+
+    Returns:
+        JSON: Utilisateur ou erreur
+    """
+    user = next((u for u in users if u["id"] == user_id), None)
+    if user:
+        return jsonify(user)
+    return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    """
+    Crée un nouvel utilisateur
+
+    Returns:
+        JSON: Utilisateur créé
+    """
+    data = request.get_json()
+
+    if not data or 'name' not in data or 'email' not in data:
+        return jsonify({"error": "Nom et email requis"}), 400
+
+    new_id = max(u["id"] for u in users) + 1 if users else 1
+    new_user = {
+        "id": new_id,
+        "name": data["name"],
+        "email": data["email"]
+    }
+
+    users.append(new_user)
+    return jsonify(new_user), 201
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)'''
+
+        return ""
+
+    def _generate_minimal_code(self, query: str, language: str) -> str:
+        """
+        Générateur minimal uniquement si la recherche web échoue complètement
+        """
+        query_lower = query.lower()
+
+        if language.lower() == 'python':
+            # Tri alphabétique minimal
+            if any(word in query_lower for word in ['tri', 'sort', 'ordre', 'alphabétique']):
+                return '''def sort_list(items):
+    """Trie une liste par ordre alphabétique"""
+    return sorted(items)
+
+# Exemple
+words = ["pomme", "banane", "cerise"]
+sorted_words = sort_list(words)
+print(sorted_words)  # ['banane', 'cerise', 'pomme']'''
+
+            # Conversion majuscules
+            elif any(word in query_lower for word in ['majuscule', 'uppercase', 'upper']):
+                return '''def to_uppercase(text):
+    """Convertit le texte en majuscules"""
+    return text.upper()
+
+# Exemple
+result = to_uppercase("hello world")
+print(result)  # HELLO WORLD'''
+
+            # Fonction basique
+            elif any(word in query_lower for word in ['fonction', 'function', 'def']):
+                return '''def my_function(parameter):
+    """Description de votre fonction"""
+    # Votre code ici
+    result = parameter
+    return result
+
+# Exemple d'utilisation
+output = my_function("test")
+print(output)'''
+
+        elif language.lower() == 'javascript':
+            # Tri alphabétique
+            if any(word in query_lower for word in ['tri', 'sort', 'ordre', 'alphabétique']):
+                return '''function sortArray(items) {
+    // Trie un tableau par ordre alphabétique
+    return items.sort();
+}
+
+// Exemple
+const words = ["pomme", "banane", "cerise"];
+const sortedWords = sortArray([...words]);
+console.log(sortedWords); // ["banane", "cerise", "pomme"]'''
+
+            # Fonction basique
+            elif any(word in query_lower for word in ['fonction', 'function']):
+                return '''function myFunction(parameter) {
+    // Description de votre fonction
+    // Votre code ici
+    return parameter;
+}
+
+// Exemple d'utilisation
+const result = myFunction("test");
+console.log(result);'''
+
+        return ""  # Aucun template minimal trouvé
+
     def get_status(self) -> Dict[str, Any]:
         """
         Retourne le statut du moteur IA

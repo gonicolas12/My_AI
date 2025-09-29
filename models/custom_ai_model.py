@@ -13,7 +13,9 @@ from datetime import datetime
 from .base_ai import BaseAI
 from .linguistic_patterns import LinguisticPatterns
 from .knowledge_base import KnowledgeBase
-from .generators import CodeGenerator
+from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
+from models.web_code_searcher import multi_source_searcher
+import asyncio
 from .reasoning_engine import ReasoningEngine
 from .conversation_memory import ConversationMemory
 from .internet_search import InternetSearchEngine
@@ -51,12 +53,13 @@ class CustomAIModel(BaseAI):
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "5.0.0"
+        self.version = "5.5.0"
         
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
         self.knowledge_base = KnowledgeBase()
         self.code_generator = CodeGenerator()
+        self.web_code_searcher = multi_source_searcher
         self.reasoning_engine = ReasoningEngine()
         self.conversation_memory = conversation_memory or ConversationMemory()
         self.internet_search = InternetSearchEngine()
@@ -101,13 +104,13 @@ class CustomAIModel(BaseAI):
         # Réponses personnalisées pour l'identité
         self.identity_responses = {
             "basic": [
-                "Je suis votre assistant IA local ! Je m'appelle Assistant IA Local et je suis conçu pour vous aider avec la programmation, les questions techniques, et bien plus encore.",
+                "Je suis votre assistant IA local ! Je suis conçu pour vous aider avec la programmation, les questions techniques, et bien plus encore.",
                 "Bonjour ! Je suis un assistant IA qui fonctionne entièrement en local sur votre machine. Je peux vous aider avec le code, répondre à vos questions, et discuter avec vous.",
                 "Salut ! Moi c'est Assistant IA Local. Je suis votre compagnon virtuel pour la programmation et les discussions techniques. Je tourne uniquement en local, pas besoin d'internet !",
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre."
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 5.0.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 5.5.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine."
             ],
@@ -264,12 +267,17 @@ class CustomAIModel(BaseAI):
             
             print(f"DEBUG: Intent détecté: {primary_intent} (confiance: {confidence:.2f})")
             
+            # NOUVELLES CAPACITÉS DE CODE GÉNÉRATION INTELLIGENTE
+            if primary_intent == "code_generation":
+                import asyncio
+                return asyncio.run(self._handle_advanced_code_generation(user_input))
+
             # Récupération du contexte conversationnel
             conversation_context = self.conversation_memory.get_context_for_response(primary_intent)
-            
+
             # D'abord vérifier s'il y a des questions similaires
             similar_question = self.conversation_memory.has_similar_recent_question(user_input)
-            
+
             # Puis appeler avec tous les paramètres requis
             response = self._generate_contextual_response(
                 user_input, primary_intent, confidence, conversation_context, similar_question
@@ -542,7 +550,7 @@ class CustomAIModel(BaseAI):
         elif intent == "code_generation" or intent == "code_request":
             return self._generate_code_response(user_input, context)
         elif intent == "programming_question":
-            return self._answer_programming_question(user_input, context)
+            return self._generate_code_response(user_input, context)
         elif intent == "internet_search":
             return self._handle_internet_search(user_input, context)
         elif intent == "general_question":
@@ -550,8 +558,6 @@ class CustomAIModel(BaseAI):
         elif intent == "code_question":
             # Vérifier s'il y a du code en mémoire
             stored_docs = self.conversation_memory.get_document_content()
-            
-            # Logique améliorée pour détecter les fichiers de code
             code_docs = {}
             for name, doc in stored_docs.items():
                 if doc:
@@ -564,13 +570,12 @@ class CustomAIModel(BaseAI):
                     # Méthode 3: Vérifier la langue détectée
                     elif doc.get("language") in ['python', 'javascript', 'html', 'css', 'java', 'cpp', 'c', 'php']:
                         code_docs[name] = doc
-            
             print(f"🔧 [CODE_QUESTION] Fichiers de code détectés: {list(code_docs.keys())}")
-            
             if code_docs:
                 return self._answer_code_question(user_input, code_docs)
             else:
-                return "Je n'ai pas de code en mémoire à analyser. Traitez d'abord un fichier de code."
+                # S'il n'y a pas de code en mémoire, générer du code comme pour une demande de génération
+                return self._generate_code_response(user_input, context)
         
         # Vérification spéciale pour les demandes de blagues
         user_lower = user_input.lower()
@@ -637,7 +642,7 @@ class CustomAIModel(BaseAI):
     def _generate_identity_response(self, user_input: str, context: Dict[str, Any]) -> str:
         """Réponse d'identité naturelle"""
         responses = [
-            "Je suis votre assistant IA local ! Je m'appelle Assistant IA Local et je suis conçu pour vous aider avec la programmation, l'analyse de documents, et bien plus encore.",
+            "Je suis votre assistant IA local ! Je suis conçu pour vous aider avec la programmation, l'analyse de documents, et bien plus encore.",
             "Salut ! Moi c'est Assistant IA Local. Je suis votre compagnon virtuel pour coder, analyser des documents, et discuter avec vous. Tout fonctionne en local !",
             "Je suis votre assistant IA personnel qui fonctionne entièrement sur votre machine. C'est mieux pour la sécurité et la confidentialité ;)"
         ]
@@ -1018,20 +1023,57 @@ Tout fonctionne en local sur votre machine - seule la recherche internet nécess
     def _generate_code_response(self, user_input: str, context: Dict[str, Any]) -> str:
         """Génère une réponse pour les demandes de code"""
         try:
-            # Utilisation du générateur de code
-            code_response = self.code_generator.generate_code(user_input)
-            
-            # Ajout d'un message personnalisé
+            # Détection du langage demandé
+            user_lower = user_input.lower()
+            if "javascript" in user_lower or "js" in user_lower:
+                language = "javascript"
+            elif "html" in user_lower:
+                language = "html"
+            elif "css" in user_lower:
+                language = "css"
+            elif "java" in user_lower:
+                language = "java"
+            elif "c++" in user_lower or "cpp" in user_lower:
+                language = "cpp"
+            elif "c " in user_lower:
+                language = "c"
+            else:
+                language = "python"
+
+            # Appel asynchrone au générateur avancé, compatible thread
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                coro = self.code_generator.generate_code(user_input, language)
+                result = loop.run_until_complete(coro)
+            except RuntimeError:
+                # Pas de boucle en cours (cas thread secondaire)
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(self.code_generator.generate_code(user_input, language))
+                finally:
+                    loop.close()
+
+            code = result.get("code", "")
+            explanation = result.get("explanation", "")
+            source = result.get("source", "")
+            rating = result.get("rating", "")
+            debug = result.get("debug", "")
+
             intro_messages = [
                 "Voici le code que j'ai généré pour vous :",
                 "J'ai créé ce code selon votre demande :",
                 "Voilà ce que j'ai préparé pour vous :",
                 "J'espère que ce code vous aidera :"
             ]
-            
             intro = self._get_random_response(intro_messages)
-            return f"{intro}\n\n{code_response}"
-            
+            details = f"\n\n(Source : {source} | Note : {rating}/5)"
+            if explanation:
+                details += f"\n\nExplication : {explanation}"
+            if debug:
+                details += f"\n\n[DEBUG]\n{debug}"
+            return f"{intro}\n\n```{language}\n{code}\n```{details}"
         except Exception as e:
             return f"Désolé, j'ai eu un problème pour générer le code : {str(e)}"
     
@@ -5534,59 +5576,60 @@ D'après le document en mémoire:
         # PRIORITÉ 3 : Questions sur les documents (seulement si ce n'est pas de l'identité)
         has_docs = self._has_documents_in_memory()
         print(f"🔍 [DEBUG] Documents en mémoire: {has_docs}")
-        
+
+        # --- PRIORITÉ CODE/PROGRAMMING ---
+        # Si le score de code_generation ou programming_question est élevé, prioriser même si documents présents
+        code_intents = ["code_generation", "programming_question", "code_request"]
+        best_code_intent = None
+        best_code_score = 0.0
+        for intent in code_intents:
+            score = intent_scores.get(intent, 0.0)
+            if score > best_code_score:
+                best_code_intent = intent
+                best_code_score = score
+
+        # Si une intention de code est détectée avec un score suffisant, prioriser
+        if best_code_intent and best_code_score >= 0.7:
+            print(f"🎯 [INTENT] Priorisation de l'intention code: {best_code_intent} (score: {best_code_score})")
+            return best_code_intent, best_code_score
+
+        # --- LOGIQUE DOCUMENTS (inchangée) ---
         if has_docs:
-            # NOUVELLE LOGIQUE : Mode Ultra privilégié - toute question est traitée comme document_question
             if self.ultra_mode and self.context_manager:
                 stats = self.context_manager.get_stats()
                 ultra_docs = stats.get('documents_added', 0)
                 if ultra_docs > 0:
                     print(f"🚀 [DEBUG] Mode Ultra avec {ultra_docs} docs - Priorisation forcée des documents")
-                    # En mode Ultra, TOUTE question (y compris "quel", "quelle", etc.) va aux documents
                     if any(q in user_lower for q in ["quel", "quelle", "qui", "combien", "comment", "que", "quoi", "où", "quand", "pourquoi"]):
                         print(f"🎯 [DEBUG] Mode Ultra - Question interrogative forcée vers documents")
-                        return "document_question", 0.99  # Priorité absolue
-                    
-                    return "document_question", 0.98  # Très haute confiance en mode Ultra
-            
-            # Mots-clés qui indiquent clairement une question sur un document - ÉTENDUS
+                        return "document_question", 0.99
+                    return "document_question", 0.98
             doc_indicators = [
                 "résume", "resume", "résumé", "explique", "analyse", 
                 "que dit", "contient", "résume le pdf", "résume le doc",
                 "résume le document", "résume le fichier",
-                # AJOUT : Questions interrogatives courantes
                 "quel est", "quelle est", "quels sont", "quelles sont",
                 "qui a", "qui est", "combien de", "comment",
                 "où se", "pourquoi", "quand"
             ]
-            
-            # Détecter "résume le pdf" même si seul
             if any(indicator in user_lower for indicator in doc_indicators):
                 print(f"🎯 [DEBUG] Indicateur de document détecté: '{user_input}'")
-                
-                # Si c'est spécifiquement "résume le pdf" ou "résume le doc"
                 if any(phrase in user_lower for phrase in ["résume le pdf", "résume le doc", "résume le document"]):
                     print(f"✅ [DEBUG] Résumé de document spécifique détecté - Score: 1.0")
-                    return "document_question", 1.0  # Force high confidence
-                
-                # Ou si c'est juste "résume" et qu'on a des documents
+                    return "document_question", 1.0
                 elif user_lower in ["résume", "resume", "résumé"]:
                     print(f"✅ [DEBUG] Résumé simple détecté - Score: 0.9")
                     return "document_question", 0.9
-                
-                # Questions interrogatives avec documents (NOUVEAU)
                 elif any(q in user_lower for q in ["quel", "quelle", "qui", "combien", "comment"]):
                     print(f"✅ [DEBUG] Question interrogative avec documents détectée - Score: 0.95")
                     return "document_question", 0.95
-                
-                # Autres questions sur documents
                 else:
                     print(f"✅ [DEBUG] Autre question sur document détectée - Score: 0.8")
                     return "document_question", 0.8
             else:
                 print(f"🚫 [DEBUG] Aucun indicateur de document détecté dans: '{user_input}'")
-        
-        # PRIORITÉ 3.5 : Questions de programmation avec détection spécifique
+
+        # --- LOGIQUE PROGRAMMING/GENERAL (inchangée) ---
         programming_patterns = [
             "comment créer", "comment utiliser", "comment faire", "comment déclarer",
             "liste en python", "dictionnaire en python", "fonction en python", 
@@ -5595,48 +5638,31 @@ D'après le document en mémoire:
             "créer une liste", "créer un dictionnaire", "créer une fonction",
             "faire une boucle", "utiliser if", "utiliser for", "utiliser while"
         ]
-        
         if any(pattern in user_lower for pattern in programming_patterns):
-            # Vérifier si c'est vraiment une question de programmation
             if any(word in user_lower for word in ["comment", "créer", "utiliser", "faire", "python", "liste", "dictionnaire", "fonction", "variable", "boucle", "condition", "classe"]):
                 return "programming_question", 0.9
-        
-        # PRIORITÉ 3.6 : Questions générales - LOGIQUE INTELLIGENTE ÉTENDUE
+
         general_question_patterns = [
             "c'est quoi", "c est quoi", "quest ce que", "qu'est-ce que", "qu est ce que",
             "qu'est ce que", "quel est", "quelle est", "que signifie", "ça veut dire quoi", "ca veut dire quoi", "définition de",
             "explique moi", "peux tu expliquer", "dis moi ce que c'est"
         ]
-        
-        # 🧠 EXTENSION : Détecter TOUTES les questions avec "quel/quelle/qui/combien" quand on a des documents (SEULEMENT SI PAS EN MODE ULTRA)
         extended_question_patterns = [
             "quel", "quelle", "quels", "quelles", "qui a", "qui est", "combien", "comment"
         ]
-        
-        # 🧠 LOGIQUE INTELLIGENTE : D'abord les documents, puis internet en dernier recours
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
-        
-        # Vérifier d'abord les patterns généraux
         is_general_question = any(pattern in user_lower for pattern in general_question_patterns)
-        
-        # Puis vérifier les patterns étendus SI on a des documents ET qu'on n'est PAS en mode Ultra
         is_extended_question = False
         if self._has_documents_in_memory() and not (self.ultra_mode and self.context_manager):
             is_extended_question = any(pattern in user_lower for pattern in extended_question_patterns)
-        
         if is_general_question or is_extended_question:
-            # Si on a des documents en mémoire, prioriser document_question
             if self._has_documents_in_memory():
                 print(f"🎯 [INTENT] Question détectée avec documents disponibles: '{user_input[:50]}...'")
                 return "document_question", 0.95
-            # Si on a un autre intent avec un bon score, l'utiliser
             elif best_intent[0] not in ["internet_search", "unknown"] and best_intent[1] >= 0.7:
                 return best_intent[0], best_intent[1]
-            # Seulement en dernier recours : recherche internet
             else:
                 return "internet_search", 0.8
-        
-        # PRIORITÉ 4 : Sélection normale par score le plus élevé
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
         return best_intent[0], best_intent[1]
     
@@ -6136,6 +6162,156 @@ D'après le document en mémoire:
                 "max_context_length": 100000,  # Limite approximative mode classique
                 "utilization_percent": min(100, (total_words * 1.3 / 100000) * 100)
             }
+
+
+    async def _handle_advanced_code_generation(self, user_input: str) -> str:
+        """
+        Génération de code avancée avec recherche web intégrée
+        Rivalise avec les meilleures IA du marché
+        """
+        try:
+            # 1. Analyse de la demande
+            language = self._detect_programming_language(user_input)
+            complexity = self._analyze_complexity(user_input)
+            requirements = self._extract_requirements(user_input)
+
+            print(f"🚀 Génération de code avancée: {language}, complexité: {complexity}")
+
+            # 2. Recherche de solutions web en parallèle (asynchrone)
+            web_solutions = []
+            try:
+                # Créer un event loop si nécessaire
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Utiliser asyncio.create_task pour éviter les conflits
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(asyncio.run, self._search_web_solutions(user_input, language))
+                            web_solutions = future.result(timeout=10)
+                    else:
+                        web_solutions = loop.run_until_complete(self._search_web_solutions(user_input, language))
+                except RuntimeError:
+                    web_solutions = asyncio.run(self._search_web_solutions(user_input, language))
+            except Exception as e:
+                print(f"⚠️ Recherche web échouée: {e}, utilisation génération locale")
+
+            # 3. Génération hybride (web + local)
+            if web_solutions:
+                best_solution = web_solutions[0]
+                enhanced_code = self._create_enhanced_solution(best_solution, user_input, language, requirements)
+                sources_info = f"\n📚 **Sources utilisées:**\n" + "\n".join([f"• {sol.title} ({sol.source_name})" for sol in web_solutions[:2]])
+
+                response = f"🚀 Code généré avec intelligence web :\n```{language}\n{enhanced_code}\n```\n{sources_info}\n\n"
+            else:
+                # Fallback sur génération locale avancée (asynchrone)
+                local_code = await self._generate_local_advanced_code(user_input, language, requirements)
+                response = f"Voici votre code généré localement :\n```{language}\n{local_code}\n```\n"
+
+            # 4. Enregistrer dans la mémoire
+            self.conversation_memory.add_conversation(user_input, response, "code_generation", 1.0, {"language": language, "complexity": complexity})
+
+            return response
+
+        except Exception as e:
+            error_msg = f"❌ Erreur lors de la génération de code: {str(e)}"
+            print(error_msg)
+            return error_msg
+
+    async def _search_web_solutions(self, query: str, language: str):
+        """Recherche asynchrone de solutions web"""
+        return await self.web_code_searcher.search_all_sources(query, language, max_results=3)
+
+    def _detect_programming_language(self, user_input: str) -> str:
+        """Détecte le langage de programmation demandé"""
+        user_lower = user_input.lower()
+
+        language_keywords = {
+            'python': ['python', 'py', 'django', 'flask', 'pandas', 'numpy'],
+            'javascript': ['javascript', 'js', 'node', 'react', 'vue', 'angular'],
+            'html': ['html', 'page web', 'site web', 'webpage'],
+            'css': ['css', 'style', 'stylesheet', 'bootstrap'],
+            'java': ['java', 'spring', 'maven'],
+            'cpp': ['c++', 'cpp', 'c plus plus'],
+            'c': ['langage c', 'programmation c'],
+            'sql': ['sql', 'mysql', 'database', 'base de données'],
+            'php': ['php', 'laravel', 'wordpress'],
+            'go': ['golang', 'go lang'],
+            'rust': ['rust', 'cargo'],
+            'swift': ['swift', 'ios'],
+            'kotlin': ['kotlin', 'android']
+        }
+
+        for lang, keywords in language_keywords.items():
+            if any(keyword in user_lower for keyword in keywords):
+                return lang
+
+        return 'python'  # Défaut
+
+    def _analyze_complexity(self, user_input: str) -> str:
+        """Analyse la complexité de la demande"""
+        user_lower = user_input.lower()
+
+        complex_keywords = ['api', 'base de données', 'algorithme', 'optimisé', 'performant', 'architecture', 'design pattern', 'async', 'threading']
+        intermediate_keywords = ['classe', 'fonction', 'boucle', 'condition', 'fichier', 'json', 'csv']
+
+        if any(keyword in user_lower for keyword in complex_keywords):
+            return 'avancé'
+        elif any(keyword in user_lower for keyword in intermediate_keywords):
+            return 'intermédiaire'
+        else:
+            return 'débutant'
+
+    def _extract_requirements(self, user_input: str) -> list:
+        """Extrait les exigences spécifiques de la demande"""
+        requirements = []
+        user_lower = user_input.lower()
+
+        # Exigences communes
+        if 'gestion erreur' in user_lower or 'try except' in user_lower:
+            requirements.append('error_handling')
+        if 'commentaire' in user_lower or 'documentation' in user_lower:
+            requirements.append('documentation')
+        if 'test' in user_lower or 'exemple' in user_lower:
+            requirements.append('examples')
+        if 'optimisé' in user_lower or 'performance' in user_lower:
+            requirements.append('optimization')
+        if 'sécurisé' in user_lower or 'sécurité' in user_lower:
+            requirements.append('security')
+
+        return requirements
+
+    def _create_enhanced_solution(self, web_solution, query: str, language: str, requirements: list) -> str:
+        """Crée une solution améliorée basée sur une solution web"""
+        base_code = web_solution.code
+
+        # Améliorations basées sur les exigences
+        enhanced_code = f'"""\n{web_solution.title}\nSolution adaptée pour: {query}\nSource: {web_solution.source_name}\n"""\n\n{base_code}'
+
+        # Ajout de gestion d'erreurs
+        if 'error_handling' in requirements and language == 'python':
+            enhanced_code += '\n\n# Gestion d\'erreurs recommandée:\n# try:\n#     result = votre_fonction()\n# except Exception as e:\n#     print(f"Erreur: {e}")'
+
+        # Ajout d'exemples
+        if 'examples' in requirements:
+            enhanced_code += '\n\n# Exemple d\'utilisation:\nif __name__ == "__main__":\n    # Testez votre code ici\n    pass'
+
+        return enhanced_code
+
+    async def _generate_local_advanced_code(self, query: str, language: str, requirements: list) -> str:
+        """Génère du code avancé localement avec notre AdvancedCodeGenerator"""
+        try:
+            # Utiliser notre générateur corrigé avec la bonne signature
+            result = await self.code_generator.generate_code(query, language=language, requirements=requirements)
+
+            if result.get("success"):
+                return result.get("code", "# Aucun code généré")
+            else:
+                # Fallback en cas d'échec
+                return f"# Erreur lors de la génération: {result.get('error', 'Erreur inconnue')}"
+
+        except Exception as e:
+            return f"# Erreur lors de la génération: {str(e)}"
 
 
 # Alias pour compatibilité avec l'ancien nom
