@@ -217,20 +217,6 @@ python -c "from models.intelligent_context_manager import UltraIntelligentContex
 3. **Maintenance régulière** : Nettoyage périodique des chunks anciens
 4. **Monitoring continu** : Surveillance de l'usage mémoire
 
-## 🚀 Feuille de Route Ultra
-
-### Version 5.1.0 (Prévue : Octobre 2025)
-- **2M tokens de contexte** : Doublement de la capacité
-- **Compression GPU** : Accélération matérielle
-- **Recherche vectorielle** : Integration d'embeddings locaux
-- **API REST** : Interface HTTP pour intégrations
-
-### Version 5.5.0 (Prévue : Décembre 2025)
-- **10M tokens de contexte** : Contexte ultra-massif
-- **IA multimodale** : Images, audio, vidéo dans le contexte
-- **Distributed context** : Partage contexte multi-machines
-- **VS Code Ultra Extension** : Intégration IDE complète
-
 ---
 
 *Documentation générée automatiquement le 3 Septembre 2025 pour My Personal AI Ultra v5.0.0*
