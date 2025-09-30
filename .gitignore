@@ -4,3 +4,4 @@ logs/
 .vscode/
 .claude/
 backups/
+context_storage/
