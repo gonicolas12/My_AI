@@ -93,7 +93,7 @@ class UltraIntelligentContextManager:
         }
         
         # Base de données pour persistance
-        self.db_path = "ultra_context.db"
+        self.db_path = "context_storage/ultra_context.db"
         self._init_database()
         
         # Statistiques en temps réel

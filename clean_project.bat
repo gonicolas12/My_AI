@@ -8,9 +8,9 @@ REM Suppression du dossier logs à la racine
 if exist "logs" rd /s /q "logs"
 
 REM Suppression du fichier code_solutions_cache.db à la racine
-if exist "code_solutions_cache.db" del /q "code_solutions_cache.db"
+if exist "context_storage\code_solutions_cache.db" del /q "context_storage\code_solutions_cache.db"
 
 REM Suppression du fichier ultra_context.db à la racine
-if exist "ultra_context.db" del /q "ultra_context.db"
+if exist "context_storage\ultra_context.db" del /q "context_storage\ultra_context.db"
 
 echo Projet maintenant clean !

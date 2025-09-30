@@ -524,7 +524,7 @@ class StackOverflowCodeExtractor:
     def __init__(self):
         self.base_url = "https://api.stackexchange.com/2.3"
         self.site = "stackoverflow"
-        self.cache_db = Path("code_solutions_cache.db")
+        self.cache_db = Path("context_storage/code_solutions_cache.db")
         self._init_cache()
         
         # Headers pour imiter un navigateur réel

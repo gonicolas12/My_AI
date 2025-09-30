@@ -54,7 +54,7 @@ class EnhancedCodeGenerator:
 
     def _init_cache_db(self) -> sqlite3.Connection:
         """Initialise le cache SQLite pour les solutions"""
-        db_path = Path(__file__).parent.parent / "code_solutions_cache.db"
+        db_path = Path(__file__).parent.parent / "context_storage/code_solutions_cache.db"
         conn = sqlite3.connect(str(db_path))
 
         conn.execute("""
