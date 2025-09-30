@@ -4,3 +4,4 @@ logs/
 .vscode/
 .claude/
 code_solutions_cache.db
+ultra_context.db
