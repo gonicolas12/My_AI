@@ -1,23 +1,13 @@
 """
-Redirection vers la nouvelle implémentation modulaire des générateurs
+Module de génération de contenu
+Génération de documents et de code
 """
 
-from models.generators import (
-    BaseCodeGenerator,
-    PythonCodeGenerator,
-    JavaScriptCodeGenerator,
-    HTMLCodeGenerator,
-    CodeGenerator
-)
-
-# Garde la classe DocumentGenerator qui n'a pas été migrée
+# Import des générateurs locaux
 from .document_generator import DocumentGenerator
+from .code_generator import CodeGenerator
 
 __all__ = [
-    'BaseCodeGenerator',
-    'PythonCodeGenerator',
-    'JavaScriptCodeGenerator',
-    'HTMLCodeGenerator',
-    'CodeGenerator',
-    'DocumentGenerator'
+    'DocumentGenerator',
+    'CodeGenerator'
 ]

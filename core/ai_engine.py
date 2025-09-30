@@ -109,7 +109,6 @@ class AIEngine:
                 try:
                     # FORCER l'utilisation du nouveau système async
                     import asyncio
-                    from models.real_web_code_generator import generate_code_from_web_only
 
                     # Détecter le langage
                     language = "python"  # Défaut
@@ -118,9 +117,9 @@ class AIEngine:
                     elif "java" in text_lower and "javascript" not in text_lower:
                         language = "java"
 
-                    # Lancer la recherche web
+                    # Lancer la recherche web via AdvancedCodeGenerator
                     async def run_web_search():
-                        return await generate_code_from_web_only(text, language)
+                        return await self.code_generator.generate_code_from_web(text, language)
 
                     # Exécuter la recherche
                     try:
@@ -193,170 +192,7 @@ Que voulez-vous que je fasse pour vous ?"""
         if response_ml is not None and str(response_ml).strip():
             return str(response_ml)
         return response_custom
-    
-    def _generate_simple_function(self, text: str) -> str:
-        """Génère une fonction simple basée sur la demande"""
-        if "factorielle" in text.lower():
-            return """🔧 Fonction générée :
 
-```python
-def factorielle(n):
-    \"\"\"
-    Calcule la factorielle d'un nombre
-    
-    Args:
-        n (int): Nombre dont on veut la factorielle
-        
-    Returns:
-        int: Factorielle de n
-    \"\"\"
-    if n < 0:
-        raise ValueError("La factorielle n'est pas définie pour les nombres négatifs")
-    elif n == 0 or n == 1:
-        return 1
-    else:
-        return n * factorielle(n - 1)
-
-# Exemple d'utilisation
-print(factorielle(5))  # Output: 120
-```"""
-        elif "fibonacci" in text.lower():
-            return """🔧 Fonction générée :
-
-```python
-def fibonacci(n):
-    \"\"\"
-    Calcule le n-ième nombre de Fibonacci
-    
-    Args:
-        n (int): Position dans la séquence
-        
-    Returns:
-        int: n-ième nombre de Fibonacci
-    \"\"\"
-    if n <= 0:
-        return 0
-    elif n == 1:
-        return 1
-    else:
-        return fibonacci(n-1) + fibonacci(n-2)
-
-# Exemple d'utilisation
-for i in range(10):
-    print(f"F({i}) = {fibonacci(i)}")
-```"""
-        else:
-            return f"""🔧 Fonction générée basée sur votre demande :
-
-```python
-def ma_fonction():
-    \"\"\"
-    Fonction générée automatiquement
-    Basée sur : {text}
-    \"\"\"
-    # TODO: Implétez votre logique ici
-    print("Fonction créée avec succès !")
-    return True
-
-# Exemple d'utilisation
-ma_fonction()
-```
-💡 Pour une génération plus précise, décrivez exactement ce que doit faire la fonction."""
-    
-    def _generate_simple_class(self, text: str) -> str:
-        """Génère une classe simple basée sur la demande"""
-        if "personne" in text.lower() or "person" in text.lower():
-            return """🏗️ Classe générée :
-
-```python
-class Personne:
-    \"\"\"
-    Classe représentant une personne
-    \"\"\"
-    
-    def __init__(self, nom, age):
-        \"\"\"
-        Initialise une nouvelle personne
-        
-        Args:
-            nom (str): Nom de la personne
-            age (int): Âge de la personne
-        \"\"\"
-        self.nom = nom
-        self.age = age
-    
-    def se_presenter(self):
-        \"\"\"Présente la personne\"\"\"
-        return f"Bonjour, je suis {self.nom} et j'ai {self.age} ans."
-    
-    def avoir_anniversaire(self):
-        \"\"\"Incrémente l'âge d'un an\"\"\"
-        self.age += 1
-        return f"Joyeux anniversaire ! {self.nom} a maintenant {self.age} ans."
-
-# Exemple d'utilisation
-personne = Personne("Alice", 25)
-print(personne.se_presenter())
-print(personne.avoir_anniversaire())
-```"""
-        else:
-            return f"""🏗️ Classe générée basée sur votre demande :
-
-```python
-class MaClasse:
-    \"\"\"
-    Classe générée automatiquement
-    Basée sur : {text}
-    \"\"\"
-    
-    def __init__(self):
-        \"\"\"Initialise la classe\"\"\"
-        self.nom = "MaClasse"
-        self.active = True
-    
-    def action(self):
-        \"\"\"Méthode d'action principale\"\"\"
-        if self.active:
-            return "Action exécutée avec succès !"
-        return "Classe inactive"
-    
-    def __str__(self):
-        \"\"\"Représentation string de la classe\"\"\"
-        return f"{self.nom} - Active: {self.active}"
-
-# Exemple d'utilisation
-objet = MaClasse()
-print(objet)
-print(objet.action())
-```
-
-💡 Pour une génération plus précise, décrivez les attributs et méthodes souhaités."""
-    
-    def _generate_code_from_text(self, text: str) -> str:
-        """Génère du code basé sur une description textuelle"""
-        return f"""💻 Code généré basé sur votre demande :
-
-```python
-# Code basé sur : {text}
-
-def solution():
-    \"\"\"
-    Solution générée automatiquement
-    \"\"\"
-    # TODO: Implétez votre solution ici
-    print("Code généré avec succès !")
-    
-    # Exemple de logique de base
-    resultat = "Mission accomplie"
-    return resultat
-
-# Exécution
-if __name__ == "__main__":
-    print(solution())
-```
-
-💡 Pour du code plus spécifique, donnez plus de détails sur ce que vous voulez accomplir."""
-    
     def _get_help_text(self) -> str:
         """Retourne le texte d'aide"""
         return """🤖 Aide - My AI Personal Assistant
@@ -405,9 +241,9 @@ if __name__ == "__main__":
         # Demandes de code
         elif "génér" in text_lower or "créer" in text_lower or "fonction" in text_lower or "classe" in text_lower:
             if "fonction" in text_lower:
-                return self._generate_simple_function(text)
+                return self.code_generator.generate_simple_function(text)
             elif "classe" in text_lower:
-                return self._generate_simple_class(text)
+                return self.code_generator.generate_simple_class(text)
             else:
                 return "Je peux générer du code pour toi ! Tu veux une fonction ou une classe ? Dis-moi ce que tu veux créer."
         
@@ -918,8 +754,7 @@ if __name__ == "__main__":
 
             # 🌐 PRIORITÉ 1: Recherche web PURE sans templates pré-codés
             try:
-                from models.real_web_code_generator import generate_code_from_web_only
-                web_result = await generate_code_from_web_only(query, language)
+                web_result = await self.code_generator.generate_code_from_web(query, language)
 
                 if web_result.get("success"):
                     code = web_result.get("code", "")

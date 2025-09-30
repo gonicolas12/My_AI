@@ -1,5 +1,5 @@
 {
-  "test_date": "2025-09-12T11:17:04.015098",
+  "test_date": "2025-09-30T16:01:47.667403",
   "test_type": "REAL AI 1M TOKENS TEST",
   "system_used": "CustomAIModel (Production)",
   "total_tokens_processed": 1035090,
@@ -22,13 +22,13 @@
           "performance"
         ],
         "correct": true,
-        "response_time": 11.186233282089233
+        "response_time": 0.13947558403015137
       },
       {
         "question": "Quel algorithme est utilisé dans l'exemple de tri fusion ?",
         "section": "Code Examples",
-        "response": "**ANALYSE DÉTAILLÉE : DOCUMENT**\n\n**Introduction**\n\nLe document 'document' se présente comme un ultra de 6161 mots organisé en 3 sections principales. Son contenu s'articule autour de 3 thématiques ma...",
-        "full_response": "**ANALYSE DÉTAILLÉE : DOCUMENT**\n\n**Introduction**\n\nLe document 'document' se présente comme un ultra de 6161 mots organisé en 3 sections principales. Son contenu s'articule autour de 3 thématiques majeures : sécurité, technique, formation. Cette analyse propose une lecture structurée des éléments constitutifs et des enjeux soulevés dans ce document.\n\n**Analyse du contenu**\n\n**Premier axe d'analyse :** Le document établit d'emblée que --- test_chunk_1 (chunk 7) --- contexte de test. Cette approche pose les fondements de l'ensemble de la démarche présentée.\n\n**Deuxième axe d'analyse :** L'auteur développe ensuite l'idée selon laquelle # section 43 - systèmes distribués ## section 43 - systèmes distribués cette section explore systèmes distribués pour diversifier le contexte de test. Cette perspective enrichit la compréhension globale du sujet.\n\n**Troisième axe d'analyse :** Le document précise également que ### formation stellaire processus de naissance et évolution des. Cet élément apporte des nuances importantes à l'analyse.\n\n\n\n**Conclusion et perspectives**\n\nCette analyse révèle la richesse et la cohérence du document étudié. La densité informationnelle (6161 mots) témoigne d'un travail approfondi et d'une volonté de couvrir exhaustivement le sujet. Les thématiques abordées (sécurité, technique) offrent des perspectives d'approfondissement intéressantes. Ce document constitue une ressource précieuse pour quiconque souhaite appréhender les enjeux présentés de manière structurée et complète.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
+        "response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurit...",
+        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n1. **Sécurité** : --- test_chunk_1 (chunk 7) --- contexte de test\n2. **Technique** : # section 43 - systèmes distribués ## section 43 - systèmes distribués cette section explore système\n3. **Synthèse** : ### formation stellaire processus de naissance et évolution des\n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
         "keywords_expected": [
           "merge sort",
           "tri fusion",
@@ -38,7 +38,7 @@
           "tri fusion"
         ],
         "correct": true,
-        "response_time": 0.030203819274902344
+        "response_time": 0.07831692695617676
       },
       {
         "question": "Quelle est la version du système selon la configuration JSON ?",
@@ -54,7 +54,7 @@
           "version"
         ],
         "correct": true,
-        "response_time": 0.022710323333740234
+        "response_time": 0.0484004020690918
       },
       {
         "question": "Quel langage est recommandé pour débuter en IA selon la conversation ?",
@@ -70,7 +70,7 @@
           "Python"
         ],
         "correct": true,
-        "response_time": 0.027079105377197266
+        "response_time": 0.05756354331970215
       },
       {
         "question": "Qui a proposé le Test de Turing et en quelle année ?",
@@ -86,13 +86,13 @@
           "1950"
         ],
         "correct": true,
-        "response_time": 0.02084827423095703
+        "response_time": 0.05141615867614746
       },
       {
         "question": "Combien de tokens peut traiter le système selon la configuration ?",
         "section": "Multiple Sections",
         "response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurit...",
-        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n• **Sécurité** : --- test_chunk_1 (chunk 4) --- étoiles: - effondrement gravitationnel des nuages moléculaires - fusi\n• **Technique** : # section 84 - astrophysique et cosmologie ## section 84 - astrophysique et cosmologie cette section\n• **Synthèse** : ### technologies blockchain les blockchains révolutionnent les transactions numériques: - consensus \n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
+        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n1. **Sécurité** : --- test_chunk_1 (chunk 4) --- étoiles: - effondrement gravitationnel des nuages moléculaires - fusi\n2. **Technique** : # section 84 - astrophysique et cosmologie ## section 84 - astrophysique et cosmologie cette section\n3. **Synthèse** : ### technologies blockchain les blockchains révolutionnent les transactions numériques: - consensus \n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
         "keywords_expected": [
           "1000000",
           "1M",
@@ -104,21 +104,21 @@
           "million"
         ],
         "correct": true,
-        "response_time": 0.030231475830078125
+        "response_time": 0.09811973571777344
       }
     ],
     "response_times": [
-      11.186233282089233,
-      0.030203819274902344,
-      0.022710323333740234,
-      0.027079105377197266,
-      0.02084827423095703,
-      0.030231475830078125
+      0.13947558403015137,
+      0.07831692695617676,
+      0.0484004020690918,
+      0.05756354331970215,
+      0.05141615867614746,
+      0.09811973571777344
     ],
     "comprehension_score": 100.0,
-    "avg_response_time": 1.886217713356018,
-    "avg_query_time": 0.03269036610921224,
-    "total_test_time": 45.28803467750549
+    "avg_response_time": 0.07888205846150716,
+    "avg_query_time": 0.09325377146402995,
+    "total_test_time": 44.494773149490356
   },
   "test_status": "VALIDÉ",
   "validation_criteria": {

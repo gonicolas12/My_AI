@@ -53,6 +53,12 @@ class AdvancedCodeGenerator:
             self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
         except Exception:
             self.embedding_model = None
+        # Import et initialisation du générateur web
+        try:
+            from models.real_web_code_generator import RealWebCodeGenerator
+            self.web_generator = RealWebCodeGenerator()
+        except Exception:
+            self.web_generator = None
 
     async def generate_code(self, description: str, language: str = "python", complexity: str = "Intermédiaire", requirements: List[str] = None, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -516,6 +522,183 @@ def make_api_request(url, params=None):
                 return "Object"
         
         return "auto"  # Pour les autres langages
+
+    def generate_simple_function(self, text: str) -> str:
+        """Génère une fonction simple basée sur la demande"""
+        if "factorielle" in text.lower():
+            return """🔧 Fonction générée :
+
+```python
+def factorielle(n):
+    \"\"\"
+    Calcule la factorielle d'un nombre
+
+    Args:
+        n (int): Nombre dont on veut la factorielle
+
+    Returns:
+        int: Factorielle de n
+    \"\"\"
+    if n < 0:
+        raise ValueError("La factorielle n'est pas définie pour les nombres négatifs")
+    elif n == 0 or n == 1:
+        return 1
+    else:
+        return n * factorielle(n - 1)
+
+# Exemple d'utilisation
+print(factorielle(5))  # Output: 120
+```"""
+        elif "fibonacci" in text.lower():
+            return """🔧 Fonction générée :
+
+```python
+def fibonacci(n):
+    \"\"\"
+    Calcule le n-ième nombre de Fibonacci
+
+    Args:
+        n (int): Position dans la séquence
+
+    Returns:
+        int: n-ième nombre de Fibonacci
+    \"\"\"
+    if n <= 0:
+        return 0
+    elif n == 1:
+        return 1
+    else:
+        return fibonacci(n-1) + fibonacci(n-2)
+
+# Exemple d'utilisation
+for i in range(10):
+    print(f"F({i}) = {fibonacci(i)}")
+```"""
+        else:
+            return f"""🔧 Fonction générée basée sur votre demande :
+
+```python
+def ma_fonction():
+    \"\"\"
+    Fonction générée automatiquement
+    Basée sur : {text}
+    \"\"\"
+    # TODO: Implétez votre logique ici
+    print("Fonction créée avec succès !")
+    return True
+
+# Exemple d'utilisation
+ma_fonction()
+```
+💡 Pour une génération plus précise, décrivez exactement ce que doit faire la fonction."""
+
+    def generate_simple_class(self, text: str) -> str:
+        """Génère une classe simple basée sur la demande"""
+        if "personne" in text.lower() or "person" in text.lower():
+            return """🏗️ Classe générée :
+
+```python
+class Personne:
+    \"\"\"
+    Classe représentant une personne
+    \"\"\"
+
+    def __init__(self, nom, age):
+        \"\"\"
+        Initialise une nouvelle personne
+
+        Args:
+            nom (str): Nom de la personne
+            age (int): Âge de la personne
+        \"\"\"
+        self.nom = nom
+        self.age = age
+
+    def se_presenter(self):
+        \"\"\"Présente la personne\"\"\"
+        return f"Bonjour, je suis {self.nom} et j'ai {self.age} ans."
+
+    def avoir_anniversaire(self):
+        \"\"\"Incrémente l'âge d'un an\"\"\"
+        self.age += 1
+        return f"Joyeux anniversaire ! {self.nom} a maintenant {self.age} ans."
+
+# Exemple d'utilisation
+personne = Personne("Alice", 25)
+print(personne.se_presenter())
+print(personne.avoir_anniversaire())
+```"""
+        else:
+            return f"""🏗️ Classe générée basée sur votre demande :
+
+```python
+class MaClasse:
+    \"\"\"
+    Classe générée automatiquement
+    Basée sur : {text}
+    \"\"\"
+
+    def __init__(self):
+        \"\"\"Initialise la classe\"\"\"
+        self.nom = "MaClasse"
+        self.active = True
+
+    def action(self):
+        \"\"\"Méthode d'action principale\"\"\"
+        if self.active:
+            return "Action exécutée avec succès !"
+        return "Classe inactive"
+
+    def __str__(self):
+        \"\"\"Représentation string de la classe\"\"\"
+        return f"{self.nom} - Active: {self.active}"
+
+# Exemple d'utilisation
+objet = MaClasse()
+print(objet)
+print(objet.action())
+```
+
+💡 Pour une génération plus précise, décrivez les attributs et méthodes souhaités."""
+
+    def generate_code_from_text(self, text: str) -> str:
+        """Génère du code basé sur une description textuelle"""
+        return f"""💻 Code généré basé sur votre demande :
+
+```python
+# Code basé sur : {text}
+
+def solution():
+    \"\"\"
+    Solution générée automatiquement
+    \"\"\"
+    # TODO: Implétez votre solution ici
+    print("Code généré avec succès !")
+
+    # Exemple de logique de base
+    resultat = "Mission accomplie"
+    return resultat
+
+# Exécution
+if __name__ == "__main__":
+    print(solution())
+```
+
+💡 Pour une génération plus complète, fournissez plus de détails sur les fonctionnalités souhaitées."""
+
+    async def generate_code_from_web(self, query: str, language: str = "python") -> Dict[str, Any]:
+        """
+        Génère du code UNIQUEMENT à partir de recherches web réelles
+        Délègue à RealWebCodeGenerator pour la recherche web
+        """
+        if self.web_generator:
+            return await self.web_generator.generate_code_from_web(query, language)
+        else:
+            # Fallback si RealWebCodeGenerator n'est pas disponible
+            return {
+                "success": False,
+                "error": "Générateur web non disponible"
+            }
 
 
 class StackOverflowCodeExtractor:

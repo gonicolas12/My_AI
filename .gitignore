@@ -3,5 +3,7 @@ __pycache__/
 logs/
 .vscode/
 .claude/
+claudedocs/
 backups/
 context_storage/
+rag_demo_index/

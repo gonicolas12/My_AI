@@ -17,8 +17,9 @@ import pickle
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
-# Ajout du path pour imports locaux
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Ajout du path racine du projet pour imports
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 # Imports conditionnels avec fallbacks
 try:
@@ -522,8 +523,8 @@ Instructions: Utilise le contexte fourni ci-dessus pour enrichir ta réponse. Si
         save_dir.mkdir(parents=True, exist_ok=True)
         
         # Sauvegarder l'index FAISS
-        if FAISS_AVAILABLE and self.index:
-            faiss.write_index(self.index, str(save_dir / "faiss_index.bin"))
+        if FAISS_AVAILABLE and self.vector_store.index:
+            faiss.write_index(self.vector_store.index, str(save_dir / "faiss_index.bin"))
         
         # Sauvegarder les métadonnées
         metadata = {
@@ -559,7 +560,7 @@ Instructions: Utilise le contexte fourni ci-dessus pour enrichir ta réponse. Si
         # Charger l'index FAISS
         faiss_path = load_dir / "faiss_index.bin"
         if FAISS_AVAILABLE and faiss_path.exists():
-            self.index = faiss.read_index(str(faiss_path))
+            self.vector_store.index = faiss.read_index(str(faiss_path))
         
         # Charger les métadonnées
         metadata_path = load_dir / "metadata.json"

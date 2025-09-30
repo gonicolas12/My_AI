@@ -16,9 +16,9 @@ import tiktoken
 from pathlib import Path
 from datetime import datetime
 
-# Configuration du chemin
-current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir))
+# Configuration du chemin - Ajout du répertoire racine du projet
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 # Imports de votre IA réelle
 try:
@@ -1670,10 +1670,10 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
                 print("-" * 40)
             
             # Sauvegarde des résultats
-            with open('test_real_1m_results.json', 'w', encoding='utf-8') as f:
+            with open('tests/test_real_1m_results.json', 'w', encoding='utf-8') as f:
                 json.dump(self.results, f, indent=2, ensure_ascii=False)
             
-            print(f"\n📄 Résultats sauvegardés dans 'test_real_1m_results.json'")
+            print(f"\n📄 Résultats sauvegardés dans 'tests/test_real_1m_results.json'")
             
             return self.results
             

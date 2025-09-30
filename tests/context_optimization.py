@@ -14,8 +14,9 @@ from typing import Dict, Any, List, Optional, Tuple, Union
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
-# Ajout du path pour imports locaux
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Ajout du path racine du projet pour imports
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 # Imports conditionnels
 try:

@@ -226,7 +226,7 @@ Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpl
 - **[Optimisation](docs/OPTIMIZATION.md)** : Conseils et techniques d'optimisation locale
 - **[Ultra 1M Tokens](docs/ULTRA_1M_TOKENS.md)** : Détails sur la gestion du contexte étendu
 - **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
-- **[Changelog](CHANGELOG.md)** : Historique des mises à jour
+- **[Changelog](docs/CHANGELOG.md)** : Historique des mises à jour
 - **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
 - **[Exemples](examples/)** : Scripts d'exemple et cas d'usage
 
