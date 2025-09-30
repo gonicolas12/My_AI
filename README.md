@@ -47,24 +47,22 @@ my_ai/
 │   ├── __init__.py
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
 │   ├── docx_processor.py                # Traitement DOCX avec compression
-│   ├── code_processor.py                # Traitement de code avec analyse sémantique
-│   └── file_processor.py                # Processeur unifié
+│   └── code_processor.py                # Traitement de code avec analyse sémantique
 ├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
 │   ├── document_generator.py            # Génération docs avec contexte étendu
-│   ├── code_generator.py                # Génération code avec analyse ultra
-│   └── report_generator.py              # Génération rapports détaillés
+│   └── code_generator.py                # Génération code avec analyse ultra
 ├── interfaces/                          # Interfaces utilisateur Ultra
 │   ├── __init__.py
 │   ├── cli.py                           # Interface ligne de commande
-│   ├── gui.py                           # Interface graphique basique
 │   ├── gui_modern.py                    # Interface moderne
-│   ├── gui_simple.py                    # Interface graphique simplifiée
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   └── vscode_extension.py              # Extension VS Code
 ├── utils/                               # Utilitaires Ultra
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
+│   ├── file_processor.py                # Gestion traitement fichiers
+│   ├── intelligent_calculator.py        # Calculateur intelligent
 │   ├── logger.py                        # Logging
 │   └── validators.py                    # Validation
 ├── data/                                # Données d'enrichissement FAQ
