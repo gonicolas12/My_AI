@@ -1,18 +1,8 @@
-{"input": "Explique le concept de gravité.", "target": "La **gravité** est la **force** qui attire les **objets** vers le **centre** de la **Terre**."}
-{"input": "Quel est le symbole chimique du fer ?", "target": "**Fe**"}
-{"input": "Quelle est la distance Terre-Lune ?", "target": "Environ **384 400 km**."}
-{"input": "Quel est l'animal le plus rapide du monde ?", "target": "Le **faucon pèlerin**."}
-{"input": "Quel est le plus grand mammifère terrestre ?", "target": "L'**éléphant d'Afrique**."}
-{"input": "Quel est le symbole chimique de l'eau ?", "target": "**H2O**"}
-{"input": "Quelle est la formule de l'aire d'un cercle ?", "target": "**A** = **π** × **r²**"}
-{"input": "Quel est le plus grand volcan du monde ?", "target": "Le **Mauna Loa**."}
-{"input": "Quel est le plus grand lac d'Afrique ?", "target": "Le **lac Victoria**."}
 {"input": "Quelle est la planète la plus proche du Soleil ?", "target": "**Mercure**"}
 {"input": "Combien de continents existe-t-il sur Terre ?", "target": "**7**"}
 {"input": "Quel est l'organe principal de la respiration chez l'homme ?", "target": "Les **poumons**"}
 {"input": "Quel est le gaz le plus abondant dans l'atmosphère terrestre ?", "target": "**Azote**"}
 {"input": "Quelle est la vitesse de la lumière dans le vide ?", "target": "Environ **299 792 km/s**"}
-{"input": "Quel est le plus grand océan du monde ?", "target": "L'**océan Pacifique**"}
 {"input": "Quel est l'élément chimique dont le symbole est O ?", "target": "**Oxygène**"}
 {"input": "Quel scientifique a formulé la théorie de la relativité ?", "target": "**Albert Einstein**"}
 {"input": "Quel est le plus petit os du corps humain ?", "target": "L'**étrier**"}
@@ -24,8 +14,6 @@
 {"input": "Quel est le principal gaz à effet de serre ?", "target": "**Dioxyde de carbone (CO₂)**"}
 {"input": "Quel est le métal le plus léger ?", "target": "**Lithium**"}
 {"input": "Combien de dents possède un adulte ?", "target": "**32**"}
-{"input": "Quel est le plus grand désert du monde ?", "target": "Le **Sahara**"}
-{"input": "Quel est le symbole chimique du sodium ?", "target": "**Na**"}
 {"input": "Quel organe produit l'insuline ?", "target": "Le **pancréas**"}
 {"input": "Quel est l'organe principal de la digestion ?", "target": "L'**estomac**"}
 {"input": "Qu'est-ce que la photosynthèse et comment fonctionne-t-elle ?", "target": "La **photosynthèse** est le processus par lequel les **plantes** convertissent la **lumière solaire**, le\n**CO₂** et l'**eau** en **glucose** et **oxygène**. Équation : 6CO₂ + 6H₂O + lumière → C₆H₁₂O₆ + 6O₂. Se\ndéroule dans les **chloroplastes** grâce à la **chlorophylle**."}
@@ -84,7 +72,6 @@
 {"input": "Quel est le plus grand os du corps humain ?", "target": "Le **fémur**"}
 {"input": "Quel est le symbole chimique du potassium ?", "target": "**K**"}
 {"input": "Quelle est la planète surnommée la planète rouge ?", "target": "**Mars**"}
-{"input": "Quel est le plus grand animal marin ?", "target": "La **baleine bleue**"}
 {"input": "Quel est le principal constituant de l'air ?", "target": "**Azote**"}
 {"input": "Quel est le point de congélation de l'eau en degrés Celsius ?", "target": "**0°C**"}
 {"input": "Quel est le plus grand organe du corps humain ?", "target": "La **peau**"}
@@ -101,7 +88,6 @@
 {"input": "Quel est le métal liquide à température ambiante ?", "target": "**Mercure**"}
 {"input": "Quel est le principal composant du soleil ?", "target": "**Hydrogène**"}
 {"input": "Quel est le plus grand reptile vivant ?", "target": "Le **crocodile marin**"}
-{"input": "Quel est le symbole chimique de l'or ?", "target": "**Au**"}
 {"input": "Quel est le plus grand arthropode du monde ?", "target": "Le **crabe de cocotier**"}
 {"input": "Quel est le plus grand poisson du monde ?", "target": "Le **requin-baleine**"}
 {"input": "Quel est le plus grand organe interne du corps humain ?", "target": "Le **foie**"}
@@ -125,7 +111,6 @@
 {"input": "Quel est le plus grand papillon du monde ?", "target": "L'**Attacus atlas**"}
 {"input": "Quel est le plus grand serpent du monde ?", "target": "L'**anaconda vert**"}
 {"input": "Quel est le plus grand amphithéâtre romain ?", "target": "Le **Colisée** à Rome"}
-{"input": "Quel est le plus grand désert froid du monde ?", "target": "L'**Antarctique**"}
 {"input": "Quel est le plus grand lac salé du monde ?", "target": "La **mer Caspienne**"}
 {"input": "Quel est le plus grand récif corallien du monde ?", "target": "La **Grande Barrière de corail**"}
 {"input": "Quel est le plus grand animal invertébré ?", "target": "Le **calmar géant**"}

@@ -7,14 +7,12 @@
 {"input": "Complète la phrase : L'eau bout à ...", "target": "**100°C**"}
 {"input": "Code Python pour inverser une liste.", "target": "**ma_liste[::-1]**"}
 {"input": "Donne-moi un synonyme de 'rapide'", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
-{"input": "Qui a écrit 'Le Petit Prince' ?", "target": "**Antoine de Saint-Exupéry**."}
 {"input": "Explique le concept de machine learning.", "target": "Le **machine learning** consiste à entraîner un **modèle** à partir de **données** pour qu'il réalise des\n**prédictions** ou des **classifications**."}
 {"input": "Traduis en espagnol : 'Merci beaucoup'", "target": "**Muchas gracias**"}
 {"input": "Quelle est la date d'aujourd'hui ?", "target": "Je ne peux pas accéder à la date actuelle, mais tu peux la consulter sur ton appareil."}
 {"input": "Complète : Python est un langage ...", "target": "de **programmation**."}
 {"input": "Donne-moi la formule chimique de l'eau.", "target": "**H2O**"}
 {"input": "Donne-moi un antonyme de 'facile'", "target": "**Difficile**, **compliqué**, **ardu**."}
-{"input": "Quel est le plus grand océan du monde ?", "target": "L'**océan Pacifique**."}
 {"input": "Traduis en allemand : 'Bonne nuit'", "target": "**Gute Nacht**"}
 {"input": "Quelle est la couleur du ciel par temps clair ?", "target": "**Bleu**."}
 {"input": "Code Python pour additionner deux nombres a et b.", "target": "**a + b**"}
@@ -24,9 +22,7 @@
 {"input": "Complète : Le soleil se lève à l'...", "target": "**est**."}
 {"input": "Quel est l'animal le plus rapide du monde ?", "target": "Le **faucon pèlerin** est l'animal le plus rapide."}
 {"input": "Donne-moi la formule de l'aire d'un cercle.", "target": "**π × rayon²**"}
-{"input": "Qui a peint la Joconde ?", "target": "**Léonard de Vinci**."}
 {"input": "Traduis en italien : 'Bonne journée'", "target": "**Buona giornata**"}
-{"input": "Quel est le plus long fleuve du monde ?", "target": "Le **Nil** est le plus long fleuve du monde."}
 {"input": "Code Python pour afficher 'Bonjour'", "target": "**print('Bonjour')**"}
 {"input": "Comment créer une fonction Python qui calcule le carré d'un nombre ?", "target": "```python\ndef carre(x):\n    return x ** 2\n\nresultat = carre(5)  # Résultat: 25\n```"}
 {"input": "Explique le concept de variable en programmation avec un exemple.", "target": "Une **variable** est un conteneur qui stocke une valeur. Exemple : `nom = 'Alice'` stocke le texte 'Alice'\ndans la variable `nom`."}
@@ -72,7 +68,6 @@
 {"input": "Donne-moi un synonyme de 'heureux'", "target": "**Joyeux**, **content**, **satisfait**, **ravi**."}
 {"input": "Complète : La Terre tourne autour du ...", "target": "**Soleil**."}
 {"input": "Explique le terme 'photosynthèse'.", "target": "La **photosynthèse** est le processus par lequel les plantes transforment la lumière en énergie."}
-{"input": "Quel est le plus haut sommet du monde ?", "target": "L'**Everest** est le plus haut sommet du monde."}
 {"input": "Traduis en anglais : 'Je t'aime'", "target": "**I love you**"}
 {"input": "Donne-moi la capitale du Japon.", "target": "**Tokyo**."}
 {"input": "Code Python pour calculer la longueur d'une liste nommée 'ma_liste'.", "target": "**len(ma_liste)**"}

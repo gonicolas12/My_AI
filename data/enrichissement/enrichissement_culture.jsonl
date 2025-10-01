@@ -53,7 +53,6 @@
 {"input": "Quel est le plus grand continent du monde ?", "target": "**L'Asie**."}
 {"input": "Quelle est la capitale de l'Inde ?", "target": "**New Delhi**."}
 {"input": "Qui a écrit 'Les Contemplations' ?", "target": "**Victor Hugo**."}
-{"input": "Quel est le plus grand pays d'Afrique ?", "target": "**L'Algérie**."}
 {"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
 {"input": "Qui a écrit 'L'Avare' ?", "target": "**Molière**."}
 {"input": "Quel est le plus grand mont d'Europe ?", "target": "**Le mont Elbrouz**."}
@@ -94,7 +93,6 @@
 {"input": "Quelle est la danse traditionnelle du flamenco ?", "target": "Originaire d'**Andalousie** (Espagne), le flamenco combine **chant** (cante), **danse** (baile) et **guitare**\n(toque). Inscrit au patrimoine de l'UNESCO."}
 {"input": "Qui a composé 'Clair de lune' ?", "target": "**Claude Debussy**. Cette pièce pour piano, composée en 1905, est l'une des œuvres les plus célèbres de la\nmusique impressionniste."}
 {"input": "Quelle est la période de l'art Art nouveau ?", "target": "**Fin 19e - début 20e siècle** (1890-1910). Style décoratif inspiré de la nature, avec des courbes organiques\net des motifs floraux."}
-{"input": "Qui a écrit 'Les Fleurs du mal' ?", "target": "**Charles Baudelaire**. Ce recueil de poèmes, publié en 1857, révolutionna la poésie française et influença le\nmouvement symboliste."}
 {"input": "Quelle civilisation a construit Angkor Wat ?", "target": "**L'Empire khmer** au Cambodge (12e siècle). Ce complexe religieux hindouiste puis bouddhiste est le plus\ngrand monument religieux au monde."}
 {"input": "Qui a peint 'Le Cri' ?", "target": "**Edvard Munch**. Cette œuvre expressionniste de 1893 est devenue un symbole universel de l'angoisse\nexistentielle moderne."}
 {"input": "Quelle est la période de la Grèce antique classique ?", "target": "**5e-4e siècle av. J.-C.** Âge d'or d'Athènes avec Périclès, Socrate, Platon, Aristote. Apogée de l'art, de la\nphilosophie et de la démocratie."}
@@ -136,14 +134,10 @@
 {"input": "Quelle civilisation a développé l'art viking ?", "target": "**Civilisation nordique** (8e-11e siècle). Art décoratif caractérisé par les **entrelacs**, les **animaux\nstylisés** et les **runes** sur bois, métal et pierre."}
 {"input": "Qui a peint 'Le Baiser' ?", "target": "**Gustav Klimt** en 1907-1908. Cette œuvre symboliste autrichienne, avec ses **dorures** et motifs\nornementaux, illustre l'Art nouveau viennois."}
 {"input": "Quelle est la période de l'art préraphaélite ?", "target": "**Milieu 19e siècle** en Angleterre. Mouvement prônant un retour à l'art d'avant Raphaël, privilégiant le\n**naturalisme** et les **sujets littéraires**."}
-{"input": "Qui a écrit 'Candide' ?", "target": "**Voltaire** en 1759. Ce conte philosophique satirique des Lumières critique l'optimisme leibnizien à travers\nles mésaventures de Candide."}
 {"input": "Quelle est la tradition du flamenco andalou ?", "target": "**Art populaire** du sud de l'Espagne alliant **chant** (cante), **danse** (baile) et **guitare** (toque).\nExpression de l'âme gitane et de la passion ibérique."}
-{"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
-{"input": "Qui a écrit 'Le Comte de Monte-Cristo' ?", "target": "**Alexandre Dumas**."}
 {"input": "Quel est le plus grand lac d'Amérique du Nord ?", "target": "**Le lac Supérieur**."}
 {"input": "Quelle est la capitale de la Norvège ?", "target": "**Oslo**."}
 {"input": "Qui a écrit 'La Condition humaine' ?", "target": "**André Malraux**."}
-{"input": "Quel est le plus grand océan du monde ?", "target": "**L'océan Pacifique**."}
 {"input": "Quelle est la capitale du Maroc ?", "target": "**Rabat**."}
 {"input": "Qui a écrit 'L'Assommoir' ?", "target": "**Émile Zola**."}
 {"input": "Quel est le plus grand désert chaud du monde ?", "target": "**Le Sahara**."}
@@ -155,8 +149,6 @@
 {"input": "Qui a écrit 'Le Père Noël est une ordure' ?", "target": "**La troupe du Splendid**."}
 {"input": "Quel est le plus haut sommet d'Afrique ?", "target": "**Le Kilimandjaro**."}
 {"input": "Quelle est la capitale de l'Égypte ?", "target": "**Le Caire**."}
-{"input": "Qui a peint 'La Nuit étoilée' ?", "target": "**Vincent van Gogh**."}
-{"input": "Quel est le plus grand fleuve d'Europe ?", "target": "**La Volga**."}
 {"input": "Quelle est la capitale de la Finlande ?", "target": "**Helsinki**."}
 {"input": "Qui a écrit 'Le Seigneur des Anneaux' ?", "target": "**J.R.R. Tolkien**."}
 {"input": "Quel est le plus grand animal terrestre ?", "target": "**L'éléphant d'Afrique**."}
@@ -164,9 +156,7 @@
 {"input": "Qui a écrit 'Dom Juan' ?", "target": "**Molière**."}
 {"input": "Quel est le plus grand pays d'Afrique ?", "target": "**L'Algérie**."}
 {"input": "Quelle est la capitale de la Hongrie ?", "target": "**Budapest**."}
-{"input": "Qui a peint 'Guernica' ?", "target": "**Pablo Picasso**."}
 {"input": "Quel est le plus grand mammifère marin ?", "target": "**La baleine bleue**."}
-{"input": "Quelle est la capitale de l'Inde ?", "target": "**New Delhi**."}
 {"input": "Qui a écrit 'Les Liaisons dangereuses' ?", "target": "**Pierre Choderlos de Laclos**."}
 {"input": "Quel est le plus haut sommet d'Europe ?", "target": "**Le mont Elbrouz**."}
 {"input": "Quelle est la capitale de l'Autriche ?", "target": "**Vienne**."}
@@ -197,7 +187,6 @@
 {"input": "Qui a écrit 'Le Horla' ?", "target": "**Guy de Maupassant**."}
 {"input": "Quel est le plus grand fleuve de Russie ?", "target": "**La Léna**."}
 {"input": "Quelle est la capitale de la Serbie ?", "target": "**Belgrade**."}
-{"input": "Qui a écrit 'L'Avare' ?", "target": "**Molière**."}
 {"input": "Quel est le plus grand désert d'Asie ?", "target": "**Le désert de Gobi**."}
 {"input": "Quelle est la capitale de la Bulgarie ?", "target": "**Sofia**."}
 {"input": "Qui a écrit 'La Symphonie pastorale' ?", "target": "**André Gide**."}

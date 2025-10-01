@@ -1,25 +1,12 @@
-{"input": "Donne-moi un synonyme de 'beau'", "target": "**Joli**, **charmant**, **séduisant**, **gracieux**."}
 {"input": "Donne-moi un synonyme de 'intelligent' ?", "target": "**Brillant**, **malin**, **futé**, **perspicace**."}
-{"input": "Donne-moi un synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
-{"input": "Donne-moi un synonyme de 'difficile' ?", "target": "**Compliqué**, **ardu**, **laborieux**, **complexe**."}
-{"input": "Donne-moi un synonyme de 'petit' ?", "target": "**Minuscule**, **réduit**, **exigu**, **menu**."}
 {"input": "Donne-moi un synonyme de 'fort' ?", "target": "**Robuste**, **solide**, **vigoureux**, **puissant**."}
-{"input": "Donne-moi un synonyme de 'facile' ?", "target": "**Simple**, **aisé**, **évident**, **limpide**."}
 {"input": "Donne-moi un synonyme de 'content' ?", "target": "**Heureux**, **satisfait**, **réjoui**, **comblé**."}
-{"input": "Donne-moi un synonyme de 'drôle' ?", "target": "**Amusant**, **comique**, **hilarant**, **cocasse**."}
 {"input": "Donne-moi un synonyme de 'important' ?", "target": "**Essentiel**, **majeur**, **capital**, **primordial**."}
 {"input": "Donne-moi un synonyme de 'grand' ?", "target": "**Immense**, **vaste**, **élevé**, **majestueux**."}
-{"input": "Donne-moi un synonyme de 'petit' ?", "target": "**Minuscule**, **réduit**, **exigu**, **menu**."}
-{"input": "Donne-moi un synonyme de 'triste' ?", "target": "**Mélancolique**, **morose**, **affligé**, **déprimé**."}
 {"input": "Donne-moi un synonyme de 'heureux' ?", "target": "**Joyeux**, **content**, **satisfait**, **épanoui**."}
-{"input": "Donne-moi un synonyme de 'difficile' ?", "target": "**Compliqué**, **ardu**, **laborieux**, **complexe**."}
-{"input": "Donne-moi un synonyme de 'facile' ?", "target": "**Simple**, **aisé**, **évident**, **limpide**."}
-{"input": "Donne-moi un synonyme de 'fort' ?", "target": "**Robuste**, **solide**, **vigoureux**, **puissant**."}
 {"input": "Donne-moi un synonyme de 'faible' ?", "target": "**Fragile**, **délicat**, **chétif**, **vulnérable**."}
 {"input": "Donne-moi un synonyme de 'ancien' ?", "target": "**Vieux**, **antique**, **archaïque**, **ancestral**."}
 {"input": "Donne-moi un synonyme de 'nouveau' ?", "target": "**Récent**, **moderne**, **neuf**, **innovant**."}
-{"input": "Donne-moi un synonyme de 'difficile' ?", "target": "**Compliqué**, **ardu**, **laborieux**, **complexe**."}
-{"input": "Donne-moi un synonyme de 'facile' ?", "target": "**Simple**, **aisé**, **évident**, **limpide**."}
 {"input": "Donne-moi un synonyme de 'amour' ?", "target": "**Affection**, **tendresse**, **passion**, **attachement**."}
 {"input": "Donne-moi un synonyme de 'peur' ?", "target": "**Crainte**, **terreur**, **appréhension**, **angoisse**."}
 {"input": "Donne-moi un synonyme de 'courage' ?", "target": "**Bravoure**, **audace**, **vaillance**, **intrépidité**."}
@@ -31,7 +18,6 @@
 {"input": "Donne-moi un synonyme de 'magnifique' ?", "target": "**Splendide**, **superbe**, **éblouissant**, **grandiose**, **somptueux**."}
 {"input": "Donne-moi un synonyme de 'minuscule' ?", "target": "**Infime**, **microscopique**, **lilliputien**, **imperceptible**, **ténu**."}
 {"input": "Donne-moi un synonyme de 'énorme' ?", "target": "**Gigantesque**, **colossal**, **titanesque**, **monumental**, **démesuré**."}
-{"input": "Donne-moi un synonyme de 'intelligent' ?", "target": "**Brillant**, **astucieux**, **perspicace**, **ingénieux**, **lucide**, **sagace**."}
 {"input": "Donne-moi un synonyme de 'stupide' ?", "target": "**Sot**, **imbécile**, **nigaud**, **benêt**, **niais**, **inepte**."}
 {"input": "Donne-moi un synonyme de 'créatif' ?", "target": "**Inventif**, **imaginatif**, **innovant**, **original**, **ingénieux**."}
 {"input": "Donne-moi un synonyme de 'mystérieux' ?", "target": "**Énigmatique**, **obscur**, **hermétique**, **sibyllin**, **ésotérique**."}
