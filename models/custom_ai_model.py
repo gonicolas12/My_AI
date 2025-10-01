@@ -5588,10 +5588,26 @@ D'après le document en mémoire:
                 best_code_intent = intent
                 best_code_score = score
 
-        # Si une intention de code est détectée avec un score suffisant, prioriser
-        if best_code_intent and best_code_score >= 0.7:
-            print(f"🎯 [INTENT] Priorisation de l'intention code: {best_code_intent} (score: {best_code_score})")
-            return best_code_intent, best_code_score
+        # ⚠️ FIX V3: Validation stricte pour code AVANT de prioriser
+        # Si une intention de code est détectée, vérifier que ce n'est pas un faux positif
+        if best_code_intent and best_code_score >= 0.5:
+            # TOUJOURS vérifier la présence de mots-clés d'ACTION stricts (même pour score 1.0)
+            code_action_words = ["génère", "genere", "crée", "cree", "écris", "ecris",
+                                "développe", "implémente", "code pour", "fonction pour",
+                                "script pour", "programme pour"]
+            has_action_word = any(word in user_lower for word in code_action_words)
+
+            if not has_action_word:
+                print(f"⚠️ [INTENT] {best_code_intent} (score: {best_code_score:.2f}) sans mots d'action - Pas de priorisation")
+                best_code_intent = None  # Annuler la priorisation
+                best_code_score = 0.0
+            else:
+                print(f"✅ [INTENT] {best_code_intent} (score: {best_code_score:.2f}) avec mots d'action confirmés")
+
+            # Prioriser seulement si validation OK ET score >= 0.7
+            if best_code_intent and best_code_score >= 0.7:
+                print(f"🎯 [INTENT] Priorisation de l'intention code: {best_code_intent} (score: {best_code_score})")
+                return best_code_intent, best_code_score
 
         # --- LOGIQUE DOCUMENTS (inchangée) ---
         if has_docs:
@@ -5664,6 +5680,21 @@ D'après le document en mémoire:
             else:
                 return "internet_search", 0.8
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
+
+        # ⚠️ FIX: Ne pas retourner code_generation avec un score faible
+        # Si le meilleur score est < 0.5, c'est probablement une question générale
+        if best_intent[1] < 0.5:
+            print(f"⚠️ [INTENT] Score trop faible ({best_intent[1]:.2f}) pour {best_intent[0]} - Fallback vers factual_question")
+            return "factual_question", 0.7
+
+        # Si c'est code_generation avec un score < 0.7, vérifier si c'est vraiment du code
+        if best_intent[0] in ["code_generation", "programming_question", "code_request"] and best_intent[1] < 0.7:
+            # Vérifier la présence de mots-clés de code STRICTS
+            code_action_words = ["génère", "genere", "crée", "cree", "écris", "ecris", "développe", "implémente", "code pour", "fonction pour", "script pour"]
+            if not any(word in user_lower for word in code_action_words):
+                print(f"⚠️ [INTENT] code_generation détecté mais sans mots-clés d'action - Fallback vers factual_question")
+                return "factual_question", 0.7
+
         return best_intent[0], best_intent[1]
     
     def _has_documents_in_memory(self) -> bool:
