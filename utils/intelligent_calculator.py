@@ -319,7 +319,7 @@ class IntelligentCalculator:
         else:
             result_str = str(result)
         
-        response = f"Le résultat de {expression} est **{result_str}**"
+        response = f"Le résultat de {expression} est {result_str}"
         
         # Ajouter des infos supplémentaires pour grands nombres
         if isinstance(result, (int, float)) and abs(result) >= 1000000:
