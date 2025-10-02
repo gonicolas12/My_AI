@@ -3141,7 +3141,8 @@ Que voulez-vous apprendre exactement ?"""
         Détermine si une question concerne un document stocké
         """
         # Mots-clés qui indiquent une question sur l'identité ou les capacités (PAS sur un document)
-        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi",
+                             "présentez vous", "présentez-vous", "vous êtes qui", "vous êtes quoi", "ton identité", "votre identité", "c'est quoi ton nom", "c'est quoi votre nom"]
         capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu", 
                               "comment vas tu", "comment ça va", "ça va", "sa va", "ca va"]
         
@@ -5545,7 +5546,7 @@ D'après le document en mémoire:
         user_lower = user_input.lower().strip()
         
         # PRIORITÉ 1 : Vérifier les questions d'identité AVANT tout (même avec des docs en mémoire)
-        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi", "présente-toi", "présente vous", "présentez-vous", "c'est quoi ton nom", "c'est quoi votre nom"]
         
         # PRIORITÉ 1.5 : Questions "ça va" et variantes (AVANT capability_keywords)
         how_are_you_keywords = ["comment vas tu", "comment ça va", "ça va", "sa va", "ca va", "tu vas bien", "vous allez bien"]

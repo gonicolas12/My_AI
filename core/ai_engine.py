@@ -374,7 +374,8 @@ Que voulez-vous que je fasse pour vous ?"""
         query_lower = query.lower()
         
         # PRIORITÉ 1 : Vérifier d'abord les questions d'identité/capacités (AVANT documents)
-        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi"]
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi",
+                             "présentez vous", "présentez-vous", "vous êtes qui", "vous êtes quoi", "ton identité", "votre identité", "c'est quoi ton nom", "c'est quoi votre nom"]
         capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu", "comment vas tu", "comment ça va"]
         
         if any(keyword in query_lower for keyword in identity_keywords + capability_keywords):

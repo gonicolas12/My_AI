@@ -60,6 +60,7 @@ class LinguisticPatterns:
             "tu_es_qui": ["tu es qui", "qui es-tu", "qui es tu", "tu es qui ?", "qui es-tu ?", "qui tu es", "tu es quoi"],
             "qui_es_tu": ["qui es tu", "qui est tu", "qui es-tu", "qui êtes vous", "qui etes vous", "quel est ton nom", "ton nom", "comment tu t'appelles", "comment tu t'appelle", "comment t'appelles tu", "comment t'appelle tu", "tu es qui", "tu es quoi"],
             "qu_est_ce_que_tu_es": ["qu'est-ce que tu es", "quest ce que tu es", "qu est ce que tu es"],
+            "présente_toi": ["présente-toi", "présente toi", "présentez-vous", "présentez vous", "parle de toi", "parle moi de toi"],
             
             # Questions sur les capacités
             "que_peux_tu": ["que peux-tu", "que peux tu", "que peut tu", "que peut-tu", "qu'est-ce que tu peux"],

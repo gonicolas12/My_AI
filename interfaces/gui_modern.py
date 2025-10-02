@@ -793,7 +793,7 @@ class ModernAIGUI:
         
         # Titre principal
         title_frame = self.create_frame(header_frame, fg_color=self.colors['bg_primary'])
-        title_frame.grid(row=0, column=1, sticky="w")
+        title_frame.grid(row=0, column=1, sticky="w", pady=(8, 0))
         
         title_label = self.create_label(
             title_frame,
@@ -6538,7 +6538,7 @@ class ModernAIGUI:
         interface_font_sizes = {
             'timestamp': 10,    # Timestamps un peu plus petits
             'icon': 16,         # Icônes (🤖, 👤)
-            'header': 20,       # Éléments d'en-tête
+            'header': 39,       # Éléments d'en-tête (icône robot agrandie)
             'status': 12,       # Indicateurs de statut
             'title': 32,        # Titres principaux
             'subtitle': 18,     # Sous-titres
