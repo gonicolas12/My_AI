@@ -123,7 +123,7 @@ class IntelligentCalculator:
     def is_calculation_request(self, text: str) -> bool:
         """Détecte si le texte est une demande de calcul"""
         text_lower = text.lower().strip()
-        
+
         # Patterns de détection
         calc_patterns = [
             r'^(calcule|calcul|calcule moi|calculate|combien font?|combien fait|résultat|result)',
@@ -132,16 +132,17 @@ class IntelligentCalculator:
             r'calcul',
             r'mathématique',
             r'addition|soustraction|multiplication|division',
+            r'sqrt|racine',  # Détection de racine carrée
         ]
-        
+
         for pattern in calc_patterns:
             if re.search(pattern, text_lower):
                 return True
-                
+
         # Détection de nombres avec opérations
         if re.search(r'\d+\s*[\+\-\*/\^%]\s*\d+', text):
             return True
-            
+
         return False
     
     def extract_expression(self, text: str) -> str:
@@ -181,24 +182,30 @@ class IntelligentCalculator:
     def normalize_expression(self, expression: str) -> str:
         """Normalise l'expression en remplaçant les mots français par des symboles"""
         expr = expression.lower()
-        
+
         # Remplacer les nombres en français
         for french, number in self.french_numbers.items():
             expr = re.sub(r'\b' + re.escape(french) + r'\b', number, expr)
-        
+
         # Remplacer les opérations en français
         for french, symbol in self.french_operations.items():
             expr = re.sub(r'\b' + re.escape(french) + r'\b', f' {symbol} ', expr)
-        
+
         # Nettoyer les espaces multiples
         expr = re.sub(r'\s+', ' ', expr).strip()
-        
+
         # Corriger les patterns spéciaux
         expr = expr.replace('puissance de', '**')
         expr = expr.replace('à la puissance', '**')
         expr = expr.replace('au carré', '**2')
         expr = expr.replace('au cube', '**3')
-        
+
+        # Gérer sqrt: ajouter des parenthèses et multiplication implicite
+        # Pattern: nombre + sqrt + nombre -> nombre * sqrt(nombre)
+        expr = re.sub(r'(\d+)\s+sqrt\s+(\d+)', r'\1*sqrt(\2)', expr)
+        # Pattern: sqrt + nombre -> sqrt(nombre)
+        expr = re.sub(r'sqrt\s+(\d+)', r'sqrt(\1)', expr)
+
         return expr
     
     def safe_eval(self, expression: str) -> Union[float, int, str]:
@@ -298,18 +305,38 @@ class IntelligentCalculator:
             'success': not isinstance(result, str) or not result.startswith('Erreur')
         }
     
+    def symbols_to_french(self, expression: str) -> str:
+        """Convertit les symboles mathématiques en français"""
+        result = expression
+        # Remplacer les fonctions mathématiques
+        result = result.replace('sqrt', 'racine carrée de')
+        # Remplacer ** avant * pour éviter les conflits
+        result = result.replace('**', ' puissance ')
+        result = result.replace('*', ' fois ')
+        result = result.replace('+', ' plus ')
+        result = result.replace('-', ' moins ')
+        result = result.replace('/', ' divisé par ')
+        result = result.replace('%', ' modulo ')
+
+        # Nettoyer les espaces multiples
+        result = re.sub(r'\s+', ' ', result).strip()
+        return result
+
     def format_response(self, calc_result: Dict[str, Any]) -> str:
         """Formate la réponse de calcul pour l'utilisateur"""
         if not calc_result['is_calculation']:
             return calc_result['message']
-        
+
         if not calc_result.get('success', False):
             return f"❌ {calc_result['result']}"
-        
+
         result = calc_result['result']
         original = calc_result['original_text']
         expression = calc_result['extracted_expression']
-        
+
+        # Convertir les symboles en français pour l'affichage
+        expression_french = self.symbols_to_french(expression)
+
         # Formatage du résultat
         if isinstance(result, (int, float)):
             if isinstance(result, float) and result.is_integer():
@@ -318,8 +345,8 @@ class IntelligentCalculator:
                 result_str = f"{result:,}".replace(',', ' ')  # Séparateur de milliers
         else:
             result_str = str(result)
-        
-        response = f"Le résultat de {expression} est {result_str}"
+
+        response = f"Le résultat de {expression_french} est **{result_str}**"
         
         # Ajouter des infos supplémentaires pour grands nombres
         if isinstance(result, (int, float)) and abs(result) >= 1000000:
