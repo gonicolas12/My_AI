@@ -15,6 +15,7 @@ from .linguistic_patterns import LinguisticPatterns
 from .knowledge_base import KnowledgeBase
 from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
 from models.web_code_searcher import multi_source_searcher
+from models.smart_code_searcher import smart_code_searcher  # 🚀 NOUVEAU
 import asyncio
 from .reasoning_engine import ReasoningEngine
 from .conversation_memory import ConversationMemory
@@ -3141,7 +3142,7 @@ Que voulez-vous apprendre exactement ?"""
         Détermine si une question concerne un document stocké
         """
         # Mots-clés qui indiquent une question sur l'identité ou les capacités (PAS sur un document)
-        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi",
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi", "presente toi",
                              "présentez vous", "présentez-vous", "vous êtes qui", "vous êtes quoi", "ton identité", "votre identité", "c'est quoi ton nom", "c'est quoi votre nom"]
         capability_keywords = ["que peux tu", "que sais tu", "tes capacités", "tu peux faire", "que fais-tu", 
                               "comment vas tu", "comment ça va", "ça va", "sa va", "ca va"]
@@ -5546,7 +5547,7 @@ D'après le document en mémoire:
         user_lower = user_input.lower().strip()
         
         # PRIORITÉ 1 : Vérifier les questions d'identité AVANT tout (même avec des docs en mémoire)
-        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi", "présente-toi", "présente vous", "présentez-vous", "c'est quoi ton nom", "c'est quoi votre nom"]
+        identity_keywords = ["qui es-tu", "qui es tu", "qui êtes vous", "comment tu t'appelles", "ton nom", "tu es qui", "tu es quoi", "présente toi", "presente toi", "présente-toi", "présente vous", "présentez-vous", "c'est quoi ton nom", "c'est quoi votre nom"]
         
         # PRIORITÉ 1.5 : Questions "ça va" et variantes (AVANT capability_keywords)
         how_are_you_keywords = ["comment vas tu", "comment ça va", "ça va", "sa va", "ca va", "tu vas bien", "vous allez bien"]
@@ -6198,8 +6199,12 @@ D'après le document en mémoire:
 
     async def _handle_advanced_code_generation(self, user_input: str) -> str:
         """
-        Génération de code avancée avec recherche web intégrée
-        Rivalise avec les meilleures IA du marché
+        🚀 NOUVELLE VERSION - Génération de code avancée avec SmartCodeSearcher
+        Rivalise avec ChatGPT/Claude grâce à:
+        - Recherche web intelligente (DuckDuckGo)
+        - Analyse sémantique avec embeddings
+        - Ranking intelligent des solutions
+        - Cache avec similarité
         """
         try:
             # 1. Analyse de la demande
@@ -6207,48 +6212,121 @@ D'après le document en mémoire:
             complexity = self._analyze_complexity(user_input)
             requirements = self._extract_requirements(user_input)
 
-            print(f"🚀 Génération de code avancée: {language}, complexité: {complexity}")
+            print(f"🚀 Génération de code SMART: {language}, complexité: {complexity}")
 
-            # 2. Recherche de solutions web en parallèle (asynchrone)
+            # 2. 🆕 Utiliser SmartCodeSearcher (nouveau système intelligent)
+            try:
+                print("🔍 Recherche avec SmartCodeSearcher...")
+                smart_snippets = await smart_code_searcher.search_code(user_input, language)
+
+                if smart_snippets and len(smart_snippets) > 0:
+                    # Prendre la meilleure solution
+                    best_snippet = smart_snippets[0]
+
+                    print(f"✅ Meilleure solution trouvée: Score={best_snippet.final_score:.2f}, Source={best_snippet.source_name}")
+
+                    # Utiliser le code brut directement, sans modification
+                    code = best_snippet.code.strip()
+
+                    # Réponse naturelle avec le code complet
+                    response = f"""Voici le code complet :
+
+```{language}
+{code}
+```
+
+_(Source: {best_snippet.source_name})_"""
+
+                    # Enregistrer dans la mémoire
+                    self.conversation_memory.add_conversation(
+                        user_input, response, "code_generation", 1.0,
+                        {
+                            "language": language,
+                            "complexity": complexity,
+                            "source": best_snippet.source_name,
+                            "score": best_snippet.final_score
+                        }
+                    )
+
+                    return response
+                else:
+                    print("⚠️ SmartCodeSearcher n'a pas trouvé de solutions")
+
+            except Exception as e:
+                print(f"⚠️ Erreur SmartCodeSearcher: {e}")
+                import traceback
+                traceback.print_exc()
+
+            # 3. Fallback sur l'ancien système
+            print("📦 Fallback sur l'ancien système de recherche...")
             web_solutions = []
             try:
-                # Créer un event loop si nécessaire
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Utiliser asyncio.create_task pour éviter les conflits
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, self._search_web_solutions(user_input, language))
-                            web_solutions = future.result(timeout=10)
-                    else:
-                        web_solutions = loop.run_until_complete(self._search_web_solutions(user_input, language))
-                except RuntimeError:
-                    web_solutions = asyncio.run(self._search_web_solutions(user_input, language))
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, self._search_web_solutions(user_input, language))
+                        web_solutions = future.result(timeout=10)
+                else:
+                    web_solutions = loop.run_until_complete(self._search_web_solutions(user_input, language))
+            except RuntimeError:
+                web_solutions = asyncio.run(self._search_web_solutions(user_input, language))
             except Exception as e:
-                print(f"⚠️ Recherche web échouée: {e}, utilisation génération locale")
+                print(f"⚠️ Recherche web (fallback) échouée: {e}")
 
-            # 3. Génération hybride (web + local)
+            # 4. Génération hybride ou locale
             if web_solutions:
                 best_solution = web_solutions[0]
                 enhanced_code = self._create_enhanced_solution(best_solution, user_input, language, requirements)
-                sources_info = f"\n📚 **Sources utilisées:**\n" + "\n".join([f"• {sol.title} ({sol.source_name})" for sol in web_solutions[:2]])
-
-                response = f"🚀 Code généré avec intelligence web :\n```{language}\n{enhanced_code}\n```\n{sources_info}\n\n"
+                response = f"💻 Code généré avec recherche web:\n```{language}\n{enhanced_code}\n```\n"
             else:
-                # Fallback sur génération locale avancée (asynchrone)
+                # Dernière option: génération locale
                 local_code = await self._generate_local_advanced_code(user_input, language, requirements)
-                response = f"Voici votre code généré localement :\n```{language}\n{local_code}\n```\n"
+                response = f"📝 Code généré localement:\n```{language}\n{local_code}\n```\n"
 
-            # 4. Enregistrer dans la mémoire
-            self.conversation_memory.add_conversation(user_input, response, "code_generation", 1.0, {"language": language, "complexity": complexity})
+            # Enregistrer dans la mémoire
+            self.conversation_memory.add_conversation(
+                user_input, response, "code_generation", 0.8,
+                {"language": language, "complexity": complexity, "method": "fallback"}
+            )
 
             return response
 
         except Exception as e:
             error_msg = f"❌ Erreur lors de la génération de code: {str(e)}"
             print(error_msg)
+            import traceback
+            traceback.print_exc()
             return error_msg
+
+    def _enhance_smart_snippet(self, snippet, query: str, requirements: list) -> str:
+        """Améliore un snippet du SmartCodeSearcher avec commentaires et adaptations"""
+        code = snippet.code.strip()
+
+        # En-tête descriptif
+        header = f'''"""
+{snippet.title}
+
+Solution pour: {query}
+Source: {snippet.source_name}
+Qualité: {snippet.quality_score:.1f}/10 | Pertinence: {snippet.relevance_score:.1f}/10
+"""
+
+'''
+
+        enhanced_code = header + code
+
+        # Ajouter des commentaires selon les requirements
+        if 'error_handling' in requirements and snippet.language == 'python':
+            enhanced_code += '\n\n# 💡 Conseil: Ajoutez une gestion d\'erreurs avec try/except'
+
+        if 'examples' in requirements:
+            enhanced_code += '\n\n# 💡 Exemple d\'utilisation ci-dessus'
+
+        if 'documentation' in requirements:
+            enhanced_code += '\n\n# 📝 Ajoutez des docstrings pour documenter vos fonctions'
+
+        return enhanced_code
 
     async def _search_web_solutions(self, query: str, language: str):
         """Recherche asynchrone de solutions web"""

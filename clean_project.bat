@@ -13,6 +13,9 @@ if exist "context_storage\code_solutions_cache.db" del /q "context_storage\code_
 REM Suppression du fichier ultra_context.db à la racine
 if exist "context_storage\ultra_context.db" del /q "context_storage\ultra_context.db"
 
+REM Suppression du fichier code_cache.json à la racine
+if exist "context_storage\code_cache.json" del /q "context_storage\code_cache.json"
+
 REM Suppression du dossier rag_demo_index à la racine
 if exist "rag_demo_index" rd /s /q "rag_demo_index"
 
