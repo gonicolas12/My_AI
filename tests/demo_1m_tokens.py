@@ -21,26 +21,30 @@ try:
     from models.ultra_custom_ai import UltraCustomAIModel
     from models.intelligent_context_manager import UltraIntelligentContextManager
     from core.ai_engine import AIEngine
+
     ULTRA_AVAILABLE = True
 except ImportError as e:
     ULTRA_AVAILABLE = False
     print(f"❌ Système Ultra non disponible: {e}")
 
+
 class DemoSystem1M:
     """Démonstration officielle du système 1M tokens"""
-    
+
     def __init__(self):
         self.results = {
             "test_date": datetime.now().isoformat(),
             "version": "My Personal AI Ultra v5.0.0",
             "max_tokens_achieved": 0,
             "performance_metrics": {},
-            "validation_status": "PENDING"
+            "validation_status": "PENDING",
         }
-    
-    def generate_demo_content(self, tokens_target: int, content_type: str = "professional") -> str:
+
+    def generate_demo_content(
+        self, tokens_target: int, content_type: str = "professional"
+    ) -> str:
         """Génère du contenu de démonstration professionnel"""
-        
+
         if content_type == "technical_doc":
             base_content = f"""
 # Documentation Technique - Système IA Ultra {tokens_target} tokens
@@ -85,7 +89,7 @@ Temps de traitement par volume :
 - Capacité dépassant ChatGPT-4 (32k tokens) et Claude-3 (200k tokens)
 - Évolution dynamique et gestion automatique de la mémoire
 """
-            
+
         elif content_type == "code_analysis":
             base_content = f"""
 # Analyse de Code - Projet {tokens_target} tokens
@@ -125,11 +129,11 @@ class UltraSystemAnalysis:
             'complexity_score': complexity_score,
             'maintainability': self.assess_maintainability(complexity_score)
         }}
-    
+
     def calculate_complexity(self, code):
         '''Calcule la complexité cyclomatique'''
         complexity = 1  # Base complexity
-        
+
         # Structures conditionnelles
         complexity += len(re.findall(r'\\bif\\b', code))
         complexity += len(re.findall(r'\\belif\\b', code))
@@ -137,9 +141,9 @@ class UltraSystemAnalysis:
         complexity += len(re.findall(r'\\bfor\\b', code))
         complexity += len(re.findall(r'\\btry\\b', code))
         complexity += len(re.findall(r'\\bexcept\\b', code))
-        
+
         return complexity
-    
+
     def assess_maintainability(self, complexity):
         '''Évalue la maintenabilité du code'''
         if complexity < 10:
@@ -158,7 +162,7 @@ class UltraSystemAnalysis:
 - Classes identifiées : {tokens_target * 0.05:.0f}
 - Complexité moyenne : {tokens_target * 0.001:.1f}
 """
-        
+
         else:  # professional
             base_content = f"""
 # Rapport Professionnel - Capacité {tokens_target} Tokens
@@ -221,112 +225,121 @@ Le système My Personal AI Ultra v5.0.0 dépasse significativement les attentes
 avec une capacité supérieure à 1M tokens et des performances exceptionnelles.
 Recommandation : Déploiement immédiat en production.
 """
-        
+
         # Répéter le contenu pour atteindre la taille cible
         words_per_base = len(base_content.split())
         repetitions_needed = max(1, tokens_target // words_per_base)
-        
+
         full_content = ""
         for i in range(repetitions_needed):
             full_content += f"\n--- SECTION {i+1} ---\n" + base_content
-        
+
         return full_content
-    
+
     def run_capacity_demo(self) -> bool:
         """Démonstration de la capacité 1M tokens"""
         print("🎯 DÉMONSTRATION CAPACITÉ 1M TOKENS")
         print("=" * 50)
-        
+
         if not ULTRA_AVAILABLE:
             print("❌ Système Ultra non disponible")
             return False
-        
+
         try:
             context_mgr = UltraIntelligentContextManager()
-            
+
             # Test progressif jusqu'à 1M
             test_stages = [
                 (100000, "technical_doc"),
-                (250000, "code_analysis"), 
+                (250000, "code_analysis"),
                 (500000, "professional"),
-                (200000, "technical_doc")  # Pour dépasser 1M
+                (200000, "technical_doc"),  # Pour dépasser 1M
             ]
-            
+
             total_tokens = 0
             stage_results = []
-            
+
             for stage, (tokens, content_type) in enumerate(test_stages, 1):
-                print(f"\n📊 ÉTAPE {stage}: Ajout de {tokens:,} tokens ({content_type})")
-                
+                print(
+                    f"\n📊 ÉTAPE {stage}: Ajout de {tokens:,} tokens ({content_type})"
+                )
+
                 # Générer contenu spécialisé
                 content = self.generate_demo_content(tokens, content_type)
-                
+
                 # Mesurer performance
                 start_time = time.time()
                 chunk_ids = context_mgr.add_ultra_content(
-                    content, 
+                    content,
                     content_type=f"demo_stage_{stage}_{content_type}",
-                    importance_level="high"
+                    importance_level="high",
                 )
                 add_time = time.time() - start_time
-                
+
                 # Obtenir statistiques
                 stats = context_mgr.get_stats()
-                current_tokens = stats.get('total_tokens', 0)
-                
+                current_tokens = stats.get("total_tokens", 0)
+
                 print(f"✅ Ajouté en {add_time:.3f}s")
                 print(f"📈 Tokens total: {current_tokens:,}")
                 print(f"🎯 Utilisation: {stats.get('utilization', '0%')}")
                 print(f"📦 Chunks: {stats.get('total_chunks', 0)}")
-                
+
                 # Test de recherche
                 search_start = time.time()
-                results = context_mgr.search_relevant_chunks(f"stage {stage} analysis", max_chunks=3)
+                results = context_mgr.search_relevant_chunks(
+                    f"stage {stage} analysis", max_chunks=3
+                )
                 search_time = time.time() - search_start
                 print(f"🔍 Recherche: {search_time:.4f}s ({len(results)} résultats)")
-                
-                stage_results.append({
-                    "stage": stage,
-                    "tokens_added": tokens,
-                    "total_tokens": current_tokens,
-                    "add_time": add_time,
-                    "search_time": search_time,
-                    "chunks_created": len(chunk_ids)
-                })
-                
+
+                stage_results.append(
+                    {
+                        "stage": stage,
+                        "tokens_added": tokens,
+                        "total_tokens": current_tokens,
+                        "add_time": add_time,
+                        "search_time": search_time,
+                        "chunks_created": len(chunk_ids),
+                    }
+                )
+
                 total_tokens = current_tokens
-                
+
                 if current_tokens >= 1000000:
                     print(f"🏆 OBJECTIF 1M TOKENS ATTEINT! ({current_tokens:,})")
                     break
-            
+
             self.results["max_tokens_achieved"] = total_tokens
             self.results["performance_metrics"]["stages"] = stage_results
-            
+
             # Validation finale
             if total_tokens >= 1000000:
                 self.results["validation_status"] = "SUCCÈS - 1M+ TOKENS CONFIRMÉ"
                 return True
             else:
-                self.results["validation_status"] = f"PARTIEL - {total_tokens:,} tokens atteints"
+                self.results["validation_status"] = (
+                    f"PARTIEL - {total_tokens:,} tokens atteints"
+                )
                 return False
-                
+
         except Exception as e:
             self.results["validation_status"] = f"ERREUR - {str(e)}"
             print(f"❌ Erreur démonstration: {e}")
             return False
-    
+
     def run_memory_demo(self) -> bool:
         """Démonstration de la mémoire intelligente"""
         print("\n🧠 DÉMONSTRATION MÉMOIRE INTELLIGENTE")
         print("=" * 50)
-        
+
         try:
             ai_engine = AIEngine()
             ultra_ai = UltraCustomAIModel(ai_engine)
-            
+
             # Document avec informations spécifiques
-            demo_document = """
+            demo_document = (
+                """
             DOCUMENT DÉMONSTRATION MÉMOIRE ULTRA
             ===================================
             
@@ -338,60 +351,66 @@ Recommandation : Déploiement immédiat en production.
             
             Ce document prouve que le système peut stocker, indexer et récupérer
             des informations spécifiques même dans un contexte de 1M+ tokens.
-            """ * 50  # Répéter pour faire un document plus volumineux
-            
+            """
+                * 50
+            )  # Répéter pour faire un document plus volumineux
+
             print("📚 Ajout document de démonstration...")
-            result = ultra_ai.add_document_to_context(demo_document, "Demo Memory Document")
-            
-            if result.get('success', False):
+            result = ultra_ai.add_document_to_context(
+                demo_document, "Demo Memory Document"
+            )
+
+            if result.get("success", False):
                 print(f"✅ Document ajouté: {result.get('tokens_added', 0):,} tokens")
-                
+
                 # Test de récupération d'information spécifique
                 test_questions = [
                     "Quel est le code de démonstration?",
                     "Quelle est la performance cible du système?",
                     "Quel est le statut du système?",
-                    "Quelle est la recommandation finale?"
+                    "Quelle est la recommandation finale?",
                 ]
-                
+
                 memory_success = 0
                 for i, question in enumerate(test_questions, 1):
                     print(f"\n{i}. Test mémoire: {question}")
-                    
+
                     start_time = time.time()
                     response = ultra_ai.generate_response(question)
                     response_time = time.time() - start_time
-                    
-                    response_text = response.get('response', '')
-                    context_used = response.get('context_used', False)
-                    
+
+                    response_text = response.get("response", "")
+                    context_used = response.get("context_used", False)
+
                     if context_used and response_text:
-                        print(f"✅ Mémoire OK ({response_time:.3f}s): {response_text[:100]}...")
+                        print(
+                            f"✅ Mémoire OK ({response_time:.3f}s): {response_text[:100]}..."
+                        )
                         memory_success += 1
                     else:
                         print(f"❌ Mémoire KO: {response_text[:50]}...")
-                
+
                 memory_rate = (memory_success / len(test_questions)) * 100
                 self.results["performance_metrics"]["memory_accuracy"] = memory_rate
-                
+
                 if memory_rate >= 75:
                     print(f"\n🧠 MÉMOIRE VALIDÉE ({memory_rate:.0f}% de succès)")
                     return True
                 else:
                     print(f"\n⚠️ MÉMOIRE PARTIELLE ({memory_rate:.0f}% de succès)")
                     return False
-            
+
             return False
-            
+
         except Exception as e:
             print(f"❌ Erreur test mémoire: {e}")
             return False
-    
+
     def generate_final_report(self) -> str:
         """Génère le rapport final de démonstration"""
         max_tokens = self.results["max_tokens_achieved"]
         status = self.results["validation_status"]
-        
+
         report = f"""
 🎯 RAPPORT FINAL - DÉMONSTRATION SYSTÈME 1M TOKENS
 ================================================
@@ -415,47 +434,49 @@ exceptionnelles et une fiabilité industrielle.
 
 🎉 RECOMMANDATION: SYSTÈME VALIDÉ POUR PRODUCTION
 """
-        
+
         return report
+
 
 def main():
     """Démonstration principale"""
     print("🎯 DÉMONSTRATION OFFICIELLE SYSTÈME 1M TOKENS")
     print("My Personal AI Ultra v5.0.0")
     print("=" * 60)
-    
+
     demo = DemoSystem1M()
-    
+
     print("Cette démonstration va valider officiellement la capacité 1M+ tokens")
     input("Appuyez sur Entrée pour commencer...")
-    
+
     start_time = time.time()
-    
+
     # Test 1: Capacité
     capacity_ok = demo.run_capacity_demo()
-    
+
     # Test 2: Mémoire
     memory_ok = demo.run_memory_demo()
-    
+
     total_time = time.time() - start_time
-    
+
     # Rapport final
     print("\n" + "=" * 60)
     print(demo.generate_final_report())
     print(f"⏱️ Temps total démonstration: {total_time:.2f} secondes")
-    
+
     # Sauvegarde des résultats
-    with open("demo_1m_tokens_results.json", "w") as f:
+    with open("demo_1m_tokens_results.json", "w", encoding="utf-8") as f:
         json.dump(demo.results, f, indent=2)
-    
+
     print("💾 Résultats sauvés dans 'demo_1m_tokens_results.json'")
-    
+
     if capacity_ok and memory_ok:
         print("\n🏆 DÉMONSTRATION COMPLÈTE RÉUSSIE!")
         print("✅ Système 1M tokens officiellement validé")
     else:
         print("\n⚠️ DÉMONSTRATION PARTIELLE")
         print("💡 Certains aspects nécessitent des ajustements")
+
 
 if __name__ == "__main__":
     main()

@@ -1,23 +1,28 @@
-
-import os
+"""
+Modèle à base de Questions / Réponses
+"""
+import glob
 import json
+import os
+import re
+import unicodedata
+
+from rapidfuzz import fuzz
+
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
-except ImportError:
-    raise ImportError("scikit-learn n'est pas installé. Installez-le avec 'pip install scikit-learn'.")
+except ImportError as e:
+    raise ImportError("scikit-learn n'est pas installé. Installez-le avec 'pip install scikit-learn'.") from e
 
 class MLFAQModel:
+    """Modèle ML FAQ"""
     def _fit_vectorizer(self):
-        from sklearn.feature_extraction.text import TfidfVectorizer
         self.vectorizer = TfidfVectorizer()
         self.question_vecs = self.vectorizer.fit_transform(self.questions)
     def _load_examples(self):
         self.questions = []
         self.answers = []
-        import glob
-        import json
-        import os
         # Charger d'abord la base culture générale (prioritaire)
         culture_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/enrichissement/enrichissement_culture.jsonl'))
         if os.path.exists(culture_path):
@@ -30,7 +35,7 @@ class MLFAQModel:
                         norm_q = self.normalize(obj['input'])
                         self.questions.append(norm_q)
                         self.answers.append(obj['target'])
-                    except Exception as e:
+                    except Exception :
                         continue
         # Charger ensuite les autres fichiers (sauf culture déjà chargé)
         data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/enrichissement'))
@@ -47,12 +52,9 @@ class MLFAQModel:
                         norm_q = self.normalize(obj['input'])
                         self.questions.append(norm_q)
                         self.answers.append(obj['target'])
-                    except Exception as e:
+                    except Exception:
                         continue
-    """
-    Modèle ML local basé sur la similarité TF-IDF pour Q&A, 100% offline.
-    Il utilise un fichier JSONL d'exemples (input/target) pour répondre aux questions proches.
-    """
+
     def __init__(self, data_path=None, debug=True):
         # Toujours initialiser self.debug pour éviter les erreurs d'attribut
         self.debug = debug
@@ -67,8 +69,8 @@ class MLFAQModel:
 
     @staticmethod
     def normalize(text):
+        """Normalisation"""
         # Minuscule, suppression accents, apostrophes, ponctuation, espaces multiples, caractères non-alphanumériques
-        import unicodedata, re
         text = text.lower()
         text = text.replace("'", " ")  # remplace apostrophes par espace
         text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
@@ -109,7 +111,6 @@ class MLFAQModel:
 
         # 3. Fallback fuzzy matching (rapidfuzz)
         try:
-            from rapidfuzz import fuzz
             fuzzy_scores = [fuzz.ratio(norm_q, q) for q in self.questions]
             best_fuzzy_idx = int(max(range(len(fuzzy_scores)), key=lambda i: fuzzy_scores[i]))
             best_fuzzy_score = fuzzy_scores[best_fuzzy_idx]
@@ -122,5 +123,6 @@ class MLFAQModel:
         return None
 
     def reload(self):
+        """Recharge"""
         self._load_examples()
         self._fit_vectorizer()

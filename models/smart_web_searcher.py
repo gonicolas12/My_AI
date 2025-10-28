@@ -3,19 +3,20 @@ Système de Recherche Web Intelligent pour Code
 Recherche sur GitHub, Stack Overflow, et autres sources avec validation de pertinence
 """
 
-import re
-import json
 import asyncio
-import aiohttp
+import base64
 import hashlib
-import time
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+import json
+import re
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from urllib.parse import quote, urljoin
+from pathlib import Path
+from typing import Dict, List, Optional
+from urllib.parse import quote
+
+import aiohttp
 from bs4 import BeautifulSoup
-import sqlite3
 
 # Configuration GitHub
 try:
@@ -27,7 +28,7 @@ try:
         GITHUB_TOKEN = config.get('github', {}).get('token', '')
     else:
         GITHUB_TOKEN = ''
-except:
+except Exception:
     GITHUB_TOKEN = ''
 
 @dataclass
@@ -60,7 +61,7 @@ class SmartWebSearcher:
 
     def _init_cache_db(self) -> sqlite3.Connection:
         """Initialise le cache pour les résultats de recherche"""
-        db_path = Path(__file__).parent.parent / "web_search_cache.db"
+        db_path = Path(__file__).parent.parent / "context_storage/web_search_cache.db"
         conn = sqlite3.connect(str(db_path))
 
         conn.execute("""
@@ -136,7 +137,7 @@ class SmartWebSearcher:
                 print(f"[ERROR] Erreur recherche parallèle: {e}")
 
         # Filtrer et trier par pertinence
-        filtered_results = self._filter_and_rank_results(all_results, query, language)
+        filtered_results = self._filter_and_rank_results(all_results)
 
         # Limiter le nombre de résultats
         final_results = filtered_results[:max_results]
@@ -196,7 +197,7 @@ class SmartWebSearcher:
         try:
             # API Stack Overflow
             search_terms = f"{query} {language}"
-            url = f"https://api.stackexchange.com/2.3/search/advanced"
+            url = "https://api.stackexchange.com/2.3/search/advanced"
             params = {
                 'order': 'desc',
                 'sort': 'relevance',
@@ -334,7 +335,6 @@ class SmartWebSearcher:
                     data = await response.json()
                     content = data.get('content', '')
                     if content:
-                        import base64
                         return base64.b64decode(content).decode('utf-8', errors='ignore')
         except Exception as e:
             print(f"[WARNING] Erreur récupération fichier GitHub: {e}")
@@ -477,8 +477,6 @@ class SmartWebSearcher:
     def _filter_and_rank_results(
         self,
         results: List[CodeSearchResult],
-        query: str,
-        language: str
     ) -> List[CodeSearchResult]:
         """Filtre et classe les résultats par pertinence"""
 
@@ -508,7 +506,6 @@ class SmartWebSearcher:
 
     def _looks_like_config(self, code: str) -> bool:
         """Vérifie si le code ressemble à de la configuration"""
-        code_lower = code.lower()
 
         config_indicators = [
             'config', 'settings', 'constants', 'const ',

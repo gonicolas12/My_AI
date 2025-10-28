@@ -5,6 +5,7 @@ import os
 import json
 import csv
 import re
+import argparse
 from typing import List, Dict, Any
 
 def collect_texts_from_folder(folder: str, exts=(".txt", ".md", ".csv", ".jsonl")) -> List[str]:
@@ -38,11 +39,13 @@ def remove_duplicates(texts: List[str]) -> List[str]:
     return unique
 
 def save_jsonl(data: List[Dict[str, Any]], path: str):
+    """Sauvegarde une liste de dictionnaires au format JSONL."""
     with open(path, 'w', encoding='utf-8') as f:
         for ex in data:
             f.write(json.dumps(ex, ensure_ascii=False) + '\n')
 
 def save_csv(data: List[Dict[str, Any]], path: str):
+    """Sauvegarde une liste de dictionnaires au format CSV."""
     if not data:
         return
     with open(path, 'w', encoding='utf-8', newline='') as f:
@@ -61,7 +64,7 @@ def build_dataset_from_texts(texts: List[str], output_path: str, fmt: str = "jso
         raise ValueError("Format non supporté")
 
 def main():
-    import argparse
+    """Point d'entrée pour la collecte et le nettoyage des données."""
     parser = argparse.ArgumentParser(description="Collecte et nettoyage de données locales pour IA.")
     parser.add_argument('--folder', type=str, required=True, help="Dossier à explorer")
     parser.add_argument('--output', type=str, required=True, help="Fichier de sortie (.jsonl/.csv)")

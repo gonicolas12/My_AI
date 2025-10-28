@@ -4,25 +4,25 @@ Coordonne tous les modules existants pour créer des solutions adaptées
 Version 1.0 - Conçu pour rivaliser avec les IA modernes
 """
 
-import asyncio
-import re
-import json
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
-from dataclasses import dataclass
 import logging
+import re
 import traceback
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List
+
+from generators.code_generator import CodeGenerator
 
 # Imports des modules existants
-from .advanced_code_generator import AdvancedCodeGenerator, CodeRequest, CodeSolution
-from .web_code_searcher import MultiSourceCodeSearcher, WebCodeSolution
+from .advanced_code_generator import AdvancedCodeGenerator
 from .internet_search import EnhancedInternetSearchEngine
-from ..generators.code_generator import CodeGenerator
+from .web_code_searcher import MultiSourceCodeSearcher
 
 
 @dataclass
 class IntelligentRequest:
     """Requête enrichie avec analyse contextuelle"""
+
     original_query: str
     intent: str
     complexity: str
@@ -37,6 +37,7 @@ class IntelligentRequest:
 @dataclass
 class GeneratedSolution:
     """Solution générée avec métadonnées enrichies"""
+
     code: str
     explanation: str
     language: str
@@ -77,71 +78,155 @@ class IntelligentCodeOrchestrator:
         """Patterns pour identifier le domaine de programmation"""
         return {
             "web_development": [
-                "site web", "page html", "api rest", "serveur", "client",
-                "frontend", "backend", "react", "vue", "angular", "django", "flask"
+                "site web",
+                "page html",
+                "api rest",
+                "serveur",
+                "client",
+                "frontend",
+                "backend",
+                "react",
+                "vue",
+                "angular",
+                "django",
+                "flask",
             ],
             "data_science": [
-                "analyse données", "machine learning", "pandas", "numpy",
-                "statistiques", "graphique", "visualisation", "dataset"
+                "analyse données",
+                "machine learning",
+                "pandas",
+                "numpy",
+                "statistiques",
+                "graphique",
+                "visualisation",
+                "dataset",
             ],
             "automation": [
-                "automatiser", "script", "tâche répétitive", "cron",
-                "selenium", "scraping", "téléchargement", "backup"
+                "automatiser",
+                "script",
+                "tâche répétitive",
+                "cron",
+                "selenium",
+                "scraping",
+                "téléchargement",
+                "backup",
             ],
             "algorithms": [
-                "algorithme", "tri", "recherche", "optimisation",
-                "complexité", "récursion", "dynamique", "graphe"
+                "algorithme",
+                "tri",
+                "recherche",
+                "optimisation",
+                "complexité",
+                "récursion",
+                "dynamique",
+                "graphe",
             ],
             "system_programming": [
-                "système", "fichier", "processus", "thread",
-                "réseau", "socket", "performance", "mémoire"
+                "système",
+                "fichier",
+                "processus",
+                "thread",
+                "réseau",
+                "socket",
+                "performance",
+                "mémoire",
             ],
             "gui_development": [
-                "interface graphique", "fenêtre", "bouton", "tkinter",
-                "pyqt", "gui", "desktop", "application"
-            ]
+                "interface graphique",
+                "fenêtre",
+                "bouton",
+                "tkinter",
+                "pyqt",
+                "gui",
+                "desktop",
+                "application",
+            ],
         }
 
     def _init_complexity_indicators(self) -> Dict[str, List[str]]:
         """Indicateurs pour évaluer la complexité"""
         return {
             "beginner": [
-                "simple", "basique", "débutant", "facile", "hello world",
-                "premier", "introduction", "exemple"
+                "simple",
+                "basique",
+                "débutant",
+                "facile",
+                "hello world",
+                "premier",
+                "introduction",
+                "exemple",
             ],
             "intermediate": [
-                "moyen", "intermédiaire", "avec", "utilisant", "gestion",
-                "plusieurs", "options", "paramètres"
+                "moyen",
+                "intermédiaire",
+                "avec",
+                "utilisant",
+                "gestion",
+                "plusieurs",
+                "options",
+                "paramètres",
             ],
             "advanced": [
-                "avancé", "complexe", "optimisé", "performant", "robuste",
-                "production", "enterprise", "scalable", "async"
-            ]
+                "avancé",
+                "complexe",
+                "optimisé",
+                "performant",
+                "robuste",
+                "production",
+                "enterprise",
+                "scalable",
+                "async",
+            ],
         }
 
     def _init_intent_patterns(self) -> Dict[str, List[str]]:
         """Patterns pour identifier l'intention"""
         return {
             "create_new": [
-                "créer", "faire", "générer", "construire", "développer",
-                "écrire", "programmer", "coder"
+                "créer",
+                "faire",
+                "générer",
+                "construire",
+                "développer",
+                "écrire",
+                "programmer",
+                "coder",
             ],
             "modify_existing": [
-                "modifier", "changer", "améliorer", "adapter", "optimiser",
-                "corriger", "mettre à jour"
+                "modifier",
+                "changer",
+                "améliorer",
+                "adapter",
+                "optimiser",
+                "corriger",
+                "mettre à jour",
             ],
             "understand": [
-                "expliquer", "comprendre", "comment", "pourquoi",
-                "documentation", "exemple", "tutorial"
+                "expliquer",
+                "comprendre",
+                "comment",
+                "pourquoi",
+                "documentation",
+                "exemple",
+                "tutorial",
             ],
             "debug": [
-                "déboguer", "corriger", "erreur", "bug", "problème",
-                "ne fonctionne pas", "plantage"
+                "déboguer",
+                "corriger",
+                "erreur",
+                "bug",
+                "problème",
+                "ne fonctionne pas",
+                "plantage",
             ],
             "integrate": [
-                "intégrer", "combiner", "connecter", "importer",
-                "utiliser avec", "faire communiquer"
-            ]
+                "intégrer",
+                "combiner",
+                "connecter",
+                "importer",
+                "utiliser avec",
+                "faire communiquer",
+            ],
         }
 
     def debug_types(self, **kwargs):
@@ -149,22 +234,24 @@ class IntelligentCodeOrchestrator:
         for key, value in kwargs.items():
             print(f"[DEBUG] {key}: {type(value)} = {repr(value)[:100]}")
 
-    async def generate_intelligent_code(self, query: str, context: Dict[str, Any] = None) -> GeneratedSolution:
+    async def generate_intelligent_code(
+        self, query: str, context: Dict[str, Any] = None
+    ) -> GeneratedSolution:
         """
         Génère du code de manière intelligente en utilisant tous les outils disponibles
         """
         # DEBUG: Vérifier les types d'entrée
         self.debug_types(query=query, context=context)
-        
+
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
             # Si query est un dictionnaire, extraire la vraie requête
-            if 'description' in query:
-                query = str(query['description'])
-            elif 'query' in query:
-                query = str(query['query'])
+            if "description" in query:
+                query = str(query["description"])
+            elif "query" in query:
+                query = str(query["query"])
             else:
-                query = str(query.get('original_query', str(query)))
+                query = str(query.get("original_query", str(query)))
         elif not isinstance(query, str):
             query = str(query)
 
@@ -173,19 +260,29 @@ class IntelligentCodeOrchestrator:
         try:
             # 1. Analyse approfondie de la requête
             intelligent_request = await self._analyze_request(query, context or {})
-            self.logger.info(f"Analyse: {intelligent_request.intent} - {intelligent_request.domain} - {intelligent_request.complexity}")
+            self.logger.info(
+                f"Analyse: {intelligent_request.intent} - {intelligent_request.domain} - {intelligent_request.complexity}"
+            )
 
             # 2. Recherche de solutions existantes
-            existing_solutions = await self._search_existing_solutions(intelligent_request)
+            existing_solutions = await self._search_existing_solutions(
+                intelligent_request
+            )
             self.logger.info(f"{len(existing_solutions)} solutions trouvées")
 
             # 3. Génération adaptée basée sur l'analyse
-            generated_code = await self._generate_adapted_code(intelligent_request, existing_solutions)
+            generated_code = await self._generate_adapted_code(
+                intelligent_request, existing_solutions
+            )
 
             # 4. Post-traitement et amélioration
-            final_solution = await self._enhance_solution(generated_code, intelligent_request, existing_solutions)
+            final_solution = await self._enhance_solution(
+                generated_code, intelligent_request, existing_solutions
+            )
 
-            self.logger.info(f"Solution générée avec confiance: {final_solution.confidence}")
+            self.logger.info(
+                f"Solution générée avec confiance: {final_solution.confidence}"
+            )
             return final_solution
 
         except Exception as e:
@@ -194,7 +291,9 @@ class IntelligentCodeOrchestrator:
             # Solution de fallback
             return await self._generate_fallback_solution(query, context)
 
-    async def _analyze_request(self, query: str, context: Dict[str, Any]) -> IntelligentRequest:
+    async def _analyze_request(
+        self, query: str, context: Dict[str, Any]
+    ) -> IntelligentRequest:
         """Analyse intelligente et approfondie de la requête"""
 
         # Détection de l'intention
@@ -216,7 +315,10 @@ class IntelligentCodeOrchestrator:
         constraints = self._extract_constraints(query)
 
         # Autres paramètres
-        examples_needed = any(word in query.lower() for word in ["exemple", "example", "comment", "how to"])
+        examples_needed = any(
+            word in query.lower()
+            for word in ["exemple", "example", "comment", "how to"]
+        )
         explanation_level = "detailed" if examples_needed else "basic"
 
         return IntelligentRequest(
@@ -228,17 +330,17 @@ class IntelligentCodeOrchestrator:
             requirements=requirements,
             constraints=constraints,
             examples_needed=examples_needed,
-            explanation_level=explanation_level
+            explanation_level=explanation_level,
         )
 
     def _detect_intent(self, query: str) -> str:
         """Détecte l'intention principale de la requête"""
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
-            query = str(query.get('description', str(query)))
+            query = str(query.get("description", str(query)))
         elif not isinstance(query, str):
             query = str(query)
-            
+
         query_lower = query.lower()
 
         for intent, patterns in self.intent_patterns.items():
@@ -251,10 +353,10 @@ class IntelligentCodeOrchestrator:
         """Détecte le domaine de programmation"""
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
-            query = str(query.get('description', str(query)))
+            query = str(query.get("description", str(query)))
         elif not isinstance(query, str):
             query = str(query)
-            
+
         query_lower = query.lower()
 
         domain_scores = {}
@@ -268,14 +370,14 @@ class IntelligentCodeOrchestrator:
 
         return "general"
 
-    def _evaluate_complexity(self, query: str, context: Dict[str, Any]) -> str:
+    def _evaluate_complexity(self, query: str) -> str:
         """Évalue la complexité requise"""
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
-            query = str(query.get('description', str(query)))
+            query = str(query.get("description", str(query)))
         elif not isinstance(query, str):
             query = str(query)
-            
+
         query_lower = query.lower()
 
         # Vérifier les indicateurs explicites
@@ -287,7 +389,10 @@ class IntelligentCodeOrchestrator:
         complexity_score = 0
 
         # Facteurs augmentant la complexité
-        if any(word in query_lower for word in ["async", "thread", "performance", "production"]):
+        if any(
+            word in query_lower
+            for word in ["async", "thread", "performance", "production"]
+        ):
             complexity_score += 3
         if any(word in query_lower for word in ["base de données", "api", "réseau"]):
             complexity_score += 2
@@ -306,10 +411,10 @@ class IntelligentCodeOrchestrator:
         """Détecte le langage de programmation souhaité"""
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
-            query = str(query.get('description', str(query)))
+            query = str(query.get("description", str(query)))
         elif not isinstance(query, str):
             query = str(query)
-            
+
         query_lower = query.lower()
 
         # Détection explicite
@@ -320,7 +425,7 @@ class IntelligentCodeOrchestrator:
             "css": ["css", "style", "design"],
             "java": ["java", "spring"],
             "cpp": ["c++", "cpp"],
-            "sql": ["sql", "database", "base de données"]
+            "sql": ["sql", "database", "base de données"],
         }
 
         for lang, patterns in language_patterns.items():
@@ -334,10 +439,10 @@ class IntelligentCodeOrchestrator:
         """Extrait les exigences spécifiques"""
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
-            query = str(query.get('description', str(query)))
+            query = str(query.get("description", str(query)))
         elif not isinstance(query, str):
             query = str(query)
-            
+
         requirements = []
 
         # Patterns pour les exigences
@@ -345,13 +450,15 @@ class IntelligentCodeOrchestrator:
             r"qui (?:peut|doit|fait) ([^.!?]+)",
             r"avec (.+?) (?:et|,|$)",
             r"utilisant (.+?)(?:\s|$)",
-            r"pour (.+?)(?:\s|$)"
+            r"pour (.+?)(?:\s|$)",
         ]
 
         try:
             for pattern in requirement_patterns:
                 matches = re.findall(pattern, query.lower())
-                requirements.extend([match.strip() for match in matches if len(match.strip()) > 3])
+                requirements.extend(
+                    [match.strip() for match in matches if len(match.strip()) > 3]
+                )
         except Exception as e:
             print(f"[ERROR] Erreur extraction requirements: {e}")
 
@@ -361,82 +468,110 @@ class IntelligentCodeOrchestrator:
         """Extrait les contraintes"""
         # CORRECTION: S'assurer que query est une chaîne
         if isinstance(query, dict):
-            query = str(query.get('description', str(query)))
+            query = str(query.get("description", str(query)))
         elif not isinstance(query, str):
             query = str(query)
-            
+
         constraints = []
 
         constraint_patterns = [
             r"sans (.+?)(?:\s|$)",
             r"pas de (.+?)(?:\s|$)",
             r"éviter (.+?)(?:\s|$)",
-            r"seulement (.+?)(?:\s|$)"
+            r"seulement (.+?)(?:\s|$)",
         ]
 
         try:
             for pattern in constraint_patterns:
                 matches = re.findall(pattern, query.lower())
-                constraints.extend([match.strip() for match in matches if len(match.strip()) > 3])
+                constraints.extend(
+                    [match.strip() for match in matches if len(match.strip()) > 3]
+                )
         except Exception as e:
             print(f"[ERROR] Erreur extraction constraints: {e}")
 
         return list(set(constraints))
 
-    async def _search_existing_solutions(self, request: IntelligentRequest) -> List[Dict[str, Any]]:
+    async def _search_existing_solutions(
+        self, request: IntelligentRequest
+    ) -> List[Dict[str, Any]]:
         """Recherche des solutions existantes via tous les canaux"""
         all_solutions = []
 
         # 1. Recherche via l'Advanced Generator (CORRECTION COMPLÈTE)
         try:
             # DEBUG: Vérifier le type de request.original_query
-            print(f"[DEBUG] request.original_query type: {type(request.original_query)}")
-            print(f"[DEBUG] request.original_query value: {repr(request.original_query)}")
-            
+            print(
+                f"[DEBUG] request.original_query type: {type(request.original_query)}"
+            )
+            print(
+                f"[DEBUG] request.original_query value: {repr(request.original_query)}"
+            )
+
             # S'assurer que tous les paramètres sont des chaînes
-            description = str(request.original_query) if not isinstance(request.original_query, str) else request.original_query
-            language = str(request.language) if not isinstance(request.language, str) else request.language
-            complexity = str(request.complexity) if not isinstance(request.complexity, str) else request.complexity
-            
+            description = (
+                str(request.original_query)
+                if not isinstance(request.original_query, str)
+                else request.original_query
+            )
+            language = (
+                str(request.language)
+                if not isinstance(request.language, str)
+                else request.language
+            )
+            complexity = (
+                str(request.complexity)
+                if not isinstance(request.complexity, str)
+                else request.complexity
+            )
+
             advanced_result = await self.advanced_generator.generate_code(
                 description=description,
                 language=language,
                 complexity=complexity,
-                requirements=request.requirements if isinstance(request.requirements, list) else [],
-                context={}
+                requirements=(
+                    request.requirements
+                    if isinstance(request.requirements, list)
+                    else []
+                ),
+                context={},
             )
 
             # Adapter le format de réponse
             if advanced_result.get("success"):
-                all_solutions.append({
-                    "code": advanced_result.get("code", ""),
-                    "source": advanced_result.get("source", "Advanced Generator"),
-                    "rating": advanced_result.get("rating", 3.0),
-                    "explanation": advanced_result.get("explanation", ""),
-                    "type": "advanced_search"
-                })
-                
+                all_solutions.append(
+                    {
+                        "code": advanced_result.get("code", ""),
+                        "source": advanced_result.get("source", "Advanced Generator"),
+                        "rating": advanced_result.get("rating", 3.0),
+                        "explanation": advanced_result.get("explanation", ""),
+                        "type": "advanced_search",
+                    }
+                )
+
         except Exception as e:
-            self.logger.warning(f"Advanced search failed: {e}")
+            self.logger.warning("Advanced search failed: %s", e)
             self.logger.warning(f"Advanced search traceback: {traceback.format_exc()}")
 
         # 2. Recherche multi-sources web
         try:
             web_solutions = await self.web_searcher.search_all_sources(
                 str(request.original_query),  # S'assurer que c'est une chaîne
-                str(request.language),        # S'assurer que c'est une chaîne
-                max_results=3
+                str(request.language),  # S'assurer que c'est une chaîne
+                max_results=3,
             )
             for sol in web_solutions:
-                all_solutions.append({
-                    "code": sol.code,
-                    "source": sol.source_name,
-                    "rating": sol.rating,
-                    "explanation": sol.description,
-                    "type": "web_search"
-                })
+                all_solutions.append(
+                    {
+                        "code": sol.code,
+                        "source": sol.source_name,
+                        "rating": sol.rating,
+                        "explanation": sol.description,
+                        "type": "web_search",
+                    }
+                )
         except Exception as e:
-            self.logger.warning(f"Web search failed: {e}")
+            self.logger.warning("Web search failed: %s", e)
 
         # 3. Recherche internet générale pour contexte
         try:
@@ -444,19 +579,23 @@ class IntelligentCodeOrchestrator:
                 f"{str(request.original_query)} programming tutorial"
             )
             if context_info and len(str(context_info)) > 50:
-                all_solutions.append({
-                    "code": "",
-                    "source": "Internet Research",
-                    "rating": 3.0,
-                    "explanation": str(context_info),
-                    "type": "context_info"
-                })
+                all_solutions.append(
+                    {
+                        "code": "",
+                        "source": "Internet Research",
+                        "rating": 3.0,
+                        "explanation": str(context_info),
+                        "type": "context_info",
+                    }
+                )
         except Exception as e:
-            self.logger.warning(f"Internet search failed: {e}")
+            self.logger.warning("Internet search failed: %s", e)
 
         return all_solutions
 
-    async def _generate_adapted_code(self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _generate_adapted_code(
+        self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Génère du code adapté basé sur l'analyse et les solutions existantes"""
 
         # Stratégie basée sur l'intention
@@ -469,11 +608,17 @@ class IntelligentCodeOrchestrator:
         else:
             return await self._create_hybrid_solution(request, existing_solutions)
 
-    async def _create_new_solution(self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _create_new_solution(
+        self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Crée une nouvelle solution en s'inspirant des solutions existantes"""
 
         # Sélectionner les meilleures solutions comme inspiration
-        code_solutions = [sol for sol in existing_solutions if sol.get("code") and len(sol["code"]) > 20]
+        code_solutions = [
+            sol
+            for sol in existing_solutions
+            if sol.get("code") and len(sol["code"]) > 20
+        ]
 
         if code_solutions:
             # Prendre la meilleure solution comme base
@@ -481,40 +626,42 @@ class IntelligentCodeOrchestrator:
 
             # Adapter le code selon les spécifications
             adapted_code = await self._adapt_code_to_requirements(
-                best_solution["code"],
-                request
+                best_solution["code"], request
             )
 
             return {
                 "code": adapted_code,
                 "source": f"Adapted from {best_solution['source']}",
                 "base_rating": best_solution.get("rating", 3.0),
-                "adaptations": self._document_adaptations(best_solution["code"], adapted_code)
+                "adaptations": self._document_adaptations(
+                    best_solution["code"], adapted_code
+                ),
             }
         else:
             # Fallback sur génération basique (CORRIGÉ)
             try:
                 basic_result = await self.basic_generator.generate_code(
-                    request.original_query,
-                    {"language": request.language}
+                    request.original_query, {"language": request.language}
                 )
 
                 return {
                     "code": basic_result.get("code", "# Code généré de base"),
                     "source": "Basic Template Generation",
                     "base_rating": 2.5,
-                    "adaptations": ["Generated from template"]
+                    "adaptations": ["Generated from template"],
                 }
-            except Exception as e:
+            except Exception :
                 # Fallback ultime
                 return {
                     "code": f"# Solution pour: {request.original_query}\n# TODO: Implémenter",
                     "source": "Fallback Template",
                     "base_rating": 1.0,
-                    "adaptations": ["Fallback generation"]
+                    "adaptations": ["Fallback generation"],
                 }
 
-    async def _adapt_code_to_requirements(self, base_code: str, request: IntelligentRequest) -> str:
+    async def _adapt_code_to_requirements(
+        self, base_code: str, request: IntelligentRequest
+    ) -> str:
         """Adapte le code de base selon les exigences spécifiques"""
         adapted_code = base_code
 
@@ -543,28 +690,28 @@ class IntelligentCodeOrchestrator:
     def _simplify_code(self, code: str) -> str:
         """Simplifie le code pour les débutants"""
         # Ajouter plus de commentaires
-        lines = code.split('\n')
+        lines = code.split("\n")
         simplified_lines = []
 
         for line in lines:
             simplified_lines.append(line)
 
             # Ajouter des commentaires explicatifs
-            if 'def ' in line:
-                simplified_lines.append('    # Cette fonction fait...')
-            elif 'for ' in line:
-                simplified_lines.append('    # Boucle pour parcourir...')
-            elif 'if ' in line:
-                simplified_lines.append('    # Vérification si...')
+            if "def " in line:
+                simplified_lines.append("    # Cette fonction fait...")
+            elif "for " in line:
+                simplified_lines.append("    # Boucle pour parcourir...")
+            elif "if " in line:
+                simplified_lines.append("    # Vérification si...")
 
-        return '\n'.join(simplified_lines)
+        return "\n".join(simplified_lines)
 
-    def _enhance_code(self, code: str, request: IntelligentRequest) -> str:
+    def _enhance_code(self, code: str) -> str:
         """Améliore le code pour un niveau avancé"""
         enhanced = code
 
         # Ajouter la gestion d'erreurs
-        if 'try:' not in enhanced:
+        if "try:" not in enhanced:
             enhanced = f"""try:
 {self._indent_code(enhanced, 1)}
 except Exception as e:
@@ -572,7 +719,7 @@ except Exception as e:
     raise"""
 
         # Ajouter des docstrings si manquants
-        if '"""' not in enhanced and 'def ' in enhanced:
+        if '"""' not in enhanced and "def " in enhanced:
             enhanced = self._add_docstrings(enhanced)
 
         return enhanced
@@ -580,25 +727,25 @@ except Exception as e:
     def _add_web_features(self, code: str) -> str:
         """Ajoute des fonctionnalités spécifiques au web"""
         # Exemple d'adaptation pour le web
-        if 'import' not in code:
+        if "import" not in code:
             code = "from flask import Flask, request, jsonify\n\n" + code
 
         return code
 
     def _add_data_features(self, code: str) -> str:
         """Ajoute des fonctionnalités spécifiques à la data science"""
-        if 'import' not in code:
+        if "import" not in code:
             code = "import pandas as pd\nimport numpy as np\n\n" + code
 
         return code
 
-    def _apply_requirement(self, code: str, requirement: str) -> str:
+    def _apply_requirement(self, code: str) -> str:
         """Applique une exigence spécifique au code"""
         # Logique pour appliquer les exigences
         # (à développer selon les besoins)
         return code
 
-    def _apply_constraint(self, code: str, constraint: str) -> str:
+    def _apply_constraint(self, code: str) -> str:
         """Applique une contrainte au code"""
         # Logique pour respecter les contraintes
         # (à développer selon les besoins)
@@ -607,12 +754,14 @@ except Exception as e:
     def _indent_code(self, code: str, levels: int) -> str:
         """Indente le code du nombre de niveaux spécifié"""
         indent = "    " * levels
-        return '\n'.join(indent + line for line in code.split('\n'))
+        return "\n".join(indent + line for line in code.split("\n"))
 
     def _add_docstrings(self, code: str) -> str:
         """Ajoute des docstrings aux fonctions"""
         # Simple ajout de docstring
-        return code.replace('def ', 'def ').replace('):', '):\n    """Description de la fonction"""')
+        return code.replace("def ", "def ").replace(
+            "):", '):\n    """Description de la fonction"""'
+        )
 
     def _document_adaptations(self, original: str, adapted: str) -> List[str]:
         """Documente les adaptations effectuées"""
@@ -624,53 +773,67 @@ except Exception as e:
         if '"""' in adapted and '"""' not in original:
             adaptations.append("Ajout de documentation")
 
-        if 'try:' in adapted and 'try:' not in original:
+        if "try:" in adapted and "try:" not in original:
             adaptations.append("Ajout de gestion d'erreurs")
 
         return adaptations
 
-    async def _create_educational_solution(self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _create_educational_solution(
+        self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Crée une solution éducative avec explications détaillées"""
         base_solution = await self._create_new_solution(request, existing_solutions)
 
         # Ajouter des explications détaillées
         educational_code = self._add_educational_comments(base_solution["code"])
 
-        return {
-            **base_solution,
-            "code": educational_code,
-            "educational_mode": True
-        }
+        return {**base_solution, "code": educational_code, "educational_mode": True}
 
     def _add_educational_comments(self, code: str) -> str:
         """Ajoute des commentaires éducatifs détaillés"""
-        lines = code.split('\n')
+        lines = code.split("\n")
         educational_lines = []
 
-        for i, line in enumerate(lines):
+        for line in enumerate(lines):
             # Ajouter un commentaire explicatif avant les lignes importantes
-            if any(keyword in line for keyword in ['def ', 'class ', 'for ', 'if ', 'while ']):
-                educational_lines.append(f"# Étape {len([l for l in educational_lines if l.strip().startswith('# Étape')]) + 1}: Explication de cette partie")
+            if any(
+                keyword in line
+                for keyword in ["def ", "class ", "for ", "if ", "while "]
+            ):
+                educational_lines.append(
+                    f"# Étape {len([l for l in educational_lines if l.strip().startswith('# Étape')]) + 1}: Explication de cette partie"
+                )
 
             educational_lines.append(line)
 
             # Ajouter des explications après certaines constructions
-            if 'def ' in line:
-                educational_lines.append("    # Cette fonction va accomplir une tâche spécifique")
+            if "def " in line:
+                educational_lines.append(
+                    "    # Cette fonction va accomplir une tâche spécifique"
+                )
 
-        return '\n'.join(educational_lines)
+        return "\n".join(educational_lines)
 
-    async def _create_hybrid_solution(self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _create_hybrid_solution(
+        self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Crée une solution hybride combinant plusieurs approches"""
         # Pour l'instant, utiliser la création nouvelle comme base
         return await self._create_new_solution(request, existing_solutions)
 
-    async def _modify_existing_solution(self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _modify_existing_solution(
+        self, request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Modifie une solution existante"""
         # Pour l'instant, traiter comme une création nouvelle
         return await self._create_new_solution(request, existing_solutions)
 
-    async def _enhance_solution(self, generated_code: Dict[str, Any], request: IntelligentRequest, existing_solutions: List[Dict[str, Any]]) -> GeneratedSolution:
+    async def _enhance_solution(
+        self,
+        generated_code: Dict[str, Any],
+        request: IntelligentRequest,
+        existing_solutions: List[Dict[str, Any]],
+    ) -> GeneratedSolution:
         """Post-traitement et amélioration de la solution"""
 
         # Calculer la confiance
@@ -703,10 +866,12 @@ except Exception as e:
             sources=sources,
             adaptations_made=adaptations,
             similar_solutions=similar_solutions,
-            learning_points=learning_points
+            learning_points=learning_points,
         )
 
-    def _calculate_confidence(self, generated_code: Dict[str, Any], existing_solutions: List[Dict[str, Any]]) -> float:
+    def _calculate_confidence(
+        self, generated_code: Dict[str, Any], existing_solutions: List[Dict[str, Any]]
+    ) -> float:
         """Calcule la confiance dans la solution générée"""
         base_confidence = 0.5
 
@@ -726,7 +891,9 @@ except Exception as e:
 
         return min(1.0, base_confidence)
 
-    def _generate_explanation(self, generated_code: Dict[str, Any], request: IntelligentRequest) -> str:
+    def _generate_explanation(
+        self, generated_code: Dict[str, Any], request: IntelligentRequest
+    ) -> str:
         """Génère une explication de la solution"""
         explanation = f"Cette solution a été générée pour répondre à votre demande : '{request.original_query}'\n\n"
 
@@ -751,27 +918,29 @@ except Exception as e:
 
         return explanation
 
-    def _extract_learning_points(self, code: str, request: IntelligentRequest) -> List[str]:
+    def _extract_learning_points(
+        self, code: str, request: IntelligentRequest
+    ) -> List[str]:
         """Extrait les points d'apprentissage du code"""
         learning_points = []
 
         # Analyser les concepts présents
-        if 'def ' in code:
+        if "def " in code:
             learning_points.append("Définition et utilisation de fonctions")
 
-        if 'class ' in code:
+        if "class " in code:
             learning_points.append("Programmation orientée objet")
 
-        if 'for ' in code or 'while ' in code:
+        if "for " in code or "while " in code:
             learning_points.append("Structures de boucle")
 
-        if 'if ' in code:
+        if "if " in code:
             learning_points.append("Structures conditionnelles")
 
-        if 'try:' in code:
+        if "try:" in code:
             learning_points.append("Gestion des erreurs")
 
-        if 'import ' in code:
+        if "import " in code:
             learning_points.append("Utilisation de bibliothèques externes")
 
         # Points spécifiques au domaine
@@ -782,20 +951,26 @@ except Exception as e:
 
         return learning_points[:5]  # Limiter à 5 points
 
-    async def _generate_fallback_solution(self, query: str, context: Dict[str, Any]) -> GeneratedSolution:
+    async def _generate_fallback_solution(
+        self, query: str, context: Dict[str, Any]
+    ) -> GeneratedSolution:
         """Génère une solution de fallback en cas d'échec"""
         try:
-            basic_result = await self.basic_generator.generate_code(query, context or {})
+            basic_result = await self.basic_generator.generate_code(
+                query, context or {}
+            )
 
             return GeneratedSolution(
-                code=basic_result.get("code", f"# Solution pour: {query}\n# TODO: Implémenter"),
+                code=basic_result.get(
+                    "code", f"# Solution pour: {query}\n# TODO: Implémenter"
+                ),
                 explanation=f"Solution de base générée pour: {query}",
                 language=context.get("language", "python"),
                 confidence=0.3,
                 sources=["Template de base"],
                 adaptations_made=["Génération par template"],
                 similar_solutions=[],
-                learning_points=["Programmation de base"]
+                learning_points=["Programmation de base"],
             )
         except Exception as e:
             return GeneratedSolution(
@@ -806,7 +981,7 @@ except Exception as e:
                 sources=["Erreur système"],
                 adaptations_made=[],
                 similar_solutions=[],
-                learning_points=[]
+                learning_points=[],
             )
 
 
@@ -829,10 +1004,12 @@ async def create_intelligent_code(query: str, **kwargs) -> Dict[str, Any]:
     # CORRECTION: S'assurer que query est une chaîne
     if not isinstance(query, str):
         query = str(query)
-    
+
     try:
-        solution = await intelligent_orchestrator.generate_intelligent_code(query, kwargs)
-        
+        solution = await intelligent_orchestrator.generate_intelligent_code(
+            query, kwargs
+        )
+
         return {
             "success": True,
             "code": solution.code,
@@ -843,7 +1020,7 @@ async def create_intelligent_code(query: str, **kwargs) -> Dict[str, Any]:
             "adaptations": solution.adaptations_made,
             "similar_solutions": solution.similar_solutions,
             "learning_points": solution.learning_points,
-            "generated_at": datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
         }
     except Exception as e:
         return {
@@ -857,18 +1034,19 @@ async def create_intelligent_code(query: str, **kwargs) -> Dict[str, Any]:
             "adaptations": [],
             "similar_solutions": [],
             "learning_points": [],
-            "debug_info": [f"Traceback: {traceback.format_exc()}"]
+            "debug_info": [f"Traceback: {traceback.format_exc()}"],
         }
 
 
 if __name__ == "__main__":
     # Test de l'orchestrateur
     async def test_orchestrator():
+        """Test l'orchestrateur"""
         test_queries = [
             "Créer une fonction Python pour inverser une chaîne de caractères",
             "Faire un script avancé pour analyser des données CSV avec pandas",
             "Comment créer une API REST simple avec Flask",
-            "Algorithme de tri rapide optimisé pour de gros datasets"
+            "Algorithme de tri rapide optimisé pour de gros datasets",
         ]
 
         orchestrator = IntelligentCodeOrchestrator()
@@ -883,8 +1061,12 @@ if __name__ == "__main__":
             print(f" Sources: {', '.join(solution.sources)}")
             print(f" Adaptations: {len(solution.adaptations_made)}")
             print("\n Code généré:")
-            print(solution.code[:300] + "..." if len(solution.code) > 300 else solution.code)
-            print("\n" + "="*80)
+            print(
+                solution.code[:300] + "..."
+                if len(solution.code) > 300
+                else solution.code
+            )
+            print("\n" + "=" * 80)
 
     # Décommenter pour tester
     # asyncio.run(test_orchestrator())

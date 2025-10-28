@@ -5,7 +5,10 @@ Module RLHF (Reinforcement Learning from Human Feedback) local
 import os
 import json
 import csv
-from typing import List, Dict, Any, Optional
+import importlib.util
+import sys
+import argparse
+from typing import List, Dict, Any
 
 def load_dataset(dataset_path: str) -> List[Dict[str, Any]]:
     """Charge un dataset au format JSONL ou CSV."""
@@ -30,8 +33,7 @@ def load_model(model_path: str):
     """Charge un modèle IA local (fichier .py avec LocalModel ou train)."""
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found: {model_path}")
-    import importlib.util
-    import sys
+
     if model_path.endswith('.py'):
         spec = importlib.util.spec_from_file_location("local_model", model_path)
         module = importlib.util.module_from_spec(spec)
@@ -105,7 +107,7 @@ def run_rlhf(model_path: str, dataset_path: str, input_key: str = "input", targe
         print(f"Feedback sauvegardé dans {feedback_path}")
 
 def main():
-    import argparse
+    """Interface en ligne de commande pour la boucle RLHF locale."""
     parser = argparse.ArgumentParser(description="Boucle RLHF locale pour modèle IA.")
     parser.add_argument('--model', type=str, required=True, help="Chemin du modèle local (.py)")
     parser.add_argument('--dataset', type=str, required=True, help="Chemin du dataset (.jsonl/.csv)")

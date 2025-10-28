@@ -1,26 +1,17 @@
 """
-Module d'optimisation (quantization, pruning, etc.)
-"""
-def quantize_model(model_path: str, output_path: str):
-    # Applique la quantization au modèle
-    pass
-
-def prune_model(model_path: str, output_path: str):
-    # Applique le pruning au modèle
-    pass
-
-"""
 Module d'optimisation locale pour modèles IA (quantization, pruning, etc.)
 """
 import os
+import importlib.util
+import sys
+import argparse
 from typing import Any
 
 def load_model(model_path: str):
     """Charge un modèle IA local (fichier .py avec LocalModel ou optimize)."""
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found: {model_path}")
-    import importlib.util
-    import sys
+
     if model_path.endswith('.py'):
         spec = importlib.util.spec_from_file_location("local_model", model_path)
         module = importlib.util.module_from_spec(spec)
@@ -74,7 +65,7 @@ def optimize_model(model_path: str, method: str = "quantization", export_path: s
     return optimized
 
 def main():
-    import argparse
+    """Interface en ligne de commande pour l'optimisation locale du modèle IA."""
     parser = argparse.ArgumentParser(description="Optimisation locale d'un modèle IA.")
     parser.add_argument('--model', type=str, required=True, help="Chemin du modèle local (.py)")
     parser.add_argument('--method', type=str, default="quantization", help="Méthode d'optimisation (quantization/pruning)")

@@ -9,12 +9,14 @@ Ce test utilise votre CustomAIModel réel et vérifie vraiment :
 - Performance en conditions réelles
 """
 
+import json
 import sys
 import time
-import json
-import tiktoken
-from pathlib import Path
+import re
 from datetime import datetime
+from pathlib import Path
+
+import tiktoken
 
 # Configuration du chemin - Ajout du répertoire racine du projet
 project_root = Path(__file__).parent.parent
@@ -22,17 +24,18 @@ sys.path.insert(0, str(project_root))
 
 # Imports de votre IA réelle
 try:
-    from models.custom_ai_model import CustomAIModel
-    from core.ai_engine import AIEngine
     from models.conversation_memory import ConversationMemory
+    from models.custom_ai_model import CustomAIModel
+
     REAL_AI_AVAILABLE = True
 except ImportError as e:
     REAL_AI_AVAILABLE = False
     print(f"❌ IA réelle non disponible: {e}")
 
+
 class RealAI1MTest:
     """Test réel de la capacité 1M tokens avec votre IA"""
-    
+
     def __init__(self):
         self.results = {
             "test_date": datetime.now().isoformat(),
@@ -41,29 +44,29 @@ class RealAI1MTest:
             "total_tokens_processed": 0,
             "comprehension_score": 0,
             "performance_metrics": {},
-            "test_status": "PENDING"
+            "test_status": "PENDING",
         }
-        
+
         # Initialiser l'encodeur de tokens (GPT-4)
         try:
             self.tokenizer = tiktoken.encoding_for_model("gpt-4")
-        except:
+        except (KeyError, AttributeError):
             # Fallback vers cl100k_base si gpt-4 n'est pas disponible
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
-        
+
         print("🎯 TEST RÉEL 1M TOKENS INITIALISÉ")
         print("=" * 50)
-    
+
     def count_real_tokens(self, text: str) -> int:
         """Compte les vrais tokens (comme un LLM)"""
         return len(self.tokenizer.encode(text))
-    
+
     def generate_diverse_content(self, target_tokens: int) -> str:
         """Génère un contenu riche et varié pour test réaliste"""
-        
+
         contents = []
         current_tokens = 0
-        
+
         # 1. Documentation technique (25%)
         tech_doc = """
 # DOCUMENTATION TECHNIQUE SYSTÈME IA
@@ -159,7 +162,7 @@ Intégration avec moteurs de recherche:
 
         contents.append(("Documentation Technique", tech_doc))
         current_tokens += self.count_real_tokens(tech_doc)
-        
+
         # 2. Code source varié (20%)
         code_examples = """
 # EXEMPLES DE CODE POUR TEST DE COMPRÉHENSION
@@ -520,7 +523,7 @@ class WorkerPool {
 
         contents.append(("Code Examples", code_examples))
         current_tokens += self.count_real_tokens(code_examples)
-        
+
         # 3. Données structurées (15%)
         structured_data = """
 # DONNÉES STRUCTURÉES POUR TEST
@@ -637,7 +640,7 @@ topic,category,content,importance,last_updated
 
         contents.append(("Structured Data", structured_data))
         current_tokens += self.count_real_tokens(structured_data)
-        
+
         # 4. Contenu conversationnel (20%)
         conversations = """
 # CONVERSATIONS ET DIALOGUES POUR TEST DE MÉMOIRE
@@ -903,7 +906,7 @@ npm create vite@latest mon-app-react -- --template react
 
         contents.append(("Conversations", conversations))
         current_tokens += self.count_real_tokens(conversations)
-        
+
         # 5. Contenu éducatif (20%)
         educational_content = """
 # CONTENU ÉDUCATIF POUR TEST DE COMPRÉHENSION
@@ -1238,10 +1241,12 @@ Ces exercices permettent d'appliquer concrètement les concepts théoriques vus 
 
         contents.append(("Educational Content", educational_content))
         current_tokens += self.count_real_tokens(educational_content)
-        
+
         # Générer du contenu supplémentaire si nécessaire
         themes = [
-            ("Systèmes Distribués", """
+            (
+                "Systèmes Distribués",
+                """
 ### Architecture Microservices
 Les microservices permettent de décomposer une application en services indépendants:
 - Service d'authentification avec JWT et OAuth2
@@ -1252,8 +1257,11 @@ Les microservices permettent de décomposer une application en services indépen
 ### Technologies Cloud Natives
 Configuration Kubernetes pour déploiement automatisé avec réplication et haute disponibilité.
 Monitoring avec Prometheus et Grafana pour métriques temps réel.
-"""),
-            ("Blockchain et Cryptographie", """
+""",
+            ),
+            (
+                "Blockchain et Cryptographie",
+                """
 ### Technologies Blockchain
 Les blockchains révolutionnent les transactions numériques:
 - Consensus proof-of-stake pour efficacité énergétique
@@ -1264,8 +1272,11 @@ Les blockchains révolutionnent les transactions numériques:
 ### Sécurité Cryptographique
 Chiffrement AES-256 pour protection maximale des données sensibles.
 Signatures numériques pour authentification non-répudiable.
-"""),
-            ("Intelligence Artificielle", """
+""",
+            ),
+            (
+                "Intelligence Artificielle",
+                """
 ### Apprentissage Automatique
 Les algorithmes d'apprentissage supervisé et non-supervisé:
 - Réseaux de neurones convolutifs pour vision par ordinateur
@@ -1276,8 +1287,11 @@ Les algorithmes d'apprentissage supervisé et non-supervisé:
 ### Deep Learning Avancé
 Architectures ResNet et BERT pour performance state-of-the-art.
 Optimiseurs Adam et techniques de régularisation dropout.
-"""),
-            ("Bioinformatique et Génomique", """
+""",
+            ),
+            (
+                "Bioinformatique et Génomique",
+                """
 ### Séquençage ADN
 Technologies de séquençage nouvelle génération:
 - Illumina pour séquençage haut débit
@@ -1288,8 +1302,11 @@ Technologies de séquençage nouvelle génération:
 ### Analyse Transcriptomique
 RNA-seq pour expression différentielle des gènes.
 Méthodes d'enrichissement GSEA pour voies métaboliques.
-"""),
-            ("Physique Quantique", """
+""",
+            ),
+            (
+                "Physique Quantique",
+                """
 ### Mécanique Quantique
 Principes fondamentaux de la physique quantique:
 - Superposition et intrication quantique
@@ -1300,8 +1317,11 @@ Principes fondamentaux de la physique quantique:
 ### Informatique Quantique
 Qubits et portes quantiques pour calcul parallèle.
 Algorithmes de Shor et Grover pour cryptanalyse.
-"""),
-            ("Astrophysique et Cosmologie", """
+""",
+            ),
+            (
+                "Astrophysique et Cosmologie",
+                """
 ### Formation Stellaire
 Processus de naissance et évolution des étoiles:
 - Effondrement gravitationnel des nuages moléculaires
@@ -1312,14 +1332,15 @@ Processus de naissance et évolution des étoiles:
 ### Cosmologie Moderne
 Expansion de l'univers et constante de Hubble.
 Matière noire et énergie sombre pour structure cosmique.
-""")
+""",
+            ),
         ]
-        
+
         while current_tokens < target_tokens:
             section_num = len(contents) + 1
             theme_index = (section_num - 7) % len(themes)  # -7 car on a déjà 6 sections
             theme_name, theme_content = themes[theme_index]
-            
+
             unique_content = f"""
 
 ## Section {section_num} - {theme_name}
@@ -1356,346 +1377,417 @@ Pour {theme_name.lower()}:
 
 Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
 """
-            
+
             contents.append((f"Section {section_num} - {theme_name}", unique_content))
             current_tokens += self.count_real_tokens(unique_content)
-        
+
         # Assembler tout le contenu
-        full_content = "\n\n" + "="*80 + "\n\n".join([
-            f"# {title}\n\n{content}" for title, content in contents
-        ])
-        
+        full_content = (
+            "\n\n"
+            + "=" * 80
+            + "\n\n".join([f"# {title}\n\n{content}" for title, content in contents])
+        )
+
         return full_content
-    
-    def run_comprehension_test(self, ai_model, content: str) -> dict:
+
+    def run_comprehension_test(self, ai_model) -> dict:
         """Test de compréhension globale du contexte 1M tokens"""
         print("\n🧠 TEST DE COMPRÉHENSION GLOBALE")
         print("=" * 50)
-        
+
         # Questions sur différentes parties du contenu
         test_questions = [
             {
                 "question": "Quel est l'objectif de performance pour le temps de réponse du système ?",
                 "expected_keywords": ["3 secondes", "3000ms", "performance"],
-                "section": "Documentation Technique"
+                "section": "Documentation Technique",
             },
             {
                 "question": "Quel algorithme est utilisé dans l'exemple de tri fusion ?",
                 "expected_keywords": ["merge sort", "tri fusion", "insertion sort"],
-                "section": "Code Examples"
+                "section": "Code Examples",
             },
             {
                 "question": "Quelle est la version du système selon la configuration JSON ?",
                 "expected_keywords": ["5.0.0", "version"],
-                "section": "Structured Data"
+                "section": "Structured Data",
             },
             {
                 "question": "Quel langage est recommandé pour débuter en IA selon la conversation ?",
                 "expected_keywords": ["Python", "scikit-learn", "pandas"],
-                "section": "Conversations"
+                "section": "Conversations",
             },
             {
                 "question": "Qui a proposé le Test de Turing et en quelle année ?",
                 "expected_keywords": ["Alan Turing", "1950"],
-                "section": "Educational Content"
+                "section": "Educational Content",
             },
             {
                 "question": "Combien de tokens peut traiter le système selon la configuration ?",
                 "expected_keywords": ["1000000", "1M", "million"],
-                "section": "Multiple Sections"
-            }
+                "section": "Multiple Sections",
+            },
         ]
-        
+
         results = {
             "total_questions": len(test_questions),
             "correct_answers": 0,
             "detailed_results": [],
-            "response_times": []
+            "response_times": [],
         }
-        
+
         for i, test in enumerate(test_questions, 1):
-            print(f"\n📋 Question {i}/{len(test_questions)}: {test['question'][:50]}...")
-            
+            print(
+                f"\n📋 Question {i}/{len(test_questions)}: {test['question'][:50]}..."
+            )
+
             start_time = time.time()
             try:
                 # Tester avec l'IA réelle
-                response = ai_model.generate_response(test['question'])
+                response = ai_model.generate_response(test["question"])
                 response_time = time.time() - start_time
                 results["response_times"].append(response_time)
-                
+
                 # Vérifier si la réponse contient les mots-clés attendus (recherche ultra-intelligente)
                 response_lower = response.lower()
                 # Utiliser la réponse complète pour l'analyse
                 search_text = response_lower
-                
+
                 keywords_found = []
-                
-                for kw in test['expected_keywords']:
+
+                for kw in test["expected_keywords"]:
                     kw_lower = kw.lower()
                     found = False
-                    
+
                     # 1. Recherche directe
                     if kw_lower in search_text:
                         found = True
-                    
+
                     # 2. Recherche spéciale pour algorithmes (PRIORITÉ HAUTE)
-                    elif kw_lower == 'merge sort':
-                        if any(variant in search_text for variant in ['merge_sort', 'tri fusion', 'fusion', 'merge']):
+                    elif kw_lower == "merge sort":
+                        if any(
+                            variant in search_text
+                            for variant in [
+                                "merge_sort",
+                                "tri fusion",
+                                "fusion",
+                                "merge",
+                            ]
+                        ):
                             found = True
-                    elif kw_lower == 'tri fusion':
-                        if any(variant in search_text for variant in ['tri fusion', 'merge_sort', 'fusion', 'tri', 'merge']):
+                    elif kw_lower == "tri fusion":
+                        if any(
+                            variant in search_text
+                            for variant in [
+                                "tri fusion",
+                                "merge_sort",
+                                "fusion",
+                                "tri",
+                                "merge",
+                            ]
+                        ):
                             found = True
-                    elif kw_lower == 'insertion sort':
-                        if any(variant in search_text for variant in ['insertion_sort', 'insertion', 'tri insertion']):
+                    elif kw_lower == "insertion sort":
+                        if any(
+                            variant in search_text
+                            for variant in [
+                                "insertion_sort",
+                                "insertion",
+                                "tri insertion",
+                            ]
+                        ):
                             found = True
-                    
+
                     # 3. Recherche avec underscores remplacés par espaces
-                    elif kw_lower.replace(' ', '_') in search_text:
+                    elif kw_lower.replace(" ", "_") in search_text:
                         found = True
-                    
-                    # 4. Recherche avec espaces remplacés par underscores  
-                    elif kw_lower.replace('_', ' ') in search_text:
+
+                    # 4. Recherche avec espaces remplacés par underscores
+                    elif kw_lower.replace("_", " ") in search_text:
                         found = True
-                    
+
                     # 5. Recherche de parties du mot-clé (pour "merge sort" -> "merge_sort_optimized")
-                    elif ' ' in kw_lower:
-                        parts = kw_lower.split(' ')
+                    elif " " in kw_lower:
+                        parts = kw_lower.split(" ")
                         if all(part in search_text for part in parts):
                             found = True
-                    
+
                     # 6. Recherche insensible à la ponctuation et formatage
-                    elif any(char in kw_lower for char in [' ', '_', '-']):
+                    elif any(char in kw_lower for char in [" ", "_", "-"]):
                         # Nettoyer le mot-clé et chercher les parties
-                        import re
-                        clean_kw = re.sub(r'[^a-z0-9]', ' ', kw_lower)
+
+                        clean_kw = re.sub(r"[^a-z0-9]", " ", kw_lower)
                         kw_parts = [p for p in clean_kw.split() if len(p) > 1]
                         if kw_parts and all(part in search_text for part in kw_parts):
                             found = True
-                    
+
                     # 7. Recherche spéciale pour nombres (1000000 -> 1M, million, etc.)
-                    elif kw_lower == '1000000':
-                        if any(variant in search_text for variant in ['1000000', '1m', 'million', 'context_size', '1,000,000']):
+                    elif kw_lower == "1000000":
+                        if any(
+                            variant in search_text
+                            for variant in [
+                                "1000000",
+                                "1m",
+                                "million",
+                                "context_size",
+                                "1,000,000",
+                            ]
+                        ):
                             found = True
-                    elif kw_lower == '1m':
-                        if any(variant in search_text for variant in ['1m', 'million', '1000000', '1,000,000']):
+                    elif kw_lower == "1m":
+                        if any(
+                            variant in search_text
+                            for variant in ["1m", "million", "1000000", "1,000,000"]
+                        ):
                             found = True
-                    elif kw_lower == 'million':
-                        if any(variant in search_text for variant in ['million', '1m', '1000000', '1,000,000']):
+                    elif kw_lower == "million":
+                        if any(
+                            variant in search_text
+                            for variant in ["million", "1m", "1000000", "1,000,000"]
+                        ):
                             found = True
-                    
+
                     if found:
                         keywords_found.append(kw)
-                
+
                 is_correct = len(keywords_found) > 0
                 if is_correct:
                     results["correct_answers"] += 1
-                
+
                 result_detail = {
-                    "question": test['question'],
-                    "section": test['section'],
-                    "response": response[:200] + "..." if len(response) > 200 else response,
+                    "question": test["question"],
+                    "section": test["section"],
+                    "response": (
+                        response[:200] + "..." if len(response) > 200 else response
+                    ),
                     "full_response": response,  # Garder la réponse complète pour l'affichage final
-                    "keywords_expected": test['expected_keywords'],
+                    "keywords_expected": test["expected_keywords"],
                     "keywords_found": keywords_found,
                     "correct": is_correct,
-                    "response_time": response_time
+                    "response_time": response_time,
                 }
                 results["detailed_results"].append(result_detail)
-                
+
                 status = "✅" if is_correct else "❌"
                 print(f"   {status} Répondu en {response_time:.2f}s")
-                
-            except Exception as e:
+
+            except (RuntimeError, ValueError) as e:
                 print(f"   ❌ Erreur: {e}")
-                results["detailed_results"].append({
-                    "question": test['question'],
-                    "section": test['section'],
-                    "response": f"ERREUR: {e}",
-                    "full_response": f"ERREUR: {e}",
-                    "keywords_expected": test['expected_keywords'],
-                    "keywords_found": [],
-                    "correct": False,
-                    "response_time": 0
-                })
-        
+                results["detailed_results"].append(
+                    {
+                        "question": test["question"],
+                        "section": test["section"],
+                        "response": f"ERREUR: {e}",
+                        "full_response": f"ERREUR: {e}",
+                        "keywords_expected": test["expected_keywords"],
+                        "keywords_found": [],
+                        "correct": False,
+                        "response_time": 0,
+                    }
+                )
+
         # Calcul du score final
-        comprehension_score = (results["correct_answers"] / results["total_questions"]) * 100
-        avg_response_time = sum(results["response_times"]) / len(results["response_times"]) if results["response_times"] else 0
-        
+        comprehension_score = (
+            results["correct_answers"] / results["total_questions"]
+        ) * 100
+        avg_response_time = (
+            sum(results["response_times"]) / len(results["response_times"])
+            if results["response_times"]
+            else 0
+        )
+
         results["comprehension_score"] = comprehension_score
         results["avg_response_time"] = avg_response_time
-        
-        print(f"\n📊 RÉSULTATS DE COMPRÉHENSION")
-        print(f"Score: {comprehension_score:.1f}% ({results['correct_answers']}/{results['total_questions']} correctes)")
+
+        print("\n📊 RÉSULTATS DE COMPRÉHENSION")
+        print(
+            f"Score: {comprehension_score:.1f}% ({results['correct_answers']}/{results['total_questions']} correctes)"
+        )
         print(f"Temps moyen: {avg_response_time:.2f}s")
-        
+
         return results
-    
+
     def run_full_test(self) -> dict:
         """Test complet de la capacité 1M tokens"""
         print("🎯 DÉMARRAGE DU TEST RÉEL 1M TOKENS")
         print("=" * 60)
-        
+
         if not REAL_AI_AVAILABLE:
             print("❌ Système IA non disponible")
             return {"error": "IA non disponible"}
-        
+
         start_time = time.time()
-        
+
         try:
             # 1. Initialiser l'IA réelle
             print("\n🔧 INITIALISATION DE L'IA RÉELLE")
             conversation_memory = ConversationMemory()
             ai_model = CustomAIModel(conversation_memory=conversation_memory)
             print("✅ CustomAIModel initialisé")
-            
+
             # 2. Générer contenu 1M tokens
             print("\n📝 GÉNÉRATION DU CONTENU 1M TOKENS")
             target_tokens = 1000000
             content = self.generate_diverse_content(target_tokens)
             actual_tokens = self.count_real_tokens(content)
-            
+
             print(f"✅ Contenu généré: {actual_tokens:,} tokens")
             self.results["total_tokens_processed"] = actual_tokens
-            
+
             # 3. Alimenter l'IA avec le contenu
             print("\n💾 INJECTION DU CONTENU DANS L'IA")
-            
+
             # Diviser en chunks pour éviter les limitations
             chunk_size = 50000  # 50k tokens par chunk
             content_chunks = []
             words = content.split()
             current_chunk = []
             current_tokens = 0
-            
+
             for word in words:
                 word_tokens = self.count_real_tokens(word)
                 if current_tokens + word_tokens > chunk_size:
-                    chunk_text = ' '.join(current_chunk)
+                    chunk_text = " ".join(current_chunk)
                     content_chunks.append(chunk_text)
                     # Ajouter le chunk à la mémoire de l'IA
                     ai_model.conversation_memory.store_document_content(
-                        chunk_text, 
-                        f"test_chunk_{len(content_chunks)}"
+                        chunk_text, f"test_chunk_{len(content_chunks)}"
                     )
                     # IMPORTANT: Ajouter aussi au context_manager pour la recherche
                     ai_model.context_manager.add_document(
-                        chunk_text,
-                        f"test_chunk_{len(content_chunks)}"
+                        chunk_text, f"test_chunk_{len(content_chunks)}"
                     )
                     current_chunk = [word]
                     current_tokens = word_tokens
                 else:
                     current_chunk.append(word)
                     current_tokens += word_tokens
-            
+
             # Ajouter le dernier chunk
             if current_chunk:
-                chunk_text = ' '.join(current_chunk)
+                chunk_text = " ".join(current_chunk)
                 content_chunks.append(chunk_text)
                 ai_model.conversation_memory.store_document_content(
-                    chunk_text, 
-                    f"test_chunk_{len(content_chunks)}"
+                    chunk_text, f"test_chunk_{len(content_chunks)}"
                 )
                 # IMPORTANT: Ajouter aussi au context_manager pour la recherche
                 ai_model.context_manager.add_document(
-                    chunk_text,
-                    f"test_chunk_{len(content_chunks)}"
+                    chunk_text, f"test_chunk_{len(content_chunks)}"
                 )
-            
+
             print(f"✅ {len(content_chunks)} chunks injectés dans l'IA")
-            
+
             # 4. Test de compréhension
             print("\n🧠 TEST DE COMPRÉHENSION")
-            comprehension_results = self.run_comprehension_test(ai_model, content)
-            self.results["comprehension_score"] = comprehension_results["comprehension_score"]
+            comprehension_results = self.run_comprehension_test(ai_model)
+            self.results["comprehension_score"] = comprehension_results[
+                "comprehension_score"
+            ]
             self.results["performance_metrics"] = comprehension_results
-            
+
             # 5. Test de performance
             print("\n⚡ TEST DE PERFORMANCE")
             performance_tests = [
                 "Résume le contenu principal",
                 "Quels sont les éléments techniques mentionnés ?",
-                "Donne des exemples de code Python du contexte"
+                "Donne des exemples de code Python du contexte",
             ]
-            
+
             performance_times = []
             for test_query in performance_tests:
                 start = time.time()
-                response = ai_model.generate_response(test_query)
+                ai_model.generate_response(test_query)
                 elapsed = time.time() - start
                 performance_times.append(elapsed)
                 print(f"  ⏱️ '{test_query[:30]}...': {elapsed:.2f}s")
-            
+
             avg_performance = sum(performance_times) / len(performance_times)
             self.results["performance_metrics"]["avg_query_time"] = avg_performance
-            
+
             # 6. Validation finale
             total_time = time.time() - start_time
             self.results["performance_metrics"]["total_test_time"] = total_time
-            
+
             # Critères de validation
             validation_criteria = {
                 "tokens_processed": actual_tokens >= 1000000,
-                "comprehension_score": comprehension_results["comprehension_score"] >= 60,
+                "comprehension_score": comprehension_results["comprehension_score"]
+                >= 60,
                 "avg_response_time": avg_performance <= 10.0,  # 10s max
-                "no_errors": len([r for r in comprehension_results["detailed_results"] if "ERREUR" in r["response"]]) == 0
+                "no_errors": len(
+                    [
+                        r
+                        for r in comprehension_results["detailed_results"]
+                        if "ERREUR" in r["response"]
+                    ]
+                )
+                == 0,
             }
-            
+
             all_passed = all(validation_criteria.values())
             self.results["test_status"] = "VALIDÉ" if all_passed else "ÉCHEC"
             self.results["validation_criteria"] = validation_criteria
-            
+
             # Affichage final
-            print(f"\n🎯 RÉSULTATS FINAUX DU TEST")
+            print("\n🎯 RÉSULTATS FINAUX DU TEST")
             print("=" * 50)
             print(f"Tokens traités: {actual_tokens:,}")
-            print(f"Score compréhension: {comprehension_results['comprehension_score']:.1f}%")
+            print(
+                f"Score compréhension: {comprehension_results['comprehension_score']:.1f}%"
+            )
             print(f"Temps moyen/requête: {avg_performance:.2f}s")
             print(f"Temps total: {total_time:.1f}s")
             print(f"Statut: {self.results['test_status']}")
-            
+
             # AFFICHAGE DÉTAILLÉ DE TOUTES LES QUESTIONS ET RÉPONSES
-            print(f"\n🔍 DÉTAIL COMPLET DES QUESTIONS ET RÉPONSES")
+            print("\n🔍 DÉTAIL COMPLET DES QUESTIONS ET RÉPONSES")
             print("=" * 60)
-            
+
             for i, result in enumerate(comprehension_results["detailed_results"], 1):
                 status_icon = "✅" if result["correct"] else "❌"
-                print(f"\n{status_icon} QUESTION {i} - Section: {result.get('section', 'N/A')}")
+                print(
+                    f"\n{status_icon} QUESTION {i} - Section: {result.get('section', 'N/A')}"
+                )
                 print(f"Q: {result['question']}")
                 print(f"Mots-clés attendus: {', '.join(result['keywords_expected'])}")
-                print(f"Mots-clés trouvés: {', '.join(result['keywords_found']) if result['keywords_found'] else 'Aucun'}")
+                print(
+                    f"Mots-clés trouvés: {', '.join(result['keywords_found']) if result['keywords_found'] else 'Aucun'}"
+                )
                 print(f"Temps de réponse: {result['response_time']:.2f}s")
-                print(f"Réponse: {result.get('full_response', result['response'])[:300]}...")
+                print(
+                    f"Réponse: {result.get('full_response', result['response'])[:300]}..."
+                )
                 print("-" * 40)
-            
+
             # Sauvegarde des résultats
-            with open('tests/test_real_1m_results.json', 'w', encoding='utf-8') as f:
+            with open("tests/test_real_1m_results.json", "w", encoding="utf-8") as f:
                 json.dump(self.results, f, indent=2, ensure_ascii=False)
-            
-            print(f"\n📄 Résultats sauvegardés dans 'tests/test_real_1m_results.json'")
-            
+
+            print("\n📄 Résultats sauvegardés dans 'tests/test_real_1m_results.json'")
+
             return self.results
-            
-        except Exception as e:
+
+        except RuntimeError as e:
             print(f"❌ Erreur durant le test: {e}")
             self.results["test_status"] = "ERREUR"
             self.results["error"] = str(e)
             return self.results
 
+
 def main():
     """Fonction principale pour lancer le test"""
     tester = RealAI1MTest()
     results = tester.run_full_test()
-    
+
     if results.get("test_status") == "VALIDÉ":
         print("\n🎉 FÉLICITATIONS ! Votre IA supporte vraiment 1M+ tokens")
     elif results.get("test_status") == "ÉCHEC":
         print("\n⚠️ Le test révèle des limitations. Voir détails ci-dessus.")
     else:
         print("\n❌ Erreur durant le test")
-    
+
     return results
+
 
 if __name__ == "__main__":
     main()

@@ -1,11 +1,12 @@
 """
 Script d'automatisation de l'analyse d'erreurs et génération de rapports d'évaluation.
 """
-import os
 import json
+import argparse
 from typing import List, Dict, Any
 
 def load_jsonl(path: str) -> List[Dict[str, Any]]:
+    """Charge un fichier JSONL."""
     data = []
     with open(path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -18,6 +19,7 @@ def analyze_errors(preds: List[str], refs: List[str]) -> List[int]:
     return [i for i, (p, r) in enumerate(zip(preds, refs)) if p != r]
 
 def generate_report(metrics: Dict[str, float], errors: List[int], testset: List[Dict[str, Any]], report_path: str):
+    """Génère un rapport JSON avec les métriques et exemples d'erreurs."""
     report = {
         "metrics": metrics,
         "num_errors": len(errors),
@@ -28,7 +30,7 @@ def generate_report(metrics: Dict[str, float], errors: List[int], testset: List[
     print(f"Rapport généré dans {report_path}")
 
 def main():
-    import argparse
+    """Interface en ligne de commande pour l'analyse d'erreurs et la génération de rapports."""
     parser = argparse.ArgumentParser(description="Analyse d'erreurs et génération de rapport d'évaluation.")
     parser.add_argument('--preds', type=str, required=True, help="Fichier de prédictions (.jsonl)")
     parser.add_argument('--refs', type=str, required=True, help="Fichier de références (.jsonl)")
@@ -37,6 +39,7 @@ def main():
     args = parser.parse_args()
     preds_data = load_jsonl(args.preds)
     refs_data = load_jsonl(args.refs)
+
     # Supporte 'prediction', 'input', ou 'target' comme clé pour les prédictions
     if preds_data and 'prediction' in preds_data[0]:
         preds = [ex['prediction'] for ex in preds_data]

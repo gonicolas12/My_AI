@@ -75,3 +75,30 @@
 {"input": "Qui a inventé le téléphone ?", "target": "**Alexander Graham Bell**."}
 {"input": "Explique le terme 'écosystème'.", "target": "Un **écosystème** est un ensemble d'êtres vivants et leur environnement."}
 {"input": "Quel est le symbole chimique de l'or ?", "target": "**Au**"}
+{"input": "Donne-moi la formule de la vitesse.", "target": "**vitesse = distance / temps**"}
+{"input": "Traduis en français : 'Good morning'", "target": "**Bonjour**"}
+{"input": "Code Python pour vérifier si un nombre est pair.", "target": "**nombre % 2 == 0**"}
+{"input": "Quelle est la plus grande planète du système solaire ?", "target": "**Jupiter**."}
+{"input": "Quel est le symbole chimique de l'oxygène ?", "target": "**O**"}
+{"input": "Complète : La lumière voyage à une vitesse de ...", "target": "**299 792 km/s**."}
+{"input": "Donne-moi la capitale de l'Allemagne.", "target": "**Berlin**."}
+{"input": "Explique le terme 'climat'.", "target": "Le **climat** désigne les conditions météorologiques moyennes d'une région sur une longue période."}
+{"input": "Quelle est la monnaie officielle du Royaume-Uni ?", "target": "**Livre sterling (GBP)**."}
+{"input": "Donne-moi la formule de la densité.", "target": "**densité = masse / volume**"}
+{"input": "Traduis en espagnol : 'Bonne soirée'", "target": "**Buenas noches**"}
+{"input": "Code Python pour trouver le maximum dans une liste nommée 'nombres'.", "target": "**max(nombres)**"}
+{"input": "Quelle est la plus haute montagne du monde ?", "target": "**L'Everest**."}
+{"input": "Explique le concept d'énergie renouvelable.", "target": "L'**énergie renouvelable** provient de sources naturelles inépuisables comme le soleil, le vent ou l'eau."}
+{"input": "Complète : L'ADN contient les ...", "target": "**informations génétiques**."}
+{"input": "Donne-moi la capitale de l'Espagne.", "target": "**Madrid**."}
+{"input": "Donne-moi la formule de la force.", "target": "**force = masse × accélération**"}
+{"input": "Traduis en italien : 'Merci beaucoup'", "target": "**Molte grazie**"}
+{"input": "Code Python pour trier une liste nommée 'elements'.", "target": "**sorted(elements)**"}
+{"input": "Quelle est la plus longue rivière du monde ?", "target": "**L'Amazone**."}
+{"input": "Explique le concept de développement durable.", "target": "Le **développement durable** vise à répondre aux besoins présents sans compromettre ceux des générations futures."}
+{"input": "Complète : Le cycle de l'eau comprend l'évaporation, la condensation et ...", "target": "**la précipitation**."}
+{"input": "Donne-moi la capitale de la Russie.", "target": "**Moscou**."}
+{"input": "Explique le terme 'écologie'.", "target": "L'**écologie** est l'étude des interactions entre les organismes et leur environnement."}
+{"input": "Quel est le symbole chimique du magnésium ?", "target": "**Mg**"}
+{"input": "Quelle est la monnaie officielle du Japon ?", "target": "**Yen (JPY)**."}
+{"input": "Donne-moi la formule de l'énergie cinétique.", "target": "**E_c = 1/2 × m × v²**"}

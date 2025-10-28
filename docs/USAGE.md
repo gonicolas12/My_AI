@@ -1,431 +1,949 @@
-# 📚 Guide d'Utilisation Ultra - My Personal AI v5.0.0 (1M Tokens RÉEL)
+# 📚 Guide d'Utilisation - My Personal AI v5.6.0
 
-## 🚀 Démarrage Ultra
+## 🚀 Démarrage Rapide
 
-### Lancement de l'IA Ultra 1M Tokens
+### Lancement de l'Application
 
+**Interface Graphique (Recommandée):**
 ```bash
-# 🚀 Interface graphique ULTRA (recommandée)
-python launch_ultra.py
-# OU via launcher interactif
-python launcher.py   # Choisir option 1 pour Ultra
+# Lancement direct GUI
+python launch_unified.py
 
-# Interface graphique moderne avec 1M tokens
-python -m interfaces.gui_modern  --ultra
-
-# Mode CLI Ultra pour utilisateurs experts
-python main_ultra.py --cli
-
-# Commande directe Ultra avec contexte étendu
-python main_ultra.py chat "Analyse ce document complexe en profondeur" --context-1m
-
-# Vérifier le statut du système Ultra
-python main_ultra.py status --ultra-stats
+# OU via main.py
+python main.py --mode gui
 ```
 
-## � Capacités Ultra 1M Tokens
-
-### 🧠 Contexte Révolutionnaire
-
-Avec **1,048,576 tokens réels**, vous pouvez désormais :
-
-- **Analyser des documents entiers** : PDFs de 50+ pages, code complet
-- **Conversations ultra-longues** : Contexte maintenu sur des heures
-- **Projets complexes** : Analyse multi-fichiers avec mémoire totale
-- **Recherches approfondies** : Internet + contexte massif simultané
-
-### 🔍 Reconnaissance d'Intentions Ultra
-
-L'IA Ultra reconnaît automatiquement et traite avec le contexte étendu :
-
-#### 👋 Salutations avec Stats Ultra
-```
-🤖 Vous : slt
-🤖 IA Ultra : Salut ! 🚀 Système 1M tokens opérationnel !
-         📊 Contexte actuel: 0 / 1,048,576 tokens
-         💾 Documents traités: 0
-         🧩 Chunks actifs: 0
-         Comment puis-je t'aider avec ce système ultra-étendu ?
-
-🤖 Vous : bonjour
-🤖 IA Ultra : Bonjour ! 🎯 Mode Ultra 1M tokens activé !
-         Capacités : analyse complète documents, contexte massif,
-         mémoire persistante. Que souhaitez-vous explorer ?
-```
-
-#### 💻 Questions Techniques Ultra avec Contexte Massif
-```
-🤖 Vous : Analyse complète de ce projet Python de 50 fichiers
-🤖 IA Ultra : [Analyse ultra-détaillée avec :
-              - Contexte de TOUS les fichiers simultanément
-              - Relations entre modules complètes
-              - Suggestions d'optimisation globales
-              - Patterns de design détectés
-              - Documentation générée automatiquement]
-
-🤖 Vous : Continue cette conversation de 2000 messages
-🤖 IA Ultra : [Accès immédiat à TOUT l'historique de conversation
-              grâce au contexte 1M tokens, réponses cohérentes
-              avec références précises aux échanges précédents]
-```
-
-#### 📄 Questions sur Documents
-```
-🤖 Vous : résume ce document
-🤖 IA : [Résumé du document PDF/DOCX précédemment chargé]
-
-🤖 Vous : que dit le PDF sur les performances ?
-🤖 IA : [Extraction des informations pertinentes du document]
-
-🤖 Vous : quels sont les points clés du rapport ?
-🤖 IA : [Analyse et points principaux du document]
-```
-
-### Interface Graphique
-
-L'interface principale offre :
-- **Zone de conversation** : Historique complet des échanges
-- **Zone de saisie** : Entrée de texte avec support multilignes
-- **Bouton "Envoyer"** : Validation des messages
-- **Bouton "Clear Chat"** : Remise à zéro complète (conversation + mémoire)
-- **Glisser-déposer** : Chargement direct de fichiers PDF/DOCX
-
-### Exemples de Conversations Avancées
-
+**Interface CLI:**
 ```bash
+# Mode interactif
+python main.py
 
-# Session complète avec mémoire contextuelle
-🤖 Vous : bonjour
-🤖 IA : Bonjour ! Comment puis-je vous aider aujourd'hui ?
-
-🤖 Vous : [glisse un fichier rapport.pdf]
-🤖 IA : J'ai bien reçu le fichier "rapport.pdf". Il a été traité et son contenu est maintenant en mémoire.
-
-🤖 Vous : résume ce document
-🤖 IA : Voici un résumé du rapport.pdf : [résumé détaillé basé sur le contenu réel]
-
-🤖 Vous : comment implémenter les recommandations en Python ?
-🤖 IA : Basé sur les recommandations du rapport, voici comment les implémenter en Python : [code adapté au contenu du document]
-
-🤖 Vous : [bouton Clear Chat]
-🤖 IA : Conversation et mémoire effacées. Bonjour ! Comment puis-je vous aider ?
+# OU explicitement
+python main.py --mode cli
 ```
 
-## 📁 Traitement de Fichiers Avancé
-
-### Chargement de Documents
-
-L'IA supporte plusieurs méthodes de chargement :
-
-#### Glisser-Déposer (Interface Graphique):
-- Faites glisser directement vos fichiers PDF/DOCX dans l'interface
-- Traitement automatique et mise en mémoire
-- Confirmation de chargement avec nom du fichier
-
-#### Commande Directe:
+**Requêtes Directes:**
 ```bash
-python main.py process document.pdf
-python main.py process rapport.docx
-```
+# Chat direct
+python main.py chat "Votre question ici"
 
-### Types de Documents Supportés
+# Analyser fichier
+python main.py file analyze document.pdf
 
-#### Documents PDF:
-- **Extraction complète** : Texte, structure, métadonnées
-- **Mémoire persistante** : Contenu disponible pour toute la session
-- **Analyse contextuelle** : Réponses basées sur le contenu réel
+# Générer code
+python main.py generate code "description"
 
-#### Documents DOCX:
-- **Structure préservée** : Titres, paragraphes, listes
-- **Formatage intelligent** : Conservation de la hiérarchie
-- **Extraction complète** : Texte intégral avec contexte
-
-### Mémoire Conversationnelle
-
-#### Stockage Intelligent:
-- **Documents** : Contenu complet avec référence au nom de fichier
-- **Code** : Snippets et analyses de code avec contexte
-- **Historique** : Conversations précédentes pour continuité
-
-#### Utilisation de la Mémoire:
-```bash
-🤖 MyAI> fichier lire C:\Documents\rapport.pdf
-🤖 MyAI> fichier analyser C:\Documents\manuel.pdf
-```
-
-#### Documents Word (DOCX):
-```bash
-🤖 MyAI> fichier lire document.docx
-🤖 MyAI> Résume le contenu de contrat.docx
-```
-
-#### Code Source:
-```bash
-🤖 MyAI> fichier analyser script.py
-🤖 MyAI> fichier lire index.html
-🤖 MyAI> Explique ce que fait ce code dans app.js
-```
-
-#### Fichiers Texte:
-```bash
-🤖 MyAI> fichier lire notes.txt
-🤖 MyAI> Analyse ce fichier de log: error.log
-```
-
-### Commandes de Fichiers
-
-| Commande | Description | Exemple |
-|----------|-------------|---------|
-| `fichier lire <chemin>` | Lit et résume un fichier | `fichier lire rapport.pdf` |
-| `fichier analyser <chemin>` | Analyse détaillée | `fichier analyser code.py` |
-| `fichier info <chemin>` | Informations du fichier | `fichier info document.docx` |
-
-## 🛠️ Génération de Code
-
-### Création de Code
-
-L'IA peut générer du code dans plusieurs langages:
-
-#### Python:
-```bash
-🤖 MyAI> generer code fonction qui calcule la factorielle
-🤖 MyAI> generer code classe pour gérer une liste de tâches
-🤖 MyAI> generer code script qui lit un fichier CSV
-```
-
-#### Web (HTML/CSS/JavaScript):
-```bash
-🤖 MyAI> generer code page web avec formulaire de contact
-🤖 MyAI> generer code fonction JavaScript pour valider un email
-🤖 MyAI> generer code CSS pour un menu responsive
-```
-
-#### Autres langages:
-```bash
-🤖 MyAI> generer code fonction SQL pour sélectionner des données
-🤖 MyAI> generer code script bash pour sauvegarder des fichiers
-```
-
-### Types de Code Générés
-
-- **Fonctions** avec documentation complète
-- **Classes** avec méthodes et attributs
-- **Scripts complets** avec imports et main()
-- **Pages web** avec HTML, CSS et JavaScript
-- **Composants** réutilisables
-
-### Exemple de Génération
-
-```bash
-🤖 MyAI> generer code classe Calculator en Python
-
-# L'IA génère:
-class Calculator:
-    """
-    Calculatrice simple pour opérations arithmétiques
-    """
-    
-    def __init__(self):
-        """
-        Initialise Calculator
-        """
-        pass
-    
-    def add(self, a, b):
-        """
-        Addition de deux nombres
-        
-        Args:
-            a: Premier nombre
-            b: Deuxième nombre
-        
-        Returns:
-            Somme des deux nombres
-        """
-        return a + b
-    # ... autres méthodes
-```
-
-## 📄 Génération de Documents
-
-### Création de Documents
-
-L'IA peut créer différents types de documents:
-
-#### Rapports et Documents:
-```bash
-🤖 MyAI> generer document rapport sur l'analyse des ventes
-🤖 MyAI> generer document guide d'utilisation pour une API
-🤖 MyAI> generer document présentation du projet
-```
-
-#### Formats Supportés:
-- **PDF** : Documents professionnels
-- **Word (DOCX)** : Documents éditables
-- **Texte** : Documentation simple
-- **Markdown** : Documentation technique
-
-### Personnalisation des Documents
-
-```bash
-🤖 MyAI> generer document manuel utilisateur au format PDF
-🤖 MyAI> generer rapport technique avec graphiques
-🤖 MyAI> Crée un document de spécifications en Word
-```
-
-## 🎯 Commandes Avancées
-
-### Commandes Système
-
-| Commande | Description |
-|----------|-------------|
-| `statut` | Affiche l'état de l'IA |
-| `historique` | Historique des conversations |
-| `aide` | Affiche l'aide complète |
-| `quitter` | Ferme l'application |
-
-### Commandes par Ligne de Commande
-
-```bash
-# Requête directe
-python main.py chat "Votre question"
-
-# Traitement de fichier
-python main.py file read chemin/vers/fichier.pdf
-python main.py file analyze script.py
-
-# Génération avec sauvegarde
-python main.py generate code "fonction tri" --output tri.py
-python main.py generate document "rapport" --output rapport.pdf
-
-# Statut du système
+# Statut système
 python main.py status
 ```
 
-## 🔍 Fonctionnalités Spécialisées
+---
 
-### Analyse de Code
+## 💬 Utilisation Interface Graphique
 
-L'IA peut analyser votre code et fournir:
-- **Explication** ligne par ligne
-- **Suggestions d'amélioration**
-- **Détection de bugs** potentiels
-- **Optimisations** possibles
-- **Documentation** automatique
+### Vue d'Ensemble GUI Modern
+
+L'interface graphique moderne (inspirée de Claude.ai) offre:
+
+**Éléments Interface:**
+- **Chat Area** : Zone de conversation avec scroll
+- **Input Box** : Zone de saisie (supporte multilignes avec Shift+Enter)
+- **Send Button** : Bouton d'envoi (ou Enter)
+- **Clear Chat Button** : Réinitialiser conversation
+- **Drag & Drop Zone** : Glisser-déposer fichiers
+
+**Fonctionnalités:**
+- 🎨 **Thème sombre** moderne style Claude
+- 💬 **Bulles messages** utilisateur (droite) et IA (gauche)
+- 🕒 **Timestamps** sur chaque message
+- 🎨 **Syntax highlighting** pour code (via Pygments)
+- 📁 **Drag-and-drop** fichiers PDF/DOCX
+
+### Utilisation Typique GUI
 
 ```bash
-🤖 MyAI> Analyse ce code et suggère des améliorations
+# 1. Lancer GUI
+python launch_unified.py
+
+# 2. Interface s'ouvre
+#    - Zone chat en haut
+#    - Zone saisie en bas
+#    - Bouton Send et Clear
+
+# 3. Interactions
+# Type de message et Enter OU clic Send
+Vous: "Bonjour, comment ça va?"
+IA: "Salut ! Je vais bien, merci. Comment puis-je t'aider ?"
+
+# 4. Glisser-déposer fichier
+# Drag PDF/DOCX dans fenêtre
+IA: "Fichier 'rapport.pdf' chargé avec succès. 15 pages traitées."
+
+# 5. Questions sur document
+Vous: "Résume ce document"
+IA: [Résumé basé sur rapport.pdf]
+
+# 6. Effacer conversation
+# Clic button "Clear Chat"
+# Conversation réinitialisée
 ```
 
-### Aide au Développement
+### Commandes Spéciales GUI
+
+Dans la zone de saisie, vous pouvez taper:
+
+```
+aide       # Afficher commandes disponibles
+help       # (English version)
+
+statut     # Afficher état système
+status     # (English version)
+
+quitter    # Fermer application
+exit       # (Alternative)
+```
+
+---
+
+## 🖥️ Utilisation Interface CLI
+
+### Lancement CLI
 
 ```bash
-🤖 MyAI> Comment déboguer cette erreur Python?
-🤖 MyAI> Quelle est la meilleure façon de structurer ce projet?
-🤖 MyAI> Peux-tu optimiser cette fonction?
+python main.py
+# OU
+python main.py --mode cli
 ```
 
-### Assistance Documentation
+### Commandes CLI Disponibles
+
+#### Requêtes Normales
+```bash
+# Questions générales
+Vous> Bonjour
+IA> Salut ! Comment puis-je t'aider ?
+
+Vous> Comment créer une liste en Python?
+IA> Pour créer une liste en Python, utilisez des crochets: my_list = []
+
+Vous> Explique les boucles for
+IA> [Explication détaillée avec exemples]
+```
+
+#### Commandes Spéciales
+
+**aide / help** - Afficher toutes les commandes
+```bash
+Vous> aide
+
+Commandes disponibles:
+- aide / help : Afficher cette aide
+- quitter / exit : Quitter l'application
+- statut / status : Afficher l'état du système
+- historique / history : Voir l'historique des conversations
+- fichier <path> : Traiter un fichier
+- generer <type> <description> : Générer du contenu
+```
+
+**statut / status** - État système
+```bash
+Vous> statut
+
+État My Personal AI v5.6.0:
+- Modèle: CustomAI avec 1M tokens
+- Mémoire: 1,234,567 tokens utilisés / 1,048,576 max
+- Documents: 3 fichiers en mémoire
+- Conversations: 45 échanges dans l'historique
+- Cache: Actif (75% hit rate)
+- Système: OK
+```
+
+**historique / history** - Voir conversations
+```bash
+Vous> historique
+
+Historique (10 derniers échanges):
+1. Vous: "Bonjour"
+   IA: "Salut ! Comment puis-je t'aider ?"
+2. Vous: "Résume le PDF"
+   IA: "Voici le résumé: ..."
+...
+```
+
+**fichier** - Traiter fichier
+```bash
+Vous> fichier rapport.pdf
+IA> Traitement de rapport.pdf en cours...
+IA> Fichier traité avec succès. 25 pages analysées, 12,345 tokens ajoutés.
+IA> Vous pouvez maintenant me poser des questions sur ce document.
+
+Vous> Que dit ce rapport sur les performances?
+IA> [Extraction des informations pertinentes du PDF]
+```
+
+**generer** - Générer contenu
+```bash
+Vous> generer code fonction fibonacci récursive Python
+IA> Voici une fonction Fibonacci récursive en Python:
+
+def fibonacci(n):
+    """Calcule le n-ième nombre de Fibonacci récursivement"""
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+# Exemple d'utilisation:
+print(fibonacci(10))  # Output: 55
+```
+
+**quitter / exit** - Fermer application
+```bash
+Vous> quitter
+IA> Au revoir ! À bientôt.
+# Application se ferme
+```
+
+---
+
+## 🎯 Reconnaissance d'Intentions
+
+L'IA détecte automatiquement le type de requête et adapte sa réponse:
+
+### 1. Salutations
+
+**Patterns détectés:** bonjour, salut, bjr, slt, hello, hi, coucou, hey
 
 ```bash
-🤖 MyAI> Génère la documentation pour cette fonction
-🤖 MyAI> Crée un README pour ce projet
-🤖 MyAI> Écris des tests unitaires pour cette classe
+Vous> slt
+IA> Salut ! Comment puis-je t'aider aujourd'hui ?
+
+Vous> bonjour
+IA> Bonjour ! Que puis-je faire pour vous ?
 ```
 
-## 📊 Gestion des Fichiers Générés
+### 2. Questions de Programmation
 
-### Localisation des Fichiers
+**Keywords:** fonction, classe, code, python, javascript, html, css, algorithme
 
-Tous les fichiers générés sont sauvés dans:
+```bash
+Vous> Comment créer une fonction Python?
+IA> Pour créer une fonction en Python:
+
+def ma_fonction(param1, param2):
+    # Code de la fonction
+    return resultat
+
+Exemple concret:
+def additionner(a, b):
+    return a + b
 ```
-outputs/
-├── generated_code_20240707_143022.py
-├── document_20240707_143156.pdf
-└── rapport_20240707_143301.docx
+
+### 3. Analyse de Documents
+
+**Patterns:** résume, analyse, que dit, extrait, explique le document/PDF/fichier
+
+```bash
+# Après avoir chargé un PDF
+Vous> résume ce document
+IA> Résumé du document "technical_spec.pdf":
+Le document présente...
+[Résumé détaillé basé sur contenu réel]
+
+Vous> Que dit le PDF sur la sécurité?
+IA> Concernant la sécurité, le document mentionne:
+- Point 1: [extraction]
+- Point 2: [extraction]
 ```
 
-### Types de Fichiers Créés
+### 4. Génération de Code
 
-- **Code** : `.py`, `.js`, `.html`, `.css`
-- **Documents** : `.pdf`, `.docx`, `.txt`
-- **Données** : `.json`, `.csv`, `.xml`
+**Triggers:** génère, crée, écris du code, fais-moi
 
-## 🎨 Personnalisation
+```bash
+Vous> Génère une classe Python pour gérer une base de données
+IA> Voici une classe pour gérer une base de données SQLite:
 
-### Configuration du Prompt
+import sqlite3
 
-Vous pouvez modifier le prompt dans `config.yaml`:
+class DatabaseManager:
+    def __init__(self, db_name):
+        self.conn = sqlite3.connect(db_name)
+        self.cursor = self.conn.cursor()
+
+    def execute(self, query, params=()):
+        self.cursor.execute(query, params)
+        self.conn.commit()
+
+    def fetch(self, query, params=()):
+        self.cursor.execute(query, params)
+        return self.cursor.fetchall()
+
+    def close(self):
+        self.conn.close()
+
+# Utilisation:
+db = DatabaseManager('my_database.db')
+```
+
+### 5. Recherche Internet
+
+**Triggers:** cherche sur internet, recherche web, google, trouve sur le web
+
+```bash
+Vous> cherche sur internet population de Paris
+IA> 🌐 Recherche sur internet...
+
+Résultat de la recherche:
+La population de Paris est d'environ 2,2 millions d'habitants
+(agglomération: 10,9 millions).
+
+Sources:
+- [URL1]
+- [URL2]
+```
+
+---
+
+## 📁 Traitement de Fichiers
+
+### Types de Fichiers Supportés
+
+| Extension | Processeur | Capacités |
+|-----------|------------|-----------|
+| .pdf | PDFProcessor | Texte, metadata, images, chunking |
+| .docx | DOCXProcessor | Paragraphes, tables, formatage |
+| .txt | FileManager | Texte brut |
+| .py, .js, .html, .css | CodeProcessor | Code avec analyse syntaxique |
+| .md | FileManager | Markdown |
+| .json | FileManager | JSON structuré |
+| .csv | FileManager | Données tabulaires |
+
+### Méthodes de Chargement
+
+#### 1. Drag-and-Drop (GUI)
+```bash
+# Dans interface GUI:
+# 1. Ouvrir explorateur fichiers
+# 2. Sélectionner fichier
+# 3. Glisser dans fenêtre GUI
+# 4. Attendre confirmation: "Fichier chargé"
+```
+
+#### 2. Commande CLI
+```bash
+# Mode interactif
+Vous> fichier path/to/document.pdf
+
+# Mode direct
+python main.py file analyze path/to/document.pdf
+```
+
+#### 3. Via Code Python
+```python
+from core.ai_engine import AIEngine
+
+ai = AIEngine()
+
+# Traiter fichier
+result = ai.process_file("rapport.pdf")
+print(result)  # {"success": True, "message": "...", "content": "..."}
+
+# Poser question sur fichier
+response = ai.process_query("Résume ce document")
+print(response["message"])
+```
+
+### Workflow Traitement Document
+
+```
+1. Chargement fichier
+   ↓
+2. Détection type (extension)
+   ↓
+3. Processeur approprié
+   ├─ PDF → PDFProcessor
+   ├─ DOCX → DOCXProcessor
+   └─ Code → CodeProcessor
+   ↓
+4. Extraction contenu
+   ↓
+5. Chunking (2048 tokens)
+   ↓
+6. Stockage ConversationMemory
+   ↓
+7. Ajout MillionTokenContextManager
+   ↓
+8. Confirmation utilisateur
+   ↓
+9. Questions possibles sur document
+```
+
+### Exemples Traitement
+
+#### PDF Technique
+```bash
+Vous> fichier technical_documentation.pdf
+IA> Traitement PDF en cours...
+IA> ✅ Fichier traité: 50 pages, 45,678 tokens
+IA> Vous pouvez maintenant poser des questions sur ce document.
+
+Vous> Quelles sont les spécifications techniques?
+IA> Selon le document, les spécifications techniques sont:
+1. [Point 1 extrait]
+2. [Point 2 extrait]
+...
+
+Vous> Comment implémenter la section 3.2?
+IA> La section 3.2 décrit... [explication avec code si pertinent]
+```
+
+#### Code Source
+```bash
+Vous> fichier src/main.py
+IA> Analyse du code Python...
+IA> ✅ Fichier analysé: 250 lignes, 3 classes, 15 fonctions
+
+Vous> Explique la fonction process_data
+IA> La fonction process_data (ligne 45) fait ceci:
+[Explication détaillée avec extrait de code]
+
+Vous> Comment optimiser cette fonction?
+IA> Voici des suggestions d'optimisation:
+1. Utiliser list comprehension au lieu de boucle for
+2. [Autres suggestions avec code]
+```
+
+---
+
+## 💾 Gestion Mémoire et Contexte
+
+### ConversationMemory
+
+**Stockage automatique:**
+- Conversations (user + AI messages)
+- Documents traités (nom + contenu)
+- Code analysé
+- Préférences utilisateur
+- Cache contexte récent
+
+**Persistance:**
+- Format JSON
+- Sauvegarde automatique
+- Rechargement au démarrage
+
+### MillionTokenContextManager (1M Tokens)
+
+**Capacité:** 1,048,576 tokens maximum
+
+**Workflow:**
+```python
+# Ajout document
+context_mgr.add_document(
+    content=large_text,
+    document_name="spec.pdf"
+)
+# → Chunking automatique
+# → Indexation
+# → Stockage persistant
+
+# Recherche
+results = context_mgr.search_context(
+    query="security requirements",
+    top_k=5
+)
+# → Chunks pertinents retournés
+
+# Statistiques
+stats = context_mgr.get_statistics()
+# {
+#   "total_tokens": 456789,
+#   "total_documents": 3,
+#   "total_chunks": 223
+# }
+```
+
+**Utilisation pratique:**
+```bash
+# Charger plusieurs documents
+Vous> fichier doc1.pdf
+IA> ✅ Document 1 chargé (50K tokens)
+
+Vous> fichier doc2.pdf
+IA> ✅ Document 2 chargé (75K tokens)
+
+Vous> fichier doc3.docx
+IA> ✅ Document 3 chargé (30K tokens)
+
+# Total contexte: 155K tokens / 1M disponible
+
+# Questions multi-documents
+Vous> Compare les approches dans doc1 et doc2
+IA> [Analyse comparative en utilisant les deux documents]
+
+Vous> Synthèse des 3 documents
+IA> [Synthèse complète avec références croisées]
+```
+
+---
+
+## 🔍 Recherche Internet
+
+### Activation
+
+**Trigger:** "cherche sur internet", "recherche web", "google"
+
+```bash
+Vous> cherche sur internet capitale du Japon
+IA> 🌐 Recherche sur internet...
+
+Résultat:
+La capitale du Japon est Tokyo.
+
+Informations complémentaires:
+- Population: ~14 millions (agglomération: ~37 millions)
+- Fondation: 1603
+- Anciennement: Edo
+
+Sources:
+- [URL1]
+- [URL2]
+```
+
+### Fonctionnalités Recherche
+
+**Moteur:** DuckDuckGo API + Web Scraping
+
+**Capacités:**
+- Recherche top 8 résultats
+- Extraction patterns:
+  - Faits (taille, poids, population, dates)
+  - Définitions
+  - Prix et spécifications techniques
+- BeautifulSoup scraping
+- Cache 1h (évite requêtes répétées)
+
+**Patterns reconnus:**
+```python
+# Taille/Poids
+"Quelle est la taille de la Tour Eiffel?"
+→ "324 mètres"
+
+# Population
+"Population de New York?"
+→ "8,3 millions"
+
+# Dates
+"Quand a été construit le Taj Mahal?"
+→ "1632-1653"
+
+# Définitions
+"Qu'est-ce que le machine learning?"
+→ [Définition extraite]
+```
+
+---
+
+## 💻 Génération de Code
+
+### Sources Multi-Intégrées
+
+**1. StackOverflow** (priorité 1)
+- Solutions les plus votées
+- Code vérifié par communauté
+- Exemples pratiques
+
+**2. GitHub** (priorité 2)
+- Recherche par langage
+- Code production
+- Patterns réels
+
+**3. Web Scraping** (priorité 3)
+- Tutoriels en ligne
+- Documentation
+
+**4. Templates** (fallback)
+- Templates intégrés si pas de résultats web
+
+### Workflow Génération
+
+```bash
+Vous> Génère une fonction pour parser JSON en Python
+IA> 🔍 Recherche de code...
+IA> ✅ Solution trouvée (StackOverflow, 1,234 votes)
+
+import json
+
+def parse_json(json_string):
+    """Parse une chaîne JSON et retourne un objet Python"""
+    try:
+        data = json.loads(json_string)
+        return {"success": True, "data": data}
+    except json.JSONDecodeError as e:
+        return {"success": False, "error": str(e)}
+
+# Utilisation:
+json_str = '{"name": "John", "age": 30}'
+result = parse_json(json_str)
+print(result["data"])  # {'name': 'John', 'age': 30}
+
+Source: StackOverflow #12345678
+```
+
+### Langages Supportés
 
 ```yaml
+langages_supportes:
+  - Python
+  - JavaScript / TypeScript
+  - HTML / CSS
+  - Java
+  - C / C++
+  - Go
+  - Rust
+  - SQL
+  - Bash / Shell
+  - Et plus...
+```
+
+### Types de Génération
+
+**Fonctions:**
+```bash
+Vous> Fonction pour calculer factorielle Python
+IA> [Génère fonction avec docstring et exemples]
+```
+
+**Classes:**
+```bash
+Vous> Classe pour gérer utilisateurs
+IA> [Génère classe complète avec méthodes]
+```
+
+**Scripts complets:**
+```bash
+Vous> Script pour scraper un site web
+IA> [Génère script avec imports et gestion erreurs]
+```
+
+**Composants UI:**
+```bash
+Vous> Composant React pour formulaire de connexion
+IA> [Génère composant JSX avec gestion état]
+```
+
+---
+
+## 📊 Commandes Système
+
+### Statut Système
+
+```bash
+python main.py status
+
+# Output:
+═══════════════════════════════════════════════
+  MY PERSONAL AI - System Status v5.6.0
+═══════════════════════════════════════════════
+
+🤖 AI Model: CustomAIModel
+📊 Version: 5.6.0
+💾 Context Manager: MillionTokenContextManager
+
+📈 Context Statistics:
+   - Total Tokens: 456,789 / 1,048,576 (43.6%)
+   - Documents: 3
+   - Chunks: 223
+   - Storage: 145 MB
+
+💬 Conversation Memory:
+   - Exchanges: 45
+   - Stored Documents: 3
+   - Cache Keywords: 127
+
+🔧 Features Status:
+   ✅ Internet Search: Active
+   ✅ Code Generation: Active
+   ✅ RLHF: Configured
+   ✅ FAQ Model: Loaded (4 enrichment files)
+
+⚙️  Performance:
+   - Cache Hit Rate: 75%
+   - Average Response Time: 850ms
+   - Memory Usage: 1,245 MB
+
+✅ System: Operational
+═══════════════════════════════════════════════
+```
+
+### Informations Version
+
+```bash
+python main.py --version
+
+My Personal AI v5.6.0
+- Architecture: 100% Local
+- Context: 1,048,576 tokens (1M)
+- Interfaces: GUI (CustomTkinter), CLI
+- Python: 3.10+
+```
+
+---
+
+## 🎓 Exemples d'Utilisation Avancée
+
+### Session Complète: Analyse Projet
+
+```bash
+# 1. Lancer IA
+python launch_unified.py
+
+# 2. Charger architecture
+Vous> fichier docs/ARCHITECTURE.md
+IA> ✅ Document chargé (12,345 tokens)
+
+# 3. Charger code principal
+Vous> fichier src/main.py
+IA> ✅ Code analysé (5,678 tokens)
+
+# 4. Charger tests
+Vous> fichier tests/test_main.py
+IA> ✅ Tests analysés (3,456 tokens)
+
+# 5. Questions multi-fichiers
+Vous> L'architecture documentée correspond-elle au code réel?
+IA> En comparant ARCHITECTURE.md et main.py:
+✅ Correspondances:
+   - Structure modules conforme
+   - Patterns documentés appliqués
+
+⚠️  Différences détectées:
+   - Section 3.2 de ARCHITECTURE.md non implémentée dans main.py
+   - Fonction process_data() pas documentée
+
+📝 Recommandations:
+   1. Mettre à jour ARCHITECTURE.md section 3.2
+   2. Ajouter documentation process_data()
+
+Vous> Génère les tests manquants pour main.py
+IA> Voici les tests unitaires manquants:
+[Tests générés basés sur analyse du code]
+```
+
+### Session: Recherche et Documentation
+
+```bash
+# 1. Recherche concept
+Vous> cherche sur internet design patterns python
+IA> 🌐 Recherche...
+[Résultats avec sources]
+
+# 2. Génération code basé sur recherche
+Vous> Implémente le pattern Singleton en Python
+IA> Voici une implémentation Singleton:
+[Code généré]
+
+# 3. Questions approfondies
+Vous> Quand utiliser ce pattern?
+IA> Le pattern Singleton est recommandé quand:
+1. [Cas d'usage 1]
+2. [Cas d'usage 2]
+
+Vous> Alternatives au Singleton?
+IA> Alternatives au pattern Singleton:
+- Dependency Injection
+- Factory Pattern
+[Explications et exemples]
+```
+
+### Session: RLHF Interactif
+
+```bash
+# 1. Poser question
+Vous> Comment optimiser une requête SQL?
+IA> [Réponse générée]
+
+# 2. Noter réponse (si RLHF configuré)
+Rating: 4/5
+
+# 3. Feedback enregistré
+IA> Merci pour votre feedback! (4/5)
+
+# 4. Après plusieurs feedbacks, modèle s'améliore
+# Réponses futures sur SQL seront plus précises
+```
+
+---
+
+## ⚙️ Configuration Utilisateur
+
+### Fichier config.yaml
+
+```yaml
+# config.yaml - Personnalisation utilisateur
+
+ai:
+  name: "Mon IA Personnelle"
+  max_tokens: 4096
+  temperature: 0.7
+  conversation_history_limit: 10
+
 ui:
   cli:
-    prompt: "🧠 MonIA> "  # Personnalisez votre prompt
+    prompt: "💬 Vous> "
+    ai_prompt: "🤖 IA> "
+  gui:
+    theme: "dark"  # dark, light
+    font_size: 11
+    code_highlighting: true
+
+features:
+  enable_internet_search: true
+  enable_code_generation: true
+  enable_rlhf: false
+
+context_manager:
+  max_tokens: 1048576  # 1M
+  chunk_size: 2048
+  auto_cleanup: true
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_file: "data/logs/app.log"
 ```
 
-### Ajustement de l'IA
+### Variables Environnement (.env)
 
+```bash
+# .env
+GITHUB_TOKEN=your_github_token_here  # Pour code generation
+DEBUG=false
+LOG_LEVEL=INFO
+```
+
+---
+
+## 🔧 Troubleshooting Utilisation
+
+### Problème: IA ne répond pas
+
+**Diagnostic:**
+1. Vérifier statut: `python main.py status`
+2. Vérifier logs: `data/logs/`
+3. Tester requête simple: `python main.py chat "test"`
+
+**Solutions:**
+- Redémarrer application
+- Vérifier mémoire disponible
+- Réduire `max_tokens` dans config
+
+### Problème: Fichier non traité
+
+**Erreur:** "Impossible de traiter le fichier"
+
+**Solutions:**
+1. Vérifier extension supportée (.pdf, .docx, .txt, etc.)
+2. Vérifier taille fichier (< 100MB par défaut)
+3. Vérifier permissions lecture fichier
+4. Essayer chemin absolu au lieu de relatif
+
+### Problème: Recherche internet ne fonctionne pas
+
+**Diagnostic:**
+- Vérifier connexion internet
+- Tester: `python main.py chat "cherche sur internet test"`
+
+**Solutions:**
+1. Vérifier config: `enable_internet_search: true`
+2. Vérifier firewall/proxy
+3. DuckDuckGo peut avoir rate limits (attendre quelques minutes)
+
+### Problème: Mémoire pleine
+
+**Erreur:** "Context manager at capacity"
+
+**Solutions:**
+```bash
+# Via CLI
+Vous> statut
+# Voir utilisation contexte
+
+# Clear chat (GUI) OU redémarrer
+python launch_unified.py
+```
+
+**Configuration:**
 ```yaml
-ai:
-  temperature: 0.8    # Plus créatif (0.0-1.0)
-  max_tokens: 8192   # Réponses plus longues
+# Dans config.yaml, réduire:
+context_manager:
+  max_tokens: 524288  # 512K au lieu de 1M
+  auto_cleanup: true  # Active cleanup automatique
 ```
 
-## 💡 Conseils d'Utilisation
+---
 
-### Pour de Meilleurs Résultats:
+## 📚 Ressources Supplémentaires
 
-1. **Soyez précis** dans vos demandes
-2. **Donnez du contexte** quand nécessaire
-3. **Utilisez des exemples** pour clarifier
-4. **Décomposez** les tâches complexes
+**Documentation:**
+- `INSTALLATION.md` - Installation et setup
+- `ARCHITECTURE.md` - Détails techniques
+- `OPTIMIZATION.md` - Performance tuning
+- `FAQ.md` - Questions fréquentes
 
-### Exemples de Bonnes Pratiques:
+**Exemples:**
+- `examples/basic_usage.py` - Usage basique
+- `examples/file_processing.py` - Traitement fichiers
+- `examples/code_generation.py` - Génération code
+- `examples/workflow_examples.py` - Workflows complets
 
-❌ **Mauvais**: "Fais du code"
-✅ **Bon**: "Crée une fonction Python qui lit un fichier CSV et retourne une liste de dictionnaires"
+**Tests:**
+- `tests/test_imports.py` - Vérification modules
+- `tests/test_real_1m_tokens.py` - Test contexte 1M
+- `tests/demo_1m_tokens.py` - Démonstration interactive
 
-❌ **Mauvais**: "Analyse ce fichier"
-✅ **Bon**: "Analyse ce fichier Python et explique la logique de chaque fonction"
+---
 
-## 🔧 Dépannage Courant
+## 🎯 Best Practices
 
-### L'IA ne répond pas:
-- Vérifiez que le modèle LLM est bien chargé
-- Lancez `python main.py status` pour diagnostiquer
+### Pour Questions Efficaces
 
-### Erreur de lecture de fichier:
-- Vérifiez le chemin du fichier
-- Assurez-vous que le format est supporté
+**✅ Faire:**
+- Questions claires et spécifiques
+- Fournir contexte si nécessaire
+- Charger documents pertinents avant questions
+- Utiliser commandes système (statut, aide)
 
-### Code généré incomplet:
-- Augmentez `max_tokens` dans la configuration
-- Décomposez votre demande en plusieurs parties
+**❌ Éviter:**
+- Questions trop vagues sans contexte
+- Demandes multiples dans une requête
+- Oublier de charger fichiers avant d'y référer
 
-## 🎓 Exemples Pratiques
+### Pour Documents
 
-### Scenario 1: Développement Web
+**✅ Faire:**
+- Charger documents au début de session
+- Donner noms descriptifs aux fichiers
+- Organiser documents par projet
 
-```bash
-🤖 MyAI> generer code page HTML avec CSS pour un portfolio
-🤖 MyAI> generer code fonction JavaScript pour un carousel d'images
-🤖 MyAI> fichier analyser style.css et suggère des améliorations
-```
+**❌ Éviter:**
+- Charger trop de documents inutiles
+- Fichiers > 100MB sans nécessité
+- Recharger même fichier plusieurs fois
 
-### Scenario 2: Analyse de Données
+### Pour Performance
 
-```bash
-🤖 MyAI> generer code script Python pour analyser un fichier CSV
-🤖 MyAI> fichier lire data.csv et explique les colonnes
-🤖 MyAI> generer code visualisation des données avec matplotlib
-```
+**✅ Faire:**
+- Clear chat régulièrement si mémoire limitée
+- Utiliser CLI pour machines peu puissantes
+- Activer cache pour requêtes répétées
 
-### Scenario 3: Documentation
+**❌ Éviter:**
+- Laisser tourner avec contexte plein 24/7
+- Charger des centaines de fichiers
+- Requêtes internet trop fréquentes (rate limits)
 
-```bash
-🤖 MyAI> fichier analyser projet.py et génère la documentation
-🤖 MyAI> generer document guide utilisateur pour cette API
-🤖 MyAI> Crée un README complet pour ce projet
-```
+---
 
-Profitez de votre IA personnelle ! 🚀
+**Version:** 5.6.0
+**Interfaces:** GUI (CustomTkinter), CLI
+**Capacité Contexte:** 1,048,576 tokens (1M)
+**Architecture:** 100% Locale

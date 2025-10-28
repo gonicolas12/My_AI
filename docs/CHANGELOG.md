@@ -1,5 +1,51 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# ✨ Version 5.6.0 - Refonte PEP 8 & Résumé d'URL (28 Octobre 2025)
+
+### 🚀 Nouveautés principales
+
+#### 🔗 Résumé automatique d'URL
+- **Fonctionnalité de résumé de pages web** : L'IA peut désormais visiter et résumer automatiquement le contenu de n'importe quelle URL
+- **Détection intelligente d'URL** : Reconnaissance automatique des demandes de résumé avec patterns variés
+  - "Résume cette page : [lien]"
+  - "Résume ce lien : [lien]"
+  - "Que contient cette page : [lien]"
+  - "Résume ceci : [lien]"
+- **Extraction de contenu avancée** :
+  - Parsing HTML intelligent avec BeautifulSoup
+  - Extraction du contenu principal (article, main, .content)
+  - Nettoyage automatique des scripts, styles, nav, footer
+  - Support multi-stratégies pour différents formats de sites
+- **Résumés structurés** :
+  - Titre de la page
+  - URL source
+  - Top 5 des phrases clés
+  - Statistiques (nombre de mots, phrases)
+  - Mots-clés principaux automatiquement extraits
+- **Cache intelligent** : Mise en cache des résumés pour éviter les requêtes répétées (TTL: 1h)
+- **Gestion d'erreurs complète** : Timeout, 404, 403, erreurs de connexion avec messages explicites
+
+#### 🧹 Refonte PEP 8 & Qualité du code
+- **Normalisation complète du code Python** selon les standards PEP 8
+- **Organisation améliorée** : Tous les fichiers Python refactorisés pour une meilleure lisibilité
+- **Cohérence des conventions** :
+  - Noms de variables et fonctions en snake_case
+  - Noms de classes en PascalCase
+  - Constantes en MAJUSCULES
+  - Documentation docstrings standardisée
+- **Imports optimisés** : Ordre et organisation des imports selon PEP 8
+- **Espacement et formatage** : Respect strict des règles de formatage Python
+
+### 🎯 Exemples d'usage nouveaux
+```bash
+🤖 "Résume cette page : https://fr.wikipedia.org/wiki/Tour_Eiffel"
+🤖 "Résume ce lien : https://www.python.org"
+🤖 "Que contient cette page : https://github.com/anthropics"
+🤖 "Résume ceci : https://www.example.com/article"
+```
+
+---
+
 # 🟢 Version 5.5.0 - Génération de code par API & Simplification Architecture (29 Septembre 2025)
 
 ### 🚀 Nouveautés principales

@@ -5,7 +5,7 @@ REM My Personal AI ULTRA - Lanceur v5.0
 REM ====================================
 
 echo.
-echo MY PERSONAL AI v5.5.0
+echo MY PERSONAL AI v5.6.0
 echo ======================
 echo.
 

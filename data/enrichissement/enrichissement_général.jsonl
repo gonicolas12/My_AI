@@ -282,7 +282,6 @@
 {"input": "Quelle est la température du zéro absolu ?", "target": "**-273,15°C** (ou 0 Kelvin)."}
 {"input": "Qui a peint la Chapelle Sixtine ?", "target": "**Michel-Ange**."}
 {"input": "Qui a composé La Neuvième Symphonie ?", "target": "**Ludwig van Beethoven**."}
-{"input": "Qui a écrit 'Les Misérables' ?", "target": "**Victor Hugo**."}
 {"input": "Qui a découvert la pénicilline ?", "target": "**Alexander Fleming**."}
 {"input": "Qui a inventé le téléphone ?", "target": "**Alexander Graham Bell** (contesté, Antonio Meucci précurseur)."}
 {"input": "Qui a inventé la lampe électrique ?", "target": "**Thomas Edison** (parmi d'autres inventeurs)."}

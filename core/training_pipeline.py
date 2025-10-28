@@ -5,8 +5,10 @@ Pipeline d'entraînement local pour le modèle IA
 import os
 import json
 import csv
+import importlib.util
+import sys
+import argparse
 from typing import List, Dict, Any, Optional
-import datetime
 
 def load_dataset(dataset_path: str) -> List[Dict[str, Any]]:
     """Charge un dataset au format JSONL ou CSV."""
@@ -31,8 +33,7 @@ def load_model(model_path: str):
     """Charge un modèle IA local (fichier .py avec LocalModel ou train)."""
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found: {model_path}")
-    import importlib.util
-    import sys
+
     if model_path.endswith('.py'):
         spec = importlib.util.spec_from_file_location("local_model", model_path)
         module = importlib.util.module_from_spec(spec)
@@ -101,8 +102,8 @@ def train_model(model_path: str, trainset_path: str, valset_path: Optional[str] 
             print(f"Checkpoint sauvegardé dans {checkpoint_dir}")
         # Évaluation sur validation
         if valset:
-            val_inputs = [ex[input_key] for ex in valset]
-            val_targets = [ex[target_key] for ex in valset]
+            val_inputs = [ex[input_key] for ex in "valset"]
+            val_targets = [ex[target_key] for ex in "valset"]
             if hasattr(model, 'evaluate'):
                 val_loss = model.evaluate(val_inputs, val_targets)
                 print(f"Validation loss: {val_loss}")
@@ -121,7 +122,7 @@ def fine_tune_model(base_model_path: str, trainset_path: str, valset_path: Optio
                       epochs, batch_size, checkpoint_dir, log_every, verbose)
 
 def main():
-    import argparse
+    """Interface en ligne de commande pour entraîner un modèle local."""
     parser = argparse.ArgumentParser(description="Pipeline d'entraînement local d'un modèle IA.")
     parser.add_argument('--model', type=str, required=True, help="Chemin du modèle local (.py)")
     parser.add_argument('--trainset', type=str, required=True, help="Chemin du jeu d'entraînement (.jsonl/.csv)")

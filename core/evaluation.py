@@ -4,7 +4,11 @@ Module d'évaluation du modèle IA local
 import os
 import json
 import csv
+import importlib.util
+import sys
+import argparse
 from typing import List, Dict, Any, Optional
+from collections import Counter
 
 def load_testset(testset_path: str) -> List[Dict[str, Any]]:
     """Charge un jeu de test au format JSONL ou CSV."""
@@ -31,8 +35,7 @@ def load_model(model_path: str):
         raise FileNotFoundError(f"Model not found: {model_path}")
     # Exemple : chargement d'un modèle pickle, torch, ou custom
     # Ici, on suppose une interface simple avec une méthode 'predict'
-    import importlib.util
-    import sys
+
     if model_path.endswith('.py'):
         spec = importlib.util.spec_from_file_location("local_model", model_path)
         module = importlib.util.module_from_spec(spec)
@@ -55,7 +58,6 @@ def compute_metrics(preds: List[str], refs: List[str]) -> Dict[str, float]:
     exact_match = tp / total if total else 0.0
     # Pour précision/rappel/F1 sur classification binaire ou multi-label
     # Ici, on suppose des labels string, sinon adapter
-    from collections import Counter
     pred_counter = Counter(preds)
     ref_counter = Counter(refs)
     common = sum((pred_counter & ref_counter).values())
@@ -107,7 +109,7 @@ def evaluate_model(model_path: str, testset_path: str, input_key: str = "input",
     return metrics
 
 def main():
-    import argparse
+    """Interface en ligne de commande pour l'évaluation locale du modèle IA."""
     parser = argparse.ArgumentParser(description="Évaluation locale d'un modèle IA sur un jeu de test.")
     parser.add_argument('--model', type=str, required=True, help="Chemin du modèle local (.py)")
     parser.add_argument('--testset', type=str, required=True, help="Chemin du jeu de test (.jsonl/.csv)")

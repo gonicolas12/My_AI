@@ -5,7 +5,6 @@ Vérifie que tous les modules principaux peuvent être importés correctement
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Ajout du path racine du projet
@@ -33,7 +32,7 @@ def test_imports():
         ("utils.logger", "setup_logger"),
     ]
 
-    print("🔍 TEST DE VALIDATION DES IMPORTS")
+    print("\n🔍 TEST DE VALIDATION DES IMPORTS")
     print("=" * 60)
 
     for module_name, class_name in tests:
@@ -42,12 +41,12 @@ def test_imports():
             getattr(module, class_name)
             results["success"].append(f"{module_name}.{class_name}")
             print(f"   ✅ {module_name}.{class_name}")
-        except Exception as e:
+        except (ImportError, AttributeError) as e:
             results["failed"].append(f"{module_name}.{class_name}: {e}")
             print(f"   ❌ {module_name}.{class_name}: {e}")
 
     print("\n" + "=" * 60)
-    print(f"📊 RÉSULTATS:")
+    print("📊 RÉSULTATS:")
     print(f"   ✅ Succès: {len(results['success'])}/{len(tests)}")
     print(f"   ❌ Échecs: {len(results['failed'])}/{len(tests)}")
 
@@ -61,5 +60,5 @@ def test_imports():
         return True
 
 if __name__ == "__main__":
-    success = test_imports()
-    sys.exit(0 if success else 1)
+    SUCCESS = test_imports()
+    sys.exit(0 if SUCCESS else 1)

@@ -1,23 +1,12 @@
-def optimize(method: str = "quantization"):
-    """Fonction d'optimisation de haut niveau pour compatibilité avec le pipeline."""
-    model = BaseModel()
-    return model.optimize(method=method)
-def predict(x):
-    """Fonction de prédiction de haut niveau pour compatibilité avec l'évaluation."""
-    model = BaseModel()
-    model.trained = True
-    return model.predict(x)
-def train(X, y, sample_weight=None):
-    """Fonction d'entraînement de haut niveau pour compatibilité avec le pipeline."""
-    model = BaseModel()
-    loss = model.train(X, y, sample_weight)
-    return loss
 """
 Module pour définir et expérimenter différentes architectures de modèles IA locaux
 """
+
+import argparse
 from typing import Any, List
 
 class BaseModel:
+    """Modèle de base"""
     def save_weights(self, path: str):
         """Sauvegarde les poids du modèle (stub)."""
         with open(path, 'w', encoding='utf-8') as f:
@@ -25,24 +14,26 @@ class BaseModel:
     def quantize(self):
         """Quantization du modèle (stub)."""
         # Ici, on simule la quantization
-        self.quantized = True
         return self
-    def __init__(self):
+
+    def __init__(self, y = 0):
         self.trained = False
+        self.quantized = True
+        self.majority = max(set(y), key=y.count)
 
-    def train(self, X: List[Any], y: List[Any], sample_weight: List[float] = None):
-        """Méthode d'entraînement générique."""
-        self.trained = True
-        # À implémenter dans les sous-classes
-        return 0.0
+    def train(self, x, y, sample_weight=None):
+        """Fonction d'entraînement de haut niveau pour compatibilité avec le pipeline."""
+        model = BaseModel()
+        loss = model.train(x, y, sample_weight)
+        return loss
 
-    def predict(self, x: Any) -> Any:
-        """Prédiction générique."""
-        if not self.trained:
-            raise RuntimeError("Le modèle doit être entraîné avant de prédire.")
-        return x
+    def predict(self, x):
+        """Fonction de prédiction de haut niveau pour compatibilité avec l'évaluation."""
+        model = BaseModel()
+        model.trained = True
+        return model.predict(x)
 
-    def evaluate(self, X: List[Any], y: List[Any]) -> float:
+    def evaluate(self) -> float:
         """Évalue le modèle (stub)."""
         return 0.0
 
@@ -52,17 +43,18 @@ class BaseModel:
             f.write("Modèle sauvegardé (stub)")
 
     def optimize(self, method: str = "quantization"):
-        """Optimisation du modèle (stub)."""
-        return self
+        """Fonction d'optimisation de haut niveau pour compatibilité avec le pipeline."""
+        model = BaseModel()
+        return model.optimize(method=method)
 
 class SimpleClassifier(BaseModel):
+    """Classificateur simple"""
     def optimize(self, method: str = "quantization"):
         if method == "quantization":
             return self.quantize()
         return self
-    def train(self, X: List[Any], y: List[Any], sample_weight: List[float] = None):
+    def train(self, x: List[Any], y: List[Any], sample_weight: List[float] = None):
         self.trained = True
-        self.majority = max(set(y), key=y.count)
         return 0.0
 
     def predict(self, x: Any) -> Any:
@@ -77,7 +69,7 @@ def get_model(arch: str = "base") -> BaseModel:
     return BaseModel()
 
 def main():
-    import argparse
+    """Main"""
     parser = argparse.ArgumentParser(description="Test d'architectures de modèles IA locaux.")
     parser.add_argument('--arch', type=str, default="base", help="Architecture (base/simple)")
     args = parser.parse_args()

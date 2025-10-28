@@ -1,9 +1,8 @@
 """
 Script d'automatisation de l'intégration du feedback RLHF dans le pipeline d'entraînement local.
 """
-import os
 import json
-from typing import List, Dict, Any
+import argparse
 
 def merge_feedback_into_dataset(dataset_path: str, feedback_path: str, output_path: str):
     """Ajoute les feedbacks RLHF au dataset d'entraînement."""
@@ -28,7 +27,7 @@ def merge_feedback_into_dataset(dataset_path: str, feedback_path: str, output_pa
     print(f"Feedback intégré dans {output_path}")
 
 def main():
-    import argparse
+    """Interface en ligne de commande pour l'intégration du feedback RLHF."""
     parser = argparse.ArgumentParser(description="Intégration automatique du feedback RLHF dans le dataset.")
     parser.add_argument('--dataset', type=str, required=True, help="Dataset d'entraînement (.jsonl)")
     parser.add_argument('--feedback', type=str, required=True, help="Fichier de feedback RLHF (.jsonl)")

@@ -1,340 +1,688 @@
-# 📖 Guide d'Installation - My Personal AI ULTRA v5.0.0 (1M Tokens RÉEL)
+# 📖 Guide d'Installation - My Personal AI v5.6.0
 
-## 🎯 Vue d'Ensemble Ultra
+## 🎯 Vue d'Ensemble
 
-My Personal AI Ultra v5.0.0 introduit le **système révolutionnaire de 1 Million de tokens RÉEL** fonctionnant **entièrement localement** sans dépendance à des services externes. Cette installation vous guide pour mettre en place votre IA ultra-performante, privée et sécurisée avec capacités étendues.
+My Personal AI v5.6.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
-## 🚀 Installation Express Ultra (7 minutes)
+## ⚡ Installation Rapide (5 minutes)
 
-### 1. Prérequis Pour le Système Ultra
+### 1. Prérequis Système
 
-- **Python 3.9+** (REQUIS: Python 3.10+ pour performances optimales 1M tokens)
-- **~500 MB d'espace disque** (pour la base SQLite et cache intelligent)
-- **8 GB RAM minimum** (16 GB recommandé pour 1M tokens)
+**Configuration minimale:**
+- **Python 3.8+** (Python 3.10+ recommandé pour performances optimales)
+- **4 GB RAM** (8 GB recommandé, 16 GB idéal pour 1M tokens)
+- **500 MB d'espace disque** (1 GB recommandé pour cache et documents)
 - **Windows/Linux/macOS** supportés
-- **Aucune connexion internet requise** après installation
-- **Processeur moderne** (pour compression et recherche sémantique)
+- **Connexion internet** (installation uniquement, optionnelle ensuite pour recherche web)
 
-### 2. Installation Automatique Ultra
+**Configuration recommandée:**
+- Python 3.10 ou supérieur
+- 16 GB RAM
+- 2 GB d'espace disque
+- Processeur multi-core (pour opérations parallèles)
+- GPU (optionnel, pour accélération PyTorch)
+
+### 2. Installation Complète
 
 ```bash
-# 1. Aller dans le répertoire du projet
+# 1. Cloner ou télécharger le projet
 cd My_AI
 
-# 2. Installer TOUTES les dépendances Ultra (ML inclus)
+# 2. Créer un environnement virtuel (recommandé)
+python -m venv venv
+
+# Activer l'environnement virtuel:
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# 3. Installer toutes les dépendances
 pip install -r requirements.txt
 
-# Dépendances Ultra spécifiques :
-pip install scikit-learn customtkinter pdfplumber python-docx requests beautifulsoup4 pygments
-
-# 3. Lancement Ultra immédiat
-.\launch_ultra.bat   # 🚀 NOUVEAU : Lancement mode Ultra
-# OU
-python launch_ultra.py
+# 4. Vérifier l'installation
+python -c "import customtkinter; print('Installation réussie!')"
 ```
 
-### 3. Vérification du Système Ultra
+### 3. Lancement Rapide
 
 ```bash
-# Test du système 1M tokens
-python launch_ultra.py
+# Lancement GUI (recommandé)
+python launch_unified.py
 
-# Vérification du statut Ultra
-python main_ultra.py status
+# OU via main.py
+python main.py --mode gui
 
-# Test de traitement de gros documents (NOUVEAU)
-python main_ultra.py process gros_document.pdf --ultra
-
-# Statistiques contexte 1M tokens
-python -c "from models.ultra_custom_ai import UltraCustomAI; print(UltraCustomAI().get_context_stats())"
+# Lancement CLI
+python main.py
 ```
 
-## 🧠 Architecture Ultra 1M Tokens 100% Locale
+## 📦 Dépendances Principales
 
-### Nouveaux Composants Ultra
+### Core Dependencies (Requis)
+```
+click>=8.0.0              # CLI interface
+aiohttp>=3.8.0            # Async HTTP
+requests>=2.31.0          # HTTP requests
+beautifulsoup4>=4.12.0    # Web scraping
+pyyaml>=6.0               # Configuration
+python-dotenv>=1.0.0      # Environment variables
+```
 
-L'IA Ultra utilise exclusivement des composants locaux révolutionnaires :
+### Document Processing (Requis)
+```
+PyMuPDF>=1.23.0          # PDF processing (primaire)
+PyPDF2>=3.0.0            # PDF processing (fallback)
+python-docx>=0.8.11      # DOCX processing
+openpyxl>=3.1.0          # Excel files
+python-pptx>=0.6.21      # PowerPoint files
+reportlab>=4.0.0         # PDF generation
+```
 
-- **Moteur IA Custom** : Logique de raisonnement développée spécialement
-- **Reconnaissance d'intentions** : Patterns linguistiques locaux
-- **Mémoire conversationnelle** : Stockage local des contextes
-- **Base de connaissances** : Informations encodées localement
-- **Processeurs de documents** : Traitement PDF/DOCX sans cloud
+### GUI Interface (Requis pour GUI)
+```
+customtkinter>=5.2.0     # Modern UI framework
+tkinterdnd2>=0.3.0       # Drag-and-drop support
+pillow>=10.0.0           # Image processing
+pygments                 # Code syntax highlighting
+```
 
-### Aucun Service Externe
+### Machine Learning (Requis)
+```
+torch>=2.0.0             # PyTorch
+transformers>=4.30.0     # Hugging Face transformers
+scikit-learn>=1.3.0      # ML algorithms
+sentence-transformers>=2.2.0  # Embeddings
+rapidfuzz                # Fuzzy matching
+tiktoken                 # Token counting
+```
 
-❌ **Pas de dépendances externes** :
-- Pas d'API OpenAI
-- Pas de Claude/Anthropic
-- Pas de Google Bard
-- Pas de services cloud
-- Pas d'envoi de données à l'extérieur
+### Advanced Features (Optionnel)
+```
+faiss-cpu>=1.7.4         # Semantic search
+peft>=0.4.0              # LoRA fine-tuning
+bitsandbytes>=0.40.0     # Quantization
+sqlalchemy>=2.0.0        # Database ORM
+diskcache>=5.6.0         # Caching
+cryptography>=41.0.0     # Encryption
+```
 
-✅ **Tout reste sur votre machine** :
-- Conversations privées
-- Documents confidentiels
-- Code source sécurisé
-- Historique local uniquement
+### Development Tools (Optionnel)
+```
+pytest>=7.0.0            # Testing
+black>=23.0.0            # Code formatting
+flake8>=5.5.0            # Linting
+isort>=5.12.0            # Import sorting
+```
 
-## 🔧 Configuration Avancée
+## 🏗️ Structure Projet Post-Installation
 
-### Personnalisation de l'IA
+Après le premier lancement, ces répertoires seront créés automatiquement:
 
-Éditez le fichier `config.yaml` pour adapter l'IA à vos besoins :
+```
+My_AI/
+├── core/                  # Modules core système
+├── models/                # Modèles IA
+├── processors/            # Processeurs documents
+├── generators/            # Générateurs contenu
+├── interfaces/            # Interfaces utilisateur
+├── tools/                 # Outils spécialisés
+├── utils/                 # Utilitaires
+├── data/                  # Données et enrichissements
+│   ├── enrichissement/    # FAQ et connaissances
+│   ├── context_storage/   # Storage contexte 1M tokens (créé auto)
+│   ├── outputs/           # Documents générés (créé auto)
+│   ├── temp/              # Fichiers temporaires (créé auto)
+│   ├── backups/           # Sauvegardes (créé auto)
+│   └── logs/              # Logs application (créé auto)
+├── docs/                  # Documentation
+├── examples/              # Exemples utilisation
+├── tests/                 # Tests unitaires
+├── config.yaml            # Configuration (créé auto si absent)
+├── .env                   # Variables environnement (optionnel)
+├── requirements.txt       # Dépendances Python
+├── launch_unified.py      # Launcher principal
+└── main.py               # Entry point CLI
+```
+
+## ⚙️ Configuration
+
+### Fichier config.yaml (Optionnel)
+
+Un fichier `config.yaml` sera créé automatiquement au premier lancement avec les valeurs par défaut. Vous pouvez le personnaliser:
 
 ```yaml
-# Configuration personnalisée
+# config.yaml - Configuration My Personal AI
+
+# Configuration IA
 ai:
-  name: "Mon IA Personnelle"
-  max_tokens: 4096
+  name: "My Personal AI"
+  version: "5.6.0"
+  max_tokens: 4096          # Max tokens standard
+  ultra_max_tokens: 1048576 # Max tokens ultra mode (1M)
   temperature: 0.7
-  conversation_history_limit: 20
-  
-  # Types de fichiers supportés
-  supported_file_types:
+  conversation_history_limit: 10
+
+# Types fichiers supportés
+file_processing:
+  supported_types:
     - ".pdf"
     - ".docx"
     - ".txt"
     - ".py"
+    - ".js"
     - ".md"
+    - ".json"
+    - ".csv"
+  max_file_size_mb: 100
+
+# Configuration UI
+ui:
+  cli:
+    prompt: "💬 Vous> "
+    ai_prompt: "🤖 IA> "
+  gui:
+    theme: "dark"
+    font_family: "Segoe UI"
+    font_size: 11
+
+# Répertoires
+directories:
+  output: "data/outputs"
+  temp: "data/temp"
+  logs: "data/logs"
+  backups: "data/backups"
+  context_storage: "data/context_storage"
 ```
 
-### Optimisation des Performances
+### Variables d'Environnement (.env)
 
-#### Pour machines avec peu de RAM (4 GB) :
+Pour des configurations sensibles ou spécifiques, créez un fichier `.env`:
+
+```bash
+# .env - Variables environnement
+
+# GitHub token pour code generation (optionnel)
+GITHUB_TOKEN=your_github_personal_access_token
+
+# Debug mode
+DEBUG=false
+
+# Chemins personnalisés (optionnel)
+DATA_DIR=./data
+OUTPUT_DIR=./data/outputs
+```
+
+**Note:** Le token GitHub est optionnel. Il améliore les capacités de recherche de code mais n'est pas requis pour le fonctionnement de base.
+
+## 🚀 Options de Lancement
+
+### 1. GUI Modern (Recommandé)
+
+Interface graphique moderne avec thème sombre style Claude:
+
+```bash
+# Lancement direct
+python launch_unified.py
+
+# OU via main.py
+python main.py --mode gui
+```
+
+**Features:**
+- Interface chat moderne
+- Code syntax highlighting
+- Drag-and-drop fichiers
+- Timestamps
+- Commandes help/status intégrées
+
+### 2. CLI Enhanced
+
+Interface ligne de commande améliorée:
+
+```bash
+# Mode interactif
+python main.py
+
+# OU explicitement
+python main.py --mode cli
+```
+
+**Commandes disponibles:**
+- Requêtes normales → envoyées à l'IA
+- `aide` ou `help` → afficher commandes
+- `quitter` ou `exit` → fermer
+- `statut` ou `status` → état système
+- `historique` ou `history` → voir conversations
+- `fichier <path>` → traiter fichier
+- `generer <type> <desc>` → générer contenu
+
+### 3. Direct Queries
+
+Requêtes directes sans mode interactif:
+
+```bash
+# Chat direct
+python main.py chat "Bonjour, comment ça va?"
+
+# Analyser fichier
+python main.py file analyze path/to/document.pdf
+
+# Générer code
+python main.py generate code "fonction pour trier une liste"
+
+# Afficher statut
+python main.py status
+```
+
+## 🔧 Configuration Avancée
+
+### Installation GPU (CUDA) - Optionnel
+
+Pour accélérer les opérations PyTorch avec GPU NVIDIA:
+
+```bash
+# Désinstaller torch CPU
+pip uninstall torch torchvision torchaudio
+
+# Installer torch GPU (CUDA 11.8)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Vérifier installation GPU
+python -c "import torch; print(f'CUDA disponible: {torch.cuda.is_available()}')"
+```
+
+**Note:** CUDA doit être installé sur votre système. Visitez https://developer.nvidia.com/cuda-downloads
+
+### Optimisation Mémoire
+
+#### Pour machines 4-8 GB RAM:
 ```yaml
+# Dans config.yaml
 ai:
   max_tokens: 2048
   conversation_history_limit: 5
-  enable_learning: false
+  ultra_max_tokens: 524288  # 512K au lieu de 1M
 ```
 
-#### Pour machines puissantes (16 GB+) :
+#### Pour machines 16+ GB RAM:
 ```yaml
+# Dans config.yaml
 ai:
   max_tokens: 8192
-  conversation_history_limit: 50
-  enable_learning: true
-  advanced_reasoning: true
+  conversation_history_limit: 20
+  ultra_max_tokens: 1048576  # Full 1M tokens
 ```
+
+### Configuration Enrichissement FAQ
+
+Les fichiers d'enrichissement dans `data/enrichissement/` sont chargés par priorité:
+
+1. `enrichissement_culture.jsonl` (Priorité 1)
+2. `enrichissement_informatique.jsonl` (Priorité 2)
+3. `enrichissement_général.jsonl` (Priorité 3)
+4. `enrichissement_exemples.jsonl` (Priorité 4)
+
+Format JSONL:
+```json
+{"input": "Question ici", "target": "Réponse ici"}
+{"input": "Autre question", "target": "Autre réponse"}
+```
+
+Pour ajouter vos propres connaissances, éditez ces fichiers ou créez-en de nouveaux.
+
+## 🧪 Vérification Installation
+
+### Test Basique
 
 ```bash
-# Modèle recommandé (léger et performant)
-ollama pull llama3.2
+# Test imports
+python -c "from core.ai_engine import AIEngine; print('Core OK')"
+python -c "from models.custom_ai_model import CustomAIModel; print('Models OK')"
+python -c "from interfaces.gui_modern import ModernAIGUI; print('GUI OK')"
 
-# Modèles alternatifs
-ollama pull mistral
-ollama pull codellama
-ollama pull llama3.2:13b  # Plus gros, plus performant
+# Test complet
+python tests/test_imports.py
 ```
 
-4. **Vérifier le fonctionnement**:
+### Test Fonctionnel
 
 ```bash
-ollama list
-ollama run llama3.2
-```
+# Test requête simple
+python main.py chat "Bonjour"
 
-#### Configuration dans l'IA:
+# Test traitement fichier (créer un test.txt d'abord)
+echo "Contenu test" > test.txt
+python main.py file analyze test.txt
 
-L'IA détectera automatiquement Ollama. Pour personnaliser:
+# Test génération code
+python main.py generate code "fonction addition"
 
-```yaml
-# Dans config.yaml
-llm:
-  default_backend: "ollama"
-  ollama:
-    base_url: "http://localhost:11434"
-    default_model: "llama3.2"
-```
-
-### Option 2: Hugging Face Transformers
-
-Pour utiliser directement les modèles Transformers:
-
-```bash
-# Installation des dépendances GPU (optionnel)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-```
-
-#### Configuration:
-
-```yaml
-# Dans config.yaml
-llm:
-  default_backend: "transformers"
-  transformers:
-    default_model: "microsoft/DialoGPT-medium"
-    device: "auto"  # Détection automatique CPU/GPU
-```
-
-## 📁 Structure des Répertoires
-
-Après le premier lancement, ces répertoires seront créés:
-
-```
-My_AI/
-├── outputs/          # Fichiers générés
-├── logs/            # Fichiers de log
-├── temp/            # Fichiers temporaires
-├── backups/         # Sauvegardes
-└── models_cache/    # Cache des modèles (si Transformers)
-```
-
-## ⚙️ Configuration Avancée
-
-### Personnalisation du config.yaml
-
-Le fichier `config.yaml` permet de personnaliser tous les aspects:
-
-```yaml
-# Exemple de personnalisation
-ai:
-  temperature: 0.8        # Créativité (0.0-1.0)
-  max_tokens: 8192       # Longueur des réponses
-  
-file_processing:
-  max_file_size_mb: 100  # Taille max des fichiers
-
-ui:
-  cli:
-    prompt: "🤖 MonIA> " # Personnaliser le prompt
-```
-
-### Variables d'Environnement
-
-Créez un fichier `.env` pour les configurations sensibles:
-
-```bash
-# .env
-OLLAMA_BASE_URL=http://localhost:11434
-OPENAI_API_KEY=your_key_here  # Si vous voulez utiliser OpenAI en fallback
-DEBUG=false
-```
-
-## 🐛 Résolution des Problèmes
-
-### Problème: "Aucun modèle LLM disponible"
-
-**Solutions:**
-1. Vérifiez qu'Ollama est démarré: `ollama serve`
-2. Vérifiez qu'un modèle est installé: `ollama list`
-3. Testez la connexion: `curl http://localhost:11434/api/tags`
-
-### Problème: "Import 'torch' could not be resolved"
-
-**Solutions:**
-1. Installez PyTorch: `pip install torch`
-2. Pour GPU: `pip install torch --index-url https://download.pytorch.org/whl/cu118`
-
-### Problème: "Permission denied" sur Linux/macOS
-
-**Solutions:**
-1. Rendez le script exécutable: `chmod +x main.py`
-2. Utilisez Python explicitement: `python main.py`
-
-### Problème: Erreurs de mémoire
-
-**Solutions:**
-1. Réduisez `max_tokens` dans la config
-2. Utilisez un modèle plus petit (llama3.2 au lieu de llama3.2:13b)
-3. Fermez les autres applications gourmandes
-
-## 📊 Vérification de l'Installation
-
-### Test Complet:
-
-```bash
-# Test du statut
+# Test statut système
 python main.py status
-
-# Test d'une requête simple
-python main.py chat "Dis bonjour"
-
-# Test de lecture de fichier
-echo "Hello World" > test.txt
-python main.py file read test.txt
-
-# Test de génération de code
-python main.py generate code "fonction qui additionne deux nombres"
 ```
 
-### Mode Debug:
+### Test Contexte 1M Tokens
 
 ```bash
-# Lancer avec plus de logs
-python main.py --verbose
+# Test capacité contexte
+python tests/test_real_1m_tokens.py
 
-# Lancer en mode interactif avec debug
-python main.py --verbose --mode cli
+# Benchmark performance
+python tests/benchmark_1m_tokens.py
+
+# Demo interactive
+python tests/demo_1m_tokens.py
+```
+
+## 🐛 Résolution Problèmes
+
+### Problème: ModuleNotFoundError
+
+**Erreur:** `ModuleNotFoundError: No module named 'customtkinter'`
+
+**Solutions:**
+```bash
+# Vérifier environnement virtuel activé
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# Réinstaller dépendances
+pip install -r requirements.txt
+
+# Installer module spécifique
+pip install customtkinter
+```
+
+### Problème: Tkinter non disponible
+
+**Erreur:** `No module named 'tkinter'` ou `_tkinter`
+
+**Solutions:**
+- **Windows:** Réinstaller Python avec option "tcl/tk" cochée
+- **Ubuntu/Debian:** `sudo apt-get install python3-tk`
+- **macOS:** `brew install python-tk`
+- **Fallback:** Utiliser CLI mode → `python main.py --mode cli`
+
+### Problème: PyMuPDF installation failed
+
+**Erreur:** Problème compilation PyMuPDF/fitz
+
+**Solutions:**
+```bash
+# Essayer version spécifique
+pip install PyMuPDF==1.23.8
+
+# OU utiliser wheel pre-compilé
+pip install --upgrade pip
+pip install --upgrade PyMuPDF
+
+# En dernier recours, PyPDF2 sera utilisé en fallback
+pip install PyPDF2
+```
+
+### Problème: Mémoire insuffisante
+
+**Erreur:** `MemoryError` ou application lente
+
+**Solutions:**
+1. Réduire `max_tokens` dans config.yaml
+2. Limiter `conversation_history_limit`
+3. Fermer applications gourmandes en RAM
+4. Utiliser mode CLI au lieu de GUI (moins de RAM)
+5. Redémarrer l'application régulièrement
+
+### Problème: Erreurs CUDA/GPU
+
+**Erreur:** CUDA errors ou GPU non détecté
+
+**Solutions:**
+```bash
+# Vérifier version CUDA
+nvcc --version
+
+# Réinstaller torch pour CPU seulement
+pip uninstall torch torchvision torchaudio
+pip install torch torchvision torchaudio
+
+# L'IA fonctionnera sur CPU (plus lent mais stable)
+```
+
+### Problème: Permission denied (Linux/macOS)
+
+**Erreur:** `Permission denied` lors de l'écriture
+
+**Solutions:**
+```bash
+# Donner permissions sur répertoires
+chmod -R u+w data/
+chmod +x launch_unified.py
+chmod +x main.py
+
+# OU utiliser sudo (non recommandé)
+sudo python main.py
+```
+
+### Problème: Port déjà utilisé
+
+**Erreur:** Si intégration web future - port occupé
+
+**Solutions:**
+```bash
+# Trouver processus sur port
+# Windows:
+netstat -ano | findstr :8000
+# Linux/macOS:
+lsof -i :8000
+
+# Tuer processus ou changer port dans config
+```
+
+## 📊 Test Installation Complète
+
+Script de test automatique:
+
+```bash
+# Créer test_installation.py
+cat > test_installation.py << 'EOF'
+#!/usr/bin/env python3
+"""Test complet installation My Personal AI"""
+
+def test_imports():
+    print("🧪 Test imports modules...")
+    try:
+        from core.ai_engine import AIEngine
+        from models.custom_ai_model import CustomAIModel
+        from processors.pdf_processor import PDFProcessor
+        from interfaces.cli import EnhancedCLI
+        print("✅ Imports OK")
+        return True
+    except Exception as e:
+        print(f"❌ Erreur imports: {e}")
+        return False
+
+def test_gpu():
+    print("\n🧪 Test GPU disponibilité...")
+    try:
+        import torch
+        cuda_available = torch.cuda.is_available()
+        if cuda_available:
+            print(f"✅ GPU disponible: {torch.cuda.get_device_name(0)}")
+        else:
+            print("⚠️  GPU non disponible (CPU sera utilisé)")
+        return True
+    except:
+        print("⚠️  PyTorch non installé")
+        return True
+
+def test_directories():
+    print("\n🧪 Test création répertoires...")
+    from pathlib import Path
+    dirs = ["data/outputs", "data/temp", "data/logs", "data/backups"]
+    for dir_path in dirs:
+        Path(dir_path).mkdir(parents=True, exist_ok=True)
+    print("✅ Répertoires OK")
+    return True
+
+if __name__ == "__main__":
+    print("=" * 50)
+    print("  TEST INSTALLATION MY PERSONAL AI v5.6.0")
+    print("=" * 50)
+
+    tests = [test_imports(), test_gpu(), test_directories()]
+
+    print("\n" + "=" * 50)
+    if all(tests):
+        print("✅ Installation complète et fonctionnelle!")
+    else:
+        print("⚠️  Problèmes détectés, voir détails ci-dessus")
+    print("=" * 50)
+EOF
+
+# Exécuter test
+python test_installation.py
 ```
 
 ## 🔄 Mise à Jour
 
-Pour mettre à jour les dépendances:
+### Mise à jour dépendances
 
 ```bash
+# Mettre à jour toutes les dépendances
+pip install -r requirements.txt --upgrade
+
+# Mettre à jour package spécifique
+pip install --upgrade customtkinter
+pip install --upgrade transformers
+```
+
+### Mise à jour projet
+
+```bash
+# Si Git repository
+git pull origin main
+
+# Réinstaller dépendances si requirements.txt changé
 pip install -r requirements.txt --upgrade
 ```
 
-Pour mettre à jour les modèles Ollama:
+## 🎯 Optimisation Performances
 
+### Pour Performances Maximales
+
+1. **Utiliser GPU si disponible:**
 ```bash
-ollama pull llama3.2  # Re-télécharge la dernière version
+pip install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
-## 🎯 Optimisation des Performances
+2. **Augmenter limites config:**
+```yaml
+ai:
+  max_tokens: 8192
+  conversation_history_limit: 20
+```
 
-### Pour des Performances Maximales:
+3. **Activer cache:**
+```yaml
+performance:
+  enable_cache: true
+  cache_size_mb: 1000
+```
 
-1. **Utilisez un GPU** (si disponible):
+### Pour Machines Limitées
+
+1. **Réduire consommation mémoire:**
+```yaml
+ai:
+  max_tokens: 2048
+  conversation_history_limit: 5
+```
+
+2. **Utiliser CLI au lieu de GUI:**
+```bash
+python main.py --mode cli
+```
+
+3. **Désactiver features avancées:**
+```yaml
+features:
+  enable_internet_search: false
+  enable_advanced_code_gen: false
+```
+
+## 🌐 Configuration Réseau (Optionnel)
+
+Pour activer la recherche internet (DuckDuckGo):
+
+```yaml
+# Dans config.yaml
+internet_search:
+  enabled: true
+  max_results: 8
+  cache_duration: 3600  # 1 heure
+  timeout: 10  # secondes
+```
+
+**Note:** La recherche internet est optionnelle. L'IA fonctionne 100% localement sans connexion.
+
+## 📱 Interface Web (Future/Expérimental)
+
+Pour l'interface web Streamlit (en développement):
+
+```bash
+# Installer Streamlit
+pip install streamlit>=1.25.0
+
+# Lancer interface web
+streamlit run interfaces/web_interface.py
+```
+
+**Note:** Interface web en cours de développement, CLI et GUI sont recommandées.
+
+## 🎉 Installation Terminée!
+
+Une fois l'installation complète, vous pouvez:
+
+1. **Lancer l'IA:**
    ```bash
-   pip install torch --index-url https://download.pytorch.org/whl/cu118
+   python launch_unified.py  # GUI
+   python main.py            # CLI
    ```
 
-2. **Utilisez des modèles optimisés**:
-   - `llama3.2` : Léger, rapide
-   - `mistral` : Bon compromis
-   - `llama3.2:13b` : Plus performant mais plus lourd
+2. **Tester les capacités:**
+   - Poser des questions générales
+   - Traiter des documents PDF/DOCX
+   - Générer du code
+   - Rechercher sur internet
+   - Utiliser la mémoire 1M tokens
 
-3. **Configurez le cache**:
-   ```yaml
-   performance:
-     enable_cache: true
-     cache_size_mb: 500
+3. **Explorer les exemples:**
+   ```bash
+   cd examples
+   python basic_usage.py
+   python file_processing.py
    ```
 
-### Pour des Performances Minimales (PC faible):
-
-1. **Utilisez des modèles légers**
-2. **Limitez les tokens**:
-   ```yaml
-   ai:
-     max_tokens: 1024
-     temperature: 0.5
-   ```
-
-3. **Désactivez le cache** si peu de RAM:
-   ```yaml
-   performance:
-     enable_cache: false
-   ```
+4. **Consulter la documentation:**
+   - `docs/USAGE.md` - Guide utilisation
+   - `docs/ARCHITECTURE.md` - Détails architecture
+   - `docs/OPTIMIZATION.md` - Optimisations
+   - `docs/FAQ.md` - Questions fréquentes
 
 ## 📞 Support
 
 Si vous rencontrez des problèmes:
 
-1. Vérifiez les logs dans `logs/`
-2. Lancez avec `--verbose` pour plus d'informations
-3. Consultez les exemples dans `examples/`
-4. Vérifiez la configuration dans `config.yaml`
+1. **Vérifier les logs:** `data/logs/`
+2. **Mode verbose:** `python main.py --verbose`
+3. **Tests diagnostiques:** `python tests/test_imports.py`
+4. **Consulter FAQ:** `docs/FAQ.md`
+5. **Exemples:** Voir `examples/` pour patterns d'utilisation
 
-## 🎉 Vous êtes prêt !
+---
 
-Une fois l'installation terminée, vous pouvez:
+**Bon codage avec My Personal AI! 🚀**
 
-- Lancer l'IA: `python main.py`
-- Taper `aide` pour voir toutes les commandes
-- Commencer à poser des questions à votre IA personnelle !
-
-Bon codage! 🚀
+*Version: 5.6.0 | Architecture: 100% locale | Capacité: 1M tokens*

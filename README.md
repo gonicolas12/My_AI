@@ -226,7 +226,6 @@ Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpl
 - **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
 - **[Changelog](docs/CHANGELOG.md)** : Historique des mises à jour
 - **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
-- **[Exemples](examples/)** : Scripts d'exemple et cas d'usage
 
 ## 🔧 Caractéristiques Techniques
 

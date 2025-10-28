@@ -1,13 +1,14 @@
 """
 Module de prétraitement des données pour l'entraînement local
 """
-import os
 import json
+import re
+import csv
+import logging
 from typing import List, Dict
 
 def clean_text(text: str) -> str:
     """Nettoie une chaîne de texte (ponctuation, espaces, casse, etc.)"""
-    import re
     text = text.strip()
     text = re.sub(r"\s+", " ", text)  # espaces multiples
     text = text.replace('\u200b', '')  # caractères invisibles
@@ -21,7 +22,6 @@ def clean_text(text: str) -> str:
 
 def load_dataset(path: str) -> List[Dict]:
     """Charge un dataset local (JSONL ou CSV)"""
-    import csv
     data = []
     if path.endswith('.jsonl'):
         with open(path, 'r', encoding='utf-8') as f:
@@ -39,7 +39,6 @@ def load_dataset(path: str) -> List[Dict]:
 
 def save_cleaned_dataset(data: List[Dict], path: str):
     """Sauvegarde le dataset nettoyé au format JSONL ou CSV"""
-    import csv
     if path.endswith('.jsonl'):
         with open(path, 'w', encoding='utf-8') as f:
             for item in data:
@@ -57,7 +56,6 @@ def save_cleaned_dataset(data: List[Dict], path: str):
 
 def preprocess_dataset(input_path: str, output_path: str, text_fields: list = None):
     """Pipeline complet : charge, nettoie, sauvegarde"""
-    import logging
     data = load_dataset(input_path)
     cleaned = []
     for item in data:
@@ -73,7 +71,7 @@ def preprocess_dataset(input_path: str, output_path: str, text_fields: list = No
                     item_clean[k] = clean_text(item_clean[k])
         cleaned.append(item_clean)
     save_cleaned_dataset(cleaned, output_path)
-    logging.info(f"Prétraitement terminé : {len(cleaned)} exemples sauvegardés dans {output_path}")
+    logging.info("Prétraitement terminé : %s exemples sauvegardés dans %s", len(cleaned), output_path)
 
 if __name__ == "__main__":
     import argparse

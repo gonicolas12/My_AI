@@ -4,19 +4,19 @@ Rivalise avec ChatGPT/Claude en combinant recherche web + analyse sémantique
 100% local, pas d'IA externe
 """
 
-import re
 import asyncio
-import aiohttp
-from typing import Dict, List, Any, Optional, Tuple
-from dataclasses import dataclass, field
-from datetime import datetime
-from urllib.parse import quote, urlparse
-from bs4 import BeautifulSoup
 import hashlib
 import json
+import re
+import urllib.parse
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Dict, List, Optional
+from urllib.parse import quote, urlparse
+
+import aiohttp
+from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer, util
-import torch
 
 
 @dataclass
@@ -188,7 +188,7 @@ class SmartCodeSearcher:
 
         return final_query
 
-    async def _search_web(self, query: str, language: str) -> List[Dict]:
+    async def _search_web(self, query: str, _language: str) -> List[Dict]:
         """Recherche web avec DuckDuckGo"""
         results = []
 
@@ -243,14 +243,12 @@ class SmartCodeSearcher:
                                 # 🔧 FIX: Décoder les URLs de redirection DuckDuckGo
                                 if '//duckduckgo.com/l/?uddg=' in url or '/l/?uddg=' in url:
                                     # Extraire l'URL réelle depuis le paramètre uddg
-                                    import urllib.parse
-                                    # Pattern: //duckduckgo.com/l/?uddg=ENCODED_URL&...
                                     if '?uddg=' in url:
                                         encoded_part = url.split('?uddg=')[1].split('&')[0]
                                         try:
                                             url = urllib.parse.unquote(encoded_part)
                                             print(f"✅ URL décodée: {url[:60]}...")
-                                        except:
+                                        except Exception:
                                             pass
 
                                 # Corriger les URLs relatives
@@ -294,7 +292,7 @@ class SmartCodeSearcher:
         return snippets
 
     async def _extract_from_url(self, session: aiohttp.ClientSession,
-                                result: Dict, query: str, language: str) -> List[CodeSnippet]:
+                                result: Dict, _query: str, language: str) -> List[CodeSnippet]:
         """Extrait le code d'une URL spécifique"""
         snippets = []
         url = result.get("url", "")
@@ -329,7 +327,7 @@ class SmartCodeSearcher:
                 # 🔧 FIX: Trier les blocs par taille (les plus longs d'abord)
                 # Cela garantit qu'on prend le code complet, pas juste une ligne
                 code_blocks.sort(key=lambda x: len(x.get("code", "")), reverse=True)
-                print(f"   🎯 Blocs triés par taille (le plus long en premier)")
+                print("   🎯 Blocs triés par taille (le plus long en premier)")
 
                 for i, code_block in enumerate(code_blocks[:3]):  # Max 3 par page
                     code_text = code_block.get("code", "").strip()
@@ -338,7 +336,7 @@ class SmartCodeSearcher:
                     print(f"      Aperçu: {code_text[:150].replace(chr(10), ' ')[:150]}...")
 
                     if self._is_valid_code(code_text, language):
-                        print(f"   ✅ Code valide!")
+                        print("   ✅ Code valide!")
                         snippet = CodeSnippet(
                             code=code_text,
                             language=language,
@@ -355,7 +353,7 @@ class SmartCodeSearcher:
                         snippets.append(snippet)
                         print(f"   📊 Snippet ajouté! Total: {len(snippets)}")
                     else:
-                        print(f"   ❌ Code invalide (trop court ou mauvais format)")
+                        print("   ❌ Code invalide (trop court ou mauvais format)")
 
                 print(f"🎯 {len(snippets)} snippets valides extraits de {url[:40]}...")
 
@@ -587,7 +585,7 @@ class SmartCodeSearcher:
         try:
             parsed = urlparse(url)
             return parsed.netloc
-        except:
+        except Exception:
             return "unknown"
 
     def _check_cache(self, query: str, language: str) -> Optional[List[CodeSnippet]]:
@@ -604,8 +602,6 @@ class SmartCodeSearcher:
                 snippets.append(snippet)
 
             return snippets
-
-        # TODO: Chercher des requêtes similaires avec embeddings
 
         return None
 
@@ -665,6 +661,7 @@ async def search_code_smart(query: str, language: str = "python") -> List[CodeSn
 # Test
 if __name__ == "__main__":
     async def test():
+        """Test de la recherche intelligente de code"""
         # Test avec shifumi
         results = await search_code_smart("jeu pierre papier ciseaux", "python")
 

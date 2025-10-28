@@ -4,15 +4,16 @@ AUCUN template pré-codé - uniquement recherche web réelle
 """
 
 import asyncio
-import aiohttp
+import base64
 import re
-import json
-from typing import Dict, List, Any, Optional
-from urllib.parse import quote
-from bs4 import BeautifulSoup
-import hashlib
-import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
+
+import aiohttp
+import yaml
+from bs4 import BeautifulSoup
+
 
 class RealWebCodeGenerator:
     """
@@ -23,7 +24,6 @@ class RealWebCodeGenerator:
         self.session = None
         # Configuration GitHub
         try:
-            import yaml
             config_path = Path(__file__).parent.parent / "config.yaml"
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
@@ -31,7 +31,7 @@ class RealWebCodeGenerator:
                 self.github_token = config.get('github', {}).get('token', '')
             else:
                 self.github_token = ''
-        except:
+        except Exception:
             self.github_token = ''
 
     async def generate_code_from_web(self, query: str, language: str = "python") -> Dict[str, Any]:
@@ -60,7 +60,7 @@ class RealWebCodeGenerator:
 
                 # 2. Trier par pertinence et qualité
                 if all_solutions:
-                    best_solution = self._select_best_solution(all_solutions, query)
+                    best_solution = self._select_best_solution(all_solutions)
 
                     if best_solution:
                         return {
@@ -342,12 +342,12 @@ class RealWebCodeGenerator:
                                             return {
                                                 "success": True,
                                                 "code": code_text,
-                                                "explanation": f"Solution trouvée via recherche élargie",
+                                                "explanation": "Solution trouvée via recherche élargie",
                                                 "source": "Web Search (Fallback)",
                                                 "url": url,
                                                 "rating": 2.5
                                             }
-                        except:
+                        except Exception:
                             continue
 
         except Exception as e:
@@ -386,9 +386,8 @@ class RealWebCodeGenerator:
                     data = await response.json()
                     content = data.get('content', '')
                     if content:
-                        import base64
                         return base64.b64decode(content).decode('utf-8', errors='ignore')
-        except:
+        except Exception:
             pass
         return None
 
@@ -475,7 +474,7 @@ class RealWebCodeGenerator:
 
         return min(5.0, rating)
 
-    def _select_best_solution(self, solutions: List[Dict], query: str) -> Optional[Dict]:
+    def _select_best_solution(self, solutions: List[Dict]) -> Optional[Dict]:
         """Sélectionne la meilleure solution"""
         if not solutions:
             return None

@@ -18,7 +18,6 @@
 {"input": "Quelle est la capitale de l'Espagne ?", "target": "**Madrid**."}
 {"input": "Qui a écrit 'Germinal' ?", "target": "**Émile Zola**."}
 {"input": "Quel est le plus grand musée du monde ?", "target": "**Le Louvre**."}
-{"input": "Quelle est la capitale de la Russie ?", "target": "**Moscou**."}
 {"input": "Qui a écrit 'Le Cid' ?", "target": "**Pierre Corneille**."}
 {"input": "Quel est le plus grand archipel du monde ?", "target": "**L'Indonésie**."}
 {"input": "Quelle est la capitale de la Grèce ?", "target": "**Athènes**."}
