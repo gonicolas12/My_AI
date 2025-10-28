@@ -69,7 +69,6 @@ my_ai/
 │   └── enrichissement/                  # Exemples thématiques
 ├── tests/                               # Tests unitaires
 ├── docs/                                # Documentation
-├── examples/                            # Exemples d'utilisation
 ├── main.py                              # Point d'entrée principal
 ├── requirements.txt                     # Dépendances
 ├── launch.bat                           # Script pour lancer le programme
@@ -238,6 +237,6 @@ Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpl
 
 ## 🚀 Évolutions Futures
 
-- 🌐 Application Web
-- 📊 Amélioration interface
-- 🤖 Support de modèles LLM externes optionnels
+- 🌐 **Application Web**
+- 📊 **Amélioration interface**
+- 🤖 **Support de modèles LLM externes optionnels**
