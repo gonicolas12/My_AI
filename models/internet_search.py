@@ -7,6 +7,7 @@ import concurrent.futures
 import re
 import string
 import time
+import traceback
 from collections import Counter
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
@@ -28,8 +29,19 @@ class EnhancedInternetSearchEngine:
         # Configuration
         self.max_results = 8
         self.max_content_length = 3000
-        self.timeout = 10
-        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        self.timeout = 15  # Augmenté à 15 secondes
+
+        # User-agents multiples pour éviter la détection
+        self.user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+        ]
+
+        self.current_user_agent_index = 0
+        self.user_agent = self.user_agents[0]
 
         # Cache des résultats récents
         self.search_cache = {}
@@ -37,6 +49,63 @@ class EnhancedInternetSearchEngine:
 
         # Patterns pour l'extraction de réponses directes
         self.answer_patterns = self._init_answer_patterns()
+
+    def _get_next_user_agent(self) -> str:
+        """Obtient le prochain user-agent pour éviter la détection"""
+        self.current_user_agent_index = (self.current_user_agent_index + 1) % len(self.user_agents)
+        self.user_agent = self.user_agents[self.current_user_agent_index]
+        return self.user_agent
+
+    def _correct_common_typos(self, query: str) -> str:
+        """Corrige les fautes d'orthographe courantes dans les requêtes - VERSION SIMPLE"""
+        corrections = {
+            # Monuments et lieux célèbres
+            'effeil': 'eiffel',
+            'eifeil': 'eiffel',
+            'effell': 'eiffel',
+            'eifel': 'eiffel',
+
+            # Villes
+            'pariss': 'paris',
+            'paaris': 'paris',
+
+            # Mesures courantes
+            'tail': 'taille',
+            'taile': 'taille',
+            'mesur': 'mesure',
+
+            # Mots courants mal orthographiés
+            'populatoin': 'population',
+            'populaton': 'population',
+            'hauteure': 'hauteur',
+        }
+
+        words = query.split()
+        corrected_words = []
+        has_correction = False
+
+        for word in words:
+            # Enlever la ponctuation pour la comparaison
+            clean_word = word.lower().strip('.,;:!?')
+
+            # Chercher une correction
+            if clean_word in corrections:
+                corrected_word = corrections[clean_word]
+                # Préserver la ponctuation originale
+                if word != clean_word:
+                    corrected_word = corrected_word + word[len(clean_word):]
+                corrected_words.append(corrected_word)
+                has_correction = True
+                print(f"✏️ Correction: '{word}' → '{corrected_word}'")
+            else:
+                corrected_words.append(word)
+
+        corrected_query = ' '.join(corrected_words)
+
+        if has_correction:
+            print(f"✏️ Requête corrigée: '{query}' → '{corrected_query}'")
+
+        return corrected_query
 
     def _init_answer_patterns(self) -> Dict[str, List[str]]:
         """Initialise les patterns pour extraire des réponses directes"""
@@ -76,14 +145,17 @@ class EnhancedInternetSearchEngine:
         try:
             print(f"🔍 Recherche internet pour: '{query}'")
 
-            # Vérifier le cache
-            cache_key = self._generate_cache_key(query)
+            # NOUVEAU : Corriger les fautes d'orthographe courantes
+            corrected_query = self._correct_common_typos(query)
+
+            # Vérifier le cache (avec la requête corrigée)
+            cache_key = self._generate_cache_key(corrected_query)
             if self._is_cache_valid(cache_key):
                 print("📋 Résultats trouvés en cache")
                 return self.search_cache[cache_key]["summary"]
 
-            # Effectuer la recherche
-            search_results = self._perform_search(query)
+            # Effectuer la recherche avec la requête corrigée
+            search_results = self._perform_search(corrected_query)
 
             if not search_results:
                 return f"❌ Désolé, je n'ai pas pu trouver d'informations sur '{query}'. Vérifiez votre connexion internet."
@@ -91,8 +163,8 @@ class EnhancedInternetSearchEngine:
             # Extraire le contenu des pages
             page_contents = self._extract_page_contents(search_results)
 
-            # Extraire la réponse directe
-            direct_answer = self._extract_direct_answer(query, page_contents)
+            # Extraire la réponse directe (avec la requête originale pour l'affichage)
+            direct_answer = self._extract_direct_answer(corrected_query, page_contents)
 
             # Générer le résumé
             summary = self._generate_answer_focused_summary(
@@ -500,6 +572,9 @@ class EnhancedInternetSearchEngine:
         else:
             summary += "Aucune source disponible\n"
 
+        print(f"[DEBUG] Résumé généré avec {len(source_links)} liens:")
+        print(f"[DEBUG] Résumé complet:\n{summary[:500]}")
+
         return summary
 
     def _enhance_answer_formatting(self, text: str) -> str:
@@ -743,46 +818,183 @@ class EnhancedInternetSearchEngine:
         return results[: self.max_results]
 
     def _search_with_requests(self, query: str) -> List[Dict[str, Any]]:
-        """Recherche en scrapant les résultats"""
+        """Recherche en scrapant les résultats DuckDuckGo HTML - VERSION AMÉLIORÉE"""
+        # Essayer d'abord DuckDuckGo Lite (plus simple à scraper)
+        try:
+            results = self._search_duckduckgo_lite(query)
+            if results:
+                return results
+        except Exception as e:
+            print(f"⚠️ DuckDuckGo Lite a échoué: {str(e)}")
+
+        # Fallback vers DuckDuckGo HTML classique
         search_url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
 
+        # Utiliser un user-agent rotatif
+        current_ua = self._get_next_user_agent()
+
         headers = {
-            "User-Agent": self.user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "fr-FR,fr;q=0.5",
-            "Accept-Encoding": "gzip, deflate",
+            "User-Agent": current_ua,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
             "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Cache-Control": "max-age=0",
         }
 
-        response = requests.get(search_url, headers=headers, timeout=self.timeout)
+        # Ajouter un petit délai pour éviter le rate limiting
+        time.sleep(0.5)
+
+        response = requests.get(search_url, headers=headers, timeout=self.timeout, allow_redirects=True)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, "html.parser")
         results = []
 
-        for result_div in soup.find_all("div", class_="result")[: self.max_results]:
-            title_elem = result_div.find("a", class_="result__a")
-            snippet_elem = result_div.find("a", class_="result__snippet")
+        # Essayer plusieurs sélecteurs CSS pour plus de robustesse
+        result_selectors = [
+            ("div", {"class": "result"}),
+            ("div", {"class": "results_links"}),
+            ("div", {"class": "web-result"}),
+            ("div", {"id": lambda x: x and x.startswith("r1-")}),
+        ]
 
-            if title_elem and snippet_elem:
-                title = title_elem.get_text(strip=True)
-                url = title_elem.get("href", "")
-                snippet = snippet_elem.get_text(strip=True)
+        for selector_tag, selector_attrs in result_selectors:
+            result_divs = soup.find_all(selector_tag, selector_attrs, limit=self.max_results)
+            if result_divs:
+                break
 
-                if title and snippet:
-                    results.append(
-                        {
-                            "title": title,
-                            "snippet": snippet,
-                            "url": url,
-                            "source": "DuckDuckGo",
-                        }
-                    )
+        for result_div in result_divs:
+            try:
+                # Essayer différents sélecteurs pour le titre
+                title_elem = (
+                    result_div.find("a", class_="result__a")
+                    or result_div.find("a", class_="result-link")
+                    or result_div.find("h2").find("a") if result_div.find("h2") else None
+                )
 
-        return results
+                # Essayer différents sélecteurs pour le snippet
+                snippet_elem = (
+                    result_div.find("a", class_="result__snippet")
+                    or result_div.find("div", class_="result__snippet")
+                    or result_div.find("span", class_="result-snippet")
+                    or result_div.find("div", class_="snippet")
+                )
+
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    url = title_elem.get("href", "")
+
+                    # Le snippet peut être dans plusieurs endroits
+                    if snippet_elem:
+                        snippet = snippet_elem.get_text(strip=True)
+                    else:
+                        # Fallback: prendre tout le texte du div
+                        snippet = result_div.get_text(strip=True)[:200]
+
+                    if title and snippet and len(snippet) > 20:
+                        results.append(
+                            {
+                                "title": title,
+                                "snippet": snippet,
+                                "url": url,
+                                "source": "DuckDuckGo",
+                            }
+                        )
+            except Exception as e:
+                print(f"⚠️ Erreur lors du parsing d'un résultat: {str(e)}")
+                continue
+
+        return results[:self.max_results]
+
+    def _search_duckduckgo_lite(self, query: str) -> List[Dict[str, Any]]:
+        """Recherche via DuckDuckGo Lite (version simplifiée et plus stable)"""
+        search_url = f"https://lite.duckduckgo.com/lite/?q={quote(query)}"
+
+        current_ua = self._get_next_user_agent()
+
+        headers = {
+            "User-Agent": current_ua,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
+
+        response = requests.get(search_url, headers=headers, timeout=self.timeout, allow_redirects=True)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        results = []
+
+        # DuckDuckGo Lite utilise une structure de table simple
+        result_tables = soup.find_all("table", class_="result-table")
+
+        for table in result_tables[:self.max_results]:
+            try:
+                # Le titre est dans un lien avec class="result-link"
+                title_elem = table.find("a", class_="result-link")
+
+                # Le snippet est dans un td avec class="result-snippet"
+                snippet_elem = table.find("td", class_="result-snippet")
+
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    url = title_elem.get("href", "")
+
+                    if snippet_elem:
+                        snippet = snippet_elem.get_text(strip=True)
+                    else:
+                        snippet = ""
+
+                    if title and len(title) > 3:
+                        results.append(
+                            {
+                                "title": title,
+                                "snippet": snippet if snippet else title,
+                                "url": url,
+                                "source": "DuckDuckGo Lite",
+                            }
+                        )
+            except Exception as e:
+                print(f"⚠️ Erreur lors du parsing DuckDuckGo Lite: {str(e)}")
+                continue
+
+        print(f"✅ DuckDuckGo Lite: {len(results)} résultats trouvés")
+        return results[:self.max_results]
 
     def _search_fallback(self, query: str) -> List[Dict[str, Any]]:
-        """Méthode de recherche de secours"""
+        """Méthode de recherche de secours - UTILISE WIKIPEDIA"""
+        print("🔄 Tentative de recherche de secours avec Wikipedia...")
+
+        try:
+            # Essayer d'abord Wikipedia français
+            results = self._search_wikipedia_fr(query)
+            if results:
+                print(f"✅ {len(results)} résultats trouvés via Wikipedia FR")
+                return results
+
+        except Exception as e:
+            print(f"⚠️ Recherche Wikipedia FR a échoué: {str(e)}")
+
+        try:
+            # Fallback vers Wikipedia anglais
+            results = self._search_wikipedia_en(query)
+            if results:
+                print(f"✅ {len(results)} résultats trouvés via Wikipedia EN")
+                return results
+
+        except Exception as e:
+            print(f"⚠️ Recherche Wikipedia EN a échoué: {str(e)}")
+
+        # Si tout échoue, retourner un message informatif
         return [
             {
                 "title": f"Recherche sur '{query}'",
@@ -791,6 +1003,224 @@ class EnhancedInternetSearchEngine:
                 "source": "Système local",
             }
         ]
+
+    def _search_wikipedia_fr(self, query: str) -> List[Dict[str, Any]]:
+        """Recherche sur Wikipedia français avec CONTENU COMPLET et correction orthographique"""
+        try:
+            # Utiliser l'API Wikipedia
+            api_url = "https://fr.wikipedia.org/w/api.php"
+
+            # Étape 0: Demander une suggestion orthographique à Wikipedia
+            suggestion_params = {
+                "action": "opensearch",
+                "search": query,
+                "limit": 1,
+                "format": "json",
+            }
+
+            headers = {"User-Agent": self.user_agent}
+
+            print(f"🔍 Recherche de suggestion pour: '{query}'")
+
+            suggestion_response = requests.get(api_url, params=suggestion_params, headers=headers, timeout=10)
+            suggestion_response.raise_for_status()
+            suggestion_data = suggestion_response.json()
+
+            # La réponse est [query, [suggestions], [descriptions], [urls]]
+            suggested_query = query
+            if len(suggestion_data) > 1 and suggestion_data[1]:
+                suggested_query = suggestion_data[1][0]  # Première suggestion
+                if suggested_query.lower() != query.lower():
+                    print(f"✏️ Wikipedia suggère: '{query}' → '{suggested_query}'")
+
+            # Étape 1: Rechercher les pages pertinentes avec la suggestion
+            search_params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": suggested_query,
+                "format": "json",
+                "srlimit": 3,  # Prendre les 3 meilleurs résultats
+            }
+
+            print(f"🌐 Requête Wikipedia FR avec: '{suggested_query}'")
+
+            response = requests.get(api_url, params=search_params, headers=headers, timeout=10)
+
+            print(f"📡 Status code: {response.status_code}")
+
+            response.raise_for_status()
+
+            search_data = response.json()
+
+            print(f"📊 Réponse JSON reçue: {len(str(search_data))} caractères")
+
+            results = []
+
+            if "query" in search_data and "search" in search_data["query"]:
+                print(f"🔍 Wikipedia FR: {len(search_data['query']['search'])} pages trouvées")
+
+                # Étape 2: Pour chaque page trouvée, récupérer le contenu complet
+                for item in search_data["query"]["search"]:
+                    title = item.get("title", "")
+
+                    if not title:
+                        continue
+
+                    print(f"📖 Récupération du contenu de: {title}")
+
+                    try:
+                        # Récupérer le contenu complet de la page
+                        content_params = {
+                            "action": "query",
+                            "titles": title,
+                            "prop": "extracts",
+                            "exintro": True,  # Seulement l'introduction (première section)
+                            "explaintext": True,  # Texte brut sans HTML
+                            "format": "json",
+                        }
+
+                        content_response = requests.get(api_url, params=content_params, headers=headers, timeout=10)
+                        content_response.raise_for_status()
+                        content_data = content_response.json()
+
+                        # Extraire le contenu
+                        pages = content_data.get("query", {}).get("pages", {})
+                        for page_data in pages.values():
+                            extract = page_data.get("extract", "")
+
+                            if extract and len(extract) > 50:
+                                print(f"✅ Contenu récupéré: {len(extract)} caractères")
+                                results.append({
+                                    "title": title,
+                                    "snippet": extract[:500],  # Premier 500 caractères
+                                    "full_content": extract,  # Contenu complet
+                                    "url": f"https://fr.wikipedia.org/wiki/{quote(title)}",
+                                    "source": "Wikipedia FR",
+                                })
+                                break  # Un seul résultat par page
+                            else:
+                                print(f"⚠️ Contenu vide ou trop court pour: {title}")
+
+                    except Exception as e:
+                        print(f"❌ Erreur lors de la récupération du contenu de '{title}': {str(e)}")
+                        continue
+
+            print(f"✅ Wikipedia FR: {len(results)} résultats avec contenu complet")
+            return results[:self.max_results]
+
+        except Exception as e:
+            print(f"❌ Erreur globale Wikipedia FR: {str(e)}")
+            traceback.print_exc()
+            return []
+
+    def _search_wikipedia_en(self, query: str) -> List[Dict[str, Any]]:
+        """Recherche sur Wikipedia anglais avec CONTENU COMPLET et correction orthographique"""
+        try:
+            # Utiliser l'API Wikipedia
+            api_url = "https://en.wikipedia.org/w/api.php"
+
+            # Étape 0: Demander une suggestion orthographique à Wikipedia
+            suggestion_params = {
+                "action": "opensearch",
+                "search": query,
+                "limit": 1,
+                "format": "json",
+            }
+
+            headers = {"User-Agent": self.user_agent}
+
+            print(f"🔍 Recherche de suggestion pour: '{query}'")
+
+            suggestion_response = requests.get(api_url, params=suggestion_params, headers=headers, timeout=10)
+            suggestion_response.raise_for_status()
+            suggestion_data = suggestion_response.json()
+
+            # La réponse est [query, [suggestions], [descriptions], [urls]]
+            suggested_query = query
+            if len(suggestion_data) > 1 and suggestion_data[1]:
+                suggested_query = suggestion_data[1][0]  # Première suggestion
+                if suggested_query.lower() != query.lower():
+                    print(f"✏️ Wikipedia suggère: '{query}' → '{suggested_query}'")
+
+            # Étape 1: Rechercher les pages pertinentes avec la suggestion
+            search_params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": suggested_query,
+                "format": "json",
+                "srlimit": 3,  # Prendre les 3 meilleurs résultats
+            }
+
+            print(f"🌐 Requête Wikipedia EN avec: '{suggested_query}'")
+
+            response = requests.get(api_url, params=search_params, headers=headers, timeout=10)
+
+            print(f"📡 Status code: {response.status_code}")
+
+            response.raise_for_status()
+
+            search_data = response.json()
+
+            print(f"📊 Réponse JSON reçue: {len(str(search_data))} caractères")
+
+            results = []
+
+            if "query" in search_data and "search" in search_data["query"]:
+                print(f"🔍 Wikipedia EN: {len(search_data['query']['search'])} pages trouvées")
+
+                # Étape 2: Pour chaque page trouvée, récupérer le contenu complet
+                for item in search_data["query"]["search"]:
+                    title = item.get("title", "")
+
+                    if not title:
+                        continue
+
+                    print(f"📖 Récupération du contenu de: {title}")
+
+                    try:
+                        # Récupérer le contenu complet de la page
+                        content_params = {
+                            "action": "query",
+                            "titles": title,
+                            "prop": "extracts",
+                            "exintro": True,  # Seulement l'introduction (première section)
+                            "explaintext": True,  # Texte brut sans HTML
+                            "format": "json",
+                        }
+
+                        content_response = requests.get(api_url, params=content_params, headers=headers, timeout=10)
+                        content_response.raise_for_status()
+                        content_data = content_response.json()
+
+                        # Extraire le contenu
+                        pages = content_data.get("query", {}).get("pages", {})
+                        for _, page_data in pages.items():
+                            extract = page_data.get("extract", "")
+
+                            if extract and len(extract) > 50:
+                                print(f"✅ Contenu récupéré: {len(extract)} caractères")
+                                results.append({
+                                    "title": title,
+                                    "snippet": extract[:500],  # Premier 500 caractères
+                                    "full_content": extract,  # Contenu complet
+                                    "url": f"https://en.wikipedia.org/wiki/{quote(title)}",
+                                    "source": "Wikipedia EN",
+                                })
+                                break  # Un seul résultat par page
+                            else:
+                                print(f"⚠️ Contenu vide ou trop court pour: {title}")
+
+                    except Exception as e:
+                        print(f"❌ Erreur lors de la récupération du contenu de '{title}': {str(e)}")
+                        continue
+
+            print(f"✅ Wikipedia EN: {len(results)} résultats avec contenu complet")
+            return results[:self.max_results]
+
+        except Exception as e:
+            print(f"❌ Erreur globale Wikipedia EN: {str(e)}")
+            traceback.print_exc()
+            return []
 
     def _extract_page_contents(
         self, search_results: List[Dict[str, Any]]

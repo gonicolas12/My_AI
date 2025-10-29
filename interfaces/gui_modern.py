@@ -2247,7 +2247,7 @@ class ModernAIGUI:
         processed_text = re.sub(link_pattern, replace_link, text)
 
         print(f"[DEBUG] Liens prétraités: {len(self._pending_links)} liens trouvés")
-        for data in self._pending_links.items():
+        for _title, data in self._pending_links.items():
             print(f"  '{data['title']}' -> {data['url']}")
 
         return processed_text, self._pending_links
@@ -3377,12 +3377,13 @@ class ModernAIGUI:
 
             # === FORMATAGE LIENS PRÉTRAITÉS (DÉTECTION DES TITRES) ===
             # Les liens ont été remplacés par leurs titres, on doit les détecter et les marquer
-            if hasattr(self, "_pending_links"):
-                for title in self._pending_links.items():
+            if hasattr(self, "_pending_links") and self._pending_links:
+                for title, _data in self._pending_links.items():
                     # Chercher toutes les occurrences de ce titre
                     start_pos = "1.0"
+                    occurrences_found = 0
                     while True:
-                        pos_start = text_widget.search(title, start_pos, "end")
+                        pos_start = text_widget.search(title, start_pos, "end", nocase=False)
                         if not pos_start:
                             break
 
@@ -3398,11 +3399,17 @@ class ModernAIGUI:
                             # Marquer comme lien temporaire
                             text_widget.tag_add("link_temp", pos_start, pos_end)
                             self._formatted_positions.add(pos_str)
+                            occurrences_found += 1
+                            print(f"[DEBUG] Lien temporaire ajouté pour '{title}' à {pos_start}")
 
                         start_pos = text_widget.index(f"{pos_start}+1c")
 
+                    if occurrences_found > 0:
+                        print(f"[DEBUG] '{title}' -> {occurrences_found} occurrence(s) marquée(s) comme link_temp")
+
             # === FORMATAGE LIENS [titre](url) AVEC PRIORITÉ SUR TITRES (ANCIEN SYSTÈME POUR COMPATIBILITÉ) ===
             start_pos = "1.0"
+            links_found = 0
             while True:
                 # Chercher le prochain [
                 pos_start = text_widget.search("[", start_pos, "end")
@@ -3419,6 +3426,8 @@ class ModernAIGUI:
                 match = re.search(link_pattern, line_content)
 
                 if match:
+                    links_found += 1
+                    print(f"[DEBUG] Lien markdown trouvé dans le formatage: {match.group(0)[:80]}")
                     title = match.group(1)
                     url = match.group(2)
 
@@ -3450,6 +3459,9 @@ class ModernAIGUI:
                         start_pos = text_widget.index(f"{pos_start}+1c")
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
+
+            if links_found > 0:
+                print(f"[DEBUG] Total liens markdown trouvés et formatés: {links_found}")
 
             # === FORMATAGE CODE `code` ===
             start_pos = "1.0"
@@ -4244,8 +4256,14 @@ class ModernAIGUI:
         """Convertit les liens temporaires en liens bleus clicables à la fin de l'animation"""
         try:
             if not hasattr(self, "_pending_links"):
+                print("[DEBUG] Aucun _pending_links trouvé")
                 return
 
+            if not self._pending_links:
+                print("[DEBUG] _pending_links est vide")
+                return
+
+            print(f"[DEBUG] Conversion de {len(self._pending_links)} liens en clickables")
             text_widget.configure(state="normal")
 
             # Parcourir tous les liens en attente (organisés par titre maintenant)
@@ -4255,6 +4273,12 @@ class ModernAIGUI:
 
                 # Chercher toutes les zones avec le tag link_temp qui correspondent à ce titre
                 ranges = text_widget.tag_ranges("link_temp")
+
+                if not ranges:
+                    print(f"[DEBUG] ERREUR: Aucun tag link_temp trouvé pour '{title}'")
+                    continue
+
+                print(f"[DEBUG] Traitement de '{title}' -> {url} ({len(ranges)//2} zones link_temp)")
 
                 for i in range(0, len(ranges), 2):
                     start_range = ranges[i]
@@ -4294,6 +4318,8 @@ class ModernAIGUI:
                         print(
                             f"[DEBUG] Lien configuré: '{title}' -> {url} (tag: {unique_tag})"
                         )
+
+            print(f"[DEBUG] ✅ Conversion terminée: {link_counter} liens clickables créés")
 
             # Nettoyer les liens en attente
             delattr(self, "_pending_links")

@@ -677,7 +677,7 @@ class CustomAIModel(BaseAI):
         elif intent == "programming_question":
             return self._generate_code_response(user_input, context)
         elif intent == "url_summarization":
-            return self._handle_url_summarization(user_input, context)
+            return self._handle_url_summarization(user_input)
         elif intent == "internet_search":
             return self._handle_internet_search(user_input, context)
         elif intent == "general_question":
@@ -1671,7 +1671,7 @@ Erreur technique : {str(e)}"""
         return user_lower if len(user_lower) > 2 else ""
 
     def _handle_url_summarization(
-        self, user_input: str, context: Dict[str, Any]
+        self, user_input: str
     ) -> str:
         """
         Gère les demandes de résumé d'URL directe
