@@ -35,7 +35,7 @@ PyPDF2>=3.0.0    # Alternative
 python-docx>=0.8.11
 
 # Autres formats
-openpyxl>=3.1.0   # Excel
+openpyxl>=3.1.0      # Excel
 python-pptx>=0.6.21  # PowerPoint
 
 # ====================================
@@ -54,8 +54,7 @@ markdown2>=2.4.0
 # ====================================
 
 # Interface graphique moderne - Style Claude
-# tkinter  # Intégré à Python (base) - NE PAS INSTALLER VIA PIP
-customtkinter>=5.2.0  # Interface moderne avec thèmes sombres
+customtkinter>=5.2.0   # Interface moderne avec thèmes sombres
 tkinterdnd2>=0.3.0     # Drag & Drop pour fichiers
 pillow>=10.0.0         # Traitement d'images pour l'interface
 pygments
@@ -143,16 +142,11 @@ cryptography>=41.0.0
 # Pour GPU (NVIDIA):
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# Pour Ollama (recommandé):
-# Télécharger depuis: https://ollama.ai/
-# Puis: ollama pull llama3.2
-
 # ====================================
 # VERSIONS MINIMALES PYTHON
 # ====================================
 # Python >= 3.8 requis
 # Python >= 3.10 recommandé
-
 
 # === OPTIMISATIONS AVANCÉES (Optionnel) ===
 # Pour RAG et embeddings sémantiques
