@@ -30,6 +30,7 @@ lxml>=4.9.0
 # PDF
 PyMuPDF>=1.23.0  # Recommandé (fitz)
 PyPDF2>=3.0.0    # Alternative
+pdfplumber
 
 # Word/DOCX
 python-docx>=0.8.11
