@@ -216,7 +216,33 @@ class CustomAIModel(BaseAI):
     ) -> str:
         """Génère une réponse avec gestion améliorée des documents"""
         try:
-            # 🎯 PRIORITÉ ABSOLUE: Vérification FAQ/ML d'abord
+            # 🎭 PRIORITÉ SPÉCIALE: Détection des demandes de blagues AVANT FAQ/ML
+            user_lower = user_input.lower()
+            joke_keywords = [
+                "dis moi une blague",
+                "raconte moi une blague",
+                "t'aurais une blague",
+                "aurais-tu une blague",
+                "une blague",
+                "raconte une blague",
+                "dis une blague",
+                "tu connais une blague",
+                "connais-tu une blague",
+                "fais moi une blague",
+                "une blague stp",
+                "une autre blague",
+            ]
+
+            if any(keyword in user_lower for keyword in joke_keywords):
+                # Appeler directement _tell_joke() sans passer par FAQ
+                joke_response = self._tell_joke()
+                # Sauvegarder dans la mémoire
+                self.conversation_memory.add_conversation(
+                    user_input, joke_response, "joke"
+                )
+                return joke_response
+
+            # 🎯 PRIORITÉ ABSOLUE: Vérification FAQ/ML d'abord (sauf pour les blagues)
             try:
                 ml_model = MLFAQModel()
                 faq_response = ml_model.predict(user_input)
@@ -231,7 +257,7 @@ class CustomAIModel(BaseAI):
                 print(f"⚠️ Erreur FAQ/ML: {e}")
 
             # 🧮 PRIORITÉ 2: Vérification si c'est un calcul (MAIS PAS une question sur document)
-            user_lower = user_input.lower()
+            # Note: user_lower déjà défini plus haut pour la détection des blagues
 
             # Éviter d'intercepter les questions sur documents qui contiennent des nombres
             is_document_question = self._has_documents_in_memory() and any(
@@ -727,25 +753,9 @@ class CustomAIModel(BaseAI):
                 # S'il n'y a pas de code en mémoire, générer du code comme pour une demande de génération
                 return self._generate_code_response(user_input, context)
 
-        # Vérification spéciale pour les demandes de blagues
-        user_lower = user_input.lower()
-        joke_keywords = [
-            "dis moi une blague",
-            "raconte moi une blague",
-            "t'aurais une blague",
-            "aurais-tu une blague",
-            "une blague",
-            "raconte une blague",
-            "dis une blague",
-            "tu connais une blague",
-            "connais-tu une blague",
-            "fais moi une blague",
-            "une blague stp",
-            "une autre blague",
-        ]
-
-        if any(keyword in user_lower for keyword in joke_keywords):
-            return self._tell_joke()
+        # Note: La détection des blagues a été déplacée au début de generate_response()
+        # pour éviter que la FAQ/ML ne cache toujours la même blague
+        # Cette section a été supprimée pour éviter la duplication
 
         # Validation finale du type de réponse avec FALLBACK INTELLIGENT
         if intent == "document_question":

@@ -255,20 +255,20 @@ class IntelligentCodeOrchestrator:
         elif not isinstance(query, str):
             query = str(query)
 
-        self.logger.info(f"Génération intelligente pour: {query}")
+        self.logger.info("Génération intelligente pour: %s", query)
 
         try:
             # 1. Analyse approfondie de la requête
             intelligent_request = await self._analyze_request(query, context or {})
             self.logger.info(
-                f"Analyse: {intelligent_request.intent} - {intelligent_request.domain} - {intelligent_request.complexity}"
+                "Analyse: %s - %s - %s", intelligent_request.intent, intelligent_request.domain, intelligent_request.complexity
             )
 
             # 2. Recherche de solutions existantes
             existing_solutions = await self._search_existing_solutions(
                 intelligent_request
             )
-            self.logger.info(f"{len(existing_solutions)} solutions trouvées")
+            self.logger.info("%s solutions trouvées", len(existing_solutions))
 
             # 3. Génération adaptée basée sur l'analyse
             generated_code = await self._generate_adapted_code(
@@ -281,13 +281,13 @@ class IntelligentCodeOrchestrator:
             )
 
             self.logger.info(
-                f"Solution générée avec confiance: {final_solution.confidence}"
+                "Solution générée avec confiance: %s", final_solution.confidence
             )
             return final_solution
 
         except Exception as e:
-            self.logger.error(f"Erreur génération: {e}")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            self.logger.error("Erreur génération: %s", e)
+            self.logger.error("Traceback: %s", traceback.format_exc())
             # Solution de fallback
             return await self._generate_fallback_solution(query, context)
 
@@ -303,7 +303,7 @@ class IntelligentCodeOrchestrator:
         domain = self._detect_domain(query)
 
         # Évaluation de la complexité
-        complexity = self._evaluate_complexity(query, context)
+        complexity = self._evaluate_complexity(query)
 
         # Détection du langage
         language = self._detect_language(query, context)
@@ -551,7 +551,7 @@ class IntelligentCodeOrchestrator:
 
         except Exception as e:
             self.logger.warning("Advanced search failed: %s", e)
-            self.logger.warning(f"Advanced search traceback: {traceback.format_exc()}")
+            self.logger.warning("Advanced search traceback: %s", traceback.format_exc())
 
         # 2. Recherche multi-sources web
         try:
@@ -638,11 +638,9 @@ class IntelligentCodeOrchestrator:
                 ),
             }
         else:
-            # Fallback sur génération basique (CORRIGÉ)
+            # Fallback sur génération basique
             try:
-                basic_result = await self.basic_generator.generate_code(
-                    request.original_query, {"language": request.language}
-                )
+                basic_result = await self.basic_generator.generate_code(request.original_query)
 
                 return {
                     "code": basic_result.get("code", "# Code généré de base"),
@@ -669,7 +667,7 @@ class IntelligentCodeOrchestrator:
         if request.complexity == "beginner":
             adapted_code = self._simplify_code(adapted_code)
         elif request.complexity == "advanced":
-            adapted_code = self._enhance_code(adapted_code, request)
+            adapted_code = self._enhance_code(adapted_code)
 
         # Adaptations basées sur le domaine
         if request.domain == "web_development":
@@ -678,12 +676,12 @@ class IntelligentCodeOrchestrator:
             adapted_code = self._add_data_features(adapted_code)
 
         # Adaptations basées sur les exigences
-        for requirement in request.requirements:
-            adapted_code = self._apply_requirement(adapted_code, requirement)
+        for _requirement in request.requirements:
+            adapted_code = self._apply_requirement(adapted_code)
 
         # Application des contraintes
-        for constraint in request.constraints:
-            adapted_code = self._apply_constraint(adapted_code, constraint)
+        for _constraint in request.constraints:
+            adapted_code = self._apply_constraint(adapted_code)
 
         return adapted_code
 
@@ -957,7 +955,7 @@ except Exception as e:
         """Génère une solution de fallback en cas d'échec"""
         try:
             basic_result = await self.basic_generator.generate_code(
-                query, context or {}
+                query or {}
             )
 
             return GeneratedSolution(

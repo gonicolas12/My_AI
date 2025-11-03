@@ -27,27 +27,15 @@ my_ai/
 ├── core/                                # Cœur de l'IA
 │   ├── __init__.py
 │   ├── ai_engine.py                     # Moteur principal IA
+│   ├── config.py                        # Configuration de l'IA
+│   ├── context_manager.py               # Gestion de contexte long
 │   ├── conversation.py                  # Gestion des conversations
-│   ├── context_manager.py               # Gestionnaire de contexte standard
-│   └── config.py                        # Configuration globale
-├── models/                              # Modèles d'IA Ultra avec 1M tokens
-│   ├── __init__.py
-│   ├── ultra_custom_ai.py               # Modèle ULTRA
-│   ├── intelligent_context_manager.py   # Gestionnaire contexte intelligent
-│   ├── million_token_context_manager.py # Persistance 1M tokens
-│   ├── custom_ai_model.py               # Modèle IA principal avec intentions
-│   ├── conversation_memory.py           # Mémoire conversationnelle avancée
-│   ├── base_ai.py                       # Interface de base
-│   ├── linguistic_patterns.py           # Reconnaissance d'intentions et patterns
-│   ├── knowledge_base.py                # Base de connaissances locale
-│   ├── reasoning_engine.py              # Moteur de raisonnement logique
-│   ├── ml_faq_model.py                  # FAQ avec ML et fuzzy matching
-│   └── internet_search.py               # Moteur de recherche internet
-├── processors/                          # Processeurs de fichiers Ultra
-│   ├── __init__.py
-│   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
-│   ├── docx_processor.py                # Traitement DOCX avec compression
-│   └── code_processor.py                # Traitement de code avec analyse sémantique
+│   ├── data_preprocessing.py            # Prétraitement des données
+│   ├── rlhf.py                          # Reinforcement Learning from Human Feedback
+│   └── training_pipeline.py             # Pipeline d'entraînement local
+├── data/                                # Données d'enrichissement FAQ
+│   ├── enrichissement/                  # Exemples thématiques
+│   └── data_collection.py               # Script de structuration des données
 ├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
 │   ├── document_generator.py            # Génération docs avec contexte étendu
@@ -58,6 +46,32 @@ my_ai/
 │   ├── gui_modern.py                    # Interface moderne
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   └── vscode_extension.py              # Extension VS Code
+├── models/                              # Modèles d'IA Ultra avec 1M tokens
+│   ├── __init__.py
+│   ├── advanced_code_generator.py       # Générateur de code avancé
+│   ├── base_ai.py                       # Interface de base
+│   ├── conversation_memory.py           # Mémoire conversationnelle avancée
+│   ├── custom_ai_model.py               # Modèle IA principal avec intentions
+│   ├── intelligent_code_orchestrator.py # Orchestrateur pour la génération de code
+│   ├── intelligent_context_manager.py   # Gestionnaire contexte intelligent
+│   ├── internet_search.py               # Moteur de recherche internet
+│   ├── knowledge_base.py                # Base de connaissances locale
+│   ├── linguistic_patterns.py           # Reconnaissance d'intentions et patterns
+│   ├── million_token_context_manager.py # Persistance 1M tokens
+│   ├── ml_faq_model.py                  # FAQ avec ML et fuzzy matching
+│   ├── model_architecture.py            # Expérimentation de différentes architectures de modèles
+│   ├── real_web_code_generator.py       # Générateur de Code Basé sur Recherche Web Pure
+│   ├── reasoning_engine.py              # Moteur de raisonnement logique
+│   ├── seq2seq_model.py                 # Modèle seq2seq local basé sur T5
+│   ├── smart_code_searcher.py           # Recherche de code intelligente
+│   ├── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
+│   ├── ultra_custom_ai.py               # Modèle ULTRA
+│   └── web_code_searcher.py             # Module de recherche de code depuis multiple sources web
+├── processors/                          # Processeurs de fichiers Ultra
+│   ├── __init__.py
+│   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
+│   ├── docx_processor.py                # Traitement DOCX avec compression
+│   └── code_processor.py                # Traitement de code avec analyse sémantique
 ├── utils/                               # Utilitaires Ultra
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
@@ -65,8 +79,6 @@ my_ai/
 │   ├── intelligent_calculator.py        # Calculateur intelligent
 │   ├── logger.py                        # Logging
 │   └── validators.py                    # Validation
-├── data/                                # Données d'enrichissement FAQ
-│   └── enrichissement/                  # Exemples thématiques
 ├── tests/                               # Tests unitaires
 ├── docs/                                # Documentation
 ├── main.py                              # Point d'entrée principal

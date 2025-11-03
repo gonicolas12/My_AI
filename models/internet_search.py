@@ -5,6 +5,7 @@ Version corrigée sans doublons ni erreurs de syntaxe
 
 import concurrent.futures
 import re
+import statistics
 import string
 import time
 import traceback
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import requests
+from rapidfuzz import fuzz
 from bs4 import BeautifulSoup
 
 
@@ -198,7 +200,7 @@ class EnhancedInternetSearchEngine:
         if question_type == "factual":
             return self._extract_factual_answer(query, candidate_sentences)
         elif question_type == "measurement":
-            return self._extract_measurement_answer(candidate_sentences)
+            return self._extract_measurement_answer(candidate_sentences, query)
         elif question_type == "definition":
             return self._extract_definition_answer(candidate_sentences)
         elif question_type == "date":
@@ -269,6 +271,15 @@ class EnhancedInternetSearchEngine:
             if len(word) > 2
         )
 
+        # Extraire les noms propres potentiels (mots de >=4 lettres non-question)
+        entity_words = set()
+        for word in query.split():
+            clean_word = word.strip('?.,!;:').lower()
+            if len(clean_word) >= 4 and clean_word not in ['quel', 'quelle', 'comment', 'taille', 'hauteur', 'fait', 'mesure', 'what', 'which', 'height', 'size']:
+                entity_words.add(clean_word)
+
+        print(f"🎯 [FILTER] Entité(s) recherchée(s): {entity_words}")
+
         for page in page_contents:
             for content_field in ["snippet", "full_content"]:
                 text = page.get(content_field, "")
@@ -287,6 +298,12 @@ class EnhancedInternetSearchEngine:
                             for word in sentence.split()
                         )
                         relevance_score = len(query_words.intersection(sentence_words))
+
+                        # BONUS MAJEUR si la phrase contient les mots de l'entité recherchée
+                        entity_matches = len(entity_words.intersection(sentence_words))
+                        if entity_matches > 0:
+                            relevance_score += entity_matches * 5  # Très fort bonus !
+                            print(f"  ✅ Phrase avec entité '{entity_words}': {sentence[:80]}...")
 
                         # Bonus pour les phrases avec des nombres ou des faits précis
                         if re.search(r"\d+", sentence):
@@ -371,27 +388,168 @@ class EnhancedInternetSearchEngine:
         return None
 
     def _extract_measurement_answer(
-        self, candidates: List[Dict[str, Any]]
+        self, candidates: List[Dict[str, Any]], query: str = ""
     ) -> Optional[str]:
-        """Extrait une réponse de mesure spécifique"""
+        """Extrait une réponse de mesure spécifique avec validation multi-sources"""
         measurement_patterns = [
-            r"(?:mesure|fait|taille|hauteur)(?:\s+de)?\s+([\d,]+\.?\d*)\s*(mètres?|m|km|centimètres?|cm)",
-            r"([\d,]+\.?\d*)\s*(mètres?|m|km|centimètres?|cm)(?:\s+de|d')?\s+(?:haut|hauteur|taille)",
-            r"(?:s'élève à|atteint)\s+([\d,]+\.?\d*)\s*(mètres?|m|km)",
+            # Patterns existants
+            r"(?:mesure|fait|taille|hauteur)(?:\s+de)?\s+([\d,\s]+\.?\d*)\s*(mètres?|m\b|km|centimètres?|cm)",
+            r"([\d,\s]+\.?\d*)\s*(mètres?|m\b|km|centimètres?|cm)(?:\s+de|d')?\s+(?:haut|hauteur|taille)",
+            r"(?:s'élève à|atteint|culmine)\s+([\d,\s]+\.?\d*)\s*(mètres?|m\b|km)",
+            # NOUVEAUX patterns plus agressifs
+            r"([\d,\s]+\.?\d*)\s*(?:m\b|mètres?)\s+(?:de haut|d'altitude|au-dessus)",
+            r"(?:environ|plus de|près de|quelque)\s+([\d,\s]+\.?\d*)\s*(mètres?|m\b)",
+            r"\b(\d{2,4})\s*(?:m\b|mètres?)\b",  # Capture simple comme "828 m"
         ]
 
-        measurements = Counter()
-        source_sentences = {}
+        # Extraire les mots-clés de l'entité recherchée depuis la query
+        entity_keywords = set()
+        for word in query.split():
+            clean_word = word.strip('?.,!;:').lower()
+            if len(clean_word) >= 4 and clean_word not in ['quel', 'quelle', 'comment', 'taille', 'hauteur', 'fait', 'mesure', 'what', 'which', 'height', 'size']:
+                entity_keywords.add(clean_word)
+
+        print(f"🔑 [MEASUREMENT] Mots-clés de l'entité: {entity_keywords}")
+
+        # Collecter toutes les mesures avec leurs sources
+        measurements_with_sources = []
 
         for candidate in candidates:
             sentence = candidate["sentence"]
+            source = candidate.get("source", "Source inconnue")
+
             for pattern in measurement_patterns:
-                matches = re.findall(pattern, sentence, re.IGNORECASE)
-                for match in matches:
-                    measurement_key = f"{match[0]} {match[1]}"
-                    measurements[measurement_key] += candidate["relevance"]
-                    if measurement_key not in source_sentences:
-                        source_sentences[measurement_key] = sentence
+                # Utiliser finditer pour avoir la position de chaque match
+                for match_obj in re.finditer(pattern, sentence, re.IGNORECASE):
+                    match = match_obj.groups()
+                    match_position = match_obj.start()
+
+                    # Gérer à la fois les tuples et les strings simples
+                    if isinstance(match, tuple):
+                        if len(match) == 2 and match[1]:  # (nombre, unité)
+                            value_str = match[0]
+                            unit_str = match[1]
+                        elif len(match) == 1:  # (nombre,) sans unité
+                            value_str = match[0]
+                            unit_str = "m"  # Défaut
+                        else:
+                            continue
+                    else:
+                        # Match simple (string)
+                        value_str = match
+                        unit_str = "m"
+
+                    # Normaliser la valeur en nombre
+                    value_str_clean = value_str.replace(',', '.').replace(' ', '').strip()
+
+                    try:
+                        value_num = float(value_str_clean)
+                        # Filtrer les valeurs aberrantes (trop petites ou trop grandes)
+                        if value_num < 10 or value_num > 10000:
+                            continue
+
+                        unit = unit_str.lower()
+
+                        # NOUVEAU : Vérifier l'entité dans le CONTEXTE LOCAL de la mesure (pas toute la phrase)
+                        entity_match_score = 0
+
+                        if entity_keywords:
+                            # Extraire un contexte de ~15 mots AVANT et 5 mots APRÈS la mesure
+                            # Plus de mots avant car l'entité est généralement avant la mesure
+                            words = sentence.split()
+
+                            # Trouver la position du mot dans la liste de mots
+                            char_count = 0
+                            word_position = 0
+                            for i, word in enumerate(words):
+                                if char_count >= match_position:
+                                    word_position = i
+                                    break
+                                char_count += len(word) + 1  # +1 pour l'espace
+
+                            # Extraire SEULEMENT le contexte AVANT la mesure (plus important)
+                            # et un petit contexte APRÈS (pour capturer l'unité et contexte immédiat)
+                            context_before_start = max(0, word_position - 15)
+                            context_before_words = words[context_before_start:word_position]
+
+                            context_after_words = words[word_position:min(len(words), word_position + 5)]
+
+                            # Vérifier l'entité PRIORITAIREMENT dans le contexte AVANT
+                            context_before_set = set(word.lower().strip(string.punctuation) for word in context_before_words)
+                            entity_in_before = len(entity_keywords.intersection(context_before_set))
+
+                            # RÈGLE STRICTE : L'entité DOIT être COMPLÈTEMENT AVANT la mesure
+                            # Si l'entité est après ou partiellement après, c'est une autre mesure dans une liste
+                            if entity_in_before >= len(entity_keywords):
+                                # ✅ Toute l'entité est AVANT la mesure → ACCEPTÉ
+                                entity_match_score = entity_in_before
+                            else:
+                                # ❌ L'entité n'est pas complète avant → REJETÉ
+                                # Même si elle est après, c'est probablement une autre mesure dans une liste
+                                entity_match_score = 0
+
+                            context = ' '.join(context_before_words + context_after_words).lower()
+
+                            if entity_match_score > 0:
+                                print(f"  ✅ [LOCAL] Mesure {value_num} {unit} avec entité dans contexte: '{context[:80]}...'")
+                            else:
+                                print(f"  ❌ [LOCAL] Mesure {value_num} {unit} SANS entité dans contexte: '{context[:80]}...'")
+
+                        # Score de pertinence total = pertinence candidate + bonus entité
+                        total_relevance = candidate["relevance"] + (entity_match_score * 10)
+
+                        measurements_with_sources.append({
+                            'value': value_num,
+                            'unit': unit,
+                            'value_str': f"{value_str} {unit_str}",
+                            'source': source,
+                            'sentence': sentence,
+                            'relevance': candidate["relevance"],
+                            'entity_relevance': entity_match_score,
+                            'total_relevance': total_relevance
+                        })
+                    except (ValueError, IndexError):
+                        continue
+
+        if not measurements_with_sources:
+            return None
+
+        print(f"📊 [MULTI-SOURCE] {len(measurements_with_sources)} mesures trouvées")
+
+        # Afficher toutes les valeurs trouvées pour debug avec leur pertinence entité
+        for m in measurements_with_sources:
+            entity_indicator = f" 🎯x{m['entity_relevance']}" if m['entity_relevance'] > 0 else ""
+            print(f"  📍 {m['value']} {m['unit']}{entity_indicator} (source: {m['source']})")
+
+        # FILTRER d'abord par pertinence à l'entité si on a des mots-clés
+        if entity_keywords:
+            # Séparer les mesures avec et sans match d'entité
+            entity_matches = [m for m in measurements_with_sources if m['entity_relevance'] > 0]
+            non_entity_matches = [m for m in measurements_with_sources if m['entity_relevance'] == 0]
+
+            if entity_matches:
+                print(f"🎯 [FILTER] {len(entity_matches)} mesures correspondent à l'entité '{entity_keywords}'")
+                print(f"  ⚠️ {len(non_entity_matches)} mesures d'autres entités ignorées")
+                # Utiliser SEULEMENT les mesures qui mentionnent l'entité recherchée
+                measurements_with_sources = entity_matches
+            else:
+                print("⚠️ [FILTER] Aucune mesure avec l'entité recherchée, utilisation de toutes les mesures")
+
+        # Validation multi-sources et détection d'outliers
+        validated_measurement = self._validate_measurements_consensus(measurements_with_sources, query)
+
+        if validated_measurement:
+            return validated_measurement
+
+        # Fallback sur l'ancienne méthode si pas assez de données
+        measurements = Counter()
+        source_sentences = {}
+
+        for m in measurements_with_sources:
+            measurement_key = m['value_str']
+            measurements[measurement_key] += m['relevance']
+            if measurement_key not in source_sentences:
+                source_sentences[measurement_key] = m['sentence']
 
         if measurements:
             best_measurement = measurements.most_common(1)[0][0]
@@ -400,6 +558,179 @@ class EnhancedInternetSearchEngine:
             )
             return cleaned_sentence.strip()
 
+        return None
+
+    def _validate_measurements_consensus(
+        self, measurements: List[Dict[str, Any]], query: str = ""
+    ) -> Optional[str]:
+        """
+        Valide les mesures en croisant plusieurs sources et détecte les outliers
+
+        Args:
+            measurements: Liste de dictionnaires avec 'value', 'unit', 'source', 'sentence'
+            query: La requête originale de l'utilisateur pour extraire l'entité
+
+        Returns:
+            str: Phrase avec la mesure consensuelle et les sources, ou None
+        """
+        if len(measurements) < 2:
+            # Pas assez de sources pour validation
+            return None
+
+        print("🔍 [CONSENSUS] Validation multi-sources en cours...")
+
+        # Normaliser toutes les valeurs dans la même unité (mètres)
+        normalized_measurements = []
+        for m in measurements:
+            value = m['value']
+            unit = m['unit']
+
+            # Convertir en mètres
+            if 'km' in unit or 'kilo' in unit:
+                value = value * 1000
+            elif 'cm' in unit or 'centi' in unit:
+                value = value / 100
+
+            normalized_measurements.append({
+                **m,
+                'normalized_value': value
+            })
+
+        # Extraire les valeurs normalisées
+        values = [m['normalized_value'] for m in normalized_measurements]
+
+        # Calculer les statistiques
+        mean_value = statistics.mean(values)
+
+        if len(values) >= 3:
+            median_value = statistics.median(values)
+            # Calculer l'écart-type pour détecter les outliers
+            std_dev = statistics.stdev(values) if len(values) > 1 else 0
+        else:
+            median_value = mean_value
+            std_dev = 0
+
+        print(f"  📊 Moyenne: {mean_value:.1f}m, Médiane: {median_value:.1f}m, Écart-type: {std_dev:.1f}m")
+
+        # Détection des outliers (valeurs à plus de 2 écart-types)
+        inliers = []
+        outliers = []
+
+        for m in normalized_measurements:
+            if std_dev == 0 or abs(m['normalized_value'] - mean_value) <= 2 * std_dev:
+                inliers.append(m)
+            else:
+                outliers.append(m)
+                print(f"  ⚠️ Outlier détecté: {m['value']} {m['unit']} de {m['source']} (trop éloigné du consensus)")
+
+        # Si on a au moins 2 sources qui concordent, utiliser le consensus
+        if len(inliers) >= 2:
+            # Prendre la médiane des valeurs fiables
+            consensus_value = statistics.median([m['normalized_value'] for m in inliers])
+
+            # Trouver la mesure la plus proche du consensus
+            closest_measurement = min(
+                inliers,
+                key=lambda m: abs(m['normalized_value'] - consensus_value)
+            )
+
+            # Compter les sources qui confirment (valeurs similaires à ±5%)
+            tolerance = consensus_value * 0.05
+            confirming_sources = [
+                m for m in inliers
+                if abs(m['normalized_value'] - consensus_value) <= tolerance
+            ]
+
+            num_confirming = len(set(m['source'] for m in confirming_sources))
+
+            print(f"  ✅ Consensus trouvé: {consensus_value:.0f}m ({num_confirming} sources concordantes)")
+
+            # NOUVELLE APPROCHE : Générer une réponse SIMPLE et DIRECTE
+            # Au lieu d'extraire de phrases complexes, construire la réponse nous-mêmes
+
+            # STRATÉGIE PRIORITAIRE : Extraire l'entité depuis la REQUÊTE utilisateur
+            entity_name = None
+
+            if query:
+                # Extraire les mots significatifs (>= 4 lettres, pas de mots-questions)
+                query_words = query.split()
+                entity_words = []
+                stop_words = {'quel', 'quelle', 'comment', 'taille', 'hauteur', 'fait', 'mesure', 'what', 'which', 'height', 'size', 'est', 'la', 'le', 'du', 'de', 'des'}
+
+                for word in query_words:
+                    clean_word = word.strip('?.,!;:').lower()
+                    if len(clean_word) >= 4 and clean_word not in stop_words:
+                        entity_words.append(word.strip('?.,!;:'))
+
+                # Si on a au moins 2 mots, les combiner
+                if len(entity_words) >= 2:
+                    entity_name = ' '.join(entity_words[:2])  # Prendre les 2 premiers
+                    # Capitaliser correctement (première lettre de chaque mot en majuscule)
+                    entity_name = ' '.join(w.capitalize() for w in entity_name.split())
+                    print(f"  🎯 [ENTITY] Nom extrait de la REQUÊTE: '{entity_name}'")
+
+            # Stratégie 2 : Chercher dans les sources Wikipedia
+            if not entity_name:
+                for m in inliers:
+                    source = m.get('source', '')
+                    # Nettoyer le nom de la source
+                    clean_source = source.replace('(Article direct)', '').replace('Wikipedia FR', '').replace('Wikipedia EN', '').strip()
+
+                    # Vérifier si c'est une page spécifique (pas une liste générique)
+                    if clean_source and clean_source not in ['Structure', 'Source inconnue', 'Liste des plus hautes structures du monde', 'Listes des plus hautes constructions du monde', 'Ordres de grandeur de longueur', 'Chronologie des plus hautes structures du monde']:
+                        entity_name = clean_source
+                        print(f"  🎯 [ENTITY] Nom trouvé depuis source: '{entity_name}'")
+                        break
+
+            # Stratégie 3 : Extraire depuis la phrase
+            if not entity_name:
+                sentence = closest_measurement['sentence']
+
+                # Chercher un pattern comme "Burj Khalifa" ou "le/la Nom"
+                name_patterns = [
+                    r'([A-Z][a-zA-Z\s]+?)\s+\(',  # Nom avant une parenthèse
+                    r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b',  # Nom propre (mots en majuscule)
+                ]
+
+                for pattern in name_patterns:
+                    match = re.search(pattern, sentence)
+                    if match:
+                        potential_name = match.group(1).strip()
+                        # Vérifier que ce n'est pas un mot commun
+                        if potential_name not in ['La', 'Le', 'Un', 'Une', 'De', 'Du', 'Des', 'Il', 'Elle']:
+                            entity_name = potential_name
+                            print(f"  🎯 [ENTITY] Nom extrait de la phrase: '{entity_name}'")
+                            break
+
+            # Stratégie 4 : Fallback générique
+            if not entity_name:
+                entity_name = "structure"
+                print("  ⚠️ [ENTITY] Nom générique utilisé")
+
+            # Construire la réponse simple et directe
+            # Adapter l'article selon le genre (si commence par voyelle, utiliser "l'")
+            if entity_name[0].lower() in 'aeiouhéèê':
+                article = "L'"
+                simple_answer = f"{article}{entity_name} mesure **{int(consensus_value)} mètres** de hauteur."
+            else:
+                # Détecter si c'est masculin ou féminin (par défaut masculin)
+                if entity_name.lower().startswith(('tour', 'flèche', 'antenne', 'structure')):
+                    article = "La"
+                else:
+                    article = "Le"
+                simple_answer = f"{article} {entity_name} mesure **{int(consensus_value)} mètres** de hauteur."
+
+            print(f"  📝 [SIMPLE] Réponse générée: {simple_answer}")
+
+            # Ajouter l'information de validation si pertinent
+            if num_confirming >= 3:
+                validation_note = f" (✅ Confirmé par {num_confirming} sources indépendantes)"
+                simple_answer += validation_note
+
+            return simple_answer.strip()
+
+        # Pas de consensus clair
+        print(f"  ⚠️ Pas de consensus clair ({len(inliers)} sources fiables sur {len(measurements)})")
         return None
 
     def _extract_definition_answer(
@@ -643,16 +974,12 @@ class EnhancedInternetSearchEngine:
         if not text:
             return text
 
-        print(f"[DEBUG] Avant correction: {repr(text)}")
-
         # Étape 1: Séparer SEULEMENT les mots vraiment collés (minuscule + majuscule)
         text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
-        print(f"[DEBUG] Après min->MAJ: {repr(text)}")
 
         # Étape 2: Séparer les chiffres des lettres
         text = re.sub(r"([a-zA-Z])(\d)", r"\1 \2", text)
         text = re.sub(r"(\d)([a-zA-Z])", r"\1 \2", text)
-        print(f"[DEBUG] Après chiffres: {repr(text)}")
 
         # Étape 3: CORRECTION - Seulement les cas évidents de mots collés
         # Ne pas toucher aux mots valides comme "mesure", "actuellement", etc.
@@ -680,7 +1007,6 @@ class EnhancedInternetSearchEngine:
         text = re.sub(r"([.!?:;,])([a-zA-Z])", r"\1 \2", text)
 
         result = text.strip()
-        print(f"[DEBUG] Résultat final: {repr(result)}")
         return result
 
     def _clean_title(self, title: str) -> str:
@@ -1034,15 +1360,110 @@ class EnhancedInternetSearchEngine:
                     print(f"✏️ Wikipedia suggère: '{query}' → '{suggested_query}'")
 
             # Étape 1: Rechercher les pages pertinentes avec la suggestion
+            # Détecter les noms propres (mots significatifs en majuscules OU mots de >=4 lettres dans question)
+            potential_names = []
+            for word in query.split():
+                clean_word = word.strip('?.,!;:')
+                # Majuscule OU mot long dans question de type "burj khalifa"
+                if len(clean_word) >= 4 and clean_word.lower() not in ['quel', 'quelle', 'comment', 'taille', 'hauteur', 'fait', 'mesure']:
+                    potential_names.append(clean_word)
+
+            has_proper_noun = len(potential_names) >= 2  # Au moins 2 mots significatifs (ex: "burj khalifa")
+            search_limit = 5 if has_proper_noun else 3
+
+            if has_proper_noun:
+                direct_search_term = ' '.join(potential_names)
+                print(f"🎯 Entité détectée: '{direct_search_term}', recherche élargie à {search_limit} pages + recherche directe")
+
             search_params = {
                 "action": "query",
                 "list": "search",
                 "srsearch": suggested_query,
                 "format": "json",
-                "srlimit": 3,  # Prendre les 3 meilleurs résultats
+                "srlimit": search_limit,  # Ajusté dynamiquement
             }
 
             print(f"🌐 Requête Wikipedia FR avec: '{suggested_query}'")
+
+            # Initialiser la liste des résultats
+            results = []
+
+            # NOUVELLE ÉTAPE 1.5: Si entité détectée, chercher DIRECTEMENT l'article spécifique
+            if has_proper_noun:
+                direct_article_title = direct_search_term.title()  # "burj khalifa" → "Burj Khalifa"
+                print(f"🎯 Tentative de récupération directe de l'article: '{direct_article_title}'")
+
+                # D'abord, chercher une suggestion de Wikipedia si l'orthographe est incorrecte
+                article_title_to_fetch = direct_article_title
+
+                try:
+                    # Utiliser l'API opensearch pour obtenir des suggestions
+                    opensearch_params = {
+                        "action": "opensearch",
+                        "search": direct_search_term,
+                        "limit": 5,
+                        "namespace": 0,
+                        "format": "json"
+                    }
+
+                    opensearch_response = requests.get(api_url, params=opensearch_params, headers=headers, timeout=10)
+                    opensearch_response.raise_for_status()
+                    opensearch_data = opensearch_response.json()
+
+                    # Format de la réponse: [query, [titles], [descriptions], [urls]]
+                    if len(opensearch_data) > 1 and opensearch_data[1]:
+                        suggestions = opensearch_data[1]
+                        if suggestions:
+                            # Calculer la similarité avec fuzzy matching
+                            best_match = None
+                            best_score = 0
+
+                            for suggestion in suggestions:
+                                score = fuzz.ratio(direct_search_term.lower(), suggestion.lower())
+                                if score > best_score:
+                                    best_score = score
+                                    best_match = suggestion
+
+                            # Si on a un bon match (score > 70), l'utiliser
+                            if best_match and best_score > 70:
+                                if best_match.lower() != direct_article_title.lower():
+                                    print(f"📝 Correction orthographique: '{direct_article_title}' → '{best_match}' (score: {best_score})")
+                                    article_title_to_fetch = best_match
+                                else:
+                                    print(f"✓ Orthographe correcte confirmée (score: {best_score})")
+                except Exception as e:
+                    print(f"⚠️ Suggestion orthographique échouée: {str(e)}")
+
+                try:
+                    direct_content_params = {
+                        "action": "query",
+                        "titles": article_title_to_fetch,
+                        "prop": "extracts",
+                        "exintro": False,
+                        "explaintext": True,
+                        "format": "json",
+                    }
+
+                    direct_response = requests.get(api_url, params=direct_content_params, headers=headers, timeout=10)
+                    direct_response.raise_for_status()
+                    direct_data = direct_response.json()
+
+                    direct_pages = direct_data.get("query", {}).get("pages", {})
+                    for page_id, page_data in direct_pages.items():
+                        if page_id != "-1":  # -1 signifie page not found
+                            extract = page_data.get("extract", "")
+                            if extract and len(extract) > 100:
+                                print(f"✅ Article direct trouvé: {len(extract)} caractères")
+                                results.append({
+                                    "title": page_data.get("title", article_title_to_fetch),
+                                    "snippet": extract[:500],
+                                    "full_content": extract,
+                                    "url": f"https://fr.wikipedia.org/wiki/{quote(page_data.get('title', article_title_to_fetch))}",
+                                    "source": "Wikipedia FR (Article direct)",
+                                })
+                                break
+                except Exception as e:
+                    print(f"⚠️ Recherche directe échouée: {str(e)}")
 
             response = requests.get(api_url, params=search_params, headers=headers, timeout=10)
 
@@ -1053,8 +1474,6 @@ class EnhancedInternetSearchEngine:
             search_data = response.json()
 
             print(f"📊 Réponse JSON reçue: {len(str(search_data))} caractères")
-
-            results = []
 
             if "query" in search_data and "search" in search_data["query"]:
                 print(f"🔍 Wikipedia FR: {len(search_data['query']['search'])} pages trouvées")
@@ -1069,14 +1488,15 @@ class EnhancedInternetSearchEngine:
                     print(f"📖 Récupération du contenu de: {title}")
 
                     try:
-                        # Récupérer le contenu complet de la page
+                        # Récupérer le contenu complet de la page (pas seulement l'intro)
                         content_params = {
                             "action": "query",
                             "titles": title,
                             "prop": "extracts",
-                            "exintro": True,  # Seulement l'introduction (première section)
+                            "exintro": False,  # Récupérer l'article complet, pas juste l'intro
                             "explaintext": True,  # Texte brut sans HTML
                             "format": "json",
+                            "exchars": 5000,  # Limiter à 5000 caractères pour performance
                         }
 
                         content_response = requests.get(api_url, params=content_params, headers=headers, timeout=10)
@@ -1143,15 +1563,110 @@ class EnhancedInternetSearchEngine:
                     print(f"✏️ Wikipedia suggère: '{query}' → '{suggested_query}'")
 
             # Étape 1: Rechercher les pages pertinentes avec la suggestion
+            # Détecter les noms propres (mots significatifs en majuscules OU mots de >=4 lettres dans question)
+            potential_names = []
+            for word in query.split():
+                clean_word = word.strip('?.,!;:')
+                # Majuscule OU mot long dans question de type "burj khalifa"
+                if len(clean_word) >= 4 and clean_word.lower() not in ['what', 'which', 'size', 'height', 'tall', 'quel', 'quelle', 'comment', 'taille', 'hauteur', 'fait', 'mesure']:
+                    potential_names.append(clean_word)
+
+            has_proper_noun = len(potential_names) >= 2  # Au moins 2 mots significatifs (ex: "burj khalifa")
+            search_limit = 5 if has_proper_noun else 3
+
+            if has_proper_noun:
+                direct_search_term = ' '.join(potential_names)
+                print(f"🎯 Entité détectée: '{direct_search_term}', recherche élargie à {search_limit} pages + recherche directe")
+
             search_params = {
                 "action": "query",
                 "list": "search",
                 "srsearch": suggested_query,
                 "format": "json",
-                "srlimit": 3,  # Prendre les 3 meilleurs résultats
+                "srlimit": search_limit,  # Ajusté dynamiquement
             }
 
             print(f"🌐 Requête Wikipedia EN avec: '{suggested_query}'")
+
+            # Initialiser la liste des résultats
+            results = []
+
+            # NOUVELLE ÉTAPE 1.5: Si entité détectée, chercher DIRECTEMENT l'article spécifique
+            if has_proper_noun:
+                direct_article_title = direct_search_term.title()  # "burj khalifa" → "Burj Khalifa"
+                print(f"🎯 Tentative de récupération directe de l'article EN: '{direct_article_title}'")
+
+                # D'abord, chercher une suggestion de Wikipedia si l'orthographe est incorrecte
+                article_title_to_fetch = direct_article_title
+
+                try:
+                    # Utiliser l'API opensearch pour obtenir des suggestions
+                    opensearch_params = {
+                        "action": "opensearch",
+                        "search": direct_search_term,
+                        "limit": 5,
+                        "namespace": 0,
+                        "format": "json"
+                    }
+
+                    opensearch_response = requests.get(api_url, params=opensearch_params, headers=headers, timeout=10)
+                    opensearch_response.raise_for_status()
+                    opensearch_data = opensearch_response.json()
+
+                    # Format de la réponse: [query, [titles], [descriptions], [urls]]
+                    if len(opensearch_data) > 1 and opensearch_data[1]:
+                        suggestions = opensearch_data[1]
+                        if suggestions:
+                            # Calculer la similarité avec fuzzy matching
+                            best_match = None
+                            best_score = 0
+
+                            for suggestion in suggestions:
+                                score = fuzz.ratio(direct_search_term.lower(), suggestion.lower())
+                                if score > best_score:
+                                    best_score = score
+                                    best_match = suggestion
+
+                            # Si on a un bon match (score > 70), l'utiliser
+                            if best_match and best_score > 70:
+                                if best_match.lower() != direct_article_title.lower():
+                                    print(f"📝 Correction orthographique EN: '{direct_article_title}' → '{best_match}' (score: {best_score})")
+                                    article_title_to_fetch = best_match
+                                else:
+                                    print(f"✓ Orthographe correcte confirmée EN (score: {best_score})")
+                except Exception as e:
+                    print(f"⚠️ Suggestion orthographique EN échouée: {str(e)}")
+
+                try:
+                    direct_content_params = {
+                        "action": "query",
+                        "titles": article_title_to_fetch,
+                        "prop": "extracts",
+                        "exintro": False,
+                        "explaintext": True,
+                        "format": "json",
+                    }
+
+                    direct_response = requests.get(api_url, params=direct_content_params, headers=headers, timeout=10)
+                    direct_response.raise_for_status()
+                    direct_data = direct_response.json()
+
+                    direct_pages = direct_data.get("query", {}).get("pages", {})
+                    for page_id, page_data in direct_pages.items():
+                        if page_id != "-1":  # -1 signifie page not found
+                            extract = page_data.get("extract", "")
+                            if extract and len(extract) > 100:
+                                print(f"✅ Article direct EN trouvé: {len(extract)} caractères")
+                                results.append({
+                                    "title": page_data.get("title", article_title_to_fetch),
+                                    "snippet": extract[:500],
+                                    "full_content": extract,
+                                    "url": f"https://en.wikipedia.org/wiki/{quote(page_data.get('title', article_title_to_fetch))}",
+                                    "source": "Wikipedia EN (Article direct)",
+                                })
+                                break
+                except Exception as e:
+                    print(f"⚠️ Recherche directe EN échouée: {str(e)}")
 
             response = requests.get(api_url, params=search_params, headers=headers, timeout=10)
 
@@ -1178,14 +1693,15 @@ class EnhancedInternetSearchEngine:
                     print(f"📖 Récupération du contenu de: {title}")
 
                     try:
-                        # Récupérer le contenu complet de la page
+                        # Récupérer le contenu complet de la page (pas seulement l'intro)
                         content_params = {
                             "action": "query",
                             "titles": title,
                             "prop": "extracts",
-                            "exintro": True,  # Seulement l'introduction (première section)
+                            "exintro": False,  # CHANGÉ: Récupérer l'article complet, pas juste l'intro
                             "explaintext": True,  # Texte brut sans HTML
                             "format": "json",
+                            "exchars": 5000,  # Limiter à 5000 caractères pour performance
                         }
 
                         content_response = requests.get(api_url, params=content_params, headers=headers, timeout=10)

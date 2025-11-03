@@ -236,7 +236,6 @@ class ModernAIGUI:
 
             # Réactiver le scroll normal via le système de forwarding
             self.setup_improved_scroll_forwarding(text_widget)
-            print("✅ Scroll réactivé après animation")
 
         except Exception as e:
             print(f"[DEBUG] Erreur réactivation scroll: {e}")
@@ -1735,10 +1734,6 @@ class ModernAIGUI:
             insertwidth=0,
         )
 
-        print(
-            f"[DEBUG] Bulle USER: hauteur={text_widget.cget('height')}, parent={text_widget.master}"
-        )
-
         self.insert_formatted_text_tkinter(text_widget, text)
 
         # Ajustement parfait de la hauteur après rendu
@@ -2169,8 +2164,6 @@ class ModernAIGUI:
         parent_frame.bind("<Button-4>", parent_test_event)
         parent_frame.bind("<Button-5>", parent_test_event)
 
-        print("✅ Scroll ultra rapide configuré pour widget Text IA ET son parent")
-
     def start_typing_animation_dynamic(self, text_widget, full_text):
         """Animation caractère par caractère avec formatage progressif intelligent"""
         # DÉSACTIVER la saisie pendant l'animation
@@ -2199,12 +2192,8 @@ class ModernAIGUI:
         if link_mapping:
             self._pending_links = link_mapping
 
-        # NOUVEAU : Réinitialiser les positions formatées
+        # Réinitialiser les positions formatées
         self._formatted_positions = set()
-
-        print(
-            f"[DEBUG] Animation caractère par caractère - {len(processed_text)} caractères total"
-        )
 
         # Configurer tous les tags de formatage
         self._configure_all_formatting_tags(text_widget)
@@ -2258,8 +2247,6 @@ class ModernAIGUI:
 
         # Pattern pour détecter les blocs de code avec langage
         code_block_pattern = r"```(\w+)?\n?(.*?)```"
-
-        print(f"[DEBUG] Pré-analyse des blocs de code dans {len(text)} caractères")
 
         for match in re.finditer(code_block_pattern, text, re.DOTALL):
             language = (match.group(1) or "text").lower()
@@ -2315,7 +2302,6 @@ class ModernAIGUI:
                 if pos < len(text):
                     code_blocks_map[pos] = (language, "code_block_marker")
 
-        print(f"[DEBUG] Pré-analyse terminée: {len(code_blocks_map)} positions mappées")
         return code_blocks_map
 
     def _analyze_python_tokens(self, code, start_offset, code_map):
@@ -4247,10 +4233,6 @@ class ModernAIGUI:
             # Nettoyer le cache de formatage
             if hasattr(self, "_formatted_positions"):
                 delattr(self, "_formatted_positions")
-
-            print(
-                "[DEBUG] Animation terminée et formatage progressif définitivement préservé"
-            )
 
     def _convert_temp_links_to_clickable(self, text_widget):
         """Convertit les liens temporaires en liens bleus clicables à la fin de l'animation"""
@@ -7428,10 +7410,6 @@ class ModernAIGUI:
             # Récupérer tout le contenu du widget
             content = text_widget.get("1.0", "end-1c")
 
-            print(
-                f"[DEBUG] Application de la coloration finale sur {len(content)} caractères"
-            )
-
             # Pattern pour détecter les blocs de code avec langage
             code_block_pattern = r"```(\w+)?\n?(.*?)```"
 
@@ -7484,8 +7462,6 @@ class ModernAIGUI:
 
                 # Mettre à jour le contenu pour les prochaines itérations
                 content = text_widget.get("1.0", "end-1c")
-
-            print("[DEBUG] Coloration syntaxique finale appliquée")
 
         except Exception as e:
             print(f"[ERROR] Erreur lors de l'application de la coloration finale: {e}")
