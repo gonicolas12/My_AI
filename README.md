@@ -1,6 +1,6 @@
 # 🤖 Une IA personnelle, confidentielle et locale
 
-- 🧠 **Contexte Ultra-Étendu** : **1,048,576 tokens RÉELS** pour des conversations et analyses approfondies
+- 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
