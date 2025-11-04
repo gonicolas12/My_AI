@@ -216,6 +216,34 @@ class CustomAIModel(BaseAI):
     ) -> str:
         """Génère une réponse avec gestion améliorée des documents"""
         try:
+            # 🔍 GESTION DU CONTEXTE RAG EXTERNE
+            rag_context_used = False
+            if context and isinstance(context, dict):
+                rag_content = context.get("rag_context", "")
+                if rag_content and len(rag_content.strip()) > 50:
+                    print(f"📦 [RAG] Contexte externe détecté: {len(rag_content)} chars")
+
+                    # Ajouter au context_manager Ultra si disponible
+                    if self.ultra_mode and self.context_manager:
+                        doc_name = context.get("source_file", "RAG_Context_External")
+                        result = self.context_manager.add_document(
+                            content=rag_content,
+                            document_name=doc_name
+                        )
+                        if result.get("status") == "success":
+                            print(f"✅ [RAG→ULTRA] Contexte ajouté au système Ultra: {result.get('chunks_created', 0)} chunks")
+                            rag_context_used = True
+                        else:
+                            print(f"⚠️ [RAG→ULTRA] {result.get('status', 'error')}")
+                    else:
+                        # Stocker en mémoire classique
+                        self.conversation_memory.store_document_content(
+                            "RAG_Context",
+                            rag_content
+                        )
+                        print("✅ [RAG→CLASSIC] Contexte ajouté à la mémoire classique")
+                        rag_context_used = True
+
             # 🎭 PRIORITÉ SPÉCIALE: Détection des demandes de blagues AVANT FAQ/ML
             user_lower = user_input.lower()
             joke_keywords = [

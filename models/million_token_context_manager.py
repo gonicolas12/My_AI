@@ -149,7 +149,7 @@ class MillionTokenContextManager:
 
             # Construire le contexte
             context_parts = []
-            for chunk_id in relevant_chunks:
+            for chunk_id, _score in relevant_chunks:
                 chunk = self.chunks[chunk_id]
                 doc_name = self.documents[chunk["document_id"]]["name"]
 

@@ -173,20 +173,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
-## 🚀 Évolutions Futures
-
-### Version 2.4.0 (Prévue)
-- 🌍 Support de moteurs de recherche multiples
-- 📊 Recherche d'images et vidéos
-- 🔍 Recherche dans des domaines spécifiques
-- 📱 Interface mobile optimisée
-
-### Idées Avancées
-- 🤖 IA pour filtrer les résultats
-- 📈 Analyse de tendances
-- 🌐 Recherche multilingue avancée
-- 💾 Cache intelligent des recherches
-
 ---
 
 ## 📞 Support
@@ -196,5 +182,6 @@ Pour toute question ou problème :
 2. Vérifiez les logs dans `/logs/`
 3. Testez avec des requêtes simples
 4. Redémarrez l'application si nécessaire
+5. Utilisez le script `clean_project.bat` pour nettoyer le cache
 
 **Amusez-vous bien avec la recherche internet ! 🌐✨**

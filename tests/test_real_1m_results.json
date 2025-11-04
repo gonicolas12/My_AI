@@ -1,5 +1,5 @@
 {
-  "test_date": "2025-09-30T16:01:47.667403",
+  "test_date": "2025-11-04T10:03:13.021594",
   "test_type": "REAL AI 1M TOKENS TEST",
   "system_used": "CustomAIModel (Production)",
   "total_tokens_processed": 1035090,
@@ -22,13 +22,13 @@
           "performance"
         ],
         "correct": true,
-        "response_time": 0.13947558403015137
+        "response_time": 0.19452929496765137
       },
       {
         "question": "Quel algorithme est utilisé dans l'exemple de tri fusion ?",
         "section": "Code Examples",
         "response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurit...",
-        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n1. **Sécurité** : --- test_chunk_1 (chunk 7) --- contexte de test\n2. **Technique** : # section 43 - systèmes distribués ## section 43 - systèmes distribués cette section explore système\n3. **Synthèse** : ### formation stellaire processus de naissance et évolution des\n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
+        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n• **Sécurité** : --- test_chunk_1 (chunk 7) --- contexte de test\n• **Technique** : # section 43 - systèmes distribués ## section 43 - systèmes distribués cette section explore système\n• **Synthèse** : ### formation stellaire processus de naissance et évolution des\n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
         "keywords_expected": [
           "merge sort",
           "tri fusion",
@@ -38,7 +38,7 @@
           "tri fusion"
         ],
         "correct": true,
-        "response_time": 0.07831692695617676
+        "response_time": 0.05484414100646973
       },
       {
         "question": "Quelle est la version du système selon la configuration JSON ?",
@@ -54,7 +54,7 @@
           "version"
         ],
         "correct": true,
-        "response_time": 0.0484004020690918
+        "response_time": 0.04224419593811035
       },
       {
         "question": "Quel langage est recommandé pour débuter en IA selon la conversation ?",
@@ -70,7 +70,7 @@
           "Python"
         ],
         "correct": true,
-        "response_time": 0.05756354331970215
+        "response_time": 0.051450490951538086
       },
       {
         "question": "Qui a proposé le Test de Turing et en quelle année ?",
@@ -86,13 +86,13 @@
           "1950"
         ],
         "correct": true,
-        "response_time": 0.05141615867614746
+        "response_time": 0.0377659797668457
       },
       {
         "question": "Combien de tokens peut traiter le système selon la configuration ?",
         "section": "Multiple Sections",
         "response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurit...",
-        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n1. **Sécurité** : --- test_chunk_1 (chunk 4) --- étoiles: - effondrement gravitationnel des nuages moléculaires - fusi\n2. **Technique** : # section 84 - astrophysique et cosmologie ## section 84 - astrophysique et cosmologie cette section\n3. **Synthèse** : ### technologies blockchain les blockchains révolutionnent les transactions numériques: - consensus \n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
+        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n• **Sécurité** : --- test_chunk_1 (chunk 4) --- étoiles: - effondrement gravitationnel des nuages moléculaires - fusi\n• **Technique** : # section 84 - astrophysique et cosmologie ## section 84 - astrophysique et cosmologie cette section\n• **Synthèse** : ### technologies blockchain les blockchains révolutionnent les transactions numériques: - consensus \n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
         "keywords_expected": [
           "1000000",
           "1M",
@@ -104,21 +104,21 @@
           "million"
         ],
         "correct": true,
-        "response_time": 0.09811973571777344
+        "response_time": 0.047254323959350586
       }
     ],
     "response_times": [
-      0.13947558403015137,
-      0.07831692695617676,
-      0.0484004020690918,
-      0.05756354331970215,
-      0.05141615867614746,
-      0.09811973571777344
+      0.19452929496765137,
+      0.05484414100646973,
+      0.04224419593811035,
+      0.051450490951538086,
+      0.0377659797668457,
+      0.047254323959350586
     ],
     "comprehension_score": 100.0,
-    "avg_response_time": 0.07888205846150716,
-    "avg_query_time": 0.09325377146402995,
-    "total_test_time": 44.494773149490356
+    "avg_response_time": 0.07134807109832764,
+    "avg_query_time": 0.05723985036214193,
+    "total_test_time": 38.71277117729187
   },
   "test_status": "VALIDÉ",
   "validation_criteria": {

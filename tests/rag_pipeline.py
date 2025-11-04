@@ -18,13 +18,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from models.conversation_memory import ConversationMemory
-from models.custom_ai_model import CustomAIModel
-from utils.logger import setup_logger
-
 # Ajout du path racine du projet pour imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
+
+from models.conversation_memory import ConversationMemory
+from models.custom_ai_model import CustomAIModel
+from utils.logger import setup_logger
 
 # Imports conditionnels avec fallbacks
 try:
