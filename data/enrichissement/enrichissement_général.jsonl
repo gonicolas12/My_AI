@@ -36,7 +36,6 @@
 {"input": "Donne-moi une devise anglaise.", "target": "**In God We Trust**."}
 {"input": "Quel est le plus grand océan de la Terre ?", "target": "**L'océan Pacifique**."}
 {"input": "Qui a écrit 'Roméo et Juliette' ?", "target": "**William Shakespeare**."}
-{"input": "Quel est le plus haut gratte-ciel du monde ?", "target": "**Burj Khalifa**."}
 {"input": "Comment dit-on 'pain' en anglais ?", "target": "**Bread**"}
 {"input": "Donne-moi un synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
 {"input": "Quel est le plus grand animal marin ?", "target": "**La baleine bleue**."}
@@ -51,73 +50,21 @@
 {"input": "Qui a inventé la radio ?", "target": "**Guglielmo Marconi**."}
 {"input": "Quel est le symbole chimique du sodium ?", "target": "**Na**"}
 {"input": "Quelle est la capitale de la France ?", "target": "**Paris**."}
-{"input": "Quelle est la capitale de l'Allemagne ?", "target": "**Berlin**."}
 {"input": "Quelle est la capitale du Royaume-Uni ?", "target": "**Londres**."}
 {"input": "Quelle est la capitale des États-Unis ?", "target": "**Washington D.C.**"}
-{"input": "Quelle est la capitale du Canada ?", "target": "**Ottawa**."}
-{"input": "Quelle est la capitale de l'Australie ?", "target": "**Canberra**."}
-{"input": "Quelle est la capitale de la Nouvelle-Zélande ?", "target": "**Wellington**."}
-{"input": "Quelle est la capitale de l'Inde ?", "target": "**New Delhi**."}
-{"input": "Quelle est la capitale de la Chine ?", "target": "**Pékin**."}
-{"input": "Quelle est la capitale de la Corée du Sud ?", "target": "**Séoul**."}
-{"input": "Quelle est la capitale du Brésil ?", "target": "**Brasilia**."}
-{"input": "Quelle est la capitale de l'Argentine ?", "target": "**Buenos Aires**."}
-{"input": "Quelle est la capitale du Mexique ?", "target": "**Mexico**."}
-{"input": "Quelle est la capitale de l'Égypte ?", "target": "**Le Caire**."}
-{"input": "Quelle est la capitale de l'Afrique du Sud ?", "target": "**Pretoria** (administrative), **Le Cap** (législative), **Bloemfontein** (judiciaire)."}
-{"input": "Quelle est la capitale du Nigeria ?", "target": "**Abuja**."}
-{"input": "Quelle est la capitale du Kenya ?", "target": "**Nairobi**."}
 {"input": "Quelle est la capitale de l'Arabie Saoudite ?", "target": "**Riyad**."}
 {"input": "Quelle est la capitale des Émirats arabes unis ?", "target": "**Abou Dhabi**."}
-{"input": "Quelle est la capitale de la Turquie ?", "target": "**Ankara**."}
-{"input": "Quelle est la capitale de la Thaïlande ?", "target": "**Bangkok**."}
-{"input": "Quelle est la capitale du Vietnam ?", "target": "**Hanoï**."}
-{"input": "Quelle est la capitale de l'Indonésie ?", "target": "**Jakarta** (et future **Nusantara**)."}
-{"input": "Quelle est la capitale des Philippines ?", "target": "**Manille**."}
-{"input": "Quelle est la capitale de la Malaisie ?", "target": "**Kuala Lumpur**."}
 {"input": "Quelle est la capitale de Singapour ?", "target": "**Singapour** (cité-État)."}
-{"input": "Quelle est la capitale de la Suisse ?", "target": "**Berne**."}
-{"input": "Quelle est la capitale de l'Autriche ?", "target": "**Vienne**."}
 {"input": "Quelle est la capitale des Pays-Bas ?", "target": "**Amsterdam** (capitale), **La Haye** (gouvernement)."}
-{"input": "Quelle est la capitale de la Belgique ?", "target": "**Bruxelles**."}
 {"input": "Quelle est la capitale du Luxembourg ?", "target": "**Luxembourg**."}
-{"input": "Quelle est la capitale du Danemark ?", "target": "**Copenhague**."}
-{"input": "Quelle est la capitale de la Norvège ?", "target": "**Oslo**."}
-{"input": "Quelle est la capitale de la Suède ?", "target": "**Stockholm**."}
-{"input": "Quelle est la capitale de la Finlande ?", "target": "**Helsinki**."}
-{"input": "Quelle est la capitale de la Pologne ?", "target": "**Varsovie**."}
-{"input": "Quelle est la capitale de la République tchèque ?", "target": "**Prague**."}
-{"input": "Quelle est la capitale de la Hongrie ?", "target": "**Budapest**."}
-{"input": "Quelle est la capitale de la Roumanie ?", "target": "**Bucarest**."}
-{"input": "Quelle est la capitale de la Grèce ?", "target": "**Athènes**."}
-{"input": "Quelle est la capitale du Portugal ?", "target": "**Lisbonne**."}
-{"input": "Quelle est la capitale de l'Irlande ?", "target": "**Dublin**."}
-{"input": "Quelle est la capitale de l'Islande ?", "target": "**Reykjavik**."}
 {"input": "Quelle est la capitale de la Russie ?", "target": "**Moscou**."}
 {"input": "Quelle est la capitale de l'Ukraine ?", "target": "**Kiev**."}
-{"input": "Quelle est la capitale du Chili ?", "target": "**Santiago**."}
-{"input": "Quelle est la capitale de la Colombie ?", "target": "**Bogotá**."}
-{"input": "Quelle est la capitale du Venezuela ?", "target": "**Caracas**."}
-{"input": "Quelle est la capitale de l'Équateur ?", "target": "**Quito**."}
-{"input": "Quelle est la capitale du Pérou ?", "target": "**Lima**."}
-{"input": "Quelle est la capitale de la Bolivie ?", "target": "**La Paz** (administrative), **Sucre** (constitutionnelle)."}
-{"input": "Quelle est la capitale du Paraguay ?", "target": "**Asunción**."}
-{"input": "Quelle est la capitale de l'Uruguay ?", "target": "**Montevideo**."}
-{"input": "Quelle est la capitale de Cuba ?", "target": "**La Havane**."}
 {"input": "Quelle est la capitale de la Jamaïque ?", "target": "**Kingston**."}
 {"input": "Quelle est la capitale de la République dominicaine ?", "target": "**Saint-Domingue**."}
-{"input": "Quelle est la capitale du Costa Rica ?", "target": "**San José**."}
 {"input": "Quelle est la capitale du Panama ?", "target": "**Panama**."}
-{"input": "Quelle est la capitale du Guatemala ?", "target": "**Guatemala**."}
-{"input": "Quelle est la capitale du Honduras ?", "target": "**Tegucigalpa**."}
-{"input": "Quelle est la capitale du Nicaragua ?", "target": "**Managua**."}
-{"input": "Quelle est la capitale du Salvador ?", "target": "**San Salvador**."}
-{"input": "Quelle est la capitale du Maroc ?", "target": "**Rabat**."}
 {"input": "Quelle est la capitale de l'Algérie ?", "target": "**Alger**."}
-{"input": "Quelle est la capitale de la Tunisie ?", "target": "**Tunis**."}
 {"input": "Quelle est la capitale de la Libye ?", "target": "**Tripoli**."}
 {"input": "Quelle est la capitale du Soudan ?", "target": "**Khartoum**."}
-{"input": "Quelle est la capitale de l'Éthiopie ?", "target": "**Addis-Abeba**."}
 {"input": "Quelle est la capitale de la Somalie ?", "target": "**Mogadiscio**."}
 {"input": "Quelle est la capitale du Ghana ?", "target": "**Accra**."}
 {"input": "Quelle est la capitale du Sénégal ?", "target": "**Dakar**."}
@@ -133,8 +80,6 @@
 {"input": "Quelle est la capitale de l'Île Maurice ?", "target": "**Port-Louis**."}
 {"input": "Quelle est la capitale des Seychelles ?", "target": "**Victoria**."}
 {"input": "Quelle est la capitale de l'Afghanistan ?", "target": "**Kaboul**."}
-{"input": "Quelle est la capitale du Pakistan ?", "target": "**Islamabad**."}
-{"input": "Quelle est la capitale du Bangladesh ?", "target": "**Dhaka**."}
 {"input": "Quelle est la capitale du Sri Lanka ?", "target": "**Sri Jayawardenapura Kotte** (administrative), **Colombo** (commerciale)."}
 {"input": "Quelle est la capitale du Népal ?", "target": "**Katmandou**."}
 {"input": "Quelle est la capitale du Myanmar (Birmanie) ?", "target": "**Naypyidaw**."}
@@ -162,18 +107,13 @@
 {"input": "Quelle est la capitale du Yémen ?", "target": "**Sanaa** (revendiquée par Houthis), **Aden** (gouvernement reconnu)."}
 {"input": "Quelle est la devise de Paris ?", "target": "**Fluctuat nec mergitur** (Il flotte mais ne sombre pas)."}
 {"input": "Quel est le plus long fleuve d'Europe ?", "target": "**La Volga**."}
-{"input": "Quel est le plus long fleuve d'Afrique ?", "target": "**Le Nil**."}
 {"input": "Quel est le plus long fleuve d'Amérique du Sud ?", "target": "**L'Amazone**."}
 {"input": "Quel est le plus long fleuve d'Asie ?", "target": "**Le Yangtsé**."}
 {"input": "Quel est le plus long fleuve d'Amérique du Nord ?", "target": "**Le Missouri-Mississippi**."}
-{"input": "Quel est le plus haut sommet d'Europe ?", "target": "**Le mont Elbrouz** (Caucase)."}
 {"input": "Quel est le plus haut sommet d'Amérique ?", "target": "**L'Aconcagua** (Argentine)."}
-{"input": "Quel est le plus haut sommet d'Afrique ?", "target": "**Le Kilimandjaro** (Tanzanie)."}
 {"input": "Quel est le plus haut sommet d'Océanie ?", "target": "**Le Puncak Jaya** (Papouasie)."}
 {"input": "Quel est le plus haut sommet d'Antarctique ?", "target": "**Le mont Vinson**."}
-{"input": "Quel est le plus grand lac du monde ?", "target": "**La mer Caspienne**."}
 {"input": "Quel est le plus profond lac du monde ?", "target": "**Le lac Baïkal** (Russie)."}
-{"input": "Quel est le plus grand désert chaud du monde ?", "target": "**Le Sahara**."}
 {"input": "Quel est le désert le plus aride du monde ?", "target": "**Le désert d'Atacama** (Chili)."}
 {"input": "Quelle est la plus grande île du monde ?", "target": "**Le Groenland**."}
 {"input": "Quelle est la deuxième plus grande île du monde ?", "target": "**La Nouvelle-Guinée**."}
@@ -181,13 +121,11 @@
 {"input": "Quel est le point le plus profond des océans ?", "target": "**La fosse des Mariannes** (~11 000 mètres)."}
 {"input": "Quel est le pays le plus peuplé du monde ?", "target": "**L'Inde** (dépassant la Chine récemment)."}
 {"input": "Quel est le pays le plus vaste du monde ?", "target": "**La Russie**."}
-{"input": "Quel est le plus petit pays du monde ?", "target": "**Le Vatican**."}
 {"input": "Combien y a-t-il de fuseaux horaires dans le monde ?", "target": "**24** principaux (plus des fuseaux avec demi-heures et quarts d'heure)."}
 {"input": "Quelle est la ligne imaginaire qui divise la Terre en deux hémisphères ?", "target": "**L'équateur**."}
 {"input": "Quel est le méridien de référence pour les longitudes ?", "target": "**Le méridien de Greenwich** (0°)."}
 {"input": "Quelle est la couche de l'atmosphère où nous vivons ?", "target": "**La troposphère**."}
 {"input": "Quel gaz compose principalement l'atmosphère terrestre ?", "target": "**L'azote** (~78%)."}
-{"input": "Quelle est la monnaie du Japon ?", "target": "**Le yen**."}
 {"input": "Quelle est la monnaie de la Chine ?", "target": "**Le yuan** (ou renminbi)."}
 {"input": "Quelle est la monnaie du Royaume-Uni ?", "target": "**La livre sterling**."}
 {"input": "Quelle est la monnaie des États-Unis ?", "target": "**Le dollar américain**."}
@@ -282,14 +220,10 @@
 {"input": "Qui a peint la Chapelle Sixtine ?", "target": "**Michel-Ange**."}
 {"input": "Qui a composé La Neuvième Symphonie ?", "target": "**Ludwig van Beethoven**."}
 {"input": "Qui a découvert la pénicilline ?", "target": "**Alexander Fleming**."}
-{"input": "Qui a inventé le téléphone ?", "target": "**Alexander Graham Bell** (contesté, Antonio Meucci précurseur)."}
 {"input": "Qui a inventé la lampe électrique ?", "target": "**Thomas Edison** (parmi d'autres inventeurs)."}
 {"input": "Qui a théorisé la relativité ?", "target": "**Albert Einstein**."}
 {"input": "Qui a découvert l'Amérique (pour l'Europe) ?", "target": "**Christophe Colomb** (1492)."}
 {"input": "Qui a fait le tour du monde en bateau (premier) ?", "target": "**Ferdinand de Magellan** et son équipage (1519-1522)."}
-{"input": "Qui a peint 'La Nuit étoilée' ?", "target": "**Vincent van Gogh**."}
-{"input": "Qui a écrit 'Hamlet' ?", "target": "**William Shakespeare**."}
-{"input": "Qui a écrit '1984' ?", "target": "**George Orwell**."}
 {"input": "Qui a créé Facebook ?", "target": "**Mark Zuckerberg**."}
 {"input": "Qui a cofondé Apple ?", "target": "**Steve Jobs**, **Steve Wozniak**, et **Ronald Wayne**."}
 {"input": "Qui a cofondé Microsoft ?", "target": "**Bill Gates** et **Paul Allen**."}
@@ -298,3 +232,18 @@
 {"input": "Quel est le plus vieux monument du monde encore debout ?", "target": "**Göbekli Tepe** (Turquie, ~9600 av. J.-C.)."}
 {"input": "Quelle merveille du monde antique est encore visible aujourd'hui ?", "target": "**La Grande Pyramide de Gizeh** (Égypte)."}
 {"input": "Combien de merveilles du monde moderne y a-t-il ?", "target": "**7 nouvelles merveilles** (vote 2007) : Petra, Grande Muraille, Christ Rédempteur, Machu Picchu, Chichén Itzá, Colisée, Taj Mahal."}
+{"input": "Quelle est la différence entre HTTP et HTTPS ?", "target": "**HTTPS** ajoute une couche de sécurité **SSL/TLS** au protocole HTTP, chiffrant les données échangées entre navigateur et serveur."}
+{"input": "Qu'est-ce qu'un VPN et à quoi sert-il ?", "target": "**VPN** (Virtual Private Network) : crée une connexion sécurisée et chiffrée pour protéger la vie privée en ligne et accéder aux contenus géo-restreints."}
+{"input": "Comment fonctionne le Bluetooth ?", "target": "**Bluetooth** utilise des ondes radio courte portée (2,4 GHz) pour connecter sans fil des appareils à proximité (10-100 mètres)."}
+{"input": "Qu'est-ce que le Wi-Fi 6 ?", "target": "**Wi-Fi 6** (802.11ax) : nouvelle génération Wi-Fi offrant vitesses supérieures, meilleure efficacité et capacité accrue pour appareils multiples."}
+{"input": "Qu'est-ce qu'une adresse IPv6 ?", "target": "**IPv6** : nouvelle version du protocole Internet avec adresses 128 bits (vs 32 bits IPv4), offrant un nombre quasi illimité d'adresses."}
+{"input": "Comment fonctionne l'authentification biométrique ?", "target": "**Biométrie** : authentification par caractéristiques physiques uniques (empreintes digitales, reconnaissance faciale, iris, voix)."}
+{"input": "Qu'est-ce que le streaming ?", "target": "**Streaming** : diffusion continue de contenu audio/vidéo sur Internet sans téléchargement complet préalable."}
+{"input": "Comment fonctionne un écran tactile ?", "target": "**Écran tactile** : détecte position du doigt via technologies capacitive (changement champ électrique) ou résistive (pression)."}
+{"input": "Qu'est-ce qu'un processeur et que fait-il ?", "target": "**CPU** (processeur) : cerveau de l'ordinateur qui exécute instructions et calculs. Mesure : GHz (vitesse) et cœurs (parallélisme)."}
+{"input": "Qu'est-ce que la RAM ?", "target": "**RAM** (Random Access Memory) : mémoire vive temporaire pour données en cours d'utilisation. Plus rapide que stockage permanent."}
+{"input": "Quelle est la différence entre logiciel et matériel ?", "target": "**Matériel** (hardware) : composants physiques. **Logiciel** (software) : programmes et données. Les deux travaillent ensemble."}
+{"input": "Qu'est-ce qu'un pare-feu ?", "target": "**Pare-feu** (firewall) : barrière de sécurité filtrant le trafic réseau entrant/sortant selon règles définies."}
+{"input": "Comment fonctionne le chiffrement ?", "target": "**Chiffrement** : transformation données en code illisible sans clé de déchiffrement. Protège confidentialité des informations."}
+{"input": "Qu'est-ce qu'un malware ?", "target": "**Malware** : logiciel malveillant incluant virus, vers, chevaux de Troie, ransomwares, spywares conçus pour nuire."}
+{"input": "Comment fonctionne le GPS ?", "target": "**GPS** : système de positionnement par satellites. Triangulation de 4+ satellites pour calculer position précise sur Terre."}

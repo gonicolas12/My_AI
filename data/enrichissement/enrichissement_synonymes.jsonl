@@ -120,3 +120,23 @@
 {"input": "Donne-moi un synonyme de 'éloigner' ?", "target": "**Retirer**, **écarter**, **distancer**, **séparer**."}
 {"input": "Donne-moi un synonyme de 'commencer' ?", "target": "**Débuter**, **entamer**, **initier**, **amorcer**."}
 {"input": "Donne-moi un synonyme de 'finir' ?", "target": "**Achever**, **terminer**, **clore**, **conclure**."}
+{"input": "Donne-moi un synonyme de 'débuter' ?", "target": "**Commencer**, **entamer**, **initier**, **amorcer**, **engager**."}
+{"input": "Donne-moi un synonyme de 'terminer' ?", "target": "**Finir**, **achever**, **conclure**, **clore**, **parachever**."}
+{"input": "Donne-moi un synonyme de 'découvrir' ?", "target": "**Trouver**, **dénicher**, **déceler**, **détecter**, **révéler**."}
+{"input": "Donne-moi un synonyme de 'cacher' ?", "target": "**Dissimuler**, **masquer**, **occulter**, **voiler**, **camoufler**."}
+{"input": "Donne-moi un synonyme de 'augmenter' ?", "target": "**Accroître**, **amplifier**, **intensifier**, **majorer**, **élever**."}
+{"input": "Donne-moi un synonyme de 'diminuer' ?", "target": "**Réduire**, **décroître**, **amoindrir**, **atténuer**, **baisser**."}
+{"input": "Donne-moi un synonyme de 'accepter' ?", "target": "**Approuver**, **agréer**, **consentir**, **acquiescer**, **accueillir**."}
+{"input": "Donne-moi un synonyme de 'refuser' ?", "target": "**Décliner**, **rejeter**, **repousser**, **écarter**, **récuser**."}
+{"input": "Donne-moi un synonyme de 'parler' ?", "target": "**Dire**, **s'exprimer**, **discourir**, **bavarder**, **converser**."}
+{"input": "Donne-moi un synonyme de 'écouter' ?", "target": "**Entendre**, **ouïr**, **prêter l'oreille**, **ausculter**."}
+{"input": "Donne-moi un synonyme de 'observer' ?", "target": "**Regarder**, **examiner**, **scruter**, **contempler**, **surveiller**."}
+{"input": "Donne-moi un synonyme de 'créer' ?", "target": "**Inventer**, **concevoir**, **fabriquer**, **édifier**, **bâtir**."}
+{"input": "Donne-moi un synonyme de 'détruire' ?", "target": "**Anéantir**, **démolir**, **ravager**, **saccager**, **ruiner**."}
+{"input": "Donne-moi un synonyme de 'penser' ?", "target": "**Réfléchir**, **cogiter**, **méditer**, **raisonner**, **songer**."}
+{"input": "Donne-moi un synonyme de 'savoir' ?", "target": "**Connaître**, **maîtriser**, **posséder**, **être instruit de**."}
+{"input": "Donne-moi un synonyme de 'ignorer' ?", "target": "**Méconnaître**, **ne pas connaître**, **être ignorant de**."}
+{"input": "Donne-moi un synonyme de 'aider' ?", "target": "**Assister**, **secourir**, **soutenir**, **épauler**, **prêter main-forte**."}
+{"input": "Donne-moi un synonyme de 'nuire' ?", "target": "**Léser**, **endommager**, **porter préjudice**, **causer du tort**."}
+{"input": "Donne-moi un synonyme de 'obtenir' ?", "target": "**Acquérir**, **recevoir**, **gagner**, **remporter**, **décrocher**."}
+{"input": "Donne-moi un synonyme de 'perdre' ?", "target": "**Égarer**, **omettre**, **manquer**, **être privé de**, **se défaire de**."}

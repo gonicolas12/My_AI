@@ -143,3 +143,25 @@
 {"input": "Qu'est-ce qu'un robot industriel ?", "target": "Un **robot industriel** est une machine programmable utilisée dans les usines pour automatiser des tâches\nrépétitives ou dangereuses."}
 {"input": "Qu'est-ce qu'une imprimante 3D ?", "target": "Une **imprimante 3D** est un appareil qui fabrique des objets physiques en superposant des couches de matériau\nà partir d'un modèle numérique."}
 {"input": "Qu'est-ce que la cybersécurité ?", "target": "La **cybersécurité** regroupe l'ensemble des pratiques et technologies visant à protéger les systèmes\ninformatiques et les données contre les attaques et les accès non autorisés."}
+{"input": "Qu'est-ce que le DevOps ?", "target": "**DevOps** : pratiques combinant développement (Dev) et opérations IT (Ops) pour automatisation, collaboration et livraison continue."}
+{"input": "Qu'est-ce que CI/CD ?", "target": "**CI/CD** : Intégration Continue / Déploiement Continu. Automatisation tests et déploiements pour livraison rapide et fiable."}
+{"input": "Qu'est-ce que l'architecture serverless ?", "target": "**Serverless** : modèle cloud où le fournisseur gère l'infrastructure. Developer focus sur code (Functions as a Service)."}
+{"input": "Qu'est-ce que GraphQL ?", "target": "**GraphQL** : langage de requête pour APIs permettant de demander précisément les données souhaitées, alternative à REST."}
+{"input": "Qu'est-ce que le TDD ?", "target": "**TDD** (Test-Driven Development) : écrire tests AVANT le code. Cycle : Red (test échoue) → Green (code passe) → Refactor."}
+{"input": "Qu'est-ce que Git ?", "target": "**Git** : système de contrôle de version distribué pour suivre modifications code, collaborer et gérer historique projets."}
+{"input": "Qu'est-ce qu'un conteneur Docker ?", "target": "**Container Docker** : environnement isolé empaquetant application + dépendances, portable sur n'importe quel système compatible."}
+{"input": "Qu'est-ce que Kubernetes ?", "target": "**Kubernetes** (K8s) : orchestrateur de conteneurs automatisant déploiement, scaling et gestion d'applications conteneurisées."}
+{"input": "Qu'est-ce qu'un microservice ?", "target": "**Microservice** : architecture décomposant applications en services indépendants, chacun responsable d'une fonctionnalité spécifique."}
+{"input": "Qu'est-ce que le cloud computing ?", "target": "**Cloud computing** : accès à ressources informatiques (serveurs, stockage, applications) via Internet, à la demande."}
+{"input": "Qu'est-ce qu'AWS ?", "target": "**AWS** (Amazon Web Services) : plateforme cloud computing d'Amazon offrant 200+ services (EC2, S3, Lambda, RDS...)."}
+{"input": "Qu'est-ce que JSON ?", "target": "**JSON** (JavaScript Object Notation) : format léger d'échange de données, lisible par humains et machines."}
+{"input": "Qu'est-ce que SQL ?", "target": "**SQL** (Structured Query Language) : langage pour manipuler bases de données relationnelles (SELECT, INSERT, UPDATE, DELETE)."}
+{"input": "Qu'est-ce que NoSQL ?", "target": "**NoSQL** : bases de données non-relationnelles pour données non-structurées. Types : document, clé-valeur, colonnes, graphes."}
+{"input": "Qu'est-ce que MongoDB ?", "target": "**MongoDB** : base de données NoSQL orientée documents, stockant données en JSON-like (BSON), flexible et scalable."}
+{"input": "Qu'est-ce que Redis ?", "target": "**Redis** : base de données in-memory clé-valeur ultra-rapide, utilisée pour cache, sessions, files d'attente."}
+{"input": "Qu'est-ce que React ?", "target": "**React** : bibliothèque JavaScript de Facebook pour construire interfaces utilisateur avec composants réutilisables."}
+{"input": "Qu'est-ce que Node.js ?", "target": "**Node.js** : environnement JavaScript côté serveur basé sur moteur V8, asynchrone et event-driven."}
+{"input": "Qu'est-ce que Python ?", "target": "**Python** : langage de programmation de haut niveau, polyvalent, lisible, utilisé en web, data science, IA, automatisation."}
+{"input": "Qu'est-ce que Java ?", "target": "**Java** : langage orienté objet, portable (JVM), utilisé en entreprise, Android, applications desktop et web."}
+{"input": "Qu'est-ce que TypeScript ?", "target": "**TypeScript** : sur-ensemble de JavaScript ajoutant typage statique pour code plus robuste et maintenable."}
+{"input": "Qu'est-ce que la complexité algorithmique ?", "target": "**Complexité** : mesure efficacité algorithme. **Temporelle** : temps exécution. **Spatiale** : mémoire utilisée. Notation Big O."}

@@ -136,3 +136,23 @@
 {"input": "Comment dit-on 'chien' en italien ?", "target": "**Cane**"}
 {"input": "Comment dire 'merci' en japonais ?", "target": "**Arigatō (ありがとう)**"}
 {"input": "Comment dit-on 'maison' en anglais ?", "target": "**House**"}
+{"input": "Comment dire 'bienvenue' en japonais ?", "target": "**Yōkoso (ようこそ)** ou **Irasshaimase (いらっしゃいませ)** (dans un commerce)."}
+{"input": "Comment dire 'excusez-moi' en coréen ?", "target": "**Joesonghamnida (죄송합니다)** (formel) ou **Mianhae (미안해)** (informel)."}
+{"input": "Traduis en chinois : 'Comment vas-tu ?'", "target": "**你好吗？** (Nǐ hǎo ma?)"}
+{"input": "Comment dire 'bonne chance' en allemand ?", "target": "**Viel Glück!**"}
+{"input": "Traduis en russe : 'Bonsoir'", "target": "**Добрый вечер** (Dobryy vecher)"}
+{"input": "Comment dire 'à votre santé' en espagnol ?", "target": "**¡Salud!**"}
+{"input": "Traduis en arabe : 'Comment allez-vous ?'", "target": "**كيف حالك؟** (Kayfa haluk?)"}
+{"input": "Comment dire 'félicitations' en italien ?", "target": "**Congratulazioni!**"}
+{"input": "Traduis en portugais : 'Bon voyage'", "target": "**Boa viagem!**"}
+{"input": "Comment dire 'de rien' en allemand ?", "target": "**Bitte schön** ou **Gern geschehen**."}
+{"input": "Traduis en néerlandais : 'Bonne nuit'", "target": "**Goedenacht**"}
+{"input": "Comment dire 'à demain' en italien ?", "target": "**A domani!**"}
+{"input": "Traduis en polonais : 'Bon appétit'", "target": "**Smacznego!**"}
+{"input": "Comment dire 'je ne comprends pas' en espagnol ?", "target": "**No entiendo** ou **No comprendo**."}
+{"input": "Traduis en suédois : 'Bienvenue'", "target": "**Välkommen!**"}
+{"input": "Comment dire 'où sont les toilettes ?' en allemand ?", "target": "**Wo ist die Toilette?**"}
+{"input": "Traduis en turc : 'Merci beaucoup'", "target": "**Çok teşekkür ederim**"}
+{"input": "Comment dire 'quel est ton nom ?' en japonais ?", "target": "**お名前は何ですか？** (Onamae wa nan desu ka?)"}
+{"input": "Traduis en hindi : 'Bonjour'", "target": "**नमस्ते** (Namaste)"}
+{"input": "Comment dire 'au secours' en anglais ?", "target": "**Help!**"}

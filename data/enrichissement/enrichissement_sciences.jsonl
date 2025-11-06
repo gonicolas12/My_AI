@@ -101,7 +101,6 @@
 {"input": "Quel est le plus grand animal terrestre vivant ?", "target": "L'**éléphant d'Afrique**"}
 {"input": "Quel est le plus grand animal ayant jamais vécu ?", "target": "La **baleine bleue**"}
 {"input": "Quel est le plus grand dinosaure connu ?", "target": "L'**Argentinosaurus**"}
-{"input": "Quel est le plus grand canyon du monde ?", "target": "Le **Grand Canyon**"}
 {"input": "Quel est le plus grand glacier du monde ?", "target": "Le **glacier Lambert**"}
 {"input": "Quel est le plus grand animal volant ?", "target": "Le **quetzalcoatlus** (dinosaure volant)"}
 {"input": "Quel est le plus grand animal carnivore terrestre ?", "target": "L'**ours polaire**"}
@@ -136,3 +135,23 @@
 {"input": "Quelle loi décrit l'attraction entre deux masses ?", "target": "**Loi de la gravitation universelle de Newton**"}
 {"input": "Que sont les isotopes ?", "target": "Des **atomes** du même **élément** ayant un **nombre différent de neutrons**."}
 {"input": "Quelle est l'unité SI de la force ?", "target": "**Newton (N)**"}
+{"input": "Qu'est-ce que l'effet Doppler ?", "target": "**Effet Doppler** : changement de fréquence d'une onde selon mouvement relatif source-observateur. Exemple : sirène ambulance."}
+{"input": "Qu'est-ce que la mitochondrie ?", "target": "**Mitochondrie** : organite cellulaire produisant ATP (énergie) via respiration cellulaire. 'Centrale énergétique' de la cellule."}
+{"input": "Qu'est-ce que la tectonique des plaques ?", "target": "**Tectonique plaques** : théorie expliquant mouvement plaques lithosphériques sur asthénosphère, causant séismes, volcans, montagnes."}
+{"input": "Qu'est-ce qu'un trou noir ?", "target": "**Trou noir** : région espace-temps avec gravité si intense que rien, pas même la lumière, ne peut s'échapper."}
+{"input": "Qu'est-ce que la sélection naturelle ?", "target": "**Sélection naturelle** : mécanisme évolution de Darwin. Individus mieux adaptés survivent et reproduisent davantage."}
+{"input": "Qu'est-ce que l'ADN mitochondrial ?", "target": "**ADN mitochondrial** : ADN circulaire dans mitochondries, transmission maternelle uniquement, utilisé en génétique des populations."}
+{"input": "Qu'est-ce que la force de Coriolis ?", "target": "**Force Coriolis** : force apparente due à rotation Terre, déviant objets en mouvement (cyclones, vents, courants marins)."}
+{"input": "Qu'est-ce qu'un isotope radioactif ?", "target": "**Isotope radioactif** : atome instable émettant radiations en se désintégrant. Applications : médecine, datation, énergie."}
+{"input": "Qu'est-ce que la photosynthèse anoxygénique ?", "target": "**Photosynthèse anoxygénique** : photosynthèse sans production d'oxygène, utilisée par certaines bactéries (H₂S au lieu de H₂O)."}
+{"input": "Qu'est-ce que le principe d'Archimède ?", "target": "**Principe Archimède** : tout corps plongé dans fluide subit poussée verticale égale au poids du fluide déplacé."}
+{"input": "Qu'est-ce que l'entropie ?", "target": "**Entropie** : mesure du désordre d'un système. 2e loi thermodynamique : entropie univers augmente toujours."}
+{"input": "Qu'est-ce qu'un neurotransmetteur ?", "target": "**Neurotransmetteur** : molécule chimique transmettant signal entre neurones via synapses (dopamine, sérotonine, GABA...)."}
+{"input": "Qu'est-ce que l'effet de serre naturel ?", "target": "**Effet serre naturel** : réchauffement atmosphérique par vapeur d'eau, CO₂, CH₄ permettant vie sur Terre (+33°C)."}
+{"input": "Qu'est-ce que la fusion nucléaire ?", "target": "**Fusion nucléaire** : réaction combinant noyaux atomiques légers en noyau plus lourd, libérant énergie. Processus du Soleil."}
+{"input": "Qu'est-ce qu'un enzyme ?", "target": "**Enzyme** : protéine catalysant réactions biochimiques, accélérant processus sans être consommée. Spécifique à substrat."}
+{"input": "Qu'est-ce que la loi de Hubble ?", "target": "**Loi Hubble** : galaxies s'éloignent avec vitesse proportionnelle à leur distance. Preuve expansion univers."}
+{"input": "Qu'est-ce que l'homéostasie ?", "target": "**Homéostasie** : maintien équilibre interne constant du corps (température, pH, glycémie) malgré variations externes."}
+{"input": "Qu'est-ce que la fission nucléaire ?", "target": "**Fission nucléaire** : division noyau lourd en noyaux plus légers, libérant énergie. Principe centrales nucléaires."}
+{"input": "Qu'est-ce qu'un quark ?", "target": "**Quark** : particule élémentaire constituant protons et neutrons. 6 types : up, down, charm, strange, top, bottom."}
+{"input": "Qu'est-ce que la méiose ?", "target": "**Méiose** : division cellulaire produisant 4 cellules haploïdes (gamètes) à partir d'une cellule diploïde. 2 divisions successives."}

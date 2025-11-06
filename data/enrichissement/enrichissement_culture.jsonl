@@ -118,7 +118,6 @@
 {"input": "Qui a écrit 'Madame Butterfly' ?", "target": "Livret de **Luigi Illica** et **Giuseppe Giacosa**, musique de **Giacomo Puccini** (1904). Opéra inspiré d'une\nnouvelle de John Luther Long."}
 {"input": "Quelle est la tradition du tango argentin ?", "target": "Danse et musique née dans les **faubourgs de Buenos Aires** vers 1880. Mélange d'influences européennes,\nafricaines et créoles, inscrite au patrimoine de l'UNESCO."}
 {"input": "Qui a composé 'La Moldau' ?", "target": "**Bedřich Smetana**. Ce poème symphonique de 1874 évoque le cours de la rivière Vltava à travers la Bohême,\npartie du cycle 'Ma Patrie'."}
-{"input": "Quelle civilisation a développé l'art islamique ?", "target": "**Monde musulman** depuis le 7e siècle. Art caractérisé par la **géométrie**, l'**arabesque**, la\n**calligraphie** et l'interdiction de représenter le divin."}
 {"input": "Qui a peint 'Las Meninas' ?", "target": "**Diego Velázquez** en 1656. Cette œuvre magistrale de la peinture espagnole joue avec les perspectives et les\nreflets dans l'atelier du peintre."}
 {"input": "Quelle est la période de l'art africain traditionnel ?", "target": "**Art millénaire** varié selon les ethnies : **masques**, **sculptures**, **textiles**. Influence majeure sur\nl'art moderne européen (Picasso, Matisse...)."}
 {"input": "Qui a écrit 'Le Seigneur des anneaux' ?", "target": "**J.R.R. Tolkien**. Cette trilogie fantasy, publiée entre 1954-1955, a révolutionné le genre et influencé\ntoute la littérature fantasy moderne."}
@@ -149,7 +148,6 @@
 {"input": "Quel est le plus haut sommet d'Afrique ?", "target": "**Le Kilimandjaro**."}
 {"input": "Quelle est la capitale de l'Égypte ?", "target": "**Le Caire**."}
 {"input": "Quelle est la capitale de la Finlande ?", "target": "**Helsinki**."}
-{"input": "Qui a écrit 'Le Seigneur des Anneaux' ?", "target": "**J.R.R. Tolkien**."}
 {"input": "Quel est le plus grand animal terrestre ?", "target": "**L'éléphant d'Afrique**."}
 {"input": "Quelle est la capitale de la Pologne ?", "target": "**Varsovie**."}
 {"input": "Qui a écrit 'Dom Juan' ?", "target": "**Molière**."}
@@ -189,3 +187,131 @@
 {"input": "Quel est le plus grand désert d'Asie ?", "target": "**Le désert de Gobi**."}
 {"input": "Quelle est la capitale de la Bulgarie ?", "target": "**Sofia**."}
 {"input": "Qui a écrit 'La Symphonie pastorale' ?", "target": "**André Gide**."}
+{"input": "Qui a écrit 'Les Raisins de la colère' ?", "target": "**John Steinbeck**. Roman publié en 1939 sur la Grande Dépression américaine."}
+{"input": "Quelle est la capitale de l'Islande ?", "target": "**Reykjavik**."}
+{"input": "Qui a composé 'La Traviata' ?", "target": "**Giuseppe Verdi**. Opéra en trois actes créé en 1853."}
+{"input": "Quelle est la monnaie du Japon ?", "target": "**Le yen (¥)**."}
+{"input": "Qui a peint 'La Naissance de Vénus' ?", "target": "**Sandro Botticelli**. Œuvre emblématique de la Renaissance italienne (vers 1485)."}
+{"input": "Quel est le plus long fleuve d'Afrique ?", "target": "**Le Nil** (environ 6 650 km)."}
+{"input": "Qui a écrit 'Orgueil et Préjugés' ?", "target": "**Jane Austen**. Roman publié en 1813."}
+{"input": "Quelle est la capitale de l'Éthiopie ?", "target": "**Addis-Abeba**."}
+{"input": "Qui a composé 'La Symphonie du Nouveau Monde' ?", "target": "**Antonín Dvořák**. Symphonie n°9 composée en 1893."}
+{"input": "Quel est le plus grand pays d'Amérique du Sud ?", "target": "**Le Brésil**."}
+{"input": "Qui a écrit 'Moby Dick' ?", "target": "**Herman Melville**. Roman publié en 1851."}
+{"input": "Quelle est la capitale du Vietnam ?", "target": "**Hanoï**."}
+{"input": "Qui a peint 'Le Jardin des délices' ?", "target": "**Jérôme Bosch** (Hieronymus Bosch). Triptyque peint vers 1500-1505."}
+{"input": "Quel est le symbole chimique de l'hélium ?", "target": "**He**"}
+{"input": "Qui a écrit 'Le Meilleur des mondes' ?", "target": "**Aldous Huxley**. Roman dystopique publié en 1932."}
+{"input": "Quelle est la capitale de la Thaïlande ?", "target": "**Bangkok**."}
+{"input": "Qui a composé 'Carmen' ?", "target": "**Georges Bizet**. Opéra-comique créé en 1875."}
+{"input": "Quel est le plus grand désert d'Amérique ?", "target": "**Le désert de Patagonie** (ou le désert du Grand Bassin en Amérique du Nord)."}
+{"input": "Qui a écrit 'Autant en emporte le vent' ?", "target": "**Margaret Mitchell**. Roman publié en 1936."}
+{"input": "Quelle est la capitale de l'Afrique du Sud ?", "target": "**Pretoria** (exécutive), **Le Cap** (législative), **Bloemfontein** (judiciaire)."}
+{"input": "Qui a peint 'La Danse' ?", "target": "**Henri Matisse**. Panneau décoratif réalisé en 1910."}
+{"input": "Quel est le plus grand fleuve de Chine ?", "target": "**Le Yangtsé** (fleuve Bleu), environ 6 300 km."}
+{"input": "Qui a écrit 'Anna Karénine' ?", "target": "**Léon Tolstoï**. Roman publié entre 1875 et 1877."}
+{"input": "Quelle est la capitale des Philippines ?", "target": "**Manille**."}
+{"input": "Qui a composé 'Le Sacre du printemps' ?", "target": "**Igor Stravinski**. Ballet révolutionnaire créé en 1913."}
+{"input": "Qui a écrit 'Les Frères Karamazov' ?", "target": "**Fiodor Dostoïevski**. Roman publié en 1880."}
+{"input": "Quelle est la capitale de la Malaisie ?", "target": "**Kuala Lumpur**."}
+{"input": "Qui a peint 'American Gothic' ?", "target": "**Grant Wood**. Tableau emblématique américain peint en 1930."}
+{"input": "Quel est le plus long mur du monde ?", "target": "**La Grande Muraille de Chine** (plus de 20 000 km avec toutes ses ramifications)."}
+{"input": "Qui a écrit 'Le Vieil Homme et la Mer' ?", "target": "**Ernest Hemingway**. Novella publiée en 1952, Prix Nobel 1954."}
+{"input": "Quelle est la capitale de l'Indonésie ?", "target": "**Jakarta** (future capitale : **Nusantara**)."}
+{"input": "Qui a composé 'Peer Gynt' ?", "target": "**Edvard Grieg**. Musique de scène composée en 1875."}
+{"input": "Quel est le plus grand opéra du monde ?", "target": "**L'Opéra Garnier de Paris** (l'un des plus grands et célèbres)."}
+{"input": "Qui a écrit 'Les Hauts de Hurlevent' ?", "target": "**Emily Brontë**. Roman publié en 1847."}
+{"input": "Quelle est la capitale du Chili ?", "target": "**Santiago**."}
+{"input": "Qui a peint 'Les Époux Arnolfini' ?", "target": "**Jan van Eyck**. Tableau flamand peint en 1434."}
+{"input": "Quel est le plus ancien théâtre encore en activité ?", "target": "**Le théâtre olympique de Vicence** (Teatro Olimpico, 1585) ou le **Théâtre de Marcellus** à Rome."}
+{"input": "Qui a écrit 'Le Portrait de Dorian Gray' ?", "target": "**Oscar Wilde**. Roman publié en 1890."}
+{"input": "Quelle est la capitale de la Colombie ?", "target": "**Bogotá**."}
+{"input": "Qui a composé 'La Damnation de Faust' ?", "target": "**Hector Berlioz**. Légende dramatique composée en 1846."}
+{"input": "Quel est le plus grand palais du monde ?", "target": "**Le Palais du Peuple à Bucarest** (Roumanie), ou la **Cité interdite** à Pékin."}
+{"input": "Qui a écrit 'Jane Eyre' ?", "target": "**Charlotte Brontë**. Roman publié en 1847."}
+{"input": "Qui a peint 'L'Angélus' ?", "target": "**Jean-François Millet**. Tableau peint entre 1857 et 1859."}
+{"input": "Quel est le plus grand château du monde ?", "target": "**Le château de Prague** (République tchèque), le plus grand château ancien."}
+{"input": "Qui a écrit 'Frankenstein' ?", "target": "**Mary Shelley**. Roman gothique publié en 1818."}
+{"input": "Quelle est la capitale du Bangladesh ?", "target": "**Dacca** (Dhaka)."}
+{"input": "Qui a composé 'Les Préludes' ?", "target": "**Franz Liszt**. Poème symphonique composé en 1848."}
+{"input": "Quel est le plus ancien monument de Paris ?", "target": "**Les Arènes de Lutèce** (Ier-IIe siècle) ou l'**Obélisque de Louxor** (1250 av. J.-C.)."}
+{"input": "Qui a écrit 'Dracula' ?", "target": "**Bram Stoker**. Roman gothique publié en 1897."}
+{"input": "Qui a peint 'Le Radeau de la Méduse' ?", "target": "**Théodore Géricault**. Tableau romantique peint entre 1818 et 1819."}
+{"input": "Quel est le plus grand port d'Europe ?", "target": "**Le port de Rotterdam** (Pays-Bas)."}
+{"input": "Qui a écrit 'Robinson Crusoé' ?", "target": "**Daniel Defoe**. Roman publié en 1719."}
+{"input": "Quelle est la capitale du Nigeria ?", "target": "**Abuja**."}
+{"input": "Qui a composé 'Roméo et Juliette' (ballet) ?", "target": "**Sergueï Prokofiev**. Ballet composé en 1935-1936."}
+{"input": "Quel est le plus grand musée d'art moderne ?", "target": "**Le MoMA** (Museum of Modern Art) à New York."}
+{"input": "Qui a écrit 'Les Voyages de Gulliver' ?", "target": "**Jonathan Swift**. Roman satirique publié en 1726."}
+{"input": "Quelle est la capitale du Kenya ?", "target": "**Nairobi**."}
+{"input": "Qui a peint 'Olympia' ?", "target": "**Édouard Manet**. Tableau provocateur peint en 1863."}
+{"input": "Quel est le plus ancien livre imprimé ?", "target": "**Le Sutra du Diamant** (868 ap. J.-C.) ou la **Bible de Gutenberg** (1455) en Occident."}
+{"input": "Qui a écrit 'L'Attrape-cœurs' ?", "target": "**J.D. Salinger**. Roman publié en 1951."}
+{"input": "Qui a composé 'Ainsi parlait Zarathoustra' (poème symphonique) ?", "target": "**Richard Strauss**. Poème symphonique composé en 1896."}
+{"input": "Quel est le plus grand festival de cinéma ?", "target": "**Le Festival de Cannes** (France), l'un des plus prestigieux."}
+{"input": "Qui a écrit 'Le Hobbit' ?", "target": "**J.R.R. Tolkien**. Roman fantasy publié en 1937."}
+{"input": "Quelle est la capitale de l'Équateur ?", "target": "**Quito**."}
+{"input": "Qui a peint 'La Liberté guidant le peuple' ?", "target": "**Eugène Delacroix**. Tableau romantique peint en 1830."}
+{"input": "Quel est le plus haut gratte-ciel du monde ?", "target": "**Burj Khalifa** à Dubaï (828 mètres)."}
+{"input": "Qui a écrit 'Le Grand Gatsby' ?", "target": "**F. Scott Fitzgerald**. Roman publié en 1925."}
+{"input": "Quelle est la capitale du Venezuela ?", "target": "**Caracas**."}
+{"input": "Qui a composé 'La Chevauchée des Valkyries' ?", "target": "**Richard Wagner**. Extrait de l'opéra 'La Walkyrie' (1870)."}
+{"input": "Quel est le plus grand amphithéâtre antique ?", "target": "**Le Colisée de Rome** (Italie)."}
+{"input": "Qui a écrit 'Les Rêveries du promeneur solitaire' ?", "target": "**Jean-Jacques Rousseau**. Œuvre posthume publiée en 1782."}
+{"input": "Quelle est la capitale de l'Uruguay ?", "target": "**Montevideo**."}
+{"input": "Qui a peint 'Le Balcon' ?", "target": "**Édouard Manet**. Tableau peint en 1868-1869."}
+{"input": "Quel est le plus ancien cinéma encore en activité ?", "target": "**L'Éden Théâtre** à La Ciotat (France, 1889)."}
+{"input": "Qui a écrit 'Sur la route' ?", "target": "**Jack Kerouac**. Roman de la Beat Generation publié en 1957."}
+{"input": "Quelle est la capitale de la Bolivie ?", "target": "**La Paz** (siège du gouvernement) et **Sucre** (capitale constitutionnelle)."}
+{"input": "Qui a composé 'Requiem' ?", "target": "**Wolfgang Amadeus Mozart** (1791) ou **Gabriel Fauré** (1890) - plusieurs compositeurs célèbres."}
+{"input": "Quel est le plus grand parc d'attractions du monde ?", "target": "**Walt Disney World Resort** en Floride (États-Unis)."}
+{"input": "Qui a écrit 'Ne tirez pas sur l'oiseau moqueur' ?", "target": "**Harper Lee**. Roman publié en 1960, Prix Pulitzer."}
+{"input": "Quelle est la capitale du Paraguay ?", "target": "**Asunción**."}
+{"input": "Qui a peint 'La Ronde de nuit' ?", "target": "**Rembrandt van Rijn**. Tableau baroque peint en 1642."}
+{"input": "Quel est le plus vieux pont de Paris ?", "target": "**Le Pont Neuf** (paradoxalement, c'est le plus ancien, construit 1578-1607)."}
+{"input": "Qui a écrit 'Fahrenheit 451' ?", "target": "**Ray Bradbury**. Roman dystopique publié en 1953."}
+{"input": "Quelle est la capitale du Honduras ?", "target": "**Tegucigalpa**."}
+{"input": "Qui a composé 'Le Beau Danube bleu' ?", "target": "**Johann Strauss II**. Valse composée en 1866."}
+{"input": "Quel est le plus grand festival de musique ?", "target": "**Glastonbury** (Angleterre) ou **Rock in Rio** (Brésil)."}
+{"input": "Qui a écrit 'Beloved' ?", "target": "**Toni Morrison**. Roman publié en 1987, Prix Nobel 1993."}
+{"input": "Quelle est la capitale du Nicaragua ?", "target": "**Managua**."}
+{"input": "Qui a peint 'Les Ménines' ?", "target": "**Diego Velázquez**. Chef-d'œuvre baroque peint en 1656."}
+{"input": "Quel est le plus ancien métro du monde ?", "target": "**Le métro de London** (The Underground, 1863)."}
+{"input": "Quelle est la capitale du Costa Rica ?", "target": "**San José**."}
+{"input": "Qui a composé 'L'Apprenti sorcier' ?", "target": "**Paul Dukas**. Poème symphonique composé en 1897."}
+{"input": "Quel est le plus grand canyon du monde ?", "target": "**Le Grand Canyon** (Arizona, États-Unis) ou le **Canyon de Yarlung Tsangpo** (Tibet)."}
+{"input": "Qui a écrit 'Lolita' ?", "target": "**Vladimir Nabokov**. Roman controversé publié en 1955."}
+{"input": "Quelle est la capitale du Salvador ?", "target": "**San Salvador**."}
+{"input": "Qui a peint 'La Maja nue' ?", "target": "**Francisco de Goya**. Tableau peint vers 1797-1800."}
+{"input": "Quel est le plus ancien zoo du monde ?", "target": "**Le zoo de Schönbrunn** à Vienne (Autriche, 1752)."}
+{"input": "Qui a écrit 'Mrs Dalloway' ?", "target": "**Virginia Woolf**. Roman moderniste publié en 1925."}
+{"input": "Quelle est la capitale du Guatemala ?", "target": "**Guatemala (Ciudad de Guatemala)**."}
+{"input": "Qui a composé 'Pierre et le Loup' ?", "target": "**Sergueï Prokofiev**. Conte musical composé en 1936."}
+{"input": "Quel est le plus grand temple bouddhiste ?", "target": "**Borobudur** en Indonésie (IXe siècle)."}
+{"input": "Qui a écrit 'Ulysse' ?", "target": "**James Joyce**. Roman moderniste publié en 1922."}
+{"input": "Quelle est la capitale de Panama ?", "target": "**Panama (Ciudad de Panamá)**."}
+{"input": "Qui a peint 'Le Penseur' (sculpture) ?", "target": "**Auguste Rodin**. Sculpture réalisée entre 1880 et 1902."}
+{"input": "Quel est le plus ancien restaurant du monde ?", "target": "**Sobrino de Botín** à Madrid (Espagne, 1725)."}
+{"input": "Quelle est la capitale de Cuba ?", "target": "**La Havane**."}
+{"input": "Qui a composé 'La Mer' ?", "target": "**Claude Debussy**. Trois esquisses symphoniques composées en 1905."}
+{"input": "Quelle est l'œuvre majeure de Marcel Proust ?", "target": "**À la recherche du temps perdu**. Œuvre monumentale en 7 volumes sur la mémoire et le temps."}
+{"input": "Qui a composé 'La Valse' ?", "target": "**Maurice Ravel**. Poème chorégraphique composé en 1920."}
+{"input": "Qui a écrit 'Le Vieux qui lisait des romans d'amour' ?", "target": "**Luis Sepúlveda**. Roman chilien publié en 1989."}
+{"input": "Quelle civilisation a construit Teotihuacan ?", "target": "**Les Teotihuacans** au Mexique (vers 100-650 ap. J.-C.). Grande cité précolombienne avec pyramides du Soleil et de la Lune."}
+{"input": "Quelle est la période de l'art impressionniste ?", "target": "**Fin 19e siècle** (années 1860-1880). Mouvement artistique privilégiant la lumière et les impressions visuelles."}
+{"input": "Qui a composé 'Les Planètes' ?", "target": "**Gustav Holst**. Suite orchestrale composée entre 1914 et 1917."}
+{"input": "Quelle civilisation a inventé le papier ?", "target": "**La Chine ancienne** (dynastie Han, vers 105 ap. J.-C. par Cai Lun)."}
+{"input": "Qui a peint 'Le Jugement dernier' à la Chapelle Sixtine ?", "target": "**Michel-Ange** entre 1536 et 1541, sur le mur de l'autel."}
+{"input": "Quelle est la technique de la fresque ?", "target": "Peinture sur **enduit de chaux fraîche**. Les pigments pénètrent et durcissent avec la chaux."}
+{"input": "Qui a composé 'La Veuve joyeuse' ?", "target": "**Franz Lehár**. Opérette viennoise créée en 1905."}
+{"input": "Quelle civilisation a créé l'alphabet phénicien ?", "target": "**Les Phéniciens** (vers 1200 av. J.-C.). Premier alphabet consonantique, ancêtre des alphabets grec et latin."}
+{"input": "Qui a peint 'Le Déjeuner des canotiers' ?", "target": "**Pierre-Auguste Renoir** en 1881. Scène impressionniste de loisirs au bord de la Seine."}
+{"input": "Quelle est la période de la Pax Romana ?", "target": "**27 av. J.-C. - 180 ap. J.-C.** Période de paix relative sous l'Empire romain, d'Auguste à Marc Aurèle."}
+{"input": "Qui a composé 'Tosca' ?", "target": "**Giacomo Puccini**. Opéra en trois actes créé en 1900."}
+{"input": "Qui a écrit 'Le Procès' ?", "target": "**Franz Kafka**. Roman inachevé publié posthumément en 1925."}
+{"input": "Quelle civilisation a construit le Parthénon ?", "target": "**Les Grecs anciens** à Athènes (447-432 av. J.-C.), sous Périclès, dédié à Athéna."}
+{"input": "Qui a écrit 'La Nausée' ?", "target": "**Jean-Paul Sartre**. Roman existentialiste publié en 1938."}
+{"input": "Quelle est la technique du sfumato ?", "target": "Technique de **peinture sans lignes ni contours nets**, avec transitions douces. Léonard de Vinci maître du sfumato."}
+{"input": "Qui a composé 'L'Oiseau de feu' ?", "target": "**Igor Stravinski**. Ballet composé en 1910 pour les Ballets russes."}
+{"input": "Quelle est la capitale du Bahreïn ?", "target": "**Manama**."}
+{"input": "Quelle civilisation a développé l'écriture hiéroglyphique ?", "target": "**Les Égyptiens anciens** (vers 3200 av. J.-C.). Système pictographique complexe pour monuments et textes sacrés."}
