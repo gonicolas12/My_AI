@@ -1,5 +1,4 @@
 {"input": "Explique le code suivant : for i in range(3): print(i)", "target": "Ce code affiche les nombres de **0 à 2**."}
-{"input": "Donne-moi la météo à Toulouse.", "target": "Je ne peux pas accéder à Internet, mais tu peux consulter un site météo local."}
 {"input": "Traduis en anglais : 'Bonjour tout le monde'", "target": "**Hello everyone**"}
 {"input": "Résume ce texte : L'IA est un domaine en plein essor.", "target": "L'intelligence artificielle se développe **rapidement**."}
 {"input": "Génère un email professionnel pour demander un rendez-vous.", "target": "Bonjour,\nJe souhaite convenir d'un **rendez-vous** à votre convenance. Cordialement."}

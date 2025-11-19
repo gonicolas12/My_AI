@@ -46,6 +46,10 @@ my_ai/
 │   ├── gui_modern.py                    # Interface moderne
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   └── vscode_extension.py              # Extension VS Code
+├── memory/                              # Mémoire vectorielle
+│   ├── vector_store/chroma_db/          # Base de données ChromaDB
+│   ├── __init__.py
+│   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
 ├── models/                              # Modèles d'IA Ultra avec 1M tokens
 │   ├── __init__.py
 │   ├── advanced_code_generator.py       # Générateur de code avancé

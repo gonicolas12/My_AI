@@ -9,7 +9,6 @@ import hashlib
 import json
 import re
 import urllib.parse
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import quote, urlparse
@@ -18,22 +17,8 @@ import aiohttp
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer, util
 
-
-@dataclass
-class CodeSnippet:
-    """Représente un snippet de code trouvé"""
-    code: str
-    language: str
-    title: str
-    description: str
-    source_url: str
-    source_name: str
-    quality_score: float = 0.0
-    relevance_score: float = 0.0
-    final_score: float = 0.0
-    tags: List[str] = field(default_factory=list)
-    votes: int = 0
-    views: int = 0
+# Import depuis le module partagé pour éviter imports circulaires
+from core.shared import CodeSnippet, PRIORITY_CODE_SITES, DEFAULT_TIMEOUT, DEFAULT_MAX_RESULTS, DEFAULT_USER_AGENT
 
 
 class SmartCodeSearcher:
@@ -46,9 +31,9 @@ class SmartCodeSearcher:
     """
 
     def __init__(self):
-        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        self.timeout = 10
-        self.max_results = 8
+        self.user_agent = DEFAULT_USER_AGENT
+        self.timeout = DEFAULT_TIMEOUT
+        self.max_results = DEFAULT_MAX_RESULTS
 
         # Modèle d'embeddings pour analyse sémantique
         try:
@@ -67,16 +52,7 @@ class SmartCodeSearcher:
         self.cache = self._load_cache()
 
         # Sites prioritaires pour la recherche de code
-        self.priority_sites = [
-            "github.com",
-            "stackoverflow.com",
-            "geeksforgeeks.org",
-            "realpython.com",
-            "pythontutor.com",
-            "w3schools.com",
-            "developer.mozilla.org",
-            "docs.python.org"
-        ]
+        self.priority_sites = PRIORITY_CODE_SITES
 
     def _load_cache(self) -> Dict:
         """Charge le cache depuis le fichier"""

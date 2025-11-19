@@ -91,6 +91,5 @@ def predict(x):
 
 def save(path):
     """Sauvegarde l'instance du modèle"""
-    global MODEL_INSTANCE
     if MODEL_INSTANCE:
         MODEL_INSTANCE.save(path)

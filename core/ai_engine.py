@@ -26,6 +26,7 @@ from utils.logger import setup_logger
 
 from .config import AI_CONFIG
 from .conversation import ConversationManager
+from .validation import validate_input
 
 
 class AIEngine:
@@ -94,15 +95,32 @@ class AIEngine:
 
         self.logger.info("Moteur IA initialisé avec succès")
 
-    def process_text(self, text: str) -> str:
+    def process_text(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
-        Interface synchrone qui utilise OBLIGATOIREMENT le nouveau système de recherche web
+        Interface synchrone avec validation des entrées
+        
+        Args:
+            text: Texte de la requête utilisateur
+            context: Contexte additionnel (optionnel)
+        
+        Returns:
+            Réponse générée
+        
+        Raises:
+            ValueError: Si l'entrée ne passe pas la validation
         """
         try:
-            self.logger.info("[NOUVEAU SYSTÈME] process_text: %s", repr(text))
+            # Validation de l'entrée avec Pydantic
+            validated_input = validate_input(
+                {'query': text, 'context': context},
+                'query'
+            )
 
-            # 🚀 FORCER L'UTILISATION DU NOUVEAU SYSTÈME
-            # Plus de FAQ ML qui court-circuite, plus de fallbacks obsolètes
+            # Utiliser les données validées et nettoyées
+            text = validated_input.query
+            context = validated_input.context
+
+            self.logger.info("[VALIDÉ] process_text: %s", repr(text[:100]))
 
             # Analyser rapidement le type de requête
             text_lower = text.lower()

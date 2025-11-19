@@ -1,3 +1,4 @@
+# Fichiers temporaires et dossiers à ignorer
 __pycache__/
 **/__pycache__/
 logs/
@@ -7,3 +8,26 @@ claudedocs/
 backups/
 context_storage/
 rag_demo_index/
+
+# Base de données vectorielles (données personnelles locales)
+memory/vector_store/chroma_db/*
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.faiss
+*.index
+
+# Modèles ML téléchargés (trop gros pour Git)
+models/weights/
+*.bin
+*.safetensors
+*.gguf
+*.ggml
+
+# Fichiers temporaires
+temp/
+*.tmp
+*.cache

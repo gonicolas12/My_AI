@@ -13,7 +13,7 @@ Non ! My Personal AI possède son propre moteur d'IA intégré. Pas besoin d'ins
 - **Confidentialité** : Vos données restent sur votre machine
 - **Pas d'abonnement** : Gratuit une fois installé
 - **Spécialisé** : Optimisé pour l'aide au développement et l'analyse de documents
-- **Mémoire temporaire** : Se souvient de vos documents et conversations, jusqu'à ce que vous fermez le programme (pour des questions de sécurité)
+- **Mémoire locale** : Se souvient de vos documents et conversations, mais stocke tout localement
 - **Open source** : Le code est entièrement accessible, modifiable et vérifiable par tous
 
 ## 🔧 Installation et Configuration

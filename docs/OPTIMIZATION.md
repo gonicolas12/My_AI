@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v5.6.0
+# 🚀 Guide d'Optimisation - My Personal AI v5.7.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v5.6.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v5.7.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -899,6 +899,6 @@ python -m core.evaluation --test_data test_set.jsonl
 
 ---
 
-**Version:** 5.6.0
+**Version:** 5.7.0
 **Dernière mise à jour:** 2025
 **Performance target:** < 1s réponse, < 2GB RAM, 1M tokens context

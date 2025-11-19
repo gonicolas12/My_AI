@@ -38,14 +38,14 @@ except ImportError:
     CALCULATOR_AVAILABLE = False
     print("⚠️ Calculateur intelligent non disponible")
 
-# Import du gestionnaire 1M tokens
+# Import du nouveau gestionnaire de mémoire vectorielle
 try:
-    from .million_token_context_manager import MillionTokenContextManager
+    from memory.vector_memory import VectorMemory
 
-    MILLION_TOKEN_AVAILABLE = True
+    VECTOR_MEMORY_AVAILABLE = True
 except ImportError:
-    MILLION_TOKEN_AVAILABLE = False
-    print("⚠️ Gestionnaire 1M tokens non disponible")
+    VECTOR_MEMORY_AVAILABLE = False
+    print("⚠️ Mémoire vectorielle non disponible")
 
 # Import des processeurs avancés
 try:
@@ -61,7 +61,7 @@ class CustomAIModel(BaseAI):
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "5.6.0"
+        self.version = "5.7.0"
 
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -72,11 +72,22 @@ class CustomAIModel(BaseAI):
         self.conversation_memory = conversation_memory or ConversationMemory()
         self.internet_search = InternetSearchEngine()
 
-        # Gestionnaire 1M tokens
-        if MILLION_TOKEN_AVAILABLE:
-            self.context_manager = MillionTokenContextManager()
-            self.ultra_mode = True
-            print("🚀 Mode Ultra 1M tokens activé")
+        # Gestionnaire de mémoire vectorielle (remplace million_token_manager)
+        if VECTOR_MEMORY_AVAILABLE:
+            try:
+                self.context_manager = VectorMemory(
+                    max_tokens=1_000_000,
+                    chunk_size=512,
+                    chunk_overlap=50,
+                    enable_encryption=False  # Peut être activé via config
+                )
+                self.ultra_mode = True
+                print("🚀 Mode Ultra avec mémoire vectorielle activé")
+            except Exception as e:
+                print(f"⚠️ Erreur init VectorMemory: {e}")
+                self.context_manager = None
+                self.ultra_mode = False
+                print("📝 Mode standard activé")
         else:
             self.context_manager = None
             self.ultra_mode = False
@@ -119,7 +130,7 @@ class CustomAIModel(BaseAI):
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre.",
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 5.6.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 5.7.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine.",
             ],
@@ -217,7 +228,7 @@ class CustomAIModel(BaseAI):
         """Génère une réponse avec gestion améliorée des documents"""
         try:
             # 🔍 GESTION DU CONTEXTE RAG EXTERNE
-            rag_context_used = False
+            _rag_context_used = False
             if context and isinstance(context, dict):
                 rag_content = context.get("rag_context", "")
                 if rag_content and len(rag_content.strip()) > 50:
@@ -232,7 +243,7 @@ class CustomAIModel(BaseAI):
                         )
                         if result.get("status") == "success":
                             print(f"✅ [RAG→ULTRA] Contexte ajouté au système Ultra: {result.get('chunks_created', 0)} chunks")
-                            rag_context_used = True
+                            _rag_context_used = True
                         else:
                             print(f"⚠️ [RAG→ULTRA] {result.get('status', 'error')}")
                     else:
@@ -242,7 +253,7 @@ class CustomAIModel(BaseAI):
                             rag_content
                         )
                         print("✅ [RAG→CLASSIC] Contexte ajouté à la mémoire classique")
-                        rag_context_used = True
+                        _rag_context_used = True
 
             # 🎭 PRIORITÉ SPÉCIALE: Détection des demandes de blagues AVANT FAQ/ML
             user_lower = user_input.lower()
@@ -8357,6 +8368,7 @@ D'après le document en mémoire:
 
             # 2. 🆕 Utiliser SmartCodeSearcher (nouveau système intelligent)
             try:
+                # Import lazy pour éviter import circulaire
                 print("🔍 Recherche avec SmartCodeSearcher...")
                 smart_snippets = await smart_code_searcher.search_code(
                     user_input, language
