@@ -236,6 +236,7 @@ class EnhancedInternetSearchEngine:
         # ?1 = température
         # ?2 = vent
         # ?3 = humidité
+        # ?4 = précipitations
         # ?format=j1 = JSON complet
 
         base_url = f"https://wttr.in/{quote(city)}"
@@ -862,23 +863,165 @@ class EnhancedInternetSearchEngine:
             return validated_measurement
 
         # Fallback sur l'ancienne méthode si pas assez de données
-        measurements = Counter()
-        source_sentences = {}
-
-        for m in measurements_with_sources:
-            measurement_key = m["value_str"]
-            measurements[measurement_key] += m["relevance"]
-            if measurement_key not in source_sentences:
-                source_sentences[measurement_key] = m["sentence"]
-
-        if measurements:
-            best_measurement = measurements.most_common(1)[0][0]
-            cleaned_sentence = self._universal_word_spacing_fix(
-                source_sentences[best_measurement]
+        if measurements_with_sources:
+            # Trier par pertinence totale
+            measurements_with_sources.sort(
+                key=lambda x: x["total_relevance"], reverse=True
             )
-            return cleaned_sentence.strip()
+            best_match = measurements_with_sources[0]
+
+            # Si on a une mesure valide, on essaie de la formater
+            # Surtout si on a filtré par entité, c'est probablement la bonne
+            print(
+                f"  ✅ Utilisation de la meilleure mesure (score {best_match['total_relevance']}) sans consensus"
+            )
+
+            # Convertir en mètres pour l'affichage uniforme
+            value = best_match["value"]
+            unit = best_match["unit"]
+            if "km" in unit or "kilo" in unit:
+                value = value * 1000
+            elif "cm" in unit or "centi" in unit:
+                value = value / 100
+
+            return self._generate_formatted_measurement_answer(
+                value,
+                query,
+                best_match.get("source", ""),
+                best_match["sentence"],
+                1,
+            )
 
         return None
+
+    def _generate_formatted_measurement_answer(
+        self,
+        value: float,
+        query: str,
+        source_name: str,
+        sentence: str,
+        num_confirming: int = 1,
+    ) -> str:
+        """Génère une réponse formatée pour une mesure"""
+        # STRATÉGIE PRIORITAIRE : Extraire l'entité depuis la REQUÊTE utilisateur
+        entity_name = None
+
+        if query:
+            # Extraire les mots significatifs (>= 4 lettres, pas de mots-questions)
+            query_words = query.split()
+            entity_words = []
+            stop_words = {
+                "quel",
+                "quelle",
+                "comment",
+                "taille",
+                "hauteur",
+                "fait",
+                "mesure",
+                "what",
+                "which",
+                "height",
+                "size",
+                "est",
+                "la",
+                "le",
+                "du",
+                "de",
+                "des",
+            }
+
+            for word in query_words:
+                clean_word = word.strip("?.,!;:").lower()
+                if len(clean_word) >= 4 and clean_word not in stop_words:
+                    entity_words.append(word.strip("?.,!;:"))
+
+            # Si on a au moins 2 mots, les combiner
+            if len(entity_words) >= 2:
+                entity_name = " ".join(entity_words[:2])  # Prendre les 2 premiers
+                # Capitaliser correctement (première lettre de chaque mot en majuscule)
+                entity_name = " ".join(w.capitalize() for w in entity_name.split())
+                print(f"  🎯 [ENTITY] Nom extrait de la REQUÊTE: '{entity_name}'")
+
+        # Stratégie 2 : Chercher dans la source
+        if not entity_name and source_name:
+            # Nettoyer le nom de la source
+            clean_source = (
+                source_name.replace("(Article direct)", "")
+                .replace("Wikipedia FR", "")
+                .replace("Wikipedia EN", "")
+                .strip()
+            )
+
+            # Vérifier si c'est une page spécifique (pas une liste générique)
+            if clean_source and clean_source not in [
+                "Structure",
+                "Source inconnue",
+                "Liste des plus hautes structures du monde",
+                "Listes des plus hautes constructions du monde",
+                "Ordres de grandeur de longueur",
+                "Chronologie des plus hautes structures du monde",
+            ]:
+                entity_name = clean_source
+                print(f"  🎯 [ENTITY] Nom trouvé depuis source: '{entity_name}'")
+
+        # Stratégie 3 : Extraire depuis la phrase
+        if not entity_name and sentence:
+            # Chercher un pattern comme "Burj Khalifa" ou "le/la Nom"
+            name_patterns = [
+                r"([A-Z][a-zA-Z\s]+?)\s+\(",  # Nom avant une parenthèse
+                r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b",  # Nom propre (mots en majuscule)
+            ]
+
+            for pattern in name_patterns:
+                match = re.search(pattern, sentence)
+                if match:
+                    potential_name = match.group(1).strip()
+                    # Vérifier que ce n'est pas un mot commun
+                    if potential_name not in [
+                        "La",
+                        "Le",
+                        "Un",
+                        "Une",
+                        "De",
+                        "Du",
+                        "Des",
+                        "Il",
+                        "Elle",
+                    ]:
+                        entity_name = potential_name
+                        print(f"  🎯 [ENTITY] Nom extrait de la phrase: '{entity_name}'")
+                        break
+
+        # Stratégie 4 : Fallback générique
+        if not entity_name:
+            entity_name = "structure"
+            print("  ⚠️ [ENTITY] Nom générique utilisé")
+
+            # Construire la réponse simple et directe
+        # Adapter l'article selon le genre (si commence par voyelle, utiliser "l'")
+        if entity_name[0].lower() in "aeiouhéèê":
+            article = "L'"
+            simple_answer = f"{article}{entity_name} mesure {int(value)} mètres de hauteur."
+        else:
+            # Détecter si c'est masculin ou féminin (par défaut masculin)
+            if entity_name.lower().startswith(
+                ("tour", "flèche", "antenne", "structure")
+            ):
+                article = "La"
+            else:
+                article = "Le"
+            simple_answer = f"{article} {entity_name} mesure {int(value)} mètres de hauteur."
+
+        print(f"  📝 [SIMPLE] Réponse générée: {simple_answer}")
+
+        # Ajouter l'information de validation si pertinent
+        if num_confirming >= 3:
+            validation_note = (
+                f" (✅ Confirmé par {num_confirming} sources indépendantes)"
+            )
+            simple_answer += validation_note
+
+        return simple_answer.strip()
 
     def _validate_measurements_consensus(
         self, measurements: List[Dict[str, Any]], query: str = ""
