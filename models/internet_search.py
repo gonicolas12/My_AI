@@ -661,13 +661,15 @@ class EnhancedInternetSearchEngine:
     ) -> Optional[str]:
         """Extrait une réponse de mesure spécifique avec validation multi-sources"""
         measurement_patterns = [
-            # Patterns existants
+            # Patterns de hauteur explicites
             r"(?:mesure|fait|taille|hauteur)(?:\s+de)?\s+([\d,\s]+\.?\d*)\s*(mètres?|m\b|km|centimètres?|cm)",
             r"([\d,\s]+\.?\d*)\s*(mètres?|m\b|km|centimètres?|cm)(?:\s+de|d')?\s+(?:haut|hauteur|taille)",
             r"(?:s'élève à|atteint|culmine)\s+([\d,\s]+\.?\d*)\s*(mètres?|m\b|km)",
-            # NOUVEAUX patterns plus agressifs
+            # Patterns avec contexte de hauteur
             r"([\d,\s]+\.?\d*)\s*(?:m\b|mètres?)\s+(?:de haut|d'altitude|au-dessus)",
             r"(?:environ|plus de|près de|quelque)\s+([\d,\s]+\.?\d*)\s*(mètres?|m\b)",
+            # Pattern important: "de XXX m de hauteur" ou "de XXX mètres"
+            r"de\s+([\d,\s]+\.?\d*)\s*(mètres?|m)\s*(?:\[|de hauteur|d'altitude)",
             r"\b(\d{2,4})\s*(?:m\b|mètres?)\b",  # Capture simple comme "828 m"
         ]
 
@@ -938,16 +940,20 @@ class EnhancedInternetSearchEngine:
                 inliers.append(m)
             else:
                 outliers.append(m)
-                print(
-                    f"  ⚠️ Outlier détecté: {m['value']} {m['unit']} de {m['source']} (trop éloigné du consensus)"
-                )
-
-        # Si on a au moins 2 sources qui concordent, utiliser le consensus
-        if len(inliers) >= 2:
-            # Prendre la médiane des valeurs fiables
-            consensus_value = statistics.median(
-                [m["normalized_value"] for m in inliers]
+            print(
+                f"  ⚠️ Outlier détecté: {m['value']} {m['unit']} de {m['source']} (trop éloigné du consensus)"
             )
+
+        # Générer une réponse si on a au moins 1 mesure fiable
+        if len(inliers) >= 1:
+            # Prendre la médiane des valeurs fiables (ou la seule valeur si 1 seule mesure)
+            if len(inliers) >= 2:
+                consensus_value = statistics.median(
+                    [m["normalized_value"] for m in inliers]
+                )
+            else:
+                # Une seule mesure fiable
+                consensus_value = inliers[0]["normalized_value"]
 
             # Trouver la mesure la plus proche du consensus
             closest_measurement = min(
@@ -964,50 +970,82 @@ class EnhancedInternetSearchEngine:
 
             num_confirming = len(set(m["source"] for m in confirming_sources))
 
-            print(
-                f"  ✅ Consensus trouvé: {consensus_value:.0f}m ({num_confirming} sources concordantes)"
-            )
-
-            # NOUVELLE APPROCHE : Générer une réponse SIMPLE et DIRECTE
+            if len(inliers) >= 2:
+                print(
+                    f"  ✅ Consensus trouvé: {consensus_value:.0f}m ({num_confirming} sources concordantes)"
+                )
+            else:
+                print(
+                    f"  ℹ️ Mesure unique trouvée: {consensus_value:.0f}m (source: {inliers[0].get('source', 'inconnue')})"
+                )  # NOUVELLE APPROCHE : Générer une réponse SIMPLE et DIRECTE
             # Au lieu d'extraire de phrases complexes, construire la réponse nous-mêmes
 
             # STRATÉGIE PRIORITAIRE : Extraire l'entité depuis la REQUÊTE utilisateur
             entity_name = None
 
             if query:
-                # Extraire les mots significatifs (>= 4 lettres, pas de mots-questions)
+                # Extraire les mots significatifs (>= 3 lettres, pas de mots-questions/articles)
                 query_words = query.split()
                 entity_words = []
                 stop_words = {
                     "quel",
                     "quelle",
+                    "quels",
+                    "quelles",
                     "comment",
+                    "combien",
+                    "pourquoi",
                     "taille",
                     "hauteur",
                     "fait",
                     "mesure",
+                    "poids",
                     "what",
                     "which",
                     "height",
                     "size",
+                    "how",
+                    "tall",
                     "est",
+                    "sont",
+                    "était",
+                    "étaient",
                     "la",
                     "le",
+                    "les",
+                    "l",
+                    "un",
+                    "une",
+                    "des",
                     "du",
                     "de",
-                    "des",
+                    "d",
+                    "au",
+                    "aux",
                 }
 
                 for word in query_words:
-                    clean_word = word.strip("?.,!;:").lower()
-                    if len(clean_word) >= 4 and clean_word not in stop_words:
-                        entity_words.append(word.strip("?.,!;:"))
+                    # Nettoyer le mot des ponctuations et apostrophes
+                    clean_word = word.strip("?.,!;:'\"").lower()
+                    # Gérer les mots avec apostrophe comme "l'empire" -> "empire"
+                    if "'" in clean_word:
+                        parts = clean_word.split("'")
+                        clean_word = parts[-1] if len(parts[-1]) > 2 else clean_word
 
-                # Si on a au moins 2 mots, les combiner
-                if len(entity_words) >= 2:
-                    entity_name = " ".join(entity_words[:2])  # Prendre les 2 premiers
-                    # Capitaliser correctement (première lettre de chaque mot en majuscule)
-                    entity_name = " ".join(w.capitalize() for w in entity_name.split())
+                    if len(clean_word) >= 3 and clean_word not in stop_words:
+                        # Garder le mot original (sans ponctuation finale) pour le capitaliser correctement
+                        original_word = word.strip("?.,!;:")
+                        # Si le mot contient une apostrophe, ne garder que la partie après
+                        if "'" in original_word:
+                            original_word = original_word.split("'")[-1]
+                        entity_words.append(original_word)
+
+                # Si on a au moins 1 mot significatif, l'utiliser
+                if len(entity_words) >= 1:
+                    # Combiner les mots (max 3 pour éviter les noms trop longs)
+                    entity_name = " ".join(entity_words[:3])
+                    # Capitaliser correctement (Title Case)
+                    entity_name = entity_name.title()
                     print(f"  🎯 [ENTITY] Nom extrait de la REQUÊTE: '{entity_name}'")
 
             # Stratégie 2 : Chercher dans les sources Wikipedia
@@ -1075,19 +1113,42 @@ class EnhancedInternetSearchEngine:
                 print("  ⚠️ [ENTITY] Nom générique utilisé")
 
             # Construire la réponse simple et directe
-            # Adapter l'article selon le genre (si commence par voyelle, utiliser "l'")
-            if entity_name[0].lower() in "aeiouhéèê":
-                article = "L'"
-                simple_answer = f"{article}{entity_name} mesure **{int(consensus_value)} mètres** de hauteur."
+            # Nettoyer le nom de l'entité (enlever articles résiduels au début)
+            entity_name_clean = entity_name.strip()
+            # Enlever les articles au début s'ils sont présents
+            for prefix in ["L'", "l'", "Le ", "le ", "La ", "la ", "Les ", "les "]:
+                if entity_name_clean.startswith(prefix):
+                    entity_name_clean = entity_name_clean[len(prefix) :].strip()
+                    break
+
+            # Recapitaliser proprement
+            entity_name_clean = entity_name_clean.title()
+
+            # Adapter l'article selon le genre et la première lettre
+            first_letter = entity_name_clean[0].lower() if entity_name_clean else ""
+
+            # Mots féminins connus
+            feminine_words = (
+                "tour",
+                "flèche",
+                "antenne",
+                "structure",
+                "statue",
+                "pyramide",
+                "cathédrale",
+                "église",
+                "mosquée",
+            )
+            is_feminine = entity_name_clean.lower().startswith(feminine_words)
+
+            # Construire la phrase naturelle
+            if first_letter in "aeiouhéèêy":
+                # Voyelle -> utiliser "L'"
+                simple_answer = f"L'{entity_name_clean} mesure **{int(consensus_value)} mètres** de hauteur."
+            elif is_feminine:
+                simple_answer = f"La {entity_name_clean} mesure **{int(consensus_value)} mètres** de hauteur."
             else:
-                # Détecter si c'est masculin ou féminin (par défaut masculin)
-                if entity_name.lower().startswith(
-                    ("tour", "flèche", "antenne", "structure")
-                ):
-                    article = "La"
-                else:
-                    article = "Le"
-                simple_answer = f"{article} {entity_name} mesure **{int(consensus_value)} mètres** de hauteur."
+                simple_answer = f"Le {entity_name_clean} mesure **{int(consensus_value)} mètres** de hauteur."
 
             print(f"  📝 [SIMPLE] Réponse générée: {simple_answer}")
 
@@ -1234,6 +1295,232 @@ class EnhancedInternetSearchEngine:
 
         return None
 
+    def _is_natural_response(self, text: str) -> bool:
+        """
+        Vérifie si une réponse est formulée naturellement ou si c'est un extrait brut.
+
+        Une réponse naturelle :
+        - Commence par un sujet clair (La/Le/L'/Un/Une + nom)
+        - Contient un verbe principal (mesure, est, fait, etc.)
+        - Ne contient pas de fragments de navigation (Adresse, Accès, Coordonnées, etc.)
+
+        Returns:
+            bool: True si la réponse est naturelle, False si c'est un extrait brut
+        """
+        if not text:
+            return False
+
+        text_lower = text.lower().strip()
+
+        # Indicateurs d'extrait brut de Wikipedia/site web
+        raw_indicators = [
+            "adresse",
+            "accès et transport",
+            "coordonnées",
+            "modifier le code",
+            "modifier wikidata",
+            "autobus",
+            "ratp",
+            "gare",
+            "métro",
+            "[modifier",
+            "| modifier",
+            "navigation",
+            "menu",
+            "sommaire",
+            "références",
+            "voir aussi",
+            "liens externes",
+            "notes et références",
+            "°",
+            "′",
+            "″",  # Coordonnées GPS
+        ]
+
+        # Si l'un de ces indicateurs est présent, c'est un extrait brut
+        for indicator in raw_indicators:
+            if indicator in text_lower:
+                return False
+
+        # Vérifier si ça commence par une structure de phrase naturelle
+        natural_starts = [
+            r"^l[ae']?\s+\w+\s+(mesure|fait|est|a|possède|compte|s'élève)",
+            r"^(la|le|les|un|une)\s+\w+\s+(mesure|fait|est|a|possède|compte|s'élève)",
+            r"^\w+\s+(mesure|fait|est|a|possède|compte|s'élève)",
+        ]
+
+        for pattern in natural_starts:
+            if re.match(pattern, text_lower):
+                return True
+
+        # Si le texte est court et contient une mesure claire, c'est probablement naturel
+        if len(text) < 200 and re.search(r"\d+\s*(mètres?|m\b|km)", text_lower):
+            # Mais vérifier qu'il n'y a pas trop de bruit
+            word_count = len(text.split())
+            if word_count < 30:
+                return True
+
+        return False
+
+    def _reformulate_raw_extract(self, raw_text: str, query: str) -> str:
+        """
+        Reformule un extrait brut en réponse naturelle.
+
+        Extrait les informations clés (mesures, dates, faits) et les reformule
+        dans une phrase naturelle.
+
+        Args:
+            raw_text: L'extrait brut à reformuler
+            query: La question originale de l'utilisateur
+
+        Returns:
+            str: Une réponse reformulée naturellement
+        """
+        # Extraire l'entité de la question
+        entity_name = self._extract_entity_from_query(query)
+
+        # Chercher les mesures dans le texte brut
+        measurement_match = re.search(
+            r"(\d+(?:[,.\s]\d+)?)\s*(mètres?|m\b|km|cm)\s*(?:\[|\(|de hauteur|d'altitude)?",
+            raw_text,
+            re.IGNORECASE,
+        )
+
+        if measurement_match:
+            value = measurement_match.group(1).replace(",", ".").replace(" ", "")
+            unit = measurement_match.group(2).lower()
+
+            # Normaliser l'unité
+            if unit == "m":
+                unit = "mètres"
+
+            try:
+                value_float = float(value)
+                value_int = int(value_float)
+
+                # Construire une réponse naturelle
+                return self._build_natural_measurement_response(
+                    entity_name, value_int, unit
+                )
+            except ValueError:
+                pass
+
+        # Si pas de mesure trouvée, chercher d'autres informations
+        # Fallback: nettoyer l'extrait et prendre la première phrase pertinente
+        sentences = re.split(r"[.!?]+", raw_text)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            # Ignorer les phrases de navigation
+            if len(sentence) > 20 and len(sentence) < 300:
+                lower_sent = sentence.lower()
+                if not any(
+                    x in lower_sent
+                    for x in ["adresse", "coordonnées", "modifier", "accès", "autobus"]
+                ):
+                    # Nettoyer et retourner
+                    cleaned = self._universal_word_spacing_fix(sentence)
+                    return self._intelligent_bold_formatting(cleaned)
+
+        # Dernier recours: retourner un message générique
+        return f"📍 Informations trouvées sur **{entity_name}** - consultez les sources ci-dessous pour plus de détails."
+
+    def _extract_entity_from_query(self, query: str) -> str:
+        """Extrait le nom de l'entité depuis la question."""
+        stop_words = {
+            "quel",
+            "quelle",
+            "quels",
+            "quelles",
+            "comment",
+            "combien",
+            "pourquoi",
+            "où",
+            "taille",
+            "hauteur",
+            "fait",
+            "mesure",
+            "poids",
+            "what",
+            "which",
+            "height",
+            "size",
+            "how",
+            "tall",
+            "est",
+            "sont",
+            "était",
+            "étaient",
+            "la",
+            "le",
+            "les",
+            "l",
+            "un",
+            "une",
+            "des",
+            "du",
+            "de",
+            "d",
+            "au",
+            "aux",
+        }
+
+        words = query.split()
+        entity_words = []
+
+        for word in words:
+            clean_word = word.strip("?.,!;:'\"").lower()
+            # Gérer les apostrophes
+            if "'" in clean_word:
+                parts = clean_word.split("'")
+                clean_word = parts[-1] if len(parts[-1]) > 2 else clean_word
+
+            if len(clean_word) >= 3 and clean_word not in stop_words:
+                original_word = word.strip("?.,!;:")
+                if "'" in original_word:
+                    original_word = original_word.split("'")[-1]
+                entity_words.append(original_word)
+
+        if entity_words:
+            return " ".join(entity_words[:3]).title()
+        return "cette entité"
+
+    def _build_natural_measurement_response(
+        self, entity_name: str, value: int, unit: str
+    ) -> str:
+        """Construit une réponse naturelle pour une mesure."""
+        # Nettoyer le nom de l'entité
+        entity_clean = entity_name.strip()
+        for prefix in ["L'", "l'", "Le ", "le ", "La ", "la ", "Les ", "les "]:
+            if entity_clean.startswith(prefix):
+                entity_clean = entity_clean[len(prefix) :].strip()
+                break
+        entity_clean = entity_clean.title()
+
+        # Déterminer l'article approprié
+        first_letter = entity_clean[0].lower() if entity_clean else ""
+        feminine_words = (
+            "tour",
+            "flèche",
+            "antenne",
+            "structure",
+            "statue",
+            "pyramide",
+            "cathédrale",
+            "église",
+            "mosquée",
+        )
+        is_feminine = entity_clean.lower().startswith(feminine_words)
+
+        # Construire la phrase
+        if first_letter in "aeiouhéèêy":
+            response = f"L'{entity_clean} mesure **{value} {unit}** de hauteur."
+        elif is_feminine:
+            response = f"La {entity_clean} mesure **{value} {unit}** de hauteur."
+        else:
+            response = f"Le {entity_clean} mesure **{value} {unit}** de hauteur."
+
+        return response
+
     def _generate_answer_focused_summary(
         self,
         query: str,
@@ -1244,10 +1531,19 @@ class EnhancedInternetSearchEngine:
         summary = ""
 
         if direct_answer:
-            # Appliquer TOUTES les corrections dans l'ordre
-            cleaned_answer = self._universal_word_spacing_fix(direct_answer)
-            enhanced_answer = self._intelligent_bold_formatting(cleaned_answer)
-            summary += f"{enhanced_answer}\n\n"
+            # Vérifier si la réponse est déjà bien formatée (commence par une phrase naturelle)
+            # ou si c'est un extrait brut de Wikipedia qu'il faut reformuler
+            is_natural_response = self._is_natural_response(direct_answer)
+
+            if is_natural_response:
+                # Réponse déjà naturelle, juste nettoyer
+                cleaned_answer = self._universal_word_spacing_fix(direct_answer)
+                enhanced_answer = self._intelligent_bold_formatting(cleaned_answer)
+                summary += f"{enhanced_answer}\n\n"
+            else:
+                # Extrait brut -> essayer de reformuler naturellement
+                reformulated = self._reformulate_raw_extract(direct_answer, query)
+                summary += f"{reformulated}\n\n"
         else:
             key_info = self._extract_concentrated_summary(query, page_contents)
             cleaned_info = self._universal_word_spacing_fix(key_info)

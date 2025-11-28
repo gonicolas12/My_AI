@@ -57,20 +57,17 @@ my_ai/
 │   ├── conversation_memory.py           # Mémoire conversationnelle avancée
 │   ├── custom_ai_model.py               # Modèle IA principal avec intentions
 │   ├── intelligent_code_orchestrator.py # Orchestrateur pour la génération de code
-│   ├── intelligent_context_manager.py   # Gestionnaire contexte intelligent
+│   ├── intelligent_document_analyzer.py # Analyseur de documents intelligent
 │   ├── internet_search.py               # Moteur de recherche internet
 │   ├── knowledge_base.py                # Base de connaissances locale
 │   ├── linguistic_patterns.py           # Reconnaissance d'intentions et patterns
-│   ├── million_token_context_manager.py # Persistance 1M tokens
+│   ├── local_llm.py                     # Gestionnaire Ollama (détection + fallback)
 │   ├── ml_faq_model.py                  # FAQ avec ML et fuzzy matching
-│   ├── model_architecture.py            # Expérimentation de différentes architectures de modèles
 │   ├── real_web_code_generator.py       # Générateur de Code Basé sur Recherche Web Pure
 │   ├── reasoning_engine.py              # Moteur de raisonnement logique
-│   ├── seq2seq_model.py                 # Modèle seq2seq local basé sur T5
 │   ├── smart_code_searcher.py           # Recherche de code intelligente
 │   ├── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
-│   ├── ultra_custom_ai.py               # Modèle ULTRA
-│   └── web_code_searcher.py             # Module de recherche de code depuis multiple sources web
+│   └── ultra_custom_ai.py               # Modèle ULTRA
 ├── processors/                          # Processeurs de fichiers Ultra
 │   ├── __init__.py
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
@@ -86,13 +83,22 @@ my_ai/
 ├── tests/                               # Tests unitaires
 ├── docs/                                # Documentation
 ├── main.py                              # Point d'entrée principal
+├── Modelfile                            # Configuration modèle Ollama (llama3.1:8b)
 ├── requirements.txt                     # Dépendances
 ├── launch.bat                           # Script pour lancer le programme
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
+├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
 └── config.yaml                          # Configuration
 ```
 
 ## 🚀 Fonctionnalités Principales
+
+### 🦙 Intégration Ollama (LLM Local)
+- **LLM 100% local** : Réponses générées par llama3.1:8b directement sur votre machine
+- **Confidentialité totale** : Aucune donnée n'est envoyée sur internet
+- **Fallback intelligent** : Si Ollama n'est pas installé, l'IA utilise le mode patterns
+- **Modèle personnalisable** : Configuration via `Modelfile` (température, contexte, system prompt)
+- **Installation optionnelle** : L'application fonctionne avec ou sans Ollama
 
 ### 📚 FAQ Thématique Prioritaire
 - **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data/` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
@@ -159,7 +165,6 @@ Et voilà ! Votre **IA personnelle** aura accès à l'**API Github**.
 ### 3. Utilisation sans clé API
 Si **aucune clé** n'est configurée, l'**IA** utilisera automatiquement le **backend local**. Les fonctionnalités dépendantes de **GitHub** seront **désactivées**.
 
----
 N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les backends et modèles utilisés.
 
 ## 🛠️ Technologies Locales
@@ -193,6 +198,23 @@ cd My_AI
 ```bash
 pip install -r requirements.txt
 ```
+
+### Installation Ollama (Optionnel mais Recommandé)
+
+Pour des réponses de qualité LLM, installez Ollama :
+
+```bash
+# 1. Télécharger depuis https://ollama.com/download
+# 2. Installer le modèle (choisir selon votre RAM)
+ollama pull llama3.1:8b    # 16 GB RAM recommandé
+# OU
+ollama pull llama3.2       # 8 GB RAM
+
+# 3. Créer le modèle personnalisé
+.\create_custom_model.bat
+```
+
+> **Sans Ollama**, l'IA fonctionne en mode fallback avec des patterns/règles.
 
 ### Lancement
 ##### Lancement avec script batch (recommandé)
@@ -253,6 +275,6 @@ Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpl
 
 ## 🚀 Évolutions Futures
 
-- 🌐 **Application Web**
 - 📊 **Amélioration interface**
-- 🤖 **Support de modèles LLM externes optionnels**
+- 🌐 **Application Web**
+- 💻 **Extension VS Code**

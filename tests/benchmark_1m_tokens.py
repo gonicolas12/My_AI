@@ -22,7 +22,7 @@ sys.path.insert(0, str(current_dir))
 
 # Imports du système Ultra
 try:
-    from models.intelligent_context_manager import UltraIntelligentContextManager
+    from memory.vector_memory import VectorMemory as UltraIntelligentContextManager
 
     ULTRA_AVAILABLE = True
 except ImportError as e:

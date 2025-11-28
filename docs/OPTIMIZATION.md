@@ -1,11 +1,12 @@
-# 🚀 Guide d'Optimisation - My Personal AI v5.7.0
+# 🚀 Guide d'Optimisation - My Personal AI v6.0.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v5.7.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v6.0.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
+### 0. Ollama - LLM Local (Recommandé)
 ### 1. Gestion Contexte 1M Tokens
 ### 2. Compression Intelligente
 ### 3. Caching et Performances
@@ -13,6 +14,71 @@ Ce document décrit les optimisations et techniques avancées disponibles dans M
 ### 5. Optimisation Modèle (Quantization, Pruning)
 ### 6. Configuration Performance
 ### 7. Monitoring et Métriques
+
+---
+
+## 0. 🦙 Ollama - LLM Local
+
+### Pourquoi Ollama ?
+
+Ollama permet d'exécuter des modèles de langage (LLM) **100% en local** sur votre machine. C'est l'optimisation la plus importante pour la qualité des réponses.
+
+| Aspect | Sans Ollama (Fallback) | Avec Ollama |
+|--------|------------------------|-------------|
+| Qualité réponses | Patterns/règles | LLM complet |
+| Conversations | Basique | Naturelles |
+| Compréhension | Mots-clés | Sémantique |
+| Confidentialité | ✅ 100% local | ✅ 100% local |
+
+### Installation
+
+```bash
+# 1. Télécharger depuis https://ollama.com/download
+# 2. Installer le modèle
+ollama pull llama3.1:8b
+
+# 3. Créer modèle personnalisé
+.\create_custom_model.bat
+```
+
+### Configuration Modelfile
+
+```dockerfile
+FROM llama3.1:8b
+PARAMETER temperature 0.7
+PARAMETER num_ctx 8192
+
+SYSTEM """
+Tu es My_AI, un assistant IA personnel expert.
+Réponds en français par défaut.
+"""
+```
+
+### Modèles Recommandés par RAM
+
+| RAM | Modèle | num_ctx | Performance |
+|-----|--------|---------|-------------|
+| 8 GB | `llama3.2` (3B) | 4096 | Rapide |
+| 16 GB | `llama3.1:8b` | 8192 | Équilibré ✅ |
+| 32 GB | `llama3.1:70b` | 16384 | Maximum |
+
+### Vérification
+
+```bash
+# Vérifier que Ollama tourne
+curl http://localhost:11434
+
+# Lister les modèles
+ollama list
+
+# Tester
+ollama run my_ai "Bonjour"
+```
+
+Au démarrage de l'application, vous verrez :
+```
+✅ [LocalLLM] Ollama détecté et actif sur http://localhost:11434 (Modèle: my_ai)
+```
 
 ---
 
@@ -899,6 +965,6 @@ python -m core.evaluation --test_data test_set.jsonl
 
 ---
 
-**Version:** 5.7.0
+**Version:** 6.0.0
 **Dernière mise à jour:** 2025
 **Performance target:** < 1s réponse, < 2GB RAM, 1M tokens context

@@ -6,7 +6,32 @@
 Oui ! Absolument aucune donnée n'est envoyée à l'extérieur. Votre IA fonctionne entièrement sur votre machine sans connexion internet après installation. Vos conversations, documents et code restent complètement privés.
 
 ### Ai-je besoin d'Ollama, OpenAI ou autres services ?
-Non ! My Personal AI possède son propre moteur d'IA intégré. Pas besoin d'installer Ollama, de créer un compte OpenAI, ou d'utiliser des services externes. Tout est inclus dans le package.
+**Ollama est optionnel mais recommandé !**
+
+| Configuration | Qualité des réponses | Installation |
+|---------------|---------------------|--------------|
+| **Avec Ollama** | LLM complet (llama3.1:8b) - conversations naturelles | Télécharger depuis ollama.com |
+| **Sans Ollama** | Mode patterns/règles - fonctionnel mais basique | Rien à installer |
+
+L'IA fonctionne dans les deux cas, mais Ollama offre des réponses beaucoup plus intelligentes et naturelles. **Aucun compte OpenAI ou service cloud n'est requis.**
+
+### Comment installer Ollama ?
+1. Téléchargez depuis **https://ollama.com/download**
+2. Installez le modèle : `ollama pull llama3.1:8b`
+3. Créez le modèle personnalisé : `.\create_custom_model.bat`
+
+L'application détecte automatiquement Ollama au démarrage.
+
+### Quel modèle Ollama choisir selon ma RAM ?
+
+| RAM | Modèle recommandé | Commande |
+|-----|-------------------|----------|
+| 8 GB | llama3.2 (3B) | `ollama pull llama3.2` |
+| 16 GB | llama3.1:8b ✅ | `ollama pull llama3.1:8b` |
+| 32 GB+ | llama3.1:70b | `ollama pull llama3.1:70b` |
+
+### Mes données restent-elles confidentielles avec Ollama ?
+**Oui, 100% !** Ollama exécute le modèle **localement sur votre PC**. Aucune donnée n'est envoyée sur internet. C'est l'avantage principal par rapport à ChatGPT ou Claude.
 
 ### Quelle est la différence avec ChatGPT ou Claude ?
 
@@ -31,6 +56,13 @@ Non ! Installation en 3 commandes :
 cd My_AI
 pip install -r requirements.txt
 .\launch.bat
+```
+
+**Pour Ollama (optionnel mais recommandé) :**
+```bash
+# Télécharger depuis https://ollama.com/download
+ollama pull llama3.1:8b
+ollama create my_ai -f Modelfile
 ```
 
 ### Que faire si l'installation échoue ?
@@ -86,7 +118,17 @@ Utilisez le bouton "Clear Chat" dans l'interface graphique, ou redémarrez l'app
 - Utilisez "Clear Chat" pour remettre à zéro
 - Vérifiez que votre question est claire
 - Essayez de reformuler différemment
+- **Si Ollama est installé** : Vérifiez qu'il tourne (`ollama list`)
+- **Si mode fallback** : Les réponses sont basées sur des patterns, moins naturelles
 - Consultez les logs pour diagnostic
+
+### Ollama ne fonctionne pas, que faire ?
+
+1. Vérifiez qu'Ollama est lancé : `ollama list`
+2. Testez manuellement : `ollama run llama3.1:8b "Bonjour"`
+3. Vérifiez le port : `curl http://localhost:11434`
+4. Redémarrez Ollama si nécessaire
+5. L'application fonctionnera en mode fallback si Ollama est indisponible
 
 ### L'interface graphique ne s'affiche pas
 
@@ -160,6 +202,6 @@ Bien sûr ! Le projet est ouvert aux contributions :
 
 ---
 
-💡 **Question non listée ?** Envoyez-moi un message sur mon **LinkedIn** : [Nicolas Gouy](https://www.linkedin.com/in/nicolas-gouy-99120932b/)
+💡 **Question non listée ?** Envoyez-moi un message sur mon **LinkedIn : [Nicolas Gouy](https://www.linkedin.com/in/nicolas-gouy-99120932b/)**
 
 🤖 **My Personal AI** - Votre assistant local intelligent et sécurisé

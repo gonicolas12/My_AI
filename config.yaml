@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "5.7.0"
+  version: "6.0.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux - OPTIMISÉ POUR CONTEXTE ÉTENDU
@@ -226,7 +226,7 @@ development:
   metrics_file: "logs/metrics.json"
 
 
-# === OPTIMISATIONS AVANC�ES ===
+# === OPTIMISATIONS AVANCEES ===
 optimization:
   # RAG (Retrieval-Augmented Generation)
   rag:

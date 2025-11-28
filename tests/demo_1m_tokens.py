@@ -19,7 +19,7 @@ sys.path.insert(0, str(current_dir))
 # Imports du système Ultra
 try:
     from models.ultra_custom_ai import UltraCustomAIModel
-    from models.intelligent_context_manager import UltraIntelligentContextManager
+    from memory.vector_memory import VectorMemory as UltraIntelligentContextManager
     from core.ai_engine import AIEngine
 
     ULTRA_AVAILABLE = True

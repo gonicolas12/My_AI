@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v5.7.0
+# 📚 Guide d'Utilisation - My Personal AI v6.0.0
 
 ## 🚀 Démarrage Rapide
 
@@ -149,7 +149,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v5.7.0:
+État My Personal AI v6.0.0:
 - Modèle: CustomAI avec 1M tokens
 - Mémoire: 1,234,567 tokens utilisés / 1,048,576 max
 - Documents: 3 fichiers en mémoire
@@ -202,6 +202,47 @@ Vous> quitter
 IA> Au revoir ! À bientôt.
 # Application se ferme
 ```
+
+---
+
+## 🦙 Modes de Fonctionnement
+
+L'application fonctionne selon deux modes, détectés automatiquement au démarrage :
+
+### Mode Ollama (Prioritaire)
+
+Si Ollama est installé et lancé, toutes vos questions sont traitées par le LLM local :
+
+```
+✅ [LocalLLM] Ollama détecté et actif sur http://localhost:11434 (Modèle: my_ai)
+
+Vous> Comment fonctionne une boucle for en Python ?
+IA> [Réponse générée par llama3.1:8b - qualité LLM complète]
+```
+
+**Avantages :**
+- Réponses naturelles et contextuelles
+- Compréhension sémantique avancée
+- Conversations fluides
+- 100% confidentiel (rien ne quitte votre PC)
+
+### Mode Fallback (Sans Ollama)
+
+Si Ollama n'est pas disponible, l'IA utilise le système de patterns :
+
+```
+⚠️ [LocalLLM] Ollama non détecté. Le mode génératif avancé sera désactivé.
+
+Vous> Bonjour
+IA> Salut ! Comment puis-je t'aider ? [Pattern de salutation]
+```
+
+**Fonctionnalités toujours disponibles :**
+- Reconnaissance d'intentions (salutations, code, documents)
+- FAQ thématique
+- Traitement de documents
+- Recherche internet
+- Génération de code (via templates)
 
 ---
 
@@ -642,11 +683,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v5.7.0
+  MY PERSONAL AI - System Status v6.0.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 5.7.0
+📊 Version: 6.0.0
 💾 Context Manager: MillionTokenContextManager
 
 📈 Context Statistics:
@@ -680,7 +721,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v5.7.0
+My Personal AI v6.0.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -943,7 +984,7 @@ context_manager:
 
 ---
 
-**Version:** 5.7.0
+**Version:** 6.0.0
 **Interfaces:** GUI (CustomTkinter), CLI
 **Capacité Contexte:** 1,048,576 tokens (1M)
 **Architecture:** 100% Locale

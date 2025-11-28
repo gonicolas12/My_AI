@@ -26,6 +26,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 try:
     from pygments import lex
     from pygments.lexers.python import PythonLexer
+
     PYGMENTS_AVAILABLE = True
 except ImportError:
     PYGMENTS_AVAILABLE = False
@@ -37,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import du modèle CustomAI unifié avec support 1M tokens
 try:
     from models.custom_ai_model import CustomAIModel
+
     ULTRA_1M_AVAILABLE = True
     print("🚀 Modèle CustomAI unifié avec système 1M tokens intégré !")
 except ImportError:
@@ -46,6 +48,7 @@ except ImportError:
 # Import CustomTkinter ou fallback vers tkinter
 try:
     import customtkinter as ctk
+
     CTK_AVAILABLE = True
 except ImportError:
     CTK_AVAILABLE = False
@@ -57,9 +60,12 @@ DND_AVAILABLE = True
 
 # Import des styles (uniquement ce qui est utilisé)
 try:
-    from interfaces.modern_styles import (FONT_CONFIG, FONT_SIZES,
-                                          MODERN_COLORS,
-                                          RESPONSIVE_BREAKPOINTS)
+    from interfaces.modern_styles import (
+        FONT_CONFIG,
+        FONT_SIZES,
+        MODERN_COLORS,
+        RESPONSIVE_BREAKPOINTS,
+    )
 except ImportError:
     # Fallback colors si le fichier de styles n'est pas disponible
     MODERN_COLORS = {
@@ -112,8 +118,10 @@ except ImportError:
     from utils.file_processor import FileProcessor
     from utils.logger import setup_logger
 
+
 class ModernAIGUI:
     """GUI Moderne"""
+
     def adjust_text_widget_height(self, text_widget):
         """NOUVELLE VERSION : Hauteur illimitée pour éviter les scrollbars internes"""
         try:
@@ -151,9 +159,11 @@ class ModernAIGUI:
         Accès à un attribut protégé nécessaire pour le scrolling.
         """
         # pylint: disable=protected-access
-        if (self.use_ctk and
-            hasattr(self, "chat_frame") and
-            hasattr(self.chat_frame, "_parent_canvas")):
+        if (
+            self.use_ctk
+            and hasattr(self, "chat_frame")
+            and hasattr(self.chat_frame, "_parent_canvas")
+        ):
             return self.chat_frame._parent_canvas
         return None
 
@@ -480,6 +490,12 @@ class ModernAIGUI:
         # Mapping pour pré-analyse des blocs de code
         self._code_blocks_map = {}
 
+        # Tableau pré-analysé pour les tableaux Markdown
+        self._table_blocks = []
+
+        # Ensemble des tableaux déjà formatés
+        self._formatted_tables = set()
+
         # Pending links mapping
         self._pending_links = {}
 
@@ -704,6 +720,9 @@ class ModernAIGUI:
 
         # Configuration de la fenêtre
         self.root.title("My Personal AI")
+
+        # Gestionnaire de fermeture propre
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Plein écran automatique et premier plan
         self.root.attributes("-topmost", True)  # Premier plan
@@ -1369,10 +1388,7 @@ class ModernAIGUI:
 
                 def forward_from_container(event):
                     try:
-                        if (
-                            hasattr(self, "chat_frame")
-                            and self.use_ctk
-                        ):
+                        if hasattr(self, "chat_frame") and self.use_ctk:
                             canvas = self._get_parent_canvas()
                             if not canvas:
                                 return
@@ -1454,10 +1470,7 @@ class ModernAIGUI:
 
                 def forward_user_style(event):
                     try:
-                        if (
-                            hasattr(self, "chat_frame")
-                            and self.use_ctk
-                        ):
+                        if hasattr(self, "chat_frame") and self.use_ctk:
                             canvas = self._get_parent_canvas()
                             if not canvas:
                                 return
@@ -1541,10 +1554,7 @@ class ModernAIGUI:
 
                 def final_scroll_handler(event):
                     try:
-                        if (
-                            hasattr(self, "chat_frame")
-                            and self.use_ctk
-                        ):
+                        if hasattr(self, "chat_frame") and self.use_ctk:
                             canvas = self._get_parent_canvas()
                             if not canvas:
                                 return
@@ -1921,10 +1931,7 @@ class ModernAIGUI:
 
                 def forward_from_container(event):
                     try:
-                        if (
-                            hasattr(self, "chat_frame")
-                            and self.use_ctk
-                        ):
+                        if hasattr(self, "chat_frame") and self.use_ctk:
                             canvas = self._get_parent_canvas()
                             if not canvas:
                                 return
@@ -2195,6 +2202,10 @@ class ModernAIGUI:
         # Réinitialiser les positions formatées
         self._formatted_positions = set()
 
+        # Pré-analyser les tableaux Markdown pour l'animation progressive
+        self._table_blocks = self._preanalyze_markdown_tables(processed_text)
+        self._formatted_tables = set()  # Tableaux déjà formatés (par index)
+
         # Configurer tous les tags de formatage
         self._configure_all_formatting_tags(text_widget)
 
@@ -2291,7 +2302,7 @@ class ModernAIGUI:
                 self._analyze_sql_tokens(code_content, code_start, code_blocks_map)
             else:
                 # Code générique
-                for i in enumerate(code_content):
+                for i in range(len(code_content)):
                     pos = code_start + i
                     # Pas besoin de vérifier self.typing_text ici car on travaille sur le texte passé en paramètre
                     code_blocks_map[pos] = (language, "code_block")
@@ -2303,6 +2314,77 @@ class ModernAIGUI:
                     code_blocks_map[pos] = (language, "code_block_marker")
 
         return code_blocks_map
+
+    def _preanalyze_markdown_tables(self, text):
+        """Pré-analyse les tableaux Markdown pour l'animation progressive"""
+        tables = []  # Liste de dictionnaires avec infos sur chaque tableau
+
+        lines = text.split("\n")
+        i = 0
+        char_pos = 0  # Position en caractères dans le texte
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Vérifier si c'est le début d'un tableau
+            if "|" in line and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                separator_pattern = r"^\|?[\s\-:|\s]+\|?$"
+                if re.match(separator_pattern, next_line.strip()) and "-" in next_line:
+                    # C'est un tableau!
+                    table_start_pos = char_pos
+                    table_start_line = i
+                    table_lines_info = []
+
+                    # Collecter toutes les lignes du tableau
+                    j = i
+                    table_char_pos = char_pos
+                    while j < len(lines) and "|" in lines[j]:
+                        line_info = {
+                            "line_num": j,
+                            "start_pos": table_char_pos,
+                            "end_pos": table_char_pos + len(lines[j]),
+                            "content": lines[j],
+                            "is_separator": j == i + 1,
+                        }
+                        table_lines_info.append(line_info)
+                        table_char_pos += len(lines[j]) + 1  # +1 pour le \n
+                        j += 1
+
+                        # Vérifier si c'est un nouveau séparateur (nouveau tableau)
+                        if (
+                            j < len(lines)
+                            and re.match(separator_pattern, lines[j].strip())
+                            and "-" in lines[j]
+                        ):
+                            if j > i + 1:  # Pas le séparateur du tableau actuel
+                                break
+
+                    tables.append(
+                        {
+                            "start_line": table_start_line,
+                            "end_line": j - 1,
+                            "start_pos": table_start_pos,
+                            "end_pos": table_char_pos - 1,
+                            "lines": table_lines_info,
+                        }
+                    )
+
+                    # Avancer après le tableau
+                    char_pos = table_char_pos
+                    i = j
+                    continue
+
+            char_pos += len(line) + 1  # +1 pour le \n
+            i += 1
+
+        print(f"[DEBUG] Tables pré-analysées: {len(tables)} tableaux trouvés")
+        for t in tables:
+            print(
+                f"  Table lignes {t['start_line']}-{t['end_line']}, positions {t['start_pos']}-{t['end_pos']}"
+            )
+
+        return tables
 
     def _analyze_python_tokens(self, code, start_offset, code_map):
         """Analyse les tokens Python pour la coloration en temps réel"""
@@ -2554,9 +2636,7 @@ class ModernAIGUI:
             self.typing_widget.insert("end", char, tag_to_use)
 
             # Appliquer la coloration syntaxique en temps réel pour les blocs de code
-            self._apply_realtime_syntax_coloring(
-                self.typing_widget, self.typing_index
-            )
+            self._apply_realtime_syntax_coloring(self.typing_widget, self.typing_index)
 
             # Incrémenter l'index
             self.typing_index += 1
@@ -2600,6 +2680,10 @@ class ModernAIGUI:
             elif char == "\n":
                 # Nouvelle ligne - MAINTENANT on peut formater les titres complets
                 should_format = True
+
+                # Vérifier si on vient de terminer une ligne de tableau
+                self._check_and_format_table_line(self.typing_widget, self.typing_index)
+
             elif self.typing_index % 50 == 0:  # Formatage périodique moins fréquent
                 should_format = True
 
@@ -2668,6 +2752,165 @@ class ModernAIGUI:
         except Exception:
             # Ignorer les erreurs de coloration pour ne pas casser l'animation
             pass
+
+    def _check_and_format_table_line(self, text_widget, current_pos):
+        """Vérifie si on vient de terminer un tableau complet et le formate"""
+        if not hasattr(self, "_table_blocks") or not self._table_blocks:
+            return
+
+        if not hasattr(self, "_formatted_tables"):
+            self._formatted_tables = set()
+
+        # Vérifier si on vient de terminer un tableau (position juste après end_pos)
+        for table_idx, table in enumerate(self._table_blocks):
+            # Le tableau est complet quand on dépasse sa position de fin
+            if (
+                current_pos >= table["end_pos"]
+                and table_idx not in self._formatted_tables
+            ):
+                # Marquer ce tableau comme formaté
+                self._formatted_tables.add(table_idx)
+
+                # Formater ce tableau
+                self._format_completed_table(text_widget, table)
+                break  # Un seul tableau à la fois
+
+    def _format_completed_table(self, text_widget, table_info):
+        """Formate un tableau complet dans le widget"""
+        try:
+            text_widget.configure(state="normal")
+
+            # Récupérer le contenu actuel du widget
+            content = text_widget.get("1.0", "end-1c")
+            widget_lines = content.split("\n")
+
+            # Extraire les lignes brutes du tableau depuis le texte original
+            raw_table_lines = [
+                line_info["content"] for line_info in table_info["lines"]
+            ]
+
+            if len(raw_table_lines) < 2:
+                text_widget.configure(state="disabled")
+                return
+
+            # Trouver où se trouve ce tableau dans le widget actuel
+            # Chercher la première ligne du tableau (header)
+            header_content = raw_table_lines[0].strip()
+            table_start_widget_line = None
+
+            for idx, wline in enumerate(widget_lines):
+                # Chercher une ligne qui contient | et correspond au header
+                if "|" in wline and not any(c in wline for c in "┌┬┐│├┼┤└┴┘─"):
+                    # Vérifier si c'est bien notre tableau en comparant le contenu
+                    if self._lines_match(wline.strip(), header_content):
+                        table_start_widget_line = idx
+                        break
+
+            if table_start_widget_line is None:
+                text_widget.configure(state="disabled")
+                return
+
+            # Compter combien de lignes brutes consécutives avec | on a
+            table_end_widget_line = table_start_widget_line
+            for idx in range(table_start_widget_line, len(widget_lines)):
+                if "|" in widget_lines[idx] and not any(
+                    c in widget_lines[idx] for c in "┌┬┐│├┼┤└┴┘─"
+                ):
+                    table_end_widget_line = idx
+                else:
+                    break
+
+            # Supprimer les lignes brutes du tableau
+            start_line_tk = f"{table_start_widget_line + 1}.0"
+            end_line_tk = f"{table_end_widget_line + 2}.0"
+            text_widget.delete(start_line_tk, end_line_tk)
+
+            # Positionner le curseur pour l'insertion
+            text_widget.mark_set("insert", start_line_tk)
+
+            # Insérer le tableau formaté
+            self._insert_formatted_table(text_widget, raw_table_lines)
+
+            text_widget.configure(state="disabled")
+
+        except Exception as e:
+            print(f"[DEBUG] Erreur formatage tableau: {e}")
+            try:
+                text_widget.configure(state="disabled")
+            except Exception:
+                pass
+
+    def _lines_match(self, line1, line2):
+        """Vérifie si deux lignes de tableau correspondent (même contenu de cellules)"""
+        cells1 = self._parse_table_row(line1)
+        cells2 = self._parse_table_row(line2)
+        return cells1 == cells2
+
+    def _insert_formatted_table(self, text_widget, raw_lines):
+        """Insère un tableau complètement formaté"""
+        separator_pattern = r"^\|?[\s\-:|\s]+\|?$"
+
+        # Calculer les largeurs de colonnes
+        all_cells = []
+        for line_content in raw_lines:
+            if re.match(separator_pattern, line_content.strip()):
+                continue
+            cells = self._parse_table_row(line_content)
+            all_cells.append(cells)
+
+        if not all_cells:
+            return
+
+        max_cols = max(len(row) for row in all_cells)
+        widths = []
+        for col in range(max_cols):
+            max_width = 0
+            for row in all_cells:
+                if col < len(row):
+                    cell_text = re.sub(r"\*\*([^*]+)\*\*", r"\1", row[col])
+                    max_width = max(max_width, len(cell_text))
+            widths.append(max(max_width, 3))
+
+        # Bordure supérieure
+        border_top = "┌" + "┬".join("─" * (w + 2) for w in widths) + "┐\n"
+        text_widget.insert("insert", border_top, "table_border")
+
+        for line_idx, line_content in enumerate(raw_lines):
+            if line_idx == 1:  # Séparateur
+                sep_line = "├" + "┼".join("─" * (w + 2) for w in widths) + "┤\n"
+                text_widget.insert("insert", sep_line, "table_border")
+                continue
+
+            cells = self._parse_table_row(line_content)
+            is_header = line_idx == 0
+
+            text_widget.insert("insert", "│", "table_border")
+
+            for col_idx, width in enumerate(widths):
+                cell_content = cells[col_idx] if col_idx < len(cells) else ""
+
+                bold_match = re.match(r"\*\*(.+?)\*\*", cell_content)
+                if bold_match:
+                    display_text = bold_match.group(1)
+                    tag = "table_cell_bold" if not is_header else "table_header"
+                else:
+                    display_text = cell_content
+                    tag = "table_header" if is_header else "table_cell"
+
+                padding = width - len(display_text)
+                left_pad = padding // 2
+                right_pad = padding - left_pad
+
+                text_widget.insert("insert", " " + " " * left_pad, "table_border")
+                text_widget.insert("insert", display_text, tag)
+                text_widget.insert("insert", " " * right_pad + " ", "table_border")
+                text_widget.insert("insert", "│", "table_border")
+
+            text_widget.insert("insert", "\n")
+
+        # Bordure inférieure
+        border_bottom = "└" + "┴".join("─" * (w + 2) for w in widths) + "┘\n"
+        text_widget.insert("insert", border_bottom, "table_border")
 
     def _detect_current_code_block(self, text, current_index):
         """Détecte si on est actuellement dans un bloc de code et retourne le langage"""
@@ -3369,7 +3612,9 @@ class ModernAIGUI:
                     start_pos = "1.0"
                     occurrences_found = 0
                     while True:
-                        pos_start = text_widget.search(title, start_pos, "end", nocase=False)
+                        pos_start = text_widget.search(
+                            title, start_pos, "end", nocase=False
+                        )
                         if not pos_start:
                             break
 
@@ -3386,12 +3631,16 @@ class ModernAIGUI:
                             text_widget.tag_add("link_temp", pos_start, pos_end)
                             self._formatted_positions.add(pos_str)
                             occurrences_found += 1
-                            print(f"[DEBUG] Lien temporaire ajouté pour '{title}' à {pos_start}")
+                            print(
+                                f"[DEBUG] Lien temporaire ajouté pour '{title}' à {pos_start}"
+                            )
 
                         start_pos = text_widget.index(f"{pos_start}+1c")
 
                     if occurrences_found > 0:
-                        print(f"[DEBUG] '{title}' -> {occurrences_found} occurrence(s) marquée(s) comme link_temp")
+                        print(
+                            f"[DEBUG] '{title}' -> {occurrences_found} occurrence(s) marquée(s) comme link_temp"
+                        )
 
             # === FORMATAGE LIENS [titre](url) AVEC PRIORITÉ SUR TITRES (ANCIEN SYSTÈME POUR COMPATIBILITÉ) ===
             start_pos = "1.0"
@@ -3413,7 +3662,9 @@ class ModernAIGUI:
 
                 if match:
                     links_found += 1
-                    print(f"[DEBUG] Lien markdown trouvé dans le formatage: {match.group(0)[:80]}")
+                    print(
+                        f"[DEBUG] Lien markdown trouvé dans le formatage: {match.group(0)[:80]}"
+                    )
                     title = match.group(1)
                     url = match.group(2)
 
@@ -3447,7 +3698,9 @@ class ModernAIGUI:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
             if links_found > 0:
-                print(f"[DEBUG] Total liens markdown trouvés et formatés: {links_found}")
+                print(
+                    f"[DEBUG] Total liens markdown trouvés et formatés: {links_found}"
+                )
 
             # === FORMATAGE CODE `code` ===
             start_pos = "1.0"
@@ -4162,8 +4415,11 @@ class ModernAIGUI:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
     def finish_typing_animation_dynamic(self, interrupted=False):
-        """Version CORRIGÉE avec formatage unifié final"""
+        """Version CORRIGÉE avec formatage unifié final et support des tableaux"""
         if hasattr(self, "typing_widget") and hasattr(self, "typing_text"):
+
+            # Sauvegarder le texte original avant tout traitement
+            original_text = self.typing_text if hasattr(self, "typing_text") else ""
 
             if interrupted:
                 # Réinitialiser les positions pour forcer un formatage complet
@@ -4172,6 +4428,12 @@ class ModernAIGUI:
 
                 # Formatage final même en cas d'interruption
                 self.typing_widget.configure(state="normal")
+
+                # NOUVEAU : Formater les tableaux Markdown EN PREMIER (reconstruit le widget)
+                self._format_markdown_tables_in_widget(
+                    self.typing_widget, original_text
+                )
+
                 self._apply_unified_progressive_formatting(self.typing_widget)
 
                 # NOUVEAU : Convertir les liens temporaires en liens clickables
@@ -4190,6 +4452,12 @@ class ModernAIGUI:
 
                 # Formatage final unifié
                 self.typing_widget.configure(state="normal")
+
+                # NOUVEAU : Formater les tableaux Markdown EN PREMIER (reconstruit le widget)
+                self._format_markdown_tables_in_widget(
+                    self.typing_widget, original_text
+                )
+
                 self._apply_unified_progressive_formatting(self.typing_widget)
 
                 # NOUVEAU : Convertir les liens temporaires en liens clickables
@@ -4245,7 +4513,9 @@ class ModernAIGUI:
                 print("[DEBUG] _pending_links est vide")
                 return
 
-            print(f"[DEBUG] Conversion de {len(self._pending_links)} liens en clickables")
+            print(
+                f"[DEBUG] Conversion de {len(self._pending_links)} liens en clickables"
+            )
             text_widget.configure(state="normal")
 
             # Parcourir tous les liens en attente (organisés par titre maintenant)
@@ -4260,7 +4530,9 @@ class ModernAIGUI:
                     print(f"[DEBUG] ERREUR: Aucun tag link_temp trouvé pour '{title}'")
                     continue
 
-                print(f"[DEBUG] Traitement de '{title}' -> {url} ({len(ranges)//2} zones link_temp)")
+                print(
+                    f"[DEBUG] Traitement de '{title}' -> {url} ({len(ranges)//2} zones link_temp)"
+                )
 
                 for i in range(0, len(ranges), 2):
                     start_range = ranges[i]
@@ -4301,7 +4573,9 @@ class ModernAIGUI:
                             f"[DEBUG] Lien configuré: '{title}' -> {url} (tag: {unique_tag})"
                         )
 
-            print(f"[DEBUG] ✅ Conversion terminée: {link_counter} liens clickables créés")
+            print(
+                f"[DEBUG] ✅ Conversion terminée: {link_counter} liens clickables créés"
+            )
 
             # Nettoyer les liens en attente
             delattr(self, "_pending_links")
@@ -4874,8 +5148,8 @@ class ModernAIGUI:
 
         return link_count - start_link_count
 
-    def _insert_simple_markdown(self, text_widget, text):
-        """Insère du texte avec formatage markdown simple (bold, italic, mono, titles)"""
+    def _insert_simple_markdown_legacy(self, text_widget, text):
+        """Insère du texte avec formatage markdown simple (bold, italic, mono, titles) - Version legacy"""
         patterns = [
             (r"^(#{1,6})\s+(.+)$", "title_markdown"),
             (r"`([^`]+)`", "mono"),
@@ -5416,7 +5690,60 @@ class ModernAIGUI:
                 text_widget.insert("end", line[pos:], "mono")
 
     def _insert_simple_markdown(self, text_widget, text):
-        """Traite le markdown simple (gras, italique, titres) sans les blocs de code"""
+        """Traite le markdown simple (gras, italique, titres, tableaux) sans les blocs de code"""
+
+        # D'abord, détecter et traiter les tableaux Markdown
+        lines = text.split("\n")
+        i = 0
+        segments = []  # Liste de (type, contenu)
+        current_text = []
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Vérifier si c'est le début d'un tableau
+            if "|" in line and i + 1 < len(lines):
+                # Vérifier si la ligne suivante est un séparateur de tableau
+                next_line = lines[i + 1]
+                separator_pattern = r"^\|?[\s\-:|\s]+\|?$"
+                if re.match(separator_pattern, next_line.strip()) and "-" in next_line:
+                    # C'est un tableau! D'abord sauvegarder le texte précédent
+                    if current_text:
+                        segments.append(("text", "\n".join(current_text)))
+                        current_text = []
+
+                    # Collecter toutes les lignes du tableau
+                    table_lines = [line, next_line]
+                    i += 2
+                    while i < len(lines) and "|" in lines[i]:
+                        # Vérifier que ce n'est pas un autre séparateur (nouveau tableau)
+                        if (
+                            re.match(separator_pattern, lines[i].strip())
+                            and "-" in lines[i]
+                        ):
+                            break
+                        table_lines.append(lines[i])
+                        i += 1
+
+                    segments.append(("table", table_lines))
+                    continue
+
+            current_text.append(line)
+            i += 1
+
+        # Ajouter le reste du texte
+        if current_text:
+            segments.append(("text", "\n".join(current_text)))
+
+        # Traiter chaque segment
+        for seg_type, content in segments:
+            if seg_type == "table":
+                self._insert_markdown_table(text_widget, content)
+            else:
+                self._apply_simple_markdown_formatting(text_widget, content)
+
+    def _apply_simple_markdown_formatting(self, text_widget, text):
+        """Applique le formatage markdown simple (gras, italique, titres)"""
         # Patterns pour le markdown de base
         patterns = [
             (r"^(#{1,6})\s+(.+)$", "title_markdown"),  # Titres
@@ -5459,6 +5786,187 @@ class ModernAIGUI:
                 apply_formatting(remaining_text, remaining_patterns)
 
         apply_formatting(text, patterns)
+
+    def _parse_table_row(self, line):
+        """Parse une ligne de tableau Markdown et retourne les cellules"""
+        # Supprimer les | au début et à la fin
+        line = line.strip()
+        if line.startswith("|"):
+            line = line[1:]
+        if line.endswith("|"):
+            line = line[:-1]
+
+        # Séparer par | et nettoyer chaque cellule
+        cells = [cell.strip() for cell in line.split("|")]
+        return cells
+
+    def _calculate_column_widths(self, table_lines):
+        """Calcule la largeur optimale de chaque colonne"""
+        if not table_lines:
+            return []
+
+        # Parser toutes les lignes (sauf le séparateur)
+        all_rows = []
+        for i, line in enumerate(table_lines):
+            if i == 1:  # Ignorer le séparateur
+                continue
+            cells = self._parse_table_row(line)
+            all_rows.append(cells)
+
+        if not all_rows:
+            return []
+
+        # Trouver le nombre max de colonnes
+        max_cols = max(len(row) for row in all_rows)
+
+        # Calculer la largeur max de chaque colonne
+        widths = []
+        for col in range(max_cols):
+            max_width = 0
+            for row in all_rows:
+                if col < len(row):
+                    # Compter la longueur sans les marqueurs markdown
+                    cell_text = re.sub(r"\*\*([^*]+)\*\*", r"\1", row[col])
+                    max_width = max(max_width, len(cell_text))
+            widths.append(max(max_width, 3))  # Minimum 3 caractères
+
+        return widths
+
+    def _insert_markdown_table(self, text_widget, table_lines):
+        """Affiche un tableau Markdown formaté dans le widget"""
+        if not table_lines or len(table_lines) < 2:
+            return
+
+        column_widths = self._calculate_column_widths(table_lines)
+        if not column_widths:
+            return
+
+        # Bordure supérieure
+        border_line = "┌" + "┬".join("─" * (w + 2) for w in column_widths) + "┐\n"
+        text_widget.insert("end", border_line, "table_border")
+
+        for line_idx, line in enumerate(table_lines):
+            if line_idx == 1:  # Séparateur - dessiner une ligne de séparation
+                sep_line = "├" + "┼".join("─" * (w + 2) for w in column_widths) + "┤\n"
+                text_widget.insert("end", sep_line, "table_border")
+                continue
+
+            cells = self._parse_table_row(line)
+            is_header = line_idx == 0
+
+            # Début de ligne
+            text_widget.insert("end", "│", "table_border")
+
+            for col_idx, width in enumerate(column_widths):
+                cell_content = cells[col_idx] if col_idx < len(cells) else ""
+
+                # Détecter le gras dans la cellule
+                bold_match = re.match(r"\*\*(.+?)\*\*", cell_content)
+                if bold_match:
+                    display_text = bold_match.group(1)
+                    tag = "table_cell_bold" if not is_header else "table_header"
+                else:
+                    display_text = cell_content
+                    tag = "table_header" if is_header else "table_cell"
+
+                # Centrer le contenu
+                padding = width - len(display_text)
+                left_pad = padding // 2
+                right_pad = padding - left_pad
+
+                text_widget.insert("end", " " + " " * left_pad, "table_border")
+                text_widget.insert("end", display_text, tag)
+                text_widget.insert("end", " " * right_pad + " ", "table_border")
+                text_widget.insert("end", "│", "table_border")
+
+            text_widget.insert("end", "\n")
+
+        # Bordure inférieure
+        border_line = "└" + "┴".join("─" * (w + 2) for w in column_widths) + "┘\n"
+        text_widget.insert("end", border_line, "table_border")
+
+    def _format_markdown_tables_in_widget(self, text_widget, original_text=None):
+        """Détecte et reformate les tableaux Markdown - VERSION CORRIGÉE avec texte original"""
+        try:
+            text_widget.configure(state="normal")
+
+            # Utiliser le texte original s'il est fourni, sinon lire le widget
+            if original_text:
+                content = original_text
+            else:
+                content = text_widget.get("1.0", "end-1c")
+
+            # Vérifier s'il y a potentiellement des tableaux (lignes avec |)
+            if "|" not in content:
+                return
+
+            # Pattern pour identifier une ligne de séparateur de tableau
+            separator_pattern = r"^\|?[\s\-:]+\|[\s\-:|]+\|?$"
+
+            lines = content.split("\n")
+
+            # Vérifier si au moins un tableau existe
+            has_table = False
+            for i, line in enumerate(lines):
+                if "|" in line and i + 1 < len(lines):
+                    next_line = lines[i + 1]
+                    if (
+                        re.match(separator_pattern, next_line.strip())
+                        and "-" in next_line
+                    ):
+                        has_table = True
+                        break
+
+            if not has_table:
+                return
+
+            print("[DEBUG] Tableaux Markdown détectés, reconstruction du widget...")
+
+            # Effacer le widget et reconstruire avec le texte original formaté
+            text_widget.delete("1.0", "end")
+
+            # Reconstruire le contenu en utilisant _insert_markdown_segments qui gère les blocs de code
+            # et _insert_simple_markdown qui gère maintenant les tableaux
+            self._insert_markdown_segments(text_widget, content)
+
+        except Exception as e:
+            print(f"[DEBUG] Erreur formatage tableaux: {e}")
+            traceback.print_exc()
+
+    def _insert_text_line_with_formatting(self, text_widget, line):
+        """Insère une ligne de texte avec le formatage markdown basique (gras, italique)"""
+        if not line:
+            return
+
+        # Patterns pour le formatage
+        patterns = [
+            (r"\*\*([^*]+?)\*\*", "bold"),
+            (r"\*([^*]+?)\*", "italic"),
+            (r"`([^`]+)`", "mono"),
+        ]
+
+        # Trouver tous les matches
+        matches = []
+        for pattern, tag in patterns:
+            for m in re.finditer(pattern, line):
+                matches.append((m.start(), m.end(), m.group(1), tag))
+
+        # Trier par position
+        matches.sort(key=lambda x: x[0])
+
+        # Insérer le texte avec formatage
+        last_pos = 0
+        for start, end, content, tag in matches:
+            # Texte avant le match
+            if start > last_pos:
+                text_widget.insert("end", line[last_pos:start], "normal")
+            # Contenu formaté
+            text_widget.insert("end", content, tag)
+            last_pos = end
+
+        # Texte restant
+        if last_pos < len(line):
+            text_widget.insert("end", line[last_pos:], "normal")
 
     def _insert_javascript_code_block(self, text_widget, code):
         """Coloration syntaxique pour JavaScript avec couleurs VS Code"""
@@ -7402,6 +7910,31 @@ class ModernAIGUI:
             foreground="#d4d4d4",
         )
 
+        # Tags pour les tableaux Markdown
+        text_widget.tag_configure(
+            "table_header",
+            font=("Segoe UI", 11, "bold"),
+            foreground="#58a6ff",
+            background="#1a1a2e",
+        )
+        text_widget.tag_configure(
+            "table_cell",
+            font=("Segoe UI", 11),
+            foreground="#e6e6e6",
+            background="#16213e",
+        )
+        text_widget.tag_configure(
+            "table_border",
+            font=("Consolas", 11),
+            foreground="#444466",
+        )
+        text_widget.tag_configure(
+            "table_cell_bold",
+            font=("Segoe UI", 11, "bold"),
+            foreground="#ffd700",
+            background="#16213e",
+        )
+
     def _apply_final_syntax_highlighting(self, text_widget):
         """Applique la coloration syntaxique finale à tous les blocs de code détectés"""
         try:
@@ -8711,7 +9244,9 @@ class ModernAIGUI:
     def process_file_background(self, file_path, file_type, filename):
         """Traite le fichier en arrière-plan avec système 1M tokens"""
         try:
-            self.logger.info("Traitement du fichier: %s (type: %s)", filename, file_type)
+            self.logger.info(
+                "Traitement du fichier: %s (type: %s)", filename, file_type
+            )
 
             # Utiliser le processeur unifié
             result = self.file_processor.process_file(file_path)
@@ -8749,14 +9284,17 @@ class ModernAIGUI:
                                 "analysis_info", f"{len(content)} caractères"
                             )
                             self.logger.info(
-                                "📄 Processeur %s utilisé: %s", processor_used, analysis_info
+                                "📄 Processeur %s utilisé: %s",
+                                processor_used,
+                                analysis_info,
                             )
                             print(
                                 f"🔧 Traitement avancé: {processor_used} - {analysis_info}"
                             )
                         else:
                             self.logger.warning(
-                                "Échec traitement avancé: %s", result.get('message', 'Erreur inconnue')
+                                "Échec traitement avancé: %s",
+                                result.get("message", "Erreur inconnue"),
                             )
                     else:
                         # Méthode de fallback - utiliser add_document_to_context
@@ -8768,7 +9306,9 @@ class ModernAIGUI:
                     # Statistiques après ajout
                     stats = self.custom_ai.get_context_stats()
                     self.logger.info(
-                        "📊 Nouveau contexte: %s tokens (%s)", stats.get('context_size', 0), stats.get('utilization_percent', 0)
+                        "📊 Nouveau contexte: %s tokens (%s)",
+                        stats.get("context_size", 0),
+                        stats.get("utilization_percent", 0),
                     )
 
                     print(
@@ -8857,6 +9397,23 @@ Vous pouvez maintenant me poser des questions sur ce document."""
         print("🔍 DEBUG: Lancement du thread d'initialisation IA")
         threading.Thread(target=init_ai, daemon=True).start()
 
+    def on_closing(self):
+        """Gère la fermeture propre de l'application"""
+        print("🛑 Fermeture de l'application...")
+        try:
+            # Arrêter les animations en cours
+            self.is_thinking = False
+            self.is_searching = False
+            self._typing_interrupted = True
+
+            # Détruire la fenêtre
+            self.root.destroy()
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la fermeture: {e}")
+        finally:
+            # Forcer l'arrêt du programme
+            os._exit(0)
+
     def run(self):
         """Lance l'interface"""
         try:
@@ -8877,6 +9434,7 @@ def main():
     except Exception as e:
         print(f"❌ Erreur lors du démarrage: {e}")
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

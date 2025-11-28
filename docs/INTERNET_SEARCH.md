@@ -15,7 +15,7 @@ La version 5.7.0 apporte des améliorations majeures : **recherche internet opti
 - **Types de recherche** : Adaptation automatique selon le contexte
 - **Fallback intelligent** : Wikipedia API et Cloudscraper si nécessaire
 
-### 🌤️ Météo Temps Réel (NEW v5.7.0)
+### 🌤️ Météo Temps Réel (v5.7.0)
 - **Service wttr.in gratuit** : Aucune clé API requise
 - **Détection automatique** : Reconnaît les questions météo naturellement
 - **40+ villes françaises** : Paris, Lyon, Marseille, Toulouse, Nice, etc.
@@ -39,7 +39,7 @@ La version 5.7.0 apporte des améliorations majeures : **recherche internet opti
 
 ### Exemples de Commandes
 
-#### Météo (NEW v5.7.0)
+#### Météo (v5.7.0)
 ```
 🤖 "Quelle est la météo à Paris ?"
 🤖 "Quel temps fait-il à Toulouse aujourd'hui ?"
@@ -230,7 +230,7 @@ Solution :
 3. Vérifiez les paramètres proxy
 ```
 
-#### "Météo indisponible" (NEW v5.7.0)
+#### "Météo indisponible" (v5.7.0)
 ```
 Problème : ConnectionResetError ou timeout wttr.in
 Cause : Proxy/firewall entreprise bloque wttr.in

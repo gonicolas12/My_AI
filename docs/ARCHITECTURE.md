@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v5.7.0
+# 🏗️ Architecture - My Personal AI v6.0.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v5.7.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
+My Personal AI v6.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : GPT-2 tokenizer (99% précision vs 70% approximation)
@@ -39,10 +39,15 @@ My Personal AI v5.7.0 est une **IA locale 100%** avec un système de **Mémoire 
 ┌──────────────────────────────────────────────────────────────────────┐
 │                      MODÈLES IA ET INTELLIGENCE                      │
 ├──────────────────────────────────────────────────────────────────────┤
-│  CustomAIModel (v5.7.0)     │  UltraCustomAI (1M tokens)             │
-│  • Détection intentions     │  • Extend CustomAI                     │
-│  • Réponses contextuelles   │  • Ultra-large context                 │
-│  • Mémoire intégrée         │  • Advanced processors                 │
+│  Ollama (Prioritaire)       │  CustomAIModel (Fallback)              │
+│  • LLM local (llama3.1:8b)  │  • Détection intentions                │
+│  • Réponses naturelles      │  • Réponses contextuelles              │
+│  • 100% confidentiel        │  • Patterns et règles                  │
+├─────────────────────────────┴────────────────────────────────────────┤
+│  UltraCustomAI (1M tokens)  │  LocalLLM (Gestionnaire Ollama)        │
+│  • Extend CustomAI          │  • Vérification disponibilité          │
+│  • Ultra-large context      │  • Fallback automatique                │
+│  • Advanced processors      │  • Modèle personnalisable (Modelfile)  │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -234,7 +239,7 @@ core/evaluation.py + error_analysis.py:
 
 ### 🤖 Models - Intelligence Artificielle
 
-**`models/custom_ai_model.py`** - Modèle IA principal (v5.7.0)
+**`models/custom_ai_model.py`** - Modèle IA principal (v6.0.0)
 ```python
 Architecture:
 ├─ LinguisticPatterns (détection intentions)
@@ -266,7 +271,7 @@ Features:
 └─ Initialisation processeurs avancés
 ```
 
-**`memory/vector_memory.py`** - Mémoire Vectorielle (NEW v5.7.0)
+**`memory/vector_memory.py`** - Mémoire Vectorielle (v6.0.0)
 ```python
 Architecture ML:
 ├─ GPT-2 Tokenizer (transformers)
@@ -371,6 +376,22 @@ Organisation:
 └─ Connaissances générales
 ```
 
+**`models/local_llm.py`** - Gestionnaire Ollama
+```python
+Architecture:
+├─ Connexion Ollama (http://localhost:11434)
+├─ Vérification disponibilité serveur
+├─ Détection modèle (my_ai → llama3 fallback)
+├─ Génération de réponses via API
+└─ Fallback automatique si Ollama indisponible
+
+Configuration Modelfile:
+├─ Modèle de base: llama3.1:8b
+├─ Temperature: 0.7
+├─ Context window: 8192 tokens
+└─ System prompt personnalisé français
+```
+
 **`models/reasoning_engine.py`** - Raisonnement logique
 ```python
 Composants:
@@ -382,7 +403,7 @@ Composants:
 
 **`models/internet_search.py`** - Moteur recherche
 ```python
-EnhancedInternetSearchEngine (v5.7.0):
+EnhancedInternetSearchEngine (v6.0.0):
 ├─ DuckDuckGo API Instant (priorité #1)
 ├─ Météo temps réel intégrée:
 │   ├─ Service wttr.in (gratuit, sans API)
@@ -402,7 +423,7 @@ EnhancedInternetSearchEngine (v5.7.0):
 ├─ Système caching (3600s)
 └─ Rotation user agents
 
-Ordre moteurs (optimisé v5.7.0):
+Ordre moteurs (optimisé v6.0.0):
 1. DuckDuckGo API Instant (rapide, stable)
 2. Météo wttr.in (si détection météo)
 3. Wikipedia API (fallback)
@@ -623,13 +644,19 @@ utils/intelligent_calculator.py:
 ```
 User Input
     ↓
-Intent Detection (LinguisticPatterns)
-    ├─ greeting? → greeting_response()
-    ├─ code_generation? → code_generator.generate()
-    ├─ document_analysis? → pdf/docx_processor.process()
-    ├─ internet_search? → internet_search_engine.search()
-    ├─ faq_match? → ml_faq_model.predict()
-    └─ general? → custom_ai_model.respond()
+Ollama Check (LocalLLM.is_ollama_available)
+    ├─ Ollama disponible?
+    │   ├─ OUI → Génération via Ollama (llama3.1:8b)
+    │   │        → Réponse naturelle de qualité LLM
+    │   └─ NON → Fallback CustomAIModel
+    │            ↓
+    │        Intent Detection (LinguisticPatterns)
+    │            ├─ greeting? → greeting_response()
+    │            ├─ code_generation? → code_generator.generate()
+    │            ├─ document_analysis? → pdf/docx_processor.process()
+    │            ├─ internet_search? → internet_search_engine.search()
+    │            ├─ faq_match? → ml_faq_model.predict()
+    │            └─ general? → custom_ai_model.respond()
     ↓
 Response Generation + Confidence Scoring
     ↓
@@ -782,7 +809,7 @@ data/
 └── logs/                   # Logs application
 
 memory/
-├── vector_store/           # Mémoire vectorielle v5.7.0
+├── vector_store/           # Mémoire vectorielle v6.0.0
 │   ├── chroma_db/         # ChromaDB persistant (ignoré Git)
 │   │   ├── chroma.sqlite3 # Metadata
 │   │   └── *.parquet      # Vecteurs
@@ -949,8 +976,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 5.7.0
+**Version**: 6.0.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)
-**Nouveautés v5.7.0**: Mémoire vectorielle ML + Météo temps réel

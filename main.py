@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 My Personal AI - IA Locale Complète
 Point d'entrée principal de l'application

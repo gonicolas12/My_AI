@@ -17,7 +17,7 @@ from models.custom_ai_model import CustomAIModel
 from models.internet_search import InternetSearchEngine
 from models.ml_faq_model import MLFAQModel
 from models.smart_web_searcher import search_smart_code
-from models.web_code_searcher import multi_source_searcher
+from models.smart_code_searcher import multi_source_searcher
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor

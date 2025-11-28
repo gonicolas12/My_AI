@@ -1,5 +1,93 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🦙 Version 6.0.0 - Intégration Ollama & LLM Local (28 Novembre 2025)
+
+### 🚀 Nouveautés Principales
+
+#### 🦙 Intégration Ollama - LLM 100% Local
+- **Support complet d'Ollama** : Exécution de modèles LLM directement sur votre machine
+- **Architecture hybride intelligente** :
+  - Si Ollama est disponible → Réponses générées par le LLM (llama3.1:8b)
+  - Si Ollama est absent → Fallback automatique sur CustomAIModel (patterns)
+- **Détection automatique** : Vérification au démarrage de la disponibilité d'Ollama
+- **Modèle personnalisable** : Configuration via `Modelfile` à la racine du projet
+- **100% confidentiel** : Aucune donnée n'est envoyée sur internet
+
+#### 🔧 Nouveau Module LocalLLM
+- **Fichier** : `models/local_llm.py`
+- **Fonctionnalités** :
+  - Connexion au serveur Ollama (`http://localhost:11434`)
+  - Vérification de disponibilité du serveur
+  - Détection des modèles installés (my_ai → llama3 fallback)
+  - Génération de réponses via l'API Ollama
+  - Injection de system prompt personnalisé
+  - Gestion des timeouts et erreurs
+
+#### 📄 Configuration Modelfile
+```dockerfile
+FROM llama3.1:8b
+PARAMETER temperature 0.7
+PARAMETER num_ctx 8192
+
+SYSTEM """
+Tu es My_AI, un assistant IA personnel expert et bienveillant.
+Réponds toujours en français par défaut.
+"""
+```
+
+### 🎯 Modes de Fonctionnement
+
+| Mode | Condition | Qualité Réponses |
+|------|-----------|------------------|
+| **Ollama** | Ollama installé et lancé | LLM complet, conversations naturelles |
+| **Fallback** | Ollama non disponible | Patterns, règles, FAQ |
+
+### 📊 Modèles Recommandés par RAM
+
+| RAM | Modèle | num_ctx | Performance |
+|-----|--------|---------|-------------|
+| 8 GB | `llama3.2` (3B) | 4096 | Rapide |
+| 16 GB | `llama3.1:8b` | 8192 | Équilibré ✅ |
+| 32 GB | `llama3.1:70b` | 16384 | Maximum |
+
+### 🛠️ Installation Ollama
+
+```bash
+# 1. Télécharger depuis https://ollama.com/download
+# 2. Installer le modèle
+ollama pull llama3.1:8b
+
+# 3. Créer modèle personnalisé
+.\create_custom_model.bat
+```
+
+### 📝 Messages au Démarrage
+
+**Avec Ollama :**
+```
+✅ [LocalLLM] Ollama détecté et actif sur http://localhost:11434 (Modèle: my_ai)
+```
+
+**Sans Ollama :**
+```
+⚠️ [LocalLLM] Ollama non détecté. Le mode génératif avancé sera désactivé.
+```
+
+### 🔐 Sécurité & Confidentialité
+- **100% local** : Tout reste sur votre machine
+- **Aucune API cloud** : Pas de dépendance à OpenAI, Anthropic, etc.
+- **Fonctionne hors-ligne** : Une fois Ollama et le modèle téléchargés
+- **Données privées** : Vos conversations ne quittent jamais votre PC
+
+### 📚 Documentation Mise à Jour
+- **README.md** : Section Ollama ajoutée
+- **ARCHITECTURE.md** : Flux avec Ollama en priorité
+- **INSTALLATION.md** : Guide installation Ollama
+- **OPTIMIZATION.md** : Configuration modèles par RAM
+- **USAGE.md** : Modes de fonctionnement expliqués
+
+---
+
 # 🌤️ Version 5.7.0 - Météo Temps Réel & Mémoire Vectorielle (19 Novembre 2025)
 
 ### 🚀 Nouveautés Principales

@@ -18,7 +18,7 @@ if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
 try:
-    from models.million_token_context_manager import MillionTokenContextManager
+    from memory.vector_memory import VectorMemory as MillionTokenContextManager
 except ImportError:
     # Fallback si le gestionnaire n'est pas encore créé
     MillionTokenContextManager = None

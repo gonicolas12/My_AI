@@ -9,12 +9,20 @@ Ce test utilise votre CustomAIModel réel et vérifie vraiment :
 - Performance en conditions réelles
 """
 
+import os
 import json
 import sys
 import time
 import re
+import gc
 from datetime import datetime
 from pathlib import Path
+
+# =========================================================================== #
+# OPTIMISATION DÉMARRAGE : Imports de modules standards d'abord               #
+# Le mode offline HuggingFace est géré automatiquement dans core.shared       #
+# avec téléchargement automatique au premier lancement si nécessaire          #
+# =========================================================================== #
 
 import tiktoken
 
@@ -54,7 +62,7 @@ class RealAI1MTest:
             # Fallback vers cl100k_base si gpt-4 n'est pas disponible
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
-        print("🎯 TEST RÉEL 1M TOKENS INITIALISÉ")
+        print("\n🎯 TEST RÉEL 1M TOKENS INITIALISÉ")
         print("=" * 50)
 
     def count_real_tokens(self, text: str) -> int:
@@ -1610,7 +1618,7 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
     def run_full_test(self) -> dict:
         """Test complet de la capacité 1M tokens"""
         print("🎯 DÉMARRAGE DU TEST RÉEL 1M TOKENS")
-        print("=" * 60)
+        print("=" * 50)
 
         if not REAL_AI_AVAILABLE:
             print("❌ Système IA non disponible")
@@ -1619,8 +1627,8 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
         start_time = time.time()
 
         try:
-            # 1. Initialiser l'IA réelle
-            print("\n🔧 INITIALISATION DE L'IA RÉELLE")
+            # 1. Initialiser My_AI
+            print("\n🔧 INITIALISATION DE MY_AI\n")
             conversation_memory = ConversationMemory()
             ai_model = CustomAIModel(conversation_memory=conversation_memory)
             print("✅ CustomAIModel initialisé")
@@ -1649,13 +1657,15 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
                 if current_tokens + word_tokens > chunk_size:
                     chunk_text = " ".join(current_chunk)
                     content_chunks.append(chunk_text)
+                    chunk_name = f"test_chunk_{len(content_chunks)}"
                     # Ajouter le chunk à la mémoire de l'IA
+                    # CORRIGÉ: store_document_content(filename, content) - pas l'inverse!
                     ai_model.conversation_memory.store_document_content(
-                        chunk_text, f"test_chunk_{len(content_chunks)}"
+                        chunk_name, chunk_text
                     )
                     # IMPORTANT: Ajouter aussi au context_manager pour la recherche
                     ai_model.context_manager.add_document(
-                        chunk_text, f"test_chunk_{len(content_chunks)}"
+                        chunk_text, chunk_name
                     )
                     current_chunk = [word]
                     current_tokens = word_tokens
@@ -1667,12 +1677,14 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
             if current_chunk:
                 chunk_text = " ".join(current_chunk)
                 content_chunks.append(chunk_text)
+                chunk_name = f"test_chunk_{len(content_chunks)}"
+                # CORRIGÉ: store_document_content(filename, content) - pas l'inverse!
                 ai_model.conversation_memory.store_document_content(
-                    chunk_text, f"test_chunk_{len(content_chunks)}"
+                    chunk_name, chunk_text
                 )
                 # IMPORTANT: Ajouter aussi au context_manager pour la recherche
                 ai_model.context_manager.add_document(
-                    chunk_text, f"test_chunk_{len(content_chunks)}"
+                    chunk_text, chunk_name
                 )
 
             print(f"✅ {len(content_chunks)} chunks injectés dans l'IA")
@@ -1786,7 +1798,18 @@ def main():
     else:
         print("\n❌ Erreur durant le test")
 
-    return results
+    # 🧹 NETTOYAGE DES RESSOURCES pour éviter le blocage à la fin
+    print("\n🧹 Nettoyage des ressources...")
+    try:
+        gc.collect()
+    except Exception as e:
+        print(f"⚠️ Erreur nettoyage: {e}")
+
+    print("✅ Test terminé proprement")
+
+    # Forcer la sortie BRUTALE du programme (kill tous les threads)
+    # sys.exit(0) ne suffit pas car ChromaDB garde des threads en arrière-plan
+    os._exit(0)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v5.7.0
+# 📖 Guide d'Installation - My Personal AI v6.0.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v5.7.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v6.0.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -21,6 +21,7 @@ My Personal AI v5.7.0 est une **IA 100% locale** avec un système de contexte de
 - 2 GB d'espace disque
 - Processeur multi-core (pour opérations parallèles)
 - GPU (optionnel, pour accélération PyTorch)
+- **Ollama** (optionnel mais recommandé pour des réponses de qualité LLM)
 
 ### 2. Installation Complète
 
@@ -44,7 +45,40 @@ pip install -r requirements.txt
 python -c "import customtkinter; print('Installation réussie!')"
 ```
 
-### 3. Lancement Rapide
+### 3. Installation Ollama (Optionnel mais Recommandé)
+
+Ollama permet d'avoir des réponses générées par un vrai LLM local (llama3.1:8b).
+
+**Étape 1 : Installer Ollama**
+```bash
+# Télécharger depuis https://ollama.com/download
+# Installer selon votre OS (Windows, macOS, Linux)
+```
+
+**Étape 2 : Télécharger un modèle**
+```bash
+# Modèle recommandé pour 16 GB RAM
+ollama pull llama3.1:8b
+
+# OU modèle plus léger pour 8 GB RAM
+ollama pull llama3.2
+```
+
+**Étape 3 : Créer le modèle personnalisé**
+```bash
+# Dans le répertoire My_AI
+.\create_custom_model.bat
+```
+
+**Vérifier l'installation :**
+```bash
+ollama list  # Voir les modèles installés
+ollama run llama3.1:8b "Bonjour"  # Tester
+```
+
+> **Note:** Si Ollama n'est pas installé, l'IA utilisera automatiquement le mode fallback (CustomAIModel avec patterns).
+
+### 4. Lancement Rapide
 
 ```bash
 # Lancement GUI (recommandé)
@@ -157,7 +191,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "5.7.0"
+  version: "6.0.0"
   max_tokens: 4096          # Max tokens standard
   ultra_max_tokens: 1048576 # Max tokens ultra mode (1M)
   temperature: 0.7
@@ -214,6 +248,32 @@ OUTPUT_DIR=./data/outputs
 ```
 
 **Note:** Le token GitHub est optionnel. Il améliore les capacités de recherche de code mais n'est pas requis pour le fonctionnement de base.
+
+### Configuration Ollama (Modelfile)
+
+Le fichier `Modelfile` à la racine du projet configure le modèle personnalisé :
+
+```dockerfile
+# Modelfile pour My_AI
+FROM llama3.1:8b
+
+# Paramètres
+PARAMETER temperature 0.7
+PARAMETER num_ctx 8192    # Fenêtre de contexte
+
+# System prompt personnalisé
+SYSTEM """
+Tu es My_AI, un assistant IA personnel expert et bienveillant.
+Réponds toujours en français par défaut.
+"""
+```
+
+**Paramètres `num_ctx` recommandés selon RAM :**
+| RAM | num_ctx | Usage |
+|-----|---------|-------|
+| 8 GB | 4096 | Conversations courtes |
+| 16 GB | 8192 | Conversations moyennes |
+| 32 GB | 16384 | Gros documents |
 
 ## 🚀 Options de Lancement
 
@@ -528,7 +588,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v5.7.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v6.0.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -685,4 +745,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 5.7.0 | Architecture: 100% locale | Capacité: 1M tokens*
+*Version: 6.0.0 | Architecture: 100% locale | Capacité: 1M tokens*

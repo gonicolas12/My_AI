@@ -16,8 +16,8 @@ from urllib.parse import quote, urljoin
 import aiohttp
 import yaml
 from bs4 import BeautifulSoup
-from sentence_transformers import SentenceTransformer
 
+from core.shared import get_shared_embedding_model
 from models.real_web_code_generator import RealWebCodeGenerator
 
 
@@ -57,10 +57,8 @@ class AdvancedCodeGenerator:
         self.github_searcher = GitHubCodeSearcher()
         self.fallback_templates = self._load_fallback_templates()
         self.intent_patterns = self._load_intent_patterns()
-        try:
-            self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-        except Exception:
-            self.embedding_model = None
+        # Modèle d'embeddings partagé (déjà chargé au démarrage dans core.shared)
+        self.embedding_model = get_shared_embedding_model()
         # Import et initialisation du générateur web
         try:
             self.web_generator = RealWebCodeGenerator()

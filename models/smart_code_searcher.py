@@ -15,10 +15,10 @@ from urllib.parse import quote, urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import util
 
 # Import depuis le module partagé pour éviter imports circulaires
-from core.shared import CodeSnippet, PRIORITY_CODE_SITES, DEFAULT_TIMEOUT, DEFAULT_MAX_RESULTS, DEFAULT_USER_AGENT
+from core.shared import CodeSnippet, PRIORITY_CODE_SITES, DEFAULT_TIMEOUT, DEFAULT_MAX_RESULTS, DEFAULT_USER_AGENT, get_shared_embedding_model
 
 
 class SmartCodeSearcher:
@@ -35,16 +35,9 @@ class SmartCodeSearcher:
         self.timeout = DEFAULT_TIMEOUT
         self.max_results = DEFAULT_MAX_RESULTS
 
-        # Modèle d'embeddings pour analyse sémantique
-        try:
-            print("📦 Chargement du modèle d'embeddings...")
-            self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-            self.embeddings_enabled = True
-            print("✅ Modèle d'embeddings chargé")
-        except Exception as e:
-            print(f"⚠️ Embeddings désactivés: {e}")
-            self.embedding_model = None
-            self.embeddings_enabled = False
+        # Modèle d'embeddings partagé (déjà chargé au démarrage dans core.shared)
+        self.embedding_model = get_shared_embedding_model()
+        self.embeddings_enabled = self.embedding_model is not None
 
         # Cache intelligent
         self.cache_file = Path(__file__).parent.parent / "context_storage" / "code_cache.json"
@@ -115,6 +108,22 @@ class SmartCodeSearcher:
         self._save_to_cache(query, language, ranked_snippets[:5])
 
         return ranked_snippets
+
+    async def search_all_sources(self, query: str, language: str = "python", max_results: int = 6) -> List[CodeSnippet]:
+        """
+        Méthode de compatibilité avec l'ancienne interface MultiSourceCodeSearcher.
+        Alias pour search_code avec limitation des résultats.
+        
+        Args:
+            query: La demande utilisateur
+            language: Langage de programmation
+            max_results: Nombre maximum de résultats
+            
+        Returns:
+            Liste de snippets de code
+        """
+        results = await self.search_code(query, language)
+        return results[:max_results]
 
     def _optimize_search_query(self, query: str, language: str) -> str:
         """
@@ -620,6 +629,11 @@ class SmartCodeSearcher:
 
 # Instance globale
 smart_code_searcher = SmartCodeSearcher()
+
+
+# === ALIAS DE COMPATIBILITÉ (remplace web_code_searcher) ===
+# Cette instance peut être utilisée à la place de multi_source_searcher
+multi_source_searcher = smart_code_searcher
 
 
 # Fonction principale pour utilisation simple

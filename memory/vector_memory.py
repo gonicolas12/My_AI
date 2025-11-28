@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import re
 
+# Note: Le mode offline HuggingFace est géré intelligemment dans core.shared
+# Il télécharge automatiquement le modèle au premier lancement si nécessaire
+
 try:
     import chromadb
 
@@ -19,14 +22,15 @@ except ImportError:
     print("⚠️ ChromaDB non disponible. Installez: pip install chromadb")
 
 try:
-    from sentence_transformers import SentenceTransformer
+    from core.shared import get_shared_embedding_model, is_embeddings_available
 
-    EMBEDDINGS_AVAILABLE = True
+    EMBEDDINGS_AVAILABLE = is_embeddings_available()
 except ImportError:
     EMBEDDINGS_AVAILABLE = False
     print(
         "⚠️ Sentence-transformers non disponible. Installez: pip install sentence-transformers"
     )
+    get_shared_embedding_model = lambda: None
 
 try:
     from transformers import AutoTokenizer
@@ -105,17 +109,8 @@ class VectorMemory:
         else:
             self.tokenizer = None
 
-        # Modèle d'embeddings
-        if EMBEDDINGS_AVAILABLE:
-            try:
-                print(f"📦 Chargement modèle d'embeddings: {embedding_model}")
-                self.embedding_model = SentenceTransformer(embedding_model)
-                print("✅ Modèle d'embeddings chargé")
-            except Exception as e:
-                print(f"⚠️ Erreur chargement embeddings: {e}")
-                self.embedding_model = None
-        else:
-            self.embedding_model = None
+        # Modèle d'embeddings partagé (déjà chargé au démarrage dans core.shared)
+        self.embedding_model = get_shared_embedding_model()
 
         # Base vectorielle ChromaDB
         if CHROMADB_AVAILABLE:
@@ -536,6 +531,38 @@ class VectorMemory:
         }
 
         print("🧹 Mémoire vidée")
+
+    def cleanup(self):
+        """
+        Nettoie proprement les ressources (ChromaDB, threads, etc.)
+        Doit être appelé avant de terminer le programme pour éviter le blocage
+        """
+        try:
+            print("🧹 Nettoyage des ressources VectorMemory...")
+
+            # Fermer ChromaDB proprement
+            if self.chroma_client:
+                try:
+                    # ChromaDB PersistentClient n'a pas de méthode close() explicite
+                    # mais on peut forcer la libération des ressources
+                    self.chroma_client = None
+                    self.document_collection = None
+                    self.conversation_collection = None
+                except Exception as e:
+                    print(f"⚠️ Erreur fermeture ChromaDB: {e}")
+
+            # Libérer le modèle d'embeddings
+            if self.embedding_model:
+                self.embedding_model = None
+
+            # Libérer le tokenizer
+            if self.tokenizer:
+                self.tokenizer = None
+
+            print("✅ Ressources VectorMemory libérées")
+
+        except Exception as e:
+            print(f"⚠️ Erreur cleanup VectorMemory: {e}")
 
 
 if __name__ == "__main__":

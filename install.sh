@@ -31,9 +31,9 @@ print_warning() {
 # Bannière
 echo -e "${BLUE}"
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║                 🤖 MY PERSONAL AI - INSTALLATION 🤖          ║"
+echo "║                 🤖 MY PERSONAL AI - INSTALLATION 🤖         ║"
 echo "║                                                              ║"
-echo "║                 Script d'installation automatique           ║"
+echo "║                 Script d'installation automatique            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 

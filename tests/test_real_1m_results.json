@@ -1,5 +1,5 @@
 {
-  "test_date": "2025-11-04T10:03:13.021594",
+  "test_date": "2025-11-27T13:23:19.200652",
   "test_type": "REAL AI 1M TOKENS TEST",
   "system_used": "CustomAIModel (Production)",
   "total_tokens_processed": 1035090,
@@ -11,40 +11,42 @@
       {
         "question": "Quel est l'objectif de performance pour le temps de réponse du système ?",
         "section": "Documentation Technique",
-        "response": "⚡ **Performance système**: s\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 1) ---\n! Pour une app web moderne, voici ma recommandation basée sur les tendances 2025 : **🎯 Stack recommandée** : **Fronte...",
-        "full_response": "⚡ **Performance système**: s\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 1) ---\n! Pour une app web moderne, voici ma recommandation basée sur les tendances 2025 : **🎯 Stack recommandée** : **Frontend** : - **React 18** + TypeScript : Composants réactifs type-safe - **Next.js 14** : Framework full-stack avec App Router - **Tailwind CSS** : Styling utilitaire rapide - **Zustand** : Gestion d'état simple **Backend** : - **Node.js** + **Express** ou...",
+        "response": "L'objectif de performance pour le temps de réponse est **< 3 secondes**.",
+        "full_response": "L'objectif de performance pour le temps de réponse est **< 3 secondes**.",
         "keywords_expected": [
           "3 secondes",
           "3000ms",
           "performance"
         ],
         "keywords_found": [
+          "3 secondes",
           "performance"
         ],
         "correct": true,
-        "response_time": 0.19452929496765137
+        "response_time": 0.8874325752258301
       },
       {
         "question": "Quel algorithme est utilisé dans l'exemple de tri fusion ?",
         "section": "Code Examples",
-        "response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurit...",
-        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n• **Sécurité** : --- test_chunk_1 (chunk 7) --- contexte de test\n• **Technique** : # section 43 - systèmes distribués ## section 43 - systèmes distribués cette section explore système\n• **Synthèse** : ### formation stellaire processus de naissance et évolution des\n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
+        "response": "L'algorithme utilisé dans l'exemple est le **tri fusion (merge sort)**.",
+        "full_response": "L'algorithme utilisé dans l'exemple est le **tri fusion (merge sort)**.",
         "keywords_expected": [
           "merge sort",
           "tri fusion",
           "insertion sort"
         ],
         "keywords_found": [
+          "merge sort",
           "tri fusion"
         ],
         "correct": true,
-        "response_time": 0.05484414100646973
+        "response_time": 0.6665687561035156
       },
       {
         "question": "Quelle est la version du système selon la configuration JSON ?",
         "section": "Structured Data",
-        "response": "📊 **Version trouvée**: 5.0.0\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTA...",
-        "full_response": "📊 **Version trouvée**: 5.0.0\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 0) ---\n================================================================================# Documentation Technique # DOCUMENTATION TECHNIQUE SYSTÈME IA ## Architecture Globale Le système My Personal AI implémente une architecture modulaire avancée permettant: - Traitement de co...",
+        "response": "La version du système est **5.0.0**.",
+        "full_response": "La version du système est **5.0.0**.",
         "keywords_expected": [
           "5.0.0",
           "version"
@@ -54,29 +56,31 @@
           "version"
         ],
         "correct": true,
-        "response_time": 0.04224419593811035
+        "response_time": 0.6770243644714355
       },
       {
         "question": "Quel langage est recommandé pour débuter en IA selon la conversation ?",
         "section": "Conversations",
-        "response": "💻 **Langage recommandé**: Python\n\n📄 **Source** (ULTRA):\n93 resource_usage: memory_mb: 1850 cpu_percent: 45 disk_io_mb: 125 network_kb: 890 ``` ## Base de Connaissances ```csv topic,category,content,im...",
-        "full_response": "💻 **Langage recommandé**: Python\n\n📄 **Source** (ULTRA):\n93 resource_usage: memory_mb: 1850 cpu_percent: 45 disk_io_mb: 125 network_kb: 890 ``` ## Base de Connaissances ```csv topic,category,content,importance,last_updated \"intelligence_artificielle\",\"tech\",\"L'IA est une technologie permettant aux machines de simuler l'intelligence humaine\",5,\"2025-09-05\" \"machine_learning\",\"tech\",\"Le ML est une méthode d'IA où les systèmes apprennent automatiquement à ...",
+        "response": "**Python** est recommandé pour débuter en IA, avec les bibliothèques scikit-learn, pandas, numpy.",
+        "full_response": "**Python** est recommandé pour débuter en IA, avec les bibliothèques scikit-learn, pandas, numpy.",
         "keywords_expected": [
           "Python",
           "scikit-learn",
           "pandas"
         ],
         "keywords_found": [
-          "Python"
+          "Python",
+          "scikit-learn",
+          "pandas"
         ],
         "correct": true,
-        "response_time": 0.051450490951538086
+        "response_time": 0.6214654445648193
       },
       {
         "question": "Qui a proposé le Test de Turing et en quelle année ?",
         "section": "Educational Content",
-        "response": "🧠 **Test de Turing**: Proposé par Alan Turing en 1950\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 1) ---\n! Pour une app web moderne, voici ma recommandation basée sur les tendances 2025 : **🎯 Stack...",
-        "full_response": "🧠 **Test de Turing**: Proposé par Alan Turing en 1950\n\n📄 **Source** (ULTRA):\n--- test_chunk_1 (Chunk 1) ---\n! Pour une app web moderne, voici ma recommandation basée sur les tendances 2025 : **🎯 Stack recommandée** : **Frontend** : - **React 18** + TypeScript : Composants réactifs type-safe - **Next.js 14** : Framework full-stack avec App Router - **Tailwind CSS** : Styling utilitaire rapide - **Zustand** : Gestion d'état simple **Backend** : - **Node.js** + **Express** ou...",
+        "response": "**Alan Turing** a proposé le Test de Turing en **1950**.",
+        "full_response": "**Alan Turing** a proposé le Test de Turing en **1950**.",
         "keywords_expected": [
           "Alan Turing",
           "1950"
@@ -86,13 +90,13 @@
           "1950"
         ],
         "correct": true,
-        "response_time": 0.0377659797668457
+        "response_time": 0.5184769630432129
       },
       {
         "question": "Combien de tokens peut traiter le système selon la configuration ?",
         "section": "Multiple Sections",
-        "response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurit...",
-        "full_response": "**SYNTHÈSE EXÉCUTIVE : DOCUMENT**\n\n**Aperçu général**\n\nLe présent document ultra constitue un rapport d'analyse présentant des données et des conclusions. Les thématiques centrales portent sur sécurité, technique.\n\n**Points essentiels**\n\n• **Sécurité** : --- test_chunk_1 (chunk 4) --- étoiles: - effondrement gravitationnel des nuages moléculaires - fusi\n• **Technique** : # section 84 - astrophysique et cosmologie ## section 84 - astrophysique et cosmologie cette section\n• **Synthèse** : ### technologies blockchain les blockchains révolutionnent les transactions numériques: - consensus \n\n**Recommandations**\n\nCette synthèse met en évidence la valeur informative du document. Avec ses 6161 mots, il offre une couverture exhaustive du sujet. Il est recommandé de consulter ce document pour obtenir une compréhension approfondie des enjeux liés à sécurité.\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*",
+        "response": "Le système peut traiter **1000000 tokens**.",
+        "full_response": "Le système peut traiter **1000000 tokens**.",
         "keywords_expected": [
           "1000000",
           "1M",
@@ -104,21 +108,21 @@
           "million"
         ],
         "correct": true,
-        "response_time": 0.047254323959350586
+        "response_time": 0.6535727977752686
       }
     ],
     "response_times": [
-      0.19452929496765137,
-      0.05484414100646973,
-      0.04224419593811035,
-      0.051450490951538086,
-      0.0377659797668457,
-      0.047254323959350586
+      0.8874325752258301,
+      0.6665687561035156,
+      0.6770243644714355,
+      0.6214654445648193,
+      0.5184769630432129,
+      0.6535727977752686
     ],
     "comprehension_score": 100.0,
-    "avg_response_time": 0.07134807109832764,
-    "avg_query_time": 0.05723985036214193,
-    "total_test_time": 38.71277117729187
+    "avg_response_time": 0.6707568168640137,
+    "avg_query_time": 0.4744906425476074,
+    "total_test_time": 231.14976143836975
   },
   "test_status": "VALIDÉ",
   "validation_criteria": {
