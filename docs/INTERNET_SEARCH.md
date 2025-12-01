@@ -2,7 +2,7 @@
 
 ## 📋 Vue d'ensemble
 
-La version 5.7.0 apporte des améliorations majeures : **recherche internet optimisée** et **météo en temps réel**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, détecte automatiquement les questions météo et fournit des données actualisées pour 40+ villes françaises.
+La version 5.7.0 apporte des améliorations majeures : **recherche internet optimisée** et **météo en temps réel**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, détecte automatiquement les questions météo et fournit des données actualisées pour **toutes les villes du monde** grâce à wttr.in.
 
 ## 🚀 Fonctionnalités
 
@@ -18,7 +18,7 @@ La version 5.7.0 apporte des améliorations majeures : **recherche internet opti
 ### 🌤️ Météo Temps Réel (v5.7.0)
 - **Service wttr.in gratuit** : Aucune clé API requise
 - **Détection automatique** : Reconnaît les questions météo naturellement
-- **40+ villes françaises** : Paris, Lyon, Marseille, Toulouse, Nice, etc.
+- **Toutes les villes du monde** : Paris, Tokyo, New York, Londres, Sydney, São Paulo, etc.
 - **Données complètes** :
   - Conditions météorologiques actuelles
   - Température et ressenti
@@ -192,7 +192,7 @@ FRENCH_CITIES = [
 - **Pages analysées** : 3-5 sources
 - **Taille des résumés** : 200-800 mots
 - **Taux de succès** : >98% avec API Instant (amélioration +3%)
-- **Villes météo supportées** : 40+ villes françaises
+- **Villes météo supportées** : Toutes les villes du monde (via wttr.in)
 
 ### Optimisations v5.7.0
 - **Ordre moteurs optimisé** : API Instant prioritaire (évite timeouts)

@@ -193,18 +193,27 @@ class EnhancedInternetSearchEngine:
         city = self._extract_city_from_query(query)
 
         if not city:
-            return """🌤️ **Recherche météo**
+            return """🌤️ **Recherche météo mondiale**
 
 ❌ Je n'ai pas pu identifier la ville dans votre question.
 
 💡 **Exemples de questions valides :**
-   - "Quelle est la météo à Toulouse ?"
-   - "Quel temps fait-il à Paris aujourd'hui ?"
-   - "Température à Lyon ?"
+   - "Quelle est la météo à Tokyo ?"
+   - "Quel temps fait-il à New York aujourd'hui ?"
+   - "Température à Londres ?"
+   - "Météo São Paulo"
+   - "Weather in Sydney ?"
+
+🌍 **Villes supportées :** Toutes les villes du monde !
+   - Europe : Paris, Londres, Berlin, Madrid, Rome...
+   - Amérique : New York, Los Angeles, Toronto, São Paulo...
+   - Asie : Tokyo, Pékin, Bangkok, Mumbai, Séoul...
+   - Océanie : Sydney, Melbourne, Auckland...
+   - Afrique : Le Caire, Casablanca, Johannesburg...
 
 🌐 **Sites météo recommandés :**
-   - [Météo-France](https://meteofrance.com/) - Service officiel français
-   - [wttr.in](https://wttr.in/) - Météo en ligne de commande"""
+   - [wttr.in](https://wttr.in/) - Météo mondiale gratuite
+   - [Météo-France](https://meteofrance.com/) - Service officiel français"""
 
         # Obtenir la météo via wttr.in
         try:
@@ -220,10 +229,12 @@ class EnhancedInternetSearchEngine:
 💡 **Solutions alternatives :**
 
 1. **Consultez directement :**
-   - 🌐 [Météo {city.title()} sur Météo-France](https://meteofrance.com/previsions-meteo-france/{city.lower()})
    - 🌐 [Météo {city.title()} sur wttr.in](https://wttr.in/{city})
+   - 🌐 [Weather.com](https://weather.com/)
 
-2. **Réessayez dans quelques instants** (problème de connexion temporaire)"""
+2. **Vérifiez l'orthographe** de la ville (en anglais si possible)
+
+3. **Réessayez dans quelques instants** (problème de connexion temporaire)"""
 
     def _get_wttr_weather(self, city: str) -> str:
         """
@@ -322,75 +333,81 @@ class EnhancedInternetSearchEngine:
             raise Exception(f"Erreur inattendue: {str(e)}") from e
 
     def _extract_city_from_query(self, query: str) -> Optional[str]:
-        """Extrait le nom de ville d'une requête météo"""
-        # Liste de villes françaises courantes
-        cities = [
-            "paris",
-            "marseille",
-            "lyon",
-            "toulouse",
-            "nice",
-            "nantes",
-            "strasbourg",
-            "montpellier",
-            "bordeaux",
-            "lille",
-            "rennes",
-            "reims",
-            "toulon",
-            "grenoble",
-            "dijon",
-            "angers",
-            "nîmes",
-            "saint-étienne",
-            "clermont-ferrand",
-            "le havre",
-            "brest",
-            "limoges",
-            "tours",
-            "amiens",
-            "perpignan",
-            "metz",
-            "besançon",
-            "orléans",
-            "rouen",
-            "caen",
-            "nancy",
-            "argenteuil",
-            "montreuil",
-        ]
-
+        """
+        Extrait le nom de ville d'une requête météo.
+        Supporte les villes du monde entier grâce à wttr.in.
+        """
         query_lower = query.lower()
 
-        # Chercher une ville dans la requête
-        for city in cities:
-            if city in query_lower:
-                return city
+        # Mots à exclure (mots communs qui ne sont pas des villes)
+        stop_words = {
+            "le", "la", "les", "un", "une", "des", "cette", "ce", "cet",
+            "météo", "meteo", "weather", "température", "temperature", "temps",
+            "pluie", "soleil", "neige", "vent", "climat", "chaud", "froid",
+            "degrés", "celsius", "forecast", "prévisions", "previsions",
+            "quel", "quelle", "quels", "quelles", "comment", "est", "fait",
+            "aujourd'hui", "demain", "semaine", "maintenant", "actuelle",
+            "il", "elle", "on", "nous", "vous", "ils", "elles",
+            "dans", "sur", "pour", "avec", "sans", "chez",
+        }
 
-        # Pattern: "à VILLE" ou "de VILLE"
+        # Prépositions à supprimer du début du nom de ville
+        prepositions_to_remove = {
+            "au", "aux", "en", "à", "a", "de", "du", "des", "le", "la", "les", "l"
+        }
+
+        # Pattern pour extraire les noms de villes avec prépositions
+        # Supporte les villes multi-mots comme "New York", "Los Angeles", "São Paulo"
         patterns = [
-            r"\bà\s+([a-zàâäéèêëïîôùûü\-]+)",
-            r"\bde\s+([a-zàâäéèêëïîôùûü\-]+)",
-            r"\bpour\s+([a-zàâäéèêëïîôùûü\-]+)",
-            r"\bsur\s+([a-zàâäéèêëïîôùûü\-]+)",
+            # "au Népal", "aux États-Unis", "en France"
+            r"\b(?:au|aux|en)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)(?:\s*\?|$|\s+(?:aujourd|demain|cette|il|fait|quel))",
+            # "à Paris", "à New York", "à São Paulo"
+            r"\bà\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)(?:\s*\?|$|\s+(?:aujourd|demain|cette|il|fait|quel))",
+            # "de Paris", "de Tokyo"
+            r"\bde\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)(?:\s*\?|$|\s+(?:aujourd|demain|cette|il|fait|quel))",
+            # "pour Paris", "pour Londres"
+            r"\bpour\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)(?:\s*\?|$|\s+(?:aujourd|demain|cette|il|fait|quel))",
+            # "sur Paris"
+            r"\bsur\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)(?:\s*\?|$|\s+(?:aujourd|demain|cette|il|fait|quel))",
+            # "météo Tokyo", "weather London", "météo au Japon"
+            r"(?:météo|meteo|weather)\s+(?:au|aux|en|à|du|de la|de)?\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)(?:\s*\?|$)",
+            # "Tokyo météo", "Paris weather"
+            r"([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)\s+(?:météo|meteo|weather)(?:\s*\?|$)",
+            # Pattern simple pour villes en fin de phrase: "... à Tokyo?", "... au Japon?"
+            r"\b(?:à|au|aux|en)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\-\s']+?)\s*\?",
         ]
 
+        def clean_city_name(city: str) -> str:
+            """Nettoie le nom de la ville en supprimant les prépositions au début"""
+            city = city.strip()
+            # Supprimer les prépositions au début
+            words = city.split()
+            while words and words[0].lower() in prepositions_to_remove:
+                words.pop(0)
+            return " ".join(words).strip()
+
         for pattern in patterns:
-            match = re.search(pattern, query_lower)
+            match = re.search(pattern, query, re.IGNORECASE)
             if match:
-                potential_city = match.group(1)
+                potential_city = match.group(1).strip()
+                # Nettoyer les espaces en trop
+                potential_city = " ".join(potential_city.split())
+                # Nettoyer les prépositions au début
+                potential_city = clean_city_name(potential_city)
                 # Vérifier que ce n'est pas un mot commun
-                if potential_city not in [
-                    "le",
-                    "la",
-                    "les",
-                    "un",
-                    "une",
-                    "des",
-                    "cette",
-                    "ce",
-                ]:
+                if potential_city and potential_city.lower() not in stop_words and len(potential_city) >= 2:
+                    print(f"🌍 Ville détectée: {potential_city}")
                     return potential_city
+
+        # Dernière tentative: chercher un mot capitalisé qui pourrait être une ville
+        # Pattern pour les noms propres (commence par majuscule)
+        capital_pattern = r"\b([A-Z][a-zÀ-ÿ]+(?:\s+[A-Z][a-zÀ-ÿ]+)*)\b"
+        matches = re.findall(capital_pattern, query)
+        for potential_city in matches:
+            cleaned_city = clean_city_name(potential_city)
+            if cleaned_city and cleaned_city.lower() not in stop_words and len(cleaned_city) >= 2:
+                print(f"🌍 Ville détectée (nom propre): {cleaned_city}")
+                return cleaned_city
 
         return None
 

@@ -7,7 +7,7 @@ My Personal AI v6.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : GPT-2 tokenizer (99% précision vs 70% approximation)
 - **Recherche Sémantique** : Sentence-transformers (384 dimensions, similarité cosinus)
-- **Météo Temps Réel** : Service wttr.in intégré (gratuit, 40+ villes françaises)
+- **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
 - **Reconnaissance d'intentions avancée** : Analyse linguistique multi-niveaux
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
@@ -118,7 +118,7 @@ My Personal AI v6.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │ • DuckDuckGo API Instant│ • Code search                              │
 │ • Météo temps réel      │ • GitHub integration                       │
 │   (wttr.in gratuit)     │ • Real-time patterns                       │
-│ • 40+ villes françaises │                                            │
+│ • Toutes villes mondiales│                                            │
 │ • Multi-thread (8)      │                                            │
 │ • Pattern extraction:   │                                            │
 │   - Facts (taille,      │                                            │
@@ -408,7 +408,7 @@ EnhancedInternetSearchEngine (v6.0.0):
 ├─ Météo temps réel intégrée:
 │   ├─ Service wttr.in (gratuit, sans API)
 │   ├─ Détection automatique requêtes météo
-│   ├─ 40+ villes françaises reconnues
+│   ├─ Toutes les villes du monde reconnues
 │   ├─ Données: conditions, température, humidité, vent
 │   ├─ Prévisions 3 jours
 │   └─ Fallback Météo-France si indisponible
