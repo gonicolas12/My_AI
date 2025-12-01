@@ -291,10 +291,10 @@ class CustomAIModel(BaseAI):
             is_internet_search = any(kw in user_lower for kw in internet_keywords)
 
             # 3️⃣ CALCUL - Utiliser intelligent_calculator
+            # Les calculs sont toujours prioritaires, même avec des documents en mémoire
             is_calculation = (
                 CALCULATOR_AVAILABLE
                 and intelligent_calculator.is_calculation_request(user_input)
-                and not self._has_documents_in_memory()  # Éviter conflits avec questions sur docs
             )
 
             # 4️⃣ FAQ/ML - Vérifier si une réponse FAQ existe
@@ -375,17 +375,22 @@ class CustomAIModel(BaseAI):
                 # Ici on ajoute uniquement le contexte documentaire si nécessaire
                 system_prompt = None  # Utiliser le system prompt du Modelfile par défaut
 
-                # Injection du contexte documentaire si disponible
-                if self._has_documents_in_memory():
-                    doc_content = self.conversation_memory.get_document_content()
-                    if doc_content:
-                        # Limiter la taille du contexte pour éviter les timeouts
-                        doc_summary = (
-                            doc_content[:4000]
-                            if len(doc_content) > 4000
-                            else doc_content
-                        )
-                        system_prompt = f"CONTEXTE DOCUMENTAIRE:\n{doc_summary}\n\nUtilise ce contexte si pertinent pour répondre."
+                # Injection du contexte documentaire SEULEMENT si la question concerne les documents
+                # Ne pas injecter pour les calculs, salutations, questions générales, etc.
+                if self._has_documents_in_memory() and not self._is_general_question(user_input):
+                    if self._is_document_question(user_input):
+                        doc_content = self.conversation_memory.get_document_content()
+                        if doc_content:
+                            # Limiter la taille du contexte pour éviter les timeouts
+                            doc_summary = (
+                                doc_content[:4000]
+                                if len(doc_content) > 4000
+                                else doc_content
+                            )
+                            system_prompt = f"CONTEXTE DOCUMENTAIRE:\n{doc_summary}\n\nUtilise ce contexte si pertinent pour répondre."
+                            print("📄 [OLLAMA] Contexte documentaire injecté")
+                    else:
+                        print("💬 [OLLAMA] Question générale - pas de contexte documentaire injecté")
 
                 # Injection du contexte RAG externe si fourni
                 if context and isinstance(context, dict):
@@ -4228,6 +4233,107 @@ Que voulez-vous apprendre exactement ?"""
         if self.conversation_memory.get_document_content():
             if any(keyword in user_lower for keyword in document_keywords):
                 return True
+
+        return False
+
+    def _is_general_question(self, user_input: str) -> bool:
+        """
+        Détermine si une question est une question générale qui ne nécessite pas
+        le contexte documentaire (calculs, salutations, questions d'identité, etc.)
+        
+        Returns:
+            True si la question est générale et ne doit pas utiliser le contexte documentaire
+        """
+        user_lower = user_input.lower().strip()
+        
+        # 1. Calculs mathématiques (contient des opérateurs et des chiffres)
+        import re
+        # Patterns pour les calculs: "5+3", "100/5", "45*8", "10-2", "calcule 5+3", etc.
+        calc_patterns = [
+            r'^\d+\s*[\+\-\*\/\^]\s*\d+',  # "5+3", "100 / 5"
+            r'^[\(\)0-9\+\-\*\/\^\.\s]+$',  # Expression purement mathématique
+            r'^calcul[e]?\s+',  # "calcule 5+3"
+            r'^combien\s+(fait|font)\s+\d+',  # "combien fait 5+3"
+            r'^\d+[\+\-\*\/]\d+\s*[=\?]?$',  # "5+3=?" ou "5+3?"
+        ]
+        for pattern in calc_patterns:
+            if re.search(pattern, user_lower):
+                print(f"🔢 [GENERAL] Question de calcul détectée: '{user_input}'")
+                return True
+        
+        # 2. Salutations et questions sur l'état
+        greeting_keywords = [
+            "bonjour", "salut", "hello", "hi", "hey", "coucou",
+            "bonsoir", "bonne nuit", "good morning", "good evening",
+            "ça va", "sa va", "ca va", "comment vas tu", "comment ça va",
+            "comment vas-tu", "comment allez vous", "comment allez-vous",
+            "tu vas bien", "vous allez bien", "quoi de neuf",
+            "tu fais quoi", "what's up", "how are you",
+        ]
+        if any(kw in user_lower for kw in greeting_keywords):
+            print(f"👋 [GENERAL] Salutation détectée: '{user_input}'")
+            return True
+        
+        # 3. Questions d'identité sur l'IA
+        identity_keywords = [
+            "qui es-tu", "qui es tu", "qui êtes vous", "qui êtes-vous",
+            "comment tu t'appelles", "comment t'appelles tu", "ton nom",
+            "tu es qui", "tu es quoi", "c'est quoi ton nom",
+            "présente toi", "presente toi", "présente-toi",
+            "tu t'appelles comment", "quel est ton nom",
+            "qui t'as créé", "qui t'a créé", "qui t'as codé", "qui t'a codé",
+            "ton créateur", "qui t'a fait", "qui t'as fait",
+        ]
+        if any(kw in user_lower for kw in identity_keywords):
+            print(f"🤖 [GENERAL] Question d'identité détectée: '{user_input}'")
+            return True
+        
+        # 4. Questions sur les capacités de l'IA
+        capability_keywords = [
+            "que peux tu", "que peux-tu", "tu peux faire quoi",
+            "que sais tu", "que sais-tu", "tu sais faire quoi",
+            "tes capacités", "tes fonctionnalités", "tes compétences",
+            "qu'est-ce que tu peux", "qu'est ce que tu peux",
+            "aide moi", "aide-moi", "help",
+        ]
+        if any(kw in user_lower for kw in capability_keywords):
+            print(f"💡 [GENERAL] Question de capacité détectée: '{user_input}'")
+            return True
+        
+        # 5. Remerciements et politesses
+        politeness_keywords = [
+            "merci", "thanks", "thank you", "merci beaucoup",
+            "au revoir", "bye", "à bientôt", "a bientot",
+            "s'il te plaît", "s'il vous plaît", "please",
+            "d'accord", "ok", "okay", "bien reçu", "compris",
+        ]
+        if user_lower in politeness_keywords or any(user_lower == kw for kw in politeness_keywords):
+            print(f"🙏 [GENERAL] Politesse détectée: '{user_input}'")
+            return True
+
+        # 6. Questions générales de connaissance (sans référence aux documents)
+        # Si la question ne contient aucune référence aux documents/fichiers/PDF/code
+        doc_ref_keywords = [
+            "document", "pdf", "fichier", "file", "docx", "doc",
+            "code", "script", "programme", "résume", "resume", "résumé",
+            "analyse", "explique le", "que dit", "que contient",
+            "dans le", "du fichier", "ce fichier", "le fichier",
+        ]
+        has_doc_reference = any(kw in user_lower for kw in doc_ref_keywords)
+
+        # Si pas de référence aux documents et question courte, probablement générale
+        if not has_doc_reference and len(user_input.split()) <= 10:
+            # Vérifier si c'est une question de connaissance générale simple
+            general_patterns = [
+                r"^quelle?\s+(heure|date|jour|temps)",  # "quelle heure", "quel jour"
+                r"^(qui|que|quoi|où|quand|comment|pourquoi)\s+(est|sont|était|étaient)",
+                r"^c'est quoi\s+",  # "c'est quoi X"
+                r"^qu'est[- ]ce que\s+",  # "qu'est-ce que"
+            ]
+            for pattern in general_patterns:
+                if re.search(pattern, user_lower):
+                    print(f"❓ [GENERAL] Question générale détectée: '{user_input}'")
+                    return True
 
         return False
 

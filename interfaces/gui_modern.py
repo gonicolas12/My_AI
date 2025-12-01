@@ -9117,7 +9117,7 @@ class ModernAIGUI:
     # ...existing code...
 
     def clear_chat(self):
-        """Efface la conversation"""
+        """Efface la conversation ET les documents en mémoire pour repartir de zéro"""
         try:
             # Vider l'historique
             self.conversation_history.clear()
@@ -9126,9 +9126,58 @@ class ModernAIGUI:
             for widget in self.chat_frame.winfo_children():
                 widget.destroy()
 
-            # Effacer la mémoire de l'IA
+            # Effacer la mémoire de l'IA (conversation)
             if hasattr(self.ai_engine, "clear_conversation"):
                 self.ai_engine.clear_conversation()
+
+            # Effacer les documents du CustomAI
+            if hasattr(self, "custom_ai") and self.custom_ai:
+                # Effacer la mémoire de conversation (inclut les documents)
+                if hasattr(self.custom_ai, "conversation_memory"):
+                    self.custom_ai.conversation_memory.clear()
+                    print("🗑️ Mémoire de conversation CustomAI effacée")
+
+                # Effacer les documents du système Ultra si activé
+                if hasattr(self.custom_ai, "ultra_mode") and self.custom_ai.ultra_mode:
+                    if hasattr(self.custom_ai, "documents_storage"):
+                        self.custom_ai.documents_storage.clear()
+                        print("🗑️ Documents Ultra effacés")
+                    if hasattr(self.custom_ai, "context_manager") and self.custom_ai.context_manager:
+                        # Réinitialiser le gestionnaire de contexte
+                        if hasattr(self.custom_ai.context_manager, "clear_context"):
+                            self.custom_ai.context_manager.clear_context()
+                        elif hasattr(self.custom_ai.context_manager, "clear"):
+                            self.custom_ai.context_manager.clear()
+                        elif hasattr(self.custom_ai.context_manager, "documents"):
+                            self.custom_ai.context_manager.documents.clear()
+                        print("🗑️ Context Manager Ultra effacé")
+                    # Réinitialiser les statistiques de contexte
+                    if hasattr(self.custom_ai, "context_stats"):
+                        self.custom_ai.context_stats = {
+                            "documents_processed": 0,
+                            "total_tokens": 0,
+                            "chunks_created": 0,
+                        }
+
+                # Réinitialiser session_context
+                if hasattr(self.custom_ai, "session_context"):
+                    self.custom_ai.session_context = {
+                        "documents_processed": [],
+                        "code_files_processed": [],
+                        "last_document_type": None,
+                        "current_document": None,
+                    }
+                    print("🗑️ Session context effacé")
+
+                # Effacer le VectorMemory si disponible
+                if hasattr(self.custom_ai, "vector_memory") and self.custom_ai.vector_memory:
+                    if hasattr(self.custom_ai.vector_memory, "clear_all"):
+                        self.custom_ai.vector_memory.clear_all()
+                        print("🗑️ VectorMemory effacé")
+
+            # Mettre à jour le compteur de tokens dans l'interface
+            if hasattr(self, "update_context_stats"):
+                self.update_context_stats()
 
             # Message de confirmation
             self.show_welcome_message()
@@ -9136,7 +9185,8 @@ class ModernAIGUI:
             # RETOURNER EN HAUT de la page après clear
             self.scroll_to_top()
 
-            self.logger.info("Conversation effacée")
+            self.logger.info("Conversation et documents effacés")
+            print("✅ Clear complet: conversation + documents + mémoire")
 
         except Exception as e:
             self.logger.error("Erreur lors de l'effacement: %s", e)
