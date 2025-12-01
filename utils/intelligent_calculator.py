@@ -189,6 +189,9 @@ class IntelligentCalculator:
         """Normalise l'expression en remplaçant les mots français par des symboles"""
         expr = expression.lower()
 
+        # Convertir les virgules françaises en points décimaux
+        expr = re.sub(r'(\d),(\d)', r'\1.\2', expr)
+
         # Remplacer les nombres en français
         for french, number in self.french_numbers.items():
             expr = re.sub(r"\b" + re.escape(french) + r"\b", number, expr)
