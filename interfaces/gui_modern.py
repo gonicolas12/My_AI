@@ -4163,40 +4163,6 @@ class ModernAIGUI:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
-            # Détecter les titres qui n'ont plus de # (après le premier formatage)
-            lines = text_widget.get("1.0", "end-1c").split("\n")
-
-            for i, line in enumerate(lines):
-                # Debug de toutes les lignes qui pourraient être des titres
-                if line.strip() and (
-                    line.strip().startswith("1.")
-                    or line.strip().startswith("2.")
-                    or line.strip().startswith("3.")
-                    or line.strip().startswith("4.")
-                    or line.strip().startswith("5.")
-                ):
-
-                    line_start = f"{i+1}.0"
-                    line_end = f"{i+1}.end"
-                    line_content = text_widget.get(line_start, line_end)
-
-                    # Vérifier si ce n'est pas déjà formaté avec un tag de titre
-                    existing_tags = text_widget.tag_names(line_start)
-                    _has_title_tag = any(
-                        tag.startswith("title_") for tag in existing_tags
-                    )
-
-                    # Re-formater même si il y a déjà un tag, pour s'assurer que TOUTE la ligne est formatée
-                    if line_content.strip():
-                        # D'abord enlever tous les tags de titre existants
-                        for tag in ["title_1", "title_2", "title_3"]:
-                            text_widget.tag_remove(tag, line_start, line_end)
-
-                        # Puis appliquer le formatage sur TOUTE la ligne
-                        text_widget.tag_add("title_2", line_start, line_end)
-                    else:
-                        pass
-
             # === FORMATAGE DOCSTRINGS '''docstring''' ===
             start_pos = "1.0"
             while True:
