@@ -693,11 +693,103 @@ class ModernAIGUI:
         text_widget.tag_configure(
             "code_block",
             font=("Consolas", 11),
-            background="#1e1e1e",
             foreground="#d4d4d4",
         )
 
-        print("✅ Tags de coloration Python configurés pour l'animation")
+        # === JAVASCRIPT - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "js_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "js_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "js_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "js_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "js_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "js_variable", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "js_operator", foreground="#d4d4d4", font=("Consolas", 11)
+        )
+
+        # === CSS - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "css_selector", foreground="#d7ba7d", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "css_property", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "css_value", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "css_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "css_unit", foreground="#b5cea8", font=("Consolas", 11)
+        )
+
+        # === HTML - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "html_tag", foreground="#569cd6", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "html_attribute", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "html_value", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "html_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+
+        # === BASH - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "bash_command", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "bash_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "bash_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "bash_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "bash_variable", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+
+        # === SQL - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "sql_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "sql_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "sql_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "sql_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "sql_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+
+        # Tag caché pour les marqueurs ```
+        text_widget.tag_configure(
+            "hidden", elide=True, font=("Consolas", 1)
+        )
+
+        print("✅ Tags de coloration Python/JS/CSS/HTML/Bash/SQL configurés pour l'animation")
 
     def setup_modern_gui(self):
         """Configure l'interface principale style Claude"""
@@ -2189,6 +2281,15 @@ class ModernAIGUI:
         # Pré-analyser les blocs de code pour la coloration en temps réel
         self._code_blocks_map = self._preanalyze_code_blocks(processed_text)
 
+        # Debug: afficher quelques positions du map
+        if self._code_blocks_map:
+            sample_keys = list(self._code_blocks_map.keys())[:10]
+            print(f"[DEBUG] start_typing: _code_blocks_map contient {len(self._code_blocks_map)} entrées")
+            print(f"[DEBUG] Exemples: {[(k, self._code_blocks_map[k]) for k in sample_keys]}")
+        else:
+            print(f"[DEBUG] start_typing: _code_blocks_map est VIDE - pas de blocs de code détectés")
+            print(f"[DEBUG] Texte reçu (premiers 500 chars): {processed_text[:500]}")
+
         # Variables pour l'animation CARACTÈRE PAR CARACTÈRE
         self.typing_index = 0
         self.typing_text = processed_text  # Utiliser le texte pré-traité
@@ -2259,52 +2360,72 @@ class ModernAIGUI:
         # Pattern pour détecter les blocs de code avec langage
         code_block_pattern = r"```(\w+)?\n?(.*?)```"
 
-        for match in re.finditer(code_block_pattern, text, re.DOTALL):
+        matches_found = list(re.finditer(code_block_pattern, text, re.DOTALL))
+        print(f"[DEBUG] _preanalyze_code_blocks: {len(matches_found)} blocs de code trouvés dans le texte")
+
+        for match in matches_found:
             language = (match.group(1) or "text").lower()
             code_content = match.group(2).strip() if match.group(2) else ""
 
+            print(f"[DEBUG] Bloc de code détecté: langage='{language}', longueur={len(code_content)}, position={match.start()}-{match.end()}")
+
             if not code_content:
+                print(f"[DEBUG] Bloc ignoré car contenu vide")
                 continue
 
-            print(
-                f"[DEBUG] Bloc trouvé: {language}, position {match.start()}-{match.end()}"
-            )
-
-            # Marquer la zone des backticks d'ouverture comme "hidden"
+            # Marquer la zone des backticks d'ouverture + newline comme "hidden"
             opening_start = match.start()
-            opening_end = match.start() + len(f"```{match.group(1) or ''}")
-            for pos in range(opening_start, opening_end + 1):
+            # Calculer la fin de l'ouverture (```language\n)
+            opening_text = f"```{match.group(1) or ''}"
+            opening_end = match.start() + len(opening_text)
+
+            # Chercher le \n après ```language
+            newline_pos = text.find("\n", opening_end)
+            if newline_pos != -1 and newline_pos < match.end() - 3:
+                # Inclure le \n dans le hidden
+                opening_end = newline_pos + 1
+
+            # Marquer tout de opening_start à opening_end comme hidden
+            for pos in range(opening_start, opening_end):
                 if pos < len(text):
                     code_blocks_map[pos] = (language, "code_block_marker")
 
-            # Analyser le contenu du code selon le langage
-            code_start = match.start() + len(f"```{match.group(1) or ''}")
-            # Chercher le \n après ```language
-            newline_pos = text.find("\n", code_start)
-            if newline_pos != -1:
-                code_start = newline_pos + 1
-            else:
-                code_start += 1  # Pas de \n trouvé, continuer quand même
+            # Le code commence après le \n
+            code_start = opening_end
+
+            # Calculer la vraie position de fin du code (avant le ``` de fermeture)
+            code_end = match.end() - 3
+
+            # Chercher le \n avant les ``` de fermeture pour le masquer aussi
+            if code_end > 0 and text[code_end - 1] == '\n':
+                code_end -= 1
+
+            # Obtenir le vrai contenu du code SANS strip pour garder les positions correctes
+            raw_code_content = text[code_start:code_end]
+
+            # Masquer le \n avant les ``` de fermeture s'il existe
+            if code_end < match.end() - 3:
+                for pos in range(code_end, match.end() - 3):
+                    code_blocks_map[pos] = (language, "code_block_marker")
 
             if language == "python":
-                self._analyze_python_tokens(code_content, code_start, code_blocks_map)
+                self._analyze_python_tokens(raw_code_content, code_start, code_blocks_map)
             elif language in ["javascript", "js"]:
                 self._analyze_javascript_tokens(
-                    code_content, code_start, code_blocks_map
+                    raw_code_content, code_start, code_blocks_map
                 )
             elif language == "css":
-                self._analyze_css_tokens(code_content, code_start, code_blocks_map)
+                self._analyze_css_tokens(raw_code_content, code_start, code_blocks_map)
             elif language in ["html", "xml"]:
-                self._analyze_html_tokens(code_content, code_start, code_blocks_map)
+                self._analyze_html_tokens(raw_code_content, code_start, code_blocks_map)
             elif language in ["bash", "shell", "sh"]:
-                self._analyze_bash_tokens(code_content, code_start, code_blocks_map)
+                self._analyze_bash_tokens(raw_code_content, code_start, code_blocks_map)
             elif language in ["sql", "mysql", "postgresql", "sqlite"]:
-                self._analyze_sql_tokens(code_content, code_start, code_blocks_map)
+                self._analyze_sql_tokens(raw_code_content, code_start, code_blocks_map)
             else:
                 # Code générique
-                for i in range(len(code_content)):
+                for i in range(len(raw_code_content)):
                     pos = code_start + i
-                    # Pas besoin de vérifier self.typing_text ici car on travaille sur le texte passé en paramètre
                     code_blocks_map[pos] = (language, "code_block")
 
             # Marquer la zone des backticks de fermeture comme "hidden"
@@ -2313,6 +2434,7 @@ class ModernAIGUI:
                 if pos < len(text):
                     code_blocks_map[pos] = (language, "code_block_marker")
 
+        print(f"[DEBUG] _preanalyze_code_blocks: {len(code_blocks_map)} positions mappées au total")
         return code_blocks_map
 
     def _preanalyze_markdown_tables(self, text):
@@ -2387,27 +2509,89 @@ class ModernAIGUI:
         return tables
 
     def _analyze_python_tokens(self, code, start_offset, code_map):
-        """Analyse les tokens Python pour la coloration en temps réel"""
+        """Analyse les tokens Python pour la coloration en temps réel avec couleurs VS Code"""
         try:
             lexer = PythonLexer()
             current_pos = start_offset
+            tokens_added = 0
 
             for token_type, value in lex(code, lexer):
-                for i in range(len(value)):
-                    # Utiliser la longueur totale du texte passé en paramètre
-                    pos = current_pos + i
-                    if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                        tag = str(token_type)
-                        code_map[pos] = ("python", tag)
-                current_pos += len(value)
+                # Convertir le type de token Pygments en tag configuré
+                tag = self._pygments_token_to_tag(token_type)
 
-        except ImportError:
+                for i in range(len(value)):
+                    pos = current_pos + i
+                    code_map[pos] = ("python", tag)
+                    tokens_added += 1
+                current_pos += len(value)
+            
+            print(f"[DEBUG] _analyze_python_tokens: {tokens_added} tokens ajoutés (offset {start_offset})")
+
+        except Exception as e:
+            print(f"[DEBUG] Erreur Pygments: {e}, utilisation du fallback")
             # Fallback sans Pygments
             self._analyze_python_simple(code, start_offset, code_map)
+
+    def _pygments_token_to_tag(self, token_type):
+        """Convertit un token Pygments en tag tkinter configuré avec couleurs VS Code"""
+        token_str = str(token_type)
+
+        # Mapping des tokens Pygments vers les tags configurés
+        # Keywords (bleu #569cd6)
+        if "Keyword" in token_str:
+            return "Token.Keyword"
+
+        # Strings (orange-brun #ce9178)
+        if "String" in token_str or "Literal.String" in token_str:
+            return "Token.Literal.String"
+
+        # Comments (vert #6a9955)
+        if "Comment" in token_str:
+            return "Token.Comment.Single"
+
+        # Numbers (vert clair #b5cea8)
+        if "Number" in token_str or "Literal.Number" in token_str:
+            return "Token.Literal.Number"
+
+        # Functions (jaune #dcdcaa)
+        if "Name.Function" in token_str:
+            return "Token.Name.Function"
+
+        # Classes (cyan #4ec9b0)
+        if "Name.Class" in token_str:
+            return "Token.Name.Class"
+
+        # Builtins (jaune #dcdcaa)
+        if "Name.Builtin" in token_str:
+            return "Token.Name.Builtin"
+
+        # Decorators (jaune #dcdcaa)
+        if "Name.Decorator" in token_str or "Decorator" in token_str:
+            return "Token.Name.Function"
+
+        # Operators (blanc #d4d4d4)
+        if "Operator" in token_str:
+            return "Token.Operator"
+
+        # Punctuation (blanc #d4d4d4)
+        if "Punctuation" in token_str:
+            return "Token.Punctuation"
+
+        # Variables/Names (bleu clair #9cdcfe)
+        if "Name" in token_str:
+            return "Token.Name"
+
+        # Text/Whitespace - utiliser le style code_block par défaut
+        if "Text" in token_str or "Whitespace" in token_str:
+            return "code_block"
+
+        # Par défaut, utiliser code_block
+        return "code_block"
 
     def _analyze_python_simple(self, code, start_offset, code_map):
         """Analyse Python simple sans Pygments"""
         keywords = set(keyword.kwlist)
+        tokens_added = 0
 
         # Pattern pour identifier différents éléments
         token_pattern = r'''
@@ -2444,10 +2628,12 @@ class ModernAIGUI:
 
                 for i in range(len(value)):
                     pos = match_start + i
-                    if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                        code_map[pos] = ("python", tag)
+                    code_map[pos] = ("python", tag)
+                    tokens_added += 1
 
             current_pos += len(line) + 1  # +1 pour le \n
+
+        print(f"[DEBUG] _analyze_python_simple: {tokens_added} tokens ajoutés")
 
     def _analyze_javascript_tokens(self, code, start_offset, code_map):
         """Analyse les tokens JavaScript pour la coloration en temps réel"""
@@ -2528,42 +2714,179 @@ class ModernAIGUI:
 
                 for i in range(len(value)):
                     pos = match_start + i
-                    if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                        code_map[pos] = ("javascript", tag)
+                    code_map[pos] = ("javascript", tag)
 
             current_pos += len(line) + 1
 
     def _analyze_css_tokens(self, code, start_offset, code_map):
         """Analyse les tokens CSS pour la coloration en temps réel"""
-        # Implémentation simplifiée pour CSS
-        for i in enumerate(code):
-            pos = start_offset + i
-            if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                code_map[pos] = ("css", "css_selector")  # Tag générique pour l'instant
+        # Pattern pour CSS
+        token_pattern = r"""
+            (/\*.*?\*/)|                          # Commentaires
+            (#[a-fA-F0-9]{3,8}\b)|                # Couleurs hex
+            (\d+\.?\d*(px|em|rem|%|vh|vw|pt)?)|   # Nombres avec unités
+            ([a-zA-Z-]+)\s*:|                     # Propriétés CSS
+            ([\.\#]?[a-zA-Z_-][\w-]*)|            # Sélecteurs/valeurs
+            ([{}:;,])                              # Ponctuation
+        """
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line, re.VERBOSE):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "css_comment"
+                elif match.group(2):  # Couleur hex
+                    tag = "css_value"
+                elif match.group(3):  # Nombre
+                    tag = "css_unit"
+                elif match.group(4):  # Propriété
+                    tag = "css_property"
+                elif match.group(5):  # Sélecteur
+                    tag = "css_selector"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("css", tag)
+
+            current_pos += len(line) + 1
 
     def _analyze_html_tokens(self, code, start_offset, code_map):
         """Analyse les tokens HTML pour la coloration en temps réel"""
-        # Implémentation simplifiée pour HTML
-        for i in enumerate(code):
-            pos = start_offset + i
-            if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                code_map[pos] = ("html", "html_tag")  # Tag générique pour l'instant
+        # Pattern pour HTML
+        token_pattern = r"""
+            (<!--.*?-->)|                         # Commentaires
+            (</?[a-zA-Z][a-zA-Z0-9]*)|            # Tags
+            ([a-zA-Z-]+)=|                        # Attributs
+            ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*') # Valeurs
+        """
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "html_comment"
+                elif match.group(2):  # Tag
+                    tag = "html_tag"
+                elif match.group(3):  # Attribut
+                    tag = "html_attribute"
+                elif match.group(4):  # Valeur
+                    tag = "html_value"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("html", tag)
+
+            current_pos += len(line) + 1
 
     def _analyze_bash_tokens(self, code, start_offset, code_map):
         """Analyse les tokens Bash pour la coloration en temps réel"""
-        # Implémentation simplifiée pour Bash
-        for i in enumerate(code):
-            pos = start_offset + i
-            if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                code_map[pos] = ("bash", "bash_command")  # Tag générique pour l'instant
+        bash_keywords = {"if", "then", "else", "elif", "fi", "for", "while", "do", "done",
+                        "case", "esac", "function", "return", "exit", "export", "local",
+                        "in", "until", "select", "break", "continue"}
+        bash_commands = {"echo", "cd", "ls", "cat", "grep", "sed", "awk", "find", "chmod",
+                        "chown", "mkdir", "rm", "cp", "mv", "touch", "pwd", "source", "sudo",
+                        "apt", "pip", "npm", "git", "docker", "python", "node"}
+
+        token_pattern = r"""
+            (#.*$)|                               # Commentaires
+            ("(?:[^"\\]|\\.)*"|'[^']*')|          # Chaînes
+            (\$\{?[a-zA-Z_]\w*\}?)|               # Variables
+            (\b[a-zA-Z_]\w*\b)|                   # Mots
+            ([|&;<>])                              # Opérateurs
+        """
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line, re.VERBOSE):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "bash_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "bash_string"
+                elif match.group(3):  # Variable
+                    tag = "bash_variable"
+                elif match.group(4):  # Mot
+                    if value in bash_keywords:
+                        tag = "bash_keyword"
+                    elif value in bash_commands:
+                        tag = "bash_command"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("bash", tag)
+
+            current_pos += len(line) + 1
 
     def _analyze_sql_tokens(self, code, start_offset, code_map):
         """Analyse les tokens SQL pour la coloration en temps réel"""
-        # Implémentation simplifiée pour SQL
-        for i in enumerate(code):
-            pos = start_offset + i
-            if hasattr(self, "typing_text") and pos < len(self.typing_text):
-                code_map[pos] = ("sql", "sql_keyword")  # Tag générique pour l'instant
+        sql_keywords = {"SELECT", "FROM", "WHERE", "AND", "OR", "NOT", "IN", "LIKE",
+                       "ORDER", "BY", "GROUP", "HAVING", "JOIN", "LEFT", "RIGHT", "INNER",
+                       "OUTER", "ON", "AS", "INSERT", "INTO", "VALUES", "UPDATE", "SET",
+                       "DELETE", "CREATE", "TABLE", "DROP", "ALTER", "INDEX", "VIEW",
+                       "DISTINCT", "LIMIT", "OFFSET", "UNION", "ALL", "NULL", "IS",
+                       "ASC", "DESC", "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "CONSTRAINT"}
+        sql_functions = {"COUNT", "SUM", "AVG", "MIN", "MAX", "CONCAT", "SUBSTRING",
+                        "UPPER", "LOWER", "TRIM", "COALESCE", "IFNULL", "CAST", "CONVERT"}
+
+        token_pattern = r"""
+            (--.*$|/\*.*?\*/)|                    # Commentaires
+            ('(?:[^'\\]|\\.)*')|                  # Chaînes
+            (\b\d+\.?\d*\b)|                      # Nombres
+            (\b[a-zA-Z_]\w*\b)                    # Mots
+        """
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line, re.VERBOSE | re.IGNORECASE):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "sql_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "sql_string"
+                elif match.group(3):  # Nombre
+                    tag = "sql_number"
+                elif match.group(4):  # Mot
+                    upper_val = value.upper()
+                    if upper_val in sql_keywords:
+                        tag = "sql_keyword"
+                    elif upper_val in sql_functions:
+                        tag = "sql_function"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("sql", tag)
+
+            current_pos += len(line) + 1
 
     def _split_text_for_progressive_formatting(self, text):
         """Divise le texte en segments plus larges pour une animation fluide"""
@@ -2628,15 +2951,10 @@ class ModernAIGUI:
                 else:
                     tag_to_use = token_type  # Utiliser le tag de coloration syntaxique
 
-                print(
-                    f"[DEBUG] Position {self.typing_index}: char='{char}' -> tag='{tag_to_use}' (langue={language})"
-                )
-
             # Insérer le caractère avec le bon tag
             self.typing_widget.insert("end", char, tag_to_use)
 
-            # Appliquer la coloration syntaxique en temps réel pour les blocs de code
-            self._apply_realtime_syntax_coloring(self.typing_widget, self.typing_index)
+            # La coloration est déjà appliquée via _code_blocks_map, pas besoin de _apply_realtime_syntax_coloring
 
             # Incrémenter l'index
             self.typing_index += 1
@@ -3549,6 +3867,31 @@ class ModernAIGUI:
         except Exception:
             return 1, 0
 
+    def _is_position_in_code_block(self, text_widget, position):
+        """Vérifie si une position est dans un bloc de code en regardant les tags appliqués"""
+        try:
+            tags = text_widget.tag_names(position)
+            # Liste des tags qui indiquent qu'on est dans un bloc de code
+            code_tags = {
+                "code_block", "code_block_marker", "hidden",
+                "Token.Keyword", "Token.Literal.String", "Token.Comment.Single",
+                "Token.Literal.Number", "Token.Name.Function", "Token.Name.Class",
+                "Token.Name.Builtin", "Token.Operator", "Token.Punctuation",
+                "Token.Name", "Token.Name.Variable", "Token.Name.Attribute",
+                "Token.Comment", "Token.Comment.Multiline", "Token.String",
+                "js_keyword", "js_string", "js_comment", "js_number", "js_variable",
+                "css_selector", "css_property", "css_value", "css_comment",
+                "html_tag", "html_attribute", "html_value", "html_comment",
+                "bash_keyword", "bash_command", "bash_string", "bash_comment", "bash_variable",
+                "sql_keyword", "sql_function", "sql_string", "sql_comment", "sql_number"
+            }
+            for tag in tags:
+                if tag in code_tags:
+                    return True
+            return False
+        except Exception:
+            return False
+
     def _apply_unified_progressive_formatting(self, text_widget):
         """MÉTHODE UNIFIÉE SIMPLIFIÉE : Formatage progressif sécurisé"""
         try:
@@ -3565,6 +3908,11 @@ class ModernAIGUI:
                 pos_start = text_widget.search("**", start_pos, "end")
                 if not pos_start:
                     break
+
+                # NOUVEAU: Vérifier si on est dans un bloc de code - si oui, ignorer
+                if self._is_position_in_code_block(text_widget, pos_start):
+                    start_pos = text_widget.index(f"{pos_start}+2c")
+                    continue
 
                 # Chercher le ** de fermeture
                 search_start = text_widget.index(f"{pos_start}+2c")
@@ -3651,6 +3999,11 @@ class ModernAIGUI:
                 if not pos_start:
                     break
 
+                # NOUVEAU: Vérifier si on est dans un bloc de code - si oui, ignorer
+                if self._is_position_in_code_block(text_widget, pos_start):
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+
                 # Obtenir la ligne complète pour analyser le pattern
                 line_start = text_widget.index(f"{pos_start} linestart")
                 line_end = text_widget.index(f"{pos_start} lineend")
@@ -3710,6 +4063,11 @@ class ModernAIGUI:
                 if not pos_start:
                     break
 
+                # Vérifier si on est dans un bloc de code - si oui, ignorer
+                if self._is_position_in_code_block(text_widget, pos_start):
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+
                 # Chercher le ` de fermeture
                 search_start = text_widget.index(f"{pos_start}+1c")
                 pos_end = text_widget.search("`", search_start, "end")
@@ -3746,6 +4104,8 @@ class ModernAIGUI:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
             # === FORMATAGE TITRES # ## ### ===
+            # Ne pas formater les # qui sont dans des blocs de code (commentaires Python)
+            # Ne formater que les lignes COMPLÈTES (qui ont un \n après ou sont à la fin)
             start_pos = "1.0"
             while True:
                 # Chercher le prochain # en début de ligne
@@ -3759,9 +4119,26 @@ class ModernAIGUI:
                     start_pos = text_widget.index(f"{pos_start}+1c")
                     continue
 
+                # VÉRIFICATION CRITIQUE: Si ce # a déjà un tag de code (commentaire), ne pas formater comme titre
+                if self._is_position_in_code_block(text_widget, pos_start):
+                    # C'est un commentaire Python, pas un titre Markdown
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+
                 # Obtenir la ligne complète
                 line_end = text_widget.index(f"{pos_start} lineend")
                 line_content = text_widget.get(pos_start, line_end)
+
+                # Vérifier si la ligne est COMPLÈTE (suivie d'un \n ou à la fin du texte complet)
+                # Pendant l'animation, on ne formate pas les lignes incomplètes
+                next_char_pos = text_widget.index(f"{line_end}+1c")
+                text_after_line = text_widget.get(line_end, next_char_pos)
+                is_line_complete = text_after_line == "\n" or next_char_pos == text_widget.index("end")
+
+                if not is_line_complete:
+                    # La ligne n'est pas encore complète, on attend
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
 
                 # Analyser la ligne pour détecter le niveau de titre
                 title_match = re.match(r"^(#{1,3})\s+(.+)$", line_content)
@@ -3786,7 +4163,6 @@ class ModernAIGUI:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
-            # === FORMATAGE FINAL TITRES SANS # (pour re-formatage complet) ===
             # Détecter les titres qui n'ont plus de # (après le premier formatage)
             lines = text_widget.get("1.0", "end-1c").split("\n")
 
@@ -3810,7 +4186,7 @@ class ModernAIGUI:
                         tag.startswith("title_") for tag in existing_tags
                     )
 
-                    # CORRECTION : Re-formater même si il y a déjà un tag, pour s'assurer que TOUTE la ligne est formatée
+                    # Re-formater même si il y a déjà un tag, pour s'assurer que TOUTE la ligne est formatée
                     if line_content.strip():
                         # D'abord enlever tous les tags de titre existants
                         for tag in ["title_1", "title_2", "title_3"]:
@@ -4415,7 +4791,7 @@ class ModernAIGUI:
             print(f"⚠️ Erreur ajustement dynamique: {e}")
 
     def finish_typing_animation_dynamic(self, interrupted=False):
-        """Version CORRIGÉE avec formatage unifié final et support des tableaux"""
+        """Version CORRIGÉE - Ne réapplique PAS la coloration syntaxique à la fin"""
         if hasattr(self, "typing_widget") and hasattr(self, "typing_text"):
 
             # Sauvegarder le texte original avant tout traitement
@@ -4429,19 +4805,17 @@ class ModernAIGUI:
                 # Formatage final même en cas d'interruption
                 self.typing_widget.configure(state="normal")
 
-                # NOUVEAU : Formater les tableaux Markdown EN PREMIER (reconstruit le widget)
+                # Formater les tableaux Markdown EN PREMIER (reconstruit le widget)
                 self._format_markdown_tables_in_widget(
                     self.typing_widget, original_text
                 )
 
                 self._apply_unified_progressive_formatting(self.typing_widget)
 
-                # NOUVEAU : Convertir les liens temporaires en liens clickables
+                # Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
 
-                # SOLUTION FINALE : Appliquer la coloration syntaxique directement
-                self._apply_final_syntax_highlighting(self.typing_widget)
-
+                # Appliquer un nettoyage final pour les formatages manqués
                 self.typing_widget.configure(state="disabled")
             else:
                 # Animation complète : formatage FINAL COMPLET
@@ -4460,12 +4834,10 @@ class ModernAIGUI:
 
                 self._apply_unified_progressive_formatting(self.typing_widget)
 
-                # NOUVEAU : Convertir les liens temporaires en liens clickables
+                # Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
 
-                # SOLUTION FINALE : Appliquer la coloration syntaxique directement
-                self._apply_final_syntax_highlighting(self.typing_widget)
-
+                # Appliquer un nettoyage final pour les formatages manqués
                 self.typing_widget.configure(state="disabled")
 
             # Ajustement final de la hauteur
@@ -7689,7 +8061,7 @@ class ModernAIGUI:
             foreground=self.colors["text_primary"],
         )
         text_widget.tag_configure(
-            "code", font=("Consolas", 11), foreground="#f8f8f2", background="#2b2b2b"
+            "code", font=("Consolas", 11), foreground="#f8f8f2"
         )
 
         # === TAGS DE TITRES ===
@@ -7720,6 +8092,17 @@ class ModernAIGUI:
             "docstring", font=("Consolas", 11, "italic"), foreground="#ff8c00"
         )
         text_widget.tag_configure("hidden", elide=True)  # Pour masquer les balises
+
+        # === TAG CODE_BLOCK (pour le code générique et whitespace) ===
+        text_widget.tag_configure(
+            "code_block",
+            font=("Consolas", 11),
+            foreground="#d4d4d4"
+        )
+        text_widget.tag_configure(
+            "code_block_marker",
+            elide=True  # Masquer les ```
+        )
 
         # === TAGS PYTHON (compatibilité) ===
         python_tags = {
@@ -7906,7 +8289,6 @@ class ModernAIGUI:
         text_widget.tag_configure(
             "code_block",
             font=("Consolas", 11),
-            background="#1e1e1e",
             foreground="#d4d4d4",
         )
 
