@@ -53,7 +53,7 @@ My Personal AI v6.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 ┌──────────────────────────────────────────────────────────────────────┐
 │                   GESTION DU CONTEXTE ET MÉMOIRE                     │
 ├─────────────────────────┬────────────────────────────────────────────┤
-│ VectorMemory (NEW v5.7) │ ConversationMemory                         │
+│ VectorMemory            │ ConversationMemory                         │
 │ • ChromaDB vectoriel    │ • Conversations persistantes               │
 │ • GPT-2 tokenizer réel  │ • Documents stockés                        │
 │ • Sentence-transformers │ • Préférences utilisateur                  │
@@ -118,7 +118,8 @@ My Personal AI v6.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │ • DuckDuckGo API Instant│ • Code search                              │
 │ • Météo temps réel      │ • GitHub integration                       │
 │   (wttr.in gratuit)     │ • Real-time patterns                       │
-│ • Toutes villes mondiales│                                            │
+│ • Toutes les villes     |                                            |
+|   du monde              │                                            │
 │ • Multi-thread (8)      │                                            │
 │ • Pattern extraction:   │                                            │
 │   - Facts (taille,      │                                            │

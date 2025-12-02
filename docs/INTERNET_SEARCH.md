@@ -102,7 +102,7 @@ class InternetSearchEngine:
         # 6. Formatage contextuel de la réponse
     
     def _handle_weather_query(self, query: str) -> str:
-        """Gère les requêtes météo (NEW v5.7.0)"""
+        """Gère les requêtes météo (v5.7.0)"""
         # 1. Extraction ville (40+ villes FR reconnues)
         # 2. Appel wttr.in API (format pipe-separated)
         # 3. Parsing conditions|temp|humidité|vent|précip|lune
