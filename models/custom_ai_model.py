@@ -245,6 +245,36 @@ class CustomAIModel(BaseAI):
         print("💾 Mémoire de conversation activée")
         print("🌐 Recherche internet disponible")
 
+    def _add_to_conversation_history(
+        self, 
+        user_message: str, 
+        ai_response: str, 
+        intent: str = "general",
+        confidence: float = 1.0,
+        context: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Ajoute une conversation à TOUS les systèmes de mémoire.
+        Synchronise ConversationMemory ET LocalLLM pour que Ollama ait le contexte complet.
+        
+        Args:
+            user_message: Le message de l'utilisateur
+            ai_response: La réponse de l'IA
+            intent: L'intention détectée (faq, calculation, joke, etc.)
+            confidence: Le niveau de confiance de la réponse
+            context: Contexte additionnel
+        """
+        # 1. Ajouter à ConversationMemory (pour la recherche contextuelle)
+        self.conversation_memory.add_conversation(
+            user_message, ai_response, intent, confidence, context
+        )
+        
+        # 2. Ajouter à l'historique LocalLLM (pour le contexte Ollama)
+        if self.local_llm and hasattr(self.local_llm, '_add_to_history'):
+            self.local_llm._add_to_history("user", user_message)
+            self.local_llm._add_to_history("assistant", ai_response)
+            print(f"🧠 [SYNC] Conversation ajoutée à l'historique Ollama ({intent})")
+
     def generate_response(
         self, user_input: str, context: Optional[Dict[str, Any]] = None
     ) -> str:
@@ -334,38 +364,41 @@ class CustomAIModel(BaseAI):
             if is_weather_request:
                 print(f"☀️ [MÉTÉO] Requête météo détectée: '{user_input}'")
                 # Déléguer à la recherche internet qui gère wttr.in
-                return self._handle_internet_search(user_input, context or {})
+                response = self._handle_internet_search(user_input, context or {})
+                # Synchroniser avec l'historique Ollama
+                self._add_to_conversation_history(user_input, response, "weather")
+                return response
 
             # 🌐 2. RECHERCHE INTERNET → moteur de recherche
             if is_internet_search:
                 print(f"🌐 [INTERNET] Recherche internet explicite: '{user_input}'")
-                return self._handle_internet_search(user_input, context or {})
+                response = self._handle_internet_search(user_input, context or {})
+                # Synchroniser avec l'historique Ollama
+                self._add_to_conversation_history(user_input, response, "internet_search")
+                return response
 
             # 🧮 3. CALCUL → intelligent_calculator
             if is_calculation:
                 print(f"🧮 [CALCUL] Calcul détecté: '{user_input}'")
                 calc_result = intelligent_calculator.calculate(user_input)
                 response = intelligent_calculator.format_response(calc_result)
-                self.conversation_memory.add_conversation(
-                    user_input, response, "calculation"
-                )
+                # Synchroniser avec l'historique Ollama
+                self._add_to_conversation_history(user_input, response, "calculation")
                 return response
 
             # 📚 4. FAQ/ML → Réponse enrichie du modèle FAQ
             if is_faq_match and faq_response:
                 print(f"📚 [FAQ] Réponse FAQ trouvée pour: '{user_input}'")
-                self.conversation_memory.add_conversation(
-                    user_input, faq_response, "faq"
-                )
+                # Synchroniser avec l'historique Ollama
+                self._add_to_conversation_history(user_input, faq_response, "faq")
                 return faq_response
 
             # 😂 5. BLAGUES → Liste self.jokes
             if is_joke_request:
                 print(f"😂 [BLAGUE] Demande de blague détectée: '{user_input}'")
                 joke_response = self._tell_joke()
-                self.conversation_memory.add_conversation(
-                    user_input, joke_response, "joke"
-                )
+                # Synchroniser avec l'historique Ollama
+                self._add_to_conversation_history(user_input, joke_response, "joke")
                 return joke_response
 
             # ============================================================
@@ -526,8 +559,8 @@ class CustomAIModel(BaseAI):
                 similar_question,
             )
 
-            # Enregistrement dans la mémoire
-            self.conversation_memory.add_conversation(
+            # Enregistrement dans la mémoire ET synchronisation avec LocalLLM
+            self._add_to_conversation_history(
                 user_input, response, primary_intent, confidence, conversation_context
             )
 
@@ -535,7 +568,7 @@ class CustomAIModel(BaseAI):
 
         except Exception as e:
             error_response = f"Désolé, j'ai rencontré un problème : {str(e)}"
-            self.conversation_memory.add_conversation(
+            self._add_to_conversation_history(
                 user_input, error_response, "error", 0.0, {"error": str(e)}
             )
             return error_response
@@ -2213,8 +2246,8 @@ Génère une réponse complète et bien structurée basée sur ces informations.
                                     f"• [{clean_url[:50]}...]({clean_url})\n"
                                 )
 
-                    # Sauvegarder dans l'historique de conversation
-                    self.conversation_memory.add_conversation(
+                    # Sauvegarder dans l'historique de conversation ET synchroniser avec LocalLLM
+                    self._add_to_conversation_history(
                         original_question,
                         final_response,
                         "internet_search_ollama",
@@ -10148,8 +10181,8 @@ D'après le document en mémoire:
 
 _(Source: {best_snippet.source_name})_"""
 
-                    # Enregistrer dans la mémoire
-                    self.conversation_memory.add_conversation(
+                    # Enregistrer dans la mémoire ET synchroniser avec LocalLLM
+                    self._add_to_conversation_history(
                         user_input,
                         response,
                         "code_generation",
@@ -10210,8 +10243,8 @@ _(Source: {best_snippet.source_name})_"""
                     f"📝 Code généré localement:\n```{language}\n{local_code}\n```\n"
                 )
 
-            # Enregistrer dans la mémoire
-            self.conversation_memory.add_conversation(
+            # Enregistrer dans la mémoire ET synchroniser avec LocalLLM
+            self._add_to_conversation_history(
                 user_input,
                 response,
                 "code_generation",

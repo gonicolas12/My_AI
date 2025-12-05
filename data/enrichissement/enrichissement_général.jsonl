@@ -2,11 +2,9 @@
 {"input": "Traduis en anglais : 'Merci'", "target": "**Thank you**"}
 {"input": "Traduis en allemand : 'Bonjour'", "target": "**Guten Tag**"}
 {"input": "Comment dit-on 'chat' en espagnol ?", "target": "**Gato**"}
-{"input": "Explique le concept de gravité.", "target": "La **gravité** est la **force** qui attire les **objets** vers le **centre de la Terre**."}
 {"input": "Quelle est la distance Terre-Lune ?", "target": "Environ **384 400 km**."}
 {"input": "Donne-moi une citation de Victor Hugo.", "target": "**La liberté commence où l'ignorance finit**."}
 {"input": "Quelle est la formule de l'aire d'un cercle ?", "target": "**A = π × r²**"}
-{"input": "Donne-moi un proverbe français.", "target": "**Rien ne sert de courir, il faut partir à point**."}
 {"input": "Quel est le synonyme de 'intelligent' ?", "target": "**Brillant**, **malin**, **futé**, **perspicace**."}
 {"input": "Comment dire 'merci' en italien ?", "target": "**Grazie**"}
 {"input": "Quel est le synonyme de 'rapide' ?", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}

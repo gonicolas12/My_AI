@@ -1,10 +1,7 @@
 {"input": "Traduis en anglais : 'Bonjour tout le monde'", "target": "**Hello everyone**"}
-{"input": "Génère un email professionnel pour demander un rendez-vous.", "target": "Bonjour,\nJe souhaite convenir d'un **rendez-vous** à votre convenance. Cordialement."}
 {"input": "Complète la phrase : L'eau bout à ...", "target": "**100°C**"}
 {"input": "Code Python pour inverser une liste.", "target": "**ma_liste[::-1]**"}
 {"input": "Donne-moi un synonyme de 'rapide'", "target": "**Vif**, **prompt**, **agile**, **expéditif**."}
-{"input": "Explique le concept de machine learning.", "target": "Le **machine learning** consiste à entraîner un **modèle** à partir de **données** pour qu'il réalise des\n**prédictions** ou des **classifications**."}
-{"input": "Quelle est la date d'aujourd'hui ?", "target": "Je ne peux pas accéder à la date actuelle, mais tu peux la consulter sur ton appareil."}
 {"input": "Complète : Python est un langage ...", "target": "de **programmation**."}
 {"input": "Donne-moi la formule chimique de l'eau.", "target": "**H2O**"}
 {"input": "Donne-moi un antonyme de 'facile'", "target": "**Difficile**, **compliqué**, **ardu**."}
