@@ -11,6 +11,7 @@ import traceback
 import os
 import concurrent.futures
 import tempfile
+import requests
 from typing import Any, Dict, List, Optional, Tuple
 
 from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
@@ -373,11 +374,15 @@ class CustomAIModel(BaseAI):
             if self.local_llm and self.local_llm.is_ollama_available:
                 # Le formatage Markdown est déjà défini dans le Modelfile
                 # Ici on ajoute uniquement le contexte documentaire si nécessaire
-                system_prompt = None  # Utiliser le system prompt du Modelfile par défaut
+                system_prompt = (
+                    None  # Utiliser le system prompt du Modelfile par défaut
+                )
 
                 # Injection du contexte documentaire SEULEMENT si la question concerne les documents
                 # Ne pas injecter pour les calculs, salutations, questions générales, etc.
-                if self._has_documents_in_memory() and not self._is_general_question(user_input):
+                if self._has_documents_in_memory() and not self._is_general_question(
+                    user_input
+                ):
                     if self._is_document_question(user_input):
                         doc_content = self.conversation_memory.get_document_content()
                         if doc_content:
@@ -390,7 +395,9 @@ class CustomAIModel(BaseAI):
                             system_prompt = f"CONTEXTE DOCUMENTAIRE:\n{doc_summary}\n\nUtilise ce contexte si pertinent pour répondre."
                             print("📄 [OLLAMA] Contexte documentaire injecté")
                     else:
-                        print("💬 [OLLAMA] Question générale - pas de contexte documentaire injecté")
+                        print(
+                            "💬 [OLLAMA] Question générale - pas de contexte documentaire injecté"
+                        )
 
                 # Injection du contexte RAG externe si fourni
                 if context and isinstance(context, dict):
@@ -1770,13 +1777,14 @@ class CustomAIModel(BaseAI):
 
     def _handle_internet_search(self, user_input: str, context: Dict[str, Any]) -> str:
         """
-        Gère les demandes de recherche internet
+        Gère les demandes de recherche internet avec intégration Ollama.
+        Utilise le contexte de conversation pour comprendre les requêtes implicites.
 
         Args:
             user_input: Question de l'utilisateur
             context: Contexte de la conversation
         Returns:
-            str: Résumé des résultats de recherche
+            str: Réponse générée par Ollama basée sur les résultats de recherche
         """
         # Si la question ne mentionne pas explicitement un document, on ignore le contexte documentaire
         if not any(
@@ -1788,8 +1796,18 @@ class CustomAIModel(BaseAI):
             for k in list(context.keys()):
                 if any(x in k.lower() for x in ["document", "pdf", "docx"]):
                     context.pop(k)
+
         # Extraire la requête de recherche de l'input utilisateur
         search_query = self._extract_search_query(user_input)
+
+        # 🧠 NOUVEAU: Si pas de requête explicite OU requête trop générique, utiliser le contexte
+        generic_terms = ["internet", "web", "google", "en ligne", "ligne", ""]
+        if not search_query or search_query.lower().strip() in generic_terms:
+            context_query = self._get_search_query_from_context(user_input)
+            if context_query:
+                print(f"🧠 [CONTEXTE] Requête déduite du contexte: '{context_query}'")
+                search_query = context_query
+
         if not search_query:
             return """🔍 **Recherche internet**
 
@@ -1802,12 +1820,24 @@ Je n'ai pas bien compris ce que vous voulez rechercher.
 • "Peux-tu chercher comment faire du pain ?"
 
 Reformulez votre demande en précisant ce que vous voulez rechercher."""
+
         # Effectuer la recherche avec le moteur de recherche internet
         try:
             print(f"🌐 Lancement de la recherche pour: '{search_query}'")
-            # Note: search_and_summarize n'accepte que le query en paramètre
-            result = self.internet_search.search_and_summarize(search_query)
-            return result
+            # Obtenir les résultats bruts de la recherche
+            raw_results = self.internet_search.search_and_summarize(search_query)
+
+            # 🦙 NOUVEAU: Utiliser Ollama pour générer une réponse intelligente
+            if self.local_llm and self.local_llm.is_ollama_available:
+                ollama_response = self._generate_ollama_search_response(
+                    search_query, raw_results, user_input
+                )
+                if ollama_response:
+                    return ollama_response
+
+            # Fallback: retourner les résultats bruts si Ollama n'est pas disponible
+            return raw_results
+
         except Exception as e:
             print(f"❌ Erreur lors de la recherche internet: {str(e)}")
             return f"""❌ **Erreur de recherche**
@@ -1825,6 +1855,382 @@ Désolé, je n'ai pas pu effectuer la recherche pour '{search_query}'.
 • Réessayez dans quelques instants
 
 Erreur technique : {str(e)}"""
+
+    def _get_search_query_from_context(self, user_input: str) -> str:
+        """
+        Déduit la requête de recherche à partir du contexte de conversation.
+        Utilisé quand l'utilisateur dit juste "cherche sur internet" sans préciser quoi.
+
+        Args:
+            user_input: Message de l'utilisateur
+
+        Returns:
+            str: Requête de recherche déduite du contexte (nettoyée pour les moteurs de recherche)
+        """
+        # Vérifier si c'est une demande implicite (sans sujet précis)
+        implicit_patterns = [
+            r"^cherche\s+(sur\s+)?internet\s*$",
+            r"^recherche\s+(sur\s+)?internet\s*$",
+            r"^cherche\s+(sur\s+)?(le\s+)?web\s*$",
+            r"^recherche\s+en\s+ligne\s*$",
+            r"^trouve\s+(ça|cela)?\s*(sur\s+)?internet\s*$",
+            r"^va\s+chercher\s+(sur\s+)?internet\s*$",
+        ]
+
+        user_lower = user_input.lower().strip()
+        is_implicit = any(
+            re.match(pattern, user_lower) for pattern in implicit_patterns
+        )
+
+        if not is_implicit:
+            # Vérifier aussi les cas où la requête est très générique
+            generic_only = user_lower in [
+                "cherche sur internet",
+                "recherche sur internet",
+                "cherche internet",
+                "internet",
+            ]
+            if not generic_only:
+                return ""
+
+        print("🧠 [CONTEXTE] Requête implicite détectée, analyse du contexte...")
+
+        # Mots-clés à ignorer (demandes de recherche ou commandes)
+        ignore_keywords = [
+            "cherche",
+            "recherche",
+            "internet",
+            "web",
+            "trouve",
+            "google",
+            "en ligne",
+        ]
+
+        original_question = ""
+
+        # PRIORITÉ 1: Utiliser la ConversationMemory (plus fiable)
+        if self.conversation_memory:
+            recent = self.conversation_memory.get_recent_conversations(10)
+            print(f"🧠 [CONTEXTE] {len(recent)} conversations récentes en mémoire")
+
+            for conv in reversed(recent):
+                content = conv.user_message.lower().strip()
+                # Ignorer les demandes de recherche et les messages très courts
+                if len(content) > 5 and not any(
+                    kw in content for kw in ignore_keywords
+                ):
+                    print(
+                        f"🧠 [CONTEXTE] Question précédente trouvée (ConversationMemory): '{conv.user_message[:100]}'"
+                    )
+                    original_question = conv.user_message
+                    break
+
+        # PRIORITÉ 2: Utiliser l'historique LocalLLM comme fallback
+        if (
+            not original_question
+            and self.local_llm
+            and hasattr(self.local_llm, "conversation_history")
+        ):
+            history = self.local_llm.conversation_history
+            print(f"🧠 [CONTEXTE] {len(history)} messages dans l'historique LocalLLM")
+
+            for msg in reversed(history):
+                if msg["role"] == "user":
+                    content = msg["content"].lower().strip()
+                    if len(content) > 5 and not any(
+                        kw in content for kw in ignore_keywords
+                    ):
+                        print(
+                            f"🧠 [CONTEXTE] Dernière question trouvée (LocalLLM): '{msg['content'][:100]}'"
+                        )
+                        original_question = msg["content"]
+                        break
+
+        if not original_question:
+            print("⚠️ [CONTEXTE] Aucune question pertinente trouvée dans le contexte")
+            return ""
+
+        # 🔧 NETTOYER la requête pour les moteurs de recherche
+        cleaned_query = self._clean_search_query(original_question)
+        print(
+            f"🔧 [CONTEXTE] Requête nettoyée: '{original_question}' → '{cleaned_query}'"
+        )
+
+        return cleaned_query
+
+    def _clean_search_query(self, query: str) -> str:
+        """
+        Nettoie une question pour en faire une requête de recherche optimale.
+        Supprime les mots inutiles et garde uniquement les mots-clés essentiels.
+
+        Args:
+            query: La question originale de l'utilisateur
+
+        Returns:
+            str: Requête nettoyée pour les moteurs de recherche
+        """
+        # Mots à supprimer (stop words français + formules de politesse)
+        stop_words = {
+            # Articles et déterminants
+            "le",
+            "la",
+            "les",
+            "un",
+            "une",
+            "des",
+            "du",
+            "de",
+            "d",
+            "l",
+            # Pronoms
+            "je",
+            "tu",
+            "il",
+            "elle",
+            "on",
+            "nous",
+            "vous",
+            "ils",
+            "elles",
+            "me",
+            "te",
+            "se",
+            "moi",
+            "toi",
+            "lui",
+            "eux",
+            # Prépositions
+            "à",
+            "au",
+            "aux",
+            "en",
+            "dans",
+            "sur",
+            "sous",
+            "par",
+            "pour",
+            "avec",
+            "sans",
+            # Conjonctions
+            "et",
+            "ou",
+            "mais",
+            "donc",
+            "car",
+            "ni",
+            "que",
+            "qui",
+            "quoi",
+            # Verbes communs
+            "est",
+            "sont",
+            "suis",
+            "es",
+            "sommes",
+            "êtes",
+            "était",
+            "être",
+            "ai",
+            "as",
+            "a",
+            "avons",
+            "avez",
+            "ont",
+            "avoir",
+            "fais",
+            "fait",
+            "faire",
+            "peux",
+            "peut",
+            "peuvent",
+            "pouvoir",
+            # Formules de demande
+            "dis",
+            "donne",
+            "montre",
+            "explique",
+            "raconte",
+            "décris",
+            "stp",
+            "svp",
+            "please",
+            "merci",
+            # Mots interrogatifs (à garder parfois mais pas toujours utiles)
+            "comment",
+            "pourquoi",
+            "quand",
+            "combien",
+            "quel",
+            "quelle",
+            "quels",
+            "quelles",
+            # Autres mots fréquents inutiles
+            "ça",
+            "cela",
+            "ce",
+            "cette",
+            "ces",
+            "mon",
+            "ma",
+            "mes",
+            "ton",
+            "ta",
+            "tes",
+            "son",
+            "sa",
+            "ses",
+            "notre",
+            "votre",
+            "leur",
+            "leurs",
+            "très",
+            "plus",
+            "moins",
+            "bien",
+            "bon",
+            "bonne",
+            "tout",
+            "tous",
+            "toute",
+            "toutes",
+        }
+
+        # Nettoyer la ponctuation et mettre en minuscules
+        query_lower = query.lower()
+        # Remplacer la ponctuation par des espaces
+        query_clean = re.sub(r"['\"\-.,;:!?()\\[\\]{}]", " ", query_lower)
+        # Normaliser les espaces
+        query_clean = re.sub(r"\s+", " ", query_clean).strip()
+
+        # Séparer en mots et filtrer
+        words = query_clean.split()
+        keywords = []
+
+        for word in words:
+            # Garder seulement les mots significatifs (>2 chars et pas dans stop_words)
+            if len(word) > 2 and word not in stop_words:
+                keywords.append(word)
+
+        # Reconstruire la requête
+        cleaned = " ".join(keywords)
+
+        # Si la requête est trop courte, garder l'originale nettoyée
+        if len(cleaned) < 3:
+            return query_clean
+
+        return cleaned
+
+    def _generate_ollama_search_response(
+        self, search_query: str, raw_results: str, original_question: str
+    ) -> str:
+        """
+        Utilise Ollama pour générer une réponse basée sur les résultats de recherche.
+
+        Args:
+            search_query: La requête de recherche effectuée
+            raw_results: Les résultats bruts de la recherche internet
+            original_question: La question originale de l'utilisateur
+
+        Returns:
+            str: Réponse formatée avec le contenu généré par Ollama et les sources
+        """
+        try:
+            # Extraire les sources des résultats bruts pour les conserver
+            sources_section = ""
+            if "🔗 **Sources**" in raw_results or "**Sources**" in raw_results:
+                # Trouver la section des sources
+                source_patterns = [
+                    r"(🔗\s*\*\*Sources\*\*.*?)$",
+                    r"(\*\*Sources\*\*.*?)$",
+                    r"(📚\s*Sources.*?)$",
+                ]
+                for pattern in source_patterns:
+                    match = re.search(pattern, raw_results, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        sources_section = match.group(1).strip()
+                        break
+
+            # Préparer le prompt pour Ollama
+            system_prompt = """Tu es un assistant IA expert qui synthétise des informations de recherche internet.
+Ton rôle est de fournir une réponse claire, structurée et informative basée sur les résultats de recherche.
+
+Instructions:
+- Réponds de manière naturelle et conversationnelle en français
+- Utilise le formatage Markdown (gras, listes, titres) pour structurer ta réponse
+- Sois précis et cite les informations importantes
+- Ne mentionne pas que tu analyses des "résultats de recherche", réponds directement
+- Si les résultats contiennent des informations contradictoires, mentionne-le
+- Garde un ton amical et accessible"""
+
+            user_prompt = f"""Question de l'utilisateur: {original_question}
+
+Informations trouvées sur internet concernant "{search_query}":
+{raw_results[:4000]}
+
+Génère une réponse complète et bien structurée basée sur ces informations."""
+
+            print("🦙 [OLLAMA] Génération de la réponse basée sur la recherche...")
+
+            # Générer la réponse avec Ollama (sans ajouter à l'historique car on le fait manuellement)
+            # On utilise l'API directement pour éviter de polluer l'historique
+            data = {
+                "model": self.local_llm.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "stream": False,
+                "options": {"temperature": 0.7, "num_ctx": 8192, "num_predict": 1500},
+            }
+
+            response = requests.post(
+                self.local_llm.chat_url, json=data, timeout=self.local_llm.timeout
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                ollama_response = result.get("message", {}).get("content", "")
+
+                if ollama_response:
+                    # Construire la réponse finale avec les sources
+                    final_response = ollama_response.strip()
+
+                    # Ajouter les sources à la fin si elles existent
+                    if sources_section:
+                        final_response += f"\n\n{sources_section}"
+                    elif "http" in raw_results:
+                        # Essayer d'extraire les URLs des résultats bruts
+                        urls = re.findall(r"https?://[^\s\)]+", raw_results)
+                        if urls:
+                            unique_urls = list(dict.fromkeys(urls))[
+                                :5
+                            ]  # Max 5 sources uniques
+                            final_response += "\n\n🔗 **Sources**\n"
+                            for url in unique_urls:
+                                # Nettoyer l'URL
+                                clean_url = url.rstrip(".,;:)")
+                                final_response += (
+                                    f"• [{clean_url[:50]}...]({clean_url})\n"
+                                )
+
+                    # Sauvegarder dans l'historique de conversation
+                    self.conversation_memory.add_conversation(
+                        original_question,
+                        final_response,
+                        "internet_search_ollama",
+                        1.0,
+                        {},
+                    )
+
+                    print("✅ [OLLAMA] Réponse générée avec succès")
+                    return final_response
+
+            print("⚠️ [OLLAMA] Échec de la génération, utilisation des résultats bruts")
+            return None
+
+        except Exception as e:
+            print(f"⚠️ [OLLAMA] Erreur lors de la génération: {e}")
+            return None
 
     def _extract_search_query(self, user_input: str) -> str:
         """
@@ -4240,84 +4646,157 @@ Que voulez-vous apprendre exactement ?"""
         """
         Détermine si une question est une question générale qui ne nécessite pas
         le contexte documentaire (calculs, salutations, questions d'identité, etc.)
-        
+
         Returns:
             True si la question est générale et ne doit pas utiliser le contexte documentaire
         """
         user_lower = user_input.lower().strip()
-        
+
         # 1. Calculs mathématiques (contient des opérateurs et des chiffres)
         import re
+
         # Patterns pour les calculs: "5+3", "100/5", "45*8", "10-2", "calcule 5+3", etc.
         calc_patterns = [
-            r'^\d+\s*[\+\-\*\/\^]\s*\d+',  # "5+3", "100 / 5"
-            r'^[\(\)0-9\+\-\*\/\^\.\s]+$',  # Expression purement mathématique
-            r'^calcul[e]?\s+',  # "calcule 5+3"
-            r'^combien\s+(fait|font)\s+\d+',  # "combien fait 5+3"
-            r'^\d+[\+\-\*\/]\d+\s*[=\?]?$',  # "5+3=?" ou "5+3?"
+            r"^\d+\s*[\+\-\*\/\^]\s*\d+",  # "5+3", "100 / 5"
+            r"^[\(\)0-9\+\-\*\/\^\.\s]+$",  # Expression purement mathématique
+            r"^calcul[e]?\s+",  # "calcule 5+3"
+            r"^combien\s+(fait|font)\s+\d+",  # "combien fait 5+3"
+            r"^\d+[\+\-\*\/]\d+\s*[=\?]?$",  # "5+3=?" ou "5+3?"
         ]
         for pattern in calc_patterns:
             if re.search(pattern, user_lower):
                 print(f"🔢 [GENERAL] Question de calcul détectée: '{user_input}'")
                 return True
-        
+
         # 2. Salutations et questions sur l'état
         greeting_keywords = [
-            "bonjour", "salut", "hello", "hi", "hey", "coucou",
-            "bonsoir", "bonne nuit", "good morning", "good evening",
-            "ça va", "sa va", "ca va", "comment vas tu", "comment ça va",
-            "comment vas-tu", "comment allez vous", "comment allez-vous",
-            "tu vas bien", "vous allez bien", "quoi de neuf",
-            "tu fais quoi", "what's up", "how are you",
+            "bonjour",
+            "salut",
+            "hello",
+            "hi",
+            "hey",
+            "coucou",
+            "bonsoir",
+            "bonne nuit",
+            "good morning",
+            "good evening",
+            "ça va",
+            "sa va",
+            "ca va",
+            "comment vas tu",
+            "comment ça va",
+            "comment vas-tu",
+            "comment allez vous",
+            "comment allez-vous",
+            "tu vas bien",
+            "vous allez bien",
+            "quoi de neuf",
+            "tu fais quoi",
+            "what's up",
+            "how are you",
         ]
         if any(kw in user_lower for kw in greeting_keywords):
             print(f"👋 [GENERAL] Salutation détectée: '{user_input}'")
             return True
-        
+
         # 3. Questions d'identité sur l'IA
         identity_keywords = [
-            "qui es-tu", "qui es tu", "qui êtes vous", "qui êtes-vous",
-            "comment tu t'appelles", "comment t'appelles tu", "ton nom",
-            "tu es qui", "tu es quoi", "c'est quoi ton nom",
-            "présente toi", "presente toi", "présente-toi",
-            "tu t'appelles comment", "quel est ton nom",
-            "qui t'as créé", "qui t'a créé", "qui t'as codé", "qui t'a codé",
-            "ton créateur", "qui t'a fait", "qui t'as fait",
+            "qui es-tu",
+            "qui es tu",
+            "qui êtes vous",
+            "qui êtes-vous",
+            "comment tu t'appelles",
+            "comment t'appelles tu",
+            "ton nom",
+            "tu es qui",
+            "tu es quoi",
+            "c'est quoi ton nom",
+            "présente toi",
+            "presente toi",
+            "présente-toi",
+            "tu t'appelles comment",
+            "quel est ton nom",
+            "qui t'as créé",
+            "qui t'a créé",
+            "qui t'as codé",
+            "qui t'a codé",
+            "ton créateur",
+            "qui t'a fait",
+            "qui t'as fait",
         ]
         if any(kw in user_lower for kw in identity_keywords):
             print(f"🤖 [GENERAL] Question d'identité détectée: '{user_input}'")
             return True
-        
+
         # 4. Questions sur les capacités de l'IA
         capability_keywords = [
-            "que peux tu", "que peux-tu", "tu peux faire quoi",
-            "que sais tu", "que sais-tu", "tu sais faire quoi",
-            "tes capacités", "tes fonctionnalités", "tes compétences",
-            "qu'est-ce que tu peux", "qu'est ce que tu peux",
-            "aide moi", "aide-moi", "help",
+            "que peux tu",
+            "que peux-tu",
+            "tu peux faire quoi",
+            "que sais tu",
+            "que sais-tu",
+            "tu sais faire quoi",
+            "tes capacités",
+            "tes fonctionnalités",
+            "tes compétences",
+            "qu'est-ce que tu peux",
+            "qu'est ce que tu peux",
+            "aide moi",
+            "aide-moi",
+            "help",
         ]
         if any(kw in user_lower for kw in capability_keywords):
             print(f"💡 [GENERAL] Question de capacité détectée: '{user_input}'")
             return True
-        
+
         # 5. Remerciements et politesses
         politeness_keywords = [
-            "merci", "thanks", "thank you", "merci beaucoup",
-            "au revoir", "bye", "à bientôt", "a bientot",
-            "s'il te plaît", "s'il vous plaît", "please",
-            "d'accord", "ok", "okay", "bien reçu", "compris",
+            "merci",
+            "thanks",
+            "thank you",
+            "merci beaucoup",
+            "au revoir",
+            "bye",
+            "à bientôt",
+            "a bientot",
+            "s'il te plaît",
+            "s'il vous plaît",
+            "please",
+            "d'accord",
+            "ok",
+            "okay",
+            "bien reçu",
+            "compris",
         ]
-        if user_lower in politeness_keywords or any(user_lower == kw for kw in politeness_keywords):
+        if user_lower in politeness_keywords or any(
+            user_lower == kw for kw in politeness_keywords
+        ):
             print(f"🙏 [GENERAL] Politesse détectée: '{user_input}'")
             return True
 
         # 6. Questions générales de connaissance (sans référence aux documents)
         # Si la question ne contient aucune référence aux documents/fichiers/PDF/code
         doc_ref_keywords = [
-            "document", "pdf", "fichier", "file", "docx", "doc",
-            "code", "script", "programme", "résume", "resume", "résumé",
-            "analyse", "explique le", "que dit", "que contient",
-            "dans le", "du fichier", "ce fichier", "le fichier",
+            "document",
+            "pdf",
+            "fichier",
+            "file",
+            "docx",
+            "doc",
+            "code",
+            "script",
+            "programme",
+            "résume",
+            "resume",
+            "résumé",
+            "analyse",
+            "explique le",
+            "que dit",
+            "que contient",
+            "dans le",
+            "du fichier",
+            "ce fichier",
+            "le fichier",
         ]
         has_doc_reference = any(kw in user_lower for kw in doc_ref_keywords)
 

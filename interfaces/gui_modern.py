@@ -784,12 +784,242 @@ class ModernAIGUI:
             "sql_number", foreground="#b5cea8", font=("Consolas", 11)
         )
 
+        # === JAVA - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "java_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "java_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "java_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "java_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "java_class", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "java_method", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "java_annotation", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+
+        # === C/C++ - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "cpp_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "cpp_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "cpp_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "cpp_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "cpp_preprocessor", foreground="#c586c0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "cpp_type", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "cpp_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+
+        # === C - Couleurs VS Code (mêmes couleurs que C++) ===
+        text_widget.tag_configure(
+            "c_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "c_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "c_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "c_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "c_preprocessor", foreground="#c586c0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "c_type", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "c_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+
+        # === C# - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "csharp_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "csharp_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "csharp_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "csharp_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "csharp_class", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "csharp_method", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+
+        # === Go - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "go_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "go_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "go_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "go_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "go_type", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "go_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "go_package", foreground="#c586c0", font=("Consolas", 11)
+        )
+
+        # === Ruby - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "ruby_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "ruby_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "ruby_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "ruby_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "ruby_symbol", foreground="#d7ba7d", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "ruby_method", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "ruby_class", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "ruby_variable", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+
+        # === Swift - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "swift_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "swift_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "swift_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "swift_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "swift_type", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "swift_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "swift_attribute", foreground="#c586c0", font=("Consolas", 11)
+        )
+
+        # === PHP - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "php_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "php_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "php_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "php_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "php_variable", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "php_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "php_tag", foreground="#569cd6", font=("Consolas", 11)
+        )
+
+        # === Perl - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "perl_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "perl_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "perl_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "perl_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "perl_variable", foreground="#9cdcfe", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "perl_regex", foreground="#d16969", font=("Consolas", 11)
+        )
+
+        # === Rust - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "rust_keyword", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "rust_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "rust_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+        text_widget.tag_configure(
+            "rust_number", foreground="#b5cea8", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "rust_type", foreground="#4ec9b0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "rust_function", foreground="#dcdcaa", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "rust_macro", foreground="#c586c0", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "rust_lifetime", foreground="#569cd6", font=("Consolas", 11, "italic")
+        )
+
         # Tag caché pour les marqueurs ```
         text_widget.tag_configure(
             "hidden", elide=True, font=("Consolas", 1)
         )
 
-        print("✅ Tags de coloration Python/JS/CSS/HTML/Bash/SQL configurés pour l'animation")
+        print("✅ Tags de coloration Python/JS/CSS/HTML/Bash/SQL/Java/C++/C/C#/Go/Ruby/Swift/PHP/Perl/Rust configurés pour l'animation")
 
     def setup_modern_gui(self):
         """Configure l'interface principale style Claude"""
@@ -2300,8 +2530,9 @@ class ModernAIGUI:
         if link_mapping:
             self._pending_links = link_mapping
 
-        # Réinitialiser les positions formatées
+        # Réinitialiser les positions formatées et le tracking du bold
         self._formatted_positions = set()
+        self._formatted_bold_contents = set()  # NOUVEAU: tracking par contenu pour le bold
 
         # Pré-analyser les tableaux Markdown pour l'animation progressive
         self._table_blocks = self._preanalyze_markdown_tables(processed_text)
@@ -2422,6 +2653,24 @@ class ModernAIGUI:
                 self._analyze_bash_tokens(raw_code_content, code_start, code_blocks_map)
             elif language in ["sql", "mysql", "postgresql", "sqlite"]:
                 self._analyze_sql_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language == "java":
+                self._analyze_java_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language in ["c", "cpp", "c++", "cxx"]:
+                self._analyze_cpp_tokens(raw_code_content, code_start, code_blocks_map, language)
+            elif language in ["csharp", "cs", "c#"]:
+                self._analyze_csharp_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language in ["go", "golang"]:
+                self._analyze_go_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language in ["ruby", "rb"]:
+                self._analyze_ruby_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language == "swift":
+                self._analyze_swift_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language == "php":
+                self._analyze_php_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language in ["perl", "pl"]:
+                self._analyze_perl_tokens(raw_code_content, code_start, code_blocks_map)
+            elif language in ["rust", "rs"]:
+                self._analyze_rust_tokens(raw_code_content, code_start, code_blocks_map)
             else:
                 # Code générique
                 for i in range(len(raw_code_content)):
@@ -2435,6 +2684,15 @@ class ModernAIGUI:
                     code_blocks_map[pos] = (language, "code_block_marker")
 
         print(f"[DEBUG] _preanalyze_code_blocks: {len(code_blocks_map)} positions mappées au total")
+        
+        # Debug: afficher les types de tokens trouvés par langage
+        token_types_by_lang = {}
+        for pos, (lang, token_type) in code_blocks_map.items():
+            if lang not in token_types_by_lang:
+                token_types_by_lang[lang] = set()
+            token_types_by_lang[lang].add(token_type)
+        print(f"[DEBUG] Types de tokens par langage: {dict((k, list(v)) for k, v in token_types_by_lang.items())}")
+        
         return code_blocks_map
 
     def _preanalyze_markdown_tables(self, text):
@@ -2678,23 +2936,14 @@ class ModernAIGUI:
             "undefined",
         }
 
-        # Pattern pour identifier différents éléments JS
-        token_pattern = r"""
-            (//.*$)|                     # Commentaires //
-            (/\*.*?\*/)|                 # Commentaires /* */
-            ("(?:[^"\\]|\\.)*")|         # Chaînes double quotes
-            ('(?:[^'\\]|\\.)*')|         # Chaînes simple quotes
-            (`(?:[^`\\]|\\.)*`)|         # Template literals
-            (\b\d+\.?\d*\b)|             # Nombres
-            (\b[a-zA-Z_$]\w*\b)|         # Identifiants
-            ([+\-*/%=<>!&|^~]|===|!==|==|!=|<=|>=|&&|\|\||<<|>>|\+=|-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>=|\+\+|--) # Opérateurs
-        """
+        # Pattern pour identifier différents éléments JS - sans mode VERBOSE
+        token_pattern = r'(//.*$)|(/\*.*?\*/)|("(?:[^"\\]|\\.)*")|(\x27(?:[^\x27\\]|\\.)*\x27)|(`(?:[^`\\]|\\.)*`)|(\b\d+\.?\d*\b)|(\b[a-zA-Z_$]\w*\b)|([+\-*/%=<>!&|^~]+)'
 
         lines = code.split("\n")
         current_pos = start_offset
 
         for line in lines:
-            for match in re.finditer(token_pattern, line, re.VERBOSE):
+            for match in re.finditer(token_pattern, line):
                 value = match.group(0)
                 match_start = current_pos + match.start()
 
@@ -2718,23 +2967,18 @@ class ModernAIGUI:
 
             current_pos += len(line) + 1
 
+        print(f"[DEBUG] _analyze_javascript_tokens: {len([k for k in code_map if code_map.get(k, ('', ''))[0] == 'javascript'])} tokens ajoutés (offset {start_offset})")
+
     def _analyze_css_tokens(self, code, start_offset, code_map):
         """Analyse les tokens CSS pour la coloration en temps réel"""
-        # Pattern pour CSS
-        token_pattern = r"""
-            (/\*.*?\*/)|                          # Commentaires
-            (#[a-fA-F0-9]{3,8}\b)|                # Couleurs hex
-            (\d+\.?\d*(px|em|rem|%|vh|vw|pt)?)|   # Nombres avec unités
-            ([a-zA-Z-]+)\s*:|                     # Propriétés CSS
-            ([\.\#]?[a-zA-Z_-][\w-]*)|            # Sélecteurs/valeurs
-            ([{}:;,])                              # Ponctuation
-        """
+        # Pattern pour CSS - sans mode VERBOSE pour éviter les problèmes avec #
+        token_pattern = r'(/\*.*?\*/)|(\#[a-fA-F0-9]{3,8}\b)|(\d+\.?\d*(px|em|rem|%|vh|vw|pt)?)|([a-zA-Z-]+)\s*:|([\.#]?[a-zA-Z_-][\w-]*)|([{}:;,])'
 
         lines = code.split("\n")
         current_pos = start_offset
 
         for line in lines:
-            for match in re.finditer(token_pattern, line, re.VERBOSE):
+            for match in re.finditer(token_pattern, line):
                 value = match.group(0)
                 match_start = current_pos + match.start()
 
@@ -2744,9 +2988,9 @@ class ModernAIGUI:
                     tag = "css_value"
                 elif match.group(3):  # Nombre
                     tag = "css_unit"
-                elif match.group(4):  # Propriété
+                elif match.group(5):  # Propriété
                     tag = "css_property"
-                elif match.group(5):  # Sélecteur
+                elif match.group(6):  # Sélecteur
                     tag = "css_selector"
                 else:
                     tag = "code_block"
@@ -2757,21 +3001,23 @@ class ModernAIGUI:
 
             current_pos += len(line) + 1
 
+        print(f"[DEBUG] _analyze_css_tokens: tokens CSS ajoutés (offset {start_offset})")
+
     def _analyze_html_tokens(self, code, start_offset, code_map):
         """Analyse les tokens HTML pour la coloration en temps réel"""
-        # Pattern pour HTML
-        token_pattern = r"""
-            (<!--.*?-->)|                         # Commentaires
-            (</?[a-zA-Z][a-zA-Z0-9]*)|            # Tags
-            ([a-zA-Z-]+)=|                        # Attributs
-            ("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*') # Valeurs
-        """
+        # Pattern amélioré pour HTML - capture séparément les différents éléments
+        # Groupe 1: Commentaires <!-- ... -->
+        # Groupe 2: Tags fermants </tag> ou tags ouvrants <tag
+        # Groupe 3: Attributs name= (sans le =)
+        # Groupe 4: Valeurs entre guillemets "..." ou '...'
+        # Groupe 5: Fermeture de tag > ou />
+        token_pattern = r'(<!--[\s\S]*?-->)|(</?[a-zA-Z][a-zA-Z0-9:-]*)|([a-zA-Z_:][a-zA-Z0-9_:.-]*)(?==)|("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')|(/?>)'
 
         lines = code.split("\n")
         current_pos = start_offset
 
         for line in lines:
-            for match in re.finditer(token_pattern, line, re.VERBOSE | re.DOTALL):
+            for match in re.finditer(token_pattern, line, re.DOTALL):
                 value = match.group(0)
                 match_start = current_pos + match.start()
 
@@ -2779,10 +3025,12 @@ class ModernAIGUI:
                     tag = "html_comment"
                 elif match.group(2):  # Tag
                     tag = "html_tag"
-                elif match.group(3):  # Attribut
+                elif match.group(3):  # Attribut (nom avant le =)
                     tag = "html_attribute"
-                elif match.group(4):  # Valeur
+                elif match.group(4):  # Valeur entre guillemets
                     tag = "html_value"
+                elif match.group(5):  # Fermeture de tag
+                    tag = "html_tag"
                 else:
                     tag = "code_block"
 
@@ -2791,6 +3039,8 @@ class ModernAIGUI:
                     code_map[pos] = ("html", tag)
 
             current_pos += len(line) + 1
+
+        print(f"[DEBUG] _analyze_html_tokens: tokens HTML ajoutés (offset {start_offset})")
 
     def _analyze_bash_tokens(self, code, start_offset, code_map):
         """Analyse les tokens Bash pour la coloration en temps réel"""
@@ -2801,19 +3051,14 @@ class ModernAIGUI:
                         "chown", "mkdir", "rm", "cp", "mv", "touch", "pwd", "source", "sudo",
                         "apt", "pip", "npm", "git", "docker", "python", "node"}
 
-        token_pattern = r"""
-            (#.*$)|                               # Commentaires
-            ("(?:[^"\\]|\\.)*"|'[^']*')|          # Chaînes
-            (\$\{?[a-zA-Z_]\w*\}?)|               # Variables
-            (\b[a-zA-Z_]\w*\b)|                   # Mots
-            ([|&;<>])                              # Opérateurs
-        """
+        # Pattern sans mode VERBOSE pour éviter les problèmes avec #
+        token_pattern = r'(\#.*$)|("(?:[^"\\]|\\.)*"|\'[^\']*\')|(\$\{?[a-zA-Z_]\w*\}?)|(\b[a-zA-Z_]\w*\b)|([|&;<>])'
 
         lines = code.split("\n")
         current_pos = start_offset
 
         for line in lines:
-            for match in re.finditer(token_pattern, line, re.VERBOSE):
+            for match in re.finditer(token_pattern, line):
                 value = match.group(0)
                 match_start = current_pos + match.start()
 
@@ -2850,18 +3095,14 @@ class ModernAIGUI:
         sql_functions = {"COUNT", "SUM", "AVG", "MIN", "MAX", "CONCAT", "SUBSTRING",
                         "UPPER", "LOWER", "TRIM", "COALESCE", "IFNULL", "CAST", "CONVERT"}
 
-        token_pattern = r"""
-            (--.*$|/\*.*?\*/)|                    # Commentaires
-            ('(?:[^'\\]|\\.)*')|                  # Chaînes
-            (\b\d+\.?\d*\b)|                      # Nombres
-            (\b[a-zA-Z_]\w*\b)                    # Mots
-        """
+        # Pattern SQL - sans mode VERBOSE
+        token_pattern = r'(--.*$|/\*.*?\*/)|(\x27(?:[^\x27\\]|\\.)*\x27)|(\b\d+\.?\d*\b)|(\b[a-zA-Z_]\w*\b)'
 
         lines = code.split("\n")
         current_pos = start_offset
 
         for line in lines:
-            for match in re.finditer(token_pattern, line, re.VERBOSE | re.IGNORECASE):
+            for match in re.finditer(token_pattern, line, re.IGNORECASE):
                 value = match.group(0)
                 match_start = current_pos + match.start()
 
@@ -2885,6 +3126,441 @@ class ModernAIGUI:
                 for i in range(len(value)):
                     pos = match_start + i
                     code_map[pos] = ("sql", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_java_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Java pour la coloration en temps réel"""
+        java_keywords = {"abstract", "assert", "boolean", "break", "byte", "case", "catch",
+                        "char", "class", "const", "continue", "default", "do", "double",
+                        "else", "enum", "extends", "final", "finally", "float", "for",
+                        "goto", "if", "implements", "import", "instanceof", "int", "interface",
+                        "long", "native", "new", "package", "private", "protected", "public",
+                        "return", "short", "static", "strictfp", "super", "switch", "synchronized",
+                        "this", "throw", "throws", "transient", "try", "void", "volatile", "while",
+                        "true", "false", "null"}
+        java_types = {"String", "Integer", "Boolean", "Double", "Float", "Long", "Short",
+                     "Byte", "Character", "Object", "List", "ArrayList", "HashMap", "Map",
+                     "Set", "HashSet", "Exception", "System", "Math", "Arrays"}
+
+        token_pattern = r'(//.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*")|(\b\d+\.?\d*[fFdDlL]?\b)|(@\w+)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "java_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "java_string"
+                elif match.group(3):  # Nombre
+                    tag = "java_number"
+                elif match.group(4):  # Annotation
+                    tag = "java_annotation"
+                elif match.group(5):  # Mot
+                    if value in java_keywords:
+                        tag = "java_keyword"
+                    elif value in java_types or value[0].isupper():
+                        tag = "java_class"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("java", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_cpp_tokens(self, code, start_offset, code_map, language="cpp"):
+        """Analyse les tokens C/C++ pour la coloration en temps réel"""
+        cpp_keywords = {"auto", "break", "case", "catch", "class", "const", "continue",
+                       "default", "delete", "do", "else", "enum", "explicit", "export",
+                       "extern", "false", "for", "friend", "goto", "if", "inline", "mutable",
+                       "namespace", "new", "operator", "private", "protected", "public",
+                       "register", "return", "sizeof", "static", "struct", "switch", "template",
+                       "this", "throw", "true", "try", "typedef", "typeid", "typename",
+                       "union", "unsigned", "using", "virtual", "void", "volatile", "while",
+                       "nullptr", "constexpr", "noexcept", "override", "final"}
+        cpp_types = {"int", "char", "float", "double", "bool", "long", "short", "unsigned",
+                    "signed", "size_t", "string", "vector", "map", "set", "list", "pair",
+                    "unique_ptr", "shared_ptr", "weak_ptr", "array", "deque", "stack", "queue"}
+
+        token_pattern = r'(//.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')|(\b\d+\.?\d*[fFlLuU]*\b)|(\#\w+)|(\b[a-zA-Z_]\w*\b)'
+        
+        # Normaliser le nom de langue pour les tags (c ou cpp)
+        tag_lang = "c" if language == "c" else "cpp"
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = f"{tag_lang}_comment"
+                elif match.group(2):  # Chaîne/Char
+                    tag = f"{tag_lang}_string"
+                elif match.group(3):  # Nombre
+                    tag = f"{tag_lang}_number"
+                elif match.group(4):  # Préprocesseur
+                    tag = f"{tag_lang}_preprocessor"
+                elif match.group(5):  # Mot
+                    if value in cpp_keywords:
+                        tag = f"{tag_lang}_keyword"
+                    elif value in cpp_types:
+                        tag = f"{tag_lang}_type"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = (language, tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_csharp_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens C# pour la coloration en temps réel"""
+        csharp_keywords = {"abstract", "as", "base", "bool", "break", "byte", "case", "catch",
+                          "char", "checked", "class", "const", "continue", "decimal", "default",
+                          "delegate", "do", "double", "else", "enum", "event", "explicit", "extern",
+                          "false", "finally", "fixed", "float", "for", "foreach", "goto", "if",
+                          "implicit", "in", "int", "interface", "internal", "is", "lock", "long",
+                          "namespace", "new", "null", "object", "operator", "out", "override",
+                          "params", "private", "protected", "public", "readonly", "ref", "return",
+                          "sbyte", "sealed", "short", "sizeof", "stackalloc", "static", "string",
+                          "struct", "switch", "this", "throw", "true", "try", "typeof", "uint",
+                          "ulong", "unchecked", "unsafe", "ushort", "using", "virtual", "void",
+                          "volatile", "while", "var", "async", "await", "dynamic", "nameof"}
+        csharp_types = {"String", "Int32", "Int64", "Boolean", "Double", "Float", "Object",
+                       "List", "Dictionary", "Console", "Exception", "Task", "Action", "Func"}
+
+        token_pattern = r'(//.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*"|@"[^"]*")|(\b\d+\.?\d*[fFdDmM]?\b)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "csharp_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "csharp_string"
+                elif match.group(3):  # Nombre
+                    tag = "csharp_number"
+                elif match.group(4):  # Mot
+                    if value in csharp_keywords:
+                        tag = "csharp_keyword"
+                    elif value in csharp_types or value[0].isupper():
+                        tag = "csharp_class"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("csharp", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_go_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Go pour la coloration en temps réel"""
+        go_keywords = {"break", "case", "chan", "const", "continue", "default", "defer",
+                      "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
+                      "interface", "map", "package", "range", "return", "select", "struct",
+                      "switch", "type", "var", "true", "false", "nil", "iota"}
+        go_types = {"bool", "byte", "complex64", "complex128", "error", "float32", "float64",
+                   "int", "int8", "int16", "int32", "int64", "rune", "string", "uint",
+                   "uint8", "uint16", "uint32", "uint64", "uintptr"}
+        go_builtins = {"append", "cap", "close", "complex", "copy", "delete", "imag", "len",
+                      "make", "new", "panic", "print", "println", "real", "recover"}
+
+        token_pattern = r'(//.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*"|`[^`]*`)|(\b\d+\.?\d*\b)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "go_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "go_string"
+                elif match.group(3):  # Nombre
+                    tag = "go_number"
+                elif match.group(4):  # Mot
+                    if value in go_keywords:
+                        tag = "go_keyword"
+                    elif value in go_types:
+                        tag = "go_type"
+                    elif value in go_builtins:
+                        tag = "go_function"
+                    elif value in {"package", "import"}:
+                        tag = "go_package"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("go", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_ruby_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Ruby pour la coloration en temps réel"""
+        ruby_keywords = {"alias", "and", "begin", "break", "case", "class", "def", "defined",
+                        "do", "else", "elsif", "end", "ensure", "false", "for", "if", "in",
+                        "module", "next", "nil", "not", "or", "redo", "rescue", "retry",
+                        "return", "self", "super", "then", "true", "undef", "unless", "until",
+                        "when", "while", "yield", "require", "include", "extend", "attr_accessor",
+                        "attr_reader", "attr_writer", "private", "protected", "public"}
+        ruby_builtins = {"puts", "print", "gets", "chomp", "to_s", "to_i", "to_f", "to_a",
+                        "each", "map", "select", "reject", "reduce", "inject", "sort", "reverse"}
+
+        token_pattern = r'(\#.*$)|("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')|(\b\d+\.?\d*\b)|(:\w+)|(@{1,2}\w+)|(\b[a-zA-Z_]\w*[!?]?\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "ruby_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "ruby_string"
+                elif match.group(3):  # Nombre
+                    tag = "ruby_number"
+                elif match.group(4):  # Symbol
+                    tag = "ruby_symbol"
+                elif match.group(5):  # Variable instance/classe
+                    tag = "ruby_variable"
+                elif match.group(6):  # Mot
+                    if value in ruby_keywords:
+                        tag = "ruby_keyword"
+                    elif value in ruby_builtins:
+                        tag = "ruby_method"
+                    elif value[0].isupper():
+                        tag = "ruby_class"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("ruby", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_swift_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Swift pour la coloration en temps réel"""
+        swift_keywords = {"associatedtype", "class", "deinit", "enum", "extension", "fileprivate",
+                         "func", "import", "init", "inout", "internal", "let", "open", "operator",
+                         "private", "protocol", "public", "rethrows", "static", "struct", "subscript",
+                         "typealias", "var", "break", "case", "continue", "default", "defer", "do",
+                         "else", "fallthrough", "for", "guard", "if", "in", "repeat", "return",
+                         "switch", "where", "while", "as", "catch", "is", "nil", "super", "self",
+                         "Self", "throw", "throws", "try", "true", "false", "async", "await"}
+        swift_types = {"Any", "AnyObject", "Bool", "Character", "Double", "Float", "Int", "Int8",
+                      "Int16", "Int32", "Int64", "Never", "Optional", "String", "UInt", "UInt8",
+                      "UInt16", "UInt32", "UInt64", "Void", "Array", "Dictionary", "Set"}
+
+        token_pattern = r'(//.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*")|(\b\d+\.?\d*\b)|(@\w+)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "swift_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "swift_string"
+                elif match.group(3):  # Nombre
+                    tag = "swift_number"
+                elif match.group(4):  # Attribut
+                    tag = "swift_attribute"
+                elif match.group(5):  # Mot
+                    if value in swift_keywords:
+                        tag = "swift_keyword"
+                    elif value in swift_types or value[0].isupper():
+                        tag = "swift_type"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("swift", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_php_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens PHP pour la coloration en temps réel"""
+        php_keywords = {"abstract", "and", "as", "break", "callable", "case", "catch", "class",
+                       "clone", "const", "continue", "declare", "default", "do", "else", "elseif",
+                       "enddeclare", "endfor", "endforeach", "endif", "endswitch", "endwhile",
+                       "extends", "final", "finally", "for", "foreach", "function", "global",
+                       "goto", "if", "implements", "include", "include_once", "instanceof",
+                       "insteadof", "interface", "namespace", "new", "or", "private", "protected",
+                       "public", "require", "require_once", "return", "static", "switch", "throw",
+                       "trait", "try", "use", "var", "while", "xor", "yield", "yield from",
+                       "true", "false", "null", "echo", "print"}
+        php_builtins = {"array", "empty", "isset", "unset", "list", "die", "exit", "eval",
+                       "count", "strlen", "substr", "strpos", "str_replace", "explode", "implode"}
+
+        token_pattern = r'(//.*$|\#.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')|(\b\d+\.?\d*\b)|(<\?php|\?>)|(\$[a-zA-Z_]\w*)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "php_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "php_string"
+                elif match.group(3):  # Nombre
+                    tag = "php_number"
+                elif match.group(4):  # Tag PHP
+                    tag = "php_tag"
+                elif match.group(5):  # Variable
+                    tag = "php_variable"
+                elif match.group(6):  # Mot
+                    if value.lower() in php_keywords:
+                        tag = "php_keyword"
+                    elif value.lower() in php_builtins:
+                        tag = "php_function"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("php", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_perl_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Perl pour la coloration en temps réel"""
+        perl_keywords = {"my", "our", "local", "sub", "package", "use", "require", "no",
+                        "if", "elsif", "else", "unless", "while", "until", "for", "foreach",
+                        "do", "last", "next", "redo", "return", "goto", "die", "warn", "print",
+                        "say", "open", "close", "read", "write", "seek", "tell", "eof",
+                        "defined", "undef", "exists", "delete", "push", "pop", "shift", "unshift",
+                        "splice", "sort", "reverse", "keys", "values", "each", "length", "substr",
+                        "index", "rindex", "split", "join", "chomp", "chop", "lc", "uc", "scalar",
+                        "wantarray", "caller", "eval", "exec", "system", "fork", "wait", "exit"}
+
+        token_pattern = r'(\#.*$)|("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')|(\b\d+\.?\d*\b)|([\$@%]\w+)|(/(?:[^/\\]|\\.)+/[gimsx]*)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "perl_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "perl_string"
+                elif match.group(3):  # Nombre
+                    tag = "perl_number"
+                elif match.group(4):  # Variable
+                    tag = "perl_variable"
+                elif match.group(5):  # Regex
+                    tag = "perl_regex"
+                elif match.group(6):  # Mot
+                    if value in perl_keywords:
+                        tag = "perl_keyword"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("perl", tag)
+
+            current_pos += len(line) + 1
+
+    def _analyze_rust_tokens(self, code, start_offset, code_map):
+        """Analyse les tokens Rust pour la coloration en temps réel"""
+        rust_keywords = {"as", "async", "await", "break", "const", "continue", "crate", "dyn",
+                        "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in",
+                        "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
+                        "self", "Self", "static", "struct", "super", "trait", "true", "type",
+                        "unsafe", "use", "where", "while", "abstract", "become", "box", "do",
+                        "final", "macro", "override", "priv", "typeof", "unsized", "virtual", "yield"}
+        rust_types = {"bool", "char", "str", "i8", "i16", "i32", "i64", "i128", "isize",
+                     "u8", "u16", "u32", "u64", "u128", "usize", "f32", "f64",
+                     "String", "Vec", "Option", "Result", "Box", "Rc", "Arc", "Cell", "RefCell",
+                     "HashMap", "HashSet", "BTreeMap", "BTreeSet", "VecDeque", "LinkedList"}
+
+        token_pattern = r'(//.*$|/\*.*?\*/)|("(?:[^"\\]|\\.)*"|r#*"[^"]*"#*)|(\b\d+\.?\d*(?:_\d+)*(?:i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|f32|f64)?\b)|(\'[a-zA-Z_]\w*)|(\b[a-zA-Z_]\w*!)|(\b[a-zA-Z_]\w*\b)'
+
+        lines = code.split("\n")
+        current_pos = start_offset
+
+        for line in lines:
+            for match in re.finditer(token_pattern, line):
+                value = match.group(0)
+                match_start = current_pos + match.start()
+
+                if match.group(1):  # Commentaire
+                    tag = "rust_comment"
+                elif match.group(2):  # Chaîne
+                    tag = "rust_string"
+                elif match.group(3):  # Nombre
+                    tag = "rust_number"
+                elif match.group(4):  # Lifetime 'a
+                    tag = "rust_lifetime"
+                elif match.group(5):  # Macro println!
+                    tag = "rust_macro"
+                elif match.group(6):  # Mot
+                    if value in rust_keywords:
+                        tag = "rust_keyword"
+                    elif value in rust_types or (value[0].isupper() and not value.isupper()):
+                        tag = "rust_type"
+                    else:
+                        tag = "code_block"
+                else:
+                    tag = "code_block"
+
+                for i in range(len(value)):
+                    pos = match_start + i
+                    code_map[pos] = ("rust", tag)
 
             current_pos += len(line) + 1
 
@@ -3874,16 +4550,42 @@ class ModernAIGUI:
             # Liste des tags qui indiquent qu'on est dans un bloc de code
             code_tags = {
                 "code_block", "code_block_marker", "hidden",
+                # Python tokens
                 "Token.Keyword", "Token.Literal.String", "Token.Comment.Single",
                 "Token.Literal.Number", "Token.Name.Function", "Token.Name.Class",
                 "Token.Name.Builtin", "Token.Operator", "Token.Punctuation",
                 "Token.Name", "Token.Name.Variable", "Token.Name.Attribute",
                 "Token.Comment", "Token.Comment.Multiline", "Token.String",
-                "js_keyword", "js_string", "js_comment", "js_number", "js_variable",
-                "css_selector", "css_property", "css_value", "css_comment",
+                # JavaScript
+                "js_keyword", "js_string", "js_comment", "js_number", "js_variable", "js_operator", "js_function",
+                # CSS
+                "css_selector", "css_property", "css_value", "css_comment", "css_unit",
+                # HTML
                 "html_tag", "html_attribute", "html_value", "html_comment",
+                # Bash
                 "bash_keyword", "bash_command", "bash_string", "bash_comment", "bash_variable",
-                "sql_keyword", "sql_function", "sql_string", "sql_comment", "sql_number"
+                # SQL
+                "sql_keyword", "sql_function", "sql_string", "sql_comment", "sql_number",
+                # Java
+                "java_keyword", "java_string", "java_comment", "java_number", "java_class", "java_method", "java_annotation",
+                # C/C++
+                "cpp_keyword", "cpp_string", "cpp_comment", "cpp_number", "cpp_preprocessor", "cpp_type", "cpp_function",
+                # C
+                "c_keyword", "c_string", "c_comment", "c_number", "c_preprocessor", "c_type", "c_function",
+                # C#
+                "csharp_keyword", "csharp_string", "csharp_comment", "csharp_number", "csharp_class", "csharp_method",
+                # Go
+                "go_keyword", "go_string", "go_comment", "go_number", "go_type", "go_function", "go_package",
+                # Ruby
+                "ruby_keyword", "ruby_string", "ruby_comment", "ruby_number", "ruby_symbol", "ruby_method", "ruby_class", "ruby_variable",
+                # Swift
+                "swift_keyword", "swift_string", "swift_comment", "swift_number", "swift_type", "swift_function", "swift_attribute",
+                # PHP
+                "php_keyword", "php_string", "php_comment", "php_number", "php_variable", "php_function", "php_tag",
+                # Perl
+                "perl_keyword", "perl_string", "perl_comment", "perl_number", "perl_variable", "perl_regex",
+                # Rust
+                "rust_keyword", "rust_string", "rust_comment", "rust_number", "rust_type", "rust_function", "rust_macro", "rust_lifetime"
             }
             for tag in tags:
                 if tag in code_tags:
@@ -3895,13 +4597,16 @@ class ModernAIGUI:
     def _apply_unified_progressive_formatting(self, text_widget):
         """MÉTHODE UNIFIÉE SIMPLIFIÉE : Formatage progressif sécurisé"""
         try:
-            # Initialiser le tracking si nécessaire
-            if not hasattr(self, "_formatted_positions"):
-                self._formatted_positions = set()
+            # Initialiser le tracking si nécessaire - utiliser le CONTENU comme clé, pas la position
+            if not hasattr(self, "_formatted_bold_contents"):
+                self._formatted_bold_contents = set()
 
             text_widget.configure(state="normal")
 
-            # === FORMATAGE GRAS **texte** AVEC SEARCH TKINTER ===
+            # Obtenir le texte actuellement affiché
+            current_displayed_text = text_widget.get("1.0", "end-1c")
+
+            # === FORMATAGE GRAS **texte** - Toujours actif mais vérifie le texte complet ===
             start_pos = "1.0"
             while True:
                 # Chercher le prochain **
@@ -3909,7 +4614,7 @@ class ModernAIGUI:
                 if not pos_start:
                     break
 
-                # NOUVEAU: Vérifier si on est dans un bloc de code - si oui, ignorer
+                # Vérifier si on est dans un bloc de code - si oui, ignorer
                 if self._is_position_in_code_block(text_widget, pos_start):
                     start_pos = text_widget.index(f"{pos_start}+2c")
                     continue
@@ -3919,7 +4624,7 @@ class ModernAIGUI:
                 pos_end = text_widget.search("**", search_start, "end")
 
                 if pos_end:
-                    # Vérifier que le contenu entre les ** est valide (pas de *, pas trop long)
+                    # Vérifier que le contenu entre les ** est valide
                     content_start = text_widget.index(f"{pos_start}+2c")
                     content = text_widget.get(content_start, pos_end)
 
@@ -3930,23 +4635,26 @@ class ModernAIGUI:
                         and "*" not in content
                         and "\n" not in content
                     ):
-                        # Position string pour tracking
-                        pos_str = str(pos_start)
+                        # Vérifier que ce bold complet existe dans le texte source
+                        full_bold = f"**{content}**"
+                        if hasattr(self, 'typing_text') and self.typing_text:
+                            if full_bold not in self.typing_text:
+                                # Pas encore complet dans le texte source
+                                start_pos = text_widget.index(f"{pos_start}+1c")
+                                continue
 
-                        if pos_str not in self._formatted_positions:
-                            # Supprimer **texte**
+                        # Utiliser le contenu comme clé de déduplication
+                        content_key = content.strip()
+                        if content_key not in self._formatted_bold_contents:
+                            # Supprimer **texte** et insérer texte en gras
                             end_pos_full = text_widget.index(f"{pos_end}+2c")
                             text_widget.delete(pos_start, end_pos_full)
-
-                            # Insérer juste texte en gras
                             text_widget.insert(pos_start, content, "bold")
-
-                            self._formatted_positions.add(pos_str)
-
-                            # Continuer à partir de la position actuelle
-                            start_pos = pos_start
+                            self._formatted_bold_contents.add(content_key)
+                            # Continuer après le texte inséré
+                            start_pos = text_widget.index(f"{pos_start}+{len(content)}c")
                         else:
-                            start_pos = text_widget.index(f"{pos_end}+1c")
+                            start_pos = text_widget.index(f"{pos_end}+2c")
                     else:
                         start_pos = text_widget.index(f"{pos_start}+1c")
                 else:
@@ -4103,9 +4811,9 @@ class ModernAIGUI:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
-            # === FORMATAGE TITRES # ## ### ===
+            # === FORMATAGE TITRES # ## ### #### ===
             # Ne pas formater les # qui sont dans des blocs de code (commentaires Python)
-            # Ne formater que les lignes COMPLÈTES (qui ont un \n après ou sont à la fin)
+            # Formater les titres Markdown avec 1 à 6 #
             start_pos = "1.0"
             while True:
                 # Chercher le prochain # en début de ligne
@@ -4129,41 +4837,52 @@ class ModernAIGUI:
                 line_end = text_widget.index(f"{pos_start} lineend")
                 line_content = text_widget.get(pos_start, line_end)
 
-                # Vérifier si la ligne est COMPLÈTE (suivie d'un \n ou à la fin du texte complet)
-                # Pendant l'animation, on ne formate pas les lignes incomplètes
-                next_char_pos = text_widget.index(f"{line_end}+1c")
-                text_after_line = text_widget.get(line_end, next_char_pos)
-                is_line_complete = text_after_line == "\n" or next_char_pos == text_widget.index("end")
-
-                if not is_line_complete:
-                    # La ligne n'est pas encore complète, on attend
-                    start_pos = text_widget.index(f"{pos_start}+1c")
-                    continue
-
-                # Analyser la ligne pour détecter le niveau de titre
-                title_match = re.match(r"^(#{1,3})\s+(.+)$", line_content)
+                # Analyser la ligne pour détecter le niveau de titre (1 à 6 #)
+                title_match = re.match(r"^(#{1,6})\s+(.+)$", line_content)
                 if title_match:
-                    level = len(title_match.group(1))
-                    # CORRECTION : Enlever les # mais garder tout le titre
-                    title_without_hashes = title_match.group(2)  # "1. Objectif général"
+                    hash_count = len(title_match.group(1))
+                    # Mapper vers title_1, title_2, title_3 (max 3 niveaux de style)
+                    level = min(hash_count, 3)
+                    title_without_hashes = title_match.group(2)
 
-                    pos_str = str(pos_start)
-                    if pos_str not in self._formatted_positions:
+                    # IMPORTANT: Ne formater que si la ligne est COMPLÈTE
+                    # On vérifie si après cette ligne il y a du contenu (donc \n a été affiché)
+                    # ou si c'est la fin de l'animation
+                    line_is_complete = False
+
+                    # Vérifier s'il y a une ligne après (donc \n a été affiché)
+                    next_line_start = text_widget.index(f"{line_end}+1c")
+                    widget_end = text_widget.index("end-1c")
+
+                    # Si next_line_start < widget_end, il y a du contenu après cette ligne
+                    if text_widget.compare(next_line_start, "<=", widget_end):
+                        # Vérifier qu'il y a vraiment du contenu après (pas juste la fin)
+                        content_after = text_widget.get(line_end, next_line_start)
+                        if content_after == "\n":
+                            line_is_complete = True
+
+                    # Si l'animation est terminée (pas de typing_text actif), formater
+                    if not hasattr(self, 'typing_text') or not self.typing_text:
+                        line_is_complete = True
+                    # Si typing_index a atteint la fin du texte
+                    elif hasattr(self, 'typing_index') and hasattr(self, 'typing_text'):
+                        if self.typing_index >= len(self.typing_text):
+                            line_is_complete = True
+
+                    # Utiliser le contenu comme clé pour éviter les doublons
+                    content_key = f"title:{title_without_hashes.strip()}"
+                    if line_is_complete and content_key not in self._formatted_bold_contents:
                         # Remplacer "## titre" par "titre" formaté (sans les ##)
                         text_widget.delete(pos_start, line_end)
                         text_widget.insert(
                             pos_start, title_without_hashes, f"title_{level}"
                         )
-
-                        self._formatted_positions.add(pos_str)
-
-                        start_pos = text_widget.index(f"{pos_start}+1l")
+                        self._formatted_bold_contents.add(content_key)
+                        start_pos = text_widget.index(f"{pos_start}+{len(title_without_hashes)}c")
                     else:
-                        start_pos = text_widget.index(f"{pos_start}+1l")
+                        start_pos = text_widget.index(f"{line_end}+1c")
                 else:
-                    start_pos = text_widget.index(f"{pos_start}+1c")
-
-            # === FORMATAGE DOCSTRINGS '''docstring''' ===
+                    start_pos = text_widget.index(f"{pos_start}+1c")            # === FORMATAGE DOCSTRINGS '''docstring''' ===
             start_pos = "1.0"
             while True:
                 # Chercher le prochain '''
@@ -8230,6 +8949,116 @@ class ModernAIGUI:
             "dockerfile_flag": ("#dcdcaa", "normal"),  # Flags --from, etc.
         }
 
+        # Java tags
+        java_tags = {
+            "java_keyword": ("#569cd6", "bold"),
+            "java_string": ("#ce9178", "normal"),
+            "java_comment": ("#6a9955", "italic"),
+            "java_number": ("#b5cea8", "normal"),
+            "java_class": ("#4ec9b0", "normal"),
+            "java_method": ("#dcdcaa", "normal"),
+            "java_annotation": ("#dcdcaa", "normal"),
+        }
+
+        # C++ tags
+        cpp_tags = {
+            "cpp_keyword": ("#569cd6", "bold"),
+            "cpp_string": ("#ce9178", "normal"),
+            "cpp_comment": ("#6a9955", "italic"),
+            "cpp_number": ("#b5cea8", "normal"),
+            "cpp_preprocessor": ("#c586c0", "normal"),
+            "cpp_type": ("#4ec9b0", "normal"),
+            "cpp_function": ("#dcdcaa", "normal"),
+        }
+
+        # C tags (mêmes couleurs que C++)
+        c_tags = {
+            "c_keyword": ("#569cd6", "bold"),
+            "c_string": ("#ce9178", "normal"),
+            "c_comment": ("#6a9955", "italic"),
+            "c_number": ("#b5cea8", "normal"),
+            "c_preprocessor": ("#c586c0", "normal"),
+            "c_type": ("#4ec9b0", "normal"),
+            "c_function": ("#dcdcaa", "normal"),
+        }
+
+        # C# tags
+        csharp_tags = {
+            "csharp_keyword": ("#569cd6", "bold"),
+            "csharp_string": ("#ce9178", "normal"),
+            "csharp_comment": ("#6a9955", "italic"),
+            "csharp_number": ("#b5cea8", "normal"),
+            "csharp_class": ("#4ec9b0", "normal"),
+            "csharp_method": ("#dcdcaa", "normal"),
+        }
+
+        # Go tags
+        go_tags = {
+            "go_keyword": ("#569cd6", "bold"),
+            "go_string": ("#ce9178", "normal"),
+            "go_comment": ("#6a9955", "italic"),
+            "go_number": ("#b5cea8", "normal"),
+            "go_type": ("#4ec9b0", "normal"),
+            "go_function": ("#dcdcaa", "normal"),
+            "go_package": ("#c586c0", "normal"),
+        }
+
+        # Ruby tags
+        ruby_tags = {
+            "ruby_keyword": ("#569cd6", "bold"),
+            "ruby_string": ("#ce9178", "normal"),
+            "ruby_comment": ("#6a9955", "italic"),
+            "ruby_number": ("#b5cea8", "normal"),
+            "ruby_symbol": ("#d7ba7d", "normal"),
+            "ruby_method": ("#dcdcaa", "normal"),
+            "ruby_class": ("#4ec9b0", "normal"),
+            "ruby_variable": ("#9cdcfe", "normal"),
+        }
+
+        # Swift tags
+        swift_tags = {
+            "swift_keyword": ("#569cd6", "bold"),
+            "swift_string": ("#ce9178", "normal"),
+            "swift_comment": ("#6a9955", "italic"),
+            "swift_number": ("#b5cea8", "normal"),
+            "swift_type": ("#4ec9b0", "normal"),
+            "swift_function": ("#dcdcaa", "normal"),
+            "swift_attribute": ("#dcdcaa", "normal"),
+        }
+
+        # PHP tags
+        php_tags = {
+            "php_keyword": ("#569cd6", "bold"),
+            "php_string": ("#ce9178", "normal"),
+            "php_comment": ("#6a9955", "italic"),
+            "php_number": ("#b5cea8", "normal"),
+            "php_variable": ("#9cdcfe", "normal"),
+            "php_function": ("#dcdcaa", "normal"),
+            "php_tag": ("#569cd6", "bold"),
+        }
+
+        # Perl tags
+        perl_tags = {
+            "perl_keyword": ("#569cd6", "bold"),
+            "perl_string": ("#ce9178", "normal"),
+            "perl_comment": ("#6a9955", "italic"),
+            "perl_number": ("#b5cea8", "normal"),
+            "perl_variable": ("#9cdcfe", "normal"),
+            "perl_regex": ("#d16969", "normal"),
+        }
+
+        # Rust tags
+        rust_tags = {
+            "rust_keyword": ("#569cd6", "bold"),
+            "rust_string": ("#ce9178", "normal"),
+            "rust_comment": ("#6a9955", "italic"),
+            "rust_number": ("#b5cea8", "normal"),
+            "rust_type": ("#4ec9b0", "normal"),
+            "rust_function": ("#dcdcaa", "normal"),
+            "rust_macro": ("#c586c0", "normal"),
+            "rust_lifetime": ("#569cd6", "italic"),
+        }
+
         # Configuration de tous les tags
         all_language_tags = {
             **js_tags,
@@ -8238,6 +9067,16 @@ class ModernAIGUI:
             **bash_tags,
             **sql_tags,
             **dockerfile_tags,
+            **java_tags,
+            **cpp_tags,
+            **c_tags,
+            **csharp_tags,
+            **go_tags,
+            **ruby_tags,
+            **swift_tags,
+            **php_tags,
+            **perl_tags,
+            **rust_tags,
         }
 
         for tag, (color, weight) in all_language_tags.items():
@@ -9467,7 +10306,7 @@ class ModernAIGUI:
     def clear_chat(self):
         """Efface la conversation ET les documents en mémoire pour repartir de zéro"""
         try:
-            # Vider l'historique
+            # Vider l'historique local de l'interface
             self.conversation_history.clear()
 
             # Vider l'interface de chat
@@ -9480,6 +10319,12 @@ class ModernAIGUI:
 
             # Effacer les documents du CustomAI
             if hasattr(self, "custom_ai") and self.custom_ai:
+                # 🧠 IMPORTANT: Effacer l'historique du LocalLLM (mémoire Ollama)
+                if hasattr(self.custom_ai, "local_llm") and self.custom_ai.local_llm:
+                    if hasattr(self.custom_ai.local_llm, "clear_history"):
+                        self.custom_ai.local_llm.clear_history()
+                        print("🗑️ Historique LocalLLM (Ollama) effacé")
+
                 # Effacer la mémoire de conversation (inclut les documents)
                 if hasattr(self.custom_ai, "conversation_memory"):
                     self.custom_ai.conversation_memory.clear()
@@ -9523,6 +10368,13 @@ class ModernAIGUI:
                         self.custom_ai.vector_memory.clear_all()
                         print("🗑️ VectorMemory effacé")
 
+            # 🧠 Effacer aussi l'historique du LocalLLM dans l'AIEngine
+            if hasattr(self.ai_engine, "local_ai") and self.ai_engine.local_ai:
+                if hasattr(self.ai_engine.local_ai, "local_llm") and self.ai_engine.local_ai.local_llm:
+                    if hasattr(self.ai_engine.local_ai.local_llm, "clear_history"):
+                        self.ai_engine.local_ai.local_llm.clear_history()
+                        print("🗑️ Historique LocalLLM (AIEngine) effacé")
+
             # Mettre à jour le compteur de tokens dans l'interface
             if hasattr(self, "update_context_stats"):
                 self.update_context_stats()
@@ -9534,7 +10386,7 @@ class ModernAIGUI:
             self.scroll_to_top()
 
             self.logger.info("Conversation et documents effacés")
-            print("✅ Clear complet: conversation + documents + mémoire")
+            print("✅ Clear complet: conversation + documents + mémoire + historique Ollama")
 
         except Exception as e:
             self.logger.error("Erreur lors de l'effacement: %s", e)
