@@ -4,19 +4,20 @@ Intègre tous les modules pour une IA 100% locale avec mémoire de conversation
 """
 
 import asyncio
+import concurrent.futures
+import os
 import random
 import re
+import tempfile
 import time
 import traceback
-import os
-import concurrent.futures
-import tempfile
-import requests
 from typing import Any, Dict, List, Optional, Tuple
 
+import requests
+
 from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
-from models.smart_code_searcher import smart_code_searcher, multi_source_searcher
 from models.ml_faq_model import MLFAQModel
+from models.smart_code_searcher import multi_source_searcher, smart_code_searcher
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
@@ -26,8 +27,8 @@ from .conversation_memory import ConversationMemory
 from .internet_search import InternetSearchEngine
 from .knowledge_base import KnowledgeBase
 from .linguistic_patterns import LinguisticPatterns
-from .reasoning_engine import ReasoningEngine
 from .local_llm import LocalLLM
+from .reasoning_engine import ReasoningEngine
 
 # Import du calculateur intelligent
 try:
@@ -246,17 +247,17 @@ class CustomAIModel(BaseAI):
         print("🌐 Recherche internet disponible")
 
     def _add_to_conversation_history(
-        self, 
-        user_message: str, 
-        ai_response: str, 
+        self,
+        user_message: str,
+        ai_response: str,
         intent: str = "general",
         confidence: float = 1.0,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Ajoute une conversation à TOUS les systèmes de mémoire.
         Synchronise ConversationMemory ET LocalLLM pour que Ollama ait le contexte complet.
-        
+
         Args:
             user_message: Le message de l'utilisateur
             ai_response: La réponse de l'IA
@@ -268,9 +269,9 @@ class CustomAIModel(BaseAI):
         self.conversation_memory.add_conversation(
             user_message, ai_response, intent, confidence, context
         )
-        
+
         # 2. Ajouter à l'historique LocalLLM (pour le contexte Ollama)
-        if self.local_llm and hasattr(self.local_llm, '_add_to_history'):
+        if self.local_llm and hasattr(self.local_llm, "_add_to_history"):
             self.local_llm._add_to_history("user", user_message)
             self.local_llm._add_to_history("assistant", ai_response)
             print(f"🧠 [SYNC] Conversation ajoutée à l'historique Ollama ({intent})")
@@ -374,7 +375,9 @@ class CustomAIModel(BaseAI):
                 print(f"🌐 [INTERNET] Recherche internet explicite: '{user_input}'")
                 response = self._handle_internet_search(user_input, context or {})
                 # Synchroniser avec l'historique Ollama
-                self._add_to_conversation_history(user_input, response, "internet_search")
+                self._add_to_conversation_history(
+                    user_input, response, "internet_search"
+                )
                 return response
 
             # 🧮 3. CALCUL → intelligent_calculator
@@ -4686,8 +4689,6 @@ Que voulez-vous apprendre exactement ?"""
         user_lower = user_input.lower().strip()
 
         # 1. Calculs mathématiques (contient des opérateurs et des chiffres)
-        import re
-
         # Patterns pour les calculs: "5+3", "100/5", "45*8", "10-2", "calcule 5+3", etc.
         calc_patterns = [
             r"^\d+\s*[\+\-\*\/\^]\s*\d+",  # "5+3", "100 / 5"
