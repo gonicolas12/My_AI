@@ -4,7 +4,7 @@
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
-- 💻 **Analyse** et **génération** de **code (via [clé API GitHub](#-utilisation-de-la-clé-api-github))** avec contexte massif
+- 💻 **Analyse** et **génération** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
 - 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
@@ -147,7 +147,7 @@ my_ai/
 
 ## 🔑 Utilisation de la clé API GitHub
 
-La **génération de code** nécessite une clé **API GitHub**. Pour que **votre IA** ai accès à **Github**, c'est simple :
+Si vous n'avez pas **[Ollama](#installation-ollama-optionnel-mais-recommandé)** d'installé, la **génération de code** nécessite une clé **API GitHub**. Pour que **votre IA** ai accès à **Github**, c'est simple :
 
 ### 1. Générer une clé API GitHub
 1. **Rendez-vous** sur [github.com/settings/tokens](https://github.com/settings/tokens)
