@@ -83,7 +83,7 @@ my_ai/
 ├── tests/                               # Tests unitaires
 ├── docs/                                # Documentation
 ├── main.py                              # Point d'entrée principal
-├── Modelfile                            # Configuration modèle Ollama (llama3.1:8b)
+├── Modelfile                            # Configuration modèle Ollama
 ├── requirements.txt                     # Dépendances
 ├── launch.bat                           # Script pour lancer le programme
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
@@ -126,46 +126,25 @@ my_ai/
 - **Conversations contextuelles** : Référence aux éléments précédemment traités
 - **Recherche internet** : "Cherche sur internet les actualités Python"
 
-### 🖥️ Interface Utilisateur Moderne
-#### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
+## 🖥️ Interface Utilisateur Moderne
+
+### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
 - **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
 - **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
 - **Formatage avancé** : Support complet du **texte en gras** avec Unicode
 - **Animations fluides** : Indicateurs de réflexion et recherche internet
 - **Responsive design** : Adaptation automatique à tous types d'écrans
 
-#### 🖱️ Fonctionnalités Interactives
+### 🖱️ Fonctionnalités Interactives
 - **Raccourcis clavier** : Entrée (envoyer), Shift+Entrée (nouvelle ligne), Ctrl+L (clear)
 - **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
 - **Messages non-scrollables** : Labels optimisés pour de meilleures performances
 - **Timestamp automatique** : Horodatage discret pour chaque message
 
-#### 🖥️ Différentes Interfaces
+### 🖥️ Différentes Interfaces
 - **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
 - **CLI avancée** : Ligne de commande pour utilisateurs experts
 - **Gestion d'erreurs** : Messages clairs et récupération gracieuse
-
-## 🔑 Utilisation de la clé API GitHub
-
-Si vous n'avez pas **[Ollama](#installation-ollama-optionnel-mais-recommandé)** d'installé, la **génération de code** nécessite une clé **API GitHub**. Pour que **votre IA** ai accès à **Github**, c'est simple :
-
-### 1. Générer une clé API GitHub
-1. **Rendez-vous** sur [github.com/settings/tokens](https://github.com/settings/tokens)
-2. Cliquez sur **"Generate new token"** (classic ou fine-grained)
-3. Donnez les **permissions nécessaires** (repo, user, etc.)
-4. Copiez la **clé générée**
-
-### 2. Configurer la clé API sur votre machine
-Dans votre **terminal**, entrez :
-```powershell
-$env:GITHUB_TOKEN="votre_token_github"
-```
-Et voilà ! Votre **IA personnelle** aura accès à l'**API Github**.
-
-### 3. Utilisation sans clé API
-Si **aucune clé** n'est configurée, l'**IA** utilisera automatiquement le **backend local**. Les fonctionnalités dépendantes de **GitHub** seront **désactivées**.
-
-N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les backends et modèles utilisés.
 
 ## 🛠️ Technologies Locales
 
@@ -252,6 +231,28 @@ Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpl
 🤖 Vous : trouve-moi des informations sur l'IA en 2025
 🤖 IA : [Recherche et synthèse d'informations récentes sur l'IA]
 ```
+
+## 🔑 Utilisation de la clé API GitHub
+
+Si vous n'avez pas **[Ollama](#installation-ollama-optionnel-mais-recommandé)** d'installé, la **génération de code** nécessite une clé **API GitHub**. Pour que **votre IA** ai accès à **Github**, c'est simple :
+
+### 1. Générer une clé API GitHub
+1. **Rendez-vous** sur [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Cliquez sur **"Generate new token"** (classic ou fine-grained)
+3. Donnez les **permissions nécessaires** (repo, user, etc.)
+4. Copiez la **clé générée**
+
+### 2. Configurer la clé API sur votre machine
+Dans votre **terminal**, entrez :
+```powershell
+$env:GITHUB_TOKEN="votre_token_github"
+```
+Et voilà ! Votre **IA personnelle** aura accès à l'**API Github**.
+
+### 3. Utilisation sans clé API
+Si **aucune clé** n'est configurée, l'**IA** utilisera automatiquement le **backend local**. Les fonctionnalités dépendantes de **GitHub** seront **désactivées**.
+
+N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les backends et modèles utilisés.
 
 ## 📖 Documentation Complète
 

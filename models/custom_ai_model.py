@@ -271,9 +271,9 @@ class CustomAIModel(BaseAI):
         )
 
         # 2. Ajouter à l'historique LocalLLM (pour le contexte Ollama)
-        if self.local_llm and hasattr(self.local_llm, "_add_to_history"):
-            self.local_llm._add_to_history("user", user_message)
-            self.local_llm._add_to_history("assistant", ai_response)
+        if self.local_llm and hasattr(self.local_llm, "add_to_history"):
+            self.local_llm.add_to_history("user", user_message)
+            self.local_llm.add_to_history("assistant", ai_response)
             print(f"🧠 [SYNC] Conversation ajoutée à l'historique Ollama ({intent})")
 
     def generate_response(

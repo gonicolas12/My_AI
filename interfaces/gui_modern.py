@@ -502,6 +502,9 @@ class ModernAIGUI:
         # Positions déjà formatées
         self._formatted_positions = set()
 
+        # Contenus en gras déjà formatés
+        self._formatted_bold_contents = set()
+
         # UI components
         self.style_config = None
         self.fonts = None
@@ -4368,7 +4371,7 @@ class ModernAIGUI:
                 hasattr(self, "_code_blocks_map")
                 and self.typing_index in self._code_blocks_map
             ):
-                language, token_type = self._code_blocks_map[self.typing_index]
+                _language, token_type = self._code_blocks_map[self.typing_index]
 
                 # Masquer les marqueurs de blocs de code (```)
                 if token_type == "code_block_marker":
@@ -5439,14 +5442,10 @@ class ModernAIGUI:
     def _apply_unified_progressive_formatting(self, text_widget):
         """MÉTHODE UNIFIÉE SIMPLIFIÉE : Formatage progressif sécurisé"""
         try:
-            # Initialiser le tracking si nécessaire - utiliser le CONTENU comme clé, pas la position
-            if not hasattr(self, "_formatted_bold_contents"):
-                self._formatted_bold_contents = set()
-
             text_widget.configure(state="normal")
 
             # Obtenir le texte actuellement affiché
-            current_displayed_text = text_widget.get("1.0", "end-1c")
+            _current_displayed_text = text_widget.get("1.0", "end-1c")
 
             # === FORMATAGE GRAS **texte** - Toujours actif mais vérifie le texte complet ===
             start_pos = "1.0"

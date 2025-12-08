@@ -122,8 +122,8 @@ class LocalLLM:
 
                 if assistant_response:
                     # Sauvegarder dans l'historique
-                    self._add_to_history("user", prompt)
-                    self._add_to_history("assistant", assistant_response)
+                    self.add_to_history("user", prompt)
+                    self.add_to_history("assistant", assistant_response)
                     print("✅ [LocalLLM] Réponse générée et ajoutée à l'historique")
 
                 return assistant_response
@@ -142,7 +142,7 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception durant la génération: {e}")
             return None
 
-    def _add_to_history(self, role: str, content: str):
+    def add_to_history(self, role: str, content: str):
         """Ajoute un message à l'historique de conversation"""
         self.conversation_history.append({"role": role, "content": content})
 

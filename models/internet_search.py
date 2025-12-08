@@ -337,7 +337,7 @@ class EnhancedInternetSearchEngine:
         Extrait le nom de ville d'une requête météo.
         Supporte les villes du monde entier grâce à wttr.in.
         """
-        query_lower = query.lower()
+        _query_lower = query.lower()
 
         # Mots à exclure (mots communs qui ne sont pas des villes)
         stop_words = {
