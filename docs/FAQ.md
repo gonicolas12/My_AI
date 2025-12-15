@@ -62,7 +62,7 @@ pip install -r requirements.txt
 ```bash
 # Télécharger depuis https://ollama.com/download
 ollama pull llama3.1:8b
-ollama create my_ai -f Modelfile
+.\create_custom_model.bat
 ```
 
 ### Que faire si l'installation échoue ?
