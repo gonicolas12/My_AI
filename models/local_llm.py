@@ -18,7 +18,7 @@ class LocalLLM:
         self,
         model="my_ai",
         ollama_url="http://localhost:11434/api/generate",
-        timeout=180,
+        timeout=240,
     ):
         # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'llama3'
         self.model = model
@@ -29,7 +29,7 @@ class LocalLLM:
 
         # 🧠 Historique de conversation pour le contexte
         self.conversation_history: List[Dict[str, str]] = []
-        self.max_history_length = 20  # Garder les 20 derniers échanges
+        self.max_history_length = 50  # Garder les 50 derniers échanges
 
         if self.is_ollama_available:
             # Vérifier si le modèle personnalisé existe, sinon utiliser llama3
