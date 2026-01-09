@@ -576,6 +576,130 @@ class CustomAIModel(BaseAI):
             )
             return error_response
 
+    def generate_response_stream(
+        self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Génère une réponse en STREAMING pour affichage temps réel.
+
+        Cette méthode utilise le streaming Ollama pour envoyer chaque token
+        dès qu'il est généré, permettant un affichage instantané dans l'interface.
+
+        Args:
+            user_input: Le message de l'utilisateur
+            on_token: Callback appelé pour chaque token (signature: on_token(str) -> bool)
+                     Retourne False pour interrompre la génération
+            context: Contexte optionnel (RAG, documents, etc.)
+
+        Returns:
+            La réponse complète une fois terminée
+        """
+        try:
+            user_lower = user_input.lower().strip()
+
+            # ============================================================
+            # 🎯 EXCEPTIONS AU STREAMING - Réponses locales immédiates
+            # ============================================================
+
+            # Ces cas n'ont pas besoin du streaming car ils sont instantanés
+
+            # 1️⃣ MÉTÉO - API externe rapide
+            weather_keywords = [
+                "météo",
+                "meteo",
+                "temps qu'il fait",
+                "quel temps",
+                "température",
+            ]
+            if any(kw in user_lower for kw in weather_keywords):
+                response = self.generate_response(user_input, context)
+                if on_token:
+                    on_token(response)
+                return response
+
+            # 2️⃣ CALCULS - Résultat instantané
+            if any(
+                op in user_input for op in ["+", "-", "*", "/", "^", "sqrt", "calcule"]
+            ):
+                response = self.generate_response(user_input, context)
+                if on_token:
+                    on_token(response)
+                return response
+
+            # 3️⃣ BLAGUES - Base locale
+            joke_keywords = ["blague", "rigole", "drôle", "humour", "raconte-moi une"]
+            if any(kw in user_lower for kw in joke_keywords):
+                response = self.generate_response(user_input, context)
+                if on_token:
+                    on_token(response)
+                return response
+
+            # ============================================================
+            # 🦙 STREAMING OLLAMA - Pour les réponses génératives
+            # ============================================================
+
+            if self.local_llm and self.local_llm.is_ollama_available:
+                # Préparer le contexte documentaire si nécessaire
+                system_prompt = None
+
+                if self._has_documents_in_memory() and not self._is_general_question(
+                    user_input
+                ):
+                    if self._is_document_question(user_input):
+                        doc_content = self.conversation_memory.get_document_content()
+                        if doc_content:
+                            doc_summary = (
+                                doc_content[:4000]
+                                if len(doc_content) > 4000
+                                else doc_content
+                            )
+                            system_prompt = f"CONTEXTE DOCUMENTAIRE:\n{doc_summary}\n\nUtilise ce contexte si pertinent."
+                            print("📄 [STREAM] Contexte documentaire injecté")
+
+                # Injection RAG si fourni
+                if context and isinstance(context, dict):
+                    rag_content = context.get("rag_context", "")
+                    if rag_content and len(rag_content.strip()) > 50:
+                        rag_summary = (
+                            rag_content[:2000]
+                            if len(rag_content) > 2000
+                            else rag_content
+                        )
+                        if system_prompt:
+                            system_prompt += f"\n\nCONTEXTE ADDITIONNEL:\n{rag_summary}"
+                        else:
+                            system_prompt = f"CONTEXTE ADDITIONNEL:\n{rag_summary}"
+
+                print(f"⚡ [STREAM] Génération streaming pour: '{user_input[:50]}...'")
+
+                # Utiliser le streaming
+                response = self.local_llm.generate_stream(
+                    user_input, system_prompt=system_prompt, on_token=on_token
+                )
+
+                if response:
+                    # Sauvegarder dans la mémoire (l'historique Ollama est déjà mis à jour par generate_stream)
+                    self.conversation_memory.add_conversation(
+                        user_input, response, "ollama_stream", 1.0, {}
+                    )
+                    return response
+                else:
+                    print("⚠️ [STREAM] Fallback vers génération classique...")
+
+            # ============================================================
+            # 🔧 FALLBACK - Mode non-streaming
+            # ============================================================
+            response = self.generate_response(user_input, context)
+            if on_token:
+                on_token(response)
+            return response
+
+        except Exception as e:
+            error_msg = f"Désolé, j'ai rencontré un problème : {str(e)}"
+            if on_token:
+                on_token(error_msg)
+            return error_msg
+
     def _is_document_processing_request(self, user_input: str) -> bool:
         """Détecte si c'est une demande de traitement de document système"""
         return user_input.lower().startswith(

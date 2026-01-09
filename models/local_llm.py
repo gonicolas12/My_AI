@@ -180,3 +180,106 @@ class LocalLLM:
             role = "Utilisateur" if msg["role"] == "user" else "Assistant"
             context_parts.append(f"{role}: {msg['content']}")
         return "\n".join(context_parts)
+
+    def generate_stream(self, prompt, system_prompt=None, on_token=None):
+        """
+        Génère une réponse en STREAMING pour une latence minimale.
+        Chaque token est envoyé via le callback on_token(token_text) dès qu'il est reçu.
+
+        Args:
+            prompt: Le message de l'utilisateur
+            system_prompt: Prompt système optionnel
+            on_token: Callback appelé pour chaque token reçu (signature: on_token(str) -> bool)
+                     Retourne False pour interrompre la génération
+
+        Returns:
+            La réponse complète une fois terminée, ou None si erreur
+        """
+        if not self.is_ollama_available:
+            return None
+
+        # Construire les messages avec historique
+        messages = []
+
+        # Ajouter le system prompt s'il existe
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        # Ajouter l'historique de conversation
+        messages.extend(self.conversation_history)
+
+        # Ajouter le message actuel de l'utilisateur
+        messages.append({"role": "user", "content": prompt})
+
+        data = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,  # ⚡ STREAMING ACTIVÉ
+            "options": {
+                "temperature": 0.7,
+                "num_ctx": 8192,
+                "num_predict": 1024,
+            },
+        }
+
+        try:
+            print(
+                f"⚡ [LocalLLM] Génération STREAMING ({len(self.conversation_history)} messages contexte)..."
+            )
+
+            full_response = ""
+
+            # Requête en streaming
+            with requests.post(
+                self.chat_url, json=data, timeout=self.timeout, stream=True
+            ) as response:
+                if response.status_code != 200:
+                    print(f"⚠️ [LocalLLM] Erreur API Ollama: {response.status_code}")
+                    return None
+
+                # Lire les chunks JSON ligne par ligne
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            chunk = line.decode("utf-8")
+                            json_chunk = __import__("json").loads(chunk)
+
+                            # Extraire le contenu du token
+                            token = json_chunk.get("message", {}).get("content", "")
+
+                            if token:
+                                full_response += token
+
+                                # Appeler le callback si fourni
+                                if on_token:
+                                    should_continue = on_token(token)
+                                    if should_continue is False:
+                                        print(
+                                            "🛑 [LocalLLM] Génération interrompue par callback"
+                                        )
+                                        break
+
+                            # Vérifier si c'est le dernier message
+                            if json_chunk.get("done", False):
+                                break
+
+                        except Exception as e:
+                            print(f"⚠️ [LocalLLM] Erreur parsing chunk: {e}")
+                            continue
+
+            if full_response:
+                # Sauvegarder dans l'historique
+                self.add_to_history("user", prompt)
+                self.add_to_history("assistant", full_response)
+                print(
+                    "✅ [LocalLLM] Réponse streaming complète et ajoutée à l'historique"
+                )
+
+            return full_response
+
+        except requests.exceptions.Timeout:
+            print(f"⚠️ [LocalLLM] Timeout après {self.timeout}s")
+            return None
+        except Exception as e:
+            print(f"⚠️ [LocalLLM] Exception streaming: {e}")
+            return None
