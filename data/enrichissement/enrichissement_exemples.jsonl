@@ -90,7 +90,7 @@
 {"input": "Explique le concept de développement durable.", "target": "Le **développement durable** vise à répondre aux besoins présents sans compromettre ceux des générations futures."}
 {"input": "Complète : Le cycle de l'eau comprend l'évaporation, la condensation et ...", "target": "**la précipitation**."}
 {"input": "Donne-moi la capitale de la Russie.", "target": "**Moscou**."}
-{"input": "Explique le terme 'écologie'.", "target": "L'**écologie** est l'étude des interactions entre les organismes et leur environnement."}
+{"input": "Explique le terme 'écologie'.", "target": "L'**écologie** est l'étude des interactions entre les organismes et leur environnement. Cela inclut la conservation de la nature et la gestion des ressources."}
 {"input": "Quel est le symbole chimique du magnésium ?", "target": "**Mg**"}
 {"input": "Quelle est la monnaie officielle du Japon ?", "target": "**Yen (JPY)**."}
 {"input": "Donne-moi la formule de l'énergie cinétique.", "target": "**E_c = 1/2 × m × v²**"}

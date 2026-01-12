@@ -492,8 +492,8 @@ class ModernAIGUI:
         # Ensemble des tableaux déjà formatés
         self._formatted_tables = set()
 
-        # Pending links mapping
-        self._pending_links = {}
+        # Pending links list (not dict!)
+        self._pending_links = []
 
         # Positions déjà formatées
         self._formatted_positions = set()
@@ -2569,20 +2569,19 @@ class ModernAIGUI:
         # Pattern pour détecter [titre](url)
         link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
 
-        # Initialiser le mapping des liens pour la conversion finale
+        # Initialiser la liste des liens pour la conversion finale
         if not hasattr(self, "_pending_links"):
-            self._pending_links = {}
+            self._pending_links = []
 
         def replace_link(match):
             title = match.group(1)
             url = match.group(2)
 
-            # Stocker dans _pending_links avec le titre comme clé
-            self._pending_links[title] = {
+            # Stocker dans _pending_links comme liste
+            self._pending_links.append({
                 "title": title,
                 "url": url,
-                "original": match.group(0),
-            }
+            })
 
             # Retourner juste le titre (sans marqueur)
             return title
@@ -2591,8 +2590,8 @@ class ModernAIGUI:
         processed_text = re.sub(link_pattern, replace_link, text)
 
         print(f"[DEBUG] Liens prétraités: {len(self._pending_links)} liens trouvés")
-        for _title, data in self._pending_links.items():
-            print(f"  '{data['title']}' -> {data['url']}")
+        for link_data in self._pending_links:
+            print(f"  '{link_data['title']}' -> {link_data['url']}")
 
         return processed_text, self._pending_links
 
@@ -5509,7 +5508,10 @@ class ModernAIGUI:
             # === FORMATAGE LIENS PRÉTRAITÉS (DÉTECTION DES TITRES) ===
             # Les liens ont été remplacés par leurs titres, on doit les détecter et les marquer
             if hasattr(self, "_pending_links") and self._pending_links:
-                for title, _data in self._pending_links.items():
+                # Créer un set de titres uniques pour éviter les recherches dupliquées
+                unique_titles = set(link_data["title"] for link_data in self._pending_links)
+                
+                for title in unique_titles:
                     # Chercher toutes les occurrences de ce titre
                     start_pos = "1.0"
                     occurrences_found = 0
@@ -5587,14 +5589,16 @@ class ModernAIGUI:
                         text_widget.delete(link_start, link_end)
                         text_widget.insert(link_start, title, "link_temp")
 
-                        # Stocker l'URL pour plus tard
+                        # Stocker l'URL pour plus tard dans une liste (pas dictionnaire)
                         if not hasattr(self, "_pending_links"):
-                            self._pending_links = {}
-                        self._pending_links[pos_str] = {
+                            self._pending_links = []
+                        
+                        # Ajouter ce lien à la liste
+                        self._pending_links.append({
                             "title": title,
                             "url": url,
-                            "position": link_start,
-                        }
+                        })
+                        print(f"[DEBUG] Lien ajouté à _pending_links: '{title}' -> {url}")
 
                         self._formatted_positions.add(pos_str)
 
@@ -6331,28 +6335,50 @@ class ModernAIGUI:
             )
             text_widget.configure(state="normal")
 
-            # Parcourir tous les liens en attente (organisés par titre maintenant)
-            link_counter = 0
-            for title, link_data in self._pending_links.items():
-                url = link_data["url"]
-
-                # Chercher toutes les zones avec le tag link_temp qui correspondent à ce titre
-                ranges = text_widget.tag_ranges("link_temp")
-
-                if not ranges:
-                    print(f"[DEBUG] ERREUR: Aucun tag link_temp trouvé pour '{title}'")
-                    continue
-
-                print(
-                    f"[DEBUG] Traitement de '{title}' -> {url} ({len(ranges)//2} zones link_temp)"
-                )
-
+            # Récupérer TOUTES les zones avec le tag link_temp
+            ranges = text_widget.tag_ranges("link_temp")
+            
+            if not ranges:
+                print("[DEBUG] ERREUR: Aucune zone link_temp trouvée")
+            else:
+                print(f"[DEBUG] {len(ranges)//2} zones link_temp trouvées")
+                print(f"[DEBUG] Liens disponibles dans _pending_links: {[(l['title'], l['url'][:50]) for l in self._pending_links]}")
+                
+                # Créer un index des liens par titre pour recherche rapide
+                # Pour gérer les liens avec le même titre, on utilise une liste
+                links_by_title = {}
+                for link_data in self._pending_links:
+                    title = link_data["title"]
+                    if title not in links_by_title:
+                        links_by_title[title] = []
+                    links_by_title[title].append(link_data["url"])
+                
+                # Compteur pour chaque titre (pour gérer les doublons)
+                title_usage_count = {}
+                link_counter = 0
+                
+                # Pour chaque zone link_temp, trouver le lien correspondant
                 for i in range(0, len(ranges), 2):
                     start_range = ranges[i]
                     end_range = ranges[i + 1]
                     range_text = text_widget.get(start_range, end_range)
-
-                    if range_text == title:
+                    
+                    # Chercher l'URL correspondante
+                    url = None
+                    if range_text in links_by_title:
+                        # Obtenir l'index d'utilisation pour ce titre
+                        usage_idx = title_usage_count.get(range_text, 0)
+                        
+                        # Si on a plusieurs URLs pour ce titre, utiliser l'index
+                        urls_list = links_by_title[range_text]
+                        if usage_idx < len(urls_list):
+                            url = urls_list[usage_idx]
+                            title_usage_count[range_text] = usage_idx + 1
+                        else:
+                            # Réutiliser la dernière URL si on dépasse
+                            url = urls_list[-1]
+                    
+                    if url:
                         # Créer un tag unique pour ce lien
                         unique_tag = f"clickable_link_{link_counter}"
                         link_counter += 1
@@ -6383,15 +6409,17 @@ class ModernAIGUI:
                             unique_tag, "<Button-1>", create_click_handler(url)
                         )
                         print(
-                            f"[DEBUG] Lien configuré: '{title}' -> {url} (tag: {unique_tag})"
+                            f"[DEBUG] Lien configuré: '{range_text}' -> {url} (tag: {unique_tag})"
                         )
+                    else:
+                        print(f"[DEBUG] WARNING: Aucune URL trouvée pour '{range_text}'")
 
             print(
                 f"[DEBUG] ✅ Conversion terminée: {link_counter} liens clickables créés"
             )
 
-            # Nettoyer les liens en attente
-            delattr(self, "_pending_links")
+            # NE PAS nettoyer _pending_links ici - laissé pour la fin de l'animation complète
+            # delattr(self, "_pending_links")
 
             text_widget.configure(state="disabled")
 
@@ -8358,8 +8386,8 @@ class ModernAIGUI:
             "link", foreground="#3b82f6", underline=1, font=base_font
         )
         text_widget.tag_configure(
-            "link_temp", font=base_font, foreground=self.colors["text_primary"]
-        )  # Lien pendant animation
+            "link_temp", foreground="#3b82f6", underline=1, font=base_font
+        )  # Lien pendant animation - même style que link
         text_widget.tag_configure(
             "docstring", font=("Consolas", 11, "italic"), foreground="#ff8c00"
         )
@@ -9663,7 +9691,7 @@ class ModernAIGUI:
         self._formatted_positions = set()
         self._formatted_bold_contents = set()
         self._formatted_tables = set()
-        self._pending_links = {}
+        self._pending_links = []
         self._table_blocks = []
 
         # Configurer tous les tags de formatage
@@ -10415,17 +10443,9 @@ class ModernAIGUI:
             # Formatage unifié (gras, italique, code inline, etc.)
             self._apply_unified_progressive_formatting(self.typing_widget)
 
-            # Traiter les liens dans le texte actuel
-            self._pending_links = {}
-            link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-            for match in re.finditer(link_pattern, current_widget_text):
-                title = match.group(1)
-                url = match.group(2)
-                self._pending_links[title] = {
-                    "title": title,
-                    "url": url,
-                    "original": match.group(0),
-                }
+            # Les liens ont déjà été collectés pendant l'animation dans _pending_links
+            # Ne PAS les rescanner ni les effacer
+            print(f"[DEBUG] _finish_streaming: {len(self._pending_links) if hasattr(self, '_pending_links') else 0} liens dans _pending_links")
 
             # Convertir les liens en cliquables
             self._convert_temp_links_to_clickable(self.typing_widget)
