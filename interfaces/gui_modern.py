@@ -501,6 +501,9 @@ class ModernAIGUI:
         # Contenus en gras déjà formatés
         self._formatted_bold_contents = set()
 
+        # Tracker pour la coloration des blocs de code en streaming
+        self._last_colored_block_end = -1
+
         # UI components
         self.style_config = None
         self.fonts = None
@@ -2578,10 +2581,12 @@ class ModernAIGUI:
             url = match.group(2)
 
             # Stocker dans _pending_links comme liste
-            self._pending_links.append({
-                "title": title,
-                "url": url,
-            })
+            self._pending_links.append(
+                {
+                    "title": title,
+                    "url": url,
+                }
+            )
 
             # Retourner juste le titre (sans marqueur)
             return title
@@ -2600,7 +2605,8 @@ class ModernAIGUI:
         code_blocks_map = {}  # Position -> (language, token_type)
 
         # Pattern pour détecter les blocs de code avec langage
-        code_block_pattern = r"```(\w+)?\n?(.*?)```"
+        # CORRECTION: Capturer aussi les + pour c++, et # pour c#
+        code_block_pattern = r"```([\w+#-]+)?\n?(.*?)```"
 
         matches_found = list(re.finditer(code_block_pattern, text, re.DOTALL))
         print(
@@ -4666,7 +4672,8 @@ class ModernAIGUI:
         text_up_to_current = text[: current_index + 1]
 
         # Pattern pour détecter les blocs de code
-        code_block_pattern = r"```(\w+)?\n?(.*?)(?:```|$)"
+        # CORRECTION: Capturer aussi les + pour c++, et # pour c#
+        code_block_pattern = r"```([\w+#-]+)?\n?(.*?)(?:```|$)"
 
         # Trouver tous les blocs de code
         blocks = list(re.finditer(code_block_pattern, text_up_to_current, re.DOTALL))
@@ -5509,8 +5516,10 @@ class ModernAIGUI:
             # Les liens ont été remplacés par leurs titres, on doit les détecter et les marquer
             if hasattr(self, "_pending_links") and self._pending_links:
                 # Créer un set de titres uniques pour éviter les recherches dupliquées
-                unique_titles = set(link_data["title"] for link_data in self._pending_links)
-                
+                unique_titles = set(
+                    link_data["title"] for link_data in self._pending_links
+                )
+
                 for title in unique_titles:
                     # Chercher toutes les occurrences de ce titre
                     start_pos = "1.0"
@@ -5592,13 +5601,17 @@ class ModernAIGUI:
                         # Stocker l'URL pour plus tard dans une liste (pas dictionnaire)
                         if not hasattr(self, "_pending_links"):
                             self._pending_links = []
-                        
+
                         # Ajouter ce lien à la liste
-                        self._pending_links.append({
-                            "title": title,
-                            "url": url,
-                        })
-                        print(f"[DEBUG] Lien ajouté à _pending_links: '{title}' -> {url}")
+                        self._pending_links.append(
+                            {
+                                "title": title,
+                                "url": url,
+                            }
+                        )
+                        print(
+                            f"[DEBUG] Lien ajouté à _pending_links: '{title}' -> {url}"
+                        )
 
                         self._formatted_positions.add(pos_str)
 
@@ -6337,13 +6350,15 @@ class ModernAIGUI:
 
             # Récupérer TOUTES les zones avec le tag link_temp
             ranges = text_widget.tag_ranges("link_temp")
-            
+
             if not ranges:
                 print("[DEBUG] ERREUR: Aucune zone link_temp trouvée")
             else:
                 print(f"[DEBUG] {len(ranges)//2} zones link_temp trouvées")
-                print(f"[DEBUG] Liens disponibles dans _pending_links: {[(l['title'], l['url'][:50]) for l in self._pending_links]}")
-                
+                print(
+                    f"[DEBUG] Liens disponibles dans _pending_links: {[(l['title'], l['url'][:50]) for l in self._pending_links]}"
+                )
+
                 # Créer un index des liens par titre pour recherche rapide
                 # Pour gérer les liens avec le même titre, on utilise une liste
                 links_by_title = {}
@@ -6352,23 +6367,23 @@ class ModernAIGUI:
                     if title not in links_by_title:
                         links_by_title[title] = []
                     links_by_title[title].append(link_data["url"])
-                
+
                 # Compteur pour chaque titre (pour gérer les doublons)
                 title_usage_count = {}
                 link_counter = 0
-                
+
                 # Pour chaque zone link_temp, trouver le lien correspondant
                 for i in range(0, len(ranges), 2):
                     start_range = ranges[i]
                     end_range = ranges[i + 1]
                     range_text = text_widget.get(start_range, end_range)
-                    
+
                     # Chercher l'URL correspondante
                     url = None
                     if range_text in links_by_title:
                         # Obtenir l'index d'utilisation pour ce titre
                         usage_idx = title_usage_count.get(range_text, 0)
-                        
+
                         # Si on a plusieurs URLs pour ce titre, utiliser l'index
                         urls_list = links_by_title[range_text]
                         if usage_idx < len(urls_list):
@@ -6377,7 +6392,7 @@ class ModernAIGUI:
                         else:
                             # Réutiliser la dernière URL si on dépasse
                             url = urls_list[-1]
-                    
+
                     if url:
                         # Créer un tag unique pour ce lien
                         unique_tag = f"clickable_link_{link_counter}"
@@ -6412,7 +6427,9 @@ class ModernAIGUI:
                             f"[DEBUG] Lien configuré: '{range_text}' -> {url} (tag: {unique_tag})"
                         )
                     else:
-                        print(f"[DEBUG] WARNING: Aucune URL trouvée pour '{range_text}'")
+                        print(
+                            f"[DEBUG] WARNING: Aucune URL trouvée pour '{range_text}'"
+                        )
 
             print(
                 f"[DEBUG] ✅ Conversion terminée: {link_counter} liens clickables créés"
@@ -6719,7 +6736,8 @@ class ModernAIGUI:
             print("[DEBUG] Bloc Python détecté dans le texte")
 
         # Pattern amélioré pour détecter les blocs de code avec langage
-        code_block_pattern = r"```(\w+)?\n?(.*?)```"
+        # CORRECTION: Capturer aussi les + pour c++, et # pour c#
+        code_block_pattern = r"```([\w+#-]+)?\n?(.*?)```"
 
         current_pos = 0
 
@@ -9715,7 +9733,7 @@ class ModernAIGUI:
             return
 
         if getattr(self, "_typing_interrupted", False):
-            self._finish_streaming_animation(interrupted=True)
+            self._finish_streaming_animation(_interrupted=True)
             return
 
         try:
@@ -9817,10 +9835,10 @@ class ModernAIGUI:
                 self._finish_streaming_animation()
 
         except tk.TclError:
-            self._finish_streaming_animation(interrupted=True)
+            self._finish_streaming_animation(_interrupted=True)
         except Exception as e:
             print(f"⚠️ [STREAM ANIM] Erreur: {e}")
-            self._finish_streaming_animation(interrupted=True)
+            self._finish_streaming_animation(_interrupted=True)
 
     def _apply_streaming_syntax_coloring(self):
         """
@@ -9833,7 +9851,8 @@ class ModernAIGUI:
 
             # Chercher le PREMIER bloc de code avec balises encore présentes dans le widget
             # Pattern: ```langage\n...code...```
-            code_block_pattern = r"```(\w+)\n(.*?)```"
+            # CORRECTION: Capturer aussi les + pour c++, et # pour c#
+            code_block_pattern = r"```([\w+#-]+)\n(.*?)```"
             widget_match = re.search(code_block_pattern, widget_text, re.DOTALL)
 
             if not widget_match:
@@ -9938,7 +9957,7 @@ class ModernAIGUI:
                         for _ in token_value:
                             tokens[pos] = token_name
                             pos += 1
-                except:
+                except Exception:
                     pass
             else:
                 # Patterns pour chaque langage
@@ -9949,7 +9968,7 @@ class ModernAIGUI:
                     ):
                         for i in range(match.start(), match.end()):
                             tokens[i] = token_type
-        except:
+        except Exception:
             pass
 
         return tokens
@@ -10170,7 +10189,7 @@ class ModernAIGUI:
                 )
             else:
                 # Langage non reconnu - marquer tout comme code_block
-                for i, char in enumerate(code_content):
+                for i, _ in enumerate(code_content):
                     tokens_map[code_offset + i] = (language, "code_block")
 
         except Exception as e:
@@ -10187,11 +10206,11 @@ class ModernAIGUI:
             pos = 0
             for token_type, token_value in lex(code, lexer):
                 token_name = str(token_type)
-                for char in token_value:
+                for _ in token_value:
                     tokens_map[offset + pos] = (language, token_name)
                     pos += 1
-        except:
-            for i, char in enumerate(code):
+        except Exception:
+            for i, _ in enumerate(code):
                 tokens_map[offset + i] = (language, "code_block")
 
     def _analyze_js_tokens_for_block(
@@ -10384,7 +10403,7 @@ class ModernAIGUI:
     ):
         """Applique une liste de patterns regex à un bloc de code."""
         # D'abord, marquer tout comme default_token
-        for i, char in enumerate(code):
+        for i, _ in enumerate(code):
             if (offset + i) not in tokens_map:
                 tokens_map[offset + i] = (language, default_token)
 
@@ -10394,7 +10413,7 @@ class ModernAIGUI:
                 for i in range(match.start(), match.end()):
                     tokens_map[offset + i] = (language, token_type)
 
-    def _finish_streaming_animation(self, interrupted=False):
+    def _finish_streaming_animation(self, _interrupted=False):
         """
         Finalise l'animation de streaming avec le formatage complet.
         IMPORTANT: La coloration syntaxique a déjà été appliquée pendant l'animation,
@@ -10445,7 +10464,9 @@ class ModernAIGUI:
 
             # Les liens ont déjà été collectés pendant l'animation dans _pending_links
             # Ne PAS les rescanner ni les effacer
-            print(f"[DEBUG] _finish_streaming: {len(self._pending_links) if hasattr(self, '_pending_links') else 0} liens dans _pending_links")
+            print(
+                f"[DEBUG] _finish_streaming: {len(self._pending_links) if hasattr(self, '_pending_links') else 0} liens dans _pending_links"
+            )
 
             # Convertir les liens en cliquables
             self._convert_temp_links_to_clickable(self.typing_widget)
