@@ -255,5 +255,5 @@ Génère du code propre, bien commenté et fonctionnel.
 ---
 
 **Version** : 1.0.0  
-**Date** : Janvier 2026  
-**Auteur** : My_AI Team
+**Date** : 14 Janvier 2026  
+**Auteur** : [Nicolas Gouy](https://github.com/gonicolas12)
