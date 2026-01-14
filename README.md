@@ -264,6 +264,7 @@ N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les back
 - **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
 - **[Changelog](docs/CHANGELOG.md)** : Historique des mises à jour
 - **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
+- **[Génération de Fichiers](docs/FILE_GENERATION.md)** : Guide sur la génération de fichiers via l'IA
 
 ## 🔧 Caractéristiques Techniques
 

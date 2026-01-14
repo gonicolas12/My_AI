@@ -72,7 +72,7 @@ class CustomAIModel(BaseAI):
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "6.0.0"
+        self.version = "6.1.0"
 
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -154,7 +154,7 @@ class CustomAIModel(BaseAI):
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre.",
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 6.0.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 6.1.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine.",
             ],
@@ -288,20 +288,17 @@ class CustomAIModel(BaseAI):
             # ============================================================
             # La FAQ doit être consultée AVANT tout autre système
             # pour garantir que les réponses enrichies soient utilisées
-            is_faq_match = False
             faq_response = None
             try:
                 ml_model = MLFAQModel()
                 faq_response = ml_model.predict(user_input)
                 if faq_response is not None and str(faq_response).strip():
-                    is_faq_match = True
                     print(f"📚 [FAQ] ✅ Réponse FAQ trouvée pour: '{user_input}'")
                     # Synchroniser avec l'historique Ollama
                     self._add_to_conversation_history(user_input, faq_response, "faq")
                     return faq_response
             except Exception as e:
                 print(f"⚠️ [FAQ] Erreur lors de la consultation FAQ: {e}")
-                pass
 
             # ============================================================
             # 🎯 EXCEPTIONS À OLLAMA - Ces cas utilisent leurs outils dédiés
@@ -553,10 +550,20 @@ class CustomAIModel(BaseAI):
 
             # NOUVELLES CAPACITÉS DE CODE GÉNÉRATION INTELLIGENTE
             if primary_intent == "code_generation":
-                response = asyncio.run(self._handle_advanced_code_generation(user_input))
+                # Récupérer le contexte AVANT de l'utiliser
+                conversation_context = self.conversation_memory.get_context_for_response(
+                    primary_intent
+                )
+                response = asyncio.run(
+                    self._handle_advanced_code_generation(user_input)
+                )
                 # Synchroniser avec l'historique Ollama
                 self._add_to_conversation_history(
-                    user_input, response, "code_generation", confidence, conversation_context
+                    user_input,
+                    response,
+                    "code_generation",
+                    confidence,
+                    conversation_context,
                 )
                 return response
 
@@ -618,23 +625,28 @@ class CustomAIModel(BaseAI):
             # 📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
             # ============================================================
             # La FAQ doit être consultée AVANT tout autre système, même en streaming
-            is_faq_match = False
             faq_response = None
             try:
                 ml_model = MLFAQModel()
                 faq_response = ml_model.predict(user_input)
                 if faq_response is not None and str(faq_response).strip():
-                    is_faq_match = True
-                    print(f"📚 [FAQ STREAM] ✅ Réponse FAQ trouvée pour: '{user_input}'")
+                    print(
+                        f"📚 [FAQ STREAM] ✅ Réponse FAQ trouvée pour: '{user_input}'"
+                    )
                     # IMPORTANT : Ajouter à l'historique Ollama pour le contexte
-                    self._add_to_conversation_history(user_input, faq_response, "faq", 1.0, {"source": "enrichissement"})
-                    print(f"🧠 [FAQ STREAM] Conversation ajoutée à l'historique Ollama")
+                    self._add_to_conversation_history(
+                        user_input,
+                        faq_response,
+                        "faq",
+                        1.0,
+                        {"source": "enrichissement"},
+                    )
+                    print("🧠 [FAQ STREAM] Conversation ajoutée à l'historique Ollama")
                     if on_token:
                         on_token(faq_response)
                     return faq_response
             except Exception as e:
                 print(f"⚠️ [FAQ STREAM] Erreur lors de la consultation FAQ: {e}")
-                pass
 
             # ============================================================
             # 🎯 EXCEPTIONS AU STREAMING - Réponses locales immédiates
@@ -654,7 +666,9 @@ class CustomAIModel(BaseAI):
                 "recherche en ligne",
             ]
             if any(kw in user_lower for kw in internet_keywords):
-                print(f"🌐 [INTERNET STREAM] Recherche internet détectée: '{user_input}'")
+                print(
+                    f"🌐 [INTERNET STREAM] Recherche internet détectée: '{user_input}'"
+                )
                 response = self.generate_response(user_input, context)
                 if on_token:
                     on_token(response)
@@ -2039,10 +2053,16 @@ Je n'ai pas bien compris ce que vous voulez rechercher.
 Reformulez votre demande en précisant ce que vous voulez rechercher."""
 
         # 🧠 OPTIMISATION: Si la requête est longue (>50 caractères), utiliser Ollama pour extraire les mots-clés
-        if len(search_query) > 50 and self.local_llm and self.local_llm.is_ollama_available:
+        if (
+            len(search_query) > 50
+            and self.local_llm
+            and self.local_llm.is_ollama_available
+        ):
             optimized_query = self._optimize_search_query_with_ollama(search_query)
             if optimized_query and len(optimized_query) < len(search_query):
-                print(f"🧠 [OLLAMA] Requête optimisée: '{search_query}' → '{optimized_query}'")
+                print(
+                    f"🧠 [OLLAMA] Requête optimisée: '{search_query}' → '{optimized_query}'"
+                )
                 search_query = optimized_query
 
         # Effectuer la recherche avec le moteur de recherche internet
@@ -2527,10 +2547,10 @@ Génère une réponse complète et bien structurée basée sur ces informations.
     def _optimize_search_query_with_ollama(self, long_query: str) -> str:
         """
         Utilise Ollama pour transformer une requête longue en mots-clés courts et efficaces.
-        
+
         Args:
             long_query: Requête de recherche longue/verbeuse
-            
+
         Returns:
             str: Requête optimisée avec mots-clés courts (ou requête originale si échec)
         """
@@ -2556,21 +2576,21 @@ Mots-clés optimisés:"""
             # Appeler Ollama avec un prompt court
             response = self.local_llm.generate(
                 prompt=prompt,
-                system_prompt="Tu es un assistant qui extrait des mots-clés pour la recherche internet."
+                system_prompt="Tu es un assistant qui extrait des mots-clés pour la recherche internet.",
             )
-            
+
             if response:
                 # Nettoyer la réponse
                 optimized = response.strip()
                 # Retirer les guillemets ou autres artefacts
-                optimized = optimized.strip('"\'')
+                optimized = optimized.strip("\"'")
                 # Limiter à 150 caractères maximum
                 if len(optimized) <= 150 and len(optimized) >= 3:
                     return optimized
-                    
+
         except Exception as e:
             print(f"⚠️ Erreur lors de l'optimisation de la requête avec Ollama: {e}")
-        
+
         # Fallback: retourner la requête originale
         return long_query
 

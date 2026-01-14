@@ -1,27 +1,41 @@
 """
 Générateur de documents
-Création de PDF, DOCX et autres formats
+Création de PDF, DOCX et autres formats avec Ollama
 """
 
 import os
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import docx
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+# Import du LLM local (Ollama)
+if TYPE_CHECKING:
+    from models.local_llm import LocalLLM
+
+try:
+    from models.local_llm import LocalLLM
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+
 
 class DocumentGenerator:
     """
-    Générateur de documents dans différents formats
+    Générateur de documents dans différents formats avec génération IA
     """
 
-    def __init__(self):
+    def __init__(self, llm: Optional[LocalLLM] = None):
         """
         Initialise le générateur de documents
+        
+        Args:
+            llm: Instance de LocalLLM (Ollama) pour la génération de contenu
         """
+        self.llm = llm if llm else (LocalLLM() if OLLAMA_AVAILABLE else None)
         self._check_dependencies()
 
     def _check_dependencies(self):

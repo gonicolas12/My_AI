@@ -1,5 +1,62 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🎨 Version 6.1.0 - Génération de Fichiers avec Ollama (14 Janvier 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 📝 Génération de Fichiers Dynamique
+- **Génération intelligente de code** : Ollama génère des fichiers complets et fonctionnels
+- **Détection automatique** : Reconnaissance des commandes "génère moi un fichier..."
+- **Support multi-langages** : Python, JavaScript, HTML, CSS, et plus encore
+- **Code prêt à l'emploi** : Fichiers directement utilisables sans modification
+
+#### 🧠 Intégration Contexte Ollama
+- **Mémoire conversationnelle** : Ollama se souvient de toutes les générations de fichiers
+- **Historique unifié** : LocalLLM partagé entre AIEngine et CustomAI
+- **Contexte persistant** : Les générations de fichiers font partie de la conversation
+- **Références croisées** : L'IA peut faire référence aux fichiers générés précédemment
+
+### 🎯 Exemples d'Usage
+
+#### Génération de Fichiers
+```bash
+🤖 "génère moi un fichier main.py qui me permet de jouer au morpion"
+   → Génération d'un jeu de morpion complet avec interface console
+   → Fichier téléchargeable directement via le nom cliquable
+
+🤖 "crée moi un fichier index.html pour une page web moderne"
+   → Génération HTML5 avec CSS moderne et responsive design
+   → Prêt à ouvrir dans un navigateur
+
+🤖 "génère un fichier calculator.py avec une calculatrice"
+   → Calculatrice complète avec toutes les opérations de base
+   → Code Python propre et commenté
+```
+
+#### Mémoire Contextuelle
+```bash
+# Jour 1
+🤖 "génère moi un fichier main.py qui me permet de jouer au morpion"
+   → ✅ Fichier généré
+
+# Plus tard dans la conversation
+🤖 "on a parlé de quoi aujourd'hui ?"
+   → "Nous avons parlé de la génération d'un fichier main.py pour jouer au morpion..."
+
+🤖 "peux-tu améliorer le fichier que tu m'as fait ?"
+   → Ollama se souvient du fichier et peut le modifier
+```
+
+### 🔐 Sécurité et Stockage
+
+#### Gestion des Fichiers
+- **Sauvegarde automatique** : Copie dans `outputs/` pour historique
+- **Téléchargement sécurisé** : Copie vers Downloads avec `shutil.copy2()`
+- **Permissions préservées** : Métadonnées de fichier conservées
+- **Nettoyage automatique** : Variables temporaires effacées après usage
+
+---
+
 # 🦙 Version 6.0.0 - Intégration Ollama & LLM Local (28 Novembre 2025)
 
 ### 🚀 Nouveautés Principales

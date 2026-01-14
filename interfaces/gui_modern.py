@@ -3,6 +3,7 @@ Interface Graphique Moderne - My AI Personal Assistant
 Inspirée de l'interface Claude avec animations et design moderne
 """
 
+import asyncio
 import json
 import keyword
 import os
@@ -14,6 +15,8 @@ import threading
 import tkinter as tk
 import traceback
 import webbrowser
+import shutil
+from pathlib import Path
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
@@ -104,8 +107,6 @@ try:
     from utils.logger import setup_logger
 except ImportError:
     # Fallback for direct execution - add parent to path then reimport
-    from pathlib import Path
-
     parent_dir = Path(__file__).parent.parent
     sys.path.insert(0, str(parent_dir))
 
@@ -428,16 +429,29 @@ class ModernAIGUI:
                 # Utiliser CustomAIModel avec support 1M tokens intégré
                 self.custom_ai = CustomAIModel()
 
-                # 🔗 IMPORTANT: Partager la même ConversationMemory entre AIEngine et CustomAI
-                if hasattr(self.ai_engine, "local_ai") and hasattr(
-                    self.ai_engine.local_ai, "conversation_memory"
-                ):
-                    print("🔗 Synchronisation des mémoires de conversation...")
-                    # Utiliser la mémoire de CustomAI comme référence
-                    self.ai_engine.local_ai.conversation_memory = (
-                        self.custom_ai.conversation_memory
+                # 🔗 IMPORTANT: Partager la même ConversationMemory ET le même LocalLLM
+                if hasattr(self.ai_engine, "local_ai"):
+                    print(
+                        "🔗 Synchronisation des mémoires de conversation et LocalLLM..."
                     )
-                    print("✅ Mémoires synchronisées")
+
+                    # Partager la ConversationMemory
+                    if hasattr(self.ai_engine.local_ai, "conversation_memory"):
+                        self.ai_engine.local_ai.conversation_memory = (
+                            self.custom_ai.conversation_memory
+                        )
+
+                    # ⚡ CRUCIAL: Partager le MÊME LocalLLM pour avoir le MÊME historique
+                    if hasattr(self.ai_engine.local_ai, "local_llm"):
+                        print(
+                            "🔗 Partage du même LocalLLM entre AIEngine et CustomAI..."
+                        )
+                        self.custom_ai.local_llm = self.ai_engine.local_ai.local_llm
+                        print(
+                            f"✅ LocalLLM partagé - Historique: {len(self.custom_ai.local_llm.conversation_history)} messages"
+                        )
+
+                    print("✅ Mémoires et LocalLLM synchronisés")
 
                 # Afficher les stats initiales
                 stats = self.custom_ai.get_context_stats()
@@ -464,6 +478,13 @@ class ModernAIGUI:
         self.is_thinking = False
         self.is_searching = False
         self.conversation_history = []
+
+        # Attributs pour la génération de fichiers
+        self._file_generation_active = False
+        self._file_generation_filename = None
+        self._file_generation_dot_count = 0
+        self._file_generation_widget = None
+        self._pending_file_download = None
         self._saved_input_content = ""  # Sauvegarde du contenu de l'input
         self.layout_size = "medium"  # Taille du layout (small, medium, large)
         self.placeholder_text = ""
@@ -2491,7 +2512,6 @@ class ModernAIGUI:
         parent_frame = text_widget.master
 
         def parent_test_event(event):
-            print(f"[DEBUG IA SCROLL PARENT] Event capturé par parent: {event}")
             # Transférer vers notre fonction
             return forward_scroll_to_page(event)
 
@@ -8240,6 +8260,30 @@ class ModernAIGUI:
             else:
                 text_widget.insert("end", match.group(0), "code_block")
 
+    def download_file_to_downloads(self, source_path, filename):
+        """Télécharge un fichier vers le dossier Téléchargements de l'utilisateur"""
+        try:
+            # Obtenir le dossier Téléchargements
+            downloads_folder = Path.home() / "Downloads"
+            if not downloads_folder.exists():
+                downloads_folder = Path.home() / "Téléchargements"  # Pour Windows FR
+
+            # Créer le chemin de destination
+            dest_path = downloads_folder / filename
+
+            # Copier le fichier
+            shutil.copy2(source_path, dest_path)
+
+            # Afficher la notification
+            self.show_copy_notification(
+                f"✅ Votre fichier {filename} a été téléchargé dans : {dest_path}"
+            )
+            return True
+
+        except Exception as e:
+            self.show_copy_notification(f"❌ Erreur de téléchargement : {str(e)}")
+            return False
+
     def show_copy_notification(self, message):
         """Affiche une notification GUI élégante pour la copie"""
         try:
@@ -8276,8 +8320,8 @@ class ModernAIGUI:
             # Positionner en haut à droite
             notification.place(relx=0.95, rely=0.1, anchor="ne")
 
-            # Supprimer automatiquement après 2 secondes
-            self.root.after(2000, notification.destroy)
+            # Supprimer automatiquement après 4 secondes
+            self.root.after(4000, notification.destroy)
 
         except Exception:
             pass
@@ -9487,7 +9531,440 @@ class ModernAIGUI:
         Traite le message utilisateur avec STREAMING pour réponse instantanée.
         Les tokens Ollama alimentent l'animation de frappe en temps réel.
         """
-        # Détection d'intention
+        # 🎯 DÉTECTION SPÉCIALE : Génération de fichier
+        file_keywords = [
+            "génère moi un fichier",
+            "crée moi un fichier",
+            "génère un fichier",
+            "crée un fichier",
+        ]
+        is_file_generation = any(
+            keyword in user_text.lower() for keyword in file_keywords
+        )
+
+        if is_file_generation:
+            # Extraire le nom du fichier depuis la requête
+            filename_match = re.search(
+                r"fichier\s+([a-zA-Z0-9_\-]+\.\w+)", user_text, re.IGNORECASE
+            )
+            filename = filename_match.group(1) if filename_match else "fichier.py"
+
+            # Variables pour l'animation
+            self._file_generation_active = True
+            self._file_generation_filename = filename
+            self._file_generation_dot_count = 0
+            self._file_generation_widget = None
+
+            # Ajouter un placeholder à l'historique IMMÉDIATEMENT pour réserver la ligne
+            self.conversation_history.append(
+                {
+                    "text": f"Création du fichier '{filename}' en cours...",
+                    "is_user": False,
+                    "timestamp": datetime.now(),
+                    "type": "file_generation_placeholder",
+                }
+            )
+
+            def create_file_generation_bubble():
+                """Crée une bulle SIMPLE pour la génération (sans streaming)"""
+                try:
+                    # Container principal - utiliser l'index du placeholder qu'on vient d'ajouter
+                    msg_container = self.create_frame(
+                        self.chat_frame, fg_color=self.colors["bg_chat"]
+                    )
+                    msg_container.grid(
+                        row=len(self.conversation_history) - 1,
+                        column=0,
+                        sticky="ew",
+                        pady=(0, 12),
+                    )
+                    msg_container.grid_columnconfigure(0, weight=1)
+
+                    # Frame de centrage
+                    center_frame = self.create_frame(
+                        msg_container, fg_color=self.colors["bg_chat"]
+                    )
+                    center_frame.grid(
+                        row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew"
+                    )
+                    center_frame.grid_columnconfigure(0, weight=0)
+                    center_frame.grid_columnconfigure(1, weight=1)
+
+                    # Icône IA
+                    icon_label = self.create_label(
+                        center_frame,
+                        text="🤖",
+                        font=("Segoe UI", 16),
+                        fg_color=self.colors["bg_chat"],
+                        text_color=self.colors["accent"],
+                    )
+                    icon_label.grid(
+                        row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0)
+                    )
+
+                    # Container pour le message
+                    message_container = self.create_frame(
+                        center_frame, fg_color=self.colors["bg_chat"]
+                    )
+                    message_container.grid(
+                        row=0, column=1, sticky="ew", padx=0, pady=(2, 2)
+                    )
+                    message_container.grid_columnconfigure(0, weight=1)
+
+                    # Widget de texte
+                    text_widget = tk.Text(
+                        message_container,
+                        width=120,
+                        height=1,
+                        bg=self.colors["bg_chat"],
+                        fg=self.colors["text_primary"],
+                        font=("Segoe UI", 11),
+                        wrap="word",
+                        relief="flat",
+                        state="normal",
+                        cursor="arrow",
+                        padx=10,
+                        pady=8,
+                        highlightthickness=0,
+                        borderwidth=0,
+                    )
+                    text_widget.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
+
+                    # Texte initial
+                    text_widget.insert(
+                        "1.0", f"Création du fichier '{filename}' en cours."
+                    )
+                    text_widget.configure(state="disabled")
+
+                    # Stocker le widget et le container pour le timestamp
+                    self._file_generation_widget = text_widget
+                    self.current_message_container = message_container
+
+                    # Scroll vers le bas
+                    self.root.after(100, self.scroll_to_bottom)
+
+                except Exception as e:
+                    print(f"Erreur création bulle: {e}")
+                    traceback.print_exc()
+
+            def animate_loading_dots():
+                """Anime les points pendant le chargement - BOUCLE CONTINUE"""
+                if not self._file_generation_active:
+                    return
+
+                try:
+                    # Calculer le nombre de points (1, 2, 3, 1, 2, 3...)
+                    dot_count = (self._file_generation_dot_count % 3) + 1
+                    self._file_generation_dot_count += 1
+
+                    dots = "." * dot_count
+                    message = f"Création du fichier '{filename}' en cours{dots}"
+
+                    # Mettre à jour le widget directement
+                    if self._file_generation_widget:
+                        try:
+                            self._file_generation_widget.configure(state="normal")
+                            self._file_generation_widget.delete("1.0", "end")
+                            self._file_generation_widget.insert("1.0", message)
+                            self._file_generation_widget.configure(state="disabled")
+                        except Exception as e:
+                            print(f"Erreur animation: {e}")
+
+                    # CONTINUER L'ANIMATION EN BOUCLE
+                    if self._file_generation_active:
+                        self.root.after(500, animate_loading_dots)
+                except Exception as e:
+                    print(f"Erreur dans animate_loading_dots: {e}")
+
+            def generate_file_async():
+                """Génère le fichier en arrière-plan"""
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(
+                        self.ai_engine.process_query(user_text)
+                    )
+                    loop.close()
+
+                    # Arrêter l'animation de points
+                    self._file_generation_active = False
+
+                    # Mettre à jour avec le résultat
+                    if result.get("type") == "file_generation" and result.get(
+                        "success"
+                    ):
+                        self._pending_file_download = {
+                            "filename": result.get("filename"),
+                            "file_path": result.get("file_path"),
+                            "code": result.get("code", ""),
+                        }
+
+                        # Message fixe au format demandé avec emojis
+                        final_message = "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement sur son nom. 👇\n\nEst-ce que vous souhaitez autre chose ? "
+
+                        # REMPLACER le contenu du widget AVEC ANIMATION
+                        def update_final_message():
+                            try:
+                                print(f"[DEBUG] Filename: {result.get('filename')}")
+                                print(f"[DEBUG] File path: {result.get('file_path')}")
+
+                                if self._file_generation_widget:
+                                    filename_to_show = result.get("filename")
+                                    file_path = result.get("file_path")
+
+                                    # Message complet avec nom de fichier
+                                    full_message = final_message + filename_to_show
+
+                                    # Calculer la hauteur nécessaire (nombre de lignes + marge)
+                                    num_lines = full_message.count("\n") + 1
+                                    widget_height = max(num_lines, 3)
+
+                                    print(
+                                        f"[DEBUG] Nombre de lignes: {num_lines}, hauteur widget: {widget_height}"
+                                    )
+
+                                    # Ajuster la hauteur du widget
+                                    self._file_generation_widget.configure(
+                                        height=widget_height
+                                    )
+
+                                    # Animation de frappe caractère par caractère
+                                    def animate_typing(index=0):
+                                        if index < len(full_message):
+                                            self._file_generation_widget.configure(
+                                                state="normal"
+                                            )
+                                            self._file_generation_widget.delete(
+                                                "1.0", "end"
+                                            )
+                                            self._file_generation_widget.insert(
+                                                "1.0", full_message[: index + 1]
+                                            )
+                                            self._file_generation_widget.configure(
+                                                state="disabled"
+                                            )
+
+                                            # Continuer l'animation (vitesse: 20ms par caractère)
+                                            self.root.after(
+                                                20, lambda: animate_typing(index + 1)
+                                            )
+                                        else:
+                                            # Animation terminée - ajouter le tag cliquable
+                                            add_clickable_tag()
+
+                                    def add_clickable_tag():
+                                        try:
+                                            self._file_generation_widget.configure(
+                                                state="normal"
+                                            )
+
+                                            # Trouver la position du nom de fichier
+                                            text_content = (
+                                                self._file_generation_widget.get(
+                                                    "1.0", "end-1c"
+                                                )
+                                            )
+                                            filename_pos = text_content.rfind(
+                                                filename_to_show
+                                            )
+
+                                            if filename_pos != -1:
+                                                lines_before = text_content[
+                                                    :filename_pos
+                                                ].count("\n")
+                                                col_before = (
+                                                    filename_pos
+                                                    - text_content[:filename_pos].rfind(
+                                                        "\n"
+                                                    )
+                                                    - 1
+                                                    if "\n"
+                                                    in text_content[:filename_pos]
+                                                    else filename_pos
+                                                )
+
+                                                start_idx = (
+                                                    f"{lines_before + 1}.{col_before}"
+                                                )
+                                                end_idx = f"{lines_before + 1}.{col_before + len(filename_to_show)}"
+
+                                                tag_name = (
+                                                    f"file_download_{filename_to_show}"
+                                                )
+                                                self._file_generation_widget.tag_add(
+                                                    tag_name, start_idx, end_idx
+                                                )
+                                                self._file_generation_widget.tag_config(
+                                                    tag_name,
+                                                    foreground="#3b82f6",
+                                                    underline=True,
+                                                )
+
+                                                # Closures pour les handlers
+                                                def make_click_handler(path, name):
+                                                    def on_click(_event):
+                                                        self.download_file_to_downloads(
+                                                            path, name
+                                                        )
+
+                                                    return on_click
+
+                                                self._file_generation_widget.tag_bind(
+                                                    tag_name,
+                                                    "<Button-1>",
+                                                    make_click_handler(
+                                                        file_path, filename_to_show
+                                                    ),
+                                                )
+                                                self._file_generation_widget.tag_bind(
+                                                    tag_name,
+                                                    "<Enter>",
+                                                    lambda _e: self._file_generation_widget.configure(
+                                                        cursor="hand2"
+                                                    ),
+                                                )
+                                                self._file_generation_widget.tag_bind(
+                                                    tag_name,
+                                                    "<Leave>",
+                                                    lambda _e: self._file_generation_widget.configure(
+                                                        cursor=""
+                                                    ),
+                                                )
+
+                                            self._file_generation_widget.configure(
+                                                state="disabled"
+                                            )
+
+                                            # Afficher le timestamp
+                                            self._show_timestamp_for_current_message()
+
+                                            # Mettre à jour le placeholder dans conversation_history
+                                            for i in range(
+                                                len(self.conversation_history) - 1,
+                                                -1,
+                                                -1,
+                                            ):
+                                                if (
+                                                    self.conversation_history[i].get(
+                                                        "type"
+                                                    )
+                                                    == "file_generation_placeholder"
+                                                ):
+                                                    self.conversation_history[i] = {
+                                                        "text": full_message,
+                                                        "is_user": False,
+                                                        "timestamp": datetime.now(),
+                                                        "type": "file_generation",
+                                                    }
+                                                    break
+
+                                            # Ajouter au contexte Ollama pour qu'il se souvienne
+                                            if (
+                                                hasattr(
+                                                    self.ai_engine.local_ai, "local_llm"
+                                                )
+                                                and self.ai_engine.local_ai.local_llm
+                                            ):
+                                                try:
+                                                    # Utiliser la VRAIE requête de l'utilisateur (pas hardcodé)
+                                                    user_message = user_text  # La requête originale
+                                                    # Message assistant (sans le nom du fichier à la fin pour éviter la répétition)
+                                                    assistant_message = "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement sur son nom. 👇\n\n🚀 Est-ce que vous souhaitez autre chose ?"
+
+                                                    # Utiliser add_to_history() au lieu de manipuler directement la liste
+                                                    llm = (
+                                                        self.ai_engine.local_ai.local_llm
+                                                    )
+                                                    llm.add_to_history(
+                                                        "user", user_message
+                                                    )
+                                                    llm.add_to_history(
+                                                        "assistant", assistant_message
+                                                    )
+
+                                                    print(
+                                                        "[DEBUG] Messages ajoutés à l'historique Ollama via add_to_history()"
+                                                    )
+                                                    print(
+                                                        f"[DEBUG] Historique contient maintenant {len(llm.conversation_history)} messages"
+                                                    )
+                                                except Exception as e:
+                                                    print(
+                                                        f"Erreur ajout historique Ollama: {e}"
+                                                    )
+                                                    traceback.print_exc()
+
+                                            # NETTOYER _pending_file_download pour éviter qu'il réapparaisse
+                                            self._pending_file_download = None
+
+                                            # ARRÊTER l'animation de thinking
+                                            self.is_thinking = False
+
+                                            # Réactiver la saisie
+                                            self.set_input_state(True)
+
+                                        except Exception as e:
+                                            print(f"Erreur ajout tag: {e}")
+                                            traceback.print_exc()
+
+                                    # Démarrer l'animation de frappe
+                                    animate_typing(0)
+
+                            except Exception as e:
+                                print(f"Erreur mise à jour finale: {e}")
+                                traceback.print_exc()
+
+                        self.root.after(0, update_final_message)
+
+                    else:
+                        # Erreur
+                        def show_error():
+                            if self._file_generation_widget:
+                                self._file_generation_widget.configure(state="normal")
+                                self._file_generation_widget.delete("1.0", "end")
+                                self._file_generation_widget.insert(
+                                    "1.0", "❌ Erreur lors de la génération du fichier."
+                                )
+                                self._file_generation_widget.configure(state="disabled")
+                                self.is_thinking = False
+                                self.set_input_state(True)
+
+                        self.root.after(0, show_error)
+
+                except Exception as e:
+                    print(f"Erreur génération: {e}")
+                    traceback.print_exc()
+                    self._file_generation_active = False
+
+                    def show_error():
+                        if self._file_generation_widget:
+                            self._file_generation_widget.configure(state="normal")
+                            self._file_generation_widget.delete("1.0", "end")
+                            self._file_generation_widget.insert(
+                                "1.0", f"❌ Erreur: {str(e)}"
+                            )
+                            self._file_generation_widget.configure(state="disabled")
+                            self.is_thinking = False
+                            self.set_input_state(True)
+
+                    self.root.after(0, show_error)
+
+            # Bloquer la saisie pendant la génération
+            self.set_input_state(False)
+
+            # ACTIVER l'animation de "thinking"
+            self.is_thinking = True
+
+            # Créer la bulle et démarrer l'animation
+            create_file_generation_bubble()
+            self.root.after(500, animate_loading_dots)
+
+            # Lancer la génération dans un thread
+            threading.Thread(target=generate_file_async, daemon=True).start()
+
+            return
+
+        # Détection d'intention (code existant)
         intent = None
         confidence = 0.0
         try:
@@ -10470,6 +10947,88 @@ class ModernAIGUI:
 
             # Convertir les liens en cliquables
             self._convert_temp_links_to_clickable(self.typing_widget)
+
+            # ============================================================
+            # 📥 GESTION SPÉCIALE DU LIEN DE TÉLÉCHARGEMENT DE FICHIER
+            # ============================================================
+            if hasattr(self, "_pending_file_download") and self._pending_file_download:
+                try:
+                    filename = self._pending_file_download.get("filename", "fichier")
+                    file_path = self._pending_file_download.get("file_path")
+
+                    # Capturer le widget dans une variable locale
+                    current_widget = self.typing_widget
+
+                    # Ajouter le nom du fichier avec lien cliquable
+                    current_widget.configure(state="normal")
+                    current_widget.insert("end", filename)
+
+                    # Trouver la position du nom de fichier
+                    text_content = current_widget.get("1.0", "end-1c")
+                    filename_pos = text_content.rfind(filename)
+                    if filename_pos != -1:
+                        # Calculer la ligne et colonne
+                        lines_before = text_content[:filename_pos].count("\n")
+                        col_before = (
+                            filename_pos - text_content[:filename_pos].rfind("\n") - 1
+                            if "\n" in text_content[:filename_pos]
+                            else filename_pos
+                        )
+
+                        start_idx = f"{lines_before + 1}.{col_before}"
+                        end_idx = f"{lines_before + 1}.{col_before + len(filename)}"
+
+                        # Créer un tag unique pour ce lien
+                        tag_name = f"file_download_{filename}"
+
+                        # Configurer le tag avec style de lien
+                        current_widget.tag_add(tag_name, start_idx, end_idx)
+                        current_widget.tag_config(
+                            tag_name,
+                            foreground="#3b82f6",
+                            underline=True,
+                            font=("Segoe UI", 10, "bold"),
+                        )
+
+                        # Capturer les données dans la closure
+                        def make_click_handler(path, name):
+                            def on_click(_event):
+                                self.download_file_to_downloads(path, name)
+
+                            return on_click
+
+                        def make_enter_handler(widget):
+                            def on_enter(_event):
+                                widget.config(cursor="hand2")
+
+                            return on_enter
+
+                        def make_leave_handler(widget):
+                            def on_leave(_event):
+                                widget.config(cursor="")
+
+                            return on_leave
+
+                        # Bind du clic sur le nom du fichier avec closures
+                        current_widget.tag_bind(
+                            tag_name,
+                            "<Button-1>",
+                            make_click_handler(file_path, filename),
+                        )
+                        current_widget.tag_bind(
+                            tag_name, "<Enter>", make_enter_handler(current_widget)
+                        )
+                        current_widget.tag_bind(
+                            tag_name, "<Leave>", make_leave_handler(current_widget)
+                        )
+
+                    current_widget.configure(state="disabled")
+
+                    # Nettoyer le pending_file_download
+                    self._pending_file_download = None
+
+                except Exception as e:
+                    print(f"Erreur ajout lien fichier: {e}")
 
             # Ajustement final de la hauteur
             self._adjust_height_final_no_scroll(self.typing_widget)

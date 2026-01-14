@@ -10,8 +10,8 @@ import tempfile
 from typing import Any, Dict, List, Optional
 
 from generators.document_generator import DocumentGenerator
-from models.advanced_code_generator import \
-    AdvancedCodeGenerator as CodeGenerator
+from generators.code_generator import CodeGenerator as OllamaCodeGenerator
+from models.advanced_code_generator import AdvancedCodeGenerator as WebCodeGenerator
 from models.conversation_memory import ConversationMemory
 from models.custom_ai_model import CustomAIModel
 from models.internet_search import InternetSearchEngine
@@ -88,32 +88,39 @@ class AIEngine:
         self.docx_processor = DOCXProcessor()
         self.code_processor = CodeProcessor()
 
-        # Générateurs
-        self.document_generator = DocumentGenerator()
-        self.code_generator = CodeGenerator()
+        # Générateurs avec support Ollama
+        llm_instance = (
+            self.local_ai.local_llm if hasattr(self.local_ai, "local_llm") else None
+        )
+        self.document_generator = DocumentGenerator(llm=llm_instance)
+        self.ollama_code_generator = OllamaCodeGenerator(
+            llm=llm_instance
+        )  # Générateur avec Ollama
+        self.code_generator = WebCodeGenerator()  # Générateur avec recherche web
         self.web_code_searcher = multi_source_searcher
 
-        self.logger.info("Moteur IA initialisé avec succès")
+        self.logger.info(
+            "Moteur IA initialisé avec succès (Générateurs Ollama + Web activés)"
+        )
 
     def process_text(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
         Interface synchrone avec validation des entrées
-        
+
         Args:
             text: Texte de la requête utilisateur
             context: Contexte additionnel (optionnel)
-        
+
         Returns:
             Réponse générée
-        
+
         Raises:
             ValueError: Si l'entrée ne passe pas la validation
         """
         try:
             # Validation de l'entrée avec Pydantic
             validated_input = validate_input(
-                {'query': text, 'context': context},
-                'query'
+                {"query": text, "context": context}, "query"
             )
 
             # Utiliser les données validées et nettoyées
@@ -551,6 +558,7 @@ Que voulez-vous que je fasse pour vous ?"""
             "fonction",
             "classe",
         ]
+
         if any(keyword in query_lower for keyword in code_generation_keywords):
             # Si c'est une question théorique (ex: "comment créer une liste ?"), laisser le CustomAIModel s'en occuper
             if is_theoretical_question:
@@ -937,14 +945,51 @@ Que voulez-vous que je fasse pour vous ?"""
                 "success": False,
             }
 
-    async def _handle_code_generation(
-        self, query: str
-    ) -> Dict[str, Any]:
+    async def _handle_code_generation(self, query: str) -> Dict[str, Any]:
         """
-        Gère la génération de code avec RECHERCHE WEB PURE (comme ChatGPT/Claude)
+        Gère la génération de code avec Ollama ou recherche web
         """
         try:
+            query_lower = query.lower()
             language = self._detect_code_language(query)
+
+            # 🆕 PRIORITÉ 0: Détection "génère moi un fichier..." -> Utiliser CodeGenerator avec Ollama
+            file_keywords = [
+                "génère moi un fichier",
+                "crée moi un fichier",
+                "génère un fichier",
+                "crée un fichier",
+            ]
+            if any(keyword in query_lower for keyword in file_keywords):
+                try:
+                    self.logger.info("🔧 Détection génération de fichier avec Ollama")
+
+                    # Utiliser le générateur Ollama déjà initialisé
+                    result = await self.ollama_code_generator.generate_file(query)
+
+                    if result.get("success"):
+                        code = result.get("code", "")
+                        filename = result.get("filename", "generated_file")
+                        file_path = result.get("file_path", "")
+
+                        return {
+                            "type": "file_generation",  # Type spécial pour GUI
+                            "code": code,
+                            "message": f"Voici votre fichier : {filename}",
+                            "filename": filename,
+                            "file_path": file_path,
+                            "source": "Ollama (Génération locale)",
+                            "success": True,
+                            "is_file_download": True,  # Flag pour l'interface
+                        }
+                    else:
+                        error_msg = result.get("error", "Erreur inconnue")
+                        self.logger.warning("Échec génération fichier: %s", error_msg)
+                        # Continuer vers le fallback
+
+                except Exception as e:
+                    self.logger.warning("Erreur génération fichier avec Ollama: %s", e)
+                    # Continuer vers le fallback
 
             # 🌐 PRIORITÉ 1: Recherche web PURE sans templates pré-codés
             try:
@@ -973,7 +1018,8 @@ Que voulez-vous que je fasse pour vous ?"""
                     }
                 else:
                     self.logger.warning(
-                        "Recherche web échouée: %s", web_result.get('error', 'Erreur inconnue')
+                        "Recherche web échouée: %s",
+                        web_result.get("error", "Erreur inconnue"),
                     )
 
             except Exception as e:

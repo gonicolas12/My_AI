@@ -1,23 +1,39 @@
 """
 Générateur de code
-Création et assistance à la programmation
+Création et assistance à la programmation avec Ollama
 """
 
 import os
 import re
+import asyncio
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
+
+# Import du LLM local (Ollama)
+if TYPE_CHECKING:
+    from models.local_llm import LocalLLM
+
+try:
+    from models.local_llm import LocalLLM
+
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
 
 
 class CodeGenerator:
     """
-    Générateur de code dans différents langages
+    Générateur de code dans différents langages utilisant Ollama
     """
 
-    def __init__(self):
+    def __init__(self, llm: Optional[LocalLLM] = None):
         """
         Initialise le générateur de code
+
+        Args:
+            llm: Instance de LocalLLM (Ollama) pour la génération dynamique
         """
+        self.llm = llm if llm else (LocalLLM() if OLLAMA_AVAILABLE else None)
         self.templates = self._load_templates()
 
     def _load_templates(self) -> Dict[str, Dict[str, str]]:
@@ -128,32 +144,50 @@ if __name__ == "__main__":
             },
         }
 
-    async def generate_code(self, query: str) -> Dict[str, Any]:
+    async def generate_code(
+        self, query: str, filename: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Génère du code basé sur la requête
+        Génère du code basé sur la requête en utilisant Ollama
 
         Args:
             query: Demande de génération de code
-            context: Contexte et paramètres
+            filename: Nom de fichier suggéré (optionnel)
 
         Returns:
-            Code généré
+            Code généré avec métadonnées
         """
         try:
-            # Analyse de la requête
-            code_type, language = self._analyze_code_request(query)
+            # Analyse de la requête pour extraire le langage et le type
+            code_info = self._analyze_code_request(query)
+            language = code_info.get("language", "python")
 
-            # Génération selon le type
-            if code_type == "class":
-                return await self._generate_class(query, language)
-            elif code_type == "function":
-                return await self._generate_function(query, language)
-            elif code_type == "script":
-                return await self._generate_script(query, language)
-            elif code_type == "web_page":
-                return await self._generate_web_page()
-            else:
-                return await self._generate_generic_code(query, language)
+            # Extraire le nom de fichier de la requête si non fourni
+            if not filename:
+                filename = self._extract_filename(query, language)
+
+            # 🤖 Génération avec Ollama si disponible
+            if self.llm and OLLAMA_AVAILABLE:
+                code = await self._generate_with_ollama(query, language, code_info)
+
+                if code:
+                    # Sauvegarder automatiquement le fichier
+                    save_result = await self.save_code(
+                        {"code": code, "language": language}, filename
+                    )
+
+                    return {
+                        "success": True,
+                        "code": code,
+                        "language": language,
+                        "filename": filename,
+                        "file_path": save_result.get("file_path"),
+                        "method": "ollama",
+                        "message": f"✅ Fichier {filename} généré avec succès !",
+                    }
+
+            # Fallback sur templates si Ollama non disponible
+            return await self._generate_with_templates(query, language, filename)
 
         except Exception as e:
             return {
@@ -161,15 +195,153 @@ if __name__ == "__main__":
                 "success": False,
             }
 
-    def _analyze_code_request(self, query: str) -> tuple:
+    async def _generate_with_ollama(
+        self, query: str, language: str, _code_info: Dict
+    ) -> Optional[str]:
         """
-        Analyse la requête pour déterminer le type de code
+        Génère du code en utilisant Ollama
+
+        Args:
+            query: Requête utilisateur
+            language: Langage de programmation
+            code_info: Informations extraites de la requête
+
+        Returns:
+            Code généré ou None
+        """
+        try:
+            # Construire un prompt optimisé pour la génération de code
+            system_prompt = f"""Tu es un expert en programmation {language}.
+Génère du code propre, bien commenté et fonctionnel.
+Réponds UNIQUEMENT avec le code, sans explications avant ou après.
+Le code doit être prêt à être exécuté."""
+
+            # Prompt utilisateur détaillé
+            user_prompt = f"""Génère un fichier {language} complet pour : {query}
+
+Exigences :
+- Code fonctionnel et testé
+- Commentaires explicatifs
+- Bonnes pratiques du langage {language}
+- Structure claire et organisée
+
+Génère le code maintenant :"""
+
+            # Appel à Ollama (synchrone car LocalLLM.generate est synchrone)
+            loop = asyncio.get_event_loop()
+            code = await loop.run_in_executor(
+                None, lambda: self.llm.generate(user_prompt, system_prompt)
+            )
+
+            if code:
+                # Nettoyer le code (enlever les marqueurs markdown si présents)
+                code = self._clean_generated_code(code, language)
+                return code
+
+            return None
+
+        except Exception as e:
+            print(f"⚠️ Erreur génération Ollama: {e}")
+            return None
+
+    def _clean_generated_code(self, code: str, _language: str) -> str:
+        """
+        Nettoie le code généré (enlève les marqueurs markdown, etc.)
+
+        Args:
+            code: Code brut généré
+            language: Langage de programmation
+
+        Returns:
+            Code nettoyé
+        """
+        # Enlever les blocs de code markdown
+        code = re.sub(r"^```\w*\n", "", code)
+        code = re.sub(r"\n```$", "", code)
+        code = code.strip()
+
+        return code
+
+    def _extract_filename(self, query: str, language: str) -> str:
+        """
+        Extrait ou génère un nom de fichier depuis la requête
+
+        Args:
+            query: Requête utilisateur
+            language: Langage de programmation
+
+        Returns:
+            Nom de fichier
+        """
+        # Rechercher un nom de fichier explicite dans la requête
+        # Ex: "génère moi un fichier main.py qui..."
+        filename_match = re.search(
+            r"fichier\s+([a-zA-Z0-9_\-]+\.\w+)", query, re.IGNORECASE
+        )
+        if filename_match:
+            return filename_match.group(1)
+
+        # Sinon, générer un nom basé sur le contenu
+        # Ex: "morpion" -> morpion.py
+        keywords = re.findall(r"\b([a-zA-Z]{3,})\b", query.lower())
+        if keywords:
+            base_name = (
+                keywords[0]
+                if keywords[0] not in ["fichier", "code", "script", "programme"]
+                else (keywords[1] if len(keywords) > 1 else "generated")
+            )
+        else:
+            base_name = "generated"
+
+        # Extension selon le langage
+        extensions = {
+            "python": "py",
+            "javascript": "js",
+            "html": "html",
+            "css": "css",
+            "java": "java",
+            "cpp": "cpp",
+            "c": "c",
+        }
+        ext = extensions.get(language, "txt")
+
+        return f"{base_name}.{ext}"
+
+    async def _generate_with_templates(
+        self, query: str, language: str, _filename: str
+    ) -> Dict[str, Any]:
+        """
+        Génère du code avec les templates (fallback)
+
+        Args:
+            query: Requête utilisateur
+            language: Langage de programmation
+            filename: Nom de fichier
+
+        Returns:
+            Résultat de la génération
+        """
+        code_type, _ = self._analyze_code_request(query)
+
+        # Génération selon le type
+        if code_type == "class":
+            return await self._generate_class(query, language)
+        elif code_type == "function":
+            return await self._generate_function(query, language)
+        elif code_type == "script":
+            return await self._generate_script(query, language)
+        else:
+            return await self._generate_generic_code(query, language)
+
+    def _analyze_code_request(self, query: str) -> Dict[str, Any]:
+        """
+        Analyse la requête pour déterminer le type de code et le langage
 
         Args:
             query: Requête utilisateur
 
         Returns:
-            (type_de_code, langage)
+            Dictionnaire avec type_de_code et langage
         """
         query_lower = query.lower()
 
@@ -181,20 +353,21 @@ if __name__ == "__main__":
             language = "css"
         elif "javascript" in query_lower or "js" in query_lower:
             language = "javascript"
+        elif "java" in query_lower and "javascript" not in query_lower:
+            language = "java"
+        elif "c++" in query_lower or "cpp" in query_lower:
+            language = "cpp"
 
         # Détection du type
+        code_type = "script"  # Par défaut : script complet
         if "classe" in query_lower or "class" in query_lower:
             code_type = "class"
         elif "fonction" in query_lower or "function" in query_lower:
             code_type = "function"
-        elif "script" in query_lower or "programme" in query_lower:
-            code_type = "script"
         elif "page" in query_lower and language == "html":
             code_type = "web_page"
-        else:
-            code_type = "generic"
 
-        return code_type, language
+        return {"type": code_type, "language": language}
 
     async def _generate_class(self, query: str, language: str) -> Dict[str, Any]:
         """
@@ -481,6 +654,51 @@ main();
             "body": "<h1>Bienvenue</h1><p>Cette page a été générée automatiquement.</p>",
             "javascript": "console.log('Page chargée avec succès');",
         }
+
+    async def generate_file(self, query: str) -> Dict[str, Any]:
+        """
+        Génère un fichier complet basé sur la requête utilisateur
+        Méthode principale à utiliser pour "génère moi un fichier..."
+
+        Args:
+            query: Requête complète de l'utilisateur
+
+        Returns:
+            Résultat avec chemin du fichier créé
+        """
+        try:
+            # Extraire le nom de fichier et les détails
+            code_info = self._analyze_code_request(query)
+            language = code_info.get("language", "python")
+            filename = self._extract_filename(query, language)
+
+            print(f"🔧 Génération du fichier {filename} ({language})...")
+
+            # Générer le code avec Ollama
+            result = await self.generate_code(query, filename)
+
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Fichier '{filename}' créé avec succès !",
+                    "file_path": result.get("file_path"),
+                    "filename": filename,
+                    "code": result.get("code"),
+                    "language": language,
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("error", "Erreur inconnue"),
+                    "message": "❌ Impossible de générer le fichier",
+                }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "message": f"❌ Erreur: {str(e)}",
+            }
 
     async def save_code(
         self, code_data: Dict[str, Any], filename: Optional[str] = None
