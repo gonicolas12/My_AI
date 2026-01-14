@@ -376,7 +376,7 @@ Que voulez-vous que je fasse pour vous ?"""
             return False
 
     async def process_query(
-        self, query: str, context: Optional[Dict] = None
+        self, query: str, context: Optional[Dict] = None, is_interrupted_callback=None
     ) -> Dict[str, Any]:
         """
         Traite une requête utilisateur
@@ -384,6 +384,7 @@ Que voulez-vous que je fasse pour vous ?"""
         Args:
             query: Question/demande de l'utilisateur
             context: Contexte additionnel (fichiers, historique, etc.)
+            is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
 
         Returns:
             Réponse structurée de l'IA
@@ -424,7 +425,7 @@ Que voulez-vous que je fasse pour vous ?"""
             elif query_type == "file_processing":
                 response = await self._handle_file_processing(query, full_context)
             elif query_type == "code_generation":
-                response = await self._handle_code_generation(query)
+                response = await self._handle_code_generation(query, is_interrupted_callback)
             elif query_type == "document_generation":
                 response = await self._handle_document_generation(query, full_context)
             else:
@@ -945,9 +946,13 @@ Que voulez-vous que je fasse pour vous ?"""
                 "success": False,
             }
 
-    async def _handle_code_generation(self, query: str) -> Dict[str, Any]:
+    async def _handle_code_generation(self, query: str, is_interrupted_callback=None) -> Dict[str, Any]:
         """
         Gère la génération de code avec Ollama ou recherche web
+        
+        Args:
+            query: Requête utilisateur
+            is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
         """
         try:
             query_lower = query.lower()
@@ -964,8 +969,18 @@ Que voulez-vous que je fasse pour vous ?"""
                 try:
                     self.logger.info("🔧 Détection génération de fichier avec Ollama")
 
-                    # Utiliser le générateur Ollama déjà initialisé
-                    result = await self.ollama_code_generator.generate_file(query)
+                    # Utiliser le générateur Ollama déjà initialisé avec callback d'interruption
+                    result = await self.ollama_code_generator.generate_file(query, is_interrupted_callback=is_interrupted_callback)
+
+                    # Vérifier IMMÉDIATEMENT si l'opération a été interrompue
+                    if result.get("interrupted"):
+                        self.logger.info("⚠️ Génération de fichier interrompue par l'utilisateur")
+                        return {
+                            "type": "file_generation",
+                            "success": False,
+                            "interrupted": True,
+                            "message": "⚠️ Création du fichier interrompue.",
+                        }
 
                     if result.get("success"):
                         code = result.get("code", "")

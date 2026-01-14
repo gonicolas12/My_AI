@@ -145,7 +145,7 @@ if __name__ == "__main__":
         }
 
     async def generate_code(
-        self, query: str, filename: Optional[str] = None
+        self, query: str, filename: Optional[str] = None, is_interrupted_callback=None
     ) -> Dict[str, Any]:
         """
         Génère du code basé sur la requête en utilisant Ollama
@@ -153,6 +153,7 @@ if __name__ == "__main__":
         Args:
             query: Demande de génération de code
             filename: Nom de fichier suggéré (optionnel)
+            is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
 
         Returns:
             Code généré avec métadonnées
@@ -168,9 +169,38 @@ if __name__ == "__main__":
 
             # 🤖 Génération avec Ollama si disponible
             if self.llm and OLLAMA_AVAILABLE:
-                code = await self._generate_with_ollama(query, language, code_info)
+                # Vérifier l'interruption AVANT de démarrer la génération Ollama
+                if is_interrupted_callback and is_interrupted_callback():
+                    print("⚠️ [CodeGenerator] Interruption détectée AVANT génération Ollama")
+                    return {
+                        "success": False,
+                        "interrupted": True,
+                        "message": "⚠️ Génération interrompue par l'utilisateur.",
+                    }
+
+                print(f"🚀 [CodeGenerator] Démarrage génération Ollama pour {filename}...")
+                code = await self._generate_with_ollama(query, language, code_info, is_interrupted_callback)
+
+                # Vérifier l'interruption APRÈS la génération Ollama
+                if is_interrupted_callback and is_interrupted_callback():
+                    print("⚠️ [CodeGenerator] Interruption détectée APRÈS génération Ollama")
+                    return {
+                        "success": False,
+                        "interrupted": True,
+                        "message": "⚠️ Génération interrompue par l'utilisateur.",
+                    }
 
                 if code:
+                    # Vérifier l'interruption AVANT de sauvegarder
+                    if is_interrupted_callback and is_interrupted_callback():
+                        print("⚠️ [CodeGenerator] Interruption détectée AVANT sauvegarde")
+                        return {
+                            "success": False,
+                            "interrupted": True,
+                            "message": "⚠️ Génération interrompue par l'utilisateur.",
+                        }
+
+                    print(f"💾 [CodeGenerator] Sauvegarde de {filename}...")
                     # Sauvegarder automatiquement le fichier
                     save_result = await self.save_code(
                         {"code": code, "language": language}, filename
@@ -196,7 +226,7 @@ if __name__ == "__main__":
             }
 
     async def _generate_with_ollama(
-        self, query: str, language: str, _code_info: Dict
+        self, query: str, language: str, _code_info: Dict, is_interrupted_callback=None
     ) -> Optional[str]:
         """
         Génère du code en utilisant Ollama
@@ -205,11 +235,17 @@ if __name__ == "__main__":
             query: Requête utilisateur
             language: Langage de programmation
             code_info: Informations extraites de la requête
+            is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
 
         Returns:
             Code généré ou None
         """
         try:
+            # Vérifier l'interruption avant de commencer
+            if is_interrupted_callback and is_interrupted_callback():
+                print("⚠️ [CodeGenerator] Génération interrompue avant l'appel Ollama")
+                return None
+
             # Construire un prompt optimisé pour la génération de code
             system_prompt = f"""Tu es un expert en programmation {language}.
 Génère du code propre, bien commenté et fonctionnel.
@@ -232,6 +268,11 @@ Génère le code maintenant :"""
             code = await loop.run_in_executor(
                 None, lambda: self.llm.generate(user_prompt, system_prompt)
             )
+
+            # Vérifier l'interruption après la génération
+            if is_interrupted_callback and is_interrupted_callback():
+                print("⚠️ [CodeGenerator] Génération interrompue après l'appel Ollama")
+                return None
 
             if code:
                 # Nettoyer le code (enlever les marqueurs markdown si présents)
@@ -281,13 +322,35 @@ Génère le code maintenant :"""
         if filename_match:
             return filename_match.group(1)
 
-        # Sinon, générer un nom basé sur le contenu
-        # Ex: "morpion" -> morpion.py
+        # Si aucun nom explicite, demander à Ollama de suggérer un nom pertinent
+        if self.llm and hasattr(self.llm, 'generate'):
+            try:
+                suggestion_prompt = f"""Basé sur cette description : "{query}"
+
+Suggère UN SEUL nom de fichier court et descriptif en {language}.
+Réponds UNIQUEMENT avec le nom du fichier (sans chemin, juste le nom avec extension).
+Exemple: calculator.py ou sorting_algorithm.py
+
+Nom de fichier :"""
+
+                suggested_name = self.llm.generate(suggestion_prompt, system_prompt="Tu es un assistant qui suggère des noms de fichiers pertinents. Réponds uniquement avec le nom du fichier.")
+
+                if suggested_name:
+                    # Nettoyer la suggestion (enlever espaces, guillemets, etc.)
+                    suggested_name = suggested_name.strip().strip('"').strip("'").strip()
+                    # Vérifier que c'est bien un nom de fichier valide
+                    if re.match(r'^[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+$', suggested_name):
+                        print(f"📝 Nom suggéré par Ollama: {suggested_name}")
+                        return suggested_name
+            except Exception as e:
+                print(f"⚠️ Erreur suggestion nom: {e}")
+
+        # Fallback: générer un nom basé sur les mots-clés
         keywords = re.findall(r"\b([a-zA-Z]{3,})\b", query.lower())
         if keywords:
             base_name = (
                 keywords[0]
-                if keywords[0] not in ["fichier", "code", "script", "programme"]
+                if keywords[0] not in ["fichier", "code", "script", "programme", "génère", "crée"]
                 else (keywords[1] if len(keywords) > 1 else "generated")
             )
         else:
@@ -655,13 +718,14 @@ main();
             "javascript": "console.log('Page chargée avec succès');",
         }
 
-    async def generate_file(self, query: str) -> Dict[str, Any]:
+    async def generate_file(self, query: str, is_interrupted_callback=None) -> Dict[str, Any]:
         """
         Génère un fichier complet basé sur la requête utilisateur
         Méthode principale à utiliser pour "génère moi un fichier..."
 
         Args:
             query: Requête complète de l'utilisateur
+            is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
 
         Returns:
             Résultat avec chemin du fichier créé
@@ -674,8 +738,17 @@ main();
 
             print(f"🔧 Génération du fichier {filename} ({language})...")
 
-            # Générer le code avec Ollama
-            result = await self.generate_code(query, filename)
+            # Générer le code avec Ollama en passant le callback
+            result = await self.generate_code(query, filename, is_interrupted_callback)
+
+            # Vérifier si l'opération a été interrompue
+            if result.get("interrupted"):
+                print("⚠️ [generate_file] Propagation de l'interruption")
+                return {
+                    "success": False,
+                    "interrupted": True,
+                    "message": "⚠️ Création du fichier interrompue.",
+                }
 
             if result.get("success"):
                 return {

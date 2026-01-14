@@ -380,6 +380,7 @@ class ModernAIGUI:
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
         try:
+            print("🛑 [GUI] STOP cliqué - Interruption de toutes les opérations en cours")
             self.is_interrupted = True
             if hasattr(self, "current_request_id"):
                 self.current_request_id += 1  # Invalide toutes les requêtes en cours
@@ -392,6 +393,7 @@ class ModernAIGUI:
             self.set_input_state(True)
             self.is_thinking = False
             self.is_searching = False
+            print("🛑 [GUI] Interruption terminée")
         except Exception:
             pass
 
@@ -8549,8 +8551,8 @@ class ModernAIGUI:
             "html_comment": ("#6a9955", "italic"),  # Commentaires
             "html_text": ("#d4d4d4", "normal"),  # Texte contenu
             "html_punctuation": ("#d4d4d4", "normal"),  # < > = " /
-            "Token.Name.Tag": ("#569cd6", "bold"),  # NOUVEAU: Balises HTML
-            "Token.Name.Entity": ("#dcdcaa", "normal"),  # NOUVEAU: Entités HTML
+            "Token.Name.Tag": ("#569cd6", "bold"),  # Balises HTML
+            "Token.Name.Entity": ("#dcdcaa", "normal"),  # Entités HTML
         }
 
         # Bash/Shell tags
@@ -8563,41 +8565,7 @@ class ModernAIGUI:
             "bash_operator": ("#d4d4d4", "normal"),  # Opérateurs
             "bash_number": ("#b5cea8", "normal"),  # Nombres
             "bash_punctuation": ("#d4d4d4", "normal"),  # Ponctuation
-            "Token.Name.Variable": ("#9cdcfe", "normal"),  # NOUVEAU: Variables
-        }
-
-        # SQL tags
-        sql_tags = {
-            "sql_keyword": ("#569cd6", "bold"),  # SELECT, FROM, WHERE, etc.
-            "sql_function": ("#dcdcaa", "normal"),  # COUNT, SUM, etc.
-            "sql_string": ("#ce9178", "normal"),  # Chaînes
-            "sql_comment": ("#6a9955", "italic"),  # Commentaires
-            "sql_number": ("#b5cea8", "normal"),  # Nombres
-            "sql_operator": ("#d4d4d4", "normal"),  # =, >, <, etc.
-            "sql_punctuation": ("#d4d4d4", "normal"),  # Ponctuation
-            "sql_identifier": ("#9cdcfe", "normal"),  # Noms de tables/colonnes
-        }
-
-        # HTML tags
-        html_tags = {
-            "html_tag": ("#569cd6", "bold"),  # Balises HTML
-            "html_attribute": ("#9cdcfe", "normal"),  # Attributs
-            "html_value": ("#ce9178", "normal"),  # Valeurs d'attributs
-            "html_comment": ("#6a9955", "italic"),  # Commentaires
-            "html_text": ("#d4d4d4", "normal"),  # Texte contenu
-            "html_punctuation": ("#d4d4d4", "normal"),  # < > = " /
-        }
-
-        # Bash/Shell tags
-        bash_tags = {
-            "bash_keyword": ("#569cd6", "bold"),  # if, then, else, fi, for, while, etc.
-            "bash_command": ("#dcdcaa", "normal"),  # Commandes
-            "bash_string": ("#ce9178", "normal"),  # Chaînes
-            "bash_comment": ("#6a9955", "italic"),  # Commentaires
-            "bash_variable": ("#9cdcfe", "normal"),  # Variables $VAR
-            "bash_operator": ("#d4d4d4", "normal"),  # Opérateurs
-            "bash_number": ("#b5cea8", "normal"),  # Nombres
-            "bash_punctuation": ("#d4d4d4", "normal"),  # Ponctuation
+            "Token.Name.Variable": ("#9cdcfe", "normal"),  # Variables
         }
 
         # SQL tags
@@ -9649,6 +9617,21 @@ class ModernAIGUI:
 
             def animate_loading_dots():
                 """Anime les points pendant le chargement - BOUCLE CONTINUE"""
+                # Vérifier l'interruption en priorité
+                if self.is_interrupted:
+                    self._file_generation_active = False
+                    if self._file_generation_widget:
+                        try:
+                            self._file_generation_widget.configure(state="normal")
+                            self._file_generation_widget.delete("1.0", "end")
+                            self._file_generation_widget.insert(
+                                "1.0", "⚠️ Création du fichier interrompue."
+                            )
+                            self._file_generation_widget.configure(state="disabled")
+                        except Exception as e:
+                            print(f"Erreur affichage interruption: {e}")
+                    return
+
                 if not self._file_generation_active:
                     return
 
@@ -9670,8 +9653,8 @@ class ModernAIGUI:
                         except Exception as e:
                             print(f"Erreur animation: {e}")
 
-                    # CONTINUER L'ANIMATION EN BOUCLE
-                    if self._file_generation_active:
+                    # CONTINUER L'ANIMATION EN BOUCLE (sauf si interrompu)
+                    if self._file_generation_active and not self.is_interrupted:
                         self.root.after(500, animate_loading_dots)
                 except Exception as e:
                     print(f"Erreur dans animate_loading_dots: {e}")
@@ -9679,15 +9662,58 @@ class ModernAIGUI:
             def generate_file_async():
                 """Génère le fichier en arrière-plan"""
                 try:
+                    # Vérifier l'interruption AVANT de commencer
+                    if self.is_interrupted:
+                        self._file_generation_active = False
+                        def show_interrupted():
+                            if self._file_generation_widget:
+                                self._file_generation_widget.configure(state="normal")
+                                self._file_generation_widget.delete("1.0", "end")
+                                self._file_generation_widget.insert(
+                                    "1.0", "⚠️ Création du fichier interrompue."
+                                )
+                                self._file_generation_widget.configure(state="disabled")
+                                self.is_thinking = False
+                                self.set_input_state(True)
+                        self.root.after(0, show_interrupted)
+                        return
+
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
+
+                    # Callback avec debug
+                    def check_interrupted():
+                        interrupted = self.is_interrupted
+                        if interrupted:
+                            print(f"🛑 [GUI Callback] Interruption détectée! is_interrupted={interrupted}")
+                        return interrupted
+
                     result = loop.run_until_complete(
-                        self.ai_engine.process_query(user_text)
+                        self.ai_engine.process_query(
+                            user_text,
+                            is_interrupted_callback=check_interrupted
+                        )
                     )
                     loop.close()
 
                     # Arrêter l'animation de points
                     self._file_generation_active = False
+
+                    # Vérifier si le résultat indique une interruption
+                    if result.get("interrupted"):
+                        # L'opération a été interrompue - afficher le message d'interruption
+                        def show_interrupted_after():
+                            if self._file_generation_widget:
+                                self._file_generation_widget.configure(state="normal")
+                                self._file_generation_widget.delete("1.0", "end")
+                                self._file_generation_widget.insert(
+                                    "1.0", "⚠️ Création du fichier interrompue."
+                                )
+                                self._file_generation_widget.configure(state="disabled")
+                                self.is_thinking = False
+                                self.set_input_state(True)
+                        self.root.after(0, show_interrupted_after)
+                        return
 
                     # Mettre à jour avec le résultat
                     if result.get("type") == "file_generation" and result.get(
@@ -9699,8 +9725,20 @@ class ModernAIGUI:
                             "code": result.get("code", ""),
                         }
 
-                        # Message fixe au format demandé avec emojis
-                        final_message = "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement sur son nom. 👇\n\nEst-ce que vous souhaitez autre chose ? "
+                        # Messages variés pour la génération de fichiers
+                        file_generation_messages = [
+                            "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement sur son nom. 👇\n\nEst-ce que vous souhaitez autre chose ? ",
+                            "🎉 Fichier généré avec succès ! Cliquez sur le nom pour le télécharger. 👇\n\nBesoin d'autre chose ? ",
+                            "✨ Et voilà ! Votre fichier est créé. Un simple clic sur le nom pour le récupérer. 👇\n\nQue puis-je faire d'autre pour vous ? ",
+                            "🚀 Génération terminée ! Le fichier est prêt au téléchargement (cliquez sur le nom). 👇\n\nUne autre demande ? ",
+                            "💾 Fichier créé ! Téléchargez-le en cliquant sur son nom ci-dessous. 👇\n\nJe peux vous aider pour autre chose ? ",
+                            "✅ Mission accomplie ! Votre fichier vous attend. Cliquez pour télécharger. 👇\n\nAutre chose à générer ? ",
+                            "🎯 Fichier prêt à être téléchargé ! Un clic sur le nom et c'est bon. 👇\n\nQu'est-ce qu'on fait ensuite ? ",
+                            "⚡ C'est fait ! Votre fichier est disponible. Cliquez dessus pour le récupérer. 👇\n\nUne autre création ? ",
+                        ]
+
+                        # Choisir un message aléatoire
+                        final_message = random.choice(file_generation_messages)
 
                         # REMPLACER le contenu du widget AVEC ANIMATION
                         def update_final_message():
