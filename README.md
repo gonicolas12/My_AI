@@ -68,6 +68,7 @@ my_ai/
 │   ├── smart_code_searcher.py           # Recherche de code intelligente
 │   ├── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
 │   └── ultra_custom_ai.py               # Modèle ULTRA
+├── outputs/                             # Fichiers générées par l'IA
 ├── processors/                          # Processeurs de fichiers Ultra
 │   ├── __init__.py
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
