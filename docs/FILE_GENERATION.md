@@ -56,21 +56,15 @@ génère un fichier server.js pour un serveur Express simple
 
 1. Lancez l'application : `python launch_unified.py`
 2. Tapez votre demande dans le chat :
-   ```
-   génère moi un fichier morpion.py pour jouer au morpion
-   ```
+```
+génère moi un fichier morpion.py pour jouer au morpion
+```
 3. Le fichier est créé dans `outputs/morpion.py`
 
 ### Via le CLI
 
 ```bash
 python main.py chat "génère moi un fichier main.py qui me permet de jouer au morpion"
-```
-
-### Test Direct
-
-```bash
-python test_file_generation.py
 ```
 
 ## 📋 Formats Supportés
