@@ -380,7 +380,9 @@ class ModernAIGUI:
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
         try:
-            print("🛑 [GUI] STOP cliqué - Interruption de toutes les opérations en cours")
+            print(
+                "🛑 [GUI] STOP cliqué - Interruption de toutes les opérations en cours"
+            )
             self.is_interrupted = True
             if hasattr(self, "current_request_id"):
                 self.current_request_id += 1  # Invalide toutes les requêtes en cours
@@ -2813,12 +2815,6 @@ class ModernAIGUI:
             char_pos += len(line) + 1  # +1 pour le \n
             i += 1
 
-        print(f"[DEBUG] Tables pré-analysées: {len(tables)} tableaux trouvés")
-        for t in tables:
-            print(
-                f"  Table lignes {t['start_line']}-{t['end_line']}, positions {t['start_pos']}-{t['end_pos']}"
-            )
-
         return tables
 
     def _analyze_python_tokens(self, code, start_offset, code_map):
@@ -4537,19 +4533,48 @@ class ModernAIGUI:
         if not hasattr(self, "_formatted_tables"):
             self._formatted_tables = set()
 
-        # Vérifier si on vient de terminer un tableau (position juste après end_pos)
+        # Vérifier si on vient de terminer un tableau
         for table_idx, table in enumerate(self._table_blocks):
-            # Le tableau est complet quand on dépasse sa position de fin
-            if (
-                current_pos >= table["end_pos"]
-                and table_idx not in self._formatted_tables
-            ):
-                # Marquer ce tableau comme formaté
-                self._formatted_tables.add(table_idx)
+            if table_idx in self._formatted_tables:
+                continue  # Déjà formaté
 
-                # Formater ce tableau
-                self._format_completed_table(text_widget, table)
-                break  # Un seul tableau à la fois
+            # Vérifier si le tableau a ARRÊTÉ de grandir
+            # On regarde si end_line a changé depuis le dernier appel
+            prev_end_line = self._table_blocks_history.get(table_idx, -1)
+            current_end_line = table["end_line"]
+
+            # Mettre à jour l'historique
+            self._table_blocks_history[table_idx] = current_end_line
+
+            # Si c'est la première fois qu'on voit ce tableau, ne pas formater encore
+            if prev_end_line == -1:
+                continue
+
+            # Si le tableau a grandi depuis le dernier appel, ne pas formater encore
+            if current_end_line > prev_end_line:
+                print(
+                    f"[DEBUG] Tableau {table_idx} grandit encore : ligne {prev_end_line} -> {current_end_line}"
+                )
+                continue
+
+            # Si on est ici, le tableau n'a PAS grandi depuis le dernier appel
+            # Vérifier qu'on a dépassé la fin du tableau ET qu'il y a une ligne non-tableau après
+            if current_pos >= table["end_pos"]:
+                buffer_text = self._streaming_buffer[:current_pos]
+                lines = buffer_text.split("\n")
+
+                # Vérifier qu'on a au moins 1 ligne après le tableau
+                lines_after_table = len(lines) - table["end_line"] - 1
+
+                if lines_after_table >= 1:
+                    # Vérifier que cette ligne ne contient pas de |
+                    if table["end_line"] + 1 < len(lines):
+                        first_line_after = lines[table["end_line"] + 1]
+                        if "|" not in first_line_after:
+                            # Le tableau est stable et terminé
+                            self._formatted_tables.add(table_idx)
+                            self._format_completed_table(text_widget, table)
+                            break  # Un seul tableau à la fois
 
     def _format_completed_table(self, text_widget, table_info):
         """Formate un tableau complet dans le widget"""
@@ -4622,11 +4647,65 @@ class ModernAIGUI:
         cells2 = self._parse_table_row(line2)
         return cells1 == cells2
 
+    def _insert_table_cell_content(self, text_widget, cell_content, is_header):
+        """Insère le contenu d'une cellule avec support complet des formattages markdown"""
+        if not cell_content:
+            return
+
+        # Appliquer les formattages markdown dans l'ordre de priorité
+        # 1. Gras **texte**
+        # 2. Code `texte`
+        # 3. Texte normal
+
+        parts = []
+        current_pos = 0
+
+        # Pattern pour détecter les formattages
+        # On cherche soit **texte** soit `code`
+        format_pattern = r"(\*\*[^*\n]+\*\*|`[^`\n]+`)"
+
+        for match in re.finditer(format_pattern, cell_content):
+            # Texte avant le format
+            if match.start() > current_pos:
+                parts.append(("normal", cell_content[current_pos : match.start()]))
+
+            # Contenu formaté
+            matched_text = match.group(0)
+            if matched_text.startswith("**") and matched_text.endswith("**"):
+                # Gras
+                parts.append(("bold", matched_text[2:-2]))
+            elif matched_text.startswith("`") and matched_text.endswith("`"):
+                # Code
+                parts.append(("code", matched_text[1:-1]))
+            else:
+                parts.append(("normal", matched_text))
+
+            current_pos = match.end()
+
+        # Texte restant
+        if current_pos < len(cell_content):
+            parts.append(("normal", cell_content[current_pos:]))
+
+        # Insérer les parties avec leurs tags
+        for part_type, part_text in parts:
+            if part_type == "bold":
+                if is_header:
+                    text_widget.insert("insert", part_text, "table_header")
+                else:
+                    text_widget.insert("insert", part_text, "table_cell_bold")
+            elif part_type == "code":
+                text_widget.insert("insert", part_text, "code")
+            else:
+                if is_header:
+                    text_widget.insert("insert", part_text, "table_header")
+                else:
+                    text_widget.insert("insert", part_text, "table_cell")
+
     def _insert_formatted_table(self, text_widget, raw_lines):
-        """Insère un tableau complètement formaté"""
+        """Insère un tableau complètement formaté avec support des formattages markdown"""
         separator_pattern = r"^\|?[\s\-:|\s]+\|?$"
 
-        # Calculer les largeurs de colonnes
+        # Calculer les largeurs de colonnes (en comptant le texte sans les marqueurs markdown)
         all_cells = []
         for line_content in raw_lines:
             if re.match(separator_pattern, line_content.strip()):
@@ -4643,7 +4722,9 @@ class ModernAIGUI:
             max_width = 0
             for row in all_cells:
                 if col < len(row):
+                    # Enlever tous les marqueurs markdown pour calculer la largeur
                     cell_text = re.sub(r"\*\*([^*]+)\*\*", r"\1", row[col])
+                    cell_text = re.sub(r"`([^`]+)`", r"\1", cell_text)
                     max_width = max(max_width, len(cell_text))
             widths.append(max(max_width, 3))
 
@@ -4665,20 +4746,25 @@ class ModernAIGUI:
             for col_idx, width in enumerate(widths):
                 cell_content = cells[col_idx] if col_idx < len(cells) else ""
 
-                bold_match = re.match(r"\*\*(.+?)\*\*", cell_content)
-                if bold_match:
-                    display_text = bold_match.group(1)
-                    tag = "table_cell_bold" if not is_header else "table_header"
-                else:
-                    display_text = cell_content
-                    tag = "table_header" if is_header else "table_cell"
+                # Calculer la longueur d'affichage (sans les marqueurs)
+                display_length = len(re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content))
+                display_length = len(
+                    re.sub(
+                        r"`([^`]+)`",
+                        r"\1",
+                        re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content),
+                    )
+                )
 
-                padding = width - len(display_text)
+                padding = width - display_length
                 left_pad = padding // 2
                 right_pad = padding - left_pad
 
                 text_widget.insert("insert", " " + " " * left_pad, "table_border")
-                text_widget.insert("insert", display_text, tag)
+
+                # Insérer le contenu avec formatage
+                self._insert_table_cell_content(text_widget, cell_content, is_header)
+
                 text_widget.insert("insert", " " * right_pad + " ", "table_border")
                 text_widget.insert("insert", "│", "table_border")
 
@@ -7100,7 +7186,7 @@ class ModernAIGUI:
         return widths
 
     def _insert_markdown_table(self, text_widget, table_lines):
-        """Affiche un tableau Markdown formaté dans le widget"""
+        """Affiche un tableau Markdown formaté dans le widget avec support complet des formattages"""
         if not table_lines or len(table_lines) < 2:
             return
 
@@ -7127,22 +7213,35 @@ class ModernAIGUI:
             for col_idx, width in enumerate(column_widths):
                 cell_content = cells[col_idx] if col_idx < len(cells) else ""
 
-                # Détecter le gras dans la cellule
-                bold_match = re.match(r"\*\*(.+?)\*\*", cell_content)
-                if bold_match:
-                    display_text = bold_match.group(1)
-                    tag = "table_cell_bold" if not is_header else "table_header"
-                else:
-                    display_text = cell_content
-                    tag = "table_header" if is_header else "table_cell"
+                # Calculer la longueur d'affichage (sans les marqueurs markdown)
+                display_length = len(re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content))
+                display_length = len(
+                    re.sub(
+                        r"`([^`]+)`",
+                        r"\1",
+                        re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content),
+                    )
+                )
 
                 # Centrer le contenu
-                padding = width - len(display_text)
+                padding = width - display_length
                 left_pad = padding // 2
                 right_pad = padding - left_pad
 
                 text_widget.insert("end", " " + " " * left_pad, "table_border")
-                text_widget.insert("end", display_text, tag)
+
+                # Sauvegarder la position actuelle pour insertion avec formatage
+                current_mark = "table_cell_insert"
+                text_widget.mark_set(current_mark, "end")
+
+                # Insérer le contenu avec formatage via la fonction helper
+                # Temporairement changer "end" en utilisant la marque
+                old_insert = text_widget.index("insert")
+                text_widget.mark_set("insert", current_mark)
+                self._insert_table_cell_content(text_widget, cell_content, is_header)
+                text_widget.mark_set("insert", old_insert)
+                text_widget.mark_unset(current_mark)
+
                 text_widget.insert("end", " " * right_pad + " ", "table_border")
                 text_widget.insert("end", "│", "table_border")
 
@@ -9665,6 +9764,7 @@ class ModernAIGUI:
                     # Vérifier l'interruption AVANT de commencer
                     if self.is_interrupted:
                         self._file_generation_active = False
+
                         def show_interrupted():
                             if self._file_generation_widget:
                                 self._file_generation_widget.configure(state="normal")
@@ -9675,6 +9775,7 @@ class ModernAIGUI:
                                 self._file_generation_widget.configure(state="disabled")
                                 self.is_thinking = False
                                 self.set_input_state(True)
+
                         self.root.after(0, show_interrupted)
                         return
 
@@ -9685,13 +9786,14 @@ class ModernAIGUI:
                     def check_interrupted():
                         interrupted = self.is_interrupted
                         if interrupted:
-                            print(f"🛑 [GUI Callback] Interruption détectée! is_interrupted={interrupted}")
+                            print(
+                                f"🛑 [GUI Callback] Interruption détectée! is_interrupted={interrupted}"
+                            )
                         return interrupted
 
                     result = loop.run_until_complete(
                         self.ai_engine.process_query(
-                            user_text,
-                            is_interrupted_callback=check_interrupted
+                            user_text, is_interrupted_callback=check_interrupted
                         )
                     )
                     loop.close()
@@ -9712,6 +9814,7 @@ class ModernAIGUI:
                                 self._file_generation_widget.configure(state="disabled")
                                 self.is_thinking = False
                                 self.set_input_state(True)
+
                         self.root.after(0, show_interrupted_after)
                         return
 
@@ -10226,6 +10329,8 @@ class ModernAIGUI:
         self._formatted_tables = set()
         self._pending_links = []
         self._table_blocks = []
+        # pylint: disable=attribute-defined-outside-init
+        self._table_blocks_history = {}  # Pour tracker l'évolution des tableaux (attribut temporaire de streaming)
 
         # Configurer tous les tags de formatage
         self._configure_all_formatting_tags(text_widget)
@@ -10322,6 +10427,10 @@ class ModernAIGUI:
                         should_format = True
                 elif char == "\n":
                     should_format = True
+                    # Mettre à jour la pré-analyse des tableaux avec le contenu actuel
+                    self._table_blocks = self._preanalyze_markdown_tables(
+                        self._streaming_buffer[: self.typing_index]
+                    )
                     self._check_and_format_table_line(
                         self.typing_widget, self.typing_index
                     )
@@ -10966,16 +11075,34 @@ class ModernAIGUI:
                 f"[DEBUG] _finish_streaming: Formatage final sur {len(current_widget_text)} caractères (coloration déjà faite)"
             )
 
-            # Pré-analyser les tableaux
-            self._table_blocks = self._preanalyze_markdown_tables(current_widget_text)
-
-            # Formater les tableaux Markdown
-            self._format_markdown_tables_in_widget(
-                self.typing_widget, current_widget_text
+            # Vérifier si les tableaux sont déjà formatés (présence de bordures)
+            tables_already_formatted = any(
+                c in current_widget_text for c in "┌┬┐│├┼┤└┴┘─"
             )
 
-            # Formatage unifié (gras, italique, code inline, etc.)
-            self._apply_unified_progressive_formatting(self.typing_widget)
+            if tables_already_formatted:
+                print(
+                    "[DEBUG] _finish_streaming: Tableaux déjà formatés, pas de reconstruction"
+                )
+                # Les tableaux sont déjà formatés pendant l'animation
+                # On applique juste le formatage Markdown sans détruire le widget
+                self._apply_unified_progressive_formatting(self.typing_widget)
+            else:
+                print(
+                    "[DEBUG] _finish_streaming: Tableaux non formatés, formatage nécessaire"
+                )
+                # Pré-analyser les tableaux
+                self._table_blocks = self._preanalyze_markdown_tables(
+                    current_widget_text
+                )
+
+                # Formater les tableaux Markdown (reconstruit le widget)
+                self._format_markdown_tables_in_widget(
+                    self.typing_widget, current_widget_text
+                )
+
+                # Formatage unifié (gras, italique, code inline, etc.)
+                self._apply_unified_progressive_formatting(self.typing_widget)
 
             # Les liens ont déjà été collectés pendant l'animation dans _pending_links
             # Ne PAS les rescanner ni les effacer

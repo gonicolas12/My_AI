@@ -31,3 +31,6 @@ models/weights/
 temp/
 *.tmp
 *.cache
+
+# Fichiers générés par l'IA
+outputs/
