@@ -164,13 +164,6 @@ my_ai/
 - **Traitement parallèle** : Analyse simultanée de plusieurs sources
 - **Réponses contextuelles** : Adaptation du format selon le type de recherche
 
-### 💬 Interaction Intelligente
-- **Salutations naturelles** : Reconnaît "slt", "salut", "bonjour", "bjr", etc.
-- **Questions techniques** : Spécialisé dans l'aide au code et développement
-- **Analyse de documents** : Traitement et résumé de PDF/DOCX avec mémoire
-- **Conversations contextuelles** : Référence aux éléments précédemment traités
-- **Recherche internet** : "Cherche sur internet les actualités Python"
-
 ## 🏃‍♂️ Démarrage Rapide
 
 ### Clonez ce dépôt
