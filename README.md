@@ -111,13 +111,13 @@ my_ai/
 - **Messages non-scrollables** : Labels optimisés pour de meilleures performances
 - **Timestamp automatique** : Horodatage discret pour chaque message
 
-![Interface Chat](docs/images/chatScreen.png)
-*Interface de conversation avec l'IA - Design moderne style Claude*
-
 ### 🖥️ Différentes Interfaces
 - **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
 - **CLI avancée** : Ligne de commande pour utilisateurs experts
 - **Gestion d'erreurs** : Messages clairs et récupération gracieuse
+
+![Interface Chat](docs/images/chatScreen.png)
+*Interface de conversation avec l'IA - Design moderne style Claude*
 
 ## 🚀 Fonctionnalités Principales
 
