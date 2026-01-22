@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.1.0
+# 🏗️ Architecture - My Personal AI v6.2.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.1.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
+My Personal AI v6.2.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : GPT-2 tokenizer (99% précision vs 70% approximation)
@@ -240,7 +240,7 @@ core/evaluation.py + error_analysis.py:
 
 ### 🤖 Models - Intelligence Artificielle
 
-**`models/custom_ai_model.py`** - Modèle IA principal (v6.1.0)
+**`models/custom_ai_model.py`** - Modèle IA principal (v6.2.0)
 ```python
 Architecture:
 ├─ LinguisticPatterns (détection intentions)
@@ -272,7 +272,7 @@ Features:
 └─ Initialisation processeurs avancés
 ```
 
-**`memory/vector_memory.py`** - Mémoire Vectorielle (v6.1.0)
+**`memory/vector_memory.py`** - Mémoire Vectorielle (v6.2.0)
 ```python
 Architecture ML:
 ├─ GPT-2 Tokenizer (transformers)
@@ -404,7 +404,7 @@ Composants:
 
 **`models/internet_search.py`** - Moteur recherche
 ```python
-EnhancedInternetSearchEngine (v6.1.0):
+EnhancedInternetSearchEngine (v6.2.0):
 ├─ DuckDuckGo API Instant (priorité #1)
 ├─ Météo temps réel intégrée:
 │   ├─ Service wttr.in (gratuit, sans API)
@@ -424,7 +424,7 @@ EnhancedInternetSearchEngine (v6.1.0):
 ├─ Système caching (3600s)
 └─ Rotation user agents
 
-Ordre moteurs (optimisé v6.1.0):
+Ordre moteurs (optimisé v6.2.0):
 1. DuckDuckGo API Instant (rapide, stable)
 2. Météo wttr.in (si détection météo)
 3. Wikipedia API (fallback)
@@ -977,7 +977,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 6.1.0
+**Version**: 6.2.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

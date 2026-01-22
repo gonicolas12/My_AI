@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "6.1.0"
+  version: "6.2.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux - OPTIMISÉ POUR CONTEXTE ÉTENDU

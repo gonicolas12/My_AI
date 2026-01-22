@@ -3,11 +3,12 @@
 - 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
+- 🤖 **Système d'Agents IA Spécialisés** : 6 agents experts pour des tâches complexes (NOUVEAU!)
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
 - 💻 **Analyse** et **génération** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
-- 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées
+- 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées et onglets
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode et blocs de code Python colorisés
 - 🏗️ **Architecture 100% Locale** avec persistance SQLite optimisée
 - ⚡ **Gestion automatique de la mémoire** et optimisations en temps réel
@@ -26,6 +27,7 @@
 my_ai/
 ├── core/                                # Cœur de l'IA
 │   ├── __init__.py
+│   ├── agent_orchestrator.py            # Orchestrateur d'agents
 │   ├── ai_engine.py                     # Moteur principal IA
 │   ├── config.py                        # Configuration de l'IA
 │   ├── context_manager.py               # Gestion de contexte long
@@ -42,6 +44,7 @@ my_ai/
 │   └── code_generator.py                # Génération code avec analyse ultra
 ├── interfaces/                          # Interfaces utilisateur Ultra
 │   ├── __init__.py
+│   ├── agents_interface.py              # Interface graphique Agents IA
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── gui_modern.py                    # Interface moderne
 │   ├── modern_styles.py                 # Styles et thèmes modernes
@@ -53,6 +56,7 @@ my_ai/
 ├── models/                              # Modèles d'IA Ultra avec 1M tokens
 │   ├── __init__.py
 │   ├── advanced_code_generator.py       # Générateur de code avancé
+│   ├── ai_agents.py                     # Agents IA spécialisés
 │   ├── base_ai.py                       # Interface de base
 │   ├── conversation_memory.py           # Mémoire conversationnelle avancée
 │   ├── custom_ai_model.py               # Modèle IA principal avec intentions
@@ -93,6 +97,18 @@ my_ai/
 ```
 
 ## 🚀 Fonctionnalités Principales
+
+### 🤖 Système d'Agents IA Spécialisés
+- **6 agents experts** basés sur Ollama avec compétences spécialisées
+- **CodeAgent** 🐍 : Génération et debug de code multi-langages
+- **ResearchAgent** 📚 : Recherche et documentation technique
+- **AnalystAgent** 📊 : Analyse de données et insights
+- **CreativeAgent** ✨ : Rédaction et contenu créatif
+- **DebugAgent** 🐛 : Détection et correction d'erreurs
+- **PlannerAgent** 📋 : Planification de projets complexes
+- **Workflows multi-agents** : Collaboration entre agents pour tâches complexes
+- **Interface graphique dédiée** : Onglet "Agents" dans la GUI moderne
+- **CLI enrichi** : Commandes `agent` et `workflow` disponibles
 
 ### 🦙 Intégration Ollama (LLM Local)
 - **LLM 100% local** : Réponses générées par llama3.1:8b directement sur votre machine
@@ -266,6 +282,7 @@ N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les back
 - **[Changelog](docs/CHANGELOG.md)** : Historique des mises à jour
 - **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
 - **[Génération de Fichiers](docs/FILE_GENERATION.md)** : Guide sur la génération de fichiers via l'IA
+- **[Agents IA](docs/AGENTS.md)** : Documentation complète sur les agents IA spécialisés
 
 ## 🔧 Caractéristiques Techniques
 

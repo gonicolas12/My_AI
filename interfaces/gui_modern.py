@@ -103,6 +103,7 @@ except ImportError:
 try:
     from core.ai_engine import AIEngine
     from core.config import Config
+    from interfaces.agents_interface import AgentsInterface
     from utils.file_processor import FileProcessor
     from utils.logger import setup_logger
 except ImportError:
@@ -114,6 +115,7 @@ except ImportError:
     from core.config import Config
     from utils.file_processor import FileProcessor
     from utils.logger import setup_logger
+    from interfaces.agents_interface import AgentsInterface
 
 
 class ModernAIGUI:
@@ -559,6 +561,10 @@ class ModernAIGUI:
         self.main_container = None
         self.input_text = None
         self.send_button = None
+        self.content_container = None
+        self.tab_frames = {}
+        self.tab_buttons = {}
+        self.agents_interface = None
 
         # Configuration de l'interface
         self.setup_modern_gui()
@@ -1316,7 +1322,7 @@ class ModernAIGUI:
         style.configure("Dark.TButton", background="#2d2d2d", foreground="#ffffff")
 
     def create_modern_layout(self):
-        """Crée le layout moderne style Claude"""
+        """Crée le layout moderne style Claude avec onglets"""
         # Container principal
         self.main_container = self.create_frame(
             self.root, fg_color=self.colors["bg_primary"]
@@ -1328,14 +1334,142 @@ class ModernAIGUI:
         # Header moderne
         self.create_modern_header()
 
-        # Zone de conversation principale
-        self.create_conversation_area()
+        # Système d'onglets
+        self.create_tabbed_interface()
 
-        # Zone de saisie moderne
+        # Animations et effets (uniquement pour le chat)
+        self.start_animations()
+
+    def create_tabbed_interface(self):
+        """Crée l'interface avec onglets Chat et Agents"""
+        # Container pour le contenu des onglets
+        self.content_container = self.create_frame(
+            self.main_container, fg_color=self.colors["bg_primary"]
+        )
+        self.content_container.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        self.content_container.grid_columnconfigure(0, weight=1)
+        self.content_container.grid_rowconfigure(0, weight=1)
+        self.main_container.grid_rowconfigure(1, weight=1)
+
+        # Dictionnaire pour stocker les frames
+        self.tab_frames = {}
+
+        # Créer les frames pour chaque onglet
+        self.create_chat_tab()
+        self.create_agents_tab()
+
+        # Afficher l'onglet Chat par défaut
+        self.switch_tab("chat")
+
+    def create_chat_tab(self):
+        """Crée l'onglet Chat (interface existante)"""
+        chat_frame = self.create_frame(
+            self.content_container, fg_color=self.colors["bg_primary"]
+        )
+        chat_frame.grid(row=0, column=0, sticky="nsew")
+        chat_frame.grid_columnconfigure(0, weight=1)
+        chat_frame.grid_rowconfigure(0, weight=1)
+
+        self.tab_frames["chat"] = chat_frame
+
+        # Conteneur pour chat + input (comme avant)
+        chat_content = self.create_frame(chat_frame, fg_color=self.colors["bg_primary"])
+        chat_content.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        chat_content.grid_columnconfigure(0, weight=1)
+        chat_content.grid_rowconfigure(0, weight=1)
+
+        # Zone de conversation (utilise l'ancienne méthode)
+        self.create_conversation_area_in_frame(chat_content)
+
+        # Zone de saisie
+        self.create_modern_input_area_in_frame(chat_content)
+
+    def create_agents_tab(self):
+        """Crée l'onglet Agents"""
+        agents_frame = self.create_frame(
+            self.content_container, fg_color=self.colors["bg_primary"]
+        )
+        agents_frame.grid(row=0, column=0, sticky="nsew")
+        agents_frame.grid_columnconfigure(0, weight=1)
+        agents_frame.grid_rowconfigure(0, weight=1)
+
+        self.tab_frames["agents"] = agents_frame
+
+        # Créer l'interface agents
+        self.agents_interface = AgentsInterface(
+            parent_frame=agents_frame,
+            colors=self.colors,
+            create_frame=self.create_frame,
+            create_label=self.create_label,
+            create_button=self.create_button,
+            create_text=self.create_text,
+            use_ctk=self.use_ctk,
+        )
+
+    def switch_tab(self, tab_id):
+        """Change d'onglet"""
+        # Cacher tous les onglets
+        for tid, frame in self.tab_frames.items():
+            frame.grid_remove()
+
+        # Afficher l'onglet sélectionné
+        if tab_id in self.tab_frames:
+            self.tab_frames[tab_id].grid()
+
+        # Mettre à jour l'apparence des boutons (même couleur pour tous, juste l'intensité change)
+        for tid, btn in self.tab_buttons.items():
+            if tid == tab_id:
+                # Onglet actif - couleur accent
+                if self.use_ctk:
+                    btn.configure(
+                        fg_color=self.colors["accent"],
+                        text_color="#ffffff",
+                    )
+                else:
+                    btn.configure(bg=self.colors["accent"], fg="#ffffff")
+            else:
+                # Onglet inactif - couleur secondaire
+                if self.use_ctk:
+                    btn.configure(
+                        fg_color=self.colors["bg_secondary"],
+                        text_color=self.colors["text_secondary"],
+                    )
+                else:
+                    btn.configure(
+                        bg=self.colors["bg_secondary"],
+                        fg=self.colors["text_secondary"],
+                    )
+
+    def create_conversation_area_in_frame(self, parent):
+        """Crée la zone de conversation dans un frame spécifique"""
+        # Utiliser le parent fourni au lieu de self.main_container
+        original_create = self.create_conversation_area
+
+        # Sauvegarder temporairement self.main_container
+        temp_container = self.main_container
+
+        # Remplacer temporairement par le parent fourni
+        self.main_container = parent
+
+        # Appeler la méthode originale
+        original_create()
+
+        # Restaurer self.main_container
+        self.main_container = temp_container
+
+    def create_modern_input_area_in_frame(self, parent):
+        """Crée la zone de saisie dans un frame spécifique"""
+        # Sauvegarder temporairement self.main_container
+        temp_container = self.main_container
+
+        # Remplacer temporairement par le parent fourni
+        self.main_container = parent
+
+        # Appeler la méthode originale
         self.create_modern_input_area()
 
-        # Animations et effets
-        self.start_animations()
+        # Restaurer self.main_container
+        self.main_container = temp_container
 
     def create_modern_header(self):
         """Crée l'en-tête moderne style Claude"""
@@ -1343,11 +1477,19 @@ class ModernAIGUI:
             self.main_container, fg_color=self.colors["bg_primary"]
         )
         header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
-        header_frame.grid_columnconfigure(1, weight=1)
+        header_frame.grid_columnconfigure(0, weight=1)  # Gauche
+        header_frame.grid_columnconfigure(1, weight=0)  # Centre (boutons tabs)
+        header_frame.grid_columnconfigure(2, weight=1)  # Droite
+
+        # Container gauche (logo + titre)
+        left_frame = self.create_frame(
+            header_frame, fg_color=self.colors["bg_primary"]
+        )
+        left_frame.grid(row=0, column=0, sticky="w")
 
         # Logo/Icône - taille réduite
         logo_label = self.create_label(
-            header_frame,
+            left_frame,
             text="🤖",
             font=("Segoe UI", self.get_current_font_size("header")),  # Dynamique
             text_color=self.colors["accent"],  # text_color au lieu de fg
@@ -1357,7 +1499,7 @@ class ModernAIGUI:
 
         # Titre principal
         title_frame = self.create_frame(
-            header_frame, fg_color=self.colors["bg_primary"]
+            left_frame, fg_color=self.colors["bg_primary"]
         )
         title_frame.grid(row=0, column=1, sticky="w", pady=(8, 0))
 
@@ -1379,13 +1521,56 @@ class ModernAIGUI:
         )
         subtitle_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
 
-        # Boutons d'action
+        # Boutons d'onglets au centre
+        self.create_tab_buttons(header_frame)
+
+        # Boutons d'action à droite
         self.create_header_buttons(header_frame)
+
+    def create_tab_buttons(self, parent):
+        """Crée les boutons d'onglets Chat/Agents au centre du header"""
+        tabs_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
+        tabs_frame.grid(row=0, column=1, padx=20)
+
+        self.tab_buttons = {}
+
+        tabs = [
+            ("chat", "💬 Chat"),
+            ("agents", "🤖 Agents"),
+        ]
+
+        for _idx, (tab_id, tab_text) in enumerate(tabs):
+            if self.use_ctk:
+                btn = ctk.CTkButton(
+                    tabs_frame,
+                    text=tab_text,
+                    command=lambda tid=tab_id: self.switch_tab(tid),
+                    fg_color=self.colors["bg_secondary"],
+                    hover_color=self.colors["button_hover"],
+                    text_color=self.colors["text_secondary"],
+                    font=("Segoe UI", 12, "bold"),
+                    height=40,
+                    width=130,
+                    corner_radius=6,
+                )
+            else:
+                btn = tk.Button(
+                    tabs_frame,
+                    text=tab_text,
+                    command=lambda tid=tab_id: self.switch_tab(tid),
+                    bg=self.colors["bg_secondary"],
+                    fg=self.colors["text_secondary"],
+                    font=("Segoe UI", 12, "bold"),
+                    height=2,
+                    width=15,
+                )
+            btn.pack(side="left", padx=3)
+            self.tab_buttons[tab_id] = btn
 
     def create_header_buttons(self, parent):
         """Crée les boutons de l'en-tête"""
         buttons_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
-        buttons_frame.grid(row=0, column=2, padx=(10, 0))
+        buttons_frame.grid(row=0, column=2, sticky="e", padx=(10, 0))
 
         # Bouton Clear Chat
         self.clear_btn = self.create_modern_button(
@@ -1418,7 +1603,7 @@ class ModernAIGUI:
         conv_container = self.create_frame(
             self.main_container, fg_color=self.colors["bg_chat"]
         )
-        conv_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=(10, 20))
+        conv_container.grid(row=0, column=0, sticky="nsew", padx=20, pady=(10, 20))
         conv_container.grid_columnconfigure(0, weight=1)
         conv_container.grid_rowconfigure(0, weight=1)
 
@@ -1478,7 +1663,7 @@ class ModernAIGUI:
         input_container = self.create_frame(
             self.main_container, fg_color=self.colors["bg_primary"]
         )
-        input_container.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 20))
+        input_container.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 20))
         input_container.grid_columnconfigure(0, weight=1)
 
         # Zone de saisie avec bordure moderne
@@ -1607,6 +1792,33 @@ class ModernAIGUI:
             return ctk.CTkLabel(parent, **ctk_kwargs)
         else:
             return tk.Label(parent, **kwargs)
+
+    def create_button(self, parent, text, command, style="primary", **_kwargs):
+        """Crée un bouton (alias vers create_modern_button pour compatibilité)"""
+        return self.create_modern_button(parent, text, command, style)
+
+    def create_text(self, parent, **kwargs):
+        """Crée un widget Text avec le bon style"""
+        if self.use_ctk:
+            # Convertir les paramètres tkinter vers CustomTkinter
+            ctk_kwargs = {}
+            for key, value in kwargs.items():
+                if key == "bg":
+                    ctk_kwargs["fg_color"] = value
+                elif key == "fg":
+                    ctk_kwargs["text_color"] = value
+                elif key == "font":
+                    ctk_kwargs["font"] = value
+                elif key == "wrap":
+                    ctk_kwargs["wrap"] = value
+                elif key in ["relief", "bd", "borderwidth"]:
+                    # CustomTkinter ne supporte pas ces paramètres
+                    continue
+                else:
+                    ctk_kwargs[key] = value
+            return ctk.CTkTextbox(parent, **ctk_kwargs)
+        else:
+            return tk.Text(parent, **kwargs)
 
     def create_modern_button(self, parent, text, command, style="primary"):
         """Crée un bouton moderne avec différents styles"""
@@ -10330,7 +10542,9 @@ class ModernAIGUI:
         self._pending_links = []
         self._table_blocks = []
         # pylint: disable=attribute-defined-outside-init
-        self._table_blocks_history = {}  # Pour tracker l'évolution des tableaux (attribut temporaire de streaming)
+        self._table_blocks_history = (
+            {}
+        )  # Pour tracker l'évolution des tableaux (attribut temporaire de streaming)
 
         # Configurer tous les tags de formatage
         self._configure_all_formatting_tags(text_widget)

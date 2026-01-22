@@ -1,5 +1,139 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🤖 Version 6.2.0 - Système Multi-Agents IA (22 Janvier 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🤖 Système d'Agents IA Spécialisés
+- **6 agents spécialisés** basés sur Ollama pour des tâches ciblées :
+  - **CodeAgent** 💻 : Génération et débogage de code
+  - **ResearchAgent** 🔍 : Recherche et documentation
+  - **AnalystAgent** 📊 : Analyse de données et insights
+  - **CreativeAgent** ✨ : Contenu créatif et rédaction
+  - **DebugAgent** 🐛 : Débogage et correction d'erreurs
+  - **PlannerAgent** 📋 : Planification et architecture de projets
+
+#### 🎭 Interface Graphique Agents
+- **Nouvelle interface avec onglets** : Chat et Agents séparés
+- **Sélection visuelle d'agents** : Cartes cliquables avec descriptions
+- **Workflows pré-configurés** :
+  - 🔧 **Dev** : Planification → Génération de code → Débogage
+  - 📚 **Research** : Recherche → Analyse → Documentation
+  - 🐛 **Debug** : Analyse d'erreur → Correction
+- **Affichage en streaming** : Résultats affichés progressivement token par token
+- **Statistiques en temps réel** : Tâches exécutées, agents actifs, taux de succès
+
+#### ⚡ Orchestration Multi-Agents
+- **Tâches simples** : Un agent pour une tâche spécifique
+- **Workflows séquentiels** : Plusieurs agents travaillent en chaîne
+- **Exécution parallèle** : Plusieurs agents sur différents aspects en simultané
+- **Transmission de contexte** : Les résultats d'un agent alimentent le suivant
+- **Mémoire d'agent** : Chaque agent garde l'historique de ses tâches
+
+#### 🎨 Interface Moderne
+- **Boutons Chat/Agents centrés** dans la barre supérieure
+- **Zone de résultats en lecture seule** : Protection contre les modifications accidentelles
+- **Design cohérent** : Style Claude maintenu sur tous les onglets
+- **Navigation fluide** : Basculement instantané entre Chat et Agents
+
+#### 🛠️ Intégration CLI
+Nouvelles commandes dans l'interface en ligne de commande :
+```bash
+agent <type> <tâche>          # Exécuter un agent spécifique
+workflow <type> <description>  # Lancer un workflow multi-agents
+agents                        # Lister tous les agents disponibles
+```
+
+### 📚 Documentation
+
+#### Nouveaux Guides
+- **`docs/AGENTS.md`** : Documentation complète du système d'agents
+- **`docs/AGENTS_GUI.md`** : Guide d'utilisation de l'interface graphique
+
+### 🎯 Exemples d'Usage
+
+#### Interface Graphique
+1. **Cliquer sur l'onglet "Agents"** en haut au centre
+2. **Sélectionner un agent** (ex: CodeAgent)
+3. **Décrire la tâche** : "Crée une fonction de tri rapide en Python"
+4. **Cliquer sur "Exécuter"**
+5. **Voir le résultat** apparaître progressivement en streaming
+
+#### Workflows Multi-Agents
+```bash
+# Workflow de développement complet
+1. PlannerAgent → Architecture du projet
+2. CodeAgent → Génération du code
+3. DebugAgent → Vérification et correction
+   
+# Résultat : Projet complet et testé
+```
+
+#### Ligne de Commande
+```bash
+# Agent simple
+agent code "Crée une classe Python pour gérer une liste de tâches"
+
+# Workflow
+workflow research "Intelligence artificielle dans la santé"
+
+# Lister les agents
+agents
+```
+
+### 🔧 Architecture Technique
+
+#### Nouveaux Modules
+- **`models/ai_agents.py`** (521 lignes)
+  - Classe `AIAgent` : Base pour tous les agents
+  - `AgentFactory` : Création d'agents pré-configurés
+  - Système de prompts spécialisés par agent
+  - Historique des tâches par agent
+
+- **`core/agent_orchestrator.py`** (406 lignes)
+  - `AgentOrchestrator` : Coordination des agents
+  - `WorkflowTemplates` : Templates de workflows pré-configurés
+  - Exécution simple, multi-agents, et parallèle
+  - Streaming des résultats avec callbacks
+
+- **`interfaces/agents_interface.py`** (916 lignes)
+  - Interface graphique complète pour les agents
+  - Gestion du threading pour exécution non-bloquante
+  - Affichage en streaming des résultats
+  - Suivi des statistiques en temps réel
+
+#### Améliorations du Code
+- **Streaming complet** : `execute_task_stream()` et `execute_multi_agent_task_stream()`
+- **Callbacks** : `on_step_start`, `on_token`, `on_step_complete`
+- **Zone de sortie protégée** : Mode readonly avec déblocage temporaire pour l'écriture
+- **Interface à onglets** : Navigation centralisée entre Chat et Agents
+
+### 🚦 Performances
+
+- **Streaming temps réel** : Latence minimale, affichage progressif
+- **Threading** : Exécution non-bloquante, interface toujours réactive
+- **Mémoire optimisée** : Chaque agent a sa propre mémoire isolée
+- **Réutilisation** : Les agents créés sont mis en cache et réutilisés
+
+### 💡 Cas d'Usage
+
+#### Développement
+- Architecture de projet → Génération de code → Tests et débogage
+- Code review automatisé avec DebugAgent
+- Documentation automatique du code
+
+#### Recherche
+- Recherche de documentation → Analyse → Synthèse structurée
+- Veille technologique multi-sources
+- Création de rapports détaillés
+
+#### Création de Contenu
+- Brainstorming → Rédaction → Analyse qualité
+- Articles de blog structurés
+- Documentation technique accessible
+
+---
+
 # 🎨 Version 6.1.0 - Génération de Fichiers avec Ollama (14 Janvier 2026)
 
 ### 🚀 Nouveautés Principales

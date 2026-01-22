@@ -4,9 +4,11 @@ Interface en ligne de commande pour l'IA personnelle
 
 import asyncio
 import sys
+import traceback
 from pathlib import Path
 from core.ai_engine import AIEngine
 from core.config import UI_CONFIG
+from core.agent_orchestrator import AgentOrchestrator, WorkflowTemplates
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
 
@@ -24,6 +26,7 @@ class CLIInterface:
         """
         self.logger = setup_logger("CLI")
         self.ai_engine = None
+        self.agent_orchestrator = None
         self.running = False
         self.prompt = UI_CONFIG.get("cli_prompt", "🤖 MyAI> ")
 
@@ -35,6 +38,12 @@ class CLIInterface:
             print("🔄 Initialisation de l'IA personnelle...")
             self.ai_engine = AIEngine()
             print("✅ IA initialisée avec succès!")
+
+            # Initialiser l'orchestrateur d'agents
+            print("🤖 Initialisation du système d'agents...")
+            self.agent_orchestrator = AgentOrchestrator()
+            print("✅ Système d'agents prêt!")
+
             self.logger.info("Interface CLI démarrée")
         except Exception as e:
             print(f"❌ Erreur lors de l'initialisation: {e}")
@@ -70,6 +79,12 @@ class CLIInterface:
                     self.show_help()
                 elif user_input.lower() in ["statut", "status"]:
                     await self.show_status()
+                elif user_input.lower().startswith("agent "):
+                    await self.handle_agent_command(user_input)
+                elif user_input.lower() in ["agents", "list-agents"]:
+                    self.show_agents()
+                elif user_input.lower().startswith("workflow "):
+                    await self.handle_workflow_command(user_input)
                 elif user_input.lower() in ["historique", "history"]:
                     self.show_history()
                 elif user_input.lower().startswith("fichier "):
@@ -222,6 +237,161 @@ class CLIInterface:
         except Exception as e:
             print(f"❌ Erreur commande génération: {e}")
 
+    async def handle_agent_command(self, command: str):
+        """
+        Traite les commandes d'agents IA
+
+        Args:
+            command: Commande agent (format: agent <type> <tâche>)
+        """
+        try:
+            parts = command.split(" ", 2)
+            if len(parts) < 3:
+                print("❌ Usage: agent <type> <tâche>")
+                print("Exemples:")
+                print("  agent code Crée une fonction qui trie une liste")
+                print("  agent research Quelles sont les nouveautés Python 3.13?")
+                print("  agent analyst Analyse ces données: [1,2,3,4,5]")
+                print("\nTapez 'agents' pour voir la liste des agents disponibles")
+                return
+
+            agent_type = parts[1].lower()
+            task = parts[2]
+
+            print(f"\n🎯 Exécution de l'agent: {agent_type.upper()}")
+            print(f"📋 Tâche: {task}")
+            print("=" * 60)
+
+            # Exécuter la tâche avec l'agent
+            result = self.agent_orchestrator.execute_single_task(agent_type, task)
+
+            # Afficher le résultat
+            if result.get("success"):
+                print("\n✅ Résultat:")
+                print("-" * 60)
+                print(result.get("result", "Pas de résultat"))
+                print("-" * 60)
+                print(f"⏱️  {result.get('timestamp', 'N/A')}")
+            else:
+                print(f"\n❌ Erreur: {result.get('error')}")
+                if "available_agents" in result:
+                    print(f"Agents disponibles: {', '.join(result['available_agents'])}")
+
+        except Exception as e:
+            print(f"❌ Erreur commande agent: {e}")
+
+    async def handle_workflow_command(self, command: str):
+        """
+        Traite les commandes de workflow multi-agents
+
+        Args:
+            command: Commande workflow
+        """
+        try:
+            parts = command.split(" ", 2)
+            if len(parts) < 3:
+                print("❌ Usage: workflow <template> <description>")
+                print("\nTemplates disponibles:")
+                print("  • dev <description>       - Développement (planner → code → debug)")
+                print("  • research <sujet>        - Recherche (research → analyst → creative)")
+                print("  • debug <code> <erreur>   - Debug (debug → code)")
+                print("\nExemple:")
+                print("  workflow dev Une API REST pour gérer des utilisateurs")
+                return
+
+            template = parts[1].lower()
+            description = parts[2]
+
+            print(f"\n🎯 Workflow multi-agents: {template.upper()}")
+            print(f"📋 {description}")
+            print("=" * 60)
+
+            # Sélectionner le template
+            if template == "dev":
+                task_desc, workflow = WorkflowTemplates.code_development(description)
+            elif template == "research":
+                task_desc, workflow = WorkflowTemplates.research_and_document(description)
+            elif template == "debug":
+                # Pour debug, on s'attend à ce que description soit au format "code | erreur"
+                if "|" in description:
+                    code, error = description.split("|", 1)
+                    task_desc, workflow = WorkflowTemplates.debug_and_fix(code.strip(), error.strip())
+                else:
+                    print("❌ Pour le template debug, utilisez: workflow debug <code> | <erreur>")
+                    return
+            else:
+                print(f"❌ Template inconnu: {template}")
+                print("Templates disponibles: dev, research, debug")
+                return
+
+            # Exécuter le workflow
+            result = self.agent_orchestrator.execute_multi_agent_task(task_desc, workflow)
+
+            # Afficher les résultats
+            print("\n📊 Résumé du workflow:")
+            print(f"  Tâches: {result['summary']['total_tasks']}")
+            print(f"  Réussies: {result['summary']['successful']}")
+            print(f"  Taux de succès: {result['summary']['success_rate']:.1%}")
+
+            # Afficher chaque étape
+            for idx, agent_result in enumerate(result["results"], 1):
+                print(f"\n{'='*60}")
+                print(f"Étape {idx}: {agent_result['agent'].upper()}")
+                print(f"{'='*60}")
+                if agent_result["success"]:
+                    # Limiter l'affichage à 500 caractères pour la lisibilité
+                    result_text = agent_result["result"]
+                    if len(result_text) > 500:
+                        print(result_text[:500] + "\n... (tronqué)")
+                    else:
+                        print(result_text)
+                else:
+                    print(f"❌ Erreur: {agent_result.get('error')}")
+
+            print(f"\n{'='*60}")
+            print(f"✅ Workflow terminé: {result.get('timestamp', 'N/A')}")
+
+        except Exception as e:
+            print(f"❌ Erreur commande workflow: {e}")
+            traceback.print_exc()
+
+    def show_agents(self):
+        """
+        Affiche la liste des agents disponibles
+        """
+        if not self.agent_orchestrator:
+            print("❌ Système d'agents non initialisé")
+            return
+
+        print("\n🤖 AGENTS IA DISPONIBLES:")
+        print("=" * 60)
+
+        agents_info = {
+            "code": ("🐍 CodeAgent", "Génération et debug de code", "Prec: 0.3"),
+            "research": ("📚 ResearchAgent", "Recherche et documentation", "Bal: 0.5"),
+            "analyst": ("📊 AnalystAgent", "Analyse de données", "Anal: 0.4"),
+            "creative": ("✨ CreativeAgent", "Contenu créatif", "Créa: 0.8"),
+            "debug": ("🐛 DebugAgent", "Debug et correction", "Prec: 0.2"),
+            "planner": ("📋 PlannerAgent", "Planification", "Méth: 0.5"),
+        }
+
+        for _agent_type, (icon_name, desc, temp) in agents_info.items():
+            print(f"{icon_name:<25} - {desc:<30} ({temp})")
+
+        # Afficher les agents actifs
+        active = self.agent_orchestrator.list_active_agents()
+        if active:
+            print(f"\n✅ Agents actifs: {', '.join(active)}")
+
+        # Statistiques si des agents ont été utilisés
+        stats = self.agent_orchestrator.get_orchestrator_stats()
+        if stats["total_tasks"] > 0:
+            print("\n📊 Statistiques:")
+            print(f"  Tâches totales: {stats['total_tasks']}")
+
+        print("\n💡 Usage: agent <type> <tâche>")
+        print("💡 Workflow: workflow <template> <description>")
+
     def show_help(self):
         """
         Affiche l'aide
@@ -243,6 +413,19 @@ class CLIInterface:
     • generer document <description> - Crée un document
     • generer rapport <description>  - Génère un rapport
 
+🤖 AGENTS IA:
+    • agents                         - Liste tous les agents disponibles
+    • agent <type> <tâche>           - Exécute une tâche avec un agent
+      Exemple: agent code Crée une fonction qui trie une liste
+      Types: code, research, analyst, creative, debug, planner
+    
+    • workflow <template> <description> - Exécute un workflow multi-agents
+      Templates:
+        - dev <projet>       : Planner → Code → Debug
+        - research <sujet>   : Research → Analyst → Creative
+        - debug <code|err>   : Debug → Code
+      Exemple: workflow dev Une API REST pour gérer des utilisateurs
+
 ⚙️  SYSTÈME:
     • statut     - Affiche le statut de l'IA
     • historique - Affiche l'historique des conversations
@@ -253,6 +436,7 @@ class CLIInterface:
     • Soyez précis dans vos demandes
     • Les fichiers générés sont sauvés dans le dossier 'outputs'
     • L'historique est conservé pendant la session
+    • Les agents sont spécialisés: utilisez le bon agent pour la bonne tâche!
         """
         print(help_text)
 
