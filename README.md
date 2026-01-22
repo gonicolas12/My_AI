@@ -99,13 +99,15 @@ my_ai/
 ## 🚀 Fonctionnalités Principales
 
 ### 🤖 Système d'Agents IA Spécialisés
-- **6 agents experts** basés sur Ollama avec compétences spécialisées
-- **CodeAgent** 🐍 : Génération et debug de code multi-langages
-- **ResearchAgent** 📚 : Recherche et documentation technique
-- **AnalystAgent** 📊 : Analyse de données et insights
-- **CreativeAgent** ✨ : Rédaction et contenu créatif
-- **DebugAgent** 🐛 : Détection et correction d'erreurs
-- **PlannerAgent** 📋 : Planification de projets complexes
+| Agent | Description |
+|-------|-------------|
+| 🐍 **CodeAgent** | Génération et debug de code multi-langages |
+| 📚 **ResearchAgent** | Recherche et documentation technique |
+| 📊 **AnalystAgent** | Analyse de données et insights |
+| ✨ **CreativeAgent** | Rédaction et contenu créatif |
+| 🐛 **DebugAgent** | Détection et correction d'erreurs |
+| 📋 **PlannerAgent** | Planification de projets complexes |
+
 - **Workflows multi-agents** : Collaboration entre agents pour tâches complexes
 - **Interface graphique dédiée** : Onglet "Agents" dans la GUI moderne
 - **CLI enrichi** : Commandes `agent` et `workflow` disponibles
@@ -298,3 +300,5 @@ N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les back
 - 📊 **Amélioration interface**
 - 🌐 **Application Web**
 - 💻 **Extension VS Code**
+- 🧩 **Nouveaux agents spécialisés**
+- 🔄 **Intégration avec d'autres LLM locaux**
