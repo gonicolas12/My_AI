@@ -96,6 +96,29 @@ my_ai/
 └── config.yaml                          # Configuration
 ```
 
+## 🖥️ Interface Utilisateur Moderne
+
+### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
+- **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
+- **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
+- **Formatage avancé** : Support complet du **texte en gras** avec Unicode
+- **Animations fluides** : Indicateurs de réflexion et recherche internet
+- **Responsive design** : Adaptation automatique à tous types d'écrans
+
+### 🖱️ Fonctionnalités Interactives
+- **Raccourcis clavier** : Entrée (envoyer), Shift+Entrée (nouvelle ligne), Ctrl+L (clear)
+- **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
+- **Messages non-scrollables** : Labels optimisés pour de meilleures performances
+- **Timestamp automatique** : Horodatage discret pour chaque message
+
+![Interface Chat](docs/images/chatScreen.png)
+*Interface de conversation avec l'IA - Design moderne style Claude*
+
+### 🖥️ Différentes Interfaces
+- **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
+- **CLI avancée** : Ligne de commande pour utilisateurs experts
+- **Gestion d'erreurs** : Messages clairs et récupération gracieuse
+
 ## 🚀 Fonctionnalités Principales
 
 ### 🤖 Système d'Agents IA Spécialisés
@@ -147,47 +170,6 @@ my_ai/
 - **Analyse de documents** : Traitement et résumé de PDF/DOCX avec mémoire
 - **Conversations contextuelles** : Référence aux éléments précédemment traités
 - **Recherche internet** : "Cherche sur internet les actualités Python"
-
-## 🖥️ Interface Utilisateur Moderne
-
-### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
-- **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
-- **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
-- **Formatage avancé** : Support complet du **texte en gras** avec Unicode
-- **Animations fluides** : Indicateurs de réflexion et recherche internet
-- **Responsive design** : Adaptation automatique à tous types d'écrans
-
-### 🖱️ Fonctionnalités Interactives
-- **Raccourcis clavier** : Entrée (envoyer), Shift+Entrée (nouvelle ligne), Ctrl+L (clear)
-- **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
-- **Messages non-scrollables** : Labels optimisés pour de meilleures performances
-- **Timestamp automatique** : Horodatage discret pour chaque message
-
-![Interface Chat](docs/images/chatScreen.png)
-*Interface de conversation avec l'IA - Design moderne style Claude*
-
-### 🖥️ Différentes Interfaces
-- **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
-- **CLI avancée** : Ligne de commande pour utilisateurs experts
-- **Gestion d'erreurs** : Messages clairs et récupération gracieuse
-
-## 🛠️ Technologies Locales
-
-### Moteur IA 100% Local
-- **Modèle customisé** : Aucune dépendance à OpenAI, Claude, etc...
-- **Patterns linguistiques** : Reconnaissance avancée des intentions utilisateur
-- **Base de connaissances** : Stockage local des informations et contextes
-
-### Traitement de Documents
-- **PyPDF2/PyMuPDF** : Extraction complète de texte PDF
-- **python-docx** : Traitement avancé DOCX avec conservation de la structure
-- **Mémoire documentaire** : Stockage et référencement des contenus traités
-
-### Interface Utilisateur
-- **Tkinter + CustomTkinter** : GUI native moderne avec thèmes sombres
-- **Click** : CLI avancée avec commandes contextuelles
-- **Styles adaptatifs** : Polices et couleurs optimisées par OS
-- **Logging intégré** : Suivi des opérations et débogage
 
 ## 🏃‍♂️ Démarrage Rapide
 
