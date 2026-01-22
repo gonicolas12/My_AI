@@ -3,7 +3,7 @@
 - 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
-- 🤖 **Système d'Agents IA Spécialisés** : 6 agents experts pour des tâches complexes (NOUVEAU!)
+- 🤖 **Système d'Agents IA Spécialisés** : 6 agents experts pour des tâches complexes
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
 - 💻 **Analyse** et **génération** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
