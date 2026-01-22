@@ -112,6 +112,9 @@ my_ai/
 - **Interface graphique dédiée** : Onglet "Agents" dans la GUI moderne
 - **CLI enrichi** : Commandes `agent` et `workflow` disponibles
 
+![Interface Agents](docs/images/agentsScreen.png)
+*Interface des Agents IA Spécialisés - Sélection et workflows multi-agents*
+
 ### 🦙 Intégration Ollama (LLM Local)
 - **LLM 100% local** : Réponses générées par llama3.1:8b directement sur votre machine
 - **Confidentialité totale** : Aucune donnée n'est envoyée sur internet
@@ -159,6 +162,9 @@ my_ai/
 - **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
 - **Messages non-scrollables** : Labels optimisés pour de meilleures performances
 - **Timestamp automatique** : Horodatage discret pour chaque message
+
+![Interface Chat](docs/images/chatScreen.png)
+*Interface de conversation avec l'IA - Design moderne style Claude*
 
 ### 🖥️ Différentes Interfaces
 - **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
