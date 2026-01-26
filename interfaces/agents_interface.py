@@ -541,9 +541,9 @@ class AgentsInterface:
 
 Bienvenue dans le système d'agents spécialisés !
 
-1️⃣ Sélectionnez un agent ci-dessus
-2️⃣ Décrivez votre tâche
-3️⃣ Cliquez sur "Exécuter"
+1️ Sélectionnez un agent ci-dessus
+2️ Décrivez votre tâche
+3️ Cliquez sur "Exécuter"
 
 Les résultats apparaîtront ici en temps réel.
 Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches complexes.
