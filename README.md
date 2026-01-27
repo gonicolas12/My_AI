@@ -185,9 +185,9 @@ Pour des réponses de qualité LLM, installez Ollama :
 ```bash
 # 1. Télécharger depuis https://ollama.com/download
 # 2. Installer le modèle (choisir selon votre RAM)
-ollama pull llama3.2       # Modèle plus léger pour des réponses plus rapides (8 GB RAM recommandé)
+ollama pull llama3.2       # Modèle plus léger pour des réponses plus rapides (8 GB RAM)
 # OU
-ollama pull llama3.1:8b    # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM recommandé)
+ollama pull llama3.1:8b    # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM)
 
 # 3. Créer le modèle personnalisé
 .\create_custom_model.bat
