@@ -139,7 +139,7 @@ my_ai/
 *Interface des Agents IA Spécialisés - Sélection et workflows multi-agents*
 
 ### 🦙 Intégration Ollama (LLM Local)
-- **LLM 100% local** : Réponses générées par llama3.1:8b directement sur votre machine
+- **LLM 100% local** : Réponses générées par llama3.2 directement sur votre machine
 - **Confidentialité totale** : Aucune donnée n'est envoyée sur internet
 - **Fallback intelligent** : Si Ollama n'est pas installé, l'IA utilise le mode patterns
 - **Modèle personnalisable** : Configuration via `Modelfile` (température, contexte, system prompt)
@@ -185,12 +185,14 @@ Pour des réponses de qualité LLM, installez Ollama :
 ```bash
 # 1. Télécharger depuis https://ollama.com/download
 # 2. Installer le modèle (choisir selon votre RAM)
-ollama pull llama3.1:8b    # 16 GB RAM recommandé
+ollama pull llama3.2       # Modèle plus léger pour des réponses plus rapides (8 GB RAM recommandé)
 # OU
-ollama pull llama3.2       # 8 GB RAM
+ollama pull llama3.1:8b    # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM recommandé)
 
 # 3. Créer le modèle personnalisé
 .\create_custom_model.bat
+
+# Note : Adaptez la 3ème ligne du 'Modelfile' selon le modèle choisi (llama3.2 ou llama3.1:8b)
 ```
 
 > **Sans Ollama**, l'IA fonctionne en mode fallback avec des patterns/règles.
