@@ -48,7 +48,7 @@ echo 2. Benchmark 1M tokens
 echo 3. RAG Pipeline Test
 echo 4. Test des imports
 echo.
-set /p choice="Votre choix (1-4, ou Entree pour ULTRA): "
+set /p choice="Votre choix (1-4, ou Entree pour l'interface graphique): "
 
 if "%choice%"=="" set choice=1
 if "%choice%"=="1" goto ultra

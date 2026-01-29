@@ -122,9 +122,9 @@ class ModernAIGUI:
     """GUI Moderne"""
 
     def adjust_text_widget_height(self, text_widget):
-        """NOUVELLE VERSION : Hauteur illimitée pour éviter les scrollbars internes"""
+        """⚡ OPTIMISÉ : Hauteur illimitée avec moins d'update_idletasks"""
         try:
-            text_widget.update_idletasks()
+            # ⚡ OPTIMISATION: Un seul update_idletasks au lieu de 2
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
 
@@ -140,10 +140,11 @@ class ModernAIGUI:
             # ⚡ HAUTEUR GÉNÉREUSE : Toujours assez pour tout afficher
             generous_height = max(line_count + 3, 10)  # Au moins 10 lignes, +3 de marge
 
-            text_widget.configure(height=generous_height)
-            text_widget.update_idletasks()
-
-            text_widget.configure(state=current_state)
+            text_widget.configure(height=generous_height, state=current_state)
+            # ⚡ OPTIMISATION: update_idletasks() uniquement tous les 5 ajustements
+            self._height_adjust_counter += 1
+            if self._height_adjust_counter % 5 == 0:
+                text_widget.update_idletasks()
 
         except Exception:
             # Fallback sécurisé : laisser la hauteur par défaut
@@ -248,6 +249,31 @@ class ModernAIGUI:
 
         except Exception as e:
             print(f"[DEBUG] Erreur réactivation scroll: {e}")
+
+    def _cleanup_old_messages(self):
+        """⚡ OPTIMISATION MÉMOIRE: Supprime les vieux messages pour limiter l'usage mémoire"""
+        try:
+            if len(self._message_widgets) > self.max_displayed_messages:
+                # Calculer combien supprimer (garder les max_displayed_messages derniers)
+                num_to_remove = len(self._message_widgets) - self.max_displayed_messages
+
+                # Supprimer les vieux widgets
+                for i in range(num_to_remove):
+                    widget = self._message_widgets[i]
+                    if widget and widget.winfo_exists():
+                        widget.destroy()
+
+                # Mettre à jour la liste
+                self._message_widgets = self._message_widgets[num_to_remove:]
+
+                # Aussi nettoyer l'historique de conversation dans l'UI
+                if len(self.conversation_history) > self.max_displayed_messages:
+                    self.conversation_history = self.conversation_history[-self.max_displayed_messages:]
+
+                print(f"🧹 [MEMORY] Nettoyé {num_to_remove} vieux messages pour optimiser la mémoire")
+
+        except Exception as e:
+            print(f"⚠️ [MEMORY] Erreur nettoyage messages: {e}")
 
     def _show_timestamp_for_current_message(self):
         """Affiche le timestamp sous la bulle du dernier message IA (comme pour l'utilisateur)."""
@@ -484,6 +510,11 @@ class ModernAIGUI:
         self.is_thinking = False
         self.is_searching = False
         self.conversation_history = []
+
+        # ⚡ OPTIMISATION MÉMOIRE: Limiter le nombre de messages affichés
+        self.max_displayed_messages = 100  # Maximum de messages à garder dans l'UI
+        self._message_widgets = []  # Liste des widgets de messages pour nettoyage
+        self._height_adjust_counter = 0  # Compteur pour optimiser update_idletasks
 
         # Attributs pour la génération de fichiers
         self._file_generation_active = False
@@ -1053,11 +1084,22 @@ class ModernAIGUI:
             "rust_lifetime", foreground="#569cd6", font=("Consolas", 11, "italic")
         )
 
+        # === Dockerfile - Couleurs VS Code ===
+        text_widget.tag_configure(
+            "dockerfile_instruction", foreground="#569cd6", font=("Consolas", 11, "bold")
+        )
+        text_widget.tag_configure(
+            "dockerfile_string", foreground="#ce9178", font=("Consolas", 11)
+        )
+        text_widget.tag_configure(
+            "dockerfile_comment", foreground="#6a9955", font=("Consolas", 11, "italic")
+        )
+
         # Tag caché pour les marqueurs ```
         text_widget.tag_configure("hidden", elide=True, font=("Consolas", 1))
 
         print(
-            "✅ Tags de coloration Python/JS/CSS/HTML/Bash/SQL/Java/C++/C/C#/Go/Ruby/Swift/PHP/Perl/Rust configurés pour l'animation"
+            "✅ Tags de coloration Python/JS/TS/CSS/HTML/Bash/SQL/Java/C++/C/C#/Go/Ruby/Swift/PHP/Perl/Rust/Dockerfile configurés pour l'animation"
         )
 
     def setup_modern_gui(self):
@@ -1915,6 +1957,12 @@ class ModernAIGUI:
             row=len(self.conversation_history) - 1, column=0, sticky="ew", pady=(0, 12)
         )
         msg_container.grid_columnconfigure(0, weight=1)
+
+        # ⚡ OPTIMISATION: Tracker ce widget pour nettoyage ultérieur
+        self._message_widgets.append(msg_container)
+
+        # ⚡ OPTIMISATION MÉMOIRE: Nettoyer les vieux messages si trop nombreux
+        self._cleanup_old_messages()
 
         if is_user:
             self.create_user_message_bubble(msg_container, text)
@@ -4668,7 +4716,7 @@ class ModernAIGUI:
                 # Vérifier si on vient de terminer une ligne de tableau
                 self._check_and_format_table_line(self.typing_widget, self.typing_index)
 
-            elif self.typing_index % 50 == 0:  # Formatage périodique moins fréquent
+            elif self.typing_index % 100 == 0:  # ⚡ OPTIMISÉ: Formatage tous les 100 caractères (au lieu de 50)
                 should_format = True
 
             # Appliquer le formatage unifié si nécessaire
@@ -5769,15 +5817,26 @@ class ModernAIGUI:
             return False
 
     def _apply_unified_progressive_formatting(self, text_widget):
-        """MÉTHODE UNIFIÉE SIMPLIFIÉE : Formatage progressif sécurisé"""
+        """⚡ OPTIMISÉ : Formatage progressif sécurisé avec limitation de zone"""
         try:
             text_widget.configure(state="normal")
+
+            # ⚡ OPTIMISATION: Limiter la zone de recherche aux 800 derniers caractères
+            # Cela réduit drastiquement le nombre de regex et de recherches
+            widget_end = text_widget.index("end-1c")
+            total_chars = int(float(widget_end.split('.')[0]))  # Ligne actuelle
+
+            # Si moins de 80 lignes, traiter tout; sinon traiter les 80 dernières lignes
+            if total_chars > 80:
+                search_start = f"{total_chars - 80}.0"
+            else:
+                search_start = "1.0"
 
             # Obtenir le texte actuellement affiché
             _current_displayed_text = text_widget.get("1.0", "end-1c")
 
             # === FORMATAGE GRAS **texte** - Toujours actif mais vérifie le texte complet ===
-            start_pos = "1.0"
+            start_pos = search_start  # ⚡ OPTIMISÉ: Commence à la zone récente
             while True:
                 # Chercher le prochain **
                 pos_start = text_widget.search("**", start_pos, "end")
@@ -5842,7 +5901,7 @@ class ModernAIGUI:
 
                 for title in unique_titles:
                     # Chercher toutes les occurrences de ce titre
-                    start_pos = "1.0"
+                    start_pos = search_start  # ⚡ OPTIMISÉ
                     occurrences_found = 0
                     while True:
                         pos_start = text_widget.search(
@@ -5864,19 +5923,14 @@ class ModernAIGUI:
                             text_widget.tag_add("link_temp", pos_start, pos_end)
                             self._formatted_positions.add(pos_str)
                             occurrences_found += 1
-                            print(
-                                f"[DEBUG] Lien temporaire ajouté pour '{title}' à {pos_start}"
-                            )
+                            # ⚡ Debug supprimé pour performance
 
                         start_pos = text_widget.index(f"{pos_start}+1c")
 
-                    if occurrences_found > 0:
-                        print(
-                            f"[DEBUG] '{title}' -> {occurrences_found} occurrence(s) marquée(s) comme link_temp"
-                        )
+                    # ⚡ Debug supprimé pour performance
 
             # === FORMATAGE LIENS [titre](url) AVEC PRIORITÉ SUR TITRES (ANCIEN SYSTÈME POUR COMPATIBILITÉ) ===
-            start_pos = "1.0"
+            start_pos = search_start  # ⚡ OPTIMISÉ
             links_found = 0
             while True:
                 # Chercher le prochain [
@@ -5900,9 +5954,7 @@ class ModernAIGUI:
 
                 if match:
                     links_found += 1
-                    print(
-                        f"[DEBUG] Lien markdown trouvé dans le formatage: {match.group(0)[:80]}"
-                    )
+                    # ⚡ Debug supprimé pour performance
                     title = match.group(1)
                     url = match.group(2)
 
@@ -5929,9 +5981,7 @@ class ModernAIGUI:
                                 "url": url,
                             }
                         )
-                        print(
-                            f"[DEBUG] Lien ajouté à _pending_links: '{title}' -> {url}"
-                        )
+                        # ⚡ Debug supprimé pour performance
 
                         self._formatted_positions.add(pos_str)
 
@@ -5941,13 +5991,10 @@ class ModernAIGUI:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
-            if links_found > 0:
-                print(
-                    f"[DEBUG] Total liens markdown trouvés et formatés: {links_found}"
-                )
+            # ⚡ Debug supprimé pour performance
 
             # === FORMATAGE CODE `code` ===
-            start_pos = "1.0"
+            start_pos = search_start  # ⚡ OPTIMISÉ
             while True:
                 # Chercher le prochain `
                 pos_start = text_widget.search("`", start_pos, "end")
@@ -5997,7 +6044,7 @@ class ModernAIGUI:
             # === FORMATAGE TITRES # ## ### #### ===
             # Ne pas formater les # qui sont dans des blocs de code (commentaires Python)
             # Formater les titres Markdown avec 1 à 6 #
-            start_pos = "1.0"
+            start_pos = search_start  # ⚡ OPTIMISÉ
             while True:
                 # Chercher le prochain # en début de ligne
                 pos_start = text_widget.search("#", start_pos, "end")
@@ -6073,7 +6120,7 @@ class ModernAIGUI:
                     start_pos = text_widget.index(
                         f"{pos_start}+1c"
                     )  # === FORMATAGE DOCSTRINGS '''docstring''' ===
-            start_pos = "1.0"
+            start_pos = search_start  # ⚡ OPTIMISÉ
             while True:
                 # Chercher le prochain '''
                 pos_start = text_widget.search("'''", start_pos, "end")
@@ -10927,6 +10974,41 @@ class ModernAIGUI:
                     "swift_keyword",
                 ),
             ],
+            "go": [
+                (r"//.*$", "go_comment"),
+                (r"/\*.*?\*/", "go_comment"),
+                (r'"[^"]*"', "go_string"),
+                (r"`[^`]*`", "go_string"),
+                (
+                    r"\b(package|import|func|var|const|type|struct|interface|return|if|else|for|range|switch|case|break|continue|defer|go|chan|map|make|new)\b",
+                    "go_keyword",
+                ),
+                (r"\b(fmt|Println|Printf)\b", "go_function"),
+                (r"\b[A-Z][a-zA-Z0-9]*\b", "go_type"),
+            ],
+            "rust": [
+                (r"//.*$", "rust_comment"),
+                (r"/\*.*?\*/", "rust_comment"),
+                (r'"[^"]*"', "rust_string"),
+                (
+                    r"\b(fn|let|mut|const|use|pub|mod|struct|enum|impl|trait|return|if|else|match|for|while|loop|break|continue)\b",
+                    "rust_keyword",
+                ),
+                (r"\b(println!|print!|vec!|format!)\b", "rust_macro"),
+                (r"\b[A-Z][a-zA-Z0-9]*\b", "rust_type"),
+                (r"&'[a-z]+\b", "rust_lifetime"),
+            ],
+            "perl": [
+                (r"#.*$", "perl_comment"),
+                (r'"[^"]*"', "perl_string"),
+                (r"'[^']*'", "perl_string"),
+                (
+                    r"\b(sub|my|local|our|use|require|if|else|elsif|unless|while|for|foreach|do|return|package)\b",
+                    "perl_keyword",
+                ),
+                (r"[$@%]\w+", "perl_variable"),
+                (r"/(\\.|[^\\/])+/[gimsx]*", "perl_regex"),
+            ],
             "dockerfile": [
                 (r"#.*$", "dockerfile_comment"),
                 (
@@ -10947,6 +11029,9 @@ class ModernAIGUI:
         patterns_map["shell"] = patterns_map["bash"]
         patterns_map["rb"] = patterns_map["ruby"]
         patterns_map["docker"] = patterns_map["dockerfile"]
+        patterns_map["golang"] = patterns_map["go"]
+        patterns_map["rs"] = patterns_map["rust"]
+        patterns_map["pl"] = patterns_map["perl"]
 
         return patterns_map.get(language, [])
 
