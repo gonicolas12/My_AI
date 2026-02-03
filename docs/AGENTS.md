@@ -428,16 +428,6 @@ orchestrator.reset_all_agents()
 - **Orchestrateur:** `core/agent_orchestrator.py`
 - **Documentation Ollama:** https://ollama.com/
 
-## 🎓 Tutoriel Interactif
-
-Lancez les exemples pour apprendre :
-
-```bash
-python examples/agent_examples.py
-```
-
-Chaque exemple est commenté et montre un cas d'usage différent.
-
 ---
 
 **Astuce:** Commencez par des tâches simples avec un seul agent, puis explorez les workflows multi-agents une fois à l'aise ! 🚀
