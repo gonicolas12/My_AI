@@ -1714,7 +1714,7 @@ class EnhancedInternetSearchEngine:
         summary += "🔗 **Sources** : "
 
         source_links = []
-        for result in page_contents[:3]:
+        for result in page_contents[:5]:
             if result.get("title") and result.get("url"):
                 title = self._clean_title(result["title"])
                 clean_title = self._universal_word_spacing_fix(title)

@@ -391,7 +391,9 @@ class AnimationsMixin:
             else:
                 line_count = int(text_widget.index("end-1c").split(".")[0])
 
-            text_widget.configure(height=max(2, line_count))
+            # ⚡ MARGE : Ajouter 1 ligne de marge pour éviter la troncature
+            generous_height = max(2, line_count + 1)
+            text_widget.configure(height=generous_height)
             text_widget.update_idletasks()
             text_widget.configure(state=current_state)
             self._disable_text_scroll(text_widget)

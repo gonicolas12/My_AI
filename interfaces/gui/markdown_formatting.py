@@ -1874,105 +1874,14 @@ class MarkdownFormattingMixin:
 
             # === FORMATAGE LIENS PRÉTRAITÉS (DÉTECTION DES TITRES) ===
             # Les liens ont été remplacés par leurs titres, on doit les détecter et les marquer
-            if hasattr(self, "_pending_links") and self._pending_links:
-                # Créer un set de titres uniques pour éviter les recherches dupliquées
-                unique_titles = set(
-                    link_data["title"] for link_data in self._pending_links
-                )
+            # ⚠️ NE PAS chercher les titres ici ! Ils ont déjà été formatés pendant l'animation
+            # avec le tag link_temp par _detect_and_process_markdown_link
+            # Cette section est désactivée pour éviter les doublons et les faux positifs
 
-                for title in unique_titles:
-                    # Chercher toutes les occurrences de ce titre
-                    start_pos = search_start  # ⚡ OPTIMISÉ
-                    occurrences_found = 0
-                    while True:
-                        pos_start = text_widget.search(
-                            title, start_pos, "end", nocase=False
-                        )
-                        if not pos_start:
-                            break
-
-                        pos_end = text_widget.index(f"{pos_start}+{len(title)}c")
-                        pos_str = str(pos_start)
-
-                        # Vérifier que ce n'est pas déjà formaté et que c'est exactement le titre
-                        current_text = text_widget.get(pos_start, pos_end)
-                        if (
-                            current_text == title
-                            and pos_str not in self._formatted_positions
-                        ):
-                            # Marquer comme lien temporaire
-                            text_widget.tag_add("link_temp", pos_start, pos_end)
-                            self._formatted_positions.add(pos_str)
-                            occurrences_found += 1
-                            # ⚡ Debug supprimé pour performance
-
-                        start_pos = text_widget.index(f"{pos_start}+1c")
-
-                    # ⚡ Debug supprimé pour performance
-
-            # === FORMATAGE LIENS [titre](url) AVEC PRIORITÉ SUR TITRES (ANCIEN SYSTÈME POUR COMPATIBILITÉ) ===
-            start_pos = search_start  # ⚡ OPTIMISÉ
-            links_found = 0
-            while True:
-                # Chercher le prochain [
-                pos_start = text_widget.search("[", start_pos, "end")
-                if not pos_start:
-                    break
-
-                # NOUVEAU: Vérifier si on est dans un bloc de code - si oui, ignorer
-                if self._is_position_in_code_block(text_widget, pos_start):
-                    start_pos = text_widget.index(f"{pos_start}+1c")
-                    continue
-
-                # Obtenir la ligne complète pour analyser le pattern
-                line_start = text_widget.index(f"{pos_start} linestart")
-                line_end = text_widget.index(f"{pos_start} lineend")
-                line_content = text_widget.get(line_start, line_end)
-
-                # Pattern pour détecter [titre](url)
-                link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-                match = re.search(link_pattern, line_content)
-
-                if match:
-                    links_found += 1
-                    # ⚡ Debug supprimé pour performance
-                    title = match.group(1)
-                    url = match.group(2)
-
-                    # Calculer les positions dans le widget
-                    char_offset = line_content.find(match.group(0))
-                    link_start = text_widget.index(f"{line_start}+{char_offset}c")
-                    link_end = text_widget.index(f"{link_start}+{len(match.group(0))}c")
-
-                    pos_str = str(link_start)
-
-                    if pos_str not in self._formatted_positions:
-                        # Remplacer [titre](url) par juste "titre" pendant l'animation
-                        text_widget.delete(link_start, link_end)
-                        text_widget.insert(link_start, title, "link_temp")
-
-                        # Stocker l'URL pour plus tard dans une liste (pas dictionnaire)
-                        if not hasattr(self, "_pending_links"):
-                            self._pending_links = []
-
-                        # Ajouter ce lien à la liste
-                        self._pending_links.append(
-                            {
-                                "title": title,
-                                "url": url,
-                            }
-                        )
-                        # ⚡ Debug supprimé pour performance
-
-                        self._formatted_positions.add(pos_str)
-
-                        start_pos = link_start
-                    else:
-                        start_pos = text_widget.index(f"{pos_start}+1c")
-                else:
-                    start_pos = text_widget.index(f"{pos_start}+1c")
-
-            # ⚡ Debug supprimé pour performance
+            # === FORMATAGE LIENS [titre](url) - DÉSACTIVÉ EN MODE STREAMING ===
+            # Les liens sont déjà détectés et formatés pendant l'animation par _detect_and_process_markdown_link
+            # Cette section est désactivée pour éviter les doublons
+            # Note: Garde le code commenté pour compatibilité avec le mode non-streaming
 
             # === FORMATAGE CODE `code` ===
             start_pos = search_start  # ⚡ OPTIMISÉ

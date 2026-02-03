@@ -13,8 +13,6 @@ import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
-
 from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
 from models.ml_faq_model import MLFAQModel
 from models.smart_code_searcher import multi_source_searcher, smart_code_searcher
@@ -551,8 +549,8 @@ class CustomAIModel(BaseAI):
             # NOUVELLES CAPACITÉS DE CODE GÉNÉRATION INTELLIGENTE
             if primary_intent == "code_generation":
                 # Récupérer le contexte AVANT de l'utiliser
-                conversation_context = self.conversation_memory.get_context_for_response(
-                    primary_intent
+                conversation_context = (
+                    self.conversation_memory.get_context_for_response(primary_intent)
                 )
                 response = asyncio.run(
                     self._handle_advanced_code_generation(user_input)
@@ -669,9 +667,8 @@ class CustomAIModel(BaseAI):
                 print(
                     f"🌐 [INTERNET STREAM] Recherche internet détectée: '{user_input}'"
                 )
-                response = self.generate_response(user_input, context)
-                if on_token:
-                    on_token(response)
+                # ⚡ Activer le streaming pour la recherche internet
+                response = self._handle_internet_search(user_input, context, on_token)
                 return response
 
             # 2️⃣ MÉTÉO - API externe rapide
@@ -2006,7 +2003,9 @@ class CustomAIModel(BaseAI):
 
         return f"{intro_reset}{intro}\n\n{selected_joke}{status_message}"
 
-    def _handle_internet_search(self, user_input: str, context: Dict[str, Any]) -> str:
+    def _handle_internet_search(
+        self, user_input: str, context: Dict[str, Any], on_token=None
+    ) -> str:
         """
         Gère les demandes de recherche internet avec intégration Ollama.
         Utilise le contexte de conversation pour comprendre les requêtes implicites.
@@ -2014,6 +2013,7 @@ class CustomAIModel(BaseAI):
         Args:
             user_input: Question de l'utilisateur
             context: Contexte de la conversation
+            on_token: Callback pour le streaming (optionnel)
         Returns:
             str: Réponse générée par Ollama basée sur les résultats de recherche
         """
@@ -2052,9 +2052,9 @@ Je n'ai pas bien compris ce que vous voulez rechercher.
 
 Reformulez votre demande en précisant ce que vous voulez rechercher."""
 
-        # 🧠 OPTIMISATION: Si la requête est longue (>50 caractères), utiliser Ollama pour extraire les mots-clés
+        # 🧠 OPTIMISATION: Si la requête est longue (>20 caractères), utiliser Ollama pour extraire les mots-clés
         if (
-            len(search_query) > 50
+            len(search_query) > 20
             and self.local_llm
             and self.local_llm.is_ollama_available
         ):
@@ -2074,7 +2074,7 @@ Reformulez votre demande en précisant ce que vous voulez rechercher."""
             # 🦙 NOUVEAU: Utiliser Ollama pour générer une réponse intelligente
             if self.local_llm and self.local_llm.is_ollama_available:
                 ollama_response = self._generate_ollama_search_response(
-                    search_query, raw_results, user_input
+                    search_query, raw_results, user_input, on_token
                 )
                 if ollama_response:
                     return ollama_response
@@ -2365,7 +2365,7 @@ Erreur technique : {str(e)}"""
         return cleaned
 
     def _generate_ollama_search_response(
-        self, search_query: str, raw_results: str, original_question: str
+        self, search_query: str, raw_results: str, original_question: str, on_token=None
     ) -> str:
         """
         Utilise Ollama pour générer une réponse basée sur les résultats de recherche.
@@ -2374,6 +2374,7 @@ Erreur technique : {str(e)}"""
             search_query: La requête de recherche effectuée
             raw_results: Les résultats bruts de la recherche internet
             original_question: La question originale de l'utilisateur
+            on_token: Callback pour le streaming (optionnel)
 
         Returns:
             str: Réponse formatée avec le contenu généré par Ollama et les sources
@@ -2415,59 +2416,67 @@ Génère une réponse complète et bien structurée basée sur ces informations.
 
             print("🦙 [OLLAMA] Génération de la réponse basée sur la recherche...")
 
-            # Générer la réponse avec Ollama (sans ajouter à l'historique car on le fait manuellement)
-            # On utilise l'API directement pour éviter de polluer l'historique
-            data = {
-                "model": self.local_llm.model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "stream": False,
-                "options": {"temperature": 0.7, "num_ctx": 8192, "num_predict": 1500},
-            }
+            # 🔄 Sauvegarder temporairement l'historique et le vider pour cette requête
+            # (on veut juste envoyer cette question + contexte de recherche)
+            saved_history = self.local_llm.conversation_history.copy()
+            self.local_llm.conversation_history = []  # Vider temporairement
 
-            response = requests.post(
-                self.local_llm.chat_url, json=data, timeout=self.local_llm.timeout
-            )
+            try:
+                # 📝 Préparer le texte des sources AVANT la génération
+                sources_text = ""
+                if sources_section:
+                    sources_text = f"\n\n{sources_section}"
+                elif "http" in raw_results:
+                    # Essayer d'extraire les URLs des résultats bruts
+                    urls = re.findall(r"https?://[^\s\)]+", raw_results)
+                    if urls:
+                        unique_urls = list(dict.fromkeys(urls))[
+                            :5
+                        ]  # Max 5 sources uniques
+                        sources_text = "\n\n🔗 **Sources**\n"
+                        for url in unique_urls:
+                            # Nettoyer l'URL
+                            clean_url = url.rstrip(".,;:)")
+                            sources_text += f"• [{clean_url[:50]}...]({clean_url})\n"
 
-            if response.status_code == 200:
-                result = response.json()
-                ollama_response = result.get("message", {}).get("content", "")
+                # Générer la réponse avec streaming Ollama
+                ollama_response = self.local_llm.generate_stream(
+                    user_prompt,
+                    system_prompt=system_prompt,
+                    on_token=on_token,  # ⚡ STREAMING activé
+                )
 
                 if ollama_response:
                     # Construire la réponse finale avec les sources
                     final_response = ollama_response.strip()
 
-                    # Ajouter les sources à la fin si elles existent
-                    if sources_section:
-                        final_response += f"\n\n{sources_section}"
-                    elif "http" in raw_results:
-                        # Essayer d'extraire les URLs des résultats bruts
-                        urls = re.findall(r"https?://[^\s\)]+", raw_results)
-                        if urls:
-                            unique_urls = list(dict.fromkeys(urls))[
-                                :5
-                            ]  # Max 5 sources uniques
-                            final_response += "\n\n🔗 **Sources**\n"
-                            for url in unique_urls:
-                                # Nettoyer l'URL
-                                clean_url = url.rstrip(".,;:)")
-                                final_response += (
-                                    f"• [{clean_url[:50]}...]({clean_url})\n"
-                                )
+                    # ⚡ IMPORTANT: Envoyer les sources via le callback AVANT de finaliser
+                    # pour que la hauteur soit calculée correctement
+                    if sources_text and on_token:
+                        on_token(sources_text)
 
-                    # Sauvegarder dans l'historique de conversation ET synchroniser avec LocalLLM
+                    # Ajouter les sources au texte de retour
+                    final_response += sources_text
+
+                    # 🧠 Restaurer l'historique et ajouter cette conversation
+                    self.local_llm.conversation_history = saved_history
+
+                    # Sauvegarder dans l'historique de conversation
+                    # (l'historique Ollama a déjà été mis à jour par generate_stream)
                     self._add_to_conversation_history(
                         original_question,
                         final_response,
-                        "internet_search_ollama",
+                        "internet_search",
                         1.0,
                         {},
                     )
 
                     print("✅ [OLLAMA] Réponse générée avec succès")
                     return final_response
+
+            finally:
+                # Toujours restaurer l'historique en cas d'erreur
+                self.local_llm.conversation_history = saved_history
 
             print("⚠️ [OLLAMA] Échec de la génération, utilisation des résultats bruts")
             return None

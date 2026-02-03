@@ -155,6 +155,10 @@ class StreamingMixin:
         self._formatted_tables = set()
         self._pending_links = []
         self._table_blocks = []
+
+        # 🔗 Tracker pour les liens Markdown en cours d'écriture
+        self._link_skip_positions = {}  # {start_pos: (title, url, end_pos)}
+        self._current_link_info = None  # Info du lien en cours d'affichage
         # pylint: disable=attribute-defined-outside-init
         self._table_blocks_history = (
             {}
@@ -170,6 +174,72 @@ class StreamingMixin:
 
         # Démarrer l'animation en mode streaming
         self._continue_streaming_typing_animation()
+
+    def _detect_and_process_markdown_link(self):
+        """
+        Détecte si on est au début d'un lien Markdown [titre](url) et prépare son traitement.
+        Retourne 'start' si un lien commence, 'wait' si incomplet, False sinon.
+        """
+        buffer_length = len(self._streaming_buffer)
+
+        # Vérifier si on est sur un '[' qui pourrait être un lien
+        if (
+            self.typing_index >= buffer_length
+            or self._streaming_buffer[self.typing_index] != "["
+        ):
+            return False
+
+        # Chercher le pattern complet [titre](url) à partir de la position actuelle
+        remaining_text = self._streaming_buffer[self.typing_index :]
+        link_pattern = r"^\[([^\]]+)\]\(([^)]+)\)"
+        match = re.match(link_pattern, remaining_text)
+
+        if match:
+            # Lien détecté avec pattern complet !
+            title = match.group(1)
+            url = match.group(2)
+            full_link_text = match.group(0)
+
+            # Vérifier qu'on a bien tout le lien dans le buffer
+            link_end_pos = self.typing_index + len(full_link_text)
+            if link_end_pos > buffer_length:
+                # Le lien n'est pas encore complet dans le buffer, attendre
+                return "wait"
+
+            # 🔗 Marquer le début du lien pour affichage progressif
+            self._current_link_info = {
+                "title": title,
+                "url": url,
+                "start_pos": self.typing_index + 1,  # +1 pour sauter le [
+                "title_end_pos": self.typing_index + 1 + len(title),  # Fin du titre
+                "full_end_pos": link_end_pos,  # Fin du pattern complet
+            }
+
+            # 🔗 Stocker le lien pour le rendre cliquable plus tard
+            if not hasattr(self, "_pending_links"):
+                self._pending_links = []
+
+            self._pending_links.append({"title": title, "url": url})
+
+            print(
+                f"[DEBUG LINK] Lien détecté pendant streaming: '{title}' -> {url[:50]}..."
+            )
+
+            # Sauter le caractère '[' et commencer à afficher le titre
+            self.typing_index += 1
+
+            return "start"
+
+        # Vérifier si on a un début de lien potentiel (pattern incomplet)
+        partial_pattern = r"^\[([^\]]*)\]?(\([^)]*)?$"
+        partial_match = re.match(partial_pattern, remaining_text)
+
+        if partial_match and not self._streaming_complete:
+            # On a peut-être un lien en cours de construction, attendre plus de données
+            return "wait"
+
+        # Pas un lien valide, continuer normalement
+        return False
 
     def _continue_streaming_typing_animation(self):
         """
@@ -192,7 +262,43 @@ class StreamingMixin:
 
             # Vérifier si on a des caractères à afficher
             if self.typing_index < buffer_length:
-                # Il y a du contenu à afficher
+                # 🔗 DÉTECTION ET TRAITEMENT DES LIENS MARKDOWN
+                # Vérifier si on est au début d'un lien [titre](url)
+                link_detected = self._detect_and_process_markdown_link()
+
+                if link_detected == "start":
+                    # Le lien commence, continuer l'animation pour afficher le titre
+                    self.root.after(10, self._continue_streaming_typing_animation)
+                    return
+                elif link_detected == "wait":
+                    # Lien incomplet, attendre plus de données
+                    self.root.after(20, self._continue_streaming_typing_animation)
+                    return
+
+                # 🔗 GESTION D'UN LIEN EN COURS
+                if self._current_link_info:
+                    # On est dans un lien, vérifier où on en est
+                    if self.typing_index < self._current_link_info["title_end_pos"]:
+                        # On est dans le titre, afficher le caractère avec tag link_temp
+                        char = self._streaming_buffer[self.typing_index]
+                        self.typing_widget.configure(state="normal")
+                        self.typing_widget.insert("end", char, "link_temp")
+                        self.typing_index += 1
+                        self.typing_widget.configure(state="disabled")
+
+                        # Continuer rapidement
+                        self.root.after(10, self._continue_streaming_typing_animation)
+                        return
+                    else:
+                        # On a fini le titre, sauter le reste ](url)
+                        self.typing_index = self._current_link_info["full_end_pos"]
+                        self._current_link_info = None  # Fin du lien
+
+                        # Continuer l'animation
+                        self.root.after(10, self._continue_streaming_typing_animation)
+                        return
+
+                # Il y a du contenu à afficher (pas dans un lien)
                 char = self._streaming_buffer[self.typing_index]
 
                 self.typing_widget.configure(state="normal")
@@ -926,6 +1032,7 @@ class StreamingMixin:
             self.typing_text = current_widget_text
 
             # Réinitialiser les positions pour forcer un formatage complet
+            # Mais ne PAS réinitialiser _pending_links qui contient les liens déjà détectés
             if hasattr(self, "_formatted_positions"):
                 self._formatted_positions.clear()
             if hasattr(self, "_formatted_bold_contents"):
