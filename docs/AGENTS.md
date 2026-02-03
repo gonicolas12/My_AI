@@ -423,7 +423,6 @@ orchestrator.reset_all_agents()
 
 ## 📚 Ressources
 
-- **Exemples complets:** `examples/agent_examples.py`
 - **Code source:** `models/ai_agents.py`
 - **Orchestrateur:** `core/agent_orchestrator.py`
 - **Documentation Ollama:** https://ollama.com/
