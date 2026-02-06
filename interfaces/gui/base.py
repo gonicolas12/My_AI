@@ -43,7 +43,7 @@ except ImportError:
     }
 
 try:
-    from models.custom_ai_model import CustomAIModel
+    from models.custom_ai_model import CustomAIModel  # noqa: F401  # pylint: disable=unused-import
 
     ULTRA_1M_AVAILABLE = True
     print("🚀 Modèle CustomAI unifié avec système 1M tokens intégré !")
@@ -85,7 +85,7 @@ class BaseGUI:
                     print(
                         f"✅ LocalLLM actif - Historique: {len(self.custom_ai.local_llm.conversation_history)} messages"
                     )
-            except Exception as e:
+            except (tk.TclError, AttributeError) as e:
                 print(f"⚠️ Erreur initialisation CustomAI: {e}")
                 self.custom_ai = None
         else:
@@ -215,14 +215,19 @@ class BaseGUI:
             self.is_thinking = False
             self.is_searching = False
             print("🛑 [GUI] Interruption terminée")
-        except Exception:
+        except (tk.TclError, AttributeError):
             pass
 
     def _safe_focus_input(self):
         """Met le focus sur l'input de manière sécurisée"""
         try:
             if hasattr(self, "input_text"):
-                current_state = self.input_text.cget("state")
+                # CustomTkinter: accéder au widget interne pour cget('state')
+                try:
+                    inner = getattr(self.input_text, '_textbox', self.input_text)
+                    current_state = inner.cget("state")
+                except (ValueError, AttributeError, tk.TclError):
+                    current_state = "normal"
                 if current_state == "normal":
                     self.input_text.focus_set()
                     # Restaurer le contenu sauvegardé s'il existe
@@ -234,7 +239,7 @@ class BaseGUI:
                         if not current_content:  # Seulement si vide
                             self.input_text.insert("1.0", self._saved_input_content)
                         delattr(self, "_saved_input_content")
-        except Exception:
+        except (tk.TclError, AttributeError):
             pass
 
     def set_input_state(self, enabled: bool):
@@ -247,7 +252,7 @@ class BaseGUI:
                 state = "normal" if enabled else "disabled"
                 try:
                     self.input_text.configure(state=state)
-                except Exception:
+                except (tk.TclError, AttributeError):
                     pass
                 if enabled:
                     self.root.after(100, self._safe_focus_input)
@@ -255,7 +260,7 @@ class BaseGUI:
                     # Sauvegarder le contenu avant de désactiver
                     try:
                         self._saved_input_content = self.input_text.get("1.0", "end-1c")
-                    except Exception:
+                    except (tk.TclError, AttributeError):
                         self._saved_input_content = ""
             # Boutons PDF, DOCX, Code
             for btn_name in ["pdf_btn", "docx_btn", "code_btn"]:
@@ -263,7 +268,7 @@ class BaseGUI:
                     btn = getattr(self, btn_name)
                     try:
                         btn.configure(state="normal" if enabled else "disabled")
-                    except Exception:
+                    except (tk.TclError, AttributeError):
                         pass
             # Boutons Clear Chat et Aide
             for btn_name in ["clear_btn", "help_btn"]:
@@ -271,7 +276,7 @@ class BaseGUI:
                     btn = getattr(self, btn_name)
                     try:
                         btn.configure(state="normal" if enabled else "disabled")
-                    except Exception:
+                    except (tk.TclError, AttributeError):
                         pass
             # Bouton d'envoi :
             if hasattr(self, "send_button"):
@@ -279,7 +284,7 @@ class BaseGUI:
                     self._set_send_button_normal()
                 else:
                     self._set_send_button_stop()
-        except Exception:
+        except (tk.TclError, AttributeError):
             pass
 
     def _set_send_button_normal(self):
@@ -308,7 +313,7 @@ class BaseGUI:
                         relief="flat",
                         border=0,
                     )
-        except Exception:
+        except (tk.TclError, AttributeError):
             pass
 
     def _set_send_button_stop(self):
@@ -341,7 +346,7 @@ class BaseGUI:
                         highlightthickness=2,
                         relief="solid",
                     )
-        except Exception:
+        except (tk.TclError, AttributeError):
             pass
 
     def determine_layout_size(self):
@@ -504,10 +509,10 @@ class BaseGUI:
                 try:
                     self.send_message()
                     return "break"
-                except Exception as e:
+                except (tk.TclError, AttributeError) as e:
                     print(f"❌ Erreur lors de l'envoi du message: {e}")
                     return "break"
-        except Exception as e:
+        except (tk.TclError, AttributeError) as e:
             print(f"❌ Erreur on_enter_key: {e}")
             return "break"
 
@@ -520,7 +525,7 @@ class BaseGUI:
                 # Mettre le focus
                 self.root.after(200, self.input_text.focus_set())
                 print("✅ Input ready")
-        except Exception as e:
+        except (tk.TclError, AttributeError) as e:
             print(f"⚠️ Erreur ensure_input_ready: {e}")
 
     def on_shift_enter(self, _event):
@@ -546,14 +551,12 @@ class BaseGUI:
             # CustomTkinter avec placeholder natif si disponible
             try:
                 # Essayer d'utiliser le placeholder natif de CustomTkinter
-                if (
-                    hasattr(self.input_text, "configure")
-                    and "placeholder_text" in self.input_text.configure()
-                ):
+                config_keys = self.input_text.configure() if hasattr(self.input_text, "configure") else None
+                if config_keys and "placeholder_text" in config_keys:
                     self.input_text.configure(placeholder_text=self.placeholder_text)
                     self.placeholder_active = False
                     return
-            except Exception:
+            except (tk.TclError, AttributeError, TypeError):
                 pass
 
             # Fallback pour CustomTkinter
@@ -638,7 +641,7 @@ class BaseGUI:
             message = ""
             try:
                 message = self.input_text.get("1.0", "end-1c").strip()
-            except Exception as e:
+            except (tk.TclError, AttributeError) as e:
                 print(f"❌ Erreur lecture input: {e}")
                 return
 
@@ -649,11 +652,13 @@ class BaseGUI:
             # S'assurer que la saisie est activée pour pouvoir lire et effacer
             was_disabled = False
             try:
-                current_state = self.input_text.cget("state")
+                # CustomTkinter: accéder au widget interne pour cget('state')
+                inner = getattr(self.input_text, '_textbox', self.input_text)
+                current_state = inner.cget("state")
                 if current_state == "disabled":
                     was_disabled = True
                     self.input_text.configure(state="normal")
-            except Exception:
+            except (tk.TclError, AttributeError, ValueError):
                 pass
 
             # Cacher les indicateurs
@@ -667,7 +672,7 @@ class BaseGUI:
                 self.input_text.delete("1.0", "end")
                 # Remettre le placeholder après effacement
                 self._show_placeholder()
-            except Exception as e:
+            except (tk.TclError, AttributeError) as e:
                 print(f"❌ Erreur effacement: {e}")
 
             # Remettre l'état précédent si nécessaire
@@ -696,12 +701,12 @@ class BaseGUI:
                 daemon=True,
             ).start()
 
-        except Exception:
+        except (tk.TclError, AttributeError):
 
             # En cas d'erreur, s'assurer que la saisie est réactivée
             try:
                 self.set_input_state(True)
-            except Exception:
+            except (tk.TclError, AttributeError):
                 pass
 
     def quel_handle_message_with_id(self, user_text, request_id):
@@ -821,7 +826,7 @@ class BaseGUI:
                     # Scroll vers le bas
                     self.root.after(100, self.scroll_to_bottom)
 
-                except Exception as e:
+                except (tk.TclError, AttributeError) as e:
                     print(f"Erreur création bulle: {e}")
                     traceback.print_exc()
 
@@ -838,7 +843,7 @@ class BaseGUI:
                                 "1.0", "⚠️ Création du fichier interrompue."
                             )
                             self._file_generation_widget.configure(state="disabled")
-                        except Exception as e:
+                        except (tk.TclError, AttributeError) as e:
                             print(f"Erreur affichage interruption: {e}")
                     return
 
@@ -860,13 +865,13 @@ class BaseGUI:
                             self._file_generation_widget.delete("1.0", "end")
                             self._file_generation_widget.insert("1.0", message)
                             self._file_generation_widget.configure(state="disabled")
-                        except Exception as e:
+                        except (tk.TclError, AttributeError) as e:
                             print(f"Erreur animation: {e}")
 
                     # CONTINUER L'ANIMATION EN BOUCLE (sauf si interrompu)
                     if self._file_generation_active and not self.is_interrupted:
                         self.root.after(500, animate_loading_dots)
-                except Exception as e:
+                except (tk.TclError, AttributeError) as e:
                     print(f"Erreur dans animate_loading_dots: {e}")
 
             def generate_file_async():
@@ -1140,7 +1145,7 @@ class BaseGUI:
                                                     print(
                                                         f"[DEBUG] Historique contient maintenant {len(llm.conversation_history)} messages"
                                                     )
-                                                except Exception as e:
+                                                except (AttributeError, TypeError) as e:
                                                     print(
                                                         f"Erreur ajout historique Ollama: {e}"
                                                     )
@@ -1155,14 +1160,14 @@ class BaseGUI:
                                             # Réactiver la saisie
                                             self.set_input_state(True)
 
-                                        except Exception as e:
+                                        except (tk.TclError, AttributeError) as e:
                                             print(f"Erreur ajout tag: {e}")
                                             traceback.print_exc()
 
                                     # Démarrer l'animation de frappe
                                     animate_typing(0)
 
-                            except Exception as e:
+                            except (tk.TclError, AttributeError) as e:
                                 print(f"Erreur mise à jour finale: {e}")
                                 traceback.print_exc()
 
@@ -1183,7 +1188,7 @@ class BaseGUI:
 
                         self.root.after(0, show_error)
 
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     print(f"Erreur génération: {e}")
                     traceback.print_exc()
                     self._file_generation_active = False
@@ -1237,7 +1242,7 @@ class BaseGUI:
                 else:
                     intent = "unknown"
                     confidence = 0.0
-        except Exception:
+        except (AttributeError, TypeError):
             intent = "unknown"
             confidence = 0.0
 
@@ -1295,7 +1300,7 @@ class BaseGUI:
                 if self.current_request_id == request_id and not self.is_interrupted:
                     self.root.after(0, lambda: self.add_ai_response(response))
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, AttributeError) as e:
             print(f"❌ [GUI] Erreur: {e}")
             response = f"❌ Erreur IA : {e}"
             if self.current_request_id == request_id:
@@ -1451,7 +1456,7 @@ class BaseGUI:
                 "✅ Clear complet: conversation + documents + mémoire + historique Ollama"
             )
 
-        except Exception as e:
+        except (tk.TclError, AttributeError) as e:
             self.logger.error("Erreur lors de l'effacement: %s", e)
             messagebox.showerror("Erreur", f"Impossible d'effacer la conversation: {e}")
 
@@ -1524,12 +1529,12 @@ class BaseGUI:
                     try:
                         test_response = self.ai_engine.process_text("test")
                         print(f"🔍 DEBUG: Test réponse: {test_response[:100]}...")
-                    except Exception as e:
+                    except (ValueError, AttributeError) as e:
                         print(f"⚠️ DEBUG: Erreur test réponse: {e}")
                 else:
                     print("❌ DEBUG: Échec de l'initialisation")
 
-            except Exception as e:
+            except (ImportError, AttributeError) as e:
                 print(f"❌ ERROR: Erreur dans init_ai: {e}")
                 traceback.print_exc()
 
@@ -1547,7 +1552,7 @@ class BaseGUI:
 
             # Détruire la fenêtre
             self.root.destroy()
-        except Exception as e:
+        except tk.TclError as e:
             print(f"⚠️ Erreur lors de la fermeture: {e}")
         finally:
             # Forcer l'arrêt du programme

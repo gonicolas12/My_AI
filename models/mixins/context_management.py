@@ -37,7 +37,7 @@ class ContextManagementMixin:
                     print(
                         f"🧠 [ANALYZER] Document '{document_name}' analysé intelligemment"
                     )
-                except Exception as e:
+                except (ValueError, TypeError, AttributeError) as e:
                     print(f"⚠️ [ANALYZER] Erreur analyse: {e}")
 
             return result
@@ -60,7 +60,7 @@ class ContextManagementMixin:
                     print(
                         f"🧠 [ANALYZER] Document '{document_name}' analysé intelligemment"
                     )
-                except Exception as e:
+                except (ValueError, TypeError, AttributeError) as e:
                     print(f"⚠️ [ANALYZER] Erreur analyse: {e}")
 
             return {
@@ -69,7 +69,7 @@ class ContextManagementMixin:
                 "chunks_created": result.get("chunks_created", 0),
                 "context_size": self.context_manager.current_tokens,
             }
-        except Exception as e:
+        except (ValueError, MemoryError, OSError) as e:
             return {
                 "success": False,
                 "message": f"Erreur lors de l'ajout du document: {str(e)}",
@@ -99,7 +99,7 @@ class ContextManagementMixin:
                 "message": f"Document '{doc_name}' stocké en mémoire classique",
                 "word_count": word_count,
             }
-        except Exception as e:
+        except (KeyError, TypeError, AttributeError) as e:
             return {"success": False, "message": f"Erreur mémoire classique: {str(e)}"}
 
     def add_file_to_context(self, file_path: str) -> Dict[str, Any]:
@@ -135,13 +135,13 @@ class ContextManagementMixin:
                         print(
                             f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères"
                         )
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     print(f"⚠️ Erreur processeur PDF: {e}")
                     # Fallback vers lecture basique
                     try:
                         with open(file_path, "rb") as f:
                             content = f.read().decode("utf-8", errors="ignore")
-                    except Exception:
+                    except (OSError, UnicodeDecodeError):
                         content = ""
 
             elif file_ext in [".docx", ".doc"] and self.docx_processor:
@@ -152,7 +152,7 @@ class ContextManagementMixin:
                     print(
                         f"📄 [DOCX] Traitement DOCX: {result.get('paragraphs', 0)} paragraphes"
                     )
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     print(f"⚠️ Erreur processeur DOCX: {e}")
                     # Fallback vers lecture basique
                     with open(file_path, "r", encoding="utf-8") as f:
@@ -169,7 +169,7 @@ class ContextManagementMixin:
                     print(
                         f"📄 [CODE] Traitement code: {result.get('language', 'unknown')}"
                     )
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     print(f"⚠️ Erreur processeur Code: {e}")
                     # Fallback vers lecture basique
                     with open(file_path, "r", encoding="utf-8") as f:
@@ -620,7 +620,7 @@ class ContextManagementMixin:
 
             return "\n\n".join(found_docs) if found_docs else ""
 
-        except Exception as e:
+        except (KeyError, TypeError, AttributeError) as e:
             print(f"⚠️ Erreur recherche classique: {e}")
             return ""
 

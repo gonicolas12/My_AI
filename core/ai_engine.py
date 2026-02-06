@@ -24,7 +24,7 @@ from processors.pdf_processor import PDFProcessor
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
 
-from .config import AI_CONFIG
+from .config import get_config
 from .conversation import ConversationManager
 from .validation import validate_input
 
@@ -51,7 +51,7 @@ class AIEngine:
         Args:
             config: Configuration personnalisée (optionnel)
         """
-        self.config = config or AI_CONFIG
+        self.config = config or get_config().get_section("ai")
         self.logger = setup_logger("AIEngine")
 
         # Initialisation des composants
@@ -85,7 +85,7 @@ class AIEngine:
             self.llm_manager = (
                 self.local_ai
             )  # Pour compatibilité avec les fonctions qui utilisent llm_manager
-        except Exception as e:
+        except (ImportError, AttributeError) as e:
             self.logger.error("❌ Erreur lors de l'initialisation du modèle IA : %s", e)
             # Fallback sur l'ancien système
             self.local_ai = CustomAIModel()
@@ -198,7 +198,7 @@ class AIEngine:
 
                 except ImportError:
                     return "❌ **Erreur:** Module de recherche web non disponible.\n\nVeuillez vérifier que tous les modules sont installés correctement."
-                except Exception as e:
+                except (ConnectionError, TimeoutError) as e:
                     return f"❌ **Erreur lors de la recherche web:** {str(e)}\n\nLe système de recherche web rencontre des difficultés."
 
             # 3. Questions conversationnelles
@@ -242,7 +242,7 @@ Que voulez-vous que je fasse pour vous ?"""
             # 5. Fallback général
             return "Je vois ! Et comment puis-je vous aider avec ça ?\n\n💡 **Je peux :**\n• Générer du code (avec recherche web)\n• Rechercher des informations sur internet\n• Répondre à vos questions techniques\n\nQue souhaitez-vous faire ?"
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             self.logger.error("Erreur dans le nouveau process_text: %s", e)
             return f"❌ **Erreur système:** {str(e)}\n\nLe nouveau système de recherche web rencontre des difficultés. Veuillez réessayer."
 
@@ -370,7 +370,7 @@ Que voulez-vous que je fasse pour vous ?"""
         try:
             # En mode entreprise, nous utilisons uniquement le modèle local
             return hasattr(self, "local_ai") and self.local_ai is not None
-        except Exception as e:
+        except AttributeError as e:
             self.logger.error("Erreur initialisation LLM: %s", e)
             return False
 
@@ -397,7 +397,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 try:
                     response_ml = self.ml_ai.predict(query)
                     self.logger.info("ML model response: %s...", str(response_ml)[:50])
-                except Exception as e:
+                except (ValueError, AttributeError, TypeError) as e:
                     self.logger.warning("Erreur modèle ML: %s", e)
             if response_ml is not None and str(response_ml).strip():
                 # On sauvegarde l'échange
@@ -405,7 +405,7 @@ Que voulez-vous que je fasse pour vous ?"""
                     self.conversation_manager.add_exchange(
                         query, {"message": response_ml}
                     )
-                except Exception:
+                except (OSError, AttributeError, TypeError):
                     self.logger.warning(
                         "Impossible de sauvegarder la conversation (FAQ async)"
                     )
@@ -432,7 +432,7 @@ Que voulez-vous que je fasse pour vous ?"""
             # Sauvegarde dans l'historique
             self.conversation_manager.add_exchange(query, response)
             return response
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             self.logger.error("Erreur lors du traitement: %s", e)
             return {
                 "type": "error",
@@ -617,7 +617,7 @@ Que voulez-vous que je fasse pour vous ?"""
             response = self.local_ai.generate_response(prompt)
 
             return {"type": "conversation", "message": response, "success": True}
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             self.logger.error("Erreur conversation: %s", e)
             return {
                 "type": "conversation",
@@ -728,7 +728,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "success": False,
             }
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, ValueError, AttributeError) as e:
             print(f"❌ Erreur traitement fichier: {e}")
             return {
                 "type": "file_processing",
@@ -919,10 +919,10 @@ Que voulez-vous que je fasse pour vous ?"""
                 # Nettoyer le fichier temporaire
                 try:
                     os.remove(tmp_path)
-                except Exception:
+                except OSError:
                     pass
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             return {
                 "type": "file_processing",
                 "message": f"Erreur lors de l'explication du code : {str(e)}",
@@ -937,7 +937,7 @@ Que voulez-vous que je fasse pour vous ?"""
             search_engine = InternetSearchEngine()
             summary = search_engine.search_and_summarize(query)
             return {"type": "web_search", "message": summary, "success": True}
-        except Exception as e:
+        except (ConnectionError, TimeoutError) as e:
             self.logger.error("Erreur recherche web: %s", e)
             return {
                 "type": "web_search",
@@ -1001,7 +1001,7 @@ Que voulez-vous que je fasse pour vous ?"""
                         self.logger.warning("Échec génération fichier: %s", error_msg)
                         # Continuer vers le fallback
 
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError) as e:
                     self.logger.warning("Erreur génération fichier avec Ollama: %s", e)
                     # Continuer vers le fallback
 
@@ -1036,7 +1036,7 @@ Que voulez-vous que je fasse pour vous ?"""
                         web_result.get("error", "Erreur inconnue"),
                     )
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ImportError) as e:
                 self.logger.warning("Générateur web pur indisponible: %s", e)
 
             # 🔄 FALLBACK 1: Système de recherche web intelligent (avec cache)
@@ -1071,7 +1071,7 @@ Que voulez-vous que je fasse pour vous ?"""
                             "success": True,
                         }
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ImportError) as e:
                 self.logger.warning("Recherche web intelligente échouée: %s", e)
 
             # 🔧 FALLBACK 2: Générateur local spécialisé MINIMAL (sans templates complexes)
@@ -1094,7 +1094,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "success": False,
             }
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             self.logger.error("Erreur génération code: %s", e)
             return {
                 "type": "code_generation",
@@ -1118,7 +1118,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "message": "Document généré avec succès",
                 "success": True,
             }
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError, OSError) as e:
             self.logger.error("Erreur génération document: %s", e)
             return {
                 "type": "document_generation",
@@ -1145,7 +1145,7 @@ Que voulez-vous que je fasse pour vous ?"""
             response = self.local_ai.generate_response(prompt)
 
             return {"type": "general", "message": response, "success": True}
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             self.logger.error("Erreur requête générale: %s", e)
             return {
                 "type": "general",
@@ -1590,7 +1590,7 @@ if __name__ == "__main__":
     except FileNotFoundError:
         print(f"Erreur: Fichier '{file_path}' non trouvé")
         return ""
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         print(f"Erreur lors de la lecture: {e}")
         return ""
 
@@ -1610,7 +1610,7 @@ def write_file(file_path, content, encoding='utf-8'):
         with open(file_path, 'w', encoding=encoding) as file:
             file.write(content)
         return True
-    except Exception as e:
+    except (OSError, PermissionError) as e:
         print(f"Erreur lors de l'écriture: {e}")
         return False
 

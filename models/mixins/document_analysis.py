@@ -2388,7 +2388,7 @@ class DocumentAnalysisMixin:
                 # Seuil réduit à 20 car les réponses précises peuvent être courtes
                 if result and len(result.strip()) > 20:
                     return result
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 print(f"⚠️ [ANALYZER] Erreur analyseur intelligent: {e}")
 
         # 🎯 FALLBACK: Approche classique si l'analyseur échoue
@@ -2538,7 +2538,7 @@ class DocumentAnalysisMixin:
                         print(
                             "⚠️ [GENERAL] Contenu Ultra insuffisant, fallback vers mémoire classique"
                         )
-                except Exception as e:
+                except (ValueError, TypeError, KeyError) as e:
                     print(f"❌ [GENERAL] Erreur récupération Ultra: {e}")
 
             # Fallback vers la mémoire classique pour les commandes générales
@@ -2583,7 +2583,7 @@ class DocumentAnalysisMixin:
                         return f"📄 **Informations trouvées dans le document** ({len(ultra_context)} caractères):\n\n{ultra_context[:800]}...\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*"
                 else:
                     print("⚠️ [ULTRA] Contexte insuffisant ou vide")
-            except Exception as e:
+            except (ValueError, TypeError, KeyError) as e:
                 print(f"❌ [ULTRA] Erreur: {e}")
 
         # 🔄 ÉTAPE 2: Utilisation des documents stockés avec recherche ciblée
@@ -2687,7 +2687,7 @@ class DocumentAnalysisMixin:
                         if isinstance(doc, str) and len(doc) > 50:
                             all_content += f"\n\n{doc}"
                             doc_count += 1
-                except Exception as e:
+                except (ValueError, TypeError, AttributeError) as e:
                     print(f"⚠️ [DIRECT-SEARCH] Erreur context_manager: {e}")
 
             print(
@@ -2762,7 +2762,7 @@ class DocumentAnalysisMixin:
 
             return ""
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             print(f"❌ [DIRECT-SEARCH] Erreur: {e}")
             traceback.print_exc()
             return ""
@@ -3119,7 +3119,7 @@ class DocumentAnalysisMixin:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"❌ [CODE] Erreur lors de l'explication: {e}")
             # Fallback vers une explication simple
             return f"""# 🔧 Analyse du fichier : `{filename}`
@@ -4024,7 +4024,7 @@ class DocumentAnalysisMixin:
             else:
                 return self._extract_general_answer(content)
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             print(f"❌ [EXTRACT] Erreur: {e}")
             return None
 
@@ -4480,7 +4480,7 @@ class DocumentAnalysisMixin:
 
                             return detailed_explanation
 
-                        except Exception as e:
+                        except (OSError, ValueError) as e:
                             print(f"⚠️ [ULTRA] Erreur analyse détaillée: {e}")
                             # Fallback vers l'analyse simple
                             return self._explain_code_content(content, latest_code_file)

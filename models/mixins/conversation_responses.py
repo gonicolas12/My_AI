@@ -437,7 +437,7 @@ class ConversationResponseMixin:
             if debug:
                 details += f"\n\n[DEBUG]\n{debug}"
             return f"{intro}\n\n```{language}\n{code}\n```{details}"
-        except Exception as e:
+        except (KeyError, TypeError, ValueError) as e:
             return f"Désolé, j'ai eu un problème pour générer le code : {str(e)}"
 
     # ------------------------------------------------------------------
@@ -758,7 +758,7 @@ class ConversationResponseMixin:
             try:
                 code_response = self.code_generator.generate_code(user_input)
                 return f"Voici ce que j'ai généré pour vous :\n\n{code_response}"
-            except Exception:
+            except (ValueError, AttributeError):
                 return "Je peux générer du code ! Soyez plus spécifique : voulez-vous une fonction, une classe, ou un script complet ?"
 
         # Si ça ressemble à une question générale sur la programmation

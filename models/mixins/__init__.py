@@ -1,5 +1,5 @@
 """
-Mixins pour CustomAIModel — Découpage du God Object en modules fonctionnels.
+Mixins pour CustomAIModel — Découpage du Big Object en modules fonctionnels.
 
 Chaque mixin regroupe un ensemble cohérent de méthodes qui sont mixées
 dans la classe CustomAIModel via l'héritage multiple.

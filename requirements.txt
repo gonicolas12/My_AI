@@ -1,177 +1,116 @@
 # My Personal AI - Dépendances Python
+# Python >= 3.10 recommandé
 
 # ====================================
-# DÉPENDANCES PRINCIPALES
+# CORE
 # ====================================
-
-# Interface en ligne de commande
 click>=8.0.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
+python-dateutil>=2.8.0
+validators>=0.20.0
+regex>=2023.0.0
+colorama>=0.4.6
+rich>=13.0.0
 
-# Communication réseau locale uniquement
+# ====================================
+# RÉSEAU & WEB
+# ====================================
 aiohttp>=3.8.0
 aiofiles>=23.0.0
-
-# Web scraping et recherche internet
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 cloudscraper
 
 # ====================================
-# MODÈLES DE LANGAGE LOCAUX
-# ====================================
-
-# IA 100% locale - Aucune dépendance externe
-# Système d'intelligence artificielle autonome intégré
-
-# ====================================
 # TRAITEMENT DE DOCUMENTS
 # ====================================
-
 # PDF
-PyMuPDF>=1.23.0  # Recommandé (fitz)
-PyPDF2>=3.0.0    # Alternative
+PyMuPDF>=1.23.0
+PyPDF2>=3.0.0
 pdfplumber
 
 # Word/DOCX
 python-docx>=0.8.11
 
-# Autres formats
-openpyxl>=3.1.0      # Excel
-python-pptx>=0.6.21  # PowerPoint
+# Excel / PowerPoint
+openpyxl>=3.1.0
+python-pptx>=0.6.21
 
 # ====================================
 # GÉNÉRATION DE DOCUMENTS
 # ====================================
-
-# PDF
 reportlab>=4.0.0
-
-# Markdown
 markdown>=3.4.0
 markdown2>=2.4.0
 
 # ====================================
-# INTERFACE UTILISATEUR
+# INTERFACE GRAPHIQUE
 # ====================================
-
-# Interface graphique moderne - Style Claude
-customtkinter>=5.2.0   # Interface moderne avec thèmes sombres
-tkinterdnd2>=0.3.0     # Drag & Drop pour fichiers
-pillow>=10.0.0         # Traitement d'images pour l'interface
+customtkinter>=5.2.0
+tkinterdnd2>=0.3.0
+pillow>=10.0.0
 pygments
 
 # Interface web (optionnel)
-streamlit>=1.25.0      # Interface web moderne
-
-# Rich text dans le terminal
-rich>=13.0.0
-colorama>=0.4.6
+streamlit>=1.25.0
 
 # ====================================
-# UTILITAIRES
+# MACHINE LEARNING & NLP
 # ====================================
-
-# Configuration
-pyyaml>=6.0
-python-dotenv>=1.0.0
-spacy
-
-# Dates et temps
-python-dateutil>=2.8.0
-
-# Validation
-validators>=0.20.0
-
-# Expressions régulières avancées
-regex>=2023.0.0
-
-# Machine learning
-torch
-transformers
-scikit-learn
+torch>=2.0.0
+transformers>=4.30.0
+scikit-learn>=1.3.0
 rapidfuzz
-chromadb
-cryptography
-
-# ====================================
-# DÉVELOPPEMENT ET TESTS
-# ====================================
-
-# Tests
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-coverage>=7.0.0
-
-# Linting et formatage
-black>=23.0.0
-flake8>=5.5.0
-isort>=5.12.0
-
-# Tokens
-sentence_transformers
-faiss-cpu
-peft
+spacy
 tiktoken
+numpy>=1.24.0
 
-# ====================================
-# OPTIONNEL - FONCTIONNALITÉS AVANCÉES
-# ====================================
+# Embeddings & RAG
+sentence-transformers>=2.2.0
+chromadb
+faiss-cpu>=1.7.4
 
-# Base de données locale
-# sqlite3  # Intégré à Python - NE PAS INSTALLER VIA PIP
-sqlalchemy>=2.0.0
-
-# Cache
-diskcache>=5.6.0
-
-# Reconnaissance vocale (optionnel)
-# speech-recognition>=3.10.0
-# pyttsx3>=2.90
+# Fine-tuning (optionnel)
+peft>=0.4.0
+bitsandbytes>=0.40.0
 
 # ====================================
 # SÉCURITÉ
 # ====================================
-
-# Chiffrement
 cryptography>=41.0.0
+
+# ====================================
+# BASE DE DONNÉES & CACHE
+# ====================================
+sqlalchemy>=2.0.0
+diskcache>=5.6.0
+
+# ====================================
+# MONITORING & ANALYSE (optionnel)
+# ====================================
+matplotlib>=3.7.0
+seaborn>=0.12.0
+pandas>=2.0.0
+psutil>=5.9.0
+memory-profiler>=0.60.0
+
+# ====================================
+# DÉVELOPPEMENT & TESTS
+# ====================================
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+coverage>=7.0.0
+black>=23.0.0
+flake8>=5.5.0
+isort>=5.12.0
 
 # ====================================
 # NOTES D'INSTALLATION
 # ====================================
-
 # Installation basique:
-# pip install -r requirements.txt
-
+#   pip install -r requirements.txt
+#
 # Pour GPU (NVIDIA):
-# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# ====================================
-# VERSIONS MINIMALES PYTHON
-# ====================================
-# Python >= 3.8 requis
-# Python >= 3.10 recommandé
-
-# === OPTIMISATIONS AVANCÉES (Optionnel) ===
-# Pour RAG et embeddings sémantiques
-faiss-cpu>=1.7.4
-sentence-transformers>=2.2.0
-
-# Pour fine-tuning et LoRA
-torch>=2.0.0
-transformers>=4.30.0
-peft>=0.4.0
-bitsandbytes>=0.40.0
-
-# Pour visualisations et analyse  
-matplotlib>=3.7.0
-seaborn>=0.12.0
-pandas>=2.0.0
-
-# Pour monitoring avancé
-psutil>=5.9.0
-memory-profiler>=0.60.0
-
-# === NOUVELLES FONCTIONNALITÉS ===
-numpy>=1.24.0
-scikit-learn>=1.3.0
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118

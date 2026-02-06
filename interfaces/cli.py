@@ -7,7 +7,7 @@ import sys
 import traceback
 from pathlib import Path
 from core.ai_engine import AIEngine
-from core.config import UI_CONFIG
+from core.config import get_config
 from core.agent_orchestrator import AgentOrchestrator, WorkflowTemplates
 from utils.logger import setup_logger
 from utils.file_manager import FileManager
@@ -28,7 +28,7 @@ class CLIInterface:
         self.ai_engine = None
         self.agent_orchestrator = None
         self.running = False
-        self.prompt = UI_CONFIG.get("cli_prompt", "🤖 MyAI> ")
+        self.prompt = get_config().get("ui.cli.prompt", "🤖 MyAI> ")
 
     async def initialize(self):
         """
@@ -153,7 +153,7 @@ class CLIInterface:
             else:
                 print(f"❌ Erreur: {response.get('message', 'Erreur inconnue')}")
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError, ConnectionError) as e:
             print(f"❌ Erreur lors du traitement: {e}")
             self.logger.error("Erreur traitement requête: %s", e)
 
@@ -201,7 +201,7 @@ class CLIInterface:
             else:
                 print(f"❌ Action inconnue: {action}")
 
-        except Exception as e:
+        except (FileNotFoundError, OSError, ValueError) as e:
             print(f"❌ Erreur commande fichier: {e}")
 
     async def handle_generate_command(self, command: str):
@@ -234,7 +234,7 @@ class CLIInterface:
 
             await self.handle_query(query)
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             print(f"❌ Erreur commande génération: {e}")
 
     async def handle_agent_command(self, command: str):
@@ -277,7 +277,7 @@ class CLIInterface:
                 if "available_agents" in result:
                     print(f"Agents disponibles: {', '.join(result['available_agents'])}")
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
             print(f"❌ Erreur commande agent: {e}")
 
     async def handle_workflow_command(self, command: str):
@@ -351,7 +351,7 @@ class CLIInterface:
             print(f"\n{'='*60}")
             print(f"✅ Workflow terminé: {result.get('timestamp', 'N/A')}")
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
             print(f"❌ Erreur commande workflow: {e}")
             traceback.print_exc()
 
@@ -469,7 +469,7 @@ class CLIInterface:
                 available = "✅" if info.get("available") else "❌"
                 print(f"   {available} {name}: {info.get('model', 'N/A')}")
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError) as e:
             print(f"❌ Erreur récupération statut: {e}")
 
     def show_history(self):
@@ -503,7 +503,7 @@ class CLIInterface:
                 print(f"   👤 {user_input}")
                 print()
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, IndexError) as e:
             print(f"❌ Erreur récupération historique: {e}")
 
     async def handle_quit(self):
@@ -518,7 +518,7 @@ class CLIInterface:
                 session_file = f"session_{self.ai_engine.conversation_manager.current_session['id'][:8]}.json"
                 self.ai_engine.conversation_manager.save_session(f"logs/{session_file}")
                 print(f"💾 Session sauvegardée: {session_file}")
-            except Exception as e:
+            except (OSError, PermissionError, TypeError) as e:
                 print(f"⚠️  Erreur sauvegarde session: {e}")
 
         self.running = False

@@ -333,7 +333,7 @@ class CustomAIModel(
                     # Synchroniser avec l'historique Ollama
                     self._add_to_conversation_history(user_input, faq_response, "faq")
                     return faq_response
-            except Exception as e:
+            except (ValueError, AttributeError, TypeError) as e:
                 print(f"⚠️ [FAQ] Erreur lors de la consultation FAQ: {e}")
 
             # ============================================================
@@ -680,7 +680,7 @@ class CustomAIModel(
                     if on_token:
                         on_token(faq_response)
                     return faq_response
-            except Exception as e:
+            except (ValueError, AttributeError, TypeError) as e:
                 print(f"⚠️ [FAQ STREAM] Erreur lors de la consultation FAQ: {e}")
 
             # ============================================================

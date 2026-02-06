@@ -93,7 +93,7 @@ Reformulez votre demande en précisant ce que vous voulez rechercher."""
             # Fallback: retourner les résultats bruts si Ollama n'est pas disponible
             return raw_results
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             print(f"❌ Erreur lors de la recherche internet: {str(e)}")
             return f"""❌ **Erreur de recherche**
 
@@ -328,7 +328,7 @@ Génère une réponse complète et bien structurée basée sur ces informations.
             print("⚠️ [OLLAMA] Échec de la génération, utilisation des résultats bruts")
             return None
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError) as e:
             print(f"⚠️ [OLLAMA] Erreur lors de la génération: {e}")
             return None
 
@@ -404,7 +404,7 @@ Mots-clés optimisés:"""
                 if len(optimized) <= 150 and len(optimized) >= 3:
                     return optimized
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError) as e:
             print(f"⚠️ Erreur lors de l'optimisation de la requête avec Ollama: {e}")
 
         return long_query
@@ -430,7 +430,7 @@ Assurez-vous d'inclure une URL complète commençant par http:// ou https://"""
             print(f"🌐 Récupération et résumé de l'URL: {url}")
             result = self.internet_search.summarize_url(url)
             return result
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError) as e:
             print(f"❌ Erreur lors du résumé de l'URL: {str(e)}")
             return f"""❌ **Erreur de résumé**
 

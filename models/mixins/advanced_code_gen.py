@@ -22,7 +22,6 @@ class AdvancedCodeGenMixin:
     async def _handle_advanced_code_generation(self, user_input: str) -> str:
         """
         🚀 NOUVELLE VERSION - Génération de code avancée avec SmartCodeSearcher
-        Rivalise avec ChatGPT/Claude grâce à:
         - Recherche web intelligente (DuckDuckGo)
         - Analyse sémantique avec embeddings
         - Ranking intelligent des solutions
@@ -77,7 +76,7 @@ _(Source: {best_snippet.source_name})_"""
                 else:
                     print("⚠️ SmartCodeSearcher n'a pas trouvé de solutions")
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ImportError, ValueError) as e:
                 print(f"⚠️ Erreur SmartCodeSearcher: {e}")
                 traceback.print_exc()
 
@@ -86,7 +85,7 @@ _(Source: {best_snippet.source_name})_"""
             web_solutions = []
             try:
                 web_solutions = await self._search_web_solutions(user_input, language)
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ImportError) as e:
                 print(f"⚠️ Recherche web (fallback) échouée: {e}")
 
             # 4. Génération hybride ou locale
@@ -263,5 +262,5 @@ Qualité: {snippet.quality_score:.1f}/10 | Pertinence: {snippet.relevance_score:
             else:
                 return f"# Erreur lors de la génération: {result.get('error', 'Erreur inconnue')}"
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             return f"# Erreur lors de la génération: {str(e)}"
