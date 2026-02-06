@@ -63,32 +63,12 @@ class BaseGUI:
         self.config = Config()
         self.ai_engine = AIEngine(self.config)
 
-        # Initialisation avec CustomAI unifié (avec support 1M tokens)
-        if ULTRA_1M_AVAILABLE:
-            print("🚀 Interface moderne avec modèle CustomAI unifié !")
+        # Réutilisation du CustomAIModel déjà créé par AIEngine (évite double instanciation)
+        if ULTRA_1M_AVAILABLE and hasattr(self.ai_engine, "local_ai") and self.ai_engine.local_ai:
+            print("🚀 Interface moderne avec modèle CustomAI unifié (instance partagée)")
             try:
-                # Utiliser CustomAIModel avec support 1M tokens intégré
-                self.custom_ai = CustomAIModel()
-
-                # 🔗 IMPORTANT: Partager la même ConversationMemory ET le même LocalLLM
-                if hasattr(self.ai_engine, "local_ai"):
-                    print("🔗 Synchronisation des mémoires de conversation et LocalLLM...")
-
-                    # Partager la ConversationMemory
-                    if hasattr(self.ai_engine.local_ai, "conversation_memory"):
-                        self.ai_engine.local_ai.conversation_memory = (
-                            self.custom_ai.conversation_memory
-                        )
-
-                    # ⚡ CRUCIAL: Partager le MÊME LocalLLM pour avoir le MÊME historique
-                    if hasattr(self.ai_engine.local_ai, "local_llm"):
-                        print("🔗 Partage du même LocalLLM entre AIEngine et CustomAI...")
-                        self.custom_ai.local_llm = self.ai_engine.local_ai.local_llm
-                        print(
-                            f"✅ LocalLLM partagé - Historique: {len(self.custom_ai.local_llm.conversation_history)} messages"
-                        )
-
-                    print("✅ Mémoires et LocalLLM synchronisés")
+                # Réutiliser l'instance déjà créée par AIEngine
+                self.custom_ai = self.ai_engine.local_ai
 
                 # Afficher les stats initiales
                 stats = self.custom_ai.get_context_stats()
@@ -101,6 +81,10 @@ class BaseGUI:
                 print(
                     f"🧠 Mode: {'Ultra 1M' if self.custom_ai.ultra_mode else 'Classique'}"
                 )
+                if hasattr(self.custom_ai, "local_llm") and self.custom_ai.local_llm:
+                    print(
+                        f"✅ LocalLLM actif - Historique: {len(self.custom_ai.local_llm.conversation_history)} messages"
+                    )
             except Exception as e:
                 print(f"⚠️ Erreur initialisation CustomAI: {e}")
                 self.custom_ai = None

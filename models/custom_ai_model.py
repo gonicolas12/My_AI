@@ -80,6 +80,7 @@ class CustomAIModel(BaseAI):
         self.reasoning_engine = ReasoningEngine()
         self.conversation_memory = conversation_memory or ConversationMemory()
         self.internet_search = InternetSearchEngine()
+        self.ml_model = MLFAQModel()  # Instance unique, données chargées au 1er predict()
 
         # Initialisation du LLM Local (Ollama)
         self.local_llm = LocalLLM()
@@ -288,8 +289,7 @@ class CustomAIModel(BaseAI):
             # pour garantir que les réponses enrichies soient utilisées
             faq_response = None
             try:
-                ml_model = MLFAQModel()
-                faq_response = ml_model.predict(user_input)
+                faq_response = self.ml_model.predict(user_input)
                 if faq_response is not None and str(faq_response).strip():
                     print(f"📚 [FAQ] ✅ Réponse FAQ trouvée pour: '{user_input}'")
                     # Synchroniser avec l'historique Ollama
@@ -625,8 +625,7 @@ class CustomAIModel(BaseAI):
             # La FAQ doit être consultée AVANT tout autre système, même en streaming
             faq_response = None
             try:
-                ml_model = MLFAQModel()
-                faq_response = ml_model.predict(user_input)
+                faq_response = self.ml_model.predict(user_input)
                 if faq_response is not None and str(faq_response).strip():
                     print(
                         f"📚 [FAQ STREAM] ✅ Réponse FAQ trouvée pour: '{user_input}'"

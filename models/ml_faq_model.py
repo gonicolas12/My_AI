@@ -64,8 +64,8 @@ class MLFAQModel:
         self.questions = []
         self.answers = []
         self.vectorizer = TfidfVectorizer()
-        self._load_examples()
-        self._fit_vectorizer()
+        self.question_vecs = None
+        self._loaded = False  # Lazy loading: données chargées au premier predict()
 
     @staticmethod
     def normalize(text):
@@ -80,12 +80,20 @@ class MLFAQModel:
         text = text.strip()
         return text
 
+    def _ensure_loaded(self):
+        """Charge les données si pas encore fait (lazy loading)"""
+        if not self._loaded:
+            self._load_examples()
+            self._fit_vectorizer()
+            self._loaded = True
+
     def predict(self, question, threshold=0.5):
         """
         Retourne la réponse la plus proche si la similarité est suffisante, sinon None.
         Ajoute un bypass exact-match et un fallback fuzzy (rapidfuzz).
         Ajoute des logs détaillés pour la normalisation.
         """
+        self._ensure_loaded()
         threshold = 0.9  # Plus strict pour éviter les faux positifs
         seuil_fuzzy = 92
         norm_q = self.normalize(question)
@@ -124,5 +132,5 @@ class MLFAQModel:
 
     def reload(self):
         """Recharge"""
-        self._load_examples()
-        self._fit_vectorizer()
+        self._loaded = False
+        self._ensure_loaded()
