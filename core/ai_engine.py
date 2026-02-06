@@ -34,6 +34,16 @@ class AIEngine:
     Moteur principal de l'IA personnelle
     """
 
+    @staticmethod
+    def _run_async(coro):
+        """Exécute une coroutine depuis un contexte synchrone, de façon robuste."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result(timeout=60)
+
     def __init__(self, config: Optional[Dict] = None):
         """
         Initialise le moteur IA
@@ -170,19 +180,8 @@ class AIEngine:
                             text, language
                         )
 
-                    # Exécuter la recherche
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # Dans un event loop existant
-                            with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(asyncio.run, run_web_search())
-                                result = future.result(timeout=30)
-                        else:
-                            result = loop.run_until_complete(run_web_search())
-                    except RuntimeError:
-                        # Pas d'event loop
-                        result = asyncio.run(run_web_search())
+                    # Exécuter la recherche de façon robuste
+                    result = self._run_async(run_web_search())
 
                     if result.get("success"):
                         code = result.get("code", "")
