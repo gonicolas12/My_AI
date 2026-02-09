@@ -182,6 +182,7 @@ class AgentOrchestrator:
         on_step_start=None,
         on_token=None,
         on_step_complete=None,
+        on_should_stop=None,
     ) -> Dict[str, Any]:
         """
         Exécute une tâche complexe avec plusieurs agents en séquence avec streaming
@@ -192,6 +193,7 @@ class AgentOrchestrator:
             on_step_start: Callback appelé au début de chaque étape (step_idx, agent_type, task)
             on_token: Callback pour chaque token généré
             on_step_complete: Callback appelé à la fin de chaque étape (step_idx, result)
+            on_should_stop: Callback qui retourne True si le workflow doit être interrompu
 
         Returns:
             Résultats agrégés de tous les agents
@@ -203,6 +205,11 @@ class AgentOrchestrator:
         context = {"original_task": task_description}
 
         for step_idx, step in enumerate(workflow, 1):
+            # Vérifier si on doit s'arrêter avant de commencer l'étape suivante
+            if on_should_stop and on_should_stop():
+                print(f"🛑 Workflow interrompu avant l'étape {step_idx}")
+                break
+
             agent_type = step["agent"]
             task = step["task"]
             pass_result = step.get("pass_result", False)
@@ -224,6 +231,11 @@ class AgentOrchestrator:
             # Exécuter la tâche avec streaming
             result = self.execute_single_task_stream(agent_type, task, context, on_token)
             results.append(result)
+
+            # Vérifier si on doit s'arrêter après l'exécution
+            if on_should_stop and on_should_stop():
+                print(f"🛑 Workflow interrompu après l'étape {step_idx}")
+                break
 
             # Callback de fin d'étape
             if on_step_complete:

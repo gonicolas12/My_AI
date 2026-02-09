@@ -1,5 +1,53 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🤖 Version 6.3.0 - Drag & Drop Agents, Workflows Personnalisés et Nouveaux Agents (9 Février 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🆕 3 Nouveaux Agents Spécialisés
+- **SecurityAgent** 🛡️ : Cybersécurité, audit de sécurité, détection de vulnérabilités (temp: 0.2)
+- **OptimizerAgent** ⚡ : Optimisation de performance, refactoring, profiling (temp: 0.3)
+- **DataScienceAgent** 🧬 : Data science, machine learning, analyse prédictive (temp: 0.4)
+
+#### 🎯 Drag & Drop pour création de Workflows
+- **Glisser-déposer** les agents depuis leur carte vers la zone de workflow
+- **Pipeline visuel** avec noms d'agents colorés et flèches (→) entre les étapes
+- **Workflows personnalisés** : Construisez votre propre chaîne d'agents sans limite
+- **Exécution séquentielle** : Chaque agent reçoit le résultat du précédent
+
+#### ⏹️ Bouton Stop pendant la génération
+- **Bouton Exécuter se transforme en bouton Stop** (■ blanc sur fond blanc) pendant la génération
+- **Interruption immédiate** : Arrête le streaming et toutes les étapes du workflow
+- **Restauration automatique** du bouton à son état original après l'arrêt
+- Comportement identique au bouton Stop de l'onglet Chat
+
+#### 🗑️ Suppression des Workflows pré-configurés
+- Section "Workflows Multi-Agents" supprimée (redondante avec le drag & drop)
+- Les workflows Développement Complet, Recherche & Doc, Debug Assisté sont remplacés par le système de drag & drop plus flexible
+
+### 🎨 Améliorations UI
+
+#### Refonte de la zone de saisie
+- **Bouton Exécuter** : Plus grand (160px), s'adapte automatiquement à la hauteur de la zone de texte
+- **Bouton Clear Selection** : Rouge (#dc2626), permet de vider le workflow en un clic
+- **Alignement parfait** : Les boutons s'étirent pour s'aligner avec le bas de la zone de texte
+- **Cartes agents** : Description agrandie (police 13 bold), indication de drag & drop
+
+#### Drag & Drop
+- **Indicateur flottant** lors du glissement d'un agent
+- **Zone de drop visuelle** avec bordure et feedback
+- **Badges colorés** dans le pipeline avec la couleur de chaque agent
+- **Suppression individuelle** d'agents du workflow (clic sur le badge)
+
+### 🔧 Architecture Technique
+
+#### Modifications
+- **`models/ai_agents.py`** : 3 nouvelles factories (SecurityAgent, OptimizerAgent, DataScienceAgent), 9 agents au total
+- **`interfaces/agents_interface.py`** : Réécriture complète — drag & drop, pipeline display, bouton stop, suppression workflows pré-configurés
+- **`core/agent_orchestrator.py`** : Ajout du paramètre `on_should_stop` pour interruption inter-étapes
+
+---
+
 # 🤖 Version 6.2.0 - Système Multi-Agents IA (22 Janvier 2026)
 
 ### 🚀 Nouveautés Principales

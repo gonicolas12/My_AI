@@ -2,13 +2,13 @@
 
 ## Vue d'Ensemble
 
-Le système d'agents IA permet d'utiliser des **agents spécialisés** basés sur Ollama pour résoudre des tâches complexes. Chaque agent a une **expertise spécifique** et peut collaborer avec d'autres agents.
+Le système d'agents IA permet d'utiliser des **agents spécialisés** basés sur Ollama pour résoudre des tâches complexes. Chaque agent a une **expertise spécifique** et peut collaborer avec d'autres agents. Vous pouvez créer vos propres workflows par **drag & drop**.
 
 ## 🎯 Concepts Clés
 
 ### Agent IA
 Un agent est une instance d'Ollama avec :
-- **Une expertise** (code, recherche, analyse, etc.)
+- **Une expertise** (code, recherche, analyse, sécurité, etc.)
 - **Un system prompt** spécialisé
 - **Une mémoire contextuelle** de ses tâches
 - **Des statistiques** de performance
@@ -16,10 +16,10 @@ Un agent est une instance d'Ollama avec :
 ### Orchestrateur
 Coordonne les agents pour :
 - Exécuter des tâches simples (1 agent)
-- Orchestrer des workflows complexes (plusieurs agents en séquence)
+- Orchestrer des workflows personnalisés (plusieurs agents en séquence via drag & drop)
 - Exécuter des tâches parallèles
 
-## 🤖 Types d'Agents Disponibles
+## 🤖 Types d'Agents Disponibles (9 agents)
 
 ### 1. **CodeAgent** 🐍
 **Expertise:** Génération et debug de code
@@ -113,6 +113,51 @@ orchestrator.ask_agent("debug", "Pourquoi ce code plante : [code]")
 orchestrator.ask_agent("planner", "Planifie le développement d'une API REST")
 ```
 
+### 7. **SecurityAgent** 🛡️
+**Expertise:** Cybersécurité et audit de sécurité
+
+**Utilise pour:**
+- Auditer la sécurité du code
+- Détecter les vulnérabilités (injections SQL, XSS, etc.)
+- Proposer des mesures de protection
+- Analyser les configurations de sécurité
+
+**Temperature:** 0.2 (très précis)
+
+```python
+orchestrator.ask_agent("security", "Audite ce code pour les failles de sécurité")
+```
+
+### 8. **OptimizerAgent** ⚡
+**Expertise:** Optimisation et performance
+
+**Utilise pour:**
+- Optimiser les performances du code
+- Refactoring et amélioration de la qualité
+- Profiling et analyse de complexité
+- Réduction de la consommation mémoire
+
+**Temperature:** 0.3 (précis)
+
+```python
+orchestrator.ask_agent("optimizer", "Optimise cette fonction pour de meilleures performances")
+```
+
+### 9. **DataScienceAgent** 🧬
+**Expertise:** Data science et machine learning
+
+**Utilise pour:**
+- Analyse de données et statistiques avancées
+- Modèles de machine learning
+- Visualisation de données
+- Analyse prédictive
+
+**Temperature:** 0.4 (analytique)
+
+```python
+orchestrator.ask_agent("datascience", "Crée un modèle de classification pour ce dataset")
+```
+
 ## 🚀 Utilisation
 
 ### Installation
@@ -166,31 +211,19 @@ result = orchestrator.execute_multi_agent_task(
 )
 ```
 
-### Workflows Pré-Configurés
+### Workflows Personnalisés (Drag & Drop)
 
-Des templates prêts à l'emploi :
+Créez vos propres workflows directement depuis l'interface graphique en glissant-déposant les agents. En code, vous pouvez aussi définir un workflow personnalisé :
 
 ```python
-from core.agent_orchestrator import WorkflowTemplates
+# Exemple : workflow Security → Code → Debug
+workflow = [
+    {"agent": "security", "task": "Audite ce code pour les vulnérabilités", "pass_result": True},
+    {"agent": "code", "task": "Corrige les failles identifiées", "pass_result": True},
+    {"agent": "debug", "task": "Vérifie que les corrections sont valides", "pass_result": False}
+]
 
-# Développement logiciel complet (planner → code → debug)
-task, workflow = WorkflowTemplates.code_development(
-    "Une API REST pour gérer des utilisateurs"
-)
-result = orchestrator.execute_multi_agent_task(task, workflow)
-
-# Recherche et documentation (research → analyst → creative)
-task, workflow = WorkflowTemplates.research_and_document(
-    "L'intelligence artificielle dans la santé"
-)
-result = orchestrator.execute_multi_agent_task(task, workflow)
-
-# Debug et correction (debug → code)
-task, workflow = WorkflowTemplates.debug_and_fix(
-    code="[votre code]",
-    error="IndexError: list index out of range"
-)
-result = orchestrator.execute_multi_agent_task(task, workflow)
+result = orchestrator.execute_multi_agent_task("Audit et correction", workflow)
 ```
 
 ### Agents en Parallèle
@@ -378,9 +411,12 @@ result = custom_agent.execute_task(
 
 ### 1. Choix de l'Agent
 - **Code simple** → CodeAgent seul
-- **Projet complexe** → Workflow Planner → Code → Debug
+- **Projet complexe** → Workflow Planner → Code → Debug (via drag & drop)
 - **Recherche** → ResearchAgent → AnalystAgent
 - **Contenu** → ResearchAgent → CreativeAgent
+- **Sécurité** → SecurityAgent → CodeAgent
+- **Performance** → OptimizerAgent
+- **Data science** → DataScienceAgent → AnalystAgent
 
 ### 2. Gestion du Contexte
 - Utilisez `pass_result=True` pour que les agents collaborent

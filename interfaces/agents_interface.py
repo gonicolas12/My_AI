@@ -6,7 +6,7 @@ Gère l'interface utilisateur pour le système multi-agents basé sur Ollama
 import threading
 import tkinter as tk
 from datetime import datetime
-from tkinter import messagebox, scrolledtext, simpledialog
+from tkinter import messagebox, scrolledtext
 
 try:
     import customtkinter as ctk
@@ -16,7 +16,7 @@ except ImportError:
     CTK_AVAILABLE = False
     ctk = tk
 
-from core.agent_orchestrator import AgentOrchestrator, WorkflowTemplates
+from core.agent_orchestrator import AgentOrchestrator
 
 
 class AgentsInterface:
@@ -61,7 +61,9 @@ class AgentsInterface:
         # État de l'interface
         self.current_agent = None
         self.is_processing = False
+        self.is_interrupted = False
         self.execution_history = []
+        self.execute_btn = None
 
         # Référ ences UI
         self.agent_buttons = {}
@@ -69,6 +71,13 @@ class AgentsInterface:
         self.task_entry = None
         self.status_label = None
         self.stats_labels = {}
+
+        # Custom workflow (drag & drop)
+        self.custom_workflow = []  # List of (agent_type, name, color) tuples
+        self._drag_data = {"agent": None, "toplevel": None}
+        self.pipeline_frame = None
+        self.drop_zone_frame = None
+        self.task_section_frame = None
 
         # Créer l'interface
         self.create_agents_interface()
@@ -94,9 +103,6 @@ class AgentsInterface:
 
         # Section de saisie de tâche
         self.create_task_input(main_scroll)
-
-        # Workflows pré-configurés
-        self.create_workflow_shortcuts(main_scroll)
 
         # Zone de sortie/résultats
         self.create_output_area(main_scroll)
@@ -191,6 +197,24 @@ class AgentsInterface:
                 "desc": "Planification de projets",
                 "color": "#06b6d4",
             },
+            "security": {
+                "icon": "🛡️",
+                "name": "SecurityAgent",
+                "desc": "Audit de sécurité & vulnérabilités",
+                "color": "#ec4899",
+            },
+            "optimizer": {
+                "icon": "⚡",
+                "name": "OptimizerAgent",
+                "desc": "Optimisation & Performance",
+                "color": "#14b8a6",
+            },
+            "datascience": {
+                "icon": "🧬",
+                "name": "DataScienceAgent",
+                "desc": "Data Science & Machine Learning",
+                "color": "#f97316",
+            },
         }
 
         # Grille d'agents (3 par ligne)
@@ -215,7 +239,7 @@ class AgentsInterface:
             agents_grid.grid_columnconfigure(col, weight=1, uniform="agent")
 
     def create_agent_card(self, parent, agent_type, icon, name, desc, color):
-        """Crée une carte d'agent cliquable"""
+        """Crée une carte d'agent draggable"""
         # Frame de la carte
         card_frame = self.create_frame(parent, fg_color=self.colors["bg_secondary"])
 
@@ -223,6 +247,12 @@ class AgentsInterface:
             card_frame.configure(
                 corner_radius=12, border_width=2, border_color=self.colors["border"]
             )
+
+        # Curseur de drag
+        try:
+            card_frame.configure(cursor="hand2")
+        except Exception:
+            pass
 
         # Contenu de la carte
         content_frame = self.create_frame(
@@ -257,60 +287,250 @@ class AgentsInterface:
         desc_label = self.create_label(
             content_frame,
             text=desc,
-            font=("Segoe UI", 10),
-            text_color=self.colors["text_secondary"],
+            font=("Segoe UI", 12, "bold"),
+            text_color=self.colors["text_primary"],
             fg_color=self.colors["bg_secondary"],
-            wraplength=200,
+            wraplength=250,
         )
-        desc_label.pack(fill="x", pady=(10, 0))
+        desc_label.pack(fill="x", pady=(15, 5))
 
-        # Bouton de sélection
-        select_btn = self.create_button(
-            content_frame,
-            text="Sélectionner",
-            command=lambda: self.select_agent(agent_type, name),
-            fg_color=color,
-            hover_color=self._darken_color(color),
-            text_color="#ffffff",
-            font=("Segoe UI", 11, "bold"),
-            height=35,
-        )
-        select_btn.pack(fill="x", pady=(15, 0))
+        # Rendre tous les widgets de la carte draggables
+        for widget in [card_frame, content_frame, header_frame,
+                       icon_label, name_label, desc_label]:
+            self._make_draggable(widget, agent_type, name, color)
+
+        # Hover effect
+        def on_enter(_e):
+            if self.use_ctk:
+                card_frame.configure(border_color=color, border_width=2)
+
+        def on_leave(_e):
+            if self.use_ctk:
+                card_frame.configure(
+                    border_color=self.colors["border"], border_width=2
+                )
+
+        card_frame.bind("<Enter>", on_enter)
+        card_frame.bind("<Leave>", on_leave)
 
         # Stocker la référence
-        self.agent_buttons[agent_type] = (card_frame, select_btn, color)
+        self.agent_buttons[agent_type] = (card_frame, None, color)
 
         return card_frame
 
     def select_agent(self, agent_type, agent_name):
-        """Sélectionne un agent"""
-        self.current_agent = agent_type
+        """Sélectionne un agent (compatibilité - ajoute au workflow)"""
+        # Chercher la couleur de l'agent
+        color = "#ffffff"
+        if agent_type in self.agent_buttons:
+            _, _, color = self.agent_buttons[agent_type]
+        self.add_agent_to_workflow(agent_type, agent_name, color)
 
-        # Mettre à jour l'apparence des cartes
-        for at, (card, _btn, original_color) in self.agent_buttons.items():
-            if at == agent_type:
-                # Agent sélectionné - border accent
-                if self.use_ctk:
-                    card.configure(border_color=original_color, border_width=3)
-            else:
-                # Agents non sélectionnés - border normale
-                if self.use_ctk:
-                    card.configure(border_color=self.colors["border"], border_width=2)
+    # === Drag & Drop System ===
+
+    def _make_draggable(self, widget, agent_type, name, color):
+        """Rend un widget draggable pour le drag & drop d'agents"""
+        widget.bind(
+            "<ButtonPress-1>",
+            lambda e: self._on_drag_start(e, agent_type, name, color),
+        )
+        widget.bind("<B1-Motion>", self._on_drag_motion)
+        widget.bind("<ButtonRelease-1>", self._on_drag_end)
+
+    def _on_drag_start(self, event, agent_type, name, color):
+        """Début du drag - crée un indicateur flottant"""
+        self._drag_data["agent"] = (agent_type, name, color)
+
+        # Créer un toplevel flottant comme indicateur visuel
+        top = tk.Toplevel()
+        top.overrideredirect(True)
+        top.attributes("-topmost", True)
+        try:
+            top.attributes("-alpha", 0.85)
+        except Exception:
+            pass
+
+        # Contenu du toplevel
+        frame = tk.Frame(top, bg=color, padx=12, pady=8, relief="solid", bd=1)
+        frame.pack()
+
+        label = tk.Label(
+            frame,
+            text=f"🤖 {name}",
+            font=("Segoe UI", 12, "bold"),
+            fg="white",
+            bg=color,
+        )
+        label.pack()
+
+        # Positionner
+        top.geometry(f"+{event.x_root + 10}+{event.y_root + 10}")
+        self._drag_data["toplevel"] = top
+
+    def _on_drag_motion(self, event):
+        """Mouvement pendant le drag"""
+        top = self._drag_data.get("toplevel")
+        if top and top.winfo_exists():
+            top.geometry(f"+{event.x_root + 10}+{event.y_root + 10}")
+
+        # Highlight drop zone quand on survole
+        if self._is_over_drop_zone(event.x_root, event.y_root):
+            if self.drop_zone_frame and self.use_ctk:
+                try:
+                    agent_data = self._drag_data.get("agent")
+                    c = agent_data[2] if agent_data else "#10b981"
+                    self.drop_zone_frame.configure(border_color=c, border_width=3)
+                except Exception:
+                    pass
+        else:
+            if self.drop_zone_frame and self.use_ctk:
+                try:
+                    self.drop_zone_frame.configure(
+                        border_color=self.colors["border"], border_width=2
+                    )
+                except Exception:
+                    pass
+
+    def _on_drag_end(self, event):
+        """Fin du drag - vérifie si on est sur la zone de drop"""
+        agent_data = self._drag_data.get("agent")
+        top = self._drag_data.get("toplevel")
+
+        # Détruire l'indicateur flottant
+        if top and top.winfo_exists():
+            top.destroy()
+
+        # Reset la border de la drop zone
+        if self.drop_zone_frame and self.use_ctk:
+            try:
+                self.drop_zone_frame.configure(
+                    border_color=self.colors["border"], border_width=2
+                )
+            except Exception:
+                pass
+
+        if not agent_data:
+            self._drag_data = {"agent": None, "toplevel": None}
+            return
+
+        # Vérifier si on est sur la zone de drop
+        if self._is_over_drop_zone(event.x_root, event.y_root):
+            agent_type, name, color = agent_data
+            self.add_agent_to_workflow(agent_type, name, color)
+
+        self._drag_data = {"agent": None, "toplevel": None}
+
+    def _is_over_drop_zone(self, x_root, y_root):
+        """Vérifie si les coordonnées sont sur la zone de drop"""
+        # Vérifier la zone de drop principale
+        if self.drop_zone_frame and self.drop_zone_frame.winfo_exists():
+            try:
+                dz_x = self.drop_zone_frame.winfo_rootx()
+                dz_y = self.drop_zone_frame.winfo_rooty()
+                dz_w = self.drop_zone_frame.winfo_width()
+                dz_h = self.drop_zone_frame.winfo_height()
+                if (dz_x <= x_root <= dz_x + dz_w) and (
+                    dz_y <= y_root <= dz_y + dz_h
+                ):
+                    return True
+            except Exception:
+                pass
+
+        # Vérifier aussi la zone de texte de la tâche
+        if self.task_section_frame and self.task_section_frame.winfo_exists():
+            try:
+                ts_x = self.task_section_frame.winfo_rootx()
+                ts_y = self.task_section_frame.winfo_rooty()
+                ts_w = self.task_section_frame.winfo_width()
+                ts_h = self.task_section_frame.winfo_height()
+                if (ts_x <= x_root <= ts_x + ts_w) and (
+                    ts_y <= y_root <= ts_y + ts_h
+                ):
+                    return True
+            except Exception:
+                pass
+
+        return False
+
+    # === Workflow Management ===
+
+    def add_agent_to_workflow(self, agent_type, name, color):
+        """Ajoute un agent au workflow personnalisé"""
+        self.custom_workflow.append((agent_type, name, color))
+        self.current_agent = agent_type
+        self.update_pipeline_display()
 
         # Mettre à jour le statut
-        if self.status_label:
-            self.status_label.configure(
-                text=f"✅ Agent sélectionné: {agent_name}", text_color="#10b981"
-            )
+        if len(self.custom_workflow) == 1:
+            self._update_status(f"✅ Agent ajouté: {name}", "#10b981")
+        else:
+            agent_names = " → ".join(n for _, n, _ in self.custom_workflow)
+            self._update_status(f"✅ Workflow: {agent_names}", "#10b981")
 
-        # Focus sur la zone de saisie
-        if self.task_entry:
-            self.task_entry.focus_set()
+    def clear_workflow(self):
+        """Efface le workflow personnalisé"""
+        self.custom_workflow.clear()
+        self.current_agent = None
+        self.update_pipeline_display()
+        self._update_status(
+            "Glissez-déposez des agents pour créer votre workflow",
+            self.colors["text_secondary"],
+        )
+
+    def update_pipeline_display(self):
+        """Met à jour l'affichage du pipeline de workflow"""
+        if not self.pipeline_frame:
+            return
+
+        # Nettoyer le contenu existant
+        for widget in self.pipeline_frame.winfo_children():
+            widget.destroy()
+
+        if not self.custom_workflow:
+            # Placeholder
+            placeholder = self.create_label(
+                self.pipeline_frame,
+                text="⇩ Glissez-déposez des agents ici pour créer votre workflow",
+                font=("Segoe UI", 10),
+                text_color=self.colors["text_secondary"],
+                fg_color=self.colors["bg_secondary"],
+            )
+            placeholder.pack(pady=10)
+            return
+
+        # Afficher le pipeline
+        pipeline_container = self.create_frame(
+            self.pipeline_frame, fg_color=self.colors["bg_secondary"]
+        )
+        pipeline_container.pack(pady=10, padx=10)
+
+        for idx, (agent_type, name, color) in enumerate(self.custom_workflow):
+            if idx > 0:
+                # Flèche entre agents
+                arrow = self.create_label(
+                    pipeline_container,
+                    text="  →  ",
+                    font=("Segoe UI", 16, "bold"),
+                    text_color=self.colors["text_secondary"],
+                    fg_color=self.colors["bg_secondary"],
+                )
+                arrow.pack(side="left")
+
+            # Badge de l'agent avec sa couleur
+            agent_badge = self.create_label(
+                pipeline_container,
+                text=f" {name} ",
+                font=("Segoe UI", 12, "bold"),
+                text_color=color,
+                fg_color=self.colors["bg_secondary"],
+            )
+            agent_badge.pack(side="left")
 
     def create_task_input(self, parent):
-        """Crée la zone de saisie de tâche"""
+        """Crée la zone de saisie de tâche avec zone de drop"""
         section_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
         section_frame.grid(row=3, column=0, sticky="ew", padx=30, pady=(20, 10))
+        self.task_section_frame = section_frame
 
         # Titre
         title = self.create_label(
@@ -322,14 +542,14 @@ class AgentsInterface:
         )
         title.pack(anchor="w", pady=(0, 10))
 
-        # Frame pour input + bouton
+        # Frame pour input + boutons
         input_frame = self.create_frame(
             section_frame, fg_color=self.colors["bg_primary"]
         )
         input_frame.pack(fill="x")
         input_frame.grid_columnconfigure(0, weight=1)
 
-        # Zone de texte (avec scrollbar si besoin)
+        # Zone de texte
         if self.use_ctk:
             self.task_entry = ctk.CTkTextbox(
                 input_frame,
@@ -353,152 +573,105 @@ class AgentsInterface:
                 borderwidth=2,
             )
 
-        self.task_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        self.task_entry.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 10))
 
         # Placeholder
         self._set_placeholder(
             "Décrivez la tâche pour l'agent sélectionné...\n\nExemple: Crée une fonction Python qui trie une liste de nombres"
         )
 
-        # Bouton Exécuter
-        execute_btn = self.create_button(
-            input_frame,
-            text="▶ Exécuter",
-            command=self.execute_agent_task,
-            fg_color=self.colors["accent"],
-            hover_color="#ff5730",
-            text_color="#ffffff",
-            font=("Segoe UI", 13, "bold"),
-            width=150,
-            height=100,
+        # Frame pour les boutons (à droite, étiré pour s'aligner avec la zone de texte)
+        buttons_frame = self.create_frame(
+            input_frame, fg_color=self.colors["bg_primary"]
         )
-        execute_btn.grid(row=0, column=1)
+        buttons_frame.grid(row=0, column=1, rowspan=2, sticky="nsew")
+
+        # Bouton Exécuter (prend tout l'espace restant au-dessus de Clear)
+        if self.use_ctk:
+            self.execute_btn = ctk.CTkButton(
+                buttons_frame,
+                text="▶ Exécuter",
+                command=self.execute_agent_task,
+                fg_color=self.colors["accent"],
+                hover_color="#ff5730",
+                text_color="#ffffff",
+                font=("Segoe UI", 13, "bold"),
+                corner_radius=8,
+                width=160,
+                border_width=0,
+            )
+        else:
+            self.execute_btn = tk.Button(
+                buttons_frame,
+                text="▶ Exécuter",
+                command=self.execute_agent_task,
+                bg=self.colors["accent"],
+                fg="#ffffff",
+                font=("Segoe UI", 13, "bold"),
+                border=0,
+                relief="flat",
+            )
+        self.execute_btn.pack(fill="both", expand=True, pady=(0, 8))
+
+        # Bouton Clear Selection (rouge, hauteur fixe en bas)
+        if self.use_ctk:
+            clear_btn = ctk.CTkButton(
+                buttons_frame,
+                text="✕ Clear Selection",
+                command=self.clear_workflow,
+                fg_color="#dc2626",
+                hover_color="#b91c1c",
+                text_color="#ffffff",
+                font=("Segoe UI", 11, "bold"),
+                corner_radius=8,
+                width=160,
+                height=36,
+            )
+        else:
+            clear_btn = tk.Button(
+                buttons_frame,
+                text="✕ Clear Selection",
+                command=self.clear_workflow,
+                bg="#dc2626",
+                fg="#ffffff",
+                font=("Segoe UI", 11, "bold"),
+                border=0,
+                relief="flat",
+            )
+        clear_btn.pack(anchor="n")
+
+        # Zone de drop / Pipeline display
+        self.drop_zone_frame = self.create_frame(
+            section_frame, fg_color=self.colors["bg_secondary"]
+        )
+        if self.use_ctk:
+            self.drop_zone_frame.configure(
+                corner_radius=10, border_width=2, border_color=self.colors["border"]
+            )
+        self.drop_zone_frame.pack(fill="x", pady=(10, 0))
+
+        self.pipeline_frame = self.create_frame(
+            self.drop_zone_frame, fg_color=self.colors["bg_secondary"]
+        )
+        self.pipeline_frame.pack(fill="x")
+
+        # Placeholder initial dans le pipeline
+        self.update_pipeline_display()
 
         # Label de statut
         self.status_label = self.create_label(
             section_frame,
-            text="Sélectionnez un agent ci-dessus",
+            text="Glissez-déposez des agents pour créer votre workflow",
             font=("Segoe UI", 10),
             text_color=self.colors["text_secondary"],
             fg_color=self.colors["bg_primary"],
         )
         self.status_label.pack(anchor="w", pady=(10, 0))
 
-    def create_workflow_shortcuts(self, parent):
-        """Crée les raccourcis vers les workflows"""
-        section_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
-        section_frame.grid(row=4, column=0, sticky="ew", padx=30, pady=(20, 10))
-
-        # Titre
-        title = self.create_label(
-            section_frame,
-            text="⚡ Workflows Multi-Agents",
-            font=("Segoe UI", 14, "bold"),
-            text_color=self.colors["text_primary"],
-            fg_color=self.colors["bg_primary"],
-        )
-        title.pack(anchor="w", pady=(0, 10))
-
-        desc = self.create_label(
-            section_frame,
-            text="Workflows pré-configurés qui utilisent plusieurs agents en séquence",
-            font=("Segoe UI", 10),
-            text_color=self.colors["text_secondary"],
-            fg_color=self.colors["bg_primary"],
-        )
-        desc.pack(anchor="w", pady=(0, 15))
-
-        # Grid de workflows
-        workflows_grid = self.create_frame(
-            section_frame, fg_color=self.colors["bg_primary"]
-        )
-        workflows_grid.pack(fill="x")
-
-        workflows = [
-            {
-                "name": "Développement Complet",
-                "desc": "Planner → Code → Debug",
-                "icon": "💻",
-                "color": "#3b82f6",
-                "action": self.workflow_dev,
-            },
-            {
-                "name": "Recherche & Doc",
-                "desc": "Research → Analyst → Creative",
-                "icon": "📚",
-                "color": "#10b981",
-                "action": self.workflow_research,
-            },
-            {
-                "name": "Debug Assisté",
-                "desc": "Debug → Code",
-                "icon": "🔧",
-                "color": "#ef4444",
-                "action": self.workflow_debug,
-            },
-        ]
-
-        for idx, wf in enumerate(workflows):
-            btn_frame = self.create_frame(
-                workflows_grid, fg_color=self.colors["bg_secondary"]
-            )
-            if self.use_ctk:
-                btn_frame.configure(corner_radius=10)
-            btn_frame.grid(row=0, column=idx, padx=8, pady=0, sticky="ew")
-            workflows_grid.grid_columnconfigure(idx, weight=1, uniform="workflow")
-
-            # Contenu
-            content = self.create_frame(btn_frame, fg_color=self.colors["bg_secondary"])
-            content.pack(fill="both", expand=True, padx=15, pady=15)
-
-            # Icône + Nom
-            header = self.create_frame(content, fg_color=self.colors["bg_secondary"])
-            header.pack(fill="x")
-
-            icon_lbl = self.create_label(
-                header,
-                text=wf["icon"],
-                font=("Segoe UI", 20),
-                fg_color=self.colors["bg_secondary"],
-            )
-            icon_lbl.pack(side="left", padx=(0, 8))
-
-            name_lbl = self.create_label(
-                header,
-                text=wf["name"],
-                font=("Segoe UI", 12, "bold"),
-                text_color=self.colors["text_primary"],
-                fg_color=self.colors["bg_secondary"],
-            )
-            name_lbl.pack(side="left")
-
-            # Description
-            desc_lbl = self.create_label(
-                content,
-                text=wf["desc"],
-                font=("Segoe UI", 9),
-                text_color=self.colors["text_secondary"],
-                fg_color=self.colors["bg_secondary"],
-            )
-            desc_lbl.pack(fill="x", pady=(5, 10))
-
-            # Bouton
-            wf_btn = self.create_button(
-                content,
-                text="Lancer",
-                command=wf["action"],
-                fg_color=wf["color"],
-                hover_color=self._darken_color(wf["color"]),
-                text_color="#ffffff",
-                font=("Segoe UI", 10, "bold"),
-                height=30,
-            )
-            wf_btn.pack(fill="x")
-
     def create_output_area(self, parent):
         """Crée la zone de sortie des résultats"""
         section_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
-        section_frame.grid(row=5, column=0, sticky="nsew", padx=30, pady=(20, 10))
+        section_frame.grid(row=4, column=0, sticky="nsew", padx=30, pady=(20, 10))
 
         # Titre
         title = self.create_label(
@@ -541,14 +714,13 @@ class AgentsInterface:
 
 Bienvenue dans le système d'agents spécialisés !
 
-1️ Sélectionnez un agent ci-dessus
+1️ Sélectionnez un ou plusieurs agents
 2️ Décrivez votre tâche
 3️ Cliquez sur "Exécuter"
 
 Les résultats apparaîtront ici en temps réel.
-Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches complexes.
 
-💡 Astuce: Les agents gardent une mémoire de leurs tâches précédentes!
+💡 Astuce: Glissez-déposez plusieurs agents pour créer votre propre workflow !
 """
         self.output_text.insert("1.0", welcome_msg)
         self._make_output_readonly()
@@ -556,7 +728,7 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
     def create_stats_section(self, parent):
         """Crée la section des statistiques"""
         section_frame = self.create_frame(parent, fg_color=self.colors["bg_secondary"])
-        section_frame.grid(row=6, column=0, sticky="ew", padx=30, pady=(10, 30))
+        section_frame.grid(row=5, column=0, sticky="ew", padx=30, pady=(10, 30))
 
         if self.use_ctk:
             section_frame.configure(corner_radius=10)
@@ -611,16 +783,17 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
             self.stats_labels[key] = val
 
     def execute_agent_task(self):
-        """Exécute une tâche avec l'agent sélectionné"""
+        """Exécute une tâche avec l'agent ou le workflow personnalisé"""
         if self.is_processing:
             messagebox.showwarning(
                 "Agent Occupé", "Un agent est déjà en train de traiter une tâche."
             )
             return
 
-        if not self.current_agent:
+        if not self.custom_workflow:
             messagebox.showwarning(
-                "Aucun Agent", "Veuillez sélectionner un agent avant d'exécuter."
+                "Aucun Agent",
+                "Glissez-déposez un ou plusieurs agents pour commencer.",
             )
             return
 
@@ -632,14 +805,28 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
             )
             return
 
-        # Exécuter dans un thread séparé
-        self.is_processing = True
-        self._update_status("⏳ Traitement en cours...", "#f59e0b")
-        threading.Thread(
-            target=self._execute_task_thread,
-            args=(self.current_agent, task),
-            daemon=True,
-        ).start()
+        self.is_interrupted = False
+        self._set_execute_button_stop()
+
+        if len(self.custom_workflow) == 1:
+            # Mode agent unique
+            agent_type = self.custom_workflow[0][0]
+            self.is_processing = True
+            self._update_status("⏳ Traitement en cours...", "#f59e0b")
+            threading.Thread(
+                target=self._execute_task_thread,
+                args=(agent_type, task),
+                daemon=True,
+            ).start()
+        else:
+            # Mode workflow personnalisé multi-agents
+            self.is_processing = True
+            self._update_status("⏳ Workflow personnalisé en cours...", "#f59e0b")
+            threading.Thread(
+                target=self._execute_custom_workflow_thread,
+                args=(task,),
+                daemon=True,
+            ).start()
 
     def _execute_task_thread(self, agent_type, task):
         """Exécute la tâche dans un thread séparé avec streaming"""
@@ -649,15 +836,17 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
                 f"\n{'='*80}\n🤖 Agent: {agent_type.upper()}\n📋 Tâche: {task}\n{'='*80}\n\n"
             )
 
-            # Exécuter avec streaming
+            # Exécuter avec streaming (on_token retourne False si interrompu)
             result = self.orchestrator.execute_single_task_stream(
                 agent_type=agent_type,
                 task=task,
-                on_token=self._append_output  # Callback pour chaque token
+                on_token=self._on_token_received
             )
 
-            # Afficher la fin
-            if result.get("success"):
+            if self.is_interrupted:
+                self._append_output("\n\n⛔ Génération interrompue\n")
+                self._update_status("⛔ Génération interrompue", "#ef4444")
+            elif result.get("success"):
                 self._append_output(f"\n\n⏱️  Terminé: {result.get('timestamp', 'N/A')}\n")
                 self._update_status(
                     f"✅ Tâche terminée avec {result['agent']}", "#10b981"
@@ -674,7 +863,7 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
                 {
                     "agent": agent_type,
                     "task": task,
-                    "result": result,
+                    "result": result if not self.is_interrupted else {"success": False, "error": "interrupted"},
                     "timestamp": datetime.now().isoformat(),
                 }
             )
@@ -684,121 +873,98 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
             self._update_status("❌ Erreur critique", "#ef4444")
         finally:
             self.is_processing = False
+            self.is_interrupted = False
+            self._set_execute_button_normal()
 
-    def workflow_dev(self):
-        """Lance le workflow de développement"""
-        task = self._get_task_text()
-        if not task:
-            task = self._prompt_workflow_task(
-                "Développement Complet",
-                "Exemple: Un système de gestion de tâches avec SQLite",
-            )
-        if not task:
-            return
-
-        self._execute_workflow("dev", task)
-
-    def workflow_research(self):
-        """Lance le workflow de recherche"""
-        task = self._get_task_text()
-        if not task:
-            task = self._prompt_workflow_task(
-                "Recherche & Documentation",
-                "Exemple: L'intelligence artificielle dans la santé",
-            )
-        if not task:
-            return
-
-        self._execute_workflow("research", task)
-
-    def workflow_debug(self):
-        """Lance le workflow de debug"""
-        task = self._get_task_text()
-        if not task:
-            messagebox.showinfo(
-                "Debug Workflow",
-                "Pour le debug, décrivez le code et l'erreur dans la zone de saisie.\n\n"
-                "Exemple: Mon code plante avec IndexError quand j'accède à ma_liste[5]",
-            )
-            return
-
-        # Pour debug, on ne peut pas utiliser le template standard
-        self._execute_single_debug(task)
-
-    def _execute_workflow(self, workflow_type, description):
-        """Exécute un workflow multi-agents"""
-        if self.is_processing:
-            messagebox.showwarning("Workflow Actif", "Un workflow est déjà en cours.")
-            return
-
-        self.is_processing = True
-        self._update_status(f"⚙️ Workflow {workflow_type} en cours...", "#f59e0b")
-        threading.Thread(
-            target=self._workflow_thread, args=(workflow_type, description), daemon=True
-        ).start()
-
-    def _workflow_thread(self, workflow_type, description):
-        """Exécute le workflow dans un thread avec streaming"""
+    def _execute_custom_workflow_thread(self, task):
+        """Exécute un workflow personnalisé multi-agents"""
         try:
-            # Sélectionner le template
-            if workflow_type == "dev":
-                task_desc, workflow = WorkflowTemplates.code_development(description)
-            elif workflow_type == "research":
-                task_desc, workflow = WorkflowTemplates.research_and_document(
-                    description
+            # Construire le workflow
+            workflow = []
+            for idx, (agent_type, name, color) in enumerate(self.custom_workflow):
+                workflow.append(
+                    {
+                        "agent": agent_type,
+                        "task": (
+                            task
+                            if idx == 0
+                            else f"Continue en te basant sur le résultat précédent pour: {task}"
+                        ),
+                        "pass_result": idx > 0,
+                    }
                 )
-            else:
-                return
 
-            # Afficher l'info
-            self._append_output(f"\n{'='*80}\n⚡ WORKFLOW: {task_desc}\n{'='*80}\n\n")
+            agent_names = " → ".join(n for _, n, _ in self.custom_workflow)
+            self._append_output(
+                f"\n{'='*80}\n⚡ WORKFLOW PERSONNALISÉ: {agent_names}\n"
+                f"📋 Tâche: {task}\n{'='*80}\n\n"
+            )
 
             # Callbacks pour le streaming
-            def on_step_start(step_idx, agent_type, task):
-                """Appelé au début de chaque étape"""
-                self._append_output(
-                    f"\n--- Étape {step_idx}/{len(workflow)}: {agent_type.upper()} ---\n\n"
+            def on_step_start(step_idx, agent_type, step_task):
+                if self.is_interrupted:
+                    return
+                name = next(
+                    (n for at, n, _ in self.custom_workflow if at == agent_type),
+                    agent_type,
                 )
-                self._append_output(f"📋 Tâche: {task}\n\n")
+                self._append_output(
+                    f"\n--- Étape {step_idx}/{len(workflow)}: {name.upper()} ---\n\n"
+                )
 
             def on_step_complete(step_idx, result):
-                """Appelé à la fin de chaque étape"""
+                if self.is_interrupted:
+                    return
                 if not result.get("success"):
                     self._append_output(f"\n❌ Erreur: {result.get('error')}\n")
                 self._append_output(f"\n\n⏱️ Étape {step_idx} terminée\n\n")
 
             # Exécuter avec streaming
             result = self.orchestrator.execute_multi_agent_task_stream(
-                task_desc,
+                task,
                 workflow,
                 on_step_start=on_step_start,
-                on_token=self._append_output,  # Streaming des tokens
+                on_token=self._on_token_received,
                 on_step_complete=on_step_complete,
+                on_should_stop=lambda: self.is_interrupted,
             )
 
-            # Résumé final
-            summary = result["summary"]
-            self._append_output(f"\n{'='*80}\n📊 RÉSUMÉ\n{'='*80}\n")
-            self._append_output(f"Tâches: {summary['total_tasks']}\n")
-            self._append_output(f"Réussies: {summary['successful']}\n")
-            self._append_output(f"Taux de succès: {summary['success_rate']:.1%}\n")
-            self._append_output(f"Terminé: {result.get('timestamp', 'N/A')}\n\n")
-
-            self._update_status(
-                f"✅ Workflow terminé ({summary['success_rate']:.0%} succès)", "#10b981"
-            )
+            if self.is_interrupted:
+                self._append_output("\n\n⛔ Génération interrompue\n")
+                self._update_status("⛔ Génération interrompue", "#ef4444")
+            else:
+                # Résumé final
+                summary = result["summary"]
+                self._append_output(f"\n{'='*80}\n📊 RÉSUMÉ\n{'='*80}\n")
+                self._append_output(f"Tâches: {summary['total_tasks']}\n")
+                self._append_output(f"Réussies: {summary['successful']}\n")
+                self._append_output(
+                    f"Taux de succès: {summary['success_rate']:.1%}\n\n"
+                )
+                self._update_status(
+                    f"✅ Workflow terminé ({summary['success_rate']:.0%} succès)",
+                    "#10b981",
+                )
             self._update_stats()
+
+            self.execution_history.append(
+                {
+                    "agent": "workflow_custom",
+                    "task": task,
+                    "result": result if not self.is_interrupted else {"success": False, "error": "interrupted"},
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
         except Exception as e:
             self._append_output(f"❌ Erreur workflow: {str(e)}\n\n")
             self._update_status("❌ Erreur workflow", "#ef4444")
         finally:
             self.is_processing = False
+            self.is_interrupted = False
+            self._set_execute_button_normal()
 
-    def _execute_single_debug(self, _task):
-        """Exécute une tâche de debug simple"""
-        self.current_agent = "debug"
-        self.execute_agent_task()
+
 
     # === Méthodes utilitaires ===
 
@@ -847,6 +1013,78 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
         if self.parent.winfo_exists():
             self.parent.after(0, update)
 
+    def _on_token_received(self, token):
+        """Callback pour chaque token reçu pendant le streaming.
+        Retourne False pour interrompre la génération."""
+        if self.is_interrupted:
+            return False
+        self._append_output(token)
+        return True
+
+    def interrupt_agents(self):
+        """Interrompt la génération en cours"""
+        if self.is_processing:
+            self.is_interrupted = True
+            self._update_status("⛔ Interruption en cours...", "#ef4444")
+
+    def _set_execute_button_stop(self):
+        """Transforme le bouton Exécuter en bouton STOP (carré noir sur fond blanc)"""
+        def update():
+            if self.execute_btn and self.execute_btn.winfo_exists():
+                if self.use_ctk:
+                    self.execute_btn.configure(
+                        text="  ■  ",
+                        command=self.interrupt_agents,
+                        state="normal",
+                        fg_color="#ffffff",
+                        hover_color="#f3f3f3",
+                        text_color="#111111",
+                        border_color="#111111",
+                        border_width=2,
+                        font=("Segoe UI", 16, "bold"),
+                    )
+                else:
+                    self.execute_btn.configure(
+                        text="  ■  ",
+                        command=self.interrupt_agents,
+                        bg="#ffffff",
+                        fg="#111111",
+                        activebackground="#f3f3f3",
+                        font=("Segoe UI", 16, "bold"),
+                    )
+        if self.parent.winfo_exists():
+            self.parent.after(0, update)
+
+    def _set_execute_button_normal(self):
+        """Restaure le bouton Exécuter en mode normal (identique à la création)"""
+        def update():
+            if self.execute_btn and self.execute_btn.winfo_exists():
+                if self.use_ctk:
+                    self.execute_btn.configure(
+                        text="▶ Exécuter",
+                        command=self.execute_agent_task,
+                        state="normal",
+                        fg_color=self.colors["accent"],
+                        hover_color="#ff5730",
+                        text_color="#ffffff",
+                        font=("Segoe UI", 13, "bold"),
+                        corner_radius=8,
+                        border_width=0,
+                        border_color=self.colors["accent"],
+                    )
+                else:
+                    self.execute_btn.configure(
+                        text="▶ Exécuter",
+                        command=self.execute_agent_task,
+                        bg=self.colors["accent"],
+                        fg="#ffffff",
+                        font=("Segoe UI", 12, "bold"),
+                        border=0,
+                        relief="flat",
+                    )
+        if self.parent.winfo_exists():
+            self.parent.after(0, update)
+
     def _make_output_readonly(self):
         """Rend la zone de sortie en lecture seule"""
         try:
@@ -891,15 +1129,6 @@ Vous pouvez aussi utiliser les workflows pré-configurés pour des tâches compl
 
         if self.parent.winfo_exists():
             self.parent.after(0, update)
-
-    def _prompt_workflow_task(self, workflow_name, example):
-        """Demande la description de la tâche pour un workflow"""
-
-        return simpledialog.askstring(
-            workflow_name,
-            f"Décrivez le projet pour le workflow:\n\n{example}",
-            parent=self.parent,
-        )
 
     def _darken_color(self, hex_color):
         """Assombrit une couleur hexadécimale"""

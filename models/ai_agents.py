@@ -408,6 +408,97 @@ FORMAT DE RÉPONSE:
             temperature=0.5,
         )
 
+    @staticmethod
+    def create_security_agent(model: str = "llama3.2") -> AIAgent:
+        """Agent spécialisé en sécurité et audit de code"""
+        system_prompt = """Tu es SecurityAgent, un expert en cybersécurité et audit de code.
+
+EXPERTISE: Sécurité applicative, détection de vulnérabilités, audit de code, OWASP, bonnes pratiques
+
+COMPORTEMENT:
+- Analyse le code pour détecter les failles de sécurité
+- Identifie les vulnérabilités (injection SQL, XSS, CSRF, etc.)
+- Propose des corrections sécurisées
+- Vérifie la gestion des données sensibles
+- Applique les recommandations OWASP et CWE
+- Audite les dépendances et configurations
+
+FORMAT DE RÉPONSE:
+- Niveau de risque (Critique/Élevé/Moyen/Faible)
+- Vulnérabilités détectées avec description
+- Code corrigé et sécurisé
+- Recommandations de prévention
+- Checklist de sécurité"""
+
+        return AIAgent(
+            name="SecurityAgent",
+            expertise="Sécurité & Audit",
+            system_prompt=system_prompt,
+            model=model,
+            temperature=0.2,
+        )
+
+    @staticmethod
+    def create_optimizer_agent(model: str = "llama3.2") -> AIAgent:
+        """Agent spécialisé en optimisation et performance"""
+        system_prompt = """Tu es OptimizerAgent, un expert en optimisation et performance logicielle.
+
+EXPERTISE: Optimisation de code, refactoring, performance, profilage, design patterns
+
+COMPORTEMENT:
+- Analyse les performances du code
+- Identifie les goulots d'étranglement
+- Propose des optimisations algorithmiques
+- Refactore le code pour une meilleure maintenabilité
+- Applique les design patterns appropriés
+- Optimise la consommation mémoire et CPU
+
+FORMAT DE RÉPONSE:
+- Analyse de complexité (Big O)
+- Points d'optimisation identifiés
+- Code optimisé avec comparaison avant/après
+- Métriques de performance attendues
+- Suggestions d'architecture"""
+
+        return AIAgent(
+            name="OptimizerAgent",
+            expertise="Optimisation & Performance",
+            system_prompt=system_prompt,
+            model=model,
+            temperature=0.3,
+        )
+
+    @staticmethod
+    def create_datascience_agent(model: str = "llama3.2") -> AIAgent:
+        """Agent spécialisé en data science et machine learning"""
+        system_prompt = """Tu es DataScienceAgent, un expert en data science et machine learning.
+
+EXPERTISE: Data science, machine learning, statistiques, modélisation prédictive, visualisation de données
+
+COMPORTEMENT:
+- Analyse et prépare les données (nettoyage, feature engineering)
+- Sélectionne les modèles ML appropriés
+- Propose des pipelines de traitement de données
+- Évalue les performances des modèles
+- Crée des visualisations pertinentes
+- Interprète les résultats statistiques
+
+FORMAT DE RÉPONSE:
+- Analyse exploratoire des données
+- Choix de modèle justifié
+- Code Python avec pandas, scikit-learn, etc.
+- Métriques d'évaluation
+- Visualisations suggérées
+- Interprétation des résultats"""
+
+        return AIAgent(
+            name="DataScienceAgent",
+            expertise="Data Science & ML",
+            system_prompt=system_prompt,
+            model=model,
+            temperature=0.4,
+        )
+
 
 # Agents pré-configurés disponibles
 AVAILABLE_AGENTS = {
@@ -417,6 +508,9 @@ AVAILABLE_AGENTS = {
     "creative": AgentFactory.create_creative_agent,
     "debug": AgentFactory.create_debug_agent,
     "planner": AgentFactory.create_planner_agent,
+    "security": AgentFactory.create_security_agent,
+    "optimizer": AgentFactory.create_optimizer_agent,
+    "datascience": AgentFactory.create_datascience_agent,
 }
 
 

@@ -3,7 +3,7 @@
 - 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
 - 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
-- 🤖 **Système d'Agents IA Spécialisés** : 6 agents experts pour des tâches complexes
+- 🤖 **Système d'Agents IA Spécialisés** : 9 agents experts pour des tâches complexes
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
 - 🖼️ **Analyse d'images** avec modèles vision Ollama (llava, llama3.2-vision, etc.)
 - 💻 **Analyse** et **génération** de **code** avec contexte massif
@@ -133,6 +133,9 @@ my_ai/
 | ✨ **CreativeAgent** | Rédaction et contenu créatif |
 | 🐛 **DebugAgent** | Détection et correction d'erreurs |
 | 📋 **PlannerAgent** | Planification de projets complexes |
+| 🛡️ **SecurityAgent** | Audit de sécurité & vulnérabilités |
+| ⚡ **OptimizerAgent** | Optimisation & Performance |
+| 🧬 **DataScienceAgent** | Data Science & Machine Learning |
 
 - **Workflows multi-agents** : Collaboration entre agents pour tâches complexes
 - **Interface graphique dédiée** : Onglet "Agents" dans la GUI moderne

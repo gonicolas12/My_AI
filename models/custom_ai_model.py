@@ -108,7 +108,7 @@ class CustomAIModel(
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "6.2.0"
+        self.version = "6.3.0"
 
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -191,7 +191,7 @@ class CustomAIModel(
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre.",
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 6.2.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 6.3.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine.",
             ],
@@ -629,10 +629,10 @@ class CustomAIModel(
             user_lower = user_input.lower().strip()
 
             # ============================================================
-            # �️ PRIORITÉ 0 : IMAGE - Si une image est jointe, utiliser le modèle vision
+            # 🖼️ PRIORITÉ 0 : IMAGE - Si une image est jointe, utiliser le modèle vision
             # ============================================================
             if image_base64 and self.local_llm and self.local_llm.is_ollama_available:
-                print(f"🖼️ [VISION] Image détectée - utilisation du modèle vision")
+                print("🖼️ [VISION] Image détectée - utilisation du modèle vision")
                 system_prompt = (
                     "Tu es un assistant IA qui analyse des images. "
                     "Décris et analyse l'image de manière détaillée en français. "
@@ -661,7 +661,7 @@ class CustomAIModel(
                     return error_msg
 
             # ============================================================
-            # �📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
+            # 📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
             # ============================================================
             # La FAQ doit être consultée AVANT tout autre système, même en streaming
             faq_response = None
