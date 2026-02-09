@@ -5,6 +5,7 @@
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
 - 🤖 **Système d'Agents IA Spécialisés** : 6 agents experts pour des tâches complexes
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
+- 🖼️ **Analyse d'images** avec modèles vision Ollama (llava, llama3.2-vision, etc.)
 - 💻 **Analyse** et **génération** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
@@ -55,6 +56,7 @@ my_ai/
 │   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
 ├── models/                              # Modèles d'IA Ultra avec 1M tokens
 │   ├── mixins/                          # Mixins pour custom_ai_model
+│   ├── weights/                         # Poids de modèles entraînés localement
 │   ├── __init__.py
 │   ├── advanced_code_generator.py       # Générateur de code avancé
 │   ├── ai_agents.py                     # Agents IA spécialisés
@@ -185,12 +187,17 @@ Pour des réponses de qualité LLM, installez Ollama :
 
 ```bash
 # 1. Télécharger depuis https://ollama.com/download
-# 2. Installer le modèle (choisir selon votre RAM)
-ollama pull llama3.2       # Modèle plus léger pour des réponses plus rapides (8 GB RAM)
+# 2. Installer le modèle texte (choisir selon votre RAM)
+ollama pull llama3.2         # Modèle plus léger pour des réponses plus rapides (8 GB RAM)
 # OU
-ollama pull llama3.1:8b    # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM)
+ollama pull llama3.1:8b      # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM)
 
-# 3. Créer le modèle personnalisé
+# 3. [OPTIONNEL] Installer un modèle vision pour l'analyse d'images
+ollama pull llava            # Modèle vision recommandé
+# OU
+ollama pull llama3.2-vision  # Alternative plus récente
+
+# 4. Créer le modèle personnalisé
 .\create_custom_model.bat
 
 # Note : Adaptez la 3ème ligne du 'Modelfile' selon le modèle choisi (llama3.2 ou llama3.1:8b)

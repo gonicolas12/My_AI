@@ -15,9 +15,10 @@ try:
     from tkinterdnd2 import TkinterDnD
 
     DND_AVAILABLE = True
+    TKINTER_DND = TkinterDnD
 except Exception:
     DND_AVAILABLE = False
-    TkinterDnD = None
+    TKINTER_DND = None
 
 # Import des styles (uniquement ce qui est utilisé)
 try:
@@ -52,13 +53,13 @@ class LayoutMixin:
             ctk.set_appearance_mode("dark")
             ctk.set_default_color_theme("blue")
             if DND_AVAILABLE:
-                self.root = TkinterDnD.Tk()
+                self.root = TKINTER_DND.Tk()
             else:
                 self.root = ctk.CTk()
             self.use_ctk = True
         else:
             if DND_AVAILABLE:
-                self.root = TkinterDnD.Tk()
+                self.root = TKINTER_DND.Tk()
             else:
                 self.root = tk.Tk()
             self.use_ctk = False
@@ -458,7 +459,12 @@ class LayoutMixin:
         self.code_btn = self.create_modern_button(
             file_buttons, text="💻 Code", command=self.load_code_file, style="file"
         )
-        self.code_btn.grid(row=0, column=2, padx=(0, 10))
+        self.code_btn.grid(row=0, column=2, padx=(0, 5))
+
+        self.image_btn = self.create_modern_button(
+            file_buttons, text="🖼️ Image", command=self.load_image_file, style="file"
+        )
+        self.image_btn.grid(row=0, column=3, padx=(0, 10))
 
         # Bouton d'envoi principal
         self.send_button = self.create_modern_button(
@@ -472,6 +478,7 @@ class LayoutMixin:
         # Bind des événements
         self.input_text.bind("<Return>", self.on_enter_key)
         self.input_text.bind("<Shift-Return>", self.on_shift_enter)
+        self.input_text.bind("<Control-v>", self._on_paste)
 
         # Placeholder text
         self.set_placeholder()

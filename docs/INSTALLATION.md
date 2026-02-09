@@ -64,6 +64,20 @@ ollama pull llama3.1:8b
 ollama pull llama3.2
 ```
 
+**Étape 2b : Installer un modèle Vision (Optionnel pour l'analyse d'images)**
+```bash
+# Modèle vision recommandé (5 GB)
+ollama pull llava
+
+# OU autres modèles vision disponibles
+ollama pull llama3.2-vision      # Plus récent
+ollama pull llava:13b            # Plus performant mais plus lourd
+ollama pull bakllava             # Alternative
+ollama pull moondream            # Plus léger
+```
+
+> **Note:** Le support d'images nécessite au moins un modèle vision installé. L'IA détectera automatiquement le premier modèle disponible parmi : llava, llama3.2-vision, bakllava, moondream.
+
 **Étape 3 : Créer le modèle personnalisé**
 ```bash
 # Dans le répertoire My_AI

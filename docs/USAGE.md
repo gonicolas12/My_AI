@@ -49,15 +49,18 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - **Chat Area** : Zone de conversation avec scroll
 - **Input Box** : Zone de saisie (supporte multilignes avec Shift+Enter)
 - **Send Button** : Bouton d'envoi (ou Enter)
+- **Image Button (🖼️)** : Charger une image pour analyse
 - **Clear Chat Button** : Réinitialiser conversation
-- **Drag & Drop Zone** : Glisser-déposer fichiers
+- **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/Images)
 
 **Fonctionnalités:**
 - 🎨 **Thème sombre** moderne style Claude
 - 💬 **Bulles messages** utilisateur (droite) et IA (gauche)
 - 🕒 **Timestamps** sur chaque message
 - 🎨 **Syntax highlighting** pour code (via Pygments)
-- 📁 **Drag-and-drop** fichiers PDF/DOCX
+- 📁 **Drag-and-drop** fichiers PDF/DOCX/Images
+- 🖼️ **Analyse d'images** avec modèles vision (llava, llama3.2-vision)
+- 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 
 ### Utilisation Typique GUI
 
@@ -87,6 +90,39 @@ IA: [Résumé basé sur rapport.pdf]
 # Clic button "Clear Chat"
 # Conversation réinitialisée
 ```
+
+### 🖼️ Analyse d'Images
+
+L'IA peut analyser des images avec les modèles vision Ollama:
+
+**Méthodes de chargement:**
+```bash
+# 1. Bouton Image (🖼️)
+# Clic sur bouton → Sélectionner PNG/JPG/JPEG/GIF/BMP
+# Image encodée et prête pour analyse
+
+# 2. Copier-Coller (Ctrl+V)
+# Prendre une capture d'écran (Win+Shift+S)
+# Dans le chat : Ctrl+V
+# Image collée depuis presse-papiers
+
+# 3. Glisser-Déposer
+# Drag une image dans la fenêtre
+# Image chargée automatiquement
+```
+
+**Questions exemple:**
+```
+Vous: [Charge image.png]
+Vous: "Décris cette image en détail"
+IA: "Je vois une capture d'écran montant..."
+
+Vous: "Que vois-tu sur cette image ?"
+Vous: "Explique-moi ce diagramme"
+Vous: "Quel texte est visible ?"
+```
+
+> **Note:** Nécessite un modèle vision installé (`ollama pull llava`). L'image est automatiquement redimensionnée à 1024px max.
 
 ### Commandes Spéciales GUI
 

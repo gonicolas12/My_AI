@@ -606,7 +606,8 @@ class CustomAIModel(
             return error_response
 
     def generate_response_stream(
-        self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None
+        self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None,
+        image_base64: Optional[str] = None
     ) -> str:
         """
         Génère une réponse en STREAMING pour affichage temps réel.
@@ -619,6 +620,7 @@ class CustomAIModel(
             on_token: Callback appelé pour chaque token (signature: on_token(str) -> bool)
                      Retourne False pour interrompre la génération
             context: Contexte optionnel (RAG, documents, etc.)
+            image_base64: Image encodée en base64 pour analyse vision
 
         Returns:
             La réponse complète une fois terminée
@@ -627,7 +629,39 @@ class CustomAIModel(
             user_lower = user_input.lower().strip()
 
             # ============================================================
-            # 📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
+            # �️ PRIORITÉ 0 : IMAGE - Si une image est jointe, utiliser le modèle vision
+            # ============================================================
+            if image_base64 and self.local_llm and self.local_llm.is_ollama_available:
+                print(f"🖼️ [VISION] Image détectée - utilisation du modèle vision")
+                system_prompt = (
+                    "Tu es un assistant IA qui analyse des images. "
+                    "Décris et analyse l'image de manière détaillée en français. "
+                    "Si l'utilisateur pose une question spécifique, réponds-y en te basant sur l'image."
+                )
+                response = self.local_llm.generate_stream_with_image(
+                    user_input, image_base64,
+                    system_prompt=system_prompt,
+                    on_token=on_token
+                )
+                if response:
+                    self.conversation_memory.add_conversation(
+                        user_input, response, "vision_stream", 1.0, {}
+                    )
+                    return response
+                else:
+                    # Erreur vision (pas de modèle vision installé)
+                    error_msg = (
+                        "⚠️ **Aucun modèle vision n'est installé dans Ollama.**\n\n"
+                        "Pour analyser des images, installez un modèle vision :\n"
+                        "```bash\nollama pull llava\n```\n\n"
+                        "Modèles supportés : `llava`, `llama3.2-vision`, `bakllava`, `moondream`"
+                    )
+                    if on_token:
+                        on_token(error_msg)
+                    return error_msg
+
+            # ============================================================
+            # �📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
             # ============================================================
             # La FAQ doit être consultée AVANT tout autre système, même en streaming
             faq_response = None

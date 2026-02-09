@@ -1,11 +1,21 @@
 """File handling mixin for ModernAIGUI."""
 
+import base64
+import io
 import os
 import shutil
+import tempfile
 import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
+
+try:
+    from PIL import Image, ImageGrab
+
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 try:
     import customtkinter as ctk
@@ -53,6 +63,8 @@ class FileHandlingMixin:
             file_type = "DOCX"
         elif ext in [".py", ".js", ".html", ".css", ".json", ".xml", ".md", ".txt"]:
             file_type = "Code"
+        elif ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"]:
+            file_type = "Image"
         else:
             self.show_notification(f"❌ **Format non supporté** : {ext}", "error")
             return
@@ -61,7 +73,10 @@ class FileHandlingMixin:
         self.add_message_bubble(f"📎 **Fichier glissé** : {filename}", is_user=True)
 
         # Traiter le fichier
-        self.process_file(file_path, file_type)
+        if file_type == "Image":
+            self._process_image_file(file_path)
+        else:
+            self.process_file(file_path, file_type)
 
     def show_notification(self, message, type_notif="info", duration=2000):
         """
@@ -317,3 +332,127 @@ Vous pouvez maintenant me poser des questions sur ce document."""
             self.is_thinking = False
             error_msg = f"❌ Erreur lors du traitement de **{filename}** : {str(e)}"
             self.root.after(0, lambda: self.add_ai_response(error_msg))
+
+    # ================================================================
+    # 🖼️ GESTION DES IMAGES
+    # ================================================================
+
+    def load_image_file(self):
+        """Charge un fichier image via le sélecteur de fichiers"""
+        file_path = filedialog.askopenfilename(
+            title="Sélectionner une image",
+            filetypes=[
+                ("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp *.tiff *.tif"),
+                ("PNG", "*.png"),
+                ("JPEG", "*.jpg *.jpeg"),
+                ("GIF", "*.gif"),
+                ("BMP", "*.bmp"),
+                ("WebP", "*.webp"),
+                ("Tous les fichiers", "*.*"),
+            ],
+        )
+        if file_path:
+            self.add_message_bubble(
+                f"🖼️ **Image chargée** : {os.path.basename(file_path)}", is_user=True
+            )
+            self._process_image_file(file_path)
+
+    def _process_image_file(self, file_path):
+        """Traite un fichier image : encode en base64 et prépare pour Ollama"""
+        if not PIL_AVAILABLE:
+            self.root.after(
+                0,
+                lambda: self.add_ai_response(
+                    "❌ La bibliothèque **Pillow** est nécessaire pour le support des images.\n\n"
+                    "Installez-la avec : `pip install Pillow`"
+                ),
+            )
+            return
+
+        try:
+            filename = os.path.basename(file_path)
+            img = Image.open(file_path)
+
+            # Redimensionner si trop grande (max 1024px de côté pour Ollama)
+            max_size = 1024
+            if img.width > max_size or img.height > max_size:
+                img.thumbnail((max_size, max_size), Image.LANCZOS)
+                print(f"🖼️ [IMAGE] Redimensionnée à {img.width}x{img.height}")
+
+            # Encoder en base64
+            buffer = io.BytesIO()
+            img_format = "PNG" if img.mode == "RGBA" else "JPEG"
+            img.save(buffer, format=img_format)
+            img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+            # Stocker l'image en attente
+            self._pending_image_path = file_path
+            self._pending_image_base64 = img_base64
+
+            print(f"🖼️ [IMAGE] {filename} encodée ({len(img_base64)} chars base64, {img.width}x{img.height})")
+
+            # Afficher la prévisualisation et le message de confirmation
+            self.root.after(0, lambda: self._show_image_ready(filename, img))
+
+        except Exception as e:
+            print(f"❌ [IMAGE] Erreur: {e}")
+            self.root.after(
+                0,
+                lambda: self.add_ai_response(
+                    f"❌ Erreur lors du traitement de l'image : {str(e)}"
+                ),
+            )
+
+    def _show_image_ready(self, filename, img):
+        """Affiche un message de confirmation que l'image est prête"""
+        success_msg = (
+            f"✅ **{filename}** chargée avec succès !\n\n"
+            f"📐 Dimensions : {img.width} x {img.height} px\n\n"
+            f"Posez votre question sur cette image (ex: *\"Décris cette image\"*, *\"Que vois-tu ?\"*)."
+        )
+        self.add_ai_response(success_msg)
+
+    def _on_paste(self, _event=None):
+        """Gère le collage depuis le presse-papier (texte ou image)"""
+        if not PIL_AVAILABLE:
+            return  # Laisser le comportement par défaut pour le texte
+
+        try:
+            # Essayer de récupérer une image du presse-papier
+            img = ImageGrab.grabclipboard()
+
+            if img is not None and isinstance(img, Image.Image):
+                # C'est une image ! La traiter
+                print("🖼️ [CLIPBOARD] Image détectée dans le presse-papier")
+
+                # Sauvegarder temporairement
+                temp_dir = tempfile.gettempdir()
+                temp_path = os.path.join(temp_dir, "clipboard_image.png")
+                img.save(temp_path, format="PNG")
+
+                # Ajouter message utilisateur
+                self.add_message_bubble("🖼️ **Image collée** depuis le presse-papier", is_user=True)
+
+                # Traiter l'image
+                self._process_image_file(temp_path)
+
+                # Empêcher le comportement par défaut
+                return "break"
+
+            # Si c'est une liste de fichiers (certains systèmes retournent ça)
+            if isinstance(img, list):
+                for item in img:
+                    if isinstance(item, str) and os.path.isfile(item):
+                        ext = os.path.splitext(item)[1].lower()
+                        if ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
+                            self.add_message_bubble(
+                                f"🖼️ **Image collée** : {os.path.basename(item)}", is_user=True
+                            )
+                            self._process_image_file(item)
+                            return "break"
+
+        except Exception as e:
+            print(f"⚠️ [CLIPBOARD] Pas d'image dans le presse-papier: {e}")
+
+        # Pas d'image → laisser le comportement par défaut (coller du texte)
+        return None

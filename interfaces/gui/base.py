@@ -174,6 +174,11 @@ class BaseGUI:
         self.pdf_btn = None
         self.docx_btn = None
         self.code_btn = None
+        self.image_btn = None
+
+        # Image attachée en attente d'envoi
+        self._pending_image_path = None
+        self._pending_image_base64 = None
 
         # Initialisation des placeholders UI
         self.thinking_frame = None
@@ -262,8 +267,8 @@ class BaseGUI:
                         self._saved_input_content = self.input_text.get("1.0", "end-1c")
                     except (tk.TclError, AttributeError):
                         self._saved_input_content = ""
-            # Boutons PDF, DOCX, Code
-            for btn_name in ["pdf_btn", "docx_btn", "code_btn"]:
+            # Boutons PDF, DOCX, Code, Image
+            for btn_name in ["pdf_btn", "docx_btn", "code_btn", "image_btn"]:
                 if hasattr(self, btn_name):
                     btn = getattr(self, btn_name)
                     try:
@@ -1279,9 +1284,19 @@ class BaseGUI:
                     return True
 
                 # Lancer la génération streaming (bloquant dans ce thread)
-                response = self.custom_ai.generate_response_stream(
-                    user_text, on_token=on_token_received
-                )
+                # Vérifier si une image est en attente
+                image_b64 = getattr(self, "_pending_image_base64", None)
+                if image_b64:
+                    response = self.custom_ai.generate_response_stream(
+                        user_text, on_token=on_token_received, image_base64=image_b64
+                    )
+                    # Consommer l'image après utilisation
+                    self._pending_image_base64 = None
+                    self._pending_image_path = None
+                else:
+                    response = self.custom_ai.generate_response_stream(
+                        user_text, on_token=on_token_received
+                    )
 
                 # Marquer le streaming comme terminé
                 self._streaming_complete = True
