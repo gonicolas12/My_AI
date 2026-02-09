@@ -443,32 +443,25 @@ class CustomAIModel(
             # 🦙 OLLAMA PAR DÉFAUT - Pour tout le reste
             # ============================================================
             if self.local_llm and self.local_llm.is_ollama_available:
-                # Le formatage Markdown est déjà défini dans le Modelfile
-                # Ici on ajoute uniquement le contexte documentaire si nécessaire
-                system_prompt = (
-                    None  # Utiliser le system prompt du Modelfile par défaut
-                )
+                system_prompt = None  # Utiliser le system prompt du Modelfile par défaut
 
-                # Injection du contexte documentaire SEULEMENT si la question concerne les documents
-                # Ne pas injecter pour les calculs, salutations, questions générales, etc.
-                if self._has_documents_in_memory() and not self._is_general_question(
-                    user_input
+                # 📄 5. QUESTIONS SUR DOCUMENTS - Injecter le contenu dans Ollama
+                if self._has_documents_in_memory() and (
+                    self._is_document_processing_request(user_input) or
+                    self._is_document_question(user_input)
                 ):
-                    if self._is_document_question(user_input):
-                        doc_content = self.conversation_memory.get_document_content()
-                        if doc_content:
-                            # Limiter la taille du contexte pour éviter les timeouts
-                            doc_summary = (
-                                doc_content[:4000]
-                                if len(doc_content) > 4000
-                                else doc_content
-                            )
-                            system_prompt = f"CONTEXTE DOCUMENTAIRE:\n{doc_summary}\n\nUtilise ce contexte si pertinent pour répondre."
-                            print("📄 [OLLAMA] Contexte documentaire injecté")
-                    else:
-                        print(
-                            "💬 [OLLAMA] Question générale - pas de contexte documentaire injecté"
+                    print("📊 [DOC-QUESTION] Question sur document détectée - envoi à Ollama")
+                    doc_content = self._get_full_document_content()
+                    if doc_content:
+                        # Utiliser le contenu complet sans limitation
+                        system_prompt = (
+                            f"Tu es un assistant qui analyse des documents. "
+                            f"Voici le contenu du document que l'utilisateur a chargé :\n\n"
+                            f"{doc_content}\n\n"
+                            f"Réponds à la question de l'utilisateur en te basant UNIQUEMENT sur ce document. "
+                            f"Si l'utilisateur demande un résumé, fais un résumé structuré et détaillé du document."
                         )
+                        print(f"📄 [DOC-QUESTION] Contexte document injecté: {len(doc_content)} chars")
 
                 # Injection du contexte RAG externe si fourni
                 if context and isinstance(context, dict):
@@ -533,30 +526,6 @@ class CustomAIModel(
                         )
                         print("✅ [RAG→CLASSIC] Contexte ajouté à la mémoire classique")
                         _rag_context_used = True
-
-            # Vérification spéciale pour résumés simples
-            if (
-                user_lower in ["résume", "resume", "résumé"]
-                and self._has_documents_in_memory()
-            ):
-                # Forcer l'intention document_question
-                response = self._answer_document_question(
-                    user_input, self.conversation_memory.get_document_content()
-                )
-                # Synchroniser avec l'historique Ollama
-                self._add_to_conversation_history(
-                    user_input, response, "document_summary", 1.0, {}
-                )
-                return response
-
-            # Traitement spécialisé pour les résumés de documents
-            if self._is_document_processing_request(user_input):
-                response = self._handle_document_processing(user_input)
-                # Synchroniser avec l'historique Ollama
-                self._add_to_conversation_history(
-                    user_input, response, "document_processing", 1.0, {}
-                )
-                return response
 
             # Mise à jour du contexte de session
             self._update_session_context()
@@ -744,22 +713,25 @@ class CustomAIModel(
             # ============================================================
 
             if self.local_llm and self.local_llm.is_ollama_available:
-                # Préparer le contexte documentaire si nécessaire
                 system_prompt = None
 
-                if self._has_documents_in_memory() and not self._is_general_question(
-                    user_input
+                # 5️⃣ QUESTIONS SUR DOCUMENTS - Injecter le contenu du document dans Ollama
+                if self._has_documents_in_memory() and (
+                    self._is_document_processing_request(user_input) or
+                    self._is_document_question(user_input)
                 ):
-                    if self._is_document_question(user_input):
-                        doc_content = self.conversation_memory.get_document_content()
-                        if doc_content:
-                            doc_summary = (
-                                doc_content[:4000]
-                                if len(doc_content) > 4000
-                                else doc_content
-                            )
-                            system_prompt = f"CONTEXTE DOCUMENTAIRE:\n{doc_summary}\n\nUtilise ce contexte si pertinent."
-                            print("📄 [STREAM] Contexte documentaire injecté")
+                    print("📊 [STREAM-DOC] Question sur document détectée - envoi à Ollama")
+                    doc_content = self._get_full_document_content()
+                    if doc_content:
+                        # Utiliser le contenu complet sans limitation
+                        system_prompt = (
+                            f"Tu es un assistant qui analyse des documents. "
+                            f"Voici le contenu du document que l'utilisateur a chargé :\n\n"
+                            f"{doc_content}\n\n"
+                            f"Réponds à la question de l'utilisateur en te basant UNIQUEMENT sur ce document. "
+                            f"Si l'utilisateur demande un résumé, fais un résumé structuré et détaillé du document."
+                        )
+                        print(f"📄 [STREAM-DOC] Contexte document injecté: {len(doc_content)} chars")
 
                 # Injection RAG si fourni
                 if context and isinstance(context, dict):
@@ -807,9 +779,46 @@ class CustomAIModel(
 
     def _is_document_processing_request(self, user_input: str) -> bool:
         """Détecte si c'est une demande de traitement de document système"""
-        return user_input.lower().startswith(
-            "please summarize this pdf content"
-        ) or user_input.lower().startswith("please analyze this document content")
+        user_lower = user_input.lower()
+
+        # Détection des demandes de résumé en français et anglais
+        summary_keywords = [
+            "résume", "resume", "résumé", "summarize", "summary",
+            "explique", "explain", "analyse", "analyze",
+            "décris", "describe"
+        ]
+
+        document_keywords = [
+            "pdf", "document", "doc", "docx", "fichier", "file", "python", "code", "script"
+        ]
+
+        # Vérifier si la demande contient un mot-clé de résumé ET un mot-clé de document
+        has_summary_keyword = any(kw in user_lower for kw in summary_keywords)
+        has_document_keyword = any(kw in user_lower for kw in document_keywords)
+
+        return (has_summary_keyword and has_document_keyword) or \
+               user_lower.startswith("please summarize this pdf content") or \
+               user_lower.startswith("please analyze this document content")
+
+    def _get_full_document_content(self) -> str:
+        """Récupère le contenu complet de tous les documents stockés en mémoire"""
+        stored_docs = self.conversation_memory.get_document_content()
+        if not stored_docs:
+            return ""
+
+        all_content = ""
+        for doc_name, doc_data in stored_docs.items():
+            if isinstance(doc_data, dict):
+                content = doc_data.get("content", "") or doc_data.get("text", "") or doc_data.get("data", "")
+            elif isinstance(doc_data, str):
+                content = doc_data
+            else:
+                content = str(doc_data) if doc_data else ""
+
+            if content:
+                all_content += f"\n\n--- {doc_name} ---\n{content}"
+
+        return all_content.strip()
 
     def _handle_document_processing(self, user_input: str) -> str:
         """Traite les demandes de résumé de documents avec système Ultra ou mémoire classique"""

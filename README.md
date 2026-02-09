@@ -54,6 +54,7 @@ my_ai/
 │   ├── __init__.py
 │   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
 ├── models/                              # Modèles d'IA Ultra avec 1M tokens
+│   ├── mixins/                          # Mixins pour custom_ai_model
 │   ├── __init__.py
 │   ├── advanced_code_generator.py       # Générateur de code avancé
 │   ├── ai_agents.py                     # Agents IA spécialisés

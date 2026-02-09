@@ -3065,12 +3065,37 @@ class DocumentAnalysisMixin:
             ):
                 return "Le système peut traiter **1 000 000 tokens** (1M)."
 
-        # Réponse générique avec le meilleur passage
-        # Nettoyer le passage
+        # Réponse générique : utiliser le LLM pour générer un vrai résumé
+        print("🤖 [LLM] Génération d'un résumé intelligent avec le LLM...")
+
+        # Combiner tous les passages pour le contexte
+        combined_content = "\n\n".join([p["passage"] for p in passages[:3]])
+
+        # Créer un prompt pour le LLM
+        summary_prompt = f"""Voici des extraits pertinents d'un document :
+
+{combined_content[:2000]}
+
+Question de l'utilisateur : {question}
+
+Génère une réponse claire et synthétique en français qui répond à la question en te basant sur ces extraits."""
+
+        try:
+            # Utiliser le LLM pour générer un vrai résumé
+            if hasattr(self, 'local_llm') and self.local_llm:
+                llm_response = self.local_llm.generate(
+                    summary_prompt,
+                    system_prompt="Tu es un assistant qui répond de manière concise et précise aux questions sur des documents."
+                )
+                if llm_response and len(llm_response.strip()) > 20:
+                    return llm_response
+        except Exception as e:
+            print(f"⚠️ [LLM] Erreur lors de la génération: {e}")
+
+        # Fallback : retourner les passages seulement si le LLM échoue
         clean_passage = best_passage[:500].strip()
         if len(best_passage) > 500:
             clean_passage += "..."
-
         return f"D'après le document:\n\n{clean_passage}"
 
     def _explain_specific_code_file(

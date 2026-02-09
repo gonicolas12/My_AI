@@ -43,9 +43,12 @@ REM Suppression du fichier web_search_cache.db
 echo [8/9] Suppression de web_search_cache.db...
 if exist "context_storage\web_search_cache.db" del /q "context_storage\web_search_cache.db"
 
-REM Suppression du fichier chroma.sqlite3
-echo [9/9] Suppression de chroma.sqlite3...
-if exist "memory\vector_store\chroma_db\chroma.sqlite3" del /q "memory\vector_store\chroma_db\chroma.sqlite3" 
+REM Suppression complète du contenu de chroma_db (fichiers et dossiers)
+echo [9/9] Suppression complete du contenu de chroma_db...
+if exist "memory\vector_store\chroma_db\" (
+    for /d %%i in ("memory\vector_store\chroma_db\*") do rd /s /q "%%i"
+    del /q "memory\vector_store\chroma_db\*" 2>nul
+)
 
 echo.
 echo ========================================

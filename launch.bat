@@ -59,7 +59,7 @@ if "%choice%"=="4" goto test_imports
 REM Gestion des choix invalides
 echo.
 echo [ERROR] Choix invalide : "%choice%"
-echo Veuillez choisir un numero entre 1 et 3.
+echo Veuillez choisir un numero entre 1 et 4.
 echo.
 goto menu
 
