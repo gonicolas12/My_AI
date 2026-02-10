@@ -1477,19 +1477,11 @@ class BaseGUI:
 
     def show_welcome_message(self):
         """Affiche le message de bienvenue initial"""
-        # Détection des capacités CustomAI
-        ultra_status = ""
-        if hasattr(self, "custom_ai") and self.custom_ai:
-            if self.custom_ai.ultra_mode:
-                ultra_status = """ (Mode **Ultra**)"""
-            else:
-                ultra_status = """ (Mode **Classique**)"""
-
-        welcome_text = f"""Bonjour ! Je suis votre **Assistant IA Local** 🤖{ultra_status}
+        welcome_text = """Bonjour ! Je suis votre **Assistant IA Local** 🤖
 
     Je peux vous aider avec :
     • **Conversations naturelles** : Discutez avec moi, posez-moi toutes vos questions et obtenez des réponses claires.
-    • **Analyse de documents PDF et DOCX** : Importez-les, et je pourrai les résumer ou répondre à vos questions sur leur contenu.
+    • **Analyse de documents** : Importez-les, et je pourrai les résumer ou répondre à vos questions sur leur contenu.
     • **Génération et analyse de code** : Demandez-moi de générer, corriger ou expliquer du code.
     • **Recherche internet avec résumés intelligents** : Je peux effectuer des recherches sur internet pour vous !
 
@@ -1505,7 +1497,7 @@ class BaseGUI:
 **📝 Comment utiliser :**
 • Tapez votre message et appuyez sur Entrée
 • Utilisez Shift+Entrée pour un saut de ligne
-• Utilisez les boutons PDF/DOCX/Code
+• Utilisez les boutons pour des actions rapides
 
 **💬 Exemples de messages :**
 • "Bonjour" - Salutation
