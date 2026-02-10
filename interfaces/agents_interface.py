@@ -297,7 +297,7 @@ class AgentsInterface:
         # Rendre tous les widgets de la carte draggables
         all_widgets = [card_frame, content_frame, header_frame,
                        icon_label, name_label, desc_label]
-        
+
         for widget in all_widgets:
             self._make_draggable(widget, agent_type, name, color)
 
@@ -507,7 +507,7 @@ class AgentsInterface:
         )
         pipeline_container.pack(pady=10, padx=10)
 
-        for idx, (agent_type, name, color) in enumerate(self.custom_workflow):
+        for idx, (_agent_type, name, color) in enumerate(self.custom_workflow):
             if idx > 0:
                 # Flèche entre agents
                 arrow = self.create_label(
@@ -870,7 +870,7 @@ Les résultats apparaîtront ici en temps réel.
         try:
             # Construire le workflow
             workflow = []
-            for idx, (agent_type, name, color) in enumerate(self.custom_workflow):
+            for idx, (agent_type, _name, _color) in enumerate(self.custom_workflow):
                 workflow.append(
                     {
                         "agent": agent_type,
@@ -884,7 +884,7 @@ Les résultats apparaîtront ici en temps réel.
                 )
 
             # Callbacks pour le streaming
-            def on_step_start(step_idx, agent_type, step_task):
+            def on_step_start(step_idx, agent_type, _step_task):
                 if self.is_interrupted:
                     return
                 name = next(
