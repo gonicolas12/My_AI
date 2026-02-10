@@ -447,12 +447,12 @@ class LayoutMixin:
         file_buttons.grid(row=0, column=0, sticky="w")
 
         self.pdf_btn = self.create_modern_button(
-            file_buttons, text="📄 PDF", command=self.load_pdf_file, style="file"
+            file_buttons, text="📄 Pdf", command=self.load_pdf_file, style="file"
         )
         self.pdf_btn.grid(row=0, column=0, padx=(0, 5))
 
         self.docx_btn = self.create_modern_button(
-            file_buttons, text="📝 DOCX", command=self.load_docx_file, style="file"
+            file_buttons, text="📝 Docx", command=self.load_docx_file, style="file"
         )
         self.docx_btn.grid(row=0, column=1, padx=(0, 5))
 
@@ -462,7 +462,7 @@ class LayoutMixin:
         self.code_btn.grid(row=0, column=2, padx=(0, 5))
 
         self.image_btn = self.create_modern_button(
-            file_buttons, text="🖼️ Image", command=self.load_image_file, style="file"
+            file_buttons, text="🖼 Image", command=self.load_image_file, style="file"
         )
         self.image_btn.grid(row=0, column=3, padx=(0, 10))
 

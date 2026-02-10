@@ -198,7 +198,7 @@ class AgentsInterface:
                 "color": "#06b6d4",
             },
             "security": {
-                "icon": "🛡️",
+                "icon": "🛡",
                 "name": "SecurityAgent",
                 "desc": "Audit de sécurité & vulnérabilités",
                 "color": "#ec4899",
@@ -295,11 +295,13 @@ class AgentsInterface:
         desc_label.pack(fill="x", pady=(15, 5))
 
         # Rendre tous les widgets de la carte draggables
-        for widget in [card_frame, content_frame, header_frame,
-                       icon_label, name_label, desc_label]:
+        all_widgets = [card_frame, content_frame, header_frame,
+                       icon_label, name_label, desc_label]
+        
+        for widget in all_widgets:
             self._make_draggable(widget, agent_type, name, color)
 
-        # Hover effect
+        # Hover effect sur tous les widgets
         def on_enter(_e):
             if self.use_ctk:
                 card_frame.configure(border_color=color, border_width=2)
@@ -310,8 +312,9 @@ class AgentsInterface:
                     border_color=self.colors["border"], border_width=2
                 )
 
-        card_frame.bind("<Enter>", on_enter)
-        card_frame.bind("<Leave>", on_leave)
+        for widget in all_widgets:
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
 
         # Stocker la référence
         self.agent_buttons[agent_type] = (card_frame, None, color)
@@ -658,16 +661,6 @@ class AgentsInterface:
         # Placeholder initial dans le pipeline
         self.update_pipeline_display()
 
-        # Label de statut
-        self.status_label = self.create_label(
-            section_frame,
-            text="Glissez-déposez des agents pour créer votre workflow",
-            font=("Segoe UI", 10),
-            text_color=self.colors["text_secondary"],
-            fg_color=self.colors["bg_primary"],
-        )
-        self.status_label.pack(anchor="w", pady=(10, 0))
-
     def create_output_area(self, parent):
         """Crée la zone de sortie des résultats"""
         section_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
@@ -710,17 +703,13 @@ class AgentsInterface:
         self.output_text.pack(fill="both", expand=True)
 
         # Message initial
-        welcome_msg = """🤖 Zone de Résultats des Agents IA
-
-Bienvenue dans le système d'agents spécialisés !
+        welcome_msg = """Bienvenue dans le système d'agents spécialisés !
 
 1️ Sélectionnez un ou plusieurs agents
 2️ Décrivez votre tâche
 3️ Cliquez sur "Exécuter"
 
 Les résultats apparaîtront ici en temps réel.
-
-💡 Astuce: Glissez-déposez plusieurs agents pour créer votre propre workflow !
 """
         self.output_text.insert("1.0", welcome_msg)
         self._make_output_readonly()
@@ -833,7 +822,7 @@ Les résultats apparaîtront ici en temps réel.
         try:
             # Afficher la tâche
             self._append_output(
-                f"\n{'='*80}\n🤖 Agent: {agent_type.upper()}\n📋 Tâche: {task}\n{'='*80}\n\n"
+                f"\n{'='*80}\n\n"
             )
 
             # Exécuter avec streaming (on_token retourne False si interrompu)
@@ -893,12 +882,6 @@ Les résultats apparaîtront ici en temps réel.
                         "pass_result": idx > 0,
                     }
                 )
-
-            agent_names = " → ".join(n for _, n, _ in self.custom_workflow)
-            self._append_output(
-                f"\n{'='*80}\n⚡ WORKFLOW PERSONNALISÉ: {agent_names}\n"
-                f"📋 Tâche: {task}\n{'='*80}\n\n"
-            )
 
             # Callbacks pour le streaming
             def on_step_start(step_idx, agent_type, step_task):
@@ -963,8 +946,6 @@ Les résultats apparaîtront ici en temps réel.
             self.is_processing = False
             self.is_interrupted = False
             self._set_execute_button_normal()
-
-
 
     # === Méthodes utilitaires ===
 
