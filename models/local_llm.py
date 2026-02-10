@@ -106,8 +106,8 @@ class LocalLLM:
             "stream": False,
             "options": {
                 "temperature": 0.7,
-                "num_ctx": 8192,  # Contexte plus grand pour l'historique
-                "num_predict": 1024,  # Réponses plus complètes
+                "num_ctx": 8192,
+                "num_predict": 1024,
             },
         }
 
@@ -135,7 +135,7 @@ class LocalLLM:
                 f"⚠️ [LocalLLM] Timeout après {self.timeout}s - Le modèle est trop lent."
             )
             print(
-                "   💡 Conseil: Essayez un modèle plus léger (llama3.2) ou augmentez le timeout."
+                "   💡 Conseil: Essayez un modèle plus léger ou augmentez le timeout."
             )
             return None
         except Exception as e:
@@ -394,7 +394,7 @@ class LocalLLM:
         data = {
             "model": self.model,
             "messages": messages,
-            "stream": True,  # ⚡ STREAMING ACTIVÉ
+            "stream": True,
             "options": {
                 "temperature": 0.7,
                 "num_ctx": 8192,
