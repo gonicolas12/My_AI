@@ -120,7 +120,6 @@ my_ai/
 - **Gestion d'erreurs** : Messages clairs et récupération gracieuse
 
 ![Interface Chat](docs/images/chatScreen.png)
-*Interface de conversation avec l'IA - Design moderne style Claude*
 
 ## 🚀 Fonctionnalités Principales
 
@@ -142,7 +141,6 @@ my_ai/
 - **CLI enrichi** : Commandes `agent` et `workflow` disponibles
 
 ![Interface Agents](docs/images/agentsScreen.png)
-*Interface des Agents IA Spécialisés - Sélection et workflows multi-agents*
 
 ### 🦙 Intégration Ollama (LLM Local)
 - **LLM 100% local** : Réponses générées par llama3.2 directement sur votre machine
