@@ -394,6 +394,24 @@ class AgentsInterface:
                 except Exception:
                     pass
 
+        # Highlight zone de texte de la tâche avec la couleur orange
+        if self._is_over_task_entry(event.x_root, event.y_root):
+            if self.task_entry and self.use_ctk:
+                try:
+                    self.task_entry.configure(
+                        border_color=self.colors["accent"], border_width=3
+                    )
+                except Exception:
+                    pass
+        else:
+            if self.task_entry and self.use_ctk:
+                try:
+                    self.task_entry.configure(
+                        border_color=self.colors["border"], border_width=2
+                    )
+                except Exception:
+                    pass
+
     def _on_drag_end(self, event):
         """Fin du drag - vérifie si on est sur la zone de drop"""
         agent_data = self._drag_data.get("agent")
@@ -407,6 +425,15 @@ class AgentsInterface:
         if self.drop_zone_frame and self.use_ctk:
             try:
                 self.drop_zone_frame.configure(
+                    border_color=self.colors["border"], border_width=2
+                )
+            except Exception:
+                pass
+
+        # Reset la border de la zone de texte de la tâche
+        if self.task_entry and self.use_ctk:
+            try:
+                self.task_entry.configure(
                     border_color=self.colors["border"], border_width=2
                 )
             except Exception:
@@ -453,6 +480,22 @@ class AgentsInterface:
             except Exception:
                 pass
 
+        return False
+
+    def _is_over_task_entry(self, x_root, y_root):
+        """Vérifie si les coordonnées sont sur la zone de texte de la tâche"""
+        if self.task_entry and self.task_entry.winfo_exists():
+            try:
+                te_x = self.task_entry.winfo_rootx()
+                te_y = self.task_entry.winfo_rooty()
+                te_w = self.task_entry.winfo_width()
+                te_h = self.task_entry.winfo_height()
+                if (te_x <= x_root <= te_x + te_w) and (
+                    te_y <= y_root <= te_y + te_h
+                ):
+                    return True
+            except Exception:
+                pass
         return False
 
     # === Workflow Management ===

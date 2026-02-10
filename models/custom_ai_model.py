@@ -605,6 +605,33 @@ class CustomAIModel(
             )
             return error_response
 
+    @staticmethod
+    def _question_concerns_image(user_input: str) -> bool:
+        """
+        Détecte si la question de l'utilisateur concerne une image.
+        
+        Args:
+            user_input: La question de l'utilisateur
+            
+        Returns:
+            True si la question concerne l'image, False sinon
+        """
+        user_lower = user_input.lower().strip()
+
+        # Mots-clés qui indiquent que la question concerne l'image
+        image_keywords = [
+            'image', 'photo', 'capture', 'écran', 'screenshot', 'screen',
+            'picture', 'pic', 'img', 'illustration', 'figure',
+            'que vois-tu', 'que voit', 'ce que tu vois', 'sur cette image',
+            'sur la photo', 'dans l\'image', 'dans la photo',
+            'décris', 'analyse l\'image', 'explique l\'image', 'montre',
+            'cette image', 'cette photo', 'cette capture',
+            'l\'image', 'la photo', 'la capture', 'sur l\'image',
+            'qu\'y a-t-il', 'que représente'
+        ]
+
+        return any(keyword in user_lower for keyword in image_keywords)
+
     def generate_response_stream(
         self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None,
         image_base64: Optional[str] = None
@@ -629,9 +656,9 @@ class CustomAIModel(
             user_lower = user_input.lower().strip()
 
             # ============================================================
-            # 🖼️ PRIORITÉ 0 : IMAGE - Si une image est jointe, utiliser le modèle vision
+            # 🖼️ PRIORITÉ 0 : IMAGE - Si une image est jointe ET la question concerne l'image
             # ============================================================
-            if image_base64 and self.local_llm and self.local_llm.is_ollama_available:
+            if image_base64 and self.local_llm and self.local_llm.is_ollama_available and self._question_concerns_image(user_input):
                 print("🖼️ [VISION] Image détectée - utilisation du modèle vision")
                 system_prompt = (
                     "Tu es un assistant IA qui analyse des images. "

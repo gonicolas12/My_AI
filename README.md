@@ -150,16 +150,10 @@ my_ai/
 - **Installation optionnelle** : L'application fonctionne avec ou sans Ollama
 
 ### 📚 FAQ Thématique Prioritaire
-- **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data/` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
+- **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data\enrichissement\` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
 - **Chargement automatique** : Toutes les questions/réponses sont fusionnées et accessibles instantanément
 - **Matching prioritaire** : La FAQ répond avant tout autre modèle
 - **Personnalisation** : Ajoutez, modifiez ou supprimez des fichiers à la volée
-
-### 🧠 IA Locale Avancée
-- **Reconnaissance d'intentions** : Différencie automatiquement salutations, questions techniques, demandes sur documents
-- **Mémoire contextuelle** : Se souvient des documents traités et du code analysé
-- **Réponses adaptatives** : Format et contenu adaptés au type de question
-- **Apprentissage local** : Amélioration continue sans données externes
 
 ### 🌐 Recherche Internet Intelligente
 - **Recherche web** : Accès aux informations en temps réel via DuckDuckGo

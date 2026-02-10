@@ -41,9 +41,53 @@ class FileHandlingMixin:
         if DND_AVAILABLE:
             self.root.drop_target_register(DND_FILES)
             self.root.dnd_bind("<<Drop>>", self.on_file_drop)
+            self.root.dnd_bind("<<DropEnter>>", self._on_drag_enter_chat)
+            self.root.dnd_bind("<<DropLeave>>", self._on_drag_leave_chat)
+
+    def _on_drag_enter_chat(self, _event):
+        """Quand un fichier entre dans la fenêtre : bordure orange sur la zone de texte"""
+        # Ne highlight que si l'onglet Chat est actif
+        if not hasattr(self, 'input_text') or self.input_text is None:
+            return
+        try:
+            if self.use_ctk:
+                self.input_text.configure(
+                    border_color=self.colors.get("accent", "#ff6b47"),
+                    border_width=3,
+                )
+            else:
+                self.input_text.configure(
+                    highlightbackground=self.colors.get("accent", "#ff6b47"),
+                    highlightcolor=self.colors.get("accent", "#ff6b47"),
+                    highlightthickness=3,
+                )
+        except Exception:
+            pass
+
+    def _on_drag_leave_chat(self, _event):
+        """Quand un fichier quitte la fenêtre : réinitialiser la bordure"""
+        if not hasattr(self, 'input_text') or self.input_text is None:
+            return
+        try:
+            if self.use_ctk:
+                self.input_text.configure(
+                    border_color=self.colors.get("border", "#404040"),
+                    border_width=1,
+                )
+            else:
+                self.input_text.configure(
+                    highlightbackground=self.colors.get("border", "#404040"),
+                    highlightcolor=self.colors.get("border", "#404040"),
+                    highlightthickness=1,
+                )
+        except Exception:
+            pass
 
     def on_file_drop(self, event):
         """Gère le drop de fichiers"""
+        # Réinitialiser la bordure orange après le drop
+        self._on_drag_leave_chat(event)
+
         files = self.root.tk.splitlist(event.data)
         for file_path in files:
             if os.path.isfile(file_path):
@@ -68,9 +112,6 @@ class FileHandlingMixin:
         else:
             self.show_notification(f"❌ **Format non supporté** : {ext}", "error")
             return
-
-        # Ajouter message utilisateur
-        self.add_message_bubble(f"📎 **Fichier glissé** : {filename}", is_user=True)
 
         # Traiter le fichier
         if file_type == "Image":
@@ -431,7 +472,7 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                 img.save(temp_path, format="PNG")
 
                 # Ajouter message utilisateur
-                self.add_message_bubble("🖼️ **Image collée** depuis le presse-papier", is_user=True)
+                self.add_message_bubble("🖼 **Image collée** depuis le presse-papier", is_user=True)
 
                 # Traiter l'image
                 self._process_image_file(temp_path)
@@ -446,7 +487,7 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                         ext = os.path.splitext(item)[1].lower()
                         if ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
                             self.add_message_bubble(
-                                f"🖼️ **Image collée** : {os.path.basename(item)}", is_user=True
+                                f"🖼 **Image collée** : {os.path.basename(item)}", is_user=True
                             )
                             self._process_image_file(item)
                             return "break"
