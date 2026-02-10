@@ -150,7 +150,7 @@ my_ai/
 - **Installation optionnelle** : L'application fonctionne avec ou sans Ollama
 
 ### 📚 FAQ Thématique Prioritaire
-- **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data\enrichissement\` (ex : `enrichissement_culture.jsonl`, `enrichissement_informatique.jsonl`, etc.)
+- **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data\enrichissement\`
 - **Chargement automatique** : Toutes les questions/réponses sont fusionnées et accessibles instantanément
 - **Matching prioritaire** : La FAQ répond avant tout autre modèle
 - **Personnalisation** : Ajoutez, modifiez ou supprimez des fichiers à la volée
@@ -182,7 +182,7 @@ Pour des réponses de qualité LLM, installez Ollama :
 
 ```bash
 # 1. Télécharger depuis https://ollama.com/download
-# 2. Installer le modèle texte (choisir selon votre RAM)
+# 2. Installer le modèle texte
 ollama pull llama3.2         # Modèle plus léger pour des réponses plus rapides (8 GB RAM)
 # OU
 ollama pull llama3.1:8b      # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM)
@@ -212,30 +212,6 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 .\clean_project.bat
 ```
 Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpliqués**, des **erreurs** ou des **comportements inattendus**, lancez ce **script** pour supprimer les **fichiers temporaires** générés par l'application (logs, caches, historiques, etc.). Cela permet de repartir sur une base **propre** avant de relancer l'**IA**.
-
-### Premiers Pas
-1. **Saluer l'IA** : "Salut", "Bonjour", "slt" - L'IA reconnaîtra votre salutation
-2. **Poser une question technique** : "Comment créer une liste en Python ?"
-3. **Analyser un document** : Importez un fichier PDF/DOCX, puis "résume ce document"
-4. **Vider le chat** : Utilisez le bouton "Clear Chat" pour recommencer
-
-### Exemples d'Usage
-```
-🤖 Vous : slt
-🤖 IA : Salut ! Comment puis-je t'aider aujourd'hui ?
-
-🤖 Vous : Comment déboguer du code Python ?
-🤖 IA : [Réponse technique détaillée sur le débogage Python]
-
-🤖 Vous : résume le pdf
-🤖 IA : [Résumé du document PDF précédemment chargé]
-
-🤖 Vous : cherche sur internet les actualités Python
-🤖 IA : [Recherche et résumé des dernières actualités Python]
-
-🤖 Vous : trouve-moi des informations sur l'IA en 2025
-🤖 IA : [Recherche et synthèse d'informations récentes sur l'IA]
-```
 
 ## 🔑 Utilisation de la clé API GitHub
 
