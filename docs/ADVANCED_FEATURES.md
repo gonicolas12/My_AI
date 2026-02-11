@@ -4,9 +4,9 @@ Ce guide explique comment utiliser les 3 nouvelles fonctionnalités majeures :
 
 ## 📚 Table des Matières
 
-1. [RLHF Manager](#rlhf-manager)
-2. [Training Manager](#training-manager)
-3. [Compression Monitor](#compression-monitor)
+1. [RLHF Manager](#-rlhf-manager)
+2. [Training Manager](#-training-manager)
+3. [Compression Monitor](#-compression-monitor)
 
 ---
 

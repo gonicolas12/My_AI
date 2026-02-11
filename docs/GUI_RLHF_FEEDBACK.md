@@ -2,7 +2,7 @@
 
 ## Présentation
 
-L'interface GUI moderne intègre maintenant des **boutons de feedback** style Claude sous chaque réponse de l'IA.
+L'interface GUI moderne intègre maintenant des **boutons de feedback** sous chaque réponse de l'IA.
 
 ## Utilisation
 
