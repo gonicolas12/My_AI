@@ -158,6 +158,168 @@ orchestrator.ask_agent("optimizer", "Optimise cette fonction pour de meilleures 
 orchestrator.ask_agent("datascience", "Crée un modèle de classification pour ce dataset")
 ```
 
+## 🎨 Création d'Agents Personnalisés
+
+### Vue d'Ensemble
+
+Vous pouvez créer vos **propres agents spécialisés** directement depuis l'interface graphique ! Le système utilise **Ollama (llama3.2)** pour générer automatiquement un system prompt optimisé selon votre description.
+
+### Comment Créer un Agent
+
+1. **Cliquez sur le bouton "➕ Créer Agent"** (bleu, entre Exécuter et Clear Selection)
+2. **Remplissez le formulaire** :
+   - **Nom** : Nom court de votre agent (ex: "TranslatorAgent")
+   - **Rôle/Description** : Description détaillée de l'expertise et des capacités (ex: "Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques")
+3. **Cliquez sur "Créer"** : L'IA génère automatiquement :
+   - Un **system prompt optimisé** pour guider le comportement de l'agent
+   - Une **température idéale** (0.2-0.8) selon le type de tâche
+   - Une **description courte** (3-4 mots) pour l'affichage sur la carte
+4. **Votre agent apparaît** dans la grille après les 9 agents par défaut
+
+### Génération Automatique par IA
+
+Lorsque vous créez un agent, **Ollama analyse votre description** et génère :
+
+- **System Prompt** : Instructions détaillées qui définissent le comportement de l'agent
+- **Température** : Valeur entre 0.2 (très précis) et 0.8 (très créatif) selon la nature de la tâche
+- **Description Courte** : Résumé de 3-4 mots pour un affichage compact
+
+**Exemple de génération** :
+```
+Description : "Expert en cybersécurité spécialisé dans les audits de code et la détection de vulnérabilités"
+
+→ System Prompt : "Tu es un expert en cybersécurité spécialisé dans..."
+→ Température : 0.2 (précision maximale)
+→ Description courte : "Audit & Sécurité"
+```
+
+### Gestion de vos Agents
+
+#### Édition (📝)
+- **Survolez la carte** de votre agent personnalisé
+- **Cliquez sur l'icône 📝** (crayon) qui apparaît
+- **Modifiez le nom et/ou la description**
+- Si vous changez la **description**, le system prompt est **automatiquement régénéré** par Ollama
+- Si vous changez seulement le **nom**, la modification est instantanée
+
+#### Suppression (✖)
+- **Cliquez sur l'icône ✖** (rouge, en haut à droite de la carte)
+- **Confirmez la suppression** dans la boîte de dialogue
+- L'agent est supprimé et la grille est mise à jour
+
+### Persistance
+
+Tous vos agents personnalisés sont **sauvegardés automatiquement** dans :
+```
+data/custom_agents.json
+```
+
+Structure :
+```json
+{
+  "custom_TranslatorAgent_1707654321": {
+    "name": "TranslatorAgent",
+    "desc": "Expert en traduction multilingue avec adaptation culturelle",
+    "short_desc": "Traduction multilingue",
+    "color": "#3b82f6",
+    "system_prompt": "Tu es un expert en traduction...",
+    "temperature": 0.4
+  }
+}
+```
+
+### Intégration avec les Workflows
+
+Les agents personnalisés fonctionnent **exactement comme les agents par défaut** :
+
+- **Drag & Drop** : Glissez-déposez comme n'importe quel agent
+- **Workflows mixtes** : Combinez agents par défaut et personnalisés
+- **Exécution identique** : Même système d'orchestration
+- **Mémoire** : Historique des tâches conservé
+
+**Exemple de workflow** :
+```
+TranslatorAgent → CreativeAgent → CodeAgent
+1. Traduire les specs en français
+2. Rédiger la documentation
+3. Générer le code
+```
+
+### Exemples d'Agents Personnalisés
+
+#### 🌐 TranslatorAgent
+```
+Nom : TranslatorAgent
+Rôle : Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques
+
+→ Température : 0.4
+→ Description : Traduction multilingue
+```
+
+#### 📈 SEOAgent
+```
+Nom : SEOAgent
+Rôle : Spécialiste en référencement naturel, optimisation de contenu web et stratégie SEO avancée
+
+→ Température : 0.6
+→ Description : SEO & référencement
+```
+
+#### 🔧 DevOpsAgent
+```
+Nom : DevOpsAgent
+Rôle : Expert en CI/CD, containerisation Docker/Kubernetes, automatisation d'infrastructure et monitoring
+
+→ Température : 0.3
+→ Description : DevOps & CI/CD
+```
+
+#### 🎨 UIUXAgent
+```
+Nom : UIUXAgent
+Rôle : Designer UI/UX spécialisé dans les interfaces modernes, accessibilité et expérience utilisateur
+
+→ Température : 0.7
+→ Description : Design UI/UX
+```
+
+#### ⚖️ LegalAgent
+```
+Nom : LegalAgent
+Rôle : Conseiller juridique spécialisé en droit numérique, RGPD et propriété intellectuelle
+
+→ Température : 0.2
+→ Description : Conseil juridique
+```
+
+### Conseils pour Créer de Bons Agents
+
+#### Description Détaillée
+- **Soyez spécifique** : Plus la description est précise, meilleur sera le system prompt
+- **Mentionnez l'expertise** : Domaines, technologies, méthodologies
+- **Indiquez le style** : Formel, technique, créatif, etc.
+
+#### Nommage
+- **CamelCase recommandé** : TranslatorAgent, SEOAgent, DevOpsAgent
+- **Suffixe "Agent"** : Pour cohérence avec les agents par défaut
+- **Court et descriptif** : 2-3 mots maximum
+
+#### Exemples de Bonnes Descriptions
+✅ "Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques"
+✅ "Spécialiste en référencement naturel, optimisation de contenu et stratégie SEO"
+✅ "Expert en CI/CD, containerisation, Kubernetes et automatisation d'infrastructure"
+
+❌ "Traduction" (trop vague)
+❌ "Un agent qui traduit des trucs" (pas assez professionnel)
+❌ "Agent" (pas d'information)
+
+### Limitations
+
+- **Ollama requis** : La génération automatique nécessite Ollama avec llama3.2
+- **Pas de modification directe du system prompt** : Pour garantir la cohérence, le prompt est toujours généré par l'IA
+- **Nom unique** : Chaque agent doit avoir un nom différent
+- **Suppression définitive** : Pas de corbeille, suppression immédiate
+
 ## 🚀 Utilisation
 
 ### Installation

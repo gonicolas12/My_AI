@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.3.0
+# 🏗️ Architecture - My Personal AI v6.4.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.3.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
+My Personal AI v6.4.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : GPT-2 tokenizer (99% précision vs 70% approximation)
@@ -977,7 +977,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 6.3.0
+**Version**: 6.4.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

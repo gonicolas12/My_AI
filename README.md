@@ -2,7 +2,7 @@
 
 - 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
-- 🤖 **Système d'Agents IA Spécialisés** : 9 agents experts pour des tâches complexes
+- 🤖 **Système d'Agents IA Spécialisés** : 9 agents experts + création d'agents personnalisés
 - 🎓 **RLHF Intégré** : Amélioration continue via feedback utilisateur automatique
 - 🚀 **Training Manager** : Pipeline d'entraînement moderne avec monitoring temps réel
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue

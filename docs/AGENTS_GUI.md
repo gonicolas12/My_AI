@@ -44,8 +44,9 @@ L'interface agents est divisée en plusieurs sections :
 - Cliquez sur un badge pour retirer un agent du workflow
 
 **Boutons :**
-- **▶ Exécuter** (orange) : Lance la tâche. Se transforme en **■ Stop** (blanc) pendant la génération
-- **✕ Clear Selection** (rouge) : Vide le workflow et la sélection en cours
+- **► Exécuter** (orange) : Lance la tâche. Se transforme en **■ Stop** (blanc) pendant la génération
+- **➕ Créer Agent** (bleu) : Ouvre l'interface de création d'agents personnalisés
+- **❌ Clear Selection** (rouge) : Vide le workflow et la sélection en cours
 
 #### 3️⃣ **Zone de Résultats**
 Grande zone avec scrollbar affichant :
@@ -137,6 +138,166 @@ Pendant la génération, le bouton **▶ Exécuter** se transforme en bouton **�
 - **Erreur d'agent** : Au moins un agent doit être dans le workflow
 - **Timeout** : Tâches très complexes peuvent prendre du temps
 - **Workflow bloqué** : Utilisez le bouton Stop (■) pour interrompre
+
+## 🎨 Création d'Agents Personnalisés
+
+### Bouton "➕ Créer Agent"
+
+Le bouton bleu **"➕ Créer Agent"** (entre Exécuter et Clear Selection) permet de créer vos propres agents spécialisés.
+
+### Interface de Création
+
+1. **Cliquez sur "➕ Créer Agent"**
+2. Une **fenêtre modale** s'ouvre au centre avec :
+   - **Champ Nom** : Nom court de l'agent (ex: "TranslatorAgent")
+   - **Champ Rôle/Description** : Description détaillée de l'expertise
+   - **Bouton "Créer"** (vert) : Lance la génération
+   - **Bouton "Annuler"** (gris) : Ferme la fenêtre
+
+3. **Remplissez les champs** :
+   ```
+   Nom : TranslatorAgent
+   Rôle : Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques
+   ```
+
+4. **Cliquez sur "Créer"** :
+   - Un **spinner animé** apparaît (⠋⠙⠹⠸...)
+   - **Ollama (llama3.2)** génère automatiquement :
+     - Le **system prompt** optimisé
+     - La **température** idéale (0.2-0.8)
+     - Une **description courte** (3-4 mots)
+   - **Notification verte** "✅ Agent créé !" en haut à droite
+   - **Votre agent apparaît** dans la grille après les 9 agents par défaut
+
+### Génération Automatique
+
+L'IA analyse votre description et génère :
+
+**Exemple** :
+```
+Description : "Expert en cybersécurité spécialisé dans les audits et la détection de vulnérabilités"
+
+→ System Prompt généré :
+"Tu es un expert en cybersécurité spécialisé dans les audits de code..."
+
+→ Température : 0.2 (précision maximale)
+
+→ Description courte : "Audit & Sécurité"
+```
+
+### Affichage des Agents Personnalisés
+
+Les agents personnalisés apparaissent dans la grille **après les 9 agents par défaut** :
+
+- **Icône** : 🤖 (pour tous les agents personnalisés)
+- **Nom** : Votre nom d'agent
+- **Description courte** : 3-4 mots générés automatiquement
+- **Couleur** : Couleur vibrante aléatoire (#3b82f6, #10b981, #f59e0b, etc.)
+- **Boutons d'action** (visibles au hover) :
+  - **📝 Éditer** : Modifier le nom et la description
+  - **✖ Supprimer** : Supprimer l'agent (avec confirmation)
+
+### Édition d'un Agent Personnalisé
+
+1. **Survolez la carte** de votre agent
+2. **Cliquez sur 📝** (icône crayon en bas de la carte)
+3. La **même fenêtre modale** s'ouvre avec les champs pré-remplis
+4. **Modifiez** le nom et/ou la description
+5. **Cliquez sur "Sauvegarder"** :
+   - Si vous changez la **description** : Le system prompt est **régénéré** par Ollama
+   - Si vous changez seulement le **nom** : Modification **instantanée**
+
+### Suppression d'un Agent Personnalisé
+
+1. **Cliquez sur ✖** (croix rouge en haut à droite de la carte)
+2. Une **boîte de dialogue** demande confirmation
+3. **Confirmez** : 
+   - **Notification rouge** "❌ Agent supprimé" en haut à droite
+   - L'agent disparaît de la grille
+   - Suppression permanente du fichier `data/custom_agents.json`
+
+### Utilisation dans les Workflows
+
+Les agents personnalisés fonctionnent **exactement comme les agents par défaut** :
+
+**Drag & Drop** :
+- Glissez depuis la carte de l'agent personnalisé
+- Déposez dans la zone de workflow
+- Combinez avec d'autres agents (par défaut ou personnalisés)
+
+**Exemple de workflow** :
+```
+1. Glisser TranslatorAgent 🤖
+2. Glisser CreativeAgent ✨
+3. Glisser CodeAgent 💻
+
+Pipeline : TranslatorAgent → CreativeAgent → CodeAgent
+```
+
+### Conseils pour la Création
+
+#### Description Détaillée
+- **Soyez spécifique** : Plus la description est précise, meilleur sera le résultat
+- **Mentionnez l'expertise** : Domaines, technologies, compétences
+- **Indiquez le style** : Technique, créatif, analytique, etc.
+
+#### Exemples de Bonnes Descriptions
+✅ "Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques"
+✅ "Spécialiste en référencement naturel, optimisation de contenu et stratégie SEO"
+✅ "Expert en CI/CD, containerisation Docker/Kubernetes et automatisation"
+✅ "Designer UI/UX spécialisé dans les interfaces modernes et l'accessibilité"
+✅ "Conseiller juridique en droit numérique, RGPD et propriété intellectuelle"
+
+❌ "Traduction" (trop vague)
+❌ "Un agent qui traduit" (pas assez professionnel)
+❌ "Agent cool" (pas d'information utile)
+
+#### Nommage
+- **CamelCase** : TranslatorAgent, SEOAgent, DevOpsAgent
+- **Suffixe "Agent"** : Pour cohérence
+- **Court** : 2-3 mots maximum
+
+### Persistance
+
+Tous vos agents personnalisés sont **sauvegardés automatiquement** dans :
+```
+data/custom_agents.json
+```
+
+Ils sont **rechargés au démarrage** de l'application.
+
+### Exemples d'Agents Personnalisés
+
+#### 🌐 TranslatorAgent
+```
+Nom : TranslatorAgent
+Rôle : Expert en traduction multilingue avec adaptation culturelle
+Couleur : Bleu #3b82f6
+Description courte : Traduction multilingue
+```
+
+#### 📈 SEOAgent
+```
+Nom : SEOAgent
+Rôle : Spécialiste en référencement naturel et optimisation de contenu
+Couleur : Vert #10b981
+Description courte : SEO & référencement
+```
+
+#### 🔧 DevOpsAgent
+```
+Nom : DevOpsAgent
+Rôle : Expert en CI/CD, containerisation et automatisation d'infrastructure
+Couleur : Orange #f59e0b
+Description courte : DevOps & CI/CD
+```
+
+### Limitations
+
+- **Ollama requis** : La génération nécessite Ollama avec llama3.2
+- **Nom unique** : Chaque agent doit avoir un nom différent
+- **Pas de modification directe du prompt** : Pour garantir la cohérence
+- **Suppression définitive** : Pas de récupération possible après suppression
 
 ## 🔄 Comparaison Chat vs Agents
 

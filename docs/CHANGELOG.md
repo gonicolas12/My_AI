@@ -1,5 +1,65 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🤖 Version 6.4.0 - Création d'Agents Personnalisés (11 Février 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🎨 Création d'Agents Personnalisés avec IA
+- **Bouton "➕ Créer Agent"** : Interface modale pour créer vos propres agents
+- **Génération automatique de system prompts** : Ollama (llama3.2) génère le system prompt optimisé selon votre description
+- **Température intelligente** : L'IA choisit automatiquement la température idéale (0.2-0.8) selon le rôle
+- **Description courte automatique** : Génération d'un résumé de 3-4 mots pour l'affichage sur la carte
+- **Couleurs aléatoires vibrantes** : Chaque agent personnalisé a une couleur unique et attrayante
+- **Gestion complète** : Édition (📝) et suppression (✖) des agents personnalisés
+- **Persistance JSON** : Sauvegarde automatique dans `data/custom_agents.json`
+
+#### 🎯 Fonctionnalités d'Édition
+- **Édition du nom et de la description** : Modifiez vos agents personnalisés à tout moment
+- **Régénération intelligente du prompt** : Si vous changez la description, le system prompt est automatiquement régénéré
+- **Édition rapide du nom** : Changement de nom instantané sans régénération
+- **Interface modale réutilisable** : Même interface élégante pour création et édition
+
+#### 🔧 Intégration Workflow
+- **Drag & Drop** : Les agents personnalisés sont draggables comme les agents par défaut
+- **Workflows mixtes** : Combinez agents par défaut et agents personnalisés dans vos workflows
+- **Affichage en grille** : Les agents personnalisés apparaissent après les 9 agents par défaut
+- **Icône unique** : Chaque agent personnalisé utilise l'emoji 🤖
+
+### 📊 Format des Agents Personnalisés
+
+Structure JSON d'un agent personnalisé :
+```json
+{
+  "custom_AgentName_1234567890": {
+    "name": "AgentName",
+    "desc": "Description complète du rôle et des capacités de l'agent",
+    "short_desc": "Résumé 3-4 mots",
+    "color": "#3b82f6",
+    "system_prompt": "System prompt généré par Ollama...",
+    "temperature": 0.5
+  }
+}
+```
+
+### 💡 Exemples d'Agents Personnalisés
+
+#### Agent Traducteur
+- **Nom** : TranslatorAgent
+- **Rôle** : Expert en traduction multilingue avec adaptation culturelle
+- **Temperature** : 0.4 (précis mais naturel)
+
+#### Agent SEO
+- **Nom** : SEOAgent
+- **Rôle** : Spécialiste en référencement naturel, optimisation de contenu et stratégie SEO
+- **Temperature** : 0.6 (créatif mais structuré)
+
+#### Agent DevOps
+- **Nom** : DevOpsAgent
+- **Rôle** : Expert en CI/CD, containerisation, Kubernetes et automatisation d'infrastructure
+- **Temperature** : 0.3 (technique et précis)
+
+---
+
 # 🤖 Version 6.3.0 - Drag & Drop Agents, Workflows Personnalisés et Nouveaux Agents (9 Février 2026)
 
 ### 🚀 Nouveautés Principales
