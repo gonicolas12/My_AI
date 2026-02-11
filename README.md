@@ -145,6 +145,7 @@ my_ai/
 
 - **Workflows multi-agents** : Collaboration entre agents pour tâches complexes
 - **Interface graphique dédiée** : Onglet "Agents" dans la GUI moderne
+- **Personnalisation** : Créez vos propres agents avec des rôles spécifiques
 - **CLI enrichi** : Commandes `agent` et `workflow` disponibles
 
 ![Interface Agents](docs/images/agentsScreen.png)
