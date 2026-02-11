@@ -42,3 +42,6 @@ models/training_runs/*
 # Données RLHF
 data/rlhf_feedback.db
 data/rlhf_training_data.jsonl
+
+# Agents customisés
+data/custom_agents.json
