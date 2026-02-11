@@ -34,3 +34,11 @@ temp/
 
 # Fichiers générés par l'IA
 outputs/
+
+# Entrainement et logs (sauf le readme.md)
+models/training_runs/*
+!models/training_runs/README.md
+
+# Données RLHF
+data/rlhf_feedback.db
+data/rlhf_training_data.jsonl

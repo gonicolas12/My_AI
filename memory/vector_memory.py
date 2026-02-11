@@ -10,6 +10,22 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import re
 
+# Import du moniteur de compression et modèles partagés
+try:
+    from core.compression_monitor import get_compression_monitor
+    from core.shared import get_shared_embedding_model, is_embeddings_available
+
+    COMPRESSION_MONITOR_AVAILABLE = True
+    EMBEDDINGS_AVAILABLE = is_embeddings_available()
+except ImportError:
+    COMPRESSION_MONITOR_AVAILABLE = False
+    EMBEDDINGS_AVAILABLE = False
+    print("⚠️ Compression Monitor ou Embeddings non disponible")
+
+    def get_shared_embedding_model():
+        """Fallback si imports échouent"""
+        return None
+
 # Note: Le mode offline HuggingFace est géré intelligemment dans core.shared
 # Il télécharge automatiquement le modèle au premier lancement si nécessaire
 
@@ -20,17 +36,6 @@ try:
 except ImportError:
     CHROMADB_AVAILABLE = False
     print("⚠️ ChromaDB non disponible. Installez: pip install chromadb")
-
-try:
-    from core.shared import get_shared_embedding_model, is_embeddings_available
-
-    EMBEDDINGS_AVAILABLE = is_embeddings_available()
-except ImportError:
-    EMBEDDINGS_AVAILABLE = False
-    print(
-        "⚠️ Sentence-transformers non disponible. Installez: pip install sentence-transformers"
-    )
-    get_shared_embedding_model = lambda: None
 
 try:
     from transformers import AutoTokenizer
@@ -67,7 +72,6 @@ class VectorMemory:
         max_tokens: int = 1_000_000,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         storage_dir: str = "memory/vector_store",
         enable_encryption: bool = False,
         encryption_key: Optional[str] = None,
@@ -79,7 +83,6 @@ class VectorMemory:
             max_tokens: Limite maximale de tokens (1M par défaut)
             chunk_size: Taille des chunks en tokens
             chunk_overlap: Chevauchement entre chunks
-            embedding_model: Modèle d'embeddings à utiliser
             storage_dir: Répertoire de stockage
             enable_encryption: Activer le chiffrement AES-256
             encryption_key: Clé de chiffrement (générée si None)
@@ -150,6 +153,12 @@ class VectorMemory:
             "last_updated": None,
             "encryption_enabled": self.enable_encryption,
         }
+
+        # Moniteur de compression
+        if COMPRESSION_MONITOR_AVAILABLE:
+            self.compression_monitor = get_compression_monitor()
+        else:
+            self.compression_monitor = None
 
         print(f"✅ VectorMemory initialisé (max: {max_tokens:,} tokens)")
 
@@ -294,6 +303,17 @@ class VectorMemory:
             # Diviser en chunks
             chunks = self.split_into_chunks(content)
 
+            # Analyser la compression avec le moniteur (après création des chunks)
+            compression_analysis = None
+            if self.compression_monitor:
+                compression_analysis = self.compression_monitor.analyze_compression(
+                    original_text=content,
+                    chunks=chunks,
+                    document_name=document_name,
+                    content_type=metadata.get("type", "text") if metadata else "text",
+                    metadata=metadata
+                )
+
             # Générer embeddings et stocker
             chunk_ids = []
             embeddings_list = []
@@ -342,8 +362,6 @@ class VectorMemory:
                 "chunks": chunk_ids,
                 "total_tokens": total_tokens,
                 "created": datetime.now().isoformat(),
-                "preview": content[:200] + "..." if len(content) > 200 else content,
-                "metadata": metadata,
             }
 
             # Mettre à jour statistiques
@@ -352,13 +370,25 @@ class VectorMemory:
             self.stats["total_tokens"] = self.current_tokens
             self.stats["last_updated"] = datetime.now().isoformat()
 
-            return {
+            # Préparer le résultat
+            result = {
                 "document_id": doc_id,
                 "document_name": document_name,
                 "chunks_created": len(chunks),
                 "tokens_added": total_tokens,
                 "status": "success",
             }
+
+            # Ajouter les métriques de compression si disponibles
+            if compression_analysis:
+                result["compression"] = {
+                    "ratio": compression_analysis["compression_ratio"],
+                    "ratio_formatted": compression_analysis["compression_ratio_formatted"],
+                    "efficiency": compression_analysis["efficiency"],
+                    "quality_score": compression_analysis["quality_score"]
+                }
+
+            return result
 
         except Exception as e:
             return {"error": str(e), "status": "error"}
@@ -464,31 +494,53 @@ class VectorMemory:
         """Génère un ID unique pour un document"""
         content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
         name_clean = re.sub(r"[^a-zA-Z0-9]", "_", name)[:20]
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{name_clean}_{content_hash}_{timestamp}"
 
     def _cleanup_old_documents(self, tokens_needed: int):
-        """Nettoie les anciens documents pour faire de la place"""
-        docs_by_date = sorted(self.documents.items(), key=lambda x: x[1]["created"])
+        """
+        Nettoie les vieux documents pour libérer de l'espace
+        
+        Args:
+            tokens_needed: Nombre de tokens à libérer
+        """
+        if not self.documents:
+            return
+
+        # Trier par date (plus anciens en premier)
+        sorted_docs = sorted(
+            self.documents.items(),
+            key=lambda x: x[1].get("created", "")
+        )
 
         tokens_freed = 0
-        for doc_id, doc_info in docs_by_date:
-            if tokens_freed >= tokens_needed:
+        docs_to_remove = []
+
+        for doc_id, doc_info in sorted_docs:
+            if self.current_tokens - tokens_freed + tokens_needed <= self.max_tokens:
                 break
 
             # Supprimer chunks de ChromaDB
             if self.document_collection:
-                self.document_collection.delete(ids=doc_info["chunks"])
+                try:
+                    self.document_collection.delete(ids=doc_info["chunks"])
+                except Exception as e:
+                    print(f"⚠️ Erreur suppression chunks: {e}")
 
             tokens_freed += doc_info["total_tokens"]
             self.current_tokens -= doc_info["total_tokens"]
+            docs_to_remove.append(doc_id)
+
+        # Supprimer des métadonnées
+        for doc_id in docs_to_remove:
             del self.documents[doc_id]
 
-        print(f"🧹 Nettoyage: {tokens_freed:,} tokens libérés")
+        if tokens_freed > 0:
+            print(f"🧹 Nettoyage: {tokens_freed:,} tokens libérés ({len(docs_to_remove)} documents)")
 
     def get_stats(self) -> Dict[str, Any]:
-        """Retourne les statistiques"""
-        return {
+        """Retourne les statistiques avec métriques de compression"""
+        stats = {
             **self.stats,
             "current_tokens": self.current_tokens,
             "documents_count": len(self.documents),
@@ -498,6 +550,20 @@ class VectorMemory:
             "chromadb_enabled": self.chroma_client is not None,
             "tokenizer": "transformers" if self.tokenizer else "fallback",
         }
+
+        # Ajouter les stats de compression si disponibles
+        if self.compression_monitor:
+            compression_stats = self.compression_monitor.get_stats()
+            stats["compression"] = compression_stats
+
+        return stats
+
+    def get_compression_report(self) -> str:
+        """Génère un rapport de compression détaillé"""
+        if self.compression_monitor:
+            return self.compression_monitor.get_compression_report()
+        else:
+            return "Compression Monitor non disponible"
 
     def clear_all(self):
         """Vide toute la mémoire"""
@@ -575,17 +641,17 @@ if __name__ == "__main__":
     TEST_CONTENT = (
         "Python est un langage de programmation puissant et facile à apprendre. " * 50
     )
-    result = memory.add_document(TEST_CONTENT, "Test Python")
-    print(f"✅ Document ajouté: {result}")
+    ADD_RESULT = memory.add_document(TEST_CONTENT, "Test Python")
+    print(f"✅ Document ajouté: {ADD_RESULT}")
 
     # Test recherche
     if memory.embedding_model:
-        search_results = memory.search_similar("Python programmation")
-        print(f"✅ Recherche: {len(search_results)} résultats")
+        SEARCH_RESULTS = memory.search_similar("Python programmation")
+        print(f"✅ Recherche: {len(SEARCH_RESULTS)} résultats")
 
         CONTEXT = memory.get_relevant_context("Python")
         print(f"✅ Contexte: {len(CONTEXT)} caractères")
 
     # Stats
-    stats = memory.get_stats()
-    print(f"📊 Stats: {stats}")
+    MEMORY_STATS = memory.get_stats()
+    print(f"📊 Stats: {MEMORY_STATS}")

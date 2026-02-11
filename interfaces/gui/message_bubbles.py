@@ -12,32 +12,189 @@ except ImportError:
     CTK_AVAILABLE = False
     ctk = tk
 
+# Import RLHF Manager pour les feedbacks
+from core.rlhf_manager import get_rlhf_manager
+
 
 class MessageBubblesMixin:
     """Methods for creating user/AI message bubbles and copy UI."""
 
     def _show_timestamp_for_current_message(self):
-        """Affiche le timestamp sous la bulle du dernier message IA (comme pour l'utilisateur)."""
+        """Affiche le timestamp et les boutons de feedback sous la bulle du message IA (style Claude)."""
         if (
             hasattr(self, "current_message_container")
             and self.current_message_container is not None
         ):
             # Vérifier qu'il n'y a pas déjà un timestamp (évite doublons)
             for child in self.current_message_container.winfo_children():
-                if isinstance(child, (tk.Label,)):
-                    if getattr(child, "is_timestamp", False):
+                if isinstance(child, (tk.Frame, ctk.CTkFrame)):
+                    if getattr(child, "is_feedback_frame", False):
                         return  # Déjà affiché
+
+            # RÉCUPÉRER les valeurs stockées DANS LE CONTAINER (pas les globales)
+            captured_query = getattr(self.current_message_container, "feedback_query", None)
+            captured_response = getattr(self.current_message_container, "feedback_response", None)
+
+            # Frame horizontale pour les boutons + timestamp
+            feedback_frame = self.create_frame(
+                self.current_message_container, fg_color=self.colors["bg_chat"]
+            )
+            feedback_frame.grid(row=1, column=0, sticky="w", padx=8, pady=(4, 6))
+            feedback_frame.is_feedback_frame = True
+
+            # Créer les boutons SANS command d'abord (pour éviter les problèmes de référence)
+            if self.use_ctk:
+                thumbs_up_btn = ctk.CTkButton(
+                    feedback_frame,
+                    text="👍",
+                    width=28,
+                    height=28,
+                    fg_color="#111111",
+                    hover_color="#2d2d2d",
+                    text_color="#d4d4d4",
+                    font=("Segoe UI", 13),
+                    corner_radius=4,
+                )
+                thumbs_down_btn = ctk.CTkButton(
+                    feedback_frame,
+                    text="👎",
+                    width=28,
+                    height=28,
+                    fg_color="#111111",
+                    hover_color="#2d2d2d",
+                    text_color="#d4d4d4",
+                    font=("Segoe UI", 13),
+                    corner_radius=4,
+                )
+            else:
+                thumbs_up_btn = tk.Button(
+                    feedback_frame,
+                    text="👍",
+                    bg="#111111",
+                    fg="#d4d4d4",
+                    font=("Segoe UI", 13),
+                    relief="flat",
+                    bd=0,
+                )
+                thumbs_down_btn = tk.Button(
+                    feedback_frame,
+                    text="👎",
+                    bg="#111111",
+                    fg="#d4d4d4",
+                    font=("Segoe UI", 13),
+                    relief="flat",
+                    bd=0,
+                )
+
+            # Maintenant assigner les commands avec les valeurs CAPTURÉES
+            thumbs_up_btn.configure(
+                command=lambda: self._on_thumbs_up(thumbs_up_btn, thumbs_down_btn, captured_query, captured_response)
+            )
+            thumbs_down_btn.configure(
+                command=lambda: self._on_thumbs_down(thumbs_up_btn, thumbs_down_btn, captured_query, captured_response)
+            )
+
+            # Afficher les boutons
+            thumbs_up_btn.pack(side="left", padx=(0, 2))
+            thumbs_down_btn.pack(side="left", padx=(0, 8))
+
+            # Timestamp après les boutons
             timestamp = datetime.now().strftime("%H:%M")
             time_label = self.create_label(
-                self.current_message_container,
+                feedback_frame,
                 text=timestamp,
                 font=("Segoe UI", 10),
                 fg_color=self.colors["bg_chat"],
                 text_color="#b3b3b3",
             )
-            time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
-            time_label.is_timestamp = True
+            time_label.pack(side="left")
         # Sinon, rien à faire (pas de container)
+
+    def _on_thumbs_up(self, btn_up, btn_down, query, response):
+        """Callback pour le feedback positif (👍)."""
+        print("🔔 Clic sur bouton POSITIF détecté")
+
+        try:
+            # Utiliser les valeurs CAPTURÉES au moment de la création du bouton
+            if not query:
+                print("❌ Pas de query capturée")
+                return
+            if not response:
+                print("❌ Pas de response capturée")
+                return
+
+            print(f"📝 Query capturée: {query[:50]}...")
+            print(f"📝 Response capturée: {response[:50]}...")
+
+            # Enregistrer le feedback
+            rlhf = get_rlhf_manager()
+            rlhf.record_interaction(
+                user_query=query,
+                ai_response=response,
+                feedback_type="positive",
+                feedback_score=5,
+                intent="conversation",
+                confidence=1.0,
+                model_version="ollama",
+            )
+            print("✅ Feedback positif enregistré dans la base")
+
+            # Changer visuellement le bouton cliqué (reste survolé)
+            if self.use_ctk:
+                btn_up.configure(fg_color="#2d2d2d")  # Couleur survol
+                btn_down.configure(state="disabled")  # Désactiver l'autre
+            else:
+                btn_up.configure(bg="#2d2d2d")
+                btn_down.configure(state="disabled")
+
+            print("🎨 Bouton mis à jour visuellement")
+
+        except Exception as e:
+            print(f"⚠️ Erreur enregistrement feedback positif: {e}")
+            traceback.print_exc()
+
+    def _on_thumbs_down(self, btn_up, btn_down, query, response):
+        """Callback pour le feedback négatif (👎)."""
+        print("🔔 Clic sur bouton NÉGATIF détecté")
+
+        try:
+            # Utiliser les valeurs CAPTURÉES au moment de la création du bouton
+            if not query:
+                print("❌ Pas de query capturée")
+                return
+            if not response:
+                print("❌ Pas de response capturée")
+                return
+
+            print(f"📝 Query capturée: {query[:50]}...")
+            print(f"📝 Response capturée: {response[:50]}...")
+
+            # Enregistrer le feedback
+            rlhf = get_rlhf_manager()
+            rlhf.record_interaction(
+                user_query=query,
+                ai_response=response,
+                feedback_type="negative",
+                feedback_score=1,
+                intent="conversation",
+                confidence=1.0,
+                model_version="ollama",
+            )
+            print("✅ Feedback négatif enregistré dans la base")
+
+            # Changer visuellement le bouton cliqué
+            if self.use_ctk:
+                btn_down.configure(fg_color="#2d2d2d")  # Couleur survol
+                btn_up.configure(state="disabled")  # Désactiver l'autre
+            else:
+                btn_down.configure(bg="#2d2d2d")
+                btn_up.configure(state="disabled")
+
+            print("🎨 Bouton mis à jour visuellement")
+
+        except Exception as e:
+            print(f"⚠️ Erreur enregistrement feedback négatif: {e}")
+            traceback.print_exc()
 
     def add_message_bubble(self, text, is_user=True, message_type="text"):
         """Version FINALE avec animation de frappe pour les messages IA"""
@@ -53,6 +210,12 @@ class MessageBubblesMixin:
                 )
             else:
                 text = str(text)
+
+        # Stocker le dernier query/response pour RLHF
+        if is_user:
+            self._last_user_query = text
+        else:
+            self._last_ai_response = text
 
         # Ajouter à l'historique
         self.conversation_history.append(
@@ -112,7 +275,11 @@ class MessageBubblesMixin:
             message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
             message_container.grid_columnconfigure(0, weight=1)
 
-            # ⚡ SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
+            # STOCKER la query et response dans le container pour les boutons de feedback
+            message_container.feedback_query = getattr(self, "_last_user_query", None)
+            message_container.feedback_response = text  # Le texte actuel passé à add_message_bubble
+
+            # SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
             def setup_container_scroll_forwarding(container):
                 """Configure le scroll forwarding sur le container IA pour égaler la vitesse utilisateur"""
 

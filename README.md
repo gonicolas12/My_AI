@@ -1,18 +1,20 @@
 # 🤖 Une IA personnelle, confidentielle et locale
 
 - 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
-- 🗜️ **Compression Intelligente** : Ratio de compression 2.4:1 à 52:1 selon le contenu
 - 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
 - 🤖 **Système d'Agents IA Spécialisés** : 9 agents experts pour des tâches complexes
+- 🎓 **RLHF Intégré** : Amélioration continue via feedback utilisateur automatique
+- 🚀 **Training Manager** : Pipeline d'entraînement moderne avec monitoring temps réel
 - 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
 - 🖼️ **Analyse d'images** avec modèles vision Ollama (llava, llama3.2-vision, etc.)
 - 💻 **Analyse** et **génération** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
 - 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
-- 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées et onglets
+- 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées, boutons de feedback
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode et blocs de code Python colorisés
 - 🏗️ **Architecture 100% Locale** avec persistance SQLite optimisée
 - ⚡ **Gestion automatique de la mémoire** et optimisations en temps réel
+- 📊 **Métriques de compression exposées** : Ratios détaillés de 2.4:1 à 52:1 selon le contenu
 
 ## 🏗️ Architecture Ultra 1M Tokens & FAQ Thématique
 
@@ -30,11 +32,14 @@ my_ai/
 │   ├── __init__.py
 │   ├── agent_orchestrator.py            # Orchestrateur d'agents
 │   ├── ai_engine.py                     # Moteur principal IA
-│   ├── config.py                        # Configuration de l'IA
+│   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
 │   ├── context_manager.py               # Gestion de contexte long
 │   ├── conversation.py                  # Gestion des conversations
 │   ├── data_preprocessing.py            # Prétraitement des données
-│   ├── rlhf.py                          # Reinforcement Learning from Human Feedback
+│   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
+│   ├── rlhf.py                          # RLHF CLI (legacy)
+│   ├── training_manager.py              # Training Manager moderne (pipeline complet)
+│   └── training_pipeline.py             # Training CLI
 │   └── training_pipeline.py             # Pipeline d'entraînement local
 ├── data/                                # Données d'enrichissement FAQ
 │   ├── enrichissement/                  # Exemples thématiques
@@ -85,8 +90,11 @@ my_ai/
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
 │   ├── file_processor.py                # Gestion traitement fichiers
-│   ├── intelligent_calculator.py        # Calculateur intelligent
-│   ├── logger.py                        # Logging
+│   examples/                            # Exemples d'utilisation
+│   └── advanced_features_demo.py        # Démo RLHF, Training, Compression
+├── tests/                               # Tests unitaires
+├── docs/                                # Documentation
+│   ├── ADVANCED_FEATURES.md             # Guide des nouvelles fonctionnalités
 │   └── validators.py                    # Validation
 ├── tests/                               # Tests unitaires
 ├── docs/                                # Documentation
@@ -103,7 +111,6 @@ my_ai/
 
 ### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
 - **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
-- **Messages adaptatifs** : Bulles utilisateur à droite, réponses IA sans bulle
 - **Formatage avancé** : Support complet du **texte en gras** avec Unicode
 - **Animations fluides** : Indicateurs de réflexion et recherche internet
 - **Responsive design** : Adaptation automatique à tous types d'écrans
@@ -111,7 +118,7 @@ my_ai/
 ### 🖱️ Fonctionnalités Interactives
 - **Raccourcis clavier** : Entrée (envoyer), Shift+Entrée (nouvelle ligne), Ctrl+L (clear)
 - **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
-- **Messages non-scrollables** : Labels optimisés pour de meilleures performances
+- **Feedback utilisateur** : Boutons pour chaque réponse de l'IA (RLHF intégré)
 - **Timestamp automatique** : Horodatage discret pour chaque message
 
 ### 🖥️ Différentes Interfaces
@@ -207,6 +214,8 @@ ollama pull llama3.2-vision  # Alternative plus récente
 ```
 Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 
+> L'interface intègre des **boutons de feedback** sous chaque réponse de l'IA. Chaque feedback est automatiquement enregistré pour améliorer le modèle.
+
 ##### Nettoyage des fichiers temporaires
 ```bash
 .\clean_project.bat
@@ -247,15 +256,19 @@ N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les back
 - **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
 - **[Génération de Fichiers](docs/FILE_GENERATION.md)** : Guide sur la génération de fichiers via l'IA
 - **[Agents IA](docs/AGENTS.md)** : Documentation complète sur les agents IA spécialisés
+- **[Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md)** : RLHF, Training, Compression
+- **[Feedback GUI](docs/GUI_RLHF_FEEDBACK.md)** : Boutons de feedback dans l'interface graphique
 
 ## 🔧 Caractéristiques Techniques
 
+- **RLHF Intégré** : Apprentissage automatique depuis le feedback utilisateur
+- **Pipeline d'Entraînement** : Fine-tuning moderne avec monitoring temps réel
+- **Compression Intelligente** : Ratios détaillés et métriques exposées
 - **Hybride Local/Internet** : IA locale avec recherche internet optionnelle
 - **Multiplateforme** : Windows, macOS, Linux
 - **Léger** : Fonctionnement optimal sur machines modestes
 - **Extensible** : Architecture modulaire pour ajouts futurs
 - **Sécurisé** : Données locales protégées, recherche internet anonyme
-- **Smart Search** : Moteur de recherche DuckDuckGo avec résumés intelligents
 
 ## 🚀 Évolutions Futures
 

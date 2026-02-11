@@ -1176,6 +1176,13 @@ class StreamingMixin:
 
             self.typing_widget.configure(state="disabled")
 
+            # STOCKER les valeurs de feedback pour le RLHF AVANT d'afficher le timestamp
+            if hasattr(self, "current_message_container") and self.current_message_container is not None:
+                self.current_message_container.feedback_query = getattr(self, "_last_user_query", None)
+                self.current_message_container.feedback_response = current_widget_text
+                print(f"[DEBUG STOCKAGE FEEDBACK] Query: {getattr(self, '_last_user_query', 'None')[:50]}...")
+                print(f"[DEBUG STOCKAGE FEEDBACK] Response: {current_widget_text[:50]}...")
+
             # Afficher le timestamp
             self._show_timestamp_for_current_message()
 
