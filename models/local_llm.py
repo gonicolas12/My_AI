@@ -30,6 +30,7 @@ class LocalLLM:
         # 🧠 Historique de conversation pour le contexte
         self.conversation_history: List[Dict[str, str]] = []
         self.max_history_length = 200  # Garder les 200 derniers échanges
+        self._streamed_already = False  # Flag pour tracking du streaming vision
 
         if self.is_ollama_available:
             # Vérifier si le modèle personnalisé existe, sinon utiliser llama3
@@ -261,7 +262,7 @@ class LocalLLM:
         # C'est un refus si ça contient des phrases de refus SANS contenu visuel utile
         return has_refusal and not has_visual
 
-    def generate_with_image(self, prompt, image_base64, system_prompt=None):
+    def generate_with_image(self, prompt, image_base64, _system_prompt=None):
         """
         Génère une réponse à partir d'une image en utilisant un modèle vision.
         Utilise /api/generate (plus fiable pour les modèles vision que /api/chat).
@@ -323,7 +324,7 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception vision: {e}")
             return None
 
-    def generate_stream_with_image(self, prompt, image_base64, system_prompt=None, on_token=None):
+    def generate_stream_with_image(self, prompt, image_base64, _system_prompt=None, on_token=None):
         """
         Génère une réponse avec image en STREAMING.
         Utilise /api/generate (plus fiable pour vision) avec retry sur refus.
@@ -401,7 +402,7 @@ class LocalLLM:
 
         return None
 
-    def _stream_vision_attempt(self, vision_model, full_prompt, image_base64, on_token, attempt):
+    def _stream_vision_attempt(self, vision_model, full_prompt, image_base64, on_token, _attempt):
         """Tentative de vision en streaming via /api/generate."""
         self._streamed_already = False
 
@@ -461,7 +462,7 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception vision streaming: {e}")
             return None
 
-    def _non_stream_vision_attempt(self, vision_model, full_prompt, image_base64, attempt):
+    def _non_stream_vision_attempt(self, vision_model, full_prompt, image_base64, _attempt):
         """Tentative de vision non-streaming via /api/generate (pour retry silencieux)."""
         data = {
             "model": vision_model,

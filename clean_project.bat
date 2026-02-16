@@ -50,8 +50,8 @@ if exist "memory\vector_store\chroma_db\" (
     del /q "memory\vector_store\chroma_db\*" 2>nul
 )
 
-REM Suppression des entrainements locaux (sauf le README.md)
-echo [10/10] Suppression des entrainements locaux (sauf README.md)...
+REM Suppression des entrainements locaux
+echo [10/10] Suppression des entrainements locaux...
 if exist "models\training_runs\" (
     for /d %%i in ("models\training_runs\*") do rd /s /q "%%i"
     for %%f in ("models\training_runs\*") do if /i not "%%~nxf"=="README.md" del /q "%%f"
