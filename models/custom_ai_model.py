@@ -622,12 +622,15 @@ class CustomAIModel(
         image_keywords = [
             'image', 'photo', 'capture', 'écran', 'screenshot', 'screen',
             'picture', 'pic', 'img', 'illustration', 'figure',
-            'que vois-tu', 'que voit', 'ce que tu vois', 'sur cette image',
-            'sur la photo', 'dans l\'image', 'dans la photo',
+            'que vois-tu', 'que voit', 'tu vois', 'vois-tu', 'ce que tu vois',
+            'sur cette image', 'sur la photo', 'dans l\'image', 'dans la photo',
+            'sur l\'image', 'sur cette photo', 'dans cette image',
             'décris', 'analyse l\'image', 'explique l\'image', 'montre',
             'cette image', 'cette photo', 'cette capture',
-            'l\'image', 'la photo', 'la capture', 'sur l\'image',
-            'qu\'y a-t-il', 'que représente'
+            'l\'image', 'la photo', 'la capture',
+            'qu\'y a-t-il', 'que représente', 'qu\'est-ce',
+            'visible sur', 'qui est visible', 'qu\'on voit', 'qu\'est ce qui',
+            'que contient', 'ce qui est', 'what do you see', 'describe this'
         ]
 
         return any(keyword in user_lower for keyword in image_keywords)
@@ -660,14 +663,8 @@ class CustomAIModel(
             # ============================================================
             if image_base64 and self.local_llm and self.local_llm.is_ollama_available and self._question_concerns_image(user_input):
                 print("🖼️ [VISION] Image détectée - utilisation du modèle vision")
-                system_prompt = (
-                    "Tu es un assistant IA qui analyse des images. "
-                    "Décris et analyse l'image de manière détaillée en français. "
-                    "Si l'utilisateur pose une question spécifique, réponds-y en te basant sur l'image."
-                )
                 response = self.local_llm.generate_stream_with_image(
                     user_input, image_base64,
-                    system_prompt=system_prompt,
                     on_token=on_token
                 )
                 if response:
@@ -680,8 +677,8 @@ class CustomAIModel(
                     error_msg = (
                         "⚠️ **Aucun modèle vision n'est installé dans Ollama.**\n\n"
                         "Pour analyser des images, installez un modèle vision :\n"
-                        "```bash\nollama pull llava\n```\n\n"
-                        "Modèles supportés : `llava`, `llama3.2-vision`, `bakllava`, `moondream`"
+                        "```bash\nollama pull llama3.2-vision\n```\n\n"
+                        "Modèles supportés : `llama3.2-vision`, `llava`, `bakllava`, `moondream`"
                     )
                     if on_token:
                         on_token(error_msg)

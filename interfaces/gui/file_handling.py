@@ -413,6 +413,32 @@ Vous pouvez maintenant me poser des questions sur ce document."""
         try:
             filename = os.path.basename(file_path)
             img = Image.open(file_path)
+            original_mode = img.mode
+
+            # Normaliser pour compatibilité vision : gérer alpha/palette puis convertir en RGB
+            if img.mode in ("RGBA", "LA"):
+                alpha = img.getchannel("A")
+                alpha_min, alpha_max = alpha.getextrema()
+
+                # Cas fréquent presse-papier Windows : alpha quasi vide mais RGB utile.
+                # Appliquer ce masque produirait une image blanchie → ignorer alpha.
+                if alpha_max <= 5:
+                    img = img.convert("RGB")
+                    print(
+                        "🖼️ [IMAGE] Alpha quasi nul détecté - conversion directe RGB (sans masque alpha)"
+                    )
+                else:
+                    background = Image.new("RGB", img.size, (255, 255, 255))
+                    background.paste(img.convert("RGB"), mask=alpha)
+                    img = background
+                    print(
+                        f"🖼️ [IMAGE] Alpha utilisé pour compositing (min={alpha_min}, max={alpha_max})"
+                    )
+            elif img.mode == "P":
+                # Certains contenus du presse-papier arrivent en palette
+                img = img.convert("RGB")
+            elif img.mode != "RGB":
+                img = img.convert("RGB")
 
             # Redimensionner si trop grande (max 1024px de côté pour Ollama)
             max_size = 1024
@@ -420,17 +446,19 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                 img.thumbnail((max_size, max_size), Image.LANCZOS)
                 print(f"🖼️ [IMAGE] Redimensionnée à {img.width}x{img.height}")
 
-            # Encoder en base64
+            # Encoder en base64 (JPEG RGB unifié pour upload fichier et presse-papier)
             buffer = io.BytesIO()
-            img_format = "PNG" if img.mode == "RGBA" else "JPEG"
-            img.save(buffer, format=img_format)
+            img.save(buffer, format="JPEG", quality=92, optimize=True)
             img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
             # Stocker l'image en attente
             self._pending_image_path = file_path
             self._pending_image_base64 = img_base64
 
-            print(f"🖼️ [IMAGE] {filename} encodée ({len(img_base64)} chars base64, {img.width}x{img.height})")
+            print(
+                f"🖼️ [IMAGE] {filename} encodée ({len(img_base64)} chars base64, {img.width}x{img.height}) "
+                f"[mode source: {original_mode} -> encodage: JPEG/RGB]"
+            )
 
             # Afficher la prévisualisation et le message de confirmation
             self.root.after(0, lambda: self._show_image_ready(filename, img))

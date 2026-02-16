@@ -196,9 +196,9 @@ ollama pull llama3.2         # Modèle plus léger pour des réponses plus rapid
 ollama pull llama3.1:8b      # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM)
 
 # 3. [OPTIONNEL] Installer un modèle vision pour l'analyse d'images
-ollama pull llava            # Modèle vision recommandé
+ollama pull llama3.2-vision  # Modèle vision recommandé
 # OU
-ollama pull llama3.2-vision  # Alternative plus récente
+ollama pull llava            # Alternative plus légère
 
 # 4. Créer le modèle personnalisé
 .\create_custom_model.bat

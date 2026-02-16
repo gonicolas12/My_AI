@@ -156,15 +156,120 @@ class LocalLLM:
                 f"🔄 [LocalLLM] Historique tronqué à {len(self.conversation_history)} messages"
             )
 
+    @staticmethod
+    def _sanitize_vision_response(response_text: str) -> str:
+        """Nettoie les amorces contradictoires de refus dans les réponses vision."""
+        if not response_text:
+            return response_text
+
+        response_lower = response_text.lower()
+        refusal_markers = [
+            "je ne peux pas",
+            "je ne suis pas capable",
+            "désolé, mais je ne peux pas",
+            "malheureusement, je ne peux pas",
+            "i cannot",
+            "i can't",
+            "i'm not able",
+            "i am not able",
+        ]
+        visual_markers = [
+            "je vois", "on voit", "sur l'image", "au centre",
+            "à gauche", "à droite", "il y a", "capture d'écran",
+            "interface", "texte", "bouton", "couleur", "page",
+            "écran", "fenêtre", "menu", "i see", "i can see",
+            "the image shows", "in the image",
+        ]
+
+        has_refusal = any(marker in response_lower for marker in refusal_markers)
+        has_visual_content = any(marker in response_lower for marker in visual_markers)
+        if not (has_refusal and has_visual_content):
+            return response_text
+
+        text = response_text.lstrip()
+        lower_text = text.lower()
+
+        # Retirer l'amorce contradictoire si elle est au début de la réponse
+        starters = (
+            "je ne peux pas", "je ne suis pas capable",
+            "désolé", "malheureusement", "i cannot", "i can't",
+            "i'm not able", "i am not able",
+        )
+        if lower_text.startswith(starters):
+            # 1) Couper sur connecteurs de transition
+            for transition in [
+                "cependant", "néanmoins", "mais", "toutefois",
+                "however", "but", "nevertheless",
+            ]:
+                idx = lower_text.find(transition)
+                if 0 <= idx <= 300:
+                    remainder = text[idx + len(transition):].lstrip(" ,:-")
+                    if remainder:
+                        return remainder[0].upper() + remainder[1:]
+
+            # 2) Chercher le début de la description visuelle
+            for marker in visual_markers:
+                idx = lower_text.find(marker)
+                if 0 < idx <= 400:
+                    remainder = text[idx:].lstrip()
+                    if remainder:
+                        return remainder[0].upper() + remainder[1:]
+
+            # 3) Fallback : couper après la première phrase
+            period_idx = text.find(".")
+            if 0 <= period_idx <= 300 and period_idx + 1 < len(text):
+                remainder = text[period_idx + 1:].lstrip(" \n")
+                if remainder:
+                    return remainder[0].upper() + remainder[1:]
+
+        return response_text
+
+    @staticmethod
+    def _is_vision_refusal(response_text: str) -> bool:
+        """Détecte si la réponse est un refus de traiter l'image (sans contenu visuel utile)."""
+        if not response_text:
+            return True
+        if len(response_text.strip()) < 50:
+            return True
+
+        response_lower = response_text.lower()
+        refusal_phrases = [
+            "je ne peux pas voir",
+            "je ne peux pas analyser",
+            "je ne peux pas vous aider à identifier",
+            "je ne suis pas capable d'interagir",
+            "je ne peux pas interagir",
+            "l'image n'a pas été transmise",
+            "l'image n'a pas été jointe",
+            "vous devez me la partager",
+            "donnez un résumé",
+            "i cannot see",
+            "i can't see",
+            "i'm unable to view",
+        ]
+        visual_markers = [
+            "je vois", "on voit", "au centre", "à gauche", "à droite",
+            "il y a", "capture d'écran", "interface", "texte visible",
+            "bouton", "page web", "écran", "fenêtre",
+            "couleurs", "en haut", "en bas",
+            "i see", "i can see", "the image shows",
+        ]
+
+        has_refusal = any(phrase in response_lower for phrase in refusal_phrases)
+        has_visual = any(marker in response_lower for marker in visual_markers)
+
+        # C'est un refus si ça contient des phrases de refus SANS contenu visuel utile
+        return has_refusal and not has_visual
+
     def generate_with_image(self, prompt, image_base64, system_prompt=None):
         """
         Génère une réponse à partir d'une image en utilisant un modèle vision.
-        L'API Ollama supporte les images via le champ 'images' dans les messages.
+        Utilise /api/generate (plus fiable pour les modèles vision que /api/chat).
 
         Args:
             prompt: Le message/question de l'utilisateur sur l'image
             image_base64: L'image encodée en base64
-            system_prompt: Prompt système optionnel
+            system_prompt: Prompt système optionnel (ignoré, intégré au prompt)
 
         Returns:
             La réponse du modèle ou None si erreur
@@ -172,40 +277,38 @@ class LocalLLM:
         if not self.is_ollama_available:
             return None
 
-        # Utiliser un modèle vision
         vision_model = self._get_vision_model()
         if not vision_model:
             return None
 
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        # Message utilisateur avec image
-        messages.append({
-            "role": "user",
-            "content": prompt,
-            "images": [image_base64]
-        })
+        # Construire un prompt direct sans system role (plus fiable pour llava)
+        full_prompt = (
+            f"Describe this image in detail in French. "
+            f"User question: {prompt}"
+        )
 
         data = {
             "model": vision_model,
-            "messages": messages,
+            "prompt": full_prompt,
+            "images": [image_base64],
             "stream": False,
             "options": {
-                "temperature": 0.7,
-                "num_ctx": 8192,
-                "num_predict": 1024,
+                "temperature": 0.0,
+                "top_p": 0.95,
+                "repeat_penalty": 1.1,
+                "num_ctx": 2048,
+                "num_predict": 400,
             },
         }
 
         try:
-            print(f"🖼️ [LocalLLM] Génération avec image via modèle vision '{vision_model}'...")
-            response = requests.post(self.chat_url, json=data, timeout=self.timeout)
+            print(f"🖼️ [LocalLLM] Génération vision via '{vision_model}' (generate API)...")
+            response = requests.post(self.ollama_url, json=data, timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
-                assistant_response = result.get("message", {}).get("content", "")
+                assistant_response = result.get("response", "")
                 if assistant_response:
+                    assistant_response = self._sanitize_vision_response(assistant_response)
                     self.add_to_history("user", f"[Image jointe] {prompt}")
                     self.add_to_history("assistant", assistant_response)
                     print("✅ [LocalLLM] Réponse vision générée")
@@ -223,11 +326,12 @@ class LocalLLM:
     def generate_stream_with_image(self, prompt, image_base64, system_prompt=None, on_token=None):
         """
         Génère une réponse avec image en STREAMING.
+        Utilise /api/generate (plus fiable pour vision) avec retry sur refus.
 
         Args:
             prompt: Le message de l'utilisateur
             image_base64: L'image encodée en base64
-            system_prompt: Prompt système optionnel
+            system_prompt: Prompt système optionnel (ignoré, intégré au prompt)
             on_token: Callback pour chaque token
 
         Returns:
@@ -240,33 +344,87 @@ class LocalLLM:
         if not vision_model:
             return None
 
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        # Prompts de tentatives successives - anglais (langue native de llava)
+        # Prompt ultra-strict pour éviter les hallucinations
+        prompts_to_try = [
+            (
+                f"You are viewing an image. Describe ONLY what you can ACTUALLY SEE in the image. "
+                f"Do not guess, do not infer, do not make assumptions. "
+                f"If you cannot see something clearly, say so. "
+                f"Answer in French.\n\n"
+                f"User question: {prompt}"
+            ),
+            (
+                f"IMPORTANT: An image is provided above. You MUST describe what you SEE in the image. "
+                f"Be factual and literal. Do not invent content.\n\n"
+                f"Question: {prompt}\n\n"
+                f"Answer in French."
+            ),
+        ]
 
-        messages.append({
-            "role": "user",
-            "content": prompt,
-            "images": [image_base64]
-        })
+        for attempt, full_prompt in enumerate(prompts_to_try):
+            # Le 1er essai utilise le streaming normal ; le retry est non-streaming
+            # pour ne pas afficher un refus à l'utilisateur
+            if attempt == 0:
+                result = self._stream_vision_attempt(
+                    vision_model, full_prompt, image_base64, on_token, attempt
+                )
+            else:
+                print(f"🔄 [LocalLLM] Retry vision (tentative {attempt + 1})...")
+                result = self._non_stream_vision_attempt(
+                    vision_model, full_prompt, image_base64, attempt
+                )
+
+            if result and not self._is_vision_refusal(result):
+                result = self._sanitize_vision_response(result)
+                self.add_to_history("user", f"[Image jointe] {prompt}")
+                self.add_to_history("assistant", result)
+                print(f"✅ [LocalLLM] Réponse vision OK (tentative {attempt + 1})")
+
+                # Si c'était un retry, envoyer la réponse au callback d'un coup
+                if attempt > 0 and on_token:
+                    on_token(result)
+
+                return result
+
+            if result:
+                print(f"⚠️ [LocalLLM] Tentative {attempt + 1}: refus détecté ({len(result)} chars)")
+
+        # Toutes les tentatives ont échoué, retourner la dernière réponse (même si c'est un refus)
+        if result:
+            result = self._sanitize_vision_response(result)
+            self.add_to_history("user", f"[Image jointe] {prompt}")
+            self.add_to_history("assistant", result)
+            if on_token and not self._streamed_already:
+                on_token(result)
+            return result
+
+        return None
+
+    def _stream_vision_attempt(self, vision_model, full_prompt, image_base64, on_token, attempt):
+        """Tentative de vision en streaming via /api/generate."""
+        self._streamed_already = False
 
         data = {
             "model": vision_model,
-            "messages": messages,
+            "prompt": full_prompt,
+            "images": [image_base64],
             "stream": True,
             "options": {
-                "temperature": 0.7,
-                "num_ctx": 8192,
-                "num_predict": 1024,
+                "temperature": 0.0,
+                "top_p": 0.95,
+                "repeat_penalty": 1.1,
+                "num_ctx": 2048,
+                "num_predict": 400,
             },
         }
 
         try:
-            print(f"⚡🖼️ [LocalLLM] Streaming vision via '{vision_model}'...")
+            print(f"⚡🖼️ [LocalLLM] Streaming vision via '{vision_model}' (generate API)...")
             full_response = ""
 
             with requests.post(
-                self.chat_url, json=data, timeout=self.timeout, stream=True
+                self.ollama_url, json=data, timeout=self.timeout, stream=True
             ) as response:
                 if response.status_code != 200:
                     print(f"⚠️ [LocalLLM] Erreur API vision: {response.status_code}")
@@ -277,7 +435,7 @@ class LocalLLM:
                         try:
                             chunk = line.decode("utf-8")
                             json_chunk = __import__("json").loads(chunk)
-                            token = json_chunk.get("message", {}).get("content", "")
+                            token = json_chunk.get("response", "")
 
                             if token:
                                 full_response += token
@@ -293,11 +451,7 @@ class LocalLLM:
                             print(f"⚠️ [LocalLLM] Erreur parsing vision chunk: {e}")
                             continue
 
-            if full_response:
-                self.add_to_history("user", f"[Image jointe] {prompt}")
-                self.add_to_history("assistant", full_response)
-                print("✅ [LocalLLM] Réponse vision streaming complète")
-
+            self._streamed_already = bool(full_response)
             return full_response
 
         except requests.exceptions.Timeout:
@@ -307,9 +461,34 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception vision streaming: {e}")
             return None
 
+    def _non_stream_vision_attempt(self, vision_model, full_prompt, image_base64, attempt):
+        """Tentative de vision non-streaming via /api/generate (pour retry silencieux)."""
+        data = {
+            "model": vision_model,
+            "prompt": full_prompt,
+            "images": [image_base64],
+            "stream": False,
+            "options": {
+                "temperature": 0.0,
+                "top_p": 0.95,
+                "repeat_penalty": 1.1,
+                "num_ctx": 2048,
+                "num_predict": 400,
+            },
+        }
+
+        try:
+            response = requests.post(self.ollama_url, json=data, timeout=self.timeout)
+            if response.status_code == 200:
+                return response.json().get("response", "")
+            return None
+        except Exception as e:
+            print(f"⚠️ [LocalLLM] Exception retry vision: {e}")
+            return None
+
     def _get_vision_model(self):
         """Détecte et retourne un modèle vision disponible dans Ollama"""
-        vision_models = ["llava", "llava:13b", "llava:7b", "llama3.2-vision", "bakllava", "moondream"]
+        vision_models = ["llama3.2-vision", "llava", "llava:13b", "llava:7b", "bakllava", "moondream"]
 
         try:
             response = requests.get(
