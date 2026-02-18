@@ -63,15 +63,10 @@ Je n'ai pas bien compris ce que vous voulez rechercher.
 
 Reformulez votre demande en précisant ce que vous voulez rechercher."""
 
-        # 🧠 OPTIMISATION: Si la requête est TRÈS longue (>100 caractères), utiliser Ollama pour extraire les mots-clés
-        # Seuil élevé pour minimiser les appels LLM et maximiser la performance
-        if (
-            len(search_query) > 100
-            and self.local_llm
-            and self.local_llm.is_ollama_available
-        ):
+        # 🧠 OPTIMISATION: Toujours utiliser Ollama pour optimiser la requête si disponible
+        if self.local_llm and self.local_llm.is_ollama_available:
             optimized_query = self._optimize_search_query_with_ollama(search_query)
-            if optimized_query and len(optimized_query) < len(search_query):
+            if optimized_query and 3 <= len(optimized_query) <= 120:
                 print(
                     f"🧠 [OLLAMA] Requête optimisée: '{search_query}' → '{optimized_query}'"
                 )
@@ -379,46 +374,29 @@ Génère la réponse finale directement à la question utilisateur, avec uniquem
 
         return user_lower if len(user_lower) > 2 else ""
 
-    def _optimize_search_query_with_ollama(self, long_query: str) -> str:
-        """Utilise Ollama pour transformer une requête longue en mots-clés courts."""
+    def _optimize_search_query_with_ollama(self, query: str) -> str:
+        """Utilise Ollama pour transformer une requête naturelle en requête de recherche concise."""
         try:
-            prompt = f"""Extrais les mots-clés essentiels de cette requête de recherche.
-
-Requête: "{long_query}"
-
-Règles STRICTES:
-✓ Garde TOUS les mots importants (noms, verbes d'action, événements, dates, détails)
-✓ GARDE ABSOLUMENT : "résultats", "groupes", "liste", "détails", "composition", "scores", "gagnant", "vainqueur", "gagné", "qui", "quoi", "quand", "où", "combien", etc.
-✓ GARDE les verbes d'action comme "gagner", "obtenir", "arriver", "finir", "qualifier"
-✓ Supprime SEULEMENT: "cherche", "sur internet", "peux tu", "trouve moi", "des informations sur"
-✓ GARDE LES ESPACES entre les mots
-✓ NE RACCOURCIS PAS les mots
-✓ Maximum 10 mots essentiels (priorise la précision sur la brièveté)
-
-Exemples:
-- "cherche les GROUPES des équipes Coupe du monde 2026" → "groupes équipes Coupe du monde 2026"
-- "cherche les RÉSULTATS élections législatives France" → "résultats élections législatives France"
-- "qui a GAGNÉ les élections 2024" → "qui gagné élections 2024"
-- "COMPOSITION des groupes Mondial 2026" → "composition groupes Mondial 2026"
-
-Réponds UNIQUEMENT avec les mots-clés optimisés.
-
-Mots-clés optimisés:"""
+            prompt = (
+                f"Transforme cette demande en une requête de recherche Wikipedia courte et efficace "
+                f"(5 à 8 mots maximum, mots-clés essentiels uniquement, sans verbes ni politesse). "
+                f"Réponds UNIQUEMENT avec la requête, rien d'autre.\n\nDemande: {query}"
+            )
 
             response = self.local_llm.generate(
                 prompt=prompt,
-                system_prompt="Tu es un assistant qui extrait des mots-clés pour la recherche internet.",
+                system_prompt="Tu es un expert en recherche d'information. Réponds uniquement avec la requête optimisée, sans explication ni ponctuation.",
             )
 
             if response:
-                optimized = response.strip().strip("\"'")
-                if len(optimized) <= 150 and len(optimized) >= 3:
+                optimized = response.strip().strip("\"'.,!?:;\n\r")
+                if 3 <= len(optimized) <= 120:
                     return optimized
 
         except (ConnectionError, TimeoutError, ValueError) as e:
             print(f"⚠️ Erreur lors de l'optimisation de la requête avec Ollama: {e}")
 
-        return long_query
+        return query
 
     def _handle_url_summarization(self, user_input: str) -> str:
         """Gère les demandes de résumé d'URL directe"""
