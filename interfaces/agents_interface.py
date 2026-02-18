@@ -184,10 +184,10 @@ class AgentsInterface:
                 "desc": "Génération et debug de code",
                 "color": "#3b82f6",
             },
-            "research": {
-                "icon": "📚",
-                "name": "ResearchAgent",
-                "desc": "Recherche et documentation",
+            "web": {
+                "icon": "🌐",
+                "name": "WebAgent",
+                "desc": "Recherche Internet & Fact-Checking",
                 "color": "#10b981",
             },
             "analyst": {

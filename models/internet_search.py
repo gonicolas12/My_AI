@@ -30,7 +30,13 @@ except ImportError:
 class EnhancedInternetSearchEngine:
     """Moteur de recherche internet avec extraction de réponse directe"""
 
-    def __init__(self):
+    def __init__(self, llm=None):
+        """
+        Initialise le moteur de recherche
+
+        Args:
+            llm: Instance de LocalLLM pour l'analyse intelligente du contenu (optionnel)
+        """
         self.search_apis = {
             "duckduckgo": "https://api.duckduckgo.com/",
             "bing": "https://api.bing.microsoft.com/v7.0/search",
@@ -41,6 +47,9 @@ class EnhancedInternetSearchEngine:
         self.max_results = 8
         self.max_content_length = 3000
         self.timeout = 15  # Augmenté à 15 secondes
+
+        # LLM pour analyse intelligente (optionnel)
+        self.llm = llm
 
         # User-agents multiples pour éviter la détection
         self.user_agents = [
@@ -79,7 +88,8 @@ class EnhancedInternetSearchEngine:
         return self.user_agent
 
     def _correct_common_typos(self, query: str) -> str:
-        """Corrige les fautes d'orthographe courantes dans les requêtes - VERSION SIMPLE"""
+        """Corrige les fautes d'orthographe via dictionnaire statique + fuzzy matching générique."""
+        # Dictionnaire statique (cas certains)
         corrections = {
             # Monuments et lieux célèbres
             "effeil": "eiffel",
@@ -104,27 +114,73 @@ class EnhancedInternetSearchEngine:
         has_correction = False
 
         for word in words:
-            # Enlever la ponctuation pour la comparaison
             clean_word = word.lower().strip(".,;:!?")
-
-            # Chercher une correction
             if clean_word in corrections:
                 corrected_word = corrections[clean_word]
-                # Préserver la ponctuation originale
-                if word != clean_word:
-                    corrected_word = corrected_word + word[len(clean_word) :]
-                corrected_words.append(corrected_word)
+                suffix = word[len(clean_word):]
+                corrected_words.append(corrected_word + suffix)
                 has_correction = True
                 print(f"✏️ Correction: '{word}' → '{corrected_word}'")
             else:
                 corrected_words.append(word)
 
         corrected_query = " ".join(corrected_words)
-
         if has_correction:
             print(f"✏️ Requête corrigée: '{query}' → '{corrected_query}'")
-
         return corrected_query
+
+    def _spellcheck_with_wikipedia(self, query: str) -> str:
+        """
+        Utilise l'API Wikipedia pour corriger l'orthographe d'une requête.
+        Envoie la requête à l'API opensearch de Wikipedia pour obtenir des suggestions.
+        Retourne la requête corrigée si Wikipedia a trouvé mieux, sinon retourne la requête originale.
+        """
+        try:
+            api_url = "https://fr.wikipedia.org/w/api.php"
+            params = {
+                "action": "opensearch",
+                "search": query,
+                "limit": 1,
+                "format": "json",
+            }
+            headers = {"User-Agent": self.user_agent}
+            resp = requests.get(api_url, params=params, headers=headers, timeout=6)
+            data = resp.json()
+            # Format: [query, [titles], [descriptions], [urls]]
+            if len(data) > 1 and data[1]:
+                suggestion = data[1][0]
+                if suggestion and suggestion.lower() != query.lower():
+                    print(f"🌐 Wikipedia spellcheck: '{query}' → '{suggestion}'")
+                    return suggestion
+        except Exception:
+            pass
+
+        # Fallback: essayer aussi l'API spellcheck de Wikipedia
+        try:
+            api_url = "https://fr.wikipedia.org/w/api.php"
+            params = {
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "srinfo": "suggestion",
+                "srprop": "",
+                "format": "json",
+            }
+            headers = {"User-Agent": self.user_agent}
+            resp = requests.get(api_url, params=params, headers=headers, timeout=6)
+            data = resp.json()
+            suggestion = (
+                data.get("query", {})
+                .get("searchinfo", {})
+                .get("suggestion", "")
+            )
+            if suggestion and suggestion.lower() != query.lower():
+                print(f"🌐 Wikipedia spellcheck suggestion: '{query}' → '{suggestion}'")
+                return suggestion
+        except Exception:
+            pass
+
+        return query
 
     def _init_answer_patterns(self) -> Dict[str, List[str]]:
         """Initialise les patterns pour extraire des réponses directes"""
@@ -341,19 +397,74 @@ class EnhancedInternetSearchEngine:
 
         # Mots à exclure (mots communs qui ne sont pas des villes)
         stop_words = {
-            "le", "la", "les", "un", "une", "des", "cette", "ce", "cet",
-            "météo", "meteo", "weather", "température", "temperature", "temps",
-            "pluie", "soleil", "neige", "vent", "climat", "chaud", "froid",
-            "degrés", "celsius", "forecast", "prévisions", "previsions",
-            "quel", "quelle", "quels", "quelles", "comment", "est", "fait",
-            "aujourd'hui", "demain", "semaine", "maintenant", "actuelle",
-            "il", "elle", "on", "nous", "vous", "ils", "elles",
-            "dans", "sur", "pour", "avec", "sans", "chez",
+            "le",
+            "la",
+            "les",
+            "un",
+            "une",
+            "des",
+            "cette",
+            "ce",
+            "cet",
+            "météo",
+            "meteo",
+            "weather",
+            "température",
+            "temperature",
+            "temps",
+            "pluie",
+            "soleil",
+            "neige",
+            "vent",
+            "climat",
+            "chaud",
+            "froid",
+            "degrés",
+            "celsius",
+            "forecast",
+            "prévisions",
+            "previsions",
+            "quel",
+            "quelle",
+            "quels",
+            "quelles",
+            "comment",
+            "est",
+            "fait",
+            "aujourd'hui",
+            "demain",
+            "semaine",
+            "maintenant",
+            "actuelle",
+            "il",
+            "elle",
+            "on",
+            "nous",
+            "vous",
+            "ils",
+            "elles",
+            "dans",
+            "sur",
+            "pour",
+            "avec",
+            "sans",
+            "chez",
         }
 
         # Prépositions à supprimer du début du nom de ville
         prepositions_to_remove = {
-            "au", "aux", "en", "à", "a", "de", "du", "des", "le", "la", "les", "l"
+            "au",
+            "aux",
+            "en",
+            "à",
+            "a",
+            "de",
+            "du",
+            "des",
+            "le",
+            "la",
+            "les",
+            "l",
         }
 
         # Pattern pour extraire les noms de villes avec prépositions
@@ -395,7 +506,11 @@ class EnhancedInternetSearchEngine:
                 # Nettoyer les prépositions au début
                 potential_city = clean_city_name(potential_city)
                 # Vérifier que ce n'est pas un mot commun
-                if potential_city and potential_city.lower() not in stop_words and len(potential_city) >= 2:
+                if (
+                    potential_city
+                    and potential_city.lower() not in stop_words
+                    and len(potential_city) >= 2
+                ):
                     print(f"🌍 Ville détectée: {potential_city}")
                     return potential_city
 
@@ -405,7 +520,11 @@ class EnhancedInternetSearchEngine:
         matches = re.findall(capital_pattern, query)
         for potential_city in matches:
             cleaned_city = clean_city_name(potential_city)
-            if cleaned_city and cleaned_city.lower() not in stop_words and len(cleaned_city) >= 2:
+            if (
+                cleaned_city
+                and cleaned_city.lower() not in stop_words
+                and len(cleaned_city) >= 2
+            ):
                 print(f"🌍 Ville détectée (nom propre): {cleaned_city}")
                 return cleaned_city
 
@@ -455,11 +574,215 @@ class EnhancedInternetSearchEngine:
             print(f"❌ Erreur lors de la recherche: {str(e)}")
             return f"Désolé, une erreur s'est produite lors de la recherche internet : {str(e)}"
 
+    def search_best_source_context(self, query: str) -> str:
+        """
+        Recherche internet optimisée pour un flux single-pass LLM:
+        - Sélectionne la source la plus pertinente
+        - Retourne un contexte structuré + sources
+        - N'appelle PAS le LLM ici
+        """
+        try:
+            print(f"🔍 Recherche internet (mode source unique) pour: '{query}'")
+
+            if self._is_weather_query(query):
+                return self._handle_weather_query(query)
+
+            # 1) Correction dictionnaire statique
+            corrected_query = self._correct_common_typos(query)
+            # 2) Correction via Wikipedia si la requête semble contenir des fautes
+            #    (heuristique: mot inconnu détecté = mot qui n'existe pas en minuscules sans accent)
+            corrected_query = self._spellcheck_with_wikipedia(corrected_query)
+            search_results = self._perform_search(corrected_query)
+
+            if not search_results:
+                return f"❌ Désolé, je n'ai pas pu trouver d'informations sur '{query}'. Vérifiez votre connexion internet."
+
+            page_contents = self._extract_page_contents(search_results)
+            if not page_contents:
+                return f"❌ Désolé, aucune source exploitable trouvée sur '{query}'."
+
+            best_source = self._select_best_source_for_query(corrected_query, page_contents)
+            if not best_source:
+                return f"❌ Désolé, aucune source pertinente trouvée sur '{query}'."
+
+            title = best_source.get("title", "Source principale")
+            url = best_source.get("url", "")
+            content = best_source.get("full_content") or best_source.get("snippet", "")
+
+            if len(content) > 12000:
+                content = content[:12000] + "\n\n[...contenu tronqué...]"
+
+            print(f"🎯 Source principale retenue: {title}")
+
+            return (
+                f"**Source principale sélectionnée**\n"
+                f"Titre: {title}\n"
+                f"URL: {url}\n\n"
+                f"**Contenu source**\n{content}\n\n"
+                f"🔗 **Sources**\n"
+                f"• [{title}]({url})"
+            )
+
+        except Exception as e:
+            print(f"❌ Erreur mode source unique: {str(e)}")
+            return f"Désolé, une erreur s'est produite lors de la recherche internet : {str(e)}"
+
+    def _select_best_source_for_query(
+        self, query: str, page_contents: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """Sélectionne la source la plus pertinente pour la requête (sans LLM, scoring générique)."""
+        if not page_contents:
+            return None
+
+        query_lower = query.lower().strip()
+
+        stopwords = {
+            "le",
+            "la",
+            "les",
+            "de",
+            "des",
+            "du",
+            "un",
+            "une",
+            "et",
+            "ou",
+            "en",
+            "sur",
+            "dans",
+            "pour",
+            "avec",
+            "sans",
+            "par",
+            "que",
+            "qui",
+            "quoi",
+            "comment",
+            "cherche",
+            "recherche",
+            "trouve",
+            "internet",
+            "web",
+            "google",
+        }
+
+        query_words = [
+            word
+            for word in re.findall(r"\w+", query_lower, flags=re.UNICODE)
+            if len(word) > 2 and word not in stopwords
+        ]
+        query_terms = set(query_words)
+
+        if not query_terms:
+            return page_contents[0]
+
+        wants_recent = any(
+            word in query_lower
+            for word in [
+                "dernier",
+                "dernière",
+                "derniers",
+                "dernières",
+                "récent",
+                "récente",
+                "récents",
+                "récentes",
+            ]
+        )
+
+        query_years = {
+            int(year)
+            for year in re.findall(r"\b(19\d{2}|20\d{2})\b", query_lower)
+        }
+
+        all_texts = []
+        for page in page_contents:
+            title = (page.get("title") or "").lower()
+            snippet = (page.get("snippet") or "").lower()
+            all_texts.extend(set(re.findall(r"\w+", f"{title} {snippet}", flags=re.UNICODE)))
+        token_frequency = Counter(token for token in all_texts if len(token) > 2)
+
+        scored = []
+        for page in page_contents:
+            title = (page.get("title") or "").lower()
+            snippet = (page.get("snippet") or "").lower()
+            content = (page.get("full_content") or snippet).lower()
+            combined_short = f"{title} {snippet}".strip()
+
+            title_terms = {
+                word
+                for word in re.findall(r"\w+", title, flags=re.UNICODE)
+                if len(word) > 2 and word not in stopwords
+            }
+            short_terms = {
+                word
+                for word in re.findall(r"\w+", combined_short, flags=re.UNICODE)
+                if len(word) > 2 and word not in stopwords
+            }
+
+            title_overlap = query_terms.intersection(title_terms)
+            short_overlap = query_terms.intersection(short_terms)
+
+            score = 0.0
+
+            # Couverture des termes de la requête
+            coverage_ratio = len(short_overlap) / max(len(query_terms), 1)
+            title_coverage_ratio = len(title_overlap) / max(len(query_terms), 1)
+            score += coverage_ratio * 420
+            score += title_coverage_ratio * 360
+
+            # Favoriser les termes rares parmi les résultats (discriminants)
+            rarity_bonus = 0.0
+            for token in title_overlap:
+                rarity_bonus += 1.0 / max(token_frequency.get(token, 1), 1)
+            score += rarity_bonus * 220
+
+            # Similarité globale query <-> titre
+            score += fuzz.partial_ratio(query_lower, title) * 1.4
+
+            # Gestion temporelle générique
+            page_years = {
+                int(y) for y in re.findall(r"\b(19\d{2}|20\d{2})\b", combined_short)
+            }
+            if query_years:
+                if page_years.intersection(query_years):
+                    score += 220
+                elif page_years:
+                    score -= 140
+            elif wants_recent and page_years:
+                newest_year = max(page_years)
+                score += max(0, (newest_year - 2018) * 18)
+
+            # Pénalité forte pour contenus trop courts (pages vides/navigation)
+            content_len = len(content)
+            if content_len < 400:
+                score -= 350
+            elif content_len < 800:
+                score -= 80
+
+            # Bonus fort proportionnel à la richesse du contenu
+            score += min(content_len / 200, 180)
+
+            scored.append((score, page))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        best_score, best_page = scored[0]
+        print(f"🏆 Meilleure source score={best_score}: {best_page.get('title', '')}")
+        return best_page
+
     def _extract_direct_answer(
         self, query: str, page_contents: List[Dict[str, Any]]
     ) -> Optional[str]:
         """Extrait la réponse directe à partir des contenus des pages"""
         print(f"🎯 Extraction de réponse directe pour: '{query}'")
+
+        # Si LLM disponible, utiliser l'analyse intelligente
+        if self.llm and self.llm.is_ollama_available:
+            print("🧠 Utilisation d'Ollama pour analyser le contenu web")
+            return self._extract_with_llm_analysis(query, page_contents)
+
+        # Sinon, utiliser l'extraction traditionnelle
+        print("📊 Utilisation de l'extraction traditionnelle (pas de LLM)")
 
         # Analyser le type de question
         question_type = self._analyze_question_type(query)
@@ -480,6 +803,96 @@ class EnhancedInternetSearchEngine:
             return self._extract_date_answer(candidate_sentences)
         else:
             return self._extract_general_answer(query, candidate_sentences)
+
+    def _extract_with_llm_analysis(
+        self, query: str, page_contents: List[Dict[str, Any]]
+    ) -> Optional[str]:
+        """
+        Utilise Ollama pour analyser intelligemment le contenu web et extraire les informations pertinentes
+
+        Cette approche est générique et s'adapte automatiquement au type de question
+        """
+        if not page_contents:
+            return None
+
+        # Combiner le contenu de toutes les pages
+        all_content = []
+        sources = []
+
+        for page in page_contents:
+            title = page.get("title", "")
+            content = page.get("full_content") or page.get("snippet", "")
+            url = page.get("url", "")
+
+            if content and len(content) > 50:
+                all_content.append(
+                    f"Source: {title}\n{content[:3000]}"
+                )  # Limiter à 3000 chars par source
+                sources.append({"title": title, "url": url})
+
+        if not all_content:
+            return None
+
+        # Limiter le nombre total de caractères pour ne pas surcharger Ollama
+        combined_content = "\n\n---\n\n".join(all_content[:5])  # Max 5 sources
+
+        # Limiter à 15000 caractères total (environ 4000 tokens)
+        if len(combined_content) > 15000:
+            combined_content = combined_content[:15000] + "\n\n[...contenu tronqué...]"
+
+        print(
+            f"📊 Envoi de {len(combined_content)} caractères de contenu à Ollama pour analyse"
+        )
+
+        # Demander à Ollama d'extraire les informations pertinentes
+        prompt = f"""Tu es un expert en extraction d'informations depuis du contenu web.
+
+QUESTION DE L'UTILISATEUR: "{query}"
+
+CONTENU WEB (provenant de plusieurs sources fiables):
+{combined_content}
+
+TÂCHE:
+Analyse CE contenu et extrais UNIQUEMENT les informations qui répondent directement à la question.
+
+RÈGLES STRICTES:
+✓ Extrais TOUTES les informations pertinentes (noms, chiffres, dates, détails, contexte)
+✓ Si ce sont des résultats chiffrés (élections, compétitions, scores): donne TOUS les chiffres importants
+✓ Garde les noms propres exacts (partis, équipes, personnes, lieux)
+✓ Organise clairement les informations (liste à puces si pertinent)
+✓ Cite les chiffres précis trouvés dans le contenu
+✓ NE réponds QUE si l'information est présente dans le contenu fourni
+✓ Si l'information n'est pas dans le contenu, dis "Information non trouvée dans les sources"
+✓ Sépare les différentes informations par des sauts de ligne doubles (\\n\\n)
+
+Réponds de manière factuelle et structurée:"""
+
+        try:
+            # Sauvegarder l'historique pour ne pas le polluer
+            saved_history = self.llm.conversation_history.copy()
+            self.llm.conversation_history = []
+
+            # Générer la réponse avec Ollama
+            extracted_info = self.llm.generate(
+                prompt=prompt,
+                system_prompt="Tu extrais des informations factuelles depuis du contenu web. Tu es précis, complet et factuel.",
+            )
+
+            # Restaurer l'historique
+            self.llm.conversation_history = saved_history
+
+            if extracted_info and len(extracted_info.strip()) > 20:
+                print(
+                    f"✅ Ollama a extrait {len(extracted_info)} caractères d'informations pertinentes"
+                )
+                return extracted_info.strip()
+            else:
+                print("⚠️ Ollama n'a pas pu extraire d'informations pertinentes")
+                return None
+
+        except Exception as e:
+            print(f"❌ Erreur lors de l'analyse LLM: {str(e)}")
+            return None
 
     def _analyze_question_type(self, query: str) -> str:
         """Analyse le type de question pour adapter l'extraction"""
@@ -566,65 +979,71 @@ class EnhancedInternetSearchEngine:
         print(f"🎯 [FILTER] Entité(s) recherchée(s): {entity_words}")
 
         for page in page_contents:
-            for content_field in ["snippet", "full_content"]:
-                text = page.get(content_field, "")
-                if text:
-                    # Découper en phrases
-                    sentences = re.split(r"(?<=[.!?])\s+", text)
+            # Utiliser full_content en priorité, sinon snippet
+            # (évite de traiter deux fois le même contenu)
+            text = page.get("full_content") or page.get("snippet", "")
 
-                    for sentence in sentences:
-                        sentence = sentence.strip()
-                        if len(sentence) < 10 or len(sentence) > 500:
-                            continue
+            if text:
+                # Découper en phrases
+                sentences = re.split(r"(?<=[.!?])\s+", text)
 
-                        # Calculer la pertinence
-                        sentence_words = set(
-                            word.lower().strip(string.punctuation)
-                            for word in sentence.split()
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    if len(sentence) < 10 or len(sentence) > 500:
+                        continue
+
+                    # Calculer la pertinence
+                    sentence_words = set(
+                        word.lower().strip(string.punctuation)
+                        for word in sentence.split()
+                    )
+                    relevance_score = len(query_words.intersection(sentence_words))
+
+                    # BONUS MAJEUR si la phrase contient les mots de l'entité recherchée
+                    entity_matches = len(entity_words.intersection(sentence_words))
+                    if entity_matches > 0:
+                        relevance_score += entity_matches * 5  # Très fort bonus !
+                        print(
+                            f"  ✅ Phrase avec entité '{entity_words}': {sentence[:80]}..."
                         )
-                        relevance_score = len(query_words.intersection(sentence_words))
 
-                        # BONUS MAJEUR si la phrase contient les mots de l'entité recherchée
-                        entity_matches = len(entity_words.intersection(sentence_words))
-                        if entity_matches > 0:
-                            relevance_score += entity_matches * 5  # Très fort bonus !
-                            print(
-                                f"  ✅ Phrase avec entité '{entity_words}': {sentence[:80]}..."
-                            )
+                    # Bonus pour les phrases avec des nombres ou des faits précis
+                    if re.search(r"\d+", sentence):
+                        relevance_score += 2
 
-                        # Bonus pour les phrases avec des nombres ou des faits précis
-                        if re.search(r"\d+", sentence):
-                            relevance_score += 2
+                    # Bonus pour les débuts de phrase indicatifs
+                    if any(
+                        sentence.lower().startswith(start)
+                        for start in [
+                            "la",
+                            "le",
+                            "il",
+                            "elle",
+                            "c'est",
+                            "ce sont",
+                            "on trouve",
+                            "situé",
+                        ]
+                    ):
+                        relevance_score += 1
 
-                        # Bonus pour les débuts de phrase indicatifs
-                        if any(
-                            sentence.lower().startswith(start)
-                            for start in [
-                                "la",
-                                "le",
-                                "il",
-                                "elle",
-                                "c'est",
-                                "ce sont",
-                                "on trouve",
-                                "situé",
-                            ]
-                        ):
-                            relevance_score += 1
+                    if relevance_score > 0:
+                        candidates.append(
+                            {
+                                "sentence": sentence,
+                                "relevance": relevance_score,
+                                "source": page.get("title", "Source inconnue"),
+                                "url": page.get("url", ""),
+                            }
+                        )
 
-                        if relevance_score > 0:
-                            candidates.append(
-                                {
-                                    "sentence": sentence,
-                                    "relevance": relevance_score,
-                                    "source": page.get("title", "Source inconnue"),
-                                    "url": page.get("url", ""),
-                                }
-                            )
-
-        # Trier par pertinence
+        # Trier par pertinence et retourner les 100 meilleures (augmenté de 20)
+        # Cela permet d'avoir beaucoup plus de contexte pour les questions complexes
         candidates.sort(key=lambda x: x["relevance"], reverse=True)
-        return candidates[:20]
+        print(
+            f"📊 Total de {len(candidates)} candidates, retour des {min(len(candidates), 100)} meilleures"
+        )
+        return candidates[:100]  # Augmenté de 20 à 100 pour capturer plus de détails
 
     def _extract_factual_answer(
         self, query: str, candidates: List[Dict[str, Any]]
@@ -663,14 +1082,18 @@ class EnhancedInternetSearchEngine:
             # Prendre la réponse la plus consensuelle
             best_answer = answer_counts.most_common(1)[0][0]
 
-            # Trouver la phrase complète contenant cette réponse
+            # Trouver TOUTES les phrases contenant cette réponse pour plus de contexte
+            relevant_sentences = []
             for candidate in candidates:
                 if best_answer.split()[0] in candidate["sentence"]:
-                    # Nettoyer et formater la phrase
                     cleaned_sentence = self._universal_word_spacing_fix(
                         candidate["sentence"]
                     )
-                    return cleaned_sentence.strip()
+                    relevant_sentences.append(cleaned_sentence.strip())
+
+            # Retourner les 20 premières phrases pertinentes (ou moins s'il y en a moins)
+            if relevant_sentences:
+                return "\n\n".join(relevant_sentences[:20])
 
         return None
 
@@ -1006,7 +1429,9 @@ class EnhancedInternetSearchEngine:
                         "Elle",
                     ]:
                         entity_name = potential_name
-                        print(f"  🎯 [ENTITY] Nom extrait de la phrase: '{entity_name}'")
+                        print(
+                            f"  🎯 [ENTITY] Nom extrait de la phrase: '{entity_name}'"
+                        )
                         break
 
         # Stratégie 4 : Fallback générique
@@ -1018,7 +1443,9 @@ class EnhancedInternetSearchEngine:
         # Adapter l'article selon le genre (si commence par voyelle, utiliser "l'")
         if entity_name[0].lower() in "aeiouhéèê":
             article = "L'"
-            simple_answer = f"{article}{entity_name} mesure {int(value)} mètres de hauteur."
+            simple_answer = (
+                f"{article}{entity_name} mesure {int(value)} mètres de hauteur."
+            )
         else:
             # Détecter si c'est masculin ou féminin (par défaut masculin)
             if entity_name.lower().startswith(
@@ -1027,7 +1454,9 @@ class EnhancedInternetSearchEngine:
                 article = "La"
             else:
                 article = "Le"
-            simple_answer = f"{article} {entity_name} mesure {int(value)} mètres de hauteur."
+            simple_answer = (
+                f"{article} {entity_name} mesure {int(value)} mètres de hauteur."
+            )
 
         print(f"  📝 [SIMPLE] Réponse générée: {simple_answer}")
 
@@ -1352,11 +1781,20 @@ class EnhancedInternetSearchEngine:
                             source_sentences[clean_match] = sentence
 
         if definitions:
-            best_definition = definitions.most_common(1)[0][0]
-            cleaned_sentence = self._universal_word_spacing_fix(
-                source_sentences[best_definition]
-            )
-            return cleaned_sentence.strip()
+            # Trier par pertinence et prendre les 20 meilleures définitions
+            top_definitions = definitions.most_common(20)
+
+            # Construire un résumé avec toutes les définitions pertinentes
+            result_parts = []
+            for definition, _score in top_definitions:
+                if definition in source_sentences:
+                    cleaned_sentence = self._universal_word_spacing_fix(
+                        source_sentences[definition]
+                    )
+                    result_parts.append(cleaned_sentence.strip())
+
+            if result_parts:
+                return "\n\n".join(result_parts)
 
         return None
 
@@ -1386,11 +1824,20 @@ class EnhancedInternetSearchEngine:
                         source_sentences[date_key] = sentence
 
         if dates:
-            best_date = dates.most_common(1)[0][0]
-            cleaned_sentence = self._universal_word_spacing_fix(
-                source_sentences[best_date]
-            )
-            return cleaned_sentence.strip()
+            # Trier par pertinence et prendre les 20 meilleures dates
+            top_dates = dates.most_common(20)
+
+            # Construire un résumé avec toutes les phrases contenant des dates pertinentes
+            result_parts = []
+            for date, _score in top_dates:
+                if date in source_sentences:
+                    cleaned_sentence = self._universal_word_spacing_fix(
+                        source_sentences[date]
+                    )
+                    result_parts.append(cleaned_sentence.strip())
+
+            if result_parts:
+                return "\n\n".join(result_parts)
 
         return None
 
@@ -1447,11 +1894,24 @@ class EnhancedInternetSearchEngine:
 
             sentence_scores[sentence] = score
 
-        # Prendre la phrase avec le meilleur score
+        # Prendre les 50 meilleures phrases (augmenté de 25) pour donner BEAUCOUP plus de contexte
         if sentence_scores:
-            best_sentence = max(sentence_scores, key=sentence_scores.get)
-            cleaned_sentence = self._universal_word_spacing_fix(best_sentence)
-            return cleaned_sentence.strip()
+            # Trier par score décroissant et prendre les 50 meilleures
+            sorted_sentences = sorted(
+                sentence_scores.items(), key=lambda x: x[1], reverse=True
+            )
+
+            # Prendre les 50 meilleures phrases (ou moins s'il y en a moins)
+            top_sentences = sorted_sentences[:50]
+
+            # Construire un résumé structuré avec toutes les phrases pertinentes
+            result_parts = []
+            for sentence, score in top_sentences:
+                cleaned_sentence = self._universal_word_spacing_fix(sentence)
+                result_parts.append(cleaned_sentence.strip())
+
+            # Joindre avec des sauts de ligne pour lisibilité
+            return "\n\n".join(result_parts)
 
         return None
 
@@ -1691,19 +2151,26 @@ class EnhancedInternetSearchEngine:
         summary = ""
 
         if direct_answer:
-            # Vérifier si la réponse est déjà bien formatée (commence par une phrase naturelle)
-            # ou si c'est un extrait brut de Wikipedia qu'il faut reformuler
-            is_natural_response = self._is_natural_response(direct_answer)
-
-            if is_natural_response:
-                # Réponse déjà naturelle, juste nettoyer
+            # 🔥 NOUVEAU: Si direct_answer contient déjà plusieurs phrases (séparées par \n\n),
+            # NE PAS le reformuler - c'est déjà un résumé enrichi de _extract_general_answer()
+            if "\n\n" in direct_answer:
+                # Multiple phrases déjà formatées - juste nettoyer et formater
                 cleaned_answer = self._universal_word_spacing_fix(direct_answer)
                 enhanced_answer = self._intelligent_bold_formatting(cleaned_answer)
                 summary += f"{enhanced_answer}\n\n"
             else:
-                # Extrait brut -> essayer de reformuler naturellement
-                reformulated = self._reformulate_raw_extract(direct_answer, query)
-                summary += f"{reformulated}\n\n"
+                # Une seule phrase - vérifier si naturelle ou si besoin de reformulation
+                is_natural_response = self._is_natural_response(direct_answer)
+
+                if is_natural_response:
+                    # Réponse déjà naturelle, juste nettoyer
+                    cleaned_answer = self._universal_word_spacing_fix(direct_answer)
+                    enhanced_answer = self._intelligent_bold_formatting(cleaned_answer)
+                    summary += f"{enhanced_answer}\n\n"
+                else:
+                    # Extrait brut -> essayer de reformuler naturellement
+                    reformulated = self._reformulate_raw_extract(direct_answer, query)
+                    summary += f"{reformulated}\n\n"
         else:
             key_info = self._extract_concentrated_summary(query, page_contents)
             cleaned_info = self._universal_word_spacing_fix(key_info)
@@ -1731,7 +2198,10 @@ class EnhancedInternetSearchEngine:
             summary += "Aucune source disponible\n"
 
         print(f"[DEBUG] Résumé généré avec {len(source_links)} liens:")
-        print(f"[DEBUG] Résumé complet:\n{summary[:500]}")
+        print(f"[DEBUG] Nombre total de caractères dans le résumé: {len(summary)}")
+        print(f"[DEBUG] Résumé complet (premiers 500 chars):\n{summary[:500]}")
+        print(f"[DEBUG] Résumé complet (500-1000 chars):\n{summary[500:1000]}")
+        print(f"[DEBUG] Résumé complet (1000-1500 chars):\n{summary[1000:1500]}")
 
         return summary
 
@@ -1828,8 +2298,17 @@ class EnhancedInternetSearchEngine:
             if text != old_text:
                 print(f"[DEBUG] Appliqué: {pattern} -> changé en: {repr(text)}")
 
-        # Étape 4: Nettoyer les espaces
-        text = re.sub(r"\s+", " ", text)
+        # Étape 4: Nettoyer les espaces SANS toucher aux doubles sauts de ligne
+        # 🔥 CRITIQUE: Préserver les \n\n pour garder les phrases séparées dans les résumés enrichis
+        # Remplacer d'abord les doubles+ sauts de ligne par un marqueur temporaire
+        text = text.replace("\n\n", "§§DOUBLE_NEWLINE§§")
+        # Nettoyer les espaces multiples et les simples newlines
+        text = re.sub(r"[ \t]+", " ", text)  # Espaces/tabs multiples -> un espace
+        text = text.replace("\n", " ")  # Simples newlines -> espace
+        # Restaurer les doubles sauts de ligne
+        text = text.replace("§§DOUBLE_NEWLINE§§", "\n\n")
+
+        # Nettoyer la ponctuation
         text = re.sub(r"\s+([.!?:;,])", r"\1", text)
         text = re.sub(r"([.!?:;,])([a-zA-Z])", r"\1 \2", text)
 
@@ -2864,7 +3343,8 @@ class EnhancedInternetSearchEngine:
                             "exintro": False,  # Récupérer l'article complet, pas juste l'intro
                             "explaintext": True,  # Texte brut sans HTML
                             "format": "json",
-                            "exchars": 5000,  # Limiter à 5000 caractères pour performance
+                            "exsectionformat": "plain",  # Format plat pour toutes les sections
+                            # Pas de limite exchars - prendre TOUT le contenu disponible
                         }
 
                         content_response = requests.get(
@@ -2902,12 +3382,186 @@ class EnhancedInternetSearchEngine:
                         continue
 
             print(f"✅ Wikipedia FR: {len(results)} résultats avec contenu complet")
-            return results[: self.max_results]
+
+            # 🔥 NOUVEAU: Filtrer et scorer les résultats par pertinence AVANT de les retourner
+            filtered_results = self._filter_and_score_wikipedia_results(results, query)
+
+            return filtered_results[: self.max_results]
 
         except Exception as e:
             print(f"❌ Erreur globale Wikipedia FR: {str(e)}")
             traceback.print_exc()
             return []
+
+    def _filter_and_score_wikipedia_results(
+        self, results: List[Dict[str, Any]], query: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Filtre et score les résultats Wikipedia par pertinence à la query.
+        Utilise un scoring RAPIDE et intelligent basé sur l'analyse des mots-clés,
+        sans appel LLM pour maximiser la performance.
+
+        Args:
+            results: Liste des résultats Wikipedia bruts
+            query: Query originale de l'utilisateur
+
+        Returns:
+            Liste triée des résultats pertinents
+        """
+        if not results:
+            return results
+
+        print(f"🔍 Scoring rapide générique de {len(results)} résultats Wikipedia...")
+
+        query_lower = query.lower().strip()
+        stopwords = {
+            "le",
+            "la",
+            "les",
+            "de",
+            "des",
+            "du",
+            "un",
+            "une",
+            "et",
+            "ou",
+            "en",
+            "sur",
+            "dans",
+            "pour",
+            "avec",
+            "sans",
+            "par",
+            "que",
+            "qui",
+            "quoi",
+            "comment",
+            "cherche",
+            "recherche",
+            "trouve",
+            "internet",
+            "web",
+            "google",
+        }
+        query_terms = {
+            word
+            for word in re.findall(r"\w+", query_lower, flags=re.UNICODE)
+            if len(word) > 2 and word not in stopwords
+        }
+
+        wants_recent = any(
+            word in query_lower
+            for word in [
+                "dernier",
+                "dernière",
+                "derniers",
+                "dernières",
+                "récent",
+                "récente",
+                "récents",
+                "récentes",
+                "latest",
+                "recent",
+            ]
+        )
+        query_years = {
+            int(year)
+            for year in re.findall(r"\b(19\d{2}|20\d{2})\b", query_lower)
+        }
+
+        all_tokens = []
+        for result in results:
+            title = (result.get("title") or "").lower()
+            snippet = (result.get("snippet") or "").lower()
+            all_tokens.extend(
+                set(
+                    token
+                    for token in re.findall(r"\w+", f"{title} {snippet}", flags=re.UNICODE)
+                    if len(token) > 2 and token not in stopwords
+                )
+            )
+        token_frequency = Counter(all_tokens)
+
+        scored_results = []
+        for result in results:
+            title = result.get("title", "").lower()
+            snippet = result.get("snippet", "").lower()
+
+            title_terms = {
+                token
+                for token in re.findall(r"\w+", title, flags=re.UNICODE)
+                if len(token) > 2 and token not in stopwords
+            }
+            snippet_terms = {
+                token
+                for token in re.findall(r"\w+", snippet, flags=re.UNICODE)
+                if len(token) > 2 and token not in stopwords
+            }
+            page_terms = title_terms.union(snippet_terms)
+
+            overlap_title = query_terms.intersection(title_terms)
+            overlap_all = query_terms.intersection(page_terms)
+
+            coverage = len(overlap_all) / max(len(query_terms), 1)
+            title_coverage = len(overlap_title) / max(len(query_terms), 1)
+
+            score = 0.0
+            score += coverage * 360
+            score += title_coverage * 340
+            score += fuzz.partial_ratio(query_lower, title) * 1.5
+
+            rarity_bonus = 0.0
+            for token in overlap_title:
+                rarity_bonus += 1.0 / max(token_frequency.get(token, 1), 1)
+            score += rarity_bonus * 220
+
+            title_years = {
+                int(year) for year in re.findall(r"\b(19\d{2}|20\d{2})\b", title)
+            }
+            if query_years:
+                if query_years.intersection(title_years):
+                    score += 180
+                elif title_years:
+                    score -= 120
+            elif wants_recent and title_years:
+                newest_year = max(title_years)
+                score += max(0, (newest_year - 2018) * 16)
+
+            if len(title_terms) < 2 and len(snippet_terms) < 3:
+                score -= 60
+
+            # Pénalité pour snippets trop courts (pseudo-pages vides)
+            snippet_len = len(snippet)
+            if snippet_len < 80:
+                score -= 200
+            else:
+                score += min(snippet_len / 40, 80)
+
+            score = int(score)
+
+            scored_results.append((score, result, title))
+
+        # Trier par score décroissant
+        scored_results.sort(reverse=True, key=lambda x: x[0])
+
+        # Afficher les scores et filtrer
+        filtered = []
+        min_score = 180  # Seuil minimum de pertinence (générique)
+
+        for score, result, title in scored_results:
+            if score >= min_score:
+                print(f"✅ Score {score:4d}: {result.get('title')}")
+                filtered.append(result)
+            else:
+                print(f"❌ Score {score:4d}: {result.get('title')} (éliminé)")
+
+        # Si aucun résultat au-dessus du seuil, prendre les 3 meilleurs
+        if not filtered and scored_results:
+            print(f"⚠️ Aucun résultat >= {min_score}, prise des 3 meilleurs")
+            filtered = [result for _, result, _ in scored_results[:3]]
+
+        print(f"📊 {len(filtered)} résultats retenus sur {len(results)}")
+        return filtered[: self.max_results]
 
     def _search_wikipedia_en(self, query: str) -> List[Dict[str, Any]]:
         """Recherche sur Wikipedia anglais avec CONTENU COMPLET et correction orthographique"""
@@ -3123,7 +3777,8 @@ class EnhancedInternetSearchEngine:
                             "exintro": False,  # CHANGÉ: Récupérer l'article complet, pas juste l'intro
                             "explaintext": True,  # Texte brut sans HTML
                             "format": "json",
-                            "exchars": 5000,  # Limiter à 5000 caractères pour performance
+                            "exsectionformat": "plain",  # Format plat pour toutes les sections
+                            # Pas de limite exchars - prendre TOUT le contenu disponible
                         }
 
                         content_response = requests.get(
@@ -3161,7 +3816,9 @@ class EnhancedInternetSearchEngine:
                         continue
 
             print(f"✅ Wikipedia EN: {len(results)} résultats avec contenu complet")
-            return results[: self.max_results]
+            # Filtrer par pertinence avant de retourner
+            filtered_results = self._filter_and_score_wikipedia_results(results, query)
+            return filtered_results[: self.max_results]
 
         except Exception as e:
             print(f"❌ Erreur globale Wikipedia EN: {str(e)}")

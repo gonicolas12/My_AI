@@ -250,7 +250,7 @@ class CLIInterface:
                 print("❌ Usage: agent <type> <tâche>")
                 print("Exemples:")
                 print("  agent code Crée une fonction qui trie une liste")
-                print("  agent research Quelles sont les nouveautés Python 3.13?")
+                print("  agent web Cherche les groupes de la Coupe du monde 2026")
                 print("  agent analyst Analyse ces données: [1,2,3,4,5]")
                 print("\nTapez 'agents' pour voir la liste des agents disponibles")
                 return
@@ -293,7 +293,7 @@ class CLIInterface:
                 print("❌ Usage: workflow <template> <description>")
                 print("\nTemplates disponibles:")
                 print("  • dev <description>       - Développement (planner → code → debug)")
-                print("  • research <sujet>        - Recherche (research → analyst → creative)")
+                print("  • web <sujet>            - Recherche Internet (web → analyst → creative)")
                 print("  • debug <code> <erreur>   - Debug (debug → code)")
                 print("\nExemple:")
                 print("  workflow dev Une API REST pour gérer des utilisateurs")
@@ -309,7 +309,7 @@ class CLIInterface:
             # Sélectionner le template
             if template == "dev":
                 task_desc, workflow = WorkflowTemplates.code_development(description)
-            elif template == "research":
+            elif template == "web":
                 task_desc, workflow = WorkflowTemplates.research_and_document(description)
             elif template == "debug":
                 # Pour debug, on s'attend à ce que description soit au format "code | erreur"
@@ -321,7 +321,7 @@ class CLIInterface:
                     return
             else:
                 print(f"❌ Template inconnu: {template}")
-                print("Templates disponibles: dev, research, debug")
+                print("Templates disponibles: dev, web, debug")
                 return
 
             # Exécuter le workflow
@@ -368,7 +368,7 @@ class CLIInterface:
 
         agents_info = {
             "code": ("🐍 CodeAgent", "Génération et debug de code", "Prec: 0.3"),
-            "research": ("📚 ResearchAgent", "Recherche et documentation", "Bal: 0.5"),
+            "web": ("🌐 WebAgent", "Recherche Internet & Fact-Checking", "Bal: 0.5"),
             "analyst": ("📊 AnalystAgent", "Analyse de données", "Anal: 0.4"),
             "creative": ("✨ CreativeAgent", "Contenu créatif", "Créa: 0.8"),
             "debug": ("🐛 DebugAgent", "Debug et correction", "Prec: 0.2"),
@@ -417,12 +417,12 @@ class CLIInterface:
     • agents                         - Liste tous les agents disponibles
     • agent <type> <tâche>           - Exécute une tâche avec un agent
       Exemple: agent code Crée une fonction qui trie une liste
-      Types: code, research, analyst, creative, debug, planner
+      Types: code, web, analyst, creative, debug, planner
     
     • workflow <template> <description> - Exécute un workflow multi-agents
       Templates:
         - dev <projet>       : Planner → Code → Debug
-        - research <sujet>   : Research → Analyst → Creative
+        - web <sujet>        : Web → Analyst → Creative
         - debug <code|err>   : Debug → Code
       Exemple: workflow dev Une API REST pour gérer des utilisateurs
 

@@ -134,7 +134,7 @@ my_ai/
 | Agent | Description |
 |-------|-------------|
 | 🐍 **CodeAgent** | Génération et debug de code multi-langages |
-| 📚 **ResearchAgent** | Recherche et documentation technique |
+| 🌐 **WebAgent** | Recherche Internet & Fact-Checking |
 | 📊 **AnalystAgent** | Analyse de données et insights |
 | ✨ **CreativeAgent** | Rédaction et contenu créatif |
 | 🐛 **DebugAgent** | Détection et correction d'erreurs |

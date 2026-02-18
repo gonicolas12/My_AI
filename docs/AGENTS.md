@@ -38,19 +38,19 @@ Coordonne les agents pour :
 orchestrator.ask_agent("code", "Crée une fonction qui trie une liste")
 ```
 
-### 2. **ResearchAgent** 📚
-**Expertise:** Recherche et documentation
+### 2. **WebAgent** 🌐
+**Expertise:** Recherche Internet & Fact-Checking
 
 **Utilise pour:**
-- Rechercher des informations techniques
-- Synthétiser plusieurs sources
-- Documenter des sujets
-- Veille technologique
+- Rechercher des informations en temps réel sur internet
+- Fact-checking avec sources vérifiables
+- Trouver des actualités et événements récents (focus 2026)
+- Obtenir des données réelles depuis le web
 
 **Temperature:** 0.5 (équilibré)
 
 ```python
-orchestrator.ask_agent("research", "Quelles sont les nouveautés Python 3.13 ?")
+orchestrator.ask_agent("web", "Cherche les groupes de la Coupe du monde 2026")
 ```
 
 ### 3. **AnalystAgent** 📊
@@ -394,7 +394,7 @@ Plusieurs agents travaillent simultanément sur différents aspects :
 
 ```python
 tasks = [
-    {"agent": "research", "task": "Recherche les frameworks Python web"},
+    {"agent": "web", "task": "Cherche les frameworks Python web"},
     {"agent": "analyst", "task": "Compare FastAPI vs Flask vs Django"},
     {"agent": "code", "task": "Exemple de code pour chaque framework"}
 ]
@@ -458,15 +458,15 @@ verified_code = orchestrator.ask_agent(
 
 ```python
 # Recherche
-research = orchestrator.ask_agent(
-    "research",
-    "Recherche les meilleures pratiques en cybersécurité 2026"
+web_search = orchestrator.ask_agent(
+    "web",
+    "Cherche les meilleures pratiques en cybersécurité 2026"
 )
 
 # Analyse
 analysis = orchestrator.ask_agent(
     "analyst",
-    f"Analyse ces informations et identifie les 5 points clés: {research}"
+    f"Analyse ces informations et identifie les 5 points clés: {web_search}"
 )
 
 # Rédaction
@@ -574,8 +574,8 @@ result = custom_agent.execute_task(
 ### 1. Choix de l'Agent
 - **Code simple** → CodeAgent seul
 - **Projet complexe** → Workflow Planner → Code → Debug (via drag & drop)
-- **Recherche** → ResearchAgent → AnalystAgent
-- **Contenu** → ResearchAgent → CreativeAgent
+- **Recherche Internet** → WebAgent → AnalystAgent
+- **Contenu avec recherche** → WebAgent → CreativeAgent
 - **Sécurité** → SecurityAgent → CodeAgent
 - **Performance** → OptimizerAgent
 - **Data science** → DataScienceAgent → AnalystAgent

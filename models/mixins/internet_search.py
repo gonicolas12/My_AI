@@ -63,9 +63,10 @@ Je n'ai pas bien compris ce que vous voulez rechercher.
 
 Reformulez votre demande en précisant ce que vous voulez rechercher."""
 
-        # 🧠 OPTIMISATION: Si la requête est longue (>20 caractères), utiliser Ollama pour extraire les mots-clés
+        # 🧠 OPTIMISATION: Si la requête est TRÈS longue (>100 caractères), utiliser Ollama pour extraire les mots-clés
+        # Seuil élevé pour minimiser les appels LLM et maximiser la performance
         if (
-            len(search_query) > 20
+            len(search_query) > 100
             and self.local_llm
             and self.local_llm.is_ollama_available
         ):
@@ -79,8 +80,12 @@ Reformulez votre demande en précisant ce que vous voulez rechercher."""
         # Effectuer la recherche avec le moteur de recherche internet
         try:
             print(f"🌐 Lancement de la recherche pour: '{search_query}'")
-            # Obtenir les résultats bruts de la recherche
-            raw_results = self.internet_search.search_and_summarize(search_query)
+            # Mode single-pass: préparer un contexte de source unique, puis générer 1 seule fois avec Ollama
+            if self.local_llm and self.local_llm.is_ollama_available:
+                raw_results = self.internet_search.search_best_source_context(search_query)
+            else:
+                # Fallback sans LLM
+                raw_results = self.internet_search.search_and_summarize(search_query)
 
             # 🦙 NOUVEAU: Utiliser Ollama pour générer une réponse intelligente
             if self.local_llm and self.local_llm.is_ollama_available:
@@ -266,6 +271,7 @@ Instructions:
 - Réponds de manière naturelle et conversationnelle en français
 - Utilise le formatage Markdown (gras, listes, titres) pour structurer ta réponse
 - Sois précis et cite les informations importantes
+- Réponds DIRECTEMENT à la question, sans section "Introduction" ni "Conclusion"
 - Ne mentionne pas que tu analyses des "résultats de recherche", réponds directement
 - Si les résultats contiennent des informations contradictoires, mentionne-le
 - Garde un ton amical et accessible"""
@@ -275,7 +281,7 @@ Instructions:
 Informations trouvées sur internet concernant "{search_query}":
 {raw_results[:4000]}
 
-Génère une réponse complète et bien structurée basée sur ces informations."""
+Génère la réponse finale directement à la question utilisateur, avec uniquement les informations présentes dans la source fournie."""
 
             print("🦙 [OLLAMA] Génération de la réponse basée sur la recherche...")
 
@@ -376,21 +382,26 @@ Génère une réponse complète et bien structurée basée sur ces informations.
     def _optimize_search_query_with_ollama(self, long_query: str) -> str:
         """Utilise Ollama pour transformer une requête longue en mots-clés courts."""
         try:
-            prompt = f"""Tu es un expert en optimisation de requêtes de recherche internet.
+            prompt = f"""Extrais les mots-clés essentiels de cette requête de recherche.
 
-Transforme cette requête de recherche longue en une liste de 2-5 mots-clés courts et pertinents pour un moteur de recherche (Google, DuckDuckGo).
+Requête: "{long_query}"
 
-Requête originale: "{long_query}"
+Règles STRICTES:
+✓ Garde TOUS les mots importants (noms, verbes d'action, événements, dates, détails)
+✓ GARDE ABSOLUMENT : "résultats", "groupes", "liste", "détails", "composition", "scores", "gagnant", "vainqueur", "gagné", "qui", "quoi", "quand", "où", "combien", etc.
+✓ GARDE les verbes d'action comme "gagner", "obtenir", "arriver", "finir", "qualifier"
+✓ Supprime SEULEMENT: "cherche", "sur internet", "peux tu", "trouve moi", "des informations sur"
+✓ GARDE LES ESPACES entre les mots
+✓ NE RACCOURCIS PAS les mots
+✓ Maximum 10 mots essentiels (priorise la précision sur la brièveté)
 
-Règles:
-- Maximum 5 mots-clés
-- Utilise des mots simples et directs
-- Retire les mots comme "des", "sur", "pourquoi", "comment" si possible
-- Garde les termes essentiels
-- Pas de ponctuation
-- Pas de phrase, juste des mots-clés séparés par des espaces
+Exemples:
+- "cherche les GROUPES des équipes Coupe du monde 2026" → "groupes équipes Coupe du monde 2026"
+- "cherche les RÉSULTATS élections législatives France" → "résultats élections législatives France"
+- "qui a GAGNÉ les élections 2024" → "qui gagné élections 2024"
+- "COMPOSITION des groupes Mondial 2026" → "composition groupes Mondial 2026"
 
-Réponds UNIQUEMENT avec les mots-clés, rien d'autre.
+Réponds UNIQUEMENT avec les mots-clés optimisés.
 
 Mots-clés optimisés:"""
 

@@ -450,7 +450,7 @@ class WorkflowTemplates:
             f"Recherche et documentation sur: {topic}",
             [
                 {
-                    "agent": "research",
+                    "agent": "web",
                     "task": f"Recherche approfondie sur: {topic}",
                     "pass_result": True,
                 },
