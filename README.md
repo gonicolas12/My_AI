@@ -38,11 +38,13 @@ my_ai/
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── rlhf.py                          # RLHF CLI (legacy)
 │   ├── training_manager.py              # Training Manager moderne (pipeline complet)
-│   └── training_pipeline.py             # Training CLI
 │   └── training_pipeline.py             # Pipeline d'entraînement local
 ├── data/                                # Données d'enrichissement FAQ
 │   ├── enrichissement/                  # Exemples thématiques
 │   └── data_collection.py               # Script de structuration des données
+├── docs/                                # Documentations
+│   examples/                            # Exemples d'utilisation
+│   └── advanced_features_demo.py        # Démo RLHF, Training, Compression
 ├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
 │   ├── document_generator.py            # Génération docs avec contexte étendu
@@ -60,6 +62,7 @@ my_ai/
 │   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
 ├── models/                              # Modèles d'IA
 │   ├── mixins/                          # Mixins pour custom_ai_model
+│   ├── training_runs/                   # Enregistrements des runs d'entraînement
 │   ├── weights/                         # Poids de modèles entraînés localement
 │   ├── __init__.py
 │   ├── advanced_code_generator.py       # Générateur de code avancé
@@ -85,18 +88,15 @@ my_ai/
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
 │   ├── docx_processor.py                # Traitement DOCX avec compression
 │   └── code_processor.py                # Traitement de code avec analyse sémantique
+├── tests/                               # Tests unitaires
+├── tools/                               # Outils
 ├── utils/                               # Utilitaires Ultra
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
 │   ├── file_processor.py                # Gestion traitement fichiers
-│   examples/                            # Exemples d'utilisation
-│   └── advanced_features_demo.py        # Démo RLHF, Training, Compression
-├── tests/                               # Tests unitaires
-├── docs/                                # Documentation
-│   ├── ADVANCED_FEATURES.md             # Guide des nouvelles fonctionnalités
-│   └── validators.py                    # Validation
-├── tests/                               # Tests unitaires
-├── docs/                                # Documentation
+│   ├── intelligent_calculator.py        # Calculateur intelligent
+│   ├── logger.py                        # Gestion des logs
+│   └── validators.py                    # Validateurs et utilitaires divers
 ├── main.py                              # Point d'entrée principal
 ├── Modelfile                            # Configuration modèle Ollama
 ├── requirements.txt                     # Dépendances
