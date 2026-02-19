@@ -12,7 +12,7 @@
 
 *Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
 
-[🏃‍♂️ Démarrage rapide](#️-démarrage-rapide) · [📖 Documentation](#-documentation-complète) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [🔧 Caractéristiques Techniques](#-caractéristiques-techniques)
+[🚀 Démarrage rapide](#-démarrage-rapide) · [📖 Documentation](#-documentation-complète) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [🔧 Caractéristiques Techniques](#-caractéristiques-techniques)
 
 </div>
 
@@ -89,7 +89,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 
 ---
 
-## 🚀 Fonctionnalités Principales
+## ⚡ Fonctionnalités Principales
 
 ### 🤖 Système d'Agents IA Spécialisés
 
@@ -133,12 +133,12 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 
 | Capacité | Valeur |
 |---|---|
-| 🧠 Mémoire vectorielle interne | jusqu'à **1 048 576 tokens** |
-| 📝 Résumé glissant | automatique dès 24k tokens |
-| 📦 Compression texte | jusqu'à 52:1 |
-| 🔍 Recherche sémantique | TF-IDF + similarité cosinus |
-| 🗃️ Base vectorielle | ChromaDB (local) |
-| 💾 Persistance | SQLite optimisé |
+| **🧠 Mémoire vectorielle interne** | jusqu'à **1 048 576 tokens** |
+| **📝 Résumé glissant** | automatique dès 24k tokens |
+| **📦 Compression texte** | jusqu'à 52:1 |
+| **🔍 Recherche sémantique** | TF-IDF + similarité cosinus |
+| **🗃️ Base vectorielle** | ChromaDB (local) |
+| **💾 Persistance** | SQLite optimisé |
 
 
 - **Compression intelligente multi-niveaux** : texte, code, documents
@@ -233,7 +233,7 @@ my_ai/
 
 ---
 
-## 🏃‍♂️ Démarrage Rapide
+## 🚀 Démarrage Rapide
 
 ### 1 · Cloner le dépôt
 
