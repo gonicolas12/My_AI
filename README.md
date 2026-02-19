@@ -335,7 +335,6 @@ $env:GITHUB_TOKEN="votre_token_github"
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
 | [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |
 
----
 
 ## 🔧 Caractéristiques Techniques
 
