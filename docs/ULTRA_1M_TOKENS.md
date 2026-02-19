@@ -1,11 +1,18 @@
-# 🚀 Documentation Système Ultra 1M Tokens - v5.0.0 (3 Septembre 2025)
+# 🚀 Documentation Mémoire Vectorielle Étendue - v5.0.0 (3 Septembre 2025)
 
-## 💥 Vue d'Ensemble : La Révolution 1M Tokens
+## 🧠 Vue d'Ensemble : Mémoire Interne de 1M Tokens
 
-Le système Ultra de My Personal AI v5.0.0 introduit la **première implémentation locale d'un contexte réel de 1 Million de tokens**, révolutionnant l'expérience d'IA personnelle.
+Le système Ultra de My Personal AI v5.0.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et SQLite). Il est important de distinguer deux notions différentes :
+
+> ⚠️ **À ne pas confondre**
+> - **Mémoire interne (1M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
+> - **Fenêtre de contexte LLM (4k–8k tokens)** : ce qui est réellement envoyé à Ollama pour chaque génération de réponse (défini par `num_ctx` dans le `Modelfile`)
+>
+> Le moteur de recherche sémantique sélectionne les fragments les plus pertinents dans la mémoire interne, puis les injecte dans la fenêtre LLM disponible.
 
 ### 🎯 Chiffres Clés
-- **1,048,576 tokens de contexte RÉEL** (vs 4K-8K standards)
+- **1 000 000 tokens** de capacité de stockage en mémoire vectorielle interne
+- **Fenêtre LLM effective** : 4 096 tokens (défaut `Modelfile`) jusqu'à 8 192 tokens (`local_llm.py`)
 - **Compression intelligente** : 2.4:1 à 52:1 selon le contenu
 - **Persistance SQLite** optimisée pour les gros volumes
 - **Recherche sémantique** ultra-rapide (TF-IDF + cosinus)
@@ -120,7 +127,7 @@ interface.run()
 ### Configuration Ultra (ultra_config.py)
 ```python
 ULTRA_CONFIG = {
-    'max_context_length': 1048576,  # 1M tokens
+    'max_context_length': 1000000,  # Capacité mémoire vectorielle interne
     'compression_ratio': 'auto',    # Automatique selon contenu
     'chunk_size': 512,              # Taille des chunks
     'overlap_size': 50,             # Recouvrement entre chunks
@@ -155,8 +162,9 @@ ultra_ai = UltraCustomAIModel()
 stats = ultra_ai.get_context_stats()
 
 print(f"""
-🚀 STATISTIQUES ULTRA 1M TOKENS :
-   💥 Tokens utilisés : {stats['current_tokens']:,} / {stats['max_context_length']:,}
+🚀 STATISTIQUES MÉMOIRE VECTORIELLE :
+   📊 Tokens en mémoire interne : {stats['current_tokens']:,} / {stats['max_context_length']:,}
+   ⚠️  Fenêtre LLM effective (Ollama) : 4 096 – 8 192 tokens
    📄 Documents traités : {stats['documents_processed']}
    🧩 Chunks créés : {stats['chunks_created']}
    🗜️  Ratio compression : {stats.get('compression_ratio', 'N/A')}

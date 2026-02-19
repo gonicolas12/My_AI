@@ -1,29 +1,162 @@
-# 🤖 Une IA personnelle, confidentielle et locale
+﻿<div align="center">
 
-- 🧠 **Contexte Ultra-Étendu** pour des conversations et analyses approfondies
-- 💬 **Conversations intelligentes** avec reconnaissance d'intentions avancée et mémoire persistante
-- 🤖 **Système d'Agents IA Spécialisés** : 9 agents experts + création d'agents personnalisés
-- 🎓 **RLHF Intégré** : Amélioration continue via feedback utilisateur automatique
-- 🚀 **Training Manager** : Pipeline d'entraînement moderne avec monitoring temps réel
-- 📄 **Traitement complet** des documents **PDF** et **DOCX** avec analyse contextuelle ultra-étendue
-- 🖼️ **Analyse d'images** avec modèles vision Ollama (llava, llama3.2-vision, etc.)
-- 💻 **Analyse** et **génération** de **code** avec contexte massif
-- 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
-- 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées, boutons de feedback
-- ✨ **Formatage de texte avancé** avec support **gras** Unicode et blocs de code Python colorisés
-- 🏗️ **Architecture 100% Locale** avec persistance SQLite optimisée
-- ⚡ **Gestion automatique de la mémoire** et optimisations en temps réel
-- 📊 **Métriques de compression exposées** : Ratios détaillés de 2.4:1 à 52:1 selon le contenu
+# 🤖 My AI — Une IA personnelle, confidentielle et locale
 
-## 🏗️ Architecture & FAQ Thématique
+**Puissante · 100% locale · Extensible**
 
-### 💥 Capacités Révolutionnaires
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Ollama](https://img.shields.io/badge/Ollama-LLM%20Local-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)](https://github.com/gonicolas12/My_AI)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![Context](https://img.shields.io/badge/M%C3%A9moire%20Vectorielle-1M%20Tokens-blueviolet?style=for-the-badge)](docs/ULTRA_1M_TOKENS.md)
 
-- **1,048,576 tokens de contexte réel**
+*Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
+
+[🏃‍♂️ Démarrage rapide](#️-démarrage-rapide) · [📖 Documentation](#-documentation-complète) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [🔧 Caractéristiques Techniques](#-caractéristiques-techniques)
+
+</div>
+
+---
+
+## ✨ Points Forts
+
+<table>
+<tr>
+<td width="50%">
+
+**🧠 Mémoire Vectorielle Étendue**  
+Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
+
+**💬 Conversations Intelligentes**  
+Reconnaissance d'intentions avancée, mémoire persistante et compréhension contextuelle.
+
+**🤖 9 Agents IA Spécialisés**  
+Code, Web, Analyse, Créativité, Debug, Sécurité... et création d'agents personnalisés.
+
+**🎓 RLHF Intégré**  
+Chaque feedback enrichit votre base d'entraînement personnelle pour affiner le modèle à votre usage.
+
+</td>
+<td width="50%">
+
+**📄 Traitement de Documents**  
+PDF, DOCX, images — analyse contextuelle ultra-étendue avec compression intelligente.
+
+**🌐 Recherche Internet**  
+Accès aux informations en temps réel via DuckDuckGo, résumés automatiques inclus.
+
+**💻 Génération de Code**  
+Analyse et génération de code avec contexte massif et orchestration intelligente.
+
+**🏗️ Architecture 100% Locale**  
+SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🖥️ Interface Utilisateur
+
+<div align="center">
+
+### Chat — Interface style [Claude](https://claude.ai/new)
+
+![Interface Chat](docs/images/chatScreen.png)
+
+
+| Fonctionnalité | Détail |
+|---|---|
+| 🎨 **Design moderne** | Interface sombre élégante avec bulles de chat optimisées |
+| ✨ **Formatage avancé** | Support complet du **texte en gras** Unicode et blocs code Python colorisés |
+| 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
+| 🎓 **Feedback RLHF** | Boutons 👍 / 👎 sous chaque réponse, enregistrement automatique |
+
+
+### Agents — Interface dédiée
+
+![Interface Agents](docs/images/agentsScreen.png)
+
+| Fonctionnalité | Détail |
+|---|---|
+| 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
+| ⚡ **Lancement rapide** | Démarrage d'agents spécialisés en un clic |
+| 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure avec rôles définis |
+| 📊 **Statistiques en temps réel** | Affichage des métriques de performance |
+
+</div>
+
+---
+
+## 🚀 Fonctionnalités Principales
+
+### 🤖 Système d'Agents IA Spécialisés
+
+| Agent | Rôle |
+|---|---|
+| 🐍 **CodeAgent** | Génération et debug de code multi-langages |
+| 🌐 **WebAgent** | Recherche Internet & Fact-Checking |
+| 📊 **AnalystAgent** | Analyse de données et insights |
+| ✨ **CreativeAgent** | Rédaction et contenu créatif |
+| 🐛 **DebugAgent** | Détection et correction d'erreurs |
+| 📋 **PlannerAgent** | Planification de projets complexes |
+| 🛡️ **SecurityAgent** | Audit de sécurité & vulnérabilités |
+| ⚡ **OptimizerAgent** | Optimisation & Performance |
+| 🧬 **DataScienceAgent** | Data Science & Machine Learning |
+
+> **Workflows multi-agents** : Les agents collaborent entre eux pour les tâches complexes. Créez aussi vos propres agents via l'interface ou les commandes `agent` / `workflow` en CLI.
+
+---
+
+### 🦙 Intégration Ollama — LLM 100% Local
+
+- **Confidentialité totale** : aucune donnée envoyée sur internet
+- **Fallback intelligent** : sans Ollama, l'IA bascule automatiquement en mode patterns/règles
+- **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
+- **Multi-modèles** : texte (`llama3.2`, `llama3.1:8b`) et vision (`llama3.2-vision`, `llava`)
+
+---
+
+### 📚 FAQ Thématique Prioritaire
+
+- Placez vos fichiers d'enrichissement dans `data/enrichissement/`
+- Chargement automatique — toutes les Q/R sont fusionnées et accessibles instantanément
+- La FAQ répond **avant** tout autre modèle (priorité maximale)
+- Ajoutez, modifiez ou supprimez des fichiers à la volée
+
+---
+
+### 🌐 Recherche Internet Intelligente
+
+- Recherche web en temps réel via **DuckDuckGo**
+- Résumés automatiques et extraction de contenu avec **BeautifulSoup**
+- Traitement parallèle de plusieurs sources simultanément
+- Adaptation du format de réponse selon le type de recherche
+
+---
+
+## 💥 Capacités Techniques
+
+
+| Capacité | Valeur |
+|---|---|
+| 🧠 Mémoire vectorielle interne | jusqu'à **1 048 576 tokens** |
+| 📝 Résumé glissant | automatique dès 24k tokens |
+| 📦 Compression texte | jusqu'à 52:1 |
+| 🔍 Recherche sémantique | TF-IDF + similarité cosinus |
+| 🗃️ Base vectorielle | ChromaDB (local) |
+| 💾 Persistance | SQLite optimisé |
+
+
 - **Compression intelligente multi-niveaux** : texte, code, documents
-- **Recherche sémantique ultra-rapide** avec TF-IDF et similarité cosinus
 - **Chunking intelligent** avec détection automatique de blocs logiques
 - **Auto-optimisation** de la mémoire selon l'usage
+- **Métriques de compression exposées** : ratios détaillés de 2.4:1 à 52:1
+
+---
+
+## 🏗️ Architecture du Projet
 
 ```
 my_ai/
@@ -106,174 +239,133 @@ my_ai/
 └── config.yaml                          # Configuration
 ```
 
-## 🖥️ Interface Utilisateur Moderne
-
-### 🎨 Interface Graphique Style [Claude](https://claude.ai/new)
-- **Design moderne** : Interface sombre élégante avec bulles de chat optimisées
-- **Formatage avancé** : Support complet du **texte en gras** avec Unicode
-- **Animations fluides** : Indicateurs de réflexion et recherche internet
-- **Responsive design** : Adaptation automatique à tous types d'écrans
-
-### 🖱️ Fonctionnalités Interactives
-- **Raccourcis clavier** : Entrée (envoyer), Shift+Entrée (nouvelle ligne), Ctrl+L (clear)
-- **Boutons d'action** : Clear Chat, Aide, chargement de fichiers spécialisés
-- **Feedback utilisateur** : Boutons pour chaque réponse de l'IA (RLHF intégré)
-- **Timestamp automatique** : Horodatage discret pour chaque message
-
-### 🖥️ Différentes Interfaces
-- **GUI moderne** : Interface graphique intuitive avec gestion de l'historique
-- **CLI avancée** : Ligne de commande pour utilisateurs experts
-- **Gestion d'erreurs** : Messages clairs et récupération gracieuse
-
-![Interface Chat](docs/images/chatScreen.png)
-
-## 🚀 Fonctionnalités Principales
-
-### 🤖 Système d'Agents IA Spécialisés
-| Agent | Description |
-|-------|-------------|
-| 🐍 **CodeAgent** | Génération et debug de code multi-langages |
-| 🌐 **WebAgent** | Recherche Internet & Fact-Checking |
-| 📊 **AnalystAgent** | Analyse de données et insights |
-| ✨ **CreativeAgent** | Rédaction et contenu créatif |
-| 🐛 **DebugAgent** | Détection et correction d'erreurs |
-| 📋 **PlannerAgent** | Planification de projets complexes |
-| 🛡️ **SecurityAgent** | Audit de sécurité & vulnérabilités |
-| ⚡ **OptimizerAgent** | Optimisation & Performance |
-| 🧬 **DataScienceAgent** | Data Science & Machine Learning |
-
-- **Workflows multi-agents** : Collaboration entre agents pour tâches complexes
-- **Interface graphique dédiée** : Onglet "Agents" dans la GUI moderne
-- **Personnalisation** : Créez vos propres agents avec des rôles spécifiques
-- **CLI enrichi** : Commandes `agent` et `workflow` disponibles
-
-![Interface Agents](docs/images/agentsScreen.png)
-
-### 🦙 Intégration Ollama (LLM Local)
-- **LLM 100% local** : Réponses générées par llama3.2 directement sur votre machine
-- **Confidentialité totale** : Aucune donnée n'est envoyée sur internet
-- **Fallback intelligent** : Si Ollama n'est pas installé, l'IA utilise le mode patterns
-- **Modèle personnalisable** : Configuration via `Modelfile` (température, contexte, system prompt)
-- **Installation optionnelle** : L'application fonctionne avec ou sans Ollama
-
-### 📚 FAQ Thématique Prioritaire
-- **Organisation par thèmes** : Placez vos fichiers d’enrichissement dans `data\enrichissement\`
-- **Chargement automatique** : Toutes les questions/réponses sont fusionnées et accessibles instantanément
-- **Matching prioritaire** : La FAQ répond avant tout autre modèle
-- **Personnalisation** : Ajoutez, modifiez ou supprimez des fichiers à la volée
-
-### 🌐 Recherche Internet Intelligente
-- **Recherche web** : Accès aux informations en temps réel via DuckDuckGo
-- **Résumés automatiques** : Synthèse intelligente des résultats de recherche
-- **Extraction de contenu** : Analyse des pages web avec BeautifulSoup
-- **Traitement parallèle** : Analyse simultanée de plusieurs sources
-- **Réponses contextuelles** : Adaptation du format selon le type de recherche
+---
 
 ## 🏃‍♂️ Démarrage Rapide
 
-### Clonez ce dépôt
+### 1 · Cloner le dépôt
+
 ```bash
 git clone https://github.com/gonicolas12/My_AI
 cd My_AI
 ```
 
-### Installation
-##### Installation des dépendances
+### 2 · Installer les dépendances
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### Installation Ollama (Optionnel mais Recommandé)
-
-Pour des réponses de qualité LLM, installez Ollama :
-
-```bash
-# 1. Télécharger depuis https://ollama.com/download
-# 2. Installer le modèle texte
-ollama pull llama3.2         # Modèle plus léger pour des réponses plus rapides (8 GB RAM)
-# OU
-ollama pull llama3.1:8b      # Modèle plus lourd pour des réponses plus détaillées (16 GB RAM)
-
-# 3. [OPTIONNEL] Installer un modèle vision pour l'analyse d'images
-ollama pull llama3.2-vision  # Modèle vision recommandé
-# OU
-ollama pull llava            # Alternative plus légère
-
-# 4. Créer le modèle personnalisé
-.\create_custom_model.bat
-
-# Note : Adaptez la 3ème ligne du 'Modelfile' selon le modèle choisi (llama3.2 ou llama3.1:8b)
-```
+### 3 · Installer Ollama *(Optionnel mais Recommandé)*
 
 > **Sans Ollama**, l'IA fonctionne en mode fallback avec des patterns/règles.
 
-### Lancement
-##### Lancement avec script batch (recommandé)
+```bash
+# Télécharger depuis https://ollama.com/download, puis :
+
+# Modèle texte (choisir selon votre RAM)
+ollama pull llama3.2         # Léger — réponses rapides  (8 GB RAM)
+ollama pull llama3.1:8b      # Lourd — réponses détaillées (16 GB RAM)
+
+# [OPTIONNEL] Modèle vision pour l'analyse d'images
+ollama pull llama3.2-vision  # Recommandé
+ollama pull llava             # Alternative plus légère
+
+# Créer le modèle personnalisé
+.\create_custom_model.bat
+```
+
+> **Note** : Adaptez la 3ème ligne du `Modelfile` selon le modèle choisi (`llama3.2` ou `llama3.1:8b`). Après toute modification du `Modelfile`, relancez `create_custom_model.bat` pour appliquer les changements.
+
+### 4 · Lancer l'application
+
 ```bash
 .\launch.bat
 ```
-Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez...
 
-> L'interface intègre des **boutons de feedback** sous chaque réponse de l'IA. Chaque feedback est automatiquement enregistré pour améliorer le modèle.
+Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
 
-##### Nettoyage des fichiers temporaires
+> 💡 L'interface intègre des **boutons de feedback** sous chaque réponse de l'IA. Chaque feedback est automatiquement enregistré pour améliorer le modèle.
+
+### 🧹 Nettoyage en cas de problème
+
 ```bash
 .\clean_project.bat
 ```
-Si après avoir lancé plusieurs fois l'**IA** vous avez des **problèmes inexpliqués**, des **erreurs** ou des **comportements inattendus**, lancez ce **script** pour supprimer les **fichiers temporaires** générés par l'application (logs, caches, historiques, etc.). Cela permet de repartir sur une base **propre** avant de relancer l'**IA**.
 
-## 🔑 Utilisation de la clé API GitHub
+Si vous observez des comportements inattendus ou des erreurs après plusieurs lancements, ce script supprime tous les fichiers temporaires (logs, caches, historiques) pour repartir sur une base propre.
 
-Si vous n'avez pas **[Ollama](#installation-ollama-optionnel-mais-recommandé)** d'installé, la **génération de code** nécessite une clé **API GitHub**. Pour que **votre IA** ai accès à **Github**, c'est simple :
+---
 
-### 1. Générer une clé API GitHub
-1. **Rendez-vous** sur [github.com/settings/tokens](https://github.com/settings/tokens)
+## 🔑 Clé API GitHub *(pour la génération de code sans Ollama)*
+
+Si [Ollama](#3--installer-ollama-optionnel-mais-recommandé) n'est pas installé, la génération de code nécessite une clé API GitHub.
+
+### Générer un token
+
+1. Rendez-vous sur [github.com/settings/tokens](https://github.com/settings/tokens)
 2. Cliquez sur **"Generate new token"** (classic ou fine-grained)
-3. Donnez les **permissions nécessaires** (repo, user, etc.)
-4. Copiez la **clé générée**
+3. Accordez les permissions nécessaires (`repo`, `user`, etc.)
+4. Copiez la clé générée
 
-### 2. Configurer la clé API sur votre machine
-Dans votre **terminal**, entrez :
+### Configurer le token
+
 ```powershell
 $env:GITHUB_TOKEN="votre_token_github"
 ```
-Et voilà ! Votre **IA personnelle** aura accès à l'**API Github**.
 
-### 3. Utilisation sans clé API
-Si **aucune clé** n'est configurée, l'**IA** utilisera automatiquement le **backend local**. Les fonctionnalités dépendantes de **GitHub** seront **désactivées**.
+> Sans clé, l'IA utilise automatiquement le backend local et les fonctionnalités GitHub sont désactivées. Consultez `config.yaml` pour personnaliser les backends et modèles.
 
-N'hésitez pas à consulter le fichier `config.yaml` pour personnaliser les backends et modèles utilisés.
+---
 
 ## 📖 Documentation Complète
 
-- **[Architecture](docs/ARCHITECTURE.md)** : Structure technique détaillée
-- **[Installation](docs/INSTALLATION.md)** : Guide d'installation complet
-- **[Recherche Internet](docs/INTERNET_SEARCH.md)** : Guide complet sur la recherche web
-- **[Optimisation](docs/OPTIMIZATION.md)** : Conseils et techniques d'optimisation locale
-- **[Ultra 1M Tokens](docs/ULTRA_1M_TOKENS.md)** : Détails sur la gestion du contexte étendu
-- **[Usage](docs/USAGE.md)** : Exemples d'utilisation et workflows
-- **[Changelog](docs/CHANGELOG.md)** : Historique des mises à jour
-- **[FAQ](docs/FAQ.md)** : Questions fréquentes et réponses détaillées
-- **[Génération de Fichiers](docs/FILE_GENERATION.md)** : Guide sur la génération de fichiers via l'IA
-- **[Agents IA](docs/AGENTS.md)** : Documentation complète sur les agents IA spécialisés
-- **[Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md)** : RLHF, Training, Compression
-- **[Feedback GUI](docs/GUI_RLHF_FEEDBACK.md)** : Boutons de feedback dans l'interface graphique
+| Document | Description |
+|---|---|
+| [🏗️ Architecture](docs/ARCHITECTURE.md) | Structure technique détaillée |
+| [📦 Installation](docs/INSTALLATION.md) | Guide d'installation complet |
+| [🌐 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
+| [⚡ Optimisation](docs/OPTIMIZATION.md) | Conseils et techniques d'optimisation locale |
+| [🧠 Mémoire Vectorielle 1M](docs/ULTRA_1M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
+| [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
+| [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
+| [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
+| [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
+| [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
+| [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
+| [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |
+
+---
 
 ## 🔧 Caractéristiques Techniques
 
-- **RLHF Intégré** : Apprentissage automatique depuis le feedback utilisateur
-- **Pipeline d'Entraînement** : Fine-tuning moderne avec monitoring temps réel
-- **Compression Intelligente** : Ratios détaillés et métriques exposées
-- **Hybride Local/Internet** : IA locale avec recherche internet optionnelle
-- **Multiplateforme** : Windows, macOS, Linux
-- **Léger** : Fonctionnement optimal sur machines modestes
-- **Extensible** : Architecture modulaire pour ajouts futurs
-- **Sécurisé** : Données locales protégées, recherche internet anonyme
 
-## 🚀 Évolutions Futures
+| Caractéristique | Description |
+|---|---|
+| 🎓 **RLHF** | Apprentissage automatique depuis le feedback utilisateur |
+| 🔁 **Pipeline d'entraînement** | Fine-tuning moderne avec monitoring temps réel |
+| 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
+| 🌐 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
+| 💻 **Multiplateforme** | Windows · macOS · Linux |
+| 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
+| 🔩 **Extensible** | Architecture modulaire pour ajouts futurs |
+| 🔒 **Sécurisé** | Données locales protégées, recherche internet anonyme |
 
-- 📊 **Amélioration interface**
+
+---
+
+## 🔮 Évolutions Futures
+
+- 📊 **Amélioration de l'interface**
 - 🌐 **Application Web**
 - 💻 **Extension VS Code**
 - 🧩 **Nouveaux agents spécialisés**
 - 🔄 **Intégration avec d'autres LLM locaux**
+
+---
+
+<div align="center">
+
+*Construit avec ❤️ pour rester local, privé et puissant.*
+
+</div>

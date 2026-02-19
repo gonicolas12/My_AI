@@ -32,6 +32,13 @@ class LocalLLM:
         self.max_history_length = 200  # Garder les 200 derniers échanges
         self._streamed_already = False  # Flag pour tracking du streaming vision
 
+        # 📝 Résumé glissant : résumé compressé des anciens messages
+        self._conversation_summary: str = ""
+        # Seuil en tokens estimés avant déclenchement du résumé (laisser ~8k pour réponse+prompt)
+        self._summary_threshold_tokens: int = 24000
+        # Taille cible après résumé (en nombre de messages à conserver "vivants")
+        self._keep_recent_messages: int = 20
+
         if self.is_ollama_available:
             # Vérifier si le modèle personnalisé existe, sinon utiliser llama3
             if not self._check_model_exists(model):
@@ -107,8 +114,8 @@ class LocalLLM:
             "stream": False,
             "options": {
                 "temperature": 0.7,
-                "num_ctx": 8192,
-                "num_predict": 1024,
+                "num_ctx": 32768,
+                "num_predict": 2048,
             },
         }
 
@@ -143,13 +150,101 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception durant la génération: {e}")
             return None
 
+    # ------------------------------------------------------------------
+    # Gestion de l'historique avec résumé glissant
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _estimate_tokens(messages: List[Dict[str, str]]) -> int:
+        """Estime le nombre de tokens d'une liste de messages (≈4 chars/token)."""
+        total_chars = sum(len(m.get("content", "")) for m in messages)
+        return total_chars // 4
+
+    def _build_summary_prompt(self, messages_to_summarize: List[Dict[str, str]]) -> str:
+        """Construit le prompt de résumé pour les messages anciens."""
+        conversation_text = ""
+        for m in messages_to_summarize:
+            role_label = "Utilisateur" if m["role"] == "user" else "Assistant"
+            conversation_text += f"{role_label}: {m['content']}\n"
+        return (
+            "Fais un résumé factuel et concis de cette conversation en 3-5 phrases. "
+            "Conserve les faits importants, décisions prises et contexte clé. "
+            "Réponds uniquement avec le résumé, sans introduction.\n\n"
+            f"{conversation_text}"
+        )
+
+    def _compress_old_history(self):
+        """
+        Résume les messages les plus anciens de l'historique via Ollama
+        et remplace les messages résumés par un unique message système.
+        """
+        if len(self.conversation_history) < self.max_history_length // 2:
+            return  # Pas assez de messages pour résumer
+
+        # Séparer : anciens messages à résumer / récents à conserver
+        split_point = len(self.conversation_history) - self._keep_recent_messages
+        if split_point <= 0:
+            return
+
+        old_messages = self.conversation_history[:split_point]
+        recent_messages = self.conversation_history[split_point:]
+
+        print(f"📝 [LocalLLM] Résumé glissant : compression de {len(old_messages)} anciens messages...")
+
+        # Appel Ollama pour résumer l'ancienne partie
+        summary_text = None
+        try:
+            summary_prompt = self._build_summary_prompt(old_messages)
+            data = {
+                "model": self.model,
+                "messages": [{"role": "user", "content": summary_prompt}],
+                "stream": False,
+                "options": {"temperature": 0.3, "num_ctx": 8192, "num_predict": 512},
+            }
+            response = requests.post(self.chat_url, json=data, timeout=60)
+            if response.status_code == 200:
+                summary_text = response.json().get("message", {}).get("content", "").strip()
+        except Exception as e:
+            print(f"⚠️ [LocalLLM] Résumé impossible: {e}")
+
+        # Construire le nouvel historique : résumé précédent + nouveau résumé + messages récents
+        if summary_text:
+            # Combiner avec l'éventuel résumé précédent
+            if self._conversation_summary:
+                combined = f"{self._conversation_summary}\n{summary_text}"
+                # Résumer les deux résumés si combiné trop long
+                if len(combined) > 2000:
+                    self._conversation_summary = summary_text
+                else:
+                    self._conversation_summary = combined
+            else:
+                self._conversation_summary = summary_text
+
+            summary_message = {
+                "role": "system",
+                "content": f"[Résumé de la conversation précédente] {self._conversation_summary}",
+            }
+            self.conversation_history = [summary_message] + recent_messages
+            print(f"✅ [LocalLLM] Historique compressé → 1 résumé + {len(recent_messages)} messages récents")
+        else:
+            # Fallback simple : tronquer sans résumé
+            self.conversation_history = recent_messages
+            print(f"🔄 [LocalLLM] Historique tronqué à {len(recent_messages)} messages (résumé indisponible)")
+
     def add_to_history(self, role: str, content: str):
-        """Ajoute un message à l'historique de conversation"""
+        """Ajoute un message à l'historique et déclenche le résumé glissant si nécessaire."""
         self.conversation_history.append({"role": role, "content": content})
 
-        # Limiter la taille de l'historique
-        if len(self.conversation_history) > self.max_history_length * 2:
-            # Garder les premiers messages (contexte initial) et les derniers
+        # Déclencher la compression si le contexte estimé dépasse le seuil
+        estimated_tokens = self._estimate_tokens(self.conversation_history)
+        if estimated_tokens > self._summary_threshold_tokens:
+            print(
+                f"⚡ [LocalLLM] Contexte estimé {estimated_tokens:,} tokens > seuil "
+                f"{self._summary_threshold_tokens:,} → résumé glissant..."
+            )
+            self._compress_old_history()
+        elif len(self.conversation_history) > self.max_history_length * 2:
+            # Garde-fou sur le nombre brut de messages
             self.conversation_history = self.conversation_history[
                 -self.max_history_length * 2 :
             ]
@@ -577,8 +672,8 @@ class LocalLLM:
             "stream": True,
             "options": {
                 "temperature": 0.7,
-                "num_ctx": 8192,
-                "num_predict": 1024,
+                "num_ctx": 32768,
+                "num_predict": 2048,
             },
         }
 

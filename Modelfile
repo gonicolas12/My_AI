@@ -4,8 +4,8 @@ FROM llama3.2
 
 # Paramètres de créativité et performance
 PARAMETER temperature 0.7
-PARAMETER num_ctx 4096
-PARAMETER num_predict 1024
+PARAMETER num_ctx 32768
+PARAMETER num_predict 2048
 
 # Identité et Comportement (System Prompt)
 SYSTEM """
