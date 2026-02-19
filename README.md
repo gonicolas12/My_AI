@@ -9,18 +9,17 @@
 - 🖼️ **Analyse d'images** avec modèles vision Ollama (llava, llama3.2-vision, etc.)
 - 💻 **Analyse** et **génération** de **code** avec contexte massif
 - 🌐 **Recherche internet intelligente** avec résumés automatiques et intégration contextuelle
-- 🔍 **Distinction automatique** entre questions techniques, documents et conversations générales
 - 🎨 **Interface graphique moderne style Claude** avec bulles de chat optimisées, boutons de feedback
 - ✨ **Formatage de texte avancé** avec support **gras** Unicode et blocs de code Python colorisés
 - 🏗️ **Architecture 100% Locale** avec persistance SQLite optimisée
 - ⚡ **Gestion automatique de la mémoire** et optimisations en temps réel
 - 📊 **Métriques de compression exposées** : Ratios détaillés de 2.4:1 à 52:1 selon le contenu
 
-## 🏗️ Architecture Ultra 1M Tokens & FAQ Thématique
+## 🏗️ Architecture & FAQ Thématique
 
 ### 💥 Capacités Révolutionnaires
 
-- **1,048,576 tokens de contexte réel** (contre 4K-8K traditionnels)
+- **1,048,576 tokens de contexte réel**
 - **Compression intelligente multi-niveaux** : texte, code, documents
 - **Recherche sémantique ultra-rapide** avec TF-IDF et similarité cosinus
 - **Chunking intelligent** avec détection automatique de blocs logiques
@@ -59,7 +58,7 @@ my_ai/
 │   ├── vector_store/chroma_db/          # Base de données ChromaDB
 │   ├── __init__.py
 │   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
-├── models/                              # Modèles d'IA Ultra avec 1M tokens
+├── models/                              # Modèles d'IA
 │   ├── mixins/                          # Mixins pour custom_ai_model
 │   ├── weights/                         # Poids de modèles entraînés localement
 │   ├── __init__.py
