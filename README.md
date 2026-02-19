@@ -71,6 +71,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 | ✨ **Formatage avancé** | Support complet du **texte en gras** Unicode et blocs de code colorisés |
 | 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
 | 🎓 **Feedback RLHF** | Boutons 👍 / 👎 sous chaque réponse, enregistrement automatique |
+| 📂 **Gestion de fichiers** | Glisser-déposer pour ajouter des documents à la mémoire |
 
 ### Agents — Interface dédiée
 
@@ -81,6 +82,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 | 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
 | ⚡ **Lancement rapide** | Démarrage d'agents spécialisés en un clic |
 | 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
+| 🔄 **Workflows multi-agents** | Orchestration facile pour les tâches complexes |
 | 📊 **Statistiques en temps réel** | Affichage des métriques de performance |
 
 </div>
@@ -103,10 +105,6 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 | ⚡ **OptimizerAgent** | Optimisation & Performance |
 | 🧬 **DataScienceAgent** | Data Science & Machine Learning |
 
-> **Workflows multi-agents** : Les agents collaborent entre eux pour les tâches complexes. Créez aussi vos propres agents via l'interface ou les commandes `agent` / `workflow` en CLI.
-
----
-
 ### 🦙 Intégration Ollama — LLM 100% Local
 
 - **Confidentialité totale** : aucune donnée envoyée sur internet
@@ -114,16 +112,12 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
 - **Multi-modèles** : texte (`llama3.2`, `llama3.1:8b`) et vision (`llama3.2-vision`, `llava`)
 
----
-
 ### 📚 FAQ Thématique Prioritaire
 
 - Placez vos fichiers d'enrichissement dans `data/enrichissement/`
 - Chargement automatique — toutes les Q/R sont fusionnées et accessibles instantanément
 - La FAQ répond **avant** tout autre modèle (priorité maximale)
 - Ajoutez, modifiez ou supprimez des fichiers à la volée
-
----
 
 ### 🌐 Recherche Internet Intelligente
 
