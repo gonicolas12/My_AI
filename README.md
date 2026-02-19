@@ -65,14 +65,12 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 
 ![Interface Chat](docs/images/chatScreen.png)
 
-
 | Fonctionnalité | Détail |
 |---|---|
 | 🎨 **Design moderne** | Interface sombre élégante avec bulles de chat optimisées |
-| ✨ **Formatage avancé** | Support complet du **texte en gras** Unicode et blocs code Python colorisés |
+| ✨ **Formatage avancé** | Support complet du **texte en gras** Unicode et blocs de code colorisés |
 | 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
 | 🎓 **Feedback RLHF** | Boutons 👍 / 👎 sous chaque réponse, enregistrement automatique |
-
 
 ### Agents — Interface dédiée
 
@@ -82,7 +80,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 |---|---|
 | 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
 | ⚡ **Lancement rapide** | Démarrage d'agents spécialisés en un clic |
-| 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure avec rôles définis |
+| 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
 | 📊 **Statistiques en temps réel** | Affichage des métriques de performance |
 
 </div>
@@ -318,6 +316,8 @@ $env:GITHUB_TOKEN="votre_token_github"
 
 ---
 
+<div align="center">
+
 ## 📖 Documentation Complète
 
 | Document | Description |
@@ -351,6 +351,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | 🔩 **Extensible** | Architecture modulaire pour ajouts futurs |
 | 🔒 **Sécurisé** | Données locales protégées, recherche internet anonyme |
 
+</div>
 
 ---
 
