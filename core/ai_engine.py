@@ -7,7 +7,11 @@ import asyncio
 import concurrent.futures
 import os
 import tempfile
+import glob
+import threading
+import re as _re
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 from generators.document_generator import DocumentGenerator
 from generators.code_generator import CodeGenerator as OllamaCodeGenerator
@@ -18,14 +22,18 @@ from models.internet_search import InternetSearchEngine
 from models.ml_faq_model import MLFAQModel
 from models.smart_web_searcher import search_smart_code
 from models.smart_code_searcher import multi_source_searcher
+from models.internet_search import EnhancedInternetSearchEngine
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
+from memory.vector_memory import VectorMemory
+from tools.local_tools import local_math
 
 from .config import get_config
 from .conversation import ConversationManager
+from .mcp_client import MCPManager
 from .validation import validate_input
 
 
@@ -111,6 +119,307 @@ class AIEngine:
 
         self.logger.info(
             "Moteur IA initialisé avec succès (Générateurs Ollama + Web activés)"
+        )
+
+        # Initialiser le gestionnaire MCP et enregistrer les outils locaux
+        self.mcp_manager = MCPManager()
+        self._setup_mcp_tools()
+
+        # Charger l'identité depuis le Modelfile pour l'injecter dans le system prompt
+        self._modelfile_system = self._load_modelfile_system()
+
+    # ------------------------------------------------------------------
+    # Chargement du Modelfile
+    # ------------------------------------------------------------------
+
+    def _load_modelfile_system(self) -> str:
+        """Lit le bloc SYSTEM du Modelfile et le retourne comme chaîne."""
+        try:
+            modelfile_path = Path(__file__).parent.parent / "Modelfile"
+            content = modelfile_path.read_text(encoding="utf-8")
+            m = _re.search(r'SYSTEM\s+"""(.*?)"""', content, _re.DOTALL)
+            if m:
+                return m.group(1).strip()
+        except Exception as exc:
+            self.logger.warning("Impossible de lire le Modelfile : %s", exc)
+        return ""
+
+    def _setup_mcp_tools(self):
+        """
+        Enregistre toutes les capacités existantes du projet comme outils
+        standardisés MCP, accessibles par Ollama via tool calling.
+
+        Cette méthode centralise le routing : au lieu de keyword-matching
+        dans _analyze_query_type(), Ollama lui-même décide quel outil utiliser.
+        """
+        # ----------------------------------------------------------------
+        # 1. Recherche Web
+        # ----------------------------------------------------------------
+        try:
+            search_engine = EnhancedInternetSearchEngine(
+                llm=(
+                    self.local_ai.local_llm
+                    if hasattr(self.local_ai, "local_llm")
+                    else None
+                )
+            )
+            # Exposer l'instance pour que tool_executor puisse y brancher
+            # le callback de streaming de la GUI.
+            self._web_search_engine = search_engine
+
+            def web_search(query: str) -> str:
+                """Effectue une recherche sur internet et retourne un résumé des résultats."""
+                try:
+                    return search_engine.search_and_summarize(query)
+                except Exception as exc:
+                    return f"Recherche impossible : {exc}"
+
+            self.mcp_manager.register_local_tool(
+                name="web_search",
+                description=(
+                    "Effectue une recherche sur internet pour obtenir des informations "
+                    "récentes, factuelles ou d'actualité. À utiliser pour : faits, "
+                    "données chiffrées, prix, actualités, informations techniques récentes."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "La requête de recherche web",
+                        },
+                    },
+                    "required": ["query"],
+                },
+                callable_fn=web_search,
+            )
+        except Exception as exc:
+            self.logger.warning("Outil web_search non disponible : %s", exc)
+
+        # ----------------------------------------------------------------
+        # 2. Recherche en mémoire vectorielle
+        # ----------------------------------------------------------------
+        try:
+            vector_mem = VectorMemory()
+
+            def search_memory(query: str, n_results: int = 5) -> str:
+                """Recherche sémantique dans la mémoire vectorielle locale."""
+                try:
+                    results = vector_mem.search_similar(query, n_results=n_results)
+                    if not results:
+                        return "Aucun résultat dans la mémoire vectorielle."
+                    parts = []
+                    for i, r in enumerate(results, 1):
+                        content = r.get("content", r.get("text", str(r)))
+                        parts.append(f"[{i}] {content[:500]}")
+                    return "\n\n".join(parts)
+                except Exception as exc:
+                    return f"Erreur mémoire : {exc}"
+
+            self.mcp_manager.register_local_tool(
+                name="search_memory",
+                description=(
+                    "Recherche sémantique dans la mémoire locale de l'IA (documents "
+                    "précédemment indexés, historique de conversation, connaissances). "
+                    "À utiliser pour retrouver des informations déjà traitées."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Requête de recherche sémantique",
+                        },
+                        "n_results": {
+                            "type": "integer",
+                            "description": "Nombre de résultats à retourner",
+                            "default": 5,
+                        },
+                    },
+                    "required": ["query"],
+                },
+                callable_fn=search_memory,
+            )
+        except Exception as exc:
+            self.logger.warning("Outil search_memory non disponible : %s", exc)
+
+        # ----------------------------------------------------------------
+        # 3. Lecture et analyse de fichiers locaux
+        # ----------------------------------------------------------------
+        def read_local_file(path: str) -> str:
+            """Lit le contenu d'un fichier local (PDF, DOCX, code, texte)."""
+            fpath = Path(path)
+            if not fpath.exists():
+                return f"Fichier introuvable : {path}"
+            ext = fpath.suffix.lower()
+            try:
+                if ext == ".pdf":
+                    result = self.pdf_processor.process(str(fpath))
+                    return result.get("content", str(result))[:8000]
+                elif ext in (".docx", ".doc"):
+                    result = self.docx_processor.process(str(fpath))
+                    return result.get("content", str(result))[:8000]
+                else:
+                    return fpath.read_text(encoding="utf-8", errors="replace")[:8000]
+            except Exception as exc:
+                return f"Erreur lecture fichier : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="read_local_file",
+            description=(
+                "Lit et extrait le contenu d'un fichier local : PDF, DOCX, Python, "
+                "JavaScript, texte brut, JSON, etc. Retourne le texte du fichier."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Chemin absolu ou relatif vers le fichier",
+                    }
+                },
+                "required": ["path"],
+            },
+            callable_fn=read_local_file,
+        )
+
+        # ----------------------------------------------------------------
+        # 4. Liste de fichiers dans un répertoire
+        # ----------------------------------------------------------------
+        def list_directory(path: str = ".", pattern: str = "*") -> str:
+            """Liste les fichiers d'un répertoire."""
+            try:
+                full_pattern = os.path.join(path, "**", pattern)
+                files = glob.glob(full_pattern, recursive=True)
+                if not files:
+                    return f"Aucun fichier trouvé dans {path} (pattern: {pattern})"
+                return "\n".join(sorted(files)[:100])
+            except Exception as exc:
+                return f"Erreur listage répertoire : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="list_directory",
+            description=(
+                "Liste les fichiers présents dans un répertoire local. "
+                "Utile pour explorer la structure d'un projet."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Répertoire à explorer (défaut: répertoire courant)",
+                        "default": ".",
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Filtre glob (ex: '*.py', '*.md')",
+                        "default": "*",
+                    },
+                },
+            },
+            callable_fn=list_directory,
+        )
+
+        # ----------------------------------------------------------------
+        # 5. Génération de code avec recherche web
+        # ----------------------------------------------------------------
+        async def generate_code(description: str, language: str = "python") -> str:
+            """Génère du code en cherchant des exemples récents sur le web."""
+            try:
+                result = await self.code_generator.generate_code_from_web(
+                    description, language
+                )
+                if result.get("success"):
+                    code = result.get("code", "")
+                    explanation = result.get("explanation", "")
+                    return f"```{language}\n{code}\n```\n\n{explanation}"
+                return (
+                    f"Génération impossible : {result.get('error', 'erreur inconnue')}"
+                )
+            except Exception as exc:
+                return f"Erreur génération code : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="generate_code",
+            description=(
+                "Génère du code source dans le langage demandé en s'appuyant sur "
+                "des exemples récents trouvés sur GitHub, Stack Overflow, etc. "
+                "À utiliser pour toute demande de création, génération ou écriture de code."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Description précise du code à générer",
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "Langage de programmation (python, javascript, java, etc.)",
+                        "default": "python",
+                    },
+                },
+                "required": ["description"],
+            },
+            callable_fn=generate_code,
+        )
+
+        # ----------------------------------------------------------------
+        # 6. Calcul et évaluation d'expressions mathématiques
+        # ----------------------------------------------------------------
+        def calculate(expression: str) -> str:
+            """Évalue une expression mathématique de façon sécurisée."""
+            try:
+                result = local_math(expression)
+                return str(result)
+            except Exception as exc:
+                return f"Erreur calcul : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="calculate",
+            description=(
+                "Évalue une expression mathématique précisément. "
+                "Supporte: +, -, *, /, **, %, //, et fonctions math.sqrt, math.sin, etc."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "Expression mathématique à évaluer",
+                    }
+                },
+                "required": ["expression"],
+            },
+            callable_fn=calculate,
+        )
+
+        # ----------------------------------------------------------------
+        # Serveurs MCP externes (depuis config.yaml)
+        # ----------------------------------------------------------------
+        try:
+            cfg = get_config()
+            mcp_config = cfg.get_section("mcp") or {}
+            servers = mcp_config.get("servers", {})
+            for server_name, server_conf in servers.items():
+                if server_conf.get("enabled", False):
+                    self.mcp_manager.register_mcp_server_from_dict(
+                        server_name, server_conf
+                    )
+            if servers:
+                # Connexion asynchrone en arrière-plan
+                def _connect():
+                    self.mcp_manager.connect_external_servers_sync()
+
+                t = threading.Thread(target=_connect, daemon=True, name="mcp-connect")
+                t.start()
+        except Exception as exc:
+            self.logger.warning("Configuration serveurs MCP ignorée : %s", exc)
+
+        total_tools = len(self.mcp_manager.get_ollama_tools())
+        self.logger.info(
+            "✅ MCPManager initialisé — %d outil(s) disponible(s)", total_tools
         )
 
     def process_text(self, text: str, context: Optional[Dict[str, Any]] = None) -> str:
@@ -411,12 +720,24 @@ Que voulez-vous que je fasse pour vous ?"""
                     )
                 return {"type": "faq", "message": response_ml, "success": True}
 
-            # 2. Sinon, routage normal
-            # Analyse de la requête
+            # 2. Routage MCP tool-calling (prioritaire sur le keyword-routing)
+            if (
+                self.mcp_manager.has_tools()
+                and hasattr(self.local_ai, "local_llm")
+                and self.local_ai.local_llm is not None
+                and self.local_ai.local_llm.is_ollama_available
+            ):
+                response = await self._handle_with_mcp_tools(
+                    query, context, is_interrupted_callback
+                )
+                if response.get("success"):
+                    self.conversation_manager.add_exchange(query, response)
+                    return response
+                # Fallback si MCP échoue (pas de réponse finale générée)
+
+            # 3. Fallback : routage classique par mots-clés
             query_type = self._analyze_query_type(query)
-            # Préparation du contexte
             full_context = self._prepare_context(query, context)
-            # Traitement selon le type
             if query_type == "web_search":
                 response = await self._handle_web_search(query)
             elif query_type == "conversation":
@@ -424,7 +745,9 @@ Que voulez-vous que je fasse pour vous ?"""
             elif query_type == "file_processing":
                 response = await self._handle_file_processing(query, full_context)
             elif query_type == "code_generation":
-                response = await self._handle_code_generation(query, is_interrupted_callback)
+                response = await self._handle_code_generation(
+                    query, is_interrupted_callback
+                )
             elif query_type == "document_generation":
                 response = await self._handle_document_generation(query, full_context)
             else:
@@ -597,6 +920,488 @@ Que voulez-vous que je fasse pour vous ?"""
                 )
 
         return full_context
+
+    async def _handle_with_mcp_tools(
+        self,
+        query: str,
+        context: Optional[Dict],
+        is_interrupted_callback=None,
+    ) -> Dict[str, Any]:
+        """
+        Traite une requête via la boucle agentique Ollama + outils MCP.
+
+        Le LLM reçoit la liste complète des outils disponibles et décide
+        lui-même lesquels appeler, sans keyword-routing hardcodé.
+        """
+        try:
+            llm = self.local_ai.local_llm
+            tools = self.mcp_manager.get_ollama_tools()
+
+            if not tools:
+                return {"type": "mcp", "message": "", "success": False}
+
+            # Construire le system prompt qui explique les outils
+            system_prompt = (
+                "Tu es My AI, un assistant IA local, confidentiel et puissant. "
+                "Tu as accès à des outils que tu peux appeler automatiquement pour "
+                "répondre précisément. Utilise les outils pertinents avant de répondre. "
+                "Réponds toujours en français sauf si on te demande autre chose. "
+                "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
+            )
+
+            # Ajouter le contexte des documents chargés si disponible
+            full_context = self._prepare_context(query, context)
+            if full_context.get("stored_documents"):
+                doc_names = list(full_context["stored_documents"].keys())
+                system_prompt += (
+                    f"\n\nDocuments disponibles en mémoire : {', '.join(doc_names)}. "
+                    "Utilise search_memory ou read_local_file pour y accéder."
+                )
+
+            # Outil d'interruption vérification
+            def tool_executor(tool_name: str, arguments: dict) -> str:
+                if is_interrupted_callback and is_interrupted_callback():
+                    return "[Interrompu par l'utilisateur]"
+                return self.mcp_manager.execute_tool_sync(tool_name, arguments)
+
+            result = llm.generate_with_tools(
+                prompt=query,
+                tools=tools,
+                tool_executor=tool_executor,
+                system_prompt=system_prompt,
+            )
+
+            if result.get("success") and result.get("response"):
+                return {
+                    "type": "mcp",
+                    "message": result["response"],
+                    "tool_calls": result.get("tool_calls", []),
+                    "success": True,
+                }
+
+            return {"type": "mcp", "message": "", "success": False}
+
+        except Exception as exc:
+            self.logger.warning("Erreur MCP tool-calling : %s", exc)
+            return {"type": "mcp", "message": "", "success": False}
+
+    async def _handle_with_mcp_tools_stream(
+        self,
+        query: str,
+        context: Optional[Dict],
+        on_token=None,
+        on_tool_call=None,
+        is_interrupted_callback=None,
+    ) -> Dict[str, Any]:
+        """
+        Version streaming de _handle_with_mcp_tools.
+        Utilisée par la GUI pour l'affichage progressif des réponses.
+        """
+        try:
+            llm = self.local_ai.local_llm
+            tools = self.mcp_manager.get_ollama_tools()
+            if not tools:
+                return {"type": "mcp", "message": "", "success": False}
+
+            system_prompt = (
+                "Tu es My AI, un assistant IA local, confidentiel et puissant. "
+                "Tu as accès à des outils. Utilise-les quand c'est pertinent. "
+                "Réponds toujours en français sauf instruction contraire."
+            )
+
+            full_context = self._prepare_context(query, context)
+            if full_context.get("stored_documents"):
+                doc_names = list(full_context["stored_documents"].keys())
+                system_prompt += f"\n\nDocuments disponibles : {', '.join(doc_names)}."
+
+            def tool_executor(tool_name: str, arguments: dict) -> str:
+                if is_interrupted_callback and is_interrupted_callback():
+                    return "[Interrompu]"
+                return self.mcp_manager.execute_tool_sync(tool_name, arguments)
+
+            result = llm.generate_with_tools_stream(
+                prompt=query,
+                tools=tools,
+                tool_executor=tool_executor,
+                system_prompt=system_prompt,
+                on_token=on_token,
+                on_tool_call=on_tool_call,
+            )
+
+            if result.get("success") and result.get("response"):
+                return {
+                    "type": "mcp",
+                    "message": result["response"],
+                    "tool_calls": result.get("tool_calls", []),
+                    "success": True,
+                }
+
+            return {"type": "mcp", "message": "", "success": False}
+
+        except Exception as exc:
+            self.logger.warning("Erreur MCP stream : %s", exc)
+            return {"type": "mcp", "message": "", "success": False}
+
+    # ------------------------------------------------------------------
+    # Point d'entrée unifié pour la GUI (synchrone, streaming)
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Détection d'intention côté Python (contournement du bug tool-calling
+    # de llama3.2 qui écrit le JSON en texte au lieu d'utiliser l'API)
+    # ------------------------------------------------------------------
+
+    # Mots-clés qui signalent le besoin d'une info en temps réel
+    _WEB_SEARCH_SIGNALS = [
+        # Prix / cours / marchés
+        "prix",
+        "cours",
+        "coût",
+        "combien coûte",
+        "tarif",
+        "valeur",
+        "bitcoin",
+        "ethereum",
+        "crypto",
+        "bourse",
+        "action",
+        "euro",
+        "dollar",
+        # Datation / actualité
+        "aujourd'hui",
+        "aujourd'hui",
+        "maintenant",
+        "actuellement",
+        "en ce moment",
+        "cette semaine",
+        "ce mois",
+        "cette année",
+        "récent",
+        "dernière",
+        "dernières nouvelles",
+        "actualité",
+        "actu",
+        "news",
+        # Météo
+        "météo",
+        "meteo",
+        "température",
+        "temps qu'il fait",
+        "va-t-il pleuvoir",
+        # Faits / données
+        "population",
+        "habitants",
+        "combien",
+        "statistique",
+        # Événements sportifs / culturels
+        "score",
+        "résultat du match",
+        "classement",
+        # Lieux / adresses / proximité
+        "proche",
+        "près de",
+        "où se trouve",
+        "adresse",
+        "restaurant",
+        "café",
+        "bar",
+        "magasin",
+        "boutique",
+        "horaire",
+        "ouvert",
+        "fermé",
+    ]
+
+    # Signaux indiquant une requête purement conversationnelle
+    # → le LLM ne doit pas recevoir la liste des outils dans ces cas
+    _CONVERSATIONAL_SIGNALS = [
+        # Salutations
+        "salut", "bonjour", "bonsoir", "bonne nuit", "coucou", "hello", "hi", "hey",
+        # État / courtoisie
+        "ça va", "sa va", "ca va", "comment vas", "comment allez", "comment tu",
+        "tu vas bien", "vous allez bien",
+        # Clôture
+        "au revoir", "bye", "à bientôt", "a bientot", "bonne journée", "merci",
+        # Identité du modèle
+        "qui es tu", "qui êtes vous", "qui etes vous", "qui est tu",
+        "tu t'appelles", "comment tu t'appelles", "ton nom", "quel est ton nom",
+        "présente-toi", "présentes toi", "tu es quoi",
+    ]
+
+    def _is_conversational(self, query: str) -> bool:
+        """Retourne True si la requête est purement conversationnelle.
+        Dans ce cas, les outils ne doivent PAS être fournis au LLM.
+        """
+        q = query.lower().strip().rstrip("?!.")
+        return any(sig in q for sig in self._CONVERSATIONAL_SIGNALS)
+
+    def _needs_web_search(self, query: str) -> bool:
+        """Retourne True si la requête nécessite une info fraîche du web."""
+        q = query.lower()
+        return any(sig in q for sig in self._WEB_SEARCH_SIGNALS)
+
+    def _optimize_search_query(self, query: str, llm) -> str:
+        """Optimise la requête de recherche avec le LLM pour de meilleurs résultats."""
+        if not llm or not llm.is_ollama_available:
+            return query
+
+        try:
+            prompt = (
+                "Transforme cette demande en une requête de recherche web courte et efficace "
+                "(mots-clés essentiels uniquement, sans verbes ni politesse). "
+                "Si la demande porte sur des données en temps réel (prix, météo, actualité…), "
+                "ajoute 'en direct' ou 'aujourd\\'hui' à la fin pour forcer des résultats récents. "
+                "Réponds UNIQUEMENT avec la requête optimisée, rien d'autre.\n\n"
+                f"Demande: {query}"
+            )
+            system_prompt = (
+                "Tu es un expert en recherche d'information. "
+                "Réponds uniquement avec la requête optimisée, sans explication ni ponctuation. "
+                "Pour les données temps-réel (prix crypto, météo, actualité), "
+                "conserve toujours 'prix actuel', 'aujourd\\'hui' ou 'en direct' dans la requête."
+            )
+
+            optimized = llm.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                save_history=False,
+                use_history=False,
+            )
+
+            if optimized:
+                optimized = optimized.strip().strip("\"'.,!?:;\n\r")
+                if 3 <= len(optimized) <= 120:
+                    print(
+                        f"🔧 [AIEngine] Requête optimisée : '{query}' → '{optimized}'"
+                    )
+                    return optimized
+        except Exception as e:
+            self.logger.warning("Erreur lors de l'optimisation de la requête: %s", e)
+
+        return query
+
+    def process_query_stream(
+        self,
+        user_input: str,
+        on_token=None,
+        on_tool_call=None,
+        image_base64: Optional[str] = None,
+        context: Optional[Dict] = None,
+        is_interrupted_callback=None,
+    ) -> str:
+        """
+        Point d'entrée synchrone et streamé pour la GUI.
+
+        Stratégie :
+          1. Image (vision) → direct
+          2. Détection d'intention Python → appel direct de l'outil
+             (contourne le bug tool-calling de llama3.2)
+          3. Stream final Ollama avec le résultat de l'outil injecté
+          4. Fallback → CustomAIModel
+        """
+        # ----------------------------------------------------------------
+        # 1. Vision
+        # ----------------------------------------------------------------
+        if image_base64:
+            return self.local_ai.generate_response_stream(
+                user_input,
+                on_token=on_token,
+                image_base64=image_base64,
+                context=context,
+            )
+
+        llm = getattr(self.local_ai, "local_llm", None)
+        if llm is None or not llm.is_ollama_available:
+            # Pas d'Ollama → fallback direct
+            return self.local_ai.generate_response_stream(
+                user_input, on_token=on_token, context=context
+            )
+
+        # ----------------------------------------------------------------
+        # 2. Exécution via MCP Tool Calling (Ollama)
+        # ----------------------------------------------------------------
+        try:
+            tools = self.mcp_manager.get_ollama_tools()
+
+            # Construire le system prompt
+            cwd = os.getcwd()
+            # Partir du SYSTEM du Modelfile (identité + règles de formatage),
+            # puis ajouter les instructions MCP spécifiques à cette session.
+            _base = self._modelfile_system
+            system_prompt = (
+                (_base + "\n\n") if _base else
+                "Tu es My_AI, un assistant personnel local, confidentiel et puissant.\n\n"
+            ) + (
+                "Tu as accès à des outils. Utilise-les quand c'est pertinent pour répondre "
+                "précisément à la demande de l'utilisateur. "
+                f"Le répertoire de travail actuel (racine du projet) est : {cwd}. "
+                "Réponds toujours en français sauf instruction contraire. "
+                "Sois direct, précis et synthétique."
+            )
+
+            # Ajouter le contexte des documents chargés
+            full_context = self._prepare_context(user_input, context)
+            if full_context.get("stored_documents"):
+                doc_names = list(full_context["stored_documents"].keys())
+                system_prompt += f"\n\nDocuments disponibles en mémoire : {', '.join(doc_names)}. Utilise read_local_file ou search_memory pour y accéder."
+
+            # Conteneur pour le résultat direct d'outil (évite un appel Ollama de synthèse)
+            _direct_result: list = []
+            _original_on_token = on_token
+
+            def _maybe_on_token(token):
+                """Ignore les tokens de synthèse Ollama si un résultat direct a déjà été streamé."""
+                if _direct_result:
+                    return  # jeter les tokens de synthèse — déjà affiché directement
+                if _original_on_token:
+                    _original_on_token(token)
+
+            def tool_executor(tool_name: str, arguments: dict) -> str:
+                if is_interrupted_callback and is_interrupted_callback():
+                    return "[Interrompu par l'utilisateur]"
+                if tool_name == "web_search":
+                    optimized_q = self._optimize_search_query(user_input, llm)
+                    arguments = {**arguments, "query": optimized_q}
+                    if on_tool_call:
+                        on_tool_call("web_search", arguments)
+                    # Brancher le callback GUI sur le moteur de recherche :
+                    # l'analyse Ollama interne va streamer ses tokens directement
+                    # dans la bulle de réponse, token par token, en temps réel.
+                    if hasattr(self, "_web_search_engine") and _original_on_token:
+                        self._web_search_engine.on_llm_token = _original_on_token
+
+                tool_result = self.mcp_manager.execute_tool_sync(tool_name, arguments)
+
+                if tool_name == "web_search":
+                    # Débrancher le callback pour éviter les effets de bord
+                    if hasattr(self, "_web_search_engine"):
+                        self._web_search_engine.on_llm_token = None
+                    if tool_result and not str(tool_result).startswith("[Erreur"):
+                        _direct_result.append(str(tool_result))
+                        # Streamer la section source (🔗) qui n'a pas été
+                        # générée par Ollama et donc pas encore dans le buffer.
+                        if _original_on_token:
+                            full = str(tool_result)
+                            source_pos = full.find("🔗")
+                            if source_pos > 0:
+                                _original_on_token("\n\n" + full[source_pos:])
+                return tool_result
+
+            # Requêtes purement conversationnelles : pas d'outils
+            if tools and self._is_conversational(user_input):
+                tools = []
+
+            if tools:
+                result = llm.generate_with_tools_stream(
+                    prompt=user_input,
+                    tools=tools,
+                    tool_executor=tool_executor,
+                    system_prompt=system_prompt,
+                    on_token=_maybe_on_token,
+                    on_tool_call=on_tool_call,
+                    is_interrupted_callback=is_interrupted_callback,
+                )
+
+                # Résultat direct disponible → le retourner sans synthèse Ollama
+                if _direct_result:
+                    self.logger.info(
+                        "process_query_stream ok (direct tool result, %d chars)",
+                        len(_direct_result[0]),
+                    )
+                    return _direct_result[0]
+
+                if result.get("success") and result.get("response"):
+                    tool_called = len(result.get("tool_calls", [])) > 0
+                    response_text = result["response"]
+
+                    # ── Filet de sécurité : le modèle a retourné du JSON de
+                    # tool call brut (llama3.2 bug non intercepté en interne)
+                    if not tool_called and response_text.strip().startswith("{"):
+                        known_names = [
+                            t.get("function", {}).get("name", "")
+                            for t in tools if isinstance(t, dict)
+                        ]
+                        ftc = llm.parse_text_tool_call(response_text, known_names)
+                        if ftc:
+                            t_name = ftc["name"]
+                            t_args = ftc["arguments"]
+                            if not t_args:
+                                if t_name == "web_search":
+                                    t_args = {"query": user_input}
+                                elif t_name in ("read_local_file", "list_directory"):
+                                    pm = _re.search(r"[\w./\\]+", user_input)
+                                    t_args = {"path": pm.group(0) if pm else "."}
+                                elif t_name == "calculate":
+                                    t_args = {"expression": user_input}
+                                elif t_name == "generate_code":
+                                    t_args = {"description": user_input, "language": "python"}
+                            if on_tool_call:
+                                on_tool_call(t_name, t_args)
+                            self.logger.warning(
+                                "[fallback] JSON tool call non intercepté → exécution forcée : %s(%s)",
+                                t_name, t_args
+                            )
+                            tool_result = tool_executor(t_name, t_args)
+                            # Re-stream la synthèse via Ollama avec le résultat injecté
+                            followup = llm.generate_stream(
+                                prompt=user_input,
+                                system_prompt=(
+                                    system_prompt
+                                    + f"\n\nRésultat de l'outil '{t_name}':\n{tool_result}"
+                                    + "\n\nRéponds maintenant directement à la question en te basant sur ces informations."
+                                ),
+                                on_token=on_token,
+                                is_interrupted_callback=is_interrupted_callback,
+                            )
+                            if followup:
+                                self.logger.info(
+                                    "process_query_stream [fallback tool] ok, %d chars", len(followup)
+                                )
+                                return followup
+                    else:
+                        # JSON halluciné avec un nom d'outil inconnu → relance
+                        # sans outils pour obtenir une vraie réponse conversationnelle.
+                        self.logger.warning(
+                                "[fallback] JSON inconnu ignoré, relance sans outils : %s",
+                                response_text[:120],
+                            )
+                        retry = llm.generate_stream(
+                                prompt=user_input,
+                                system_prompt=system_prompt,
+                                on_token=on_token,
+                                is_interrupted_callback=is_interrupted_callback,
+                            )
+                        if retry:
+                            return retry
+
+                    self.logger.info(
+                        "process_query_stream ok (outil=%s, %d chars)",
+                        tool_called,
+                        len(response_text),
+                    )
+                    return response_text
+            else:
+                # Fallback si aucun outil n'est disponible
+                response = llm.generate_stream(
+                    prompt=user_input,
+                    system_prompt=system_prompt,
+                    on_token=on_token,
+                    is_interrupted_callback=is_interrupted_callback,
+                )
+                if response:
+                    return response
+
+        except Exception as exc:
+            self.logger.warning("process_query_stream Ollama stream échoué : %s", exc)
+
+        # ----------------------------------------------------------------
+        # 3. Fallback → CustomAIModel
+        # ----------------------------------------------------------------
+        return self.local_ai.generate_response_stream(
+            user_input,
+            on_token=on_token,
+            context=context,
+        )
 
     async def _handle_conversation(self, query: str, context: Dict) -> Dict[str, Any]:
         """
@@ -945,10 +1750,12 @@ Que voulez-vous que je fasse pour vous ?"""
                 "success": False,
             }
 
-    async def _handle_code_generation(self, query: str, is_interrupted_callback=None) -> Dict[str, Any]:
+    async def _handle_code_generation(
+        self, query: str, is_interrupted_callback=None
+    ) -> Dict[str, Any]:
         """
         Gère la génération de code avec Ollama ou recherche web
-        
+
         Args:
             query: Requête utilisateur
             is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
@@ -969,11 +1776,15 @@ Que voulez-vous que je fasse pour vous ?"""
                     self.logger.info("🔧 Détection génération de fichier avec Ollama")
 
                     # Utiliser le générateur Ollama déjà initialisé avec callback d'interruption
-                    result = await self.ollama_code_generator.generate_file(query, is_interrupted_callback=is_interrupted_callback)
+                    result = await self.ollama_code_generator.generate_file(
+                        query, is_interrupted_callback=is_interrupted_callback
+                    )
 
                     # Vérifier IMMÉDIATEMENT si l'opération a été interrompue
                     if result.get("interrupted"):
-                        self.logger.info("⚠️ Génération de fichier interrompue par l'utilisateur")
+                        self.logger.info(
+                            "⚠️ Génération de fichier interrompue par l'utilisateur"
+                        )
                         return {
                             "type": "file_generation",
                             "success": False,

@@ -24,6 +24,10 @@ class StreamingMixin:
         L'animation lit depuis le buffer qui se remplit en temps réel.
         """
         try:
+            # Effacer l'indicateur MCP inline s'il est toujours affiché
+            if hasattr(self, "_hide_mcp_tool_indicator"):
+                self._hide_mcp_tool_indicator()
+
             # Cacher l'animation de réflexion immédiatement
             self.is_thinking = False
             if hasattr(self, "thinking_frame"):

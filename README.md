@@ -27,11 +27,11 @@
 **🧠 Mémoire Vectorielle Étendue**  
 Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
-**💬 Conversations Intelligentes**  
-Reconnaissance d'intentions avancée, mémoire persistante et compréhension contextuelle.
-
 **🤖 9 Agents IA Spécialisés**  
 Code, Web, Analyse, Créativité, Debug, Sécurité... et création d'agents personnalisés.
+
+**🔌 Intégration MCP (Model Context Protocol)**  
+Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
 
 **🎓 RLHF Intégré**  
 Chaque feedback enrichit votre base d'entraînement personnelle pour affiner le modèle à votre usage.
@@ -160,6 +160,7 @@ my_ai/
 │   ├── context_manager.py               # Gestion de contexte long
 │   ├── conversation.py                  # Gestion des conversations
 │   ├── data_preprocessing.py            # Prétraitement des données
+│   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── rlhf.py                          # RLHF CLI (legacy)
 │   ├── training_manager.py              # Training Manager moderne (pipeline complet)
@@ -326,6 +327,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
 | [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
 | [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
+| [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
 | [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |
 

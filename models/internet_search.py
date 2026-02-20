@@ -117,7 +117,7 @@ class EnhancedInternetSearchEngine:
             clean_word = word.lower().strip(".,;:!?")
             if clean_word in corrections:
                 corrected_word = corrections[clean_word]
-                suffix = word[len(clean_word):]
+                suffix = word[len(clean_word) :]
                 corrected_words.append(corrected_word + suffix)
                 has_correction = True
                 print(f"✏️ Correction: '{word}' → '{corrected_word}'")
@@ -170,9 +170,7 @@ class EnhancedInternetSearchEngine:
             resp = requests.get(api_url, params=params, headers=headers, timeout=6)
             data = resp.json()
             suggestion = (
-                data.get("query", {})
-                .get("searchinfo", {})
-                .get("suggestion", "")
+                data.get("query", {}).get("searchinfo", {}).get("suggestion", "")
             )
             if suggestion and suggestion.lower() != query.lower():
                 print(f"🌐 Wikipedia spellcheck suggestion: '{query}' → '{suggestion}'")
@@ -601,7 +599,9 @@ class EnhancedInternetSearchEngine:
             if not page_contents:
                 return f"❌ Désolé, aucune source exploitable trouvée sur '{query}'."
 
-            best_source = self._select_best_source_for_query(corrected_query, page_contents)
+            best_source = self._select_best_source_for_query(
+                corrected_query, page_contents
+            )
             if not best_source:
                 return f"❌ Désolé, aucune source pertinente trouvée sur '{query}'."
 
@@ -691,15 +691,16 @@ class EnhancedInternetSearchEngine:
         )
 
         query_years = {
-            int(year)
-            for year in re.findall(r"\b(19\d{2}|20\d{2})\b", query_lower)
+            int(year) for year in re.findall(r"\b(19\d{2}|20\d{2})\b", query_lower)
         }
 
         all_texts = []
         for page in page_contents:
             title = (page.get("title") or "").lower()
             snippet = (page.get("snippet") or "").lower()
-            all_texts.extend(set(re.findall(r"\w+", f"{title} {snippet}", flags=re.UNICODE)))
+            all_texts.extend(
+                set(re.findall(r"\w+", f"{title} {snippet}", flags=re.UNICODE))
+            )
         token_frequency = Counter(token for token in all_texts if len(token) > 2)
 
         scored = []
@@ -821,13 +822,20 @@ class EnhancedInternetSearchEngine:
 
         for page in page_contents:
             title = page.get("title", "")
-            content = page.get("full_content") or page.get("snippet", "")
+            snippet = page.get("snippet", "")
+            full_content = page.get("full_content", "")
             url = page.get("url", "")
 
-            if content and len(content) > 50:
-                all_content.append(
-                    f"Source: {title}\n{content[:3000]}"
-                )  # Limiter à 3000 chars par source
+            content_parts = []
+            if snippet:
+                content_parts.append(f"Extrait de recherche (très récent): {snippet}")
+            if full_content and len(full_content) > 50:
+                content_parts.append(f"Contenu de la page: {full_content[:3000]}")
+
+            content = "\n".join(content_parts)
+
+            if content:
+                all_content.append(f"Source: {title}\n{content}")
                 sources.append({"title": title, "url": url})
 
         if not all_content:
@@ -857,6 +865,7 @@ Analyse CE contenu et extrais UNIQUEMENT les informations qui répondent directe
 
 RÈGLES STRICTES:
 ✓ Extrais TOUTES les informations pertinentes (noms, chiffres, dates, détails, contexte)
+✓ Pour les questions sur des prix, cours de bourse ou données en temps réel, donne la priorité absolue aux "Extraits de recherche" qui sont souvent plus récents que le "Contenu de la page".
 ✓ Si ce sont des résultats chiffrés (élections, compétitions, scores): donne TOUS les chiffres importants
 ✓ Garde les noms propres exacts (partis, équipes, personnes, lieux)
 ✓ Organise clairement les informations (liste à puces si pertinent)
@@ -872,11 +881,30 @@ Réponds de manière factuelle et structurée:"""
             saved_history = self.llm.conversation_history.copy()
             self.llm.conversation_history = []
 
-            # Générer la réponse avec Ollama
-            extracted_info = self.llm.generate(
-                prompt=prompt,
-                system_prompt="Tu extrais des informations factuelles depuis du contenu web. Tu es précis, complet et factuel.",
-            )
+            on_token_cb = getattr(self, "on_llm_token", None)
+            if callable(on_token_cb):
+                # L'appelant (AIEngine) a branché le callback de la GUI :
+                # utiliser generate_stream pour envoyer chaque token
+                # directement dans la bulle de réponse en temps réel.
+                collected: list = []
+
+                def _collect_and_fwd(token):
+                    collected.append(token)
+                    on_token_cb(token)
+                    return True
+
+                self.llm.generate_stream(
+                    prompt=prompt,
+                    system_prompt="Tu extrais des informations factuelles depuis du contenu web. Tu es précis, complet et factuel.",
+                    on_token=_collect_and_fwd,
+                )
+                extracted_info = "".join(collected).strip()
+            else:
+                # Mode non-streaming : appel bloquant classique
+                extracted_info = self.llm.generate(
+                    prompt=prompt,
+                    system_prompt="Tu extrais des informations factuelles depuis du contenu web. Tu es précis, complet et factuel.",
+                )
 
             # Restaurer l'historique
             self.llm.conversation_history = saved_history
@@ -2420,11 +2448,12 @@ Réponds de manière factuelle et structurée:"""
         # Essayer DuckDuckGo Lite d'abord
         print("🔍 Cloudscraper: Recherche sur DuckDuckGo Lite...")
         try:
-            search_url = f"https://lite.duckduckgo.com/lite/?q={quote(query)}"
-            print(f"📍 URL: {search_url[:80]}...")
-            print("📍 Appel scraper.get()...")
+            search_url = "https://lite.duckduckgo.com/lite/"
+            print(f"📍 URL: {search_url}")
+            print("📍 Appel scraper.post()...")
 
-            response = self.scraper.get(search_url, timeout=15)
+            data = {"q": query, "kl": "fr-fr"}
+            response = self.scraper.post(search_url, data=data, timeout=15)
             print(
                 f"📍 Réponse reçue: {response.status_code}, Taille: {len(response.text)} chars"
             )
@@ -2434,72 +2463,38 @@ Réponds de manière factuelle et structurée:"""
             soup = BeautifulSoup(response.text, "html.parser")
             results = []
 
-            # DuckDuckGo Lite structure: chercher les résultats dans les éléments de la page
-            # Après CAPTCHA, les résultats sont dans des <tr> avec des liens
-            result_rows = soup.find_all("tr")
-            print(f"📊 Nombre de <tr> trouvés: {len(result_rows)}")
+            # DuckDuckGo Lite utilise une structure de table simple
+            result_tables = soup.find_all("table", class_="result-table")
+            print(f"📊 Nombre de tables trouvées: {len(result_tables)}")
 
-            # Si aucun <tr>, chercher TOUS les liens HTTP dans la page
-            if len(result_rows) == 0:
-                print("⚠️ Aucun <tr>, recherche de TOUS les liens HTTP...")
-                all_links = soup.find_all(
-                    "a", href=lambda x: x and x.startswith("http")
-                )
-                print(f"📊 Liens HTTP trouvés: {len(all_links)}")
+            for table in result_tables[: self.max_results]:
+                try:
+                    title_elem = table.find("a", class_="result-link")
+                    snippet_elem = table.find("td", class_="result-snippet")
 
-                # Utiliser ces liens comme résultats
-                for link in all_links[: self.max_results]:
-                    url = link.get("href", "")
-                    title = link.get_text(strip=True)
-                    if title and url and len(title) > 3:
-                        results.append(
-                            {
-                                "title": title,
-                                "snippet": title,
-                                "url": url,
-                                "source": "DuckDuckGo (Cloudscraper - fallback)",
-                            }
+                    if title_elem:
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get("href", "")
+                        snippet = (
+                            snippet_elem.get_text(strip=True) if snippet_elem else ""
                         )
 
-                if results:
-                    print(f"✅ {len(results)} résultats trouvés via fallback")
-                    return results[: self.max_results]
-
-            for row in result_rows[: self.max_results]:
-                try:
-                    # Chercher le lien principal
-                    link = row.find("a", class_="result-link")
-                    if not link:
-                        # Fallback: n'importe quel lien avec href valide
-                        link = row.find("a", href=lambda x: x and x.startswith("http"))
-
-                    if link:
-                        title = link.get_text(strip=True)
-                        url = link.get("href", "")
-
-                        # Chercher le snippet dans la même row
-                        snippet_td = row.find("td", class_="result-snippet")
-                        snippet = snippet_td.get_text(strip=True) if snippet_td else ""
-
-                        if title and url and len(title) > 3:
+                        if title and len(title) > 3:
                             results.append(
                                 {
                                     "title": title,
                                     "snippet": snippet if snippet else title,
                                     "url": url,
-                                    "source": "DuckDuckGo (Cloudscraper)",
+                                    "source": "DuckDuckGo Lite",
                                 }
                             )
-                except Exception as parse_err:
-                    print(f"⚠️ Erreur parsing row: {parse_err}")
+                except Exception as e:
+                    print(f"⚠️ Erreur lors du parsing DuckDuckGo Lite: {str(e)}")
                     continue
 
-            print(f"📊 Résultats extraits: {len(results)}")
             if results:
-                print(f"✅ Cloudscraper DDG: {len(results)} résultats trouvés")
-                return results[: self.max_results]
-            else:
-                print("⚠️ Aucun résultat extrait des <tr>")
+                print(f"✅ DuckDuckGo Lite: {len(results)} résultats trouvés")
+                return results
 
         except Exception as e:
             print(f"⚠️ Cloudscraper DDG échoué: {str(e)}")
@@ -2872,7 +2867,7 @@ Réponds de manière factuelle et structurée:"""
 
     def _search_duckduckgo_lite(self, query: str) -> List[Dict[str, Any]]:
         """Recherche via DuckDuckGo Lite (version simplifiée et plus stable)"""
-        search_url = f"https://lite.duckduckgo.com/lite/?q={quote(query)}"
+        search_url = "https://lite.duckduckgo.com/lite/"
 
         current_ua = self._get_next_user_agent()
 
@@ -2884,10 +2879,17 @@ Réponds de manière factuelle et structurée:"""
             "DNT": "1",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
+            "Content-Type": "application/x-www-form-urlencoded",
         }
 
-        response = requests.get(
-            search_url, headers=headers, timeout=self.timeout, allow_redirects=True
+        data = {"q": query, "kl": "fr-fr"}
+
+        response = requests.post(
+            search_url,
+            headers=headers,
+            data=data,
+            timeout=self.timeout,
+            allow_redirects=True,
         )
         response.raise_for_status()
 
@@ -2944,7 +2946,7 @@ Réponds de manière factuelle et structurée:"""
             "User-Agent": current_ua,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Encoding": "gzip, deflate",
             "DNT": "1",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
@@ -2963,46 +2965,42 @@ Réponds de manière factuelle et structurée:"""
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
 
-        # Brave Search utilise des divs avec data-type="web"
-        result_divs = soup.find_all("div", {"data-type": "web"}, limit=self.max_results)
-
-        # Fallback: chercher les résultats avec d'autres sélecteurs
-        if not result_divs:
-            result_divs = soup.find_all(
-                "div",
-                class_=lambda x: x and "snippet" in x.lower(),
-                limit=self.max_results,
-            )
+        # Brave Search utilise des divs avec class="snippet"
+        result_divs = soup.find_all("div", class_="snippet", limit=self.max_results * 2)
 
         for div in result_divs:
             try:
+                # Ignorer les publicités
+                if div.has_attr("data-advertiser-id"):
+                    continue
+
                 # Chercher le titre
-                title_elem = (
-                    div.find("a", class_=lambda x: x and "result" in x.lower())
-                    or div.find("h4")
-                    or div.find("h3")
-                )
+                title_elem = div.find("div", class_="title")
+
+                # Chercher le lien
+                link_elem = div.find("a")
 
                 # Chercher le snippet
-                snippet_elem = div.find(
-                    "p", class_=lambda x: x and "snippet" in x.lower()
-                ) or div.find("p")
+                snippet_elem = div.find("div", class_="content")
 
-                if title_elem:
+                if title_elem and link_elem:
                     title = title_elem.get_text(strip=True)
-                    url = title_elem.get("href", "")
+                    url = link_elem.get("href", "")
 
                     snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
 
-                    if title and len(title) > 3:
+                    if title and len(title) > 3 and url.startswith("http"):
                         results.append(
                             {
                                 "title": title,
                                 "snippet": snippet if snippet else title,
-                                "url": url if url.startswith("http") else "",
+                                "url": url,
                                 "source": "Brave Search",
                             }
                         )
+
+                if len(results) >= self.max_results:
+                    break
             except Exception as e:
                 print(f"⚠️ Erreur lors du parsing Brave Search: {str(e)}")
                 continue
@@ -3465,8 +3463,7 @@ Réponds de manière factuelle et structurée:"""
             ]
         )
         query_years = {
-            int(year)
-            for year in re.findall(r"\b(19\d{2}|20\d{2})\b", query_lower)
+            int(year) for year in re.findall(r"\b(19\d{2}|20\d{2})\b", query_lower)
         }
 
         all_tokens = []
@@ -3476,7 +3473,9 @@ Réponds de manière factuelle et structurée:"""
             all_tokens.extend(
                 set(
                     token
-                    for token in re.findall(r"\w+", f"{title} {snippet}", flags=re.UNICODE)
+                    for token in re.findall(
+                        r"\w+", f"{title} {snippet}", flags=re.UNICODE
+                    )
                     if len(token) > 2 and token not in stopwords
                 )
             )

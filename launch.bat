@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
 REM ====================================
-REM My Personal AI ULTRA - Lanceur v6.4.0
+REM My Personal AI ULTRA - Lanceur v6.5.0
 REM ====================================
 
 echo.
-echo MY PERSONAL AI v6.4.0
+echo MY PERSONAL AI v6.5.0
 echo ======================
 echo.
 

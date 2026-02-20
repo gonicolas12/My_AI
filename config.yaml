@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "6.4.0"
+  version: "6.5.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
@@ -269,6 +269,67 @@ optimization:
     embedding_cache_size: 1000
     response_cache_size: 500
     cache_ttl: 3600  # 1 heure
+
+# ====================================
+# MODEL CONTEXT PROTOCOL (MCP)
+# ====================================
+mcp:
+  # Outils locaux (toujours actifs, pas de dépendance externe)
+  local_tools:
+    web_search: true
+    search_memory: true
+    read_local_file: true
+    list_directory: true
+    generate_code: true
+    calculate: true
+
+  # Serveurs MCP externes (optionnels, nécessitent Node.js via npx ou Python via uvx)
+  # Mettre enabled: true pour activer, false pour ignorer
+  servers:
+
+    # Accès au système de fichiers local
+    # Requiert: Node.js — npx @modelcontextprotocol/server-filesystem
+    filesystem:
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-filesystem", "./"]
+
+    # Accès aux dépôts Git (lecture de code, commits, branches)
+    # Requiert: Node.js — npx @modelcontextprotocol/server-git
+    git:
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-git", "--repository", "."]
+
+    # Accès aux bases SQLite (mémoire, conversations)
+    # Requiert: Node.js — npx @modelcontextprotocol/server-sqlite
+    sqlite:
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-sqlite", "memory/vector_store/chroma.db"]
+
+    # Raisonnement structuré séquentiel (chaînes de pensée)
+    # Requiert: Node.js — npx @modelcontextprotocol/server-sequential-thinking
+    sequential_thinking:
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-sequential-thinking"]
+
+    # Recherche Brave (alternative locale à DuckDuckGo)
+    # Requiert: clé API Brave + Node.js
+    brave_search:
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-brave-search"]
+      env:
+        BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+    # Fetch HTTP (récupération de pages web)
+    # Requiert: Node.js — npx @modelcontextprotocol/server-fetch
+    fetch:
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-fetch"]
 
 # ====================================
 # CLÉS API

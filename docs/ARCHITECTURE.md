@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.4.0
+# 🏗️ Architecture - My Personal AI v6.5.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.4.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
+My Personal AI v6.5.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : GPT-2 tokenizer (99% précision vs 70% approximation)
@@ -10,6 +10,7 @@ My Personal AI v6.4.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
 - **Reconnaissance d'intentions avancée** : Analyse linguistique multi-niveaux
+- **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
@@ -34,6 +35,7 @@ My Personal AI v6.4.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Routage intelligent selon intentions                              │
 │  • Gestion de session et contexte                                    │
 │  • Intégration processeurs, générateurs, outils                      │
+│  • Client MCP (Model Context Protocol) pour outils externes          │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -977,7 +979,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 6.4.0
+**Version**: 6.5.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

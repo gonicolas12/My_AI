@@ -1,19 +1,18 @@
-# 🌐 Guide de la Recherche Internet - My Personal AI v5.7.0
+# 🌐 Guide de la Recherche Internet - My Personal AI v6.5.0
 
 ## 📋 Vue d'ensemble
 
-La version 5.7.0 apporte des améliorations majeures : **recherche internet optimisée** et **météo en temps réel**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, détecte automatiquement les questions météo et fournit des données actualisées pour **toutes les villes du monde** grâce à wttr.in.
+La version 6.5.0 apporte des améliorations majeures : **recherche internet optimisée**, **extraction de données en temps réel** et **détection d'intentions locales**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, extraire des prix ou données récentes sans être trompée par le cache des sites, et détecter automatiquement les recherches de lieux de proximité.
 
 ## 🚀 Fonctionnalités
 
 ### 🔍 Recherche Web Intelligente
-- **DuckDuckGo API Instant** : Recherches rapides et stables (priorité #1)
-- **Ordre optimisé** : Moteurs réorganisés pour éviter timeouts et CAPTCHA
-- **Résumés automatiques** : Synthèse intelligente des résultats
-- **Extraction de contenu** : Analyse des pages web avec BeautifulSoup
-- **Traitement parallèle** : Analyse simultanée de plusieurs sources
-- **Types de recherche** : Adaptation automatique selon le contexte
-- **Fallback intelligent** : Wikipedia API et Cloudscraper si nécessaire
+- **Brave Search & DuckDuckGo** : Recherches rapides et stables avec gestion avancée du décodage (Brotli).
+- **Extraction Temps Réel** : Priorisation des "Extraits de recherche" (snippets) par le LLM pour garantir des données à jour (ex: cours de la bourse, prix).
+- **Détection d'Intentions Locales** : Reconnaissance automatique des requêtes de proximité (café, restaurant, adresse, proche).
+- **Résumés automatiques** : Synthèse intelligente des résultats.
+- **Extraction de contenu** : Analyse des pages web avec BeautifulSoup.
+- **Traitement parallèle** : Analyse simultanée de plusieurs sources.
 
 ### 🌤️ Météo Temps Réel (v5.7.0)
 - **Service wttr.in gratuit** : Aucune clé API requise
@@ -38,6 +37,13 @@ La version 5.7.0 apporte des améliorations majeures : **recherche internet opti
 ## 💬 Comment Utiliser
 
 ### Exemples de Commandes
+
+#### Lieux et Proximité
+```
+🤖 "Quel est le café le plus proche de Compans Caffarelli ?"
+🤖 "Trouve-moi un bon restaurant italien à Paris"
+🤖 "Quelle est l'adresse de la mairie de Toulouse ?"
+```
 
 #### Météo (v5.7.0)
 ```

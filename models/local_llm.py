@@ -3,7 +3,9 @@ Module de gestion des LLM locaux avec priorité à Ollama.
 Support de l'historique de conversation pour un contexte persistant.
 """
 
-from typing import Dict, List
+import json
+import re
+from typing import Callable, Dict, List, Optional
 
 import requests
 
@@ -86,7 +88,7 @@ class LocalLLM:
         except Exception:
             return False
 
-    def generate(self, prompt, system_prompt=None):
+    def generate(self, prompt, system_prompt=None, save_history=True, use_history=True):
         """
         Génère une réponse avec contexte de conversation.
         Utilise l'API /api/chat pour maintenir l'historique.
@@ -103,7 +105,8 @@ class LocalLLM:
             messages.append({"role": "system", "content": system_prompt})
 
         # Ajouter l'historique de conversation
-        messages.extend(self.conversation_history)
+        if use_history:
+            messages.extend(self.conversation_history)
 
         # Ajouter le message actuel de l'utilisateur
         messages.append({"role": "user", "content": prompt})
@@ -121,14 +124,14 @@ class LocalLLM:
 
         try:
             print(
-                f"⏳ [LocalLLM] Génération avec contexte ({len(self.conversation_history)} messages précédents)..."
+                f"⏳ [LocalLLM] Génération avec contexte ({len(self.conversation_history) if use_history else 0} messages précédents)..."
             )
             response = requests.post(self.chat_url, json=data, timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 assistant_response = result.get("message", {}).get("content", "")
 
-                if assistant_response:
+                if assistant_response and save_history:
                     # Sauvegarder dans l'historique
                     self.add_to_history("user", prompt)
                     self.add_to_history("assistant", assistant_response)
@@ -149,6 +152,541 @@ class LocalLLM:
         except Exception as e:
             print(f"⚠️ [LocalLLM] Exception durant la génération: {e}")
             return None
+
+    def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        on_token: Optional[Callable] = None,
+        is_interrupted_callback: Optional[Callable] = None,
+    ) -> str:
+        """
+        Génère une réponse en streaming réel depuis Ollama.
+        Appelle on_token(chunk) pour chaque morceau reçu.
+        Retourne la réponse complète.
+        """
+        if not self.is_ollama_available:
+            return ""
+
+        messages: List[Dict] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(self.conversation_history)
+        messages.append({"role": "user", "content": prompt})
+
+        data = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
+        }
+
+        full_response = ""
+        try:
+            with requests.post(
+                self.chat_url, json=data, timeout=self.timeout, stream=True
+            ) as resp:
+                if resp.status_code != 200:
+                    print(f"⚠️ [LocalLLM] generate_stream HTTP {resp.status_code}")
+                    return ""
+                for raw_line in resp.iter_lines():
+                    if is_interrupted_callback and is_interrupted_callback():
+                        break
+                    if not raw_line:
+                        continue
+                    try:
+                        chunk = json.loads(raw_line)
+                    except json.JSONDecodeError:
+                        continue
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        full_response += token
+                        if on_token:
+                            result = on_token(token)
+                            if result is False:
+                                break
+                    if chunk.get("done"):
+                        break
+        except Exception as exc:
+            print(f"⚠️ [LocalLLM] generate_stream exception: {exc}")
+
+        if full_response:
+            self.add_to_history("user", prompt)
+            self.add_to_history("assistant", full_response)
+        return full_response
+
+    def generate_with_tools(
+        self,
+        prompt: str,
+        tools: List[Dict],
+        tool_executor: Callable,
+        system_prompt: Optional[str] = None,
+        on_token: Optional[Callable] = None,
+        max_tool_iterations: int = 10,
+    ) -> Dict:
+        """
+        Boucle agentique : Ollama choisit et appelle des outils, puis génère
+        la réponse finale après avoir reçu tous les résultats.
+
+        Flux :
+          1. Envoi message + liste d'outils → Ollama
+          2. Si Ollama retourne des tool_calls → exécution via tool_executor
+          3. Résultats ajoutés en messages "tool" → retour étape 1
+          4. Quand Ollama retourne une réponse texte → fin
+
+        Args:
+            prompt:             Message utilisateur
+            tools:              Liste d'outils au format Ollama
+            tool_executor:      Callable(tool_name: str, arguments: dict) → str
+                                (peut être MCPManager.execute_tool_sync)
+            system_prompt:      Prompt système optionnel
+            on_token:           Callback de streaming pour la réponse finale
+            max_tool_iterations: Garde-fou contre les boucles infinies
+
+        Returns:
+            Dict {
+                "response":    str  — réponse finale de l'IA
+                "tool_calls":  list — journal des appels effectués
+                "success":     bool
+            }
+        """
+        if not self.is_ollama_available:
+            return {"response": None, "tool_calls": [], "success": False}
+
+        # Construction du contexte initial
+        messages: List[Dict] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(self.conversation_history)
+        messages.append({"role": "user", "content": prompt})
+
+        tool_calls_log: List[Dict] = []
+
+        for _ in range(max_tool_iterations):
+            # ----------------------------------------------------------------
+            # Appel Ollama avec la liste d'outils
+            # ----------------------------------------------------------------
+            data = {
+                "model": self.model,
+                "messages": messages,
+                "tools": tools,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,
+                    "num_ctx": 32768,
+                    "num_predict": 4096,
+                },
+            }
+
+            try:
+                response = requests.post(
+                    self.chat_url, json=data, timeout=self.timeout
+                )
+                if response.status_code != 200:
+                    print(
+                        f"⚠️ [LocalLLM] Erreur tool-calling: {response.status_code}"
+                    )
+                    break
+
+                result = response.json()
+                message = result.get("message", {})
+
+            except Exception as exc:
+                print(f"⚠️ [LocalLLM] Exception tool-calling: {exc}")
+                break
+
+            # ----------------------------------------------------------------
+            # Pas de tool calls → réponse finale
+            # ----------------------------------------------------------------
+            if not message.get("tool_calls"):
+                final_text = message.get("content", "")
+                if final_text:
+                    # Streaming simulé si callback fourni
+                    if on_token:
+                        on_token(final_text)
+                    self.add_to_history("user", prompt)
+                    self.add_to_history("assistant", final_text)
+                    print(
+                        f"✅ [LocalLLM] Réponse agentique ({len(tool_calls_log)} "
+                        f"appels d'outils effectués)"
+                    )
+                return {
+                    "response": final_text,
+                    "tool_calls": tool_calls_log,
+                    "success": bool(final_text),
+                }
+
+            # ----------------------------------------------------------------
+            # Tool calls → exécution + réinjection dans le contexte
+            # ----------------------------------------------------------------
+            # Ajouter la réponse partielle de l'assistant au contexte
+            messages.append(message)
+
+            for tool_call in message.get("tool_calls", []):
+                func = tool_call.get("function", {})
+                tool_name = func.get("name", "")
+                arguments = func.get("arguments", {})
+
+                # Nettoyage des arguments si le modèle a halluciné le schéma
+                cleaned_args = {}
+                for k, v in arguments.items():
+                    if isinstance(v, dict) and "type" in v and "description" in v:
+                        if "description" in v and v["description"] != "La requête de recherche":
+                            cleaned_args[k] = v["description"]
+                        else:
+                            continue
+                    else:
+                        cleaned_args[k] = v
+                arguments = cleaned_args
+
+                print(
+                    f"🔧 [LocalLLM] Tool call: {tool_name}({json.dumps(arguments)[:80]})"
+                )
+
+                # Exécution de l'outil
+                try:
+                    tool_result = tool_executor(tool_name, arguments)
+                except Exception as exc:
+                    tool_result = f"[Erreur lors de l'exécution de {tool_name}]: {exc}"
+
+                tool_calls_log.append({
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result_preview": str(tool_result)[:200],
+                })
+
+                print(f"   ↳ Résultat : {str(tool_result)[:100]}...")
+
+                # Réinjecter le résultat dans le contexte
+                messages.append({
+                    "role": "tool",
+                    "content": str(tool_result),
+                })
+
+        # Garde-fou : max iterations atteint
+        print(
+            f"⚠️ [LocalLLM] max_tool_iterations ({max_tool_iterations}) atteint"
+        )
+        return {"response": None, "tool_calls": tool_calls_log, "success": False}
+
+    # ------------------------------------------------------------------
+    # Détection des "text tool calls" (llama3.2 bug workaround)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def parse_text_tool_call(
+        text: str, known_tool_names: List[str]
+    ) -> Optional[Dict]:
+        """
+        Certains modèles (llama3.2, mistral) écrivent le tool call sous forme de
+        texte JSON au lieu d'utiliser le champ `tool_calls` de l'API.
+
+        Exemples détectés :
+          {"name": "web_search", "parameters": {"query": "..."}}
+          {"name": "web_search", "arguments": {"query": "..."}}
+          [{"name": "web_search", "parameters": {"query": "..."}}]
+
+        Retourne {"name": str, "arguments": dict} ou None.
+        """
+        text = text.strip()
+        if not text.startswith(("{", "[")):
+            return None
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            # Essayer d'extraire un bloc JSON embarqué
+            m = re.search(r'\{[^{}]*"name"\s*:[^{}]*\}', text, re.DOTALL)
+            if not m:
+                return None
+            try:
+                data = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                return None
+
+        # Supporter la forme liste [{"name": ...}]
+        if isinstance(data, list) and data:
+            data = data[0]
+
+        if not isinstance(data, dict):
+            return None
+
+        name = data.get("name") or data.get("tool") or data.get("function")
+        if not name or name not in known_tool_names:
+            return None
+
+        # "parameters" ou "arguments"
+        args = data.get("arguments") or data.get("parameters") or data.get("input") or {}
+        if not isinstance(args, dict):
+            args = {}
+
+        # Parfois le modèle imbrique les arguments dans un sous-dictionnaire
+        # ex: {"query": {"type": "string", "description": "..."}} au lieu de {"query": "..."}
+        # On essaie de nettoyer ça si on détecte un schéma JSON au lieu d'une valeur
+        cleaned_args = {}
+        for k, v in args.items():
+            if isinstance(v, dict) and "type" in v and "description" in v:
+                # Le modèle a recopié le schéma au lieu de donner une valeur !
+                # On essaie de récupérer la valeur si elle est dans la description
+                # (souvent le modèle met la valeur dans la description par erreur)
+                if "description" in v and v["description"] != "La requête de recherche":
+                    cleaned_args[k] = v["description"]
+                else:
+                    continue
+            else:
+                cleaned_args[k] = v
+
+        return {"name": name, "arguments": cleaned_args}
+
+    def generate_with_tools_stream(
+        self,
+        prompt: str,
+        tools: List[Dict],
+        tool_executor: Callable,
+        system_prompt: Optional[str] = None,
+        on_token: Optional[Callable] = None,
+        on_tool_call: Optional[Callable] = None,
+        is_interrupted_callback: Optional[Callable] = None,
+        max_tool_iterations: int = 10,
+    ) -> Dict:
+        """
+        Version streaming de generate_with_tools.
+        - Les appels d'outils sont non-streamés (nécessaire pour l'API Ollama)
+        - La réponse finale est streamée token par token via on_token
+        - Gère le fallback "text tool call" (llama3.2 écrit le JSON au lieu de
+          remplir le champ tool_calls)
+
+        Args:
+            on_tool_call: Callback(tool_name, args) appelé avant chaque exécution
+                          (pour afficher "Je recherche..." dans l'UI)
+        """
+        if not self.is_ollama_available:
+            return {"response": None, "tool_calls": [], "success": False}
+
+        # Noms des outils disponibles (pour détecter les text tool calls)
+        known_tool_names: List[str] = [
+            t.get("function", {}).get("name", "")
+            for t in tools
+            if isinstance(t, dict)
+        ]
+
+        messages: List[Dict] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.extend(self.conversation_history)
+        messages.append({"role": "user", "content": prompt})
+
+        tool_calls_log: List[Dict] = []
+
+        for iteration in range(max_tool_iterations):
+            if is_interrupted_callback and is_interrupted_callback():
+                break
+
+            # Après au moins un appel d'outil, ne plus passer les outils à Ollama
+            # pour l'étape de synthèse. Sans outils disponibles, le modèle est
+            # forcé de synthétiser depuis les résultats déjà injectés.
+            tools_for_this_call = [] if tool_calls_log else tools
+
+            # Lors de la synthèse, remplacer le message système pour éviter que
+            # le modèle réponde « je n'ai pas accès aux données en temps réel »
+            # malgré les résultats déjà injectés.
+            if tool_calls_log and messages and messages[0].get("role") == "system":
+                messages[0] = {
+                    "role": "system",
+                    "content": (
+                        "Les informations demandées ont été récupérées en temps réel "
+                        "via des outils externes. Tu DOIS utiliser UNIQUEMENT ces données "
+                        "pour répondre à la question. "
+                        "Ne dis JAMAIS que tu n'as pas accès aux données en temps réel "
+                        "car tu viens de les recevoir. "
+                        "Réponds de façon précise, factuelle et concise en te basant "
+                        "sur les résultats fournis par les outils."
+                    ),
+                }
+
+            data_no_stream = {
+                "model": self.model,
+                "messages": messages,
+                "tools": tools_for_this_call,
+                "stream": False,
+                "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
+            }
+
+            try:
+                response = requests.post(
+                    self.chat_url, json=data_no_stream, timeout=self.timeout
+                )
+                if response.status_code != 200:
+                    print(f"⚠️ [LocalLLM] HTTP {response.status_code} à iter {iteration}")
+                    break
+                result = response.json()
+                message = result.get("message", {})
+            except Exception as exc:
+                print(f"⚠️ [LocalLLM] Exception tool-stream: {exc}")
+                break
+
+            # ----------------------------------------------------------------
+            # Cas 1 : tool_calls natif (API Ollama)
+            # ----------------------------------------------------------------
+            if message.get("tool_calls"):
+                messages.append(message)
+                for tool_call in message["tool_calls"]:
+                    func = tool_call.get("function", {})
+                    tool_name = func.get("name", "")
+                    arguments = func.get("arguments", {})
+
+                    # Nettoyage des arguments si le modèle a halluciné le schéma
+                    cleaned_args = {}
+                    for k, v in arguments.items():
+                        if isinstance(v, dict) and "type" in v and "description" in v:
+                            if "description" in v and v["description"] != "La requête de recherche":
+                                cleaned_args[k] = v["description"]
+                            else:
+                                continue
+                        else:
+                            cleaned_args[k] = v
+                    arguments = cleaned_args
+
+                    # NE PAS appeler on_tool_call ici : tool_executor (ai_engine.py)
+                    # le fait après optimisation de la requête, évitant le double affichage.
+                    print(f"🔧 [LocalLLM] Stream tool call: {tool_name}")
+                    try:
+                        tool_result = tool_executor(tool_name, arguments)
+                    except Exception as exc:
+                        tool_result = f"[Erreur {tool_name}]: {exc}"
+
+                    tool_calls_log.append({
+                        "tool": tool_name,
+                        "arguments": arguments,
+                        "result_preview": str(tool_result)[:200],
+                    })
+                    messages.append({"role": "tool", "content": str(tool_result)})
+                # Message de relance explicite pour forcer la synthèse
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"En utilisant UNIQUEMENT les informations ci-dessus retournées par l'outil, "
+                        f"réponds directement et précisément à ma question : {prompt}"
+                    ),
+                })
+                continue  # rejouer la boucle pour obtenir la réponse finale
+
+            # ----------------------------------------------------------------
+            # Cas 2 : le modèle a écrit le tool call comme texte JSON
+            #          (bug connu llama3.2 / mistral)
+            # ----------------------------------------------------------------
+            final_text = message.get("content", "")
+            text_tc = self.parse_text_tool_call(final_text, known_tool_names)
+
+            if text_tc and iteration < max_tool_iterations - 1:
+                tool_name = text_tc["name"]
+                arguments = text_tc["arguments"]
+
+                if on_tool_call:
+                    on_tool_call(tool_name, arguments)
+
+                print(f"🔧 [LocalLLM] Text tool call détecté: {tool_name}({json.dumps(arguments)[:80]})")
+                try:
+                    tool_result = tool_executor(tool_name, arguments)
+                except Exception as exc:
+                    tool_result = f"[Erreur {tool_name}]: {exc}"
+
+                tool_calls_log.append({
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result_preview": str(tool_result)[:200],
+                })
+                print(f"   ↳ Résultat : {str(tool_result)[:120]}...")
+
+                # Remplacer le message texte JSON par un vrai échange
+                # assistant + tool pour que le modèle comprende le contexte
+                messages.append({"role": "assistant", "content": final_text})
+                messages.append({"role": "tool", "content": str(tool_result)})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"En utilisant UNIQUEMENT les informations ci-dessus retournées par l'outil, "
+                        f"réponds directement et précisément à ma question : {prompt}"
+                    ),
+                })
+                continue  # rejouer la boucle
+
+            # ----------------------------------------------------------------
+            # Cas 3 : réponse finale en texte → streaming
+            # ----------------------------------------------------------------
+            if final_text:
+                # Garde-fou (approche regex indépendante de _parse_text_tool_call) :
+                # si le modèle a retourné du JSON de tool call en texte brut,
+                # on l'intercepte AVANT de le streamer.
+                if final_text.strip().startswith("{") and iteration < max_tool_iterations - 1:
+                    _pattern = (
+                        r'"name"\s*:\s*"('
+                        + "|".join(re.escape(n) for n in known_tool_names if n)
+                        + r')"'
+                    )
+                    _m = re.search(_pattern, final_text)
+                    if _m:
+                        t_name = _m.group(1)
+                        # Extraire la valeur depuis "description" (hallucination de schéma)
+                        t_args: Dict = {}
+                        _d = re.search(r'"description"\s*:\s*"([^"]+)"', final_text)
+                        if _d:
+                            if t_name == "web_search":
+                                t_args = {"query": _d.group(1)}
+                            elif t_name in ("read_local_file", "list_directory"):
+                                t_args = {"path": _d.group(1)}
+                            elif t_name == "calculate":
+                                t_args = {"expression": _d.group(1)}
+                            elif t_name == "generate_code":
+                                t_args = {"description": _d.group(1), "language": "python"}
+                        # Fallback ultime : dériver depuis le prompt utilisateur
+                        if not t_args:
+                            if t_name == "web_search":
+                                t_args = {"query": prompt}
+                            elif t_name in ("read_local_file", "list_directory"):
+                                _pm = re.search(r"[\w./\\]+", prompt)
+                                t_args = {"path": _pm.group(0) if _pm else "."}
+                            elif t_name == "calculate":
+                                t_args = {"expression": prompt}
+                            elif t_name == "generate_code":
+                                t_args = {"description": prompt, "language": "python"}
+                        # NE PAS appeler on_tool_call ici : tool_executor (ai_engine.py)
+                        # s'en charge après optimisation de la requête.
+                        print(f"🔧 [LocalLLM] Cas3 regex tool call: {t_name}({json.dumps(t_args)[:80]})")
+                        try:
+                            t_result = tool_executor(t_name, t_args)
+                        except Exception as exc:
+                            t_result = f"[Erreur {t_name}]: {exc}"
+                        tool_calls_log.append({"tool": t_name, "arguments": t_args, "result_preview": str(t_result)[:200]})
+                        print(f"   ↳ Résultat : {str(t_result)[:120]}...")
+                        messages.append({"role": "assistant", "content": final_text})
+                        messages.append({"role": "tool", "content": str(t_result)})
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                f"En utilisant UNIQUEMENT les informations ci-dessus retournées par l'outil, "
+                                f"réponds directement et précisément à ma question : {prompt}"
+                            ),
+                        })
+                        continue  # relancer la boucle pour la synthèse finale
+
+                if on_token:
+                    words = final_text.split(" ")
+                    for i, word in enumerate(words):
+                        if is_interrupted_callback and is_interrupted_callback():
+                            break
+                        chunk = word + (" " if i < len(words) - 1 else "")
+                        should_continue = on_token(chunk)
+                        if should_continue is False:
+                            break
+                self.add_to_history("user", prompt)
+                self.add_to_history("assistant", final_text)
+            return {
+                "response": final_text,
+                "tool_calls": tool_calls_log,
+                "success": bool(final_text),
+            }
+
+        return {"response": None, "tool_calls": tool_calls_log, "success": False}
 
     # ------------------------------------------------------------------
     # Gestion de l'historique avec résumé glissant
@@ -635,106 +1173,3 @@ class LocalLLM:
             role = "Utilisateur" if msg["role"] == "user" else "Assistant"
             context_parts.append(f"{role}: {msg['content']}")
         return "\n".join(context_parts)
-
-    def generate_stream(self, prompt, system_prompt=None, on_token=None):
-        """
-        Génère une réponse en STREAMING pour une latence minimale.
-        Chaque token est envoyé via le callback on_token(token_text) dès qu'il est reçu.
-
-        Args:
-            prompt: Le message de l'utilisateur
-            system_prompt: Prompt système optionnel
-            on_token: Callback appelé pour chaque token reçu (signature: on_token(str) -> bool)
-                     Retourne False pour interrompre la génération
-
-        Returns:
-            La réponse complète une fois terminée, ou None si erreur
-        """
-        if not self.is_ollama_available:
-            return None
-
-        # Construire les messages avec historique
-        messages = []
-
-        # Ajouter le system prompt s'il existe
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        # Ajouter l'historique de conversation
-        messages.extend(self.conversation_history)
-
-        # Ajouter le message actuel de l'utilisateur
-        messages.append({"role": "user", "content": prompt})
-
-        data = {
-            "model": self.model,
-            "messages": messages,
-            "stream": True,
-            "options": {
-                "temperature": 0.7,
-                "num_ctx": 32768,
-                "num_predict": 2048,
-            },
-        }
-
-        try:
-            print(
-                f"⚡ [LocalLLM] Génération STREAMING ({len(self.conversation_history)} messages contexte)..."
-            )
-
-            full_response = ""
-
-            # Requête en streaming
-            with requests.post(
-                self.chat_url, json=data, timeout=self.timeout, stream=True
-            ) as response:
-                if response.status_code != 200:
-                    print(f"⚠️ [LocalLLM] Erreur API Ollama: {response.status_code}")
-                    return None
-
-                # Lire les chunks JSON ligne par ligne
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            chunk = line.decode("utf-8")
-                            json_chunk = __import__("json").loads(chunk)
-
-                            # Extraire le contenu du token
-                            token = json_chunk.get("message", {}).get("content", "")
-
-                            if token:
-                                full_response += token
-
-                                # Appeler le callback si fourni
-                                if on_token:
-                                    should_continue = on_token(token)
-                                    if should_continue is False:
-                                        print(
-                                            "🛑 [LocalLLM] Génération interrompue par callback"
-                                        )
-                                        break
-
-                            # Vérifier si c'est le dernier message
-                            if json_chunk.get("done", False):
-                                break
-
-                        except Exception as e:
-                            print(f"⚠️ [LocalLLM] Erreur parsing chunk: {e}")
-                            continue
-
-            if full_response:
-                # Sauvegarder dans l'historique
-                self.add_to_history("user", prompt)
-                self.add_to_history("assistant", full_response)
-                print(
-                    "✅ [LocalLLM] Réponse streaming complète et ajoutée à l'historique"
-                )
-
-            return full_response
-
-        except requests.exceptions.Timeout:
-            print(f"⚠️ [LocalLLM] Timeout après {self.timeout}s")
-            return None
-        except Exception as e:
-            print(f"⚠️ [LocalLLM] Exception streaming: {e}")
-            return None

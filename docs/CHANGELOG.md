@@ -1,5 +1,21 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🔌 Version 6.5.0 - Intégration MCP (Model Context Protocol) (20 Février 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🔌 Support du Model Context Protocol (MCP)
+- **Client MCP Intégré** : Nouveau module `core/mcp_client.py` permettant à Ollama d'interagir avec des outils locaux et des serveurs MCP externes.
+- **Outils Locaux (LocalTools)** : Encapsulation des capacités existantes (recherche web, analyse de fichiers) au format standardisé MCP.
+- **Serveurs MCP Externes** : Possibilité de se connecter à des serveurs MCP externes via le transport `stdio` pour étendre les capacités de l'IA (fichiers, git, bases de données, etc.).
+- **Dégradation Gracieuse** : Le système continue de fonctionner parfaitement même si le SDK `mcp` n'est pas installé.
+- **Autonomie de l'IA** : Ollama décide désormais intelligemment quand et comment utiliser les outils mis à sa disposition.
+
+#### 🌐 Amélioration de la Recherche Web
+- **Correction du Scraper Brave Search** : Résolution d'un problème de décodage HTML (Brotli) qui empêchait la récupération des résultats.
+- **Extraction de Données en Temps Réel** : Optimisation du prompt Ollama pour prioriser les "Extraits de recherche" (snippets) plutôt que le contenu complet de la page, garantissant des informations à jour (ex: prix du Bitcoin).
+- **Détection d'Intentions Étendue** : Ajout de mots-clés liés aux lieux (café, restaurant, proche, adresse, etc.) pour forcer la recherche web sur les requêtes locales.
+
 # 🤖 Version 6.4.0 - Création d'Agents Personnalisés (11 Février 2026)
 
 ### 🚀 Nouveautés Principales

@@ -123,6 +123,13 @@ class BaseGUI:
         self.thinking_dots = 0
         self.search_frame = 0
 
+        # Variables de l'indicateur MCP inline
+        self._mcp_indicator_active = False
+        self._mcp_indicator_container = None
+        self._mcp_indicator_text_widget = None
+        self._mcp_indicator_label_text = ""
+        self._mcp_dot_count = 0
+
         # Initialisation des variables d'animation liées à la frappe
         self.typing_index = 0
         self.typing_text = ""
@@ -485,6 +492,9 @@ class BaseGUI:
         self.is_thinking = False
         self.is_searching = False
 
+        # Cacher l'indicateur MCP inline s'il est toujours visible
+        self._hide_mcp_tool_indicator()
+
         # Ne réactive l'input que si aucune animation IA n'est en cours
         if hasattr(self, "is_animation_running") and self.is_animation_running():
             return
@@ -496,6 +506,109 @@ class BaseGUI:
         # Cache aussi le texte en bas
         if hasattr(self, "status_label"):
             self.status_label.configure(text="")
+
+    # ------------------------------------------------------------------
+    # Indicateur MCP inline (dans le chat, sous icône 🤖)
+    # ------------------------------------------------------------------
+
+    def _show_mcp_tool_indicator(self, label: str):
+        """
+        Affiche un indicateur animé directement dans le chat, à droite de
+        l'icône IA, pendant qu'un outil MCP est en cours d'exécution.
+        L'animation cycle sur « label. », « label.. », « label... ».
+        """
+        try:
+            # Supprimer l'éventuel indicateur précédent
+            self._hide_mcp_tool_indicator()
+
+            # Masquer l'animation thinking pendant l'appel MCP
+            self.is_thinking = False
+            if hasattr(self, "thinking_frame"):
+                self.thinking_frame.grid_remove()
+
+            # Initialiser l'état d'animation
+            self._mcp_indicator_active = True
+            self._mcp_indicator_label_text = label
+            self._mcp_dot_count = 0
+
+            # Placer l'indicateur à la prochaine ligne disponible
+            # (sans ajouter à conversation_history pour ne pas décaler les rows)
+            row = len(self.conversation_history)
+
+            # Container principal (identique aux bulles IA)
+            msg_container = self.create_frame(
+                self.chat_frame, fg_color=self.colors["bg_chat"]
+            )
+            msg_container.grid(
+                row=row, column=0, sticky="ew", pady=(0, 12)
+            )
+            msg_container.grid_columnconfigure(0, weight=1)
+            self._mcp_indicator_container = msg_container
+
+            # Frame de centrage (même padding que les bulles IA)
+            center_frame = self.create_frame(
+                msg_container, fg_color=self.colors["bg_chat"]
+            )
+            center_frame.grid(
+                row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew"
+            )
+            center_frame.grid_columnconfigure(0, weight=0)
+            center_frame.grid_columnconfigure(1, weight=1)
+
+            # Icône IA
+            icon_lbl = self.create_label(
+                center_frame,
+                text="🤖",
+                font=("Segoe UI", 16),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors["accent"],
+            )
+            icon_lbl.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+
+            # Label texte animé (gris, légèrement italique)
+            text_lbl = self.create_label(
+                center_frame,
+                text=label + ".",
+                font=("Segoe UI", 11),
+                fg_color=self.colors["bg_chat"],
+                text_color="#888888",
+            )
+            text_lbl.grid(row=0, column=1, sticky="w", padx=(4, 0), pady=(4, 4))
+            self._mcp_indicator_text_widget = text_lbl
+
+            # Démarrer l'animation des points
+            self.root.after(400, self._animate_mcp_dots)
+            # Scroll vers le bas pour afficher l'indicateur
+            self.root.after(60, self.scroll_to_bottom)
+
+        except Exception as exc:
+            print(f"⚠️ [MCP Indicator] Erreur création: {exc}")
+
+    def _animate_mcp_dots(self):
+        """Animation des points « . » / « .. » / « ... » sur l'indicateur MCP."""
+        if not getattr(self, "_mcp_indicator_active", False):
+            return
+        try:
+            dots = (".", "..", "...")[self._mcp_dot_count % 3]
+            self._mcp_dot_count += 1
+            text = self._mcp_indicator_label_text + dots
+            if hasattr(self, "_mcp_indicator_text_widget"):
+                self._mcp_indicator_text_widget.configure(text=text)
+            # Planifier la prochaine frame
+            if getattr(self, "_mcp_indicator_active", False):
+                self.root.after(400, self._animate_mcp_dots)
+        except Exception:
+            pass
+
+    def _hide_mcp_tool_indicator(self):
+        """Supprime l'indicateur MCP inline du chat et arrête son animation."""
+        self._mcp_indicator_active = False
+        try:
+            if getattr(self, "_mcp_indicator_container", None):
+                self._mcp_indicator_container.destroy()
+                self._mcp_indicator_container = None
+        except Exception:
+            pass
 
     def on_enter_key(self, event):
         """Gère la touche Entrée - VERSION CORRIGÉE"""
@@ -1258,62 +1371,74 @@ class BaseGUI:
         )
 
         try:
-            if self.custom_ai and hasattr(self.custom_ai, "generate_response_stream"):
-                # ⚡ MODE STREAMING avec animation de frappe
-                print("⚡ [GUI] Activation du mode STREAMING avec animation...")
+            # ⚡ MODE MCP + STREAMING — point d'entrée unifié via AIEngine
+            print("⚡ [GUI] Activation du mode STREAMING (MCP tool-calling activé)...")
 
-                # Réinitialiser le buffer de streaming
-                self._streaming_buffer = ""
-                self._streaming_complete = False
-                self._streaming_mode = True
-                self._streaming_bubble_created = False
+            # Réinitialiser le buffer de streaming
+            self._streaming_buffer = ""
+            self._streaming_complete = False
+            self._streaming_mode = True
+            self._streaming_bubble_created = False
 
-                def on_token_received(token):
-                    """Callback appelé pour chaque token reçu d'Ollama"""
-                    if self.current_request_id != request_id or self.is_interrupted:
-                        return False
+            def on_token_received(token):
+                """Callback appelé pour chaque token reçu d'Ollama."""
+                if self.current_request_id != request_id or self.is_interrupted:
+                    return False
+                self._streaming_buffer += token
+                if not self._streaming_bubble_created:
+                    self._streaming_bubble_created = True
+                    self.root.after(0, self._create_streaming_bubble_with_animation)
+                return True
 
-                    # Ajouter au buffer
-                    self._streaming_buffer += token
-
-                    # Premier token : créer la bulle et démarrer l'animation
-                    if not self._streaming_bubble_created:
-                        self._streaming_bubble_created = True
-                        self.root.after(0, self._create_streaming_bubble_with_animation)
-
-                    return True
-
-                # Lancer la génération streaming (bloquant dans ce thread)
-                # Vérifier si une image est en attente
-                image_b64 = getattr(self, "_pending_image_base64", None)
-                if image_b64:
-                    response = self.custom_ai.generate_response_stream(
-                        user_text, on_token=on_token_received, image_base64=image_b64
-                    )
-                    # Consommer l'image après utilisation
-                    self._pending_image_base64 = None
-                    self._pending_image_path = None
-                else:
-                    response = self.custom_ai.generate_response_stream(
-                        user_text, on_token=on_token_received
-                    )
-
-                # Marquer le streaming comme terminé
-                self._streaming_complete = True
-                print(
-                    f"✅ [STREAM] Streaming terminé: {len(self._streaming_buffer)} caractères"
+            def on_tool_call(tool_name: str, args: dict):
+                """
+                Feedback visuel quand Ollama appelle un outil.
+                Affiche un message transitoire dans la zone de statut.
+                """
+                tool_labels = {
+                    "web_search": f"🔍 Recherche sur internet : « {args.get('query', '')} »",
+                    "search_memory": "🧠 Consultation de la mémoire vectorielle",
+                    "read_local_file": f"📄 Lecture du fichier : {args.get('path', '')}",
+                    "list_directory": f"📁 Exploration du répertoire : {args.get('path', '.')}",
+                    "generate_code": f"💻 Génération de code {args.get('language', '')}",
+                    "calculate": f"🔢 Calcul : {args.get('expression', '')}",
+                }
+                label = tool_labels.get(
+                    tool_name, f"🔧 Outil en cours : {tool_name}…"
                 )
+                print(f"[MCP] {label}")
+                try:
+                    self.root.after(
+                        0,
+                        lambda l=label: self._show_mcp_tool_indicator(l),
+                    )
+                except Exception:
+                    pass
 
-            else:
-                # Mode classique (fallback)
-                print("🔄 [GUI] Mode classique (sans streaming)...")
-                if self.custom_ai:
-                    response = self.custom_ai.generate_response(user_text)
-                else:
-                    response = self.ai_engine.process_text(user_text)
+            # Image en attente (vision)
+            image_b64 = getattr(self, "_pending_image_base64", None)
+            if image_b64:
+                self._pending_image_base64 = None
+                self._pending_image_path = None
 
-                if self.current_request_id == request_id and not self.is_interrupted:
-                    self.root.after(0, lambda: self.add_ai_response(response))
+            response = self.ai_engine.process_query_stream(
+                user_text,
+                on_token=on_token_received,
+                on_tool_call=on_tool_call,
+                image_base64=image_b64,
+                is_interrupted_callback=lambda: self.is_interrupted,
+            )
+
+            # Marquer le streaming comme terminé
+            self._streaming_complete = True
+            print(
+                f"✅ [STREAM] Streaming terminé: {len(self._streaming_buffer)} caractères"
+            )
+
+            # Si la réponse n'a pas été streamée token par token (ex: FAQ, fallback
+            # classique sans Ollama), l'afficher d'un bloc
+            if not self._streaming_bubble_created and response:
+                on_token_received(response)
 
         except (ConnectionError, TimeoutError, AttributeError) as e:
             print(f"❌ [GUI] Erreur: {e}")

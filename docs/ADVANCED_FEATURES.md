@@ -1,12 +1,13 @@
 # 🚀 Guide d'Utilisation - Fonctionnalités Avancées
 
-Ce guide explique comment utiliser les 3 nouvelles fonctionnalités majeures :
+Ce guide explique comment utiliser les 4 nouvelles fonctionnalités majeures :
 
 ## 📚 Table des Matières
 
 1. [RLHF Manager](#-rlhf-manager)
 2. [Training Manager](#-training-manager)
 3. [Compression Monitor](#-compression-monitor)
+4. [Intégration MCP (Model Context Protocol)](#-intégration-mcp)
 
 ---
 
@@ -581,7 +582,26 @@ def on_bad_feedback():
 
 ---
 
-## 🚀 Prochaines Étapes
+## � Intégration MCP
+
+Le **Model Context Protocol (MCP)** permet à l'IA d'interagir avec des outils locaux et des serveurs externes de manière standardisée.
+
+### ✨ Fonctionnalités
+
+- ✅ Outils locaux (LocalTools) encapsulant les capacités existantes
+- ✅ Connexion aux serveurs MCP externes via `stdio`
+- ✅ Découverte automatique des outils
+- ✅ Dégradation gracieuse si le SDK n'est pas installé
+
+### 💻 Utilisation
+
+L'intégration MCP est gérée par `core/mcp_client.py`. L'IA décide de manière autonome quand utiliser les outils mis à sa disposition.
+
+Pour plus de détails, consultez le guide dédié : [🔌 Intégration MCP](MCP_INTEGRATION.md).
+
+---
+
+## �🚀 Prochaines Étapes
 
 1. Tester les exemples fournis
 2. Intégrer dans votre workflow
