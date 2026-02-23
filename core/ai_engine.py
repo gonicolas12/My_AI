@@ -1218,6 +1218,29 @@ Que voulez-vous que je fasse pour vous ?"""
             )
 
         # ----------------------------------------------------------------
+        # 1.5. FAQ / Enrichissement — Priorité absolue avant MCP
+        # ----------------------------------------------------------------
+        if self.ml_ai is not None:
+            try:
+                faq_response = self.ml_ai.predict(user_input)
+                if faq_response is not None and str(faq_response).strip():
+                    print(f"📚 [FAQ ENGINE] ✅ Réponse FAQ trouvée pour: '{user_input}'")
+                    # Sauvegarder dans l'historique Ollama pour que les questions
+                    # de rappel ("on a parlé de quoi ?") puissent y accéder
+                    if llm is not None:
+                        llm.add_to_history("user", user_input)
+                        llm.add_to_history("assistant", faq_response)
+                    try:
+                        self.conversation_manager.add_exchange(user_input, faq_response)
+                    except Exception:
+                        pass
+                    if on_token:
+                        on_token(faq_response)
+                    return faq_response
+            except Exception as _faq_exc:
+                self.logger.warning("[FAQ ENGINE] Erreur consultation FAQ: %s", _faq_exc)
+
+        # ----------------------------------------------------------------
         # 2. Exécution via MCP Tool Calling (Ollama)
         # ----------------------------------------------------------------
         try:
@@ -1244,6 +1267,82 @@ Que voulez-vous que je fasse pour vous ?"""
             if full_context.get("stored_documents"):
                 doc_names = list(full_context["stored_documents"].keys())
                 system_prompt += f"\n\nDocuments disponibles en mémoire : {', '.join(doc_names)}. Utilise read_local_file ou search_memory pour y accéder."
+
+            # ----------------------------------------------------------------
+            # 2.1. Requêtes sur l'historique de conversation — réponse directe
+            # sans outils pour éviter le bug tool-calling de llama3.2
+            # ----------------------------------------------------------------
+            _history_signals = [
+                "on a parlé de quoi", "de quoi on a parlé", "on a discuté",
+                "rappelle-moi", "rappelles moi", "résume notre conversation",
+                "résumé de notre conversation", "notre conversation",
+                "ce qu'on a dit", "qu'est-ce qu'on a dit",
+                "tu te souviens", "tu te rappelles",
+                "sujets abordés", "sujet de notre conversation",
+                "quels sujets", "au cours de cette session",
+                "what did we talk", "what have we talked",
+                "conversation history", "session history",
+            ]
+            _q_lower = user_input.lower()
+            if any(sig in _q_lower for sig in _history_signals):
+                # Source primaire : historique Ollama (contient FAQ + réponses LLM)
+                ollama_hist = getattr(llm, "conversation_history", [])
+                history_lines = []
+                if ollama_hist:
+                    # Regrouper les messages user/assistant par paires
+                    pairs = []
+                    i = 0
+                    while i < len(ollama_hist):
+                        msg = ollama_hist[i]
+                        if msg.get("role") == "user":
+                            u_text = msg.get("content", "")
+                            a_text = ""
+                            if i + 1 < len(ollama_hist) and ollama_hist[i + 1].get("role") == "assistant":
+                                a_text = ollama_hist[i + 1].get("content", "")
+                                i += 2
+                            else:
+                                i += 1
+                            pairs.append((u_text, a_text))
+                        else:
+                            i += 1
+                    for u, a in pairs[-20:]:
+                        if u:
+                            history_lines.append(f"- Utilisateur : {u}")
+                        if a:
+                            history_lines.append(f"  Assistant : {a[:300]}{'…' if len(a) > 300 else ''}")
+                # Fallback : conversation_manager
+                if not history_lines:
+                    recent = self.conversation_manager.get_recent_history()
+                    for ex in recent[-20:]:
+                        u = ex.get("user_input", "")
+                        a_raw = ex.get("ai_response", {})
+                        a = a_raw.get("text", a_raw.get("message", "")) if isinstance(a_raw, dict) else str(a_raw)
+                        if u:
+                            history_lines.append(f"- Utilisateur : {u}")
+                        if a:
+                            history_lines.append(f"  Assistant : {a[:300]}{'…' if len(a) > 300 else ''}")
+                if history_lines:
+                    history_text = "\n".join(history_lines)
+                    history_system = (
+                        system_prompt
+                        + f"\n\nVoici l'historique complet de cette conversation :\n{history_text}"
+                        "\n\nRéponds directement en te basant sur cet historique, "
+                        "sans utiliser d'outils."
+                    )
+                else:
+                    history_system = (
+                        system_prompt
+                        + "\n\nNous n'avons pas encore échangé dans cette session."
+                        " Dis-le à l'utilisateur de façon naturelle."
+                    )
+                history_response = llm.generate_stream(
+                    prompt=user_input,
+                    system_prompt=history_system,
+                    on_token=on_token,
+                    is_interrupted_callback=is_interrupted_callback,
+                )
+                if history_response:
+                    return history_response
 
             # Conteneur pour le résultat direct d'outil (évite un appel Ollama de synthèse)
             _direct_result: list = []
@@ -1358,21 +1457,21 @@ Que voulez-vous que je fasse pour vous ?"""
                                     "process_query_stream [fallback tool] ok, %d chars", len(followup)
                                 )
                                 return followup
-                    else:
-                        # JSON halluciné avec un nom d'outil inconnu → relance
-                        # sans outils pour obtenir une vraie réponse conversationnelle.
-                        self.logger.warning(
-                                "[fallback] JSON inconnu ignoré, relance sans outils : %s",
-                                response_text[:120],
-                            )
-                        retry = llm.generate_stream(
-                                prompt=user_input,
-                                system_prompt=system_prompt,
-                                on_token=on_token,
-                                is_interrupted_callback=is_interrupted_callback,
-                            )
-                        if retry:
-                            return retry
+                        else:
+                            # JSON halluciné avec un nom d'outil inconnu → relance
+                            # sans outils pour obtenir une vraie réponse conversationnelle.
+                            self.logger.warning(
+                                    "[fallback] JSON inconnu ignoré, relance sans outils : %s",
+                                    response_text[:120],
+                                )
+                            retry = llm.generate_stream(
+                                    prompt=user_input,
+                                    system_prompt=system_prompt,
+                                    on_token=on_token,
+                                    is_interrupted_callback=is_interrupted_callback,
+                                )
+                            if retry:
+                                return retry
 
                     self.logger.info(
                         "process_query_stream ok (outil=%s, %d chars)",

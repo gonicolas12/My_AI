@@ -202,6 +202,6 @@ Bien sûr ! Le projet est ouvert aux contributions :
 
 ---
 
-💡 **Question non listée ?** Envoyez-moi un message sur mon **LinkedIn : [Nicolas Gouy](https://www.linkedin.com/in/nicolas-gouy-99120932b/)**
+💡 **Question non listée ?** Envoyez-moi un message sur mon **LinkedIn : [Nicolas Gouy](https://www.linkedin.com/in/nicolas-gouy/)**
 
 🤖 **My Personal AI** - Votre assistant local intelligent et sécurisé

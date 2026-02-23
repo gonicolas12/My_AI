@@ -262,7 +262,7 @@ ollama pull llama3.1:8b      # Lourd — réponses détaillées (16 GB RAM)
 
 # [OPTIONNEL] Modèle vision pour l'analyse d'images
 ollama pull llama3.2-vision  # Recommandé
-ollama pull llava             # Alternative plus légère
+ollama pull llava            # Alternative plus légère
 
 # Créer le modèle personnalisé
 .\create_custom_model.bat
@@ -350,7 +350,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 
 ---
 
-## 🔮 Évolutions Futures
+## ✨ Évolutions Futures
 
 - 📊 **Amélioration de l'interface**
 - 🌐 **Application Web**
