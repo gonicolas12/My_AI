@@ -2,7 +2,7 @@
 
 # 🤖 My AI — Une IA personnelle, confidentielle et locale
 
-**Puissante · 100% locale · Extensible**
+**Puissante · Locale · Extensible**
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Ollama](https://img.shields.io/badge/Ollama-LLM%20Local-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/download)

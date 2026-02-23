@@ -110,17 +110,6 @@ def train_model(model_path: str, trainset_path: str, valset_path: Optional[str] 
     if verbose:
         print("\nEntraînement terminé.")
 
-def fine_tune_model(base_model_path: str, trainset_path: str, valset_path: Optional[str] = None,
-                    input_key: str = "input", target_key: str = "target",
-                    epochs: int = 1, batch_size: int = 8, checkpoint_dir: str = "checkpoints",
-                    log_every: int = 100, verbose: bool = True):
-    """
-    Fine-tuning sur un modèle existant.
-    """
-    # Charge le modèle de base puis lance train_model
-    return train_model(base_model_path, trainset_path, valset_path, input_key, target_key,
-                      epochs, batch_size, checkpoint_dir, log_every, verbose)
-
 def main():
     """Interface en ligne de commande pour entraîner un modèle local."""
     parser = argparse.ArgumentParser(description="Pipeline d'entraînement local d'un modèle IA.")

@@ -16,7 +16,7 @@ from generators.code_generator import CodeGenerator
 # Imports des modules existants
 from .advanced_code_generator import AdvancedCodeGenerator
 from .internet_search import EnhancedInternetSearchEngine
-from .web_code_searcher import MultiSourceCodeSearcher
+from .smart_code_searcher import SmartCodeSearcher as MultiSourceCodeSearcher
 
 
 @dataclass
@@ -792,7 +792,7 @@ except Exception as e:
         lines = code.split("\n")
         educational_lines = []
 
-        for line in enumerate(lines):
+        for _, line in enumerate(lines):
             # Ajouter un commentaire explicatif avant les lignes importantes
             if any(
                 keyword in line

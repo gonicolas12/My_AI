@@ -342,14 +342,6 @@ class AgentsInterface:
 
         return card_frame
 
-    def select_agent(self, agent_type, agent_name):
-        """Sélectionne un agent (compatibilité - ajoute au workflow)"""
-        # Chercher la couleur de l'agent
-        color = "#ffffff"
-        if agent_type in self.agent_buttons:
-            _, _, color = self.agent_buttons[agent_type]
-        self.add_agent_to_workflow(agent_type, agent_name, color)
-
     # === Drag & Drop System ===
 
     def _make_draggable(self, widget, agent_type, name, color):
@@ -1199,20 +1191,6 @@ Les résultats apparaîtront ici en temps réel.
 
         if self.parent.winfo_exists():
             self.parent.after(0, update)
-
-    def _darken_color(self, hex_color):
-        """Assombrit une couleur hexadécimale"""
-        # Convertir hex en RGB
-        hex_color = hex_color.lstrip("#")
-        r, g, b = tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
-
-        # Assombrir de 20%
-        r = int(r * 0.8)
-        g = int(g * 0.8)
-        b = int(b * 0.8)
-
-        # Reconvertir en hex
-        return f"#{r:02x}{g:02x}{b:02x}"
 
     # === Custom Agent Management ===
 

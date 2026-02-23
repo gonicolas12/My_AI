@@ -5,7 +5,7 @@ Gère l'importation et le traitement de documents PDF, DOCX, etc.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import docx
 import pdfplumber
@@ -180,10 +180,6 @@ class FileProcessor:
             "size": len(content),
             "extractor": "pdfplumber",
         }
-
-    def get_supported_extensions(self) -> List[str]:
-        """Retourne les extensions supportées"""
-        return self.supported_extensions.copy()
 
     def is_supported(self, file_path: str) -> bool:
         """Vérifie si un fichier est supporté"""

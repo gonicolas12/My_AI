@@ -529,18 +529,11 @@ class MessageBubblesMixin:
         bubble.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
         bubble.grid_columnconfigure(0, weight=0)
 
-        # Calcul de hauteur PRÉCISE pour utilisateur
-        word_count = len(text.split())
-
-        # Largeur adaptée
-        if word_count > 25:
-            text_width = 120
-        elif word_count > 10:
-            text_width = 90
-        elif word_count > 3:
-            text_width = 70
-        else:
-            text_width = max(30, len(text) + 10)
+        # Calcul de la largeur adaptée au contenu réel
+        lines = text.splitlines() if text.splitlines() else [text]
+        max_line_len = max(len(line) for line in lines)
+        # Largeur = longueur de la plus longue ligne + marge, avec min/max
+        text_width = min(72, max(15, max_line_len + 4))
 
         text_widget = tk.Text(
             bubble,

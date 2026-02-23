@@ -200,53 +200,6 @@ class AdvancedCodeGenerator:
 
         return [solution for score, solution in scored_solutions]
 
-    def _extract_intent_concepts(self, description: str) -> dict:
-        """Analyse NLP pour extraire action, objet, critère, etc. de la demande utilisateur."""
-        desc = description.lower()
-        actions = [
-            ("trier", ["trier", "tri", "sort", "ordre"]),
-            ("additionner", ["addition", "add", "somme", "sum", "plus", "total"]),
-            ("retourner", ["retourner", "renvoyer", "return", "donner", "afficher"]),
-            ("extraire", ["extraire", "extract", "trouver", "chercher", "get"]),
-            (
-                "max",
-                ["plus grand", "maximum", "max", "le plus long", "longueur", "long"],
-            ),
-            ("min", ["plus petit", "minimum", "min", "court", "le plus court"]),
-            ("filtrer", ["filtrer", "filter", "sélectionner", "select"]),
-            ("compter", ["compter", "count", "nombre", "quantité"]),
-        ]
-        objets = [
-            (
-                "mot",
-                ["mot", "string", "texte", "mot le plus long", "mot le plus court"],
-            ),
-            ("nombre", ["nombre", "chiffre", "int", "float", "entier"]),
-            ("liste", ["liste", "array", "tableau", "list"]),
-            ("élément", ["élément", "item", "valeur"]),
-        ]
-        criteres = [
-            ("longueur", ["longueur", "len", "taille", "length"]),
-            ("valeur", ["valeur", "value", "contenu"]),
-        ]
-        result = {"action": None, "objet": None, "critere": None}
-        for act, keys in actions:
-            if any(k in desc for k in keys):
-                result["action"] = act
-                break
-        for obj, keys in objets:
-            if any(k in desc for k in keys):
-                result["objet"] = obj
-                break
-        for crit, keys in criteres:
-            if any(k in desc for k in keys):
-                result["critere"] = crit
-                break
-        if re.search(r"mot\s+le\s+plus\s+long", desc):
-            result["action"] = "max"
-            result["objet"] = "mot"
-            result["critere"] = "longueur"
-        return result
 
     def _load_fallback_templates(self) -> Dict[str, Dict[str, str]]:
         """Charge les templates de code de base par langage et par type de problème"""
