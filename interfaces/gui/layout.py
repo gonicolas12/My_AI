@@ -389,23 +389,32 @@ class LayoutMixin:
         # Référence pour l'écran d'accueil (ajustement padding)
         self._input_container = input_container
 
-        # Zone de saisie avec bordure moderne
+        # Bordure extérieure arrondie
         input_wrapper = self.create_frame(
-            input_container, fg_color=self.colors["border"]
+            input_container, fg_color=self.colors["border"], corner_radius=8
         )
         input_wrapper.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         input_wrapper.grid_columnconfigure(0, weight=1)
+        self.input_wrapper = input_wrapper  # référence pour le drag & drop
 
-        # Champ de saisie
+        # Frame intérieur (r=8) : auto-détecte bg_color=border → ses coins montrent la couleur
+        # de bordure, créant des coins intérieurs arrondis. Les enfants (padx=3) démarrent
+        # à l'intérieur de l'arc, donc ne cachent pas ces pixels de coin.
+        content_frame = self.create_frame(
+            input_wrapper, fg_color=self.colors["input_bg"], corner_radius=8
+        )
+        content_frame.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
+        content_frame.grid_columnconfigure(0, weight=1)
+
+        # Champ de saisie — dans content_frame, padx=3 laisse les coins arrondis visibles
         if self.use_ctk:
             self.input_text = ctk.CTkTextbox(
-                input_wrapper,
+                content_frame,
                 height=60,
                 fg_color=self.colors["input_bg"],
                 text_color=self.colors["text_primary"],
-                border_color=self.colors["border"],
-                border_width=1,
-                corner_radius=8,
+                border_width=0,
+                corner_radius=0,
                 font=(
                     "Segoe UI",
                     self.get_current_font_size("message"),
@@ -413,26 +422,26 @@ class LayoutMixin:
             )
         else:
             self.input_text = tk.Text(
-                input_wrapper,
+                content_frame,
                 height=3,
-                fg_color=self.colors["input_bg"],
                 fg=self.colors["text_primary"],
+                bg=self.colors["input_bg"],
                 font=(
                     "Segoe UI",
                     self.get_current_font_size("message"),
                 ),  # UNIFIÉ AVEC LES MESSAGES
-                border=1,
-                relief="solid",
+                border=0,
+                relief="flat",
                 wrap=tk.WORD,
             )
 
-        self.input_text.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
+        self.input_text.grid(row=0, column=0, sticky="ew", padx=3, pady=(3, 0))
 
-        # Boutons d'action
+        # Boutons d'action — dans content_frame, r=0 évite les artifacts à la jonction
         button_frame = self.create_frame(
-            input_container, fg_color=self.colors["bg_primary"]
+            content_frame, fg_color=self.colors["input_bg"], corner_radius=0
         )
-        button_frame.grid(row=1, column=0, sticky="ew")
+        button_frame.grid(row=1, column=0, sticky="ew", padx=3, pady=(0, 3))
         button_frame.grid_columnconfigure(1, weight=1)
 
         # ── Bouton "+" avec menu déroulant vers le haut ──────────────────────
@@ -526,7 +535,7 @@ class LayoutMixin:
                 font=("Segoe UI", 18),
                 relief="flat", bd=0, padx=8,
             )
-        self.file_plus_btn.grid(row=0, column=0, sticky="w")
+        self.file_plus_btn.grid(row=0, column=0, sticky="w", padx=(6, 0), pady=4)
 
         # Bouton d'envoi principal
         self.send_button = self.create_modern_button(
@@ -535,7 +544,7 @@ class LayoutMixin:
             command=self.send_message(),
             style="primary",
         )
-        self.send_button.grid(row=0, column=2, sticky="e")
+        self.send_button.grid(row=0, column=2, sticky="e", padx=(0, 6), pady=4)
 
         # Bind des événements
         self.input_text.bind("<Return>", self.on_enter_key)

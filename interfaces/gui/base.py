@@ -1751,32 +1751,42 @@ class BaseGUI:
         title_lbl.grid(row=1, column=0, pady=(0, 28))
 
         # ── Zone de saisie intégrée à l'écran d'accueil ────────────────────────
-        input_wrapper = self.create_frame(center, fg_color=self.colors["border"])
+        # input_wrapper : bordure grise arrondie
+        input_wrapper = self.create_frame(center, fg_color=self.colors["border"], corner_radius=8)
         input_wrapper.grid(row=2, column=0, sticky="ew", pady=(0, 6))
         input_wrapper.grid_columnconfigure(0, weight=1)
+        self._home_input_wrapper = input_wrapper  # référence pour le drag & drop
+
+        # content_frame (r=8, fg=input_bg) : auto-détecte bg_color=border → ses coins
+        # affichent la couleur de bordure avec un arc → coins intérieurs arrondis visibles.
+        # Les widgets enfants (r=0, padx=3) démarrent à (3,3) dans l'arc → pas de conflit.
+        content_frame = self.create_frame(
+            input_wrapper, fg_color=self.colors["input_bg"], corner_radius=8
+        )
+        content_frame.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
+        content_frame.grid_columnconfigure(0, weight=1)
 
         if self.use_ctk:
             self._home_input = _ctk.CTkTextbox(
-                input_wrapper,
+                content_frame,
                 height=60,
                 width=600,
                 fg_color=self.colors["input_bg"],
                 text_color=self.colors["text_primary"],
-                border_color=self.colors["border"],
-                border_width=1,
-                corner_radius=8,
+                border_width=0,
+                corner_radius=0,
                 font=("Segoe UI", self.get_current_font_size("message")),
             )
         else:
             self._home_input = tk.Text(
-                input_wrapper,
+                content_frame,
                 height=3, width=60,
                 bg=self.colors["input_bg"],
                 fg=self.colors["text_primary"],
                 font=("Segoe UI", self.get_current_font_size("message")),
-                border=1, relief="solid", wrap=tk.WORD,
+                border=0, relief="flat", wrap=tk.WORD,
             )
-        self._home_input.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
+        self._home_input.grid(row=0, column=0, sticky="ew", padx=3, pady=(3, 0))
 
         # Placeholder manuel dans home input
         _placeholder = "Tapez votre message..."
@@ -1825,9 +1835,9 @@ class BaseGUI:
         self._home_input.bind("<Return>", _on_home_enter)
         self._home_input.bind("<Shift-Return>", lambda e: None)
 
-        # ── Barre de boutons sous la zone de saisie ────────────────────────────
-        buttons_row = self.create_frame(center, fg_color=self.colors["bg_primary"])
-        buttons_row.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        # ── Barre de boutons — dans content_frame, r=0 évite les artifacts à la jonction ──
+        buttons_row = self.create_frame(content_frame, fg_color=self.colors["input_bg"], corner_radius=0)
+        buttons_row.grid(row=1, column=0, sticky="ew", padx=3, pady=(0, 3))
         buttons_row.grid_columnconfigure(1, weight=1)
 
         # ── Bouton "+" avec menu déroulant pour les fichiers ──────────────────
@@ -1937,7 +1947,7 @@ class BaseGUI:
                 bd=0,
                 padx=8,
             )
-        _plus_btn.grid(row=0, column=0, sticky="w")
+        _plus_btn.grid(row=0, column=0, sticky="w", padx=(6, 0), pady=4)
 
         # Bouton Envoyer à droite
         _send_btn = self.create_modern_button(
@@ -1948,7 +1958,7 @@ class BaseGUI:
         )
         if self.use_ctk:
             _send_btn.configure(width=110)
-        _send_btn.grid(row=0, column=2, sticky="e")
+        _send_btn.grid(row=0, column=2, sticky="e", padx=(0, 6), pady=4)
 
         # Mettre le focus sur le home input après affichage
         self.root.after(150, self._focus_home_input)

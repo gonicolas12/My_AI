@@ -45,46 +45,38 @@ class FileHandlingMixin:
             self.root.dnd_bind("<<DropLeave>>", self._on_drag_leave_chat)
 
     def _on_drag_enter_chat(self, _event):
-        """Quand un fichier entre dans la fenêtre : bordure orange sur la zone de texte"""
+        """Quand un fichier entre dans la fenêtre : rectangle orange sur le grand wrapper"""
         accent = self.colors.get("accent", "#ff6b47")
-        # Écran d'accueil actif → highlight le home input
+        # Cibler input_wrapper (grand rectangle) et non le textbox
         if getattr(self, "_home_screen_active", False):
-            target = getattr(self, "_home_input", None)
+            target = getattr(self, "_home_input_wrapper", None)
         else:
-            target = getattr(self, "input_text", None)
+            target = getattr(self, "input_wrapper", None)
         if target is None:
             return
         try:
             if self.use_ctk:
-                target.configure(border_color=accent, border_width=3)
+                target.configure(fg_color=accent)
             else:
-                target.configure(
-                    highlightbackground=accent,
-                    highlightcolor=accent,
-                    highlightthickness=3,
-                )
+                target.configure(background=accent)
         except Exception:
             pass
 
     def _on_drag_leave_chat(self, _event):
-        """Quand un fichier quitte la fenêtre : réinitialiser la bordure"""
+        """Quand un fichier quitte la fenêtre : restaurer la couleur de bordure d'origine"""
         border = self.colors.get("border", "#404040")
-        # Réinitialiser le bon widget selon l'écran affiché
+        # Réinitialiser le bon wrapper selon l'écran affiché
         if getattr(self, "_home_screen_active", False):
-            target = getattr(self, "_home_input", None)
+            target = getattr(self, "_home_input_wrapper", None)
         else:
-            target = getattr(self, "input_text", None)
+            target = getattr(self, "input_wrapper", None)
         if target is None:
             return
         try:
             if self.use_ctk:
-                target.configure(border_color=border, border_width=1)
+                target.configure(fg_color=border)
             else:
-                target.configure(
-                    highlightbackground=border,
-                    highlightcolor=border,
-                    highlightthickness=1,
-                )
+                target.configure(background=border)
         except Exception:
             pass
 
