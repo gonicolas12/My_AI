@@ -94,13 +94,15 @@ My Personal AI v6.6.0 est une **IA locale 100%** avec un système de **Mémoire 
 │ • Extraction metadata   │ • Tables                                   │
 │ • Images                │ • Chunking intelligent                     │
 │ • Chunking pages        │                                            │
-├─────────────────────────┴────────────────────────────────────────────┤
-│ CodeProcessor                                                        │
-│ • Détection langage                                                  │
-│ • Analyse structure (classes, fonctions)                             │
-│ • Extraction commentaires                                            │
-│ • Analyse sémantique                                                 │
-└──────────────────────────────────────────────────────────────────────┘
+├─────────────────────────┼────────────────────────────────────────────┤
+│ ExcelProcessor          │ CodeProcessor                              │
+│ • openpyxl (.xlsx)      │ • Détection langage                        │
+│ • xlrd (.xls legacy)    │ • Analyse structure (classes, fonctions)   │
+│ • stdlib csv (.csv)     │ • Extraction commentaires                  │
+│ • Multi-feuilles        │ • Analyse sémantique                       │
+│ • Formatage tableau     │                                            │
+│ • Encodage automatique  │                                            │
+└─────────────────────────┴────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
 │                    GÉNÉRATEURS DE CONTENU                            │
@@ -496,6 +498,31 @@ Features:
 └─ Chunking pour optimisation contexte
 ```
 
+**`processors/excel_processor.py`**
+```python
+Librairies:
+├─ openpyxl  - Fichiers .xlsx (format moderne)
+├─ xlrd      - Fichiers .xls (ancien format)
+└─ csv       - Fichiers .csv (stdlib Python)
+
+Processing:
+├─ Lecture multi-feuilles (.xlsx, .xls)
+├─ Détection encodage automatique (.csv)
+├─ Formatage tableau texte (max 200 lignes, 30 chars/cellule)
+├─ Fallback openpyxl → xlrd pour .xls
+└─ Error handling par format
+
+Output:
+{
+  "success": True,
+  "content": formatted_text,          # Tableau(x) textuels
+  "sheets": {sheet_name: [rows]},     # Données brutes
+  "sheet_names": [str],
+  "total_rows": int,
+  "processor": "openpyxl|xlrd|csv-stdlib"
+}
+```
+
 **`processors/code_processor.py`**
 ```python
 Capacités:
@@ -674,9 +701,11 @@ Display (GUI/CLI)
 File Upload
     ↓
 Format Detection
-    ├─ .pdf → PDFProcessor
-    ├─ .docx → DOCXProcessor
-    └─ .py/.js/.etc → CodeProcessor
+    ├─ .pdf         → PDFProcessor
+    ├─ .docx        → DOCXProcessor
+    ├─ .xlsx/.xls   → ExcelProcessor (openpyxl / xlrd)
+    ├─ .csv         → ExcelProcessor (stdlib csv)
+    └─ .py/.js/...  → CodeProcessor
     ↓
 Content Extraction
     ↓
@@ -955,7 +984,7 @@ elif intent == "new_intent":
 ### ✅ Production-Ready
 - Système mémoire vectorielle (ChromaDB + embeddings)
 - Recherche internet avec météo temps réel
-- Pipelines traitement documents
+- Pipelines traitement documents (PDF, DOCX, Excel, CSV, Code)
 - Classification intentions
 - Matching FAQ
 - Gestion configuration

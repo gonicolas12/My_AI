@@ -160,6 +160,26 @@ class ContextManagementMixin:
                     with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
+            elif file_ext in [".xlsx", ".xls", ".csv"]:
+                try:
+                    from processors.excel_processor import ExcelProcessor
+                    excel_proc = ExcelProcessor()
+                    result = excel_proc.read_excel(file_path)
+                    if result.get("success"):
+                        content = result.get("content", "")
+                        processor_used = "Excel/CSV"
+                        sheets = result.get("sheet_names", [])
+                        total_rows = result.get("total_rows", 0)
+                        print(
+                            f"📊 [EXCEL] Traitement {file_ext.upper()}: "
+                            f"{len(sheets)} feuille(s), {total_rows} lignes"
+                        )
+                    else:
+                        raise ValueError(result.get("error", "Erreur Excel"))
+                except (ImportError, ValueError, OSError) as e:
+                    print(f"⚠️ Erreur processeur Excel: {e}")
+                    content = ""
+
             elif (
                 file_ext in [".py", ".js", ".html", ".css", ".cpp", ".java"]
                 and self.code_processor

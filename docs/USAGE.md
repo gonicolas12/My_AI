@@ -51,14 +51,14 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - **Send Button** : Bouton d'envoi (ou Enter)
 - **Image Button (🖼️)** : Charger une image pour analyse
 - **Clear Chat Button** : Réinitialiser conversation
-- **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/Images)
+- **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/Excel/CSV/Images/Code)
 
 **Fonctionnalités:**
 - 🎨 **Thème sombre** moderne style Claude
 - 💬 **Bulles messages** utilisateur (droite) et IA (gauche)
 - 🕒 **Timestamps** sur chaque message
 - 🎨 **Syntax highlighting** pour code (via Pygments)
-- 📁 **Drag-and-drop** fichiers PDF/DOCX/Images
+- 📁 **Drag-and-drop** fichiers PDF/DOCX/Excel/CSV/Images/Code
 - 🖼️ **Analyse d'images** avec modèles vision (llava, llama3.2-vision)
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 
@@ -79,7 +79,7 @@ Vous: "Bonjour, comment ça va?"
 IA: "Salut ! Je vais bien, merci. Comment puis-je t'aider ?"
 
 # 4. Glisser-déposer fichier
-# Drag PDF/DOCX dans fenêtre
+# Drag PDF/DOCX/Excel/CSV dans fenêtre
 IA: "Fichier 'rapport.pdf' chargé avec succès. 15 pages traitées."
 
 # 5. Questions sur document
@@ -441,11 +441,13 @@ Sources:
 |-----------|------------|-----------|
 | .pdf | PDFProcessor | Texte, metadata, images, chunking |
 | .docx | DOCXProcessor | Paragraphes, tables, formatage |
+| .xlsx | ExcelProcessor | Feuilles multiples, cellules, formatage tableau |
+| .xls | ExcelProcessor | Ancien format Excel (via xlrd) |
+| .csv | ExcelProcessor | Données tabulaires, encodage automatique |
 | .txt | FileManager | Texte brut |
 | .py, .js, .html, .css | CodeProcessor | Code avec analyse syntaxique |
 | .md | FileManager | Markdown |
 | .json | FileManager | JSON structuré |
-| .csv | FileManager | Données tabulaires |
 
 ### Méthodes de Chargement
 
@@ -453,9 +455,20 @@ Sources:
 ```bash
 # Dans interface GUI:
 # 1. Ouvrir explorateur fichiers
-# 2. Sélectionner fichier
+# 2. Sélectionner fichier (PDF, DOCX, Excel, CSV, code...)
 # 3. Glisser dans fenêtre GUI
 # 4. Attendre confirmation: "Fichier chargé"
+```
+
+#### 1b. Via le Menu Fichier (GUI)
+```bash
+# Page d'accueil ou page de conversation :
+# Menu déroulant → choisir le type de fichier :
+#   📄  PDF        → sélection .pdf
+#   📝  DOCX       → sélection .docx
+#   📊  Excel/CSV  → sélection .xlsx / .xls / .csv
+#   💻  Code       → sélection fichier source
+#   🖼️   Image      → sélection .png / .jpg
 ```
 
 #### 2. Commande CLI
@@ -490,9 +503,11 @@ print(response["message"])
 2. Détection type (extension)
    ↓
 3. Processeur approprié
-   ├─ PDF → PDFProcessor
-   ├─ DOCX → DOCXProcessor
-   └─ Code → CodeProcessor
+   ├─ .pdf         → PDFProcessor
+   ├─ .docx        → DOCXProcessor
+   ├─ .xlsx/.xls   → ExcelProcessor (openpyxl / xlrd)
+   ├─ .csv         → ExcelProcessor (stdlib csv)
+   └─ .py/.js/...  → CodeProcessor
    ↓
 4. Extraction contenu
    ↓
@@ -524,6 +539,26 @@ IA> Selon le document, les spécifications techniques sont:
 
 Vous> Comment implémenter la section 3.2?
 IA> La section 3.2 décrit... [explication avec code si pertinent]
+```
+
+#### Excel / CSV
+```bash
+Vous> fichier rapport_ventes.xlsx
+IA> Traitement Excel en cours...
+IA> ✅ Fichier traité: 3 feuilles, 450 lignes
+
+Vous> Quelles sont les ventes du mois de mars?
+IA> Selon la feuille "Mars" du fichier rapport_ventes.xlsx:
+- Total ventes: 128 450 €
+- Meilleur produit: Produit A (34 200 €)
+- Régions: Sud (42%), Nord (31%), Est (27%)
+
+Vous> fichier export_clients.csv
+IA> ✅ Fichier traité: 1 200 lignes, 8 colonnes
+
+Vous> Compare les données de rapport_ventes.xlsx et export_clients.csv
+IA> En croisant les deux fichiers:
+[Analyse comparative basée sur les données réelles des deux fichiers]
 ```
 
 #### Code Source

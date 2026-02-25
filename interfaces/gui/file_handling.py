@@ -110,6 +110,8 @@ class FileHandlingMixin:
             file_type = "PDF"
         elif ext in [".docx", ".doc"]:
             file_type = "DOCX"
+        elif ext in [".xlsx", ".xls", ".csv"]:
+            file_type = "Excel"
         elif ext in [".py", ".js", ".html", ".css", ".json", ".xml", ".md", ".txt"]:
             file_type = "Code"
         elif ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"]:
@@ -223,6 +225,22 @@ class FileHandlingMixin:
 
         if file_path:
             self.process_file(file_path, "DOCX")
+
+    def load_excel_file(self):
+        """Charge un fichier Excel ou CSV"""
+        file_path = filedialog.askopenfilename(
+            title="Sélectionner un fichier Excel ou CSV",
+            filetypes=[
+                ("Fichiers Excel & CSV", "*.xlsx *.xls *.csv"),
+                ("Excel (.xlsx)", "*.xlsx"),
+                ("Excel ancien (.xls)", "*.xls"),
+                ("CSV", "*.csv"),
+                ("Tous les fichiers", "*.*"),
+            ],
+        )
+
+        if file_path:
+            self.process_file(file_path, "Excel")
 
     def load_code_file(self):
         """Charge un fichier de code"""

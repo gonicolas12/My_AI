@@ -222,6 +222,10 @@ class BaseGUI:
             self.is_interrupted = True
             if hasattr(self, "current_request_id"):
                 self.current_request_id += 1  # Invalide toutes les requêtes en cours
+            # Si une passe de raisonnement était active, la réponse finale ne sera
+            # jamais créée → réinitialiser le flag pour que le prochain message
+            # affiche bien l'icône 🤖.
+            self._thinking_mode_active = False
             if hasattr(self, "stop_typing_animation"):
                 self.stop_typing_animation()
             if hasattr(self, "stop_internet_search"):
@@ -274,11 +278,16 @@ class BaseGUI:
                 if enabled:
                     self.root.after(100, self._safe_focus_input)
                 else:
-                    # Sauvegarder le contenu avant de désactiver
-                    try:
-                        self._saved_input_content = self.input_text.get("1.0", "end-1c")
-                    except (tk.TclError, AttributeError):
+                    # Sauvegarder le contenu réel avant de désactiver.
+                    # Ne pas sauvegarder si c'est le placeholder (sinon _safe_focus_input
+                    # le restaurerait comme du vrai texte avec la couleur normale).
+                    if getattr(self, "placeholder_active", False):
                         self._saved_input_content = ""
+                    else:
+                        try:
+                            self._saved_input_content = self.input_text.get("1.0", "end-1c")
+                        except (tk.TclError, AttributeError):
+                            self._saved_input_content = ""
             # Bouton "+" fichiers
             for btn_name in ["file_plus_btn"]:
                 if hasattr(self, btn_name):
@@ -670,6 +679,30 @@ class BaseGUI:
         self.placeholder_text = "Tapez votre message ici... (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)"
         self.placeholder_active = True
 
+        def _focus_in_handler(_event):
+            """FocusIn commun CTK + standard.
+            Ne pas cacher le placeholder pendant le streaming : le double-clic ou
+            tout autre événement de focus pendant le streaming causerait des incohérences
+            (placeholder_active=False alors que le widget est désactivé)."""
+            if getattr(self, "_streaming_mode", False):
+                return  # Streaming en cours → ignorer
+            self._hide_placeholder()
+
+        def _focus_out_handler(_event):
+            """FocusOut commun CTK + standard.
+            Ne pas afficher le placeholder pendant le streaming : cela re-activerait
+            l'input (via configure(state='normal') dans _show_placeholder) et rendrait
+            le texte placeholder visible comme du vrai texte."""
+            if getattr(self, "_streaming_mode", False):
+                return  # Streaming en cours → ignorer
+            if not self.input_text.get("1.0", "end-1c").strip():
+                self._show_placeholder()
+
+        def _key_press_handler(_event):
+            """KeyPress commun CTK + standard."""
+            if self.placeholder_active:
+                self._hide_placeholder()
+
         if self.use_ctk:
             # CustomTkinter avec placeholder natif si disponible
             try:
@@ -684,42 +717,18 @@ class BaseGUI:
 
             # Fallback pour CustomTkinter
             self._show_placeholder()
-
-            def on_focus_in(_event):
-                self._hide_placeholder()
-
-            def on_focus_out(_event):
-                if not self.input_text.get("1.0", "end-1c").strip():
-                    self._show_placeholder()
-
-            def on_key_press(_event):
-                if self.placeholder_active:
-                    self._hide_placeholder()
-
-            self.input_text.bind("<FocusIn>", on_focus_in)
-            self.input_text.bind("<FocusOut>", on_focus_out)
-            self.input_text.bind("<KeyPress>", on_key_press)
+            self.input_text.bind("<FocusIn>", _focus_in_handler)
+            self.input_text.bind("<FocusOut>", _focus_out_handler)
+            self.input_text.bind("<KeyPress>", _key_press_handler)
         else:
             # Pour tkinter standard
             self._show_placeholder()
-
-            def on_focus_in(_event):
-                self._hide_placeholder()
-
-            def on_focus_out(_event):
-                if not self.input_text.get("1.0", "end-1c").strip():
-                    self._show_placeholder()
-
-            def on_key_press(_event):
-                if self.placeholder_active:
-                    self._hide_placeholder()
-
-            self.input_text.bind("<FocusIn>", on_focus_in)
-            self.input_text.bind("<FocusOut>", on_focus_out)
-            self.input_text.bind("<KeyPress>", on_key_press)
+            self.input_text.bind("<FocusIn>", _focus_in_handler)
+            self.input_text.bind("<FocusOut>", _focus_out_handler)
+            self.input_text.bind("<KeyPress>", _key_press_handler)
 
     def _show_placeholder(self):
-        """Affiche le placeholder de manière non éditable"""
+        """Affiche le placeholder en gris clair dans la zone de saisie."""
         if not self.placeholder_active:
             self.input_text.delete("1.0", "end")
             self.input_text.insert("1.0", self.placeholder_text)
@@ -729,9 +738,9 @@ class BaseGUI:
             else:
                 self.input_text.configure(fg=self.colors["placeholder"])
 
-            # Rendre le texte non sélectionnable et transparent visuellement
-            self.input_text.configure(state="disabled")
-            self.input_text.configure(state="normal")
+            # Note : on ne modifie PAS l'état (state) du widget ici.
+            # Le configure(state="disabled") suivi de state="normal" qui existait
+            # ici ré-activait silencieusement l'input même pendant le streaming.
             self.placeholder_active = True
 
     def _hide_placeholder(self):
@@ -1465,16 +1474,24 @@ class BaseGUI:
                 is_interrupted_callback=lambda: self.is_interrupted,
             )
 
-            # Marquer le streaming comme terminé
-            self._streaming_complete = True
-            print(
-                f"✅ [STREAM] Streaming terminé: {len(self._streaming_buffer)} caractères"
-            )
-
-            # Si la réponse n'a pas été streamée token par token (ex: FAQ, fallback
-            # classique sans Ollama), l'afficher d'un bloc
-            if not self._streaming_bubble_created and response:
-                on_token_received(response)
+            # Marquer le streaming comme terminé SEULEMENT si cette requête est
+            # encore active. Un thread obsolète (request_id périmé) ne doit PAS
+            # toucher _streaming_complete sous peine d'interrompre prématurément
+            # l'animation d'un message suivant.
+            if self.current_request_id == request_id:
+                self._streaming_complete = True
+                print(
+                    f"✅ [STREAM] Streaming terminé: {len(self._streaming_buffer)} caractères"
+                )
+                # Si la réponse n'a pas été streamée token par token (ex: FAQ,
+                # fallback classique sans Ollama), l'afficher d'un bloc
+                if not self._streaming_bubble_created and response:
+                    on_token_received(response)
+            else:
+                print(
+                    f"⏭ [STREAM] Requête obsolète {request_id} ignorée "
+                    f"(active: {self.current_request_id})"
+                )
 
         except (ConnectionError, TimeoutError, AttributeError) as e:
             print(f"❌ [GUI] Erreur: {e}")
@@ -1801,10 +1818,11 @@ class BaseGUI:
 
         # ── Bouton "+" avec menu déroulant pour les fichiers ──────────────────
         _file_menu_entries = [
-            ("📄  PDF",    self.load_pdf_file),
-            ("📝  DOCX",   self.load_docx_file),
-            ("💻  Code",   self.load_code_file),
-            ("🖼  Image",   self.load_image_file),
+            ("📄  PDF",         self.load_pdf_file),
+            ("📝  DOCX",        self.load_docx_file),
+            ("📊  Excel / CSV", self.load_excel_file),
+            ("💻  Code",        self.load_code_file),
+            ("🖼  Image",        self.load_image_file),
         ]
 
         # Référence au popup courant pour éviter les doublons

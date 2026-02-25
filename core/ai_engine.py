@@ -274,6 +274,13 @@ class AIEngine:
                         content = only_doc.get("content", "")
                         if content:
                             return content[:8000]
+                    # Plusieurs documents sans correspondance → signaler à l'IA
+                    doc_list = ", ".join(stored.keys())
+                    return (
+                        f"Impossible d'identifier '{file_name}' parmi les documents chargés. "
+                        f"Documents disponibles : {doc_list}. "
+                        f"Le contenu des documents est déjà présent dans le contexte de la conversation."
+                    )
             except Exception:
                 pass
 
@@ -950,6 +957,32 @@ Que voulez-vous que je fasse pour vous ?"""
 
         return full_context
 
+    def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
+        """
+        Retourne uniquement les documents pertinents pour la requête.
+
+        Si l'utilisateur mentionne le nom d'un fichier spécifique dans sa requête,
+        seul ce document est retourné. Sinon, tous les documents sont retournés.
+        """
+        if not stored_documents or len(stored_documents) == 1:
+            return stored_documents
+
+        query_lower = query.lower()
+        matched = {}
+
+        for doc_name, doc_data in stored_documents.items():
+            # Correspondance sur le nom complet (ex: "rapport.xlsx")
+            if doc_name.lower() in query_lower:
+                matched[doc_name] = doc_data
+                continue
+            # Correspondance sur le nom sans extension (ex: "rapport")
+            stem = Path(doc_name).stem.lower()
+            if stem and len(stem) > 2 and stem in query_lower:
+                matched[doc_name] = doc_data
+
+        # Si aucune correspondance → retourner tous les documents (pas de filtre)
+        return matched if matched else stored_documents
+
     async def _handle_with_mcp_tools(
         self,
         query: str,
@@ -981,13 +1014,21 @@ Que voulez-vous que je fasse pour vous ?"""
             # Ajouter le contexte des documents chargés si disponible
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
+                relevant_docs = self._select_relevant_docs(query, full_context["stored_documents"])
                 doc_sections = []
-                for doc_name, doc_data in full_context["stored_documents"].items():
+                for doc_name, doc_data in relevant_docs.items():
                     doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
                     if doc_content:
                         doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
                 if doc_sections:
-                    system_prompt += "\n\nContenu des documents chargés par l'utilisateur :\n" + "\n\n".join(doc_sections)
+                    # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
+                    # Vider tools pour forcer une réponse directe sans appel d'outil.
+                    tools = []
+                    system_prompt += (
+                        "\n\nContenu des documents chargés par l'utilisateur "
+                        "(disponible comme contexte — utilise ces données si la question porte sur ce contenu, sinon réponds normalement depuis tes connaissances) :\n"
+                        + "\n\n".join(doc_sections)
+                    )
 
             # Outil d'interruption vérification
             def tool_executor(tool_name: str, arguments: dict) -> str:
@@ -1042,8 +1083,21 @@ Que voulez-vous que je fasse pour vous ?"""
 
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
-                doc_names = list(full_context["stored_documents"].keys())
-                system_prompt += f"\n\nDocuments disponibles : {', '.join(doc_names)}."
+                relevant_docs = self._select_relevant_docs(query, full_context["stored_documents"])
+                doc_sections = []
+                for doc_name, doc_data in relevant_docs.items():
+                    doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
+                    if doc_content:
+                        doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
+                if doc_sections:
+                    # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
+                    # Vider tools pour forcer une réponse directe sans appel d'outil.
+                    tools = []
+                    system_prompt += (
+                        "\n\nContenu des documents chargés par l'utilisateur "
+                        "(disponible comme contexte — utilise ces données si la question porte sur ce contenu, sinon réponds normalement depuis tes connaissances) :\n"
+                        + "\n\n".join(doc_sections)
+                    )
 
             def tool_executor(tool_name: str, arguments: dict) -> str:
                 if is_interrupted_callback and is_interrupted_callback():
@@ -1178,11 +1232,16 @@ Que voulez-vous que je fasse pour vous ?"""
         Dans ce cas, les outils ne doivent PAS être fournis au LLM.
         Utilise des frontières de mots pour éviter les faux positifs
         (ex: 'hi' dans 'machine', 'hey' dans 'they', etc.)
+        Une requête de plus de 6 mots ne peut pas être purement conversationnelle
+        (ex: "Merci, maintenant explique le machine learning" → non conversational).
         """
         # strip() supprime les espaces de début/fin, rstrip enlève ponctuation
         # puis un second strip() retire l'espace résiduel quand l'utilisateur
         # écrit « ? » avec une espace avant (ex : "à quoi tu sert ?")
         q = query.lower().strip().rstrip("?!.").strip()
+        # Si la requête contient plus de 6 mots, ce n'est pas purement conversationnel
+        if len(q.split()) > 6:
+            return False
         for sig in self._CONVERSATIONAL_SIGNALS:
             # Frontières de mots pour éviter les faux positifs sur les sous-chaînes
             if _re.search(r'\b' + _re.escape(sig) + r'\b', q):
@@ -1358,9 +1417,9 @@ Que voulez-vous que je fasse pour vous ?"""
         # 1.7. MODE THINKING — passe de raisonnement pour requêtes complexes
         # ----------------------------------------------------------------
         thinking_context = ""
-        print(f"🧠 [SECTION 1.7] on_thinking_token={'défini' if on_thinking_token else 'None'} | conversational={self._is_conversational(user_input)}")
-        if (on_thinking_token is not None
-                and not self._is_conversational(user_input)):
+        _is_conv = self._is_conversational(user_input)
+        print(f"🧠 [SECTION 1.7] on_thinking_token={'défini' if on_thinking_token else 'None'} | conversational={_is_conv}")
+        if on_thinking_token is not None and not _is_conv:
             print("🧠 [THINKING] ▶ Démarrage de la passe de raisonnement...")
             thinking_context = llm.generate_thinking_stream(
                 original_prompt=user_input,
@@ -1368,6 +1427,12 @@ Que voulez-vous que je fasse pour vous ?"""
                 is_interrupted_callback=is_interrupted_callback,
             )
             print(f"🧠 [THINKING] ✓ Terminé — {len(thinking_context)} chars")
+            if on_thinking_complete:
+                on_thinking_complete()
+        elif on_thinking_token is not None and _is_conv:
+            # Thinking mode activé par le GUI mais skippé (requête conversationnelle) :
+            # fermer immédiatement le widget pour éviter l'animation pendant la réponse.
+            print("🧠 [THINKING] ⏭ Skippé (conversationnel) — fermeture widget")
             if on_thinking_complete:
                 on_thinking_complete()
 
@@ -1408,13 +1473,21 @@ Que voulez-vous que je fasse pour vous ?"""
             # Ajouter le contexte des documents chargés
             full_context = self._prepare_context(user_input, context)
             if full_context.get("stored_documents"):
+                relevant_docs = self._select_relevant_docs(user_input, full_context["stored_documents"])
                 doc_sections = []
-                for doc_name, doc_data in full_context["stored_documents"].items():
+                for doc_name, doc_data in relevant_docs.items():
                     doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
                     if doc_content:
                         doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
                 if doc_sections:
-                    system_prompt += "\n\nContenu des documents chargés par l'utilisateur :\n" + "\n\n".join(doc_sections)
+                    # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
+                    # Vider tools pour forcer une réponse directe sans appel d'outil.
+                    tools = []
+                    system_prompt += (
+                        "\n\nContenu des documents chargés par l'utilisateur "
+                        "(disponible comme contexte — utilise ces données si la question porte sur ce contenu, sinon réponds normalement depuis tes connaissances) :\n"
+                        + "\n\n".join(doc_sections)
+                    )
 
             # ----------------------------------------------------------------
             # 2.1. Requêtes sur l'historique de conversation — réponse directe

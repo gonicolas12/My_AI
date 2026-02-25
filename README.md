@@ -39,8 +39,8 @@ Connexion standardisée à des outils locaux et serveurs externes (fichiers, git
 </td>
 <td width="50%">
 
-**📄 Traitement de Documents**  
-PDF, DOCX, images — analyse contextuelle ultra-étendue avec compression intelligente.
+**📄 Traitement de Documents**
+PDF, DOCX, Excel, CSV, images — analyse contextuelle ultra-étendue avec compression intelligente.
 
 **🌐 Recherche Internet**  
 Accès aux informations en temps réel via DuckDuckGo, résumés automatiques inclus.
@@ -71,7 +71,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
 | 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
 | 🎓 **Feedback RLHF** | Boutons 👍 / 👎 sous chaque réponse, enregistrement automatique |
-| 📂 **Gestion de fichiers** | Glisser-déposer pour ajouter des documents à la mémoire |
+| 📂 **Gestion de fichiers** | Glissez-déposez vos fichiers — ajout direct à la mémoire |
 
 ### Agents — Interface dédiée
 
@@ -212,6 +212,7 @@ my_ai/
 │   ├── __init__.py
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
 │   ├── docx_processor.py                # Traitement DOCX avec compression
+│   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
 │   └── code_processor.py                # Traitement de code avec analyse sémantique
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils

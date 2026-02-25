@@ -36,6 +36,7 @@ python-docx>=0.8.11
 
 # Excel / PowerPoint
 openpyxl>=3.1.0
+xlrd>=2.0.1
 python-pptx>=0.6.21
 
 # ====================================

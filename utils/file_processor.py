@@ -1,6 +1,6 @@
 """
 Processeur de fichiers pour My AI
-Gère l'importation et le traitement de documents PDF, DOCX, etc.
+Gère l'importation et le traitement de documents PDF, DOCX, Excel, CSV, etc.
 """
 
 import json
@@ -11,12 +11,21 @@ import docx
 import pdfplumber
 import PyPDF2
 
+try:
+    from processors.excel_processor import ExcelProcessor as _ExcelProc
+    _excel_proc = _ExcelProc()
+except Exception:
+    _excel_proc = None
+
 
 class FileProcessor:
     """Processeur de fichiers pour documents"""
 
     def __init__(self):
-        self.supported_extensions = [".txt", ".md", ".py", ".pdf", ".docx", ".json"]
+        self.supported_extensions = [
+            ".txt", ".md", ".py", ".pdf", ".docx", ".json",
+            ".xlsx", ".xls", ".csv",
+        ]
 
     def process_file(self, file_path: str) -> Dict[str, Any]:
         """Traite un fichier et retourne son contenu"""
@@ -36,6 +45,8 @@ class FileProcessor:
                 return self._process_pdf_file(path)
             elif extension == ".docx":
                 return self._process_docx_file(path)
+            elif extension in (".xlsx", ".xls", ".csv"):
+                return self._process_excel_file(path)
             else:
                 return {"error": f"Type de fichier non supporté: {extension}"}
 
@@ -179,6 +190,22 @@ class FileProcessor:
             "pages": len(text_content),
             "size": len(content),
             "extractor": "pdfplumber",
+        }
+
+    def _process_excel_file(self, path: Path) -> Dict[str, Any]:
+        """Traite un fichier Excel ou CSV via ExcelProcessor."""
+        if _excel_proc is None:
+            return {"error": "ExcelProcessor non disponible. Vérifiez processors/excel_processor.py"}
+        result = _excel_proc.read_excel(str(path))
+        if not result.get("success"):
+            return {"error": result.get("error", "Erreur inconnue Excel/CSV")}
+        return {
+            "type": "excel",
+            "name": path.name,
+            "content": result["content"],
+            "sheets": result.get("sheet_names", []),
+            "total_rows": result.get("total_rows", 0),
+            "size": len(result["content"]),
         }
 
     def is_supported(self, file_path: str) -> bool:

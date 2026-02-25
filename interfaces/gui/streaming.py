@@ -1409,8 +1409,23 @@ class StreamingMixin:
             print(f"⚠️ [THINKING TOKEN] Erreur insertion: {_e}")
 
     def _finalize_reasoning_widget(self):
-        """Appelé quand la passe thinking est terminée : arrête l'animation."""
+        """Appelé quand la passe thinking est terminée : arrête l'animation.
+        Si aucun token de raisonnement n'a été reçu (widget vide), masque
+        entièrement le container pour ne pas afficher un encadré vide.
+        """
         self._stop_reasoning_dots(_success=True)
+        try:
+            # Vérifier si le widget de texte est vide (thinking skippé)
+            if (
+                hasattr(self, "_reasoning_text_widget")
+                and self._reasoning_text_widget.winfo_exists()
+            ):
+                content = self._reasoning_text_widget.get("1.0", "end-1c").strip()
+                if not content and hasattr(self, "_reasoning_container"):
+                    # Aucun token reçu → masquer le widget entièrement
+                    self._reasoning_container.grid_remove()
+        except Exception:
+            pass
 
     def _toggle_reasoning_widget(self):
         """Collapse ou expand le contenu du raisonnement."""

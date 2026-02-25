@@ -439,6 +439,7 @@ class LayoutMixin:
         _chat_file_entries = [
             ("📄  PDF",         self.load_pdf_file),
             ("📝  DOCX",        self.load_docx_file),
+            ("📊  Excel / CSV", self.load_excel_file),
             ("💻  Code",        self.load_code_file),
             ("🖼  Image",        self.load_image_file),
         ]
