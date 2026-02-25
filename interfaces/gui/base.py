@@ -226,6 +226,11 @@ class BaseGUI:
             # jamais créée → réinitialiser le flag pour que le prochain message
             # affiche bien l'icône 🤖.
             self._thinking_mode_active = False
+            # Réinitialiser _streaming_mode immédiatement : si STOP arrive pendant
+            # le thinking (avant toute bulle de streaming), _finish_streaming_animation
+            # ne sera jamais appelé → sans ce reset, _streaming_mode resterait True
+            # indéfiniment et bloquerait FocusIn/FocusOut/KeyPress sur l'input.
+            self._streaming_mode = False
             if hasattr(self, "stop_typing_animation"):
                 self.stop_typing_animation()
             if hasattr(self, "stop_internet_search"):
@@ -699,7 +704,14 @@ class BaseGUI:
                 self._show_placeholder()
 
         def _key_press_handler(_event):
-            """KeyPress commun CTK + standard."""
+            """KeyPress commun CTK + standard.
+            Bloqué pendant le streaming : le widget disabled accepte quand même
+            les KeyPress quand il a le focus (après un double-clic). Sans ce guard,
+            _hide_placeholder() changerait la couleur du texte en normal sans pouvoir
+            effacer le contenu (delete échoue silencieusement sur widget disabled),
+            rendant le placeholder visible comme du vrai texte."""
+            if getattr(self, "_streaming_mode", False):
+                return
             if self.placeholder_active:
                 self._hide_placeholder()
 
@@ -1500,11 +1512,13 @@ class BaseGUI:
                 self.root.after(0, lambda: self.add_ai_response(response))
         finally:
             # Garantir que les points "Raisonnement..." s'arrêtent toujours,
-            # même en cas d'interruption utilisateur ou d'exception
-            if getattr(self, "_reasoning_dots_active", False):
-                self.root.after(0, self._stop_reasoning_dots)
-
-        self.root.after(0, self.hide_status_indicators)
+            # mais SEULEMENT pour la requête encore active.
+            # Un thread obsolète (request_id périmé) ne doit PAS stopper les dots
+            # ni masquer le bouton STOP d'un message suivant en cours.
+            if self.current_request_id == request_id:
+                if getattr(self, "_reasoning_dots_active", False):
+                    self.root.after(0, self._stop_reasoning_dots)
+                self.root.after(0, self.hide_status_indicators)
 
     def add_ai_response(self, response):
         """Ajoute une réponse de l'IA - VERSION CORRIGÉE pour affichage complet"""

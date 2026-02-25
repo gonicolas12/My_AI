@@ -1391,9 +1391,13 @@ Que voulez-vous que je fasse pour vous ?"""
             )
 
         # ----------------------------------------------------------------
-        # 1.5. FAQ / Enrichissement — Priorité absolue avant MCP
+        # 1.5. FAQ / Enrichissement — Priorité absolue avant MCP et Thinking
+        # La FAQ est vérifiée même en mode thinking (requête complexe) : si une
+        # réponse est trouvée, elle est retournée immédiatement sans raisonnement.
+        # Le widget de raisonnement éventuellement créé par le GUI est fermé via
+        # on_thinking_complete() → _finalize_reasoning_widget() → masqué si vide.
         # ----------------------------------------------------------------
-        if self.ml_ai is not None and on_thinking_token is None:
+        if self.ml_ai is not None:
             try:
                 faq_response = self.ml_ai.predict(user_input)
                 if faq_response is not None and str(faq_response).strip():
@@ -1407,6 +1411,10 @@ Que voulez-vous que je fasse pour vous ?"""
                         self.conversation_manager.add_exchange(user_input, faq_response)
                     except Exception:
                         pass
+                    # Fermer le widget de raisonnement s'il était ouvert
+                    # (requête détectée complexe par le GUI mais couverte par FAQ)
+                    if on_thinking_complete:
+                        on_thinking_complete()
                     if on_token:
                         on_token(faq_response)
                     return faq_response
@@ -1429,6 +1437,11 @@ Que voulez-vous que je fasse pour vous ?"""
             print(f"🧠 [THINKING] ✓ Terminé — {len(thinking_context)} chars")
             if on_thinking_complete:
                 on_thinking_complete()
+            # Si l'utilisateur a cliqué STOP pendant le raisonnement, ne pas
+            # démarrer la génération de la réponse finale.
+            if is_interrupted_callback and is_interrupted_callback():
+                print("🛑 [THINKING] Interrompu — génération finale annulée")
+                return ""
         elif on_thinking_token is not None and _is_conv:
             # Thinking mode activé par le GUI mais skippé (requête conversationnelle) :
             # fermer immédiatement le widget pour éviter l'animation pendant la réponse.
