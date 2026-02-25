@@ -375,6 +375,7 @@ class AnimationsMixin:
             hasattr(self, "typing_widget")
             and hasattr(self, "typing_text")
             and hasattr(self, "typing_index")
+            and self.typing_widget is not None
         )
 
     def _adjust_height_final_no_scroll(self, text_widget):
@@ -691,3 +692,40 @@ class AnimationsMixin:
                 row=1, column=0, sticky="ew", padx=20, pady=(0, 10)
             )
             self.animate_search()
+
+    # ── THINKING MODE — Animation "Raisonnement." dots ───────────────────────
+
+    def _start_reasoning_dots(self):
+        """Démarre l'animation du titre : Raisonnement. → .. → ... → . → ..."""
+        self._reasoning_dots_active = True
+        self._reasoning_dots_count = 0
+        self._animate_reasoning_dots()
+
+    def _animate_reasoning_dots(self):
+        """Cycle des points : ., .., ..., ., ..., en boucle à 400ms."""
+        if not getattr(self, "_reasoning_dots_active", False):
+            return
+        try:
+            variants = [".", "..", "..."]
+            dots = variants[self._reasoning_dots_count % 3]
+            self._reasoning_dots_count += 1
+            if (
+                hasattr(self, "_reasoning_label")
+                and self._reasoning_label.winfo_exists()
+            ):
+                self._reasoning_label.configure(text=f"Raisonnement{dots}")
+            self.root.after(400, self._animate_reasoning_dots)
+        except Exception:
+            pass
+
+    def _stop_reasoning_dots(self, _success=True):
+        """Arrête l'animation et affiche l'état final du titre."""
+        self._reasoning_dots_active = False
+        try:
+            if (
+                hasattr(self, "_reasoning_label")
+                and self._reasoning_label.winfo_exists()
+            ):
+                self._reasoning_label.configure(text="Raisonnement")
+        except Exception:
+            pass

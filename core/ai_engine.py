@@ -5,31 +5,34 @@ Gère l'orchestration entre les différents modules
 
 import asyncio
 import concurrent.futures
-import os
-import tempfile
 import glob
-import threading
+import os
 import re as _re
-from typing import Any, Dict, List, Optional
+import tempfile
+import threading
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from generators.document_generator import DocumentGenerator
+import requests as _req
+
 from generators.code_generator import CodeGenerator as OllamaCodeGenerator
-from models.advanced_code_generator import AdvancedCodeGenerator as WebCodeGenerator
+from generators.document_generator import DocumentGenerator
+from memory.vector_memory import VectorMemory
+from models.advanced_code_generator import \
+    AdvancedCodeGenerator as WebCodeGenerator
 from models.conversation_memory import ConversationMemory
 from models.custom_ai_model import CustomAIModel
-from models.internet_search import InternetSearchEngine
+from models.internet_search import (EnhancedInternetSearchEngine,
+                                    InternetSearchEngine)
 from models.ml_faq_model import MLFAQModel
-from models.smart_web_searcher import search_smart_code
 from models.smart_code_searcher import multi_source_searcher
-from models.internet_search import EnhancedInternetSearchEngine
+from models.smart_web_searcher import search_smart_code
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
+from tools.local_tools import local_math
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
-from memory.vector_memory import VectorMemory
-from tools.local_tools import local_math
 
 from .config import get_config
 from .conversation import ConversationManager
@@ -248,17 +251,43 @@ class AIEngine:
         # ----------------------------------------------------------------
         def read_local_file(path: str) -> str:
             """Lit le contenu d'un fichier local (PDF, DOCX, code, texte)."""
+            # Vérifier d'abord la mémoire interne (documents déjà chargés en session)
+            file_name = Path(path).name
+            try:
+                stored = self.local_ai.conversation_memory.stored_documents
+                if stored:
+                    # Correspondance exacte par nom de fichier
+                    if file_name in stored:
+                        content = stored[file_name].get("content", "")
+                        if content:
+                            return content[:8000]
+                    # Correspondance insensible à la casse
+                    file_name_lower = file_name.lower()
+                    for stored_name, stored_data in stored.items():
+                        if stored_name.lower() == file_name_lower:
+                            content = stored_data.get("content", "")
+                            if content:
+                                return content[:8000]
+                    # Dernier recours : un seul document en mémoire → le retourner
+                    if len(stored) == 1:
+                        only_doc = next(iter(stored.values()))
+                        content = only_doc.get("content", "")
+                        if content:
+                            return content[:8000]
+            except Exception:
+                pass
+
             fpath = Path(path)
             if not fpath.exists():
                 return f"Fichier introuvable : {path}"
             ext = fpath.suffix.lower()
             try:
                 if ext == ".pdf":
-                    result = self.pdf_processor.process(str(fpath))
-                    return result.get("content", str(result))[:8000]
+                    text = self.pdf_processor.extract_text(str(fpath))
+                    return text[:8000]
                 elif ext in (".docx", ".doc"):
-                    result = self.docx_processor.process(str(fpath))
-                    return result.get("content", str(result))[:8000]
+                    result = self.docx_processor.extract_text(str(fpath))
+                    return result.get("content", "")[:8000]
                 else:
                     return fpath.read_text(encoding="utf-8", errors="replace")[:8000]
             except Exception as exc:
@@ -952,11 +981,13 @@ Que voulez-vous que je fasse pour vous ?"""
             # Ajouter le contexte des documents chargés si disponible
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
-                doc_names = list(full_context["stored_documents"].keys())
-                system_prompt += (
-                    f"\n\nDocuments disponibles en mémoire : {', '.join(doc_names)}. "
-                    "Utilise search_memory ou read_local_file pour y accéder."
-                )
+                doc_sections = []
+                for doc_name, doc_data in full_context["stored_documents"].items():
+                    doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
+                    if doc_content:
+                        doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
+                if doc_sections:
+                    system_prompt += "\n\nContenu des documents chargés par l'utilisateur :\n" + "\n\n".join(doc_sections)
 
             # Outil d'interruption vérification
             def tool_executor(tool_name: str, arguments: dict) -> str:
@@ -1122,18 +1153,41 @@ Que voulez-vous que je fasse pour vous ?"""
         "tu vas bien", "vous allez bien",
         # Clôture
         "au revoir", "bye", "à bientôt", "a bientot", "bonne journée", "merci",
-        # Identité du modèle
+        # Identité du modèle — nom / présentation
         "qui es tu", "qui êtes vous", "qui etes vous", "qui est tu",
         "tu t'appelles", "comment tu t'appelles", "ton nom", "quel est ton nom",
-        "présente-toi", "présentes toi", "tu es quoi",
+        "présente-toi", "présentes toi", "tu es quoi", "c'est quoi my ai",
+        "c'est quoi my_ai", "my ai c'est quoi", "my_ai c'est quoi",
+        # Rôle / utilité / capacités
+        "a quoi tu sert", "à quoi tu sert", "à quoi tu sers", "tu sers a quoi", "tu sers à quoi",
+        "a quoi ca sert", "à quoi ça sert", "a quoi sert", "à quoi sert",
+        "tu fais quoi", "tu peux faire quoi", "tu peux quoi",
+        "quel est ton role", "quel est ton rôle", "c'est quoi ton role",
+        "c'est quoi ton rôle", "quel est votre role", "quel est votre rôle",
+        "ta fonction", "votre fonction", "tes capacités", "vos capacités",
+        "tes fonctionnalités", "tu es capable de", "tu peux m'aider",
+        "comment tu peux m'aider", "comment peux-tu m'aider",
+        "t'es un", "t'es quoi", "qu'est-ce que tu es",
+        "qu'est ce que tu es", "qu'est-ce que tu fais", "qu'est ce que tu fais",
+        "décris-toi", "décris toi", "parle moi de toi", "parle-moi de toi",
+        "présente toi", "dis moi qui tu es",
     ]
 
     def _is_conversational(self, query: str) -> bool:
         """Retourne True si la requête est purement conversationnelle.
         Dans ce cas, les outils ne doivent PAS être fournis au LLM.
+        Utilise des frontières de mots pour éviter les faux positifs
+        (ex: 'hi' dans 'machine', 'hey' dans 'they', etc.)
         """
-        q = query.lower().strip().rstrip("?!.")
-        return any(sig in q for sig in self._CONVERSATIONAL_SIGNALS)
+        # strip() supprime les espaces de début/fin, rstrip enlève ponctuation
+        # puis un second strip() retire l'espace résiduel quand l'utilisateur
+        # écrit « ? » avec une espace avant (ex : "à quoi tu sert ?")
+        q = query.lower().strip().rstrip("?!.").strip()
+        for sig in self._CONVERSATIONAL_SIGNALS:
+            # Frontières de mots pour éviter les faux positifs sur les sous-chaînes
+            if _re.search(r'\b' + _re.escape(sig) + r'\b', q):
+                return True
+        return False
 
     def _needs_web_search(self, query: str) -> bool:
         """Retourne True si la requête nécessite une info fraîche du web."""
@@ -1180,11 +1234,68 @@ Que voulez-vous que je fasse pour vous ?"""
 
         return query
 
+    def is_complex_query(self, query: str) -> bool:
+        """Détermine si une requête nécessite un raisonnement multi-étapes (Thinking Mode)."""
+        if len(query) > 150:
+            return True
+        complex_kw = [
+            # Français — explication / analyse
+            "explique", "expliquer", "fonctionne", "comment fonctionne",
+            "analyse", "analysé", "analyser",
+            "compare", "comparé", "comparer",
+            "pourquoi", "qu'est-ce que", "qu'est ce que",
+            "quelle est la différence", "comment faire pour",
+            "démontre", "démontrer", "résous", "résoudre",
+            "détaille", "détailler",
+            # Français — création / implémentation
+            "corrige", "corriger", "optimise", "optimiser",
+            "implémente", "implémenter", "améliore", "améliorer",
+            "refactor", "architecture", "conception",
+            "complexe", "avancé", "programme", "application",
+            "projet", "système", "algorithme", "script",
+            "générer", "créer", "générez", "créez",
+            # Anglais
+            "explain", "analyze", "analyse",
+            "debug", "optimize", "implement", "design",
+            "what is the difference", "how does", "how to",
+            "step by step", "étape par étape",
+            "how do i", "how can i",
+        ]
+        q = query.lower()
+        # Seuil minimal à 25 chars pour éviter les requêtes triviales avec un mot-clé seul
+        if sum(1 for kw in complex_kw if kw in q) >= 1 and len(query) > 25:
+            return True
+        if query.count("?") >= 2:
+            return True
+        if "```" in query or query.count("`") >= 4:
+            return True
+        return False
+
+    def is_ollama_active(self) -> bool:
+        """Retourne True si Ollama est disponible et actif (ping live)."""
+        llm = getattr(self.local_ai, "local_llm", None)
+        if llm is None:
+            return False
+        try:
+            url = getattr(llm, "ollama_url", "http://localhost:11434/api/generate")
+            ping_url = url.replace("/api/generate", "")
+            resp = _req.get(ping_url, timeout=2)
+            alive = resp.status_code == 200
+            if alive and not getattr(llm, "is_ollama_available", False):
+                # Ollama est maintenant disponible — mettre à jour le flag en cache
+                llm.is_ollama_available = True
+                self.logger.info("🦙 [OLLAMA] Disponibilité détectée tardivement, flag mis à jour")
+            return alive
+        except Exception:
+            return getattr(llm, "is_ollama_available", False)
+
     def process_query_stream(
         self,
         user_input: str,
         on_token=None,
         on_tool_call=None,
+        on_thinking_token=None,
+        on_thinking_complete=None,
         image_base64: Optional[str] = None,
         context: Optional[Dict] = None,
         is_interrupted_callback=None,
@@ -1211,6 +1322,9 @@ Que voulez-vous que je fasse pour vous ?"""
             )
 
         llm = getattr(self.local_ai, "local_llm", None)
+        # Rafraîchir le flag si nécessaire (cas : Ollama démarré après le lancement de l'app)
+        if llm is not None and not getattr(llm, "is_ollama_available", False):
+            llm.is_ollama_available = self.is_ollama_active()
         if llm is None or not llm.is_ollama_available:
             # Pas d'Ollama → fallback direct
             return self.local_ai.generate_response_stream(
@@ -1220,7 +1334,7 @@ Que voulez-vous que je fasse pour vous ?"""
         # ----------------------------------------------------------------
         # 1.5. FAQ / Enrichissement — Priorité absolue avant MCP
         # ----------------------------------------------------------------
-        if self.ml_ai is not None:
+        if self.ml_ai is not None and on_thinking_token is None:
             try:
                 faq_response = self.ml_ai.predict(user_input)
                 if faq_response is not None and str(faq_response).strip():
@@ -1241,10 +1355,39 @@ Que voulez-vous que je fasse pour vous ?"""
                 self.logger.warning("[FAQ ENGINE] Erreur consultation FAQ: %s", _faq_exc)
 
         # ----------------------------------------------------------------
+        # 1.7. MODE THINKING — passe de raisonnement pour requêtes complexes
+        # ----------------------------------------------------------------
+        thinking_context = ""
+        print(f"🧠 [SECTION 1.7] on_thinking_token={'défini' if on_thinking_token else 'None'} | conversational={self._is_conversational(user_input)}")
+        if (on_thinking_token is not None
+                and not self._is_conversational(user_input)):
+            print("🧠 [THINKING] ▶ Démarrage de la passe de raisonnement...")
+            thinking_context = llm.generate_thinking_stream(
+                original_prompt=user_input,
+                on_thinking_token=on_thinking_token,
+                is_interrupted_callback=is_interrupted_callback,
+            )
+            print(f"🧠 [THINKING] ✓ Terminé — {len(thinking_context)} chars")
+            if on_thinking_complete:
+                on_thinking_complete()
+
+        # Construire le prompt enrichi pour la réponse finale
+        effective_input = user_input
+        if thinking_context:
+            effective_input = (
+                f"{user_input}\n\n"
+                f"[Raisonnement préalable effectué]\n{thinking_context}\n\n"
+                "En te basant sur cette réflexion, donne maintenant ta réponse "
+                "directe et complète."
+            )
+
+        # ----------------------------------------------------------------
         # 2. Exécution via MCP Tool Calling (Ollama)
         # ----------------------------------------------------------------
         try:
-            tools = self.mcp_manager.get_ollama_tools()
+            # En mode Thinking, désactiver les outils pour éviter que le modèle
+            # ne génère des tool-calls JSON parasites sur le prompt enrichi
+            tools = [] if thinking_context else self.mcp_manager.get_ollama_tools()
 
             # Construire le system prompt
             cwd = os.getcwd()
@@ -1265,8 +1408,13 @@ Que voulez-vous que je fasse pour vous ?"""
             # Ajouter le contexte des documents chargés
             full_context = self._prepare_context(user_input, context)
             if full_context.get("stored_documents"):
-                doc_names = list(full_context["stored_documents"].keys())
-                system_prompt += f"\n\nDocuments disponibles en mémoire : {', '.join(doc_names)}. Utilise read_local_file ou search_memory pour y accéder."
+                doc_sections = []
+                for doc_name, doc_data in full_context["stored_documents"].items():
+                    doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
+                    if doc_content:
+                        doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
+                if doc_sections:
+                    system_prompt += "\n\nContenu des documents chargés par l'utilisateur :\n" + "\n\n".join(doc_sections)
 
             # ----------------------------------------------------------------
             # 2.1. Requêtes sur l'historique de conversation — réponse directe
@@ -1392,7 +1540,7 @@ Que voulez-vous que je fasse pour vous ?"""
 
             if tools:
                 result = llm.generate_with_tools_stream(
-                    prompt=user_input,
+                    prompt=effective_input,
                     tools=tools,
                     tool_executor=tool_executor,
                     system_prompt=system_prompt,
@@ -1443,7 +1591,7 @@ Que voulez-vous que je fasse pour vous ?"""
                             tool_result = tool_executor(t_name, t_args)
                             # Re-stream la synthèse via Ollama avec le résultat injecté
                             followup = llm.generate_stream(
-                                prompt=user_input,
+                                prompt=effective_input,
                                 system_prompt=(
                                     system_prompt
                                     + f"\n\nRésultat de l'outil '{t_name}':\n{tool_result}"
@@ -1465,7 +1613,7 @@ Que voulez-vous que je fasse pour vous ?"""
                                     response_text[:120],
                                 )
                             retry = llm.generate_stream(
-                                    prompt=user_input,
+                                    prompt=effective_input,
                                     system_prompt=system_prompt,
                                     on_token=on_token,
                                     is_interrupted_callback=is_interrupted_callback,
@@ -1482,7 +1630,7 @@ Que voulez-vous que je fasse pour vous ?"""
             else:
                 # Fallback si aucun outil n'est disponible
                 response = llm.generate_stream(
-                    prompt=user_input,
+                    prompt=effective_input,
                     system_prompt=system_prompt,
                     on_token=on_token,
                     is_interrupted_callback=is_interrupted_callback,

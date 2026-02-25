@@ -163,6 +163,8 @@ class ChatAreaMixin:
         conv_container.grid(row=0, column=0, sticky="nsew", padx=20, pady=(10, 20))
         conv_container.grid_columnconfigure(0, weight=1)
         conv_container.grid_rowconfigure(0, weight=1)
+        # Référence pour l'écran d'accueil (masquage/affichage)
+        self._conv_container = conv_container
 
         # Zone de scroll pour les messages
         if self.use_ctk:

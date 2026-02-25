@@ -46,19 +46,21 @@ class FileHandlingMixin:
 
     def _on_drag_enter_chat(self, _event):
         """Quand un fichier entre dans la fenêtre : bordure orange sur la zone de texte"""
-        # Ne highlight que si l'onglet Chat est actif
-        if not hasattr(self, 'input_text') or self.input_text is None:
+        accent = self.colors.get("accent", "#ff6b47")
+        # Écran d'accueil actif → highlight le home input
+        if getattr(self, "_home_screen_active", False):
+            target = getattr(self, "_home_input", None)
+        else:
+            target = getattr(self, "input_text", None)
+        if target is None:
             return
         try:
             if self.use_ctk:
-                self.input_text.configure(
-                    border_color=self.colors.get("accent", "#ff6b47"),
-                    border_width=3,
-                )
+                target.configure(border_color=accent, border_width=3)
             else:
-                self.input_text.configure(
-                    highlightbackground=self.colors.get("accent", "#ff6b47"),
-                    highlightcolor=self.colors.get("accent", "#ff6b47"),
+                target.configure(
+                    highlightbackground=accent,
+                    highlightcolor=accent,
                     highlightthickness=3,
                 )
         except Exception:
@@ -66,18 +68,21 @@ class FileHandlingMixin:
 
     def _on_drag_leave_chat(self, _event):
         """Quand un fichier quitte la fenêtre : réinitialiser la bordure"""
-        if not hasattr(self, 'input_text') or self.input_text is None:
+        border = self.colors.get("border", "#404040")
+        # Réinitialiser le bon widget selon l'écran affiché
+        if getattr(self, "_home_screen_active", False):
+            target = getattr(self, "_home_input", None)
+        else:
+            target = getattr(self, "input_text", None)
+        if target is None:
             return
         try:
             if self.use_ctk:
-                self.input_text.configure(
-                    border_color=self.colors.get("border", "#404040"),
-                    border_width=1,
-                )
+                target.configure(border_color=border, border_width=1)
             else:
-                self.input_text.configure(
-                    highlightbackground=self.colors.get("border", "#404040"),
-                    highlightcolor=self.colors.get("border", "#404040"),
+                target.configure(
+                    highlightbackground=border,
+                    highlightcolor=border,
                     highlightthickness=1,
                 )
         except Exception:
@@ -239,6 +244,9 @@ class FileHandlingMixin:
         try:
             filename = os.path.basename(file_path)
 
+            # Quitter l'écran d'accueil si actif (cas où le 1er message est un fichier)
+            self._dismiss_home_screen()
+
             # Animation de traitement
             self.is_thinking = True
             self.add_message_bubble(f"📎 Fichier chargé : **{filename}**", is_user=True)
@@ -393,6 +401,8 @@ Vous pouvez maintenant me poser des questions sur ce document."""
             ],
         )
         if file_path:
+            # Quitter l'écran d'accueil si actif (cas où le 1er message est un fichier)
+            self._dismiss_home_screen()
             self.add_message_bubble(
                 f"🖼️ **Image chargée** : {os.path.basename(file_path)}", is_user=True
             )
@@ -499,6 +509,9 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                 temp_path = os.path.join(temp_dir, "clipboard_image.png")
                 img.save(temp_path, format="PNG")
 
+                # Quitter l'écran d'accueil si actif (cas où le 1er message est un fichier)
+                self._dismiss_home_screen()
+
                 # Ajouter message utilisateur
                 self.add_message_bubble("🖼 **Image collée** depuis le presse-papier", is_user=True)
 
@@ -514,6 +527,8 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                     if isinstance(item, str) and os.path.isfile(item):
                         ext = os.path.splitext(item)[1].lower()
                         if ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
+                            # Quitter l'écran d'accueil si actif
+                            self._dismiss_home_screen()
                             self.add_message_bubble(
                                 f"🖼 **Image collée** : {os.path.basename(item)}", is_user=True
                             )

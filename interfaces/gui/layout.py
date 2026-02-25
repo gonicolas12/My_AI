@@ -167,6 +167,9 @@ class LayoutMixin:
         chat_content.grid_columnconfigure(0, weight=1)
         chat_content.grid_rowconfigure(0, weight=1)
 
+        # Référence pour l'écran d'accueil
+        self._chat_content_frame = chat_content
+
         # Zone de conversation (utilise l'ancienne méthode)
         self.create_conversation_area_in_frame(chat_content)
 
@@ -195,8 +198,31 @@ class LayoutMixin:
             use_ctk=self.use_ctk,
         )
 
+    def _update_header_buttons_visibility(self):
+        """Affiche ou masque les boutons Clear Chat / Aide selon le contexte.
+        Visible uniquement sur l'onglet Chat ET hors écran d'accueil."""
+        show = (
+            getattr(self, "_current_tab", "chat") == "chat"
+            and not getattr(self, "_home_screen_active", False)
+        )
+        for btn in (
+            getattr(self, "clear_btn", None),
+            getattr(self, "help_btn", None),
+        ):
+            if btn is None:
+                continue
+            try:
+                if show:
+                    btn.grid()
+                else:
+                    btn.grid_remove()
+            except Exception:
+                pass
+
     def switch_tab(self, tab_id):
         """Change d'onglet"""
+        self._current_tab = tab_id
+
         # Cacher tous les onglets
         for tid, frame in self.tab_frames.items():
             frame.grid_remove()
@@ -228,6 +254,9 @@ class LayoutMixin:
                         bg=self.colors["bg_secondary"],
                         fg=self.colors["text_secondary"],
                     )
+
+        # Afficher/masquer les boutons Clear Chat / Aide selon l'onglet actif
+        self._update_header_buttons_visibility()
 
     def create_conversation_area_in_frame(self, parent):
         """Crée la zone de conversation dans un frame spécifique"""
@@ -262,55 +291,17 @@ class LayoutMixin:
 
     def create_modern_header(self):
         """Crée l'en-tête moderne style Claude"""
+        # Restaurer la hauteur de la barre d'en-tête (identique à l'original)
+        self.main_container.grid_rowconfigure(0, minsize=80)
+
         header_frame = self.create_frame(
             self.main_container, fg_color=self.colors["bg_primary"]
         )
-        header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
-        header_frame.grid_columnconfigure(0, weight=1)  # Gauche
-        header_frame.grid_columnconfigure(1, weight=0)  # Centre (boutons tabs)
-        header_frame.grid_columnconfigure(2, weight=1)  # Droite
+        header_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=0)
+        # Seule la colonne des boutons a un poids (boutons collés à droite)
+        header_frame.grid_columnconfigure(2, weight=1)
 
-        # Container gauche (logo + titre)
-        left_frame = self.create_frame(
-            header_frame, fg_color=self.colors["bg_primary"]
-        )
-        left_frame.grid(row=0, column=0, sticky="w")
-
-        # Logo/Icône - taille réduite
-        logo_label = self.create_label(
-            left_frame,
-            text="🤖",
-            font=("Segoe UI", self.get_current_font_size("header")),  # Dynamique
-            text_color=self.colors["accent"],  # text_color au lieu de fg
-            fg_color=self.colors["bg_primary"],
-        )
-        logo_label.grid(row=0, column=0, padx=(0, 15))
-
-        # Titre principal
-        title_frame = self.create_frame(
-            left_frame, fg_color=self.colors["bg_primary"]
-        )
-        title_frame.grid(row=0, column=1, sticky="w", pady=(8, 0))
-
-        title_label = self.create_label(
-            title_frame,
-            text="My Personal AI",
-            font=self.fonts["title"],
-            text_color=self.colors["text_primary"],  # text_color au lieu de fg
-            fg_color=self.colors["bg_primary"],
-        )
-        title_label.grid(row=0, column=0, sticky="w")
-
-        subtitle_label = self.create_label(
-            title_frame,
-            text="Assistant IA Local - Prêt à vous aider",
-            font=self.fonts["subtitle"],
-            text_color=self.colors["text_secondary"],  # text_color au lieu de fg
-            fg_color=self.colors["bg_primary"],
-        )
-        subtitle_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
-
-        # Boutons d'onglets au centre
+        # Boutons d'onglets centrés (place pour centrage absolu)
         self.create_tab_buttons(header_frame)
 
         # Boutons d'action à droite
@@ -319,7 +310,8 @@ class LayoutMixin:
     def create_tab_buttons(self, parent):
         """Crée les boutons d'onglets Chat/Agents au centre du header"""
         tabs_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
-        tabs_frame.grid(row=0, column=1, padx=20)
+        # Centrage absolu horizontal et vertical dans le header
+        tabs_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         self.tab_buttons = {}
 
@@ -359,7 +351,7 @@ class LayoutMixin:
     def create_header_buttons(self, parent):
         """Crée les boutons de l'en-tête"""
         buttons_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
-        buttons_frame.grid(row=0, column=2, sticky="e", padx=(10, 0))
+        buttons_frame.grid(row=0, column=2, sticky="e", padx=(10, 0), pady=35)
 
         # Bouton Clear Chat
         self.clear_btn = self.create_modern_button(
@@ -393,6 +385,9 @@ class LayoutMixin:
         )
         input_container.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 20))
         input_container.grid_columnconfigure(0, weight=1)
+
+        # Référence pour l'écran d'accueil (ajustement padding)
+        self._input_container = input_container
 
         # Zone de saisie avec bordure moderne
         input_wrapper = self.create_frame(
@@ -440,31 +435,97 @@ class LayoutMixin:
         button_frame.grid(row=1, column=0, sticky="ew")
         button_frame.grid_columnconfigure(1, weight=1)
 
-        # Boutons de fichiers
-        file_buttons = self.create_frame(
-            button_frame, fg_color=self.colors["bg_primary"]
-        )
-        file_buttons.grid(row=0, column=0, sticky="w")
+        # ── Bouton "+" avec menu déroulant vers le haut ──────────────────────
+        _chat_file_entries = [
+            ("📄  PDF",         self.load_pdf_file),
+            ("📝  DOCX",        self.load_docx_file),
+            ("💻  Code",        self.load_code_file),
+            ("🖼  Image",        self.load_image_file),
+        ]
+        _chat_popup_ref = [None]
 
-        self.pdf_btn = self.create_modern_button(
-            file_buttons, text="📄 Pdf", command=self.load_pdf_file, style="file"
-        )
-        self.pdf_btn.grid(row=0, column=0, padx=(0, 5))
+        def _close_chat_popup(popup):
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+            _chat_popup_ref[0] = None
 
-        self.docx_btn = self.create_modern_button(
-            file_buttons, text="📝 Docx", command=self.load_docx_file, style="file"
-        )
-        self.docx_btn.grid(row=0, column=1, padx=(0, 5))
+        def _open_chat_file_menu():
+            """Menu déroulant vers le haut, aligné sur le bouton '+'."""
+            if _chat_popup_ref[0] is not None:
+                _close_chat_popup(_chat_popup_ref[0])
+                return
 
-        self.code_btn = self.create_modern_button(
-            file_buttons, text="💻 Code", command=self.load_code_file, style="file"
-        )
-        self.code_btn.grid(row=0, column=2, padx=(0, 5))
+            bg     = self.colors.get("bg_secondary", "#1e1e1e")
+            fg     = self.colors.get("text_primary",  "#ffffff")
+            accent = self.colors.get("accent",        "#ff6b47")
+            font   = ("Segoe UI", 11)
 
-        self.image_btn = self.create_modern_button(
-            file_buttons, text="🖼 Image", command=self.load_image_file, style="file"
-        )
-        self.image_btn.grid(row=0, column=3, padx=(0, 10))
+            popup = tk.Toplevel(self.root)
+            popup.overrideredirect(True)
+            popup.configure(bg=bg)
+            popup.attributes("-topmost", True)
+            _chat_popup_ref[0] = popup
+
+            for i, (_lbl, _cmd) in enumerate(_chat_file_entries):
+                def _make_cb(cmd, pop=popup):
+                    def _cb():
+                        _close_chat_popup(pop)
+                        cmd()
+                    return _cb
+                btn = tk.Label(
+                    popup, text=_lbl, bg=bg, fg=fg, font=font,
+                    anchor="w", padx=14, pady=7, cursor="hand2",
+                )
+                btn.grid(row=i, column=0, sticky="ew")
+                popup.grid_columnconfigure(0, weight=1)
+                cb = _make_cb(_cmd)
+                btn.bind("<Button-1>", lambda e, c=cb: c())
+                btn.bind("<Enter>",    lambda e, b=btn: b.configure(bg=accent, fg="#ffffff"))
+                btn.bind("<Leave>",    lambda e, b=btn: b.configure(bg=bg,     fg=fg))
+
+            # Positionner au-dessus du bouton
+            popup.update_idletasks()
+            ph = popup.winfo_reqheight()
+            bx = self.file_plus_btn.winfo_rootx()
+            by = self.file_plus_btn.winfo_rooty() - ph
+            popup.geometry(f"+{bx}+{by}")
+
+            def _on_focus_out(e):
+                self.root.after(50, lambda: _close_chat_popup(popup) if _chat_popup_ref[0] is popup else None)
+
+            popup.bind("<FocusOut>", _on_focus_out)
+            popup.bind("<Escape>",   lambda e: _close_chat_popup(popup))
+            self.root.bind("<Button-1>",
+                           lambda e: _close_chat_popup(popup) if _chat_popup_ref[0] is popup else None,
+                           add="+")
+            popup.focus_set()
+
+        if self.use_ctk:
+            self.file_plus_btn = ctk.CTkButton(
+                button_frame,
+                text="＋",
+                command=_open_chat_file_menu,
+                fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
+                hover_color=self.colors.get("button_hover", "#3a3a3a"),
+                text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 18),
+                corner_radius=6,
+                width=42,
+                height=32,
+            )
+        else:
+            self.file_plus_btn = tk.Button(
+                button_frame,
+                text="＋",
+                command=_open_chat_file_menu,
+                bg=self.colors.get("bg_secondary", "#2a2a2a"),
+                fg=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 18),
+                relief="flat", bd=0, padx=8,
+            )
+        self.file_plus_btn.grid(row=0, column=0, sticky="w")
 
         # Bouton d'envoi principal
         self.send_button = self.create_modern_button(

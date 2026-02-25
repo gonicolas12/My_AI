@@ -147,10 +147,12 @@ class ContextManagementMixin:
             elif file_ext in [".docx", ".doc"] and self.docx_processor:
                 try:
                     result = self.docx_processor.read_docx(file_path)
-                    content = result.get("text", "")
+                    content_data = result.get("content", {}) if result.get("success") else {}
+                    content = content_data.get("text", "") if isinstance(content_data, dict) else ""
                     processor_used = "DOCX"
+                    para_count = len(content_data.get("paragraphs", [])) if isinstance(content_data, dict) else 0
                     print(
-                        f"📄 [DOCX] Traitement DOCX: {result.get('paragraphs', 0)} paragraphes"
+                        f"📄 [DOCX] Traitement DOCX: {para_count} paragraphes"
                     )
                 except (OSError, ValueError) as e:
                     print(f"⚠️ Erreur processeur DOCX: {e}")

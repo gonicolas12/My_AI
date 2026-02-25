@@ -24,17 +24,17 @@
 <tr>
 <td width="50%">
 
-**🧠 Mémoire Vectorielle Étendue**  
+**💾 Mémoire Vectorielle Étendue**  
 Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
 **🤖 9 Agents IA Spécialisés**  
 Code, Web, Analyse, Créativité, Debug, Sécurité... et création d'agents personnalisés.
 
-**🔌 Intégration MCP (Model Context Protocol)**  
-Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
+**🧠 Mode Thinking — Raisonnement en Deux Passes**
+Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répondre.
 
-**🎓 RLHF Intégré**  
-Chaque feedback enrichit votre base d'entraînement personnelle pour affiner le modèle à votre usage.
+**🔌 Intégration MCP (Model Context Protocol)**
+Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
 
 </td>
 <td width="50%">
@@ -68,7 +68,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 | Fonctionnalité | Détail |
 |---|---|
 | 🎨 **Design moderne** | Interface sombre élégante avec bulles de chat optimisées |
-| ✨ **Formatage avancé** | Support complet du **texte en gras** Unicode et blocs de code colorisés |
+| 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
 | 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
 | 🎓 **Feedback RLHF** | Boutons 👍 / 👎 sous chaque réponse, enregistrement automatique |
 | 📂 **Gestion de fichiers** | Glisser-déposer pour ajouter des documents à la mémoire |
@@ -133,12 +133,11 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 
 | Capacité | Valeur |
 |---|---|
-| **🧠 Mémoire vectorielle interne** | jusqu'à **1 048 576 tokens** |
+| **💾 Mémoire vectorielle interne** | jusqu'à **1 048 576 tokens** |
 | **📝 Résumé glissant** | automatique dès 24k tokens |
 | **📦 Compression texte** | jusqu'à 52:1 |
 | **🔍 Recherche sémantique** | TF-IDF + similarité cosinus |
 | **🗃️ Base vectorielle** | ChromaDB (local) |
-| **💾 Persistance** | SQLite optimisé |
 
 
 - **Compression intelligente multi-niveaux** : texte, code, documents
@@ -321,7 +320,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | [📦 Installation](docs/INSTALLATION.md) | Guide d'installation complet |
 | [🌐 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
 | [⚡ Optimisation](docs/OPTIMIZATION.md) | Conseils et techniques d'optimisation locale |
-| [🧠 Mémoire Vectorielle 1M](docs/ULTRA_1M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
+| [💾 Mémoire Vectorielle 1M](docs/ULTRA_1M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
 | [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |

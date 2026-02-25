@@ -1,6 +1,6 @@
 # 🚀 Documentation Mémoire Vectorielle Étendue - v5.0.0 (3 Septembre 2025)
 
-## 🧠 Vue d'Ensemble : Mémoire Interne de 1M Tokens
+## 💾 Vue d'Ensemble : Mémoire Interne de 1M Tokens
 
 Le système Ultra de My Personal AI v5.0.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et SQLite). Il est important de distinguer deux notions différentes :
 

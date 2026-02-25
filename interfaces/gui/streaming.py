@@ -48,12 +48,15 @@ class StreamingMixin:
                 }
             )
 
+            _base_row = len(self.conversation_history) - 1
+            _row_offset = 1 if getattr(self, "_reasoning_widget_row", None) is not None else 0
             msg_container.grid(
-                row=len(self.conversation_history) - 1,
+                row=_base_row + _row_offset,
                 column=0,
                 sticky="ew",
                 pady=(0, 12),
             )
+            self._reasoning_widget_row = None  # Reset après usage
             msg_container.grid_columnconfigure(0, weight=1)
 
             # Frame de centrage
@@ -66,17 +69,21 @@ class StreamingMixin:
             center_frame.grid_columnconfigure(0, weight=0)
             center_frame.grid_columnconfigure(1, weight=1)
 
-            # Icône IA
+            # Icône IA — masquée (invisible) si un widget Raisonnement vient d'être affiché,
+            # mais toujours présente comme spacer pour que le texte reste aligné à column=1
+            _show_icon = not getattr(self, "_thinking_mode_active", False)
+            self._thinking_mode_active = False  # Reset après usage
             icon_label = self.create_label(
                 center_frame,
                 text="🤖",
                 font=("Segoe UI", 16),
                 fg_color=self.colors["bg_chat"],
-                text_color=self.colors["accent"],
+                # Visible si pas de Raisonnement, invisible sinon (même couleur que fond)
+                text_color=self.colors["accent"] if _show_icon else self.colors["bg_chat"],
             )
             icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
 
-            # Container pour le message
+            # Container pour le message — toujours à column=1 pour un alignement cohérent
             message_container = self.create_frame(
                 center_frame, fg_color=self.colors["bg_chat"]
             )
@@ -1222,4 +1229,207 @@ class StreamingMixin:
         except Exception as e:
             print(f"❌ [STREAM] Erreur finalisation: {e}")
             traceback.print_exc()
+
+    # ── THINKING MODE — Widget Raisonnement dépliable ────────────────────────
+
+    def _create_reasoning_widget(self):
+        """
+        Crée le widget Raisonnement dans le même style visuel que l'indicateur MCP :
+        🤖 icon + texte animé, centré avec padding 250px, expandable.
+        Démarre replié (▶) par défaut.
+        """
+        try:
+            self._reasoning_widget_row = len(self.conversation_history)
+            self._reasoning_expanded = False   # Replié par défaut
+            self._thinking_mode_active = True  # Signale à la bulle réponse de ne pas re-afficher 🤖
+            self._pending_thinking_tokens = []  # Buffer pour la race condition widget/tokens
+            self._reasoning_auto_expanded = False  # Auto-expand initial au 1er token uniquement
+
+            # Container principal — identique aux bulles IA / indicateur MCP
+            self._reasoning_container = self.create_frame(
+                self.chat_frame, fg_color=self.colors["bg_chat"]
+            )
+            self._reasoning_container.grid(
+                row=self._reasoning_widget_row,
+                column=0,
+                sticky="ew",
+                pady=(0, 4),
+            )
+            self._reasoning_container.grid_columnconfigure(0, weight=1)
+
+            # Frame de centrage — même padding 250px que les bulles IA
+            center_frame = self.create_frame(
+                self._reasoning_container, fg_color=self.colors["bg_chat"]
+            )
+            center_frame.grid(
+                row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew"
+            )
+            center_frame.grid_columnconfigure(0, weight=0)
+            center_frame.grid_columnconfigure(1, weight=1)
+
+            # Icône IA — identique aux bulles IA
+            icon_label = self.create_label(
+                center_frame,
+                text="🤖",
+                font=("Segoe UI", 16),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors["accent"],
+            )
+            icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+
+            # Zone reasoning (column 1) — header + contenu dépliable
+            reasoning_area = self.create_frame(
+                center_frame, fg_color=self.colors["bg_chat"]
+            )
+            reasoning_area.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
+            reasoning_area.grid_columnconfigure(1, weight=1)
+
+            # ── Header : toggle ▶ (label cliquable, fond identique à l'app) ──
+            self._reasoning_toggle_btn = self.create_label(
+                reasoning_area,
+                text="▶",
+                font=("Segoe UI", 11),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors.get("text_secondary", "#888888"),
+            )
+            try:
+                self._reasoning_toggle_btn.configure(cursor="hand2")
+            except Exception:
+                pass
+            self._reasoning_toggle_btn.grid(
+                row=0, column=0, padx=(0, 4), pady=(4, 4), sticky="w"
+            )
+            self._reasoning_toggle_btn.bind(
+                "<Button-1>", lambda e: self._toggle_reasoning_widget()
+            )
+
+            # Label animé style MCP indicator : gris, taille 11
+            self._reasoning_label = self.create_label(
+                reasoning_area,
+                text="Raisonnement.",
+                font=("Segoe UI", 11),
+                fg_color=self.colors["bg_chat"],
+                text_color="#888888",
+            )
+            self._reasoning_label.grid(
+                row=0, column=1, sticky="w", padx=(4, 0), pady=(4, 4)
+            )
+            self._reasoning_label.bind(
+                "<Button-1>", lambda e: self._toggle_reasoning_widget()
+            )
+
+            # ── Contenu dépliable (masqué par défaut) ────────────────────────
+            self._reasoning_content = self.create_frame(
+                reasoning_area, fg_color=self.colors["bg_chat"]
+            )
+            self._reasoning_content.grid(
+                row=1, column=0, columnspan=2, sticky="ew", pady=(0, 4)
+            )
+            self._reasoning_content.grid_columnconfigure(0, weight=1)
+            # Replié par défaut — cache le contenu
+            self._reasoning_content.grid_remove()
+
+            bg_thinking = self.colors.get("bg_secondary", "#1e1e2e")
+            self._reasoning_text_widget = tk.Text(
+                self._reasoning_content,
+                height=6,
+                width=80,
+                bg=bg_thinking,
+                fg="#aaaaaa",
+                font=("Segoe UI", 10, "italic"),
+                wrap=tk.WORD,
+                state="disabled",
+                relief="flat",
+                bd=0,
+                cursor="arrow",
+                padx=8,
+                pady=4,
+            )
+            self._reasoning_text_widget.grid(row=0, column=0, sticky="ew")
+
+            # Scroll isolé : la molette ne propage pas vers le chat principal
+            def _scroll_reasoning(event, _w=self._reasoning_text_widget):
+                if getattr(event, "delta", 0):
+                    _w.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                elif getattr(event, "num", 0) == 4:
+                    _w.yview_scroll(-1, "units")
+                elif getattr(event, "num", 0) == 5:
+                    _w.yview_scroll(1, "units")
+                return "break"  # Bloque la propagation vers le canvas principal
+
+            self._reasoning_text_widget.bind("<MouseWheel>", _scroll_reasoning)
+            self._reasoning_text_widget.bind("<Button-4>", _scroll_reasoning)
+            self._reasoning_text_widget.bind("<Button-5>", _scroll_reasoning)
+
+            # Démarrer l'animation des points
+            self._start_reasoning_dots()
+            self.scroll_to_bottom()
+
+        except Exception as exc:
+            print(f"⚠️ [Reasoning Widget] Erreur création: {exc}")
+
+    def _stream_thinking_token(self, token):
+        """Insère un token de raisonnement dans le widget thinking.
+        Bufferise les tokens si le widget n'est pas encore créé (race condition).
+        Auto-expand le widget au premier token pour que l'utilisateur voie le raisonnement."""
+        try:
+            if not hasattr(self, "_reasoning_text_widget") or not self._reasoning_text_widget.winfo_exists():
+                # Widget pas encore prêt — bufferiser pour flush ultérieur
+                if not hasattr(self, "_pending_thinking_tokens"):
+                    self._pending_thinking_tokens = []
+                self._pending_thinking_tokens.append(token)
+                return
+
+            # Auto-expand une seule fois au premier token — respecte les closes manuelles ensuite
+            if not getattr(self, "_reasoning_auto_expanded", False):
+                self._reasoning_auto_expanded = True
+                if not self._reasoning_expanded:
+                    if hasattr(self, "_reasoning_content"):
+                        self._reasoning_content.grid()
+                    try:
+                        self._reasoning_toggle_btn.configure(text="▼")
+                    except Exception:
+                        pass
+                    self._reasoning_expanded = True
+
+            w = self._reasoning_text_widget
+            w.configure(state="normal")
+
+            # Flush du buffer si des tokens ont été mis en attente
+            pending = getattr(self, "_pending_thinking_tokens", None)
+            if pending:
+                for buffered in pending:
+                    w.insert("end", buffered)
+                self._pending_thinking_tokens = []
+
+            w.insert("end", token)
+            w.see("end")
+            w.configure(state="disabled")
+        except Exception as _e:
+            print(f"⚠️ [THINKING TOKEN] Erreur insertion: {_e}")
+
+    def _finalize_reasoning_widget(self):
+        """Appelé quand la passe thinking est terminée : arrête l'animation."""
+        self._stop_reasoning_dots(_success=True)
+
+    def _toggle_reasoning_widget(self):
+        """Collapse ou expand le contenu du raisonnement."""
+        try:
+            if not hasattr(self, "_reasoning_content"):
+                return
+            if self._reasoning_expanded:
+                self._reasoning_content.grid_remove()
+                try:
+                    self._reasoning_toggle_btn.configure(text="▶")
+                except Exception:
+                    pass
+                self._reasoning_expanded = False
+            else:
+                self._reasoning_content.grid()
+                try:
+                    self._reasoning_toggle_btn.configure(text="▼")
+                except Exception:
+                    pass
+                self._reasoning_expanded = True
+        except Exception:
             self.set_input_state(True)

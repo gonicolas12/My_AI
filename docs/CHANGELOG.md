@@ -1,5 +1,34 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🧠 Version 6.6.0 - Mode Thinking & Refonte Interface (24 Février 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🧠 Mode Thinking — Raisonnement en Deux Passes
+
+- **Détection automatique de complexité** : Le moteur IA analyse chaque requête et déclenche le mode thinking pour les questions complexes (longueur > 150 caractères, mots-clés analytiques, requêtes multi-questions, blocs de code, etc.)
+- **Première passe de raisonnement** : Avant de répondre, l'IA effectue une réflexion interne étape par étape via `generate_thinking_stream()` — sans ajouter ce raisonnement à l'historique de conversation
+- **Streaming temps réel** : Chaque token de raisonnement s'affiche instantanément dans un widget dépliable animé dans le chat
+- **Widget "Raisonnement" animé** :
+  - Titre cycling animé : `Raisonnement.` → `Raisonnement..` → `Raisonnement...` (toutes les 400 ms)
+  - Bouton ▼/▶ pour déplier/replier le contenu
+  - État final : `Raisonnement ✓` quand la réflexion est terminée
+- **Réponse enrichie** : La réponse finale intègre le contexte du raisonnement préalable pour une qualité accrue
+- **Interruption propre** : La passe thinking respecte le bouton STOP et s'arrête immédiatement
+
+#### 🎯 Écran d'Accueil (Home Screen)
+
+- **Nouvelle page d'accueil** : Au lancement, l'interface affiche un écran d'accueil centré avec emoji robot, titre "My_AI" et zone de saisie intégrée
+- **Saisie directe depuis l'accueil** : Taper un message dans l'écran d'accueil et appuyer sur Entrée lance directement la conversation
+- **Transition fluide** : L'écran d'accueil disparaît proprement et le message est transmis au chat
+
+#### 🎨 Refonte du Header
+
+- **Header épuré** : Suppression du logo robot, du titre "My Personal AI" et du sous-titre "Assistant IA Local" en haut à gauche — interface plus minimaliste
+- **Boutons d'onglets parfaitement centrés** : `💬 Chat` et `🤖 Agents` sont maintenant positionnés via `place(relx=0.5)` pour un centrage absolu garanti, indépendant des autres éléments
+
+---
+
 # 🔌 Version 6.5.0 - Intégration MCP (Model Context Protocol) (20 Février 2026)
 
 ### 🚀 Nouveautés Principales

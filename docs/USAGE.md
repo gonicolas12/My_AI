@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v6.5.0
+# 📚 Guide d'Utilisation - My Personal AI v6.6.0
 
 ## 🚀 Démarrage Rapide
 
@@ -141,6 +141,58 @@ exit       # (Alternative)
 
 ---
 
+### 🧠 Mode Thinking — Raisonnement en Deux Passes
+
+Pour les requêtes complexes, l'IA active automatiquement un **mode de raisonnement préalable** avant de générer la réponse finale.
+
+#### Déclenchement automatique
+
+Le mode thinking s'active si la requête remplit l'un de ces critères :
+- **Longueur > 150 caractères**
+- **Mots-clés analytiques** : `explique`, `analyse`, `compare`, `pourquoi`, `comment fonctionne`, `démontre`, `résous`, `débogage`, `optimise`, `implémente`, `architecture`, `step by step`, etc.
+- **Requête > 60 caractères** avec au moins un mot-clé analytique
+- **Plusieurs points d'interrogation** (≥ 2)
+- **Blocs de code** dans la requête
+
+> Le mode thinking ne s'active **pas** pour les questions conversationnelles simples (`bonjour`, `merci`, etc.) ni pour les requêtes avec image jointe.
+
+#### Widget de raisonnement
+
+Quand le thinking est actif, un widget apparaît dans le chat **au-dessus de la réponse** :
+
+```
+┌─────────────────────────────────────────────────┐
+│ ▼  Raisonnement..                               │
+│                                                 │
+│  Voyons cette question sous différents angles.  │
+│  D'abord, le concept principal est...           │
+│  Ensuite, il faut considérer...                 │
+│  Les points clés à retenir sont...              │
+└─────────────────────────────────────────────────┘
+```
+
+- **Titre animé** : `Raisonnement.` → `Raisonnement..` → `Raisonnement...` (cycle toutes les 400 ms)
+- **Streaming temps réel** : les tokens de raisonnement s'affichent au fur et à mesure
+- **Bouton ▼/▶** : cliquer pour replier/déplier le contenu du raisonnement
+- **État final** : `Raisonnement ✓` quand la réflexion est terminée, puis la réponse arrive
+
+#### Exemple d'utilisation
+
+```
+Vous: "Explique-moi comment fonctionne le machine learning étape par étape"
+
+→ Widget "Raisonnement." apparaît (animé)
+→ L'IA réfléchit : concepts clés, angles d'approche, exemples pertinents...
+→ Widget passe à "Raisonnement ✓"
+→ Réponse finale complète et structurée s'affiche
+```
+
+#### Interruption
+
+Cliquer sur le bouton **STOP** pendant la passe de raisonnement arrête immédiatement le thinking et le streaming.
+
+---
+
 ## 🖥️ Utilisation Interface CLI
 
 ### Lancement CLI
@@ -185,7 +237,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v6.5.0:
+État My Personal AI v6.6.0:
 - Modèle: CustomAI avec 1M tokens
 - Mémoire: 1,234,567 tokens utilisés / 1,048,576 max
 - Documents: 3 fichiers en mémoire
@@ -719,11 +771,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v6.5.0
+  MY PERSONAL AI - System Status v6.6.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 6.5.0
+📊 Version: 6.6.0
 💾 Context Manager: MillionTokenContextManager
 
 📈 Context Statistics:
@@ -757,7 +809,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v6.5.0
+My Personal AI v6.6.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1020,7 +1072,7 @@ context_manager:
 
 ---
 
-**Version:** 6.5.0
+**Version:** 6.6.0
 **Interfaces:** GUI (CustomTkinter), CLI
 **Capacité Contexte:** 1,048,576 tokens (1M)
 **Architecture:** 100% Locale

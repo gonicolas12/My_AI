@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v6.5.0
+# 📖 Guide d'Installation - My Personal AI v6.6.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v6.5.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v6.6.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -205,7 +205,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "6.5.0"
+  version: "6.6.0"
   max_tokens: 4096          # Max tokens standard
   ultra_max_tokens: 1048576 # Max tokens ultra mode (1M)
   temperature: 0.7
@@ -602,7 +602,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v6.5.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v6.6.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -759,4 +759,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 6.5.0 | Architecture: 100% locale | Capacité: 1M tokens*
+*Version: 6.6.0 | Architecture: 100% locale | Capacité: 1M tokens*

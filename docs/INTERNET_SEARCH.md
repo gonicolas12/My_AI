@@ -1,8 +1,8 @@
-# 🌐 Guide de la Recherche Internet - My Personal AI v6.5.0
+# 🌐 Guide de la Recherche Internet - My Personal AI v6.6.0
 
 ## 📋 Vue d'ensemble
 
-La version 6.5.0 apporte des améliorations majeures : **recherche internet optimisée**, **extraction de données en temps réel** et **détection d'intentions locales**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, extraire des prix ou données récentes sans être trompée par le cache des sites, et détecter automatiquement les recherches de lieux de proximité.
+La version 6.6.0 apporte des améliorations majeures : **recherche internet optimisée**, **extraction de données en temps réel** et **détection d'intentions locales**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, extraire des prix ou données récentes sans être trompée par le cache des sites, et détecter automatiquement les recherches de lieux de proximité.
 
 ## 🚀 Fonctionnalités
 
@@ -14,7 +14,7 @@ La version 6.5.0 apporte des améliorations majeures : **recherche internet opti
 - **Extraction de contenu** : Analyse des pages web avec BeautifulSoup.
 - **Traitement parallèle** : Analyse simultanée de plusieurs sources.
 
-### 🌤️ Météo Temps Réel (v5.7.0)
+### 🌤️ Météo Temps Réel
 - **Service wttr.in gratuit** : Aucune clé API requise
 - **Détection automatique** : Reconnaît les questions météo naturellement
 - **Toutes les villes du monde** : Paris, Tokyo, New York, Londres, Sydney, São Paulo, etc.

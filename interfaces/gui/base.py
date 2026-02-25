@@ -6,10 +6,12 @@ import platform
 import random
 import re
 import threading
-import traceback
 import tkinter as tk
+import traceback
 from datetime import datetime
 from tkinter import messagebox
+
+import customtkinter as _ctk
 
 from core.ai_engine import AIEngine
 from core.config import Config
@@ -18,11 +20,8 @@ from utils.logger import setup_logger
 
 # Import des styles (uniquement ce qui est utilisé)
 try:
-    from interfaces.modern_styles import (
-        FONT_CONFIG,
-        FONT_SIZES,
-        RESPONSIVE_BREAKPOINTS,
-    )
+    from interfaces.modern_styles import (FONT_CONFIG, FONT_SIZES,
+                                          RESPONSIVE_BREAKPOINTS)
 except ImportError:
     # Fallback si le fichier de styles n'est pas disponible
     FONT_CONFIG = {
@@ -43,7 +42,8 @@ except ImportError:
     }
 
 try:
-    from models.custom_ai_model import CustomAIModel  # noqa: F401  # pylint: disable=unused-import
+    from models.custom_ai_model import \
+        CustomAIModel  # noqa: F401  # pylint: disable=unused-import
 
     ULTRA_1M_AVAILABLE = True
     print("🚀 Modèle CustomAI unifié avec système 1M tokens intégré !")
@@ -178,10 +178,7 @@ class BaseGUI:
         self._streaming_bubble_created = False  # Bulle déjà créée
 
         # Buttons for file actions
-        self.pdf_btn = None
-        self.docx_btn = None
-        self.code_btn = None
-        self.image_btn = None
+        self.file_plus_btn = None  # Bouton "+" menu fichiers (conversation)
 
         # Image attachée en attente d'envoi
         self._pending_image_path = None
@@ -197,6 +194,14 @@ class BaseGUI:
         self.tab_frames = {}
         self.tab_buttons = {}
         self.agents_interface = None
+
+        # Écran d'accueil (home screen style Claude)
+        self._home_screen = None
+        self._home_screen_active = False
+        self._home_input = None
+        self._conv_container = None
+        self._chat_content_frame = None
+        self._input_container = None
 
         # Configuration de l'interface
         self.setup_modern_gui()
@@ -274,8 +279,8 @@ class BaseGUI:
                         self._saved_input_content = self.input_text.get("1.0", "end-1c")
                     except (tk.TclError, AttributeError):
                         self._saved_input_content = ""
-            # Boutons PDF, DOCX, Code, Image
-            for btn_name in ["pdf_btn", "docx_btn", "code_btn", "image_btn"]:
+            # Bouton "+" fichiers
+            for btn_name in ["file_plus_btn"]:
                 if hasattr(self, btn_name):
                     btn = getattr(self, btn_name)
                     try:
@@ -472,7 +477,7 @@ class BaseGUI:
         # UNIFICATION TOTALE : tous les contenus de messages utilisent la même taille
         message_types = ["message", "body", "chat", "bold", "small", "content"]
         if font_type in message_types:
-            return 12  # TAILLE UNIFIÉE POUR TOUS LES MESSAGES (réduite de 1)
+            return 12
 
         # Seuls les éléments d'interface gardent leurs tailles spécifiques
         interface_font_sizes = {
@@ -781,6 +786,9 @@ class BaseGUI:
 
             # Cacher les indicateurs
             self.hide_status_indicators()
+
+            # Transition depuis l'écran d'accueil si actif
+            self._dismiss_home_screen()
 
             # Ajouter le message utilisateur
             self.add_message_bubble(message, is_user=True)
@@ -1374,6 +1382,19 @@ class BaseGUI:
             # ⚡ MODE MCP + STREAMING — point d'entrée unifié via AIEngine
             print("⚡ [GUI] Activation du mode STREAMING (MCP tool-calling activé)...")
 
+            # ── THINKING MODE : détection de complexité ──────────────────────
+            _image_pending = getattr(self, "_pending_image_base64", None)
+            _is_complex = (
+                hasattr(self, "ai_engine")
+                and self.ai_engine.is_ollama_active()
+                and self.ai_engine.is_complex_query(user_text)
+                and not _image_pending
+            )
+            if _is_complex:
+                print("🧠 [GUI] Requête complexe détectée → mode Thinking activé")
+                self.root.after(0, self._create_reasoning_widget)
+            # ─────────────────────────────────────────────────────────────────
+
             # Réinitialiser le buffer de streaming
             self._streaming_buffer = ""
             self._streaming_complete = False
@@ -1389,6 +1410,19 @@ class BaseGUI:
                     self._streaming_bubble_created = True
                     self.root.after(0, self._create_streaming_bubble_with_animation)
                 return True
+
+            def on_thinking_token(token):
+                """Callback pour chaque token de raisonnement (Thinking Mode)."""
+                interrupted = self.current_request_id != request_id or self.is_interrupted
+                if interrupted:
+                    return False
+                self.root.after(0, lambda t=token: self._stream_thinking_token(t))
+                return True
+
+            def on_thinking_complete():
+                """Appelé quand la passe de raisonnement est terminée."""
+                print("🧠 [ON_THINKING_COMPLETE] Appelé")
+                self.root.after(0, self._finalize_reasoning_widget)
 
             def on_tool_call(tool_name: str, args: dict):
                 """
@@ -1416,7 +1450,7 @@ class BaseGUI:
                     pass
 
             # Image en attente (vision)
-            image_b64 = getattr(self, "_pending_image_base64", None)
+            image_b64 = _image_pending
             if image_b64:
                 self._pending_image_base64 = None
                 self._pending_image_path = None
@@ -1425,6 +1459,8 @@ class BaseGUI:
                 user_text,
                 on_token=on_token_received,
                 on_tool_call=on_tool_call,
+                on_thinking_token=on_thinking_token if _is_complex else None,
+                on_thinking_complete=on_thinking_complete if _is_complex else None,
                 image_base64=image_b64,
                 is_interrupted_callback=lambda: self.is_interrupted,
             )
@@ -1445,6 +1481,11 @@ class BaseGUI:
             response = f"❌ Erreur IA : {e}"
             if self.current_request_id == request_id:
                 self.root.after(0, lambda: self.add_ai_response(response))
+        finally:
+            # Garantir que les points "Raisonnement..." s'arrêtent toujours,
+            # même en cas d'interruption utilisateur ou d'exception
+            if getattr(self, "_reasoning_dots_active", False):
+                self.root.after(0, self._stop_reasoning_dots)
 
         self.root.after(0, self.hide_status_indicators)
 
@@ -1601,19 +1642,356 @@ class BaseGUI:
             messagebox.showerror("Erreur", f"Impossible d'effacer la conversation: {e}")
 
     def show_welcome_message(self):
-        """Affiche le message de bienvenue initial"""
-        welcome_text = """Bonjour ! Je suis votre **Assistant IA Local** 🤖
+        """Affiche l'écran d'accueil style Claude (sans bulle de message)."""
+        self._create_home_screen()
 
-    Je peux vous aider avec :
-    • **Conversations naturelles** : Discutez avec moi, posez-moi toutes vos questions et obtenez des réponses claires.
-    • **Analyse de documents** : Importez-les, et je pourrai les résumer ou répondre à vos questions sur leur contenu.
-    • **Génération et analyse de code** : Demandez-moi de générer, corriger ou expliquer du code.
-    • **Recherche internet avec résumés intelligents** : Je peux effectuer des recherches sur internet pour vous !
+    def _create_home_screen(self):
+        """
+        Crée l'écran d'accueil centré style Claude.
+        L'overlay couvre TOUT le chat_content (conv + input, rowspan=2).
+        Le groupe titre + input home est centré verticalement.
+        """
+        # Fermer un éventuel écran d'accueil existant
+        if getattr(self, "_home_screen", None) is not None:
+            try:
+                self._home_screen.destroy()
+            except Exception:
+                pass
+            self._home_screen = None
+        self._home_input = None
 
-    **Commencez** par me dire bonjour ou posez-moi directement une question !"""
+        # Masquer la zone de conversation ET l'input réel
+        conv = getattr(self, "_conv_container", None)
+        if conv is not None:
+            try:
+                conv.grid_remove()
+            except Exception:
+                pass
 
-        # Utiliser la même fonction que pour les autres messages IA
-        self.add_message_bubble(welcome_text, is_user=False, message_type="text")
+        input_c = getattr(self, "_input_container", None)
+        if input_c is not None:
+            try:
+                input_c.grid_remove()
+            except Exception:
+                pass
+
+        # Parent = chat_content frame (contient row=0:conv + row=1:input)
+        parent = getattr(self, "_chat_content_frame", None)
+        if parent is None:
+            return
+
+        # Overlay couvrant les 2 lignes via rowspan=2
+        self._home_screen = self.create_frame(parent, fg_color=self.colors["bg_primary"])
+        self._home_screen.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=0, pady=0)
+        self._home_screen.grid_columnconfigure(0, weight=1)
+        self._home_screen.grid_rowconfigure(0, weight=2)   # spacer haut (plus petit = groupe plus haut)
+        self._home_screen.grid_rowconfigure(1, weight=0)   # contenu (taille naturelle)
+        self._home_screen.grid_rowconfigure(2, weight=3)   # spacer bas (plus grand = groupe plus haut)
+
+        # ── Frame centrale (titre + zone de saisie) ─────────────────────────────
+        center = self.create_frame(self._home_screen, fg_color=self.colors["bg_primary"])
+        center.grid(row=1, column=0, sticky="", padx=20)
+        center.grid_columnconfigure(0, weight=1)
+
+        # Emoji 🤖 en orange
+        if self.use_ctk:
+            emoji_lbl = _ctk.CTkLabel(
+                center, text="🤖", font=("Segoe UI", 64),
+                text_color="#e07340", fg_color="transparent",
+            )
+        else:
+            emoji_lbl = tk.Label(
+                center, text="🤖", font=("Segoe UI", 64),
+                fg="#e07340", bg=self.colors["bg_primary"],
+            )
+        emoji_lbl.grid(row=0, column=0, pady=(0, 8))
+
+        # "My_AI" en blanc, grand et gras
+        if self.use_ctk:
+            title_lbl = _ctk.CTkLabel(
+                center, text="My_AI", font=("Segoe UI", 44, "bold"),
+                text_color=self.colors["text_primary"], fg_color="transparent",
+            )
+        else:
+            title_lbl = tk.Label(
+                center, text="My_AI", font=("Segoe UI", 44, "bold"),
+                fg=self.colors["text_primary"], bg=self.colors["bg_primary"],
+            )
+        title_lbl.grid(row=1, column=0, pady=(0, 28))
+
+        # ── Zone de saisie intégrée à l'écran d'accueil ────────────────────────
+        input_wrapper = self.create_frame(center, fg_color=self.colors["border"])
+        input_wrapper.grid(row=2, column=0, sticky="ew", pady=(0, 6))
+        input_wrapper.grid_columnconfigure(0, weight=1)
+
+        if self.use_ctk:
+            self._home_input = _ctk.CTkTextbox(
+                input_wrapper,
+                height=60,
+                width=600,
+                fg_color=self.colors["input_bg"],
+                text_color=self.colors["text_primary"],
+                border_color=self.colors["border"],
+                border_width=1,
+                corner_radius=8,
+                font=("Segoe UI", self.get_current_font_size("message")),
+            )
+        else:
+            self._home_input = tk.Text(
+                input_wrapper,
+                height=3, width=60,
+                bg=self.colors["input_bg"],
+                fg=self.colors["text_primary"],
+                font=("Segoe UI", self.get_current_font_size("message")),
+                border=1, relief="solid", wrap=tk.WORD,
+            )
+        self._home_input.grid(row=0, column=0, sticky="ew", padx=2, pady=2)
+
+        # Placeholder manuel dans home input
+        _placeholder = "Tapez votre message..."
+        _ph_color = self.colors.get("placeholder", "#6b7280")
+        _ph_active = [True]
+
+        def _show_ph():
+            try:
+                self._home_input.delete("1.0", "end")
+                self._home_input.insert("1.0", _placeholder)
+                if self.use_ctk:
+                    self._home_input.configure(text_color=_ph_color)
+                else:
+                    self._home_input.configure(fg=_ph_color)
+                _ph_active[0] = True
+            except Exception:
+                pass
+
+        def _hide_ph(_event=None):
+            if _ph_active[0]:
+                try:
+                    self._home_input.delete("1.0", "end")
+                    if self.use_ctk:
+                        self._home_input.configure(text_color=self.colors["text_primary"])
+                    else:
+                        self._home_input.configure(fg=self.colors["text_primary"])
+                    _ph_active[0] = False
+                except Exception:
+                    pass
+
+        def _on_focus_out(_event=None):
+            try:
+                content = self._home_input.get("1.0", "end-1c").strip()
+                if not content:
+                    _show_ph()
+            except Exception:
+                pass
+
+        def _on_home_enter(_event=None):
+            self._home_screen_send(_ph_active)
+            return "break"
+
+        _show_ph()
+        self._home_input.bind("<FocusIn>", _hide_ph)
+        self._home_input.bind("<FocusOut>", _on_focus_out)
+        self._home_input.bind("<Return>", _on_home_enter)
+        self._home_input.bind("<Shift-Return>", lambda e: None)
+
+        # ── Barre de boutons sous la zone de saisie ────────────────────────────
+        buttons_row = self.create_frame(center, fg_color=self.colors["bg_primary"])
+        buttons_row.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        buttons_row.grid_columnconfigure(1, weight=1)
+
+        # ── Bouton "+" avec menu déroulant pour les fichiers ──────────────────
+        _file_menu_entries = [
+            ("📄  PDF",    self.load_pdf_file),
+            ("📝  DOCX",   self.load_docx_file),
+            ("💻  Code",   self.load_code_file),
+            ("🖼  Image",   self.load_image_file),
+        ]
+
+        # Référence au popup courant pour éviter les doublons
+        _popup_ref = [None]
+
+        def _close_popup(popup):
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+            _popup_ref[0] = None
+
+        def _open_file_menu():
+            """Affiche un menu Toplevel sans bordure système à droite du bouton '+'."""
+            # Fermer l'éventuel popup précédent
+            if _popup_ref[0] is not None:
+                _close_popup(_popup_ref[0])
+                return
+
+            bg = self.colors.get("bg_secondary", "#1e1e1e")
+            fg = self.colors.get("text_primary", "#ffffff")
+            accent = self.colors.get("accent", "#ff6b47")
+            hover_bg = self.colors.get("button_hover", "#2e2e2e")
+            font = ("Segoe UI", 11)
+
+            popup = tk.Toplevel(self.root)
+            popup.overrideredirect(True)          # Supprime la décoration OS
+            popup.configure(bg=bg)
+            popup.attributes("-topmost", True)
+
+            _popup_ref[0] = popup
+
+            # Créer un bouton par entrée
+            for i, (_lbl, _cmd) in enumerate(_file_menu_entries):
+                def _make_cb(cmd, pop=popup):
+                    def _cb():
+                        _close_popup(pop)
+                        cmd()
+                    return _cb
+
+                btn = tk.Label(
+                    popup,
+                    text=_lbl,
+                    bg=bg,
+                    fg=fg,
+                    font=font,
+                    anchor="w",
+                    padx=14,
+                    pady=7,
+                    cursor="hand2",
+                )
+                btn.grid(row=i, column=0, sticky="ew")
+                popup.grid_columnconfigure(0, weight=1)
+
+                cb = _make_cb(_cmd)
+                btn.bind("<Button-1>", lambda e, c=cb: c())
+                btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=accent, fg="#ffffff"))
+                btn.bind("<Leave>", lambda e, b=btn: b.configure(bg=bg, fg=fg))
+
+            # Positionner à droite du bouton "+"
+            popup.update_idletasks()
+            bx = _plus_btn.winfo_rootx() + _plus_btn.winfo_width() + 2
+            by = _plus_btn.winfo_rooty()
+            popup.geometry(f"+{bx}+{by}")
+
+            # Fermer si on clique ailleurs
+            def _on_focus_out(e):
+                # Vérifier que le focus ne va pas vers le popup lui-même
+                self.root.after(50, lambda: _close_popup(popup) if _popup_ref[0] is popup else None)
+
+            popup.bind("<FocusOut>", _on_focus_out)
+            popup.bind("<Escape>", lambda e: _close_popup(popup))
+            self.root.bind("<Button-1>", lambda e: _close_popup(popup) if _popup_ref[0] is popup else None, add="+")
+            popup.focus_set()
+
+        if self.use_ctk:
+            _plus_btn = _ctk.CTkButton(
+                buttons_row,
+                text="＋",
+                command=_open_file_menu,
+                fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
+                hover_color=self.colors.get("button_hover", "#3a3a3a"),
+                text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 18),
+                corner_radius=6,
+                width=42,
+                height=32,
+            )
+        else:
+            _plus_btn = tk.Button(
+                buttons_row,
+                text="＋",
+                command=_open_file_menu,
+                bg=self.colors.get("bg_secondary", "#2a2a2a"),
+                fg=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 18),
+                relief="flat",
+                bd=0,
+                padx=8,
+            )
+        _plus_btn.grid(row=0, column=0, sticky="w")
+
+        # Bouton Envoyer à droite
+        _send_btn = self.create_modern_button(
+            buttons_row,
+            text="Envoyer ↗",
+            command=lambda: self._home_screen_send(_ph_active),
+            style="primary",
+        )
+        if self.use_ctk:
+            _send_btn.configure(width=110)
+        _send_btn.grid(row=0, column=2, sticky="e")
+
+        # Mettre le focus sur le home input après affichage
+        self.root.after(150, self._focus_home_input)
+
+        self._home_screen_active = True
+        self._update_header_buttons_visibility()
+
+    def _focus_home_input(self):
+        """Met le focus sur le home input si disponible."""
+        try:
+            if self._home_input and self._home_input.winfo_exists():
+                self._home_input.focus_set()
+        except Exception:
+            pass
+
+    def _home_screen_send(self, _ph_active_ref=None):
+        """Envoie le message tapé dans l'écran d'accueil."""
+        if not getattr(self, "_home_input", None):
+            return
+        try:
+            text = self._home_input.get("1.0", "end-1c").strip()
+        except Exception:
+            return
+        if not text or text == "Tapez votre message...":
+            return
+
+        # 1. Fermer l'écran d'accueil et restaurer le layout
+        self._dismiss_home_screen()
+
+        # 2. Injecter le texte dans le vrai champ de saisie
+        try:
+            self.input_text.configure(state="normal")
+            self.input_text.delete("1.0", "end")
+            self.input_text.insert("1.0", text)
+            self.placeholder_active = False
+        except Exception:
+            return
+
+        # 3. Envoyer le message après que le mainloop ait traité les changements de layout
+        self.root.after(50, self.send_message)
+
+    def _dismiss_home_screen(self):
+        """Cache l'écran d'accueil et restaure la zone de conversation."""
+        if not getattr(self, "_home_screen_active", False):
+            return
+        self._home_screen_active = False
+        self._home_input = None
+
+        # Supprimer l'overlay
+        home = getattr(self, "_home_screen", None)
+        if home is not None:
+            try:
+                home.destroy()
+            except Exception:
+                pass
+            self._home_screen = None
+
+        # Restaurer l'input réel
+        input_c = getattr(self, "_input_container", None)
+        if input_c is not None:
+            try:
+                input_c.grid()
+            except Exception:
+                pass
+
+        # Restaurer la zone de conversation
+        conv = getattr(self, "_conv_container", None)
+        if conv is not None:
+            try:
+                conv.grid()
+            except Exception:
+                pass
+
+        # Réafficher les boutons Clear Chat / Aide maintenant que l'accueil est fermé
+        self._update_header_buttons_visibility()
 
     def show_help(self):
         """Affiche l'aide"""

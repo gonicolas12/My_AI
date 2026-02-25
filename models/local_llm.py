@@ -215,6 +215,78 @@ class LocalLLM:
             self.add_to_history("assistant", full_response)
         return full_response
 
+    def generate_thinking_stream(
+        self,
+        original_prompt: str,
+        on_thinking_token=None,
+        is_interrupted_callback=None,
+    ) -> str:
+        """
+        Passe 1 du mode Thinking : génère un raisonnement interne étape par étape.
+        NE s'ajoute PAS à l'historique de conversation.
+        Utilise stream:True pour un affichage temps-réel dans le GUI.
+        """
+        if not self.is_ollama_available:
+            return ""
+
+        thinking_prompt = (
+            "Réfléchis étape par étape à cette question AVANT de répondre. "
+            "Explore les angles, identifie les points clés et difficultés potentielles. "
+            "Ne donne PAS encore la réponse finale — seulement ta réflexion interne.\n\n"
+            f"Question : {original_prompt}\n\nRéflexion :"
+        )
+        messages = [
+            {
+                "role": "system",
+                "content": "Tu es un assistant qui réfléchit méthodiquement avant de répondre.",
+            },
+            {"role": "user", "content": thinking_prompt},
+        ]
+        data = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "options": {"temperature": 0.7, "num_ctx": 8192},
+        }
+
+        print(f"🧠 [THINKING STREAM] Démarrage — modèle: {self.model} | chat_url: {self.chat_url}")
+        thinking_text = ""
+        _token_count = 0
+        try:
+            with requests.post(
+                self.chat_url, json=data, timeout=120, stream=True
+            ) as resp:
+                if resp.status_code != 200:
+                    print(f"⚠️ [THINKING STREAM] HTTP {resp.status_code}: {resp.text[:200]}")
+                    return ""
+                for raw_line in resp.iter_lines():
+                    if is_interrupted_callback and is_interrupted_callback():
+                        break
+                    if not raw_line:
+                        continue
+                    try:
+                        chunk = json.loads(raw_line)
+                    except json.JSONDecodeError:
+                        continue
+                    token = chunk.get("message", {}).get("content", "")
+                    if token:
+                        thinking_text += token
+                        _token_count += 1
+                        if _token_count == 1:
+                            print(f"🧠 [THINKING STREAM] Premier token reçu: {repr(token[:30])}")
+                        if on_thinking_token:
+                            if on_thinking_token(token) is False:
+                                print("🧠 [THINKING STREAM] Interrompu par callback")
+                                break
+                    if chunk.get("done"):
+                        break
+        except Exception as exc:
+            print(f"⚠️ [THINKING STREAM] Exception: {exc}")
+        print(f"🧠 [THINKING STREAM] Terminé — {_token_count} tokens, {len(thinking_text)} chars")
+
+        # ⚠️ PAS d'ajout à l'historique (raisonnement interne uniquement)
+        return thinking_text
+
     def generate_with_tools(
         self,
         prompt: str,
@@ -503,6 +575,54 @@ class LocalLLM:
                     ),
                 }
 
+            # Phase de synthèse (après tool calls) : vrai streaming Ollama
+            if tool_calls_log:
+                data_synthesis = {
+                    "model": self.model,
+                    "messages": messages,
+                    "stream": True,
+                    "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
+                }
+                full_response = ""
+                try:
+                    with requests.post(
+                        self.chat_url, json=data_synthesis, timeout=self.timeout, stream=True
+                    ) as resp:
+                        if resp.status_code != 200:
+                            print(f"⚠️ [LocalLLM] synthesis stream HTTP {resp.status_code}")
+                            break
+                        for raw_line in resp.iter_lines():
+                            if is_interrupted_callback and is_interrupted_callback():
+                                break
+                            if not raw_line:
+                                continue
+                            try:
+                                chunk_data = json.loads(raw_line)
+                            except json.JSONDecodeError:
+                                continue
+                            token = chunk_data.get("message", {}).get("content", "")
+                            if token:
+                                full_response += token
+                                if on_token:
+                                    result = on_token(token)
+                                    if result is False:
+                                        break
+                            if chunk_data.get("done"):
+                                break
+                except Exception as exc:
+                    print(f"⚠️ [LocalLLM] synthesis stream error: {exc}")
+
+                if full_response:
+                    self.add_to_history("user", prompt)
+                    self.add_to_history("assistant", full_response)
+                    return {
+                        "response": full_response,
+                        "tool_calls": tool_calls_log,
+                        "success": True,
+                    }
+                break  # synthèse échouée
+
+            # Phase d'appel d'outils : non-streamé (requis pour détecter tool_calls JSON)
             data_no_stream = {
                 "model": self.model,
                 "messages": messages,
