@@ -199,8 +199,11 @@ class BaseGUI:
         self._home_screen = None
         self._home_screen_active = False
         self._home_input = None
+        self._home_input_wrapper = None
         self._conv_container = None
         self._chat_content_frame = None
+        # Mode thinking (widget raisonnement)
+        self._thinking_mode_active = False
         self._input_container = None
 
         # Configuration de l'interface
@@ -1869,7 +1872,6 @@ class BaseGUI:
             bg = self.colors.get("bg_secondary", "#1e1e1e")
             fg = self.colors.get("text_primary", "#ffffff")
             accent = self.colors.get("accent", "#ff6b47")
-            hover_bg = self.colors.get("button_hover", "#2e2e2e")
             font = ("Segoe UI", 11)
 
             popup = tk.Toplevel(self.root)
@@ -1913,7 +1915,7 @@ class BaseGUI:
             popup.geometry(f"+{bx}+{by}")
 
             # Fermer si on clique ailleurs
-            def _on_focus_out(e):
+            def _on_focus_out(_):
                 # Vérifier que le focus ne va pas vers le popup lui-même
                 self.root.after(50, lambda: _close_popup(popup) if _popup_ref[0] is popup else None)
 

@@ -636,7 +636,7 @@ class AgentsInterface:
 
         # Placeholder
         self._set_placeholder(
-            "Décrivez la tâche pour l'agent sélectionné...\n\nExemple: Crée une fonction Python qui trie une liste de nombres"
+            "Décrivez la tâche à confier aux agents sélectionnés...\n"
         )
 
         # Frame pour les boutons (à droite, étiré pour s'aligner avec la zone de texte)

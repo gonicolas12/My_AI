@@ -161,7 +161,6 @@ my_ai/
 │   ├── data_preprocessing.py            # Prétraitement des données
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
-│   ├── rlhf.py                          # RLHF CLI (legacy)
 │   ├── training_manager.py              # Training Manager moderne (pipeline complet)
 │   └── training_pipeline.py             # Pipeline d'entraînement local
 ├── data/                                # Données d'enrichissement FAQ
