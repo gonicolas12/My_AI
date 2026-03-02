@@ -138,11 +138,10 @@ pygments                 # Code syntax highlighting
 ### Machine Learning (Requis)
 ```
 torch>=2.0.0             # PyTorch
-transformers>=4.30.0     # Hugging Face transformers
 scikit-learn>=1.3.0      # ML algorithms
 sentence-transformers>=2.2.0  # Embeddings
 rapidfuzz                # Fuzzy matching
-tiktoken                 # Token counting
+tiktoken                 # Token counting (compatible Llama 3 / cl100k_base)
 ```
 
 ### Advanced Features (Optionnel)

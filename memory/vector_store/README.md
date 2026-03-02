@@ -33,10 +33,10 @@ vector_store/
 
 ## 🛠️ Fonctionnement Technique
 
-### 1. Tokenization (GPT-2)
+### 1. Tokenization (tiktoken — cl100k_base)
 ```python
 Texte: "L'IA est fascinante !"
-Tokens: ['L', "'", 'IA', 'est', 'fasc', 'inante', '!']  # 7 tokens
+Tokens: ['L', "'", 'IA', ' est', ' fasc', 'inante', ' !']  # 7 tokens (encodage cl100k_base)
 ```
 
 ### 2. Embeddings (Sentence-Transformers)
@@ -83,7 +83,7 @@ Query: "Développer un service web"
 ### Pendant l'Utilisation
 ```python
 # À chaque conversation
-→ Tokenize (GPT-2)
+→ Tokenize (tiktoken cl100k_base)
 → Créer embeddings (sentence-transformers)
 → Stocker dans ChromaDB
 → Indexer pour recherche rapide
@@ -139,7 +139,7 @@ vm = VectorMemory(
 
 ### "ChromaDB non disponible"
 ```bash
-pip install chromadb sentence-transformers transformers
+pip install chromadb sentence-transformers tiktoken
 ```
 
 ### "Mémoire pleine"
@@ -170,7 +170,7 @@ rm -rf memory/vector_store/chroma_db
 
 - [ChromaDB Documentation](https://docs.trychroma.com/)
 - [Sentence-Transformers](https://www.sbert.net/)
-- [GPT-2 Tokenizer](https://huggingface.co/gpt2)
+- [tiktoken](https://github.com/openai/tiktoken)
 
 ---
 

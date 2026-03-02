@@ -5,7 +5,7 @@
 My Personal AI v6.6.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
-- **Tokenization Précise** : GPT-2 tokenizer (99% précision vs 70% approximation)
+- **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
 - **Recherche Sémantique** : Sentence-transformers (384 dimensions, similarité cosinus)
 - **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
@@ -57,7 +57,7 @@ My Personal AI v6.6.0 est une **IA locale 100%** avec un système de **Mémoire 
 ├─────────────────────────┬────────────────────────────────────────────┤
 │ VectorMemory            │ ConversationMemory                         │
 │ • ChromaDB vectoriel    │ • Conversations persistantes               │
-│ • GPT-2 tokenizer réel  │ • Documents stockés                        │
+│ • tiktoken cl100k_base  │ • Documents stockés                        │
 │ • Sentence-transformers │ • Préférences utilisateur                  │
 │ • 1M tokens contexte    │ • Cache contexte récent                    │
 │ • Recherche sémantique  │ • Format JSON enrichi                      │
@@ -279,8 +279,8 @@ Features:
 **`memory/vector_memory.py`** - Mémoire Vectorielle
 ```python
 Architecture ML:
-├─ GPT-2 Tokenizer (transformers)
-│   └─ Comptage précis (99% vs 70% approximation)
+├─ tiktoken (cl100k_base, compatible Llama 3)
+│   └─ Comptage précis (vocabulaire aligné avec le LLM)
 ├─ Sentence-Transformers (all-MiniLM-L6-v2)
 │   └─ Embeddings 384 dimensions
 ├─ ChromaDB PersistentClient
@@ -301,13 +301,13 @@ Capacités:
 Méthodes principales:
 ├─ add_document(content, name, metadata) → Dict
 ├─ search_similar(query, n_results, type) → List[Dict]
-├─ count_tokens(text) → int (GPT-2 précis)
+├─ count_tokens(text) → int (tiktoken précis)
 ├─ split_into_chunks(text) → List[str]
 ├─ get_stats() → Dict
 └─ clear_all() → void
 
 Avantages vs ancien système:
-✅ Tokenization 99% précise (GPT-2) vs 70% (mots)
+✅ Tokenization précise tiktoken (cl100k_base, compatible Llama 3) vs 70% (mots)
 ✅ Recherche sémantique (comprend synonymes) vs mots-clés
 ✅ Vitesse 100x (vectoriel) vs linéaire
 ✅ Persistance totale (ChromaDB) vs perdu au redémarrage
@@ -909,7 +909,7 @@ Total typique:            1.3GB - 2.5GB RAM
 
 ### Token Efficiency
 ```
-Tokenization précision:   99% (GPT-2) vs 70% (approximation mots)
+Tokenization précision:   tiktoken cl100k_base (compatible Llama 3) vs 70% (approximation mots)
 Context window standard:  4096 tokens
 Context ultra mode:       1,048,576 tokens (1M)
 Chunk size VectorMemory:  512 tokens (configurable)
@@ -990,7 +990,7 @@ elif intent == "new_intent":
 - Gestion configuration
 
 ### 🟢 Fonctionnel (Bon État)
-- Tokenization GPT-2 précise
+- Tokenization tiktoken (cl100k_base) précise
 - Recherche sémantique ultra-rapide
 - Framework génération code
 - Intégration wttr.in météo
@@ -1003,7 +1003,7 @@ elif intent == "new_intent":
 
 ### 🔄 Remplacé
 - ❌ million_token_context_manager.py → ✅ memory/vector_memory.py
-- ❌ Comptage mots approximatif → ✅ GPT-2 tokenizer
+- ❌ Comptage mots approximatif → ✅ tiktoken (cl100k_base)
 - ❌ Recherche linéaire → ✅ Recherche vectorielle indexée
 
 ---

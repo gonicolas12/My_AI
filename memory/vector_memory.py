@@ -1,7 +1,7 @@
 """
 Vector Memory - Gestionnaire de mémoire vectorielle avec recherche sémantique
 Remplace le million_token_context_manager avec de vraies capacités ML
-Supporte ChromaDB et FAISS, tokenization correcte, chiffrement AES-256
+Supporte ChromaDB et FAISS, tokenization correcte (tiktoken), chiffrement AES-256
 """
 
 import hashlib
@@ -38,12 +38,12 @@ except ImportError:
     print("⚠️ ChromaDB non disponible. Installez: pip install chromadb")
 
 try:
-    from transformers import AutoTokenizer
+    import tiktoken
 
     TOKENIZER_AVAILABLE = True
 except ImportError:
     TOKENIZER_AVAILABLE = False
-    print("⚠️ Transformers non disponible. Installez: pip install transformers")
+    print("⚠️ tiktoken non disponible. Installez: pip install tiktoken")
 
 try:
     from cryptography.fernet import Fernet
@@ -60,7 +60,7 @@ class VectorMemory:
     Gestionnaire de mémoire vectorielle avec recherche sémantique
 
     Fonctionnalités:
-    - Tokenization correcte (transformers)
+    - Tokenization correcte (tiktoken cl100k_base, compatible Llama 3)
     - Embeddings sémantiques (sentence-transformers)
     - Stockage vectoriel (ChromaDB/FAISS)
     - Chiffrement AES-256 (optionnel)
@@ -101,13 +101,13 @@ class VectorMemory:
         if self.enable_encryption:
             self._init_encryption(encryption_key)
 
-        # Tokenizer (vrai comptage de tokens)
+        # Tokenizer (vrai comptage de tokens via tiktoken - cl100k_base, compatible Llama 3)
         if TOKENIZER_AVAILABLE:
             try:
-                self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
-                print("✅ Tokenizer GPT-2 chargé")
+                self.tokenizer = tiktoken.get_encoding("cl100k_base")
+                print("✅ Tokenizer tiktoken (cl100k_base) chargé")
             except Exception as e:
-                print(f"⚠️ Erreur chargement tokenizer: {e}")
+                print(f"⚠️ Erreur chargement tokenizer tiktoken: {e}")
                 self.tokenizer = None
         else:
             self.tokenizer = None
@@ -213,8 +213,8 @@ class VectorMemory:
             Nombre de tokens
         """
         if self.tokenizer:
-            # Vrai comptage avec tokenizer
-            tokens = self.tokenizer.encode(text, add_special_tokens=False)
+            # Vrai comptage avec tiktoken
+            tokens = self.tokenizer.encode(text)
             return len(tokens)
         else:
             # Fallback: approximation (1 mot ≈ 0.75 tokens)
@@ -232,8 +232,8 @@ class VectorMemory:
             Liste de chunks
         """
         if self.tokenizer:
-            # Découpage basé sur les vrais tokens
-            tokens = self.tokenizer.encode(text, add_special_tokens=False)
+            # Découpage basé sur les vrais tokens (tiktoken)
+            tokens = self.tokenizer.encode(text)
             chunks = []
 
             start = 0
@@ -548,7 +548,7 @@ class VectorMemory:
             "usage_percent": (self.current_tokens / self.max_tokens) * 100,
             "embeddings_enabled": self.embedding_model is not None,
             "chromadb_enabled": self.chroma_client is not None,
-            "tokenizer": "transformers" if self.tokenizer else "fallback",
+            "tokenizer": "tiktoken" if self.tokenizer else "fallback",
         }
 
         # Ajouter les stats de compression si disponibles

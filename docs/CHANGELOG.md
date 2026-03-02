@@ -451,7 +451,7 @@ ollama pull llama3.1:8b
 
 #### 🧠 Système de Mémoire Vectorielle (Vector Memory)
 - **Architecture ML avancée** : Remplacement complet de l'ancien `million_token_context_manager`
-- **Tokenization précise** : Utilisation du tokenizer GPT-2 (99% précision vs 70% avant)
+- **Tokenization précise** : Utilisation de tiktoken cl100k_base (compatible Llama 3, vs 70% avant)
 - **Recherche sémantique** : Embeddings sentence-transformers (384 dimensions)
   - Comprend le **sens** des questions, pas juste les mots
   - Trouve les synonymes et concepts similaires automatiquement
@@ -490,7 +490,7 @@ memory/
 
 | Métrique | Ancien (v5.6) | Nouveau (v5.7) | Amélioration |
 |----------|---------------|----------------|--------------|
-| **Comptage tokens** | Mots (~70% précis) | GPT-2 tokenizer (99%) | +29% précision |
+| **Comptage tokens** | Mots (~70% précis) | tiktoken cl100k_base | Précision maximale |
 | **Recherche** | Mots-clés exact | Sémantique | Comprend synonymes |
 | **Vitesse recherche** | O(n) linéaire | O(log n) vectorielle | 100x plus rapide |
 | **Persistance** | Perdu au redémarrage | ChromaDB permanent | ♾️ |
@@ -538,7 +538,7 @@ memory/
 - ✅ **Gestion erreurs améliorée** : Messages clairs au lieu de crash
 
 #### Million Token Manager
-- ✅ **Comptage tokens cassé** : Remplacé par vrai tokenizer GPT-2
+- ✅ **Comptage tokens cassé** : Remplacé par tiktoken (cl100k_base)
 - ✅ **Recherche inefficace** : Remplacée par recherche vectorielle
 - ✅ **Perte de données** : ChromaDB sauvegarde tout automatiquement
 - ✅ **Chunks mal coupés** : Overlap intelligent de 50 tokens
