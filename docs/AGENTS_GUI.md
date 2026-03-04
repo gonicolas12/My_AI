@@ -162,7 +162,7 @@ Le bouton bleu **"➕ Créer Agent"** (entre Exécuter et Clear Selection) perme
 
 4. **Cliquez sur "Créer"** :
    - Un **spinner animé** apparaît (⠋⠙⠹⠸...)
-   - **Ollama (llama3.2)** génère automatiquement :
+   - **Ollama** génère automatiquement :
      - Le **system prompt** optimisé
      - La **température** idéale (0.2-0.8)
      - Une **description courte** (3-4 mots)
@@ -294,7 +294,7 @@ Description courte : DevOps & CI/CD
 
 ### Limitations
 
-- **Ollama requis** : La génération nécessite Ollama avec llama3.2
+- **Ollama requis** : La génération nécessite Ollama avec qwen3.5:4b
 - **Nom unique** : Chaque agent doit avoir un nom différent
 - **Pas de modification directe du prompt** : Pour garantir la cohérence
 - **Suppression définitive** : Pas de récupération possible après suppression

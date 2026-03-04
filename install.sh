@@ -135,7 +135,7 @@ echo
 echo "Pour une utilisation optimale, installez Ollama:"
 echo "1. Téléchargez depuis: https://ollama.ai/"
 echo "2. Installez Ollama selon votre OS"
-echo "3. Exécutez: ollama pull llama3.2"
+echo "3. Exécutez: ollama pull qwen3.5:4b"
 echo
 echo "Alternative: Les modèles Transformers seront téléchargés automatiquement"
 echo

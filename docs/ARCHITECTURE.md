@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.6.0
+# 🏗️ Architecture - My Personal AI v6.7.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.6.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
+My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -42,7 +42,7 @@ My Personal AI v6.6.0 est une **IA locale 100%** avec un système de **Mémoire 
 │                      MODÈLES IA ET INTELLIGENCE                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │  Ollama (Prioritaire)       │  CustomAIModel (Fallback)              │
-│  • LLM local (llama3.1:8b)  │  • Détection intentions                │
+│  • LLM local (qwen3.5:4 b)  │  • Détection intentions                │
 │  • Réponses naturelles      │  • Réponses contextuelles              │
 │  • 100% confidentiel        │  • Patterns et règles                  │
 ├─────────────────────────────┴────────────────────────────────────────┤
@@ -391,7 +391,7 @@ Architecture:
 └─ Fallback automatique si Ollama indisponible
 
 Configuration Modelfile:
-├─ Modèle de base: llama3.1:8b
+├─ Modèle de base: qwen3.5:4b (ou autre selon choix)
 ├─ Temperature: 0.7
 ├─ Context window: 8192 tokens
 └─ System prompt personnalisé français
@@ -676,7 +676,7 @@ User Input
     ↓
 Ollama Check (LocalLLM.is_ollama_available)
     ├─ Ollama disponible?
-    │   ├─ OUI → Génération via Ollama (llama3.1:8b)
+    │   ├─ OUI → Génération via Ollama
     │   │        → Réponse naturelle de qualité LLM
     │   └─ NON → Fallback CustomAIModel
     │            ↓
@@ -1008,7 +1008,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 6.6.0
+**Version**: 6.7.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

@@ -1,5 +1,53 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🏗️ Version 6.7.0 - ChatOrchestrator & Migration Qwen3.5 (4 Mars 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🧠 ChatOrchestrator — Boucle Agentique Avancée
+
+Nouveau module `core/chat_orchestrator.py` (1 161 lignes) qui remplace l'appel direct à `LocalLLM.generate_with_tools_stream()` dans `AIEngine.process_query_stream()`. Il implémente trois design patterns issus de l'architecture moderne des agents IA :
+
+- **Pattern ReAct** (Reasoning + Acting) : boucle `Réfléchis → Agis → Observe` à chaque tour — le modèle raisonne avant d'appeler un outil et met à jour son état après chaque résultat
+- **Pattern Plan & Execute** : pour les requêtes longues (> 55 caractères), le modèle génère un plan structuré en étapes avant d'agir, puis coche chaque étape à mesure qu'elle est complétée
+- **Scratchpad persistant** : état interne maintenu entre les tours, injecté dans le system prompt sous forme de bloc XML structuré :
+  - `OBJECTIF` : la demande originale de l'utilisateur
+  - `PLAN` : étapes numérotées avec marqueur ✓ sur les complétées
+  - `ÉTAPE ACTUELLE` : numéro de l'étape en cours
+  - `FAITS COLLECTÉS` : résultats d'outils résumés (tronqués à 400 chars)
+  - `TOURS RESTANTS` : indicateur d'urgence quand < 3 tours disponibles
+  - `PROCHAINE ACTION` : intention du prochain tour
+
+### 🦙 Migration vers Qwen3.5 — Modèles Légers et Rapides
+
+#### 🔄 Remplacement de llama3.2 par Qwen3.5
+
+- **Modèle principal** : `qwen3.5:4b` (ou `qwen3.5:2b` selon la config) remplace `llama3.2`
+- **`Modelfile`** mis à jour : `FROM qwen3.5:4b` — modèle léger, rapide, avec thinking natif
+- **`config.yaml`** : `llm.local.default_model` est désormais la **source unique** pour le nom du modèle
+
+#### 🧠 Mode thinking natif utilisé
+
+- **Qwen3.5** ayant une capacité de **raisonnement intégrée**, le mode **thinking** est désormais **natif** et plus fluide
+- La logique de déclenchement du mode **thinking** est conservée (longueur, complexité, mots-clés), mais la réflexion est plus rapide et mieux intégrée
+- Le prompt de **system prompt** a été ajusté pour tirer parti des capacités de **reasoning** de **Qwen3.5**
+
+#### 👁️ Modèle de Vision
+
+- **`minicpm-v`** ajouté en priorité #1 dans `_get_vision_model()` — meilleur ratio qualité/vitesse (3 Go)
+- `llava` reste en fallback
+- `qwen3.5` n'ayant pas de capacité vision, le routage vers un modèle dédié est obligatoire
+
+### 📄 Procédure de Changement de Modèle
+
+Pour changer de modèle LLM à l'avenir, modifier **3 fichiers uniquement** :
+
+- `Étape 1:` `config.yaml` → champ `llm.local.default_model`
+- `Étape 2:` `Modelfile` → directive `FROM`
+- `Étape 3:` Terminal → `ollama pull <nouveau-modele>` puis `.\create_custom_model.bat`
+
+---
+
 # 🧠 Version 6.6.0 - Mode Thinking & Refonte Interface (24 Février 2026)
 
 ### 🚀 Nouveautés Principales
@@ -51,7 +99,7 @@
 
 #### 🎨 Création d'Agents Personnalisés avec IA
 - **Bouton "➕ Créer Agent"** : Interface modale pour créer vos propres agents
-- **Génération automatique de system prompts** : Ollama (llama3.2) génère le system prompt optimisé selon votre description
+- **Génération automatique de system prompts** : Ollama génère le system prompt optimisé selon votre description
 - **Température intelligente** : L'IA choisit automatiquement la température idéale (0.2-0.8) selon le rôle
 - **Description courte automatique** : Génération d'un résumé de 3-4 mots pour l'affichage sur la carte
 - **Couleurs aléatoires vibrantes** : Chaque agent personnalisé a une couleur unique et attrayante
@@ -351,7 +399,7 @@ agents
 #### 🦙 Intégration Ollama - LLM 100% Local
 - **Support complet d'Ollama** : Exécution de modèles LLM directement sur votre machine
 - **Architecture hybride intelligente** :
-  - Si Ollama est disponible → Réponses générées par le LLM (llama3.1:8b)
+  - Si Ollama est disponible → Réponses générées par le LLM
   - Si Ollama est absent → Fallback automatique sur CustomAIModel (patterns)
 - **Détection automatique** : Vérification au démarrage de la disponibilité d'Ollama
 - **Modèle personnalisable** : Configuration via `Modelfile` à la racine du projet

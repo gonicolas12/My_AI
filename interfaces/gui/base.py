@@ -171,6 +171,7 @@ class BaseGUI:
 
         # ⚡ Variables pour le streaming temps réel avec animation
         self._streaming_buffer = ""  # Buffer accumulant les tokens
+        self._streaming_buffer_original = ""  # Copie intacte (jamais modifiée par l'animation)
         self._streaming_complete = False  # Flag indiquant si le streaming est terminé
         self._streaming_mode = False  # Mode streaming actif
         self._streaming_widget = None  # Widget texte du streaming
@@ -215,6 +216,9 @@ class BaseGUI:
         # Initialisation IA en arrière-plan
         self.initialize_ai_async()
         self.ensure_input_is_ready()
+
+        # Track whether the last bubble displayed was from the user
+        self._last_bubble_is_user = False
 
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
@@ -555,6 +559,8 @@ class BaseGUI:
 
             # Placer l'indicateur à la prochaine ligne disponible
             # (sans ajouter à conversation_history pour ne pas décaler les rows)
+            # Le reasoning widget ajoute désormais un placeholder dans
+            # conversation_history, donc len() est déjà correct.
             row = len(self.conversation_history)
 
             # Container principal (identique aux bulles IA)
@@ -566,6 +572,7 @@ class BaseGUI:
             )
             msg_container.grid_columnconfigure(0, weight=1)
             self._mcp_indicator_container = msg_container
+            self._last_bubble_is_user = False  # L'indicateur MCP est un output IA
 
             # Frame de centrage (même padding que les bulles IA)
             center_frame = self.create_frame(
@@ -577,13 +584,17 @@ class BaseGUI:
             center_frame.grid_columnconfigure(0, weight=0)
             center_frame.grid_columnconfigure(1, weight=1)
 
-            # Icône IA
+            # Icône IA — masquée si le dernier élément affiché est déjà un output IA
+            # (ex: widget Raisonnement au-dessus). On utilise _last_bubble_is_user
+            # plutôt que _thinking_mode_active car ce dernier est reset par
+            # _finalize_reasoning_widget avant l'arrivée de l'indicateur MCP.
+            _show_icon = getattr(self, "_last_bubble_is_user", True)
             icon_lbl = self.create_label(
                 center_frame,
                 text="🤖",
                 font=("Segoe UI", 16),
                 fg_color=self.colors["bg_chat"],
-                text_color=self.colors["accent"],
+                text_color=self.colors["accent"] if _show_icon else self.colors["bg_chat"],
             )
             icon_lbl.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
 
@@ -815,6 +826,7 @@ class BaseGUI:
             self._dismiss_home_screen()
 
             # Ajouter le message utilisateur
+            self._last_bubble_is_user = True
             self.add_message_bubble(message, is_user=True)
 
             # Effacer la zone de saisie et remettre le placeholder
@@ -923,13 +935,15 @@ class BaseGUI:
                     center_frame.grid_columnconfigure(0, weight=0)
                     center_frame.grid_columnconfigure(1, weight=1)
 
-                    # Icône IA
+                    # Icône IA — visible uniquement si le dernier élément est un message utilisateur
+                    _show_icon = getattr(self, "_last_bubble_is_user", True)
+                    self._last_bubble_is_user = False
                     icon_label = self.create_label(
                         center_frame,
                         text="🤖",
                         font=("Segoe UI", 16),
                         fg_color=self.colors["bg_chat"],
-                        text_color=self.colors["accent"],
+                        text_color=self.colors["accent"] if _show_icon else self.colors["bg_chat"],
                     )
                     icon_label.grid(
                         row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0)
@@ -1406,7 +1420,7 @@ class BaseGUI:
             # ⚡ MODE MCP + STREAMING — point d'entrée unifié via AIEngine
             print("⚡ [GUI] Activation du mode STREAMING (MCP tool-calling activé)...")
 
-            # ── THINKING MODE : détection de complexité ──────────────────────
+            # ── WIDGET RAISONNEMENT : thinking + plan de l'orchestrateur ─────
             _image_pending = getattr(self, "_pending_image_base64", None)
             _is_complex = (
                 hasattr(self, "ai_engine")
@@ -1414,13 +1428,26 @@ class BaseGUI:
                 and self.ai_engine.is_complex_query(user_text)
                 and not _image_pending
             )
-            if _is_complex:
+            # Vérifier si la requête est conversationnelle (identité, salutations, etc.)
+            # Pour ces requêtes, ni le thinking ni le plan ne seront utilisés.
+            _is_conversational = (
+                hasattr(self, "ai_engine")
+                and hasattr(self.ai_engine, "is_conversational")
+                and self.ai_engine.is_conversational(user_text)
+            )
+            # Le widget sert aussi à afficher le plan de l'orchestrateur.
+            # On le crée UNIQUEMENT pour les requêtes complexes (mode Thinking)
+            # où un vrai raisonnement est attendu, pour éviter d'afficher un
+            # widget vide qui disparaît quand la réponse arrive.
+            _show_reasoning = not _is_conversational and _is_complex
+            if _show_reasoning:
                 print("🧠 [GUI] Requête complexe détectée → mode Thinking activé")
                 self.root.after(0, self._create_reasoning_widget)
             # ─────────────────────────────────────────────────────────────────
 
             # Réinitialiser le buffer de streaming
             self._streaming_buffer = ""
+            self._streaming_buffer_original = ""
             self._streaming_complete = False
             self._streaming_mode = True
             self._streaming_bubble_created = False
@@ -1430,6 +1457,7 @@ class BaseGUI:
                 if self.current_request_id != request_id or self.is_interrupted:
                     return False
                 self._streaming_buffer += token
+                self._streaming_buffer_original += token
                 if not self._streaming_bubble_created:
                     self._streaming_bubble_created = True
                     self.root.after(0, self._create_streaming_bubble_with_animation)
@@ -1483,8 +1511,8 @@ class BaseGUI:
                 user_text,
                 on_token=on_token_received,
                 on_tool_call=on_tool_call,
-                on_thinking_token=on_thinking_token if _is_complex else None,
-                on_thinking_complete=on_thinking_complete if _is_complex else None,
+                on_thinking_token=on_thinking_token if _show_reasoning else None,
+                on_thinking_complete=on_thinking_complete if _show_reasoning else None,
                 image_base64=image_b64,
                 is_interrupted_callback=lambda: self.is_interrupted,
             )
@@ -1496,7 +1524,7 @@ class BaseGUI:
             if self.current_request_id == request_id:
                 self._streaming_complete = True
                 print(
-                    f"✅ [STREAM] Streaming terminé: {len(self._streaming_buffer)} caractères"
+                    f"📥 [STREAM] Réception terminée : {len(self._streaming_buffer)} caractères reçus (animation en cours)"
                 )
                 # Si la réponse n'a pas été streamée token par token (ex: FAQ,
                 # fallback classique sans Ollama), l'afficher d'un bloc

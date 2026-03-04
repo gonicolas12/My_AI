@@ -390,7 +390,7 @@ class TrainingManager:
         Fine-tune un modèle Ollama
 
         Args:
-            base_model: Nom du modèle de base (ex: 'llama3.2')
+            base_model: Nom du modèle de base
             train_data: Données d'entraînement
             new_model_name: Nom du nouveau modèle
             epochs: Nombre d'époques

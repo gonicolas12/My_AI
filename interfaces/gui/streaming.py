@@ -24,6 +24,15 @@ class StreamingMixin:
         L'animation lit depuis le buffer qui se remplit en temps réel.
         """
         try:
+            # Finaliser le widget Raisonnement AVANT de créer la bulle.
+            # Si le widget est vide (pas de thinking tokens reçus), il sera
+            # masqué et _last_bubble_is_user restauré, ce qui permet d'afficher
+            # correctement l'icône 🤖 sur cette bulle réponse.
+            # Sans cela, un widget raisonnement vide reste visible pendant
+            # tout le streaming puis disparaît d'un coup à la fin.
+            if hasattr(self, "_finalize_reasoning_widget"):
+                self._finalize_reasoning_widget()
+
             # Effacer l'indicateur MCP inline s'il est toujours affiché
             if hasattr(self, "_hide_mcp_tool_indicator"):
                 self._hide_mcp_tool_indicator()
@@ -49,9 +58,11 @@ class StreamingMixin:
             )
 
             _base_row = len(self.conversation_history) - 1
-            _row_offset = 1 if getattr(self, "_reasoning_widget_row", None) is not None else 0
+            # Plus besoin de _row_offset : le reasoning widget ajoute
+            # désormais un placeholder dans conversation_history, donc les
+            # rows sont déjà correctement comptées.
             msg_container.grid(
-                row=_base_row + _row_offset,
+                row=_base_row,
                 column=0,
                 sticky="ew",
                 pady=(0, 12),
@@ -70,8 +81,10 @@ class StreamingMixin:
             center_frame.grid_columnconfigure(1, weight=1)
 
             # Icône IA — masquée (invisible) si un widget Raisonnement vient d'être affiché,
+            # ou si le dernier élément affiché est un output IA (pour éviter les doublons)
             # mais toujours présente comme spacer pour que le texte reste aligné à column=1
-            _show_icon = not getattr(self, "_thinking_mode_active", False)
+            _show_icon = getattr(self, "_last_bubble_is_user", True)
+            self._last_bubble_is_user = False  # Cette bulle réponse est un output IA
             self._thinking_mode_active = False  # Reset après usage
             icon_label = self.create_label(
                 center_frame,
@@ -97,7 +110,7 @@ class StreamingMixin:
             text_widget = tk.Text(
                 message_container,
                 width=120,
-                height=1,
+                height=3,
                 bg=self.colors["bg_chat"],
                 fg=self.colors["text_primary"],
                 font=("Segoe UI", 12),
@@ -111,6 +124,9 @@ class StreamingMixin:
                 pady=6,
                 selectbackground="#4a90e2",
                 selectforeground="#ffffff",
+                insertwidth=0,
+                yscrollcommand=None,
+                xscrollcommand=None,
             )
             text_widget.grid(row=0, column=0, sticky="ew")
 
@@ -174,6 +190,13 @@ class StreamingMixin:
         self._table_blocks_history = (
             {}
         )  # Pour tracker l'évolution des tableaux (attribut temporaire de streaming)
+
+        # 🎨 Progressive code block tracking
+        self._streaming_in_code_block = False
+        self._streaming_code_language = ""
+        self._streaming_code_widget_start = None
+        self._streaming_code_content = ""
+        self._streaming_code_rehighlight_counter = 0
 
         # Configurer tous les tags de formatage
         self._configure_all_formatting_tags(text_widget)
@@ -257,6 +280,9 @@ class StreamingMixin:
         Continue l'animation de frappe en mode streaming.
         Attend si l'animation rattrape le buffer, continue quand de nouveaux tokens arrivent.
         AMÉLIORATION: Détecte la fermeture des blocs de code et applique la coloration immédiatement.
+        MODE RATTRAPAGE: Quand le streaming est terminé et qu'il reste beaucoup de
+        contenu non affiché, accélère en insérant plusieurs caractères par frame
+        ou finalise d'un bloc pour éviter 30-60s d'animation inutile.
         """
         if not hasattr(self, "typing_widget") or self.typing_widget is None:
             return
@@ -271,11 +297,51 @@ class StreamingMixin:
             # IMPORTANT: Synchroniser typing_text avec le buffer pour le formatage
             self.typing_text = self._streaming_buffer
 
+            # ── MODE RATTRAPAGE ──────────────────────────────────────────
+            # Quand TOUTES les données sont reçues (streaming terminé) et
+            # qu'il reste un gros backlog non affiché, on accélère :
+            #  • > 800 chars restants → finalisation immédiate (dump tout)
+            #  • > 200 chars restants → batch de 12 chars par frame (3ms)
+            #  • sinon → mode normal 1 char / 10ms (typewriter)
+            if self._streaming_complete and self.typing_index < buffer_length:
+                remaining = buffer_length - self.typing_index
+                if remaining > 800:
+                    # Trop de retard → finaliser d'un bloc
+                    print(
+                        f"⚡ [STREAM] Rattrapage immédiat : {remaining} chars restants"
+                    )
+                    self._finish_streaming_animation()
+                    return
+                elif remaining > 200:
+                    # Rattrapage accéléré : 12 chars par frame, 3ms entre frames
+                    self.typing_widget.configure(state="normal")
+                    batch_size = min(12, remaining)
+                    chunk = self._streaming_buffer[self.typing_index:self.typing_index + batch_size]
+                    self.typing_widget.insert("end", chunk)
+                    self.typing_index += batch_size
+
+                    # Formater quand le chunk contient \n (titres, listes)
+                    if "\n" in chunk:
+                        self._apply_unified_progressive_formatting(self.typing_widget)
+                        self.adjust_text_widget_height(self.typing_widget)
+                        self.root.after(2, self._smart_scroll_follow_animation)
+                    elif self.typing_index % 60 == 0:
+                        self.adjust_text_widget_height(self.typing_widget)
+                        self.root.after(2, self._smart_scroll_follow_animation)
+
+                    self.typing_widget.configure(state="disabled")
+                    self.root.after(3, self._continue_streaming_typing_animation)
+                    return
+
             # Vérifier si on a des caractères à afficher
             if self.typing_index < buffer_length:
                 # 🔗 DÉTECTION ET TRAITEMENT DES LIENS MARKDOWN
                 # Vérifier si on est au début d'un lien [titre](url)
-                link_detected = self._detect_and_process_markdown_link()
+                # (sauf si on est dans un bloc de code — les liens y sont du texte brut)
+                link_detected = (
+                    False if getattr(self, '_streaming_in_code_block', False)
+                    else self._detect_and_process_markdown_link()
+                )
 
                 if link_detected == "start":
                     # Le lien commence, continuer l'animation pour afficher le titre
@@ -308,6 +374,10 @@ class StreamingMixin:
                         # Continuer l'animation
                         self.root.after(10, self._continue_streaming_typing_animation)
                         return
+
+                # 🎨 PROGRESSIVE CODE BLOCK HANDLING
+                if self._handle_progressive_code_block():
+                    return
 
                 # Il y a du contenu à afficher (pas dans un lien)
                 char = self._streaming_buffer[self.typing_index]
@@ -365,6 +435,11 @@ class StreamingMixin:
                         bold_pattern = r"\*\*([^*\n]{1,200}?)\*\*$"
                         if re.search(bold_pattern, current_content):
                             should_format = True
+                    # Détecter *texte* (italique) — un seul * non précédé de *
+                    if not should_format and current_content.endswith("*") and not current_content.endswith("**"):
+                        italic_pattern = r"(?<!\*)\*([^*\n]{1,200}?)\*$"
+                        if re.search(italic_pattern, current_content):
+                            should_format = True
                 elif char == "`":
                     current_content = self.typing_widget.get("1.0", "end-1c")
                     code_pattern = r"`([^`\n]+)`$"
@@ -388,7 +463,11 @@ class StreamingMixin:
                 # Ajuster la hauteur aux retours à la ligne
                 if char == "\n":
                     self.adjust_text_widget_height(self.typing_widget)
-                    self.root.after(5, self._smart_scroll_follow_animation)
+                    self.root.after(1, self._smart_scroll_follow_animation)
+                elif self.typing_index % 25 == 0:
+                    # Scroll périodique même sans \n pour suivre le word-wrap
+                    self.adjust_text_widget_height(self.typing_widget)
+                    self.root.after(1, self._smart_scroll_follow_animation)
 
                 self.typing_widget.configure(state="disabled")
 
@@ -505,6 +584,197 @@ class StreamingMixin:
         except Exception as e:
             print(f"⚠️ [STREAM] Erreur coloration bloc: {e}")
             traceback.print_exc()
+
+    # ================================================================
+    # 🎨 PROGRESSIVE CODE BLOCK METHODS
+    # ================================================================
+
+    def _handle_progressive_code_block(self):
+        """
+        Handle progressive code block detection and formatting during streaming.
+        Hides opening/closing markers and applies syntax highlighting in real-time.
+        Returns True if the current position was handled (caller should return).
+        """
+        buffer = self._streaming_buffer
+        idx = self.typing_index
+        buffer_len = len(buffer)
+
+        if idx >= buffer_len:
+            return False
+
+        if not getattr(self, '_streaming_in_code_block', False):
+            # === NOT IN CODE BLOCK: Check for opening marker ===
+            if buffer[idx] != '`':
+                return False
+
+            remaining = buffer[idx:]
+            if not remaining.startswith('```'):
+                # Possibly partial ``` at start of line — wait for more data
+                if (idx == 0 or buffer[idx - 1] == '\n') and len(remaining) < 3:
+                    if not self._streaming_complete:
+                        self.root.after(20, self._continue_streaming_typing_animation)
+                        return True
+                return False
+
+            # We have ``` — must be at start of line
+            if idx > 0 and buffer[idx - 1] != '\n':
+                return False
+
+            # Look for the full opening marker: ```language\n
+            after_backticks = remaining[3:]
+            newline_pos = after_backticks.find('\n')
+
+            if newline_pos == -1:
+                # Opening marker incomplete — wait
+                if not self._streaming_complete:
+                    self.root.after(20, self._continue_streaming_typing_animation)
+                    return True
+                else:
+                    return False
+
+            # Extract and validate language tag
+            language_raw = after_backticks[:newline_pos].strip()
+            if language_raw:
+                language_part = language_raw.split()[0]
+                if not re.match(r'^[\w+#.-]+$', language_part):
+                    return False  # Not a valid language tag
+                language = language_part.lower()
+            else:
+                language = ""
+
+            # === ENTERING CODE BLOCK ===
+            marker_length = 3 + newline_pos + 1  # ``` + lang chars + \n
+
+            # Remove marker from buffer (keeps buffer/widget in sync)
+            self._streaming_buffer = buffer[:idx] + buffer[idx + marker_length:]
+            self.typing_text = self._streaming_buffer
+            # typing_index stays the same — first code char is now at idx
+
+            self._streaming_in_code_block = True
+            self._streaming_code_language = language
+            self._streaming_code_widget_start = self.typing_widget.index("end-1c")
+            self._streaming_code_content = ""
+            self._streaming_code_rehighlight_counter = 0
+
+            print(f"🎨 [STREAM] Début bloc code progressif '{language}'")
+
+            self.root.after(10, self._continue_streaming_typing_animation)
+            return True
+
+        else:
+            # === IN CODE BLOCK: Process code characters ===
+            remaining = buffer[idx:]
+
+            # Check for closing marker (``` preceded by newline in code content)
+            prev_is_newline = (
+                self._streaming_code_content == ''
+                or self._streaming_code_content.endswith('\n')
+            )
+
+            if prev_is_newline and remaining.startswith('`'):
+                if remaining.startswith('```'):
+                    after_close = remaining[3:]
+
+                    if after_close == '' and not self._streaming_complete:
+                        # Wait for more data to confirm closing
+                        self.root.after(20, self._continue_streaming_typing_animation)
+                        return True
+
+                    # Closing marker: followed by \n, end-of-buffer, or non-alpha
+                    if after_close == '' or not after_close[0].isalpha():
+                        # === CLOSING CODE BLOCK ===
+                        # Remove closing ``` from buffer
+                        self._streaming_buffer = buffer[:idx] + buffer[idx + 3:]
+                        self.typing_text = self._streaming_buffer
+
+                        # Final syntax highlighting
+                        self._finalize_progressive_code_block()
+
+                        self._streaming_in_code_block = False
+                        self._streaming_code_language = ""
+                        self._streaming_code_content = ""
+
+                        print("🎨 [STREAM] Fin bloc code progressif")
+
+                        self.root.after(10, self._continue_streaming_typing_animation)
+                        return True
+                elif len(remaining) < 3 and not self._streaming_complete:
+                    # Only 1-2 backticks — might be incomplete closing ```
+                    self.root.after(20, self._continue_streaming_typing_animation)
+                    return True
+
+            # === INSERT CODE CHARACTER WITH SYNTAX TAG ===
+            char = buffer[idx]
+            self.typing_widget.configure(state="normal")
+
+            # Insert with code_block tag (dark background + monospace)
+            self.typing_widget.insert("end", char, "code_block")
+            self.typing_index += 1
+            self._streaming_code_content += char
+            self._streaming_code_rehighlight_counter += 1
+
+            # Periodically re-highlight for proper syntax colors
+            if char == '\n' or self._streaming_code_rehighlight_counter >= 30:
+                self._rehighlight_progressive_code_block()
+                self._streaming_code_rehighlight_counter = 0
+
+            # Adjust height on newlines
+            if char == "\n":
+                self.adjust_text_widget_height(self.typing_widget)
+                self.root.after(1, self._smart_scroll_follow_animation)
+
+            self.typing_widget.configure(state="disabled")
+
+            self.root.after(10, self._continue_streaming_typing_animation)
+            return True
+
+    def _rehighlight_progressive_code_block(self):
+        """Re-apply syntax highlighting on the current progressive code block content."""
+        try:
+            language = self._streaming_code_language
+            code = self._streaming_code_content
+            if not code or not self._streaming_code_widget_start:
+                return
+
+            code_tokens = self._get_code_tokens(language, code)
+
+            self.typing_widget.configure(state="normal")
+            start_idx = self._streaming_code_widget_start
+
+            for rel_pos, token_type in code_tokens.items():
+                if rel_pos < len(code):
+                    tk_start = f"{start_idx} + {rel_pos} chars"
+                    tk_end = f"{start_idx} + {rel_pos + 1} chars"
+                    self.typing_widget.tag_add(token_type, tk_start, tk_end)
+
+            self.typing_widget.configure(state="disabled")
+        except Exception:
+            pass  # Silent — don't disrupt animation for periodic highlight failures
+
+    def _finalize_progressive_code_block(self):
+        """Apply final syntax highlighting when a code block closes."""
+        try:
+            language = self._streaming_code_language
+            code = self._streaming_code_content
+            if not code:
+                return
+
+            code_tokens = self._get_code_tokens(language, code)
+
+            self.typing_widget.configure(state="normal")
+            start_idx = self._streaming_code_widget_start
+
+            for rel_pos, token_type in code_tokens.items():
+                if rel_pos < len(code):
+                    tk_start = f"{start_idx} + {rel_pos} chars"
+                    tk_end = f"{start_idx} + {rel_pos + 1} chars"
+                    self.typing_widget.tag_add(token_type, tk_start, tk_end)
+
+            self.typing_widget.configure(state="disabled")
+
+            print(f"🎨 [STREAM] Coloration finale '{language}' ({len(code)} chars)")
+        except Exception as e:
+            print(f"⚠️ [STREAM] Erreur finalisation bloc code: {e}")
 
     def _get_code_tokens(self, language: str, code: str) -> dict:
         """
@@ -1031,13 +1301,24 @@ class StreamingMixin:
                 self.set_input_state(True)
                 return
 
+            # Handle unclosed code blocks from progressive streaming
+            if getattr(self, '_streaming_in_code_block', False):
+                self._finalize_progressive_code_block()
+                self._streaming_in_code_block = False
+
             # Récupérer le texte ACTUEL du widget (déjà coloré pendant l'animation)
             self.typing_widget.configure(state="normal")
-            current_widget_text = self.typing_widget.get("1.0", "end-1c")
 
-            # Mettre à jour l'historique avec le texte actuel du widget
-            if self.conversation_history:
-                self.conversation_history[-1]["text"] = current_widget_text
+            # Si le mode rattrapage immédiat a déclenché, le widget peut être
+            # (quasi) vide alors que le buffer contient tout le texte.
+            # → insérer le texte manquant avant de formater.
+            buffer_text = getattr(self, "_streaming_buffer", "") or ""
+            current_widget_text = self.typing_widget.get("1.0", "end-1c")
+            if len(current_widget_text) < len(buffer_text) * 0.9:
+                # Le widget a beaucoup moins de texte que le buffer → dump le buffer
+                self.typing_widget.delete("1.0", "end")
+                self.typing_widget.insert("1.0", buffer_text)
+                current_widget_text = self.typing_widget.get("1.0", "end-1c")
 
             # IMPORTANT: S'assurer que typing_text est défini pour le formatage
             self.typing_text = current_widget_text
@@ -1050,43 +1331,57 @@ class StreamingMixin:
                 self._formatted_bold_contents.clear()
 
             # ============================================================
-            # 🎨 PAS DE RÉ-ANALYSE DES BLOCS DE CODE
-            # La coloration a déjà été faite pendant l'animation
-            # On applique juste le formatage Markdown (gras, italique, etc.)
+            # 🎨 FORMATAGE DES TABLEAUX — Toujours depuis le source original
+            # Le check précédent (box-drawing chars dans le widget) échouait
+            # quand seulement CERTAINS tableaux étaient formatés pendant
+            # l'animation : les autres restaient en markdown brut.
+            # Maintenant : si le source contient des tableaux markdown,
+            # on reconstruit TOUT le widget depuis le buffer original.
             # ============================================================
+            # Utiliser le buffer ORIGINAL (jamais modifié par le progressive code block
+            # handler) qui conserve les marqueurs ```python et ``` intacts.
+            # _streaming_buffer a eu ses marqueurs de code supprimés pendant l'animation.
+            raw_source = getattr(self, "_streaming_buffer_original", "") or getattr(self, "_streaming_buffer", "") or current_widget_text
 
-            print(
-                f"[DEBUG] _finish_streaming: Formatage final sur {len(current_widget_text)} caractères (coloration déjà faite)"
-            )
+            # Détecter les tableaux dans le SOURCE ORIGINAL (pas le widget)
+            _sep_pattern = re.compile(r'^\|[\s\-:]+\|', re.MULTILINE)
+            has_markdown_tables = bool(_sep_pattern.search(raw_source))
 
-            # Vérifier si les tableaux sont déjà formatés (présence de bordures)
-            tables_already_formatted = any(
-                c in current_widget_text for c in "┌┬┐│├┼┤└┴┘─"
-            )
-
-            if tables_already_formatted:
+            if has_markdown_tables:
                 print(
-                    "[DEBUG] _finish_streaming: Tableaux déjà formatés, pas de reconstruction"
-                )
-                # Les tableaux sont déjà formatés pendant l'animation
-                # On applique juste le formatage Markdown sans détruire le widget
-                self._apply_unified_progressive_formatting(self.typing_widget)
-            else:
-                print(
-                    "[DEBUG] _finish_streaming: Tableaux non formatés, formatage nécessaire"
+                    "[DEBUG] _finish_streaming: Tableaux markdown détectés dans le source → reconstruction complète"
                 )
                 # Pré-analyser les tableaux
                 self._table_blocks = self._preanalyze_markdown_tables(
-                    current_widget_text
+                    raw_source
                 )
 
-                # Formater les tableaux Markdown (reconstruit le widget)
+                # Formater les tableaux Markdown (reconstruit le widget à partir du source original)
                 self._format_markdown_tables_in_widget(
-                    self.typing_widget, current_widget_text
+                    self.typing_widget, raw_source
                 )
 
-                # Formatage unifié (gras, italique, code inline, etc.)
-                self._apply_unified_progressive_formatting(self.typing_widget)
+                # IMPORTANT: Effacer typing_text AVANT le formatage full_scan.
+                # Après la reconstruction des tableaux, le widget contient du
+                # markdown brut (## **titre**, **bold**, etc.) qu'il faut reformater.
+                # Si typing_text reste défini, le formateur de titres refuse de
+                # traiter les lignes (line_is_complete=False) et le formateur
+                # bold rejette les paires absentes du typing_text stale.
+                self.typing_text = ""
+
+                # Après reconstruction, appliquer le formatage unifié complet
+                # pour rattraper tout ce que _apply_simple_markdown_formatting
+                # pourrait avoir manqué (listes, bold restants, etc.)
+                self._apply_unified_progressive_formatting(self.typing_widget, full_scan=True)
+            else:
+                print(
+                    "[DEBUG] _finish_streaming: Pas de tableaux, formatage inline uniquement"
+                )
+                # IMPORTANT: Effacer typing_text pour le même motif que ci-dessus
+                self.typing_text = ""
+
+                # Pas de tableaux : formatage Markdown complet (full_scan) sans détruire le widget
+                self._apply_unified_progressive_formatting(self.typing_widget, full_scan=True)
 
             # Les liens ont déjà été collectés pendant l'animation dans _pending_links
             # Ne PAS les rescanner ni les effacer
@@ -1187,12 +1482,16 @@ class StreamingMixin:
 
             self.typing_widget.configure(state="disabled")
 
-            # STOCKER les valeurs de feedback pour le RLHF AVANT d'afficher le timestamp
+            # Mettre à jour l'historique et le feedback avec le texte FINAL
+            # (après reconstruction éventuelle des tableaux)
+            final_text = self.typing_widget.get("1.0", "end-1c")
+            if self.conversation_history:
+                self.conversation_history[-1]["text"] = final_text
             if hasattr(self, "current_message_container") and self.current_message_container is not None:
                 self.current_message_container.feedback_query = getattr(self, "_last_user_query", None)
-                self.current_message_container.feedback_response = current_widget_text
+                self.current_message_container.feedback_response = final_text
                 print(f"[DEBUG STOCKAGE FEEDBACK] Query: {getattr(self, '_last_user_query', 'None')[:50]}...")
-                print(f"[DEBUG STOCKAGE FEEDBACK] Response: {current_widget_text[:50]}...")
+                print(f"[DEBUG STOCKAGE FEEDBACK] Response: {final_text[:50]}...")
 
             # Afficher le timestamp
             self._show_timestamp_for_current_message()
@@ -1200,12 +1499,13 @@ class StreamingMixin:
             # Réactiver la saisie
             self.set_input_state(True)
 
-            # Scroll final
-            self.root.after(200, self._final_smooth_scroll_to_bottom)
+            # Scroll final — délai court pour laisser le timestamp se rendre
+            self.root.after(50, self._final_smooth_scroll_to_bottom)
 
             # Nettoyage des variables streaming
             self._streaming_mode = False
             self._streaming_buffer = ""
+            self._streaming_buffer_original = ""
             self._streaming_complete = False
 
             # Nettoyage des variables d'animation (comme finish_typing_animation_dynamic)
@@ -1223,7 +1523,7 @@ class StreamingMixin:
                 delattr(self, "_formatted_positions")
 
             print(
-                f"✅ [STREAM] Animation terminée: {len(current_widget_text)} caractères"
+                f"✅ [STREAM] Animation terminée et affichage finalisé : {len(current_widget_text)} caractères"
             )
 
         except Exception as e:
@@ -1239,9 +1539,22 @@ class StreamingMixin:
         Démarre replié (▶) par défaut.
         """
         try:
-            self._reasoning_widget_row = len(self.conversation_history)
+            # Ajouter un placeholder dans conversation_history pour que le
+            # widget raisonnement occupe une *vraie* row dans le grid.
+            # Cela évite les collisions de row entre la bulle streaming qui
+            # suit et le prochain message utilisateur.
+            self.conversation_history.append(
+                {
+                    "text": "",
+                    "is_user": False,
+                    "timestamp": __import__('datetime').datetime.now(),
+                    "type": "reasoning_widget",
+                }
+            )
+            self._reasoning_widget_row = len(self.conversation_history) - 1
             self._reasoning_expanded = False   # Replié par défaut
             self._thinking_mode_active = True  # Signale à la bulle réponse de ne pas re-afficher 🤖
+            self._last_bubble_is_user = False  # Le widget Raisonnement est un output IA
             self._pending_thinking_tokens = []  # Buffer pour la race condition widget/tokens
             self._reasoning_auto_expanded = False  # Auto-expand initial au 1er token uniquement
 
@@ -1412,8 +1725,12 @@ class StreamingMixin:
         """Appelé quand la passe thinking est terminée : arrête l'animation.
         Si aucun token de raisonnement n'a été reçu (widget vide), masque
         entièrement le container pour ne pas afficher un encadré vide.
+        Dans ce cas, restaure également _last_bubble_is_user pour que la
+        bulle de réponse suivante affiche bien l'émoji robot.
         """
         self._stop_reasoning_dots(_success=True)
+        # Réactiver l'icône robot pour la prochaine bulle réponse
+        self._thinking_mode_active = False
         try:
             # Vérifier si le widget de texte est vide (thinking skippé)
             if (
@@ -1424,6 +1741,10 @@ class StreamingMixin:
                 if not content and hasattr(self, "_reasoning_container"):
                     # Aucun token reçu → masquer le widget entièrement
                     self._reasoning_container.grid_remove()
+                    # Restaurer le flag pour que la bulle réponse affiche
+                    # l'émoji robot (le widget vide ne compte pas comme
+                    # un output IA visible).
+                    self._last_bubble_is_user = True
         except Exception:
             pass
 

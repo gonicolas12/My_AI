@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v6.6.0
+🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v6.7.0
 Lance l'interface avec CustomAI unifié (support 1M tokens intégré)
 """
 
@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def main():
     """Point d'entrée principal"""
-    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v6.6.0")
+    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v6.7.0")
     print("=" * 50)
     print("   🧠 CustomAI avec support 1M tokens intégré")
     print("   🔧 Processeurs PDF, DOCX, Code avancés")

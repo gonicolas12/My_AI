@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "6.6.0"
+  version: "6.7.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
@@ -45,13 +45,21 @@ llm:
     enable_learning: true
     conversation_memory: 10
     base_url: "http://localhost:11434"
-    default_model: "llama3.2"
+    default_model: "qwen3.5:4b"
     timeout: 60
     available_models:
       - "llama3.2"
       - "llama3.2:13b"
+      - "llama3.2-vision"
       - "codellama"
       - "mistral"
+      - "qwen3.5"
+      - "qwen3.5:2b"
+      - "qwen3.5:4b"
+      - "qwen3.5:9b"
+      - "qwen3.5:27b"
+      - "minicpm-v"
+      - "llava"
   
   # Configuration Transformers
   transformers:

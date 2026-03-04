@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v6.6.0
+# 📚 Guide d'Utilisation - My Personal AI v6.7.0
 
 ## 🚀 Démarrage Rapide
 
@@ -59,7 +59,7 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - 🕒 **Timestamps** sur chaque message
 - 🎨 **Syntax highlighting** pour code (via Pygments)
 - 📁 **Drag-and-drop** fichiers PDF/DOCX/Excel/CSV/Images/Code
-- 🖼️ **Analyse d'images** avec modèles vision (llava, llama3.2-vision)
+- 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 
 ### Utilisation Typique GUI
@@ -237,7 +237,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v6.6.0:
+État My Personal AI v6.7.0:
 - Modèle: CustomAI avec 1M tokens
 - Mémoire: 1,234,567 tokens utilisés / 1,048,576 max
 - Documents: 3 fichiers en mémoire
@@ -305,7 +305,7 @@ Si Ollama est installé et lancé, toutes vos questions sont traitées par le LL
 ✅ [LocalLLM] Ollama détecté et actif sur http://localhost:11434 (Modèle: my_ai)
 
 Vous> Comment fonctionne une boucle for en Python ?
-IA> [Réponse générée par llama3.1:8b - qualité LLM complète]
+IA> [Réponse générée par qwen3.5:4b - qualité LLM complète]
 ```
 
 **Avantages :**
@@ -806,11 +806,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v6.6.0
+  MY PERSONAL AI - System Status v6.7.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 6.6.0
+📊 Version: 6.7.0
 💾 Context Manager: MillionTokenContextManager
 
 📈 Context Statistics:
@@ -844,7 +844,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v6.6.0
+My Personal AI v6.7.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1107,7 +1107,7 @@ context_manager:
 
 ---
 
-**Version:** 6.6.0
+**Version:** 6.7.0
 **Interfaces:** GUI (CustomTkinter), CLI
 **Capacité Contexte:** 1,048,576 tokens (1M)
 **Architecture:** 100% Locale

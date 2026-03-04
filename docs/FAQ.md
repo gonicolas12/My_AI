@@ -10,14 +10,38 @@ Oui ! Absolument aucune donnée n'est envoyée à l'extérieur. Votre IA fonctio
 
 | Configuration | Qualité des réponses | Installation |
 |---------------|---------------------|--------------|
-| **Avec Ollama** | LLM complet (llama3.1:8b) - conversations naturelles | Télécharger depuis ollama.com |
+| **Avec Ollama** | LLM complet - conversations naturelles | Télécharger depuis ollama.com |
 | **Sans Ollama** | Mode patterns/règles - fonctionnel mais basique | Rien à installer |
 
 L'IA fonctionne dans les deux cas, mais Ollama offre des réponses beaucoup plus intelligentes et naturelles. **Aucun compte OpenAI ou service cloud n'est requis.**
 
+### Comment changer de modèle Ollama ?
+
+Trois étapes, dans l'ordre :
+
+**Étape 1 — `config.yaml`** (pilote tout le code Python) :
+```yaml
+llm:
+  local:
+    default_model: "qwen3.5:2b"  # ← nouvelle valeur
+```
+
+**Étape 2 — `Modelfile`** (doit correspondre à `config.yaml`) :
+```
+FROM qwen3.5:2b   # ← même valeur
+```
+
+**Étape 3 — Terminal** :
+```bash
+ollama pull qwen3.5:2b
+.\create_custom_model.bat
+```
+
+> ⚠️ `config.yaml` et `Modelfile` doivent toujours avoir la **même valeur**. `config.yaml` contrôle le code Python, `Modelfile` contrôle la construction du modèle custom `my_ai` dans Ollama.
+
 ### Comment installer Ollama ?
 1. Téléchargez depuis **https://ollama.com/download**
-2. Installez le modèle : `ollama pull llama3.1:8b`
+2. Installez le modèle : `ollama pull qwen3.5:4b`
 3. Créez le modèle personnalisé : `.\create_custom_model.bat`
 
 L'application détecte automatiquement Ollama au démarrage.
@@ -26,9 +50,9 @@ L'application détecte automatiquement Ollama au démarrage.
 
 | RAM | Modèle recommandé | Commande |
 |-----|-------------------|----------|
-| 8 GB | llama3.2 (3B) | `ollama pull llama3.2` |
-| 16 GB | llama3.1:8b ✅ | `ollama pull llama3.1:8b` |
-| 32 GB+ | llama3.1:70b | `ollama pull llama3.1:70b` |
+| 8 GB | qwen3.5:4b | `ollama pull qwen3.5:4b` |
+| 16 GB | qwen3.5:9b ✅ | `ollama pull qwen3.5:9b` |
+| 32 GB+ | qwen3.5:27b | `ollama pull qwen3.5:27b` |
 
 ### Mes données restent-elles confidentielles avec Ollama ?
 **Oui, 100% !** Ollama exécute le modèle **localement sur votre PC**. Aucune donnée n'est envoyée sur internet. C'est l'avantage principal par rapport à ChatGPT ou Claude.
@@ -61,7 +85,7 @@ pip install -r requirements.txt
 **Pour Ollama (optionnel mais recommandé) :**
 ```bash
 # Télécharger depuis https://ollama.com/download
-ollama pull llama3.1:8b
+ollama pull qwen3.5:4b
 .\create_custom_model.bat
 ```
 
@@ -125,7 +149,7 @@ Utilisez le bouton "Clear Chat" dans l'interface graphique, ou redémarrez l'app
 ### Ollama ne fonctionne pas, que faire ?
 
 1. Vérifiez qu'Ollama est lancé : `ollama list`
-2. Testez manuellement : `ollama run llama3.1:8b "Bonjour"`
+2. Testez manuellement : `ollama run qwen3.5:4b "Bonjour"`
 3. Vérifiez le port : `curl http://localhost:11434`
 4. Redémarrez Ollama si nécessaire
 5. L'application fonctionnera en mode fallback si Ollama est indisponible

@@ -1,7 +1,7 @@
 """
 Configuration principale de l'IA personnelle
 
-Source de vérité : config.yaml (racine du projet).
+Source : config.yaml (racine du projet).
 Les dicts _DEFAULT_* ci-dessous ne servent que de fallback si le YAML
 est absent ou incomplet.  Tout le code doit passer par get_config().
 """
@@ -175,3 +175,8 @@ def get_config() -> Config:
     if _GLOBAL_CONFIG is None:
         _GLOBAL_CONFIG = Config()
     return _GLOBAL_CONFIG
+
+
+def get_default_model() -> str:
+    """Retourne le modèle LLM local par défaut depuis config.yaml (llm.local.default_model)."""
+    return get_config().get("llm.local.default_model", "qwen3.5:4b")

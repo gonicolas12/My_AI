@@ -371,33 +371,25 @@ class ChatAreaMixin:
         parent_frame.bind("<Button-5>", parent_test_event)
 
     def _smart_scroll_follow_animation(self):
-        """Scroll optimisé qui évite le clignotement"""
+        """Scroll optimisé qui suit le bas du contenu en temps réel.
+        Met à jour le scrollregion puis force le scroll vers le bas."""
         try:
             if self.use_ctk:
                 canvas = self._get_parent_canvas()
                 if canvas:
-
-                    # 🔧 OPTIMISATION : Ne scroll que si nécessaire
                     canvas.update_idletasks()
-
-                    # Vérifier la position actuelle pour éviter les scrolls inutiles
-                    current_scroll = canvas.canvasy(canvas.winfo_height())
-                    total_height = canvas.bbox("all")[3] if canvas.bbox("all") else 0
-
-                    # Ne scroll que si on n'est pas déjà proche du bas (tolérance de 50px)
-                    if total_height - current_scroll > 50:
+                    # Forcer la mise à jour du scrollregion pour refléter
+                    # la nouvelle taille du widget texte (titres = police plus grande)
+                    bbox = canvas.bbox("all")
+                    if bbox:
+                        canvas.configure(scrollregion=bbox)
                         canvas.yview_moveto(1.0)
-
-                    # Mise à jour immédiate
-                    canvas.update()
-
             else:
                 # Version tkinter standard
                 parent = self.chat_frame.master
                 if hasattr(parent, "yview_moveto"):
                     parent.update_idletasks()
                     parent.yview_moveto(1.0)
-                    parent.update()
 
         except Exception as e:
             print(f"[DEBUG] Erreur scroll animation: {e}")
@@ -424,40 +416,36 @@ class ChatAreaMixin:
             print(f"[DEBUG] Erreur force scroll: {e}")
 
     def _final_smooth_scroll_to_bottom(self):
-        """Scroll final en douceur sans saut brutal"""
+        """Scroll final fiable — met à jour le scrollregion puis force au bas"""
         try:
-            # Une seule mise à jour, puis scroll progressif
             self.root.update_idletasks()
 
             if self.use_ctk:
                 canvas = self._get_parent_canvas()
                 if canvas:
-
-                    # Scroll progressif vers le bas
-                    for i in range(5):  # 5 étapes progressives
-                        current_yview = canvas.yview()
-                        if current_yview and current_yview[1] < 1.0:
-                            # Calculer la position intermédiaire
-                            current_top = current_yview[0]
-                            step = (1.0 - current_top) / (5 - i)
-                            new_position = min(1.0, current_top + step)
-                            canvas.yview_moveto(new_position)
+                    # Mettre à jour le scrollregion pour inclure le timestamp/feedback
+                    bbox = canvas.bbox("all")
+                    if bbox:
+                        canvas.configure(scrollregion=bbox)
+                    canvas.yview_moveto(1.0)
+                    # Double scroll après un court délai pour couvrir les
+                    # éventuelles mises à jour de géométrie tardives
+                    def _ensure_bottom():
+                        try:
                             canvas.update_idletasks()
-                        else:
-                            break
+                            bbox2 = canvas.bbox("all")
+                            if bbox2:
+                                canvas.configure(scrollregion=bbox2)
+                            canvas.yview_moveto(1.0)
+                        except Exception:
+                            pass
+                    self.root.after(100, _ensure_bottom)
             else:
                 parent = self.chat_frame.master
                 if hasattr(parent, "yview_moveto"):
-                    for i in range(5):
-                        current_yview = parent.yview()
-                        if current_yview and current_yview[1] < 1.0:
-                            current_top = current_yview[0]
-                            step = (1.0 - current_top) / (5 - i)
-                            new_position = min(1.0, current_top + step)
-                            parent.yview_moveto(new_position)
-                            parent.update_idletasks()
-                        else:
-                            break
+                    parent.update_idletasks()
+                    parent.yview_moveto(1.0)
+                    self.root.after(100, lambda: parent.yview_moveto(1.0))
 
         except Exception:
             # Fallback : scroll simple

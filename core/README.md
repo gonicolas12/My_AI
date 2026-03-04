@@ -13,7 +13,6 @@ Contenu principal
 - `error_analysis.py` — Scripts utilitaires pour analyser erreurs, générer rapports d'évaluation et produire un JSON de rapport.
 - `evaluation.py` — Outils et CLI pour évaluer un modèle local sur un jeu de tests (chargement de modèle `.py`, calcul des métriques: exact match, precision, recall, f1).
 - `optimization.py` — Outils CLI pour optimiser des modèles locaux (quantization, pruning, etc.) et loader générique de modèles.
-- `rlhf.py` — Boucle RLHF (collecte de feedback humain, génération de sorties, réentraînement basique). Fonctions pour interagir en CLI.
 - `rlhf_feedback_integration.py` — Scripts pour intégrer automatiquement les feedbacks RLHF dans le dataset d'entraînement.
 - `training_pipeline.py` — Pipeline d'entraînement/fine-tuning local (chargement dataset, boucles d'entraînement, checkpoints, sauvegarde).
 - `__init__.py` — Initialisation du package `core`.

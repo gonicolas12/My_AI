@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v6.6.0
+# 📖 Guide d'Installation - My Personal AI v6.7.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v6.6.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v6.7.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -47,7 +47,7 @@ python -c "import customtkinter; print('Installation réussie!')"
 
 ### 3. Installation Ollama (Optionnel mais Recommandé)
 
-Ollama permet d'avoir des réponses générées par un vrai LLM local (llama3.1:8b).
+Ollama permet d'avoir des réponses générées par un vrai LLM local.
 
 **Étape 1 : Installer Ollama**
 ```bash
@@ -58,19 +58,20 @@ Ollama permet d'avoir des réponses générées par un vrai LLM local (llama3.1:
 **Étape 2 : Télécharger un modèle**
 ```bash
 # Modèle recommandé pour 16 GB RAM
-ollama pull llama3.1:8b
+ollama pull qwen3.5:9b
 
 # OU modèle plus léger pour 8 GB RAM
-ollama pull llama3.2
+ollama pull qwen3.5:4b
 ```
 
 **Étape 2b : Installer un modèle Vision (Optionnel pour l'analyse d'images)**
 ```bash
-# Modèle vision recommandé (5 GB)
-ollama pull llava
+# Modèle vision recommandé (3 GB) — meilleur rapport qualité/vitesse
+ollama pull minicpm-v
 
 # OU autres modèles vision disponibles
-ollama pull llama3.2-vision      # Plus récent
+ollama pull minicpm-v            # Bonne qualité (4.7 GB)
+ollama pull llama3.2-vision      # Haute qualité mais lourd (7.9 GB)
 ollama pull llava:13b            # Plus performant mais plus lourd
 ollama pull bakllava             # Alternative
 ollama pull moondream            # Plus léger
@@ -87,7 +88,7 @@ ollama pull moondream            # Plus léger
 **Vérifier l'installation :**
 ```bash
 ollama list  # Voir les modèles installés
-ollama run llama3.1:8b "Bonjour"  # Tester
+ollama run qwen3.5:4b "Bonjour"  # Tester
 ```
 
 > **Note:** Si Ollama n'est pas installé, l'IA utilisera automatiquement le mode fallback (CustomAIModel avec patterns).
@@ -204,7 +205,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "6.6.0"
+  version: "6.7.0"
   max_tokens: 4096          # Max tokens standard
   ultra_max_tokens: 1048576 # Max tokens ultra mode (1M)
   temperature: 0.7
@@ -268,7 +269,7 @@ Le fichier `Modelfile` à la racine du projet configure le modèle personnalisé
 
 ```dockerfile
 # Modelfile pour My_AI
-FROM llama3.1:8b
+FROM qwen3.5:4b
 
 # Paramètres
 PARAMETER temperature 0.7
@@ -601,7 +602,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v6.6.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v6.7.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -758,4 +759,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 6.6.0 | Architecture: 100% locale | Capacité: 1M tokens*
+*Version: 6.7.0 | Architecture: 100% locale | Capacité: 1M tokens*

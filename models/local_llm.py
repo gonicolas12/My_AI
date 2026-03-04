@@ -9,6 +9,13 @@ from typing import Callable, Dict, List, Optional
 
 import requests
 
+# ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
+try:
+    from core.config import get_default_model as _cfg_default_model
+    _DEFAULT_LLM_MODEL: str = str(_cfg_default_model())
+except Exception:
+    _DEFAULT_LLM_MODEL: str = "qwen3.5:4b"
+
 
 class LocalLLM:
     """
@@ -22,7 +29,7 @@ class LocalLLM:
         ollama_url="http://localhost:11434/api/generate",
         timeout=600,
     ):
-        # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'llama3'
+        # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'qwen3.5:4b'
         self.model = model
         self.ollama_url = ollama_url
         self.chat_url = ollama_url.replace("/api/generate", "/api/chat")
@@ -42,12 +49,12 @@ class LocalLLM:
         self._keep_recent_messages: int = 20
 
         if self.is_ollama_available:
-            # Vérifier si le modèle personnalisé existe, sinon utiliser llama3
+            # Vérifier si le modèle personnalisé existe, sinon utiliser qwen3.5:4b
             if not self._check_model_exists(model):
                 print(
-                    f"⚠️ [LocalLLM] Modèle '{model}' non trouvé. Fallback sur 'llama3'."
+                    f"⚠️ [LocalLLM] Modèle '{model}' non trouvé. Fallback sur '{_DEFAULT_LLM_MODEL}'."
                 )
-                self.model = "llama3"
+                self.model = _DEFAULT_LLM_MODEL
 
             print(
                 f"✅ [LocalLLM] Ollama détecté et actif sur {self.ollama_url} (Modèle: {self.model})"
@@ -115,6 +122,7 @@ class LocalLLM:
             "model": self.model,
             "messages": messages,
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": 0.7,
                 "num_ctx": 32768,
@@ -159,10 +167,20 @@ class LocalLLM:
         system_prompt: Optional[str] = None,
         on_token: Optional[Callable] = None,
         is_interrupted_callback: Optional[Callable] = None,
+        on_thinking_token: Optional[Callable] = None,
+        on_thinking_complete: Optional[Callable] = None,
     ) -> str:
         """
         Génère une réponse en streaming réel depuis Ollama.
-        Appelle on_token(chunk) pour chaque morceau reçu.
+        Appelle on_token(chunk) pour chaque token de réponse.
+
+        Si on_thinking_token est fourni, active le thinking natif Qwen3.5 :
+          - "think": True dans la requête → Ollama streame les tokens de
+            raisonnement dans message.thinking et la réponse dans message.content
+          - Les tokens de raisonnement sont routés vers on_thinking_token
+          - on_thinking_complete est appelé automatiquement dès le premier
+            token de réponse (transition thinking → réponse)
+          - Les tokens de réponse sont routés vers on_token comme d'habitude
         Retourne la réponse complète.
         """
         if not self.is_ollama_available:
@@ -174,14 +192,18 @@ class LocalLLM:
         messages.extend(self.conversation_history)
         messages.append({"role": "user", "content": prompt})
 
+        # Activer le thinking natif Qwen3.5 uniquement quand le widget est disponible
+        native_thinking = on_thinking_token is not None
         data = {
             "model": self.model,
             "messages": messages,
             "stream": True,
+            "think": native_thinking,
             "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
         }
 
         full_response = ""
+        _thinking_complete_fired = False  # Garantit un seul appel au callback
         try:
             with requests.post(
                 self.chat_url, json=data, timeout=self.timeout, stream=True
@@ -198,8 +220,20 @@ class LocalLLM:
                         chunk = json.loads(raw_line)
                     except json.JSONDecodeError:
                         continue
-                    token = chunk.get("message", {}).get("content", "")
+                    msg = chunk.get("message", {})
+                    # Thinking natif : Ollama renvoie les tokens de raisonnement
+                    # dans message.thinking (champ séparé de message.content)
+                    thinking_tok = msg.get("thinking", "")
+                    if thinking_tok and on_thinking_token:
+                        if on_thinking_token(thinking_tok) is False:
+                            break
+                    # Réponse finale : au premier content token, signaler la fin
+                    # du thinking pour que le widget passe à « Raisonnement ✓ »
+                    token = msg.get("content", "")
                     if token:
+                        if not _thinking_complete_fired and on_thinking_complete:
+                            _thinking_complete_fired = True
+                            on_thinking_complete()
                         full_response += token
                         if on_token:
                             result = on_token(token)
@@ -343,6 +377,7 @@ class LocalLLM:
                 "messages": messages,
                 "tools": tools,
                 "stream": False,
+                "think": False,
                 "options": {
                     "temperature": 0.7,
                     "num_ctx": 32768,
@@ -450,7 +485,7 @@ class LocalLLM:
         text: str, known_tool_names: List[str]
     ) -> Optional[Dict]:
         """
-        Certains modèles (llama3.2, mistral) écrivent le tool call sous forme de
+        Certains modèles écrivent le tool call sous forme de
         texte JSON au lieu d'utiliser le champ `tool_calls` de l'API.
 
         Exemples détectés :
@@ -466,14 +501,34 @@ class LocalLLM:
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
-            # Essayer d'extraire un bloc JSON embarqué
-            m = re.search(r'\{[^{}]*"name"\s*:[^{}]*\}', text, re.DOTALL)
-            if not m:
-                return None
-            try:
-                data = json.loads(m.group(0))
-            except json.JSONDecodeError:
-                return None
+            # Essayer d'extraire un bloc JSON embarqué (supporte les accolades imbriquées)
+            # D'abord essayer de trouver un objet JSON complet avec imbrication
+            depth = 0
+            start_idx = None
+            for i, ch in enumerate(text):
+                if ch == '{':
+                    if depth == 0:
+                        start_idx = i
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0 and start_idx is not None:
+                        candidate = text[start_idx:i+1]
+                        try:
+                            data = json.loads(candidate)
+                            break
+                        except json.JSONDecodeError:
+                            start_idx = None
+                            continue
+            else:
+                # Fallback regex simple sans accolades imbriquées
+                m = re.search(r'\{[^{}]*"name"\s*:[^{}]*\}', text, re.DOTALL)
+                if not m:
+                    return None
+                try:
+                    data = json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    return None
 
         # Supporter la forme liste [{"name": ...}]
         if isinstance(data, list) and data:
@@ -581,6 +636,7 @@ class LocalLLM:
                     "model": self.model,
                     "messages": messages,
                     "stream": True,
+                    "think": False,
                     "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
                 }
                 full_response = ""
@@ -628,6 +684,7 @@ class LocalLLM:
                 "messages": messages,
                 "tools": tools_for_this_call,
                 "stream": False,
+                "think": False,
                 "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
             }
 
@@ -857,6 +914,7 @@ class LocalLLM:
                 "model": self.model,
                 "messages": [{"role": "user", "content": summary_prompt}],
                 "stream": False,
+                "think": False,
                 "options": {"temperature": 0.3, "num_ctx": 8192, "num_predict": 512},
             }
             response = requests.post(self.chat_url, json=data, timeout=60)
@@ -1242,7 +1300,7 @@ class LocalLLM:
 
     def _get_vision_model(self):
         """Détecte et retourne un modèle vision disponible dans Ollama"""
-        vision_models = ["llama3.2-vision", "llava", "llava:13b", "llava:7b", "bakllava", "moondream"]
+        vision_models = ["minicpm-v", "llama3.2-vision", "llava", "llava:13b", "llava:7b", "bakllava", "moondream"]
 
         try:
             response = requests.get(
@@ -1262,7 +1320,7 @@ class LocalLLM:
                                 return m["name"]
 
                 print("⚠️ [LocalLLM] Aucun modèle vision trouvé.")
-                print("   💡 Installez-en un avec: ollama pull llava")
+                print("   💡 Installez-en un avec: ollama pull minicpm-v")
                 print(f"   📋 Modèles supportés: {', '.join(vision_models)}")
                 return None
         except Exception as e:

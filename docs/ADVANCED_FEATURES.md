@@ -39,7 +39,7 @@ interaction_id = rlhf.record_interaction(
     feedback_score=5,  # 0-5
     intent="technical_question",
     confidence=0.9,
-    model_version="llama3.2"
+    model_version="qwen3.5:4b"
 )
 
 # Obtenir les statistiques
@@ -165,7 +165,7 @@ train_data = [
 
 # Préparer le fine-tuning pour Ollama
 result = trainer.fine_tune_ollama_model(
-    base_model="llama3.2",
+    base_model="qwen3.5:4b",
     train_data=train_data,
     new_model_name="my_ai_custom",
     epochs=5
@@ -361,8 +361,8 @@ Après  : L'IA apprend votre style, votre vocabulaire, votre domaine
 
 **Valeur pratique :**
 ```
-Avant : llama3.2 générique → connaissances générales
-Après  : llama3.2-votre-entreprise → connaît vos process, votre jargon
+Avant  : qwen3.5 générique → connaissances générales
+Après  : qwen3.5-votre-entreprise → connaît vos process, votre jargon
 ```
 
 #### 3. Compression Monitor - Optimiser la mémoire
@@ -474,13 +474,13 @@ print(f"{count} exemples exportés")
 
 # Préparer le fine-tuning
 result = trainer.fine_tune_ollama_model(
-    base_model="llama3.2",
+    base_model="qwen3.5",
     train_data_path="data/train.jsonl",
-    new_model_name="llama3.2-improved-v2"
+    new_model_name="qwen3.5-improved-v2"
 )
 
 # Créer le nouveau modèle (dans le terminal)
-# ollama create llama3.2-improved-v2 -f chemin/vers/Modelfile
+# ollama create qwen3.5-improved-v2 -f chemin/vers/Modelfile
 
 # Tester et basculer si satisfait
 ```

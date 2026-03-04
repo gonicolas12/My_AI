@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v6.6.0
+# 🚀 Guide d'Optimisation - My Personal AI v6.7.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v6.6.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v6.7.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -35,7 +35,7 @@ Ollama permet d'exécuter des modèles de langage (LLM) **100% en local** sur vo
 ```bash
 # 1. Télécharger depuis https://ollama.com/download
 # 2. Installer le modèle
-ollama pull llama3.1:8b
+ollama pull qwen3.5:4b
 
 # 3. Créer modèle personnalisé
 .\create_custom_model.bat
@@ -44,7 +44,7 @@ ollama pull llama3.1:8b
 ### Configuration Modelfile
 
 ```dockerfile
-FROM llama3.1:8b
+FROM qwen3.5:4b
 PARAMETER temperature 0.7
 PARAMETER num_ctx 8192
 
@@ -58,9 +58,9 @@ Réponds en français par défaut.
 
 | RAM | Modèle | num_ctx | Performance |
 |-----|--------|---------|-------------|
-| 8 GB | `llama3.2` (3B) | 4096 | Rapide |
-| 16 GB | `llama3.1:8b` | 8192 | Équilibré ✅ |
-| 32 GB | `llama3.1:70b` | 16384 | Maximum |
+| 8 GB | `qwen3.5:4b` | 32768 | Rapide |
+| 16 GB | `qwen3.5:9b` | 8192 | Équilibré ✅ |
+| 32 GB | `qwen3.5:27b` | 16384 | Maximum |
 
 ### Vérification
 
@@ -965,6 +965,6 @@ python -m core.evaluation --test_data test_set.jsonl
 
 ---
 
-**Version:** 6.6.0
+**Version:** 6.7.0
 **Dernière mise à jour:** 14 Janvier 2026
 **Performance target:** < 1s réponse, < 2GB RAM, 1M tokens context

@@ -10,6 +10,13 @@ import re
 from models.local_llm import LocalLLM
 from models.internet_search import EnhancedInternetSearchEngine
 
+# ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
+try:
+    from core.config import get_default_model as _cfg_default_model
+    _DEFAULT_LLM_MODEL: str = str(_cfg_default_model())
+except Exception:
+    _DEFAULT_LLM_MODEL: str = "qwen3.5:4b"
+
 
 class AIAgent:
     """
@@ -21,7 +28,7 @@ class AIAgent:
         name: str,
         expertise: str,
         system_prompt: str,
-        model: str = "llama3.2",
+        model: str = _DEFAULT_LLM_MODEL,
         temperature: float = 0.7,
     ):
         """
@@ -243,7 +250,7 @@ class WebSearchAgent(AIAgent):
         self,
         name: str = "WebSearchAgent",
         expertise: str = "Recherche Internet & Fact-Checking",
-        model: str = "llama3.2",
+        model: str = _DEFAULT_LLM_MODEL,
         temperature: float = 0.5,
         focus_year: int = None,
     ):
@@ -624,7 +631,7 @@ class AgentFactory:
     """
 
     @staticmethod
-    def create_code_agent(model: str = "llama3.2") -> AIAgent:
+    def create_code_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en génération et debug de code"""
         system_prompt = """Tu es CodeAgent, un expert en programmation.
         
@@ -653,7 +660,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_analyst_agent(model: str = "llama3.2") -> AIAgent:
+    def create_analyst_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en analyse de données et documents"""
         system_prompt = """Tu es AnalystAgent, un analyste de données expert.
 
@@ -682,7 +689,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_creative_agent(model: str = "llama3.2") -> AIAgent:
+    def create_creative_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en contenu créatif"""
         system_prompt = """Tu es CreativeAgent, un créateur de contenu expert.
 
@@ -710,7 +717,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_debug_agent(model: str = "llama3.2") -> AIAgent:
+    def create_debug_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en détection et correction d'erreurs"""
         system_prompt = """Tu es DebugAgent, un expert en debug et correction d'erreurs.
 
@@ -739,7 +746,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_planner_agent(model: str = "llama3.2") -> AIAgent:
+    def create_planner_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en planification de tâches complexes"""
         system_prompt = """Tu es PlannerAgent, un expert en planification et organisation.
 
@@ -769,7 +776,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_security_agent(model: str = "llama3.2") -> AIAgent:
+    def create_security_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en sécurité et audit de code"""
         system_prompt = """Tu es SecurityAgent, un expert en cybersécurité et audit de code.
 
@@ -799,7 +806,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_optimizer_agent(model: str = "llama3.2") -> AIAgent:
+    def create_optimizer_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en optimisation et performance"""
         system_prompt = """Tu es OptimizerAgent, un expert en optimisation et performance logicielle.
 
@@ -829,7 +836,7 @@ FORMAT DE RÉPONSE:
         )
 
     @staticmethod
-    def create_datascience_agent(model: str = "llama3.2") -> AIAgent:
+    def create_datascience_agent(model: str = _DEFAULT_LLM_MODEL) -> AIAgent:
         """Agent spécialisé en data science et machine learning"""
         system_prompt = """Tu es DataScienceAgent, un expert en data science et machine learning.
 
@@ -861,7 +868,7 @@ FORMAT DE RÉPONSE:
 
     @staticmethod
     def create_web_agent(
-        model: str = "llama3.2", focus_year: int = None
+        model: str = _DEFAULT_LLM_MODEL, focus_year: int = None
     ) -> WebSearchAgent:
         """Agent spécialisé en recherche internet RÉELLE avec fact-checking"""
         return WebSearchAgent(
@@ -887,7 +894,7 @@ AVAILABLE_AGENTS = {
 }
 
 
-def create_agent(agent_type: str, model: str = "llama3.2") -> Optional[AIAgent]:
+def create_agent(agent_type: str, model: str = _DEFAULT_LLM_MODEL) -> Optional[AIAgent]:
     """
     Crée un agent du type spécifié
 

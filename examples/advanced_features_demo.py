@@ -14,6 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Imports locaux après l'ajustement du path
+from core.config import get_default_model
 from core.rlhf_manager import get_rlhf_manager
 from core.training_manager import get_training_manager
 from core.compression_monitor import get_compression_monitor
@@ -39,7 +40,7 @@ def example_rlhf():
         feedback_score=5,
         intent="technical_question",
         confidence=0.9,
-        model_version="llama3.2",
+        model_version=get_default_model(),
     )
 
     print(f"✅ Interaction enregistrée (ID: {interaction_id})")
@@ -180,7 +181,7 @@ def example_fine_tune_ollama():
     # Créer un run pour Ollama
     trainer.create_run(
         run_name="ollama_finetune",
-        config={"base_model": "llama3.2", "target": "Custom AI Assistant"},
+        config={"base_model": get_default_model(), "target": "Custom AI Assistant"},
     )
 
     # Données de fine-tuning
@@ -203,7 +204,7 @@ def example_fine_tune_ollama():
 
     # Préparer le fine-tuning
     result = trainer.fine_tune_ollama_model(
-        base_model="llama3.2",
+        base_model=get_default_model(),
         train_data=train_data,
         new_model_name="my_ai_custom",
         epochs=5,

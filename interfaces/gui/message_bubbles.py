@@ -562,8 +562,22 @@ class MessageBubblesMixin:
         # Ajustement parfait de la hauteur après rendu
         def adjust_height_later():
             text_widget.update_idletasks()
-            line_count = int(text_widget.index("end-1c").split(".", maxsplit=1)[0])
-            text_widget.configure(height=max(2, line_count))
+            # Compter les lignes AFFICHÉES (incluant le word-wrap), pas les lignes logiques
+            try:
+                result = text_widget.count("1.0", "end-1c", "displaylines")
+                if result:
+                    display_lines = result[0] if isinstance(result, (tuple, list)) else result
+                    text_widget.configure(height=max(2, display_lines + 1))
+                else:
+                    # Fallback : estimation manuelle pour les textes longs wrappés
+                    line_count = int(text_widget.index("end-1c").split(".", maxsplit=1)[0])
+                    widget_width = text_widget.cget("width")
+                    total_chars = len(text)
+                    estimated_display_lines = max(line_count, (total_chars // max(1, widget_width)) + 1)
+                    text_widget.configure(height=max(2, estimated_display_lines))
+            except Exception:
+                line_count = int(text_widget.index("end-1c").split(".", maxsplit=1)[0])
+                text_widget.configure(height=max(2, line_count))
             text_widget.update_idletasks()
             # Scroll automatique après ajustement
             if hasattr(self, "_force_scroll_to_bottom"):

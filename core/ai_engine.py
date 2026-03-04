@@ -11,6 +11,7 @@ import re as _re
 import tempfile
 import threading
 from pathlib import Path
+from datetime import datetime as _dt
 from typing import Any, Dict, List, Optional
 
 import requests as _req
@@ -34,6 +35,7 @@ from tools.local_tools import local_math
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
 
+from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .mcp_client import MCPManager
@@ -130,6 +132,10 @@ class AIEngine:
 
         # Charger l'identité depuis le Modelfile pour l'injecter dans le system prompt
         self._modelfile_system = self._load_modelfile_system()
+
+        # Orchestrateur amélioré pour la page Chat (ReAct + scratchpad + sécurités)
+        self._chat_orchestrator = ChatOrchestrator()
+        self.logger.info("✅ ChatOrchestrator initialisé (ReAct + scratchpad + détection de boucle)")
 
     # ------------------------------------------------------------------
     # Chargement du Modelfile
@@ -1133,7 +1139,7 @@ Que voulez-vous que je fasse pour vous ?"""
 
     # ------------------------------------------------------------------
     # Détection d'intention côté Python (contournement du bug tool-calling
-    # de llama3.2 qui écrit le JSON en texte au lieu d'utiliser l'API)
+    # de qui écrit le JSON en texte au lieu d'utiliser l'API)
     # ------------------------------------------------------------------
 
     # Mots-clés qui signalent le besoin d'une info en temps réel
@@ -1232,21 +1238,28 @@ Que voulez-vous que je fasse pour vous ?"""
         Dans ce cas, les outils ne doivent PAS être fournis au LLM.
         Utilise des frontières de mots pour éviter les faux positifs
         (ex: 'hi' dans 'machine', 'hey' dans 'they', etc.)
-        Une requête de plus de 6 mots ne peut pas être purement conversationnelle
+        Une requête de plus de 12 mots ne peut pas être purement conversationnelle
         (ex: "Merci, maintenant explique le machine learning" → non conversational).
         """
         # strip() supprime les espaces de début/fin, rstrip enlève ponctuation
         # puis un second strip() retire l'espace résiduel quand l'utilisateur
         # écrit « ? » avec une espace avant (ex : "à quoi tu sert ?")
         q = query.lower().strip().rstrip("?!.").strip()
-        # Si la requête contient plus de 6 mots, ce n'est pas purement conversationnel
-        if len(q.split()) > 6:
+        # Retirer les signes de ponctuation internes avant de compter les mots
+        # (ex: "qui es tu ? quels sont tes fonctionnalités" → 7 vrais mots, pas 8)
+        q_words = [w for w in q.split() if w not in ("?", "!", ".", ",", ";", ":")]
+        # Si la requête contient plus de 12 mots, ce n'est pas purement conversationnel
+        if len(q_words) > 12:
             return False
         for sig in self._CONVERSATIONAL_SIGNALS:
             # Frontières de mots pour éviter les faux positifs sur les sous-chaînes
             if _re.search(r'\b' + _re.escape(sig) + r'\b', q):
                 return True
         return False
+
+    def is_conversational(self, query: str) -> bool:
+        """Alias public de _is_conversational pour accès depuis le GUI."""
+        return self._is_conversational(query)
 
     def _needs_web_search(self, query: str) -> bool:
         """Retourne True si la requête nécessite une info fraîche du web."""
@@ -1258,20 +1271,23 @@ Que voulez-vous que je fasse pour vous ?"""
         if not llm or not llm.is_ollama_available:
             return query
 
+        current_year = _dt.now().year
+
         try:
             prompt = (
-                "Transforme cette demande en une requête de recherche web courte et efficace "
-                "(mots-clés essentiels uniquement, sans verbes ni politesse). "
-                "Si la demande porte sur des données en temps réel (prix, météo, actualité…), "
-                "ajoute 'en direct' ou 'aujourd\\'hui' à la fin pour forcer des résultats récents. "
-                "Réponds UNIQUEMENT avec la requête optimisée, rien d'autre.\n\n"
+                "Transforme cette demande en mots-clés de recherche web "
+                "(2 à 5 mots-clés en anglais, sans phrase ni verbe).\n"
+                "Règles :\n"
+                "- Utilise l'ANGLAIS pour de meilleurs résultats\n"
+                "- Mots-clés courts et précis\n"
+                f"- L'année actuelle est {current_year}. "
+                f"Si la demande porte sur de l'actualité, ajoute {current_year}\n"
+                "- Réponds UNIQUEMENT avec les mots-clés\n\n"
                 f"Demande: {query}"
             )
             system_prompt = (
-                "Tu es un expert en recherche d'information. "
-                "Réponds uniquement avec la requête optimisée, sans explication ni ponctuation. "
-                "Pour les données temps-réel (prix crypto, météo, actualité), "
-                "conserve toujours 'prix actuel', 'aujourd\\'hui' ou 'en direct' dans la requête."
+                "Tu génères des mots-clés de recherche web. "
+                "Réponds uniquement avec les mots-clés, en anglais, sans phrase."
             )
 
             optimized = llm.generate(
@@ -1283,6 +1299,12 @@ Que voulez-vous que je fasse pour vous ?"""
 
             if optimized:
                 optimized = optimized.strip().strip("\"'.,!?:;\n\r")
+                # Corriger l'année si le LLM met une année obsolète
+                optimized = _re.sub(
+                    r'\b(202[0-5])\b',
+                    str(current_year),
+                    optimized,
+                )
                 if 3 <= len(optimized) <= 120:
                     print(
                         f"🔧 [AIEngine] Requête optimisée : '{query}' → '{optimized}'"
@@ -1294,8 +1316,16 @@ Que voulez-vous que je fasse pour vous ?"""
         return query
 
     def is_complex_query(self, query: str) -> bool:
-        """Détermine si une requête nécessite un raisonnement multi-étapes (Thinking Mode)."""
-        if len(query) > 150:
+        """Détermine si une requête nécessite un raisonnement multi-étapes (Thinking Mode).
+
+        Critères durcis pour éviter d'activer le thinking sur des questions simples :
+        - Requêtes très longues (>200 chars) → toujours complexe
+        - 2+ mots-clés complexes détectés → complexe
+        - 1 seul mot-clé complexe → complexe seulement si la requête > 60 chars
+        - Du code intégré dans la requête → complexe
+        - Plusieurs questions (?) → NON suffisant seul (supprimé)
+        """
+        if len(query) > 200:
             return True
         complex_kw = [
             # Français — explication / analyse
@@ -1321,11 +1351,14 @@ Que voulez-vous que je fasse pour vous ?"""
             "how do i", "how can i",
         ]
         q = query.lower()
-        # Seuil minimal à 25 chars pour éviter les requêtes triviales avec un mot-clé seul
-        if sum(1 for kw in complex_kw if kw in q) >= 1 and len(query) > 25:
+        kw_count = sum(1 for kw in complex_kw if kw in q)
+        # 2+ mots-clés → toujours complexe
+        if kw_count >= 2:
             return True
-        if query.count("?") >= 2:
+        # 1 mot-clé → complexe seulement si la requête est assez longue
+        if kw_count == 1 and len(query) > 60:
             return True
+        # Code intégré → complexe
         if "```" in query or query.count("`") >= 4:
             return True
         return False
@@ -1365,7 +1398,7 @@ Que voulez-vous que je fasse pour vous ?"""
         Stratégie :
           1. Image (vision) → direct
           2. Détection d'intention Python → appel direct de l'outil
-             (contourne le bug tool-calling de llama3.2)
+             (contourne le bug tool-calling Ollama qui écrit le JSON en texte)
           3. Stream final Ollama avec le résultat de l'outil injecté
           4. Fallback → CustomAIModel
         """
@@ -1422,50 +1455,22 @@ Que voulez-vous que je fasse pour vous ?"""
                 self.logger.warning("[FAQ ENGINE] Erreur consultation FAQ: %s", _faq_exc)
 
         # ----------------------------------------------------------------
-        # 1.7. MODE THINKING — passe de raisonnement pour requêtes complexes
+        # 1.7. MODE THINKING — géré nativement par Qwen3.5 via generate_stream()
         # ----------------------------------------------------------------
-        thinking_context = ""
-        _is_conv = self._is_conversational(user_input)
-        print(f"🧠 [SECTION 1.7] on_thinking_token={'défini' if on_thinking_token else 'None'} | conversational={_is_conv}")
-        if on_thinking_token is not None and not _is_conv:
-            print("🧠 [THINKING] ▶ Démarrage de la passe de raisonnement...")
-            thinking_context = llm.generate_thinking_stream(
-                original_prompt=user_input,
-                on_thinking_token=on_thinking_token,
-                is_interrupted_callback=is_interrupted_callback,
-            )
-            print(f"🧠 [THINKING] ✓ Terminé — {len(thinking_context)} chars")
-            if on_thinking_complete:
-                on_thinking_complete()
-            # Si l'utilisateur a cliqué STOP pendant le raisonnement, ne pas
-            # démarrer la génération de la réponse finale.
-            if is_interrupted_callback and is_interrupted_callback():
-                print("🛑 [THINKING] Interrompu — génération finale annulée")
-                return ""
-        elif on_thinking_token is not None and _is_conv:
-            # Thinking mode activé par le GUI mais skippé (requête conversationnelle) :
-            # fermer immédiatement le widget pour éviter l'animation pendant la réponse.
-            print("🧠 [THINKING] ⏭ Skippé (conversationnel) — fermeture widget")
-            if on_thinking_complete:
-                on_thinking_complete()
-
-        # Construire le prompt enrichi pour la réponse finale
+        # Le thinking natif Qwen3.5 est activé directement dans generate_stream()
+        # quand on_thinking_token est fourni ("think":True dans la requête Ollama).
+        # Les tokens de raisonnement (message.thinking) sont routés vers le widget,
+        # les tokens de réponse (message.content) vers le chat — en une seule passe.
+        # Le widget raisonnement sert aussi pour le plan du ChatOrchestrator.
+        # on_thinking_complete est appelé dans un bloc finally pour couvrir
+        # tous les chemins (thinking, plan, outils, erreurs, fallback).
         effective_input = user_input
-        if thinking_context:
-            effective_input = (
-                f"{user_input}\n\n"
-                f"[Raisonnement préalable effectué]\n{thinking_context}\n\n"
-                "En te basant sur cette réflexion, donne maintenant ta réponse "
-                "directe et complète."
-            )
 
         # ----------------------------------------------------------------
         # 2. Exécution via MCP Tool Calling (Ollama)
         # ----------------------------------------------------------------
         try:
-            # En mode Thinking, désactiver les outils pour éviter que le modèle
-            # ne génère des tool-calls JSON parasites sur le prompt enrichi
-            tools = [] if thinking_context else self.mcp_manager.get_ollama_tools()
+            tools = self.mcp_manager.get_ollama_tools()
 
             # Construire le system prompt
             cwd = os.getcwd()
@@ -1504,7 +1509,7 @@ Que voulez-vous que je fasse pour vous ?"""
 
             # ----------------------------------------------------------------
             # 2.1. Requêtes sur l'historique de conversation — réponse directe
-            # sans outils pour éviter le bug tool-calling de llama3.2
+            # sans outils pour éviter le bug tool-calling
             # ----------------------------------------------------------------
             _history_signals = [
                 "on a parlé de quoi", "de quoi on a parlé", "on a discuté",
@@ -1578,46 +1583,17 @@ Que voulez-vous que je fasse pour vous ?"""
                 if history_response:
                     return history_response
 
-            # Conteneur pour le résultat direct d'outil (évite un appel Ollama de synthèse)
-            _direct_result: list = []
-            _original_on_token = on_token
-
-            def _maybe_on_token(token):
-                """Ignore les tokens de synthèse Ollama si un résultat direct a déjà été streamé."""
-                if _direct_result:
-                    return  # jeter les tokens de synthèse — déjà affiché directement
-                if _original_on_token:
-                    _original_on_token(token)
-
             def tool_executor(tool_name: str, arguments: dict) -> str:
                 if is_interrupted_callback and is_interrupted_callback():
                     return "[Interrompu par l'utilisateur]"
                 if tool_name == "web_search":
+                    # Optimiser la requête avant tout affichage ou exécution
                     optimized_q = self._optimize_search_query(user_input, llm)
                     arguments = {**arguments, "query": optimized_q}
-                    if on_tool_call:
-                        on_tool_call("web_search", arguments)
-                    # Brancher le callback GUI sur le moteur de recherche :
-                    # l'analyse Ollama interne va streamer ses tokens directement
-                    # dans la bulle de réponse, token par token, en temps réel.
-                    if hasattr(self, "_web_search_engine") and _original_on_token:
-                        self._web_search_engine.on_llm_token = _original_on_token
-
+                # Callback visuel GUI avec les arguments FINAUX (après optimisation)
+                if on_tool_call:
+                    on_tool_call(tool_name, arguments)
                 tool_result = self.mcp_manager.execute_tool_sync(tool_name, arguments)
-
-                if tool_name == "web_search":
-                    # Débrancher le callback pour éviter les effets de bord
-                    if hasattr(self, "_web_search_engine"):
-                        self._web_search_engine.on_llm_token = None
-                    if tool_result and not str(tool_result).startswith("[Erreur"):
-                        _direct_result.append(str(tool_result))
-                        # Streamer la section source (🔗) qui n'a pas été
-                        # générée par Ollama et donc pas encore dans le buffer.
-                        if _original_on_token:
-                            full = str(tool_result)
-                            source_pos = full.find("🔗")
-                            if source_pos > 0:
-                                _original_on_token("\n\n" + full[source_pos:])
                 return tool_result
 
             # Requêtes purement conversationnelles : pas d'outils
@@ -1625,94 +1601,41 @@ Que voulez-vous que je fasse pour vous ?"""
                 tools = []
 
             if tools:
-                result = llm.generate_with_tools_stream(
-                    prompt=effective_input,
+                # ── ChatOrchestrator : boucle agentique ReAct avec scratchpad,
+                # détection de boucle, limite de tours et élagage du contexte ──
+                orch_result = self._chat_orchestrator.run(
+                    user_input=effective_input,
                     tools=tools,
                     tool_executor=tool_executor,
+                    llm=llm,
                     system_prompt=system_prompt,
-                    on_token=_maybe_on_token,
-                    on_tool_call=on_tool_call,
+                    on_token=on_token,
+                    on_thinking_token=on_thinking_token,
+                    on_thinking_complete=on_thinking_complete,
                     is_interrupted_callback=is_interrupted_callback,
                 )
 
-                # Résultat direct disponible → le retourner sans synthèse Ollama
-                if _direct_result:
+                if orch_result:
                     self.logger.info(
-                        "process_query_stream ok (direct tool result, %d chars)",
-                        len(_direct_result[0]),
+                        "process_query_stream ok (ChatOrchestrator, %d chars)",
+                        len(orch_result),
                     )
-                    return _direct_result[0]
+                    return orch_result
 
-                if result.get("success") and result.get("response"):
-                    tool_called = len(result.get("tool_calls", [])) > 0
-                    response_text = result["response"]
-
-                    # ── Filet de sécurité : le modèle a retourné du JSON de
-                    # tool call brut (llama3.2 bug non intercepté en interne)
-                    if not tool_called and response_text.strip().startswith("{"):
-                        known_names = [
-                            t.get("function", {}).get("name", "")
-                            for t in tools if isinstance(t, dict)
-                        ]
-                        ftc = llm.parse_text_tool_call(response_text, known_names)
-                        if ftc:
-                            t_name = ftc["name"]
-                            t_args = ftc["arguments"]
-                            if not t_args:
-                                if t_name == "web_search":
-                                    t_args = {"query": user_input}
-                                elif t_name in ("read_local_file", "list_directory"):
-                                    pm = _re.search(r"[\w./\\]+", user_input)
-                                    t_args = {"path": pm.group(0) if pm else "."}
-                                elif t_name == "calculate":
-                                    t_args = {"expression": user_input}
-                                elif t_name == "generate_code":
-                                    t_args = {"description": user_input, "language": "python"}
-                            if on_tool_call:
-                                on_tool_call(t_name, t_args)
-                            self.logger.warning(
-                                "[fallback] JSON tool call non intercepté → exécution forcée : %s(%s)",
-                                t_name, t_args
-                            )
-                            tool_result = tool_executor(t_name, t_args)
-                            # Re-stream la synthèse via Ollama avec le résultat injecté
-                            followup = llm.generate_stream(
-                                prompt=effective_input,
-                                system_prompt=(
-                                    system_prompt
-                                    + f"\n\nRésultat de l'outil '{t_name}':\n{tool_result}"
-                                    + "\n\nRéponds maintenant directement à la question en te basant sur ces informations."
-                                ),
-                                on_token=on_token,
-                                is_interrupted_callback=is_interrupted_callback,
-                            )
-                            if followup:
-                                self.logger.info(
-                                    "process_query_stream [fallback tool] ok, %d chars", len(followup)
-                                )
-                                return followup
-                        else:
-                            # JSON halluciné avec un nom d'outil inconnu → relance
-                            # sans outils pour obtenir une vraie réponse conversationnelle.
-                            self.logger.warning(
-                                    "[fallback] JSON inconnu ignoré, relance sans outils : %s",
-                                    response_text[:120],
-                                )
-                            retry = llm.generate_stream(
-                                    prompt=effective_input,
-                                    system_prompt=system_prompt,
-                                    on_token=on_token,
-                                    is_interrupted_callback=is_interrupted_callback,
-                                )
-                            if retry:
-                                return retry
-
-                    self.logger.info(
-                        "process_query_stream ok (outil=%s, %d chars)",
-                        tool_called,
-                        len(response_text),
-                    )
-                    return response_text
+                # Fallback : aucune réponse produite → stream direct sans outils
+                self.logger.warning(
+                    "[ChatOrchestrator] aucune réponse — fallback generate_stream"
+                )
+                retry = llm.generate_stream(
+                    prompt=effective_input,
+                    system_prompt=system_prompt,
+                    on_token=on_token,
+                    is_interrupted_callback=is_interrupted_callback,
+                    on_thinking_token=on_thinking_token,
+                    on_thinking_complete=on_thinking_complete,
+                )
+                if retry:
+                    return retry
             else:
                 # Fallback si aucun outil n'est disponible
                 response = llm.generate_stream(
@@ -1720,12 +1643,19 @@ Que voulez-vous que je fasse pour vous ?"""
                     system_prompt=system_prompt,
                     on_token=on_token,
                     is_interrupted_callback=is_interrupted_callback,
+                    on_thinking_token=on_thinking_token,
+                    on_thinking_complete=on_thinking_complete,
                 )
                 if response:
                     return response
 
         except Exception as exc:
             self.logger.warning("process_query_stream Ollama stream échoué : %s", exc)
+        finally:
+            # Finaliser le widget raisonnement (arrêt animation dots, masquage si vide)
+            # Couvre tous les chemins : thinking, plan, outils, erreurs, fallback.
+            if on_thinking_complete:
+                on_thinking_complete()
 
         # ----------------------------------------------------------------
         # 3. Fallback → CustomAIModel

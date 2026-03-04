@@ -13,9 +13,34 @@ from collections import Counter
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
+import ssl
+import urllib3
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
 from rapidfuzz import fuzz
 from bs4 import BeautifulSoup
+
+# Désactiver les avertissements SSL pour les environnements proxy d'entreprise
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class _SSLBypassAdapter(HTTPAdapter):
+    """
+    Adaptateur HTTP qui désactive proprement la vérification SSL.
+
+    Nécessaire sur Python 3.13+ où check_hostname doit être False
+    AVANT de définir verify_mode = CERT_NONE (sinon ValueError).
+    Cloudscraper et requests standard ne gèrent pas cet ordre.
+    """
+
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = create_urllib3_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        kwargs["ssl_context"] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
 
 # Import cloudscraper pour contourner les protections anti-bot
 try:
@@ -67,12 +92,27 @@ class EnhancedInternetSearchEngine:
         self.search_cache = {}
         self.cache_duration = 3600
 
+        # Session HTTP avec vérification SSL désactivée (proxy d'entreprise)
+        self._http = requests.Session()
+        self._http.verify = False
+        self._http.headers.update({
+            "User-Agent": self.user_agents[0],
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+        })
+        # Monter l'adaptateur SSL bypass pour Python 3.13+
+        self._http.mount("https://", _SSLBypassAdapter())
+
         # Initialiser cloudscraper si disponible
         if CLOUDSCRAPER_AVAILABLE:
             self.scraper = cloudscraper.create_scraper(
                 browser={"browser": "chrome", "platform": "windows", "mobile": False}
             )
-            print("✅ Cloudscraper initialisé (contournement anti-bot activé)")
+            # Désactiver la vérification SSL pour l'environnement d'entreprise
+            self.scraper.verify = False
+            # Monter l'adaptateur SSL bypass sur cloudscraper aussi
+            self.scraper.mount("https://", _SSLBypassAdapter())
+            print("✅ Cloudscraper initialisé (anti-bot + SSL bypass Python 3.13+)")
         else:
             self.scraper = None
 
@@ -144,7 +184,7 @@ class EnhancedInternetSearchEngine:
                 "format": "json",
             }
             headers = {"User-Agent": self.user_agent}
-            resp = requests.get(api_url, params=params, headers=headers, timeout=6)
+            resp = self._http.get(api_url, params=params, headers=headers, timeout=6)
             data = resp.json()
             # Format: [query, [titles], [descriptions], [urls]]
             if len(data) > 1 and data[1]:
@@ -167,7 +207,7 @@ class EnhancedInternetSearchEngine:
                 "format": "json",
             }
             headers = {"User-Agent": self.user_agent}
-            resp = requests.get(api_url, params=params, headers=headers, timeout=6)
+            resp = self._http.get(api_url, params=params, headers=headers, timeout=6)
             data = resp.json()
             suggestion = (
                 data.get("query", {}).get("searchinfo", {}).get("suggestion", "")
@@ -325,7 +365,7 @@ class EnhancedInternetSearchEngine:
                 "lang": "fr",  # Texte en français
             }
 
-            response = requests.get(
+            response = self._http.get(
                 base_url, params=params, headers=headers, timeout=self.timeout
             )
             response.raise_for_status()
@@ -343,7 +383,7 @@ class EnhancedInternetSearchEngine:
                 # Récupérer aussi les prévisions sur 3 jours
                 try:
                     forecast_params = {"format": "3", "lang": "fr"}
-                    forecast_response = requests.get(
+                    forecast_response = self._http.get(
                         base_url, params=forecast_params, headers=headers, timeout=10
                     )
                     forecast_text = forecast_response.text.strip()
@@ -2463,31 +2503,27 @@ Réponds de manière factuelle et structurée:"""
             soup = BeautifulSoup(response.text, "html.parser")
             results = []
 
-            # DuckDuckGo Lite utilise une structure de table simple
-            result_tables = soup.find_all("table", class_="result-table")
-            print(f"📊 Nombre de tables trouvées: {len(result_tables)}")
+            # DuckDuckGo Lite : les résultats sont des <a class="result-link">
+            # accompagnés de <td class="result-snippet"> (pas de table.result-table)
+            result_links = soup.find_all("a", class_="result-link")
+            snippets = soup.find_all("td", class_="result-snippet")
+            print(f"📊 Résultats DDG Lite : {len(result_links)} liens, {len(snippets)} snippets")
 
-            for table in result_tables[: self.max_results]:
+            for i, title_elem in enumerate(result_links[: self.max_results]):
                 try:
-                    title_elem = table.find("a", class_="result-link")
-                    snippet_elem = table.find("td", class_="result-snippet")
+                    title = title_elem.get_text(strip=True)
+                    url = title_elem.get("href", "")
+                    snippet = snippets[i].get_text(strip=True) if i < len(snippets) else ""
 
-                    if title_elem:
-                        title = title_elem.get_text(strip=True)
-                        url = title_elem.get("href", "")
-                        snippet = (
-                            snippet_elem.get_text(strip=True) if snippet_elem else ""
+                    if title and len(title) > 3:
+                        results.append(
+                            {
+                                "title": title,
+                                "snippet": snippet if snippet else title,
+                                "url": url,
+                                "source": "DuckDuckGo Lite",
+                            }
                         )
-
-                        if title and len(title) > 3:
-                            results.append(
-                                {
-                                    "title": title,
-                                    "snippet": snippet if snippet else title,
-                                    "url": url,
-                                    "source": "DuckDuckGo Lite",
-                                }
-                            )
                 except Exception as e:
                     print(f"⚠️ Erreur lors du parsing DuckDuckGo Lite: {str(e)}")
                     continue
@@ -2617,7 +2653,7 @@ Réponds de manière factuelle et structurée:"""
 
         headers = {"User-Agent": self.user_agent}
 
-        response = requests.get(
+        response = self._http.get(
             url, params=params, headers=headers, timeout=self.timeout
         )
         response.raise_for_status()
@@ -2720,7 +2756,7 @@ Réponds de manière factuelle et structurée:"""
                     "Accept": "application/json",
                 }
 
-                response = requests.get(
+                response = self._http.get(
                     api_url, params=params, headers=headers, timeout=10
                 )
 
@@ -2794,7 +2830,7 @@ Réponds de manière factuelle et structurée:"""
         # Ajouter un petit délai pour éviter le rate limiting
         time.sleep(0.5)
 
-        response = requests.get(
+        response = self._http.get(
             search_url, headers=headers, timeout=self.timeout, allow_redirects=True
         )
         response.raise_for_status()
@@ -2884,7 +2920,7 @@ Réponds de manière factuelle et structurée:"""
 
         data = {"q": query, "kl": "fr-fr"}
 
-        response = requests.post(
+        response = self._http.post(
             search_url,
             headers=headers,
             data=data,
@@ -2900,35 +2936,25 @@ Réponds de manière factuelle et structurée:"""
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
 
-        # DuckDuckGo Lite utilise une structure de table simple
-        result_tables = soup.find_all("table", class_="result-table")
+        # DuckDuckGo Lite : <a class="result-link"> + <td class="result-snippet">
+        result_links = soup.find_all("a", class_="result-link")
+        snippets = soup.find_all("td", class_="result-snippet")
 
-        for table in result_tables[: self.max_results]:
+        for i, title_elem in enumerate(result_links[: self.max_results]):
             try:
-                # Le titre est dans un lien avec class="result-link"
-                title_elem = table.find("a", class_="result-link")
+                title = title_elem.get_text(strip=True)
+                url = title_elem.get("href", "")
+                snippet = snippets[i].get_text(strip=True) if i < len(snippets) else ""
 
-                # Le snippet est dans un td avec class="result-snippet"
-                snippet_elem = table.find("td", class_="result-snippet")
-
-                if title_elem:
-                    title = title_elem.get_text(strip=True)
-                    url = title_elem.get("href", "")
-
-                    if snippet_elem:
-                        snippet = snippet_elem.get_text(strip=True)
-                    else:
-                        snippet = ""
-
-                    if title and len(title) > 3:
-                        results.append(
-                            {
-                                "title": title,
-                                "snippet": snippet if snippet else title,
-                                "url": url,
-                                "source": "DuckDuckGo Lite",
-                            }
-                        )
+                if title and len(title) > 3:
+                    results.append(
+                        {
+                            "title": title,
+                            "snippet": snippet if snippet else title,
+                            "url": url,
+                            "source": "DuckDuckGo Lite",
+                        }
+                    )
             except Exception as e:
                 print(f"⚠️ Erreur lors du parsing DuckDuckGo Lite: {str(e)}")
                 continue
@@ -2954,9 +2980,15 @@ Réponds de manière factuelle et structurée:"""
 
         time.sleep(0.5)  # Éviter le rate limiting
 
-        response = requests.get(
-            search_url, headers=headers, timeout=self.timeout, allow_redirects=True
-        )
+        # Utiliser cloudscraper si disponible (Brave bloque les requêtes sans JS)
+        if self.scraper is not None:
+            response = self.scraper.get(
+                search_url, headers=headers, timeout=self.timeout, allow_redirects=True
+            )
+        else:
+            response = self._http.get(
+                search_url, headers=headers, timeout=self.timeout, allow_redirects=True
+            )
         response.raise_for_status()
 
         # Forcer l'encodage UTF-8
@@ -3027,7 +3059,7 @@ Réponds de manière factuelle et structurée:"""
 
         time.sleep(1)  # Délai plus long pour Google
 
-        response = requests.get(
+        response = self._http.get(
             search_url, headers=headers, timeout=self.timeout, allow_redirects=True
         )
         response.raise_for_status()
@@ -3152,7 +3184,7 @@ Réponds de manière factuelle et structurée:"""
 
             print(f"🔍 Recherche de suggestion pour: '{query}'")
 
-            suggestion_response = requests.get(
+            suggestion_response = self._http.get(
                 api_url, params=suggestion_params, headers=headers, timeout=10
             )
             suggestion_response.raise_for_status()
@@ -3228,7 +3260,7 @@ Réponds de manière factuelle et structurée:"""
                         "format": "json",
                     }
 
-                    opensearch_response = requests.get(
+                    opensearch_response = self._http.get(
                         api_url, params=opensearch_params, headers=headers, timeout=10
                     )
                     opensearch_response.raise_for_status()
@@ -3274,7 +3306,7 @@ Réponds de manière factuelle et structurée:"""
                         "format": "json",
                     }
 
-                    direct_response = requests.get(
+                    direct_response = self._http.get(
                         api_url,
                         params=direct_content_params,
                         headers=headers,
@@ -3306,7 +3338,7 @@ Réponds de manière factuelle et structurée:"""
                 except Exception as e:
                     print(f"⚠️ Recherche directe échouée: {str(e)}")
 
-            response = requests.get(
+            response = self._http.get(
                 api_url, params=search_params, headers=headers, timeout=10
             )
 
@@ -3345,7 +3377,7 @@ Réponds de manière factuelle et structurée:"""
                             # Pas de limite exchars - prendre TOUT le contenu disponible
                         }
 
-                        content_response = requests.get(
+                        content_response = self._http.get(
                             api_url, params=content_params, headers=headers, timeout=10
                         )
                         content_response.raise_for_status()
@@ -3580,7 +3612,7 @@ Réponds de manière factuelle et structurée:"""
 
             print(f"🔍 Recherche de suggestion pour: '{query}'")
 
-            suggestion_response = requests.get(
+            suggestion_response = self._http.get(
                 api_url, params=suggestion_params, headers=headers, timeout=10
             )
             suggestion_response.raise_for_status()
@@ -3661,7 +3693,7 @@ Réponds de manière factuelle et structurée:"""
                         "format": "json",
                     }
 
-                    opensearch_response = requests.get(
+                    opensearch_response = self._http.get(
                         api_url, params=opensearch_params, headers=headers, timeout=10
                     )
                     opensearch_response.raise_for_status()
@@ -3707,7 +3739,7 @@ Réponds de manière factuelle et structurée:"""
                         "format": "json",
                     }
 
-                    direct_response = requests.get(
+                    direct_response = self._http.get(
                         api_url,
                         params=direct_content_params,
                         headers=headers,
@@ -3739,7 +3771,7 @@ Réponds de manière factuelle et structurée:"""
                 except Exception as e:
                     print(f"⚠️ Recherche directe EN échouée: {str(e)}")
 
-            response = requests.get(
+            response = self._http.get(
                 api_url, params=search_params, headers=headers, timeout=10
             )
 
@@ -3780,7 +3812,7 @@ Réponds de manière factuelle et structurée:"""
                             # Pas de limite exchars - prendre TOUT le contenu disponible
                         }
 
-                        content_response = requests.get(
+                        content_response = self._http.get(
                             api_url, params=content_params, headers=headers, timeout=10
                         )
                         content_response.raise_for_status()
@@ -3836,7 +3868,7 @@ Réponds de manière factuelle et structurée:"""
                     return result
 
                 headers = {"User-Agent": self.user_agent}
-                response = requests.get(result["url"], headers=headers, timeout=7)
+                response = self._http.get(result["url"], headers=headers, timeout=7)
                 response.raise_for_status()
 
                 soup = BeautifulSoup(response.content, "html.parser")
@@ -3958,7 +3990,7 @@ Réponds de manière factuelle et structurée:"""
                 "Accept-Language": "fr-FR,fr;q=0.5",
             }
 
-            response = requests.get(url, headers=headers, timeout=self.timeout)
+            response = self._http.get(url, headers=headers, timeout=self.timeout)
             response.raise_for_status()
 
             # Parser le HTML

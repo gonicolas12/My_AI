@@ -3,38 +3,52 @@
 import random
 import re
 import tkinter as tk
+import tkinter.font as tkfont
 
 
 class AnimationsMixin:
     """Typing, thinking, and search animations."""
 
     def adjust_text_widget_height(self, text_widget):
-        """⚡ OPTIMISÉ : Hauteur illimitée avec moins d'update_idletasks"""
+        """⚡ Ajustement hauteur pendant l'animation — mesure en PIXELS
+        pour tenir compte des polices mixtes (titres plus grands).
+        Convertit ensuite en unités de la police par défaut.
+        """
         try:
-            # ⚡ OPTIMISATION: Un seul update_idletasks au lieu de 2
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
 
-            # ⚡ CORRECTION MAJEURE : Compter les lignes VISUELLES (avec wrapping), pas juste les \n
-            display_lines = text_widget.count("1.0", "end", "displaylines")
-
-            if display_lines and len(display_lines) > 0:
-                line_count = display_lines[0]  # count() retourne un tuple
+            # Mesure pixel-perfect : ypixels donne la distance du haut
+            # de la 1ère ligne au haut de la dernière ligne.
+            # On ajoute 1 linespace pour inclure la dernière ligne elle-même.
+            ypixels = text_widget.count("1.0", "end-1c", "ypixels")
+            if ypixels and ypixels[0] > 0:
+                px = ypixels[0] if isinstance(ypixels, tuple) else ypixels
+                try:
+                    default_font = tkfont.Font(font=text_widget.cget("font"))
+                except Exception:
+                    default_font = tkfont.Font(family="Segoe UI", size=12)
+                lh = default_font.metrics("linespace")
+                if lh > 0:
+                    # +lh pour la dernière ligne, +lh de marge pour l'animation
+                    target_height = max(3, -(-( px + lh + lh) // lh))
+                else:
+                    target_height = max(3, int(text_widget.index("end-1c").split(".")[0]) + 1)
             else:
-                # Fallback si displaylines échoue
-                line_count = int(text_widget.index("end-1c").split(".")[0])
+                # Fallback : comptage logique
+                target_height = max(3, int(text_widget.index("end-1c").split(".")[0]) + 1)
 
-            # ⚡ HAUTEUR GÉNÉREUSE : Toujours assez pour tout afficher
-            generous_height = max(line_count + 3, 10)  # Au moins 10 lignes, +3 de marge
+            # Pendant l'animation : ne faire que CROÎTRE
+            current_height = int(text_widget.cget("height"))
+            if target_height > current_height:
+                text_widget.configure(height=target_height)
 
-            text_widget.configure(height=generous_height, state=current_state)
-            # ⚡ OPTIMISATION: update_idletasks() uniquement tous les 5 ajustements
+            text_widget.configure(state=current_state)
             self._height_adjust_counter += 1
             if self._height_adjust_counter % 5 == 0:
                 text_widget.update_idletasks()
 
         except Exception:
-            # Fallback sécurisé : laisser la hauteur par défaut
             try:
                 self._disable_text_scroll(text_widget)
             except Exception:
@@ -226,6 +240,11 @@ class AnimationsMixin:
                         should_format = True
                     else:
                         pass
+                # Détecter *texte* (italique) — un seul * non précédé de *
+                if not should_format and current_content.endswith("*") and not current_content.endswith("**"):
+                    italic_pattern = r"(?<!\*)\*([^*\n]{1,200}?)\*$"
+                    if re.search(italic_pattern, current_content):
+                        should_format = True
             elif char == "`":
                 # Fin possible de `code` - vérifier que c'est un vrai pattern
                 current_content = self.typing_widget.get("1.0", "end-1c")
@@ -295,7 +314,10 @@ class AnimationsMixin:
                     self.typing_widget, original_text
                 )
 
-                self._apply_unified_progressive_formatting(self.typing_widget)
+                # Effacer typing_text pour que le formatage traite tout comme complet
+                self.typing_text = ""
+
+                self._apply_unified_progressive_formatting(self.typing_widget, full_scan=True)
 
                 # Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
@@ -317,7 +339,10 @@ class AnimationsMixin:
                     self.typing_widget, original_text
                 )
 
-                self._apply_unified_progressive_formatting(self.typing_widget)
+                # Effacer typing_text pour que le formatage traite tout comme complet
+                self.typing_text = ""
+
+                self._apply_unified_progressive_formatting(self.typing_widget, full_scan=True)
 
                 # Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
@@ -379,22 +404,61 @@ class AnimationsMixin:
         )
 
     def _adjust_height_final_no_scroll(self, text_widget):
-        """Ajuste la hauteur du widget Text pour qu'il n'y ait aucun scroll interne ni espace vide, basé sur le nombre de lignes réelles tkinter. Désactive aussi le scroll interne."""
+        """Ajuste la hauteur finale pixel-perfect pour éliminer tout espace vide.
+        Utilise displaylines (fiable même hors-écran) + correction pour
+        les polices mixtes (titres plus grands, code plus petit)."""
         try:
             text_widget.update_idletasks()
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
 
-            # ⚡ CORRECTION : Compter les lignes VISUELLES (avec wrapping)
-            display_lines = text_widget.count("1.0", "end", "displaylines")
-            if display_lines and len(display_lines) > 0:
-                line_count = display_lines[0]
-            else:
-                line_count = int(text_widget.index("end-1c").split(".")[0])
+            # ── Nettoyer les retours à la ligne superflus en fin de texte ──
+            while True:
+                end_idx = text_widget.index("end-1c")
+                if end_idx == "1.0":
+                    break
+                last_char = text_widget.get(f"{end_idx}-1c", end_idx)
+                if last_char in ("\n", "\r"):
+                    text_widget.delete(f"{end_idx}-1c", end_idx)
+                else:
+                    break
 
-            # ⚡ MARGE : Ajouter 1 ligne de marge pour éviter la troncature
-            generous_height = max(2, line_count + 1)
-            text_widget.configure(height=generous_height)
+            # ── Compter les display lines (fonctionne pour tout le contenu) ──
+            try:
+                dl_result = text_widget.count("1.0", "end-1c", "displaylines")
+                if isinstance(dl_result, tuple):
+                    num_dl = dl_result[0] if dl_result else 0
+                else:
+                    num_dl = dl_result or 0
+                # displaylines donne le nombre de sauts de ligne visuels
+                # +1 pour inclure la dernière ligne elle-même
+                needed = max(1, (num_dl or 0) + 1)
+            except Exception:
+                needed = max(1, int(text_widget.index("end-1c").split(".")[0]))
+
+            # ── Correction pour les titres (police plus grande que la police par défaut) ──
+            # Chaque ligne de titre utilise ~1.3x la hauteur d'une ligne normale.
+            # On ajoute ~0.3 lignes supplémentaires par titre détecté.
+            try:
+                title_extra = 0
+                for tag_name in ["title_1", "title_2", "title_3"]:
+                    ranges = text_widget.tag_ranges(tag_name)
+                    # Chaque paire (start, end) représente un titre
+                    num_titles = len(ranges) // 2
+                    if tag_name == "title_1":
+                        title_extra += num_titles * 0.4   # 15px vs 12px
+                    else:
+                        title_extra += num_titles * 0.15  # 13px vs 12px
+                needed += int(title_extra + 0.5)  # Arrondi au supérieur
+            except Exception:
+                pass
+
+            text_widget.configure(height=needed)
+
+            # ── Réinitialiser le scroll interne du widget ──
+            text_widget.xview_moveto(0)
+            text_widget.yview_moveto(0)
+
             text_widget.update_idletasks()
             text_widget.configure(state=current_state)
             self._disable_text_scroll(text_widget)
@@ -426,18 +490,14 @@ class AnimationsMixin:
             print(f"[DEBUG] Erreur ajustement hauteur smooth: {e}")
 
     def _adjust_height_during_animation(self, text_widget):
-        """Ajuste la hauteur du widget Text pendant l'animation pour qu'il n'y ait aucun scroll interne, basé sur le nombre de lignes réelles tkinter."""
+        """Ajuste la hauteur du widget Text pendant l'animation."""
         try:
             text_widget.update_idletasks()
 
-            # ⚡ CORRECTION: Compter les lignes VISUELLES (avec wrapping)
-            display_lines = text_widget.count("1.0", "end", "displaylines")
-            if display_lines and len(display_lines) > 0:
-                line_count = display_lines[0]
-            else:
-                line_count = int(text_widget.index("end-1c").split(".")[0])
+            # Compter les lignes réelles (\n) — éviter displaylines (font mixte)
+            line_count = int(text_widget.index("end-1c").split(".")[0])
 
-            text_widget.configure(height=max(2, line_count))
+            text_widget.configure(height=max(2, line_count + 1))
             text_widget.update_idletasks()
             self._disable_text_scroll(text_widget)
         except Exception:
@@ -445,20 +505,16 @@ class AnimationsMixin:
             self._disable_text_scroll(text_widget)
 
     def _adjust_text_height_exact(self, text_widget):
-        """Ajuste la hauteur du widget Text pour qu'il n'y ait aucun scroll interne ni espace vide, basé sur le nombre de lignes réelles tkinter. Désactive aussi le scroll interne."""
+        """Ajuste la hauteur exacte du widget Text."""
         try:
             text_widget.update_idletasks()
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
-            # ⚡ CORRECTION: Compter les lignes VISUELLES (avec wrapping)
-            display_lines = text_widget.count("1.0", "end", "displaylines")
-            if display_lines and len(display_lines) > 0:
-                line_count = display_lines[0]
-            else:
-                line_count = int(text_widget.index("end-1c").split(".")[0])
 
-            # Pas de limite maximale, juste un minimum de 2 lignes
-            height = max(2, line_count)
+            # Compter les lignes réelles (\n) — éviter displaylines (font mixte)
+            line_count = int(text_widget.index("end-1c").split(".")[0])
+
+            height = max(2, line_count + 1)
             text_widget.configure(height=height)
             text_widget.configure(state=current_state)
             self._disable_text_scroll(text_widget)

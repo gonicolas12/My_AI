@@ -9,6 +9,13 @@ import json
 
 from models.ai_agents import AIAgent, create_agent, AVAILABLE_AGENTS
 
+# ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
+try:
+    from core.config import get_default_model as _cfg_default_model
+    _DEFAULT_LLM_MODEL: str = str(_cfg_default_model())
+except Exception:
+    _DEFAULT_LLM_MODEL: str = "qwen3.5:4b"
+
 
 class AgentOrchestrator:
     """
@@ -16,7 +23,7 @@ class AgentOrchestrator:
     pour résoudre des tâches complexes
     """
 
-    def __init__(self, model: str = "llama3.2"):
+    def __init__(self, model: str = _DEFAULT_LLM_MODEL):
         """
         Initialise l'orchestrateur
 

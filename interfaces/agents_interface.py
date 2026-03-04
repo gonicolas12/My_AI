@@ -20,6 +20,7 @@ except ImportError:
     ctk = tk
 
 from core.agent_orchestrator import AgentOrchestrator
+from core.config import get_default_model as _get_default_model
 from models.local_llm import LocalLLM
 from models.ai_agents import AIAgent, AVAILABLE_AGENTS
 
@@ -94,7 +95,7 @@ class AgentsInterface:
         self._load_custom_agents()
 
         # LLM for generating system prompts
-        self.llm = LocalLLM(model="llama3.2")
+        self.llm = LocalLLM(model=_get_default_model())
 
         # Créer l'interface
         self.create_agents_interface()
@@ -1226,12 +1227,12 @@ Les résultats apparaîtront ici en temps réel.
 
     def _register_custom_agent_in_orchestrator(self, agent_key, agent_data):
         """Register a custom agent so it can be used by the orchestrator"""
-        def factory(model="llama3.2"):
+        def factory(model=None):
             return AIAgent(
                 name=agent_data["name"],
                 expertise=agent_data["desc"],
                 system_prompt=agent_data["system_prompt"],
-                model=model,
+                model=model or _get_default_model(),
                 temperature=agent_data.get("temperature", 0.5),
             )
         # Add to available agents

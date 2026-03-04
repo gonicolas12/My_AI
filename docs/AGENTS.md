@@ -162,7 +162,7 @@ orchestrator.ask_agent("datascience", "Crée un modèle de classification pour c
 
 ### Vue d'Ensemble
 
-Vous pouvez créer vos **propres agents spécialisés** directement depuis l'interface graphique ! Le système utilise **Ollama (llama3.2)** pour générer automatiquement un system prompt optimisé selon votre description.
+Vous pouvez créer vos **propres agents spécialisés** directement depuis l'interface graphique ! Le système utilise **Ollama** pour générer automatiquement un system prompt optimisé selon votre description.
 
 ### Comment Créer un Agent
 
@@ -315,7 +315,7 @@ Rôle : Conseiller juridique spécialisé en droit numérique, RGPD et propriét
 
 ### Limitations
 
-- **Ollama requis** : La génération automatique nécessite Ollama avec llama3.2
+- **Ollama requis** : La génération automatique nécessite Ollama avec qwen3.5
 - **Pas de modification directe du system prompt** : Pour garantir la cohérence, le prompt est toujours généré par l'IA
 - **Nom unique** : Chaque agent doit avoir un nom différent
 - **Suppression définitive** : Pas de corbeille, suppression immédiate
@@ -560,7 +560,7 @@ custom_agent = AIAgent(
     expertise="Sécurité informatique",
     system_prompt="""Tu es un expert en cybersécurité.
     Analyse les vulnérabilités et propose des solutions.""",
-    model="llama3.2",
+    model="qwen3.5:4b",
     temperature=0.3
 )
 

@@ -208,6 +208,14 @@ class MarkdownFormattingMixin:
         return cells1 == cells2
 
     def _insert_table_cell_content(self, text_widget, cell_content, is_header):
+        """Insère le contenu d'une cellule au mark 'insert' (utilisé par _insert_formatted_table)"""
+        self._insert_table_cell_content_impl(text_widget, cell_content, is_header, "insert")
+
+    def _insert_table_cell_content_at_end(self, text_widget, cell_content, is_header):
+        """Insère le contenu d'une cellule à 'end' (utilisé par _insert_markdown_table)"""
+        self._insert_table_cell_content_impl(text_widget, cell_content, is_header, "end")
+
+    def _insert_table_cell_content_impl(self, text_widget, cell_content, is_header, position):
         """Insère le contenu d'une cellule avec support complet des formattages markdown"""
         if not cell_content:
             return
@@ -250,16 +258,16 @@ class MarkdownFormattingMixin:
         for part_type, part_text in parts:
             if part_type == "bold":
                 if is_header:
-                    text_widget.insert("insert", part_text, "table_header")
+                    text_widget.insert(position, part_text, "table_header")
                 else:
-                    text_widget.insert("insert", part_text, "table_cell_bold")
+                    text_widget.insert(position, part_text, "table_cell_bold")
             elif part_type == "code":
-                text_widget.insert("insert", part_text, "code")
+                text_widget.insert(position, part_text, "code")
             else:
                 if is_header:
-                    text_widget.insert("insert", part_text, "table_header")
+                    text_widget.insert(position, part_text, "table_header")
                 else:
-                    text_widget.insert("insert", part_text, "table_cell")
+                    text_widget.insert(position, part_text, "table_cell")
 
     def _insert_formatted_table(self, text_widget, raw_lines):
         """Insère un tableau complètement formaté avec support des formattages markdown"""
@@ -388,13 +396,14 @@ class MarkdownFormattingMixin:
                 self._apply_simple_markdown_formatting(text_widget, content)
 
     def _apply_simple_markdown_formatting(self, text_widget, text):
-        """Applique le formatage markdown simple (gras, italique, titres)"""
+        """Applique le formatage markdown simple (gras, italique, titres, listes)"""
         # Patterns pour le markdown de base
         patterns = [
             (r"^(#{1,6})\s+(.+)$", "title_markdown"),  # Titres
             (r"\*\*([^*\n]+?)\*\*", "bold"),  # Gras
             (r"\*([^*\n]+?)\*", "italic"),  # Italique
-            (r"`([^`]+)`", "mono"),  # Code inline
+            (r"`([^`]+)`", "code"),  # Code inline (tag "code" cohérent)
+            (r"^([\*\-\+])\s+(.+)$", "bullet_list"),  # Listes à puces
         ]
 
         def apply_formatting(text, patterns):
@@ -416,9 +425,13 @@ class MarkdownFormattingMixin:
                 if style == "title_markdown":
                     level = len(match.group(1))
                     title_text = match.group(2)
+                    # CORRECTION: utiliser title_1, title_2, title_3 (avec underscore)
                     text_widget.insert(
-                        "end", title_text + "\n", f"title{min(level, 5)}"
+                        "end", title_text + "\n", f"title_{min(level, 3)}"
                     )
+                elif style == "bullet_list":
+                    bullet_text = match.group(2)
+                    text_widget.insert("end", "  \u2022 " + bullet_text, "normal")
                 else:
                     content = match.group(1)
                     text_widget.insert("end", content, style)
@@ -466,6 +479,10 @@ class MarkdownFormattingMixin:
 
         # Calculer la largeur max de chaque colonne
         widths = []
+        # Largeur maximale par colonne pour éviter le word-wrap
+        # qui casserait l'alignement des box-drawing characters.
+        # La limite dépend du nombre de colonnes (widget ~120 chars).
+        max_col_width = max(10, 110 // max(max_cols, 1) - 3)
         for col in range(max_cols):
             max_width = 0
             for row in all_rows:
@@ -473,12 +490,14 @@ class MarkdownFormattingMixin:
                     # Compter la longueur sans les marqueurs markdown
                     cell_text = re.sub(r"\*\*([^*]+)\*\*", r"\1", row[col])
                     max_width = max(max_width, len(cell_text))
-            widths.append(max(max_width, 3))  # Minimum 3 caractères
+            widths.append(min(max(max_width, 3), max_col_width))
 
         return widths
 
     def _insert_markdown_table(self, text_widget, table_lines):
-        """Affiche un tableau Markdown formaté dans le widget avec support complet des formattages"""
+        """Affiche un tableau Markdown formaté avec colonnes alignées en monospace.
+        Construit chaque ligne de données comme une chaîne complète en Consolas
+        pour garantir l'alignement des bordures verticales."""
         if not table_lines or len(table_lines) < 2:
             return
 
@@ -486,12 +505,12 @@ class MarkdownFormattingMixin:
         if not column_widths:
             return
 
-        # Bordure supérieure
+        # Bordure supérieure (monospace → alignement parfait)
         border_line = "┌" + "┬".join("─" * (w + 2) for w in column_widths) + "┐\n"
         text_widget.insert("end", border_line, "table_border")
 
         for line_idx, line in enumerate(table_lines):
-            if line_idx == 1:  # Séparateur - dessiner une ligne de séparation
+            if line_idx == 1:  # Séparateur
                 sep_line = "├" + "┼".join("─" * (w + 2) for w in column_widths) + "┤\n"
                 text_widget.insert("end", sep_line, "table_border")
                 continue
@@ -499,41 +518,37 @@ class MarkdownFormattingMixin:
             cells = self._parse_table_row(line)
             is_header = line_idx == 0
 
-            # Début de ligne
+            # ── Construire la ligne cellule par cellule ──
+            # On insère les bordures et le padding en monospace (table_border)
+            # et le contenu textuel avec son propre tag (header/cell/bold).
             text_widget.insert("end", "│", "table_border")
 
             for col_idx, width in enumerate(column_widths):
                 cell_content = cells[col_idx] if col_idx < len(cells) else ""
 
-                # Calculer la longueur d'affichage (sans les marqueurs markdown)
-                display_length = len(re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content))
-                display_length = len(
-                    re.sub(
-                        r"`([^`]+)`",
-                        r"\1",
-                        re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content),
-                    )
-                )
+                # Longueur d'affichage (sans marqueurs markdown **…** et `…`)
+                stripped = re.sub(r"\*\*([^*]+)\*\*", r"\1", cell_content)
+                stripped = re.sub(r"`([^`]+)`", r"\1", stripped)
+                display_length = len(stripped)
 
-                # Centrer le contenu
-                padding = width - display_length
+                # Tronquer le contenu si plus large que la colonne
+                if display_length > width:
+                    # Tronquer le texte brut (stripped) pour l'affichage
+                    cell_content = stripped[:width - 1] + "…"
+                    display_length = width
+
+                # Centrer le contenu dans la colonne
+                padding = max(0, width - display_length)
                 left_pad = padding // 2
                 right_pad = padding - left_pad
 
+                # Padding gauche (espaces monospace pour alignement)
                 text_widget.insert("end", " " + " " * left_pad, "table_border")
 
-                # Sauvegarder la position actuelle pour insertion avec formatage
-                current_mark = "table_cell_insert"
-                text_widget.mark_set(current_mark, "end")
+                # Contenu de la cellule avec formatage markdown
+                self._insert_table_cell_content_at_end(text_widget, cell_content, is_header)
 
-                # Insérer le contenu avec formatage via la fonction helper
-                # Temporairement changer "end" en utilisant la marque
-                old_insert = text_widget.index("insert")
-                text_widget.mark_set("insert", current_mark)
-                self._insert_table_cell_content(text_widget, cell_content, is_header)
-                text_widget.mark_set("insert", old_insert)
-                text_widget.mark_unset(current_mark)
-
+                # Padding droit + bordure
                 text_widget.insert("end", " " * right_pad + " ", "table_border")
                 text_widget.insert("end", "│", "table_border")
 
@@ -1797,27 +1812,94 @@ class MarkdownFormattingMixin:
         except Exception:
             return False
 
-    def _apply_unified_progressive_formatting(self, text_widget):
-        """⚡ OPTIMISÉ : Formatage progressif sécurisé avec limitation de zone"""
+    def _apply_unified_progressive_formatting(self, text_widget, full_scan=False):
+        """⚡ OPTIMISÉ : Formatage progressif sécurisé avec limitation de zone.
+        full_scan=True force le traitement de TOUT le texte (utilisé lors de la finalisation).
+        ORDRE: Titres → Gras → Code → Docstrings → Listes
+        Les titres sont traités EN PREMIER pour que '## **texte**' soit
+        converti en titre (avec suppression de **) avant que le formateur
+        gras ne supprime les ** et laisse les ## orphelins."""
         try:
             text_widget.configure(state="normal")
 
-            # ⚡ OPTIMISATION: Limiter la zone de recherche aux 800 derniers caractères
-            # Cela réduit drastiquement le nombre de regex et de recherches
+            # ⚡ OPTIMISATION: Limiter la zone de recherche aux 80 dernières lignes
+            # Sauf en mode full_scan (finalisation) où on traite tout
             widget_end = text_widget.index("end-1c")
             total_chars = int(float(widget_end.split(".")[0]))  # Ligne actuelle
 
-            # Si moins de 80 lignes, traiter tout; sinon traiter les 80 dernières lignes
-            if total_chars > 80:
-                search_start = f"{total_chars - 80}.0"
+            if full_scan or total_chars <= 80:
+                scan_origin = "1.0"
             else:
-                search_start = "1.0"
+                scan_origin = f"{total_chars - 80}.0"
 
             # Obtenir le texte actuellement affiché
             _current_displayed_text = text_widget.get("1.0", "end-1c")
 
-            # === FORMATAGE GRAS **texte** - Toujours actif mais vérifie le texte complet ===
-            start_pos = search_start  # ⚡ OPTIMISÉ: Commence à la zone récente
+            # === FORMATAGE TITRES # ## ### #### (AVANT le gras) ===
+            # Traiter les titres EN PREMIER pour gérer les cas '## **texte**'
+            # On supprime les ## ET les ** en une seule opération.
+            start_pos = scan_origin
+            while True:
+                pos_start = text_widget.search("#", start_pos, "end")
+                if not pos_start:
+                    break
+
+                # Vérifier que c'est bien en début de ligne
+                line_start = text_widget.index(f"{pos_start} linestart")
+                if pos_start != line_start:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+
+                # VÉRIFICATION CRITIQUE: pas dans un bloc de code
+                if self._is_position_in_code_block(text_widget, pos_start):
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+
+                # Obtenir la ligne complète
+                line_end = text_widget.index(f"{pos_start} lineend")
+                line_content = text_widget.get(pos_start, line_end)
+
+                # Analyser le niveau de titre (1 à 6 #)
+                title_match = re.match(r"^(#{1,6})\s+(.+)$", line_content)
+                if title_match:
+                    hash_count = len(title_match.group(1))
+                    level = min(hash_count, 3)
+                    title_without_hashes = title_match.group(2)
+
+                    # Nettoyer les marqueurs ** qui peuvent entourer le texte du titre
+                    title_clean = title_without_hashes.replace("**", "")
+
+                    # Ne formater que si la ligne est COMPLÈTE
+                    line_is_complete = False
+                    widget_end = text_widget.index("end-1c")
+                    if text_widget.compare(line_end, "<", widget_end):
+                        line_is_complete = True
+                    if not hasattr(self, "typing_text") or not self.typing_text:
+                        line_is_complete = True
+                    elif hasattr(self, "typing_index") and hasattr(self, "typing_text"):
+                        if self.typing_index >= len(self.typing_text):
+                            line_is_complete = True
+
+                    content_key = f"title:{title_clean.strip()}"
+                    if (
+                        line_is_complete
+                        and content_key not in self._formatted_bold_contents
+                    ):
+                        text_widget.delete(pos_start, line_end)
+                        text_widget.insert(
+                            pos_start, title_clean, f"title_{level}"
+                        )
+                        self._formatted_bold_contents.add(content_key)
+                        start_pos = text_widget.index(
+                            f"{pos_start}+{len(title_clean)}c"
+                        )
+                    else:
+                        start_pos = text_widget.index(f"{line_end}+1c")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+
+            # === FORMATAGE GRAS **texte** ===
+            start_pos = scan_origin
             while True:
                 # Chercher le prochain **
                 pos_start = text_widget.search("**", start_pos, "end")
@@ -1830,8 +1912,8 @@ class MarkdownFormattingMixin:
                     continue
 
                 # Chercher le ** de fermeture
-                search_start = text_widget.index(f"{pos_start}+2c")
-                pos_end = text_widget.search("**", search_start, "end")
+                after_open = text_widget.index(f"{pos_start}+2c")
+                pos_end = text_widget.search("**", after_open, "end")
 
                 if pos_end:
                     # Vérifier que le contenu entre les ** est valide
@@ -1872,6 +1954,78 @@ class MarkdownFormattingMixin:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
+            # === FORMATAGE ITALIQUE *texte* ===
+            # Traite les simples * (pas les **) pour appliquer l'italique.
+            # DOIT tourner APRÈS le gras pour que **texte** soit déjà supprimé.
+            start_pos = scan_origin
+            while True:
+                pos_start = text_widget.search("*", start_pos, "end")
+                if not pos_start:
+                    break
+
+                # Ignorer si dans un bloc de code
+                if self._is_position_in_code_block(text_widget, pos_start):
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+                    continue
+
+                # Vérifier que ce n'est PAS un ** (double étoile = bold)
+                next_char = text_widget.get(
+                    text_widget.index(f"{pos_start}+1c"),
+                    text_widget.index(f"{pos_start}+2c"),
+                )
+                if next_char == "*":
+                    # C'est un ** → un bold éventuel non traité, sauter les 2
+                    start_pos = text_widget.index(f"{pos_start}+2c")
+                    continue
+
+                # Vérifier que le * précédent n'est pas un autre *
+                try:
+                    prev_char = text_widget.get(
+                        text_widget.index(f"{pos_start}-1c"), pos_start
+                    )
+                    if prev_char == "*":
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+                        continue
+                except Exception:
+                    pass
+
+                # Chercher le * de fermeture
+                after_open = text_widget.index(f"{pos_start}+1c")
+                pos_end = text_widget.search("*", after_open, "end")
+
+                if pos_end:
+                    # Vérifier que le * de fermeture n'est pas non plus un **
+                    next_char_end = text_widget.get(
+                        text_widget.index(f"{pos_end}+1c"),
+                        text_widget.index(f"{pos_end}+2c"),
+                    )
+                    if next_char_end == "*":
+                        start_pos = text_widget.index(f"{pos_end}+2c")
+                        continue
+
+                    content_start = text_widget.index(f"{pos_start}+1c")
+                    content = text_widget.get(content_start, pos_end)
+
+                    if (
+                        content
+                        and len(content) <= 200
+                        and "*" not in content
+                        and "\n" not in content
+                        and content.strip()
+                        and not content.startswith(" ")
+                    ):
+                        # Supprimer *texte* et insérer texte en italique
+                        end_pos_full = text_widget.index(f"{pos_end}+1c")
+                        text_widget.delete(pos_start, end_pos_full)
+                        text_widget.insert(pos_start, content, "italic")
+                        start_pos = text_widget.index(
+                            f"{pos_start}+{len(content)}c"
+                        )
+                    else:
+                        start_pos = text_widget.index(f"{pos_start}+1c")
+                else:
+                    start_pos = text_widget.index(f"{pos_start}+1c")
+
             # === FORMATAGE LIENS PRÉTRAITÉS (DÉTECTION DES TITRES) ===
             # Les liens ont été remplacés par leurs titres, on doit les détecter et les marquer
             # ⚠️ NE PAS chercher les titres ici ! Ils ont déjà été formatés pendant l'animation
@@ -1884,7 +2038,7 @@ class MarkdownFormattingMixin:
             # Note: Garde le code commenté pour compatibilité avec le mode non-streaming
 
             # === FORMATAGE CODE `code` ===
-            start_pos = search_start  # ⚡ OPTIMISÉ
+            start_pos = scan_origin  # ⚡ OPTIMISÉ
             while True:
                 # Chercher le prochain `
                 pos_start = text_widget.search("`", start_pos, "end")
@@ -1897,8 +2051,8 @@ class MarkdownFormattingMixin:
                     continue
 
                 # Chercher le ` de fermeture
-                search_start = text_widget.index(f"{pos_start}+1c")
-                pos_end = text_widget.search("`", search_start, "end")
+                after_backtick = text_widget.index(f"{pos_start}+1c")
+                pos_end = text_widget.search("`", after_backtick, "end")
 
                 if pos_end:
                     # Vérifier le contenu
@@ -1931,86 +2085,8 @@ class MarkdownFormattingMixin:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
-            # === FORMATAGE TITRES # ## ### #### ===
-            # Ne pas formater les # qui sont dans des blocs de code (commentaires Python)
-            # Formater les titres Markdown avec 1 à 6 #
-            start_pos = search_start  # ⚡ OPTIMISÉ
-            while True:
-                # Chercher le prochain # en début de ligne
-                pos_start = text_widget.search("#", start_pos, "end")
-                if not pos_start:
-                    break
-
-                # Vérifier que c'est bien en début de ligne
-                line_start = text_widget.index(f"{pos_start} linestart")
-                if pos_start != line_start:
-                    start_pos = text_widget.index(f"{pos_start}+1c")
-                    continue
-
-                # VÉRIFICATION CRITIQUE: Si ce # a déjà un tag de code (commentaire), ne pas formater comme titre
-                if self._is_position_in_code_block(text_widget, pos_start):
-                    # C'est un commentaire Python, pas un titre Markdown
-                    start_pos = text_widget.index(f"{pos_start}+1c")
-                    continue
-
-                # Obtenir la ligne complète
-                line_end = text_widget.index(f"{pos_start} lineend")
-                line_content = text_widget.get(pos_start, line_end)
-
-                # Analyser la ligne pour détecter le niveau de titre (1 à 6 #)
-                title_match = re.match(r"^(#{1,6})\s+(.+)$", line_content)
-                if title_match:
-                    hash_count = len(title_match.group(1))
-                    # Mapper vers title_1, title_2, title_3 (max 3 niveaux de style)
-                    level = min(hash_count, 3)
-                    title_without_hashes = title_match.group(2)
-
-                    # IMPORTANT: Ne formater que si la ligne est COMPLÈTE
-                    # On vérifie si après cette ligne il y a du contenu (donc \n a été affiché)
-                    # ou si c'est la fin de l'animation
-                    line_is_complete = False
-
-                    # Vérifier s'il y a une ligne après (donc \n a été affiché)
-                    next_line_start = text_widget.index(f"{line_end}+1c")
-                    widget_end = text_widget.index("end-1c")
-
-                    # Si next_line_start < widget_end, il y a du contenu après cette ligne
-                    if text_widget.compare(next_line_start, "<=", widget_end):
-                        # Vérifier qu'il y a vraiment du contenu après (pas juste la fin)
-                        content_after = text_widget.get(line_end, next_line_start)
-                        if content_after == "\n":
-                            line_is_complete = True
-
-                    # Si l'animation est terminée (pas de typing_text actif), formater
-                    if not hasattr(self, "typing_text") or not self.typing_text:
-                        line_is_complete = True
-                    # Si typing_index a atteint la fin du texte
-                    elif hasattr(self, "typing_index") and hasattr(self, "typing_text"):
-                        if self.typing_index >= len(self.typing_text):
-                            line_is_complete = True
-
-                    # Utiliser le contenu comme clé pour éviter les doublons
-                    content_key = f"title:{title_without_hashes.strip()}"
-                    if (
-                        line_is_complete
-                        and content_key not in self._formatted_bold_contents
-                    ):
-                        # Remplacer "## titre" par "titre" formaté (sans les ##)
-                        text_widget.delete(pos_start, line_end)
-                        text_widget.insert(
-                            pos_start, title_without_hashes, f"title_{level}"
-                        )
-                        self._formatted_bold_contents.add(content_key)
-                        start_pos = text_widget.index(
-                            f"{pos_start}+{len(title_without_hashes)}c"
-                        )
-                    else:
-                        start_pos = text_widget.index(f"{line_end}+1c")
-                else:
-                    start_pos = text_widget.index(
-                        f"{pos_start}+1c"
-                    )  # === FORMATAGE DOCSTRINGS '''docstring''' ===
-            start_pos = search_start  # ⚡ OPTIMISÉ
+            # === FORMATAGE DOCSTRINGS '''docstring''' ===
+            start_pos = scan_origin  # ⚡ OPTIMISÉ
             while True:
                 # Chercher le prochain '''
                 pos_start = text_widget.search("'''", start_pos, "end")
@@ -2018,8 +2094,8 @@ class MarkdownFormattingMixin:
                     break
 
                 # Chercher le ''' de fermeture
-                search_start = text_widget.index(f"{pos_start}+3c")
-                pos_end = text_widget.search("'''", search_start, "end")
+                after_triple = text_widget.index(f"{pos_start}+3c")
+                pos_end = text_widget.search("'''", after_triple, "end")
 
                 if pos_end:
                     # Obtenir le contenu COMPLET avec les '''
@@ -2052,6 +2128,42 @@ class MarkdownFormattingMixin:
                         start_pos = text_widget.index(f"{pos_start}+1c")
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
+
+            # === FORMATAGE LISTES À PUCES (* texte, - texte, + texte) ===
+            # Convertit les marqueurs Markdown de liste en bullet points visuels « • »
+            # Ne touche PAS les lignes dans un bloc de code.
+            try:
+                scan_pos = "1.0"
+                while True:
+                    # Chercher le début de la prochaine ligne
+                    line_start = text_widget.search(
+                        r"^[\*\-\+] ",
+                        scan_pos,
+                        "end",
+                        regexp=True,
+                    )
+                    if not line_start:
+                        break
+
+                    # Vérifier qu'on est bien en début de ligne
+                    actual_line_start = text_widget.index(f"{line_start} linestart")
+                    if line_start != actual_line_start:
+                        scan_pos = text_widget.index(f"{line_start}+1c")
+                        continue
+
+                    # Ignorer si dans un bloc de code
+                    if self._is_position_in_code_block(text_widget, line_start):
+                        scan_pos = text_widget.index(f"{line_start} lineend +1c")
+                        continue
+
+                    # Remplacer le marqueur (ex: "* ") par "  • "
+                    marker_end = text_widget.index(f"{line_start}+2c")
+                    text_widget.delete(line_start, marker_end)
+                    text_widget.insert(line_start, "  • ")
+
+                    scan_pos = text_widget.index(f"{line_start} lineend +1c")
+            except Exception:
+                pass  # Ne pas bloquer le reste du formatage si les puces échouent
 
             text_widget.configure(state="disabled")
 
@@ -3214,16 +3326,18 @@ class MarkdownFormattingMixin:
             foreground="#d4d4d4",
         )
 
-        # Tags pour les tableaux Markdown
+        # Tags pour les tableaux Markdown — TOUS en Consolas pour alignement parfait
+        # Les bordures, headers et cellules DOIVENT utiliser la même police monospace
+        # sinon les largeurs de colonnes ne correspondent pas.
         text_widget.tag_configure(
             "table_header",
-            font=("Segoe UI", 11, "bold"),
+            font=("Consolas", 11, "bold"),
             foreground="#58a6ff",
             background="#1a1a2e",
         )
         text_widget.tag_configure(
             "table_cell",
-            font=("Segoe UI", 11),
+            font=("Consolas", 11),
             foreground="#e6e6e6",
             background="#16213e",
         )
@@ -3234,7 +3348,7 @@ class MarkdownFormattingMixin:
         )
         text_widget.tag_configure(
             "table_cell_bold",
-            font=("Segoe UI", 11, "bold"),
+            font=("Consolas", 11, "bold"),
             foreground="#ffd700",
             background="#16213e",
         )

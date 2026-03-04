@@ -110,7 +110,7 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 - **Confidentialité totale** : aucune donnée envoyée sur internet
 - **Fallback intelligent** : sans Ollama, l'IA bascule automatiquement en mode patterns/règles
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
-- **Multi-modèles** : texte (`llama3.2`, `llama3.1:8b`) et vision (`llama3.2-vision`, `llava`)
+- **Multi-modèles** : texte (`qwen3.5:4b`, `qwen3.5:9b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
 
 ### 📚 FAQ Thématique Prioritaire
 
@@ -155,6 +155,7 @@ my_ai/
 │   ├── __init__.py
 │   ├── agent_orchestrator.py            # Orchestrateur d'agents
 │   ├── ai_engine.py                     # Moteur principal IA
+│   ├── chat_orchestrator.py             # Orchestrateur de chat
 │   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
 │   ├── context_manager.py               # Gestion de contexte long
 │   ├── conversation.py                  # Gestion des conversations
@@ -256,18 +257,19 @@ pip install -r requirements.txt
 # Télécharger depuis https://ollama.com/download, puis :
 
 # Modèle texte (choisir selon votre RAM)
-ollama pull llama3.2         # Léger — réponses rapides  (8 GB RAM)
-ollama pull llama3.1:8b      # Lourd — réponses détaillées (16 GB RAM)
+ollama pull qwen3.5:2b       # Ultra léger — réponses concises (4 GB RAM) 
+ollama pull qwen3.5:4b       # Recommandé — léger et rapide (8 GB RAM)
+ollama pull qwen3.5:9b       # Plus lourd — réponses détaillées (16 GB RAM)
 
 # [OPTIONNEL] Modèle vision pour l'analyse d'images
-ollama pull llama3.2-vision  # Recommandé
-ollama pull llava            # Alternative plus légère
+ollama pull minicpm-v        # Recommandé — meilleur rapport qualité/vitesse (3 GB)
+ollama pull llava            # Alternative (4.7 GB)
 
 # Créer le modèle personnalisé
 .\create_custom_model.bat
 ```
 
-> **Note** : Adaptez la 3ème ligne du `Modelfile` selon le modèle choisi (`llama3.2` ou `llama3.1:8b`). Après toute modification du `Modelfile`, relancez `create_custom_model.bat` pour appliquer les changements.
+> **Changer de modèle** : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` dans le `Modelfile` avec la même valeur, puis relancez `create_custom_model.bat`. Les deux fichiers doivent toujours être cohérents.
 
 ### 4 · Lancer l'application
 
