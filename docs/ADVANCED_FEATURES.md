@@ -1,6 +1,6 @@
 # 🚀 Guide d'Utilisation - Fonctionnalités Avancées
 
-Ce guide explique comment utiliser les 4 nouvelles fonctionnalités majeures :
+Ce guide explique comment utiliser les 5 fonctionnalités majeures :
 
 ## 📚 Table des Matières
 
@@ -8,6 +8,7 @@ Ce guide explique comment utiliser les 4 nouvelles fonctionnalités majeures :
 2. [Training Manager](#-training-manager)
 3. [Compression Monitor](#-compression-monitor)
 4. [Intégration MCP (Model Context Protocol)](#-intégration-mcp)
+5. [ChatOrchestrator — Boucle Agentique Avancée](#-chatorchestrator--boucle-agentique-avancée-v670)
 
 ---
 
@@ -601,7 +602,96 @@ Pour plus de détails, consultez le guide dédié : [🔌 Intégration MCP](MCP_
 
 ---
 
-## �🚀 Prochaines Étapes
+## 🧠 ChatOrchestrator — Boucle Agentique Avancée (v6.7.0)
+
+Le **ChatOrchestrator** (`core/chat_orchestrator.py`) est la boucle agentique de la page Chat. Il remplace l'appel direct à `LocalLLM.generate_with_tools_stream()` dans `AIEngine.process_query_stream()` et implémente trois design patterns modernes.
+
+### ✨ Fonctionnalités
+
+- ✅ **Pattern ReAct** (Reasoning + Acting) : boucle `Réfléchis → Agis → Observe` à chaque tour
+- ✅ **Plan & Execute** : génération automatique d'un plan structuré pour les requêtes > 55 caractères
+- ✅ **Scratchpad persistant** : état interne (objectif, plan, faits, tours restants) injecté dans le system prompt
+- ✅ **Limite de tours** : `MAX_TOURS = 15` avec message forcé avant coupure
+- ✅ **Détection de boucle** : `LoopDetector` stoppe les appels identiques consécutifs ou répétitifs
+- ✅ **Élagage sélectif** du contexte (`MAX_HISTORY_MESSAGES = 40`)
+- ✅ **Synthèse streamée** après exécution d'outils
+
+### 💼 Architecture Interne
+
+```
+ChatOrchestrator.run(query, history, tools, tool_executor, stream_callback)
+  │
+  ├── 1. Planification (si len(query) > 55)
+  │     └── Scratchpad.set_plan([steps])
+  │
+  ├── 2. Boucle ReAct (max MAX_TOURS tours)
+  │     ├── Injection scratchpad dans system prompt
+  │     ├── LLM génère : raisonnement + tool call
+  │     ├── LoopDetector.check(tool_name, args)
+  │     ├── Validation arguments (Pydantic)
+  │     ├── Exécution outil → Observation
+  │     └── Scratchpad.update_from_tool_result()
+  │
+  └── 3. Synthèse finale streamée
+        └── Détection hallucinations (HALLUCINATION_MARKERS)
+```
+
+### ⚖️ Constantes configurables
+
+| Constante | Valeur | Rôle |
+|---|---|---|
+| `MAX_TOURS` | 15 | Limite absolue de tours dans la boucle |
+| `MAX_HISTORY_MESSAGES` | 40 | Élagage sélectif du contexte |
+| `LOOP_THRESHOLD` | 2 | Appels identiques avant détecter boucle élargie |
+| `COMPACT_THRESHOLD` | 28 | Messages avant compaction |
+| `PLAN_MIN_QUERY_LEN` | 55 | Longueur minimale pour déclencher la planification |
+| `MAX_TOOL_USES` | 5 | Appels outils avant synthèse forcée |
+
+### 🖥️ Intégration dans AIEngine
+
+Le `ChatOrchestrator` est instancié une fois dans `AIEngine` et appelé via `process_query_stream()` pour toute requête déclenchant du tool-calling. Il est **distinct** de `AgentOrchestrator` (page Agents, non affecté).
+
+```python
+# Dans AIEngine (simplifié)
+from core.chat_orchestrator import ChatOrchestrator
+
+class AIEngine:
+    def __init__(self):
+        self.chat_orchestrator = ChatOrchestrator()
+
+    def process_query_stream(self, query, history, ...):
+        # Si tool-calling détecté :
+        yield from self.chat_orchestrator.run(
+            query=query,
+            history=history,
+            tools=available_tools,
+            tool_executor=self._execute_tool,
+            stream_callback=stream_cb
+        )
+```
+
+### 🛡️ Sécurités intégrées
+
+```python
+# Exemple : détection de boucle
+detector = LoopDetector()
+is_loop, msg = detector.check("web_search", {"query": "bitcoin price"})
+if is_loop:
+    # Le LLM est informé et invité à synthétiser
+    stream_callback(msg)
+    break
+
+# Exemple : scratchpad
+pad = Scratchpad(goal="Trouve le prix du Bitcoin et compare à 2024")
+pad.set_plan(["Rechercher prix actuel", "Rechercher prix 2024", "Comparer"])
+pad.update_from_tool_result("web_search", "Bitcoin: 94,500 USD (2026)")
+pad.mark_step_done()
+print(pad.to_context_block())  # Injecté dans le system prompt
+```
+
+---
+
+## 🚀 Prochaines Étapes
 
 1. Tester les exemples fournis
 2. Intégrer dans votre workflow

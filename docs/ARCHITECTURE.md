@@ -2,12 +2,13 @@
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle** et **Météo en temps réel**, basée sur les principes suivants:
+My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel** et une **boucle agentique avancée (ChatOrchestrator)**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
 - **Recherche Sémantique** : Sentence-transformers (384 dimensions, similarité cosinus)
 - **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
+- **ChatOrchestrator** : Boucle agentique ReAct + Plan & Execute + Scratchpad persistant pour le tool-calling
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
 - **Reconnaissance d'intentions avancée** : Analyse linguistique multi-niveaux
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
@@ -36,6 +37,12 @@ My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Gestion de session et contexte                                    │
 │  • Intégration processeurs, générateurs, outils                      │
 │  • Client MCP (Model Context Protocol) pour outils externes          │
+├──────────────────────────────────────────────────────────────────────┤
+│ ChatOrchestrator (core/chat_orchestrator.py)  [v6.7.0]               │
+│  • Boucle agentique ReAct (Reasoning + Acting)                       │
+│  • Plan & Execute avec scratchpad XML persistant                     │
+│  • Limite de tours (MAX_TOURS=15), LoopDetector, élagage contexte    │
+│  • Utilisé par AIEngine pour tout tool-calling de la page Chat       │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -174,7 +181,73 @@ Responsabilités:
 ├─ Routage des requêtes selon intentions
 ├─ Gestion de session (documents, code, historique)
 ├─ Coordination processeurs/générateurs
+├─ Délégation tool-calling → ChatOrchestrator (v6.7.0)
 └─ Point d'entrée unique pour toutes les opérations
+```
+
+**`core/chat_orchestrator.py`** - Boucle agentique Chat (v6.7.0)
+```python
+Architecture:
+├─ LoopDetector     : détecte boucles immédiates et élargies
+├─ Scratchpad       : état cognitif persistant entre les tours
+│   ├─ OBJECTIF     : demande originale
+│   ├─ PLAN         : étapes numérotées avec ✓
+│   ├─ FAITS        : résultats d'outils (tronqués 400 chars)
+│   └─ TOURS REST.  : urgence < 3 tours
+└─ ChatOrchestrator : boucle agentique principale
+    ├─ run()         : interface publique unique
+    ├─ MAX_TOURS=15  : limite absolue de tours
+    ├─ MAX_TOOL_USES=5 : synthèse forcée après N outils
+    ├─ PLAN_MIN_QUERY_LEN=55 : seuil déclenchement planification
+    └─ Patterns : ReAct + Plan & Execute
+
+Sécurités:
+├─ Limite de tours avec message forcé avant coupure
+├─ Détection de boucle (immédiate + élargie)
+├─ Élagage sélectif contexte (MAX_HISTORY_MESSAGES=40)
+├─ Validation légère des arguments avant exécution
+└─ Détection d'hallucinations dans la réponse finale
+```
+
+**`core/agent_orchestrator.py`** - Coordonnateur Agents
+```python
+Responsabilités:
+├─ Crée et réutilise les agents IA (page Agents)
+├─ Historique des tâches multi-agents
+└─ Distinct de ChatOrchestrator (usage exclusif page Agents)
+```
+
+**`core/mcp_client.py`** - Client MCP
+```python
+Capacités:
+├─ Exposition outils locaux au format MCP
+├─ Connexion serveurs MCP externes (stdio)
+└─ Dégradation gracieuse si SDK mcp absent
+```
+
+**`core/shared.py`** - Module partagé
+```python
+Contenu:
+├─ Modèle embeddings partagé (all-MiniLM-L6-v2)
+├─ Stratégie offline-first (HF_HUB_OFFLINE=1)
+└─ Évite de charger sentence_transformers 3× au démarrage
+```
+
+**`core/validation.py`** - Validation Pydantic
+```python
+Modèles:
+├─ UserQueryInput  : query (1-10000 chars), context optionnel
+├─ ToolArgumentsInput : validation args appels outils
+└─ Sanitization : bloque exec/eval/os.system/subprocess
+```
+
+**`core/compression_monitor.py`** - Monitoring compression
+```python
+Fonctionnalités:
+├─ Ratios compression en temps réel
+├─ Stats par type de contenu
+├─ Historique et rapports
+└─ Indicateurs qualité chunking
 ```
 
 **`core/config.py`** - Configuration globale
@@ -215,16 +288,16 @@ Features:
 
 **RLHF et Training**
 ```python
-core/rlhf.py:
-├─ Chargement datasets (JSONL/CSV)
-├─ Collecte feedback humain (0-5)
-├─ Boucle d'entraînement RLHF
-└─ Export modèles optimisés
+core/rlhf_manager.py:
+├─ Collecte feedback humain (0-5) via get_rlhf_manager()
+├─ Détection patterns succès/échec
+├─ Statistiques satisfaction
+└─ Export données entraînement JSONL
 
-core/rlhf_feedback_integration.py:
-├─ Fusion feedback dans training data
-├─ Intégration ratings
-└─ Préparation réentraînement itératif
+core/training_manager.py:
+├─ Fine-tuning modèles locaux
+├─ Monitoring temps réel (métriques, checkpoints)
+└─ Export modèles optimisés
 
 core/training_pipeline.py:
 ├─ Chargement données diverses
@@ -676,8 +749,16 @@ User Input
     ↓
 Ollama Check (LocalLLM.is_ollama_available)
     ├─ Ollama disponible?
-    │   ├─ OUI → Génération via Ollama
-    │   │        → Réponse naturelle de qualité LLM
+    │   ├─ OUI → AIEngine.process_query_stream()
+    │   │        ├─ Tool-calling détecté?
+    │   │        │   ├─ OUI → ChatOrchestrator.run()  [v6.7.0]
+    │   │        │   │        ├─ 1. Planification (scratchpad)
+    │   │        │   │        ├─ 2. Boucle ReAct (max 15 tours)
+    │   │        │   │        │   ├─ Reasoning → Tool call
+    │   │        │   │        │   ├─ LoopDetector (anti-boucle)
+    │   │        │   │        │   └─ Observation → mise à jour scratchpad
+    │   │        │   │        └─ 3. Synthèse streamée
+    │   │        │   └─ NON  → Génération directe Ollama
     │   └─ NON → Fallback CustomAIModel
     │            ↓
     │        Intent Detection (LinguisticPatterns)
@@ -982,12 +1063,14 @@ elif intent == "new_intent":
 ## 🎯 État Architecture Actuel
 
 ### ✅ Production-Ready
+- **ChatOrchestrator** : boucle agentique ReAct + Plan & Execute (v6.7.0)
 - Système mémoire vectorielle (ChromaDB + embeddings)
 - Recherche internet avec météo temps réel
 - Pipelines traitement documents (PDF, DOCX, Excel, CSV, Code)
 - Classification intentions
 - Matching FAQ
 - Gestion configuration
+- Validation entrées Pydantic (`validation.py`)
 
 ### 🟢 Fonctionnel (Bon État)
 - Tokenization tiktoken (cl100k_base) précise
@@ -1005,6 +1088,8 @@ elif intent == "new_intent":
 - ❌ million_token_context_manager.py → ✅ memory/vector_memory.py
 - ❌ Comptage mots approximatif → ✅ tiktoken (cl100k_base)
 - ❌ Recherche linéaire → ✅ Recherche vectorielle indexée
+- ❌ `LocalLLM.generate_with_tools_stream()` direct → ✅ `ChatOrchestrator.run()` (tool-calling)
+- ❌ llama3.2 → ✅ qwen3.5:4b (modèle principal)
 
 ---
 

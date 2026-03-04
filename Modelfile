@@ -1,5 +1,5 @@
 # Modelfile pour My_AI
-# Basé sur Qwen3.5:2b (léger, rapide)
+# Basé sur Qwen3.5:4b (léger, rapide)
 FROM qwen3.5:4b
 
 # Paramètres de créativité et performance
