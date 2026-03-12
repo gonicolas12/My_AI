@@ -39,7 +39,7 @@ Connexion standardisée à des outils locaux et serveurs externes (fichiers, git
 </td>
 <td width="50%">
 
-**📄 Traitement de Documents**
+**📄 Traitement de Documents**  
 PDF, DOCX, Excel, CSV, images — analyse contextuelle ultra-étendue avec compression intelligente.
 
 **🌐 Recherche Internet**  
