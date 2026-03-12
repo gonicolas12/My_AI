@@ -297,31 +297,41 @@ class StreamingMixin:
             # IMPORTANT: Synchroniser typing_text avec le buffer pour le formatage
             self.typing_text = self._streaming_buffer
 
-            # ── MODE RATTRAPAGE ──────────────────────────────────────────
-            # Quand TOUTES les données sont reçues (streaming terminé) et
-            # qu'il reste un gros backlog non affiché, on accélère :
-            #  • > 800 chars restants → finalisation immédiate (dump tout)
-            #  • > 200 chars restants → batch de 12 chars par frame (3ms)
-            #  • sinon → mode normal 1 char / 10ms (typewriter)
-            if self._streaming_complete and self.typing_index < buffer_length:
-                remaining = buffer_length - self.typing_index
-                if remaining > 800:
-                    # Trop de retard → finaliser d'un bloc
-                    print(
-                        f"⚡ [STREAM] Rattrapage immédiat : {remaining} chars restants"
-                    )
-                    self._finish_streaming_animation()
-                    return
-                elif remaining > 200:
-                    # Rattrapage accéléré : 12 chars par frame, 3ms entre frames
+            # ── MODE RATTRAPAGE / AFFICHAGE RAPIDE ───────────────────────
+            # S'active dès que le buffer est en avance sur l'affichage,
+            # pendant ET après le streaming, pour ne pas brider le modèle :
+            #  • > 800 chars ET streaming terminé → finalisation immédiate
+            #  • > 50 chars (en cours OU terminé) → batch 25 chars / 5ms
+            #  • sinon → mode typewriter 1 char / 10ms (effet saisie lente)
+            remaining = buffer_length - self.typing_index
+            # Pas de dump immédiat si on est dans un bloc de code progressif :
+            # _handle_progressive_code_block le gérera en batch (200 chars/5ms).
+            if remaining > 800 and self._streaming_complete and not getattr(self, '_streaming_in_code_block', False):
+                # Trop de retard après la fin du streaming → finaliser d'un bloc
+                print(
+                    f"⚡ [STREAM] Rattrapage immédiat : {remaining} chars restants"
+                )
+                self._finish_streaming_animation()
+                return
+            elif remaining > 50 and not getattr(self, '_streaming_in_code_block', False):
+                # Affichage rapide — batch jusqu'au prochain caractère spécial.
+                # Les backticks (blocs/inline code) et crochets (liens) sont
+                # traités un par un pour préserver toute la logique progressive.
+                batch_size = min(25, remaining)
+                for _bi in range(batch_size):
+                    if self._streaming_buffer[self.typing_index + _bi] in ('`', '['):
+                        batch_size = _bi
+                        break
+
+                if batch_size > 0:
+                    # Insérer le segment sans caractères spéciaux
                     self.typing_widget.configure(state="normal")
-                    batch_size = min(12, remaining)
                     chunk = self._streaming_buffer[self.typing_index:self.typing_index + batch_size]
                     self.typing_widget.insert("end", chunk)
                     self.typing_index += batch_size
 
-                    # Formater quand le chunk contient \n (titres, listes)
-                    if "\n" in chunk:
+                    # Déclencher le formatage sur les marqueurs Markdown courants
+                    if any(c in chunk for c in ('\n', '*', '#')):
                         self._apply_unified_progressive_formatting(self.typing_widget)
                         self.adjust_text_widget_height(self.typing_widget)
                         self.root.after(2, self._smart_scroll_follow_animation)
@@ -330,8 +340,10 @@ class StreamingMixin:
                         self.root.after(2, self._smart_scroll_follow_animation)
 
                     self.typing_widget.configure(state="disabled")
-                    self.root.after(3, self._continue_streaming_typing_animation)
+                    self.root.after(5, self._continue_streaming_typing_animation)
                     return
+                # batch_size == 0 : prochain char est '`' ou '[' → laisser
+                # le chemin caractère par caractère ci-dessous le traiter.
 
             # Vérifier si on a des caractères à afficher
             if self.typing_index < buffer_length:
@@ -703,29 +715,49 @@ class StreamingMixin:
                     self.root.after(20, self._continue_streaming_typing_animation)
                     return True
 
-            # === INSERT CODE CHARACTER WITH SYNTAX TAG ===
-            char = buffer[idx]
+            # === BATCH INSERT CODE CHARACTERS ===
+            # Scan ahead for the next potential closing marker (``` at line start).
+            # Everything before it is safe to insert in one shot with code_block tag.
+            look = idx
+            batch_limit = min(buffer_len, idx + 200)
+            batch_end = batch_limit
+            while look < batch_limit:
+                nl = buffer.find('\n', look, batch_limit)
+                if nl == -1:
+                    break
+                # If the char after \n is ` we must stop before it
+                if nl + 1 < buffer_len and buffer[nl + 1] == '`':
+                    batch_end = nl + 1  # include the \n, stop before `
+                    break
+                look = nl + 1
+
+            # Leave a safety margin at the live streaming frontier
+            if not self._streaming_complete and batch_end > buffer_len - 4:
+                batch_end = max(idx, buffer_len - 4)
+
+            if batch_end <= idx:
+                batch_end = idx + 1  # always make at least 1 char of progress
+
+            chunk = buffer[idx:batch_end]
             self.typing_widget.configure(state="normal")
+            self.typing_widget.insert("end", chunk, "code_block")
+            self.typing_index += len(chunk)
+            self._streaming_code_content += chunk
+            self._streaming_code_rehighlight_counter += len(chunk)
 
-            # Insert with code_block tag (dark background + monospace)
-            self.typing_widget.insert("end", char, "code_block")
-            self.typing_index += 1
-            self._streaming_code_content += char
-            self._streaming_code_rehighlight_counter += 1
-
-            # Periodically re-highlight for proper syntax colors
-            if char == '\n' or self._streaming_code_rehighlight_counter >= 30:
+            # Re-highlight once per batch (on newline or every 200 chars)
+            if '\n' in chunk:
+                self._rehighlight_progressive_code_block()
+                self.adjust_text_widget_height(self.typing_widget)
+                self.root.after(1, self._smart_scroll_follow_animation)
+                self._streaming_code_rehighlight_counter = 0
+            elif self._streaming_code_rehighlight_counter >= 200:
                 self._rehighlight_progressive_code_block()
                 self._streaming_code_rehighlight_counter = 0
 
-            # Adjust height on newlines
-            if char == "\n":
-                self.adjust_text_widget_height(self.typing_widget)
-                self.root.after(1, self._smart_scroll_follow_animation)
-
             self.typing_widget.configure(state="disabled")
 
-            self.root.after(10, self._continue_streaming_typing_animation)
+            self.root.after(5, self._continue_streaming_typing_animation)
             return True
 
     def _rehighlight_progressive_code_block(self):

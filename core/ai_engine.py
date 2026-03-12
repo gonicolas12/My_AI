@@ -1485,7 +1485,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "précisément à la demande de l'utilisateur. "
                 f"Le répertoire de travail actuel (racine du projet) est : {cwd}. "
                 "Réponds toujours en français sauf instruction contraire. "
-                "Sois direct, précis et synthétique."
+                "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
 
             # Ajouter le contexte des documents chargés

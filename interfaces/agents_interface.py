@@ -24,6 +24,89 @@ except ImportError:
 from core.agent_orchestrator import AgentOrchestrator
 from core.config import get_default_model as _get_default_model
 from interfaces.resource_monitor import ResourceMonitor
+
+try:
+    from interfaces.gui.syntax_highlighting import SyntaxHighlightingMixin as _SyntaxMixin
+
+    class SyntaxColorHelper(_SyntaxMixin):
+        """Wrapper exposing GUI syntax-highlighting helpers to the agents pane."""
+
+        def __init__(self, colors):
+            self.colors = colors
+
+        def configure_tags(self, tw):
+            """Configure all language colour tags on *tw*."""
+            self._configure_formatting_tags(tw)  # pylint: disable=protected-access
+
+        def highlight_line(self, tw, line, lang):
+            """Tokenise *line* for *lang* and insert coloured spans into *tw*."""
+            code_map = {}
+            try:
+                dispatch = {
+                    "python":     self._analyze_python_tokens,
+                    "javascript": self._analyze_javascript_tokens,
+                    "js":         self._analyze_javascript_tokens,
+                    "typescript": self._analyze_javascript_tokens,
+                    "ts":         self._analyze_javascript_tokens,
+                    "css":        self._analyze_css_tokens,
+                    "html":       self._analyze_html_tokens,
+                    "xml":        self._analyze_html_tokens,
+                    "bash":       self._analyze_bash_tokens,
+                    "shell":      self._analyze_bash_tokens,
+                    "sh":         self._analyze_bash_tokens,
+                    "sql":        self._analyze_sql_tokens,
+                    "mysql":      self._analyze_sql_tokens,
+                    "postgresql": self._analyze_sql_tokens,
+                    "sqlite":     self._analyze_sql_tokens,
+                    "java":       self._analyze_java_tokens,
+                    "go":         self._analyze_go_tokens,
+                    "golang":     self._analyze_go_tokens,
+                    "ruby":       self._analyze_ruby_tokens,
+                    "rb":         self._analyze_ruby_tokens,
+                    "swift":      self._analyze_swift_tokens,
+                    "php":        self._analyze_php_tokens,
+                    "perl":       self._analyze_perl_tokens,
+                    "pl":         self._analyze_perl_tokens,
+                    "rust":       self._analyze_rust_tokens,
+                    "rs":         self._analyze_rust_tokens,
+                }  # pylint: disable=protected-access
+                if lang in ("c", "cpp", "c++", "cxx"):
+                    self._analyze_cpp_tokens(line, 0, code_map, lang)  # pylint: disable=protected-access
+                elif lang in ("csharp", "cs", "c#"):
+                    self._analyze_csharp_tokens(line, 0, code_map)  # pylint: disable=protected-access
+                elif lang in dispatch:
+                    dispatch[lang](line, 0, code_map)
+                else:
+                    tw.insert("end", line, "code_block")
+                    return
+            except Exception:
+                tw.insert("end", line, "code_block")
+                return
+
+            n = len(line)
+            i = 0
+            while i < n:
+                if i in code_map:
+                    tag = code_map[i][1]
+                    j = i + 1
+                    while j < n and j in code_map and code_map[j][1] == tag:
+                        j += 1
+                    tw.insert("end", line[i:j], tag)
+                    i = j
+                else:
+                    j = i + 1
+                    while j < n and j not in code_map:
+                        j += 1
+                    tw.insert("end", line[i:j], "code_block")
+                    i = j
+
+    # Singleton used only for token analysis (no colors needed)
+    _SYNTAX_ANALYZER = SyntaxColorHelper({})
+    _SYNTAX_AVAILABLE = True
+except Exception:
+    SyntaxColorHelper = None # pylint: disable=invalid-name
+    _SYNTAX_ANALYZER = None
+    _SYNTAX_AVAILABLE = False
 from interfaces.workflow_canvas import WorkflowCanvas
 from models.local_llm import LocalLLM
 from models.ai_agents import AIAgent, AVAILABLE_AGENTS
@@ -1708,6 +1791,7 @@ class AgentsInterface:
         if "_line_buf" not in section:
             section["_line_buf"] = ""
             section["_in_code_block"] = False
+            section["_code_lang"] = ""
             section["_first_line"] = True
             section["_table_buf"] = []  # buffer pour accumuler les lignes de tableau
 
@@ -1857,18 +1941,17 @@ class AgentsInterface:
             if stripped.startswith("```"):
                 if section["_in_code_block"]:
                     section["_in_code_block"] = False
+                    section["_code_lang"] = ""
                 else:
                     section["_in_code_block"] = True
-                    lang = stripped[3:].strip()
-                    if lang:
-                        tw.insert("end", f"  {lang}", "code_lang")
-                        tw.insert("end", "\n")
+                    section["_code_lang"] = stripped[3:].strip().lower()
+                    # Language label intentionally hidden — used only for highlighting logic
                 tw.configure(state="disabled")
                 self._resize_section_text(tw)
                 return
 
             if section["_in_code_block"]:
-                tw.insert("end", line, "code_block")
+                self._highlight_code_line(tw, line, section.get("_code_lang", ""))
                 tw.configure(state="disabled")
                 self._resize_section_text(tw)
                 return
@@ -1985,6 +2068,14 @@ class AgentsInterface:
         base = "Segoe UI"
         mono = "Consolas"
 
+        # 1. Appliquer tous les tags de coloration syntaxique par langage depuis le mixin GUI
+        if _SYNTAX_AVAILABLE:
+            try:
+                SyntaxColorHelper(self.colors).configure_tags(tw)
+            except Exception:
+                pass
+
+        # 2. Tags spécifiques à la zone résultats (priorité sur le mixin)
         tw.tag_configure("h1", font=(base, 16, "bold"), foreground="#ffffff",
                          spacing1=10, spacing3=6)
         tw.tag_configure("h2", font=(base, 14, "bold"), foreground="#e0e0ff",
@@ -1996,7 +2087,8 @@ class AgentsInterface:
         tw.tag_configure("bold", font=(base, 11, "bold"), foreground="#ffffff")
         tw.tag_configure("italic", font=(base, 11, "italic"), foreground="#d0d0e0")
         tw.tag_configure("code_inline", font=(mono, 10), foreground="#ff9f43")
-        tw.tag_configure("code_block", font=(mono, 10), foreground="#a8d8a8",
+        # code_block = fallback pour les langages non reconnus ou whitespace non tokenisé
+        tw.tag_configure("code_block", font=(mono, 10), foreground="#d4d4d4",
                          spacing1=4, spacing3=4,
                          lmargin1=16, lmargin2=16)
         tw.tag_configure("code_lang", font=(mono, 9, "bold"), foreground="#6090c0",
@@ -2020,6 +2112,7 @@ class AgentsInterface:
         """Parse du texte Markdown et insertion formatée dans un widget texte."""
         lines = full_text.split("\n")
         in_code_block = False
+        current_lang = ""
         i = 0
 
         while i < len(lines):
@@ -2033,19 +2126,18 @@ class AgentsInterface:
             if stripped.startswith("```"):
                 if in_code_block:
                     in_code_block = False
+                    current_lang = ""
                     i += 1
                     continue
                 else:
                     in_code_block = True
-                    lang = stripped[3:].strip()
-                    if lang:
-                        tw.insert("end", f"  {lang}", "code_lang")
-                        tw.insert("end", "\n")
+                    current_lang = stripped[3:].strip().lower()
+                    # Language label intentionally hidden — used only for highlighting logic
                     i += 1
                     continue
 
             if in_code_block:
-                tw.insert("end", line, "code_block")
+                self._highlight_code_line(tw, line, current_lang)
                 i += 1
                 continue
 
@@ -2104,6 +2196,13 @@ class AgentsInterface:
             # Normal line
             self._insert_inline_md(tw, line, "normal")
             i += 1
+
+    def _highlight_code_line(self, tw, line, lang):
+        """Insère une ligne de code avec coloration syntaxique par langage."""
+        if not _SYNTAX_AVAILABLE or not lang:
+            tw.insert("end", line, "code_block")
+            return
+        _SYNTAX_ANALYZER.highlight_line(tw, line, lang)
 
     def _insert_inline_md(self, tw, text, base_tag):
         """Insère du texte avec formatage inline Markdown (gras, italique, code)."""

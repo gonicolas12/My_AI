@@ -1,5 +1,6 @@
 """Animations mixin for ModernAIGUI."""
 
+import math
 import random
 import re
 import tkinter as tk
@@ -30,8 +31,8 @@ class AnimationsMixin:
                     default_font = tkfont.Font(family="Segoe UI", size=12)
                 lh = default_font.metrics("linespace")
                 if lh > 0:
-                    # +lh pour la dernière ligne, +lh de marge pour l'animation
-                    target_height = max(3, -(-( px + lh + lh) // lh))
+                    # +lh pour la dernière ligne (1 seule marge, pas 2)
+                    target_height = max(3, -(-( px + lh) // lh))
                 else:
                     target_height = max(3, int(text_widget.index("end-1c").split(".")[0]) + 1)
             else:
@@ -405,8 +406,8 @@ class AnimationsMixin:
 
     def _adjust_height_final_no_scroll(self, text_widget):
         """Ajuste la hauteur finale pixel-perfect pour éliminer tout espace vide.
-        Utilise displaylines (fiable même hors-écran) + correction pour
-        les polices mixtes (titres plus grands, code plus petit)."""
+        Utilise ypixels (mesure réelle en pixels) pour éviter le +1 parasite
+        que la méthode displaylines ajoutait à cause du \\n implicite de tkinter."""
         try:
             text_widget.update_idletasks()
             current_state = text_widget.cget("state")
@@ -423,33 +424,37 @@ class AnimationsMixin:
                 else:
                     break
 
-            # ── Compter les display lines (fonctionne pour tout le contenu) ──
+            text_widget.update_idletasks()
+
+            # ── Mesure pixel réelle ──
+            # ypixels = distance du haut de la 1ère ligne au haut de la dernière.
+            # On ajoute 1 linespace pour inclure la hauteur de la dernière ligne.
             try:
-                dl_result = text_widget.count("1.0", "end-1c", "displaylines")
-                if isinstance(dl_result, tuple):
-                    num_dl = dl_result[0] if dl_result else 0
-                else:
-                    num_dl = dl_result or 0
-                # displaylines donne le nombre de sauts de ligne visuels
-                # +1 pour inclure la dernière ligne elle-même
-                needed = max(1, (num_dl or 0) + 1)
+                default_font = tkfont.Font(font=text_widget.cget("font"))
             except Exception:
+                default_font = tkfont.Font(family="Segoe UI", size=12)
+            lh = default_font.metrics("linespace") or 14
+
+            ypixels_result = text_widget.count("1.0", "end-1c", "ypixels")
+            px = (ypixels_result[0] if isinstance(ypixels_result, tuple) else ypixels_result) or 0
+
+            if px > 0:
+                needed = max(1, math.ceil((px + lh) / lh))
+            else:
+                # Fallback si ypixels non disponible (widget hors-écran)
                 needed = max(1, int(text_widget.index("end-1c").split(".")[0]))
 
             # ── Correction pour les titres (police plus grande que la police par défaut) ──
-            # Chaque ligne de titre utilise ~1.3x la hauteur d'une ligne normale.
-            # On ajoute ~0.3 lignes supplémentaires par titre détecté.
             try:
                 title_extra = 0
                 for tag_name in ["title_1", "title_2", "title_3"]:
                     ranges = text_widget.tag_ranges(tag_name)
-                    # Chaque paire (start, end) représente un titre
                     num_titles = len(ranges) // 2
                     if tag_name == "title_1":
-                        title_extra += num_titles * 0.4   # 15px vs 12px
+                        title_extra += num_titles * 0.4
                     else:
-                        title_extra += num_titles * 0.15  # 13px vs 12px
-                needed += int(title_extra + 0.5)  # Arrondi au supérieur
+                        title_extra += num_titles * 0.15
+                needed += int(title_extra + 0.5)
             except Exception:
                 pass
 

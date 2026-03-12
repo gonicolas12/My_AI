@@ -656,10 +656,6 @@ class SyntaxHighlightingMixin:
                     tokens_added += 1
                 current_pos += len(value)
 
-            print(
-                f"[DEBUG] _analyze_python_tokens: {tokens_added} tokens ajoutés (offset {start_offset})"
-            )
-
         except Exception as e:
             print(f"[DEBUG] Erreur Pygments: {e}, utilisation du fallback")
             # Fallback sans Pygments
@@ -842,10 +838,6 @@ class SyntaxHighlightingMixin:
 
             current_pos += len(line) + 1
 
-        print(
-            f"[DEBUG] _analyze_javascript_tokens: {len([k for k in code_map if code_map.get(k, ('', ''))[0] == 'javascript'])} tokens ajoutés (offset {start_offset})"
-        )
-
     def _analyze_css_tokens(self, code, start_offset, code_map):
         """Analyse les tokens CSS pour la coloration en temps réel"""
         # Pattern pour CSS - sans mode VERBOSE pour éviter les problèmes avec #
@@ -877,10 +869,6 @@ class SyntaxHighlightingMixin:
                     code_map[pos] = ("css", tag)
 
             current_pos += len(line) + 1
-
-        print(
-            f"[DEBUG] _analyze_css_tokens: tokens CSS ajoutés (offset {start_offset})"
-        )
 
     def _analyze_html_tokens(self, code, start_offset, code_map):
         """Analyse les tokens HTML pour la coloration en temps réel"""
@@ -918,10 +906,6 @@ class SyntaxHighlightingMixin:
                     code_map[pos] = ("html", tag)
 
             current_pos += len(line) + 1
-
-        print(
-            f"[DEBUG] _analyze_html_tokens: tokens HTML ajoutés (offset {start_offset})"
-        )
 
     def _analyze_bash_tokens(self, code, start_offset, code_map):
         """Analyse les tokens Bash pour la coloration en temps réel"""

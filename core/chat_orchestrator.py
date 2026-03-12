@@ -258,7 +258,11 @@ class ChatOrchestrator:
         messages = self._compact_context_if_needed(messages, llm)
 
         # ── Plan & Execute : pré-planification pour requêtes complexes ────
-        if self._should_plan(user_input, tools):
+        # La planification n'a du sens que si le widget raisonnement est visible
+        # (on_thinking_token fourni). Sans widget, les tokens du plan sont
+        # générés mais invisibles ET jamais injectés (pas d'outil appelé) :
+        # pure perte de 10-15 secondes avant la vraie réponse.
+        if self._should_plan(user_input, tools) and on_thinking_token is not None:
             plan_steps = self._generate_plan_stream(
                 user_input, llm, on_thinking_token
             )
