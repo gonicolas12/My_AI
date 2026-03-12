@@ -1283,13 +1283,14 @@ class AgentsInterface:
                             ]
                             if parents:
                                 context_parts = [
-                                    results_by_node[pid]
+                                    f"[{node_map[pid]['name']}]:\n{results_by_node[pid]}"
                                     for pid in parents
                                     if pid in results_by_node
                                 ]
                                 if context_parts:
+                                    _sep = "\n---\n"
                                     agent_task = (
-                                        f"Contexte précédent:\n{'---'.join(context_parts)}\n\n"
+                                        f"Contexte précédent:\n{_sep.join(context_parts)}\n\n"
                                         f"Tâche: {task}"
                                     )
 
@@ -1362,11 +1363,15 @@ class AgentsInterface:
                         parents = [c["from"] for c in self.workflow_canvas.connections
                                    if c["to"] == nid]
                         if parents:
-                            context_parts = [results_by_node[p] for p in parents
-                                             if p in results_by_node]
+                            context_parts = [
+                                f"[{node_map[p]['name']}]:\n{results_by_node[p]}"
+                                for p in parents
+                                if p in results_by_node
+                            ]
                             if context_parts:
+                                _sep = "\n---\n"
                                 agent_task = (
-                                    f"Contexte précédent:\n{'---'.join(context_parts)}\n\n"
+                                    f"Contexte précédent:\n{_sep.join(context_parts)}\n\n"
                                     f"Tâche: {task}"
                                 )
 
