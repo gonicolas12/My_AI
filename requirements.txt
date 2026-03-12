@@ -55,11 +55,13 @@ pillow>=10.0.0
 pygments
 
 # Interface web (optionnel)
-streamlit>=1.25.0
+streamlit>=1.42.0
 
 # ====================================
 # MACHINE LEARNING & NLP
 # ====================================
+# protobuf 5.26+ requis (4.x cause ImportError: runtime_version avec tensorflow/transformers)
+protobuf>=5.26,<7
 torch>=2.0.0
 scikit-learn>=1.3.0
 rapidfuzz
