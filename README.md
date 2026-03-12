@@ -28,7 +28,7 @@
 Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
 **🤖 9 Agents IA Spécialisés**  
-Code, Web, Analyse, Créativité, Debug, Sécurité... et création d'agents personnalisés avec interface style n8n.
+Code, Debug, Web Sécurité... et création d'agents personnalisés avec interface style n8n.
 
 **🧠 Mode Thinking — Raisonnement en Deux Passes**
 Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répondre.
