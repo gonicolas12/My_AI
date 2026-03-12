@@ -76,7 +76,6 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 ### Agents — Interface dédiée
 
 ![Interface Agents](docs/images/agentsScreen1.png)
-
 ![Interface Workflow](docs/images/agentsScreen2.png)
 
 | Fonctionnalité | Détail |
