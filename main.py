@@ -6,16 +6,21 @@ Point d'entrée principal de l'application
 import asyncio
 import argparse
 import sys
+import os
 import logging
 import traceback
 from pathlib import Path
 
-from interfaces.cli import CLIInterface
-from core.ai_engine import AIEngine
-from utils.logger import setup_logger
-
 # Ajout du répertoire courant au path Python
 sys.path.insert(0, str(Path(__file__).parent))
+
+# Permettre à Ollama de traiter plusieurs requêtes en parallèle
+os.environ.setdefault("OLLAMA_NUM_PARALLEL", "4")
+
+from interfaces.cli import CLIInterface  # pylint: disable=wrong-import-position
+from core.ai_engine import AIEngine  # pylint: disable=wrong-import-position
+from utils.logger import setup_logger  # pylint: disable=wrong-import-position
+
 
 def parse_arguments():
     """

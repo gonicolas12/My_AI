@@ -602,7 +602,7 @@ Pour plus de détails, consultez le guide dédié : [🔌 Intégration MCP](MCP_
 
 ---
 
-## 🧠 ChatOrchestrator — Boucle Agentique Avancée (v6.7.0)
+## 🧠 ChatOrchestrator — Boucle Agentique Avancée
 
 Le **ChatOrchestrator** (`core/chat_orchestrator.py`) est la boucle agentique de la page Chat. Il remplace l'appel direct à `LocalLLM.generate_with_tools_stream()` dans `AIEngine.process_query_stream()` et implémente trois design patterns modernes.
 

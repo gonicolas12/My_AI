@@ -1,5 +1,35 @@
 # 📋 CHANGELOG - My Personal AI Ultra
 
+# 🖼️ Version 6.8.0 - Canvas Visuel Workflow & Monitoring Ressources (9 Mars 2026)
+
+### 🚀 Nouveautés Principales
+
+#### 🎨 Canvas Visuel de Workflow (style n8n)
+
+Nouveau module `interfaces/workflow_canvas.py` — éditeur visuel interactif pour orchestrer des workflows d'agents :
+
+- **Nœuds visuels** : Rectangles arrondis avec bandeau couleur, nom d'agent, indicateur de statut (idle/running/done/error), ports d'entrée/sortie
+- **Connexions Bézier** : Courbes cubiques horizontales avec flèches, créées par drag du port de sortie vers le port d'entrée
+- **Zoom & Pan** : Molette (0.3x à 3x), clic milieu/droit pour naviguer, toolbar avec boutons ⊕/⊖/⊙
+- **Grille & Minimap** : Points de repère avec snap automatique, vue miniature du graphe complet
+- **Sélection avancée** : Clic, Shift+clic, rectangle de sélection, touche Suppr pour suppression
+- **Exécution DAG** : Tri topologique automatique — les nœuds sans dépendances mutuelles sont exécutés en parallèle (threads)
+- **Passage de contexte** : Le résultat d'un nœud parent est injecté dans le contexte du nœud enfant
+- **Statuts temps réel** : Chaque nœud change de couleur pendant l'exécution (gris → jaune → vert/rouge)
+
+#### 📊 Monitoring Ressources Système
+
+Nouveau module `interfaces/resource_monitor.py` — collecte et affichage des métriques système :
+
+- **CPU & RAM** : Utilisation spécifique aux processus Ollama (via psutil)
+- **GPU & VRAM** : Monitoring NVIDIA (via pynvml/GPUtil, optionnel)
+- **Inférence** : Temps d'exécution en ms et vitesse de génération en tokens/s
+- **Barres de progression colorées** : Vert (0-60%) → Jaune (60-85%) → Rouge (85-100%)
+- **Sparklines** : Mini-graphiques des 60 dernières mesures (~3 min d'historique)
+- **Thread daemon** : Collecte toutes les 3 secondes sans bloquer l'UI
+
+---
+
 # 🏗️ Version 6.7.0 - ChatOrchestrator & Migration Qwen3.5 (4 Mars 2026)
 
 ### 🚀 Nouveautés Principales
@@ -182,7 +212,7 @@ Structure JSON d'un agent personnalisé :
 
 #### Refonte de la zone de saisie
 - **Bouton Exécuter** : Plus grand (160px), s'adapte automatiquement à la hauteur de la zone de texte
-- **Bouton Clear Selection** : Rouge (#dc2626), permet de vider le workflow en un clic
+- **Bouton Clear Workflow** : Rouge (#dc2626), permet de vider le workflow en un clic
 - **Alignement parfait** : Les boutons s'étirent pour s'aligner avec le bas de la zone de texte
 - **Cartes agents** : Description agrandie (police 13 bold), indication de drag & drop
 

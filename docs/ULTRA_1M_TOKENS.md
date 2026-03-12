@@ -1,8 +1,8 @@
-# 🚀 Documentation Mémoire Vectorielle Étendue - v5.0.0 (3 Septembre 2025)
+# 🚀 Documentation Mémoire Vectorielle Étendue - v6.8.0 (12 Mars 2026)
 
 ## 💾 Vue d'Ensemble : Mémoire Interne de 1M Tokens
 
-Le système Ultra de My Personal AI v5.0.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et SQLite). Il est important de distinguer deux notions différentes :
+Le système Ultra de My Personal AI v6.8.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
 
 > ⚠️ **À ne pas confondre**
 > - **Mémoire interne (1M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
@@ -36,34 +36,33 @@ response = ultra_ai.generate_response("Analyse ce projet complet")
 print(response['ultra_stats'])  # Statistiques 1M tokens
 ```
 
-#### 2. IntelligentContextManager (`models/intelligent_context_manager.py`)
+#### 2. VectorMemory (`memory/vector_memory.py`)
+
+Module principal de stockage vectoriel — tokenization tiktoken, embeddings sentence-transformers, stockage ChromaDB, chiffrement AES-256 optionnel.
+
 ```python
-from models.intelligent_context_manager import UltraIntelligentContextManager
+from memory.vector_memory import VectorMemory
 
-# Gestionnaire de contexte intelligent
-context_mgr = UltraIntelligentContextManager()
+# Initialisation
+vector_mem = VectorMemory(
+    max_tokens=1_000_000,
+    chunk_size=512,
+    chunk_overlap=50,
+    storage_dir="memory/vector_store"
+)
 
-# Ajout de contenu avec chunking intelligent
-context_mgr.add_content("Document très long...", "document")
+# Ajout d'un document
+vector_mem.add_document("contenu du document...", "mon_doc")
 
-# Recherche sémantique ultra-rapide
-results = context_mgr.search_relevant_chunks("ma requête", limit=10)
-```
-
-#### 3. MillionTokenContextManager (`models/million_token_context_manager.py`)
-```python
-from models.million_token_context_manager import MillionTokenContextManager
-
-# Persistance et compression
-token_mgr = MillionTokenContextManager()
-
-# Ajout de gros volumes avec compression automatique
-token_mgr.add_document("gros_document.pdf", auto_compress=True)
+# Recherche sémantique
+results = vector_mem.search_similar("ma requête", limit=10)
 
 # Statistiques en temps réel
-stats = token_mgr.get_stats()
-print(f"Tokens utilisés: {stats['current_tokens']:,} / 1,048,576")
+stats = vector_mem.get_stats()
+print(f"Tokens en mémoire : {stats['current_tokens']:,} / 1,048,576")
 ```
+
+> **Note** : Dans `models/ultra_custom_ai.py`, `VectorMemory` est importé sous l'alias `MillionTokenContextManager` pour la compatibilité interne.
 
 ## ⚡ Performances et Optimisations
 
@@ -201,14 +200,14 @@ export ULTRA_MAX_MEMORY_MB=2048  # Plus de RAM autorisée
 
 #### "Base de données corrompue"
 ```bash
-# Réinitialisation complète
-python -c "from models.million_token_context_manager import MillionTokenContextManager; mgr = MillionTokenContextManager(); mgr.reset_database()"
+# Réinitialisation complète — supprime et recrée le vector_store
+python -c "import shutil; shutil.rmtree('memory/vector_store', ignore_errors=True); print('Vector store réinitialisé')"
 ```
 
 #### "Recherche lente"
 ```bash
-# Optimisation des index
-python -c "from models.intelligent_context_manager import UltraIntelligentContextManager; mgr = UltraIntelligentContextManager(); mgr.optimize_database()"
+# Vérification de l'installation ChromaDB et tiktoken
+pip install chromadb tiktoken sentence-transformers
 ```
 
 ### Performance Optimale
@@ -227,4 +226,4 @@ python -c "from models.intelligent_context_manager import UltraIntelligentContex
 
 ---
 
-*Documentation générée automatiquement le 3 Septembre 2025 pour My Personal AI Ultra v5.0.0*
+*Documentation mise à jour le 12 Mars 2026 pour My Personal AI v6.8.0*

@@ -7,8 +7,8 @@ Contenu principal
 
 ### Orchestration & Moteur IA
 
-- `ai_engine.py` — Moteur principal (**v6.7.0**). Orchestration de tous les composants (mémoire de conversation, processeurs de fichiers, générateurs, gestion des requêtes, routage vers recherche web ou génération de code). Expose `process_text`, `process_message`, `process_query_stream` et plusieurs helpers privés. Délègue le tool-calling à `ChatOrchestrator` depuis la v6.7.0.
-- `chat_orchestrator.py` — **Nouveau (v6.7.0).** `ChatOrchestrator` : boucle agentique avancée pour la page Chat. Remplace l'appel direct à `LocalLLM.generate_with_tools_stream()` dans `AIEngine.process_query_stream()`. Implémente trois design patterns :
+- `ai_engine.py` — Moteur principal. Orchestration de tous les composants (mémoire de conversation, processeurs de fichiers, générateurs, gestion des requêtes, routage vers recherche web ou génération de code). Expose `process_text`, `process_message`, `process_query_stream` et plusieurs helpers privés. Délègue le tool-calling à `ChatOrchestrator`.
+- `chat_orchestrator.py` — `ChatOrchestrator` : boucle agentique avancée pour la page Chat. Remplace l'appel direct à `LocalLLM.generate_with_tools_stream()` dans `AIEngine.process_query_stream()`. Implémente trois design patterns :
   - **ReAct** (Reasoning + Acting) : boucle `Réfléchis → Agis → Observe` à chaque tour.
   - **Plan & Execute** : génération d'un plan structuré en étapes pour les requêtes > 55 caractères.
   - **Scratchpad persistant** : état interne (objectif, plan, étape, faits collectés, tours restants) injecté dans le system prompt sous forme de bloc XML.
@@ -18,7 +18,7 @@ Contenu principal
 
 ### Configuration & Données
 
-- `config.py` — Configuration par défaut (dictionnaires `AI_CONFIG`, `FILE_CONFIG`, `UI_CONFIG`) et la classe `Config` pour charger/sauvegarder `config.yaml`. La clé `llm.local.default_model` est la **source unique** du nom de modèle depuis la v6.7.0.
+- `config.py` — Configuration par défaut (dictionnaires `AI_CONFIG`, `FILE_CONFIG`, `UI_CONFIG`) et la classe `Config` pour charger/sauvegarder `config.yaml`. La clé `llm.local.default_model` est la **source unique** du nom de modèle.
 - `shared.py` — Module anti-import-circulaire. Contient le **modèle d'embeddings partagé** (`all-MiniLM-L6-v2` via `sentence_transformers`) chargé une seule fois au démarrage (stratégie offline-first puis online) pour éviter de l'instancier plusieurs fois dans les différents modules.
 - `validation.py` — Validation Pydantic de toutes les entrées utilisateur. `UserQueryInput` vérifie longueur, caractères dangereux (injections `eval`, `exec`, `os.system`, etc.) et contexte additionnel. `ToolArgumentsInput` valide les arguments des appels d'outils.
 
@@ -74,9 +74,9 @@ pip install -r requirements.txt
 Notes et bonnes pratiques
 ------------------------
 
-- **Point d'entrée principal** : `AIEngine` orchestre tous les modules. Depuis la v6.7.0, tout tool-calling passe par `ChatOrchestrator` (page Chat) ou `AgentOrchestrator` (page Agents) — ces deux orchestrateurs sont **indépendants** et ne se partagent pas.
+- **Point d'entrée principal** : `AIEngine` orchestre tous les modules. Tout tool-calling passe par `ChatOrchestrator` (page Chat) ou `AgentOrchestrator` (page Agents) — ces deux orchestrateurs sont **indépendants** et ne se partagent pas.
 - **Modèle partagé** : `shared.py` expose le modèle d'embeddings `all-MiniLM-L6-v2` via `get_shared_embedding_model()` pour éviter de le charger plusieurs fois (important pour les performances de démarrage).
-- **Source unique du modèle LLM** : depuis la v6.7.0, seul `config.yaml` (clé `llm.local.default_model`) définit le modèle Ollama. Ne pas le dupliquer dans d'autres fichiers.
+- **Source unique du modèle LLM** : Seul `config.yaml` (clé `llm.local.default_model`) définit le modèle Ollama. Ne pas le dupliquer dans d'autres fichiers.
 - **Sécurité des entrées** : utiliser `validation.py` (Pydantic) pour valider toutes les entrées utilisateur et les arguments d'outils avant de les transmettre au LLM.
 - Les dossiers `outputs/`, `temp/`, `backups/` sont utilisés par défaut pour sauvegarder résultats et fichiers temporaires (voir `config.py` pour les chemins configurables).
 - Le code privilégie le fonctionnement 100% local (mode `local_mode` dans `config.py`).

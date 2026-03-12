@@ -97,6 +97,22 @@ psutil>=5.9.0
 memory-profiler>=0.60.0
 
 # ====================================
+# MONITORING GPU (optionnel - pour suivi ressources agents)
+# ====================================
+# NVIDIA (nécessite un GPU NVIDIA avec drivers installés)
+# pynvml>=11.0.0
+# GPUtil>=1.4.0
+# AMD (nécessite un GPU AMD + Microsoft Visual C++ Build Tools pour compiler)
+# pyamdgpuinfo>=2.0.0
+# Windows WMI (fallback pour tout GPU sous Windows)
+# wmi>=1.5.1
+#
+# ➜ Installez uniquement ceux correspondant à votre GPU :
+#   pip install pynvml GPUtil          # NVIDIA
+#   pip install pyamdgpuinfo           # AMD (nécessite C++ Build Tools)
+#   pip install wmi                    # Windows — tout GPU (infos basiques)
+
+# ====================================
 # MODEL CONTEXT PROTOCOL (MCP)
 # ====================================
 # Client MCP pour connecter des serveurs d'outils externes à Ollama

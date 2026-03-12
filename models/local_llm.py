@@ -27,7 +27,7 @@ class LocalLLM:
         self,
         model="my_ai",
         ollama_url="http://localhost:11434/api/generate",
-        timeout=600,
+        timeout=1000,
     ):
         # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'qwen3.5:4b'
         self.model = model

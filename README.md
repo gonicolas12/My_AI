@@ -28,7 +28,7 @@
 Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
 **🤖 9 Agents IA Spécialisés**  
-Code, Web, Analyse, Créativité, Debug, Sécurité... et création d'agents personnalisés.
+Code, Web, Analyse, Créativité, Debug, Sécurité... et création d'agents personnalisés avec interface style n8n.
 
 **🧠 Mode Thinking — Raisonnement en Deux Passes**
 Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répondre.
@@ -75,15 +75,17 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 
 ### Agents — Interface dédiée
 
-![Interface Agents](docs/images/agentsScreen.png)
+![Interface Agents](docs/images/agentsScreen1.png)
+
+![Interface Workflow](docs/images/agentsScreen2.png)
 
 | Fonctionnalité | Détail |
 |---|---|
 | 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
 | ⚡ **Lancement rapide** | Démarrage d'agents spécialisés en un clic |
 | 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
-| 🔄 **Workflows multi-agents** | Orchestration facile pour les tâches complexes |
-| 📊 **Statistiques en temps réel** | Affichage des métriques de performance |
+| 🔄 **Canvas de workflow visuel (style n8n)** | Nœuds connectables, zoom/pan, grille, minimap |
+| 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 
 </div>
 
@@ -180,7 +182,9 @@ my_ai/
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── gui_modern.py                    # Interface moderne
 │   ├── modern_styles.py                 # Styles et thèmes modernes
-│   └── vscode_extension.py              # Extension VS Code
+│   ├── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
+│   ├── vscode_extension.py              # Extension VS Code
+│   └── workflow_canvas.py               # Canvas visuel de workflow style n8n
 ├── memory/                              # Mémoire vectorielle
 │   ├── vector_store/chroma_db/          # Base de données ChromaDB
 │   ├── __init__.py
@@ -248,6 +252,23 @@ cd My_AI
 ```bash
 pip install -r requirements.txt
 ```
+
+#### 🎮 Monitoring GPU *(Optionnel)*
+
+Le suivi GPU dans l'onglet Agents nécessite des packages supplémentaires **selon votre carte graphique** :
+
+```bash
+# NVIDIA (nécessite les drivers NVIDIA installés)
+pip install pynvml GPUtil
+
+# AMD (nécessite ROCm ou les drivers AMDGPU + Microsoft C++ Build Tools)
+pip install pyamdgpuinfo
+
+# Windows — tout GPU (infos basiques : nom, VRAM totale)
+pip install wmi
+```
+
+> **Sans ces packages**, l'application fonctionne normalement — les métriques GPU affichent simplement "N/A".
 
 ### 3 · Installer Ollama *(Optionnel mais Recommandé)*
 
@@ -328,6 +349,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
 | [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
 | [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
+| [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide de l'interface graphique agents (canvas, monitoring) |
 | [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
 | [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |

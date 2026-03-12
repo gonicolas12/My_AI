@@ -2,7 +2,7 @@
 
 ## Vue d'Ensemble
 
-Le système d'agents IA permet d'utiliser des **agents spécialisés** basés sur Ollama pour résoudre des tâches complexes. Chaque agent a une **expertise spécifique** et peut collaborer avec d'autres agents. Vous pouvez créer vos propres workflows par **drag & drop**.
+Le système d'agents IA permet d'utiliser des **agents spécialisés** basés sur Ollama pour résoudre des tâches complexes. Chaque agent a une **expertise spécifique** et peut collaborer avec d'autres agents. Vous pouvez créer vos propres workflows par **drag & drop** dans un **canvas visuel interactif style n8n** avec nœuds connectables, exécution parallèle DAG et monitoring de ressources en temps réel.
 
 ## 🎯 Concepts Clés
 
@@ -18,6 +18,15 @@ Coordonne les agents pour :
 - Exécuter des tâches simples (1 agent)
 - Orchestrer des workflows personnalisés (plusieurs agents en séquence via drag & drop)
 - Exécuter des tâches parallèles
+- Exécuter des DAG (graphes acycliques dirigés) via le canvas visuel
+
+### Canvas Visuel de Workflow (style n8n)
+Le canvas permet de :
+- **Créer des nœuds** visuels pour chaque agent (drag & drop depuis la grille)
+- **Connecter des nœuds** par des courbes de Bézier (drag depuis un port de sortie vers un port d'entrée)
+- **Zoomer/naviguer** (molette + clic milieu/droit pour le pan)
+- **Organiser** sur une grille avec snap automatique et minimap
+- **Exécuter** le workflow en respectant la topologie du graphe (séquentiel, parallèle, DAG)
 
 ## 🤖 Types d'Agents Disponibles (9 agents)
 
@@ -166,7 +175,7 @@ Vous pouvez créer vos **propres agents spécialisés** directement depuis l'int
 
 ### Comment Créer un Agent
 
-1. **Cliquez sur le bouton "➕ Créer Agent"** (bleu, entre Exécuter et Clear Selection)
+1. **Cliquez sur le bouton "➕ Créer Agent"** (bleu, entre Exécuter et Clear Workflow)
 2. **Remplissez le formulaire** :
    - **Nom** : Nom court de votre agent (ex: "TranslatorAgent")
    - **Rôle/Description** : Description détaillée de l'expertise et des capacités (ex: "Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques")
@@ -499,6 +508,87 @@ fixed_code = orchestrator.ask_agent(
 )
 ```
 
+## 🖼️ Canvas Visuel de Workflow
+
+### Vue d'Ensemble
+
+Le canvas visuel transforme la création de workflows en une expérience interactive de type n8n. Au lieu de simplement empiler des agents dans un pipeline linéaire, vous pouvez créer des graphes complexes avec des branches parallèles et des dépendances.
+
+### Interactions
+
+| Action | Geste |
+|---|---|
+| **Ajouter un nœud** | Drag & drop un agent depuis la grille sur le canvas |
+| **Connecter deux nœuds** | Drag du port de sortie (●, à droite) vers le port d'entrée (●, à gauche) |
+| **Déplacer un nœud** | Clic gauche + drag |
+| **Sélectionner** | Clic sur un nœud, Shift+clic pour multi-sélection, rectangle de sélection |
+| **Supprimer un nœud** | Touche Suppr ou clic sur ✕ |
+| **Supprimer une connexion** | Clic droit sur une connexion |
+| **Zoomer** | Molette de la souris |
+| **Naviguer (pan)** | Clic milieu ou clic droit + drag |
+| **Grille** | Bouton ⊞ Grid pour afficher/masquer |
+| **Reset vue** | Bouton ⊙ Reset |
+
+### Topologie d'Exécution
+
+Le canvas analyse automatiquement le graphe et détermine le mode d'exécution optimal :
+
+- **Séquentiel** : Nœuds connectés en chaîne (A → B → C)
+- **Parallèle** : Nœuds au même niveau sans dépendances mutuelles (exécutés en threads simultanés)
+- **DAG** : Graphe acyclique dirigé avec tri topologique — exécution étape par étape : les nœuds d'une même étape sans dépendances partagées sont exécutés en parallèle
+
+### Statuts des Nœuds
+
+Pendant l'exécution, chaque nœud affiche son statut en temps réel :
+
+| Statut | Couleur | Signification |
+|---|---|---|
+| ⚪ **Idle** | Gris | En attente |
+| 🟡 **Running** | Jaune | En cours d'exécution |
+| 🟢 **Done** | Vert | Terminé avec succès |
+| 🔴 **Error** | Rouge | Erreur lors de l'exécution |
+
+### Passage de contexte
+
+Quand deux nœuds sont connectés (A → B), le résultat de A est automatiquement injecté dans le contexte de B. Cela permet aux agents de collaborer :
+
+```
+PlannerAgent → CodeAgent → DebugAgent
+     ↓ plan        ↓ code        ↓ rapport
+```
+
+Chaque agent reçoit le résultat du précédent et enrichit la réponse.
+
+## 📊 Monitoring de Ressources
+
+### Métriques Collectées
+
+Le panneau de statistiques affiche en temps réel la consommation des processus Ollama :
+
+| Métrique | Source | Description |
+|---|---|---|
+| **CPU %** | psutil (processus Ollama) | Utilisation CPU agrégée de tous les processus Ollama |
+| **RAM** | psutil (processus Ollama) | Mémoire RSS totale consommée par Ollama |
+| **GPU %** | pynvml / GPUtil | Utilisation du GPU (NVIDIA) |
+| **VRAM** | pynvml / GPUtil | Mémoire GPU utilisée |
+| **Inférence** | Chronomètre interne | Temps de la dernière inférence en ms |
+| **Tokens/s** | Calcul interne | Vitesse de génération |
+
+### Affichage
+
+Chaque métrique est accompagnée de :
+- **Barre de progression colorée** : vert (0-60%) → jaune (60-85%) → rouge (85-100%)
+- **Valeur numérique** en temps réel
+- **Sparkline** : mini-graphique des 60 dernières mesures (~3 minutes à 3s d'intervalle)
+
+### Dépendances Optionnelles
+
+Le monitoring CPU/RAM fonctionne avec `psutil` (inclus). Pour le monitoring GPU :
+```bash
+pip install pynvml GPUtil
+```
+Sans ces packages, les lignes GPU/VRAM affichent "N/A".
+
 ## 🎯 Cas d'Usage Avancés
 
 ### 1. Pipeline de Documentation Automatique
@@ -621,8 +711,11 @@ orchestrator.reset_all_agents()
 
 ## 📚 Ressources
 
-- **Code source:** `models/ai_agents.py`
+- **Code source agents:** `models/ai_agents.py`
 - **Orchestrateur:** `core/agent_orchestrator.py`
+- **Interface agents:** `interfaces/agents_interface.py`
+- **Canvas visuel:** `interfaces/workflow_canvas.py`
+- **Monitoring ressources:** `interfaces/resource_monitor.py`
 - **Documentation Ollama:** https://ollama.com/
 
 ---

@@ -6,7 +6,9 @@ Gère l'interface utilisateur pour le système multi-agents basé sur Ollama
 import json
 import os
 import random
+import re
 import threading
+import time
 import tkinter as tk
 from datetime import datetime
 from tkinter import messagebox, scrolledtext
@@ -21,6 +23,8 @@ except ImportError:
 
 from core.agent_orchestrator import AgentOrchestrator
 from core.config import get_default_model as _get_default_model
+from interfaces.resource_monitor import ResourceMonitor
+from interfaces.workflow_canvas import WorkflowCanvas
 from models.local_llm import LocalLLM
 from models.ai_agents import AIAgent, AVAILABLE_AGENTS
 
@@ -76,6 +80,12 @@ class AgentsInterface:
         self.output_text = None
         self.task_entry = None
         self.status_label = None
+
+        # Section-based output
+        self._output_scroll = None
+        self._output_sections = []
+        self._active_section = None
+        self._welcome_label = None
         self.stats_labels = {}
 
         # Custom workflow (drag & drop)
@@ -84,6 +94,16 @@ class AgentsInterface:
         self.pipeline_frame = None
         self.drop_zone_frame = None
         self.task_section_frame = None
+
+        # Workflow canvas (n8n-style)
+        self.workflow_canvas: WorkflowCanvas | None = None
+        self.canvas_outer = None
+
+        # Resource monitor
+        self.resource_monitor = ResourceMonitor(interval=3.0)
+        self._resource_bars: dict = {}
+        self._sparkline_canvases: dict = {}
+        self._resource_labels: dict = {}
 
         # Custom agents created by user
         self.custom_agents = {}  # key -> {name, desc, color, system_prompt, temperature}
@@ -390,41 +410,23 @@ class AgentsInterface:
         if top and top.winfo_exists():
             top.geometry(f"+{event.x_root + 10}+{event.y_root + 10}")
 
-        # Highlight drop zone quand on survole
-        if self._is_over_drop_zone(event.x_root, event.y_root):
-            if self.drop_zone_frame and self.use_ctk:
-                try:
-                    agent_data = self._drag_data.get("agent")
-                    c = agent_data[2] if agent_data else "#10b981"
-                    self.drop_zone_frame.configure(border_color=c, border_width=3)
-                except Exception:
-                    pass
-        else:
-            if self.drop_zone_frame and self.use_ctk:
-                try:
-                    self.drop_zone_frame.configure(
-                        border_color=self.colors["border"], border_width=2
-                    )
-                except Exception:
-                    pass
-
-        # Highlight zone de texte de la tâche avec la couleur orange
-        if self._is_over_task_entry(event.x_root, event.y_root):
-            if self.task_entry and self.use_ctk:
-                try:
-                    self.task_entry.configure(
+        # Highlight canvas outer frame border when dragging over it
+        if self.workflow_canvas and self.workflow_canvas.is_over(event.x_root, event.y_root):
+            try:
+                if self.use_ctk and hasattr(self, 'canvas_outer'):
+                    self.canvas_outer.configure(
                         border_color=self.colors["accent"], border_width=3
                     )
-                except Exception:
-                    pass
+            except Exception:
+                pass
         else:
-            if self.task_entry and self.use_ctk:
-                try:
-                    self.task_entry.configure(
+            try:
+                if self.use_ctk and hasattr(self, 'canvas_outer'):
+                    self.canvas_outer.configure(
                         border_color=self.colors["border"], border_width=2
                     )
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
     def _on_drag_end(self, event):
         """Fin du drag - vérifie si on est sur la zone de drop"""
@@ -435,19 +437,10 @@ class AgentsInterface:
         if top and top.winfo_exists():
             top.destroy()
 
-        # Reset la border de la drop zone
-        if self.drop_zone_frame and self.use_ctk:
+        # Reset canvas outer border
+        if self.use_ctk and hasattr(self, 'canvas_outer'):
             try:
-                self.drop_zone_frame.configure(
-                    border_color=self.colors["border"], border_width=2
-                )
-            except Exception:
-                pass
-
-        # Reset la border de la zone de texte de la tâche
-        if self.task_entry and self.use_ctk:
-            try:
-                self.task_entry.configure(
+                self.canvas_outer.configure(
                     border_color=self.colors["border"], border_width=2
                 )
             except Exception:
@@ -457,10 +450,16 @@ class AgentsInterface:
             self._drag_data = {"agent": None, "toplevel": None}
             return
 
-        # Vérifier si on est sur la zone de drop
-        if self._is_over_drop_zone(event.x_root, event.y_root):
-            agent_type, name, color = agent_data
-            self.add_agent_to_workflow(agent_type, name, color)
+        agent_type, name, color = agent_data
+
+        # Trouver l'icône de l'agent
+        icon = self._get_agent_icon(agent_type)
+
+        # Drop uniquement sur le canvas de workflow visuel
+        if self.workflow_canvas and self.workflow_canvas.is_over(event.x_root, event.y_root):
+            self.workflow_canvas.drop_agent(
+                agent_type, name, color, event.x_root, event.y_root, icon=icon
+            )
 
         self._drag_data = {"agent": None, "toplevel": None}
 
@@ -512,6 +511,18 @@ class AgentsInterface:
                 pass
         return False
 
+    # ── Icônes des agents ──────────────────────────────────────────
+
+    _AGENT_ICONS = {
+        "code": "🐍", "web": "🌐", "analyst": "📊", "creative": "✨",
+        "debug": "🐛", "planner": "📋", "security": "🛡",
+        "optimizer": "⚡", "datascience": "🧬",
+    }
+
+    def _get_agent_icon(self, agent_type: str) -> str:
+        """Retourne l'emoji d'un type d'agent."""
+        return self._AGENT_ICONS.get(agent_type, "🤖")
+
     # === Workflow Management ===
 
     def add_agent_to_workflow(self, agent_type, name, color):
@@ -532,10 +543,24 @@ class AgentsInterface:
         self.custom_workflow.clear()
         self.current_agent = None
         self.update_pipeline_display()
+        # Vider aussi le canvas visuel
+        if self.workflow_canvas:
+            self.workflow_canvas.clear()
         self._update_status(
             "Glissez-déposez des agents pour créer votre workflow",
             self.colors["text_secondary"],
         )
+
+    def _on_canvas_changed(self):
+        """Callback quand le canvas de workflow est modifié."""
+        if not self.workflow_canvas:
+            return
+        # Synchroniser custom_workflow avec le canvas
+        self.custom_workflow = list(self.workflow_canvas.get_ordered_agents())
+        self.current_agent = (
+            self.custom_workflow[-1][0] if self.custom_workflow else None
+        )
+        self.update_pipeline_display()
 
     def update_pipeline_display(self):
         """Met à jour l'affichage du pipeline de workflow"""
@@ -699,11 +724,11 @@ class AgentsInterface:
             )
         create_agent_btn.pack(fill="both", expand=True, pady=4)
 
-        # Bouton Clear Selection (rouge)
+        # Bouton Clear Workflow (rouge)
         if self.use_ctk:
             clear_btn = ctk.CTkButton(
                 buttons_frame,
-                text="❌ Clear Selection",
+                text="❌ Clear Workflow",
                 command=self.clear_workflow,
                 fg_color="#dc2626",
                 hover_color="#b91c1c",
@@ -715,7 +740,7 @@ class AgentsInterface:
         else:
             clear_btn = tk.Button(
                 buttons_frame,
-                text="❌ Clear Selection",
+                text="❌ Clear Workflow",
                 command=self.clear_workflow,
                 bg="#dc2626",
                 fg="#ffffff",
@@ -725,26 +750,44 @@ class AgentsInterface:
             )
         clear_btn.pack(fill="both", expand=True, pady=(4, 0))
 
-        # Zone de drop / Pipeline display
-        self.drop_zone_frame = self.create_frame(
+        # drop_zone_frame / pipeline_frame conservés comme attributs vides
+        # pour compatibilité — le canvas visuel remplace l'ancienne zone de drop
+        self.drop_zone_frame = None
+        self.pipeline_frame = None
+
+        # ── Canvas de workflow visuel (style n8n) ──────────────────
+        self.canvas_outer = self.create_frame(
             section_frame, fg_color=self.colors["bg_secondary"]
         )
+        canvas_outer = self.canvas_outer
         if self.use_ctk:
-            self.drop_zone_frame.configure(
-                corner_radius=10, border_width=2, border_color=self.colors["border"]
+            canvas_outer.configure(
+                corner_radius=10, border_width=2,
+                border_color=self.colors["border"],
             )
-        self.drop_zone_frame.pack(fill="x", pady=(10, 0))
+        canvas_outer.pack(fill="both", expand=True, pady=(10, 0))
 
-        self.pipeline_frame = self.create_frame(
-            self.drop_zone_frame, fg_color=self.colors["bg_secondary"]
+        canvas_title = self.create_label(
+            canvas_outer,
+            text="🔗 Workflow Visuel — glissez des agents, connectez les ports",
+            font=("Segoe UI", 10),
+            text_color=self.colors["text_secondary"],
+            fg_color=self.colors["bg_secondary"],
         )
-        self.pipeline_frame.pack(fill="x")
+        canvas_title.pack(anchor="w", padx=12, pady=(8, 0))
 
-        # Placeholder initial dans le pipeline
-        self.update_pipeline_display()
+        self.workflow_canvas = WorkflowCanvas(
+            canvas_outer,
+            self.colors,
+            width=800,
+            height=380,
+            on_workflow_changed=self._on_canvas_changed,
+            snap_to_grid=True,
+        )
+        self.workflow_canvas.pack(fill="both", expand=True, padx=4, pady=4)
 
     def create_output_area(self, parent):
-        """Crée la zone de sortie des résultats"""
+        """Crée la zone de sortie des résultats avec sections dépliantes."""
         section_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
         section_frame.grid(row=4, column=0, sticky="nsew", padx=30, pady=(20, 10))
 
@@ -758,43 +801,60 @@ class AgentsInterface:
         )
         title.pack(anchor="w", pady=(0, 10))
 
-        # Zone de texte avec scroll
+        # Scrollable frame pour les sections
         if self.use_ctk:
-            self.output_text = ctk.CTkTextbox(
+            self._output_scroll = ctk.CTkScrollableFrame(
                 section_frame,
-                height=400,
-                font=("Consolas", 11),
-                fg_color=self.colors["bg_secondary"],
-                text_color=self.colors["text_primary"],
+                fg_color=self.colors["bg_primary"],
                 corner_radius=10,
-                border_width=1,
+                border_width=2,
                 border_color=self.colors["border"],
+                scrollbar_button_color=self.colors.get("bg_tertiary", "#2d2d2d"),
+                scrollbar_button_hover_color=self.colors.get("text_secondary", "#9ca3af"),
+                height=500,
             )
         else:
-            self.output_text = scrolledtext.ScrolledText(
-                section_frame,
-                height=20,
-                font=("Consolas", 11),
-                bg=self.colors["bg_secondary"],
-                fg=self.colors["text_primary"],
-                insertbackground=self.colors["text_primary"],
-                relief="solid",
-                borderwidth=1,
+            self._output_scroll = tk.Frame(
+                section_frame, bg=self.colors["bg_primary"]
             )
+        self._output_scroll.pack(fill="both", expand=True)
 
-        self.output_text.pack(fill="both", expand=True)
+        # Forcer un padding droit sur la scrollbar pour que le bord droit du CTkScrollableFrame soit visible
+        try:
+            if hasattr(self._output_scroll, '_scrollbar') and hasattr(self._output_scroll, '_parent_frame'):
+                # pylint: disable=protected-access
+                parent_frame = self._output_scroll._parent_frame
+                border_sp = parent_frame.cget("corner_radius") + parent_frame.cget("border_width")
+                self._output_scroll._scrollbar.grid_configure(padx=(0, border_sp))
+        except Exception:
+            pass
 
-        # Message initial
-        welcome_msg = """Bienvenue dans le système d'agents spécialisés !
+        # Empêcher le double-scroll: capturer le mousewheel dans la zone de résultats
+        self._bind_scroll_isolation(self._output_scroll)
 
-1️ Sélectionnez un ou plusieurs agents
-2️ Décrivez votre tâche
-3️ Cliquez sur "Exécuter"
+        self._output_sections = []
+        self._active_section = None
 
-Les résultats apparaîtront ici en temps réel.
-"""
-        self.output_text.insert("1.0", welcome_msg)
-        self._make_output_readonly()
+        # Message de bienvenue
+        self._welcome_label = self.create_label(
+            self._output_scroll,
+            text=(
+                "Bienvenue dans le système d'agents spécialisés !\n\n"
+                "1️ Décrivez votre tâche\n"
+                "2️ Configurez votre workflow\n"
+                "3️ Cliquez sur \"Exécuter\"\n\n"
+                "Les résultats apparaîtront ici en temps réel."
+            ),
+            font=("Segoe UI", 11),
+            text_color=self.colors["text_secondary"],
+            fg_color=self.colors["bg_primary"],
+        )
+        if self.use_ctk:
+            self._welcome_label.configure(wraplength=800, justify="left")
+        self._welcome_label.pack(anchor="w", padx=16, pady=20)
+
+        # Dummy output_text for backward compat (_make_output_readonly, etc.)
+        self.output_text = None
 
     def create_stats_section(self, parent):
         """Crée la section des statistiques"""
@@ -853,6 +913,79 @@ Les résultats apparaîtront ici en temps réel.
 
             self.stats_labels[key] = val
 
+        # ── Section Consommation de ressources ─────────────────────
+        separator = self.create_frame(content, fg_color=self.colors["border"])
+        separator.pack(fill="x", pady=(15, 10))
+        if self.use_ctk:
+            separator.configure(height=1)
+        else:
+            separator.config(height=1)
+
+        res_title = self.create_label(
+            content,
+            text="⚡ Consommation de ressources (Ollama)",
+            font=("Segoe UI", 12, "bold"),
+            text_color=self.colors["text_primary"],
+            fg_color=self.colors["bg_secondary"],
+        )
+        res_title.pack(anchor="w", pady=(0, 10))
+
+        # Métriques à afficher
+        resource_defs = [
+            ("cpu",   "CPU",             "%"),
+            ("ram",   "RAM",             ""),
+            ("gpu",   "GPU",             "%"),
+            ("vram",  "VRAM",            ""),
+            ("infer", "Temps inférence", ""),
+            ("tps",   "Tokens/sec",      ""),
+        ]
+
+        res_grid = self.create_frame(content, fg_color=self.colors["bg_secondary"])
+        res_grid.pack(fill="x")
+        res_grid.grid_columnconfigure(1, weight=1)
+
+        for row_idx, (key, label, _unit) in enumerate(resource_defs):
+            # Label
+            lbl = self.create_label(
+                res_grid, text=label,
+                font=("Segoe UI", 10),
+                text_color=self.colors["text_secondary"],
+                fg_color=self.colors["bg_secondary"],
+                anchor="w", width=120,
+            )
+            lbl.grid(row=row_idx, column=0, sticky="w", padx=(0, 8), pady=3)
+
+            # Progress bar (canvas-based for color control)
+            bar_canvas = tk.Canvas(
+                res_grid, height=16, bg=self.colors["bg_primary"],
+                highlightthickness=0, bd=0,
+            )
+            bar_canvas.grid(row=row_idx, column=1, sticky="ew", padx=(0, 8), pady=3)
+            self._resource_bars[key] = bar_canvas
+
+            # Value label
+            val_lbl = self.create_label(
+                res_grid, text="—",
+                font=("Segoe UI", 10, "bold"),
+                text_color=self.colors["text_primary"],
+                fg_color=self.colors["bg_secondary"],
+                anchor="e", width=100,
+            )
+            val_lbl.grid(row=row_idx, column=2, sticky="e", padx=(0, 8), pady=3)
+            self._resource_labels[key] = val_lbl
+
+            # Sparkline mini-graph
+            spark = tk.Canvas(
+                res_grid, width=80, height=16,
+                bg=self.colors["bg_primary"], highlightthickness=0, bd=0,
+            )
+            spark.grid(row=row_idx, column=3, sticky="e", pady=3)
+            self._sparkline_canvases[key] = spark
+
+        # Démarrer le monitoring
+        self.resource_monitor.add_callback(self._on_resource_update)
+        self.resource_monitor.start()
+
     def execute_agent_task(self):
         """Exécute une tâche avec l'agent ou le workflow personnalisé"""
         if self.is_processing:
@@ -861,7 +994,11 @@ Les résultats apparaîtront ici en temps réel.
             )
             return
 
-        if not self.custom_workflow:
+        # Vérifier s'il y a des nœuds sur le canvas OU dans le workflow classique
+        has_canvas_nodes = (
+            self.workflow_canvas and len(self.workflow_canvas.nodes) > 0
+        )
+        if not self.custom_workflow and not has_canvas_nodes:
             messagebox.showwarning(
                 "Aucun Agent",
                 "Glissez-déposez un ou plusieurs agents pour commencer.",
@@ -879,18 +1016,47 @@ Les résultats apparaîtront ici en temps réel.
         self.is_interrupted = False
         self._set_execute_button_stop()
 
-        if len(self.custom_workflow) == 1:
-            # Mode agent unique
-            agent_type = self.custom_workflow[0][0]
+        # Utiliser le plan d'exécution du canvas si des nœuds y sont présents
+        if has_canvas_nodes:
+            plan = self.workflow_canvas.get_execution_plan()
+            self.is_processing = True
+            if plan["mode"] in ("sequential", "dag"):
+                self._update_status("⏳ Workflow visuel en cours...", "#f59e0b")
+                threading.Thread(
+                    target=self._execute_canvas_workflow_thread,
+                    args=(task, plan),
+                    daemon=True,
+                ).start()
+            elif plan["mode"] == "single":
+                nid = plan["steps"][0]["nodes"][0]
+                nd = plan["node_map"][nid]
+                agent_type = nd["agent_type"]
+                self._update_status("⏳ Traitement en cours...", "#f59e0b")
+                threading.Thread(
+                    target=self._execute_task_thread,
+                    args=(agent_type, task, nd["name"], nd.get("color")),
+                    daemon=True,
+                ).start()
+            else:
+                # parallel (tous isolés)
+                self._update_status("⏳ Exécution parallèle...", "#f59e0b")
+                threading.Thread(
+                    target=self._execute_canvas_workflow_thread,
+                    args=(task, plan),
+                    daemon=True,
+                ).start()
+        elif len(self.custom_workflow) == 1:
+            # Mode agent unique (workflow classique)
+            agent_type, wf_name, wf_color = self.custom_workflow[0]
             self.is_processing = True
             self._update_status("⏳ Traitement en cours...", "#f59e0b")
             threading.Thread(
                 target=self._execute_task_thread,
-                args=(agent_type, task),
+                args=(agent_type, task, wf_name, wf_color),
                 daemon=True,
             ).start()
         else:
-            # Mode workflow personnalisé multi-agents
+            # Mode workflow personnalisé multi-agents (classique)
             self.is_processing = True
             self._update_status("⏳ Workflow personnalisé en cours...", "#f59e0b")
             threading.Thread(
@@ -899,37 +1065,67 @@ Les résultats apparaîtront ici en temps réel.
                 daemon=True,
             ).start()
 
-    def _execute_task_thread(self, agent_type, task):
+    def _execute_task_thread(self, agent_type, task, explicit_name=None, explicit_color=None):
         """Exécute la tâche dans un thread séparé avec streaming"""
         try:
-            # Afficher la tâche
-            self._append_output(
-                f"\n{'='*80}\n\n"
-            )
+            # Préparer la zone de sortie
+            self._clear_output_sections_sync()
 
-            # Exécuter avec streaming (on_token retourne False si interrompu)
+            # Trouver le nom et la couleur de l'agent
+            agent_colors = {
+                "code": "#3b82f6", "web": "#10b981", "analyst": "#8b5cf6",
+                "creative": "#f59e0b", "debug": "#ef4444", "planner": "#06b6d4",
+                "security": "#ec4899", "optimizer": "#14b8a6", "datascience": "#f97316",
+            }
+            agent_names = {
+                "code": "CodeAgent", "web": "WebAgent", "analyst": "AnalystAgent",
+                "creative": "CreativeAgent", "debug": "DebugAgent",
+                "planner": "PlannerAgent", "security": "SecurityAgent",
+                "optimizer": "OptimizerAgent", "datascience": "DataScienceAgent",
+            }
+            if explicit_color:
+                color = explicit_color
+            else:
+                color = agent_colors.get(agent_type)
+                if not color:
+                    ca = self.custom_agents.get(agent_type, {})
+                    color = ca.get("color", "#ff6b47")
+            if explicit_name:
+                name = explicit_name
+            else:
+                name = agent_names.get(agent_type)
+                if not name:
+                    ca = self.custom_agents.get(agent_type, {})
+                    name = ca.get("name", agent_type.capitalize())
+
+            section = self._create_step_section_sync(name, color)
+            self._active_section = section
+
+            # Exécuter avec streaming
+            t_start = time.time()
             result = self.orchestrator.execute_single_task_stream(
                 agent_type=agent_type,
                 task=task,
                 on_token=self._on_token_received
             )
+            elapsed_ms = (time.time() - t_start) * 1000
+            self.resource_monitor.update_inference(elapsed_ms, 0)
 
             if self.is_interrupted:
-                self._append_output("\n\n⛔ Génération interrompue\n")
+                self._finish_section(section, success=False)
                 self._update_status("⛔ Génération interrompue", "#ef4444")
             elif result.get("success"):
-                self._append_output(f"\n\n⏱️  Terminé: {result.get('timestamp', 'N/A')}\n")
+                self._finish_section(section, success=True)
                 self._update_status(
                     f"✅ Tâche terminée avec {result['agent']}", "#10b981"
                 )
             else:
-                self._append_output(f"\n\n❌ Erreur: {result.get('error')}\n\n")
+                self._finish_section(section, success=False)
                 self._update_status("❌ Erreur lors de l'exécution", "#ef4444")
 
-            # Mettre à jour les stats
+            self._active_section = None
             self._update_stats()
 
-            # Enregistrer dans l'historique
             self.execution_history.append(
                 {
                     "agent": agent_type,
@@ -939,8 +1135,9 @@ Les résultats apparaîtront ici en temps réel.
                 }
             )
 
-        except Exception as e:
-            self._append_output(f"❌ Exception: {str(e)}\n\n")
+        except Exception:
+            self._finish_section(self._active_section, success=False)
+            self._active_section = None
             self._update_status("❌ Erreur critique", "#ef4444")
         finally:
             self.is_processing = False
@@ -950,7 +1147,8 @@ Les résultats apparaîtront ici en temps réel.
     def _execute_custom_workflow_thread(self, task):
         """Exécute un workflow personnalisé multi-agents"""
         try:
-            # Construire le workflow
+            self._clear_output_sections_sync()
+
             workflow = []
             for idx, (agent_type, _name, _color) in enumerate(self.custom_workflow):
                 workflow.append(
@@ -965,7 +1163,8 @@ Les résultats apparaîtront ici en temps réel.
                     }
                 )
 
-            # Callbacks pour le streaming
+            step_sections = {}
+
             def on_step_start(step_idx, agent_type, _step_task):
                 if self.is_interrupted:
                     return
@@ -973,18 +1172,23 @@ Les résultats apparaîtront ici en temps réel.
                     (n for at, n, _ in self.custom_workflow if at == agent_type),
                     agent_type,
                 )
-                self._append_output(
-                    f"\n--- Étape {step_idx}/{len(workflow)}: {name.upper()} ---\n\n"
+                color = next(
+                    (c for at, _n, c in self.custom_workflow if at == agent_type),
+                    "#ff6b47",
                 )
+                sec = self._create_step_section_sync(
+                    f"Étape {step_idx}/{len(workflow)}: {name}", color
+                )
+                step_sections[step_idx] = sec
+                self._active_section = sec
 
             def on_step_complete(step_idx, result):
                 if self.is_interrupted:
                     return
-                if not result.get("success"):
-                    self._append_output(f"\n❌ Erreur: {result.get('error')}\n")
-                self._append_output(f"\n\n⏱️ Étape {step_idx} terminée\n\n")
+                sec = step_sections.get(step_idx)
+                self._finish_section(sec, success=result.get("success", False))
+                self._active_section = None
 
-            # Exécuter avec streaming
             result = self.orchestrator.execute_multi_agent_task_stream(
                 task,
                 workflow,
@@ -995,17 +1199,9 @@ Les résultats apparaîtront ici en temps réel.
             )
 
             if self.is_interrupted:
-                self._append_output("\n\n⛔ Génération interrompue\n")
                 self._update_status("⛔ Génération interrompue", "#ef4444")
             else:
-                # Résumé final
                 summary = result["summary"]
-                self._append_output(f"\n{'='*80}\n📊 RÉSUMÉ\n{'='*80}\n")
-                self._append_output(f"Tâches: {summary['total_tasks']}\n")
-                self._append_output(f"Réussies: {summary['successful']}\n")
-                self._append_output(
-                    f"Taux de succès: {summary['success_rate']:.1%}\n\n"
-                )
                 self._update_status(
                     f"✅ Workflow terminé ({summary['success_rate']:.0%} succès)",
                     "#10b981",
@@ -1028,6 +1224,235 @@ Les résultats apparaîtront ici en temps réel.
             self.is_processing = False
             self.is_interrupted = False
             self._set_execute_button_normal()
+
+    def _execute_canvas_workflow_thread(self, task, plan):
+        """Exécute un workflow basé sur le plan d'exécution du canvas (DAG)."""
+        try:
+            self._clear_output_sections_sync()
+
+            node_map = plan["node_map"]
+            steps = plan["steps"]
+            isolated = plan["isolated"]
+            total_steps = len(steps)
+            results_by_node = {}
+            success_count = 0
+            total_count = 0
+
+            for nid in node_map:
+                self._set_canvas_node_status(nid, "idle")
+
+            for step_idx, step in enumerate(steps):
+                if self.is_interrupted:
+                    break
+
+                nids = step["nodes"]
+                is_parallel = step["parallel"]
+
+                if is_parallel:
+                    # Label d'en-tête
+                    par_names = ", ".join(node_map[n]["name"] for n in nids)
+                    self._create_output_header_sync(
+                        f"⚡ Étape {step_idx+1}/{total_steps} — parallèle: {par_names}"
+                    )
+
+                    # Créer les sections dépliantes (repliées pendant l'exécution)
+                    par_sections = {}
+                    for nid in nids:
+                        nd = node_map[nid]
+                        sec = self._create_step_section_sync(
+                            nd["name"], nd.get("color", "#ff6b47"), expanded=True
+                        )
+                        par_sections[nid] = sec
+
+                    # Exécuter en parallèle — chaque agent stream en temps réel
+                    threads = []
+                    local_results = {}
+                    par_lock = threading.Lock()
+
+                    def _make_runner(shared_results, shared_lock, sections_map):
+                        def run_agent(nid):
+                            if self.is_interrupted:
+                                return
+                            nd = node_map[nid]
+                            self._set_canvas_node_status(nid, "running")
+                            agent_task = task
+                            parents = [
+                                c["from"]
+                                for c in (self.workflow_canvas.connections if self.workflow_canvas else [])
+                                if c["to"] == nid
+                            ]
+                            if parents:
+                                context_parts = [
+                                    results_by_node[pid]
+                                    for pid in parents
+                                    if pid in results_by_node
+                                ]
+                                if context_parts:
+                                    agent_task = (
+                                        f"Contexte précédent:\n{'---'.join(context_parts)}\n\n"
+                                        f"Tâche: {task}"
+                                    )
+
+                            sec = sections_map[nid]  # pylint: disable=cell-var-from-loop
+
+                            def stream_token(token, _sec=sec):
+                                self._append_to_section(_sec, token)
+                                return not self.is_interrupted
+
+                            t_start = time.time()
+                            result = self.orchestrator.execute_single_task_stream(
+                                agent_type=nd["agent_type"],
+                                task=agent_task,
+                                on_token=stream_token,
+                            )
+                            elapsed = (time.time() - t_start) * 1000
+                            self.resource_monitor.update_inference(elapsed, 0)
+
+                            with shared_lock:
+                                shared_results[nid] = result
+                            if result.get("success"):
+                                self._set_canvas_node_status(nid, "done")
+                                with shared_lock:
+                                    shared_results[nid] = result.get("result", "")
+                            else:
+                                self._set_canvas_node_status(nid, "error")
+                        return run_agent
+
+                    agent_runner = _make_runner(local_results, par_lock, par_sections)
+                    for nid in nids:
+                        t = threading.Thread(target=agent_runner, args=(nid,), daemon=True)
+                        threads.append(t)
+                        t.start()
+                    for t in threads:
+                        t.join()
+
+                    # Finaliser les sections
+                    for nid in nids:
+                        sec = par_sections.get(nid)
+                        if sec is None:
+                            continue
+                        ok = isinstance(local_results.get(nid), str) or (
+                            isinstance(local_results.get(nid), dict) and local_results[nid].get("success")
+                        )
+                        self._finish_section(sec, success=ok)
+
+                    # Collecter les résultats
+                    for nid, res in local_results.items():
+                        total_count += 1
+                        if isinstance(res, str):
+                            results_by_node[nid] = res
+                            success_count += 1
+                        elif isinstance(res, dict) and res.get("success"):
+                            results_by_node[nid] = res.get("result", "")
+                            success_count += 1
+                else:
+                    # Séquentiel
+                    nid = nids[0]
+                    nd = node_map[nid]
+
+                    sec = self._create_step_section_sync(
+                        f"Étape {step_idx+1}/{total_steps}: {nd['name']}",
+                        nd.get("color", "#ff6b47"),
+                    )
+                    self._active_section = sec
+                    self._set_canvas_node_status(nid, "running")
+
+                    agent_task = task
+                    if self.workflow_canvas:
+                        parents = [c["from"] for c in self.workflow_canvas.connections
+                                   if c["to"] == nid]
+                        if parents:
+                            context_parts = [results_by_node[p] for p in parents
+                                             if p in results_by_node]
+                            if context_parts:
+                                agent_task = (
+                                    f"Contexte précédent:\n{'---'.join(context_parts)}\n\n"
+                                    f"Tâche: {task}"
+                                )
+
+                    t_start = time.time()
+                    result = self.orchestrator.execute_single_task_stream(
+                        agent_type=nd["agent_type"],
+                        task=agent_task,
+                        on_token=self._on_token_received,
+                    )
+                    elapsed = (time.time() - t_start) * 1000
+                    self.resource_monitor.update_inference(elapsed, 0)
+
+                    total_count += 1
+                    if result.get("success"):
+                        results_by_node[nid] = result.get("result", "")
+                        success_count += 1
+                        self._set_canvas_node_status(nid, "done")
+                        self._finish_section(sec, success=True)
+                    else:
+                        self._set_canvas_node_status(nid, "error")
+                        self._finish_section(sec, success=False)
+                    self._active_section = None
+
+            # Exécuter les nœuds isolés
+            for nid in isolated:
+                if self.is_interrupted:
+                    break
+                if nid not in node_map:
+                    continue
+                nd = node_map[nid]
+                sec = self._create_step_section_sync(
+                    f"Agent isolé: {nd['name']}", nd.get("color", "#ff6b47")
+                )
+                self._active_section = sec
+                self._set_canvas_node_status(nid, "running")
+                t_start = time.time()
+                result = self.orchestrator.execute_single_task_stream(
+                    agent_type=nd["agent_type"],
+                    task=task,
+                    on_token=self._on_token_received,
+                )
+                elapsed = (time.time() - t_start) * 1000
+                self.resource_monitor.update_inference(elapsed, 0)
+                total_count += 1
+                ok = result.get("success", False)
+                if ok:
+                    success_count += 1
+                    self._set_canvas_node_status(nid, "done")
+                else:
+                    self._set_canvas_node_status(nid, "error")
+                self._finish_section(sec, success=ok)
+                self._active_section = None
+
+            # Résumé
+            if self.is_interrupted:
+                self._update_status("⛔ Génération interrompue", "#ef4444")
+            else:
+                rate = success_count / max(total_count, 1)
+                self._update_status(
+                    f"✅ Workflow visuel terminé ({rate:.0%} succès)", "#10b981"
+                )
+
+            self._update_stats()
+            self.execution_history.append({
+                "agent": "workflow_canvas",
+                "task": task,
+                "result": {"success": success_count == total_count,
+                           "total": total_count, "successful": success_count},
+                "timestamp": datetime.now().isoformat(),
+            })
+
+        except Exception as e:
+            self._update_status(f"❌ Erreur workflow: {str(e)}", "#ef4444")
+        finally:
+            self._active_section = None
+            self.is_processing = False
+            self.is_interrupted = False
+            self._set_execute_button_normal()
+
+    def _set_canvas_node_status(self, nid: int, status: str):
+        """Met à jour le statut visuel d'un nœud du canvas."""
+        if self.workflow_canvas:
+            def _update():
+                self.workflow_canvas.set_node_status(nid, status)
+            if self.parent.winfo_exists():
+                self.parent.after(0, _update)
 
     # === Méthodes utilitaires ===
 
@@ -1063,18 +1488,638 @@ Les résultats apparaîtront ici en temps réel.
 
         return text
 
-    def _append_output(self, text):
-        """Ajoute du texte à la zone de sortie"""
+    # ── Section-based output management ────────────────────────────
+
+    def _clear_output_sections(self):
+        """Supprime toutes les sections de sortie."""
+        for sec in self._output_sections:
+            try:
+                sec["container"].destroy()
+            except Exception:
+                pass
+        self._output_sections.clear()
+        self._active_section = None
+        if self._welcome_label:
+            try:
+                self._welcome_label.destroy()
+            except Exception:
+                pass
+            self._welcome_label = None
+
+    def _create_step_section(self, name, color="#ff6b47", expanded=True):
+        """Crée une section dépliante dans la zone de résultats (main thread)."""
+        section = {"name": name, "color": color, "expanded": expanded}
+
+        bg1 = self.colors.get("bg_primary", "#0f0f0f")
+        bg2 = self.colors.get("bg_secondary", "#1a1a1a")
+        bg3 = self.colors.get("bg_tertiary", "#2d2d2d")
+        txt2 = self.colors.get("text_secondary", "#9ca3af")
+
+        container = tk.Frame(self._output_scroll, bg=bg1)
+        container.pack(fill="x", pady=(0, 6), padx=4)
+        section["container"] = container
+
+        # Header (clickable)
+        header = tk.Frame(container, bg=bg2, cursor="hand2")
+        header.pack(fill="x")
+
+        # Color indicator strip
+        indicator = tk.Frame(header, bg=color, width=4)
+        indicator.pack(side="left", fill="y")
+
+        # Arrow
+        arrow_var = tk.StringVar(value="▾" if expanded else "▸")
+        arrow = tk.Label(
+            header, textvariable=arrow_var, font=("Segoe UI", 18),
+            fg=txt2, bg=bg2, cursor="hand2",
+        )
+        arrow.pack(side="left", padx=(10, 4), pady=6)
+        section["arrow_var"] = arrow_var
+
+        # Name
+        name_lbl = tk.Label(
+            header, text=name, font=("Segoe UI", 12, "bold"),
+            fg="#ffffff", bg=bg2, cursor="hand2",
+        )
+        name_lbl.pack(side="left", pady=8)
+
+        # Status (right)
+        status_var = tk.StringVar(value="⏳ En cours...")
+        status_lbl = tk.Label(
+            header, textvariable=status_var, font=("Segoe UI", 9),
+            fg=txt2, bg=bg2,
+        )
+        status_lbl.pack(side="right", padx=12, pady=8)
+        section["status_var"] = status_var
+
+        # Content frame with agent-colored left border
+        border_wrap = tk.Frame(container, bg=color)
+        section["border_wrap"] = border_wrap
+        if expanded:
+            border_wrap.pack(fill="x", padx=(16, 4), pady=(2, 4))
+
+        content = tk.Frame(border_wrap, bg=bg1)
+        section["content"] = content
+        content.pack(fill="x", padx=(2, 0))
+
+        # Scrollable text area — hauteur max fixe avec scrollbar custom
+        text_container = tk.Frame(content, bg=bg1)
+        text_container.pack(fill="x")
+
+        tw = tk.Text(
+            text_container, wrap="word", font=("Segoe UI", 11),
+            bg=bg1, fg=self.colors.get("text_primary", "#ffffff"),
+            relief="flat", borderwidth=0, padx=12, pady=10,
+            height=3, state="disabled",
+            insertbackground=self.colors.get("text_primary", "#ffffff"),
+        )
+        tw.pack(side="left", fill="both", expand=True)
+
+        # Custom dark scrollbar (canvas-based, matching CTk style)
+        sb_width = 6
+        sb_canvas = tk.Canvas(
+            text_container, width=sb_width + 4, bg=bg1,
+            highlightthickness=0, borderwidth=0,
+        )
+        sb_canvas.pack(side="right", fill="y", padx=(0, 2))
+        sb_thumb = sb_canvas.create_rectangle(0, 0, 0, 0, fill=bg3, outline="", width=0)
+        section["_sb_canvas"] = sb_canvas
+        section["_sb_thumb"] = sb_thumb
+
+        def _update_scrollbar(*args):
+            try:
+                first, last = float(args[0]), float(args[1])
+                if last - first >= 1.0:
+                    sb_canvas.coords(sb_thumb, 0, 0, 0, 0)
+                    return
+                h = sb_canvas.winfo_height()
+                y1 = int(first * h)
+                y2 = int(last * h)
+                x_pad = (sb_width + 4 - sb_width) // 2
+                sb_canvas.coords(sb_thumb, x_pad, y1, x_pad + sb_width, y2)
+                sb_canvas.itemconfig(sb_thumb, fill=bg3)
+            except Exception:
+                pass
+
+        tw.configure(yscrollcommand=_update_scrollbar)
+
+        def _sb_drag(event):
+            h = sb_canvas.winfo_height()
+            if h > 0:
+                tw.yview_moveto(event.y / h)
+
+        sb_canvas.bind("<B1-Motion>", _sb_drag)
+        sb_canvas.bind("<Button-1>", _sb_drag)
+
+        def _sb_enter(_event):
+            sb_canvas.itemconfig(sb_thumb, fill=txt2)
+        def _sb_leave(_event):
+            sb_canvas.itemconfig(sb_thumb, fill=bg3)
+        sb_canvas.bind("<Enter>", _sb_enter)
+        sb_canvas.bind("<Leave>", _sb_leave)
+
+        self._setup_markdown_tags(tw)
+        section["text_widget"] = tw
+
+        # Mousewheel scrolle le contenu du Text (pas le parent)
+        def _text_scroll(event):
+            tw.yview_scroll(int(-3 * (event.delta / 120)), "units")
+            return "break"
+        tw.bind("<MouseWheel>", _text_scroll)
+        sb_canvas.bind("<MouseWheel>", _text_scroll)
+
+        # Toggle on click
+        def toggle(_event=None):
+            self._toggle_section(section)
+
+        for w in (header, arrow, name_lbl):
+            w.bind("<Button-1>", toggle)
+
+        self._output_sections.append(section)
+        return section
+
+    def _create_step_section_sync(self, name, color="#ff6b47", expanded=True):
+        """Thread-safe: crée une section sur le thread principal et attend."""
+        result = [None]
+        event = threading.Event()
+
+        def create():
+            result[0] = self._create_step_section(name, color, expanded)
+            event.set()
+
+        if self.parent.winfo_exists():
+            self.parent.after(0, create)
+            event.wait(timeout=5.0)
+        return result[0]
+
+    def _clear_output_sections_sync(self):
+        """Thread-safe: efface toutes les sections sur le thread principal."""
+        event = threading.Event()
+
+        def clear():
+            self._clear_output_sections()
+            event.set()
+
+        if self.parent.winfo_exists():
+            self.parent.after(0, clear)
+            event.wait(timeout=2.0)
+
+    def _create_output_header_sync(self, text):
+        """Thread-safe: crée un label d'en-tête dans la zone de résultats."""
+        event = threading.Event()
+
+        def create():
+            lbl = tk.Label(
+                self._output_scroll, text=text, font=("Segoe UI", 10),
+                fg=self.colors.get("text_secondary", "#9ca3af"),
+                bg=self.colors.get("bg_primary", "#0f0f0f"),
+                anchor="w",
+            )
+            lbl.pack(fill="x", padx=16, pady=(8, 2))
+            event.set()
+
+        if self.parent.winfo_exists():
+            self.parent.after(0, create)
+            event.wait(timeout=2.0)
+
+    def _toggle_section(self, section):
+        """Déplie/replie une section."""
+        toggle_target = section.get("border_wrap", section["content"])
+        if section["expanded"]:
+            toggle_target.pack_forget()
+            section["arrow_var"].set("▸")
+            section["expanded"] = False
+        else:
+            toggle_target.pack(fill="x", padx=(16, 4), pady=(2, 4))
+            section["arrow_var"].set("▾")
+            section["expanded"] = True
+
+    def _append_to_section(self, section, text):
+        """Ajoute du texte à une section avec formatage Markdown progressif (thread-safe)."""
+        if section is None:
+            return
+
+        # Initialiser le buffer de ligne si nécessaire
+        if "_line_buf" not in section:
+            section["_line_buf"] = ""
+            section["_in_code_block"] = False
+            section["_first_line"] = True
+            section["_table_buf"] = []  # buffer pour accumuler les lignes de tableau
+
+        section["_line_buf"] += text
+
+        # Extraire et formater les lignes complètes
+        while "\n" in section["_line_buf"]:
+            line, section["_line_buf"] = section["_line_buf"].split("\n", 1)
+            self._format_and_insert_line(section, line, newline=True)
+
+    def _format_and_insert_line(self, section, line, newline=True):  # pylint: disable=unused-argument,W0613
+        """Formate et insère une ligne complète avec le bon style Markdown."""
+        stripped = line.strip()
+        table_buf = section.get("_table_buf", [])
+
+        # Détection de ligne de tableau
+        is_table_line = ("|" in stripped and stripped.startswith("|") and stripped.endswith("|"))
+        is_table_sep = bool(re.match(r'^\s*\|?[\s:]*-{2,}[\s:]*\|', stripped))
+
+        if is_table_line or is_table_sep:
+            table_buf.append(line)
+            section["_table_buf"] = table_buf
+            return  # accumulate, don't render yet
+
+        # Si on avait des lignes de tableau en buffer et qu'on reçoit une non-table line
+        if table_buf:
+            self._flush_table_buffer(section)
+
+        self._insert_single_line(section, line)
+
+    def _flush_table_buffer(self, section):
+        """Rend le tableau accumulé avec box-drawing characters."""
+        table_buf = section.get("_table_buf", [])
+        if not table_buf:
+            return
+        section["_table_buf"] = []
 
         def update():
-            self.output_text.configure(state="normal" if not self.use_ctk else "normal")
-            self.output_text.insert("end", text)
-            self.output_text.see("end")
-            self._make_output_readonly()
+            tw = section["text_widget"]
+            tw.configure(state="normal")
 
-        # S'assurer que c'est dans le thread UI
+            # Parser toutes les lignes du tableau
+            separator_pattern = r'^\s*\|?[\s:]*-{2,}[\s:]*\|'
+            data_rows = []
+            for tl in table_buf:
+                s = tl.strip()
+                if re.match(separator_pattern, s):
+                    continue  # skip separator
+                cells = [c.strip() for c in s.strip("|").split("|")]
+                data_rows.append(cells)
+
+            if not data_rows:
+                tw.configure(state="disabled")
+                return
+
+            # Calculer largeurs de colonnes
+            max_cols = max(len(r) for r in data_rows)
+            widths = []
+            max_col_w = max(10, 100 // max(max_cols, 1) - 3)
+            for col in range(max_cols):
+                w = 3
+                for row in data_rows:
+                    if col < len(row):
+                        cell_text = re.sub(r'\*\*([^*]+)\*\*', r'\1', row[col])
+                        cell_text = re.sub(r'`([^`]+)`', r'\1', cell_text)
+                        w = max(w, len(cell_text))
+                widths.append(min(w, max_col_w))
+
+            # Newline before table
+            if not section.get("_first_line"):
+                tw.insert("end", "\n")
+            section["_first_line"] = False
+
+            # Top border
+            tw.insert("end", "\u250c" + "\u252c".join("\u2500" * (w + 2) for w in widths) + "\u2510", "table_border")
+
+            for row_idx, cells in enumerate(data_rows):
+                tw.insert("end", "\n")
+                is_header = row_idx == 0
+
+                # Separator after header
+                if row_idx == 1:
+                    tw.insert("end", "\u251c" + "\u253c".join("\u2500" * (w + 2) for w in widths) + "\u2524", "table_border")
+                    tw.insert("end", "\n")
+
+                tw.insert("end", "\u2502", "table_border")
+                for col_idx, width in enumerate(widths):
+                    cell = cells[col_idx] if col_idx < len(cells) else ""
+                    # Display length without markdown markers
+                    disp = re.sub(r'\*\*([^*]+)\*\*', r'\1', cell)
+                    disp = re.sub(r'`([^`]+)`', r'\1', disp)
+                    disp_len = len(disp)
+                    if disp_len > width:
+                        cell = disp[:width - 1] + "\u2026"
+                        disp_len = width
+                    padding = max(0, width - disp_len)
+                    lpad = padding // 2
+                    rpad = padding - lpad
+                    tw.insert("end", " " + " " * lpad, "table_border")
+                    # Insert cell content with inline formatting
+                    tag = "table_header" if is_header else "table_cell"
+                    self._insert_table_cell(tw, cell, tag)
+                    tw.insert("end", " " * rpad + " ", "table_border")
+                    tw.insert("end", "\u2502", "table_border")
+
+            # Bottom border
+            tw.insert("end", "\n")
+            tw.insert("end", "\u2514" + "\u2534".join("\u2500" * (w + 2) for w in widths) + "\u2518", "table_border")
+
+            tw.configure(state="disabled")
+            self._resize_section_text(tw)
+            tw.see("end")
+            if section.get("expanded", False):
+                self._auto_scroll_output()
+
         if self.parent.winfo_exists():
             self.parent.after(0, update)
+
+    def _insert_table_cell(self, tw, cell_content, base_tag):
+        """Insère le contenu d'une cellule de tableau avec gras/code inline."""
+        pattern = r'(\*\*[^*]+\*\*|`[^`]+`)'
+        parts = re.split(pattern, cell_content)
+        for part in parts:
+            if not part:
+                continue
+            if part.startswith("**") and part.endswith("**"):
+                tw.insert("end", part[2:-2], "table_cell_bold")
+            elif part.startswith("`") and part.endswith("`"):
+                tw.insert("end", part[1:-1], "code_inline")
+            else:
+                tw.insert("end", part, base_tag)
+
+    def _insert_single_line(self, section, line):
+        """Insère une seule ligne formatée (non-table)."""
+        def update():
+            tw = section["text_widget"]
+            tw.configure(state="normal")
+
+            stripped = line.strip()
+
+            # Ajouter un saut de ligne sauf pour la première ligne
+            if not section.get("_first_line"):
+                tw.insert("end", "\n")
+            section["_first_line"] = False
+
+            # Code block markers
+            if stripped.startswith("```"):
+                if section["_in_code_block"]:
+                    section["_in_code_block"] = False
+                else:
+                    section["_in_code_block"] = True
+                    lang = stripped[3:].strip()
+                    if lang:
+                        tw.insert("end", f"  {lang}", "code_lang")
+                        tw.insert("end", "\n")
+                tw.configure(state="disabled")
+                self._resize_section_text(tw)
+                return
+
+            if section["_in_code_block"]:
+                tw.insert("end", line, "code_block")
+                tw.configure(state="disabled")
+                self._resize_section_text(tw)
+                return
+
+            # Headers
+            if stripped.startswith("#### "):
+                tw.insert("end", stripped[5:], "h4")
+            elif stripped.startswith("### "):
+                tw.insert("end", stripped[4:], "h3")
+            elif stripped.startswith("## "):
+                tw.insert("end", stripped[3:], "h2")
+            elif stripped.startswith("# "):
+                tw.insert("end", stripped[2:], "h1")
+            # Separators
+            elif re.match(r'^[=\-]{3,}$', stripped):
+                tw.insert("end", "\u2500" * 60, "separator")
+            # Bullet points
+            elif re.match(r'^(\s*)[-*]\s+(.*)', line):
+                m = re.match(r'^(\s*)[-*]\s+(.*)', line)
+                self._insert_inline_md(tw, m.group(1) + "\u2022 " + m.group(2), "bullet")
+            # Numbered lists
+            elif re.match(r'^\s*\d+\.\s+', line):
+                self._insert_inline_md(tw, line, "bullet")
+            # Normal line
+            else:
+                self._insert_inline_md(tw, line, "normal")
+
+            tw.configure(state="disabled")
+            self._resize_section_text(tw)
+            tw.see("end")
+            if section.get("expanded", False):
+                self._auto_scroll_output()
+
+        if self.parent.winfo_exists():
+            self.parent.after(0, update)
+
+    def _auto_scroll_output(self):
+        """Scroll la zone de résultats vers le bas pour suivre la génération (délai pour rendu)."""
+        def _do_scroll():
+            try:
+                if self._output_scroll and hasattr(self._output_scroll, '_parent_canvas'):
+                    self._output_scroll._parent_canvas.yview_moveto(1.0)  # pylint: disable=protected-access
+            except Exception:
+                pass
+        if self.parent.winfo_exists():
+            self.parent.after(30, _do_scroll)
+
+    def _bind_scroll_isolation(self, widget):
+        """Isole le scroll d'un CTkScrollableFrame pour ne pas propager au parent."""
+        try:
+            if not hasattr(widget, '_parent_canvas'):
+                return
+            canvas = widget._parent_canvas  # pylint: disable=protected-access
+
+            def _on_mousewheel(event):
+                # Multiplier par 6 pour une vitesse de scroll normale
+                canvas.yview_scroll(int(-6 * (event.delta / 120)), "units")
+                return "break"
+
+            canvas.bind("<MouseWheel>", _on_mousewheel)
+            # Bind aussi sur tous les enfants SAUF les Text/Scrollbar (qui gèrent leur propre scroll)
+            def _bind_children(w):
+                try:
+                    if not isinstance(w, (tk.Text, tk.Scrollbar)):
+                        w.bind("<MouseWheel>", _on_mousewheel)
+                except Exception:
+                    pass
+                for child in w.winfo_children():
+                    _bind_children(child)
+            # Re-bind à chaque entrée de souris (capture les enfants créés dynamiquement)
+            widget.bind("<Enter>", lambda e: _bind_children(widget))
+        except Exception:
+            pass
+
+    def _resize_section_text(self, tw):
+        """Redimensionne le texte : grandit jusqu'à 20 lignes, puis la scrollbar prend le relais."""
+        try:
+            tw.update_idletasks()
+            info = tw.count("1.0", "end", "displaylines")
+            lines = info[0] if info else int(tw.index("end-1c").split(".")[0])
+        except Exception:
+            lines = int(tw.index("end-1c").split(".")[0])
+        tw.configure(height=max(3, min(lines + 1, 20)))
+
+    def _finish_section(self, section, success=True):
+        """Finalise une section: flush le buffer restant et met à jour le statut."""
+        if section is None:
+            return
+
+        # Flush table buffer if any
+        table_buf = section.get("_table_buf", [])
+        if table_buf:
+            self._flush_table_buffer(section)
+
+        # Flush remaining line buffer through the full formatting pipeline
+        remaining = section.get("_line_buf", "")
+        if remaining.strip():
+            self._format_and_insert_line(section, remaining, newline=True)
+        section["_line_buf"] = ""
+
+        # Flush table buffer again in case the last line was a table line
+        table_buf2 = section.get("_table_buf", [])
+        if table_buf2:
+            self._flush_table_buffer(section)
+
+        def update():
+            section["status_var"].set("\u2705 Terminé" if success else "\u274c Erreur")
+
+        if self.parent.winfo_exists():
+            self.parent.after(0, update)
+
+    def _setup_markdown_tags(self, tw):
+        """Configure les tags de formatage Markdown sur un widget texte."""
+        base = "Segoe UI"
+        mono = "Consolas"
+
+        tw.tag_configure("h1", font=(base, 16, "bold"), foreground="#ffffff",
+                         spacing1=10, spacing3=6)
+        tw.tag_configure("h2", font=(base, 14, "bold"), foreground="#e0e0ff",
+                         spacing1=8, spacing3=4)
+        tw.tag_configure("h3", font=(base, 12, "bold"), foreground="#c0c0e0",
+                         spacing1=6, spacing3=3)
+        tw.tag_configure("h4", font=(base, 11, "bold"), foreground="#a0b0d0",
+                         spacing1=4, spacing3=2)
+        tw.tag_configure("bold", font=(base, 11, "bold"), foreground="#ffffff")
+        tw.tag_configure("italic", font=(base, 11, "italic"), foreground="#d0d0e0")
+        tw.tag_configure("code_inline", font=(mono, 10), foreground="#ff9f43")
+        tw.tag_configure("code_block", font=(mono, 10), foreground="#a8d8a8",
+                         spacing1=4, spacing3=4,
+                         lmargin1=16, lmargin2=16)
+        tw.tag_configure("code_lang", font=(mono, 9, "bold"), foreground="#6090c0",
+                         spacing1=6)
+        tw.tag_configure("bullet", foreground="#d0d0e0", lmargin1=20,
+                         lmargin2=32, font=(base, 11))
+        tw.tag_configure("normal", font=(base, 11),
+                         foreground=self.colors.get("text_primary", "#ffffff"))
+        tw.tag_configure("separator", foreground="#3a3a5c", font=(base, 6))
+        # Table tags (matching chat page style)
+        tw.tag_configure("table_header", font=(mono, 10, "bold"),
+                         foreground="#58a6ff", background="#1a1a2e")
+        tw.tag_configure("table_cell", font=(mono, 10),
+                         foreground="#e6e6e6", background="#16213e")
+        tw.tag_configure("table_border", font=(mono, 10),
+                         foreground="#444466")
+        tw.tag_configure("table_cell_bold", font=(mono, 10, "bold"),
+                         foreground="#ffd700", background="#16213e")
+
+    def _insert_with_markdown(self, tw, full_text):
+        """Parse du texte Markdown et insertion formatée dans un widget texte."""
+        lines = full_text.split("\n")
+        in_code_block = False
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+            if i > 0:
+                tw.insert("end", "\n")
+
+            stripped = line.strip()
+
+            # Code block markers
+            if stripped.startswith("```"):
+                if in_code_block:
+                    in_code_block = False
+                    i += 1
+                    continue
+                else:
+                    in_code_block = True
+                    lang = stripped[3:].strip()
+                    if lang:
+                        tw.insert("end", f"  {lang}", "code_lang")
+                        tw.insert("end", "\n")
+                    i += 1
+                    continue
+
+            if in_code_block:
+                tw.insert("end", line, "code_block")
+                i += 1
+                continue
+
+            # Headers
+            if stripped.startswith("#### "):
+                tw.insert("end", stripped[5:], "h4")
+                i += 1
+                continue
+            if stripped.startswith("### "):
+                tw.insert("end", stripped[4:], "h3")
+                i += 1
+                continue
+            if stripped.startswith("## "):
+                tw.insert("end", stripped[3:], "h2")
+                i += 1
+                continue
+            if stripped.startswith("# "):
+                tw.insert("end", stripped[2:], "h1")
+                i += 1
+                continue
+
+            # Table separator (|---|---|)
+            if re.match(r'^\s*\|?[\s:]*-{2,}[\s:]*\|', stripped):
+                i += 1
+                continue
+
+            # Table rows (| col | col |)
+            if stripped.startswith("|") and stripped.endswith("|"):
+                cells = [c.strip() for c in stripped.strip("|").split("|")]
+                for ci, cell in enumerate(cells):
+                    if ci > 0:
+                        tw.insert("end", "  │  ", "separator")
+                    self._insert_inline_md(tw, cell, "normal")
+                i += 1
+                continue
+
+            # Separators
+            if re.match(r'^[=\-]{3,}$', stripped):
+                tw.insert("end", "─" * 60, "separator")
+                i += 1
+                continue
+
+            # Bullet points
+            m = re.match(r'^(\s*)[-*]\s+(.*)', line)
+            if m:
+                self._insert_inline_md(tw, m.group(1) + "• " + m.group(2), "bullet")
+                i += 1
+                continue
+
+            # Numbered lists
+            if re.match(r'^\s*\d+\.\s+', line):
+                self._insert_inline_md(tw, line, "bullet")
+                i += 1
+                continue
+
+            # Normal line
+            self._insert_inline_md(tw, line, "normal")
+            i += 1
+
+    def _insert_inline_md(self, tw, text, base_tag):
+        """Insère du texte avec formatage inline Markdown (gras, italique, code)."""
+        pattern = r'(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)'
+        parts = re.split(pattern, text)
+        for part in parts:
+            if not part:
+                continue
+            if part.startswith("**") and part.endswith("**"):
+                tw.insert("end", part[2:-2], "bold")
+            elif part.startswith("*") and part.endswith("*") and len(part) > 2:
+                tw.insert("end", part[1:-1], "italic")
+            elif part.startswith("`") and part.endswith("`"):
+                tw.insert("end", part[1:-1], "code_inline")
+            else:
+                tw.insert("end", part, base_tag)
+
+    def _append_output(self, text):
+        """Ajoute du texte à la section active."""
+        if self._active_section is not None:
+            self._append_to_section(self._active_section, text)
 
     def _on_token_received(self, token):
         """Callback pour chaque token reçu pendant le streaming.
@@ -1149,15 +2194,7 @@ Les résultats apparaîtront ici en temps réel.
             self.parent.after(0, update)
 
     def _make_output_readonly(self):
-        """Rend la zone de sortie en lecture seule"""
-        try:
-            if self.use_ctk:
-                # Pour CTkTextbox, on désactive les événements clavier
-                self.output_text.configure(state="disabled")
-            else:
-                self.output_text.configure(state="disabled")
-        except Exception:
-            pass
+        """No-op: les sections gèrent leur propre état."""
 
     def _update_status(self, text, color):
         """Met à jour le label de statut"""
@@ -1192,6 +2229,91 @@ Les résultats apparaîtront ici en temps réel.
 
         if self.parent.winfo_exists():
             self.parent.after(0, update)
+
+    # === Resource Monitoring UI =======================================
+
+    def _on_resource_update(self, metrics: dict):
+        """Callback du ResourceMonitor — met à jour les barres."""
+        if not self.parent.winfo_exists():
+            return
+        self.parent.after(0, lambda m=dict(metrics): self._apply_resource_metrics(m))
+
+    def _apply_resource_metrics(self, m: dict):
+        """Applique les métriques à l'UI (thread principal)."""
+        gpu_ok = m.get("gpu_available", False)
+
+        rows = {
+            "cpu":   (m.get("cpu_percent", 0), f"{m['cpu_percent']:.1f} %"),
+            "ram":   (
+                min(m.get("ram_percent", 0), 100),
+                f"{m['ram_used_mb']:.0f} Mo / {m['ram_total_mb']:.0f} Mo  ({m['ram_percent']:.1f} %)",
+            ),
+            "gpu":   (
+                m.get("gpu_percent", 0) if gpu_ok else 0,
+                f"{m['gpu_percent']:.1f} %" if gpu_ok else "N/A",
+            ),
+            "vram":  (
+                (m["gpu_mem_used_mb"] / max(m["gpu_mem_total_mb"], 1) * 100) if gpu_ok else 0,
+                (f"{m['gpu_mem_used_mb']:.0f} / {m['gpu_mem_total_mb']:.0f} Mo"
+                 if gpu_ok else "N/A"),
+            ),
+            "infer": (
+                min(m.get("inference_ms", 0) / 50, 100),  # 5 s = 100%
+                f"{m['inference_ms']:.0f} ms" if m.get("inference_ms") else "—",
+            ),
+            "tps":   (
+                min(m.get("tokens_per_sec", 0) / 1, 100),  # cap visuel
+                f"{m['tokens_per_sec']:.1f} tok/s" if m.get("tokens_per_sec") else "—",
+            ),
+        }
+
+        for key, (pct, text) in rows.items():
+            self._draw_bar(key, pct)
+            lbl = self._resource_labels.get(key)
+            if lbl and lbl.winfo_exists():
+                lbl.configure(text=text)
+
+        # Sparklines
+        hist = self.resource_monitor.history
+        spark_map = {"cpu": "cpu", "ram": "ram", "gpu": "gpu", "tps": "tps"}
+        for ui_key, h_key in spark_map.items():
+            data = hist.get(h_key, [])
+            self._draw_sparkline(ui_key, data)
+
+    def _draw_bar(self, key: str, pct: float):
+        """Dessine une barre de progression colorée."""
+        c = self._resource_bars.get(key)
+        if not c or not c.winfo_exists():
+            return
+        c.delete("all")
+        w = c.winfo_width() or 200
+        h = c.winfo_height() or 16
+        # Background
+        c.create_rectangle(0, 0, w, h, fill=self.colors["bg_primary"], outline="")
+        # Filled portion
+        pct = max(0, min(pct, 100))
+        fill_w = w * pct / 100
+        color = "#10b981" if pct < 50 else "#f59e0b" if pct < 80 else "#ef4444"
+        if fill_w > 0:
+            c.create_rectangle(0, 0, fill_w, h, fill=color, outline="")
+
+    def _draw_sparkline(self, key: str, data: list):
+        """Dessine un mini graphe sparkline."""
+        c = self._sparkline_canvases.get(key)
+        if not c or not c.winfo_exists() or len(data) < 2:
+            return
+        c.delete("all")
+        w = c.winfo_width() or 80
+        h = c.winfo_height() or 16
+        max_v = max(data) or 1
+        step = w / max(len(data) - 1, 1)
+        pts = []
+        for i, v in enumerate(data):
+            x = i * step
+            y = h - (v / max_v) * (h - 2) - 1
+            pts.extend([x, y])
+        if len(pts) >= 4:
+            c.create_line(*pts, fill=self.colors["accent"], width=1.5, smooth=True)
 
     # === Custom Agent Management ===
 

@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.7.0
+# 🏗️ Architecture - My Personal AI v6.8.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel** et une **boucle agentique avancée (ChatOrchestrator)**, basée sur les principes suivants:
+My Personal AI v6.8.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel** et une **boucle agentique avancée (ChatOrchestrator)**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -26,6 +26,12 @@ My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Dark theme Claude-style  │  • Commandes     │  • (Prototype)      │
 │  • Code highlighting        │  • Historique    │  • Command palette  │
 │  • Drag-and-drop files      │  • Stats         │                     │
+├─────────────────────────────┴──────────────────┴─────────────────────┤
+│  Agents Interface                                                    │
+│  • Canvas visuel workflow n8n (WorkflowCanvas)                       │
+│  • Monitoring ressources temps réel (ResourceMonitor)                │
+│  • Exécution DAG / parallèle / séquentielle                         │
+│  • Drag-and-drop agents + connexions Bézier                         │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -38,7 +44,7 @@ My Personal AI v6.7.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Intégration processeurs, générateurs, outils                      │
 │  • Client MCP (Model Context Protocol) pour outils externes          │
 ├──────────────────────────────────────────────────────────────────────┤
-│ ChatOrchestrator (core/chat_orchestrator.py)  [v6.7.0]               │
+│ ChatOrchestrator (core/chat_orchestrator.py)                         │
 │  • Boucle agentique ReAct (Reasoning + Acting)                       │
 │  • Plan & Execute avec scratchpad XML persistant                     │
 │  • Limite de tours (MAX_TOURS=15), LoopDetector, élagage contexte    │
@@ -181,11 +187,11 @@ Responsabilités:
 ├─ Routage des requêtes selon intentions
 ├─ Gestion de session (documents, code, historique)
 ├─ Coordination processeurs/générateurs
-├─ Délégation tool-calling → ChatOrchestrator (v6.7.0)
+├─ Délégation tool-calling → ChatOrchestrator
 └─ Point d'entrée unique pour toutes les opérations
 ```
 
-**`core/chat_orchestrator.py`** - Boucle agentique Chat (v6.7.0)
+**`core/chat_orchestrator.py`** - Boucle agentique Chat
 ```python
 Architecture:
 ├─ LoopDetector     : détecte boucles immédiates et élargies
@@ -689,6 +695,62 @@ Features:
 └─ Potentiel intégration command palette
 ```
 
+**`interfaces/agents_interface.py`** - Interface Agents IA
+```python
+Features:
+├─ Grille 3x3+ de cartes agents (drag & drop)
+├─ Pipeline classique (liste séquentielle)
+├─ Canvas visuel n8n (WorkflowCanvas)
+│   ├─ Nœuds avec statuts temps réel
+│   ├─ Connexions Bézier
+│   └─ Exécution DAG/parallèle/séquentielle
+├─ Monitoring ressources (ResourceMonitor)
+│   ├─ Barres de progression CPU/RAM/GPU/VRAM
+│   ├─ Sparklines historiques
+│   └─ Temps d'inférence et tokens/s
+├─ Création/édition/suppression agents personnalisés
+├─ Streaming résultats token par token
+└─ Bouton Stop avec interruption immédiate
+```
+
+**`interfaces/workflow_canvas.py`** - Canvas visuel style n8n
+```python
+Architecture: tkinter Canvas pur (pas de dépendance externe)
+
+Features:
+├─ Nœuds: rectangle arrondi, bandeau couleur, ports E/S, status dot
+├─ Connexions: Bézier cubique, flèches, clic droit suppression
+├─ Zoom/Pan: molette (0.3x-3x), clic milieu/droit, zoom vers curseur
+├─ Grille: points de repère, snap automatique, toggle
+├─ Minimap: vue orthographique, viewport rectangle
+├─ Toolbar: zoom ⊕/⊖, reset ⊙, grid ⊞
+├─ Sélection: clic, shift+clic, rectangle de sélection
+├─ Exécution: get_execution_plan() → tri topologique DAG
+│   ├─ Mode empty: rien à exécuter
+│   ├─ Mode single: un seul nœud
+│   ├─ Mode sequential: chaîne linéaire
+│   ├─ Mode parallel: nœuds indépendants simultanés
+│   └─ Mode dag: étapes avec parallélisation intra-étape
+└─ API: add_node(), remove_node(), add_connection(), set_node_status(), clear()
+```
+
+**`interfaces/resource_monitor.py`** - Monitoring ressources système
+```python
+Architecture: thread daemon avec collecte périodique (3s)
+
+Sources:
+├─ psutil: CPU% et RAM des processus Ollama
+├─ pynvml (optionnel): GPU% et VRAM NVIDIA
+├─ GPUtil (optionnel): fallback GPU
+└─ Chronomètre interne: inference_ms et tokens_per_sec
+
+Features:
+├─ Historique 60 points par métrique (sparklines)
+├─ Thread-safe (lock)
+├─ Callbacks pour mise à jour UI
+└─ Dégradation gracieuse si GPU packages absents
+```
+
 ### 🛠️ Tools - Outils Spécialisés
 
 ```python
@@ -751,7 +813,7 @@ Ollama Check (LocalLLM.is_ollama_available)
     ├─ Ollama disponible?
     │   ├─ OUI → AIEngine.process_query_stream()
     │   │        ├─ Tool-calling détecté?
-    │   │        │   ├─ OUI → ChatOrchestrator.run()  [v6.7.0]
+    │   │        │   ├─ OUI → ChatOrchestrator.run()
     │   │        │   │        ├─ 1. Planification (scratchpad)
     │   │        │   │        ├─ 2. Boucle ReAct (max 15 tours)
     │   │        │   │        │   ├─ Reasoning → Tool call
@@ -1060,40 +1122,9 @@ elif intent == "new_intent":
 - `FAQ.md` - Questions fréquentes
 - `CHANGELOG.md` - Historique versions
 
-## 🎯 État Architecture Actuel
-
-### ✅ Production-Ready
-- **ChatOrchestrator** : boucle agentique ReAct + Plan & Execute (v6.7.0)
-- Système mémoire vectorielle (ChromaDB + embeddings)
-- Recherche internet avec météo temps réel
-- Pipelines traitement documents (PDF, DOCX, Excel, CSV, Code)
-- Classification intentions
-- Matching FAQ
-- Gestion configuration
-- Validation entrées Pydantic (`validation.py`)
-
-### 🟢 Fonctionnel (Bon État)
-- Tokenization tiktoken (cl100k_base) précise
-- Recherche sémantique ultra-rapide
-- Framework génération code
-- Intégration wttr.in météo
-- Setup pipeline RLHF
-
-### 🟡 Prototype
-- Détection intentions neurale
-- Modules optimisation
-- Extension VSCode
-
-### 🔄 Remplacé
-- ❌ million_token_context_manager.py → ✅ memory/vector_memory.py
-- ❌ Comptage mots approximatif → ✅ tiktoken (cl100k_base)
-- ❌ Recherche linéaire → ✅ Recherche vectorielle indexée
-- ❌ `LocalLLM.generate_with_tools_stream()` direct → ✅ `ChatOrchestrator.run()` (tool-calling)
-- ❌ llama3.2 → ✅ qwen3.5:4b (modèle principal)
-
 ---
 
-**Version**: 6.7.0
+**Version**: 6.8.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)
