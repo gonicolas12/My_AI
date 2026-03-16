@@ -4,9 +4,24 @@ REM ====================================
 REM My Personal AI ULTRA - Lanceur v6.8.0
 REM ====================================
 
+REM Configuration des couleurs ANSI (Orange)
+for /F "delims=#" %%E in ('"prompt #$E# & for %%E in (1) do rem"') do set "ESC=%%E"
+set "ORANGE=%ESC%[38;2;255;136;0m"
+set "WHITE=%ESC%[97m"
+set "RESET=%ESC%[0m"
+set "BOLD=%ESC%[1m"
+
 echo.
-echo MY PERSONAL AI v6.8.0
-echo ======================
+echo %ORANGE%%BOLD%    __  ___          ___    ____ %RESET%
+echo %ORANGE%%BOLD%   /  ^|/  /_  __    /   ^|  /  _/ %RESET%
+echo %ORANGE%%BOLD%  / /^|_/ / / / /   / /^| ^|  / /   %RESET%
+echo %ORANGE%%BOLD% / /  / / /_/ /   / ___ ^|_/ /    %RESET%
+echo %ORANGE%%BOLD%/_/  /_/\__, /___/_/  ^|_/___/   %RESET%
+echo %ORANGE%%BOLD%       /____/                  %RESET%
+echo.
+echo %ORANGE%====================================%RESET%
+echo %BOLD%           Version 6.8.0%RESET%
+echo %ORANGE%====================================%RESET%
 echo.
 
 REM Verifier Python
@@ -42,13 +57,13 @@ if %errorlevel% neq 0 (
 REM Menu de choix
 :menu
 echo.
-echo Que voulez-vous faire ?
+echo %WHITE%%BOLD%Que voulez-vous faire ?%RESET%
 echo 1. Interface Graphique Moderne
 echo 2. Benchmark 1M tokens
 echo 3. RAG Pipeline Test
 echo 4. Test des imports
 echo.
-set /p choice="Votre choix (1-4, ou Entree pour l'interface graphique): "
+set /p choice="%WHITE%%BOLD%Votre choix (1-4, ou Entree pour l'interface graphique): %RESET%"
 
 if "%choice%"=="" set choice=1
 if "%choice%"=="1" goto ultra
