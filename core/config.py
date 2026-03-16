@@ -14,10 +14,10 @@ import yaml
 # ── Defaults (fallback uniquement) ──────────────────────────────────
 _DEFAULT_AI_CONFIG: Dict[str, Any] = {
     "default_model": "local",
-    "max_tokens": 4096,
+    "max_tokens": 1048576,  # Capacité Ultra par défaut (1M tokens)
     "temperature": 0.7,
-    "conversation_history_limit": 10,
-    "supported_file_types": [".pdf", ".docx", ".txt", ".py", ".html", ".css", ".js"],
+    "conversation_history_limit": 100,
+    "supported_file_types": [".pdf", ".docx", ".doc", ".txt", ".py", ".html", ".css", ".js", ".json", ".xml", ".md"],
     "output_directory": "outputs",
     "logs_directory": "logs",
     "local_mode": True,

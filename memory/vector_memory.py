@@ -8,6 +8,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from core.config import get_config
 import re
 
 # Import du moniteur de compression et modèles partagés
@@ -69,7 +70,7 @@ class VectorMemory:
 
     def __init__(
         self,
-        max_tokens: int = 1_000_000,
+        max_tokens: Optional[int] = None,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
         storage_dir: str = "memory/vector_store",
@@ -80,13 +81,20 @@ class VectorMemory:
         Initialise le gestionnaire de mémoire vectorielle
 
         Args:
-            max_tokens: Limite maximale de tokens (1M par défaut)
+            max_tokens: Limite maximale de tokens (lit config.yaml par défaut ou 1M)
             chunk_size: Taille des chunks en tokens
             chunk_overlap: Chevauchement entre chunks
             storage_dir: Répertoire de stockage
             enable_encryption: Activer le chiffrement AES-256
             encryption_key: Clé de chiffrement (générée si None)
         """
+        if max_tokens is None:
+            try:
+                # On récupère depuis le config.yaml, 1M par défaut
+                max_tokens = get_config().get("ai.max_tokens", 1000000)
+            except Exception:
+                max_tokens = 1000000
+
         self.max_tokens = max_tokens
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -629,7 +637,6 @@ class VectorMemory:
 
         except Exception as e:
             print(f"⚠️ Erreur cleanup VectorMemory: {e}")
-
 
 if __name__ == "__main__":
     # Tests

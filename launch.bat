@@ -58,6 +58,7 @@ REM Menu de choix
 :menu
 echo.
 echo %WHITE%%BOLD%Que voulez-vous faire ?%RESET%
+echo.
 echo 1. Interface Graphique Moderne
 echo 2. Benchmark 1M tokens
 echo 3. RAG Pipeline Test
@@ -75,12 +76,15 @@ REM Gestion des choix invalides
 echo.
 echo [ERROR] Choix invalide : "%choice%"
 echo Veuillez choisir un numero entre 1 et 4.
-echo.
 goto menu
 
 :ultra
+echo.
 echo [INFO] Lancement Interface UNIFIEE (CustomAI avec 1M tokens)...
 echo [CONFIG] Configuration unifiee activee
+echo.
+echo %ORANGE%====================================%RESET%
+echo.
 python launch_unified.py
 goto end
 
