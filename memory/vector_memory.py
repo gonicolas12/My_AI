@@ -5,11 +5,12 @@ Supporte ChromaDB et FAISS, tokenization correcte (tiktoken), chiffrement AES-25
 """
 
 import hashlib
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 from core.config import get_config
-import re
 
 # Import du moniteur de compression et modèles partagés
 try:
@@ -47,8 +48,9 @@ except ImportError:
     print("⚠️ tiktoken non disponible. Installez: pip install tiktoken")
 
 try:
-    from cryptography.fernet import Fernet
     import base64
+
+    from cryptography.fernet import Fernet
 
     ENCRYPTION_AVAILABLE = True
 except ImportError:
