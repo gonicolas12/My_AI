@@ -123,20 +123,21 @@ interface.run()
 
 ## 🔧 Configuration et Personnalisation
 
-### Configuration Ultra (ultra_config.py)
-```python
-ULTRA_CONFIG = {
-    'max_context_length': 1000000,  # Capacité mémoire vectorielle interne
-    'compression_ratio': 'auto',    # Automatique selon contenu
-    'chunk_size': 512,              # Taille des chunks
-    'overlap_size': 50,             # Recouvrement entre chunks
-    'database_path': 'data/ultra_context.db',
-    'enable_semantic_search': True,
-    'search_algorithm': 'tfidf_cosine',
-    'auto_optimize': True,
-    'max_memory_mb': 1024
-}
+### Fichier YAML Central (`config.yaml`)
+Toute la configuration du projet et de la limite des tokens se gère via votre fichier global `config.yaml` à la racine :
+
+```yaml
+ai:
+  name: "My Personal AI"
+  version: "6.8.0"
+  
+  # Paramètres généraux
+  max_tokens: 1048576
+  temperature: 0.7
+  timeout: 120
 ```
+
+> 💡 **Le module `core/config.py`** se charge de lire ce fichier et de distribuer ces limites aux différents composants liés à l'IA, y compris la mémoire vectorielle.
 
 ### Variables d'Environnement
 ```bash
