@@ -127,6 +127,11 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 - Traitement parallèle de plusieurs sources simultanément
 - Adaptation du format de réponse selon le type de recherche
 
+### 🔌 Accès à tout le PC (Root System) via MCP Local
+- Outils locaux pour lire, écrire, déplacer des fichiers et créer des dossiers
+- Vérification rigoureuse des chemins complets retournés par les outils pour garantir une gestion précise des fichiers (ex: ne pas raccourcir les chemins contenant "OneDrive")
+- Capacité à organiser les espaces de travail de manière autonome
+
 ---
 
 ## 💥 Capacités Techniques
