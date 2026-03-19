@@ -583,13 +583,13 @@ def on_bad_feedback():
 
 ---
 
-## � Intégration MCP
+## 🔌 Intégration MCP
 
 Le **Model Context Protocol (MCP)** permet à l'IA d'interagir avec des outils locaux et des serveurs externes de manière standardisée.
 
 ### ✨ Fonctionnalités
 
-- ✅ Outils locaux (LocalTools) encapsulant les capacités existantes
+- ✅ Outils locaux (LocalTools) orchestrant l'accès root : création/déplacement de dossiers et fichiers directement sur le PC, recherche et lecture locale de l'ordinateur de manière sécurisée.
 - ✅ Connexion aux serveurs MCP externes via `stdio`
 - ✅ Découverte automatique des outils
 - ✅ Dégradation gracieuse si le SDK n'est pas installé

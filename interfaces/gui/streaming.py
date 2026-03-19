@@ -65,7 +65,7 @@ class StreamingMixin:
                 row=_base_row,
                 column=0,
                 sticky="ew",
-                pady=(0, 12),
+                pady=(0, 0),
             )
             self._reasoning_widget_row = None  # Reset après usage
             msg_container.grid_columnconfigure(0, weight=1)
@@ -110,7 +110,7 @@ class StreamingMixin:
             text_widget = tk.Text(
                 message_container,
                 width=120,
-                height=3,
+                height=1,
                 bg=self.colors["bg_chat"],
                 fg=self.colors["text_primary"],
                 font=("Segoe UI", 12),
@@ -1620,7 +1620,7 @@ class StreamingMixin:
                 fg_color=self.colors["bg_chat"],
                 text_color=self.colors["accent"],
             )
-            icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+            icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(7, 0))
 
             # Zone reasoning (column 1) — header + contenu dépliable
             reasoning_area = self.create_frame(
@@ -1632,8 +1632,8 @@ class StreamingMixin:
             # ── Header : toggle ▶ (label cliquable, fond identique à l'app) ──
             self._reasoning_toggle_btn = self.create_label(
                 reasoning_area,
-                text="▶",
-                font=("Segoe UI", 11),
+                text="▸",
+                font=("Segoe UI", 24),
                 fg_color=self.colors["bg_chat"],
                 text_color=self.colors.get("text_secondary", "#888888"),
             )
@@ -1642,7 +1642,7 @@ class StreamingMixin:
             except Exception:
                 pass
             self._reasoning_toggle_btn.grid(
-                row=0, column=0, padx=(0, 4), pady=(4, 4), sticky="w"
+                row=0, column=0, padx=(0, 4), pady=(0, 0), sticky="w"
             )
             self._reasoning_toggle_btn.bind(
                 "<Button-1>", lambda e: self._toggle_reasoning_widget()
@@ -1657,7 +1657,7 @@ class StreamingMixin:
                 text_color="#888888",
             )
             self._reasoning_label.grid(
-                row=0, column=1, sticky="w", padx=(4, 0), pady=(4, 4)
+                row=0, column=1, sticky="w", padx=(8, 0), pady=(5, 0)
             )
             self._reasoning_label.bind(
                 "<Button-1>", lambda e: self._toggle_reasoning_widget()
@@ -1732,7 +1732,7 @@ class StreamingMixin:
                     if hasattr(self, "_reasoning_content"):
                         self._reasoning_content.grid()
                     try:
-                        self._reasoning_toggle_btn.configure(text="▼")
+                        self._reasoning_toggle_btn.configure(text="▾")
                     except Exception:
                         pass
                     self._reasoning_expanded = True
@@ -1788,14 +1788,14 @@ class StreamingMixin:
             if self._reasoning_expanded:
                 self._reasoning_content.grid_remove()
                 try:
-                    self._reasoning_toggle_btn.configure(text="▶")
+                    self._reasoning_toggle_btn.configure(text="▸")
                 except Exception:
                     pass
                 self._reasoning_expanded = False
             else:
                 self._reasoning_content.grid()
                 try:
-                    self._reasoning_toggle_btn.configure(text="▼")
+                    self._reasoning_toggle_btn.configure(text="▾")
                 except Exception:
                     pass
                 self._reasoning_expanded = True

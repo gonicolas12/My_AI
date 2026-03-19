@@ -26,6 +26,14 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
+# [OPTIM] Retry résilient sur les appels réseau Ollama
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+    TENACITY_AVAILABLE = True
+except ImportError:
+    TENACITY_AVAILABLE = False
+    print("⚠️ tenacity non disponible. Installez: pip install tenacity")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Constantes
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +44,23 @@ LOOP_THRESHOLD: int = 2         # Nb d'appels identiques avant détecter boucle 
 COMPACT_THRESHOLD: int = 28     # Nb de messages avant compaction (hors system + user)
 PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planification
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
+
+
+# [OPTIM] Helper résilient pour les appels réseau Ollama (retry sur Timeout/ConnectionError)
+def _resilient_post(url, **kwargs):
+    """requests.post avec retry automatique via tenacity (si disponible)."""
+    timeout = kwargs.pop("timeout", 1200)
+    return requests.post(url, timeout=timeout, **kwargs)
+
+
+if TENACITY_AVAILABLE:
+    _resilient_post = retry(
+        wait=wait_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((requests.exceptions.Timeout, requests.exceptions.ConnectionError)),
+        reraise=True,
+    )(_resilient_post)
+
 
 # Marqueurs d'hallucination dans la réponse finale
 HALLUCINATION_MARKERS: List[str] = [
@@ -172,6 +197,7 @@ class Scratchpad:
             f"FAITS COLLECTÉS :\n{facts_lines}"
             f"TOURS RESTANTS : {remaining}/{MAX_TOURS}{urgency}\n"
             f"PROCHAINE ACTION : {self.next_action}\n"
+            "INSTRUCTION CRUCIALE : Exécute obligatoirement la prochaine action avec un OUTIL. Ne donne PAS de réponse textuelle finale tant que toutes les étapes du plan ne sont pas terminées.\n"
             "</scratchpad>"
         )
 
@@ -210,6 +236,7 @@ class ChatOrchestrator:
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
         is_interrupted_callback: Optional[Callable] = None,
+        on_tool_call: Optional[Callable] = None,
     ) -> Optional[str]:
         """
         Lance la boucle agentique ReAct.
@@ -264,7 +291,7 @@ class ChatOrchestrator:
         # pure perte de 10-15 secondes avant la vraie réponse.
         if self._should_plan(user_input, tools) and on_thinking_token is not None:
             plan_steps = self._generate_plan_stream(
-                user_input, llm, on_thinking_token
+                user_input, llm, on_thinking_token, messages=getattr(llm, "conversation_history", [])
             )
             if plan_steps:
                 scratchpad.set_plan(plan_steps)
@@ -286,8 +313,9 @@ class ChatOrchestrator:
                 print(f"🛑 [ChatOrchestrator] Tour {tour + 1} — interruption utilisateur")
                 return None
 
-            # Injection du scratchpad dans le system prompt (après 1er outil)
-            if tool_calls_log:
+            # Injection du scratchpad dans le system prompt
+            # S'il y a un plan ou s'il y a déjà eu des appels d'outils
+            if tool_calls_log or scratchpad.plan:
                 messages = self._inject_scratchpad(messages, scratchpad)
 
             # Avertissement avant limite
@@ -388,6 +416,10 @@ class ChatOrchestrator:
                         f"✅ [ChatOrchestrator] {len(tool_calls_log)} outil(s) utilisé(s) "
                         f"→ synthèse streamée (tour {tour + 1})"
                     )
+                    # Signaler à l'UI que les outils ont terminé et qu'on prépare la synthèse
+                    if on_tool_call:
+                        on_tool_call("synthesis", {})
+
                     synthesis = self._stream_synthesis(
                         messages=messages,
                         user_input=user_input,
@@ -405,14 +437,14 @@ class ChatOrchestrator:
                                 f"⚠️  [ChatOrchestrator] Synthèse invalide ({reason}) "
                                 f"→ retry sans outils"
                             )
-                            retry = self._retry_without_tools(
+                            retry_synthesis = self._retry_without_tools(
                                 user_input=user_input,
                                 llm=llm,
                                 system_prompt=system_prompt,
                                 on_token=on_token,
                                 is_interrupted_callback=is_interrupted_callback,
                             )
-                            return retry or synthesis
+                            return retry_synthesis or synthesis
                     return synthesis
                 else:
                     # Réponse directe sans outil
@@ -427,15 +459,15 @@ class ChatOrchestrator:
                                     f"⚠️  [ChatOrchestrator] Réponse invalide ({reason}) "
                                     f"→ retry sans outils"
                                 )
-                                retry = self._retry_without_tools(
+                                retry_response = self._retry_without_tools(
                                     user_input=user_input,
                                     llm=llm,
                                     system_prompt=system_prompt,
                                     on_token=on_token,
                                     is_interrupted_callback=is_interrupted_callback,
                                 )
-                                if retry:
-                                    return retry
+                                if retry_response:
+                                    return retry_response
                             # Pas encore streamé → envoyer maintenant
                             if on_token:
                                 on_token(raw_content)
@@ -540,7 +572,13 @@ class ChatOrchestrator:
                 # ── Mise à jour du scratchpad ─────────────────────────────
                 scratchpad.update_from_tool_result(tool_name, result_str)
                 scratchpad.mark_step_done()
-                scratchpad.next_action = "Analyser le résultat et décider de la prochaine étape"
+
+                # S'il reste des étapes dans le plan
+                if scratchpad.current_step < len(scratchpad.plan):
+                    scratchpad.next_action = f"Évaluer l'étape {scratchpad.current_step + 1}. Si c'est une action métier, l'exécuter avec un outil. Sinon, passer à la synthèse globale."
+                else:
+                    scratchpad.next_action = "Analyser le résultat global et formuler la réponse ou synthèse finale."
+
                 last_tool_results[tool_name] = result_str[:2000]
 
                 tool_calls_log.append({
@@ -564,11 +602,20 @@ class ChatOrchestrator:
             # Vérifier si les résultats semblent vides ou erreur
             _last_tool_name = tool_calls_log[-1].get("tool", "") if tool_calls_log else ""
             _last_result = last_tool_results.get(_last_tool_name, "")
+
+            _is_search_tool = _last_tool_name in [
+                "web_search", "search_local_files"
+            ]
+
+            _is_memory_tool = _last_tool_name == "search_memory"
+
             _result_is_poor = (
-                total_data_chars < 300
-                or "Aucun résultat" in _last_result
-                or "[Erreur" in _last_result
-                or "Information non trouvée" in _last_result
+                _is_search_tool and (
+                    total_data_chars < 300
+                    or "Aucun résultat" in _last_result
+                    or "[Erreur" in _last_result
+                    or "Information non trouvée" in _last_result
+                )
             )
 
             if _result_is_poor and len(tool_calls_log) < MAX_TOOL_USES:
@@ -580,19 +627,26 @@ class ChatOrchestrator:
                 messages.append({
                     "role": "user",
                     "content": (
-                        "Les résultats de recherche précédents sont insuffisants ou vides. "
-                        "Reformule ta recherche avec des mots-clés DIFFÉRENTS. "
-                        f"Essaie en anglais (ex: 'Python latest news {datetime.now().year}', "
-                        "'Python releases') "
-                        "ou avec des termes alternatifs plus spécifiques. "
-                        "Utilise l'outil web_search avec cette nouvelle requête."
+                        "Les résultats de la recherche précédente sont insuffisants ou vides. "
+                        "Reformule ta recherche avec des mots-clés DIFFÉRENTS dans ton outil. "
+                        "Si tu essaies depuis plusieurs tours, passe à l'étape suivante de ton plan au lieu de boucler."
                     ),
                 })
-            elif total_data_chars > 500:
-                # Données substantielles → FORCER la synthèse en retirant les outils
+            elif _is_memory_tool and "Aucun résultat" in _last_result:
+                print(f"   ⚠️  [ChatOrchestrator] Mémoire vide → passage à la suite (tour {tour + 1})")
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "L'outil mémore vectorielle n'a retourné aucun résultat. "
+                        "N'insiste pas et ne reformule pas. L'information n'est pas en mémoire. "
+                        "Passe immédiatement à l'action suivante ou réponds à l'utilisateur."
+                    ),
+                })
+            elif total_data_chars > 500 and (_is_search_tool or _is_memory_tool):
+                # Données substantielles collectées → FORCER la synthèse en retirant les outils
                 force_synthesis = True
                 print(
-                    f"   ✅ [ChatOrchestrator] Données substantielles ({total_data_chars} chars) "
+                    f"   ✅ [ChatOrchestrator] données massives ({total_data_chars} chars) "
                     f"→ synthèse forcée (tour {tour + 1})"
                 )
                 messages.append({
@@ -602,18 +656,21 @@ class ChatOrchestrator:
                         "N'appelle PLUS aucun outil. "
                         "En te basant UNIQUEMENT sur les résultats collectés ci-dessus, "
                         f"réponds directement et précisément à ma question : {user_input}\n"
-                        "IMPORTANT : dans la section Sources, conserve les URLs sous forme de liens "
-                        "cliquables au format [Titre](URL). Ne mets jamais un nom de source sans son URL."
                     ),
                 })
             else:
-                # Cas intermédiaire → laisser le modèle décider
+                # Cas intermédiaire (ou action réussie) → laisser le modèle décider sa prochaine étape
                 messages.append({
                     "role": "user",
                     "content": (
-                        "Analyse les résultats obtenus. Si tu as assez d'informations, "
-                        f"réponds à ma question : {user_input}. "
-                        "Sinon, utilise un autre outil avec une approche différente."
+                        "Vérifie ton <scratchpad>. S'il te reste de VRAIES actions techniques à faire (ex: déplacer un fichier, faire une recherche), "
+                        "appelle un nouvel outil immédiatement.\n"
+                                                "ATTENTION avec les chemins de fichiers: n'invente jamais de chemin de destination. Réutilise scrupuleusement les chemins absolus complets retournés par tes précédentes actions. Ne saute ou ne raccourcis aucun répertoire parent "
+                        "(ex: garder 'OneDrive' dans le chemin).\n"
+                        "⚠️ RÈGLE OUTIL : Pour déplacer/renommer un fichier existant, appelle TOUJOURS 'move_local_file'. Ne le recrée jamais avec 'write_local_file'.\n"
+                        "Cependant, si les étapes restantes de ton plan ne correspondent à aucun de tes outils (ex: lire humainement, cliquer, formatage de texte) "
+                        "ou si tu as fini l'objectif principal, marque virtuellement ces étapes comme terminées et "
+                        "CLÔTURE la tâche en répondant directement pour me faire un récapitulatif."
                     ),
                 })
 
@@ -623,6 +680,10 @@ class ChatOrchestrator:
                 f"🔁 [ChatOrchestrator] Sortie de boucle — "
                 f"{len(tool_calls_log)} outil(s) — synthèse de secours"
             )
+            # Signaler à l'UI le début de la synthèse de secours
+            if on_tool_call:
+                on_tool_call("synthesis", {})
+
             result = self._stream_synthesis(
                 messages=messages,
                 user_input=user_input,
@@ -636,14 +697,14 @@ class ChatOrchestrator:
                 valid, reason = self._validate_response(result, user_input, tool_calls_log)
                 if not valid:
                     print(f"⚠️  [ChatOrchestrator] Synthèse invalide ({reason}) → retry")
-                    retry = self._retry_without_tools(
+                    retry_final_synthesis = self._retry_without_tools(
                         user_input=user_input,
                         llm=llm,
                         system_prompt=system_prompt,
                         on_token=on_token,
                         is_interrupted_callback=is_interrupted_callback,
                     )
-                    return retry or result
+                    return retry_final_synthesis or result
             return result
 
         return None
@@ -690,6 +751,7 @@ class ChatOrchestrator:
         user_input: str,
         llm: Any,
         on_thinking_token: Optional[Callable] = None,
+        messages: Optional[List[Dict]] = None,
     ) -> List[str]:
         """
         Génère un plan en streaming — chaque token est envoyé en temps réel
@@ -703,41 +765,53 @@ class ChatOrchestrator:
             Liste vide si la planification échoue.
         """
         plan_prompt = (
-            "Liste les actions concrètes et SPÉCIFIQUES à effectuer pour cette tâche.\n"
+            "Liste les actions concrètes et SPÉCIFIQUES à effectuer pour cette tâche avec tes outils techniques.\n"
+            "Prends bien en compte l'historique de la conversation : si un fichier a déjà été créé ou modifié dans les messages précédents, ne prévois pas de le recréer, utilise directement l'action pour le déplacer ou le lire.\n"
             "NE RÉPONDS PAS à la question. N'invente AUCUN contenu.\n\n"
             f"Tâche : « {user_input} »\n\n"
             f"Date du jour : {datetime.now().strftime('%d/%m/%Y')}\n\n"
-            "Génère entre 3 et 5 étapes numérotées, adaptées au sujet.\n"
-            "Chaque étape doit être détaillée et mentionner l'action précise "
-            "(ex: le sujet recherché, le type d'analyse, le format attendu).\n"
-            "NE COPIE PAS un plan générique. Adapte chaque étape au contenu de la tâche.\n"
+            "Génère entre 1 et 5 étapes numérotées, adaptées au sujet. Regroupe les actions si possible (ex: créer et écrire le fichier est une seule étape pour toi).\n"
+            "Chaque étape doit mentionner l'action technique à réaliser (écriture fichier, recherche web, etc.) de manière directe et concise. Ne décris pas d'actions humaines (comme ouvrir l'explorateur, cliquer, ou sélectionner à la souris) car tu es un programme.\n"
             "Format attendu :\n"
             "1. [action détaillée]\n"
             "2. [action détaillée]\n"
             "...\n"
         )
         plan_system = (
-            "Tu es un planificateur de tâches. Tu listes entre 3 et 5 étapes "
-            "d'action concrètes et spécifiques au sujet demandé. "
-            "Chaque étape doit être différente et détaillée. Rien d'autre."
+            "Tu es un planificateur de requêtes techniques. Tu listes 1 à 4 étapes "
+            "d'actions techniques réelles (ex: créer fichier, déplacer fichier, chercher internet). "
+            "Tiens compte de l'historique : ne planifie pas la création d'un fichier s'il doit juste être déplacé. "
+            "Ne décris jamais d'actions manuelles (clics, sélection texte, ouvrir dossier). "
+            "Chaque étape doit être courte et ciblée. Rien d'autre."
         )
-        messages = [
-            {"role": "system", "content": plan_system},
-            {"role": "user", "content": plan_prompt},
-        ]
+
+        # Construire le contexte de messages pour la planification
+        plan_messages = [{"role": "system", "content": plan_system}]
+        if messages:
+            # [OPTIM] Context pruning pour la planification : on ne veut que les messages les plus récents et pertinents, sans les system prompts qui alourdissent le contexte.
+            # On prend les messages précédents en excluant les system prompts et le user_input actuel pour éviter la redondance (le plan_prompt contient déjà la tâche). On garde les 4 derniers échanges pour le contexte.
+            hist_msgs = [m for m in messages if m["role"] != "system"]
+            # Si le dernier message est exactement le user_input actuel, on l'exclut pour éviter la redondance (le plan_prompt contient déjà la tâche)
+            if hist_msgs and hist_msgs[-1]["role"] == "user" and hist_msgs[-1]["content"] == user_input:
+                hist_msgs = hist_msgs[:-1]
+            plan_messages.extend(hist_msgs[-4:])  # On garde les 4 derniers échanges pour le contexte
+
+        plan_messages.append({"role": "user", "content": plan_prompt})
+
         data = {
             "model": llm.model,
-            "messages": messages,
+            "messages": plan_messages,
             "stream": True,
             "think": False,
-            "options": {"temperature": 0.3, "num_ctx": 4096, "num_predict": 300},
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+            "options": {"temperature": 0.3, "num_ctx": 4096, "num_predict": 300, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
 
         full_content: str = ""
         header_sent = False
 
         try:
-            with requests.post(
+            with _resilient_post(
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
@@ -912,9 +986,10 @@ class ChatOrchestrator:
                     {"role": "user", "content": summary_prompt},
                 ],
                 "stream": False,
-                "options": {"temperature": 0.1, "num_ctx": 8192, "num_predict": 512},
+                "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+                "options": {"temperature": 0.1, "num_ctx": 8192, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
-            resp = requests.post(llm.chat_url, json=summary_data, timeout=60)
+            resp = _resilient_post(llm.chat_url, json=summary_data, timeout=60)
             if resp.status_code == 200:
                 summary_text = resp.json().get("message", {}).get("content", "")
                 if summary_text:
@@ -989,7 +1064,13 @@ class ChatOrchestrator:
         ).rstrip()
 
         # Ajouter le scratchpad mis à jour
-        new_system = base_content + "\n\n" + scratchpad.to_context_block()
+        new_system = base_content + "\n\n" + scratchpad.to_context_block() + (
+            "\n\n[CONSIGNE STRICTE D'OUTILS] "
+            "Sois précis de manière chirurgicale dans le choix de tes outils selon ton plan actuel. "
+            "Si l'étape demande un DÉPLACEMENT de fichier (ex: 'déplacer', 'move'), utilise OBLIGATOIREMENT "
+            "'move_local_file'. NE RECRÉE PAS un fichier déjà existant avec 'write_local_file'. "
+            "Si tu dois chercher, utilise le bon type de recherche, etc."
+        )
 
         updated = list(messages)
         updated[0] = {"role": "system", "content": new_system}
@@ -1013,14 +1094,16 @@ class ChatOrchestrator:
             "tools": tools,
             "stream": False,
             "think": False,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": 0.7,
-                "num_ctx": 32768,
+                "num_ctx": 16384,
                 "num_predict": 4096,
+                "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
         }
         try:
-            resp = requests.post(llm.chat_url, json=data, timeout=llm.timeout)
+            resp = _resilient_post(llm.chat_url, json=data, timeout=llm.timeout)
             if resp.status_code != 200:
                 print(f"⚠️  [ChatOrchestrator] HTTP {resp.status_code}")
                 return None
@@ -1061,10 +1144,12 @@ class ChatOrchestrator:
             "tools": tools,
             "stream": True,
             "think": False,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": 0.7,
-                "num_ctx": 32768,
+                "num_ctx": 16384,
                 "num_predict": 4096,
+                "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
         }
 
@@ -1072,10 +1157,10 @@ class ChatOrchestrator:
         tool_calls_collected: List[Dict] = []
         content_buffer: str = ""
         buffer_flushed: bool = False
-        BUFFER_CHARS = 120  # Seuil avant de décider stream vs accumulation
+        buffer_chars = 120  # Seuil avant de décider stream vs accumulation
 
         try:
-            with requests.post(
+            with _resilient_post(
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
@@ -1110,7 +1195,7 @@ class ChatOrchestrator:
                         elif not buffer_flushed:
                             # Phase de buffering initial
                             content_buffer += token
-                            if len(content_buffer) >= BUFFER_CHARS:
+                            if len(content_buffer) >= buffer_chars:
                                 # Vérifier si le buffer ressemble à du JSON (CAS A)
                                 _stripped = content_buffer.strip()
                                 _stripped = re.sub(r'^```\w*\s*', '', _stripped)
@@ -1167,11 +1252,14 @@ class ChatOrchestrator:
         ne réponde pas « je n'ai pas accès aux données en temps réel ».
         """
         synthesis_system = (
-            "Les informations demandées ont été récupérées en temps réel via des outils. "
-            "Tu DOIS utiliser UNIQUEMENT ces données pour répondre à la question. "
-            "Ne dis JAMAIS que tu n'as pas accès aux données en temps réel — "
-            "tu viens de les recevoir via les outils. "
-            "Réponds de façon précise, factuelle et concise.\n\n"
+            "Tu interviens en bout de processus après avoir exécuté avec succès une série d'actions techniques (création de fichiers, recherches, etc.). "
+            "Tu dois maintenant synthétiser ce qui a été fait pour en informer l'utilisateur de manière naturelle et conversationnelle.\n\n"
+            "RÈGLES STRICTES DE COMMUNICATION :\n"
+            "1. Ne mentionne JAMAIS ton 'scratchpad', tes 'réflexions internes' ou ton 'plan d'action'. Ce sont des éléments de ton arrière-plan invisible.\n"
+            "2. Parle directement à l'utilisateur du résultat de l'action de manière naturelle. Par exemple : 'J'ai créé le fichier X'.\n"
+            "3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les lettres de lecteurs et les chemins absolus complets. Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était 'C:\\Users\\...\\OneDrive\\Python\\My_AI\\Tuto', ne le transforme pas en 'C:\\Users\\...\\My_AI\\Tuto').\n"
+            "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
+            "5. Si l'objectif était simplement de créer ou modifier un fichier, confirme la tâche et donne un résumé très bref.\n\n"
             "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
             "Si les résultats des outils contiennent des URLs ou des liens au format [Titre](URL), "
             "tu DOIS les reproduire EXACTEMENT dans ta section Sources/Références.\n"
@@ -1193,16 +1281,18 @@ class ChatOrchestrator:
             "messages": msgs,
             "stream": True,
             "think": False,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": 0.7,
-                "num_ctx": 32768,
-                "num_predict": 4096,
+                "num_ctx": 8192,  # Réduit pour éviter le blocage VRAM/swapping lors de la synthèse
+                "num_predict": 2048,
+                "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
         }
 
         full_response: str = ""
         try:
-            with requests.post(
+            with _resilient_post(
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
@@ -1252,10 +1342,20 @@ class ChatOrchestrator:
         Extrait le premier objet JSON valide d'un texte qui peut contenir
         du texte avant/après (ex: explication en français après le JSON).
         Supporte les accolades imbriquées.
+
+        [OPTIM] Version robuste : corrige les erreurs fréquentes des LLM 7B/9B :
+        - Markdown mal fermé (```json ... ``` ou ```json ... sans fermeture)
+        - Guillemets simples au lieu de doubles
+        - Trailing commas avant } ou ]
+        - Accolades non fermées (tentative de complétion)
         """
+        # Étape 0 : nettoyer les blocs markdown ```json ... ```
+        cleaned = re.sub(r'```(?:json)?\s*', '', text)
+
+        # Étape 1 : extraction brute par accolades imbriquées
         depth = 0
         start_idx = None
-        for i, ch in enumerate(text):
+        for i, ch in enumerate(cleaned):
             if ch == '{':
                 if depth == 0:
                     start_idx = i
@@ -1263,14 +1363,45 @@ class ChatOrchestrator:
             elif ch == '}':
                 depth -= 1
                 if depth == 0 and start_idx is not None:
-                    candidate = text[start_idx:i + 1]
+                    candidate = cleaned[start_idx:i + 1]
                     try:
                         json.loads(candidate)
                         return candidate
                     except json.JSONDecodeError:
+                        # Étape 2 : tenter la réparation du candidat
+                        repaired = ChatOrchestrator._repair_json(candidate)
+                        if repaired:
+                            return repaired
                         start_idx = None
                         continue
+
+        # Étape 3 : accolade non fermée — tenter de compléter
+        if start_idx is not None and depth > 0:
+            candidate = cleaned[start_idx:] + ("}" * depth)
+            repaired = ChatOrchestrator._repair_json(candidate)
+            if repaired:
+                return repaired
+
         return None
+
+    @staticmethod
+    def _repair_json(text: str) -> Optional[str]:
+        """
+        [OPTIM] Tente de réparer un JSON malformé produit par un LLM.
+        Corrige : trailing commas, guillemets simples, sauts de ligne dans les strings.
+        """
+        fixed = text
+        # Remplacer les guillemets simples par des doubles (hors apostrophes dans les mots)
+        fixed = re.sub(r"(?<![a-zA-ZÀ-ÿ])'|'(?![a-zA-ZÀ-ÿ])", '"', fixed)
+        # Supprimer les trailing commas avant } ou ]
+        fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+        # Supprimer les sauts de ligne à l'intérieur des strings JSON
+        fixed = re.sub(r'(?<=": ")(.*?)(?=")', lambda m: m.group(0).replace('\n', ' '), fixed)
+        try:
+            json.loads(fixed)
+            return fixed
+        except json.JSONDecodeError:
+            return None
 
     @staticmethod
     def _clean_arguments(arguments: Dict) -> Dict:
@@ -1308,6 +1439,11 @@ def _tool_display_name(tool_name: str) -> str:
         "list_directory": "Listing répertoire",
         "generate_code": "Génération code",
         "calculate": "Calcul",
+        "search_local_files": "Recherche fichiers",
+        "write_local_file": "Modification fichier",
+        "move_local_file": "Déplacement fichier",
+        "delete_local_file": "Suppression fichier",
+        "create_directory": "Création dossier",
     }
     return mapping.get(tool_name, tool_name)
 

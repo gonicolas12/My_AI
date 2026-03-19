@@ -5,7 +5,7 @@ FROM qwen3.5:4b
 # Paramètres de créativité et performance
 PARAMETER temperature 0.7
 PARAMETER num_ctx 32768
-PARAMETER num_predict 2048
+PARAMETER num_predict 8192
 
 # Identité et Comportement (System Prompt)
 SYSTEM """

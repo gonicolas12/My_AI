@@ -286,12 +286,12 @@ class ChatAreaMixin:
         text_widget.bind("<Button-5>", forward_scroll_to_page)  # Linux scroll down
 
         # Désactiver toutes les autres formes de scroll
-        text_widget.bind("<Up>", lambda e: "break")
-        text_widget.bind("<Down>", lambda e: "break")
-        text_widget.bind("<Prior>", lambda e: "break")  # Page Up
-        text_widget.bind("<Next>", lambda e: "break")  # Page Down
-        text_widget.bind("<Home>", lambda e: "break")
-        text_widget.bind("<End>", lambda e: "break")
+        text_widget.bind("<Up>", lambda e=None: "break")
+        text_widget.bind("<Down>", lambda e=None: "break")
+        text_widget.bind("<Prior>", lambda e=None: "break")  # Page Up
+        text_widget.bind("<Next>", lambda e=None: "break")  # Page Down
+        text_widget.bind("<Home>", lambda e=None: "break")
+        text_widget.bind("<End>", lambda e=None: "break")
 
     def setup_improved_scroll_forwarding(self, text_widget):
         """Transfert ultra rapide du scroll pour les bulles IA"""
@@ -299,11 +299,11 @@ class ChatAreaMixin:
         text_widget.configure(state="disabled")  # Désactiver temporairement
 
         # Supprimer TOUTES les fonctions de scroll par défaut
-        text_widget.bind("<MouseWheel>", lambda e: "break")
-        text_widget.bind("<Button-4>", lambda e: "break")
-        text_widget.bind("<Button-5>", lambda e: "break")
-        text_widget.bind("<Control-MouseWheel>", lambda e: "break")
-        text_widget.bind("<Shift-MouseWheel>", lambda e: "break")
+        text_widget.bind("<MouseWheel>", lambda e=None: "break")
+        text_widget.bind("<Button-4>", lambda e=None: "break")
+        text_widget.bind("<Button-5>", lambda e=None: "break")
+        text_widget.bind("<Control-MouseWheel>", lambda e=None: "break")
+        text_widget.bind("<Shift-MouseWheel>", lambda e=None: "break")
 
         # Remettre en mode normal mais sans scroll interne
         text_widget.configure(state="normal")

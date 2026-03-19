@@ -10,6 +10,7 @@ import os
 import re as _re
 import tempfile
 import threading
+import shutil
 from pathlib import Path
 from datetime import datetime as _dt
 from typing import Any, Dict, List, Optional
@@ -230,7 +231,8 @@ class AIEngine:
                 description=(
                     "Recherche sémantique dans la mémoire locale de l'IA (documents "
                     "précédemment indexés, historique de conversation, connaissances). "
-                    "À utiliser pour retrouver des informations déjà traitées."
+                    "N'UTILISE PAS cet outil pour retrouver des fichiers fraîchement créés ou d'actions triviales. "
+                    "À utiliser UNIQUEMENT pour retrouver des informations passées lointaines si l'utilisateur en parle."
                 ),
                 parameters={
                     "type": "object",
@@ -310,14 +312,15 @@ class AIEngine:
             name="read_local_file",
             description=(
                 "Lit et extrait le contenu d'un fichier local : PDF, DOCX, Python, "
-                "JavaScript, texte brut, JSON, etc. Retourne le texte du fichier."
+                "JavaScript, texte brut, JSON, etc. Retourne le texte du fichier. "
+                "A un accès total au PC via chemins absolus (ex: 'C:\\Users\\...')."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Chemin absolu ou relatif vers le fichier",
+                        "description": "Chemin absolu (C:\\...) ou relatif vers le fichier",
                     }
                 },
                 "required": ["path"],
@@ -342,15 +345,15 @@ class AIEngine:
         self.mcp_manager.register_local_tool(
             name="list_directory",
             description=(
-                "Liste les fichiers présents dans un répertoire local. "
-                "Utile pour explorer la structure d'un projet."
+                "Liste les fichiers présents dans un répertoire local (accès à TOUT le PC, ex: 'C:\\Users\\...'). "
+                "Utile pour explorer l'ordinateur ou la structure d'un projet."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Répertoire à explorer (défaut: répertoire courant)",
+                        "description": "Répertoire à explorer (ex: 'C:\\Users\\Nom', ou '.' pour le projet)",
                         "default": ".",
                     },
                     "pattern": {
@@ -361,6 +364,209 @@ class AIEngine:
                 },
             },
             callable_fn=list_directory,
+        )
+
+        # ----------------------------------------------------------------
+        # 4.1. Recherche avancée de fichiers
+        # ----------------------------------------------------------------
+        def search_local_files(query: str, path: str = None) -> str:
+            """Recherche locale de fichiers par nom complet ou partiel."""
+            try:
+                base_path = path if path else os.path.expanduser("~")
+                results = []
+                query_lower = query.lower()
+
+                for root, dirs, files in os.walk(base_path):
+                    # Ignorer certains dossiers trop lourds ou inaccessibles par défaut
+                    dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules', 'venv', 'env', '__pycache__', 'AppData', 'Local', 'Roaming']]
+                    for file in files:
+                        if query_lower in file.lower():
+                            results.append(os.path.join(root, file))
+                            if len(results) >= 50:
+                                break
+                    if len(results) >= 50:
+                        break
+
+                if not results:
+                    return f"Aucun fichier contenant '{query}' trouvé dans {base_path}."
+                return f"Fichiers trouvés ({len(results)} max) :\n" + "\n".join(results)
+            except Exception as exc:
+                return f"Erreur de recherche : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="search_local_files",
+            description=(
+                "Recherche un fichier par son nom (partiel ou complet) sur le PC. "
+                "Très utile quand l'utilisateur demande 'cherche la présentation...' ou un fichier précis."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Texte à chercher dans le nom du fichier (ex: 'présentation VRAI', 'rapport')",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Dossier racine pour la recherche (défaut: dossier utilisateur ~)",
+                        "default": "",
+                    },
+                },
+                "required": ["query"],
+            },
+            callable_fn=search_local_files,
+        )
+
+        # ----------------------------------------------------------------
+        # 4.2. Écriture / Modification de fichiers
+        # ----------------------------------------------------------------
+        def write_local_file(path: str, content: str) -> str:
+            """Crée ou écrase un fichier local."""
+            try:
+                # Gérer les chemins absolus multiplateformes et les ~, éviter les dossiers relatifs au projet
+                fpath = Path(path).expanduser().resolve()
+                fpath.parent.mkdir(parents=True, exist_ok=True)
+                with open(fpath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                return f"Succès : fichier écrit/modifié avec succès à l'emplacement {fpath.absolute()}"
+            except Exception as exc:
+                return f"Erreur écriture fichier : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="write_local_file",
+            description=(
+                "Crée ou remplace le contenu d'un fichier local sur le PC. "
+                "Permet d'agir (agentique) en sauvegardant du code, un résumé, ou des modifications."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Chemin absolu ou relatif où écrire le fichier (ex: 'C:\\Users\\...\\fichier.txt')",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Le contenu texte complet à écrire dans le fichier",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+            callable_fn=write_local_file,
+        )
+
+        # ----------------------------------------------------------------
+        # 4.3. Déplacement / Renommage de fichiers
+        # ----------------------------------------------------------------
+        def move_local_file(**kwargs) -> str:
+            """Déplace ou renomme un fichier ou un dossier."""
+            source = kwargs.get("source") or kwargs.get("path")
+            destination = kwargs.get("destination") or kwargs.get("path_dest")
+            if not source or not destination:
+                return "Erreur : paramètres manquants. Vous devez spécifier 'source' et 'destination'."
+
+            try:
+                fpath = Path(source)
+                if not fpath.exists():
+                    return f"Fichier source introuvable : {source}"
+                Path(destination).parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(source, destination)
+                return f"Succès : déplacé/renommé de {source} vers {destination}"
+            except Exception as exc:
+                return f"Erreur déplacement/renommage : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="move_local_file",
+            description=(
+                "Déplace ou renomme un fichier ou un dossier sur le PC. "
+                "Permet d'organiser les fichiers de l'utilisateur.\n"
+                "IMPORTANT: Fais très attention à bien fournir les chemins ABSOLUS complets et exacts, "
+                "notamment si le fichier doit être déplacé dans un dossier spécifique que tu viens de créer."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "Chemin actuel du fichier/dossier",
+                    },
+                    "destination": {
+                        "type": "string",
+                        "description": "Nouveau chemin ou nouveau nom",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Alias pour le chemin actuel (source)",
+                    },
+                    "path_dest": {
+                        "type": "string",
+                        "description": "Alias pour le nouveau chemin (destination)",
+                    },
+                },
+                "required": [],
+            },
+            callable_fn=move_local_file,
+        )
+
+        # ----------------------------------------------------------------
+        # 4.4. Suppression de fichier/répertoire
+        # ----------------------------------------------------------------
+        def delete_local_file(path: str) -> str:
+            """Supprime un fichier ou un répertoire vide."""
+            try:
+                fpath = Path(path)
+                if not fpath.exists():
+                    return f"Erreur : Introuvable à {path}"
+                if fpath.is_file():
+                    fpath.unlink()
+                else:
+                    shutil.rmtree(path)
+                return f"Succès : élément supprimé {path}"
+            except Exception as exc:
+                return f"Erreur suppression : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="delete_local_file",
+            description="Supprime de façon permanente un fichier ou un dossier sur le PC.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Chemin du fichier ou dossier à supprimer",
+                    }
+                },
+                "required": ["path"],
+            },
+            callable_fn=delete_local_file,
+        )
+
+        # ----------------------------------------------------------------
+        # 4.5. Création de répertoire
+        # ----------------------------------------------------------------
+        def create_directory(path: str) -> str:
+            """Crée un tout nouveau répertoire."""
+            try:
+                fpath = Path(path)
+                fpath.mkdir(parents=True, exist_ok=True)
+                return f"Succès : répertoire créé à {fpath.absolute()}"
+            except Exception as exc:
+                return f"Erreur création répertoire : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="create_directory",
+            description="Crée un nouveau dossier/répertoire sur le PC.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Chemin du nouveau dossier à créer",
+                    },
+                },
+                "required": ["path"],
+            },
+            callable_fn=create_directory,
         )
 
         # ----------------------------------------------------------------
@@ -741,6 +947,21 @@ Que voulez-vous que je fasse pour vous ?"""
         """
         try:
             self.logger.info("Traitement de la requête: %s...", query[:100])
+
+            # 0. Vérifier la génération de fichier en priorité absolue pour court-circuiter FAQ et MCP
+            query_lower = query.lower()
+            file_keywords = [
+                "génère moi un fichier",
+                "crée moi un fichier",
+                "génère un fichier",
+                "crée un fichier",
+            ]
+            if any(keyword in query_lower for keyword in file_keywords):
+                print(f"[AIEngine] Ordre de génération de fichier détecté, court-circuit MCP pour: '{query}'")
+                response = await self._handle_code_generation(query, is_interrupted_callback)
+                self.conversation_manager.add_exchange(query, response)
+                return response
+
             print(f"[AIEngine] Appel FAQ pour: '{query}' (async)")
             # 1. Tenter la FAQ ML d'abord
             response_ml = None
@@ -1011,8 +1232,10 @@ Que voulez-vous que je fasse pour vous ?"""
             # Construire le system prompt qui explique les outils
             system_prompt = (
                 "Tu es My AI, un assistant IA local, confidentiel et puissant. "
+                "Tu as un accès total à l'ordinateur de l'utilisateur. "
                 "Tu as accès à des outils que tu peux appeler automatiquement pour "
-                "répondre précisément. Utilise les outils pertinents avant de répondre. "
+                "répondre précisément et agir sur les fichiers (chemins absolus possibles). "
+                "Utilise les outils pertinents avant de répondre. "
                 "Réponds toujours en français sauf si on te demande autre chose. "
                 "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
             )
@@ -1083,7 +1306,8 @@ Que voulez-vous que je fasse pour vous ?"""
 
             system_prompt = (
                 "Tu es My AI, un assistant IA local, confidentiel et puissant. "
-                "Tu as accès à des outils. Utilise-les quand c'est pertinent. "
+                "Tu as accès à des outils et à l'ensemble du système de fichiers de ce PC. "
+                "Utilise les outils quand c'est pertinent, avec des chemins absolus si besoin. "
                 "Réponds toujours en français sauf instruction contraire."
             )
 
@@ -1474,6 +1698,10 @@ Que voulez-vous que je fasse pour vous ?"""
 
             # Construire le system prompt
             cwd = os.getcwd()
+            user_downloads = str(Path.home() / "Downloads")
+            user_documents = str(Path.home() / "Documents")
+            user_desktop = str(Path.home() / "Desktop")
+
             # Partir du SYSTEM du Modelfile (identité + règles de formatage),
             # puis ajouter les instructions MCP spécifiques à cette session.
             _base = self._modelfile_system
@@ -1481,9 +1709,17 @@ Que voulez-vous que je fasse pour vous ?"""
                 (_base + "\n\n") if _base else
                 "Tu es My_AI, un assistant personnel local, confidentiel et puissant.\n\n"
             ) + (
-                "Tu as accès à des outils. Utilise-les quand c'est pertinent pour répondre "
-                "précisément à la demande de l'utilisateur. "
-                f"Le répertoire de travail actuel (racine du projet) est : {cwd}. "
+                "Tu as un ACCÈS TOTAL ET COMPLET à tout l'ordinateur de l'utilisateur. Tu n'es en aucun cas limité au répertoire de ton projet. "
+                "Tu peux lire, écrire, créer, supprimer ou déplacer n'importe quel fichier sur l'ensemble du disque dur (ex: C:\\, D:\\, répertoires systèmes, etc.) via tes outils.\n"
+                f"L'utilisateur se trouve actuellement dans le répertoire de travail (racine du projet) : {cwd}. "
+                "Cependant, si on te demande de manipuler un fichier ou d'interagir avec le système, utilise systématiquement des CHEMINS ABSOLUS (ex: C:\\Users\\...).\n\n"
+                "⚠️ GESTION DES DOSSIERS STANDARDS : \n"
+                "Les répertoires systèmes personnels de l'utilisateur EXISTENT DÉJÀ (ils sont natifs à Windows/Linux). "
+                "Tu n'as PAS BESOIN de les créer avec 'create_directory'. Utilise directement 'write_local_file' avec ces chemins exacts absolus :\n"
+                f"- Téléchargements (Downloads) : {user_downloads}\n"
+                f"- Documents : {user_documents}\n"
+                f"- Bureau (Desktop) : {user_desktop}\n"
+                "Exemple : Si on te dit 'Crée le fichier info.txt dans Téléchargements', lance directement 'write_local_file' avec le path '{user_downloads}\\info.txt'. N'invente pas de sous-dossiers traduits en français comme 'Downloads\\Téléchargements'.\n\n"
                 "Réponds toujours en français sauf instruction contraire. "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
@@ -1613,6 +1849,7 @@ Que voulez-vous que je fasse pour vous ?"""
                     on_thinking_token=on_thinking_token,
                     on_thinking_complete=on_thinking_complete,
                     is_interrupted_callback=is_interrupted_callback,
+                    on_tool_call=on_tool_call,
                 )
 
                 if orch_result:
@@ -1621,6 +1858,11 @@ Que voulez-vous que je fasse pour vous ?"""
                         len(orch_result),
                     )
                     return orch_result
+
+                # Si le traitement a été interrompu manuellement, on s'arrête ici
+                if is_interrupted_callback and is_interrupted_callback():
+                    self.logger.info("Traitement interrompu. Pas de fallback.")
+                    return "Opération annulée."
 
                 # Fallback : aucune réponse produite → stream direct sans outils
                 self.logger.warning(

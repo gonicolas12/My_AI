@@ -129,6 +129,7 @@ class BaseGUI:
         self._mcp_indicator_text_widget = None
         self._mcp_indicator_label_text = ""
         self._mcp_dot_count = 0
+        self._mcp_consumed_icon = False
 
         # Initialisation des variables d'animation liées à la frappe
         self.typing_index = 0
@@ -238,6 +239,7 @@ class BaseGUI:
             # ne sera jamais appelé → sans ce reset, _streaming_mode resterait True
             # indéfiniment et bloquerait FocusIn/FocusOut/KeyPress sur l'input.
             self._streaming_mode = False
+            self.hide_status_indicators()
             if hasattr(self, "stop_typing_animation"):
                 self.stop_typing_animation()
             if hasattr(self, "stop_internet_search"):
@@ -544,8 +546,13 @@ class BaseGUI:
         L'animation cycle sur « label. », « label.. », « label... ».
         """
         try:
+            # S'il y a déjà un indicateur MCP qu'on supprime, NE PAS restaurer
+            # l'icône, car l'ancien indicateur l'avait (et on veut que le nouveau
+            # s'enchaîne sans la répéter).
+            was_already_active = getattr(self, "_mcp_indicator_active", False)
+
             # Supprimer l'éventuel indicateur précédent
-            self._hide_mcp_tool_indicator()
+            self._hide_mcp_tool_indicator(restore_icon=not was_already_active)
 
             # Masquer l'animation thinking pendant l'appel MCP
             self.is_thinking = False
@@ -568,11 +575,10 @@ class BaseGUI:
                 self.chat_frame, fg_color=self.colors["bg_chat"]
             )
             msg_container.grid(
-                row=row, column=0, sticky="ew", pady=(0, 12)
+                row=row, column=0, sticky="ew", pady=(0, 0)
             )
             msg_container.grid_columnconfigure(0, weight=1)
             self._mcp_indicator_container = msg_container
-            self._last_bubble_is_user = False  # L'indicateur MCP est un output IA
 
             # Frame de centrage (même padding que les bulles IA)
             center_frame = self.create_frame(
@@ -589,6 +595,8 @@ class BaseGUI:
             # plutôt que _thinking_mode_active car ce dernier est reset par
             # _finalize_reasoning_widget avant l'arrivée de l'indicateur MCP.
             _show_icon = getattr(self, "_last_bubble_is_user", True)
+            self._mcp_consumed_icon = _show_icon  # Se souvenir si l'indicateur a "consommé" l'icône
+            self._last_bubble_is_user = False  # L'indicateur MCP est un output IA
             icon_lbl = self.create_label(
                 center_frame,
                 text="🤖",
@@ -633,13 +641,22 @@ class BaseGUI:
         except Exception:
             pass
 
-    def _hide_mcp_tool_indicator(self):
-        """Supprime l'indicateur MCP inline du chat et arrête son animation."""
+    def _hide_mcp_tool_indicator(self, restore_icon=True):
+        """
+        Supprime l'indicateur MCP inline du chat et arrête son animation.
+        Si restore_icon est True et que cet indicateur avait "consommé" l'icône,
+        restaure l'affichage (via _last_bubble_is_user = True) pour que la
+        bulle suivante contienne l'icône IA.
+        """
         self._mcp_indicator_active = False
         try:
             if getattr(self, "_mcp_indicator_container", None):
                 self._mcp_indicator_container.destroy()
                 self._mcp_indicator_container = None
+                if restore_icon and getattr(self, "_mcp_consumed_icon", False):
+                    # Restaurer l'affichage de l'icône IA pour la prochaine bulle
+                    self._last_bubble_is_user = True
+                self._mcp_consumed_icon = False
         except Exception:
             pass
 
@@ -1064,10 +1081,10 @@ class BaseGUI:
 
                     # Callback avec debug
                     def check_interrupted():
-                        interrupted = self.is_interrupted
+                        interrupted = self.is_interrupted or self.current_request_id != request_id
                         if interrupted:
                             print(
-                                f"🛑 [GUI Callback] Interruption détectée! is_interrupted={interrupted}"
+                                f"🛑 [GUI Callback] Interruption détectée! is_interrupted={self.is_interrupted}, id_changed={self.current_request_id != request_id}"
                             )
                         return interrupted
 
@@ -1488,12 +1505,60 @@ class BaseGUI:
                     "list_directory": f"📁 Exploration du répertoire : {args.get('path', '.')}",
                     "generate_code": f"💻 Génération de code {args.get('language', '')}",
                     "calculate": f"🔢 Calcul : {args.get('expression', '')}",
+                    "search_local_files": f"🔎 Recherche de fichiers : « {args.get('query', '')} »",
+                    "write_local_file": f"💾 Modification du fichier : {os.path.basename(args.get('path', '')) if 'path' in args else ''}",
+                    "move_local_file": f"🚚 Déplacement : {os.path.basename(args.get('source', '')) if 'source' in args else ''}",
+                    "delete_local_file": f"🗑️ Suppression : {os.path.basename(args.get('path', '')) if 'path' in args else ''}",
+                    "create_directory": f"📂 Création du dossier : {os.path.basename(args.get('path', '')) if 'path' in args else ''}",
+                    "synthesis": "🧠 Analyse du résultat et synthèse en cours",
                 }
                 label = tool_labels.get(
                     tool_name, f"🔧 Outil en cours : {tool_name}…"
                 )
                 print(f"[MCP] {label}")
+
+                # S'il s'agit de la synthèse et que la bulle contient déjà du texte, injecter un retour à la ligne
+                if tool_name == "synthesis":
+                    # Pour la synthèse, on masque l'indicateur et on prépare le texte
+                    def _prepare_synthesis_ui():
+                        if getattr(self, "_streaming_mode", False) and getattr(self, "_streaming_buffer", ""):
+                            # Assurer exactement deux retours à la ligne avec l'existant
+                            old_len = len(self._streaming_buffer)
+                            stripped = self._streaming_buffer.rstrip('\n')
+                            stripped_orig = self._streaming_buffer_original.rstrip('\n')
+
+                            self._streaming_buffer = stripped + "\n\n"
+                            self._streaming_buffer_original = stripped_orig + "\n\n"
+
+                            # Sécuriser l'index d'animation si le texte vient d'être raccourci d'un tas d'espaces
+                            diff = len(self._streaming_buffer) - old_len
+                            if hasattr(self, "typing_index") and diff < 0:
+                                self.typing_index = min(self.typing_index, len(self._streaming_buffer))
+
+                        # Masquer l'indicateur d'outil en cours.
+                        # La synthèse s'écrit tout de suite, donc pas besoin du panneau temporaire inutile !
+                        if hasattr(self, "_hide_mcp_tool_indicator"):
+                            self._hide_mcp_tool_indicator()
+
+                    try:
+                        self.root.after(0, _prepare_synthesis_ui)
+                    except Exception:
+                        pass
+                    return  # On ne crée pas l'indicateur MCP "Analyse et synthèse" pour éviter qu'il s'affiche sous le texte en temps réel
+
+                # Pour tous les autres outils (Modification du fichier, Recherche...), réduire les éventuels sauts de ligne finaux
+                def _strip_trailing_newlines_from_stream():
+                    if getattr(self, "_streaming_mode", False) and getattr(self, "_streaming_buffer", ""):
+                        old_len = len(self._streaming_buffer)
+                        if old_len > 0 and self._streaming_buffer.endswith('\n'):
+                            self._streaming_buffer = self._streaming_buffer.rstrip('\n')
+                            self._streaming_buffer_original = self._streaming_buffer_original.rstrip('\n')
+                            # Sécuriser l'index
+                            if hasattr(self, "typing_index") and self.typing_index > len(self._streaming_buffer):
+                                self.typing_index = len(self._streaming_buffer)
+
                 try:
+                    self.root.after(0, _strip_trailing_newlines_from_stream)
                     self.root.after(
                         0,
                         lambda l=label: self._show_mcp_tool_indicator(l),
@@ -1514,7 +1579,7 @@ class BaseGUI:
                 on_thinking_token=on_thinking_token if _show_reasoning else None,
                 on_thinking_complete=on_thinking_complete if _show_reasoning else None,
                 image_base64=image_b64,
-                is_interrupted_callback=lambda: self.is_interrupted,
+                is_interrupted_callback=lambda: self.is_interrupted or self.current_request_id != request_id,
             )
 
             # Marquer le streaming comme terminé SEULEMENT si cette requête est

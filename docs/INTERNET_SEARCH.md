@@ -1,8 +1,8 @@
-# 🌐 Guide de la Recherche Internet - My Personal AI v6.8.0
+# 🌐 Guide de la Recherche Internet - My Personal AI
 
 ## 📋 Vue d'ensemble
 
-La version 6.8.0 apporte des améliorations majeures : **recherche internet optimisée**, **extraction de données en temps réel** et **détection d'intentions locales**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, extraire des prix ou données récentes sans être trompée par le cache des sites, et détecter automatiquement les recherches de lieux de proximité.
+La recherche internet dans My Personal AI est optimisée pour une expérience utilisateur améliorée : **recherche internet optimisée**, **extraction de données en temps réel** et **détection d'intentions locales**. Votre IA peut maintenant accéder aux informations web avec une fiabilité accrue, extraire des prix ou données récentes sans être trompée par le cache des sites, et détecter automatiquement les recherches de lieux de proximité.
 
 ## 🚀 Fonctionnalités
 

@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v6.8.0
+# 🚀 Guide d'Optimisation - My Personal AI v6.9.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v6.8.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v6.9.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -14,6 +14,7 @@ Ce document décrit les optimisations et techniques avancées disponibles dans M
 ### 5. Optimisation Modèle (Quantization, Pruning)
 ### 6. Configuration Performance
 ### 7. Monitoring et Métriques
+### 8. Optimisations des Requêtes Ollama (ChatOrchestrator)
 
 ---
 
@@ -670,6 +671,17 @@ metrics_to_track:
 
 ---
 
+## 8. Optimisations des Requêtes Ollama (ChatOrchestrator)
+
+Lors des intéractions complexes (outil MCP, réflexion), des optimisations poussées sont appliquées pour accélérer Ollama côté backend :
+
+*   **Pré-chargement du modèle (Keep Alloc)** : Envoi de `keep_alive="1h"` pour éviter qu'Ollama ne décharge le modèle de la VRAM vidéo entre chaque réflexion ou chaque appel d'outil MCP, rendant les chaînes multi-étapes instantanées.
+*   **Contexte Sélectif (`num_ctx`)** : Ajustement dynamique de l'allocation mémoire selon les besoins (par exemple réduit à `8192` lors des synthèses très chargées, ou `16384` en mode agent normal), permettant d'éviter une sursaturation de la VRAM (OOM) et de limiter le _swapping_ système sous Windows qui freine dramatiquement le jetons/seconde.
+*   **Préservation du prompt System (`num_keep=-1`)** : Utilisé pour certifier à Ollama et Llama_cpp que le system prompt (et le "scratchpad" de réflexion de l'IA) reste ancré en mémoire cache K/V quoi qu'il arrive et ne doit jamais faire l'objet du rolling window eviction, conservant ainsi les règles structurelles sans les recalculer.
+
+
+---
+
 ## 🎯 Recommandations par Scénario
 
 ### Scénario 1: Maximum Performance
@@ -965,6 +977,6 @@ python -m core.evaluation --test_data test_set.jsonl
 
 ---
 
-**Version:** 6.8.0
+**Version:** 6.9.0
 **Dernière mise à jour:** 14 Janvier 2026
 **Performance target:** < 1s réponse, < 2GB RAM, 1M tokens context

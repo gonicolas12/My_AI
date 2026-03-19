@@ -15,7 +15,16 @@ Grâce à cette intégration, l'IA n'est plus limitée à ses connaissances inte
 L'intégration repose sur le module `core/mcp_client.py` qui agit comme un pont entre Ollama et les outils/serveurs MCP.
 
 ### 1. Outils Locaux (LocalTools)
-Ce sont des fonctions Python exécutées directement dans le processus de l'application. Elles encapsulent les capacités existantes de My AI (comme la recherche web, l'analyse de fichiers, etc.) au format standardisé MCP pour qu'Ollama puisse les appeler de manière autonome.
+Ce sont des fonctions Python exécutées directement dans le processus de l'application. Elles encapsulent les capacités de My AI de manière standardisée pour qu'Ollama puisse les appeler de manière autonome.
+
+**Nouvelles capacités phares d'interaction système :**
+L'IA a maintenant un accès direct encadré à votre PC pour travailler selon ses plans :
+- `write_local_file` : Créé ou écrit dans un fichier sur votre ordinateur.
+- `move_local_file` : Renomme ou déplace un fichier (conserve les dossiers parents grâce à Mkdir intégré).
+- `create_directory` : Crée de nouveaux dossiers de travail.
+- `search_local_files` : Explore la racine de votre PC par glob pattern (ex: `*.py`).
+- `read_local_file` : Analyse et relit le contenu de n'importe quel de vos fichiers locaux.
+- Et bien d'autres outils (mémoire vectorielle RAG, recherche web via DuckDuckGo, etc.).
 
 ### 2. Serveurs MCP Externes (MCPServers)
 My AI peut se connecter à des serveurs MCP externes via le transport `stdio`. Cela permet d'étendre les capacités de l'IA de manière infinie en utilisant l'écosystème grandissant des serveurs MCP (ex: serveurs pour GitHub, Slack, bases de données d'entreprise, etc.).

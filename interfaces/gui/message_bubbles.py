@@ -141,10 +141,10 @@ class MessageBubblesMixin:
 
             # Changer visuellement le bouton cliqué (reste survolé)
             if self.use_ctk:
-                btn_up.configure(fg_color="#2d2d2d")  # Couleur survol
+                btn_up.configure(fg_color="#2d2d2d", state="disabled")  # Couleur survol + Désactiver
                 btn_down.configure(state="disabled")  # Désactiver l'autre
             else:
-                btn_up.configure(bg="#2d2d2d")
+                btn_up.configure(bg="#2d2d2d", state="disabled")
                 btn_down.configure(state="disabled")
 
             print("🎨 Bouton mis à jour visuellement")
@@ -184,10 +184,10 @@ class MessageBubblesMixin:
 
             # Changer visuellement le bouton cliqué
             if self.use_ctk:
-                btn_down.configure(fg_color="#2d2d2d")  # Couleur survol
+                btn_down.configure(fg_color="#2d2d2d", state="disabled")  # Couleur survol + Désactiver
                 btn_up.configure(state="disabled")  # Désactiver l'autre
             else:
-                btn_down.configure(bg="#2d2d2d")
+                btn_down.configure(bg="#2d2d2d", state="disabled")
                 btn_up.configure(state="disabled")
 
             print("🎨 Bouton mis à jour visuellement")
@@ -389,12 +389,12 @@ class MessageBubblesMixin:
                 text_widget_ia.bind("<MouseWheel>", forward_user_style)
                 text_widget_ia.bind("<Button-4>", forward_user_style)
                 text_widget_ia.bind("<Button-5>", forward_user_style)
-                text_widget_ia.bind("<Up>", lambda e: "break")
-                text_widget_ia.bind("<Down>", lambda e: "break")
-                text_widget_ia.bind("<Prior>", lambda e: "break")
-                text_widget_ia.bind("<Next>", lambda e: "break")
-                text_widget_ia.bind("<Home>", lambda e: "break")
-                text_widget_ia.bind("<End>", lambda e: "break")
+                text_widget_ia.bind("<Up>", lambda e=None: "break")
+                text_widget_ia.bind("<Down>", lambda e=None: "break")
+                text_widget_ia.bind("<Prior>", lambda e=None: "break")
+                text_widget_ia.bind("<Next>", lambda e=None: "break")
+                text_widget_ia.bind("<Home>", lambda e=None: "break")
+                text_widget_ia.bind("<End>", lambda e=None: "break")
 
             setup_identical_scroll_to_user(text_widget)
 
@@ -435,12 +435,12 @@ class MessageBubblesMixin:
                 )  # Linux scroll down
 
                 # Désactiver toutes les autres formes de scroll EXACTEMENT comme USER
-                text_widget.bind("<Up>", lambda e: "break")
-                text_widget.bind("<Down>", lambda e: "break")
-                text_widget.bind("<Prior>", lambda e: "break")  # Page Up
-                text_widget.bind("<Next>", lambda e: "break")  # Page Down
-                text_widget.bind("<Home>", lambda e: "break")
-                text_widget.bind("<End>", lambda e: "break")
+                text_widget.bind("<Up>", lambda e=None: "break")
+                text_widget.bind("<Down>", lambda e=None: "break")
+                text_widget.bind("<Prior>", lambda e=None: "break")  # Page Up
+                text_widget.bind("<Next>", lambda e=None: "break")  # Page Down
+                text_widget.bind("<Home>", lambda e=None: "break")
+                text_widget.bind("<End>", lambda e=None: "break")
 
             apply_exact_user_scroll_system()
 

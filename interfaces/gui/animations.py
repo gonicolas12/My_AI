@@ -32,12 +32,12 @@ class AnimationsMixin:
                 lh = default_font.metrics("linespace")
                 if lh > 0:
                     # +lh pour la dernière ligne (1 seule marge, pas 2)
-                    target_height = max(3, -(-( px + lh) // lh))
+                    target_height = max(1, -(-( px + lh) // lh))
                 else:
-                    target_height = max(3, int(text_widget.index("end-1c").split(".")[0]) + 1)
+                    target_height = max(1, int(text_widget.index("end-1c").split(".")[0]) + 1)
             else:
                 # Fallback : comptage logique
-                target_height = max(3, int(text_widget.index("end-1c").split(".")[0]) + 1)
+                target_height = max(1, int(text_widget.index("end-1c").split(".")[0]) + 1)
 
             # Pendant l'animation : ne faire que CROÎTRE
             current_height = int(text_widget.cget("height"))

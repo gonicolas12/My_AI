@@ -6,6 +6,7 @@ Supporte ChromaDB et FAISS, tokenization correcte (tiktoken), chiffrement AES-25
 
 import hashlib
 import re
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -38,6 +39,17 @@ try:
 except ImportError:
     CHROMADB_AVAILABLE = False
     print("⚠️ ChromaDB non disponible. Installez: pip install chromadb")
+
+# [OPTIM] Cross-Encoder pour reranking sémantique fin
+# Note: Le chargement effectif est fait dans VectorMemory.__init__
+# avec gestion intelligente du mode offline (même stratégie que core.shared)
+try:
+    from sentence_transformers import CrossEncoder
+
+    CROSSENCODER_AVAILABLE = True
+except ImportError:
+    CROSSENCODER_AVAILABLE = False
+    print("⚠️ CrossEncoder non disponible (sentence-transformers requis)")
 
 try:
     import tiktoken
@@ -125,6 +137,12 @@ class VectorMemory:
         # Modèle d'embeddings partagé (déjà chargé au démarrage dans core.shared)
         self.embedding_model = get_shared_embedding_model()
 
+        # [OPTIM] Cross-Encoder pour reranking sémantique fin (RAG avancé)
+        # Stratégie identique à core.shared : offline first, download si nécessaire
+        self.reranker = None
+        if CROSSENCODER_AVAILABLE:
+            self._load_reranker()
+
         # Base vectorielle ChromaDB
         if CHROMADB_AVAILABLE:
             try:
@@ -171,6 +189,41 @@ class VectorMemory:
             self.compression_monitor = None
 
         print(f"✅ VectorMemory initialisé (max: {max_tokens:,} tokens)")
+
+    def _load_reranker(self):
+        """
+        [OPTIM] Charge le CrossEncoder avec gestion offline identique à core.shared.
+        1. Essaie en mode offline (cache local)
+        2. Si échec, tente le téléchargement (premier lancement)
+        3. Si pas de réseau → fallback sans reranking (graceful degradation)
+        """
+        reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+        # Étape 1 : essayer depuis le cache (mode offline déjà activé par core.shared)
+        try:
+            self.reranker = CrossEncoder(reranker_model)
+            print("✅ CrossEncoder (ms-marco-MiniLM-L-6-v2) chargé pour reranking")
+            return
+        except Exception:
+            pass
+
+        # Étape 2 : tenter le téléchargement (premier lancement)
+        saved_offline = os.environ.get('HF_HUB_OFFLINE', '0')
+        saved_transformers = os.environ.get('TRANSFORMERS_OFFLINE', '0')
+        try:
+            os.environ['HF_HUB_OFFLINE'] = '0'
+            os.environ['TRANSFORMERS_OFFLINE'] = '0'
+            print("📥 Téléchargement du CrossEncoder (reranking)... (une seule fois)")
+            self.reranker = CrossEncoder(reranker_model)
+            print("✅ CrossEncoder téléchargé et prêt (sera en cache)")
+        except Exception as e:
+            print(f"⚠️ CrossEncoder non disponible (pas de réseau ?): {e}")
+            print("   → Le RAG fonctionnera sans reranking (distance cosinus seule)")
+            self.reranker = None
+        finally:
+            # Toujours restaurer le mode offline
+            os.environ['HF_HUB_OFFLINE'] = saved_offline
+            os.environ['TRANSFORMERS_OFFLINE'] = saved_transformers
 
     def _init_encryption(self, encryption_key: Optional[str] = None):
         """Initialise le système de chiffrement AES-256"""
@@ -404,15 +457,17 @@ class VectorMemory:
             return {"error": str(e), "status": "error"}
 
     def search_similar(
-        self, query: str, n_results: int = 5, collection_type: str = "document"
+        self, query: str, n_results: int = 5, collection_type: str = "document",
+        rerank: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        Recherche sémantique par similarité
+        Recherche sémantique par similarité avec reranking optionnel
 
         Args:
             query: Requête de recherche
-            n_results: Nombre de résultats
+            n_results: Nombre de résultats finaux souhaités
             collection_type: "document" ou "conversation"
+            rerank: Si True et CrossEncoder dispo, sur-échantillonne puis reranke
 
         Returns:
             Liste de résultats avec scores
@@ -431,12 +486,15 @@ class VectorMemory:
             return []
 
         try:
+            # [OPTIM] Sur-échantillonnage : récupérer 3x plus de candidats pour le reranking
+            fetch_n = n_results * 3 if (rerank and self.reranker) else n_results
+
             # Générer embedding de la requête
             query_embedding = self.embedding_model.encode(query).tolist()
 
             # Rechercher dans ChromaDB
             results = collection.query(
-                query_embeddings=[query_embedding], n_results=n_results
+                query_embeddings=[query_embedding], n_results=fetch_n
             )
 
             # Formater les résultats
@@ -461,6 +519,16 @@ class VectorMemory:
                         }
                     )
 
+            # [OPTIM] Reranking via CrossEncoder pour précision sémantique fine
+            if rerank and self.reranker and len(formatted_results) > n_results:
+                pairs = [[query, r["content"]] for r in formatted_results]
+                scores = self.reranker.predict(pairs)
+                for idx, result in enumerate(formatted_results):
+                    result["rerank_score"] = float(scores[idx])
+                formatted_results.sort(key=lambda r: r["rerank_score"], reverse=True)
+                formatted_results = formatted_results[:n_results]
+                print(f"🔀 [OPTIM] Reranking: {fetch_n} candidats → top {n_results}")
+
             return formatted_results
 
         except Exception as e:
@@ -468,21 +536,23 @@ class VectorMemory:
             return []
 
     def get_relevant_context(
-        self, query: str, max_chunks: int = 10, collection_type: str = "document"
+        self, query: str, max_chunks: int = 5, collection_type: str = "document"
     ) -> str:
         """
         Récupère le contexte le plus pertinent (API compatible avec ancien système)
+        [OPTIM] Utilise le reranking CrossEncoder pour une meilleure précision
 
         Args:
             query: Requête de recherche
-            max_chunks: Nombre maximum de chunks
+            max_chunks: Nombre maximum de chunks finaux (après reranking)
             collection_type: Type de collection
 
         Returns:
             Contexte consolidé
         """
         results = self.search_similar(
-            query, n_results=max_chunks, collection_type=collection_type
+            query, n_results=max_chunks, collection_type=collection_type,
+            rerank=True,
         )
 
         if not results:
@@ -630,6 +700,10 @@ class VectorMemory:
             # Libérer le modèle d'embeddings
             if self.embedding_model:
                 self.embedding_model = None
+
+            # [OPTIM] Libérer le CrossEncoder
+            if self.reranker:
+                self.reranker = None
 
             # Libérer le tokenizer
             if self.tokenizer:

@@ -9,6 +9,29 @@ from typing import Callable, Dict, List, Optional
 
 import requests
 
+# [OPTIM] Retry résilient sur les appels réseau Ollama
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+    TENACITY_AVAILABLE = True
+except ImportError:
+    TENACITY_AVAILABLE = False
+
+
+def _resilient_post(url, **kwargs):
+    """requests.post avec retry automatique via tenacity (si disponible)."""
+    timeout = kwargs.pop("timeout", 1200)
+    return requests.post(url, timeout=timeout, **kwargs)
+
+
+if TENACITY_AVAILABLE:
+    _resilient_post = retry(
+        wait=wait_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((requests.exceptions.Timeout, requests.exceptions.ConnectionError)),
+        reraise=True,
+    )(_resilient_post)
+
+
 # ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
 try:
     from core.config import get_default_model as _cfg_default_model
@@ -27,7 +50,7 @@ class LocalLLM:
         self,
         model="my_ai",
         ollama_url="http://localhost:11434/api/generate",
-        timeout=1000,
+        timeout=1200,
     ):
         # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'qwen3.5:4b'
         self.model = model
@@ -123,10 +146,12 @@ class LocalLLM:
             "messages": messages,
             "stream": False,
             "think": False,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": 0.7,
                 "num_ctx": 32768,
-                "num_predict": 2048,
+                "num_predict": 8192,
+                "num_keep": -1,  # [OPTIM] Préserver system prompt lors de troncature contexte
             },
         }
 
@@ -134,7 +159,7 @@ class LocalLLM:
             print(
                 f"⏳ [LocalLLM] Génération avec contexte ({len(self.conversation_history) if use_history else 0} messages précédents)..."
             )
-            response = requests.post(self.chat_url, json=data, timeout=self.timeout)
+            response = _resilient_post(self.chat_url, json=data, timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 assistant_response = result.get("message", {}).get("content", "")
@@ -199,13 +224,14 @@ class LocalLLM:
             "messages": messages,
             "stream": True,
             "think": native_thinking,
-            "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+            "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 8192, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
 
         full_response = ""
         _thinking_complete_fired = False  # Garantit un seul appel au callback
         try:
-            with requests.post(
+            with _resilient_post(
                 self.chat_url, json=data, timeout=self.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
@@ -280,14 +306,15 @@ class LocalLLM:
             "model": self.model,
             "messages": messages,
             "stream": True,
-            "options": {"temperature": 0.7, "num_ctx": 8192},
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+            "options": {"temperature": 0.7, "num_ctx": 8192, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
 
         print(f"🧠 [THINKING STREAM] Démarrage — modèle: {self.model} | chat_url: {self.chat_url}")
         thinking_text = ""
         _token_count = 0
         try:
-            with requests.post(
+            with _resilient_post(
                 self.chat_url, json=data, timeout=120, stream=True
             ) as resp:
                 if resp.status_code != 200:
@@ -378,15 +405,17 @@ class LocalLLM:
                 "tools": tools,
                 "stream": False,
                 "think": False,
+                "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
                 "options": {
                     "temperature": 0.7,
                     "num_ctx": 32768,
                     "num_predict": 4096,
+                    "num_keep": -1,  # [OPTIM] Préserver system prompt lors de troncature contexte
                 },
             }
 
             try:
-                response = requests.post(
+                response = _resilient_post(
                     self.chat_url, json=data, timeout=self.timeout
                 )
                 if response.status_code != 200:
@@ -637,11 +666,12 @@ class LocalLLM:
                     "messages": messages,
                     "stream": True,
                     "think": False,
-                    "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
+                    "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+                    "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
                 }
                 full_response = ""
                 try:
-                    with requests.post(
+                    with _resilient_post(
                         self.chat_url, json=data_synthesis, timeout=self.timeout, stream=True
                     ) as resp:
                         if resp.status_code != 200:
@@ -685,11 +715,12 @@ class LocalLLM:
                 "tools": tools_for_this_call,
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096},
+                "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+                "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
 
             try:
-                response = requests.post(
+                response = _resilient_post(
                     self.chat_url, json=data_no_stream, timeout=self.timeout
                 )
                 if response.status_code != 200:
@@ -807,21 +838,30 @@ class LocalLLM:
                         t_args: Dict = {}
                         _d = re.search(r'"description"\s*:\s*"([^"]+)"', final_text)
                         if _d:
-                            if t_name == "web_search":
+                            if t_name in ("web_search", "search_local_files"):
                                 t_args = {"query": _d.group(1)}
-                            elif t_name in ("read_local_file", "list_directory"):
+                            elif t_name in ("read_local_file", "list_directory", "delete_local_file", "create_directory"):
                                 t_args = {"path": _d.group(1)}
+                            elif t_name == "write_local_file":
+                                t_args = {"path": _d.group(1), "content": "..."}
+                            elif t_name == "move_local_file":
+                                t_args = {"source": _d.group(1), "destination": ""}
                             elif t_name == "calculate":
                                 t_args = {"expression": _d.group(1)}
                             elif t_name == "generate_code":
                                 t_args = {"description": _d.group(1), "language": "python"}
                         # Fallback ultime : dériver depuis le prompt utilisateur
                         if not t_args:
-                            if t_name == "web_search":
+                            if t_name in ("web_search", "search_local_files"):
                                 t_args = {"query": prompt}
-                            elif t_name in ("read_local_file", "list_directory"):
+                            elif t_name in ("read_local_file", "list_directory", "delete_local_file", "create_directory"):
                                 _pm = re.search(r"[\w./\\]+", prompt)
                                 t_args = {"path": _pm.group(0) if _pm else "."}
+                            elif t_name == "write_local_file":
+                                _pm = re.search(r"[\w./\\]+", prompt)
+                                t_args = {"path": _pm.group(0) if _pm else ".", "content": prompt}
+                            elif t_name == "move_local_file":
+                                t_args = {"source": prompt, "destination": prompt}
                             elif t_name == "calculate":
                                 t_args = {"expression": prompt}
                             elif t_name == "generate_code":
@@ -915,9 +955,10 @@ class LocalLLM:
                 "messages": [{"role": "user", "content": summary_prompt}],
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0.3, "num_ctx": 8192, "num_predict": 512},
+                "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
+                "options": {"temperature": 0.3, "num_ctx": 8192, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
-            response = requests.post(self.chat_url, json=data, timeout=60)
+            response = _resilient_post(self.chat_url, json=data, timeout=60)
             if response.status_code == 200:
                 summary_text = response.json().get("message", {}).get("content", "").strip()
         except Exception as e:
@@ -1104,18 +1145,20 @@ class LocalLLM:
             "prompt": full_prompt,
             "images": [image_base64],
             "stream": False,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
             "options": {
                 "temperature": 0.0,
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
                 "num_ctx": 2048,
                 "num_predict": 400,
+                "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
         }
 
         try:
             print(f"🖼️ [LocalLLM] Génération vision via '{vision_model}' (generate API)...")
-            response = requests.post(self.ollama_url, json=data, timeout=self.timeout)
+            response = _resilient_post(self.ollama_url, json=data, timeout=self.timeout)
             if response.status_code == 200:
                 result = response.json()
                 assistant_response = result.get("response", "")
@@ -1222,12 +1265,14 @@ class LocalLLM:
             "prompt": full_prompt,
             "images": [image_base64],
             "stream": True,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
             "options": {
                 "temperature": 0.0,
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
                 "num_ctx": 2048,
                 "num_predict": 400,
+                "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
         }
 
@@ -1235,7 +1280,7 @@ class LocalLLM:
             print(f"⚡🖼️ [LocalLLM] Streaming vision via '{vision_model}' (generate API)...")
             full_response = ""
 
-            with requests.post(
+            with _resilient_post(
                 self.ollama_url, json=data, timeout=self.timeout, stream=True
             ) as response:
                 if response.status_code != 200:
@@ -1280,17 +1325,19 @@ class LocalLLM:
             "prompt": full_prompt,
             "images": [image_base64],
             "stream": False,
+            "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
             "options": {
                 "temperature": 0.0,
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
                 "num_ctx": 2048,
                 "num_predict": 400,
+                "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
         }
 
         try:
-            response = requests.post(self.ollama_url, json=data, timeout=self.timeout)
+            response = _resilient_post(self.ollama_url, json=data, timeout=self.timeout)
             if response.status_code == 200:
                 return response.json().get("response", "")
             return None

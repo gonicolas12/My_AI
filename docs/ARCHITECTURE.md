@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.8.0
+# 🏗️ Architecture - My Personal AI v6.9.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.8.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel** et une **boucle agentique avancée (ChatOrchestrator)**, basée sur les principes suivants:
+My Personal AI v6.9.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel** et une **boucle agentique avancée (ChatOrchestrator)**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -1124,7 +1124,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 6.8.0
+**Version**: 6.9.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 REM ====================================
-REM My Personal AI ULTRA - Lanceur v6.8.0
+REM My Personal AI ULTRA - Lanceur v6.9.0
 REM ====================================
 
 REM Configuration des couleurs ANSI (Orange)
@@ -20,7 +20,7 @@ echo %ORANGE%%BOLD%/_/  /_/\__, /___/_/  ^|_/___/   %RESET%
 echo %ORANGE%%BOLD%       /____/                  %RESET%
 echo.
 echo %ORANGE%====================================%RESET%
-echo %BOLD%           Version 6.8.0%RESET%
+echo %BOLD%           Version 6.9.0%RESET%
 echo %ORANGE%====================================%RESET%
 echo.
 
@@ -80,8 +80,8 @@ goto menu
 
 :ultra
 echo.
-echo [INFO] Lancement Interface UNIFIEE (CustomAI avec 1M tokens)...
-echo [CONFIG] Configuration unifiee activee
+echo [INFO] Lancement Interface (CustomAI avec 1M tokens)...
+echo [CONFIG] Configuration activee
 echo.
 echo %ORANGE%====================================%RESET%
 echo.
