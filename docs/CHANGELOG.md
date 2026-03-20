@@ -9,7 +9,7 @@
 - **Allocation dynamique de contexte (`num_ctx`)** : Ajustement sur-mesure de la fenêtre de contexte (`16384` pour l'action pure, `8192` pour la synthèse) permettant d'éviter radicalement les erreurs Out-Of-Memory (OOM) et de contourner le "swapping" lourd de la RAM système sous Windows.
 - **Ancrage du Prompt Système (`num_keep=-1`)** : Verrouillage du prompt système et du Scratchpad de réflexion dans le cache K/V (Key/Value) d'Ollama. Garantit une stricte adhésion aux règles sans recalcul de ce prompt lors du "Rolling Window Eviction".
 
-#### 📂 Fiabilisation & Super-Pouvoirs Locaux (Accès ROOT via MCP Local)
+#### 📂 Fiabilisation & Accès Locaux (Accès ROOT via MCP Local)
 - **Accès à tout le PC (Root System)** : L'IA a désormais un accès complet et encadré à l'ensemble de vos disques durs. Elle peut écrire, rechercher des fichiers, lire leur contenu et organiser les espaces de travail par des créations de dossiers.
 - **Chemins absolus stricts** : Renforcement drastique des directives orchestrant les outils pour forcer la réutilisation "à l'octet près" des chemins complets retournés. L'IA ne raccourcira plus jamais les longs chemins réseau ou de sauvegarde.
 - **Correction des boucles `search_memory`** : Amende l'ordonnanceur de l'IA pour stopper la recherche vectorielle entêtée sur les événements locaux immédiats ou pour prévenir les boucles indéfinies en cas de recherche vide.
