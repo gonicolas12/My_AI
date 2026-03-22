@@ -340,6 +340,14 @@ mcp:
       args: ["@modelcontextprotocol/server-fetch"]
 
 # ====================================
+# RECHERCHE TAVILY (optionnel)
+# ====================================
+tavily:
+  api_key: "${TAVILY_API_KEY}"
+  enabled: true
+  max_results: 8
+
+# ====================================
 # CLÉS API
 # ====================================
 github:
