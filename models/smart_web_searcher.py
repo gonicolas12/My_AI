@@ -7,6 +7,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -14,8 +15,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import quote
-
-import os
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -41,10 +40,6 @@ if TAVILY_API_KEY.startswith('${') and TAVILY_API_KEY.endswith('}'):
     TAVILY_API_KEY = os.environ.get(TAVILY_API_KEY[2:-1], '')
 if not TAVILY_API_KEY:
     TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
-
-# Resolve GITHUB_TOKEN env var reference
-if GITHUB_TOKEN.startswith('${') and GITHUB_TOKEN.endswith('}'):
-    GITHUB_TOKEN = os.environ.get(GITHUB_TOKEN[2:-1], '')
 
 # Initialize Tavily client if available
 _tavily_client = None
@@ -283,6 +278,7 @@ class SmartWebSearcher:
                     max_results=max_results,
                     search_depth="advanced",
                     include_domains=["geeksforgeeks.org"],
+                    include_raw_content=True,
                 )
             )
 
