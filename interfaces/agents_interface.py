@@ -11,7 +11,9 @@ import threading
 import time
 import tkinter as tk
 from datetime import datetime
-from tkinter import messagebox, scrolledtext
+from tkinter import filedialog, messagebox, scrolledtext
+from processors.pdf_processor import PDFProcessor
+from processors.docx_processor import DOCXProcessor
 
 try:
     import customtkinter as ctk
@@ -26,7 +28,8 @@ from core.config import get_default_model as _get_default_model
 from interfaces.resource_monitor import ResourceMonitor
 
 try:
-    from interfaces.gui.syntax_highlighting import SyntaxHighlightingMixin as _SyntaxMixin
+    from interfaces.gui.syntax_highlighting import \
+        SyntaxHighlightingMixin as _SyntaxMixin
 
     class SyntaxColorHelper(_SyntaxMixin):
         """Wrapper exposing GUI syntax-highlighting helpers to the agents pane."""
@@ -108,8 +111,8 @@ except Exception:
     _SYNTAX_ANALYZER = None
     _SYNTAX_AVAILABLE = False
 from interfaces.workflow_canvas import WorkflowCanvas
+from models.ai_agents import AVAILABLE_AGENTS, AIAgent
 from models.local_llm import LocalLLM
-from models.ai_agents import AIAgent, AVAILABLE_AGENTS
 
 
 class AgentsInterface:
@@ -177,6 +180,11 @@ class AgentsInterface:
         self.pipeline_frame = None
         self.drop_zone_frame = None
         self.task_section_frame = None
+
+        # File attachment (agents page)
+        self._agent_preview_frame = None
+        self._agent_pending_files = []
+        self._agent_file_btn = None
 
         # Workflow canvas (n8n-style)
         self.workflow_canvas: WorkflowCanvas | None = None
@@ -269,16 +277,6 @@ class AgentsInterface:
         """Crée la section de sélection d'agents"""
         section_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
         section_frame.grid(row=2, column=0, sticky="ew", padx=30, pady=(0, 10))
-
-        # Titre de section
-        section_title = self.create_label(
-            section_frame,
-            text="Sélectionnez un Agent",
-            font=("Segoe UI", 14, "bold"),
-            text_color=self.colors["text_primary"],
-            fg_color=self.colors["bg_primary"],
-        )
-        section_title.pack(anchor="w", pady=(0, 15))
 
         # Agents disponibles
         agents_info = {
@@ -634,6 +632,190 @@ class AgentsInterface:
             self.colors["text_secondary"],
         )
 
+    # ── Gestion des fichiers attachés dans l'interface agents ──
+
+    def _agent_load_file(self, file_type: str):
+        """Charge un fichier depuis le sélecteur et l'ajoute en aperçu dans la zone agents."""
+
+        filetypes_map = {
+            "PDF": [("Fichiers PDF", "*.pdf")],
+            "DOCX": [("Fichiers Word", "*.docx")],
+            "Excel": [("Excel & CSV", "*.xlsx *.xls *.csv")],
+            "Code": [("Code", "*.py *.js *.html *.css *.json *.xml *.md *.txt"), ("Tous", "*.*")],
+            "Image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"), ("Tous", "*.*")],
+        }
+        ft = filetypes_map.get(file_type, [("Tous", "*.*")])
+        file_path = filedialog.askopenfilename(title=f"Sélectionner un fichier {file_type}", filetypes=ft)
+        if file_path:
+            self._agent_add_preview(file_path, file_type)
+
+    def _agent_add_preview(self, file_path: str, file_type: str):
+        """Ajoute un aperçu miniature dans la zone de tâche agents."""
+        filename = os.path.basename(file_path)
+        type_icons = {"PDF": "📄", "DOCX": "📝", "Excel": "📊", "Code": "💻", "Image": "🖼"}
+        icon = type_icons.get(file_type, "📎")
+
+        bg = self.colors.get("bg_secondary", "#2a2a2a")
+        accent = self.colors.get("accent", "#ff6b47")
+
+        if self.use_ctk:
+            thumb = ctk.CTkFrame(
+                self._agent_preview_frame, fg_color=bg, corner_radius=6,
+                border_width=1, border_color=self.colors.get("border", "#404040"),
+            )
+        else:
+            thumb = tk.Frame(self._agent_preview_frame, bg=bg, relief="solid", bd=1)
+        thumb.pack(side="left", padx=(0, 8), pady=4)
+
+        display_name = filename if len(filename) <= 20 else filename[:17] + "..."
+        if self.use_ctk:
+            lbl = ctk.CTkLabel(
+                thumb, text=f"{icon} {display_name}", font=("Segoe UI", 11),
+                text_color=self.colors.get("text_primary", "#ffffff"), fg_color="transparent",
+            )
+        else:
+            lbl = tk.Label(
+                thumb, text=f"{icon} {display_name}", bg=bg,
+                fg=self.colors.get("text_primary", "#ffffff"), font=("Segoe UI", 11),
+            )
+        lbl.pack(side="left", padx=(8, 4), pady=4)
+
+        def _remove():
+            self._agent_pending_files = [
+                (p, t, w) for p, t, w in self._agent_pending_files if w is not thumb
+            ]
+            thumb.destroy()
+            if not self._agent_pending_files:
+                self._agent_preview_frame.grid_remove()
+
+        if self.use_ctk:
+            close_btn = ctk.CTkButton(
+                thumb, text="✕", width=24, height=24,
+                fg_color="transparent", hover_color=accent,
+                text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 12, "bold"), corner_radius=4, command=_remove,
+            )
+        else:
+            close_btn = tk.Button(
+                thumb, text="✕", bg=bg, fg=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 10, "bold"), relief="flat", bd=0, command=_remove, cursor="hand2",
+            )
+        close_btn.pack(side="left", padx=(0, 6), pady=4)
+
+        self._agent_pending_files.append((file_path, file_type, thumb))
+        self._agent_preview_frame.grid()
+
+        print(f"📎 [AGENTS] Fichier attaché: {filename} ({file_type})")
+
+    def _agent_get_pending_files(self) -> list:
+        """Retourne la liste des fichiers attachés aux agents [(path, type), ...]."""
+        return [(p, t) for p, t, _ in self._agent_pending_files]
+
+    def _agent_clear_previews(self):
+        """Retire tous les aperçus de fichiers de l'interface agents."""
+        for _, _, widget in self._agent_pending_files:
+            try:
+                widget.destroy()
+            except Exception:
+                pass
+        self._agent_pending_files = []
+        self._agent_preview_frame.grid_remove()
+
+    @staticmethod
+    def _read_attached_file(file_path: str, file_type: str) -> str:
+        """Lit le contenu d'un fichier attaché et retourne le texte brut."""
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if file_type == "PDF" or ext == ".pdf":
+            try:
+                proc = PDFProcessor()
+                result = proc.process_file(file_path)
+                return result.get("content", "")
+            except ImportError:
+                pass
+
+        if file_type == "DOCX" or ext in (".docx", ".doc"):
+            try:
+                proc = DOCXProcessor()
+                result = proc.process_file(file_path)
+                return result.get("content", "")
+            except ImportError:
+                pass
+
+        # Fichiers texte / code / CSV / markdown — lecture directe
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                return f.read(200_000)  # limiter à 200k chars
+        except Exception:
+            # Fallback binaire
+            with open(file_path, "rb") as f:
+                return f.read(100_000).decode("utf-8", errors="replace")
+
+    # ── Sauvegarde / Chargement / Export de workflow ──
+
+    def _save_workflow(self):
+        """Sauvegarde le workflow actuel dans un fichier JSON."""
+        if not self.workflow_canvas:
+            return
+        filepath = filedialog.asksaveasfilename(
+            title="Sauvegarder le workflow",
+            defaultextension=".json",
+            filetypes=[("Fichiers JSON", "*.json"), ("Tous", "*.*")],
+            initialfile="workflow.json",
+        )
+        if filepath:
+            self.workflow_canvas.save_to_file(filepath)
+            if hasattr(self, "show_notification"):
+                self.show_notification("💾 Workflow sauvegardé", "success", 1500)
+            print(f"💾 [WORKFLOW] Sauvegardé: {filepath}")
+
+    def _load_workflow(self):
+        """Charge un workflow depuis un fichier JSON."""
+        if not self.workflow_canvas:
+            return
+        filepath = filedialog.askopenfilename(
+            title="Charger un workflow",
+            filetypes=[("Fichiers JSON", "*.json"), ("Tous", "*.*")],
+        )
+        if filepath:
+            success = self.workflow_canvas.load_from_file(filepath)
+            if success:
+                self._on_canvas_changed()
+                if hasattr(self, "show_notification"):
+                    self.show_notification("📂 Workflow chargé", "success", 1500)
+                print(f"📂 [WORKFLOW] Chargé: {filepath}")
+            else:
+                if hasattr(self, "show_notification"):
+                    self.show_notification("❌ Erreur chargement workflow", "error", 2000)
+
+    def _export_workflow(self):
+        """Exporte le workflow et ses résultats en fichier texte."""
+        if not self.workflow_canvas:
+            return
+        filepath = filedialog.asksaveasfilename(
+            title="Exporter le workflow",
+            defaultextension=".md",
+            filetypes=[("Markdown", "*.md"), ("Texte", "*.txt"), ("Tous", "*.*")],
+            initialfile="workflow_export.md",
+        )
+        if filepath:
+            try:
+                data = self.workflow_canvas.to_dict()
+                lines = ["# Workflow Export\n", f"**Version**: {data.get('version', '7.0.0')}\n"]
+                lines.append(f"**Nodes**: {len(data.get('nodes', {}))}\n")
+                lines.append(f"**Connections**: {len(data.get('connections', []))}\n\n")
+                for nid, node in data.get("nodes", {}).items():
+                    lines.append(f"## {node.get('icon', '🤖')} {node.get('name', nid)}\n")
+                    lines.append(f"- Type: {node.get('agent_type', 'unknown')}\n")
+                    lines.append(f"- Status: {node.get('status', 'idle')}\n\n")
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.writelines(lines)
+                if hasattr(self, "show_notification"):
+                    self.show_notification("📤 Workflow exporté", "success", 1500)
+                print(f"📤 [WORKFLOW] Exporté: {filepath}")
+            except Exception as e:
+                print(f"❌ [WORKFLOW] Erreur export: {e}")
+
     def _on_canvas_changed(self):
         """Callback quand le canvas de workflow est modifié."""
         if not self.workflow_canvas:
@@ -700,16 +882,6 @@ class AgentsInterface:
         section_frame.grid(row=3, column=0, sticky="ew", padx=30, pady=(20, 10))
         self.task_section_frame = section_frame
 
-        # Titre
-        title = self.create_label(
-            section_frame,
-            text="Décrivez la Tâche",
-            font=("Segoe UI", 14, "bold"),
-            text_color=self.colors["text_primary"],
-            fg_color=self.colors["bg_primary"],
-        )
-        title.pack(anchor="w", pady=(0, 10))
-
         # Frame pour input + boutons
         input_frame = self.create_frame(
             section_frame, fg_color=self.colors["bg_primary"]
@@ -717,31 +889,137 @@ class AgentsInterface:
         input_frame.pack(fill="x")
         input_frame.grid_columnconfigure(0, weight=1)
 
+        # Wrapper pour la zone de texte (contient preview + textbox + bouton +)
+        task_wrapper = self.create_frame(
+            input_frame, fg_color=self.colors["input_bg"], corner_radius=8
+        )
+        if self.use_ctk:
+            task_wrapper.configure(border_width=2, border_color=self.colors["border"])
+        task_wrapper.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 10))
+        task_wrapper.grid_columnconfigure(0, weight=1)
+        # Row 1 (text area) prend tout l'espace restant à l'intérieur du wrapper
+        task_wrapper.grid_rowconfigure(1, weight=1)
+        task_wrapper.grid_propagate(False)
+        # Hauteur fixe du wrapper : identique à l'originale
+        if self.use_ctk:
+            task_wrapper.configure(height=160)
+        else:
+            task_wrapper.configure(height=160)
+
+        # ── Zone d'aperçu des documents attachés (agents) ──
+        self._agent_preview_frame = self.create_frame(
+            task_wrapper, fg_color=self.colors["input_bg"], corner_radius=0
+        )
+        self._agent_preview_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(6, 0))
+        self._agent_preview_frame.grid_remove()
+        self._agent_pending_files = []
+
         # Zone de texte
         if self.use_ctk:
             self.task_entry = ctk.CTkTextbox(
-                input_frame,
-                height=130,
+                task_wrapper,
+                height=100,
                 font=("Segoe UI", 12),
                 fg_color=self.colors["input_bg"],
                 text_color=self.colors["text_primary"],
-                border_width=2,
-                border_color=self.colors["border"],
-                corner_radius=8,
+                border_width=0,
+                corner_radius=0,
             )
         else:
             self.task_entry = scrolledtext.ScrolledText(
-                input_frame,
-                height=7,
+                task_wrapper,
+                height=5,
                 font=("Segoe UI", 12),
                 bg=self.colors["input_bg"],
                 fg=self.colors["text_primary"],
                 insertbackground=self.colors["text_primary"],
-                relief="solid",
-                borderwidth=2,
+                relief="flat",
+                borderwidth=0,
             )
 
-        self.task_entry.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=(0, 10))
+        self.task_entry.grid(row=1, column=0, sticky="nsew", padx=4, pady=2)
+
+        # ── Barre d'outils sous le textbox (bouton + pour fichiers) ──
+        task_toolbar = self.create_frame(
+            task_wrapper, fg_color=self.colors["input_bg"], corner_radius=0
+        )
+        task_toolbar.grid(row=2, column=0, sticky="ew", padx=4, pady=(0, 4))
+
+        _agent_file_entries = [
+            ("📄  PDF",         lambda: self._agent_load_file("PDF")),
+            ("📝  DOCX",        lambda: self._agent_load_file("DOCX")),
+            ("📊  Excel / CSV", lambda: self._agent_load_file("Excel")),
+            ("💻  Code",        lambda: self._agent_load_file("Code")),
+            ("🖼  Image",       lambda: self._agent_load_file("Image")),
+        ]
+        _agent_popup_ref = [None]
+
+        def _close_agent_popup(popup):
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+            _agent_popup_ref[0] = None
+
+        def _open_agent_file_menu():
+            if _agent_popup_ref[0] is not None:
+                _close_agent_popup(_agent_popup_ref[0])
+                return
+            bg     = self.colors.get("bg_secondary", "#1e1e1e")
+            fg     = self.colors.get("text_primary",  "#ffffff")
+            accent = self.colors.get("accent",        "#ff6b47")
+            font   = ("Segoe UI", 11)
+            popup = tk.Toplevel(self.parent.winfo_toplevel())
+            popup.overrideredirect(True)
+            popup.configure(bg=bg)
+            popup.attributes("-topmost", True)
+            _agent_popup_ref[0] = popup
+            for i, (_lbl, _cmd) in enumerate(_agent_file_entries):
+                def _make_cb(cmd, pop=popup):
+                    def _cb():
+                        _close_agent_popup(pop)
+                        cmd()
+                    return _cb
+                btn = tk.Label(
+                    popup, text=_lbl, bg=bg, fg=fg, font=font,
+                    anchor="w", padx=14, pady=7, cursor="hand2",
+                )
+                btn.grid(row=i, column=0, sticky="ew")
+                popup.grid_columnconfigure(0, weight=1)
+                cb = _make_cb(_cmd)
+                btn.bind("<Button-1>", lambda _e, c=cb: c())
+                btn.bind("<Enter>", lambda _e, b=btn: b.configure(bg=accent, fg="#ffffff"))
+                btn.bind("<Leave>", lambda _e, b=btn: b.configure(bg=bg, fg=fg))
+            popup.update_idletasks()
+            ph = popup.winfo_reqheight()
+            bx = self._agent_file_btn.winfo_rootx()
+            by = self._agent_file_btn.winfo_rooty() - ph
+            popup.geometry(f"+{bx}+{by}")
+            def _on_focus_out(_e):
+                self.parent.winfo_toplevel().after(50, lambda: _close_agent_popup(popup) if _agent_popup_ref[0] is popup else None)
+            popup.bind("<FocusOut>", _on_focus_out)
+            popup.bind("<Escape>", lambda _e: _close_agent_popup(popup))
+            self.parent.winfo_toplevel().bind("<Button-1>",
+                           lambda _e: _close_agent_popup(popup) if _agent_popup_ref[0] is popup else None,
+                           add="+")
+            popup.focus_set()
+
+        if self.use_ctk:
+            self._agent_file_btn = ctk.CTkButton(
+                task_toolbar, text="＋", command=_open_agent_file_menu,
+                fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
+                hover_color=self.colors.get("button_hover", "#3a3a3a"),
+                text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 16), corner_radius=6, width=36, height=28,
+            )
+        else:
+            self._agent_file_btn = tk.Button(
+                task_toolbar, text="＋", command=_open_agent_file_menu,
+                bg=self.colors.get("bg_secondary", "#2a2a2a"),
+                fg=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 16), relief="flat", bd=0, padx=6,
+            )
+        self._agent_file_btn.pack(side="left", padx=(2, 0))
 
         # Placeholder
         self._set_placeholder(
@@ -850,14 +1128,52 @@ class AgentsInterface:
             )
         canvas_outer.pack(fill="both", expand=True, pady=(10, 0))
 
+        # ── Barre de titre + boutons workflow ──
+        canvas_header = self.create_frame(
+            canvas_outer, fg_color=self.colors["bg_secondary"]
+        )
+        canvas_header.pack(fill="x", padx=12, pady=(8, 0))
+
         canvas_title = self.create_label(
-            canvas_outer,
+            canvas_header,
             text="🔗 Workflow Visuel — glissez des agents, connectez les ports",
             font=("Segoe UI", 10),
             text_color=self.colors["text_secondary"],
             fg_color=self.colors["bg_secondary"],
         )
-        canvas_title.pack(anchor="w", padx=12, pady=(8, 0))
+        canvas_title.pack(side="left")
+
+        # Boutons Save / Load / Export
+        wf_btn_style = {
+            "font": ("Segoe UI", 10),
+            "corner_radius": 4,
+            "width": 70,
+            "height": 24,
+        } if self.use_ctk else {}
+
+        def _make_wf_btn(parent, text, cmd):
+            if self.use_ctk:
+                return ctk.CTkButton(
+                    parent, text=text, command=cmd,
+                    fg_color=self.colors.get("bg_primary", "#1a1a1a"),
+                    hover_color=self.colors.get("button_hover", "#3a3a3a"),
+                    text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                    **wf_btn_style,
+                )
+            else:
+                return tk.Button(
+                    parent, text=text, command=cmd,
+                    bg=self.colors.get("bg_primary", "#1a1a1a"),
+                    fg=self.colors.get("text_secondary", "#aaaaaa"),
+                    font=("Segoe UI", 10), relief="flat", bd=0,
+                )
+
+        export_btn = _make_wf_btn(canvas_header, "📤 Export", self._export_workflow)
+        export_btn.pack(side="right", padx=(4, 0))
+        load_btn = _make_wf_btn(canvas_header, "📂 Load", self._load_workflow)
+        load_btn.pack(side="right", padx=(4, 0))
+        save_btn = _make_wf_btn(canvas_header, "💾 Save", self._save_workflow)
+        save_btn.pack(side="right", padx=(4, 0))
 
         self.workflow_canvas = WorkflowCanvas(
             canvas_outer,
@@ -1096,6 +1412,27 @@ class AgentsInterface:
             )
             return
 
+        # Inclure le contenu des fichiers attachés dans le prompt
+        attached = self._agent_get_pending_files()
+        if attached:
+            file_sections = []
+            for fpath, ftype in attached:
+                try:
+                    content = self._read_attached_file(fpath, ftype)
+                    if content:
+                        fname = os.path.basename(fpath)
+                        file_sections.append(
+                            f"--- Fichier joint : {fname} ({ftype}) ---\n{content}"
+                        )
+                except Exception as exc:
+                    file_sections.append(
+                        f"--- Fichier joint : {os.path.basename(fpath)} ---\n"
+                        f"[Erreur de lecture : {exc}]"
+                    )
+            if file_sections:
+                task = task + "\n\n" + "\n\n".join(file_sections)
+            self._agent_clear_previews()
+
         self.is_interrupted = False
         self._set_execute_button_stop()
 
@@ -1117,7 +1454,7 @@ class AgentsInterface:
                 self._update_status("⏳ Traitement en cours...", "#f59e0b")
                 threading.Thread(
                     target=self._execute_task_thread,
-                    args=(agent_type, task, nd["name"], nd.get("color")),
+                    args=(agent_type, task, nd["name"], nd.get("color"), nid),
                     daemon=True,
                 ).start()
             else:
@@ -1148,11 +1485,15 @@ class AgentsInterface:
                 daemon=True,
             ).start()
 
-    def _execute_task_thread(self, agent_type, task, explicit_name=None, explicit_color=None):
+    def _execute_task_thread(self, agent_type, task, explicit_name=None, explicit_color=None, canvas_node_id=None):
         """Exécute la tâche dans un thread séparé avec streaming"""
         try:
             # Préparer la zone de sortie
             self._clear_output_sections_sync()
+
+            # Mettre à jour le statut du nœud canvas si applicable
+            if canvas_node_id is not None:
+                self._set_canvas_node_status(canvas_node_id, "running")
 
             # Trouver le nom et la couleur de l'agent
             agent_colors = {
@@ -1197,14 +1538,20 @@ class AgentsInterface:
             if self.is_interrupted:
                 self._finish_section(section, success=False)
                 self._update_status("⛔ Génération interrompue", "#ef4444")
+                if canvas_node_id is not None:
+                    self._set_canvas_node_status(canvas_node_id, "error")
             elif result.get("success"):
                 self._finish_section(section, success=True)
                 self._update_status(
                     f"✅ Tâche terminée avec {result['agent']}", "#10b981"
                 )
+                if canvas_node_id is not None:
+                    self._set_canvas_node_status(canvas_node_id, "done")
             else:
                 self._finish_section(section, success=False)
                 self._update_status("❌ Erreur lors de l'exécution", "#ef4444")
+                if canvas_node_id is not None:
+                    self._set_canvas_node_status(canvas_node_id, "error")
 
             self._active_section = None
             self._update_stats()
@@ -1222,6 +1569,8 @@ class AgentsInterface:
             self._finish_section(self._active_section, success=False)
             self._active_section = None
             self._update_status("❌ Erreur critique", "#ef4444")
+            if canvas_node_id is not None:
+                self._set_canvas_node_status(canvas_node_id, "error")
         finally:
             self.is_processing = False
             self.is_interrupted = False

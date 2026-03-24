@@ -1,8 +1,8 @@
-# 🚀 Documentation Mémoire Vectorielle Étendue - v6.9.0 (12 Mars 2026)
+# 🚀 Documentation Mémoire Vectorielle Étendue
 
 ## 💾 Vue d'Ensemble : Mémoire Interne de 1M Tokens
 
-Le système Ultra de My Personal AI v6.9.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
+Le système Ultra de My Personal AI v7.0.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
 
 > ⚠️ **À ne pas confondre**
 > - **Mémoire interne (1M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
@@ -129,7 +129,7 @@ Toute la configuration du projet et de la limite des tokens se gère via votre f
 ```yaml
 ai:
   name: "My Personal AI"
-  version: "6.9.0"
+  version: "7.0.0"
   
   # Paramètres généraux
   max_tokens: 1048576

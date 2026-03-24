@@ -35,7 +35,7 @@ class AdvancedCodeGenMixin:
 
             print(f"🚀 Génération de code SMART: {language}, complexité: {complexity}")
 
-            # 2. 🆕 Utiliser SmartCodeSearcher (nouveau système intelligent)
+            # 2. Utiliser SmartCodeSearcher (nouveau système intelligent)
             try:
                 print("🔍 Recherche avec SmartCodeSearcher...")
                 smart_snippets = await smart_code_searcher.search_code(

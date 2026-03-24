@@ -112,8 +112,14 @@ class FileHandlingMixin:
             self.show_notification(f"❌ **Format non supporté** : {ext}", "error")
             return
 
-        # Traiter le fichier
+        # Traiter le fichier (process_file et load_image_file gèrent l'aperçu)
         if file_type == "Image":
+            self.logger.info("🖼️ [DND] Image déposée: %s", filename)
+            if hasattr(self, "add_file_preview"):
+                self.add_file_preview(file_path, "Image")
+            else:
+                self._dismiss_home_screen()
+                self.add_message_bubble(f"🖼️ **Image chargée** : {filename}", is_user=True)
             self._process_image_file(file_path)
         else:
             self.process_file(file_path, file_type)
@@ -250,18 +256,22 @@ class FileHandlingMixin:
             self.process_file(file_path, "Code")
 
     def process_file(self, file_path, file_type):
-        """Traite un fichier"""
+        """Traite un fichier : ajoute un aperçu dans la zone de saisie et prépare le contexte"""
         try:
             filename = os.path.basename(file_path)
 
-            # Quitter l'écran d'accueil si actif (cas où le 1er message est un fichier)
-            self._dismiss_home_screen()
+            self.logger.info("📎 [FILE] Fichier sélectionné: %s (type: %s)", filename, file_type)
 
-            # Animation de traitement
-            self.is_thinking = True
-            self.add_message_bubble(f"📎 Fichier chargé : **{filename}**", is_user=True)
+            # Ajouter l'aperçu dans la zone de saisie (style ChatGPT/Claude)
+            if hasattr(self, "add_file_preview"):
+                self.add_file_preview(file_path, file_type)
+            else:
+                # Fallback : ancien comportement si la méthode n'existe pas
+                self._dismiss_home_screen()
+                self.is_thinking = True
+                self.add_message_bubble(f"📎 Fichier chargé : **{filename}**", is_user=True)
 
-            # Traitement en arrière-plan
+            # Traitement en arrière-plan (extraction du contenu, ajout au contexte)
             threading.Thread(
                 target=self.process_file_background,
                 args=(file_path, file_type, filename),
@@ -366,31 +376,30 @@ class FileHandlingMixin:
             # Arrêter l'animation
             self.is_thinking = False
 
-            # Confirmer le traitement avec informations système 1M tokens
-            preview = content[:200] + "..." if len(content) > 200 else content
-
+            # Log de confirmation (debug conservé)
             if chunks_created > 0:
-                # Message avec informations CustomAI
                 stats = self.custom_ai.get_context_stats()
-                success_msg = f"""✅ **{filename}** traité avec succès !
-
-🚀 **Ajouté au CustomAI {'Ultra' if self.custom_ai.ultra_mode else 'Classique'}:**
-• {chunks_created} chunks créés
-• Contexte total: {stats.get('context_size', 0):,} / {stats.get('max_context_length', 1000000):,} tokens
-• Utilisation: {stats.get('utilization_percent', 0):.1f}%
-
-Vous pouvez maintenant me poser des questions sur ce document."""
+                self.logger.info(
+                    "✅ %s traité: %d chunks, contexte %s/%s tokens (%.1f%%)",
+                    filename, chunks_created,
+                    stats.get('context_size', 0),
+                    stats.get('max_context_length', 1000000),
+                    stats.get('utilization_percent', 0),
+                )
             else:
-                # Message standard
-                success_msg = f"✅ **{filename}** traité avec succès !\n\n**Aperçu du contenu:**\n{preview}\n\nVous pouvez maintenant me poser des questions dessus."
+                self.logger.info("✅ %s traité: %d caractères", filename, len(content))
 
-            self.root.after(0, lambda: self.add_ai_response(success_msg))
+            # Notification discrète (pas de bulle de message)
+            self.root.after(
+                0,
+                lambda: self.show_notification(f"✅ {filename} prêt", "success", 1500),
+            )
 
         except Exception as e:
             self.logger.error("Erreur lors du traitement de %s: %s", filename, str(e))
             self.is_thinking = False
-            error_msg = f"❌ Erreur lors du traitement de **{filename}** : {str(e)}"
-            self.root.after(0, lambda: self.add_ai_response(error_msg))
+            error_msg = f"❌ Erreur : {filename}"
+            self.root.after(0, lambda: self.show_notification(error_msg, "error", 3000))
 
     # ================================================================
     # 🖼️ GESTION DES IMAGES
@@ -411,11 +420,15 @@ Vous pouvez maintenant me poser des questions sur ce document."""
             ],
         )
         if file_path:
-            # Quitter l'écran d'accueil si actif (cas où le 1er message est un fichier)
-            self._dismiss_home_screen()
-            self.add_message_bubble(
-                f"🖼️ **Image chargée** : {os.path.basename(file_path)}", is_user=True
-            )
+            self.logger.info("🖼️ [IMAGE] Image sélectionnée: %s", os.path.basename(file_path))
+            # Ajouter l'aperçu dans la zone de saisie
+            if hasattr(self, "add_file_preview"):
+                self.add_file_preview(file_path, "Image")
+            else:
+                self._dismiss_home_screen()
+                self.add_message_bubble(
+                    f"🖼️ **Image chargée** : {os.path.basename(file_path)}", is_user=True
+                )
             self._process_image_file(file_path)
 
     def _process_image_file(self, file_path):
@@ -493,13 +506,11 @@ Vous pouvez maintenant me poser des questions sur ce document."""
             )
 
     def _show_image_ready(self, filename, img):
-        """Affiche un message de confirmation que l'image est prête"""
-        success_msg = (
-            f"✅ **{filename}** chargée avec succès !\n\n"
-            f"📐 Dimensions : {img.width} x {img.height} px\n\n"
-            f"Posez votre question sur cette image (ex: *\"Décris cette image\"*, *\"Que vois-tu ?\"*)."
+        """Affiche une notification discrète que l'image est prête"""
+        self.logger.info(
+            "✅ [IMAGE] %s prête (%dx%d px)", filename, img.width, img.height
         )
-        self.add_ai_response(success_msg)
+        self.show_notification(f"✅ {filename} prête ({img.width}x{img.height})", "success", 1500)
 
     def _on_paste(self, _event=None):
         """Gère le collage depuis le presse-papier (texte ou image)"""
@@ -519,13 +530,14 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                 temp_path = os.path.join(temp_dir, "clipboard_image.png")
                 img.save(temp_path, format="PNG")
 
-                # Quitter l'écran d'accueil si actif (cas où le 1er message est un fichier)
-                self._dismiss_home_screen()
+                # Ajouter l'aperçu dans la zone de saisie
+                if hasattr(self, "add_file_preview"):
+                    self.add_file_preview(temp_path, "Image")
+                else:
+                    self._dismiss_home_screen()
+                    self.add_message_bubble("🖼 **Image collée** depuis le presse-papier", is_user=True)
 
-                # Ajouter message utilisateur
-                self.add_message_bubble("🖼 **Image collée** depuis le presse-papier", is_user=True)
-
-                # Traiter l'image
+                # Traiter l'image (encode en base64 pour Ollama)
                 self._process_image_file(temp_path)
 
                 # Empêcher le comportement par défaut
@@ -537,11 +549,13 @@ Vous pouvez maintenant me poser des questions sur ce document."""
                     if isinstance(item, str) and os.path.isfile(item):
                         ext = os.path.splitext(item)[1].lower()
                         if ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
-                            # Quitter l'écran d'accueil si actif
-                            self._dismiss_home_screen()
-                            self.add_message_bubble(
-                                f"🖼 **Image collée** : {os.path.basename(item)}", is_user=True
-                            )
+                            if hasattr(self, "add_file_preview"):
+                                self.add_file_preview(item, "Image")
+                            else:
+                                self._dismiss_home_screen()
+                                self.add_message_bubble(
+                                    f"🖼 **Image collée** : {os.path.basename(item)}", is_user=True
+                                )
                             self._process_image_file(item)
                             return "break"
 

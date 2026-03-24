@@ -1,6 +1,6 @@
 # 🚀 Guide d'Utilisation - Fonctionnalités Avancées
 
-Ce guide explique comment utiliser les 5 fonctionnalités majeures :
+Ce guide explique comment utiliser les fonctionnalités avancées :
 
 ## 📚 Table des Matières
 
@@ -9,6 +9,7 @@ Ce guide explique comment utiliser les 5 fonctionnalités majeures :
 3. [Compression Monitor](#-compression-monitor)
 4. [Intégration MCP (Model Context Protocol)](#-intégration-mcp)
 5. [ChatOrchestrator — Boucle Agentique Avancée](#-chatorchestrator--boucle-agentique-avancée-v670)
+6. [Modules v7.0.0](#-modules-v700)
 
 ---
 
@@ -691,11 +692,189 @@ print(pad.to_context_block())  # Injecté dans le system prompt
 
 ---
 
+## 🆕 Modules v7.0.0
+
+La version 7.0.0 introduit 7 nouveaux modules avancés, tous optionnels et avec dégradation gracieuse si les dépendances sont manquantes.
+
+### 🌐 API REST Locale (`core/api_server.py`)
+
+Serveur HTTP intégré pour piloter My_AI depuis des outils externes :
+
+```python
+# Démarrage automatique si api.enabled = true dans config.yaml
+# Le serveur tourne en thread daemon et n'interfère pas avec la GUI
+
+# Endpoints disponibles :
+# GET  /api/health        → État du serveur
+# POST /api/chat          → Envoyer un message
+# GET  /api/models        → Lister les modèles Ollama
+# POST /api/models/switch → Changer de modèle
+# GET  /api/conversations → Historique complet
+# DELETE /api/conversations → Effacer l'historique
+# GET  /api/stats         → Statistiques système
+```
+
+**Cas d'usage :** intégration avec des scripts Python, des notebooks Jupyter, ou des outils d'automatisation.
+
+### 📜 Historique des Commandes (`core/command_history.py`)
+
+Enregistrement persistant de toutes les requêtes utilisateur :
+
+```python
+# Ajouter une entrée (fait automatiquement par AIEngine)
+history.add(query="Explique les closures en Python",
+            response_preview="Les closures sont...",
+            agent_type="code")
+
+# Rechercher dans l'historique
+results = history.search("closures", limit=5)
+
+# Favoris
+history.toggle_favorite(entry_id=42)
+favorites = history.get_favorites()
+
+# Statistiques
+stats = history.get_stats()
+# → {"total": 1234, "favorites": 15, "by_agent": {"code": 456, ...}}
+
+# Nettoyage (conserve les favoris)
+history.clear_old(days=30)
+```
+
+### 📤 Export de Conversations (`core/conversation_exporter.py`)
+
+Export en 3 formats avec métadonnées :
+
+```python
+from core.conversation_exporter import ConversationExporter
+
+exporter = ConversationExporter(output_dir="outputs/exports")
+
+# Markdown (avec header métadonnées)
+exporter.export_markdown(messages, metadata={"model": "qwen3.5:4b"})
+
+# HTML (thème sombre CSS embarqué, style Claude)
+exporter.export_html(messages, filename="rapport_analyse")
+
+# PDF (via ReportLab, styles par rôle)
+exporter.export_pdf(messages, metadata={"session": "debug_api"})
+```
+
+### 🧠 Base de Connaissances (`core/knowledge_base_manager.py`)
+
+Stockage structuré de faits avec extraction automatique :
+
+```python
+from core.knowledge_base_manager import KnowledgeBaseManager
+
+kb = KnowledgeBaseManager(db_path="data/knowledge_base/facts.db")
+
+# Ajout manuel
+kb.add_fact(category="technical", key="serveur prod", value="api.example.com:443")
+
+# Extraction automatique depuis du texte
+facts = kb.extract_facts_from_text("Je préfère VS Code pour le Python")
+# → [{"category": "preference", "key": "préférence: VS Code pour le Python", ...}]
+
+# Recherche
+results = kb.search_facts("Python", category="preference")
+
+# Contexte pour le prompt IA
+context = kb.get_context_for_prompt("Quel éditeur utiliser ?")
+# → "[Base de connaissances]\n- [preference] préférence: VS Code pour le Python (confiance: 70%)"
+```
+
+### 🌍 Détection de Langue (`core/language_detector.py`)
+
+Détection automatique et génération de suffixes prompt :
+
+```python
+from core.language_detector import LanguageDetector
+
+detector = LanguageDetector(default_language="fr")
+
+# Détecter la langue
+lang = detector.detect("What is the capital of France?")  # → "en"
+
+# Nom de la langue dans sa propre langue
+name = detector.get_language_name("en")  # → "English"
+
+# Suffix pour le system prompt
+suffix = detector.get_system_prompt_suffix("en")
+# → "Respond in English."
+```
+
+### 💼 Workspaces (`core/session_manager.py`)
+
+Gestion de sessions isolées :
+
+```python
+from core.session_manager import SessionManager
+
+sm = SessionManager(workspaces_dir="data/workspaces")
+
+# Créer un workspace
+ws_id = sm.create_workspace("Projet API", description="Refactoring de l'API REST")
+
+# Sauvegarder l'état
+sm.save_workspace(ws_id, {
+    "conversation_history": [...],
+    "attached_documents": [...],
+    "active_agents": ["code", "debug"],
+    "settings": {"model": "qwen3.5:9b"}
+})
+
+# Charger un workspace
+state = sm.load_workspace(ws_id)
+
+# Lister tous les workspaces
+workspaces = sm.list_workspaces()
+
+# Auto-save (appelé périodiquement)
+sm.auto_save(ws_id, current_state)
+```
+
+### 🗄️ Cache Web (`core/web_cache.py`)
+
+Cache persistant pour les recherches internet :
+
+```python
+from core.web_cache import WebCache
+
+cache = WebCache(cache_dir="data/web_cache", ttl_seconds=3600, max_entries=1000)
+
+# Vérifier le cache
+cached = cache.get("https://example.com/api/data")
+if cached is None:
+    # Faire la requête et stocker le résultat
+    result = fetch_url("https://example.com/api/data")
+    cache.put("https://example.com/api/data", result)
+
+# Statistiques
+stats = cache.stats()  # → {"hits": 42, "misses": 8, "size": 156}
+
+# Invalidation sélective
+cache.invalidate("https://example.com/api/data")
+```
+
+### Initialisation dans AIEngine
+
+Tous ces modules sont initialisés dans `AIEngine._init_v7_modules()` avec dégradation gracieuse :
+
+```python
+# Si un module n'est pas disponible (dépendance manquante),
+# un warning est loggé et le module est mis à None.
+# Le reste de l'application fonctionne normalement.
+```
+
+---
+
 ## 🚀 Prochaines Étapes
 
 1. Tester les exemples fournis
 2. Intégrer dans votre workflow
 3. Ajuster les paramètres selon vos besoins
 4. Consulter les logs pour le debugging
+5. Explorer les modules v7.0.0 (API REST, exports, base de connaissances)
 
 Pour toute question, consultez la documentation complète dans `docs/`.

@@ -45,3 +45,8 @@ data/rlhf_training_data.jsonl
 
 # Agents customisés
 data/custom_agents.json
+
+# Fichiers de cache locaux
+data/knowledge_base/
+data/web_cache/
+data/workspaces/

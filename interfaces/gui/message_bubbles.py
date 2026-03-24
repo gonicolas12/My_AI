@@ -42,61 +42,89 @@ class MessageBubblesMixin:
             feedback_frame.grid(row=1, column=0, sticky="w", padx=8, pady=(4, 6))
             feedback_frame.is_feedback_frame = True
 
-            # Créer les boutons SANS command d'abord (pour éviter les problèmes de référence)
-            if self.use_ctk:
-                thumbs_up_btn = ctk.CTkButton(
-                    feedback_frame,
-                    text="👍",
-                    width=28,
-                    height=28,
-                    fg_color="#111111",
-                    hover_color="#2d2d2d",
-                    text_color="#d4d4d4",
-                    font=("Segoe UI", 13),
-                    corner_radius=4,
-                )
-                thumbs_down_btn = ctk.CTkButton(
-                    feedback_frame,
-                    text="👎",
-                    width=28,
-                    height=28,
-                    fg_color="#111111",
-                    hover_color="#2d2d2d",
-                    text_color="#d4d4d4",
-                    font=("Segoe UI", 13),
-                    corner_radius=4,
-                )
-            else:
-                thumbs_up_btn = tk.Button(
-                    feedback_frame,
-                    text="👍",
-                    bg="#111111",
-                    fg="#d4d4d4",
-                    font=("Segoe UI", 13),
-                    relief="flat",
-                    bd=0,
-                )
-                thumbs_down_btn = tk.Button(
-                    feedback_frame,
-                    text="👎",
-                    bg="#111111",
-                    fg="#d4d4d4",
-                    font=("Segoe UI", 13),
-                    relief="flat",
-                    bd=0,
+            # ── Système d'étoiles 1-5 (remplace thumbs up/down) ──
+            star_buttons = []
+            for _ in range(5):
+                star_text = "☆"
+                if self.use_ctk:
+                    star_btn = ctk.CTkButton(
+                        feedback_frame,
+                        text=star_text,
+                        width=24,
+                        height=24,
+                        fg_color="#111111",
+                        hover_color="#2d2d2d",
+                        text_color="#888888",
+                        font=("Segoe UI", 14),
+                        corner_radius=4,
+                    )
+                else:
+                    star_btn = tk.Button(
+                        feedback_frame,
+                        text=star_text,
+                        bg="#111111",
+                        fg="#888888",
+                        font=("Segoe UI", 14),
+                        relief="flat",
+                        bd=0,
+                        cursor="hand2",
+                    )
+                star_buttons.append(star_btn)
+
+            # Assigner les commands après création de tous les boutons
+            for idx, star_btn in enumerate(star_buttons):
+                score = idx + 1
+                star_btn.configure(
+                    command=lambda s=score, btns=star_buttons: self._on_star_rating(
+                        s, btns, captured_query, captured_response
+                    )
                 )
 
-            # Maintenant assigner les commands avec les valeurs CAPTURÉES
-            thumbs_up_btn.configure(
-                command=lambda: self._on_thumbs_up(thumbs_up_btn, thumbs_down_btn, captured_query, captured_response)
-            )
-            thumbs_down_btn.configure(
-                command=lambda: self._on_thumbs_down(thumbs_up_btn, thumbs_down_btn, captured_query, captured_response)
-            )
+            # Hover interactif : remplir les étoiles au survol
+            for idx, star_btn in enumerate(star_buttons):
+                def _on_enter(_event, hover_idx=idx, btns=star_buttons):
+                    for j, b in enumerate(btns):
+                        color = "#fbbf24" if j <= hover_idx else "#888888"
+                        text = "★" if j <= hover_idx else "☆"
+                        try:
+                            if self.use_ctk:
+                                b.configure(text_color=color, text=text)
+                            else:
+                                b.configure(fg=color, text=text)
+                        except Exception:
+                            pass
 
-            # Afficher les boutons
-            thumbs_up_btn.pack(side="left", padx=(0, 2))
-            thumbs_down_btn.pack(side="left", padx=(0, 8))
+                def _on_leave(_event, btns=star_buttons):
+                    rated = getattr(feedback_frame, "rated_score", 0)
+                    for j, b in enumerate(btns):
+                        color = "#fbbf24" if j < rated else "#888888"
+                        text = "★" if j < rated else "☆"
+                        try:
+                            if self.use_ctk:
+                                b.configure(text_color=color, text=text)
+                            else:
+                                b.configure(fg=color, text=text)
+                        except Exception:
+                            pass
+
+                if self.use_ctk:
+                    # CTkButton n'a pas bind direct, utiliser le widget interne
+                    try:
+                        inner = getattr(star_btn, "_canvas", star_btn)  # noqa: SLF001
+                        inner.bind("<Enter>", _on_enter)
+                        inner.bind("<Leave>", _on_leave)
+                    except Exception:
+                        pass
+                else:
+                    star_btn.bind("<Enter>", _on_enter)
+                    star_btn.bind("<Leave>", _on_leave)
+
+            # Attribut pour tracker le score sélectionné
+            feedback_frame.rated_score = 0
+
+            # Afficher les étoiles
+            for star_btn in star_buttons:
+                star_btn.pack(side="left", padx=(0, 1))
 
             # Timestamp après les boutons
             timestamp = datetime.now().strftime("%H:%M")
@@ -110,91 +138,74 @@ class MessageBubblesMixin:
             time_label.pack(side="left")
         # Sinon, rien à faire (pas de container)
 
-    def _on_thumbs_up(self, btn_up, btn_down, query, response):
-        """Callback pour le feedback positif (👍)."""
-        print("🔔 Clic sur bouton POSITIF détecté")
+    def _on_star_rating(self, score, star_buttons, query, response):
+        """Callback pour le feedback par étoiles (1-5)."""
+        print(f"🔔 Rating: {score}/5 étoiles")
 
         try:
-            # Utiliser les valeurs CAPTURÉES au moment de la création du bouton
-            if not query:
-                print("❌ Pas de query capturée")
-                return
-            if not response:
-                print("❌ Pas de response capturée")
+            if not query or not response:
+                print("❌ Pas de query/response capturée")
                 return
 
-            print(f"📝 Query capturée: {query[:50]}...")
-            print(f"📝 Response capturée: {response[:50]}...")
+            print(f"📝 Query: {query[:50]}...")
+            print(f"📝 Response: {response[:50]}...")
+
+            # Déduire le type de feedback depuis le score
+            if score >= 4:
+                feedback_type = "positive"
+            elif score <= 2:
+                feedback_type = "negative"
+            else:
+                feedback_type = "neutral"
 
             # Enregistrer le feedback
             rlhf = get_rlhf_manager()
             rlhf.record_interaction(
                 user_query=query,
                 ai_response=response,
-                feedback_type="positive",
-                feedback_score=5,
+                feedback_type=feedback_type,
+                feedback_score=score,
                 intent="conversation",
                 confidence=1.0,
                 model_version="ollama",
             )
-            print("✅ Feedback positif enregistré dans la base")
+            print(f"✅ Feedback {feedback_type} ({score}/5) enregistré")
 
-            # Changer visuellement le bouton cliqué (reste survolé)
-            if self.use_ctk:
-                btn_up.configure(fg_color="#2d2d2d", state="disabled")  # Couleur survol + Désactiver
-                btn_down.configure(state="disabled")  # Désactiver l'autre
-            else:
-                btn_up.configure(bg="#2d2d2d", state="disabled")
-                btn_down.configure(state="disabled")
+            # Mettre à jour visuellement : remplir les étoiles et désactiver
+            parent_frame = star_buttons[0].master if star_buttons else None
+            if parent_frame:
+                parent_frame.rated_score = score
 
-            print("🎨 Bouton mis à jour visuellement")
+            for idx, btn in enumerate(star_buttons):
+                is_filled = idx < score
+                try:
+                    if self.use_ctk:
+                        btn.configure(
+                            text="★" if is_filled else "☆",
+                            text_color="#fbbf24" if is_filled else "#555555",
+                            state="disabled",
+                        )
+                    else:
+                        btn.configure(
+                            text="★" if is_filled else "☆",
+                            fg="#fbbf24" if is_filled else "#555555",
+                            state="disabled",
+                        )
+                except Exception:
+                    pass
 
         except Exception as e:
-            print(f"⚠️ Erreur enregistrement feedback positif: {e}")
+            print(f"⚠️ Erreur enregistrement feedback: {e}")
             traceback.print_exc()
+
+    # Rétro-compatibilité
+    def _on_thumbs_up(self, btn_up, btn_down, query, response):
+        """Rétro-compatibilité : redirige vers le système d'étoiles."""
+        self._on_star_rating(5, [btn_up, btn_down], query, response)
 
     def _on_thumbs_down(self, btn_up, btn_down, query, response):
-        """Callback pour le feedback négatif (👎)."""
-        print("🔔 Clic sur bouton NÉGATIF détecté")
-
-        try:
-            # Utiliser les valeurs CAPTURÉES au moment de la création du bouton
-            if not query:
-                print("❌ Pas de query capturée")
-                return
-            if not response:
-                print("❌ Pas de response capturée")
-                return
-
-            print(f"📝 Query capturée: {query[:50]}...")
-            print(f"📝 Response capturée: {response[:50]}...")
-
-            # Enregistrer le feedback
-            rlhf = get_rlhf_manager()
-            rlhf.record_interaction(
-                user_query=query,
-                ai_response=response,
-                feedback_type="negative",
-                feedback_score=1,
-                intent="conversation",
-                confidence=1.0,
-                model_version="ollama",
-            )
-            print("✅ Feedback négatif enregistré dans la base")
-
-            # Changer visuellement le bouton cliqué
-            if self.use_ctk:
-                btn_down.configure(fg_color="#2d2d2d", state="disabled")  # Couleur survol + Désactiver
-                btn_up.configure(state="disabled")  # Désactiver l'autre
-            else:
-                btn_down.configure(bg="#2d2d2d", state="disabled")
-                btn_up.configure(state="disabled")
-
-            print("🎨 Bouton mis à jour visuellement")
-
-        except Exception as e:
-            print(f"⚠️ Erreur enregistrement feedback négatif: {e}")
-            traceback.print_exc()
+        """Rétro-compatibilité : redirige vers le système d'étoiles."""
+        self._on_star_rating(1, [btn_up, btn_down], query, response)
 
     def add_message_bubble(self, text, is_user=True, message_type="text"):
         """Version FINALE avec animation de frappe pour les messages IA"""

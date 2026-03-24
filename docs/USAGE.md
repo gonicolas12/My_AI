@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v6.9.0
+# 📚 Guide d'Utilisation - My Personal AI v7.0.0
 
 ## 🚀 Démarrage Rapide
 
@@ -237,7 +237,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v6.9.0:
+État My Personal AI v7.0.0:
 - Modèle: CustomAI avec 1M tokens
 - Mémoire: 1,234,567 tokens utilisés / 1,048,576 max
 - Documents: 3 fichiers en mémoire
@@ -806,11 +806,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v6.9.0
+  MY PERSONAL AI - System Status v7.0.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 6.9.0
+📊 Version: 7.0.0
 💾 Context Manager: MillionTokenContextManager
 
 📈 Context Statistics:
@@ -844,7 +844,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v6.9.0
+My Personal AI v7.0.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1107,7 +1107,124 @@ context_manager:
 
 ---
 
-**Version:** 6.9.0
-**Interfaces:** GUI (CustomTkinter), CLI
+## 🆕 Fonctionnalités v7.0.0
+
+### 🌐 API REST Locale
+
+My_AI expose une API HTTP sur `localhost:8000` pour piloter l'IA depuis n'importe quel outil.
+
+```bash
+# Activer l'API dans config.yaml
+api:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8000
+```
+
+**Exemples d'utilisation :**
+```bash
+# Vérifier l'état du serveur
+curl http://localhost:8000/api/health
+
+# Envoyer un message
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Bonjour, quelle heure est-il ?"}'
+
+# Lister les modèles disponibles
+curl http://localhost:8000/api/models
+
+# Changer de modèle
+curl -X POST http://localhost:8000/api/models/switch \
+  -H "Content-Type: application/json" \
+  -d '{"model_name": "qwen3.5:9b"}'
+
+# Récupérer l'historique
+curl http://localhost:8000/api/conversations
+
+# Voir les statistiques
+curl http://localhost:8000/api/stats
+```
+
+### 📤 Export de Conversations
+
+Exportez vos conversations en 3 formats :
+
+```python
+# Markdown
+exporter.export(messages, output_format="markdown", filename="ma_conversation")
+
+# HTML (thème sombre embarqué)
+exporter.export(messages, output_format="html", filename="rapport")
+
+# PDF (via ReportLab)
+exporter.export(messages, output_format="pdf", filename="archive")
+```
+
+Les fichiers sont sauvegardés dans `outputs/exports/` avec horodatage automatique.
+
+### 🧠 Base de Connaissances Structurée
+
+L'IA extrait automatiquement des faits depuis vos conversations :
+
+```
+Vous : "Je préfère Python pour les scripts d'automatisation"
+→ Fait extrait : [preference] préférence: Python pour les scripts d'automatisation (confiance: 70%)
+
+Vous : "Mon manager s'appelle Thomas Dupont"
+→ Fait extrait : [person] personne: Thomas Dupont (confiance: 70%)
+
+Vous : "On a décidé de migrer vers PostgreSQL"
+→ Fait extrait : [decision] décision: migrer vers PostgreSQL (confiance: 70%)
+```
+
+Les faits pertinents sont automatiquement injectés dans le contexte des futures conversations.
+
+### 💼 Workspaces / Sessions
+
+Organisez vos conversations en espaces de travail isolés :
+
+- **Créer** un workspace : chaque workspace a son historique, documents et agents
+- **Sauvegarder** automatiquement toutes les 5 minutes (configurable)
+- **Charger** un workspace précédent pour reprendre le travail
+- **Supprimer** les workspaces obsolètes
+
+Les workspaces sont sauvegardés dans `data/workspaces/`.
+
+### 📜 Historique des Commandes
+
+Toutes vos requêtes sont enregistrées avec :
+- **Recherche plein texte** dans les requêtes et réponses
+- **Système de favoris** pour marquer les requêtes importantes
+- **Statistiques** : total, répartition par agent, plage de dates
+- **Nettoyage automatique** des anciennes entrées (les favoris sont préservés)
+
+### 🌍 Détection Automatique de Langue
+
+L'IA détecte automatiquement la langue de votre message et répond dans la même langue :
+- 12 langues supportées : français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe
+- Cache LRU pour cohérence dans une conversation
+
+### 📎 Pièces Jointes aux Agents
+
+Dans l'onglet Agents, vous pouvez attacher des fichiers à vos tâches :
+1. Cliquez sur le bouton **"+"** à côté de la zone de saisie
+2. Sélectionnez un ou plusieurs fichiers (PDF, DOCX, TXT, code, CSV...)
+3. Les fichiers apparaissent en preview dans la zone de saisie
+4. Le contenu des fichiers est automatiquement injecté dans le prompt de l'agent
+5. En workflow multi-agents, **tous les agents** reçoivent les fichiers joints
+
+### ⚠️ Confirmation de Suppression MCP
+
+Quand l'IA utilise l'outil MCP `delete_local_file` pour supprimer un fichier :
+- Une **fenêtre de confirmation** s'affiche avec le chemin complet du fichier
+- Boutons **"Oui, supprimer"** et **"Non, annuler"** avec thème cohérent
+- La suppression est **bloquée** tant que l'utilisateur n'a pas confirmé
+
+---
+
+**Version:** 7.0.0
+**Interfaces:** GUI (CustomTkinter), CLI, API REST
 **Capacité Contexte:** 1,048,576 tokens (1M)
 **Architecture:** 100% Locale
+**Modules v7.0.0:** API Server, Command History, Conversation Exporter, Knowledge Base, Language Detector, Session Manager, Web Cache

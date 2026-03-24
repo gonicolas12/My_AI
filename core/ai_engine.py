@@ -42,6 +42,43 @@ from .conversation import ConversationManager
 from .mcp_client import MCPManager
 from .validation import validate_input
 
+# ── Modules v7.0.0 ──
+try:
+    from .language_detector import LanguageDetector
+    _LANG_DETECT_AVAILABLE = True
+except ImportError:
+    _LANG_DETECT_AVAILABLE = False
+
+try:
+    from .web_cache import WebCache
+    _WEB_CACHE_AVAILABLE = True
+except ImportError:
+    _WEB_CACHE_AVAILABLE = False
+
+try:
+    from .conversation_exporter import ConversationExporter
+    _EXPORTER_AVAILABLE = True
+except ImportError:
+    _EXPORTER_AVAILABLE = False
+
+try:
+    from .knowledge_base_manager import KnowledgeBaseManager
+    _KB_AVAILABLE = True
+except ImportError:
+    _KB_AVAILABLE = False
+
+try:
+    from .command_history import CommandHistory
+    _CMD_HISTORY_AVAILABLE = True
+except ImportError:
+    _CMD_HISTORY_AVAILABLE = False
+
+try:
+    from .session_manager import SessionManager
+    _SESSION_AVAILABLE = True
+except ImportError:
+    _SESSION_AVAILABLE = False
+
 
 class AIEngine:
     """
@@ -138,6 +175,9 @@ class AIEngine:
         self._chat_orchestrator = ChatOrchestrator()
         self.logger.info("✅ ChatOrchestrator initialisé (ReAct + scratchpad + détection de boucle)")
 
+        # ── Modules v7.0.0 ──
+        self._init_v7_modules()
+
     # ------------------------------------------------------------------
     # Chargement du Modelfile
     # ------------------------------------------------------------------
@@ -153,6 +193,88 @@ class AIEngine:
         except Exception as exc:
             self.logger.warning("Impossible de lire le Modelfile : %s", exc)
         return ""
+
+    def _init_v7_modules(self):
+        """Initialise les modules ajoutés en v7.0.0 (chacun optionnel)."""
+        full_config = get_config()
+
+        # Détection de langue
+        self.language_detector = None
+        if _LANG_DETECT_AVAILABLE:
+            try:
+                lang_cfg = full_config.get_section("language") or {}
+                self.language_detector = LanguageDetector(
+                    default_language=lang_cfg.get("default", "fr"),
+                )
+                self.logger.info("✅ LanguageDetector initialisé")
+            except Exception as e:
+                self.logger.warning("⚠️ LanguageDetector indisponible: %s", e)
+
+        # Cache web
+        self.web_cache = None
+        if _WEB_CACHE_AVAILABLE:
+            try:
+                wc_cfg = full_config.get_section("web_cache") or {}
+                self.web_cache = WebCache(
+                    cache_dir=wc_cfg.get("directory", "data/web_cache"),
+                    ttl_seconds=wc_cfg.get("ttl_seconds", 3600),
+                    max_entries=wc_cfg.get("max_entries", 1000),
+                )
+                self.logger.info("✅ WebCache initialisé")
+            except Exception as e:
+                self.logger.warning("⚠️ WebCache indisponible: %s", e)
+
+        # Exporteur de conversations
+        self.conversation_exporter = None
+        if _EXPORTER_AVAILABLE:
+            try:
+                exp_cfg = full_config.get_section("export") or {}
+                self.conversation_exporter = ConversationExporter(
+                    output_dir=exp_cfg.get("output_directory", "outputs/exports"),
+                )
+                self.logger.info("✅ ConversationExporter initialisé")
+            except Exception as e:
+                self.logger.warning("⚠️ ConversationExporter indisponible: %s", e)
+
+        # Base de connaissances structurée
+        self.knowledge_base = None
+        if _KB_AVAILABLE:
+            try:
+                kb_cfg = full_config.get_section("knowledge_base") or {}
+                self.knowledge_base = KnowledgeBaseManager(
+                    db_path=os.path.join(
+                        kb_cfg.get("directory", "data/knowledge_base"),
+                        "facts.db",
+                    ),
+                )
+                self.logger.info("✅ KnowledgeBaseManager initialisé")
+            except Exception as e:
+                self.logger.warning("⚠️ KnowledgeBaseManager indisponible: %s", e)
+
+        # Historique des commandes
+        self.command_history = None
+        if _CMD_HISTORY_AVAILABLE:
+            try:
+                ch_cfg = full_config.get_section("command_history") or {}
+                self.command_history = CommandHistory(
+                    db_path=ch_cfg.get("db_path", "data/command_history.db"),
+                    max_entries=ch_cfg.get("max_entries", 5000),
+                )
+                self.logger.info("✅ CommandHistory initialisé")
+            except Exception as e:
+                self.logger.warning("⚠️ CommandHistory indisponible: %s", e)
+
+        # Gestionnaire de sessions / workspaces
+        self.session_manager = None
+        if _SESSION_AVAILABLE:
+            try:
+                ws_cfg = full_config.get_section("workspaces") or {}
+                self.session_manager = SessionManager(
+                    workspaces_dir=ws_cfg.get("directory", "data/workspaces"),
+                )
+                self.logger.info("✅ SessionManager initialisé")
+            except Exception as e:
+                self.logger.warning("⚠️ SessionManager indisponible: %s", e)
 
     def _setup_mcp_tools(self):
         """
@@ -1615,6 +1737,7 @@ Que voulez-vous que je fasse pour vous ?"""
         image_base64: Optional[str] = None,
         context: Optional[Dict] = None,
         is_interrupted_callback=None,
+        on_delete_confirm=None,
     ) -> str:
         """
         Point d'entrée synchrone et streamé pour la GUI.
@@ -1826,6 +1949,14 @@ Que voulez-vous que je fasse pour vous ?"""
                     # Optimiser la requête avant tout affichage ou exécution
                     optimized_q = self._optimize_search_query(user_input, llm)
                     arguments = {**arguments, "query": optimized_q}
+                # Confirmation utilisateur pour la suppression de fichier
+                if tool_name == "delete_local_file" and on_delete_confirm:
+                    file_path = arguments.get("path", "")
+                    if not on_delete_confirm(file_path):
+                        return (
+                            "[Suppression annulée par l'utilisateur] "
+                            f"L'utilisateur a refusé la suppression de : {file_path}"
+                        )
                 # Callback visuel GUI avec les arguments FINAUX (après optimisation)
                 if on_tool_call:
                     on_tool_call(tool_name, arguments)
@@ -2269,7 +2400,7 @@ Que voulez-vous que je fasse pour vous ?"""
             query_lower = query.lower()
             language = self._detect_code_language(query)
 
-            # 🆕 PRIORITÉ 0: Détection "génère moi un fichier..." -> Utiliser CodeGenerator avec Ollama
+            # PRIORITÉ 0: Détection "génère moi un fichier..." -> Utiliser CodeGenerator avec Ollama
             file_keywords = [
                 "génère moi un fichier",
                 "crée moi un fichier",

@@ -1,6 +1,8 @@
 """Layout mixin for ModernAIGUI."""
 
+import os
 import tkinter as tk
+import threading
 from tkinter import ttk
 
 try:
@@ -353,6 +355,39 @@ class LayoutMixin:
         buttons_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
         buttons_frame.grid(row=0, column=2, sticky="e", padx=(10, 0), pady=35)
 
+        # ── Sélecteur de modèle (hot-reload) ──
+        self._model_selector_var = tk.StringVar(value="")
+        if self.use_ctk:
+            self.model_selector = ctk.CTkOptionMenu(
+                buttons_frame,
+                variable=self._model_selector_var,
+                values=["Chargement..."],
+                command=self._on_model_selected,
+                fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
+                button_color=self.colors.get("accent", "#ff6b47"),
+                button_hover_color=self.colors.get("button_hover", "#3a3a3a"),
+                text_color=self.colors.get("text_primary", "#ffffff"),
+                dropdown_fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
+                dropdown_text_color=self.colors.get("text_primary", "#ffffff"),
+                dropdown_hover_color=self.colors.get("accent", "#ff6b47"),
+                font=("Segoe UI", 11),
+                width=160,
+                height=32,
+                corner_radius=6,
+            )
+        else:
+            self.model_selector = tk.OptionMenu(
+                buttons_frame, self._model_selector_var, "Chargement...",
+            )
+            self.model_selector.configure(
+                bg=self.colors.get("bg_secondary", "#2a2a2a"),
+                fg=self.colors.get("text_primary", "#ffffff"),
+                font=("Segoe UI", 11), relief="flat",
+            )
+        self.model_selector.grid(row=0, column=0, padx=(0, 10))
+        # Charger les modèles en arrière-plan
+        self.root.after(500, self._populate_model_selector)
+
         # Bouton Clear Chat
         self.clear_btn = self.create_modern_button(
             buttons_frame,
@@ -360,13 +395,13 @@ class LayoutMixin:
             command=self.clear_chat,
             style="secondary",
         )
-        self.clear_btn.grid(row=0, column=0, padx=(0, 10))
+        self.clear_btn.grid(row=0, column=1, padx=(0, 10))
 
         # Bonton Help
         self.help_btn = self.create_modern_button(
             buttons_frame, text="❓ Aide", command=self.show_help, style="secondary"
         )
-        self.help_btn.grid(row=0, column=1, padx=(0, 10))
+        self.help_btn.grid(row=0, column=2, padx=(0, 10))
 
         # Indicateur de statut - taille réduite
         self.status_label = self.create_label(
@@ -406,6 +441,15 @@ class LayoutMixin:
         content_frame.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
         content_frame.grid_columnconfigure(0, weight=1)
 
+        # ── Zone d'aperçu des documents attachés (initialement masquée) ────
+        self._preview_frame = self.create_frame(
+            content_frame, fg_color=self.colors["input_bg"], corner_radius=0
+        )
+        # row=0 réservé pour les aperçus — masqué tant qu'aucun fichier n'est attaché
+        self._preview_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(6, 0))
+        self._preview_frame.grid_remove()  # Masquer par défaut
+        self._pending_files = []  # Liste des fichiers en attente [(path, type, widget), ...]
+
         # Champ de saisie — dans content_frame, padx=3 laisse les coins arrondis visibles
         if self.use_ctk:
             self.input_text = ctk.CTkTextbox(
@@ -435,13 +479,13 @@ class LayoutMixin:
                 wrap=tk.WORD,
             )
 
-        self.input_text.grid(row=0, column=0, sticky="ew", padx=3, pady=(3, 0))
+        self.input_text.grid(row=1, column=0, sticky="ew", padx=3, pady=(3, 0))
 
         # Boutons d'action — dans content_frame, r=0 évite les artifacts à la jonction
         button_frame = self.create_frame(
             content_frame, fg_color=self.colors["input_bg"], corner_radius=0
         )
-        button_frame.grid(row=1, column=0, sticky="ew", padx=3, pady=(0, 3))
+        button_frame.grid(row=2, column=0, sticky="ew", padx=3, pady=(0, 3))
         button_frame.grid_columnconfigure(1, weight=1)
 
         # ── Bouton "+" avec menu déroulant vers le haut ──────────────────────
@@ -502,13 +546,13 @@ class LayoutMixin:
             by = self.file_plus_btn.winfo_rooty() - ph
             popup.geometry(f"+{bx}+{by}")
 
-            def _on_focus_out(e):
+            def _on_focus_out(_e):
                 self.root.after(50, lambda: _close_chat_popup(popup) if _chat_popup_ref[0] is popup else None)
 
             popup.bind("<FocusOut>", _on_focus_out)
-            popup.bind("<Escape>",   lambda e: _close_chat_popup(popup))
+            popup.bind("<Escape>",   lambda _e: _close_chat_popup(popup))
             self.root.bind("<Button-1>",
-                           lambda e: _close_chat_popup(popup) if _chat_popup_ref[0] is popup else None,
+                           lambda _e: _close_chat_popup(popup) if _chat_popup_ref[0] is popup else None,
                            add="+")
             popup.focus_set()
 
@@ -553,3 +597,184 @@ class LayoutMixin:
 
         # Placeholder text
         self.set_placeholder()
+
+    # ── Gestion des aperçus de documents dans la zone de saisie ────────────
+
+    def _get_active_preview_frame(self):
+        """Retourne la preview frame active selon l'écran courant (home ou chat)."""
+        if getattr(self, "_home_screen_active", False):
+            return getattr(self, "_home_preview_frame", None) or self._preview_frame
+        return self._preview_frame
+
+    def add_file_preview(self, file_path: str, file_type: str):
+        """
+        Ajoute un aperçu miniature d'un fichier attaché dans la zone de saisie.
+        Affiche une vignette avec le nom du fichier et un bouton ✕ pour retirer.
+        """
+        filename = os.path.basename(file_path)
+        preview_frame = self._get_active_preview_frame()
+
+        # Icônes par type de fichier
+        type_icons = {
+            "PDF": "📄", "DOCX": "📝", "Excel": "📊",
+            "Code": "💻", "Image": "🖼",
+        }
+        icon = type_icons.get(file_type, "📎")
+
+        # Conteneur de la vignette
+        bg = self.colors.get("bg_secondary", "#2a2a2a")
+        accent = self.colors.get("accent", "#ff6b47")
+
+        if self.use_ctk:
+            thumb = ctk.CTkFrame(
+                preview_frame, fg_color=bg, corner_radius=6,
+                border_width=1, border_color=self.colors.get("border", "#404040"),
+            )
+        else:
+            thumb = tk.Frame(preview_frame, bg=bg, relief="solid", bd=1)
+
+        thumb.pack(side="left", padx=(0, 8), pady=4)
+
+        # Icône + nom du fichier (tronqué si trop long)
+        display_name = filename if len(filename) <= 20 else filename[:17] + "..."
+        label_text = f"{icon} {display_name}"
+
+        if self.use_ctk:
+            lbl = ctk.CTkLabel(
+                thumb, text=label_text,
+                font=("Segoe UI", 11),
+                text_color=self.colors.get("text_primary", "#ffffff"),
+                fg_color="transparent",
+            )
+        else:
+            lbl = tk.Label(
+                thumb, text=label_text, bg=bg,
+                fg=self.colors.get("text_primary", "#ffffff"),
+                font=("Segoe UI", 11),
+            )
+        lbl.pack(side="left", padx=(8, 4), pady=4)
+
+        # Bouton ✕ pour retirer le fichier
+        _pf = preview_frame  # capturer la bonne frame dans la closure
+
+        def _remove_file():
+            self._pending_files = [
+                (p, t, w) for p, t, w in self._pending_files if w is not thumb
+            ]
+            thumb.destroy()
+            if not self._pending_files:
+                _pf.grid_remove()
+
+        if self.use_ctk:
+            close_btn = ctk.CTkButton(
+                thumb, text="✕", width=24, height=24,
+                fg_color="transparent", hover_color=accent,
+                text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 12, "bold"),
+                corner_radius=4, command=_remove_file,
+            )
+        else:
+            close_btn = tk.Button(
+                thumb, text="✕", bg=bg, fg=self.colors.get("text_secondary", "#aaaaaa"),
+                font=("Segoe UI", 10, "bold"), relief="flat", bd=0,
+                command=_remove_file, cursor="hand2",
+            )
+        close_btn.pack(side="left", padx=(0, 6), pady=4)
+
+        # Enregistrer le fichier en attente
+        self._pending_files.append((file_path, file_type, thumb))
+
+        # Afficher la zone d'aperçu
+        preview_frame.grid()
+
+    def clear_file_previews(self):
+        """Retire tous les aperçus de fichiers de la zone de saisie."""
+        for _, _, widget in self._pending_files:
+            try:
+                widget.destroy()
+            except Exception:
+                pass
+        self._pending_files = []
+        self._preview_frame.grid_remove()
+        # Masquer aussi la preview home si elle existe
+        home_pf = getattr(self, "_home_preview_frame", None)
+        if home_pf is not None:
+            try:
+                home_pf.grid_remove()
+            except Exception:
+                pass
+
+    def get_pending_files(self) -> list:
+        """Retourne la liste des fichiers en attente [(path, type), ...]."""
+        return [(p, t) for p, t, _ in self._pending_files]
+
+    # ── Sélecteur de modèle (hot-reload) ──────────────────────────────────
+
+    def _populate_model_selector(self):
+        """Charge la liste des modèles Ollama disponibles dans le sélecteur."""
+
+        def _load():
+            models = []
+            current = ""
+            try:
+                llm = None
+                if hasattr(self, "custom_ai") and self.custom_ai and hasattr(self.custom_ai, "local_llm"):
+                    llm = self.custom_ai.local_llm
+                elif hasattr(self, "ai_engine") and hasattr(self.ai_engine, "local_ai"):
+                    ai = self.ai_engine.local_ai
+                    if hasattr(ai, "local_llm"):
+                        llm = ai.local_llm
+                if llm:
+                    models = llm.list_available_models()
+                    current = llm.get_current_model()
+            except Exception as e:
+                print(f"⚠️ [MODEL_SELECTOR] Erreur chargement modèles: {e}")
+
+            if models:
+                self.root.after(0, lambda: self._update_model_selector(models, current))
+
+        threading.Thread(target=_load, daemon=True).start()
+
+    def _update_model_selector(self, models: list, current: str):
+        """Met à jour le sélecteur avec la liste des modèles."""
+        if not models:
+            return
+        if self.use_ctk and hasattr(self.model_selector, "configure"):
+            self.model_selector.configure(values=models)
+        if current and current in models:
+            self._model_selector_var.set(current)
+        elif models:
+            self._model_selector_var.set(models[0])
+
+    def _on_model_selected(self, selected_model: str):
+        """Callback quand l'utilisateur sélectionne un nouveau modèle."""
+
+        def _switch():
+            try:
+                llm = None
+                if hasattr(self, "custom_ai") and self.custom_ai and hasattr(self.custom_ai, "local_llm"):
+                    llm = self.custom_ai.local_llm
+                elif hasattr(self, "ai_engine") and hasattr(self.ai_engine, "local_ai"):
+                    ai = self.ai_engine.local_ai
+                    if hasattr(ai, "local_llm"):
+                        llm = ai.local_llm
+                if llm:
+                    success = llm.switch_model(selected_model)
+                    if success:
+                        self.root.after(
+                            0,
+                            lambda: self.show_notification(
+                                f"🔄 Modèle changé → {selected_model}", "success", 2000
+                            ),
+                        )
+                    else:
+                        self.root.after(
+                            0,
+                            lambda: self.show_notification(
+                                f"❌ Modèle {selected_model} indisponible", "error", 2000
+                            ),
+                        )
+            except Exception as e:
+                print(f"⚠️ [MODEL_SELECTOR] Erreur changement: {e}")
+
+        threading.Thread(target=_switch, daemon=True).start()

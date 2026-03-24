@@ -4,10 +4,11 @@ InternetSearchMixin — Méthodes de recherche internet pour CustomAIModel.
 Regroupe : _handle_internet_search, _get_search_query_from_context,
 _clean_search_query, _generate_ollama_search_response, _extract_search_query,
 _optimize_search_query_with_ollama, _handle_url_summarization, _extract_url,
-_detect_search_type.
+_detect_search_type, _handle_parallel_search.
 """
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict
 
 
@@ -75,8 +76,13 @@ Reformulez votre demande en précisant ce que vous voulez rechercher."""
         # Effectuer la recherche avec le moteur de recherche internet
         try:
             print(f"🌐 Lancement de la recherche pour: '{search_query}'")
-            # Mode single-pass: préparer un contexte de source unique, puis générer 1 seule fois avec Ollama
-            if self.local_llm and self.local_llm.is_ollama_available:
+
+            # Tenter une recherche parallèle (multi-sources) si WebCache est disponible
+            use_parallel = getattr(self, "_web_cache", None) is not None
+            if use_parallel:
+                raw_results = self._handle_parallel_search(search_query)
+            elif self.local_llm and self.local_llm.is_ollama_available:
+                # Mode single-pass: préparer un contexte de source unique
                 raw_results = self.internet_search.search_best_source_context(search_query)
             else:
                 # Fallback sans LLM
@@ -478,3 +484,83 @@ Erreur technique : {str(e)}"""
             return "review"
         else:
             return "general"
+
+    def _handle_parallel_search(self, search_query: str, max_sources: int = 3) -> str:
+        """
+        Recherche parallèle multi-sources avec cache web.
+        Lance plusieurs recherches en parallèle et fusionne les résultats.
+
+        Args:
+            search_query: Requête de recherche
+            max_sources: Nombre max de sources à consulter en parallèle
+
+        Returns:
+            Contexte fusionné des meilleures sources
+        """
+        print(f"⚡ [PARALLEL] Recherche parallèle ({max_sources} sources) pour: '{search_query}'")
+
+        # Vérifier le cache web d'abord
+        cache = getattr(self, "_web_cache", None)
+        if cache:
+            cached = cache.get(f"search:{search_query}")
+            if cached:
+                print("💾 [CACHE] Résultat trouvé en cache")
+                return cached
+
+        # Obtenir les résultats de recherche
+        try:
+            search_results = self.internet_search._perform_search(search_query)  # pylint: disable=protected-access
+            if not search_results:
+                return self.internet_search.search_best_source_context(search_query)
+        except Exception:
+            return self.internet_search.search_best_source_context(search_query)
+
+        # Extraire les contenus en parallèle
+        urls = [r.get("url") or r.get("link", "") for r in search_results[:max_sources] if r.get("url") or r.get("link")]
+        titles = [r.get("title", "Source") for r in search_results[:max_sources]]
+
+        def _fetch_content(url_title):
+            url, title = url_title
+            try:
+                content_list = self.internet_search._extract_page_contents([{"url": url, "title": title, "link": url}])  # pylint: disable=protected-access
+                if content_list:
+                    text = content_list[0].get("full_content") or content_list[0].get("snippet", "")
+                    return {"title": title, "url": url, "content": text[:4000]}
+            except Exception:
+                pass
+            return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=max_sources) as executor:
+            futures = {
+                executor.submit(_fetch_content, (url, title)): url
+                for url, title in zip(urls, titles)
+            }
+            for future in as_completed(futures, timeout=15):
+                try:
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                except Exception:
+                    pass
+
+        if not results:
+            print("⚠️ [PARALLEL] Aucun résultat parallèle, fallback single-source")
+            return self.internet_search.search_best_source_context(search_query)
+
+        print(f"✅ [PARALLEL] {len(results)} sources récupérées en parallèle")
+
+        # Fusionner les résultats
+        combined = f"**{len(results)} sources consultées en parallèle**\n\n"
+        sources_list = []
+        for i, r in enumerate(results, 1):
+            combined += f"--- Source {i}: {r['title']} ---\n{r['content']}\n\n"
+            sources_list.append(f"• [{r['title']}]({r['url']})")
+
+        combined += "🔗 **Sources**\n" + "\n".join(sources_list)
+
+        # Mettre en cache
+        if cache:
+            cache.set(f"search:{search_query}", combined, ttl=1800)
+
+        return combined

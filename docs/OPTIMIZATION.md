@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v6.9.0
+# 🚀 Guide d'Optimisation - My Personal AI v7.0.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v6.9.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.0.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -957,6 +957,61 @@ python -m core.evaluation --test_data test_set.jsonl
 
 ---
 
+---
+
+## 9. 🗄️ Cache Web Persistant
+
+Le module `core/web_cache.py` fournit un cache disque pour les résultats de recherche internet, réduisant drastiquement les requêtes réseau répétées.
+
+### Configuration
+
+```yaml
+# config.yaml
+web_cache:
+  enabled: true
+  ttl_seconds: 3600    # Durée de vie : 1 heure
+  max_entries: 1000    # Nombre max d'entrées
+  directory: "data/web_cache"
+```
+
+### Fonctionnement
+
+| Aspect | Détail |
+|--------|--------|
+| **Stockage** | `diskcache` — thread-safe, persistant sur disque |
+| **Clé** | SHA256 de l'URL |
+| **Expiration** | TTL configurable par entrée |
+| **Éviction** | Automatique quand `max_entries` est atteint (plus ancien d'abord) |
+| **Statistiques** | Compteurs hits/misses accessibles via `stats()` |
+
+### Impact Performance
+
+- **Recherches répétées** : réponse instantanée depuis le cache au lieu de refaire la requête HTTP
+- **Économie réseau** : moins de requêtes sortantes, utile derrière un proxy d'entreprise
+- **Cohérence** : même résultat retourné pendant la durée du TTL
+
+---
+
+## 10. 🧠 Base de Connaissances & Détection de Langue
+
+### Base de Connaissances Structurée
+
+Le `KnowledgeBaseManager` indexe les faits extraits des conversations dans SQLite :
+
+- **6 catégories** : preference, decision, person, procedure, technical, general
+- **Score de confiance** : les faits extraits automatiquement ont une confiance de 0.7, les faits manuels de 1.0
+- **Injection dans le prompt** : les faits pertinents sont automatiquement ajoutés au contexte de la requête
+
+**Optimisation recommandée :** limiter `max_facts` dans `config.yaml` si la base grossit trop (défaut : 10 000).
+
+### Détection de Langue
+
+Le `LanguageDetector` utilise un cache LRU de 128 entrées pour éviter de re-détecter la langue à chaque message dans une conversation.
+
+**Optimisation recommandée :** activer `auto_detect: true` uniquement si vous conversez dans plusieurs langues. Si vous utilisez uniquement le français, désactivez pour éviter le surcoût.
+
+---
+
 ## 📚 Ressources Complémentaires
 
 **Documentation:**
@@ -971,12 +1026,12 @@ python -m core.evaluation --test_data test_set.jsonl
 - `core/evaluation.py`
 
 **Configuration:**
-- `config.yaml` - Config centrale
+- `config.yaml` - Config centrale (incluant 7 sections v7.0.0)
 - `.env` - Variables environnement
 - `requirements.txt` - Dépendances
 
 ---
 
-**Version:** 6.9.0
-**Dernière mise à jour:** 14 Janvier 2026
+**Version:** 7.0.0
+**Dernière mise à jour:** 24 Mars 2026
 **Performance target:** < 1s réponse, < 2GB RAM, 1M tokens context

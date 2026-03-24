@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 REM ====================================
-REM My Personal AI ULTRA - Lanceur v6.9.0
+REM My Personal AI ULTRA - Lanceur v7.0.0
 REM ====================================
 
 REM Configuration des couleurs ANSI (Orange)
@@ -20,7 +20,7 @@ echo %ORANGE%%BOLD%/_/  /_/\__, /___/_/  ^|_/___/   %RESET%
 echo %ORANGE%%BOLD%       /____/                  %RESET%
 echo.
 echo %ORANGE%====================================%RESET%
-echo %BOLD%           Version 6.9.0%RESET%
+echo %BOLD%           Version 7.0.0%RESET%
 echo %ORANGE%====================================%RESET%
 echo.
 

@@ -1,4 +1,113 @@
-# 📋 CHANGELOG - My Personal AI Ultra
+# 📋 CHANGELOG - My Personal AI
+
+# 🚀 Version 7.0.0 - Modules Intelligents & API REST (24 Mars 2026)
+
+### ✨ Nouveaux Modules (7 modules)
+
+#### 🌐 Serveur API REST Local (`core/api_server.py`)
+- **API HTTP complète** exposée sur `localhost:8000` via FastAPI + Uvicorn
+- **Endpoints disponibles** :
+  - `GET /api/health` — État du serveur (version, uptime, statut moteur)
+  - `POST /api/chat` — Envoyer un message à l'IA avec system prompt optionnel
+  - `GET /api/models` — Lister les modèles Ollama disponibles
+  - `POST /api/models/switch` — Changer de modèle actif
+  - `GET /api/conversations` — Récupérer l'historique complet
+  - `DELETE /api/conversations` — Effacer l'historique
+  - `GET /api/stats` — Statistiques système (contexte, mémoire, modèle, uptime)
+- **CORS configurable** pour intégrations externes
+- **Thread daemon** pour exécution non-bloquante
+
+#### 📜 Historique des Commandes (`core/command_history.py`)
+- **Base SQLite persistante** avec mode WAL pour accès concurrent
+- **Recherche plein texte** dans les requêtes et réponses (COLLATE NOCASE)
+- **Système de favoris** pour conserver les requêtes importantes
+- **Statistiques** : total, favoris, répartition par agent, plage de dates
+- **Nettoyage automatique** des entrées anciennes (préserve les favoris)
+- **Limite configurable** (défaut : 5 000 entrées)
+
+#### 📤 Export de Conversations (`core/conversation_exporter.py`)
+- **3 formats d'export** : Markdown (.md), HTML (.html), PDF (.pdf)
+- **Métadonnées** incluses : date, modèle, nom de session, nombre de messages
+- **Thème sombre CSS** embarqué pour l'export HTML (inspiré Claude)
+- **Blocs de code** préservés avec formatage dans tous les formats
+- **PDF** via ReportLab avec styles par rôle (Utilisateur/Assistant/Système)
+- **Noms de fichiers horodatés** automatiques ou personnalisés
+
+#### 🧠 Base de Connaissances Structurée (`core/knowledge_base_manager.py`)
+- **Stockage de faits éditables** dans SQLite avec catégorisation
+- **6 catégories** : preference, decision, person, procedure, technical, general
+- **Score de confiance** (0.0 à 1.0) pour chaque fait
+- **Extraction automatique** depuis le texte libre (patrons linguistiques français) :
+  - Préférences : "je préfère...", "j'aime mieux..."
+  - Décisions : "on a décidé de...", "nous avons décidé..."
+  - Personnes : "mon collègue s'appelle...", "mon manager est..."
+  - Procédures : "la procédure est de...", "les étapes sont..."
+  - Techniques : "le serveur est...", "l'url est...", "on utilise..."
+- **Injection dans le prompt** : les faits pertinents sont automatiquement contextualisés
+- **CRUD complet** : ajout, recherche, mise à jour, suppression
+
+#### 🌍 Détection Automatique de Langue (`core/language_detector.py`)
+- **12 langues supportées** : fr, en, es, de, it, pt, nl, ru, zh, ja, ko, ar
+- **Détection automatique** via la bibliothèque `langdetect` (avec fallback)
+- **Cache LRU** (128 entrées) pour cohérence et performance
+- **Suffix de prompt système** généré automatiquement pour forcer la réponse dans la langue détectée
+- **Seuil de longueur minimale** configurable (défaut : 10 caractères)
+
+#### 💼 Gestionnaire de Sessions / Workspaces (`core/session_manager.py`)
+- **Multi-workspaces** : créer, sauvegarder, charger, supprimer des espaces de travail isolés
+- **Persistance JSON** sur disque avec écriture atomique (fichier temporaire + rename)
+- **État complet** sauvegardé : historique, documents attachés, agents actifs, paramètres
+- **Auto-save** configurable (défaut : toutes les 5 minutes)
+- **Identifiants slug** URL-safe avec normalisation des accents
+- **Limite configurable** (défaut : 50 workspaces)
+
+#### 🗄️ Cache Web Persistant (`core/web_cache.py`)
+- **Cache disque** via `diskcache` pour les réponses HTTP
+- **TTL configurable** (défaut : 3 600 secondes = 1 heure)
+- **Éviction automatique** des entrées expirées et limite d'entrées
+- **Statistiques** : hits, misses, taille du cache
+- **Clé SHA256** stable pour chaque URL
+- **Context manager** pour nettoyage propre
+
+### 🖥️ Améliorations Interface Graphique
+
+#### 🏠 Écran d'Accueil (Home Screen)
+- **Page d'accueil style Claude** affichée quand la conversation est vide
+- **Logo My_AI central** avec message de bienvenue
+- **Zone de saisie intégrée** avec preview de fichiers joints
+- **Transition fluide** vers la conversation au premier message
+- **Sauvegarde des fichiers joints** lors de la transition home → chat
+
+#### 📎 Pièces Jointes aux Agents
+- **Bouton "+" sur la page Agents** pour attacher des fichiers (PDF, DOCX, TXT, code, CSV...)
+- **Preview visuelle** des fichiers joints dans la zone de saisie des agents
+- **Contenu injecté dans le prompt** : les fichiers sont lus et leur contenu est ajouté au prompt de l'agent
+- **Support multi-formats** : PDF (via PDFProcessor), DOCX (via DOCXProcessor), texte/code (lecture directe)
+- **Propagation en multi-agents** : dans un workflow séquentiel, tous les agents reçoivent les fichiers joints + le contexte des agents précédents
+
+#### ⚠️ Dialogue de Confirmation de Suppression MCP
+- **Fenêtre modale stylisée** quand l'IA demande à supprimer un fichier via MCP (`delete_local_file`)
+- **Affichage du chemin complet** du fichier à supprimer
+- **Boutons Oui/Non** avec thème orange/noir cohérent
+- **Synchronisation thread** via `threading.Event` entre le thread IA et le thread GUI
+
+### ⚙️ Configuration
+
+Nouvelles sections dans `config.yaml` :
+- `api` — Serveur REST (host, port, CORS)
+- `workspaces` — Sessions et workspaces (répertoire, auto-save, limite)
+- `knowledge_base` — Base de connaissances (répertoire, auto-extract)
+- `command_history` — Historique des commandes (max_entries, db_path)
+- `export` — Export conversations (répertoire, format par défaut)
+- `language` — Détection de langue (auto-detect, langues supportées)
+- `web_cache` — Cache web (TTL, max_entries, répertoire)
+
+### 📦 Nouvelles Dépendances
+- `fastapi>=0.100.0` — Framework API REST
+- `uvicorn>=0.23.0` — Serveur ASGI
+- `langdetect>=1.0.9` — Détection de langue
+
+---
 
 # 🌟 Version 6.9.0 - Optimisations MCP & Stabilité Interface (19 Mars 2026)
 

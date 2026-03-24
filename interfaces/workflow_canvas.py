@@ -4,8 +4,10 @@ Permet de créer des workflows d'agents avec drag & drop, connexions,
 zoom, pan, grille et minimap. 100% Python / tkinter.
 """
 
+import json
 import math
 import tkinter as tk
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Callable, Set
 
 
@@ -985,6 +987,94 @@ class WorkflowCanvas:
             rw = self.canvas.winfo_width()
             rh = self.canvas.winfo_height()
             return rx <= screen_x <= rx + rw and ry <= screen_y <= ry + rh
+        except Exception:
+            return False
+
+    # ================================================================
+    #  Callback
+    # ================================================================
+
+    # ================================================================
+    #  Sérialisation / Désérialisation
+    # ================================================================
+
+    def to_dict(self) -> dict:
+        """Exporte l'état complet du workflow en dictionnaire sérialisable."""
+        nodes_data = {}
+        for nid, node in self.nodes.items():
+            nodes_data[str(nid)] = {
+                "agent_type": node["agent_type"],
+                "name": node["name"],
+                "color": node["color"],
+                "icon": node.get("icon", "🤖"),
+                "x": node["x"],
+                "y": node["y"],
+                "status": node["status"],
+            }
+        connections_data = [
+            {"from": c["from"], "to": c["to"]}
+            for c in self.connections
+        ]
+        return {
+            "version": "7.0.0",
+            "nodes": nodes_data,
+            "connections": connections_data,
+            "zoom": self.zoom,
+            "pan_x": self._pan_x,
+            "pan_y": self._pan_y,
+        }
+
+    def from_dict(self, data: dict):
+        """Restaure un workflow depuis un dictionnaire.
+
+        Args:
+            data: Dictionnaire exporté par to_dict().
+        """
+        self.clear()
+
+        # Mapping ancien ID → nouvel ID
+        id_map: dict = {}
+
+        for old_id_str, node_data in data.get("nodes", {}).items():
+            old_id = int(old_id_str)
+            new_id = self.add_node(
+                agent_type=node_data["agent_type"],
+                name=node_data["name"],
+                color=node_data["color"],
+                wx=node_data.get("x"),
+                wy=node_data.get("y"),
+                icon=node_data.get("icon", "🤖"),
+            )
+            id_map[old_id] = new_id
+
+        for conn in data.get("connections", []):
+            from_id = id_map.get(conn["from"])
+            to_id = id_map.get(conn["to"])
+            if from_id is not None and to_id is not None:
+                self.add_connection(from_id, to_id)
+
+        # Restaurer la vue
+        self.zoom = data.get("zoom", 1.0)
+        self._pan_x = data.get("pan_x", 0.0)
+        self._pan_y = data.get("pan_y", 0.0)
+        self._redraw()
+
+    def save_to_file(self, filepath: str):
+        """Sauvegarde le workflow dans un fichier JSON."""
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, ensure_ascii=False, indent=2)
+
+    def load_from_file(self, filepath: str) -> bool:
+        """Charge un workflow depuis un fichier JSON. Retourne True si succès."""
+        path = Path(filepath)
+        if not path.exists():
+            return False
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.from_dict(data)
+            return True
         except Exception:
             return False
 

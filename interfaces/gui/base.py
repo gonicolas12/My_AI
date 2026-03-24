@@ -536,6 +536,153 @@ class BaseGUI:
             self.status_label.configure(text="")
 
     # ------------------------------------------------------------------
+    # Confirmation de suppression de fichier (MCP delete_local_file)
+    # ------------------------------------------------------------------
+
+    def _show_delete_confirmation_dialog(self, file_path: str, result: dict, event):
+        """
+        Affiche une boîte de dialogue stylisée demandant confirmation
+        avant la suppression d'un fichier via l'outil MCP delete_local_file.
+
+        Args:
+            file_path: Chemin du fichier à supprimer
+            result: Dict mutable {"confirmed": bool} mis à jour par le dialog
+            event: threading.Event signalé quand l'utilisateur a répondu
+        """
+        accent = self.colors.get("accent", "#ff6b47")
+        bg = self.colors.get("bg_secondary", "#1e1e1e")
+        bg_dark = self.colors.get("bg_primary", "#121212")
+        fg = self.colors.get("text_primary", "#ffffff")
+        fg_dim = self.colors.get("text_secondary", "#aaaaaa")
+        filename = os.path.basename(file_path)
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Confirmation de suppression")
+        dialog.configure(bg=bg)
+        dialog.resizable(False, False)
+        dialog.attributes("-topmost", True)
+        dialog.grab_set()
+
+        # Centrer la fenêtre
+        dialog.update_idletasks()
+        w, h = 460, 220
+        x = self.root.winfo_x() + (self.root.winfo_width() - w) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - h) // 2
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+        # Icône d'avertissement
+        icon_label = tk.Label(
+            dialog, text="⚠️", font=("Segoe UI", 32), bg=bg, fg=accent
+        )
+        icon_label.pack(pady=(18, 4))
+
+        # Message
+        msg_label = tk.Label(
+            dialog,
+            text="L'IA souhaite supprimer ce fichier :",
+            font=("Segoe UI", 11),
+            bg=bg,
+            fg=fg,
+        )
+        msg_label.pack()
+
+        # Chemin du fichier (tronqué si trop long)
+        display_path = file_path if len(file_path) <= 60 else "…" + file_path[-57:]
+        path_label = tk.Label(
+            dialog,
+            text=display_path,
+            font=("Consolas", 10, "bold"),
+            bg=bg_dark,
+            fg=accent,
+            padx=12,
+            pady=6,
+            relief="groove",
+            bd=1,
+        )
+        path_label.pack(padx=20, pady=(6, 4))
+
+        name_label = tk.Label(
+            dialog,
+            text=f"({filename})",
+            font=("Segoe UI", 9),
+            bg=bg,
+            fg=fg_dim,
+        )
+        name_label.pack()
+
+        # Frame boutons
+        btn_frame = tk.Frame(dialog, bg=bg)
+        btn_frame.pack(pady=(12, 14))
+
+        def _on_yes():
+            result["confirmed"] = True
+            dialog.destroy()
+            event.set()
+
+        def _on_no():
+            result["confirmed"] = False
+            dialog.destroy()
+            event.set()
+
+        if self.use_ctk:
+            yes_btn = _ctk.CTkButton(
+                btn_frame,
+                text="Oui, supprimer",
+                fg_color=accent,
+                hover_color="#e05535",
+                text_color="#ffffff",
+                font=("Segoe UI", 12, "bold"),
+                corner_radius=8,
+                width=140,
+                height=36,
+                command=_on_yes,
+            )
+            no_btn = _ctk.CTkButton(
+                btn_frame,
+                text="Non, annuler",
+                fg_color="#2a2a2a",
+                hover_color="#3a3a3a",
+                text_color="#ffffff",
+                font=("Segoe UI", 12),
+                corner_radius=8,
+                width=140,
+                height=36,
+                command=_on_no,
+            )
+        else:
+            yes_btn = tk.Button(
+                btn_frame,
+                text="Oui, supprimer",
+                bg=accent,
+                fg="#ffffff",
+                font=("Segoe UI", 12, "bold"),
+                relief="flat",
+                padx=16,
+                pady=6,
+                cursor="hand2",
+                command=_on_yes,
+            )
+            no_btn = tk.Button(
+                btn_frame,
+                text="Non, annuler",
+                bg="#2a2a2a",
+                fg="#ffffff",
+                font=("Segoe UI", 12),
+                relief="flat",
+                padx=16,
+                pady=6,
+                cursor="hand2",
+                command=_on_no,
+            )
+
+        no_btn.pack(side="left", padx=(0, 10))
+        yes_btn.pack(side="left")
+
+        # Fermeture via X → annulation
+        dialog.protocol("WM_DELETE_WINDOW", _on_no)
+        dialog.bind("<Escape>", lambda _e: _on_no())
+
+    # ------------------------------------------------------------------
     # Indicateur MCP inline (dans le chat, sous icône 🤖)
     # ------------------------------------------------------------------
 
@@ -845,6 +992,10 @@ class BaseGUI:
             # Ajouter le message utilisateur
             self._last_bubble_is_user = True
             self.add_message_bubble(message, is_user=True)
+
+            # Nettoyer les aperçus de fichiers attachés
+            if hasattr(self, "clear_file_previews"):
+                self.clear_file_previews()
 
             # Effacer la zone de saisie et remettre le placeholder
             try:
@@ -1572,6 +1723,19 @@ class BaseGUI:
                 self._pending_image_base64 = None
                 self._pending_image_path = None
 
+            def on_delete_confirm(file_path: str) -> bool:
+                """Demande confirmation à l'utilisateur avant de supprimer un fichier.
+                Bloque le thread appelant jusqu'à la réponse (Event)."""
+                result = {"confirmed": False}
+                event = threading.Event()
+
+                def _show_dialog():
+                    self._show_delete_confirmation_dialog(file_path, result, event)
+
+                self.root.after(0, _show_dialog)
+                event.wait()
+                return result["confirmed"]
+
             response = self.ai_engine.process_query_stream(
                 user_text,
                 on_token=on_token_received,
@@ -1580,6 +1744,7 @@ class BaseGUI:
                 on_thinking_complete=on_thinking_complete if _show_reasoning else None,
                 image_base64=image_b64,
                 is_interrupted_callback=lambda: self.is_interrupted or self.current_request_id != request_id,
+                on_delete_confirm=on_delete_confirm,
             )
 
             # Marquer le streaming comme terminé SEULEMENT si cette requête est
@@ -1882,7 +2047,14 @@ class BaseGUI:
                 font=("Segoe UI", self.get_current_font_size("message")),
                 border=0, relief="flat", wrap=tk.WORD,
             )
-        self._home_input.grid(row=0, column=0, sticky="ew", padx=3, pady=(3, 0))
+        # Zone d'aperçu des documents attachés (en haut du rectangle)
+        self._home_preview_frame = self.create_frame(
+            content_frame, fg_color=self.colors["input_bg"], corner_radius=0
+        )
+        self._home_preview_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(6, 0))
+        self._home_preview_frame.grid_remove()
+
+        self._home_input.grid(row=1, column=0, sticky="ew", padx=3, pady=(3, 0))
 
         # Placeholder manuel dans home input
         _placeholder = "Tapez votre message..."
@@ -1931,9 +2103,9 @@ class BaseGUI:
         self._home_input.bind("<Return>", _on_home_enter)
         self._home_input.bind("<Shift-Return>", lambda e: None)
 
-        # ── Barre de boutons — dans content_frame, r=0 évite les artifacts à la jonction ──
+        # ── Barre de boutons — row=2 (après preview row=0 et input row=1) ──
         buttons_row = self.create_frame(content_frame, fg_color=self.colors["input_bg"], corner_radius=0)
-        buttons_row.grid(row=1, column=0, sticky="ew", padx=3, pady=(0, 3))
+        buttons_row.grid(row=2, column=0, sticky="ew", padx=3, pady=(0, 3))
         buttons_row.grid_columnconfigure(1, weight=1)
 
         # ── Bouton "+" avec menu déroulant pour les fichiers ──────────────────
@@ -2099,8 +2271,16 @@ class BaseGUI:
         """Cache l'écran d'accueil et restaure la zone de conversation."""
         if not getattr(self, "_home_screen_active", False):
             return
+
+        # Sauvegarder les fichiers en attente (widgets seront détruits avec home)
+        pending_files_backup = [
+            (p, t) for p, t, _w in getattr(self, "_pending_files", [])
+        ]
+        self._pending_files = []
+
         self._home_screen_active = False
         self._home_input = None
+        self._home_preview_frame = None
 
         # Supprimer l'overlay
         home = getattr(self, "_home_screen", None)
@@ -2129,6 +2309,14 @@ class BaseGUI:
 
         # Réafficher les boutons Clear Chat / Aide maintenant que l'accueil est fermé
         self._update_header_buttons_visibility()
+
+        # Re-créer les aperçus dans la zone de saisie principale
+        if pending_files_backup and hasattr(self, "add_file_preview"):
+            for fpath, ftype in pending_files_backup:
+                try:
+                    self.add_file_preview(fpath, ftype)
+                except Exception:
+                    pass
 
     def show_help(self):
         """Affiche l'aide"""

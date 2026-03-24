@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v6.9.0
+# 🏗️ Architecture - My Personal AI v7.0.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v6.9.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel** et une **boucle agentique avancée (ChatOrchestrator)**, basée sur les principes suivants:
+My Personal AI v7.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.0.0**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -10,6 +10,13 @@ My Personal AI v6.9.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
 - **ChatOrchestrator** : Boucle agentique ReAct + Plan & Execute + Scratchpad persistant pour le tool-calling
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
+- **API REST Locale** : Serveur FastAPI pour intégrations externes (chat, modèles, stats)
+- **Base de Connaissances Structurée** : Extraction automatique de faits avec score de confiance
+- **Multi-Workspaces** : Sessions isolées avec sauvegarde automatique et persistance JSON
+- **Export Multi-Format** : Conversations exportables en Markdown, HTML et PDF
+- **Détection de Langue** : 12 langues détectées automatiquement, réponse adaptée
+- **Cache Web Persistant** : Cache disque avec TTL pour les recherches internet
+- **Historique des Commandes** : Suivi complet avec favoris, recherche et statistiques
 - **Reconnaissance d'intentions avancée** : Analyse linguistique multi-niveaux
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
@@ -49,6 +56,15 @@ My Personal AI v6.9.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Plan & Execute avec scratchpad XML persistant                     │
 │  • Limite de tours (MAX_TOURS=15), LoopDetector, élagage contexte    │
 │  • Utilisé par AIEngine pour tout tool-calling de la page Chat       │
+├──────────────────────────────────────────────────────────────────────┤
+│ Modules v7.0.0 (initialisés par AIEngine._init_v7_modules())         │
+│  • APIServer         — Serveur REST FastAPI (localhost:8000)          │
+│  • CommandHistory     — Historique commandes SQLite + favoris         │
+│  • ConversationExporter — Export MD / HTML / PDF                     │
+│  • KnowledgeBaseManager — Faits structurés + extraction automatique  │
+│  • LanguageDetector   — Détection de 12 langues + suffix prompt      │
+│  • SessionManager     — Multi-workspaces avec persistance JSON       │
+│  • WebCache           — Cache disque (diskcache) avec TTL            │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -229,6 +245,76 @@ Capacités:
 ├─ Exposition outils locaux au format MCP
 ├─ Connexion serveurs MCP externes (stdio)
 └─ Dégradation gracieuse si SDK mcp absent
+```
+
+**`core/api_server.py`** - Serveur API REST
+```python
+Architecture:
+├─ FastAPI + Uvicorn en thread daemon
+├─ Endpoints : health, chat, models, conversations, stats
+├─ CORS configurable pour intégrations externes
+└─ Arrêt gracieux via stop()
+```
+
+**`core/command_history.py`** - Historique des commandes
+```python
+Fonctionnalités:
+├─ SQLite WAL thread-safe
+├─ Recherche plein texte (COLLATE NOCASE)
+├─ Système de favoris avec toggle
+├─ Auto-purge des entrées anciennes (préserve favoris)
+└─ Statistiques : total, favoris, répartition agents, plage dates
+```
+
+**`core/conversation_exporter.py`** - Export conversations
+```python
+Formats:
+├─ Markdown (.md) avec métadonnées header
+├─ HTML (.html) avec thème sombre CSS embarqué
+├─ PDF (.pdf) via ReportLab avec styles par rôle
+└─ Blocs de code préservés dans tous les formats
+```
+
+**`core/knowledge_base_manager.py`** - Base de connaissances
+```python
+Architecture:
+├─ SQLite avec 6 catégories de faits
+├─ Score de confiance (0.0-1.0)
+├─ Extraction automatique (patrons linguistiques FR)
+│   ├─ Préférences, Décisions, Personnes
+│   ├─ Procédures, Techniques
+│   └─ Confiance auto : 0.7
+├─ Injection contexte dans le prompt IA
+└─ CRUD complet avec recherche plein texte
+```
+
+**`core/language_detector.py`** - Détection de langue
+```python
+Capacités:
+├─ 12 langues : fr, en, es, de, it, pt, nl, ru, zh, ja, ko, ar
+├─ Bibliothèque langdetect (avec fallback)
+├─ Cache LRU (128 entrées)
+└─ Génération automatique suffix prompt système
+```
+
+**`core/session_manager.py`** - Workspaces
+```python
+Fonctionnalités:
+├─ Multi-workspaces isolés avec identifiants slug
+├─ Persistance JSON atomique (temp file + rename)
+├─ État complet : historique, documents, agents, paramètres
+├─ Auto-save configurable (défaut 300s)
+└─ Limite 50 workspaces (configurable)
+```
+
+**`core/web_cache.py`** - Cache web
+```python
+Architecture:
+├─ diskcache pour stockage thread-safe
+├─ TTL configurable (défaut 3600s)
+├─ Clé SHA256 stable par URL
+├─ Éviction automatique (max_entries)
+└─ Statistiques hits/misses
 ```
 
 **`core/shared.py`** - Module partagé
@@ -1124,7 +1210,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 6.9.0
+**Version**: 7.0.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

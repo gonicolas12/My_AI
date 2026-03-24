@@ -360,6 +360,127 @@ class AgentOrchestrator:
             agent.reset_history()
         print("✅ Tous les agents réinitialisés")
 
+    def execute_debate(
+        self,
+        agent_type_a: str,
+        agent_type_b: str,
+        topic: str,
+        rounds: int = 3,
+        on_token=None,
+        on_round_start=None,
+        on_should_stop=None,
+    ) -> Dict[str, Any]:
+        """
+        Mode débat : deux agents discutent un sujet avec des perspectives opposées
+
+        Args:
+            agent_type_a: Premier agent (proposant)
+            agent_type_b: Second agent (opposant)
+            topic: Sujet du débat
+            rounds: Nombre de tours de débat
+            on_token: Callback pour chaque token généré
+            on_round_start: Callback au début de chaque tour (round_num, agent_type)
+            on_should_stop: Callback qui retourne True si le débat doit être interrompu
+
+        Returns:
+            Résultat du débat avec historique complet
+        """
+        print(f"\n🎭 Mode Débat: {agent_type_a} vs {agent_type_b}")
+        print(f"📋 Sujet: {topic}")
+        print(f"🔄 Tours: {rounds}")
+
+        agent_a = self.get_or_create_agent(agent_type_a)
+        agent_b = self.get_or_create_agent(agent_type_b)
+
+        if not agent_a or not agent_b:
+            missing = []
+            if not agent_a:
+                missing.append(agent_type_a)
+            if not agent_b:
+                missing.append(agent_type_b)
+            return {
+                "success": False,
+                "error": f"Agent(s) invalide(s): {', '.join(missing)}",
+                "available_agents": list(AVAILABLE_AGENTS.keys()),
+            }
+
+        debate_history = []
+        last_argument = ""
+
+        for round_num in range(1, rounds + 1):
+            if on_should_stop and on_should_stop():
+                print(f"🛑 Débat interrompu au tour {round_num}")
+                break
+
+            # --- Agent A (proposant) ---
+            if on_round_start:
+                on_round_start(round_num, agent_type_a)
+
+            if round_num == 1:
+                prompt_a = (
+                    f"Débat - Tu es le proposant. Sujet : {topic}\n"
+                    f"Présente ton argument initial en faveur de ta position."
+                )
+            else:
+                prompt_a = (
+                    f"Débat - Tour {round_num}. L'opposant a répondu :\n\n"
+                    f"\"{last_argument}\"\n\n"
+                    f"Réponds à ses arguments et renforce ta position."
+                )
+
+            context_a = {"debate_role": "proposant", "round": round_num, "topic": topic}
+            result_a = self.execute_single_task_stream(agent_type_a, prompt_a, context_a, on_token)
+            argument_a = result_a.get("result", "")
+            debate_history.append({
+                "round": round_num,
+                "agent": agent_type_a,
+                "role": "proposant",
+                "argument": argument_a,
+            })
+
+            if on_should_stop and on_should_stop():
+                break
+
+            # --- Agent B (opposant) ---
+            if on_round_start:
+                on_round_start(round_num, agent_type_b)
+
+            prompt_b = (
+                f"Débat - Tu es l'opposant. Sujet : {topic}\n"
+                f"Le proposant argue :\n\n\"{argument_a}\"\n\n"
+                f"Contre-argumente et défends ta position opposée."
+            )
+
+            context_b = {"debate_role": "opposant", "round": round_num, "topic": topic}
+            result_b = self.execute_single_task_stream(agent_type_b, prompt_b, context_b, on_token)
+            argument_b = result_b.get("result", "")
+            last_argument = argument_b
+            debate_history.append({
+                "round": round_num,
+                "agent": agent_type_b,
+                "role": "opposant",
+                "argument": argument_b,
+            })
+
+        # Enregistrer dans l'historique
+        self.task_history.append({
+            "type": "debate",
+            "agents": [agent_type_a, agent_type_b],
+            "topic": topic,
+            "rounds_completed": len(debate_history) // 2,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+        return {
+            "success": True,
+            "mode": "debate",
+            "topic": topic,
+            "agents": {"proposant": agent_type_a, "opposant": agent_type_b},
+            "rounds_completed": len(debate_history) // 2,
+            "debate_history": debate_history,
+            "timestamp": datetime.now().isoformat(),
+        }
+
     def _record_task(self, agent_type: str, task: str, result: Dict[str, Any]):
         """Enregistre une tâche dans l'historique"""
         self.task_history.append(

@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v6.9.0
+# 📖 Guide d'Installation - My Personal AI v7.0.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v6.9.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v7.0.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -164,13 +164,21 @@ pip install wmi
 
 > **Sans ces packages**, l'application fonctionne normalement. Les métriques GPU et VRAM affichent "N/A" dans l'onglet Statistiques.
 
+### Modules v7.0.0 (Optionnel — dégradation gracieuse si absents)
+```
+fastapi>=0.100.0         # API REST locale
+uvicorn>=0.23.0          # Serveur ASGI pour FastAPI
+langdetect>=1.0.9        # Détection automatique de langue
+diskcache>=5.6.0         # Cache web persistant
+reportlab>=4.0.0         # Export PDF des conversations
+```
+
 ### Advanced Features (Optionnel)
 ```
 faiss-cpu>=1.7.4         # Semantic search
 peft>=0.4.0              # LoRA fine-tuning
 bitsandbytes>=0.40.0     # Quantization
 sqlalchemy>=2.0.0        # Database ORM
-diskcache>=5.6.0         # Caching
 cryptography>=41.0.0     # Encryption
 ```
 
@@ -224,7 +232,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "6.9.0"
+  version: "7.0.0"
   max_tokens: 4096          # Max tokens standard
   ultra_max_tokens: 1048576 # Max tokens ultra mode (1M)
   temperature: 0.7
@@ -260,6 +268,53 @@ directories:
   logs: "data/logs"
   backups: "data/backups"
   context_storage: "data/context_storage"
+
+# ── Modules v7.0.0 ──────────────────────────
+
+# API REST locale
+api:
+  enabled: false               # Activer le serveur REST
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins: ["http://localhost:*"]
+
+# Workspaces / Sessions
+workspaces:
+  directory: "data/workspaces"
+  auto_save: true
+  auto_save_interval: 300      # secondes
+  max_workspaces: 50
+
+# Base de connaissances structurée
+knowledge_base:
+  directory: "data/knowledge_base"
+  auto_extract: true
+  max_facts: 10000
+
+# Historique des commandes
+command_history:
+  enabled: true
+  max_entries: 5000
+  db_path: "data/command_history.db"
+
+# Export conversations
+export:
+  output_directory: "outputs/exports"
+  default_format: "markdown"   # markdown | html | pdf
+  include_metadata: true
+
+# Détection de langue
+language:
+  auto_detect: true
+  default: "fr"
+  supported: ["fr", "en", "es", "de", "it", "pt", "nl", "ru", "zh", "ja", "ko", "ar"]
+
+# Cache web
+web_cache:
+  enabled: true
+  ttl_seconds: 3600            # 1 heure
+  max_entries: 1000
+  directory: "data/web_cache"
 ```
 
 ### Variables d'Environnement (.env)
@@ -621,7 +676,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v6.9.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v7.0.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -778,4 +833,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 6.9.0 | Architecture: 100% locale | Capacité: 1M tokens*
+*Version: 7.0.0 | Architecture: 100% locale | Capacité: 1M tokens*

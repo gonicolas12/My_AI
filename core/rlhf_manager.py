@@ -63,8 +63,9 @@ class RLHFManager:
                 user_query TEXT NOT NULL,
                 ai_response TEXT NOT NULL,
                 feedback_type TEXT NOT NULL,  -- 'positive', 'negative', 'neutral'
-                feedback_score INTEGER,  -- 0-5
+                feedback_score INTEGER,  -- 1-5 étoiles
                 feedback_comment TEXT,
+                feedback_category TEXT,  -- 'accuracy', 'relevance', 'style', 'speed', 'creativity'
                 intent TEXT,
                 confidence REAL,
                 context TEXT,
@@ -73,6 +74,13 @@ class RLHFManager:
             )
         """
         )
+
+        # Migration : ajouter la colonne feedback_category si elle n'existe pas
+        try:
+            cursor.execute("SELECT feedback_category FROM feedback LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE feedback ADD COLUMN feedback_category TEXT")
+            self.logger.info("📊 Migration: colonne feedback_category ajoutée")
 
         # Table des patterns appris
         cursor.execute(
@@ -110,6 +118,15 @@ class RLHFManager:
 
         self.logger.info("📊 Base de données RLHF initialisée")
 
+    # Catégories de feedback disponibles
+    FEEDBACK_CATEGORIES = [
+        "accuracy",    # Précision de la réponse
+        "relevance",   # Pertinence par rapport à la question
+        "style",       # Qualité du style et de la formulation
+        "speed",       # Rapidité de la réponse
+        "creativity",  # Créativité et originalité
+    ]
+
     def record_interaction(
         self,
         user_query: str,
@@ -117,6 +134,7 @@ class RLHFManager:
         feedback_type: str = "neutral",
         feedback_score: Optional[int] = None,
         feedback_comment: Optional[str] = None,
+        feedback_category: Optional[str] = None,
         intent: str = "unknown",
         confidence: float = 0.0,
         context: Optional[Dict] = None,
@@ -130,8 +148,9 @@ class RLHFManager:
             user_query: Question/requête de l'utilisateur
             ai_response: Réponse de l'IA
             feedback_type: 'positive', 'negative', 'neutral'
-            feedback_score: Score 0-5 (optionnel)
+            feedback_score: Score 1-5 étoiles (optionnel)
             feedback_comment: Commentaire libre (optionnel)
+            feedback_category: Catégorie du feedback (accuracy, relevance, style, speed, creativity)
             intent: Intention détectée
             confidence: Confiance de la détection
             context: Contexte additionnel
@@ -148,9 +167,9 @@ class RLHFManager:
             """
             INSERT INTO feedback (
                 timestamp, user_query, ai_response, feedback_type,
-                feedback_score, feedback_comment, intent, confidence,
-                context, model_version, response_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                feedback_score, feedback_comment, feedback_category,
+                intent, confidence, context, model_version, response_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 datetime.now().isoformat(),
@@ -159,6 +178,7 @@ class RLHFManager:
                 feedback_type,
                 feedback_score,
                 feedback_comment,
+                feedback_category,
                 intent,
                 confidence,
                 json.dumps(context) if context else None,
@@ -182,6 +202,17 @@ class RLHFManager:
 
         # Mettre à jour les métriques quotidiennes
         self._update_daily_metrics(feedback_type, feedback_score)
+
+        # Déduire feedback_type depuis le score si fourni (1-2 = negative, 3 = neutral, 4-5 = positive)
+        if feedback_score is not None and feedback_type == "neutral":
+            if feedback_score >= 4:
+                feedback_type = "positive"
+                self.session_stats["positive_feedback"] += 1
+                self.session_stats["neutral_feedback"] -= 1
+            elif feedback_score <= 2:
+                feedback_type = "negative"
+                self.session_stats["negative_feedback"] += 1
+                self.session_stats["neutral_feedback"] -= 1
 
         # Apprentissage automatique des patterns
         if feedback_type in ["positive", "negative"]:

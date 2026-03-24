@@ -449,6 +449,63 @@ Description courte : DevOps & CI/CD
 "Quels algorithmes de ML sont adaptés pour ce type de données ?"
 ```
 
+## 📎 Pièces Jointes aux Agents
+
+Vous pouvez désormais attacher des fichiers aux tâches envoyées aux agents :
+
+### Comment attacher un fichier
+
+1. Cliquez sur le bouton **"+"** dans la zone de saisie des agents
+2. Sélectionnez un ou plusieurs fichiers dans l'explorateur
+3. Les fichiers apparaissent en **preview** au-dessus de la zone de texte
+4. Cliquez sur **"×"** pour retirer un fichier de la sélection
+5. La zone de texte s'adapte automatiquement (réduit sa hauteur pour laisser place aux previews)
+
+### Formats supportés
+
+| Format | Méthode de lecture |
+|--------|-------------------|
+| **PDF** | PDFProcessor (extraction texte + métadonnées) |
+| **DOCX** | DOCXProcessor (paragraphes + tables) |
+| **TXT, CSV, MD, JSON** | Lecture directe (200 000 caractères max) |
+| **Code** (.py, .js, .ts, .java...) | Lecture directe |
+
+### Comportement en workflow multi-agents
+
+Dans un workflow séquentiel (A → B → C) avec des fichiers joints :
+- **Agent A** reçoit : tâche + contenu des fichiers joints
+- **Agent B** reçoit : résultat de A + tâche originale (avec fichiers)
+- **Agent C** reçoit : résultat de B + tâche originale (avec fichiers)
+
+**Tous les agents du workflow ont accès aux fichiers joints**, pas uniquement le premier.
+
+### Notes importantes
+
+- La hauteur du rectangle de saisie et des boutons reste **fixe** — seule la zone de texte réduit sa taille
+- Le contenu des fichiers est **injecté dans le prompt** sous forme de blocs textuels formatés
+- Les fichiers volumineux sont tronqués à 200 000 caractères
+
+---
+
+## 🔄 Statut Visuel des Agents sur le Canvas
+
+Chaque nœud sur le canvas de workflow affiche un indicateur de statut en temps réel :
+
+| Statut | Couleur | Signification |
+|--------|---------|---------------|
+| **En attente** | Gris `#6b7280` | L'agent n'a pas encore été exécuté |
+| **En cours** | Jaune `#f59e0b` | L'agent est en train de traiter la tâche |
+| **Terminé** | Vert `#10b981` | L'agent a terminé avec succès |
+| **Erreur** | Rouge `#ef4444` | L'agent a rencontré une erreur |
+
+Ce statut se met à jour correctement dans **tous les cas** :
+- Agent unique sur le canvas
+- Workflow séquentiel multi-agents
+- Workflow parallèle (DAG)
+- Agents isolés (sans connexion)
+
+---
+
 ## 🎨 Personnalisation
 
 L'interface suit automatiquement le thème de votre interface principale :

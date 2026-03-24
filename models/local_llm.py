@@ -107,6 +107,52 @@ class LocalLLM:
         except Exception:
             return False
 
+    def switch_model(self, new_model: str) -> bool:
+        """
+        Change le modèle actif à chaud sans redémarrer l'application.
+
+        Args:
+            new_model: Nom du modèle Ollama à utiliser
+
+        Returns:
+            True si le changement a réussi, False sinon
+        """
+        if not self.is_ollama_available:
+            print("⚠️ [LocalLLM] Ollama non disponible, impossible de changer de modèle")
+            return False
+
+        if not self._check_model_exists(new_model):
+            print(f"⚠️ [LocalLLM] Modèle '{new_model}' non trouvé dans Ollama")
+            return False
+
+        old_model = self.model
+        self.model = new_model
+        print(f"🔄 [LocalLLM] Modèle changé : {old_model} → {new_model}")
+        return True
+
+    def list_available_models(self) -> list:
+        """
+        Liste tous les modèles disponibles dans Ollama.
+
+        Returns:
+            Liste des noms de modèles disponibles
+        """
+        if not self.is_ollama_available:
+            return []
+        try:
+            response = requests.get(
+                self.ollama_url.replace("/api/generate", "/api/tags"), timeout=5
+            )
+            if response.status_code == 200:
+                return [m["name"] for m in response.json().get("models", [])]
+            return []
+        except Exception:
+            return []
+
+    def get_current_model(self) -> str:
+        """Retourne le nom du modèle actuellement actif."""
+        return self.model
+
     def _check_ollama_availability(self):
         """Vérifie si le serveur Ollama répond"""
         try:

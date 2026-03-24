@@ -17,13 +17,14 @@ L'intégration repose sur le module `core/mcp_client.py` qui agit comme un pont 
 ### 1. Outils Locaux (LocalTools)
 Ce sont des fonctions Python exécutées directement dans le processus de l'application. Elles encapsulent les capacités de My AI de manière standardisée pour qu'Ollama puisse les appeler de manière autonome.
 
-**Nouvelles capacités phares d'interaction système :**
-L'IA a maintenant un accès direct encadré à votre PC pour travailler selon ses plans :
-- `write_local_file` : Créé ou écrit dans un fichier sur votre ordinateur.
+**Capacités d'interaction système :**
+L'IA a un accès direct encadré à votre PC pour travailler selon ses plans :
+- `write_local_file` : Crée ou écrit dans un fichier sur votre ordinateur.
 - `move_local_file` : Renomme ou déplace un fichier (conserve les dossiers parents grâce à Mkdir intégré).
 - `create_directory` : Crée de nouveaux dossiers de travail.
 - `search_local_files` : Explore la racine de votre PC par glob pattern (ex: `*.py`).
 - `read_local_file` : Analyse et relit le contenu de n'importe quel de vos fichiers locaux.
+- `delete_local_file` : Supprime un fichier **avec confirmation utilisateur**.
 - Et bien d'autres outils (mémoire vectorielle RAG, recherche web via DuckDuckGo, etc.).
 
 ### 2. Serveurs MCP Externes (MCPServers)
@@ -51,8 +52,24 @@ Pour installer le SDK MCP :
 pip install mcp
 ```
 
+## ⚠️ Confirmation de Suppression
+
+Quand l'IA décide d'utiliser l'outil `delete_local_file` pour supprimer un fichier, une **fenêtre de confirmation modale** s'affiche dans l'interface graphique :
+
+- **Icône ⚠️** et titre "Confirmation de suppression"
+- **Chemin complet** du fichier affiché clairement
+- **Bouton "Oui, supprimer"** (orange) et **"Non, annuler"** (sombre)
+- La suppression est **bloquée** tant que l'utilisateur n'a pas cliqué sur un bouton
+- Si l'utilisateur refuse, l'IA reçoit un message indiquant que la suppression a été annulée
+
+**Mécanisme technique :**
+- Le thread IA attend via un `threading.Event`
+- Le dialogue est créé dans le thread GUI principal via `root.after(0, ...)`
+- La synchronisation est thread-safe
+
 ## 🌟 Avantages
 
 - **Autonomie** : L'IA décide elle-même quand et comment utiliser les outils.
+- **Sécurité** : Confirmation utilisateur obligatoire avant toute suppression de fichier.
 - **Extensibilité** : Ajout facile de nouvelles capacités via des serveurs MCP standards.
 - **Standardisation** : Utilisation d'un protocole ouvert adopté par l'industrie (Anthropic, etc.).

@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "6.9.0"
+  version: "7.0.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
@@ -338,6 +338,68 @@ mcp:
       enabled: false
       command: "npx"
       args: ["@modelcontextprotocol/server-fetch"]
+
+# ====================================
+# CLÉS API
+# ====================================
+# ====================================
+# API REST LOCALE
+# ====================================
+api:
+  enabled: false
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins: ["http://localhost:*"]
+
+# ====================================
+# WORKSPACES / SESSIONS
+# ====================================
+workspaces:
+  directory: "data/workspaces"
+  auto_save: true
+  auto_save_interval: 300  # secondes
+  max_workspaces: 50
+
+# ====================================
+# KNOWLEDGE BASE STRUCTURÉE
+# ====================================
+knowledge_base:
+  directory: "data/knowledge_base"
+  auto_extract: true
+  max_facts: 10000
+
+# ====================================
+# HISTORIQUE COMMANDES
+# ====================================
+command_history:
+  enabled: true
+  max_entries: 5000
+  db_path: "data/command_history.db"
+
+# ====================================
+# EXPORT CONVERSATIONS
+# ====================================
+export:
+  output_directory: "outputs/exports"
+  default_format: "markdown"
+  include_metadata: true
+
+# ====================================
+# DÉTECTION DE LANGUE
+# ====================================
+language:
+  auto_detect: true
+  default: "fr"
+  supported: ["fr", "en", "es", "de", "it", "pt", "nl", "ru", "zh", "ja", "ko", "ar"]
+
+# ====================================
+# CACHE WEB
+# ====================================
+web_cache:
+  enabled: true
+  ttl_seconds: 3600
+  max_entries: 1000
+  directory: "data/web_cache"
 
 # ====================================
 # CLÉS API

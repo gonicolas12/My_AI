@@ -200,15 +200,38 @@ Absolument ! C'est même recommandé. Vos documents restent 100% sur votre machi
 - Informations légales ou médicales
 
 ### L'IA conserve-t-elle mes données après fermeture ?
-La mémoire de session est effacée à la fermeture, mais vous pouvez configurer la persistance dans `config.yaml` si désiré.
+Avec les **Workspaces v7.0.0**, oui ! Vos conversations sont sauvegardées automatiquement dans des espaces de travail isolés (`data/workspaces/`). Vous pouvez les charger à tout moment. Sans workspace, la mémoire de session est effacée à la fermeture.
+
+## 🆕 Questions v7.0.0
+
+### Comment utiliser l'API REST ?
+Activez `api.enabled: true` dans `config.yaml`, puis accédez à `http://localhost:8000/api/health` pour vérifier que le serveur tourne. Tous les endpoints sont documentés dans [USAGE.md](USAGE.md#-api-rest-locale).
+
+### Comment exporter une conversation ?
+L'export se fait via le module `ConversationExporter`. Les formats disponibles sont Markdown (.md), HTML (.html, avec thème sombre) et PDF (.pdf). Les fichiers sont sauvegardés dans `outputs/exports/`.
+
+### Comment fonctionne la base de connaissances ?
+L'IA extrait automatiquement des faits depuis vos conversations (préférences, décisions, personnes, procédures, informations techniques). Ces faits sont stockés dans SQLite (`data/knowledge_base/facts.db`) avec un score de confiance. Les faits pertinents sont injectés dans le contexte des futures conversations.
+
+### L'IA peut-elle répondre dans une autre langue ?
+Oui ! Le `LanguageDetector` détecte automatiquement la langue de votre message parmi 12 langues (français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe) et génère un suffix de prompt système pour que l'IA réponde dans la même langue.
+
+### Comment attacher des fichiers aux agents ?
+Cliquez sur le bouton **"+"** dans la zone de saisie de l'onglet Agents, sélectionnez vos fichiers, et ils seront automatiquement lus et injectés dans le prompt de l'agent. Dans un workflow multi-agents, tous les agents reçoivent les fichiers joints.
+
+### L'IA demande-t-elle confirmation avant de supprimer un fichier ?
+Oui ! Depuis la v7.0.0, quand l'IA utilise l'outil MCP `delete_local_file`, une fenêtre de confirmation s'affiche avec le chemin du fichier. Vous devez explicitement cliquer "Oui, supprimer" pour autoriser la suppression.
+
+### Les nouveaux modules v7.0.0 sont-ils obligatoires ?
+Non ! Tous les modules v7.0.0 sont **optionnels** avec dégradation gracieuse. Si une dépendance est manquante (ex: `fastapi` pour l'API REST, `langdetect` pour la détection de langue), un warning est loggé et le module est désactivé. Le reste de l'application fonctionne normalement.
 
 ## 🚀 Évolutions et Support
 
 ### L'IA va-t-elle s'améliorer avec le temps ?
 Oui ! Évolutions prévues :
 - Extension VS Code intégrée
-- Support de plus de types de fichiers
-- API REST locale
+- Application web
+- Intégrations API tierces
 
 ### Puis-je contribuer au développement ?
 Bien sûr ! Le projet est ouvert aux contributions :

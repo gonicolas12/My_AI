@@ -24,10 +24,10 @@
 <tr>
 <td width="50%">
 
-**💾 Mémoire Vectorielle Étendue**  
+**💾 Mémoire Vectorielle Étendue**
 Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
-**🤖 9 Agents IA Spécialisés**  
+**🤖 9 Agents IA Spécialisés**
 Code, Debug, Web, Sécurité... et création d'agents personnalisés avec interface style n8n.
 
 **🧠 Mode Thinking — Raisonnement en Deux Passes**
@@ -36,20 +36,26 @@ Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répon
 **🔌 Intégration MCP (Model Context Protocol)**
 Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
 
+**🌐 API REST Locale**
+Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
+
 </td>
 <td width="50%">
 
-**📄 Traitement de Documents**  
+**📄 Traitement de Documents**
 PDF, DOCX, Excel, CSV, images — analyse contextuelle ultra-étendue avec compression intelligente.
 
-**🌐 Recherche Internet**  
+**🌐 Recherche Internet**
 Accès aux informations en temps réel via DuckDuckGo, résumés automatiques inclus.
 
-**💻 Génération de Code**  
-Analyse et génération de code avec contexte massif et orchestration intelligente.
+**💼 Workspaces & Sessions**
+Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
 
-**🏗️ Architecture 100% Locale**  
-SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
+**🏗️ Base de Connaissances Structurée**
+Extraction et stockage automatique de faits, préférences, décisions depuis vos conversations.
+
+**📤 Export Multi-Format**
+Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complètes.
 
 </td>
 </tr>
@@ -129,8 +135,9 @@ SQLite, ChromaDB, aucune dépendance cloud. Vos données restent chez vous.
 
 ### 🔌 Accès à tout le PC (Root System) via MCP Local
 - Outils locaux pour lire, écrire, déplacer des fichiers et créer des dossiers
-- Vérification rigoureuse des chemins complets retournés par les outils pour garantir une gestion précise des fichiers (ex: ne pas raccourcir les chemins contenant "OneDrive")
+- Vérification rigoureuse des chemins complets retournés par les outils pour garantir une gestion précise des fichiers
 - Capacité à organiser les espaces de travail de manière autonome
+- Dialogue de confirmation avant toute suppression de fichier (sécurité utilisateur)
 
 ---
 
@@ -161,30 +168,44 @@ my_ai/
 │   ├── __init__.py
 │   ├── agent_orchestrator.py            # Orchestrateur d'agents
 │   ├── ai_engine.py                     # Moteur principal IA
-│   ├── chat_orchestrator.py             # Orchestrateur de chat
+│   ├── api_server.py                    # Serveur API REST (FastAPI)
+│   ├── chat_orchestrator.py             # Orchestrateur de chat (ReAct + Plan & Execute)
+│   ├── command_history.py               # Historique des commandes utilisateur
 │   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
 │   ├── context_manager.py               # Gestion de contexte long
 │   ├── conversation.py                  # Gestion des conversations
+│   ├── conversation_exporter.py         # Export conversations (MD/HTML/PDF)
 │   ├── data_preprocessing.py            # Prétraitement des données
+│   ├── knowledge_base_manager.py        # Base de connaissances structurée
+│   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
+│   ├── session_manager.py               # Gestionnaire de workspaces/sessions
 │   ├── training_manager.py              # Training Manager moderne (pipeline complet)
-│   └── training_pipeline.py             # Pipeline d'entraînement local
-├── data/                                # Données d'enrichissement FAQ
-│   ├── enrichissement/                  # Exemples thématiques
+│   ├── training_pipeline.py             # Pipeline d'entraînement local
+│   └── web_cache.py                     # Cache web persistant (diskcache)
+├── data/                                # Données persistantes
+│   ├── enrichissement/                  # FAQ thématiques
+│   ├── knowledge_base/                  # Base de faits (SQLite)
+│   ├── web_cache/                       # Cache des recherches web
+│   ├── workspaces/                      # Espaces de travail sauvegardés
 │   └── data_collection.py               # Script de structuration des données
 ├── docs/                                # Documentations
-│   examples/                            # Exemples d'utilisation
-│   └── advanced_features_demo.py        # Démo RLHF, Training, Compression
+│   └── examples/                        # Exemples d'utilisation
 ├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
 │   ├── document_generator.py            # Génération docs avec contexte étendu
 │   └── code_generator.py                # Génération code avec analyse ultra
-├── interfaces/                          # Interfaces utilisateur Ultra
+├── interfaces/                          # Interfaces utilisateur
+│   ├── gui/                             # Modules GUI (mixins)
+│   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
+│   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
+│   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
+│   │   └── message_bubbles.py           # Bulles de messages avec RLHF
 │   ├── __init__.py
-│   ├── agents_interface.py              # Interface graphique Agents IA
+│   ├── agents_interface.py              # Interface Agents IA + pièces jointes
 │   ├── cli.py                           # Interface ligne de commande
-│   ├── gui_modern.py                    # Interface moderne
+│   ├── gui_modern.py                    # Interface moderne (assemblage)
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   ├── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
 │   ├── vscode_extension.py              # Extension VS Code
@@ -194,7 +215,7 @@ my_ai/
 │   ├── __init__.py
 │   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
 ├── models/                              # Modèles d'IA
-│   ├── mixins/                          # Mixins pour custom_ai_model
+│   ├── mixins/                          # Mixins (recherche internet, etc.)
 │   ├── training_runs/                   # Enregistrements des runs d'entraînement
 │   ├── weights/                         # Poids de modèles entraînés localement
 │   ├── __init__.py
@@ -215,8 +236,9 @@ my_ai/
 │   ├── smart_code_searcher.py           # Recherche de code intelligente
 │   ├── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
 │   └── ultra_custom_ai.py               # Modèle ULTRA
-├── outputs/                             # Fichiers générées par l'IA
-├── processors/                          # Processeurs de fichiers Ultra
+├── outputs/                             # Fichiers générés par l'IA
+│   └── exports/                         # Conversations exportées (MD/HTML/PDF)
+├── processors/                          # Processeurs de fichiers
 │   ├── __init__.py
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
 │   ├── docx_processor.py                # Traitement DOCX avec compression
@@ -224,7 +246,7 @@ my_ai/
 │   └── code_processor.py                # Traitement de code avec analyse sémantique
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils
-├── utils/                               # Utilitaires Ultra
+├── utils/                               # Utilitaires
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
 │   ├── file_processor.py                # Gestion traitement fichiers
@@ -237,7 +259,7 @@ my_ai/
 ├── launch.bat                           # Script pour lancer le programme
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
 ├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
-└── config.yaml                          # Configuration
+└── config.yaml                          # Configuration (inclut 7 sections v7.0.0)
 ```
 
 ---
@@ -368,10 +390,15 @@ $env:GITHUB_TOKEN="votre_token_github"
 | 🔁 **Pipeline d'entraînement** | Fine-tuning moderne avec monitoring temps réel |
 | 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
 | 🌐 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
+| 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
+| 🧠 **Base de connaissances** | Extraction automatique de faits depuis les conversations |
+| 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
+| 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |
+| 🌍 **12 langues** | Détection automatique et réponse dans la langue de l'utilisateur |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
-| 🔩 **Extensible** | Architecture modulaire pour ajouts futurs |
-| 🔒 **Sécurisé** | Données locales protégées, recherche internet anonyme |
+| 🔩 **Extensible** | Architecture modulaire avec 7 modules v7.0.0 |
+| 🔒 **Sécurisé** | Données locales protégées, confirmation avant suppression de fichiers |
 
 </div>
 
@@ -379,11 +406,9 @@ $env:GITHUB_TOKEN="votre_token_github"
 
 ## ✨ Évolutions Futures
 
-- 📊 **Amélioration de l'interface**
 - 🌐 **Application Web**
 - 💻 **Extension VS Code**
-- 🧩 **Nouveaux agents spécialisés**
-- 🔄 **Intégration avec d'autres LLM locaux**
+- 🔗 **Intégrations API tierces**
 
 ---
 
