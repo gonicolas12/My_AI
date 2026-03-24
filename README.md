@@ -394,11 +394,11 @@ $env:GITHUB_TOKEN="votre_token_github"
 | 🧠 **Base de connaissances** | Extraction automatique de faits depuis les conversations |
 | 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
 | 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |
-| 🌍 **12 langues** | Détection automatique et réponse dans la langue de l'utilisateur |
+| 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
-| 🔩 **Extensible** | Architecture modulaire avec 7 modules v7.0.0 |
-| 🔒 **Sécurisé** | Données locales protégées, confirmation avant suppression de fichiers |
+| 🔩 **Extensible** | Architecture modulaire |
+| 🔒 **Sécurisé** | Données locales protégées |
 
 </div>
 
