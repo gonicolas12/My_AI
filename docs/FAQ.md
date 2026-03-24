@@ -225,6 +225,12 @@ Oui ! Depuis la v7.0.0, quand l'IA utilise l'outil MCP `delete_local_file`, une 
 ### Les nouveaux modules v7.0.0 sont-ils obligatoires ?
 Non ! Tous les modules v7.0.0 sont **optionnels** avec dégradation gracieuse. Si une dépendance est manquante (ex: `fastapi` pour l'API REST, `langdetect` pour la détection de langue), un warning est loggé et le module est désactivé. Le reste de l'application fonctionne normalement.
 
+### Comment fonctionne le nouveau système de feedback par étoiles ?
+Depuis la v7.0.0, les boutons 👍/👎 ont été remplacés par une **notation 1-5 étoiles** (☆☆☆☆☆). Après chaque réponse de l'IA, survole les étoiles pour un aperçu visuel, puis clique pour valider ta note. Le feedback est enregistré automatiquement dans `data/rlhf_feedback.db`. Pour en savoir plus : [GUI_RLHF_FEEDBACK.md](GUI_RLHF_FEEDBACK.md).
+
+### Puis-je sauvegarder et réutiliser un workflow d'agents ?
+Oui ! Dans l'onglet Agents, le canvas visuel dispose de boutons **💾 Sauvegarder** (export JSON) et **📂 Charger** (import JSON). Tu peux construire un workflow complexe, le sauvegarder dans un fichier `.json`, et le recharger à n'importe quelle session pour le relancer immédiatement. Un bouton **📤 Export** permet aussi d'exporter les résultats d'exécution en Markdown.
+
 ## 🚀 Évolutions et Support
 
 ### L'IA va-t-elle s'améliorer avec le temps ?

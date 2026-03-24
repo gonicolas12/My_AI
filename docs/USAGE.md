@@ -1221,6 +1221,32 @@ Quand l'IA utilise l'outil MCP `delete_local_file` pour supprimer un fichier :
 - Boutons **"Oui, supprimer"** et **"Non, annuler"** avec thème cohérent
 - La suppression est **bloquée** tant que l'utilisateur n'a pas confirmé
 
+### ⭐ Feedback RLHF — Notation 1-5 Étoiles
+
+Après chaque réponse de l'IA dans le chat, une rangée d'étoiles apparaît (☆☆☆☆☆) :
+- **Survolez** les étoiles pour un aperçu interactif (remplissage progressif)
+- **Cliquez** sur une étoile pour valider votre note (1 à 5)
+- La note est **automatiquement enregistrée** dans `data/rlhf_feedback.db`
+- 4-5 ⭐ → feedback positif · 3 ⭐ → neutre · 1-2 ⭐ → négatif
+
+### 💾 Sauvegarde / Chargement de Workflows
+
+Dans l'onglet Agents, le canvas visuel propose trois boutons de gestion :
+
+```
+💾 Sauvegarder → exporte le workflow (nœuds + connexions) dans un fichier .json
+📂 Charger     → importe un workflow depuis un fichier .json
+📤 Export      → exporte les résultats d'exécution en Markdown ou .txt
+```
+
+**Exemple d'utilisation :**
+```
+1. Construire un workflow PlannerAgent → CodeAgent → SecurityAgent
+2. Cliquer 💾 Sauvegarder → choisir "mon_workflow.json"
+3. Prochaine session : 📂 Charger → sélectionner "mon_workflow.json"
+   Le workflow est restauré identiquement, prêt à être exécuté
+```
+
 ---
 
 **Version:** 7.0.0

@@ -1,8 +1,9 @@
-# 👍👎 Boutons de Feedback RLHF dans l'Interface
+# ⭐ Feedback RLHF — Notation par étoiles
 
 ## Présentation
 
-L'interface GUI moderne intègre maintenant des **boutons de feedback** sous chaque réponse de l'IA.
+L'interface GUI intègre un **système de notation 1-5 étoiles** sous chaque réponse de l'IA.
+Ce système remplace les anciens boutons 👍/👎 et permet un feedback plus précis.
 
 ## Utilisation
 
@@ -13,48 +14,57 @@ Après chaque réponse de l'IA, vous verrez :
 ```
 [Réponse de l'IA ici...]
 
-👍  👎  14:32
+☆ ☆ ☆ ☆ ☆   14:32
 ```
 
-- **👍 Pouce en haut** : Indique que la réponse était bonne/utile
-- **👎 Pouce en bas** : Indique que la réponse n'était pas satisfaisante
-- **14:32** : Timestamp de la réponse
+Survolez les étoiles pour un aperçu interactif, puis cliquez pour valider votre note :
 
-### Position des boutons
+| Note | Signification |
+|------|---------------|
+| ⭐ (1/5) | Réponse très mauvaise |
+| ⭐⭐ (2/5) | Réponse insuffisante |
+| ⭐⭐⭐ (3/5) | Réponse correcte |
+| ⭐⭐⭐⭐ (4/5) | Bonne réponse |
+| ⭐⭐⭐⭐⭐ (5/5) | Réponse excellente |
 
-Les boutons sont placés **à gauche du timestamp**, exactement comme dans l'interface web de Claude.
+### Comportement après notation
+
+- Les étoiles se remplissent et se **désactivent** (plus possible de noter deux fois)
+- Un feedback 4-5 ⭐ est enregistré comme **positif**
+- Un feedback 1-2 ⭐ est enregistré comme **négatif**
+- Un feedback 3 ⭐ est enregistré comme **neutre**
 
 ## Fonctionnement automatique
 
 ### Collecte en arrière-plan
 
-Chaque fois que vous cliquez sur un bouton :
+Chaque fois que vous cliquez sur une étoile :
 
 1. ✅ Le feedback est **automatiquement enregistré** dans la base SQLite
-2. 📊 Les **statistiques** sont mises à jour
-3. 🧠 Les **patterns** sont analysés et appris
+2. 📊 Les **statistiques** sont mises à jour (session + métriques quotidiennes)
+3. 🧠 Les **patterns** sont analysés et appris (mots-clés → score de confiance)
 4. 💾 Tout est sauvegardé dans `data/rlhf_feedback.db`
 
 ### Intégration RLHF Manager
 
 ```python
-# Ce qui se passe en arrière-plan lors d'un 👍 :
+# Ce qui se passe en arrière-plan lors d'un clic 5 étoiles :
 rlhf.record_interaction(
     user_query="Votre question...",
     ai_response="La réponse de l'IA...",
-    feedback_type="positive",    # 👍
-    feedback_score=5,             # Score maximum
+    feedback_type="positive",    # déduit du score >= 4
+    feedback_score=5,             # score sélectionné
     intent="conversation",
     confidence=1.0,
     model_version="ollama"
 )
 
-# Ce qui se passe lors d'un 👎 :
+# Lors d'un clic 2 étoiles :
 rlhf.record_interaction(
     user_query="Votre question...",
     ai_response="La réponse de l'IA...",
-    feedback_type="negative",    # 👎
-    feedback_score=1,             # Score minimum
+    feedback_type="negative",    # déduit du score <= 2
+    feedback_score=2,
     intent="conversation",
     confidence=1.0,
     model_version="ollama"
@@ -64,12 +74,10 @@ rlhf.record_interaction(
 ## Lancement
 
 ```bash
-# Lancer l'interface GUI avec les boutons de feedback
-python launch_unified.py
-
-# Ou
 .\launch.bat
 ```
+
+Sélectionnez l'interface graphique, puis notez chaque réponse en cliquant sur les étoiles.
 
 ## Consulter les feedbacks collectés
 
@@ -83,31 +91,29 @@ rlhf = get_rlhf_manager()
 # Statistiques globales
 stats = rlhf.get_statistics("all")
 print(f"Interactions totales : {stats['total_interactions']}")
-print(f"Feedbacks positifs : {stats['positive_count']}")
-print(f"Feedbacks négatifs : {stats['negative_count']}")
-print(f"Satisfaction : {stats['satisfaction_score']:.2%}")
+print(f"Score moyen         : {stats['average_score']:.1f}/5")
+print(f"Taux de satisfaction : {stats['positive_rate']:.0%}")
 
 # Patterns appris
 patterns = rlhf.get_learned_patterns(min_confidence=0.7)
 for p in patterns:
-    print(f"{p['pattern_type']} - Confiance : {p['confidence']:.2f}")
+    print(f"{p['pattern_type']} – Confiance : {p['confidence']:.2f}")
 ```
 
 ### Via la console
 
-Pendant que vous utilisez l'interface, les feedbacks s'affichent dans la console :
+Pendant l'utilisation, les feedbacks s'affichent dans la console :
 
 ```
-✅ Feedback positif enregistré
-❌ Feedback négatif enregistré
+🔔 Rating: 4/5 étoiles
+✅ Feedback positive (4/5) enregistré
 ```
 
 ## Workflow recommandé
 
 ### Phase 1 : Utilisation quotidienne (1-2 semaines)
 - ✅ Utilisez l'IA normalement
-- ✅ Cliquez sur 👍 quand la réponse est bonne
-- ✅ Cliquez sur 👎 quand la réponse n'est pas satisfaisante
+- ✅ Notez chaque réponse honnêtement (1-5 ⭐)
 - ✅ Tout est collecté automatiquement
 
 ### Phase 2 : Analyse (après 100+ interactions)
@@ -117,11 +123,10 @@ from core.rlhf_manager import get_rlhf_manager
 rlhf = get_rlhf_manager()
 stats = rlhf.get_statistics("all")
 
-# Vérifier si vous avez assez de données
-if stats['positive_count'] >= 50:
-    print("✅ Assez de données pour un fine-tuning")
-    
-    # Exporter pour entraînement
+if stats['total_interactions'] >= 100:
+    print(f"Score moyen : {stats['average_score']:.1f}/5")
+
+    # Exporter pour entraînement (uniquement les bonnes réponses ≥ 3/5)
     count = rlhf.export_training_data(
         "data/rlhf_training.jsonl",
         min_score=3
@@ -132,36 +137,26 @@ if stats['positive_count'] >= 50:
 ### Phase 3 : Fine-tuning (optionnel)
 Voir [ADVANCED_FEATURES.md](ADVANCED_FEATURES.md) pour créer un modèle amélioré.
 
-## Avantages
-
-✅ **Interface intuitive** : Feedback en un clic
-✅ **Collecte automatique** : Rien à configurer
-✅ **Base de données persistante** : Vos feedbacks sont sauvegardés
-✅ **Amélioration continue** : L'IA apprend de vos préférences
-✅ **Statistiques en temps réel** : Consultez l'évolution
-✅ **Style professionnel** : Design inspiré de Claude
-
 ## Architecture technique
 
-### Fichiers modifiés
+### Fichiers concernés
 
 - [`interfaces/gui/message_bubbles.py`](../interfaces/gui/message_bubbles.py)
-  - Ajout de `_show_timestamp_for_current_message()` avec boutons
-  - Callbacks `_on_thumbs_up()` et `_on_thumbs_down()`
-  - Stockage de `_last_user_query` et `_last_ai_response`
+  - `_show_timestamp_for_current_message()` : crée la ligne d'étoiles interactives
+  - `_on_star_rating()` : callback de notation (1-5), appelle le RLHF Manager
+  - Hover interactif : remplissage progressif au survol
 
-### Intégration
+### Flux de données
 
 ```
 Interface GUI (message_bubbles.py)
         ↓
-    Boutons 👍 👎
+  Étoiles ☆☆☆☆☆ (clic)
         ↓
    RLHF Manager (rlhf_manager.py)
-        ↓
-  SQLite Database (data/rlhf_feedback.db)
-        ↓
-   Pattern Learning & Statistics
+        ↓  ↓
+  SQLite (feedback)  →  Patterns appris
+  Métriques quotidiennes
 ```
 
 ## Données collectées
@@ -172,9 +167,9 @@ Pour chaque feedback :
 |-------|-------------|---------|
 | `user_query` | Votre question | "Comment installer Python ?" |
 | `ai_response` | Réponse de l'IA | "Pour installer Python..." |
-| `feedback_type` | Type de feedback | "positive" ou "negative" |
-| `feedback_score` | Score numérique | 5 (👍) ou 1 (👎) |
-| `timestamp` | Date et heure | "2026-02-11 14:32:15" |
+| `feedback_type` | Type déduit du score | "positive", "negative", "neutral" |
+| `feedback_score` | Score 1-5 | 4 |
+| `timestamp` | Date et heure | "2026-03-24 14:32:15" |
 | `model_version` | Modèle utilisé | "ollama" |
 | `intent` | Type d'interaction | "conversation" |
 | `confidence` | Confiance IA | 1.0 |
@@ -184,23 +179,10 @@ Pour chaque feedback :
 - ✅ Toutes les données restent **100% locales**
 - ✅ Base SQLite stockée dans `data/rlhf_feedback.db`
 - ✅ Aucune transmission externe
-- ✅ Vous contrôlez vos données
+- ✅ Vous contrôlez vos données (supprimable via `clean_project.bat` → niveau complet)
 
-## Prochaines étapes
+## Limites du système
 
-Après avoir collecté ~100-200 feedbacks :
-
-1. **Analysez les patterns** : Voyez ce que l'IA a appris
-2. **Exportez les données** : Créez un jeu d'entraînement
-3. **Fine-tunez Ollama** : (Optionnel) Créez un modèle personnalisé
-4. **Continuez la collecte** : Plus de données = meilleure IA
-
----
-
-**Prêt à commencer ?**
-
-```bash
-python launch_unified.py
-```
-
-Puis cliquez simplement sur 👍 ou 👎 après chaque réponse ! 🚀
+> ⚠️ Le système RLHF **collecte** les feedbacks et **apprend des patterns de mots-clés**, mais il ne modifie **pas** les poids du modèle Ollama en temps réel.
+>
+> Pour une vraie amélioration du modèle, il faut activer le fine-tuning avec les données collectées (voir `ADVANCED_FEATURES.md`). Le paramètre `fine_tuning.enabled` dans `config.yaml` est désactivé par défaut.

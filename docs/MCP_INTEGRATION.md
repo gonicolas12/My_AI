@@ -40,7 +40,56 @@ My AI peut se connecter à des serveurs MCP externes via le transport `stdio`. C
 
 ## ⚙️ Configuration
 
-*(À venir : La configuration des serveurs MCP externes se fera via le fichier `config.yaml` ou une interface dédiée).*
+La configuration des serveurs MCP externes se fait dans la section `mcp` du fichier `config.yaml` :
+
+```yaml
+mcp:
+  # Outils locaux (toujours actifs, pas de dépendance externe)
+  local_tools:
+    web_search: true
+    search_memory: true
+    read_local_file: true
+    list_directory: true
+    generate_code: true
+    calculate: true
+
+  # Serveurs MCP externes (optionnels, désactivés par défaut)
+  # Mettre enabled: true pour activer
+  servers:
+    filesystem:           # Requiert Node.js
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-filesystem", "./"]
+
+    git:                  # Accès aux dépôts Git
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-git", "--repository", "."]
+
+    sqlite:               # Accès aux bases SQLite
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-sqlite", "memory/vector_store/chroma.db"]
+
+    sequential_thinking:  # Raisonnement structuré
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-sequential-thinking"]
+
+    brave_search:         # Requiert une clé API Brave
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-brave-search"]
+      env:
+        BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+    fetch:                # Récupération de pages web
+      enabled: false
+      command: "npx"
+      args: ["@modelcontextprotocol/server-fetch"]
+```
+
+Pour activer un serveur, passer `enabled: true`. Les serveurs externes nécessitent Node.js (via `npx`).
 
 ## 🛠️ Dépendances
 

@@ -85,6 +85,20 @@
 - **Support multi-formats** : PDF (via PDFProcessor), DOCX (via DOCXProcessor), texte/code (lecture directe)
 - **Propagation en multi-agents** : dans un workflow séquentiel, tous les agents reçoivent les fichiers joints + le contexte des agents précédents
 
+#### ⭐ Système de Feedback 1-5 Étoiles (remplace 👍👎)
+- **Notation par étoiles** : 5 étoiles cliquables (☆☆☆☆☆) remplacent les anciens boutons pouce haut/bas
+- **Hover interactif** : Les étoiles se remplissent progressivement au survol pour un aperçu visuel
+- **Désactivation après notation** : Impossible de noter deux fois la même réponse
+- **Mapping automatique** : 4-5 ⭐ → feedback positif · 3 ⭐ → neutre · 1-2 ⭐ → négatif
+- **Rétro-compatibilité** : L'ancienne API `on_thumbs_up/down` redirige vers le nouveau système
+
+#### 💾 Sauvegarde / Chargement de Workflows en JSON
+- **Bouton 💾 Sauvegarder** : Exporte le workflow actuel (nœuds + connexions) dans un fichier `.json` via boîte de dialogue
+- **Bouton 📂 Charger** : Importe et restaure un workflow sauvegardé depuis un fichier `.json`
+- **Bouton 📤 Export** : Exporte les résultats d'exécution en Markdown ou texte
+- **Format JSON structuré** : `version`, liste des nœuds (id, agent, position, statut), liste des connexions
+- **Notification toast** : Confirmation visuelle après sauvegarde/chargement réussi
+
 #### ⚠️ Dialogue de Confirmation de Suppression MCP
 - **Fenêtre modale stylisée** quand l'IA demande à supprimer un fichier via MCP (`delete_local_file`)
 - **Affichage du chemin complet** du fichier à supprimer

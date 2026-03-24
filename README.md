@@ -76,7 +76,7 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 | 🎨 **Design moderne** | Interface sombre élégante avec bulles de chat optimisées |
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
 | 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
-| 🎓 **Feedback RLHF** | Boutons 👍 / 👎 sous chaque réponse, enregistrement automatique |
+| 🎓 **Feedback RLHF** | Notation 1-5 étoiles (☆☆☆☆☆) — feedback enregistré automatiquement |
 | 📂 **Gestion de fichiers** | Glissez-déposez vos fichiers — ajout direct à la mémoire |
 
 ### Agents — Interface dédiée
@@ -117,7 +117,7 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 - **Confidentialité totale** : aucune donnée envoyée sur internet
 - **Fallback intelligent** : sans Ollama, l'IA bascule automatiquement en mode patterns/règles
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
-- **Multi-modèles** : texte (`qwen3.5:4b`, `qwen3.5:9b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
+- **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
 
 ### 📚 FAQ Thématique Prioritaire
 

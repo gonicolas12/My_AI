@@ -48,6 +48,9 @@ L'interface agents est divisée en plusieurs sections :
 - **► Exécuter** (orange) : Lance la tâche. Se transforme en **■ Stop** (blanc) pendant la génération
 - **➕ Créer Agent** (bleu) : Ouvre l'interface de création d'agents personnalisés
 - **❌ Clear Workflow** (rouge) : Vide le workflow et la sélection en cours
+- **💾 Sauvegarder** : Exporte le workflow actuel dans un fichier `.json` (boîte de dialogue)
+- **📂 Charger** : Importe un workflow depuis un fichier `.json` (restaure nœuds et connexions)
+- **📤 Export** : Exporte les résultats d'exécution en fichier `.md` ou `.txt`
 
 #### 3️⃣ **Canvas de Workflow Visuel (style n8n)**
 
@@ -64,6 +67,9 @@ Le canvas est un espace interactif de type éditeur de flux :
 | **Sélection** | Clic, Shift+clic multi-sélection, rectangle de sélection par drag dans le vide |
 | **Suppression** | Touche Suppr ou ✕ sur le nœud ; clic droit sur une connexion |
 | **Exécution DAG** | Tri topologique automatique — nœuds indépendants exécutés en parallèle |
+| **Sauvegarde JSON** | Bouton 💾 — enregistre l'intégralité du workflow (nœuds + connexions) dans un `.json` |
+| **Chargement JSON** | Bouton 📂 — restaure un workflow sauvegardé depuis un fichier `.json` |
+| **Export résultats** | Bouton 📤 — exporte les résultats d'exécution en Markdown ou texte |
 
 **Statuts des nœuds pendant l'exécution :**
 - ⚪ **Idle** (gris) — En attente
