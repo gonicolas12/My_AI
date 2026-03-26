@@ -14,7 +14,7 @@ L'interface agents est divisée en plusieurs sections :
 #### 1️⃣ **Sélection d'Agents (Grille 3x3+)**
 9 cartes représentant chaque agent spécialisé (+ agents personnalisés) :
 - **💻 CodeAgent** - Génération et debug de code
-- **🌐 WebAgent** - Recherche Internet & Fact-Checking
+- **🔍 WebAgent** - Recherche Internet & Fact-Checking
 - **📊 AnalystAgent** - Analyse de données
 - **✨ CreativeAgent** - Contenu créatif
 - **🐛 DebugAgent** - Debug et correction
@@ -399,7 +399,7 @@ Description courte : DevOps & CI/CD
 "Crée des tests unitaires pour cette fonction"
 ```
 
-### WebAgent 🌐
+### WebAgent 🔍
 ```
 "Cherche les groupes de la Coupe du monde 2026"
 "Quels sont les résultats des dernières élections législatives en France"

@@ -368,7 +368,7 @@ class CLIInterface:
 
         agents_info = {
             "code": ("🐍 CodeAgent", "Génération et debug de code", "Prec: 0.3"),
-            "web": ("🌐 WebAgent", "Recherche Internet & Fact-Checking", "Bal: 0.5"),
+            "web": ("🔍 WebAgent", "Recherche Internet & Fact-Checking", "Bal: 0.5"),
             "analyst": ("📊 AnalystAgent", "Analyse de données", "Anal: 0.4"),
             "creative": ("✨ CreativeAgent", "Contenu créatif", "Créa: 0.8"),
             "debug": ("🐛 DebugAgent", "Debug et correction", "Prec: 0.2"),

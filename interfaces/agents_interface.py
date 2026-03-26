@@ -287,7 +287,7 @@ class AgentsInterface:
                 "color": "#3b82f6",
             },
             "web": {
-                "icon": "🌐",
+                "icon": "🔍",
                 "name": "WebAgent",
                 "desc": "Recherche Internet & Fact-Checking",
                 "color": "#10b981",

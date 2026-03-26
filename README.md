@@ -24,37 +24,37 @@
 <tr>
 <td width="50%">
 
-**💾 Mémoire Vectorielle Étendue**
+**💾 Mémoire Vectorielle Étendue**  
 Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
-**🤖 9 Agents IA Spécialisés**
+**🤖 9 Agents IA Spécialisés**  
 Code, Debug, Web, Sécurité... et création d'agents personnalisés avec interface style n8n.
 
-**🧠 Mode Thinking — Raisonnement en Deux Passes**
+**🧠 Mode Thinking**  
 Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répondre.
 
-**🔌 Intégration MCP (Model Context Protocol)**
+**🔌 Intégration MCP (Model Context Protocol)**  
 Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
 
-**🌐 API REST Locale**
+**🌐 API REST Locale**  
 Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 
 </td>
 <td width="50%">
 
+**🔍 Recherche Internet**  
+Accès aux informations en temps réel via DuckDuckGo.
+
 **📄 Traitement de Documents**
 PDF, DOCX, Excel, CSV, images — analyse contextuelle ultra-étendue avec compression intelligente.
 
-**🌐 Recherche Internet**
-Accès aux informations en temps réel via DuckDuckGo, résumés automatiques inclus.
-
-**💼 Workspaces & Sessions**
+**💼 Workspaces & Sessions**  
 Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
 
-**🏗️ Base de Connaissances Structurée**
+**🏗️ Base de Connaissances Structurée**  
 Extraction et stockage automatique de faits, préférences, décisions depuis vos conversations.
 
-**📤 Export Multi-Format**
+**📤 Export Multi-Format**  
 Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complètes.
 
 </td>
@@ -103,7 +103,7 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 | Agent | Rôle |
 |---|---|
 | 🐍 **CodeAgent** | Génération et debug de code multi-langages |
-| 🌐 **WebAgent** | Recherche Internet & Fact-Checking |
+| 🔍 **WebAgent** | Recherche Internet & Fact-Checking |
 | 📊 **AnalystAgent** | Analyse de données et insights |
 | ✨ **CreativeAgent** | Rédaction et contenu créatif |
 | 🐛 **DebugAgent** | Détection et correction d'erreurs |
@@ -126,7 +126,7 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 - La FAQ répond **avant** tout autre modèle (priorité maximale)
 - Ajoutez, modifiez ou supprimez des fichiers à la volée
 
-### 🌐 Recherche Internet Intelligente
+### 🔍 Recherche Internet Intelligente
 
 - Recherche web en temps réel via **DuckDuckGo**
 - Résumés automatiques et extraction de contenu avec **BeautifulSoup**
@@ -367,7 +367,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 |---|---|
 | [🏗️ Architecture](docs/ARCHITECTURE.md) | Structure technique détaillée |
 | [📦 Installation](docs/INSTALLATION.md) | Guide d'installation complet |
-| [🌐 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
+| [🔍 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
 | [⚡ Optimisation](docs/OPTIMIZATION.md) | Conseils et techniques d'optimisation locale |
 | [💾 Mémoire Vectorielle 1M](docs/ULTRA_1M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
 | [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
@@ -389,7 +389,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | 🎓 **RLHF** | Apprentissage automatique depuis le feedback utilisateur |
 | 🔁 **Pipeline d'entraînement** | Fine-tuning moderne avec monitoring temps réel |
 | 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
-| 🌐 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
+| 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
 | 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
 | 🧠 **Base de connaissances** | Extraction automatique de faits depuis les conversations |
 | 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |

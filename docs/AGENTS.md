@@ -47,7 +47,7 @@ Le canvas permet de :
 orchestrator.ask_agent("code", "Crée une fonction qui trie une liste")
 ```
 
-### 2. **WebAgent** 🌐
+### 2. **WebAgent** 🔍
 **Expertise:** Recherche Internet & Fact-Checking
 
 **Utilise pour:**

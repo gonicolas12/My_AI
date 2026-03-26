@@ -1,4 +1,4 @@
-# 🌐 Guide de la Recherche Internet - My Personal AI
+# 🔍 Guide de la Recherche Internet - My Personal AI
 
 ## 📋 Vue d'ensemble
 
@@ -45,7 +45,7 @@ La recherche internet dans My Personal AI est optimisée pour une expérience ut
 🤖 "Quelle est l'adresse de la mairie de Toulouse ?"
 ```
 
-#### Météo (v5.7.0)
+#### Météo
 ```
 🤖 "Quelle est la météo à Paris ?"
 🤖 "Quel temps fait-il à Toulouse aujourd'hui ?"
@@ -83,7 +83,7 @@ La recherche internet dans My Personal AI est optimisée pour une expérience ut
 
 | Type | Mots-clés Détectés | Format de Réponse |
 |------|-------------------|-------------------|
-| **Météo** ⭐ NEW | météo, temps, température, prévisions, climat | Données temps réel + prévisions 3 jours |
+| **Météo** | météo, temps, température, prévisions, climat | Données temps réel + prévisions 3 jours |
 | **News** | actualité, news, récent, dernières nouvelles | Résumé des dernières informations |
 | **Tutorial** | comment, how to, guide, étapes | Instructions étape par étape |
 | **Definition** | qu'est-ce que, définition, c'est quoi | Explication claire et concise |
@@ -93,7 +93,7 @@ La recherche internet dans My Personal AI est optimisée pour une expérience ut
 
 ## 🛠️ Architecture Technique
 
-### Moteur de Recherche v5.7.0
+### Moteur de Recherche
 ```python
 class InternetSearchEngine:
     """Moteur de recherche internet intelligent avec météo"""
@@ -116,7 +116,7 @@ class InternetSearchEngine:
         # 5. Fallback Météo-France si erreur
 ```
 
-### Ordre des Moteurs (Optimisé v5.7.0)
+### Ordre des Moteurs
 ```python
 # Priorité 1: DuckDuckGo API Instant
 # - Rapide et stable (< 500ms)
@@ -139,7 +139,7 @@ class InternetSearchEngine:
 # - Utilisé uniquement si tout échoue
 ```
 
-### Flux de Traitement v5.7.0
+### Flux de Traitement
 1. **Détection d'intention** : Pattern `internet_search` reconnu
 2. **Extraction de requête** : Analyse du langage naturel
 3. **Détection météo** : Mots-clés (météo, temps, température, etc.)
@@ -193,14 +193,14 @@ FRENCH_CITIES = [
 
 ### Métriques Typiques
 - **Temps météo wttr.in** : 1-3 secondes (API externe)
-- **Temps DuckDuckGo Instant** : 200-500ms (optimisé v5.7.0)
+- **Temps DuckDuckGo Instant** : 200-500ms
 - **Temps recherche complète** : 2-5 secondes
 - **Pages analysées** : 3-5 sources
 - **Taille des résumés** : 200-800 mots
 - **Taux de succès** : >98% avec API Instant (amélioration +3%)
 - **Villes météo supportées** : Toutes les villes du monde (via wttr.in)
 
-### Optimisations v5.7.0
+### Optimisations
 - **Ordre moteurs optimisé** : API Instant prioritaire (évite timeouts)
 - **Détection météo précoce** : Route spécialisée avant recherche générale
 - **Traitement parallèle** : Analyse simultanée des pages
@@ -236,7 +236,7 @@ Solution :
 3. Vérifiez les paramètres proxy
 ```
 
-#### "Météo indisponible" (v5.7.0)
+#### "Météo indisponible"
 ```
 Problème : ConnectionResetError ou timeout wttr.in
 Cause : Proxy/firewall entreprise bloque wttr.in
@@ -247,7 +247,7 @@ Solution :
 3. Accédez à wttr.in/{ville} directement dans navigateur
 ```
 
-#### "DuckDuckGo CAPTCHA" (Résolu v5.7.0)
+#### "DuckDuckGo CAPTCHA"
 ```
 Problème : DuckDuckGo Lite retourne status 202
 Solution : Ordre moteurs optimisé, API Instant maintenant prioritaire
@@ -290,4 +290,4 @@ Pour toute question ou problème :
 4. Redémarrez l'application si nécessaire
 5. Utilisez le script `clean_project.bat` pour nettoyer le cache
 
-**Amusez-vous bien avec la recherche internet ! 🌐✨**
+**Amusez-vous bien avec la recherche internet ! 🔍✨**
