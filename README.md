@@ -43,7 +43,7 @@ Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 <td width="50%">
 
 **🔍 Recherche Internet**  
-Accès aux informations en temps réel via DuckDuckGo.
+Accès aux informations en temps réel via DuckDuckGo. Résumés automatiques inclus.
 
 **📄 Traitement de Documents**
 PDF, DOCX, Excel, CSV, images — analyse contextuelle ultra-étendue avec compression intelligente.
