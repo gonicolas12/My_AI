@@ -46,7 +46,7 @@ Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 Accès aux informations en temps réel via DuckDuckGo. Résumés automatiques inclus.
 
 **📄 Traitement de Documents**
-PDF, DOCX, Excel, CSV, images — analyse contextuelle ultra-étendue avec compression intelligente.
+PDF, DOCX, Excel, CSV, Code, images — analyse contextuelle ultra-étendue avec compression intelligente.
 
 **💼 Workspaces & Sessions**  
 Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
