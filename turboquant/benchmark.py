@@ -12,10 +12,11 @@ import numpy as np
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from turboquant import TurboQuantProd, PolarQuant
+from turboquant import TurboQuantProd, PolarQuant  # pylint: disable=wrong-import-position
 
 
 def banner(title: str) -> None:
+    """Print a section banner."""
     print(f"\n{'=' * 56}")
     print(f"  {title}")
     print(f"{'=' * 56}\n")
@@ -25,7 +26,8 @@ def banner(title: str) -> None:
 #  1. Unbiasedness test                                                   #
 # ---------------------------------------------------------------------- #
 def test_unbiasedness(dim: int = 128, bits: int = 3, n_samples: int = 1000, seed: int = 0):
-    print(f"1. UNBIASEDNESS TEST")
+    """Verify the inner-product estimator is unbiased across many samples."""
+    print("1. UNBIASEDNESS TEST")
     print(f"   dim={dim}  bits={bits}  samples={n_samples}\n")
 
     tq = TurboQuantProd(bits=bits, dim=dim, seed=42)
@@ -59,6 +61,7 @@ def test_unbiasedness(dim: int = 128, bits: int = 3, n_samples: int = 1000, seed
 #  2. Compression ratio                                                   #
 # ---------------------------------------------------------------------- #
 def test_compression(dim: int = 128):
+    """Report compression ratios for each supported bit-width."""
     print("2. COMPRESSION RATIO")
     fp32_bytes = dim * 4
     print(f"   dim={dim}   float32 baseline = {fp32_bytes} bytes\n")
@@ -83,6 +86,7 @@ def test_compression(dim: int = 128):
 #  3. MSE by bit-width                                                    #
 # ---------------------------------------------------------------------- #
 def test_mse(dim: int = 128, n_samples: int = 500, seed: int = 1):
+    """Measure reconstruction MSE for PolarQuant across bit-widths."""
     print("3. MSE BY BIT-WIDTH (PolarQuant / TurboQuantMSE)")
     print(f"   dim={dim}  samples={n_samples}\n")
     rng = np.random.default_rng(seed)
@@ -111,6 +115,7 @@ def test_mse(dim: int = 128, n_samples: int = 500, seed: int = 1):
 #  4. Speed benchmark                                                     #
 # ---------------------------------------------------------------------- #
 def test_speed(dim: int = 128, n_vectors: int = 10_000, bits: int = 3, seed: int = 2):
+    """Benchmark quantisation and inner-product throughput."""
     print("4. SPEED BENCHMARK")
     print(f"   dim={dim}  vectors={n_vectors}  bits={bits}\n")
 
@@ -127,7 +132,7 @@ def test_speed(dim: int = 128, n_vectors: int = 10_000, bits: int = 3, seed: int
 
     # Inner products (single-vector API)
     t0 = time.perf_counter()
-    scores_tq = np.array([tq.inner_product(query, q) for q in quantized])
+    _ = [tq.inner_product(query, q) for q in quantized]
     t_ip_single = time.perf_counter() - t0
 
     # Inner products (batch API with precomputed rotations)
@@ -156,6 +161,7 @@ def test_speed(dim: int = 128, n_vectors: int = 10_000, bits: int = 3, seed: int
 #  5. TurboQuantProd end-to-end MSE                                       #
 # ---------------------------------------------------------------------- #
 def test_turboquant_mse(dim: int = 128, n_samples: int = 500, seed: int = 3):
+    """Measure end-to-end reconstruction MSE for TurboQuantProd."""
     print("5. TURBOQUANTPROD RECONSTRUCTION MSE")
     print(f"   dim={dim}  samples={n_samples}\n")
     rng = np.random.default_rng(seed)
@@ -181,6 +187,7 @@ def test_turboquant_mse(dim: int = 128, n_samples: int = 500, seed: int = 3):
 #  Main                                                                   #
 # ---------------------------------------------------------------------- #
 def main():
+    """Run all validation benchmarks and print a summary."""
     banner("TurboQuant Validation Benchmark")
 
     ok1 = test_unbiasedness()

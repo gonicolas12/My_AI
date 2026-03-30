@@ -6,8 +6,8 @@ estimator using the asymmetric formula:
     E[ sqrt(pi/2) * ||x|| * mean( (H @ y) * sign(H @ x) ) ] = <y, x>
 """
 
-import numpy as np
 from dataclasses import dataclass
+import numpy as np
 from .utils import random_rotation_matrix
 
 
@@ -33,7 +33,7 @@ class QJL:
         self.dim = dim
         self.seed = seed
         rng = np.random.default_rng(seed)
-        self.H = random_rotation_matrix(dim, rng)
+        self.hadamard = random_rotation_matrix(dim, rng)
 
     # ------------------------------------------------------------------ #
     #  Core API                                                           #
@@ -43,7 +43,7 @@ class QJL:
         """Compress *x* to 1 sign-bit per coordinate + scalar norm."""
         x = np.asarray(x, dtype=np.float64)
         norm = float(np.linalg.norm(x))
-        z = self.H @ x
+        z = self.hadamard @ x
         sign_bits = np.sign(z).astype(np.int8)
         sign_bits[sign_bits == 0] = 1          # tie-break (measure-zero event)
         return QJLQuantized(sign_bits=sign_bits, norm=norm)
@@ -54,7 +54,7 @@ class QJL:
         The query is projected at full precision (NOT quantised).
         """
         query = np.asarray(query, dtype=np.float64)
-        z_q = self.H @ query                   # full precision
+        z_q = self.hadamard @ query            # full precision
         return float(
             np.sqrt(np.pi / 2)
             * quantized.norm
@@ -66,5 +66,5 @@ class QJL:
         return (
             np.sqrt(np.pi / 2) / self.dim
             * quantized.norm
-            * (self.H.T @ quantized.sign_bits.astype(np.float64))
+            * (self.hadamard.T @ quantized.sign_bits.astype(np.float64))
         )

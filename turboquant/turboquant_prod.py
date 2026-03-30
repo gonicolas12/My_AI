@@ -10,8 +10,8 @@ Key property (Theorem 2 of the TurboQuant paper):
     E[ inner_product(y, quantize(x)) ] = <y, x>    (unbiased)
 """
 
-import numpy as np
 from dataclasses import dataclass
+import numpy as np
 from .polar_quant import PolarQuant, PolarQuantized
 from .qjl import QJL, QJLQuantized
 
@@ -98,7 +98,7 @@ class TurboQuantProd:
         r_hat = (
             np.sqrt(np.pi / 2) / self.dim
             * quantized.residual_norm
-            * (self.qjl.H.T @ quantized.qjl_signs.astype(np.float64))
+            * (self.qjl.hadamard.T @ quantized.qjl_signs.astype(np.float64))
         )
         return x_mse + r_hat
 
@@ -117,20 +117,20 @@ class TurboQuantProd:
         query = np.asarray(query, dtype=np.float64)
 
         # Precompute: rotate query into both coordinate systems
-        Pi_q = self.mse.Pi @ query        # for MSE inner products
-        H_q = self.qjl.H @ query          # for QJL inner products
+        rotated_query = self.mse.rotation @ query    # for MSE inner products
+        projected_query = self.qjl.hadamard @ query  # for QJL inner products
         sqrt_pi_2 = np.sqrt(np.pi / 2)
         codebook = self.mse.codebook
 
         scores = np.empty(len(quantized_keys), dtype=np.float64)
         for i, qk in enumerate(quantized_keys):
-            # MSE in rotated space: <Pi @ query, codebook[indices]> * norm
+            # MSE in rotated space: <rotation @ query, codebook[indices]> * norm
             x_rot_hat = codebook[qk.mse_indices]
-            mse_part = qk.norm * np.dot(Pi_q, x_rot_hat)
+            mse_part = qk.norm * np.dot(rotated_query, x_rot_hat)
 
-            # QJL: sqrt(pi/2) * r_norm * mean(H_q * signs)
+            # QJL: sqrt(pi/2) * r_norm * mean(hadamard_q * signs)
             qjl_part = sqrt_pi_2 * qk.residual_norm * np.mean(
-                H_q * qk.qjl_signs
+                projected_query * qk.qjl_signs
             )
 
             scores[i] = mse_part + qjl_part
@@ -149,4 +149,5 @@ class TurboQuantProd:
 
     @staticmethod
     def float32_bits(dim: int) -> int:
+        """Return the number of bits required to store *dim* float32 values."""
         return dim * 32

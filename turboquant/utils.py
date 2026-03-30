@@ -4,6 +4,7 @@ import numpy as np
 
 
 def is_power_of_2(n: int) -> bool:
+    """Return True if n is a strictly positive power of 2."""
     return n > 0 and (n & (n - 1)) == 0
 
 
@@ -14,10 +15,10 @@ def hadamard_matrix(d: int) -> np.ndarray:
     """
     if not is_power_of_2(d):
         raise ValueError(f"d must be a power of 2, got {d}")
-    H = np.array([[1.0]])
-    while H.shape[0] < d:
-        H = np.block([[H, H], [H, -H]])
-    return H
+    hadamard = np.array([[1.0]])
+    while hadamard.shape[0] < d:
+        hadamard = np.block([[hadamard, hadamard], [hadamard, -hadamard]])
+    return hadamard
 
 
 def signed_hadamard_matrix(d: int, rng: np.random.Generator) -> np.ndarray:
@@ -28,18 +29,18 @@ def signed_hadamard_matrix(d: int, rng: np.random.Generator) -> np.ndarray:
       - O(d log d) fast multiply via Walsh-Hadamard transform
       - Approximate JL property for large d
     """
-    H = hadamard_matrix(d)
+    hadamard = hadamard_matrix(d)
     signs = rng.choice([-1.0, 1.0], size=d)
-    return (H * signs[np.newaxis, :]) / np.sqrt(d)
+    return (hadamard * signs[np.newaxis, :]) / np.sqrt(d)
 
 
 def random_orthogonal_matrix(d: int, rng: np.random.Generator) -> np.ndarray:
     """Haar-distributed random orthogonal matrix via QR of Gaussian."""
-    G = rng.standard_normal((d, d))
-    Q, R = np.linalg.qr(G)
-    # Correct signs so Q is truly Haar-distributed
-    Q = Q @ np.diag(np.sign(np.diag(R)))
-    return Q
+    g_mat = rng.standard_normal((d, d))
+    q_mat, r_mat = np.linalg.qr(g_mat)
+    # Correct signs so q_mat is truly Haar-distributed
+    q_mat = q_mat @ np.diag(np.sign(np.diag(r_mat)))
+    return q_mat
 
 
 def random_rotation_matrix(d: int, rng: np.random.Generator) -> np.ndarray:

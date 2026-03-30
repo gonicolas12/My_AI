@@ -11,8 +11,8 @@ distribution (Beta((d-1)/2, (d-1)/2) on [-1,1]), enabling a single
 shared codebook for all coordinates.
 """
 
-import numpy as np
 from dataclasses import dataclass
+import numpy as np
 from .utils import random_rotation_matrix
 from .codebook import get_codebook
 
@@ -42,7 +42,7 @@ class PolarQuant:
         self.seed = seed
 
         rng = np.random.default_rng(seed)
-        self.Pi = random_rotation_matrix(dim, rng)
+        self.rotation = random_rotation_matrix(dim, rng)
 
         self.codebook = get_codebook(dim, bits)            # shape (2^b,)
         # Decision boundaries = midpoints between consecutive centroids
@@ -62,12 +62,12 @@ class PolarQuant:
                 norm=0.0,
             )
         x_n = x / norm                              # unit sphere
-        x_rot = self.Pi @ x_n                        # rotate
+        x_rot = self.rotation @ x_n                  # rotate
         indices = np.searchsorted(self.boundaries, x_rot).astype(np.uint8)
         return PolarQuantized(indices=indices, norm=norm)
 
     def dequantize(self, quantized: PolarQuantized) -> np.ndarray:
         """Reconstruct from centroid indices + norm."""
         x_rot_hat = self.codebook[quantized.indices]  # (d,)
-        x_n_hat = self.Pi.T @ x_rot_hat               # inverse rotation
+        x_n_hat = self.rotation.T @ x_rot_hat         # inverse rotation
         return x_n_hat * quantized.norm

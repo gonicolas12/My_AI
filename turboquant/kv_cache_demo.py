@@ -17,15 +17,17 @@ import numpy as np
 if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from turboquant import TurboQuantProd
+from turboquant import TurboQuantProd  # pylint: disable=wrong-import-position
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
+    """Compute numerically stable softmax over a 1-D array."""
     e = np.exp(x - np.max(x))
     return e / e.sum()
 
 
 def main():
+    """Run the KV-cache quantisation demo and print accuracy metrics."""
     # ----- Config -----
     n_tokens = 512
     n_heads = 8
@@ -96,7 +98,7 @@ def main():
     tq_bytes = tq_bits_total / 8
     ratio = fp32_bytes / tq_bytes
 
-    print(f"\n  Memory")
+    print("\n  Memory")
     print(f"    float32:     {fp32_bytes:>10,} bytes")
     print(f"    TurboQuant:  {int(tq_bytes):>10,} bytes")
     print(f"    Ratio:       {ratio:>10.1f}x\n")
@@ -114,7 +116,7 @@ def main():
     kl = float(np.sum(weights_exact * np.log(weights_exact / (weights_approx + 1e-30) + 1e-30)))
     l1 = float(np.sum(np.abs(weights_exact - weights_approx)))
 
-    print(f"  Attention weight quality (head 0, softmax)")
+    print("  Attention weight quality (head 0, softmax)")
     print(f"    KL divergence:  {kl:.6f}")
     print(f"    L1 distance:    {l1:.6f}\n")
 

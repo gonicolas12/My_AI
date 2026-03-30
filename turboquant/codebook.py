@@ -50,7 +50,8 @@ def lloyd_max(d: int, b: int, max_iter: int = 300, tol: float = 1e-13) -> np.nda
     quantiles = np.linspace(1 / (2 * n_centroids), 1 - 1 / (2 * n_centroids), n_centroids)
     centroids = beta_dist.ppf(quantiles, a_param, a_param) * 2 - 1
 
-    pdf = lambda t: _pdf_scalar(t, d)
+    def pdf(t):
+        return _pdf_scalar(t, d)
 
     for _ in range(max_iter):
         # Boundaries = midpoints between consecutive centroids
