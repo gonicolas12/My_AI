@@ -5,11 +5,14 @@ Supporte ChromaDB et FAISS, tokenization correcte (tiktoken), chiffrement AES-25
 """
 
 import hashlib
-import re
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import huggingface_hub.constants as _hf_constants
+import transformers.utils.hub as _tf_hub
 
 from core.config import get_config
 
@@ -216,12 +219,10 @@ class VectorMemory:
         saved_hf_const = None
         saved_tf_const = None
         try:
-            import huggingface_hub.constants as _hf_constants
-            import transformers.utils.hub as _tf_hub
             saved_hf_const = _hf_constants.HF_HUB_OFFLINE
-            saved_tf_const = _tf_hub._is_offline_mode
+            saved_tf_const = _tf_hub._is_offline_mode  # pylint: disable=protected-access
             _hf_constants.HF_HUB_OFFLINE = False
-            _tf_hub._is_offline_mode = False
+            _tf_hub._is_offline_mode = False  # pylint: disable=protected-access
             os.environ['HF_HUB_OFFLINE'] = '0'
             os.environ['TRANSFORMERS_OFFLINE'] = '0'
             print("📥 Téléchargement du CrossEncoder (reranking)... (une seule fois)")
@@ -237,7 +238,7 @@ class VectorMemory:
             os.environ['TRANSFORMERS_OFFLINE'] = saved_transformers
             try:
                 _hf_constants.HF_HUB_OFFLINE = saved_hf_const
-                _tf_hub._is_offline_mode = saved_tf_const
+                _tf_hub._is_offline_mode = saved_tf_const  # pylint: disable=protected-access
             except Exception:
                 pass
 
