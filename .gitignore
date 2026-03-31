@@ -50,3 +50,4 @@ data/custom_agents.json
 data/knowledge_base/
 data/web_cache/
 data/workspaces/
+data/command_history*

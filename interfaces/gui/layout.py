@@ -119,8 +119,14 @@ class LayoutMixin:
             self.root, fg_color=self.colors["bg_primary"]
         )
         self.main_container.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-        self.main_container.grid_columnconfigure(0, weight=1)
+        # col 0 : sidebar (collapsed par défaut), col 1 : contenu
+        self.main_container.grid_columnconfigure(0, minsize=0, weight=0)
+        self.main_container.grid_columnconfigure(1, weight=1)
         self.main_container.grid_rowconfigure(1, weight=1)
+
+        # Sidebar (créée EN PREMIER pour être en col 0, rowspan header+contenu)
+        if hasattr(self, "create_left_sidebar"):
+            self.create_left_sidebar(self.main_container)
 
         # Header moderne
         self.create_modern_header()
@@ -137,7 +143,7 @@ class LayoutMixin:
         self.content_container = self.create_frame(
             self.main_container, fg_color=self.colors["bg_primary"]
         )
-        self.content_container.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        self.content_container.grid(row=1, column=1, sticky="nsew", padx=0, pady=0)
         self.content_container.grid_columnconfigure(0, weight=1)
         self.content_container.grid_rowconfigure(0, weight=1)
         self.main_container.grid_rowconfigure(1, weight=1)
@@ -201,12 +207,10 @@ class LayoutMixin:
         )
 
     def _update_header_buttons_visibility(self):
-        """Affiche ou masque les boutons Clear Chat / Aide selon le contexte.
+        """Affiche ou masque les boutons Clear Chat / Aide / Sidebar selon le contexte.
         Visible uniquement sur l'onglet Chat ET hors écran d'accueil."""
-        show = (
-            getattr(self, "_current_tab", "chat") == "chat"
-            and not getattr(self, "_home_screen_active", False)
-        )
+        is_chat = getattr(self, "_current_tab", "chat") == "chat"
+        show_chat_btns = is_chat and not getattr(self, "_home_screen_active", False)
         for btn in (
             getattr(self, "clear_btn", None),
             getattr(self, "help_btn", None),
@@ -214,10 +218,25 @@ class LayoutMixin:
             if btn is None:
                 continue
             try:
-                if show:
+                if show_chat_btns:
                     btn.grid()
                 else:
                     btn.grid_remove()
+            except Exception:
+                pass
+
+        # Le bouton ☰ de la sidebar n'est visible que sur l'onglet Chat
+        toggle_btn = getattr(self, "_sidebar_toggle_btn", None)
+        if toggle_btn is not None:
+            try:
+                if is_chat:
+                    toggle_btn.grid()
+                else:
+                    toggle_btn.grid_remove()
+                    # Fermer la sidebar si on quitte l'onglet Chat
+                    if hasattr(self, "_sidebar_frame") and getattr(self, "_sidebar_visible", False):
+                        self._sidebar_frame.grid_remove()
+                        self._sidebar_visible = False
             except Exception:
                 pass
 
@@ -299,9 +318,35 @@ class LayoutMixin:
         header_frame = self.create_frame(
             self.main_container, fg_color=self.colors["bg_primary"]
         )
-        header_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=0)
-        # Seule la colonne des boutons a un poids (boutons collés à droite)
-        header_frame.grid_columnconfigure(2, weight=1)
+        header_frame.grid(row=0, column=1, sticky="nsew", padx=20, pady=0)
+        # col=0 : bouton sidebar (gauche) | col=1 : espace | col=2 : boutons droite
+        header_frame.grid_columnconfigure(1, weight=1)
+
+        # ── Bouton toggle sidebar (col=0, gauche) ──
+        if CTK_AVAILABLE:
+            self._sidebar_toggle_btn = ctk.CTkButton(
+                header_frame,
+                text="☰",
+                command=self.toggle_sidebar if hasattr(self, "toggle_sidebar") else lambda: None,
+                fg_color=self.colors["bg_secondary"],
+                hover_color=self.colors["button_hover"],
+                text_color=self.colors["text_primary"],
+                font=("Segoe UI", 16),
+                width=40,
+                height=40,
+                corner_radius=6,
+            )
+        else:
+            self._sidebar_toggle_btn = tk.Button(
+                header_frame,
+                text="☰",
+                command=self.toggle_sidebar if hasattr(self, "toggle_sidebar") else lambda: None,
+                bg=self.colors["bg_secondary"],
+                fg=self.colors["text_primary"],
+                font=("Segoe UI", 16),
+                relief="flat",
+            )
+        self._sidebar_toggle_btn.grid(row=0, column=0, padx=(0, 8), pady=20)
 
         # Boutons d'onglets centrés (place pour centrage absolu)
         self.create_tab_buttons(header_frame)

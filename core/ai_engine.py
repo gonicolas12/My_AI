@@ -176,6 +176,7 @@ class AIEngine:
         self.logger.info("✅ ChatOrchestrator initialisé (ReAct + scratchpad + détection de boucle)")
 
         # ── Modules v7.0.0 ──
+        self._current_lang_instruction = ""
         self._init_v7_modules()
 
     # ------------------------------------------------------------------
@@ -275,6 +276,34 @@ class AIEngine:
                 self.logger.info("✅ SessionManager initialisé")
             except Exception as e:
                 self.logger.warning("⚠️ SessionManager indisponible: %s", e)
+
+    # ── Détection de langue ─────────────────────────────────────────────
+
+    # Suffixes de prompt par code de langue ISO 639-1
+    _LANG_SUFFIXES = {
+        "fr": "Réponds toujours en français.",
+        "en": "Always respond in English.",
+        "es": "Responde siempre en español.",
+        "de": "Antworte immer auf Deutsch.",
+        "it": "Rispondi sempre in italiano.",
+        "pt": "Responda sempre em português.",
+        "nl": "Antwoord altijd in het Nederlands.",
+        "ru": "Всегда отвечай на русском языке.",
+        "zh": "请始终用中文回答。",
+        "ja": "常に日本語で回答してください。",
+        "ko": "항상 한국어로 답변해 주세요。",
+        "ar": "أجب دائمًا باللغة العربية.",
+    }
+
+    def _get_lang_instruction(self, text: str) -> str:
+        """Retourne l'instruction de langue à injecter dans le system prompt."""
+        if self.language_detector is not None:
+            try:
+                code = self.language_detector.detect(text)
+                return self._LANG_SUFFIXES.get(code, self._LANG_SUFFIXES["fr"])
+            except Exception:
+                pass
+        return self._LANG_SUFFIXES["fr"]
 
     def _setup_mcp_tools(self):
         """
@@ -1070,6 +1099,9 @@ Que voulez-vous que je fasse pour vous ?"""
         try:
             self.logger.info("Traitement de la requête: %s...", query[:100])
 
+            # Détection automatique de la langue de l'utilisateur
+            self._current_lang_instruction = self._get_lang_instruction(query)
+
             # 0. Vérifier la génération de fichier en priorité absolue pour court-circuiter FAQ et MCP
             query_lower = query.lower()
             file_keywords = [
@@ -1358,7 +1390,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "Tu as accès à des outils que tu peux appeler automatiquement pour "
                 "répondre précisément et agir sur les fichiers (chemins absolus possibles). "
                 "Utilise les outils pertinents avant de répondre. "
-                "Réponds toujours en français sauf si on te demande autre chose. "
+                f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
             )
 
@@ -1430,7 +1462,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "Tu es My AI, un assistant IA local, confidentiel et puissant. "
                 "Tu as accès à des outils et à l'ensemble du système de fichiers de ce PC. "
                 "Utilise les outils quand c'est pertinent, avec des chemins absolus si besoin. "
-                "Réponds toujours en français sauf instruction contraire."
+                f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}"
             )
 
             full_context = self._prepare_context(query, context)
@@ -1749,6 +1781,9 @@ Que voulez-vous que je fasse pour vous ?"""
           3. Stream final Ollama avec le résultat de l'outil injecté
           4. Fallback → CustomAIModel
         """
+        # Détection automatique de la langue de l'utilisateur
+        self._current_lang_instruction = self._get_lang_instruction(user_input)
+
         # ----------------------------------------------------------------
         # 1. Vision
         # ----------------------------------------------------------------
@@ -1843,7 +1878,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 f"- Documents : {user_documents}\n"
                 f"- Bureau (Desktop) : {user_desktop}\n"
                 "Exemple : Si on te dit 'Crée le fichier info.txt dans Téléchargements', lance directement 'write_local_file' avec le path '{user_downloads}\\info.txt'. N'invente pas de sous-dossiers traduits en français comme 'Downloads\\Téléchargements'.\n\n"
-                "Réponds toujours en français sauf instruction contraire. "
+                f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
 

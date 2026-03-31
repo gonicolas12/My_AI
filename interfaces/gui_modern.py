@@ -21,6 +21,7 @@ from interfaces.gui import (
     LayoutMixin,
     MarkdownFormattingMixin,
     MessageBubblesMixin,
+    SidebarMixin,
     StreamingMixin,
     SyntaxHighlightingMixin,
     WidgetsMixin,
@@ -30,6 +31,7 @@ from interfaces.gui import (
 class ModernAIGUI(
     BaseGUI,
     WidgetsMixin,
+    SidebarMixin,
     LayoutMixin,
     ChatAreaMixin,
     MessageBubblesMixin,

@@ -202,6 +202,8 @@ class BaseGUI:
         self._home_screen_active = False
         self._home_input = None
         self._home_input_wrapper = None
+        self._home_preview_frame = None
+        self._pending_files = []
         self._conv_container = None
         self._chat_content_frame = None
         # Mode thinking (widget raisonnement)
@@ -1023,6 +1025,14 @@ class BaseGUI:
 
             # Réinitialise l'interruption à chaque nouveau message
             self.is_interrupted = False
+
+            # Enregistrer dans l'historique des commandes (v7.0.0)
+            try:
+                engine = getattr(self, "ai_engine", None)
+                if engine and hasattr(engine, "command_history") and engine.command_history:
+                    engine.command_history.add(query=message)
+            except Exception:
+                pass
 
             # Lancer le traitement avec l'ID
             threading.Thread(

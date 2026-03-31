@@ -10,6 +10,7 @@ from .syntax_highlighting import SyntaxHighlightingMixin
 from .markdown_formatting import MarkdownFormattingMixin
 from .file_handling import FileHandlingMixin
 from .streaming import StreamingMixin
+from .sidebar import SidebarMixin
 
 __all__ = [
     "BaseGUI",
@@ -22,4 +23,5 @@ __all__ = [
     "MarkdownFormattingMixin",
     "FileHandlingMixin",
     "StreamingMixin",
+    "SidebarMixin",
 ]
