@@ -699,6 +699,9 @@ class BaseGUI:
             # l'icône, car l'ancien indicateur l'avait (et on veut que le nouveau
             # s'enchaîne sans la répéter).
             was_already_active = getattr(self, "_mcp_indicator_active", False)
+            # Mémoriser si le premier indicateur de la chaîne avait consommé l'icône,
+            # pour la propager jusqu'au dernier indicateur (qui sera masqué par la synthèse).
+            _icon_already_consumed = getattr(self, "_mcp_consumed_icon", False) if was_already_active else False
 
             # Supprimer l'éventuel indicateur précédent
             self._hide_mcp_tool_indicator(restore_icon=not was_already_active)
@@ -744,7 +747,10 @@ class BaseGUI:
             # plutôt que _thinking_mode_active car ce dernier est reset par
             # _finalize_reasoning_widget avant l'arrivée de l'indicateur MCP.
             _show_icon = getattr(self, "_last_bubble_is_user", True)
-            self._mcp_consumed_icon = _show_icon  # Se souvenir si l'indicateur a "consommé" l'icône
+            # Propager la consommation de l'icône à travers la chaîne d'outils :
+            # si un indicateur précédent avait déjà affiché l'icône, on le mémorise
+            # pour que le dernier masquage (synthèse) restaure correctement _last_bubble_is_user.
+            self._mcp_consumed_icon = _show_icon or _icon_already_consumed
             self._last_bubble_is_user = False  # L'indicateur MCP est un output IA
             icon_lbl = self.create_label(
                 center_frame,

@@ -609,16 +609,46 @@ class ChatOrchestrator:
 
             _is_memory_tool = _last_tool_name == "search_memory"
 
+            # Détecter un échec "fichier introuvable" sur un outil de fichier
+            _is_file_action_tool = _last_tool_name in [
+                "delete_local_file", "move_local_file", "read_local_file"
+            ]
+            _file_not_found = (
+                _is_file_action_tool
+                and "Introuvable" in _last_result
+                and not any(tc.get("tool") == "search_local_files" for tc in tool_calls_log)
+            )
+
+            # Pour search_local_files : "pauvre" seulement si aucun fichier trouvé ou erreur.
+            # Un résultat court contenant "Fichiers trouvés" est un succès, pas un échec.
+            _local_search_found_files = (
+                _last_tool_name == "search_local_files"
+                and "Fichiers trouvés" in _last_result
+            )
             _result_is_poor = (
-                _is_search_tool and (
+                _is_search_tool and not _local_search_found_files and (
                     total_data_chars < 300
                     or "Aucun résultat" in _last_result
+                    or "Aucun fichier" in _last_result
                     or "[Erreur" in _last_result
                     or "Information non trouvée" in _last_result
                 )
             )
 
-            if _result_is_poor and len(tool_calls_log) < MAX_TOOL_USES:
+            if _file_not_found and len(tool_calls_log) < MAX_TOOL_USES:
+                # Fichier introuvable → demander une recherche pour trouver le bon chemin
+                print(
+                    f"   🔍 [ChatOrchestrator] Fichier introuvable → recherche automatique (tour {tour + 1})"
+                )
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "Le fichier n'a pas été trouvé au chemin exact. "
+                        "Utilise search_local_files pour chercher le fichier par son nom "
+                        "et récupérer son chemin exact, puis réessaie l'action avec ce chemin."
+                    ),
+                })
+            elif _result_is_poor and len(tool_calls_log) < MAX_TOOL_USES:
                 # Résultats insuffisants → encourager à retenter avec d'autres termes
                 print(
                     f"   ⚠️  [ChatOrchestrator] Résultats pauvres ({total_data_chars} chars) "
@@ -632,6 +662,36 @@ class ChatOrchestrator:
                         "Si tu essaies depuis plusieurs tours, passe à l'étape suivante de ton plan au lieu de boucler."
                     ),
                 })
+            elif _local_search_found_files:
+                # search_local_files a trouvé des fichiers → passer à l'action immédiatement
+                _action_keywords = [
+                    "supprime", "supprimer", "efface", "effacer", "delete",
+                    "déplace", "déplacer", "move",
+                    "copie", "copier", "copy",
+                    "renomme", "renommer", "rename",
+                ]
+                _user_wants_action = any(kw in user_input.lower() for kw in _action_keywords)
+                print(
+                    f"   ✅ [ChatOrchestrator] Fichiers trouvés → action directe (tour {tour + 1})"
+                )
+                if _user_wants_action:
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "Tu as trouvé les fichiers. Utilise IMMÉDIATEMENT les chemins exacts "
+                            "retournés ci-dessus pour exécuter l'action demandée. "
+                            "S'il y a plusieurs fichiers et que la demande ne précise pas lequel, "
+                            "demande à l'utilisateur lequel il souhaite cibler AVANT d'agir."
+                        ),
+                    })
+                else:
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "Voici les fichiers trouvés. Réponds maintenant à l'utilisateur "
+                            "en utilisant ces résultats."
+                        ),
+                    })
             elif _is_memory_tool and "Aucun résultat" in _last_result:
                 print(f"   ⚠️  [ChatOrchestrator] Mémoire vide → passage à la suite (tour {tour + 1})")
                 messages.append({
@@ -644,20 +704,48 @@ class ChatOrchestrator:
                 })
             elif total_data_chars > 500 and (_is_search_tool or _is_memory_tool):
                 # Données substantielles collectées → FORCER la synthèse en retirant les outils
-                force_synthesis = True
-                print(
-                    f"   ✅ [ChatOrchestrator] données massives ({total_data_chars} chars) "
-                    f"→ synthèse forcée (tour {tour + 1})"
-                )
-                messages.append({
-                    "role": "user",
-                    "content": (
-                        "STOP — tu as collecté suffisamment de données. "
-                        "N'appelle PLUS aucun outil. "
-                        "En te basant UNIQUEMENT sur les résultats collectés ci-dessus, "
-                        f"réponds directement et précisément à ma question : {user_input}\n"
-                    ),
-                })
+                # SAUF si la requête originale demande une action (ex: supprime, déplace…)
+                # dans ce cas la recherche était une étape intermédiaire, pas la finalité.
+                _action_keywords = [
+                    "supprime", "supprimer", "efface", "effacer", "delete",
+                    "déplace", "déplacer", "move",
+                    "copie", "copier", "copy",
+                    "renomme", "renommer", "rename",
+                    "crée", "créer", "create",
+                    "ouvre", "ouvrir", "open",
+                    "lance", "lancer", "run", "execute", "exécute",
+                ]
+                _user_wants_action = any(kw in user_input.lower() for kw in _action_keywords)
+
+                if _user_wants_action:
+                    # La recherche était un prérequis pour l'action → laisser continuer
+                    print(
+                        f"   🔄 [ChatOrchestrator] données massives ({total_data_chars} chars) "
+                        f"mais action détectée → poursuite du plan (tour {tour + 1})"
+                    )
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "Tu as trouvé les informations nécessaires. "
+                            "Maintenant exécute l'action demandée en utilisant les chemins exacts retournés ci-dessus. "
+                            "N'invente aucun chemin, utilise ceux obtenus par tes outils."
+                        ),
+                    })
+                else:
+                    force_synthesis = True
+                    print(
+                        f"   ✅ [ChatOrchestrator] données massives ({total_data_chars} chars) "
+                        f"→ synthèse forcée (tour {tour + 1})"
+                    )
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "STOP — tu as collecté suffisamment de données. "
+                            "N'appelle PLUS aucun outil. "
+                            "En te basant UNIQUEMENT sur les résultats collectés ci-dessus, "
+                            f"réponds directement et précisément à ma question : {user_input}\n"
+                        ),
+                    })
             else:
                 # Cas intermédiaire (ou action réussie) → laisser le modèle décider sa prochaine étape
                 messages.append({
