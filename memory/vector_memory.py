@@ -208,9 +208,20 @@ class VectorMemory:
             pass
 
         # Étape 2 : tenter le téléchargement (premier lancement)
+        # IMPORTANT: huggingface_hub et transformers stockent le flag offline
+        # comme constante au moment de l'import. Changer os.environ ne suffit
+        # pas — il faut aussi patcher les constantes internes des modules.
         saved_offline = os.environ.get('HF_HUB_OFFLINE', '0')
         saved_transformers = os.environ.get('TRANSFORMERS_OFFLINE', '0')
+        saved_hf_const = None
+        saved_tf_const = None
         try:
+            import huggingface_hub.constants as _hf_constants
+            import transformers.utils.hub as _tf_hub
+            saved_hf_const = _hf_constants.HF_HUB_OFFLINE
+            saved_tf_const = _tf_hub._is_offline_mode
+            _hf_constants.HF_HUB_OFFLINE = False
+            _tf_hub._is_offline_mode = False
             os.environ['HF_HUB_OFFLINE'] = '0'
             os.environ['TRANSFORMERS_OFFLINE'] = '0'
             print("📥 Téléchargement du CrossEncoder (reranking)... (une seule fois)")
@@ -224,6 +235,11 @@ class VectorMemory:
             # Toujours restaurer le mode offline
             os.environ['HF_HUB_OFFLINE'] = saved_offline
             os.environ['TRANSFORMERS_OFFLINE'] = saved_transformers
+            try:
+                _hf_constants.HF_HUB_OFFLINE = saved_hf_const
+                _tf_hub._is_offline_mode = saved_tf_const
+            except Exception:
+                pass
 
     def _init_encryption(self, encryption_key: Optional[str] = None):
         """Initialise le système de chiffrement AES-256"""
