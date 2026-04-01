@@ -3,8 +3,9 @@ Module partagé pour éviter les imports circulaires
 Contient les classes et fonctions utilisées par plusieurs modules
 """
 
+import asyncio
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
 # =========================================================================== #
@@ -189,3 +190,55 @@ PRIORITY_CODE_SITES = [
     "developer.mozilla.org",
     "docs.python.org"
 ]
+
+
+# ============================================================================
+# TAVILY SEARCH HELPER (shared across code-search modules)
+# ============================================================================
+
+def is_tavily_available() -> bool:
+    """Check if Tavily API key is configured"""
+    return bool(os.environ.get("TAVILY_API_KEY"))
+
+
+async def tavily_search(query: str, max_results: int = 5,
+                        search_depth: str = "basic",
+                        include_domains: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """
+    Shared async Tavily search helper.
+
+    Returns a list of dicts with keys: title, url, snippet, source.
+    Returns an empty list if TAVILY_API_KEY is not set or on error.
+    """
+    if not is_tavily_available():
+        return []
+
+    try:
+        from tavily import TavilyClient  # pylint: disable=import-outside-toplevel
+
+        client = TavilyClient()
+
+        kwargs: Dict[str, Any] = {
+            "query": query,
+            "max_results": max_results,
+            "search_depth": search_depth,
+        }
+        if include_domains:
+            kwargs["include_domains"] = include_domains
+
+        # TavilyClient.search() is synchronous; run in a thread to stay async
+        response = await asyncio.to_thread(client.search, **kwargs)
+
+        results = []
+        for item in response.get("results", []):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", ""),
+                "source": "Tavily",
+            })
+        return results
+
+    except Exception as e:
+        print(f"⚠️ Tavily search error: {e}")
+        return []

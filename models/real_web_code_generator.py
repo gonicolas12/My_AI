@@ -14,6 +14,8 @@ import aiohttp
 import yaml
 from bs4 import BeautifulSoup
 
+from core.shared import tavily_search, is_tavily_available
+
 
 class RealWebCodeGenerator:
     """
@@ -50,6 +52,10 @@ class RealWebCodeGenerator:
                     self._search_geeksforgeeks_real(query, language),
                     self._search_google_code(query, language)
                 ]
+
+                # Tavily as additional source (if API key available)
+                if is_tavily_available():
+                    tasks.append(self._search_tavily(query, language))
 
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -299,6 +305,38 @@ class RealWebCodeGenerator:
 
         except Exception as e:
             print(f"[WARNING] Erreur Google search: {e}")
+
+        return solutions
+
+    async def _search_tavily(self, query: str, language: str) -> List[Dict]:
+        """Recherche via Tavily API"""
+        solutions = []
+
+        try:
+            search_query = f"{query} {language} code example"
+            tavily_results = await tavily_search(
+                query=search_query,
+                max_results=5,
+                search_depth="basic",
+            )
+
+            for item in tavily_results:
+                snippet_text = item.get("snippet", "")
+                url = item.get("url", "")
+                title = item.get("title", "Tavily Result")
+
+                if snippet_text and len(snippet_text.strip()) > 30 and self._is_relevant_for_query(snippet_text, query):
+                    solutions.append({
+                        "code": snippet_text,
+                        "explanation": f"Solution Tavily: {title[:100]}",
+                        "source": "Tavily",
+                        "url": url,
+                        "rating": 3.5,
+                        "relevance": self._calculate_relevance(snippet_text, query)
+                    })
+
+        except Exception as e:
+            print(f"[WARNING] Erreur Tavily: {e}")
 
         return solutions
 
