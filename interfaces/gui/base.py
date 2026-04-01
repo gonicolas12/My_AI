@@ -2118,6 +2118,7 @@ class BaseGUI:
         self._home_input.bind("<FocusOut>", _on_focus_out)
         self._home_input.bind("<Return>", _on_home_enter)
         self._home_input.bind("<Shift-Return>", lambda e: None)
+        self._home_input.bind("<Control-v>", self._on_paste)
 
         # ── Barre de boutons — row=2 (après preview row=0 et input row=1) ──
         buttons_row = self.create_frame(content_frame, fg_color=self.colors["input_bg"], corner_radius=0)

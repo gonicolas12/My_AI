@@ -1056,10 +1056,20 @@ class LocalLLM:
             )
 
     @staticmethod
+    @staticmethod
     def _sanitize_vision_response(response_text: str) -> str:
-        """Nettoie les amorces contradictoires de refus dans les réponses vision."""
+        """Nettoie les amorces contradictoires de refus et les artefacts de traduction."""
         if not response_text:
             return response_text
+
+        # Supprimer les notes de traduction en fin de réponse
+        # Ex: "Note: I have translated the user's question into French as requested."
+        response_text = re.sub(
+            r"\n*\s*Note\s*:\s*I have translated.*$",
+            "",
+            response_text,
+            flags=re.IGNORECASE | re.DOTALL,
+        ).rstrip()
 
         response_lower = response_text.lower()
         refusal_markers = [
@@ -1224,16 +1234,23 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception vision: {e}")
             return None
 
-    def generate_stream_with_image(self, prompt, image_base64, _system_prompt=None, on_token=None):
+    def generate_stream_with_image(self, prompt, image_base64, _system_prompt=None, on_token=None,
+                                    on_thinking_token=None, on_thinking_complete=None):
         """
-        Génère une réponse avec image en STREAMING.
-        Utilise /api/generate (plus fiable pour vision) avec retry sur refus.
+        Pipeline vision en 2 étapes :
+          1. minicpm-v analyse l'image → description factuelle brute (non streamée)
+          2. qwen3.5 rédige la réponse finale à partir de la description (streamée)
+
+        Cela garantit que la réponse a le même style et formatage que
+        les réponses textuelles (Modelfile respecté).
 
         Args:
             prompt: Le message de l'utilisateur
             image_base64: L'image encodée en base64
-            system_prompt: Prompt système optionnel (ignoré, intégré au prompt)
-            on_token: Callback pour chaque token
+            _system_prompt: Ignoré (le system prompt du modèle texte est utilisé)
+            on_token: Callback pour chaque token de la réponse finale
+            on_thinking_token: Callback pour le thinking Qwen3.5
+            on_thinking_complete: Callback quand le thinking est terminé
 
         Returns:
             La réponse complète ou None
@@ -1245,124 +1262,99 @@ class LocalLLM:
         if not vision_model:
             return None
 
-        # Prompts de tentatives successives - anglais (langue native de llava)
-        # Prompt ultra-strict pour éviter les hallucinations
+        # ── Étape 1 : Description brute par le modèle vision (NON streamée) ──
+        description = self._get_vision_description(vision_model, prompt, image_base64)
+        if not description:
+            return None
+
+        print(f"📝 [LocalLLM] Description vision obtenue ({len(description)} chars)")
+
+        # ── Étape 2 : Rédaction par le modèle texte (streamée) ──
+        redaction_prompt = (
+            f"L'utilisateur t'a envoyé une image. Voici la description détaillée "
+            f"de ce que contient cette image :\n\n"
+            f"---\n{description}\n---\n\n"
+            f"Question de l'utilisateur : {prompt}\n\n"
+            f"Réponds à la question en te basant sur la description ci-dessus. "
+            f"Utilise ton format habituel (gras, puces, emojis, structure claire)."
+        )
+
+        # Ajouter le contexte image à l'historique AVANT la génération texte
+        self.add_to_history("user", f"[Image jointe] {prompt}")
+
+        result = self.generate_stream(
+            prompt=redaction_prompt,
+            on_token=on_token,
+            on_thinking_token=on_thinking_token,
+            on_thinking_complete=on_thinking_complete,
+        )
+
+        if result:
+            # L'historique est déjà géré par generate_stream (ajoute la réponse)
+            # mais on a ajouté le user manuellement, donc on corrige :
+            # generate_stream ajoute {"user": redaction_prompt} et {"assistant": result}
+            # On veut garder {"user": "[Image jointe] prompt"} et {"assistant": result}
+            # Retirer les 2 dernières entrées ajoutées par generate_stream
+            if len(self.conversation_history) >= 2:
+                self.conversation_history.pop()  # assistant
+                self.conversation_history.pop()  # user (redaction_prompt)
+            # Ajouter seulement la réponse (le user est déjà dans l'historique)
+            self.add_to_history("assistant", result)
+            print(f"✅ [LocalLLM] Réponse vision pipeline OK ({len(result)} chars)")
+
+        return result
+
+    def describe_image(self, image_base64: str, prompt: str = "Décris ce que tu vois sur cette image.") -> str | None:
+        """API publique : décrit une image via le modèle vision disponible.
+
+        Encapsule _get_vision_model() + _get_vision_description() pour les
+        appelants externes (ex: AgentsInterface) sans exposer les méthodes privées.
+
+        Returns:
+            Description textuelle de l'image, ou None si aucun modèle vision disponible.
+        """
+        vision_model = self._get_vision_model()
+        if not vision_model:
+            return None
+        return self._get_vision_description(vision_model, prompt, image_base64)
+
+    def _get_vision_description(self, vision_model, prompt, image_base64):
+        """
+        Étape 1 du pipeline : obtenir une description brute de l'image
+        via le modèle vision (non streamée, silencieuse).
+        """
         prompts_to_try = [
             (
-                f"You are viewing an image. Describe ONLY what you can ACTUALLY SEE in the image. "
-                f"Do not guess, do not infer, do not make assumptions. "
-                f"If you cannot see something clearly, say so. "
-                f"Answer in French.\n\n"
-                f"User question: {prompt}"
+                f"Décris précisément et en détail ce que tu vois dans cette image. "
+                f"Inclus tous les éléments visuels : texte, couleurs, disposition, "
+                f"graphiques, icônes, etc. Sois factuel. Réponds en français.\n\n"
+                f"Contexte de la question de l'utilisateur : {prompt}"
             ),
             (
-                f"IMPORTANT: An image is provided above. You MUST describe what you SEE in the image. "
-                f"Be factual and literal. Do not invent content.\n\n"
-                f"Question: {prompt}\n\n"
-                f"Answer in French."
+                f"Décris ce que tu vois dans cette image. "
+                f"Réponds en français.\n\n"
+                f"Question : {prompt}"
             ),
         ]
 
         for attempt, full_prompt in enumerate(prompts_to_try):
-            # Le 1er essai utilise le streaming normal ; le retry est non-streaming
-            # pour ne pas afficher un refus à l'utilisateur
-            if attempt == 0:
-                result = self._stream_vision_attempt(
-                    vision_model, full_prompt, image_base64, on_token, attempt
-                )
-            else:
-                print(f"🔄 [LocalLLM] Retry vision (tentative {attempt + 1})...")
-                result = self._non_stream_vision_attempt(
-                    vision_model, full_prompt, image_base64, attempt
-                )
+            print(f"🖼️ [LocalLLM] Analyse vision (tentative {attempt + 1})...")
+            result = self._non_stream_vision_attempt(
+                vision_model, full_prompt, image_base64, attempt
+            )
 
             if result and not self._is_vision_refusal(result):
                 result = self._sanitize_vision_response(result)
-                self.add_to_history("user", f"[Image jointe] {prompt}")
-                self.add_to_history("assistant", result)
-                print(f"✅ [LocalLLM] Réponse vision OK (tentative {attempt + 1})")
-
-                # Si c'était un retry, envoyer la réponse au callback d'un coup
-                if attempt > 0 and on_token:
-                    on_token(result)
-
                 return result
 
             if result:
-                print(f"⚠️ [LocalLLM] Tentative {attempt + 1}: refus détecté ({len(result)} chars)")
+                print(f"⚠️ [LocalLLM] Tentative {attempt + 1}: refus détecté")
 
-        # Toutes les tentatives ont échoué, retourner la dernière réponse (même si c'est un refus)
+        # Fallback : retourner même un résultat imparfait
         if result:
-            result = self._sanitize_vision_response(result)
-            self.add_to_history("user", f"[Image jointe] {prompt}")
-            self.add_to_history("assistant", result)
-            if on_token and not self._streamed_already:
-                on_token(result)
-            return result
+            return self._sanitize_vision_response(result)
 
         return None
-
-    def _stream_vision_attempt(self, vision_model, full_prompt, image_base64, on_token, _attempt):
-        """Tentative de vision en streaming via /api/generate."""
-        self._streamed_already = False
-
-        data = {
-            "model": vision_model,
-            "prompt": full_prompt,
-            "images": [image_base64],
-            "stream": True,
-            "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
-            "options": {
-                "temperature": 0.0,
-                "top_p": 0.95,
-                "repeat_penalty": 1.1,
-                "num_ctx": 2048,
-                "num_predict": 400,
-                "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
-            },
-        }
-
-        try:
-            print(f"⚡🖼️ [LocalLLM] Streaming vision via '{vision_model}' (generate API)...")
-            full_response = ""
-
-            with _resilient_post(
-                self.ollama_url, json=data, timeout=self.timeout, stream=True
-            ) as response:
-                if response.status_code != 200:
-                    print(f"⚠️ [LocalLLM] Erreur API vision: {response.status_code}")
-                    return None
-
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            chunk = line.decode("utf-8")
-                            json_chunk = __import__("json").loads(chunk)
-                            token = json_chunk.get("response", "")
-
-                            if token:
-                                full_response += token
-                                if on_token:
-                                    should_continue = on_token(token)
-                                    if should_continue is False:
-                                        print("🛑 [LocalLLM] Vision interrompue")
-                                        break
-
-                            if json_chunk.get("done", False):
-                                break
-                        except Exception as e:
-                            print(f"⚠️ [LocalLLM] Erreur parsing vision chunk: {e}")
-                            continue
-
-            self._streamed_already = bool(full_response)
-            return full_response
-
-        except requests.exceptions.Timeout:
-            print(f"⚠️ [LocalLLM] Timeout vision streaming après {self.timeout}s")
-            return None
-        except Exception as e:
-            print(f"⚠️ [LocalLLM] Exception vision streaming: {e}")
-            return None
 
     def _non_stream_vision_attempt(self, vision_model, full_prompt, image_base64, _attempt):
         """Tentative de vision non-streaming via /api/generate (pour retry silencieux)."""
@@ -1373,11 +1365,11 @@ class LocalLLM:
             "stream": False,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
             "options": {
-                "temperature": 0.0,
+                "temperature": 0.4,
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
-                "num_ctx": 2048,
-                "num_predict": 400,
+                "num_ctx": 4096,
+                "num_predict": 800,
                 "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
         }

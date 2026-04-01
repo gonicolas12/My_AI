@@ -28,8 +28,6 @@ class StreamingMixin:
             # Si le widget est vide (pas de thinking tokens reçus), il sera
             # masqué et _last_bubble_is_user restauré, ce qui permet d'afficher
             # correctement l'icône 🤖 sur cette bulle réponse.
-            # Sans cela, un widget raisonnement vide reste visible pendant
-            # tout le streaming puis disparaît d'un coup à la fin.
             if hasattr(self, "_finalize_reasoning_widget"):
                 self._finalize_reasoning_widget()
 
@@ -1344,10 +1342,18 @@ class StreamingMixin:
             # Si le mode rattrapage immédiat a déclenché, le widget peut être
             # (quasi) vide alors que le buffer contient tout le texte.
             # → insérer le texte manquant avant de formater.
+            # NOTE: On compare typing_index (chars consommés par l'animation)
+            # avec la taille du buffer, PAS la taille du widget. Le widget
+            # est plus court que le buffer car le formatage progressif a
+            # supprimé des marqueurs (**, ##, - ) et les a remplacés par
+            # des tags visuels. Comparer les longueurs de texte causerait
+            # un faux positif qui remplacerait le widget formaté par du
+            # texte brut, détruisant tout le formatage.
             buffer_text = getattr(self, "_streaming_buffer", "") or ""
             current_widget_text = self.typing_widget.get("1.0", "end-1c")
-            if len(current_widget_text) < len(buffer_text) * 0.9:
-                # Le widget a beaucoup moins de texte que le buffer → dump le buffer
+            typing_index = getattr(self, "typing_index", 0)
+            if typing_index < len(buffer_text) * 0.9:
+                # L'animation n'a pas consommé tout le buffer → dump le buffer
                 self.typing_widget.delete("1.0", "end")
                 self.typing_widget.insert("1.0", buffer_text)
                 current_widget_text = self.typing_widget.get("1.0", "end-1c")
@@ -1367,13 +1373,48 @@ class StreamingMixin:
             # Le check précédent (box-drawing chars dans le widget) échouait
             # quand seulement CERTAINS tableaux étaient formatés pendant
             # l'animation : les autres restaient en markdown brut.
-            # Maintenant : si le source contient des tableaux markdown,
-            # on reconstruit TOUT le widget depuis le buffer original.
-            # ============================================================
-            # Utiliser le buffer ORIGINAL (jamais modifié par le progressive code block
-            # handler) qui conserve les marqueurs ```python et ``` intacts.
-            # _streaming_buffer a eu ses marqueurs de code supprimés pendant l'animation.
             raw_source = getattr(self, "_streaming_buffer_original", "") or getattr(self, "_streaming_buffer", "") or current_widget_text
+
+            # Normaliser les listes numérotées / checkboxes en puces dans le source
+            # (le Modelfile interdit les "1. " et minicpm-v en génère souvent)
+            raw_source = re.sub(r"^(\s*)\d+[\.\)]\s+", r"\1- ", raw_source, flags=re.MULTILINE)
+            raw_source = re.sub(r"^(\s*)\d+\s{2,}[\□☐]?\s*", r"\1- ", raw_source, flags=re.MULTILINE)
+            raw_source = re.sub(r"^(\s*)[\□☐☑✓✔]\s*", r"\1- ", raw_source, flags=re.MULTILINE)
+
+            # Appliquer dans le widget de façon CIBLÉE (sans delete/insert global
+            # qui détruirait tous les tags de formatage déjà appliqués)
+            _numlist_patterns = [
+                (r"^\d+[\.\)]\s+", "- "),        # "1. " ou "1) " → "- "
+                (r"^\d+\s{2,}[\□☐]?\s*", "- "),  # "1   □" → "- "
+                (r"^[\□☐☑✓✔]\s*", "- "),          # "□ " → "- "
+            ]
+            try:
+                for pattern, replacement in _numlist_patterns:
+                    scan_pos = "1.0"
+                    while True:
+                        match_pos = self.typing_widget.search(
+                            pattern, scan_pos, "end", regexp=True
+                        )
+                        if not match_pos:
+                            break
+                        # Vérifier qu'on est en début de ligne
+                        line_start = self.typing_widget.index(f"{match_pos} linestart")
+                        if match_pos != line_start:
+                            scan_pos = self.typing_widget.index(f"{match_pos}+1c")
+                            continue
+                        # Mesurer le match dans le texte
+                        line_end = self.typing_widget.index(f"{match_pos} lineend")
+                        line_text = self.typing_widget.get(match_pos, line_end)
+                        m = re.match(pattern, line_text)
+                        if m:
+                            match_end = self.typing_widget.index(
+                                f"{match_pos}+{len(m.group(0))}c"
+                            )
+                            self.typing_widget.delete(match_pos, match_end)
+                            self.typing_widget.insert(match_pos, replacement)
+                        scan_pos = self.typing_widget.index(f"{match_pos} lineend +1c")
+            except Exception:
+                pass  # Ne pas bloquer le formatage si ça échoue
 
             # Détecter les tableaux dans le SOURCE ORIGINAL (pas le widget)
             _sep_pattern = re.compile(r'^\|[\s\-:]+\|', re.MULTILINE)

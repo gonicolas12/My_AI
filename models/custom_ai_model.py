@@ -637,7 +637,8 @@ class CustomAIModel(
 
     def generate_response_stream(
         self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None,
-        image_base64: Optional[str] = None
+        image_base64: Optional[str] = None,
+        on_thinking_token=None, on_thinking_complete=None,
     ) -> str:
         """
         Génère une réponse en STREAMING pour affichage temps réel.
@@ -662,10 +663,12 @@ class CustomAIModel(
             # 🖼️ PRIORITÉ 0 : IMAGE - Si une image est jointe ET la question concerne l'image
             # ============================================================
             if image_base64 and self.local_llm and self.local_llm.is_ollama_available and self._question_concerns_image(user_input):
-                print("🖼️ [VISION] Image détectée - utilisation du modèle vision")
+                print("🖼️ [VISION] Image détectée - pipeline vision → texte")
                 response = self.local_llm.generate_stream_with_image(
                     user_input, image_base64,
-                    on_token=on_token
+                    on_token=on_token,
+                    on_thinking_token=on_thinking_token,
+                    on_thinking_complete=on_thinking_complete,
                 )
                 if response:
                     self.conversation_memory.add_conversation(

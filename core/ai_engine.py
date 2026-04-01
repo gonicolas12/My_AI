@@ -1793,6 +1793,8 @@ Que voulez-vous que je fasse pour vous ?"""
                 on_token=on_token,
                 image_base64=image_base64,
                 context=context,
+                on_thinking_token=on_thinking_token,
+                on_thinking_complete=on_thinking_complete,
             )
 
         llm = getattr(self.local_ai, "local_llm", None)

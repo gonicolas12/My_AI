@@ -403,7 +403,7 @@ class MarkdownFormattingMixin:
             (r"\*\*([^*\n]+?)\*\*", "bold"),  # Gras
             (r"\*([^*\n]+?)\*", "italic"),  # Italique
             (r"`([^`]+)`", "code"),  # Code inline (tag "code" cohérent)
-            (r"^([\*\-\+])\s+(.+)$", "bullet_list"),  # Listes à puces
+            (r"^(\s*)([\*\-\+])\s+(.+)$", "bullet_list"),  # Listes à puces (y compris indentées)
         ]
 
         def apply_formatting(text, patterns):
@@ -430,8 +430,10 @@ class MarkdownFormattingMixin:
                         "end", title_text + "\n", f"title_{min(level, 3)}"
                     )
                 elif style == "bullet_list":
-                    bullet_text = match.group(2)
-                    text_widget.insert("end", "  \u2022 " + bullet_text, "normal")
+                    indent = match.group(1)  # Espaces d'indentation
+                    bullet_text = match.group(3)
+                    # Préserver l'indentation + bullet visuel
+                    text_widget.insert("end", indent + "  \u2022 " + bullet_text, "normal")
                 else:
                     content = match.group(1)
                     text_widget.insert("end", content, style)
@@ -2131,13 +2133,14 @@ class MarkdownFormattingMixin:
 
             # === FORMATAGE LISTES À PUCES (* texte, - texte, + texte) ===
             # Convertit les marqueurs Markdown de liste en bullet points visuels « • »
+            # Supporte aussi les puces indentées (ex: "   * texte")
             # Ne touche PAS les lignes dans un bloc de code.
             try:
                 scan_pos = "1.0"
                 while True:
-                    # Chercher le début de la prochaine ligne
+                    # Chercher un marqueur de liste (potentiellement précédé d'espaces)
                     line_start = text_widget.search(
-                        r"^[\*\-\+] ",
+                        r"^\s*[\*\-\+] ",
                         scan_pos,
                         "end",
                         regexp=True,
@@ -2156,10 +2159,23 @@ class MarkdownFormattingMixin:
                         scan_pos = text_widget.index(f"{line_start} lineend +1c")
                         continue
 
-                    # Remplacer le marqueur (ex: "* ") par "  • "
-                    marker_end = text_widget.index(f"{line_start}+2c")
+                    # Trouver le contenu de la ligne pour mesurer l'indentation
+                    line_end = text_widget.index(f"{line_start} lineend")
+                    line_content = text_widget.get(line_start, line_end)
+
+                    # Calculer l'indentation et la position du marqueur
+                    m = re.match(r"^(\s*)([\*\-\+]) ", line_content)
+                    if not m:
+                        scan_pos = text_widget.index(f"{line_start} lineend +1c")
+                        continue
+
+                    indent = m.group(1)
+                    # Supprimer indentation + marqueur + espace (ex: "   * ")
+                    marker_len = len(indent) + 2  # indent + marker_char + space
+                    marker_end = text_widget.index(f"{line_start}+{marker_len}c")
                     text_widget.delete(line_start, marker_end)
-                    text_widget.insert(line_start, "  • ")
+                    # Insérer indentation + bullet visuel
+                    text_widget.insert(line_start, indent + "  \u2022 ")
 
                     scan_pos = text_widget.index(f"{line_start} lineend +1c")
             except Exception:

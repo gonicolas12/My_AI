@@ -3,6 +3,8 @@ Interface Agents IA - Module pour l'onglet Agents dans la GUI moderne
 Gère l'interface utilisateur pour le système multi-agents basé sur Ollama
 """
 
+import base64
+import io
 import json
 import os
 import random
@@ -12,8 +14,11 @@ import time
 import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, scrolledtext
-from processors.pdf_processor import PDFProcessor
+
+from PIL import Image, ImageGrab
+
 from processors.docx_processor import DOCXProcessor
+from processors.pdf_processor import PDFProcessor
 
 try:
     import customtkinter as ctk
@@ -721,6 +726,40 @@ class AgentsInterface:
         self._agent_pending_files = []
         self._agent_preview_frame.grid_remove()
 
+    def _analyze_image_for_agent(self, file_path: str):
+        """Analyse une image via le modèle vision et retourne une description textuelle.
+
+        Utilise le même pipeline vision que la page chat : minicpm-v décrit
+        l'image, puis la description est incluse dans le prompt de l'agent
+        pour que le modèle texte (qwen3.5) puisse répondre.
+        """
+        try:
+            img = Image.open(file_path)
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+
+            # Redimensionner si nécessaire
+            max_size = 1024
+            if img.width > max_size or img.height > max_size:
+                img.thumbnail((max_size, max_size), Image.LANCZOS)
+
+            # Encoder en base64
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=92, optimize=True)
+            img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+            # Obtenir la description via le modèle vision (API publique)
+            print("🖼️ [AGENTS VISION] Analyse de l'image via le modèle vision...")
+            description = self.llm.describe_image(img_base64)
+
+            if description:
+                print(f"✅ [AGENTS VISION] Description obtenue ({len(description)} chars)")
+            return description
+
+        except Exception as e:
+            print(f"⚠️ [AGENTS VISION] Erreur analyse image: {e}")
+            return None
+
     @staticmethod
     def _read_attached_file(file_path: str, file_type: str) -> str:
         """Lit le contenu d'un fichier attaché et retourne le texte brut."""
@@ -1418,12 +1457,29 @@ class AgentsInterface:
             file_sections = []
             for fpath, ftype in attached:
                 try:
-                    content = self._read_attached_file(fpath, ftype)
-                    if content:
-                        fname = os.path.basename(fpath)
-                        file_sections.append(
-                            f"--- Fichier joint : {fname} ({ftype}) ---\n{content}"
-                        )
+                    if ftype == "Image":
+                        # Pipeline vision : analyser l'image avec le modèle
+                        # vision puis inclure la description textuelle
+                        description = self._analyze_image_for_agent(fpath)
+                        if description:
+                            fname = os.path.basename(fpath)
+                            file_sections.append(
+                                f"--- Image jointe : {fname} ---\n"
+                                f"Description de l'image :\n{description}"
+                            )
+                        else:
+                            file_sections.append(
+                                f"--- Image jointe : {os.path.basename(fpath)} ---\n"
+                                f"[Aucun modèle vision disponible. "
+                                f"Installez-en un : ollama pull minicpm-v]"
+                            )
+                    else:
+                        content = self._read_attached_file(fpath, ftype)
+                        if content:
+                            fname = os.path.basename(fpath)
+                            file_sections.append(
+                                f"--- Fichier joint : {fname} ({ftype}) ---\n{content}"
+                            )
                 except Exception as exc:
                     file_sections.append(
                         f"--- Fichier joint : {os.path.basename(fpath)} ---\n"
@@ -1911,6 +1967,35 @@ class AgentsInterface:
 
             self.task_entry.bind("<FocusIn>", on_focus_in)
             self.task_entry.bind("<FocusOut>", on_focus_out)
+            self.task_entry.bind("<Control-v>", self._on_agent_paste)
+
+    def _on_agent_paste(self, _event=None):
+        """Gère le collage d'image depuis le presse-papier dans la page agents."""
+        try:
+            import tempfile  # pylint: disable=import-outside-toplevel
+        except ImportError:
+            return None  # Pas de Pillow, laisser le comportement par défaut (texte)
+
+        try:
+            img = ImageGrab.grabclipboard()
+            if img is not None and isinstance(img, Image.Image):
+                print("🖼️ [AGENTS CLIPBOARD] Image détectée dans le presse-papier")
+                temp_path = os.path.join(tempfile.gettempdir(), "clipboard_agent_image.png")
+                img.save(temp_path, format="PNG")
+                self._agent_add_preview(temp_path, "Image")
+                return "break"
+
+            if isinstance(img, list):
+                for item in img:
+                    if isinstance(item, str) and os.path.isfile(item):
+                        ext = os.path.splitext(item)[1].lower()
+                        if ext in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
+                            self._agent_add_preview(item, "Image")
+                            return "break"
+        except Exception as e:
+            print(f"⚠️ [AGENTS CLIPBOARD] Erreur: {e}")
+
+        return None  # Pas d'image → coller du texte normalement
 
     def _get_task_text(self):
         """Récupère le texte de la tâche"""
