@@ -324,13 +324,24 @@ class SidebarMixin:
             return
         try:
             ws_id = sm.create_workspace(name.strip())
-            state = {"history": getattr(self, "conversation_history", []),
+            state = {"conversation_history": getattr(self, "conversation_history", []),
                      "name": name.strip()}
             sm.save_workspace(ws_id, state)
             self._refresh_sessions()
             self.show_notification(f"✅ Session '{name}' créée", "success", 2000)
         except Exception as exc:
             self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
+
+    def _session_save_current(self):
+        """Sauvegarde le workspace courant avant de switcher."""
+        engine = getattr(self, "ai_engine", None)
+        sm = getattr(engine, "session_manager", None) if engine else None
+        if not sm:
+            return
+        current_ws = sm.get_current_workspace()
+        if current_ws:
+            state = {"conversation_history": getattr(self, "conversation_history", [])}
+            sm.save_workspace(current_ws, state)
 
     def _session_load(self, workspace_id: str):
         engine = getattr(self, "ai_engine", None)
@@ -342,26 +353,33 @@ class SidebarMixin:
             if state is None:
                 self.show_notification("❌ Session introuvable", "error", 2000)
                 return
-            history = state.get("history", [])
+            history = state.get("conversation_history", state.get("history", []))
+            ws_name = state.get("metadata", {}).get("name", workspace_id)
             if not messagebox.askyesno(
                 "Charger la session",
-                f"Charger '{state.get('name', workspace_id)}' ?\n"
+                f"Charger '{ws_name}' ?\n"
                 "La conversation actuelle sera remplacée.",
                 parent=self.root,
             ):
                 return
-            self.conversation_history = list(history)
+            # Sauvegarder le workspace courant avant de switcher
+            self._session_save_current()
+            # Nettoyer tout
             if hasattr(engine, "conversation_manager"):
                 engine.conversation_manager.clear()
-            sm.set_current_workspace(workspace_id)
             self.clear_chat()
-            for msg in history:
-                role = msg.get("role", "user" if msg.get("is_user", True) else "assistant")
-                content = msg.get("content", msg.get("text", ""))
-                if role == "user" and hasattr(self, "add_user_message_bubble"):
-                    self.add_user_message_bubble(content)
-                elif role in ("assistant", "ai") and hasattr(self, "add_ai_message_bubble"):
-                    self.add_ai_message_bubble(content)
+            # Reconstruire l'UI depuis l'historique chargé
+            if history:
+                # Enlever l'écran d'accueil pour montrer la conversation
+                if hasattr(self, "_dismiss_home_screen"):
+                    self._dismiss_home_screen()
+                # add_message_bubble ajoute aussi à conversation_history
+                for msg in history:
+                    is_user = msg.get("is_user", msg.get("role", "user") == "user")
+                    content = msg.get("text", msg.get("content", ""))
+                    if content:
+                        self.add_message_bubble(content, is_user=is_user, instant=True)
+            sm.set_current_workspace(workspace_id)
             self.show_notification(
                 "✅ Session chargée", "success", 2000
             )

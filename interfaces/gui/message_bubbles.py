@@ -82,7 +82,7 @@ class MessageBubblesMixin:
 
             # Hover interactif : remplir les étoiles au survol
             for idx, star_btn in enumerate(star_buttons):
-                def _on_enter(_event, hover_idx=idx, btns=star_buttons):
+                def _on_enter(_event, hover_idx=idx, btns=tuple(star_buttons)):
                     for j, b in enumerate(btns):
                         color = "#fbbf24" if j <= hover_idx else "#888888"
                         text = "★" if j <= hover_idx else "☆"
@@ -94,7 +94,7 @@ class MessageBubblesMixin:
                         except Exception:
                             pass
 
-                def _on_leave(_event, btns=star_buttons):
+                def _on_leave(_event, btns=tuple(star_buttons)):
                     rated = getattr(feedback_frame, "rated_score", 0)
                     for j, b in enumerate(btns):
                         color = "#fbbf24" if j < rated else "#888888"
@@ -207,7 +207,7 @@ class MessageBubblesMixin:
         """Rétro-compatibilité : redirige vers le système d'étoiles."""
         self._on_star_rating(1, [btn_up, btn_down], query, response)
 
-    def add_message_bubble(self, text, is_user=True, message_type="text"):
+    def add_message_bubble(self, text, is_user=True, message_type="text", instant=False):
         """Version FINALE avec animation de frappe pour les messages IA"""
         # Vérifier que le texte est une chaîne
         if not isinstance(text, str):
@@ -496,8 +496,32 @@ class MessageBubblesMixin:
             text_widget.bind("<Double-Button-1>", copy_on_double_click)
             self.create_copy_menu_with_notification(text_widget, text)
 
-            # Démarrer l'animation de frappe avec hauteur dynamique
-            self.start_typing_animation_dynamic(text_widget, text)
+            if instant:
+                # Mode instantané : insérer le texte d'un coup avec formatage
+                self.typing_widget = text_widget
+                self.typing_text = text
+                self._formatted_positions = set()
+                self._formatted_bold_contents = set()
+                self._configure_all_formatting_tags(text_widget)
+                text_widget.configure(state="normal")
+                processed_text, link_mapping = self._preprocess_links_for_animation(text)
+                text_widget.insert("1.0", processed_text)
+                if link_mapping:
+                    self._pending_links = link_mapping
+                self._table_blocks = self._preanalyze_markdown_tables(processed_text)
+                self._formatted_tables = set()
+                self._code_blocks_map = self._preanalyze_code_blocks(processed_text)
+                self.typing_text = ""
+                self._format_markdown_tables_in_widget(text_widget, processed_text)
+                self._apply_unified_progressive_formatting(text_widget, full_scan=True)
+                self._convert_temp_links_to_clickable(text_widget)
+                text_widget.configure(state="disabled")
+                self._adjust_height_final_no_scroll(text_widget)
+                self._reactivate_text_scroll(text_widget)
+                self._show_timestamp_for_current_message()
+            else:
+                # Démarrer l'animation de frappe avec hauteur dynamique
+                self.start_typing_animation_dynamic(text_widget, text)
 
     def create_user_message_bubble(self, parent, text):
         """Version avec hauteur précise et sélection activée pour les messages utilisateur"""

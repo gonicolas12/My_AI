@@ -1555,16 +1555,18 @@ class StreamingMixin:
 
             self.typing_widget.configure(state="disabled")
 
-            # Mettre à jour l'historique et le feedback avec le texte FINAL
-            # (après reconstruction éventuelle des tableaux)
-            final_text = self.typing_widget.get("1.0", "end-1c")
+            # Mettre à jour l'historique avec le texte brut original (marqueurs markdown)
+            # pour permettre la restauration avec formatage lors du chargement de session
+            displayed_text = self.typing_widget.get("1.0", "end-1c")
+            raw_text = getattr(self, "_streaming_buffer_original", "") or getattr(self, "_streaming_buffer", "")
+            history_text = raw_text if raw_text else displayed_text
             if self.conversation_history:
-                self.conversation_history[-1]["text"] = final_text
+                self.conversation_history[-1]["text"] = history_text
             if hasattr(self, "current_message_container") and self.current_message_container is not None:
                 self.current_message_container.feedback_query = getattr(self, "_last_user_query", None)
-                self.current_message_container.feedback_response = final_text
+                self.current_message_container.feedback_response = displayed_text
                 print(f"[DEBUG STOCKAGE FEEDBACK] Query: {getattr(self, '_last_user_query', 'None')[:50]}...")
-                print(f"[DEBUG STOCKAGE FEEDBACK] Response: {final_text[:50]}...")
+                print(f"[DEBUG STOCKAGE FEEDBACK] Response: {displayed_text[:50]}...")
 
             # Afficher le timestamp
             self._show_timestamp_for_current_message()
