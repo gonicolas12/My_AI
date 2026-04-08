@@ -226,15 +226,21 @@ class LayoutMixin:
                 pass
 
         # Le bouton ☰ de la sidebar n'est visible que sur l'onglet Chat
+        # ET uniquement si la sidebar est fermée (sinon doublon avec le ☰ interne)
         toggle_btn = getattr(self, "_sidebar_toggle_btn", None)
+        sidebar_visible = getattr(self, "_sidebar_visible", False)
         if toggle_btn is not None:
             try:
                 if is_chat:
-                    toggle_btn.grid()
+                    if sidebar_visible:
+                        # Sidebar ouverte → son propre ☰ suffit, on cache celui du header
+                        toggle_btn.grid_remove()
+                    else:
+                        toggle_btn.grid()
                 else:
                     toggle_btn.grid_remove()
                     # Fermer la sidebar si on quitte l'onglet Chat
-                    if hasattr(self, "_sidebar_frame") and getattr(self, "_sidebar_visible", False):
+                    if hasattr(self, "_sidebar_frame") and sidebar_visible:
                         self._sidebar_frame.grid_remove()
                         self._sidebar_visible = False
             except Exception:

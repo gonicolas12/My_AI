@@ -324,7 +324,8 @@ class SidebarMixin:
             return
         try:
             ws_id = sm.create_workspace(name.strip())
-            state = {"conversation_history": getattr(self, "conversation_history", []),
+            # Nouveau workspace = historique vide (ne pas hériter de la conv courante)
+            state = {"conversation_history": [],
                      "name": name.strip()}
             sm.save_workspace(ws_id, state)
             self._refresh_sessions()
