@@ -88,8 +88,8 @@ class VectorMemory:
     def __init__(
         self,
         max_tokens: Optional[int] = None,
-        chunk_size: int = 512,
-        chunk_overlap: int = 50,
+        chunk_size: int = 256,
+        chunk_overlap: int = 32,
         storage_dir: str = "memory/vector_store",
         enable_encryption: bool = False,
         encryption_key: Optional[str] = None,

@@ -1,8 +1,9 @@
 """
-📊 BENCHMARK PROFESSIONNEL SYSTÈME 1M TOKENS
-My Personal AI Ultra v5.0.0 - Analyse de Performance Complète
+📊 BENCHMARK PROFESSIONNEL SYSTÈME 10M TOKENS
+My Personal AI v7.1.0 - Analyse de Performance Complète
 
-Mesures précises des performances pour validation industrielle
+Benchmark de scalabilité de la VectorMemory de 10k à 10M tokens.
+Mesures précises des performances pour validation industrielle.
 """
 
 import gc
@@ -17,8 +18,10 @@ from pathlib import Path
 import psutil
 
 # Configuration du chemin
-current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir))
+script_dir = Path(__file__).resolve().parent
+project_root = script_dir.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Imports du système Ultra
 try:
@@ -30,13 +33,13 @@ except ImportError as e:
     print(f"❌ Système Ultra non disponible: {e}")
 
 
-class Benchmark1M:
-    """Benchmark professionnel du système 1M tokens"""
+class Benchmark10M:
+    """Benchmark professionnel du système 10M tokens"""
 
     def __init__(self):
         self.results = {
             "benchmark_date": datetime.now().isoformat(),
-            "system_version": "My Personal AI Ultra v5.0.0",
+            "system_version": "My Personal AI v7.1.0",
             "test_environment": "Production Ready",
             "performance_metrics": {},
             "scalability_analysis": {},
@@ -72,7 +75,17 @@ class Benchmark1M:
         print("-" * 30)
 
         storage_results = {}
-        test_sizes = [1000, 5000, 10000, 25000, 50000, 100000, 250000]
+        test_sizes = [
+            10000,
+            50000,
+            100000,
+            250000,
+            500000,
+            1000000,
+            2500000,
+            5000000,
+            10000000,
+        ]
 
         context_mgr = UltraIntelligentContextManager()
 
@@ -88,10 +101,10 @@ class Benchmark1M:
                 gc.collect()  # Nettoyage mémoire pour mesures précises
 
                 start = time.perf_counter()
-                context_mgr.add_ultra_content(
-                    content,
-                    content_type=f"benchmark_{size}_{i}",
-                    importance_level="medium",
+                context_mgr.add_document(
+                    content=content,
+                    document_name=f"benchmark_{size}_{i}",
+                    metadata={"type": "benchmark", "importance": "medium"},
                 )
                 elapsed = time.perf_counter() - start
                 times.append(elapsed)
@@ -139,7 +152,11 @@ class Benchmark1M:
 
             # Charger corpus
             content = self.generate_benchmark_content(corpus_size)
-            context_mgr.add_ultra_content(content, content_type=f"corpus_{corpus_size}")
+            context_mgr.add_document(
+                content=content,
+                document_name=f"corpus_{corpus_size}",
+                metadata={"type": "corpus"},
+            )
 
             # Tester recherches
             search_times = []
@@ -150,7 +167,7 @@ class Benchmark1M:
 
                 for _ in range(5):  # 5 mesures par requête
                     start = time.perf_counter()
-                    results = context_mgr.search_relevant_chunks(query, max_chunks=10)
+                    results = context_mgr.search_similar(query, n_results=10)
                     elapsed = time.perf_counter() - start
                     times_for_query.append(elapsed)
                     result_counts.append(len(results))
@@ -199,15 +216,17 @@ class Benchmark1M:
             for load in test_loads:
                 # Charger données
                 content = self.generate_benchmark_content(load)
-                context_mgr.add_ultra_content(
-                    content, content_type=f"memory_test_{load}"
+                context_mgr.add_document(
+                    content=content,
+                    document_name=f"memory_test_{load}",
+                    metadata={"type": "memory_test"},
                 )
 
                 # Mesurer mémoire
                 current_memory = process.memory_info().rss / 1024 / 1024
                 memory_used = current_memory - initial_memory
                 stats = context_mgr.get_stats()
-                tokens_loaded = stats.get("total_tokens", 0)
+                tokens_loaded = stats.get("current_tokens", 0)
 
                 # Calculs d'efficacité
                 mb_per_1k_tokens = (
@@ -240,7 +259,7 @@ class Benchmark1M:
             final_memory = process.memory_info().rss / 1024 / 1024
             total_memory_used = final_memory - initial_memory
             final_stats = context_mgr.get_stats()
-            final_tokens = final_stats.get("total_tokens", 0)
+            final_tokens = final_stats.get("current_tokens", 0)
 
             memory_results = {
                 "initial_memory_mb": round(initial_memory, 1),
@@ -299,17 +318,21 @@ class Benchmark1M:
 
             # Mesurer performance
             start = time.perf_counter()
-            context_mgr.add_ultra_content(content, content_type=f"scalability_{tokens}")
+            context_mgr.add_document(
+                content=content,
+                document_name=f"scalability_{tokens}",
+                metadata={"type": "scalability"},
+            )
             add_time = time.perf_counter() - start
 
             # Mesurer recherche sous charge
             search_start = time.perf_counter()
-            context_mgr.search_relevant_chunks("performance test", max_chunks=5)
+            context_mgr.search_similar("performance test", n_results=5)
             search_time = time.perf_counter() - search_start
 
             # Statistiques
             stats = context_mgr.get_stats()
-            cumulative_tokens = stats.get("total_tokens", 0)
+            cumulative_tokens = stats.get("current_tokens", 0)
             tokens_per_sec = tokens / add_time if add_time > 0 else float("inf")
 
             stage_result = {
@@ -319,8 +342,8 @@ class Benchmark1M:
                 "add_time_seconds": round(add_time, 3),
                 "search_time_ms": round(search_time * 1000, 2),
                 "tokens_per_second": round(tokens_per_sec, 0),
-                "chunks_total": stats.get("total_chunks", 0),
-                "utilization": stats.get("utilization", "0%"),
+                "chunks_total": stats.get("chunks_created", 0),
+                "utilization_percent": round(stats.get("usage_percent", 0.0), 2),
             }
 
             performance_degradation.append(stage_result)
@@ -328,13 +351,13 @@ class Benchmark1M:
             print(f"    ⏱️  Ajout: {add_time:.3f}s ({tokens_per_sec:,.0f} tokens/sec)")
             print(f"    🔍 Recherche: {search_time*1000:.2f}ms")
             print(
-                f"    📊 Total: {cumulative_tokens:,} tokens ({stats.get('utilization', '0%')})"
+                f"    📊 Total: {cumulative_tokens:,} tokens ({stats.get('usage_percent', 0.0):.1f}%)"
             )
 
             # Arrêter si on atteint la limite ou performance dégradée
-            if cumulative_tokens >= 1000000 or add_time > 1.0:
-                if cumulative_tokens >= 1000000:
-                    print("    🏆 LIMITE 1M TOKENS ATTEINTE!")
+            if cumulative_tokens >= 10000000 or add_time > 1.0:
+                if cumulative_tokens >= 10000000:
+                    print("    🏆 LIMITE 10M TOKENS ATTEINTE!")
                 break
 
         # Analyse de la scalabilité
@@ -395,7 +418,7 @@ class Benchmark1M:
         # Scalabilité
         scalability = metrics.get("scalability_analysis", {})
         max_tokens = scalability.get("max_tokens_achieved", 0)
-        scores.append(min(100, max_tokens / 10000))  # 1M tokens = 100 points
+        scores.append(min(100, max_tokens / 10000))  # Score plafonné: 1M+ tokens = 100 points
 
         # Efficacité mémoire
         memory = metrics.get("memory_efficiency", {})
@@ -422,7 +445,7 @@ class Benchmark1M:
 
     def run_complete_benchmark(self) -> dict:
         """Lance le benchmark complet"""
-        print("📊 BENCHMARK PROFESSIONNEL SYSTÈME 1M TOKENS")
+        print("📊 BENCHMARK PROFESSIONNEL SYSTÈME 10M TOKENS")
         print("=" * 60)
 
         if not ULTRA_AVAILABLE:
@@ -514,8 +537,8 @@ class Benchmark1M:
 
 def main():
     """Benchmark principal"""
-    print("📊 BENCHMARK PROFESSIONNEL SYSTÈME 1M TOKENS")
-    print("My Personal AI Ultra v5.0.0")
+    print("📊 BENCHMARK PROFESSIONNEL SYSTÈME 10M TOKENS")
+    print("My Personal AI Ultra v7.1.0")
     print("=" * 60)
 
     print("Ce benchmark va mesurer précisément les performances")
@@ -525,12 +548,16 @@ def main():
     choice = input("Lancer le benchmark complet? (o/n): ").lower().strip()
 
     if choice in ["o", "oui", "y", "yes"]:
-        benchmark = Benchmark1M()
+        if not ULTRA_AVAILABLE:
+            print("❌ Benchmark annulé: imports système indisponibles.")
+            return
+
+        benchmark = Benchmark10M()
         results = benchmark.run_complete_benchmark()
 
         # Sauvegarde des résultats
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"benchmark_1m_results_{timestamp}.json"
+        filename = f"tests/benchmark_10m_results_{timestamp}.json"
 
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)

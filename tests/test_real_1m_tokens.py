@@ -1,12 +1,17 @@
 """
-🎯 TEST RÉEL 1M TOKENS - My Personal AI
-Test authentique de la capacité 1M tokens avec votre IA principale
+🎯 TEST RÉEL MÉMOIRE VECTORIELLE 10M - My Personal AI
+Test authentique de la VectorMemory (capacité 10M tokens) avec votre IA principale
 
 Ce test utilise votre CustomAIModel réel et vérifie vraiment :
-- Stockage de 1M+ tokens de contenu varié
-- Compréhension globale du contexte
-- Raisonnement sur l'ensemble des données
+- Stockage d'1M+ tokens de contenu varié (sous-ensemble du système 10M)
+- Compréhension globale du contexte via recherche sémantique
+- Raisonnement sur l'ensemble des données indexées
 - Performance en conditions réelles
+
+Note: La capacité totale du système est 10 485 760 tokens (10M).
+Ce test stresse 1M tokens comme sous-ensemble représentatif pour rester
+exécutable en quelques minutes. Pour un benchmark complet jusqu'à 10M,
+voir tests/benchmark_10m_tokens.py.
 """
 
 import os
@@ -42,13 +47,13 @@ except ImportError as e:
 
 
 class RealAI1MTest:
-    """Test réel de la capacité 1M tokens avec votre IA"""
+    """Test réel de la VectorMemory 10M tokens (stress 1M) avec votre IA"""
 
     def __init__(self):
         self.results = {
             "test_date": datetime.now().isoformat(),
-            "test_type": "REAL AI 1M TOKENS TEST",
-            "system_used": "CustomAIModel (Production)",
+            "test_type": "REAL AI VECTORMEMORY 10M (1M STRESS) TEST",
+            "system_used": "CustomAIModel + VectorMemory 10M (Production)",
             "total_tokens_processed": 0,
             "comprehension_score": 0,
             "performance_metrics": {},
@@ -62,7 +67,7 @@ class RealAI1MTest:
             # Fallback vers cl100k_base si gpt-4 n'est pas disponible
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
 
-        print("\n🎯 TEST RÉEL 1M TOKENS INITIALISÉ")
+        print("\n🎯 TEST RÉEL VECTORMEMORY 10M (STRESS 1M) INITIALISÉ")
         print("=" * 50)
 
     def count_real_tokens(self, text: str) -> int:
@@ -81,7 +86,7 @@ class RealAI1MTest:
 
 ## Architecture Globale
 Le système My Personal AI implémente une architecture modulaire avancée permettant:
-- Traitement de contextes étendus jusqu'à 1M tokens
+- Mémoire vectorielle persistante jusqu'à 10M tokens (stress 1M ici)
 - Mémoire de conversation persistante avec indexation sémantique
 - Modules spécialisés: calcul, code, documents, recherche internet
 - Optimisations de performance pour temps de réponse < 3s
@@ -540,10 +545,10 @@ class WorkerPool {
 ```json
 {
     "system_config": {
-        "version": "5.0.0",
+        "version": "7.1.0",
         "environment": "production",
         "features": {
-            "context_size": 1000000,
+            "context_size": 10485760,
             "memory_persistent": true,
             "internet_search": true,
             "document_processing": true,
@@ -566,7 +571,7 @@ class WorkerPool {
                 "name": "CustomAI",
                 "enabled": true,
                 "priority": 2,
-                "context_window": 1000000
+                "context_window": 10485760
             },
             {
                 "name": "InternetSearch", 
@@ -627,7 +632,7 @@ topic,category,content,importance,last_updated
 ```
 2025-09-05 10:00:01 [INFO] System startup completed
 2025-09-05 10:00:02 [INFO] Loading FAQ model with 1,247 entries
-2025-09-05 10:00:03 [INFO] CustomAI model initialized with 1M token context
+2026-04-08 10:00:03 [INFO] CustomAI model initialized with 10M token VectorMemory
 2025-09-05 10:00:04 [INFO] Internet search module ready
 2025-09-05 10:00:05 [INFO] Document processors loaded: PDF, DOCX, TXT
 2025-09-05 10:00:06 [DEBUG] Memory usage: 1.2GB / 4GB available
@@ -1399,7 +1404,7 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
         return full_content
 
     def run_comprehension_test(self, ai_model) -> dict:
-        """Test de compréhension globale du contexte 1M tokens"""
+        """Test de compréhension globale du contexte (VectorMemory 10M)"""
         print("\n🧠 TEST DE COMPRÉHENSION GLOBALE")
         print("=" * 50)
 
@@ -1417,7 +1422,7 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
             },
             {
                 "question": "Quelle est la version du système selon la configuration JSON ?",
-                "expected_keywords": ["5.0.0", "version"],
+                "expected_keywords": ["7.1.0", "version"],
                 "section": "Structured Data",
             },
             {
@@ -1432,7 +1437,7 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
             },
             {
                 "question": "Combien de tokens peut traiter le système selon la configuration ?",
-                "expected_keywords": ["1000000", "1M", "million"],
+                "expected_keywords": ["10485760", "10M", "10 millions"],
                 "section": "Multiple Sections",
             },
         ]
@@ -1529,29 +1534,30 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
                         if kw_parts and all(part in search_text for part in kw_parts):
                             found = True
 
-                    # 7. Recherche spéciale pour nombres (1000000 -> 1M, million, etc.)
-                    elif kw_lower == "1000000":
+                    # 7. Recherche spéciale pour nombres (10485760 -> 10M, 10 millions, etc.)
+                    elif kw_lower == "10485760":
                         if any(
                             variant in search_text
                             for variant in [
-                                "1000000",
-                                "1m",
-                                "million",
+                                "10485760",
+                                "10m",
+                                "10 millions",
                                 "context_size",
-                                "1,000,000",
+                                "10,485,760",
+                                "10 485 760",
                             ]
                         ):
                             found = True
-                    elif kw_lower == "1m":
+                    elif kw_lower == "10m":
                         if any(
                             variant in search_text
-                            for variant in ["1m", "million", "1000000", "1,000,000"]
+                            for variant in ["10m", "10 millions", "10485760", "10,485,760"]
                         ):
                             found = True
-                    elif kw_lower == "million":
+                    elif kw_lower == "10 millions":
                         if any(
                             variant in search_text
-                            for variant in ["million", "1m", "1000000", "1,000,000"]
+                            for variant in ["10 millions", "10m", "10485760", "10,485,760"]
                         ):
                             found = True
 
@@ -1616,8 +1622,8 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
         return results
 
     def run_full_test(self) -> dict:
-        """Test complet de la capacité 1M tokens"""
-        print("🎯 DÉMARRAGE DU TEST RÉEL 1M TOKENS")
+        """Test complet de la VectorMemory 10M (stress 1M tokens)"""
+        print("🎯 DÉMARRAGE DU TEST RÉEL VECTORMEMORY 10M (STRESS 1M)")
         print("=" * 50)
 
         if not REAL_AI_AVAILABLE:
@@ -1633,8 +1639,8 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
             ai_model = CustomAIModel(conversation_memory=conversation_memory)
             print("✅ CustomAIModel initialisé")
 
-            # 2. Générer contenu 1M tokens
-            print("\n📝 GÉNÉRATION DU CONTENU 1M TOKENS")
+            # 2. Générer contenu de stress (1M tokens, sous-ensemble du système 10M)
+            print("\n📝 GÉNÉRATION DU CONTENU DE STRESS (1M tokens / capacité 10M)")
             target_tokens = 1000000
             content = self.generate_diverse_content(target_tokens)
             actual_tokens = self.count_real_tokens(content)
@@ -1792,7 +1798,7 @@ def main():
     results = tester.run_full_test()
 
     if results.get("test_status") == "VALIDÉ":
-        print("\n🎉 FÉLICITATIONS ! Votre IA supporte vraiment 1M+ tokens")
+        print("\n🎉 FÉLICITATIONS ! VectorMemory 10M validée (stress 1M tokens réussi)")
     elif results.get("test_status") == "ÉCHEC":
         print("\n⚠️ Le test révèle des limitations. Voir détails ci-dessus.")
     else:

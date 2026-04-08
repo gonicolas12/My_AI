@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.0.0
+# 📚 Guide d'Utilisation - My Personal AI v7.1.0
 
 ## 🚀 Démarrage Rapide
 
@@ -237,9 +237,9 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.0.0:
-- Modèle: CustomAI avec 1M tokens
-- Mémoire: 1,234,567 tokens utilisés / 1,048,576 max
+État My Personal AI v7.1.0:
+- Modèle: CustomAI avec 10M tokens
+- Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
 - Conversations: 45 échanges dans l'historique
 - Cache: Actif (75% hit rate)
@@ -595,9 +595,9 @@ IA> Voici des suggestions d'optimisation:
 - Sauvegarde automatique
 - Rechargement au démarrage
 
-### MillionTokenContextManager (1M Tokens)
+### VectorMemory (10M Tokens)
 
-**Capacité:** 1,048,576 tokens maximum
+**Capacité:** 10,485,760 tokens maximum
 
 **Workflow:**
 ```python
@@ -806,15 +806,15 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.0.0
+  MY PERSONAL AI - System Status v7.1.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.0.0
-💾 Context Manager: MillionTokenContextManager
+📊 Version: 7.1.0
+💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
-   - Total Tokens: 456,789 / 1,048,576 (43.6%)
+   - Total Tokens: 456,789 / 10,485,760 (4.4%)
    - Documents: 3
    - Chunks: 223
    - Storage: 145 MB
@@ -844,7 +844,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.0.0
+My Personal AI v7.1.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -966,7 +966,7 @@ features:
   enable_rlhf: false
 
 context_manager:
-  max_tokens: 1048576  # 1M
+  max_tokens: 10485760  # 10M
   chunk_size: 2048
   auto_cleanup: true
 
@@ -1249,8 +1249,7 @@ Dans l'onglet Agents, le canvas visuel propose trois boutons de gestion :
 
 ---
 
-**Version:** 7.0.0
+**Version:** 7.1.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST
 **Capacité Contexte:** 1,048,576 tokens (1M)
 **Architecture:** 100% Locale
-**Modules v7.0.0:** API Server, Command History, Conversation Exporter, Knowledge Base, Language Detector, Session Manager, Web Cache

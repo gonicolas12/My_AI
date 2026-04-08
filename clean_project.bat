@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================================
-REM Script de nettoyage du projet My_AI v7.0.0
+REM Script de nettoyage du projet My_AI v7.1.0
 REM Deux niveaux : leger (caches) ou complet (caches + donnees utilisateur)
 REM Le cache HuggingFace n'est JAMAIS supprime (modeles ML).
 REM ============================================================================

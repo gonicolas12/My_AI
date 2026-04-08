@@ -5,11 +5,11 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "7.0.0"
+  version: "7.1.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
-  max_tokens: 1048576
+  max_tokens: 10485760
   temperature: 0.7
   timeout: 120
   
@@ -239,8 +239,10 @@ optimization:
   # RAG (Retrieval-Augmented Generation)
   rag:
     enabled: true
-    chunk_size: 512
-    chunk_overlap: 50
+    # Aligné sur la limite d'input de all-MiniLM-L6-v2 (256 tokens)
+    # pour éviter la troncature silencieuse lors du calcul d'embedding
+    chunk_size: 256
+    chunk_overlap: 32
     max_retrieved_chunks: 3
     embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
     vector_store_path: "./data/vector_store"

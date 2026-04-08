@@ -1,5 +1,5 @@
 """
-UltraCustomAIModel - Système IA avec contexte 1M tokens
+UltraCustomAIModel - Système IA avec contexte 10M tokens
 Modèle personnalisé avec capacités étendues de contexte
 """
 
@@ -47,7 +47,7 @@ except ImportError as e:
 
 class UltraCustomAIModel:
     """
-    Modèle IA Ultra avec contexte étendu de 1 million de tokens
+    Modèle IA Ultra avec contexte étendu de 10 millions de tokens
     """
 
     def __init__(self, base_ai_engine=None):
@@ -63,19 +63,19 @@ class UltraCustomAIModel:
             "total_tokens": 0,
             "documents_processed": 0,
             "chunks_created": 0,
-            "max_context_length": 1000000,  # 1M tokens
+            "max_context_length": 10_485_760,  # 10M tokens
         }
 
         # Initialiser le stockage de documents si nécessaire
         if not hasattr(self, "documents_storage"):
             self.documents_storage = {}
 
-        # Initialiser le gestionnaire de contexte 1M tokens
+        # Initialiser le gestionnaire de contexte 10M tokens
         if MillionTokenContextManager:
             self.context_manager = MillionTokenContextManager()
         else:
             self.context_manager = None
-            print("⚠️ Gestionnaire 1M tokens non disponible, mode de base activé")
+            print("⚠️ Gestionnaire 10M tokens non disponible, mode de base activé")
 
         # Initialisation des processeurs avancés pour Ultra
         if ADVANCED_PROCESSORS_AVAILABLE:
@@ -153,7 +153,7 @@ class UltraCustomAIModel:
                     if self.base_ai and hasattr(self.base_ai, "local_ai"):
                         try:
                             # Préparer le prompt avec le contexte trouvé
-                            enhanced_prompt = f"CONTEXTE ULTRA (1M tokens):\n{relevant_context}\n\nQUESTION: {user_input}"
+                            enhanced_prompt = f"CONTEXTE ULTRA (10M tokens):\n{relevant_context}\n\nQUESTION: {user_input}"
 
                             # Utiliser la méthode de traitement de document du custom_ai_model
                             custom_response = self.base_ai.local_ai.generate_response(
@@ -315,7 +315,7 @@ class UltraCustomAIModel:
         self, document_content: str, document_name: str = ""
     ) -> Dict[str, Any]:
         """
-        Ajoute un document au contexte 1M tokens
+        Ajoute un document au contexte 10M tokens
 
         Args:
             document_content: Contenu du document
@@ -557,7 +557,7 @@ class UltraCustomAIModel:
 
     def _build_extended_context(self, base_context: str = "") -> str:
         """
-        Construit le contexte étendu en utilisant le gestionnaire 1M tokens
+        Construit le contexte étendu en utilisant le gestionnaire 10M tokens
         """
         if not self.context_manager:
             return base_context
@@ -1202,7 +1202,7 @@ class UltraCustomAIModel:
 
         # Calculer le pourcentage d'utilisation
         current_tokens = stats.get("total_tokens", 0)
-        max_tokens = stats.get("max_context_length", 1000000)
+        max_tokens = stats.get("max_context_length", 10_485_760)
         if max_tokens > 0:
             stats["utilization_percent"] = (current_tokens / max_tokens) * 100
         else:
@@ -1223,7 +1223,7 @@ class UltraCustomAIModel:
             "total_tokens": 0,
             "documents_processed": 0,
             "chunks_created": 0,
-            "max_context_length": 1000000,
+            "max_context_length": 10_485_760,
         }
 
     def is_available(self) -> bool:

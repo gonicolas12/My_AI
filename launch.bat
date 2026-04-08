@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 REM ====================================
-REM My Personal AI ULTRA - Lanceur v7.0.0
+REM My Personal AI ULTRA - Lanceur v7.1.0
 REM ====================================
 
 REM Configuration des couleurs ANSI (Orange)
@@ -20,7 +20,7 @@ echo %ORANGE%%BOLD%/_/  /_/\__, /___/_/  ^|_/___/   %RESET%
 echo %ORANGE%%BOLD%       /____/                  %RESET%
 echo.
 echo %ORANGE%====================================%RESET%
-echo %BOLD%           Version 7.0.0%RESET%
+echo %BOLD%           Version 7.1.0%RESET%
 echo %ORANGE%====================================%RESET%
 echo.
 
@@ -60,27 +60,29 @@ echo.
 echo %WHITE%%BOLD%Que voulez-vous faire ?%RESET%
 echo.
 echo 1. Interface Graphique Moderne
-echo 2. Benchmark 1M tokens
-echo 3. RAG Pipeline Test
-echo 4. Test des imports
+echo 2. Benchmark mémoire vectorielle
+echo 3. Benchmark 10M tokens
+echo 4. RAG Pipeline Test
+echo 5. Test des imports
 echo.
-set /p choice="%WHITE%%BOLD%Votre choix (1-4, ou Entree pour l'interface graphique): %RESET%"
+set /p choice="%WHITE%%BOLD%Votre choix (1-5, ou Entree pour l'interface graphique): %RESET%"
 
 if "%choice%"=="" set choice=1
 if "%choice%"=="1" goto ultra
 if "%choice%"=="2" goto benchmark
-if "%choice%"=="3" goto rag_pipeline
-if "%choice%"=="4" goto test_imports
+if "%choice%"=="3" goto benchmark_10m
+if "%choice%"=="4" goto rag_pipeline
+if "%choice%"=="5" goto test_imports
 
 REM Gestion des choix invalides
 echo.
 echo [ERROR] Choix invalide : "%choice%"
-echo Veuillez choisir un numero entre 1 et 4.
+echo Veuillez choisir un numero entre 1 et 5.
 goto menu
 
 :ultra
 echo.
-echo [INFO] Lancement Interface (CustomAI avec 1M tokens)...
+echo [INFO] Lancement Interface (CustomAI avec 10M tokens)...
 echo [CONFIG] Configuration activee
 echo.
 echo %ORANGE%====================================%RESET%
@@ -89,8 +91,13 @@ python launch_unified.py
 goto end
 
 :benchmark
-echo [INFO] Benchmark 1M tokens...
+echo [INFO] Benchmark mémoire vectorielle...
 python tests/test_real_1m_tokens.py
+goto end
+
+:benchmark_10m
+echo [INFO] Benchmark 10M tokens...
+python tests/benchmark_10m_tokens.py
 goto end
 
 :rag_pipeline

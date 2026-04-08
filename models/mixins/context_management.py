@@ -1,5 +1,5 @@
 """
-ContextManagementMixin — Gestion du contexte documentaire (Ultra 1M tokens + classique).
+ContextManagementMixin — Gestion du contexte documentaire (Ultra 10M tokens + classique).
 
 Regroupe : add_document_to_context, add_file_to_context,
 search_in_context, _refine_ultra_context, get_context_stats, etc.
@@ -9,18 +9,19 @@ import os
 import re
 import time
 from typing import Any, Dict
+from processors.excel_processor import ExcelProcessor
 
 
 class ContextManagementMixin:
     """Mixin regroupant la gestion de contexte documentaire."""
 
-    # =============== MÉTHODES ULTRA 1M TOKENS ===============
+    # =============== MÉTHODES ULTRA 10M TOKENS ===============
 
     def add_document_to_context(
         self, document_content: str, document_name: str = ""
     ) -> Dict[str, Any]:
         """
-        Ajoute un document au contexte 1M tokens
+        Ajoute un document au contexte 10M tokens
         """
         if not self.ultra_mode:
             # Mode standard - utiliser la mémoire classique
@@ -43,7 +44,7 @@ class ContextManagementMixin:
             return result
 
         try:
-            # Mode Ultra - utiliser le gestionnaire 1M tokens
+            # Mode Ultra - utiliser le gestionnaire 10M tokens
             result = self.context_manager.add_document(
                 content=document_content, document_name=document_name
             )
@@ -162,7 +163,6 @@ class ContextManagementMixin:
 
             elif file_ext in [".xlsx", ".xls", ".csv"]:
                 try:
-                    from processors.excel_processor import ExcelProcessor
                     excel_proc = ExcelProcessor()
                     result = excel_proc.read_excel(file_path)
                     if result.get("success"):
@@ -229,7 +229,7 @@ class ContextManagementMixin:
 
     def search_in_context(self, query: str) -> str:
         """
-        🔍 Recherche intelligente dans le contexte 1M tokens
+        🔍 Recherche intelligente dans le contexte 10M tokens
         Améliore la recherche pour trouver les passages les plus pertinents
         """
         if not self.ultra_mode:
@@ -282,7 +282,7 @@ class ContextManagementMixin:
                 )
             if "token" in query_lower or "million" in query_lower:
                 specific_searches.extend(
-                    ["1000000 tokens", "1M tokens", "context_size"]
+                    ["10000000 tokens", "10M tokens", "context_size"]
                 )
 
             for specific_query in specific_searches:

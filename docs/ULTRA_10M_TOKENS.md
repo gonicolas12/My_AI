@@ -1,21 +1,21 @@
 # 🚀 Documentation Mémoire Vectorielle Étendue
 
-## 💾 Vue d'Ensemble : Mémoire Interne de 1M Tokens
+## 💾 Vue d'Ensemble : Mémoire Interne de 10M Tokens
 
-Le système Ultra de My Personal AI v7.0.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 1 million de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
+Le système Ultra de My Personal AI v7.1.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 10 millions de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
 
 > ⚠️ **À ne pas confondre**
-> - **Mémoire interne (1M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
+> - **Mémoire interne (10M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
 > - **Fenêtre de contexte LLM (4k–8k tokens)** : ce qui est réellement envoyé à Ollama pour chaque génération de réponse (défini par `num_ctx` dans le `Modelfile`)
 >
 > Le moteur de recherche sémantique sélectionne les fragments les plus pertinents dans la mémoire interne, puis les injecte dans la fenêtre LLM disponible.
 
 ### 🎯 Chiffres Clés
-- **1 000 000 tokens** de capacité de stockage en mémoire vectorielle interne
+- **10 000 000 tokens** de capacité de stockage en mémoire vectorielle interne (depuis v7.1.0)
 - **Fenêtre LLM effective** : 4 096 tokens (défaut `Modelfile`) jusqu'à 8 192 tokens (`local_llm.py`)
 - **Compression intelligente** : 2.4:1 à 52:1 selon le contenu
-- **Persistance SQLite** optimisée pour les gros volumes
-- **Recherche sémantique** ultra-rapide (TF-IDF + cosinus)
+- **Persistance ChromaDB (SQLite + Parquet)** optimisée pour les gros volumes
+- **Recherche sémantique** ultra-rapide (HNSW + cosinus + reranking CrossEncoder)
 - **Architecture 100% locale** sans cloud
 
 ## 🧠 Architecture Technique Ultra
@@ -33,7 +33,7 @@ ultra_ai = UltraCustomAIModel(base_engine)
 
 # Génération avec contexte étendu
 response = ultra_ai.generate_response("Analyse ce projet complet")
-print(response['ultra_stats'])  # Statistiques 1M tokens
+print(response['ultra_stats'])  # Statistiques 10M tokens
 ```
 
 #### 2. VectorMemory (`memory/vector_memory.py`)
@@ -45,9 +45,9 @@ from memory.vector_memory import VectorMemory
 
 # Initialisation
 vector_mem = VectorMemory(
-    max_tokens=1_000_000,
-    chunk_size=512,
-    chunk_overlap=50,
+    max_tokens=10_485_760,
+    chunk_size=256,          # Aligné sur all-MiniLM-L6-v2 (256 tokens max)
+    chunk_overlap=32,
     storage_dir="memory/vector_store"
 )
 
@@ -59,7 +59,7 @@ results = vector_mem.search_similar("ma requête", limit=10)
 
 # Statistiques en temps réel
 stats = vector_mem.get_stats()
-print(f"Tokens en mémoire : {stats['current_tokens']:,} / 1,048,576")
+print(f"Tokens en mémoire : {stats['current_tokens']:,} / 10,485,760")
 ```
 
 > **Note** : Dans `models/ultra_custom_ai.py`, `VectorMemory` est importé sous l'alias `MillionTokenContextManager` pour la compatibilité interne.
@@ -106,7 +106,7 @@ CREATE INDEX idx_type_tokens ON context_chunks(chunk_type, tokens);
 - **Coloration Syntaxique Python** : Pygments intégré
 - **Formatage Markdown** : Gras, italique, liens cliquables
 - **Blocs de Code** : Support natif ```python```
-- **Animation de Frappe** : Optimisée pour réponses 1M tokens
+- **Animation de Frappe** : Optimisée pour réponses longues
 - **Hauteur Adaptative** : Auto-ajustement selon le contenu
 - **Stats en Temps Réel** : Monitoring du contexte utilisé
 
@@ -117,7 +117,7 @@ from interfaces.gui_modern import ModernAIInterface
 
 # Configuration Ultra automatique
 interface = ModernAIInterface()
-interface.configure_ultra_mode(max_tokens=1048576)
+interface.configure_ultra_mode(max_tokens=10485760)
 interface.run()
 ```
 
@@ -129,10 +129,10 @@ Toute la configuration du projet et de la limite des tokens se gère via votre f
 ```yaml
 ai:
   name: "My Personal AI"
-  version: "7.0.0"
+  version: "7.1.0"
   
   # Paramètres généraux
-  max_tokens: 1048576
+  max_tokens: 10485760
   temperature: 0.7
   timeout: 120
 ```
@@ -143,11 +143,11 @@ ai:
 ```bash
 # Activation du mode Ultra
 export ENABLE_ULTRA_MODE=true
-export MAX_CONTEXT_TOKENS=1048576
+export MAX_CONTEXT_TOKENS=10485760
 export ULTRA_DB_PATH="data/ultra_context.db"
 
 # Optimisations performances
-export ULTRA_CHUNK_SIZE=512
+export ULTRA_CHUNK_SIZE=256
 export ULTRA_COMPRESSION="auto"
 export ULTRA_SEARCH_ALGO="tfidf_cosine"
 ```

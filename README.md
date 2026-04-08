@@ -8,7 +8,7 @@
 [![Ollama](https://img.shields.io/badge/Ollama-LLM%20Local-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/download)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)](https://github.com/gonicolas12/My_AI)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Context](https://img.shields.io/badge/M%C3%A9moire%20Vectorielle-1M%20Tokens-blueviolet?style=for-the-badge)](docs/ULTRA_1M_TOKENS.md)
+[![Context](https://img.shields.io/badge/M%C3%A9moire%20Vectorielle-10M%20Tokens-blueviolet?style=for-the-badge)](docs/ULTRA_10M_TOKENS.md)
 
 *Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
 
@@ -25,7 +25,7 @@
 <td width="50%">
 
 **💾 Mémoire Vectorielle Étendue**  
-Jusqu'à 1 048 576 tokens stockés en mémoire interne (ChromaDB + SQLite).
+Jusqu'à 10 485 760 tokens stockés en mémoire interne (ChromaDB + SQLite).
 
 **🤖 9 Agents IA Spécialisés**  
 Code, Debug, Web, Sécurité... et création d'agents personnalisés avec interface style n8n.
@@ -146,17 +146,15 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 
 | Capacité | Valeur |
 |---|---|
-| **💾 Mémoire vectorielle interne** | jusqu'à **1 048 576 tokens** |
+| **💾 Mémoire vectorielle interne** | jusqu'à **10 485 760 tokens** |
 | **📝 Résumé glissant** | automatique dès 24k tokens |
-| **📦 Compression texte** | jusqu'à 52:1 |
-| **🔍 Recherche sémantique** | TF-IDF + similarité cosinus |
+| **🔍 Recherche sémantique** | sentence-transformers + HNSW cosinus |
 | **🗃️ Base vectorielle** | ChromaDB (local) |
 
 
-- **Compression intelligente multi-niveaux** : texte, code, documents
-- **Chunking intelligent** avec détection automatique de blocs logiques
-- **Auto-optimisation** de la mémoire selon l'usage
-- **Métriques de compression exposées** : ratios détaillés de 2.4:1 à 52:1
+- **Chunking intelligent** avec chevauchement configurable (chunk 256 tokens, overlap 32)
+- **Auto-optimisation** de la mémoire selon l'usage (éviction FIFO)
+- **Métriques de chunking exposées** : overhead de chevauchement, taille moyenne des chunks
 
 ---
 
@@ -259,7 +257,7 @@ my_ai/
 ├── launch.bat                           # Script pour lancer le programme
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
 ├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
-└── config.yaml                          # Configuration (inclut 7 sections v7.0.0)
+└── config.yaml                          # Configuration
 ```
 
 ---
@@ -369,7 +367,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | [📦 Installation](docs/INSTALLATION.md) | Guide d'installation complet |
 | [🔍 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
 | [⚡ Optimisation](docs/OPTIMIZATION.md) | Conseils et techniques d'optimisation locale |
-| [💾 Mémoire Vectorielle 1M](docs/ULTRA_1M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
+| [💾 Mémoire Vectorielle 10M](docs/ULTRA_10M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
 | [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |

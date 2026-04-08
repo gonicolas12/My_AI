@@ -42,7 +42,6 @@ from .conversation import ConversationManager
 from .mcp_client import MCPManager
 from .validation import validate_input
 
-# ── Modules v7.0.0 ──
 try:
     from .language_detector import LanguageDetector
     _LANG_DETECT_AVAILABLE = True
@@ -175,7 +174,6 @@ class AIEngine:
         self._chat_orchestrator = ChatOrchestrator()
         self.logger.info("✅ ChatOrchestrator initialisé (ReAct + scratchpad + détection de boucle)")
 
-        # ── Modules v7.0.0 ──
         self._current_lang_instruction = ""
         self._init_v7_modules()
 

@@ -1,10 +1,10 @@
-# 🏗️ Architecture - My Personal AI v7.0.0
+# 🏗️ Architecture - My Personal AI v7.1.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v7.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.0.0**, basée sur les principes suivants:
+My Personal AI v7.1.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.1.0**, basée sur les principes suivants:
 
-- **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (1M tokens réel)
+- **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
 - **Recherche Sémantique** : Sentence-transformers (384 dimensions, similarité cosinus)
 - **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
@@ -75,7 +75,7 @@ My Personal AI v7.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Réponses naturelles      │  • Réponses contextuelles              │
 │  • 100% confidentiel        │  • Patterns et règles                  │
 ├─────────────────────────────┴────────────────────────────────────────┤
-│  UltraCustomAI (1M tokens)  │  LocalLLM (Gestionnaire Ollama)        │
+│  UltraCustomAI (10M tokens) │  LocalLLM (Gestionnaire Ollama)        │
 │  • Extend CustomAI          │  • Vérification disponibilité          │
 │  • Ultra-large context      │  • Fallback automatique                │
 │  • Advanced processors      │  • Modèle personnalisable (Modelfile)  │
@@ -88,7 +88,7 @@ My Personal AI v7.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │ • ChromaDB vectoriel    │ • Conversations persistantes               │
 │ • tiktoken cl100k_base  │ • Documents stockés                        │
 │ • Sentence-transformers │ • Préférences utilisateur                  │
-│ • 1M tokens contexte    │ • Cache contexte récent                    │
+│ • 10M tokens contexte   │ • Cache contexte récent                    │
 │ • Recherche sémantique  │ • Format JSON enrichi                      │
 │ • AES-256 chiffrement   │                                            │
 │ • Similarité cosinus    │                                            │
@@ -375,7 +375,7 @@ Features:
 ├─ Fenêtre glissante (2048 tokens)
 ├─ Résumé automatique
 ├─ Persistance JSONL
-└─ Base pour MillionTokenContextManager
+└─ Base pour VectorMemory
 ```
 
 **RLHF et Training**
@@ -427,15 +427,15 @@ Capacités clés:
 ├─ Tracking contexte session
 ├─ Mémoire vectorielle sémantique
 ├─ Météo temps réel (wttr.in)
-├─ Mode ultra 1M tokens
+├─ Mode ultra 10M tokens
 └─ Intégration processeurs avancés
 ```
 
-**`models/ultra_custom_ai.py`** - Extension 1M tokens
+**`models/ultra_custom_ai.py`** - Extension 10M tokens
 ```python
 Features:
 ├─ Hérite de CustomAIModel
-├─ Contexte ultra-large (1,048,576 tokens)
+├─ Contexte ultra-large (10,485,760 tokens)
 ├─ Stockage et retrieval documents
 ├─ Processing par chunks
 └─ Initialisation processeurs avancés
@@ -455,8 +455,8 @@ Architecture ML:
 └─ Chiffrement AES-256 (optionnel)
 
 Capacités:
-├─ Max 1M tokens stockage
-├─ Chunks 512 tokens (overlap 50)
+├─ Max 10M tokens stockage
+├─ Chunks 256 tokens (overlap 32, aligné all-MiniLM-L6-v2)
 ├─ Recherche sémantique ultra-rapide (0.02s)
 ├─ Déduplication automatique
 ├─ Cleanup intelligent (capacité atteinte)
@@ -938,11 +938,11 @@ Format Detection
     ↓
 Content Extraction
     ↓
-Chunking (2048 tokens)
+Chunking (256 tokens)
     ↓
 Store in ConversationMemory
     ↓
-Add to MillionTokenContextManager
+Add to VectorMemory
     ↓
 User can query: "résume ce document"
 ```
@@ -1123,7 +1123,7 @@ Météo wttr.in:            1-3s (API externe)
 Code generation:          2-5s (web search inclus)
 Document processing:      Variable (50MB PDF ≈ 10-20s)
 Internet search:          3-8s (API + scraping)
-Vector search (1M tokens): 20-50ms (ChromaDB indexé)
+Vector search (10M tokens): <20ms (ChromaDB HNSW)
 ```
 
 ### Utilisation Mémoire
@@ -1140,11 +1140,11 @@ Total typique:            1.3GB - 2.5GB RAM
 ```
 Tokenization précision:   tiktoken cl100k_base (compatible Llama 3) vs 70% (approximation mots)
 Context window standard:  4096 tokens
-Context ultra mode:       1,048,576 tokens (1M)
-Chunk size VectorMemory:  512 tokens (configurable)
-Chunk overlap:            50 tokens (contexte préservé)
+Context ultra mode:       10,485,760 tokens (10M)
+Chunk size VectorMemory:  256 tokens (aligné all-MiniLM-L6-v2)
+Chunk overlap:            32 tokens (~12%, contexte préservé)
 Embedding dimensions:     384 (all-MiniLM-L6-v2)
-Search speed:             0.02s pour 1M tokens
+Search speed:             <20ms pour 10M tokens
 ```
 
 ## 🔒 Sécurité
@@ -1203,14 +1203,14 @@ elif intent == "new_intent":
 - `INSTALLATION.md` - Guide installation
 - `USAGE.md` - Guide utilisation
 - `OPTIMIZATION.md` - Optimisations performance
-- `ULTRA_1M_TOKENS.md` - Détails contexte 1M
+- `ULTRA_10M_TOKENS.md` - Détails contexte 10M
 - `INTERNET_SEARCH.md` - Fonctionnalités recherche
 - `FAQ.md` - Questions fréquentes
 - `CHANGELOG.md` - Historique versions
 
 ---
 
-**Version**: 7.0.0
+**Version**: 7.1.0
 **Architecture**: Modulaire, extensible, 100% locale
-**Capacité contexte**: 1,048,576 tokens (1M) avec recherche sémantique
+**Capacité contexte**: 10,485,760 tokens (10M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

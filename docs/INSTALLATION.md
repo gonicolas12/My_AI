@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v7.0.0
+# 📖 Guide d'Installation - My Personal AI v7.1.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v7.0.0 est une **IA 100% locale** avec un système de contexte de **1 Million de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v7.1.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -10,7 +10,7 @@ My Personal AI v7.0.0 est une **IA 100% locale** avec un système de contexte de
 
 **Configuration minimale:**
 - **Python 3.8+** (Python 3.10+ recommandé pour performances optimales)
-- **4 GB RAM** (8 GB recommandé, 16 GB idéal pour 1M tokens)
+- **4 GB RAM** (8 GB recommandé, 16 GB idéal pour 10M tokens)
 - **500 MB d'espace disque** (1 GB recommandé pour cache et documents)
 - **Windows/Linux/macOS** supportés
 - **Connexion internet** (installation uniquement, optionnelle ensuite pour recherche web)
@@ -205,7 +205,7 @@ My_AI/
 ├── utils/                 # Utilitaires
 ├── data/                  # Données et enrichissements
 │   ├── enrichissement/    # FAQ et connaissances
-│   ├── context_storage/   # Storage contexte 1M tokens (créé auto)
+│   ├── context_storage/   # Storage contexte 10M tokens (créé auto)
 │   ├── outputs/           # Documents générés (créé auto)
 │   ├── temp/              # Fichiers temporaires (créé auto)
 │   ├── backups/           # Sauvegardes (créé auto)
@@ -232,9 +232,8 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "7.0.0"
-  max_tokens: 4096          # Max tokens standard
-  ultra_max_tokens: 1048576 # Max tokens ultra mode (1M)
+  version: "7.1.0"
+  max_tokens: 10485760      # 10M tokens (capacité VectorMemory)
   temperature: 0.7
   conversation_history_limit: 10
 
@@ -457,9 +456,8 @@ ai:
 ```yaml
 # Dans config.yaml
 ai:
-  max_tokens: 8192
+  max_tokens: 10485760       # Full 10M tokens (défaut v7.1.0)
   conversation_history_limit: 20
-  ultra_max_tokens: 1048576  # Full 1M tokens
 ```
 
 ### Configuration Enrichissement FAQ
@@ -510,14 +508,14 @@ python main.py generate code "fonction addition"
 python main.py status
 ```
 
-### Test Contexte 1M Tokens
+### Test Contexte 10M Tokens
 
 ```bash
 # Test capacité contexte
 python tests/test_real_1m_tokens.py
 
 # Benchmark performance
-python tests/benchmark_1m_tokens.py
+python tests/benchmark_10m_tokens.py
 
 # Demo interactive
 python tests/demo_1m_tokens.py
@@ -676,7 +674,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v7.0.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v7.1.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -804,7 +802,7 @@ Une fois l'installation complète, vous pouvez:
    - Traiter des documents PDF/DOCX
    - Générer du code
    - Rechercher sur internet
-   - Utiliser la mémoire 1M tokens
+   - Utiliser la mémoire 10M tokens
 
 3. **Explorer les exemples:**
    ```bash
@@ -833,4 +831,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 7.0.0 | Architecture: 100% locale | Capacité: 1M tokens*
+*Version: 7.1.0 | Architecture: 100% locale | Capacité: 10M tokens*

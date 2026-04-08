@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v7.0.0
-Lance l'interface avec CustomAI unifié (support 1M tokens intégré)
+🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v7.1.0
+Lance l'interface avec CustomAI unifié (support 10M tokens intégré)
 """
 
 import os
@@ -102,14 +102,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def main():
     """Point d'entrée principal"""
-    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v7.0.0\n")
+    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v7.1.0\n")
     print("=" * 50)
     print()
 
     # S'assurer qu'Ollama tourne avec le bon parallélisme
     _ensure_ollama_parallel()
 
-    print("   🧠 CustomAI avec support 1M tokens intégré")
+    print("   🧠 CustomAI avec support 10M tokens intégré")
     print("   🔧 Processeurs PDF, DOCX, Code avancés")
     print("   🎨 Interface moderne CustomTkinter")
     print("   📊 Mémoire conversationnelle intelligente")

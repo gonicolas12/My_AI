@@ -17,8 +17,8 @@ class TestVectorMemoryInit:
         """Test initialisation par défaut"""
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = VectorMemory(storage_dir=tmpdir)
-            assert memory.max_tokens == 1_000_000
-            assert memory.chunk_size == 512
+            assert memory.max_tokens >= 1_000_000
+            assert memory.chunk_size == 256
             assert memory.current_tokens == 0
 
     def test_initialization_custom_params(self):

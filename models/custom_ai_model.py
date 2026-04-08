@@ -108,7 +108,7 @@ class CustomAIModel(
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "7.0.0"
+        self.version = "7.1.0"
 
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -127,9 +127,9 @@ class CustomAIModel(
         if VECTOR_MEMORY_AVAILABLE:
             try:
                 self.context_manager = VectorMemory(
-                    max_tokens=1_000_000,
-                    chunk_size=512,
-                    chunk_overlap=50,
+                    max_tokens=10_485_760,
+                    chunk_size=256,
+                    chunk_overlap=32,
                     enable_encryption=False,  # Peut être activé via config
                 )
                 self.ultra_mode = True
@@ -191,7 +191,7 @@ class CustomAIModel(
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre.",
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 7.0.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 7.1.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine.",
             ],
@@ -893,7 +893,7 @@ class CustomAIModel(
 
         # Stocker le document selon le mode
         if self.ultra_mode:
-            print("📄 [ULTRA] Ajout au contexte 1M tokens")
+            print("📄 [ULTRA] Ajout au contexte 10M tokens")
             result = self.add_document_to_context(content, filename)
             if result.get("success"):
                 print(f"✅ [ULTRA] Document '{filename}' ajouté avec succès")
@@ -1264,7 +1264,7 @@ class CustomAIModel(
                 response_str = str(response)
 
             # ⚠️ MODIFICATION : En mode Ultra, ne PAS faire de fallback vers internet
-            # Le système Ultra 1M tokens est suffisamment intelligent pour trouver la bonne information
+            # Le système Ultra 10M tokens est suffisamment intelligent pour trouver la bonne information
             ultra_mode_active = self.ultra_mode and self.context_manager
             print(
                 f"🔍 [DEBUG] Ultra mode check: ultra_mode={self.ultra_mode}, context_manager={self.context_manager is not None}, active={ultra_mode_active}"

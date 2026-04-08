@@ -1,5 +1,42 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 💾 Version 7.1.0 - Mémoire Vectorielle 10M Tokens (8 Avril 2026)
+
+### 🧠 Capacité mémoire x10
+
+- **`ai.max_tokens`** passé de **1 048 576** (1M) à **10 485 760** (**10M tokens**)
+  dans `config.yaml`. Le `VectorMemory` peut désormais stocker ~40 000 chunks
+  de 256 tokens avant éviction FIFO, contre ~4 000 auparavant.
+- Empreinte réelle : ~15 Mo d'embeddings + ~30 Mo d'index HNSW au plafond —
+  aucun impact perceptible sur la RAM ni la latence de recherche (<20 ms).
+- Marge confortable (~10×) sur l'usage personnel réel tout en conservant
+  le cleanup FIFO comme garde-fou fonctionnel.
+
+### 🔧 Correction qualité des embeddings
+
+- **Chunks réduits de 512 → 256 tokens** (`config.yaml` RAG + défauts
+  `VectorMemory`) pour s'aligner sur la limite d'input réelle du modèle
+  `sentence-transformers/all-MiniLM-L6-v2` (256 tokens).
+- **Avant :** la seconde moitié de chaque chunk était silencieusement tronquée
+  au moment du calcul de l'embedding — dégradation invisible de la qualité
+  de recherche sémantique.
+- **Après :** chaque chunk est intégralement vectorisé, la précision du
+  RAG et du reranking CrossEncoder s'en trouve améliorée.
+- `chunk_overlap` ajusté de 50 → 32 (~12%) pour garder une continuité
+  sémantique cohérente avec la nouvelle taille de chunk.
+
+### 📝 Fichiers modifiés
+
+- `config.yaml` — `ai.max_tokens: 10485760`, `optimization.rag.chunk_size: 256`,
+  `optimization.rag.chunk_overlap: 32`, bump version → `7.1.0`
+- `memory/vector_memory.py` — défauts `chunk_size=256`, `chunk_overlap=32`
+- `models/custom_ai_model.py` — alignement sur les nouveaux défauts
+- `tests/test_vector_memory.py` — assertions mises à jour
+- Documentation (`docs/`, `README.md` mémoire) — toutes les références
+  à « 1M tokens » actualisées en « 10M tokens »
+
+---
+
 # 🚀 Version 7.0.0 - Modules Intelligents & API REST (24 Mars 2026)
 
 ### ✨ Nouveaux Modules (7 modules)

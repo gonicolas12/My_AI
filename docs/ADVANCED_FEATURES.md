@@ -258,7 +258,7 @@ Le Compression Monitor est **automatiquement intégré** dans VectorMemory :
 ```python
 from memory.vector_memory import VectorMemory
 
-memory = VectorMemory(max_tokens=1_000_000)
+memory = VectorMemory(max_tokens=10_000_000)
 
 # Les métriques de compression sont calculées automatiquement
 result = memory.add_document(
@@ -368,13 +368,13 @@ Après  : qwen3.5-votre-entreprise → connaît vos process, votre jargon
 ```
 
 #### 3. Compression Monitor - Optimiser la mémoire
-**Problème résolu :** Vous ne savez pas si votre limite de 1M tokens est bien utilisée.
+**Problème résolu :** Vous ne savez pas si votre limite de 10M tokens est bien utilisée.
 
 **Solution :**
 - ✅ Mesure en temps réel l'efficacité de la compression
 - ✅ Ratios de 2.4:1 à 52:1 selon le type de contenu
 - ✅ Identifie les documents mal compressés
-- ✅ Permet d'optimiser l'utilisation des 1M tokens
+- ✅ Permet d'optimiser l'utilisation des 10M tokens
 
 **Valeur pratique :**
 ```
@@ -868,13 +868,5 @@ Tous ces modules sont initialisés dans `AIEngine._init_v7_modules()` avec dégr
 ```
 
 ---
-
-## 🚀 Prochaines Étapes
-
-1. Tester les exemples fournis
-2. Intégrer dans votre workflow
-3. Ajuster les paramètres selon vos besoins
-4. Consulter les logs pour le debugging
-5. Explorer les modules v7.0.0 (API REST, exports, base de connaissances)
 
 Pour toute question, consultez la documentation complète dans `docs/`.

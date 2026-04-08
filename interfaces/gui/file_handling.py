@@ -283,7 +283,7 @@ class FileHandlingMixin:
             messagebox.showerror("Erreur", f"Impossible de charger le fichier: {e}")
 
     def process_file_background(self, file_path, file_type, filename):
-        """Traite le fichier en arrière-plan avec système 1M tokens"""
+        """Traite le fichier en arrière-plan avec système 10M tokens"""
         try:
             self.logger.info(
                 "Traitement du fichier: %s (type: %s)", filename, file_type
@@ -383,7 +383,7 @@ class FileHandlingMixin:
                     "✅ %s traité: %d chunks, contexte %s/%s tokens (%.1f%%)",
                     filename, chunks_created,
                     stats.get('context_size', 0),
-                    stats.get('max_context_length', 1000000),
+                    stats.get('max_context_length', 10_485_760),
                     stats.get('utilization_percent', 0),
                 )
             else:

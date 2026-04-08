@@ -2557,10 +2557,10 @@ class DocumentAnalysisMixin:
                         all_content, "document", "pdf"
                     )
 
-        # 🚀 ÉTAPE 1: Tentative avec le système Ultra (1M tokens) pour questions spécifiques
+        # 🚀 ÉTAPE 1: Tentative avec le système Ultra (10M tokens) pour questions spécifiques
         if self.ultra_mode and self.context_manager:
             try:
-                print("🚀 [ULTRA] Recherche dans le contexte 1M tokens...")
+                print("🚀 [ULTRA] Recherche dans le contexte 10M tokens...")
                 ultra_context = self.search_in_context(user_input)
                 if ultra_context and ultra_context.strip() and len(ultra_context) > 50:
                     print(
@@ -3232,7 +3232,7 @@ Génère une réponse claire et synthétique en français qui répond à la ques
             "à",
         }
 
-        # Mots importants techniques - étendus pour le test 1M tokens
+        # Mots importants techniques - étendus pour le test 10M tokens
         important_patterns = [
             "performance",
             "temps",
@@ -3531,10 +3531,10 @@ Génère une réponse claire et synthétique en français qui répond à la ques
                 context = self._extract_context_around(content, term, 200)
                 return f"📊 **Capacité du système**: **1,000,000 tokens (1M)**\n\n📄 Contexte:\n{context}"
 
-            # Chercher "1M tokens"
-            if "1m tokens" in content_lower:
-                context = self._extract_context_around(content, "1m tokens", 200)
-                return f"📊 **Capacité du système**: **1,000,000 tokens (1M)**\n\n📄 Contexte:\n{context}"
+            # Chercher "10M tokens"
+            if "10m tokens" in content_lower:
+                context = self._extract_context_around(content, "10m tokens", 200)
+                return f"📊 **Capacité du système**: **10,000,000 tokens (10M)**\n\n📄 Contexte:\n{context}"
 
         # Pas de réponse directe trouvée
         return None
@@ -3852,10 +3852,10 @@ Génère une réponse claire et synthétique en français qui répond à la ques
         ):
             # Rechercher des informations sur la capacité en tokens
             token_patterns = [
-                r"context_size['\"]?\s*:\s*(\d+)",  # JSON: "context_size": 1000000
-                r"(\d{6,})\s*tokens?",  # "1000000 tokens"
-                r"(\d+)m?\s*tokens?",  # "1M tokens"
-                r"jusqu.?\s*à\s*(\d+\s*(?:m|million)?)\s*tokens?",  # "jusqu'à 1M tokens"
+                r"context_size['\"]?\s*:\s*(\d+)",  # JSON: "context_size": 10000000
+                r"(\d{7,})\s*tokens?",  # "10000000 tokens"
+                r"(\d+)m?\s*tokens?",  # "10M tokens"
+                r"jusqu.?\s*à\s*(\d+\s*(?:m|million)?)\s*tokens?",  # "jusqu'à 10M tokens"
             ]
             for pattern in token_patterns:
                 matches = re.findall(pattern, content, re.IGNORECASE)
@@ -4641,7 +4641,7 @@ D'après le document en mémoire:
 
 {context[:1500]}...
 
-📊 Cette analyse exploite la capacité du système 1M tokens pour une compréhension approfondie."""
+📊 Cette analyse exploite la capacité du système 10M tokens pour une compréhension approfondie."""
 
         else:
             if not context or context.strip() == "Aucun contexte pertinent trouvé.":
@@ -4654,7 +4654,7 @@ D'après le document en mémoire:
 
 {context[:1000]}...
 
-✨ Réponse générée grâce au système 1M tokens pour une précision maximale."""
+✨ Réponse générée grâce au système 10M tokens pour une précision maximale."""
 
     def _generate_classic_response(self, user_input: str, stored_docs: dict) -> str:
         """Génère une réponse basée sur la mémoire classique"""

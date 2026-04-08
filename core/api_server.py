@@ -1,5 +1,5 @@
 """
-Serveur API REST local pour My_AI v7.0.0
+Serveur API REST local pour My_AI v7.1.0
 
 Expose les capacités de l'assistant IA via des endpoints HTTP sur localhost.
 Utilise FastAPI avec uvicorn en thread daemon pour un fonctionnement
@@ -80,7 +80,7 @@ class APIServer:
     du moteur IA (ai_engine) avec le reste de l'application.
     """
 
-    _APP_VERSION = "7.0.0"
+    _APP_VERSION = "7.1.0"
 
     def __init__(
         self,

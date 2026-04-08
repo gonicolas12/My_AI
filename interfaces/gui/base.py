@@ -46,7 +46,7 @@ try:
         CustomAIModel  # noqa: F401  # pylint: disable=unused-import
 
     ULTRA_1M_AVAILABLE = True
-    print("🚀 Modèle CustomAI unifié avec système 1M tokens intégré !")
+    print("🚀 Modèle CustomAI unifié avec système 10M tokens intégré !")
 except ImportError:
     ULTRA_1M_AVAILABLE = False
     print("📝 Interface moderne en mode standard")
@@ -56,7 +56,7 @@ class BaseGUI:
     """Base class providing shared state and core logic."""
 
     def __init__(self):
-        """Initialise l'interface moderne avec système 1M tokens"""
+        """Initialise l'interface moderne avec système 10M tokens"""
         self.is_interrupted = False  # Pour interruption robuste
         self.logger = setup_logger("modern_ai_gui")
         # AIEngine principal pour toute l'interface
@@ -73,7 +73,7 @@ class BaseGUI:
                 # Afficher les stats initiales
                 stats = self.custom_ai.get_context_stats()
                 print(
-                    f"📊 Contexte initial: {stats.get('context_size', 0):,} / {stats.get('max_context_length', 1000000):,} tokens"
+                    f"📊 Contexte initial: {stats.get('context_size', 0):,} / {stats.get('max_context_length', 10_485_760):,} tokens"
                 )
                 print(
                     f"📚 Documents: {len(self.custom_ai.conversation_memory.stored_documents)}"
@@ -1032,7 +1032,7 @@ class BaseGUI:
             # Réinitialise l'interruption à chaque nouveau message
             self.is_interrupted = False
 
-            # Enregistrer dans l'historique des commandes (v7.0.0)
+            # Enregistrer dans l'historique des commandes
             try:
                 engine = getattr(self, "ai_engine", None)
                 if engine and hasattr(engine, "command_history") and engine.command_history:

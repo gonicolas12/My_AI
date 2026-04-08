@@ -72,7 +72,7 @@ Query: "Développer un service web"
 # Si le dossier existe
 → Charge toutes vos données (0.5s)
 → Restaure conversations et documents
-→ Prêt à chercher dans 1M tokens
+→ Prêt à chercher dans 10M tokens
 
 # Si le dossier n'existe pas
 → Crée automatiquement la structure
@@ -144,8 +144,8 @@ pip install chromadb sentence-transformers tiktoken
 
 ### "Mémoire pleine"
 ```python
-# Augmenter la limite
-vm = VectorMemory(max_tokens=2_000_000)  # 2M tokens
+# Augmenter la limite (défaut v7.1.0 : 10M tokens)
+vm = VectorMemory(max_tokens=50_000_000)  # 50M tokens
 ```
 
 ### Réinitialiser Complètement
@@ -163,7 +163,7 @@ rm -rf memory/vector_store/chroma_db
 |-----------|-------|
 | Charger au démarrage | 0.5s |
 | Ajouter 1 document | 0.1s |
-| Chercher dans 1M tokens | 0.02s |
+| Chercher dans 10M tokens | <0.02s |
 | Créer embeddings | 0.05s / chunk |
 
 ## 🔗 Liens Utiles

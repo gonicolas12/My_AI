@@ -1,13 +1,13 @@
-# 🚀 Guide d'Optimisation - My Personal AI v7.0.0
+# 🚀 Guide d'Optimisation - My Personal AI v7.1.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.0.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.1.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
 ### 0. Ollama - LLM Local (Recommandé)
-### 1. Gestion Contexte 1M Tokens
+### 1. Gestion Contexte 10M Tokens
 ### 2. Compression Intelligente
 ### 3. Caching et Performances
 ### 4. RLHF et Amélioration Continue
@@ -83,24 +83,24 @@ Au démarrage de l'application, vous verrez :
 
 ---
 
-## 1. 🧠 Gestion Contexte 1M Tokens
+## 1. 🧠 Gestion Contexte 10M Tokens
 
-### Architecture MillionTokenContextManager
+### Architecture VectorMemory
 
-Le gestionnaire de contexte ultra-large permet de maintenir jusqu'à **1,048,576 tokens** en mémoire.
+Le gestionnaire de mémoire vectorielle permet de maintenir jusqu'à **10,485,760 tokens** en mémoire (capacité par défaut depuis la v7.1.0).
 
-**Fichier:** `models/million_token_context_manager.py`
+**Fichier:** `memory/vector_memory.py`
 
 #### Fonctionnalités Clés
 
 ```python
-from models.million_token_context_manager import MillionTokenContextManager
+from memory.vector_memory import VectorMemory
 
 # Initialisation
-context_mgr = MillionTokenContextManager(
-    max_tokens=1_048_576,     # 1M tokens max
-    chunk_size=2048,          # Taille chunks
-    storage_dir="data/context_storage"
+context_mgr = VectorMemory(
+    max_tokens=10_485_760,    # 10M tokens max
+    chunk_size=256,           # Aligné sur all-MiniLM-L6-v2
+    storage_dir="memory/vector_store"
 )
 
 # Ajouter document volumineux
@@ -151,40 +151,37 @@ summary = context_mgr.get_context_summary(max_tokens=1000)
 
 ```yaml
 # Dans config.yaml
-context_manager:
-  max_tokens: 1048576          # Full capacity
-  chunk_size: 2048             # Optimal balance
-  chunk_overlap: 100           # For continuity
-  auto_cleanup: true
-  persist_to_disk: true
-  compression_enabled: true
+ai:
+  max_tokens: 10485760         # 10M tokens (défaut v7.1.0)
+
+optimization:
+  rag:
+    chunk_size: 256            # Aligné sur all-MiniLM-L6-v2
+    chunk_overlap: 32          # ~12% pour continuité
 ```
 
 **Recommandations par RAM:**
 ```yaml
 # 4-8 GB RAM
-context_manager:
-  max_tokens: 524288           # 512K
-  chunk_size: 1024
+ai:
+  max_tokens: 1048576          # 1M
 
 # 8-16 GB RAM
-context_manager:
-  max_tokens: 1048576          # 1M
-  chunk_size: 2048
+ai:
+  max_tokens: 10485760         # 10M (défaut)
 
 # 16+ GB RAM
-context_manager:
-  max_tokens: 2097152          # 2M (expérimental)
-  chunk_size: 4096
+ai:
+  max_tokens: 52428800         # 50M (expérimental)
 ```
 
 #### Métriques Performance
 
-| Configuration | Temps Add | Temps Search | RAM Usage |
-|---------------|-----------|--------------|-----------|
-| 512K tokens, 1024 chunks | 5-8s | 100-200ms | 2-3 GB |
-| 1M tokens, 2048 chunks | 10-15s | 200-400ms | 4-6 GB |
-| 2M tokens, 4096 chunks | 20-30s | 400-800ms | 8-12 GB |
+| Configuration | Temps Add (init) | Temps Search | RAM Usage |
+|---------------|------------------|--------------|-----------|
+| 1M tokens, ~4k chunks | 30-60s | <10ms | ~50 Mo |
+| 10M tokens, ~40k chunks | 5-10min | <20ms | ~200 Mo |
+| 50M tokens, ~200k chunks | 25-50min | ~40ms | ~1 Go |
 
 ---
 
@@ -477,9 +474,12 @@ ai:
   temperature: 0.8              # Plus de créativité
   conversation_history_limit: 20
 
-context_manager:
-  max_tokens: 1048576
-  chunk_size: 2048
+ai:
+  max_tokens: 10485760
+
+optimization:
+  rag:
+    chunk_size: 256
 
 performance:
   enable_cache: true
@@ -619,8 +619,8 @@ logger = setup_logger(
 **Disponibles dans `tests/`:**
 
 ```bash
-# 1. Benchmark contexte 1M tokens
-python tests/benchmark_1m_tokens.py
+# 1. Benchmark contexte 10M tokens
+python tests/benchmark_10m_tokens.py
 # Output: Temps add, search, memory usage
 
 # 2. Test réel 1M tokens
@@ -863,7 +863,7 @@ if __name__ == "__main__":
 pytest tests/test_optimization.py -v
 
 # Benchmark contexte
-python tests/benchmark_1m_tokens.py
+python tests/benchmark_10m_tokens.py
 
 # Test stress
 python tests/test_real_1m_tokens.py --stress
@@ -882,7 +882,7 @@ python -m memory_profiler main.py
 |----------|-------|-------|--------------|
 | Temps réponse moyen | 2000ms | 800ms | **-60%** |
 | Utilisation RAM | 3000MB | 1500MB | **-50%** |
-| Contexte supporté | 4K tokens | 1M tokens | **+24,900%** |
+| Contexte supporté | 4K tokens | 10M tokens | **+249,900%** |
 | Précision réponses | 75% | 88% | **+17%** |
 | Cache hit rate | 0% | 75% | **+75pp** |
 | Throughput req/s | 5 | 15 | **+200%** |
@@ -1020,18 +1020,18 @@ Le `LanguageDetector` utilise un cache LRU de 128 entrées pour éviter de re-d�
 - `USAGE.md` - Patterns utilisation
 
 **Scripts:**
-- `tests/benchmark_1m_tokens.py`
+- `tests/benchmark_10m_tokens.py`
 - `tests/optimization_manager.py`
 - `core/optimization.py`
 - `core/evaluation.py`
 
 **Configuration:**
-- `config.yaml` - Config centrale (incluant 7 sections v7.0.0)
+- `config.yaml` - Config centrale
 - `.env` - Variables environnement
 - `requirements.txt` - Dépendances
 
 ---
 
-**Version:** 7.0.0
-**Dernière mise à jour:** 24 Mars 2026
-**Performance target:** < 1s réponse, < 2GB RAM, 1M tokens context
+**Version:** 7.1.0
+**Dernière mise à jour:** 8 Avril 2026
+**Performance target:** < 1s réponse, < 2GB RAM, 10M tokens context
