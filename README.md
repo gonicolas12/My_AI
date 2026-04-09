@@ -196,17 +196,26 @@ my_ai/
 │   ├── workspaces/                      # Espaces de travail sauvegardés
 │   └── data_collection.py               # Script de structuration des données
 ├── docs/                                # Documentations
-│   └── examples/                        # Exemples d'utilisation
+├── examples/                            # Exemples d'utilisation
+│   └── advanced_features_demo.py        # Démonstration des fonctionnalités avancées
 ├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
 │   ├── document_generator.py            # Génération docs avec contexte étendu
 │   └── code_generator.py                # Génération code avec analyse ultra
 ├── interfaces/                          # Interfaces utilisateur
 │   ├── gui/                             # Modules GUI (mixins)
+│   │   ├── __init__.py
+│   │   ├── animations.py                # Animations et transitions modernes
 │   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
+│   │   ├── chat_area.py                 # Zone de chat
 │   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
 │   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
-│   │   └── message_bubbles.py           # Bulles de messages avec RLHF
+│   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
+│   │   ├── message_bubbles.py           # Bulles de messages avec RLHF
+│   │   ├── sidebar.py                   # Sidebar avec historique et outils
+│   │   ├── streaming.py                 # Gestion du streaming de réponses
+│   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
+│   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
 │   ├── agents_interface.py              # Interface Agents IA + pièces jointes
 │   ├── cli.py                           # Interface ligne de commande
@@ -245,12 +254,13 @@ my_ai/
 │   └── exports/                         # Conversations exportées (MD/HTML/PDF)
 ├── processors/                          # Processeurs de fichiers
 │   ├── __init__.py
-│   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
+│   ├── code_processor.py                # Traitement de code avec analyse sémantique
 │   ├── docx_processor.py                # Traitement DOCX avec compression
 │   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
-│   └── code_processor.py                # Traitement de code avec analyse sémantique
+│   └── pdf_processor.py                 # Traitement PDF avec chunking intelligent
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils
+├── turboquant/                          # Modules d'optimisation et de quantification
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
