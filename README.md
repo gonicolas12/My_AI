@@ -170,17 +170,24 @@ my_ai/
 │   ├── chat_orchestrator.py             # Orchestrateur de chat (ReAct + Plan & Execute)
 │   ├── command_history.py               # Historique des commandes utilisateur
 │   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
+│   ├── config.py                        # Gestion de la configuration
 │   ├── context_manager.py               # Gestion de contexte long
-│   ├── conversation.py                  # Gestion des conversations
 │   ├── conversation_exporter.py         # Export conversations (MD/HTML/PDF)
+│   ├── conversation.py                  # Gestion des conversations
 │   ├── data_preprocessing.py            # Prétraitement des données
+│   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
+│   ├── evaluation.py                    # Évaluation des performances et métriques
 │   ├── knowledge_base_manager.py        # Base de connaissances structurée
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
+│   ├── network.py                       # Gestion des connexions réseau et proxys
+│   ├── optimization.py                  # Optimisation des performances et ressources
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── session_manager.py               # Gestionnaire de workspaces/sessions
+│   ├── shared.py                        # Modules partagés
 │   ├── training_manager.py              # Training Manager moderne (pipeline complet)
 │   ├── training_pipeline.py             # Pipeline d'entraînement local
+│   ├── validation.py                    # Validation des entrées utilisateur
 │   └── web_cache.py                     # Cache web persistant (diskcache)
 ├── data/                                # Données persistantes
 │   ├── enrichissement/                  # FAQ thématiques
