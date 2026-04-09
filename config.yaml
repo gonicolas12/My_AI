@@ -404,6 +404,34 @@ web_cache:
   directory: "data/web_cache"
 
 # ====================================
+# RÉSEAU / PROXY / TLS
+# ====================================
+network:
+  # Si true, les variables d'environnement existantes (HTTP_PROXY, etc.)
+  # sont prioritaires. Si false, les valeurs ci-dessous peuvent les écraser.
+  prefer_environment: true
+
+  # Option simple : un seul proxy pour HTTP et HTTPS.
+  # Exemple: "http://user:pass@proxy.company.com:8080"
+  proxy_url: ""
+
+  # Options avancées (laisse vide si non utilisé)
+  http_proxy: ""
+  https_proxy: ""
+  all_proxy: ""
+  no_proxy: "localhost,127.0.0.1,::1"
+
+  # Chemin vers un bundle CA (certificat racine entreprise), si nécessaire.
+  # Exemple Windows: "C:/certs/company-root-ca.pem"
+  ca_bundle: ""
+
+  # Utilise le magasin de certificats système Python/OpenSSL.
+  use_system_truststore: true
+
+  # Désactive la vérification TLS (SECURITE REDUITE) - dernier recours uniquement.
+  allow_insecure_ssl: false
+
+# ====================================
 # CLÉS API
 # ====================================
 github:

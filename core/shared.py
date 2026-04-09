@@ -7,6 +7,17 @@ import os
 from typing import Any, Dict, List
 from dataclasses import dataclass, field
 
+try:
+    from core.network import configure_network_environment, build_network_error_help
+except ImportError:
+    def configure_network_environment(_force: bool = False):
+        """Stub de configuration réseau (si core.network est importé trop tard)"""
+        return {}
+
+    def build_network_error_help(_error: Exception) -> str:
+        """Stub de génération d'aide pour les erreurs réseau"""
+        return ""
+
 # =========================================================================== #
 # OPTIMISATION DÉMARRAGE : Mode offline pour HuggingFace                      #
 # IMPORTANT: Ces variables DOIVENT être définies AVANT tout import de modules #
@@ -36,7 +47,23 @@ def _load_embedding_model():
     """
     global _SHARED_EMBEDDING_MODEL, _EMBEDDINGS_AVAILABLE
 
-    model_name = "all-MiniLM-L6-v2"
+    # Apply generic proxy/TLS setup before touching HuggingFace downloads.
+    network_info = configure_network_environment()
+    for warning in network_info.get("warnings", []):
+        print(f"⚠️ [NETWORK] {warning}")
+
+    model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    try:
+        from core.config import get_config  # pylint: disable=import-outside-toplevel
+
+        model_name = str(
+            get_config().get(
+                "optimization.rag.embedding_model",
+                model_name,
+            )
+        )
+    except Exception:
+        pass
 
     # Étape 1: Essayer en mode OFFLINE (cache local)
     os.environ['HF_HUB_OFFLINE'] = '1'
@@ -55,7 +82,7 @@ def _load_embedding_model():
         offline_msg = str(offline_error).lower()
         needs_download = any(x in offline_msg for x in [
             'offline', 'cache', 'not found', 'connection', 'network',
-            'does not exist', 'no such file'
+            'does not exist', 'no such file', 'ssl', 'certificate'
         ])
 
         if needs_download:
@@ -86,6 +113,9 @@ def _load_embedding_model():
                 return _SHARED_EMBEDDING_MODEL, True
             except Exception as download_error:
                 print(f"⚠️ Impossible de télécharger le modèle: {download_error}")
+                help_msg = build_network_error_help(download_error)
+                if help_msg:
+                    print(help_msg)
                 print("   Vérifiez votre connexion internet et réessayez.")
                 _SHARED_EMBEDDING_MODEL = None
                 _EMBEDDINGS_AVAILABLE = False
@@ -93,6 +123,9 @@ def _load_embedding_model():
         else:
             # Autre erreur (pas liée au mode offline)
             print(f"⚠️ Modèle d'embeddings non disponible: {offline_error}")
+            help_msg = build_network_error_help(offline_error)
+            if help_msg:
+                print(help_msg)
             _SHARED_EMBEDDING_MODEL = None
             _EMBEDDINGS_AVAILABLE = False
             return None, False

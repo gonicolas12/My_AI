@@ -1336,6 +1336,78 @@ Que voulez-vous que je fasse pour vous ?"""
 
         return full_context
 
+    def _inject_knowledge_base_context(self, query: str, system_prompt: str) -> str:
+        """
+        Injecte les faits pertinents de la base de connaissances dans le
+        system prompt pour favoriser des réponses factuelles.
+
+        Injecte à la fois les faits pertinents à la requête courante ET les
+        faits les plus récents tous catégories confondues (plafonné), afin
+        que les questions de rappel courtes ("tu es sûr ?", "et alors ?")
+        conservent accès aux informations précédemment fournies.
+        """
+        kb = getattr(self, "knowledge_base", None)
+        if kb is None:
+            return system_prompt
+
+        collected: Dict[Any, Dict[str, Any]] = {}
+
+        def _add_fact(fact: Dict[str, Any]) -> None:
+            fid = fact.get("id")
+            key = fid if fid is not None else f"{fact.get('key', '')}|{fact.get('value', '')}"
+            if key not in collected:
+                collected[key] = fact
+
+        # 1. Faits pertinents à la requête courante
+        try:
+            for fact in kb.search_facts(query, limit=6) or []:
+                _add_fact(fact)
+        except Exception as exc:
+            self.logger.warning("Recherche base de connaissances indisponible: %s", exc)
+
+        # 2. Toujours inclure les faits les plus récents (contexte persistant)
+        try:
+            for fact in (kb.get_all_facts() or [])[:6]:
+                _add_fact(fact)
+        except Exception as exc:
+            self.logger.warning("Lecture base de connaissances indisponible: %s", exc)
+
+        if not collected:
+            return system_prompt
+
+        lines = ["[Base de connaissances]"]
+        for fact in list(collected.values())[:8]:
+            confidence = fact.get("confidence", 1.0) or 1.0
+            try:
+                confidence_pct = int(float(confidence) * 100)
+            except (TypeError, ValueError):
+                confidence_pct = 100
+            category = fact.get("category", "general")
+            key = fact.get("key", "")
+            value = fact.get("value", "")
+            lines.append(f"- [{category}] {key}: {value} (confiance: {confidence_pct}%)")
+
+        return (
+            system_prompt
+            + "\n\n"
+            + "FAITS UTILISATEUR (mémoire persistante — traite-les comme des choses que tu sais déjà) :\n"
+            + "\n".join(lines)
+            + "\n\n"
+            + "Règles STRICTES pour l'utilisation de ces faits :\n"
+            "- Réponds directement avec le fait, de manière brève et naturelle, comme si tu t'en souvenais.\n"
+            "- N'écris JAMAIS de méta-commentaire du type 'je consulte mes connaissances', "
+            "'selon la base de connaissances', 'd'après les informations fournies', "
+            "'dans le contexte documentaire', ni aucune mention de niveau de confiance / pourcentage.\n"
+            "- N'affirme jamais que tu n'as pas de mémoire si l'information demandée figure ci-dessus.\n"
+            "- Si l'utilisateur pose une question de relance courte (ex: 'tu es sûr ?', 'vraiment ?', "
+            "'c'est vrai ?', 'confirme', 'really?'), elle porte TOUJOURS sur ta réponse précédente dans "
+            "l'historique de conversation — PAS sur ton identité. Tu dois alors confirmer l'information "
+            "précédente en t'appuyant sur les faits ci-dessus, et NON te présenter à nouveau.\n"
+            "- Exemple 1 : 'qui est mon manager ?' → 'Ton manager est...' (rien de plus)\n"
+            "- Exemple 2 : après avoir dit 'Ton manager est...', si on te demande "
+            "'tu es sûr ?' → 'Oui, c'est bien toi qui me l'as indiqué.'"
+        )
+
     def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
         """
         Retourne uniquement les documents pertinents pour la requête.
@@ -1391,6 +1463,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
             )
+            system_prompt = self._inject_knowledge_base_context(query, system_prompt)
 
             # Ajouter le contexte des documents chargés si disponible
             full_context = self._prepare_context(query, context)
@@ -1462,6 +1535,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "Utilise les outils quand c'est pertinent, avec des chemins absolus si besoin. "
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}"
             )
+            system_prompt = self._inject_knowledge_base_context(query, system_prompt)
 
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
@@ -1881,6 +1955,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
+            system_prompt = self._inject_knowledge_base_context(user_input, system_prompt)
 
             # Ajouter le contexte des documents chargés
             full_context = self._prepare_context(user_input, context)

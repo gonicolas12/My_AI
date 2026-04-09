@@ -15,6 +15,16 @@ import huggingface_hub.constants as _hf_constants
 import transformers.utils.hub as _tf_hub
 
 from core.config import get_config
+try:
+    from core.network import configure_network_environment, build_network_error_help
+except ImportError:
+    def configure_network_environment(_force: bool = False):
+        """Fallback no-op si le module réseau n'est pas disponible."""
+        return {}
+
+    def build_network_error_help(_error: Exception) -> str:
+        """Fallback no-op pour l'aide réseau."""
+        return ""
 
 # Import du moniteur de compression et modèles partagés
 try:
@@ -202,6 +212,10 @@ class VectorMemory:
         """
         reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
+        network_info = configure_network_environment()
+        for warning in network_info.get("warnings", []):
+            print(f"⚠️ [NETWORK] {warning}")
+
         # Étape 1 : essayer depuis le cache (mode offline déjà activé par core.shared)
         try:
             self.reranker = CrossEncoder(reranker_model)
@@ -230,6 +244,9 @@ class VectorMemory:
             print("✅ CrossEncoder téléchargé et prêt (sera en cache)")
         except Exception as e:
             print(f"⚠️ CrossEncoder non disponible (pas de réseau ?): {e}")
+            help_msg = build_network_error_help(e)
+            if help_msg:
+                print(help_msg)
             print("   → Le RAG fonctionnera sans reranking (distance cosinus seule)")
             self.reranker = None
         finally:

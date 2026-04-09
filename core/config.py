@@ -35,6 +35,18 @@ _DEFAULT_UI_CONFIG: Dict[str, Any] = {
     "gui_theme": "light",
 }
 
+_DEFAULT_NETWORK_CONFIG: Dict[str, Any] = {
+    "prefer_environment": True,
+    "proxy_url": "",
+    "http_proxy": "",
+    "https_proxy": "",
+    "all_proxy": "",
+    "no_proxy": "localhost,127.0.0.1,::1",
+    "ca_bundle": "",
+    "use_system_truststore": True,
+    "allow_insecure_ssl": False,
+}
+
 # Rétrocompatibilité : anciens noms publics (à supprimer quand tous les imports seront migrés)
 AI_CONFIG = _DEFAULT_AI_CONFIG
 FILE_CONFIG = _DEFAULT_FILE_CONFIG
@@ -64,6 +76,7 @@ class Config:
             "ai": dict(_DEFAULT_AI_CONFIG),
             "files": dict(_DEFAULT_FILE_CONFIG),
             "ui": dict(_DEFAULT_UI_CONFIG),
+            "network": dict(_DEFAULT_NETWORK_CONFIG),
         }
 
     @staticmethod

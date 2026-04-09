@@ -24,6 +24,16 @@ VALID_CATEGORIES = (
     "general",
 )
 
+_QUERY_STOPWORDS = {
+    "qui", "que", "quoi", "quand", "ou", "où", "comment", "pourquoi",
+    "est", "es", "suis", "sont", "etre", "être", "a", "au", "aux",
+    "le", "la", "les", "un", "une", "des", "de", "du", "d", "et",
+    "donc", "or", "ni", "car", "je", "tu", "il", "elle", "on",
+    "nous", "vous", "ils", "elles", "mon", "ma", "mes", "ton", "ta",
+    "tes", "son", "sa", "ses", "notre", "nos", "votre", "vos", "leur",
+    "leurs", "l", "j", "c", "ce", "cet", "cette", "ces",
+}
+
 # Patrons d'extraction automatique de faits depuis du texte libre
 _EXTRACT_PATTERNS: List[Dict] = [
     # Préférences explicites
@@ -148,10 +158,11 @@ class KnowledgeBaseManager:
     def add_fact(
         self,
         category: str,
-        key: str,
-        value: str,
+        key: Optional[str] = None,
+        value: Optional[str] = None,
         source: str = "manual",
         confidence: float = 1.0,
+        content: Optional[str] = None,
     ) -> int:
         """
         Ajoute un fait dans la base de connaissances.
@@ -162,6 +173,7 @@ class KnowledgeBaseManager:
             value:      Valeur du fait.
             source:     Origine du fait (manual, conversation, ...).
             confidence: Niveau de confiance entre 0.0 et 1.0.
+            content:    Alias rétrocompatible de value (ancienne API).
 
         Returns:
             Identifiant du fait créé.
@@ -177,6 +189,15 @@ class KnowledgeBaseManager:
             )
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("La confiance doit être comprise entre 0.0 et 1.0")
+
+        # Rétrocompatibilité: ancienne API add_fact(category=..., content=...)
+        if content is not None:
+            normalized_content = content.strip()
+            if not value:
+                value = normalized_content
+            if not key:
+                key = self._build_key("fait", normalized_content)
+
         if not key or not key.strip():
             raise ValueError("La clé ne peut pas être vide")
         if not value or not value.strip():
@@ -428,6 +449,24 @@ class KnowledgeBaseManager:
             si aucun fait pertinent n'est trouvé.
         """
         facts = self.search_facts(query, limit=max_facts)
+
+        # Fallback intelligent: si la phrase complète ne matche pas,
+        # on tente une recherche par mots-clés significatifs.
+        if not facts:
+            token_hits: Dict[int, Dict] = {}
+            for token in self._extract_query_tokens(query):
+                for fact in self.search_facts(token, limit=max_facts):
+                    fact_id = fact.get("id")
+                    if fact_id is not None:
+                        token_hits[fact_id] = fact
+
+            if token_hits:
+                facts = sorted(
+                    token_hits.values(),
+                    key=lambda f: (f.get("confidence", 0.0), f.get("updated_at", "")),
+                    reverse=True,
+                )[:max_facts]
+
         if not facts:
             return ""
 
@@ -439,6 +478,27 @@ class KnowledgeBaseManager:
                 f"(confiance: {confidence_pct}%)"
             )
         return "\n".join(lines)
+
+    @staticmethod
+    def _extract_query_tokens(query: str) -> List[str]:
+        """Extrait des tokens utiles pour la recherche de faits."""
+        if not query:
+            return []
+
+        raw_tokens = re.findall(r"[A-Za-zÀ-ÿ0-9_]+", query.lower())
+        filtered = [
+            tok for tok in raw_tokens
+            if len(tok) >= 3 and tok not in _QUERY_STOPWORDS
+        ]
+
+        # Préserver l'ordre d'apparition en supprimant les doublons
+        seen = set()
+        ordered = []
+        for tok in filtered:
+            if tok not in seen:
+                seen.add(tok)
+                ordered.append(tok)
+        return ordered
 
     # ------------------------------------------------------------------
     # Utilitaires internes

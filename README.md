@@ -294,6 +294,30 @@ pip install wmi
 
 > **Sans ces packages**, l'application fonctionne normalement — les métriques GPU affichent simplement "N/A".
 
+#### 🌐 Réseaux avec Proxy (générique, open source)
+
+Le projet supporte les proxys standards via variables d'environnement **et** via `config.yaml` (section `network`).
+
+Exemples (PowerShell):
+
+```powershell
+$env:HTTP_PROXY="http://proxy.company.com:8080"
+$env:HTTPS_PROXY="http://proxy.company.com:8080"
+$env:NO_PROXY="localhost,127.0.0.1,::1"
+```
+
+Exemples (Linux/macOS):
+
+```bash
+export HTTP_PROXY="http://proxy.company.com:8080"
+export HTTPS_PROXY="http://proxy.company.com:8080"
+export NO_PROXY="localhost,127.0.0.1,::1"
+```
+
+Si votre proxy intercepte TLS, renseignez aussi `network.ca_bundle` dans `config.yaml` avec le chemin de votre certificat racine (PEM).
+
+> Le mode `network.allow_insecure_ssl: true` existe en dernier recours, mais il est déconseillé en production.
+
 ### 3 · Installer Ollama *(Optionnel mais Recommandé)*
 
 > **Sans Ollama**, l'IA fonctionne en mode fallback avec des patterns/règles.

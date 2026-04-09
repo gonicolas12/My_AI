@@ -734,7 +734,8 @@ class SidebarMixin:
         query = getattr(self, "_kb_search_var", tk.StringVar()).get().strip()
         try:
             facts = kb.search_facts(query, limit=20) if query else kb.get_all_facts()[:20]
-        except Exception:
+        except Exception as exc:
+            print(f"[KB][GUI] Erreur refresh connaissance: {exc}")
             facts = []
         if not facts:
             self._sb_label(self._kb_list_frame, "  Aucun fait enregistré",
@@ -746,7 +747,8 @@ class SidebarMixin:
 
     def _make_kb_fact_row(self, fact: dict):
         fact_id = fact.get("id")
-        content = fact.get("content", "")[:45]
+        value = fact.get("value", "") or fact.get("content", "")
+        content = str(value)[:45]
         category = fact.get("category", "")
         cat_colors = {
             "preference": "#8b5cf6", "decision": "#f59e0b",
@@ -796,10 +798,23 @@ class SidebarMixin:
         if not content or not content.strip():
             return
         try:
-            kb.add_fact(category=cat.strip(), content=content.strip())
+            fact_value = content.strip()
+            auto_key = fact_value.split("\n", 1)[0].strip()
+            if len(auto_key) > 80:
+                auto_key = auto_key[:77] + "..."
+            if not auto_key:
+                auto_key = "fait manuel"
+
+            kb.add_fact(
+                category=cat.strip(),
+                key=auto_key,
+                value=fact_value,
+                source="manual",
+            )
             self._refresh_knowledge()
             self.show_notification("✅ Fait ajouté", "success", 2000)
         except Exception as exc:
+            print(f"[KB][GUI] Erreur ajout fait: {exc}")
             self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
 
     def _kb_delete_fact(self, fact_id):
@@ -810,4 +825,5 @@ class SidebarMixin:
                 kb.delete_fact(fact_id)
                 self._refresh_knowledge()
             except Exception as exc:
+                print(f"[KB][GUI] Erreur suppression fait: {exc}")
                 self.show_notification(f"❌ Erreur : {exc}", "error", 2500)

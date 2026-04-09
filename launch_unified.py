@@ -93,6 +93,14 @@ def _ensure_ollama_parallel():
 # avec téléchargement automatique au premier lancement si nécessaire          #
 # =========================================================================== #
 
+# Initialiser le stack reseau/proxy avant les imports applicatifs.
+try:
+    from core.network import configure_network_environment
+
+    configure_network_environment()
+except Exception:
+    pass
+
 # Import - core.shared gère le chargement du modèle d'embeddings
 from interfaces.gui_modern import \
     ModernAIGUI  # pylint: disable=wrong-import-position

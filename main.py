@@ -17,8 +17,16 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Permettre à Ollama de traiter plusieurs requêtes en parallèle
 os.environ.setdefault("OLLAMA_NUM_PARALLEL", "4")
 
+# Initialiser le stack reseau/proxy avant les imports applicatifs.
+try:
+    from core.network import configure_network_environment
+
+    configure_network_environment()
+except Exception:
+    pass
+
 from interfaces.cli import CLIInterface  # pylint: disable=wrong-import-position
-from core.ai_engine import AIEngine  # pylint: disable=wrong-import-position
+from core.ai_engine import AIEngine  # pylint: disable=ungrouped-imports wrong-import-position
 from utils.logger import setup_logger  # pylint: disable=wrong-import-position
 
 
