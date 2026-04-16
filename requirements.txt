@@ -123,10 +123,15 @@ memory-profiler>=0.60.0
 mcp>=1.0.0
 
 # ====================================
-# API REST
+# API REST & RELAY
 # ====================================
 fastapi>=0.100.0
 uvicorn>=0.23.0
+websockets>=12.0
+python-multipart>=0.0.9
+
+# QR Code (pour My_AI Relay)
+qrcode[pil]>=7.4.0
 
 # ====================================
 # DÉTECTION DE LANGUE

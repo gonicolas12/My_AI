@@ -173,7 +173,7 @@ class ConversationExporter:
         # Pied de page
         lines.append(
             f"*Exporte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
-            f"par My_AI v7.1.0*"
+            f"par My_AI v7.2.0*"
         )
 
         filepath.write_text("\n".join(lines), encoding="utf-8")
@@ -485,7 +485,7 @@ class ConversationExporter:
 
         <div class="footer">
             Exporte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            par My_AI v7.1.0
+            par My_AI v7.2.0
         </div>
     </div>
 </body>
@@ -711,7 +711,7 @@ class ConversationExporter:
         # Pied de page
         footer_text = (
             f"Exporte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
-            f"par My_AI v7.1.0"
+            f"par My_AI v7.2.0"
         )
         story.append(Paragraph(self._escape_xml(footer_text), style_footer))
 

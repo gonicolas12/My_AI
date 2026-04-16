@@ -406,38 +406,9 @@ class LayoutMixin:
         buttons_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
         buttons_frame.grid(row=0, column=2, sticky="e", padx=(10, 0), pady=35)
 
-        # ── Sélecteur de modèle (hot-reload) ──
+        # Initialiser la variable du modèle (utilisée par le sélecteur inline)
         self._model_selector_var = tk.StringVar(value="")
-        if self.use_ctk:
-            self.model_selector = ctk.CTkOptionMenu(
-                buttons_frame,
-                variable=self._model_selector_var,
-                values=["Chargement..."],
-                command=self._on_model_selected,
-                fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
-                button_color=self.colors.get("accent", "#ff6b47"),
-                button_hover_color=self.colors.get("button_hover", "#3a3a3a"),
-                text_color=self.colors.get("text_primary", "#ffffff"),
-                dropdown_fg_color=self.colors.get("bg_secondary", "#2a2a2a"),
-                dropdown_text_color=self.colors.get("text_primary", "#ffffff"),
-                dropdown_hover_color=self.colors.get("accent", "#ff6b47"),
-                font=("Segoe UI", 11),
-                width=160,
-                height=32,
-                corner_radius=6,
-            )
-        else:
-            self.model_selector = tk.OptionMenu(
-                buttons_frame, self._model_selector_var, "Chargement...",
-            )
-            self.model_selector.configure(
-                bg=self.colors.get("bg_secondary", "#2a2a2a"),
-                fg=self.colors.get("text_primary", "#ffffff"),
-                font=("Segoe UI", 11), relief="flat",
-            )
-        self.model_selector.grid(row=0, column=0, padx=(0, 10))
-        # Charger les modèles en arrière-plan
-        self.root.after(500, self._populate_model_selector)
+        self._model_list = []  # liste des modèles disponibles
 
         # Bouton Clear Chat
         self.clear_btn = self.create_modern_button(
@@ -446,7 +417,11 @@ class LayoutMixin:
             command=self.clear_chat,
             style="secondary",
         )
-        self.clear_btn.grid(row=0, column=1, padx=(0, 10))
+        self.clear_btn.grid(row=0, column=0, padx=(0, 10))
+
+        # Bouton Relay déplacé dans la sidebar (accessible depuis tous les écrans).
+        # Conservé comme attribut None pour compat avec le code existant.
+        self.relay_btn = None
 
         # Bonton Help
         self.help_btn = self.create_modern_button(
@@ -462,7 +437,7 @@ class LayoutMixin:
             text_color="#00ff00",  # Vert = connecté (text_color au lieu de fg)
             fg_color=self.colors["bg_primary"],
         )
-        self.status_label.grid(row=0, column=2)
+        self.status_label.grid(row=0, column=3)
 
     def create_modern_input_area(self):
         """Crée la zone de saisie moderne style Claude"""
@@ -491,6 +466,11 @@ class LayoutMixin:
         )
         content_frame.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
         content_frame.grid_columnconfigure(0, weight=1)
+
+        # ── Sélecteur de modèle inline (discret, en haut à droite) ────
+        self._inline_model_selector = self._create_inline_model_selector(content_frame)
+        # Charger les modèles en arrière-plan
+        self.root.after(500, self._populate_model_selector)
 
         # ── Zone d'aperçu des documents attachés (initialement masquée) ────
         self._preview_frame = self.create_frame(
@@ -759,6 +739,135 @@ class LayoutMixin:
         """Retourne la liste des fichiers en attente [(path, type), ...]."""
         return [(p, t) for p, t, _ in self._pending_files]
 
+    # ── Sélecteur de modèle inline (discret, dans la zone de saisie) ─────
+
+    def _create_inline_model_selector(self, content_frame):
+        """
+        Crée un sélecteur de modèle discret (texte gris clair + chevron)
+        positionné en overlay haut-droite du content_frame via place().
+        Ne modifie pas la hauteur du rectangle de saisie.
+        Retourne le widget label créé.
+        """
+        ph_color = self.colors.get("placeholder", "#6b7280")
+        input_bg = self.colors.get("input_bg", "#2f2f2f")
+
+        # Utiliser un tk.Label brut (place() fiable sur tout parent, y compris CTkFrame)
+        selector_label = tk.Label(
+            content_frame,
+            text="modèle \u2227",
+            font=("Segoe UI", 10),
+            fg=ph_color,
+            bg=input_bg,
+            cursor="hand2",
+            padx=4,
+            pady=2,
+        )
+
+        # Positionner en overlay haut-droite, puis lift() pour z-order
+        def _place_selector(_event=None):
+            selector_label.place(relx=1.0, rely=0.0, anchor="ne", x=-8, y=4)
+            selector_label.lift()
+
+        # Placer après que le parent soit rendu (after_idle)
+        content_frame.after_idle(_place_selector)
+        # Re-placer si le parent est redimensionné
+        content_frame.bind("<Configure>", _place_selector, add="+")
+
+        # Mettre à jour le texte quand le modèle change
+        def _update_label(*_args):
+            model_name = self._model_selector_var.get()
+            if model_name:
+                selector_label.configure(text=f"{model_name} \u2227")
+
+        self._model_selector_var.trace_add("write", _update_label)
+        # Initialiser si déjà rempli
+        if self._model_selector_var.get():
+            selector_label.configure(text=f"{self._model_selector_var.get()} \u2227")
+
+        # Référence au popup courant
+        _popup_ref = [None]
+
+        def _close_popup(popup):
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+            _popup_ref[0] = None
+            # Remettre la flèche vers le haut
+            model_name = self._model_selector_var.get() or "modèle"
+            selector_label.configure(text=f"{model_name} \u2227")
+
+        def _open_model_dropdown(_event=None):
+            """Ouvre un dropdown des modèles au-dessus du label."""
+            if _popup_ref[0] is not None:
+                _close_popup(_popup_ref[0])
+                return
+
+            models = getattr(self, "_model_list", [])
+            if not models:
+                return
+
+            # Changer la flèche vers le bas
+            model_name = self._model_selector_var.get() or "modèle"
+            selector_label.configure(text=f"{model_name} \u2228")
+
+            bg = self.colors.get("bg_secondary", "#1e1e1e")
+            fg = self.colors.get("text_primary", "#ffffff")
+            accent = self.colors.get("accent", "#ff6b47")
+            current = self._model_selector_var.get()
+
+            popup = tk.Toplevel(self.root)
+            popup.overrideredirect(True)
+            popup.configure(bg=bg)
+            popup.attributes("-topmost", True)
+            _popup_ref[0] = popup
+
+            for i, model in enumerate(models):
+                def _make_cb(m, pop=popup):
+                    def _cb():
+                        _close_popup(pop)
+                        self._on_model_selected(m)
+                        self._model_selector_var.set(m)
+                    return _cb
+
+                # Marquer le modèle actif
+                is_current = (model == current)
+                item_fg = "#ffffff" if is_current else fg
+                item_font = ("Segoe UI", 11, "bold") if is_current else ("Segoe UI", 11)
+
+                btn = tk.Label(
+                    popup, text=f"  {model}  ", bg=bg, fg=item_fg,
+                    font=item_font, anchor="w", padx=14, pady=6, cursor="hand2",
+                )
+                btn.grid(row=i, column=0, sticky="ew")
+                popup.grid_columnconfigure(0, weight=1)
+
+                cb = _make_cb(model)
+                btn.bind("<Button-1>", lambda e, c=cb: c())
+                btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=accent, fg="#ffffff"))
+                btn.bind("<Leave>", lambda e, b=btn, f=item_fg: b.configure(bg=bg, fg=f))
+
+            # Positionner au-dessus du label
+            popup.update_idletasks()
+            ph = popup.winfo_reqheight()
+            lx = selector_label.winfo_rootx() + selector_label.winfo_width() - popup.winfo_reqwidth()
+            ly = selector_label.winfo_rooty() - ph - 4
+            popup.geometry(f"+{lx}+{ly}")
+
+            def _on_focus_out(_e):
+                self.root.after(50, lambda: _close_popup(popup) if _popup_ref[0] is popup else None)
+
+            popup.bind("<FocusOut>", _on_focus_out)
+            popup.bind("<Escape>", lambda _e: _close_popup(popup))
+            self.root.bind("<Button-1>",
+                           lambda _e: _close_popup(popup) if _popup_ref[0] is popup else None,
+                           add="+")
+            popup.focus_set()
+
+        selector_label.bind("<Button-1>", _open_model_dropdown)
+
+        return selector_label
+
     # ── Sélecteur de modèle (hot-reload) ──────────────────────────────────
 
     def _populate_model_selector(self):
@@ -790,8 +899,7 @@ class LayoutMixin:
         """Met à jour le sélecteur avec la liste des modèles."""
         if not models:
             return
-        if self.use_ctk and hasattr(self.model_selector, "configure"):
-            self.model_selector.configure(values=models)
+        self._model_list = models
         if current and current in models:
             self._model_selector_var.set(current)
         elif models:

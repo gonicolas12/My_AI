@@ -40,9 +40,9 @@ class SidebarMixin:
         self._sidebar_parent = parent
         self._sidebar_visible = False
         self._sidebar_sections_open = {
-            "sessions": True,
+            "sessions": False,
             "history": False,
-            "export": True,
+            "export": False,
             "knowledge": False,
         }
 
@@ -76,10 +76,45 @@ class SidebarMixin:
 
         # ── Contenu ───────────────────────────────────────────────────────
         self._make_sidebar_title()
+        self._make_relay_button()
         self._make_section_sessions()
         self._make_section_history()
         self._make_section_export()
         self._make_section_knowledge()
+
+    # ─── Bouton Relay ─────────────────────────────────────────────────
+
+    def _make_relay_button(self):
+        """Crée le bouton '📡 Relay' dans la sidebar (accès mobile)."""
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        accent = self.colors.get("accent", "#ff6b47")
+        hover = self.colors.get("accent_hover", "#e85a3a")
+        tc = self.colors.get("text_primary", "#ffffff")
+
+        wrapper = ctk.CTkFrame(self._sidebar_scroll, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(self._sidebar_scroll, bg=bg)
+        wrapper.pack(fill="x", padx=8, pady=(2, 6))
+
+        cmd = getattr(self, "_toggle_relay", lambda: None)
+        if CTK_AVAILABLE:
+            btn = ctk.CTkButton(
+                wrapper, text="📡 Relay",
+                command=cmd,
+                fg_color=accent, hover_color=hover, text_color=tc,
+                font=("Segoe UI", 12, "bold"),
+                height=32, corner_radius=6,
+            )
+            btn.pack(fill="x")
+        else:
+            btn = tk.Button(
+                wrapper, text="📡 Relay", command=cmd,
+                bg=accent, fg=tc, font=("Segoe UI", 12, "bold"),
+                relief="flat",
+            )
+            btn.pack(fill="x")
+        self._sidebar_relay_btn = btn
+
+        self._sb_separator(self._sidebar_scroll)
 
     # ─── Toggle ──────────────────────────────────────────────────────────
 

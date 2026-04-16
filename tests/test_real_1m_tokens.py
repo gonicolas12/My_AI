@@ -545,7 +545,7 @@ class WorkerPool {
 ```json
 {
     "system_config": {
-        "version": "7.1.0",
+        "version": "7.2.0",
         "environment": "production",
         "features": {
             "context_size": 10485760,
@@ -1422,7 +1422,7 @@ Section #{section_num} avec contenu spécialisé en {theme_name.lower()}.
             },
             {
                 "question": "Quelle est la version du système selon la configuration JSON ?",
-                "expected_keywords": ["7.1.0", "version"],
+                "expected_keywords": ["7.2.0", "version"],
                 "section": "Structured Data",
             },
             {

@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "7.1.0"
+  version: "7.2.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
@@ -352,6 +352,27 @@ api:
   host: "127.0.0.1"
   port: 8000
   cors_origins: ["http://localhost:*"]
+
+# ====================================
+# MY_AI RELAY (Accès mobile)
+# ====================================
+relay:
+  # Démarrage automatique au lancement du GUI
+  auto_start: false
+  # Port du serveur Relay (WebSocket + interface mobile)
+  port: 8765
+  # Délai max d'attente de la réponse IA (en secondes)
+  # Augmenter si les réponses sont longues ou avec pièces jointes volumineuses
+  response_timeout: 500
+  # Mot de passe pour l'authentification mobile
+  # Si vide, un token aléatoire sera généré à chaque démarrage
+  password: ""
+  # Activer le tunnel cloudflared pour l'accès hors réseau local
+  # Nécessite cloudflared installé (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+  # ou cloudflared.exe dans le dossier tools/
+  tunnel: true
+  # Adresse d'écoute (0.0.0.0 = toutes les interfaces)
+  host: "0.0.0.0"
 
 # ====================================
 # WORKSPACES / SESSIONS

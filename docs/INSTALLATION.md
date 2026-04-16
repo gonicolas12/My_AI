@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v7.1.0
+# 📖 Guide d'Installation - My Personal AI v7.2.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v7.1.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v7.2.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -173,6 +173,19 @@ diskcache>=5.6.0         # Cache web persistant
 reportlab>=4.0.0         # Export PDF des conversations
 ```
 
+### My_AI Relay (Optionnel — accès mobile)
+```
+fastapi>=0.100.0         # Serveur WebSocket Relay (partagé avec l'API REST)
+uvicorn>=0.23.0          # Serveur ASGI (partagé avec l'API REST)
+qrcode[svg]>=7.4.2       # Génération du QR code d'accès
+requests>=2.31.0         # Téléchargement automatique de cloudflared
+python-multipart>=0.0.9  # Parsing multipart pour POST /api/upload (pièces jointes mobiles)
+```
+
+> **cloudflared** (tunnel HTTPS) est téléchargé automatiquement par My_AI au premier démarrage du Relay. Vous pouvez aussi le placer manuellement dans `tools/cloudflared.exe` (Windows) ou `tools/cloudflared` (Linux/macOS).
+>
+> **Sans ces packages**, le bouton Relay dans le GUI est présent mais désactivé. L'application fonctionne normalement par ailleurs.
+
 ### Advanced Features (Optionnel)
 ```
 faiss-cpu>=1.7.4         # Semantic search
@@ -232,7 +245,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "7.1.0"
+  version: "7.2.0"
   max_tokens: 10485760      # 10M tokens (capacité VectorMemory)
   temperature: 0.7
   conversation_history_limit: 10
@@ -456,7 +469,7 @@ ai:
 ```yaml
 # Dans config.yaml
 ai:
-  max_tokens: 10485760       # Full 10M tokens (défaut v7.1.0)
+  max_tokens: 10485760       # Full 10M tokens
   conversation_history_limit: 20
 ```
 
@@ -674,7 +687,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v7.1.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v7.2.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -831,4 +844,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 7.1.0 | Architecture: 100% locale | Capacité: 10M tokens*
+*Version: 7.2.0 | Architecture: 100% locale | Capacité: 10M tokens*

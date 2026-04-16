@@ -389,11 +389,19 @@ class MarkdownFormattingMixin:
             segments.append(("text", "\n".join(current_text)))
 
         # Traiter chaque segment
+        prev_type = None
         for seg_type, content in segments:
             if seg_type == "table":
                 self._insert_markdown_table(text_widget, content)
             else:
-                self._apply_simple_markdown_formatting(text_widget, content)
+                # Si ce segment texte suit un tableau, la bordure inférieure
+                # se termine déjà par \n — supprimer les \n redondants au début.
+                # Pas de \n supplémentaire : la bordure └...┘\n suffit.
+                if prev_type == "table":
+                    content = content.lstrip("\n")
+                if content:
+                    self._apply_simple_markdown_formatting(text_widget, content)
+            prev_type = seg_type
 
     def _apply_simple_markdown_formatting(self, text_widget, text):
         """Applique le formatage markdown simple (gras, italique, titres, listes)"""
@@ -1840,7 +1848,10 @@ class MarkdownFormattingMixin:
             # === FORMATAGE TITRES # ## ### #### (AVANT le gras) ===
             # Traiter les titres EN PREMIER pour gérer les cas '## **texte**'
             # On supprime les ## ET les ** en une seule opération.
-            start_pos = scan_origin
+            # Les titres sont rares et visuellement importants → toujours
+            # scanner depuis le début pour ne pas rater ceux hors de la
+            # fenêtre des 80 dernières lignes.
+            start_pos = "1.0"
             while True:
                 pos_start = text_widget.search("#", start_pos, "end")
                 if not pos_start:
@@ -2175,7 +2186,7 @@ class MarkdownFormattingMixin:
                     marker_end = text_widget.index(f"{line_start}+{marker_len}c")
                     text_widget.delete(line_start, marker_end)
                     # Insérer indentation + bullet visuel
-                    text_widget.insert(line_start, indent + "  \u2022 ")
+                    text_widget.insert(line_start, indent + " \u2022 ")
 
                     scan_pos = text_widget.index(f"{line_start} lineend +1c")
             except Exception:
@@ -2485,11 +2496,24 @@ class MarkdownFormattingMixin:
         current_pos = 0
 
         # Traiter chaque bloc de code trouvé
+        had_code_block = False
         for match in re.finditer(code_block_pattern, text, re.DOTALL):
             # Insérer le texte avant le bloc de code
             if match.start() > current_pos:
                 pre_text = text[current_pos : match.start()]
-                self._insert_simple_markdown(text_widget, pre_text)
+                # Après un bloc de code, normaliser les \n au début :
+                # supprimer l'excès mais garder 1 \n de marge visuelle
+                if had_code_block:
+                    stripped = pre_text.lstrip("\n")
+                    pre_text = "\n" + stripped if stripped else stripped
+                # Avant un bloc de code, normaliser les \n à la fin :
+                # supprimer l'excès mais garder 1 \n de marge visuelle
+                stripped = pre_text.rstrip("\n")
+                if stripped != pre_text:
+                    pre_text = stripped + "\n"
+                if pre_text:
+                    self._insert_simple_markdown(text_widget, pre_text)
+            had_code_block = True
 
             # Extraire les informations du bloc de code
             language = match.group(1) or "text"
@@ -2531,7 +2555,13 @@ class MarkdownFormattingMixin:
         # Insérer le texte restant après le dernier bloc
         if current_pos < len(text):
             remaining_text = text[current_pos:]
-            self._insert_simple_markdown(text_widget, remaining_text)
+            # Après un bloc de code, normaliser les \n au début :
+            # supprimer l'excès mais garder 1 \n de marge visuelle
+            if had_code_block:
+                stripped = remaining_text.lstrip("\n")
+                remaining_text = "\n" + stripped if stripped else stripped
+            if remaining_text:
+                self._insert_simple_markdown(text_widget, remaining_text)
 
     def _insert_python_code_block_with_syntax_highlighting(self, text_widget, code):
         """Version optimisée pour la coloration syntaxique Python avec support VS Code"""

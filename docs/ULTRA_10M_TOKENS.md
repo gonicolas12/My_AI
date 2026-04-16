@@ -2,7 +2,7 @@
 
 ## 💾 Vue d'Ensemble : Mémoire Interne de 10M Tokens
 
-Le système Ultra de My Personal AI v7.1.0 implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 10 millions de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
+Le système Ultra de My Personal AI implémente une **mémoire vectorielle interne pouvant stocker jusqu'à 10 millions de tokens** (via ChromaDB et tiktoken). Il est important de distinguer deux notions différentes :
 
 > ⚠️ **À ne pas confondre**
 > - **Mémoire interne (10M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
@@ -11,7 +11,7 @@ Le système Ultra de My Personal AI v7.1.0 implémente une **mémoire vectoriell
 > Le moteur de recherche sémantique sélectionne les fragments les plus pertinents dans la mémoire interne, puis les injecte dans la fenêtre LLM disponible.
 
 ### 🎯 Chiffres Clés
-- **10 000 000 tokens** de capacité de stockage en mémoire vectorielle interne (depuis v7.1.0)
+- **10 000 000 tokens** de capacité de stockage en mémoire vectorielle interne
 - **Fenêtre LLM effective** : 4 096 tokens (défaut `Modelfile`) jusqu'à 8 192 tokens (`local_llm.py`)
 - **Compression intelligente** : 2.4:1 à 52:1 selon le contenu
 - **Persistance ChromaDB (SQLite + Parquet)** optimisée pour les gros volumes
@@ -129,7 +129,7 @@ Toute la configuration du projet et de la limite des tokens se gère via votre f
 ```yaml
 ai:
   name: "My Personal AI"
-  version: "7.1.0"
+  version: "7.2.0"
   
   # Paramètres généraux
   max_tokens: 10485760

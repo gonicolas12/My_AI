@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v7.1.0
+# 🏗️ Architecture - My Personal AI v7.2.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v7.1.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.1.0**, basée sur les principes suivants:
+My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.2.0**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -39,6 +39,12 @@ My Personal AI v7.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Monitoring ressources temps réel (ResourceMonitor)                │
 │  • Exécution DAG / parallèle / séquentielle                         │
 │  • Drag-and-drop agents + connexions Bézier                         │
+├──────────────────────────────────────────────────────────────────────┤
+│  My_AI Relay (relay/)                                                │
+│  • Interface mobile PWA (iOS/Android) via WebSocket                  │
+│  • Tunnel cloudflared HTTPS → accès depuis n'importe où             │
+│  • Authentification token/mot de passe + QR code                    │
+│  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile           │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -405,6 +411,74 @@ core/evaluation.py + error_analysis.py:
 ├─ Métriques (P/R/F1/exact match)
 ├─ Tracking erreurs
 └─ Analyse qualité
+```
+
+### 📡 Relay — Accès Mobile
+
+**`relay/relay_server.py`** - Serveur FastAPI + WebSocket
+```python
+Architecture:
+├─ FastAPI app en thread daemon (non-bloquant)
+├─ WebSocket /ws : chat temps réel (auth → messages → réponse)
+│   └─ Protocole : {type:'chat', message, file_ids:[...]}
+├─ REST :
+│   ├─ GET /, POST /auth, GET /api/health, GET /api/history
+│   └─ POST /api/upload : multipart → fichier temp + file_id
+│       ├─ Allowlist extensions (images + PDF/DOCX/XLSX/CSV/code)
+│       ├─ Streaming 64 Ko vers {tempdir}/my_ai_relay_uploads/
+│       ├─ Plafond 25 Mo (413 + cleanup si dépassement)
+│       └─ Registre Dict[file_id, meta] sous threading.Lock
+├─ Authentification : token SHA-256 (password) ou secrets.token_urlsafe
+├─ Tunnel cloudflared : démarrage auto + lecture URL stderr
+│   └─ Téléchargement auto si absent (GitHub releases)
+├─ QR Code SVG via qrcode.image.svg (fill #ff6b47, back #0f0f0f)
+└─ Interface login HTML embarquée (servie si token absent)
+```
+
+**`relay/relay_bridge.py`** - Pont GUI ↔ Mobile (Singleton)
+```python
+Architecture:
+├─ Singleton thread-safe (threading.Lock sur __new__)
+├─ deque(maxlen=500) côté GUI et côté WebSocket
+├─ Callbacks : on_gui_message() / on_ws_message() (enregistrables)
+├─ Réponse asynchrone :
+│   ├─ wait_for_ai_response(timeout=relay.response_timeout) — asyncio + run_in_executor
+│   └─ submit_ai_response(text)          — appelé par le GUI Tkinter
+├─ Historique session : List[RelayMessage] avec to_dict()
+└─ Propriétés : active, connected_clients, history
+
+RelayMessage (dataclass):
+├─ text, is_user, timestamp, source ("relay"/"local"), message_id
+├─ image_path: Optional[str]     — image consommée par le modèle vision
+├─ file_paths: List[str]         — documents ajoutés au contexte vectoriel
+└─ message_id auto : "{source}_{timestamp_ms}"
+```
+
+**`relay/static/`** - Interface Mobile PWA
+```
+├─ index.html  — Shell PWA (injecte %%RELAY_TOKEN%% côté serveur)
+│                bouton + et chip container pour les pièces jointes
+├─ style.css   — Thème sombre, layout mobile-first, scrollbar custom
+│                styles .attach-btn / .attachments / .attachment-chip
+└─ app.js      — WebSocket client : connexion, envoi, réception,
+                 indicateur de frappe, reconnexion auto,
+                 upload XHR → POST /api/upload → file_ids dans le message
+```
+
+**Pipeline pièces jointes (GUI)** — `interfaces/gui/base.py`
+```python
+_display_relay_message(msg):
+├─ Construit bulle avec préfixes 🖼️ / 📎
+├─ Requête par défaut si pas de texte + fichier présent
+└─ Thread worker → _process_relay_attachments_then_ai(...)
+
+_process_relay_attachments_then_ai(text, req_id, image, files):
+├─ Pour chaque document : process_file_background (synchrone)
+│   └─ Même logique que le drag & drop PC (custom_ai.add_file_to_context)
+├─ Si image : _process_image_file (base64 → _pending_image_base64)
+├─ Relance show_thinking_animation sur le thread Tk
+│   (compense is_thinking=False positionné par process_file_background)
+└─ quel_handle_message_with_id(text, req_id) → streaming IA
 ```
 
 ### 🤖 Models - Intelligence Artificielle
@@ -1210,7 +1284,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 7.1.0
+**Version**: 7.2.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens (10M) avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)

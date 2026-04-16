@@ -1721,7 +1721,12 @@ Que voulez-vous que je fasse pour vous ?"""
         if not llm or not llm.is_ollama_available:
             return query
 
-        current_year = _dt.now().year
+        now = _dt.now()
+        current_year = now.year
+        # Dernière année « complète » d'événements : si on est en début d'année,
+        # les compétitions/éditions de l'année courante n'ont souvent pas encore
+        # eu lieu, donc « dernier/dernière » pointe vers l'année précédente.
+        last_completed_year = current_year - 1 if now.month <= 6 else current_year
 
         try:
             prompt = (
@@ -1730,8 +1735,11 @@ Que voulez-vous que je fasse pour vous ?"""
                 "Règles :\n"
                 "- Utilise l'ANGLAIS pour de meilleurs résultats\n"
                 "- Mots-clés courts et précis\n"
-                f"- L'année actuelle est {current_year}. "
-                f"Si la demande porte sur de l'actualité, ajoute {current_year}\n"
+                f"- Date du jour : {now.strftime('%Y-%m-%d')}.\n"
+                f"- Pour 'dernière', 'dernier', 'récent', 'latest' : utilise l'année {last_completed_year} "
+                f"(dernière édition terminée).\n"
+                f"- Pour l'actualité en cours : utilise {current_year}.\n"
+                "- Si l'utilisateur mentionne une année explicite, GARDE CETTE ANNÉE telle quelle.\n"
                 "- Réponds UNIQUEMENT avec les mots-clés\n\n"
                 f"Demande: {query}"
             )
@@ -1749,12 +1757,27 @@ Que voulez-vous que je fasse pour vous ?"""
 
             if optimized:
                 optimized = optimized.strip().strip("\"'.,!?:;\n\r")
-                # Corriger l'année si le LLM met une année obsolète
-                optimized = _re.sub(
-                    r'\b(202[0-5])\b',
-                    str(current_year),
-                    optimized,
-                )
+                # Si l'utilisateur a explicitement mentionné une année, la
+                # réinjecter pour éviter que le LLM l'écrase avec une autre.
+                user_year_match = _re.search(r'\b(20\d{2})\b', query)
+                if user_year_match:
+                    user_year = user_year_match.group(1)
+                    optimized = _re.sub(r'\b20\d{2}\b', user_year, optimized)
+                else:
+                    # Pas d'année dans la requête : ne corriger QUE les années
+                    # clairement obsolètes (< current_year - 2). On ne touche
+                    # pas à current_year-1 ou current_year car elles peuvent
+                    # être correctes selon le contexte (ex. « dernière
+                    # édition terminée » = current_year-1).
+                    threshold = current_year - 2
+
+                    def _fix_obsolete_year(match: "_re.Match") -> str:
+                        year = int(match.group(0))
+                        if year < threshold:
+                            return str(last_completed_year)
+                        return match.group(0)
+
+                    optimized = _re.sub(r'\b20\d{2}\b', _fix_obsolete_year, optimized)
                 if 3 <= len(optimized) <= 120:
                     print(
                         f"🔧 [AIEngine] Requête optimisée : '{query}' → '{optimized}'"

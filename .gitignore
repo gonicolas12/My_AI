@@ -51,3 +51,6 @@ data/knowledge_base/
 data/web_cache/
 data/workspaces/
 data/command_history*
+
+# Fichier exécutable de Cloudflared (trop spécifique à l'environnement local)
+tools/cloudflared.exe

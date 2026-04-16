@@ -144,7 +144,7 @@ pip install chromadb sentence-transformers tiktoken
 
 ### "Mémoire pleine"
 ```python
-# Augmenter la limite (défaut v7.1.0 : 10M tokens)
+# Augmenter la limite (défaut : 10M tokens)
 vm = VectorMemory(max_tokens=50_000_000)  # 50M tokens
 ```
 

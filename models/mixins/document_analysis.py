@@ -2580,7 +2580,7 @@ class DocumentAnalysisMixin:
                         if direct_answer:
                             return direct_answer
                         # Sinon, retourner le contexte brut avec une intro
-                        return f"📄 **Informations trouvées dans le document** ({len(ultra_context)} caractères):\n\n{ultra_context[:800]}...\n\n*Note: Réponse basée sur le contenu Ultra 1M disponible*"
+                        return f"📄 **Informations trouvées dans le document** ({len(ultra_context)} caractères):\n\n{ultra_context[:800]}...\n\n*Note: Réponse basée sur le contenu Ultra 10M disponible*"
                 else:
                     print("⚠️ [ULTRA] Contexte insuffisant ou vide")
             except (ValueError, TypeError, KeyError) as e:

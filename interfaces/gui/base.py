@@ -17,6 +17,7 @@ from core.ai_engine import AIEngine
 from core.config import Config
 from utils.file_processor import FileProcessor
 from utils.logger import setup_logger
+from relay.relay_server import RelayServer
 
 # Import des styles (uniquement ce qui est utilisé)
 try:
@@ -79,7 +80,7 @@ class BaseGUI:
                     f"📚 Documents: {len(self.custom_ai.conversation_memory.stored_documents)}"
                 )
                 print(
-                    f"🧠 Mode: {'Ultra 1M' if self.custom_ai.ultra_mode else 'Classique'}"
+                    f"🧠 Mode: {'Ultra 10M' if self.custom_ai.ultra_mode else 'Classique'}"
                 )
                 if hasattr(self.custom_ai, "local_llm") and self.custom_ai.local_llm:
                     print(
@@ -202,10 +203,12 @@ class BaseGUI:
         self._home_screen_active = False
         self._home_input = None
         self._home_input_wrapper = None
+        self._home_inline_model_selector = None
         self._home_preview_frame = None
         self._pending_files = []
         self._conv_container = None
         self._chat_content_frame = None
+
         # Mode thinking (widget raisonnement)
         self._thinking_mode_active = False
         self._input_container = None
@@ -222,6 +225,12 @@ class BaseGUI:
 
         # Track whether the last bubble displayed was from the user
         self._last_bubble_is_user = False
+
+        # ── My_AI Relay ──
+        self._relay_server = None
+        self._relay_polling = False
+        self._current_message_from_relay = False
+        self._init_relay()
 
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
@@ -251,9 +260,425 @@ class BaseGUI:
             self.set_input_state(True)
             self.is_thinking = False
             self.is_searching = False
+            # Si le message venait du relay, signaler l'interruption au mobile
+            if getattr(self, '_current_message_from_relay', False):
+                self._current_message_from_relay = False
+                try:
+                    if self._relay_server and self._relay_server.bridge.active:
+                        partial = getattr(self, '_streaming_buffer', '') or ''
+                        if partial:
+                            self._relay_server.bridge.submit_ai_response(partial + "\n\n⚠️ *Réponse interrompue.*")
+                        else:
+                            self._relay_server.bridge.submit_ai_response("⚠️ Réponse interrompue.")
+                except Exception:
+                    pass
             print("🛑 [GUI] Interruption terminée")
         except (tk.TclError, AttributeError):
             pass
+
+    # ------------------------------------------------------------------
+    # My_AI Relay — Intégration mobile
+    # ------------------------------------------------------------------
+
+    def _init_relay(self):
+        """Initialise le serveur Relay si configuré."""
+        try:
+            cfg = self.config
+            relay_cfg = {}
+            if hasattr(cfg, "get_section"):
+                relay_cfg = cfg.get_section("relay") or {}
+            elif hasattr(cfg, "config") and isinstance(cfg.config, dict):
+                relay_cfg = cfg.config.get("relay", {})
+
+            if not relay_cfg.get("auto_start", False):
+                return
+
+            self._relay_server = RelayServer(
+                ai_engine=self.ai_engine,
+                config=relay_cfg,
+            )
+            self._relay_server.start(start_tunnel=relay_cfg.get("tunnel", True))
+            self._start_relay_polling()
+            print(f"📡 My_AI Relay démarré sur le port {relay_cfg.get('port', 8765)}")
+        except Exception as e:
+            print(f"⚠️ Relay non démarré: {e}")
+
+    def start_relay(self):
+        """Démarre le Relay manuellement (depuis le GUI)."""
+        if self._relay_server and self._relay_server.is_running():
+            return self._relay_server
+
+        try:
+            cfg = {}
+            if hasattr(self.config, "get_section"):
+                cfg = self.config.get_section("relay") or {}
+            elif hasattr(self.config, "config") and isinstance(self.config.config, dict):
+                cfg = self.config.config.get("relay", {})
+
+            self._relay_server = RelayServer(
+                ai_engine=self.ai_engine,
+                config=cfg,
+            )
+            self._relay_server.start(start_tunnel=cfg.get("tunnel", True))
+            self._start_relay_polling()
+            return self._relay_server
+        except Exception as e:
+            print(f"❌ Erreur démarrage Relay: {e}")
+            return None
+
+    def stop_relay(self):
+        """Arrête le Relay."""
+        if self._relay_server:
+            self._relay_server.stop()
+            self._relay_polling = False
+
+    def _start_relay_polling(self):
+        """Démarre le polling des messages Relay pour les afficher dans le GUI."""
+        if self._relay_polling:
+            return
+        self._relay_polling = True
+        self._poll_relay_messages()
+
+    def _poll_relay_messages(self):
+        """Vérifie périodiquement les messages du Relay et les affiche."""
+        if not self._relay_polling or not self._relay_server:
+            return
+
+        try:
+            bridge = self._relay_server.bridge
+            messages = bridge.poll_gui_messages()
+
+            for msg in messages:
+                # Afficher le message dans le chat GUI
+                self.root.after(0, self._display_relay_message, msg)
+
+        except Exception as e:
+            print(f"⚠️ Erreur polling Relay: {e}")
+
+        # Re-planifier le polling (200ms)
+        if self._relay_polling and hasattr(self, "root"):
+            try:
+                self.root.after(200, self._poll_relay_messages)
+            except (tk.TclError, AttributeError):
+                self._relay_polling = False
+
+    def _display_relay_message(self, relay_msg):
+        """
+        Affiche un message provenant du Relay dans le chat GUI.
+        Pour les messages utilisateur, déclenche le pipeline de streaming
+        complet (comme send_message) pour que la réponse IA s'affiche en
+        temps réel sur le PC et soit ensuite renvoyée au mobile.
+        """
+        try:
+            if not relay_msg.is_user:
+                # Les réponses IA ne passent plus par ici : le GUI génère
+                # la réponse en streaming et la soumet au bridge directement.
+                return
+
+            # Masquer l'écran d'accueil si actif
+            self._dismiss_home_screen()
+
+            # Marquer que ce message vient du relay (pour renvoyer la réponse)
+            self._current_message_from_relay = True
+
+            # Construire le texte de bulle avec les éventuelles pièces jointes
+            image_path = getattr(relay_msg, "image_path", None)
+            file_paths = list(getattr(relay_msg, "file_paths", []) or [])
+
+            attach_lines = []
+            if image_path:
+                attach_lines.append(f"🖼️ {os.path.basename(image_path)}")
+            for fp in file_paths:
+                attach_lines.append(f"📎 {os.path.basename(fp)}")
+
+            bubble_text = "📱 " + (relay_msg.text or "")
+            if attach_lines:
+                bubble_text = (bubble_text.rstrip() + "\n" + "\n".join(attach_lines)).strip()
+
+            # Afficher la bulle utilisateur
+            self._last_bubble_is_user = True
+            self.add_message_bubble(bubble_text, is_user=True)
+
+            # Scroll vers le bas
+            self.scroll_to_bottom()
+
+            # Afficher l'animation de réflexion
+            self.show_thinking_animation()
+
+            # Incrémenter l'ID de requête (comme send_message)
+            if not hasattr(self, "current_request_id"):
+                self.current_request_id = 0
+            self.current_request_id += 1
+            request_id = self.current_request_id
+            self.is_interrupted = False
+
+            # Enregistrer dans l'historique des commandes
+            try:
+                engine = getattr(self, "ai_engine", None)
+                if engine and hasattr(engine, "command_history") and engine.command_history:
+                    engine.command_history.add(query=relay_msg.text or "")
+            except Exception:
+                pass
+
+            # Si le mobile n'a envoyé qu'un fichier sans texte, fournir une
+            # requête par défaut pour que l'IA ait quelque chose à traiter.
+            ai_text = relay_msg.text or ""
+            if not ai_text.strip():
+                if image_path:
+                    ai_text = "Décris cette image en détail."
+                elif file_paths:
+                    ai_text = "Analyse ce fichier et résume-le."
+
+            # Lancer le pipeline : fichiers d'abord (synchrones), puis streaming IA.
+            threading.Thread(
+                target=self._process_relay_attachments_then_ai,
+                args=(ai_text, request_id, image_path, file_paths),
+                daemon=True,
+            ).start()
+
+        except Exception as e:
+            print(f"⚠️ Erreur affichage message Relay: {e}")
+            traceback.print_exc()
+
+    def _process_relay_attachments_then_ai(
+        self, user_text, request_id, image_path, file_paths
+    ):
+        """Traite les pièces jointes du mobile avant de lancer le pipeline IA.
+
+        Les fichiers documents sont ajoutés au contexte via process_file_background
+        (identique au drag & drop PC) et les images sont encodées en base64 via
+        _process_image_file (qui positionne _pending_image_base64).
+        Tout se passe dans le même thread pour garantir que le pipeline IA
+        ne démarre qu'une fois le contexte prêt.
+        """
+        try:
+            # 1) Documents (pdf, docx, xlsx, code, ...)
+            for fp in file_paths or []:
+                if not fp or not os.path.isfile(fp):
+                    continue
+                try:
+                    ext = os.path.splitext(fp)[1].lower()
+                    if ext == ".pdf":
+                        ft = "PDF"
+                    elif ext in (".docx", ".doc"):
+                        ft = "DOCX"
+                    elif ext in (".xlsx", ".xls", ".csv"):
+                        ft = "Excel"
+                    else:
+                        ft = "Code"
+                    filename = os.path.basename(fp)
+                    # Appel synchrone de la même logique que le drag & drop
+                    self.process_file_background(fp, ft, filename)
+                except Exception as exc:
+                    print(f"⚠️ [Relay] Erreur traitement fichier {fp}: {exc}")
+
+            # 2) Image (pour le modèle vision)
+            if image_path and os.path.isfile(image_path):
+                try:
+                    self._process_image_file(image_path)
+                except Exception as exc:
+                    print(f"⚠️ [Relay] Erreur traitement image {image_path}: {exc}")
+
+            # process_file_background met is_thinking=False en fin de traitement,
+            # ce qui arrête la boucle animate_thinking. On la relance sur le
+            # thread Tk avant l'inférence pour que l'animation reste visible.
+            if (file_paths or image_path) and hasattr(self, "show_thinking_animation"):
+                try:
+                    self.root.after(0, self.show_thinking_animation)
+                except Exception:
+                    pass
+
+            # 3) Pipeline IA (streaming + renvoi vers le mobile via le bridge)
+            self.quel_handle_message_with_id(user_text, request_id)
+
+        except Exception as e:
+            print(f"⚠️ [Relay] Erreur pipeline attachments: {e}")
+            traceback.print_exc()
+
+    def _toggle_relay(self):
+        """Affiche la popup Relay : démarrer/arrêter + URL + token."""
+        # Si déjà en cours, afficher les infos
+        if self._relay_server and self._relay_server.is_running():
+            self._show_relay_info_popup()
+            return
+
+        # Sinon, démarrer le Relay puis ouvrir la popup avec auto-refresh
+        server = self.start_relay()
+        if server:
+            self._show_relay_info_popup()
+        else:
+            messagebox.showerror(
+                "Relay", "Impossible de démarrer My_AI Relay."
+            )
+
+    def _show_relay_info_popup(self):
+        """Affiche une popup avec les informations de connexion Relay."""
+        if not self._relay_server:
+            return
+
+        server = self._relay_server
+        token = server.auth_token
+
+        # Utiliser tk.Toplevel (pas CTkToplevel) pour éviter le bug
+        # block_update_dimensions_event de CustomTkinter
+        popup = tk.Toplevel(self.root)
+        popup.title("My_AI Relay")
+        popup.geometry("500x580")
+        popup.configure(bg="#0f0f0f")
+        popup.transient(self.root)
+        popup.resizable(False, False)
+
+        # ── Helpers ──
+        def _label(parent, text="", font=None, fg="#ffffff", **kw):
+            lbl = tk.Label(parent, text=text, font=font, fg=fg, bg="#0f0f0f",
+                           **kw)
+            return lbl
+
+        def _button(parent, text="", command=None, bg_color="#374151"):
+            btn = tk.Button(parent, text=text, command=command, bg=bg_color,
+                            fg="#ffffff", font=("Segoe UI", 12), relief="flat",
+                            cursor="hand2", activebackground="#4b5563",
+                            activeforeground="#ffffff", bd=0, padx=16, pady=6)
+            return btn
+
+        # ── Titre ──
+        _label(popup, text="📡 My_AI Relay", font=("Segoe UI", 22, "bold"),
+               fg="#ff6b47").pack(pady=(20, 5))
+        _label(popup, text="Scannez le QR code ou copiez l'URL sur votre téléphone",
+               font=("Segoe UI", 11), fg="#9ca3af").pack(pady=(0, 12))
+
+        # ── Statut (mis à jour dynamiquement) ──
+        status_label = _label(popup, text="Tunnel en cours de connexion...",
+                              font=("Segoe UI", 11), fg="#f59e0b")
+        status_label.pack(pady=(0, 8))
+
+        # ── QR Code (canvas) ──
+        qr_canvas = tk.Canvas(popup, width=200, height=200, bg="#0f0f0f",
+                              highlightthickness=0)
+        qr_canvas.pack(pady=(5, 8))
+        # Placeholder pendant que le tunnel se connecte
+        qr_canvas.create_text(100, 100, text="En attente\ndu tunnel...",
+                              fill="#6b7280", font=("Segoe UI", 11),
+                              justify="center")
+
+        # ── URL copiable (mise à jour dynamiquement) ──
+        url_frame = tk.Frame(popup, bg="#1a1a1a", bd=0)
+        url_frame.pack(fill="x", padx=25, pady=(0, 8))
+
+        url_label = tk.Label(url_frame, text="En attente...",
+                             font=("Consolas", 9), fg="#ffffff", bg="#1a1a1a",
+                             wraplength=320, justify="left")
+        url_label.pack(side="left", padx=10, pady=8, fill="x", expand=True)
+
+        # Variable pour stocker l'URL courante (accessible dans les closures)
+        current_url = {"value": f"http://localhost:{server.port}?token={token}"}
+
+        def copy_url():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(current_url["value"])
+            copy_btn.configure(text="✅ Copié !")
+            popup.after(2000, lambda: copy_btn.configure(text="📋 Copier"))
+
+        copy_btn = tk.Button(url_frame, text="📋 Copier", command=copy_url,
+                             bg="#ff6b47", fg="#ffffff", font=("Segoe UI", 10),
+                             relief="flat", cursor="hand2", bd=0, padx=10,
+                             activebackground="#ff5730")
+        copy_btn.pack(side="right", padx=10, pady=8)
+
+        # ── Token ──
+        _label(popup, text=f"Token : {token}", font=("Consolas", 10),
+               fg="#6b7280").pack(pady=(4, 6))
+
+        # ── Clients connectés (mis à jour dynamiquement) ──
+        clients_label = _label(popup, text="📱 0 appareil(s) connecté(s)",
+                               font=("Segoe UI", 11), fg="#9ca3af")
+        clients_label.pack(pady=(0, 12))
+
+        # ── Bouton arrêter ──
+        def stop_and_close():
+            self.stop_relay()
+            popup.destroy()
+
+        _button(popup, text="Arrêter le Relay", command=stop_and_close,
+                bg_color="#374151").pack(pady=(8, 20))
+
+        # ── QR Code renderer (utilise des carrés sur le Canvas) ──
+        _qr_drawn = [False]  # état de dessin, mutable depuis les closures
+
+        def _draw_qr_on_canvas(url):
+            """Dessine un QR code directement sur le canvas Tk."""
+            try:
+                import qrcode #pylint: disable=import-outside-toplevel
+            except ImportError:
+                qr_canvas.delete("all")
+                qr_canvas.create_text(
+                    100, 100, text="pip install qrcode\npour le QR code",
+                    fill="#6b7280", font=("Segoe UI", 10), justify="center"
+                )
+                return
+
+            qr_canvas.delete("all")
+            qr = qrcode.QRCode(version=1, box_size=1, border=2,
+                                error_correction=qrcode.constants.ERROR_CORRECT_M)
+            qr.add_data(url)
+            qr.make(fit=True)
+            matrix = qr.get_matrix()
+            rows = len(matrix)
+            if rows == 0:
+                return
+            cell_size = min(200 // rows, 8)
+            offset_x = (200 - rows * cell_size) // 2
+            offset_y = (200 - rows * cell_size) // 2
+
+            for r, row in enumerate(matrix):
+                for c, val in enumerate(row):
+                    if val:
+                        x1 = offset_x + c * cell_size
+                        y1 = offset_y + r * cell_size
+                        qr_canvas.create_rectangle(
+                            x1, y1, x1 + cell_size, y1 + cell_size,
+                            fill="#ff6b47", outline="#ff6b47"
+                        )
+
+        # ── Auto-refresh : met à jour l'URL/QR/statut toutes les 2s ──
+        def _refresh_popup():
+            if not popup.winfo_exists():
+                return
+
+            tunnel = server.tunnel_url
+            t = server.auth_token
+            clients = server.bridge.connected_clients
+
+            if tunnel and "trycloudflare" in str(tunnel):
+                full = f"{tunnel}?token={t}"
+                current_url["value"] = full
+                status_label.configure(text="Tunnel actif", fg="#10b981")
+                url_display = full if len(full) < 60 else full[:57] + "..."
+                url_label.configure(text=url_display)
+                # Dessiner le QR code une fois le tunnel prêt
+                if not _qr_drawn[0]:
+                    _draw_qr_on_canvas(full)
+                    _qr_drawn[0] = True
+            elif tunnel and tunnel.startswith("http://localhost"):
+                current_url["value"] = f"{tunnel}?token={t}"
+                status_label.configure(
+                    text="Réseau local uniquement (tunnel en attente...)",
+                    fg="#f59e0b"
+                )
+                url_label.configure(text=current_url["value"])
+            else:
+                status_label.configure(text="Tunnel en cours de connexion...",
+                                       fg="#f59e0b")
+
+            clients_label.configure(
+                text=f"📱 {clients} appareil(s) connecté(s)"
+            )
+
+            # Continuer le refresh tant que la popup est ouverte
+            popup.after(2000, _refresh_popup)
+
+        # Lancer le premier refresh immédiatement
+        popup.after(500, _refresh_popup)
 
     def _safe_focus_input(self):
         """Met le focus sur l'input de manière sécurisée"""
@@ -2042,6 +2467,9 @@ class BaseGUI:
         )
         content_frame.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
         content_frame.grid_columnconfigure(0, weight=1)
+
+        # ── Sélecteur de modèle inline (discret, en haut à droite) ────
+        self._home_inline_model_selector = self._create_inline_model_selector(content_frame)
 
         if self.use_ctk:
             self._home_input = _ctk.CTkTextbox(

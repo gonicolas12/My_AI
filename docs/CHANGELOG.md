@@ -1,5 +1,97 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 📡 Version 7.2.0 — My_AI Relay : Accès Mobile (16 Avril 2026)
+
+### 📱 Nouveau Module : My_AI Relay
+
+My_AI Relay permet d'accéder à votre IA locale depuis un smartphone, partout dans le monde, tant que l'application tourne sur votre PC. Les échanges sont synchronisés en temps réel entre le mobile et le GUI desktop, pièces jointes comprises (images et documents).
+
+#### `relay/relay_server.py` — Serveur FastAPI + WebSocket
+
+- **Serveur FastAPI** exposé sur le port 8765 (configurable dans `config.yaml`)
+- **WebSocket temps réel** `/ws` pour le chat bidirectionnel
+  - Protocole : `{type:'chat', message, file_ids:[...]}` — les `file_ids` sont résolus côté serveur ; le premier fichier image devient `image_path`, les autres rejoignent `file_paths`
+- **Authentification sécurisée** :
+  - Token aléatoire unique par session (si aucun mot de passe configuré)
+  - Token dérivé du mot de passe via SHA-256 (reproductible entre sessions)
+  - Vérification via query param (`?token=...`) ou endpoint `POST /auth`
+- **Tunnel cloudflared** automatique pour l'accès HTTPS depuis l'extérieur :
+  - Détection de cloudflared dans `$PATH` ou `tools/`
+  - **Téléchargement automatique** au premier lancement (Windows, macOS, Linux)
+  - Fallback réseau local (`http://localhost:8765`) si cloudflared indisponible
+- **QR Code SVG** généré automatiquement pour scanner depuis le téléphone
+- **Page de login HTML** embarquée (servie quand le token est absent)
+- **Endpoints REST** :
+  - `GET /` — Interface mobile (PWA) ou page de login
+  - `POST /auth` — Authentification par mot de passe → retourne le token
+  - `POST /api/upload` — Réception multipart des pièces jointes mobiles :
+    - Allowlist d'extensions (images + PDF, DOCX, XLSX, CSV, code, txt/md)
+    - Streaming 64 Ko vers `{tempdir}/my_ai_relay_uploads/` avec plafond **25 Mo** (réponse `413` + nettoyage du fichier partiel si dépassement)
+    - Registre en mémoire `Dict[file_id, metadata]` protégé par `threading.Lock`, consommé une seule fois lors de l'envoi du message de chat
+  - `GET /api/health` — Santé du serveur, uptime, nombre de clients connectés
+  - `GET /api/history` — Historique de la session relay
+  - `WebSocket /ws` — Chat temps réel (messages, pings, accusés de réception)
+
+#### `relay/relay_bridge.py` — Pont GUI ↔ Mobile
+
+- **Singleton thread-safe** : partage d'état entre le serveur asyncio et le GUI Tkinter
+- **Files de messages bidirectionnelles** (`deque` maxlen 500) :
+  - `send_to_gui()` — achemine les messages du mobile vers le GUI desktop
+  - `send_to_ws()` — achemine les réponses du GUI vers le téléphone
+- **Callbacks** enregistrables pour notification temps réel des deux côtés (`on_gui_message`, `on_ws_message`)
+- **Mécanisme de réponse asynchrone** :
+  - `wait_for_ai_response(timeout=relay.response_timeout)` — attend la réponse du GUI (async-safe via `run_in_executor`)
+  - `submit_ai_response(text)` — le GUI soumet la réponse finale après streaming
+- **Historique de session** : liste complète des `RelayMessage` (texte, source, timestamp, id, `image_path`, `file_paths`)
+- **Cycle de vie** : `clear_history()`, `reset()`, propriétés `active` et `connected_clients`
+
+#### `relay/static/` — Interface Mobile PWA
+
+- **`index.html`** — Interface de chat mobile-first, Progressive Web App installable, bouton **+** d'attachement et conteneur de chips d'aperçu
+- **`style.css`** — Thème sombre élégant, typographie et layout adaptés aux petits écrans, styles `.attach-btn` / `.attachments` / `.attachment-chip` (avec états `uploading` / `error`)
+- **`app.js`** — Logique WebSocket : connexion, envoi/réception, indicateur de frappe, reconnexion automatique ; upload asynchrone via `XMLHttpRequest` vers `POST /api/upload?token=...`, bouton d'envoi désactivé tant qu'un upload est en cours, injection des `file_ids` dans le message de chat
+
+#### 📎 Pièces jointes depuis le mobile
+
+Le bouton **+** de l'interface mobile permet de joindre des fichiers qui sont traités **exactement comme sur le PC** :
+
+- **Images** (PNG, JPG, JPEG, GIF, BMP, WebP, TIFF) → envoyées au **modèle vision** (encodage base64, même pipeline que le drag & drop PC)
+- **Documents** (PDF, DOCX, DOC, XLSX, XLS, CSV) → extraits ajoutés au **contexte vectoriel** via les processeurs spécialisés (`custom_ai.add_file_to_context`)
+- **Code & texte** (PY, JS, HTML, CSS, JSON, XML, MD, TXT) → chargés dans le contexte de la session
+- **Image + documents combinés** : la première image part vers la vision, les autres fichiers rejoignent le contexte
+- Si aucun texte n'accompagne le fichier, une requête par défaut est injectée (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
+
+#### GUI (`interfaces/gui/base.py`) — Pipeline de réception
+
+- **`_display_relay_message`** construit une bulle enrichie avec préfixes 🖼️ / 📎 pour chaque pièce jointe
+- **`_process_relay_attachments_then_ai`** (nouveau) : exécute `process_file_background` (documents) et `_process_image_file` (image) **de façon synchrone** dans un seul thread de travail avant d'appeler `quel_handle_message_with_id`, garantissant que le contexte est chargé avant l'inférence
+- **Relance de l'animation « thinking »** sur le thread Tk entre la fin du traitement fichier et le démarrage de l'inférence (compense le `is_thinking = False` positionné par `process_file_background` qui arrêtait la boucle `animate_thinking`)
+
+### 🎨 GUI desktop — Bouton Relay dans la barre latérale
+
+- Le bouton **📡 Relay** est intégré à la **sidebar** (fichier `interfaces/gui/sidebar.py`) et **visible en permanence**, y compris sur l'écran d'accueil
+- Bouton accent `#ff6b47`, placé entre le titre de la sidebar et la section Sessions
+
+### ⚙️ Configuration (`config.yaml`)
+
+Nouvelle section `relay` :
+
+```yaml
+relay:
+  auto_start: false      # Démarrage automatique au lancement du GUI
+  port: 8765             # Port du serveur WebSocket
+  response_timeout: 500  # Délai max de réponse IA (secondes)
+  password: ""           # Mot de passe (vide = token aléatoire par session)
+  tunnel: true           # Activer le tunnel cloudflared
+  host: "0.0.0.0"        # Adresse d'écoute (0.0.0.0 = toutes les interfaces)
+```
+
+### 📦 Dépendances (`requirements.txt`)
+
+- Ajout de **`python-multipart>=0.0.9`** (requis par FastAPI pour le parsing `UploadFile` du nouvel endpoint `/api/upload`)
+
+---
+
 # 💾 Version 7.1.0 - Mémoire Vectorielle 10M Tokens (8 Avril 2026)
 
 ### 🧠 Capacité mémoire x10

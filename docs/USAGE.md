@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.1.0
+# 📚 Guide d'Utilisation - My Personal AI v7.2.0
 
 ## 🚀 Démarrage Rapide
 
@@ -237,7 +237,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.1.0:
+État My Personal AI v7.2.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -806,11 +806,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.1.0
+  MY PERSONAL AI - System Status v7.2.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.1.0
+📊 Version: 7.2.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -844,7 +844,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.1.0
+My Personal AI v7.2.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1214,6 +1214,80 @@ Dans l'onglet Agents, vous pouvez attacher des fichiers à vos tâches :
 4. Le contenu des fichiers est automatiquement injecté dans le prompt de l'agent
 5. En workflow multi-agents, **tous les agents** reçoivent les fichiers joints
 
+### 📡 My_AI Relay — Accès depuis le Mobile
+
+My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS ou Android), partout dans le monde, tant que l'application tourne sur votre PC.
+
+#### Démarrage
+
+1. Cliquez sur le bouton **📡 Relay** dans la **barre latérale gauche** de l'interface (visible en permanence, y compris sur l'écran d'accueil)
+2. My_AI Relay démarre un serveur WebSocket local et ouvre un **tunnel cloudflared** sécurisé
+3. Un **QR code** s'affiche dans le panneau Relay — scannez-le avec votre téléphone
+4. Si un **mot de passe** est configuré (section `relay.password` dans `config.yaml`), entrez-le sur la page de login mobile ; sinon l'accès est direct via le QR code
+5. Chattez depuis votre mobile — les messages arrivent en temps réel sur le PC et la réponse s'affiche sur les deux écrans simultanément
+
+#### Fonctionnement
+
+```
+Téléphone                         PC (GUI desktop)
+   │                                     │
+   │─── Message via WebSocket ──────────>│
+   │                                     │── Affiché dans le chat GUI
+   │                                     │── L'IA répond (streaming)
+   │<── Réponse complète ────────────────│
+   │    (après fin du streaming)         │
+```
+
+- Le GUI traite le message **exactement comme un message local** (avec streaming, thinking, agents, etc.)
+- La réponse complète est transmise au mobile après la fin du streaming
+
+#### 📎 Pièces jointes depuis le mobile
+
+Le bouton **+** à gauche du champ de saisie de l'interface mobile permet de joindre une ou plusieurs pièces jointes avant l'envoi du message. Les fichiers sont traités **exactement comme sur le PC** :
+
+- **Images** (PNG, JPG, JPEG, GIF, BMP, WebP, TIFF) → envoyées au **modèle vision** (encodage base64, même pipeline que le drag & drop PC)
+- **Documents** (PDF, DOCX, DOC, XLSX, XLS, CSV) → extrait de contenu ajouté au **contexte vectoriel** via les processeurs spécialisés
+- **Code & texte** (PY, JS, HTML, CSS, JSON, XML, MD, TXT) → chargés dans le contexte de la session
+
+Détails techniques :
+
+- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier
+- Un fichier envoyé sans message déclenche une requête par défaut (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
+- Image + documents peuvent être combinés dans un même message ; le premier fichier image est envoyé au modèle vision, les autres rejoignent le contexte
+- Le contexte est garanti **prêt avant** le démarrage de l'inférence (le pipeline document est exécuté de façon synchrone avant l'appel au modèle)
+- Endpoint côté serveur : `POST /api/upload?token=...` (multipart, retourne un `file_id`) ; le client WebSocket passe ensuite les `file_ids` dans le message de chat
+
+#### Configuration (`config.yaml`)
+
+```yaml
+relay:
+  auto_start: false       # true = Relay démarre automatiquement au lancement du GUI
+  port: 8765              # Port du serveur local
+  response_timeout: 500   # Délai max de réponse IA (secondes)
+  password: ""            # Mot de passe (vide = token aléatoire, change à chaque redémarrage)
+  tunnel: true            # false = réseau local uniquement (sans accès externe)
+  host: "0.0.0.0"         # Écoute sur toutes les interfaces réseau
+```
+
+#### Accès réseau local (sans tunnel)
+
+Si cloudflared est indisponible ou si `tunnel: false`, le Relay reste accessible sur votre réseau local :
+
+```
+http://<IP_de_votre_PC>:8765?token=<votre_token>
+```
+
+L'URL et le token sont affichés dans le panneau Relay de l'interface.
+
+#### Sécurité
+
+| Mécanisme | Détail |
+|---|---|
+| **Token de session** | Généré aléatoirement à chaque démarrage (si pas de mot de passe) |
+| **Token permanent** | Dérivé du mot de passe via SHA-256 (reproductible entre sessions) |
+| **Tunnel HTTPS** | cloudflared chiffre tout le trafic externe (TLS automatique) |
+| **Aucune donnée cloud** | Le tunnel est juste un relais chiffré — vos données restent sur votre PC |
+
 ### ⚠️ Confirmation de Suppression MCP
 
 Quand l'IA utilise l'outil MCP `delete_local_file` pour supprimer un fichier :
@@ -1249,7 +1323,9 @@ Dans l'onglet Agents, le canvas visuel propose trois boutons de gestion :
 
 ---
 
-**Version:** 7.1.0
+**Version:** 7.2.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST
 **Capacité Contexte:** 1,048,576 tokens (1M)
 **Architecture:** 100% Locale
+
+

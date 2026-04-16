@@ -8,11 +8,11 @@
 [![Ollama](https://img.shields.io/badge/Ollama-LLM%20Local-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/download)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)](https://github.com/gonicolas12/My_AI)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Context](https://img.shields.io/badge/M%C3%A9moire%20Vectorielle-10M%20Tokens-blueviolet?style=for-the-badge)](docs/ULTRA_10M_TOKENS.md)
+[![Context](https://img.shields.io/badge/M%C3%A9moire%20Vectorielle-10M%20Tokens-ff6b47?style=for-the-badge)](docs/ULTRA_10M_TOKENS.md)
 
 *Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
 
-[🚀 Démarrage rapide](#-démarrage-rapide) · [📖 Documentation](#-documentation-complète) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [🔧 Caractéristiques Techniques](#-caractéristiques-techniques)
+[🚀 Démarrage rapide](#-démarrage-rapide) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [📡 My_AI Relay](#-my_ai-relay--accès-mobile) · [📖 Documentation](#-documentation-complète) 
 
 </div>
 
@@ -48,11 +48,11 @@ Accès aux informations en temps réel via DuckDuckGo. Résumés automatiques in
 **📄 Traitement de Documents**
 PDF, DOCX, Excel, CSV, Code, images — analyse contextuelle ultra-étendue avec compression intelligente.
 
+**📡 Accès Mobile**  
+Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
+
 **💼 Workspaces & Sessions**  
 Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
-
-**🏗️ Base de Connaissances Structurée**  
-Extraction et stockage automatique de faits, préférences, décisions depuis vos conversations.
 
 **📤 Export Multi-Format**  
 Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complètes.
@@ -75,7 +75,7 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 |---|---|
 | 🎨 **Design moderne** | Interface sombre élégante avec bulles de chat optimisées |
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
-| 🖱️ **Raccourcis clavier** | `Entrée` envoyer · `Shift+Entrée` nouvelle ligne · `Ctrl+L` clear |
+| 🧭 **Barre latérale** | Relay, sessions, historique, exports de conversations, base de connaissances |
 | 🎓 **Feedback RLHF** | Notation 1-5 étoiles (☆☆☆☆☆) — feedback enregistré automatiquement |
 | 📂 **Gestion de fichiers** | Glissez-déposez vos fichiers — ajout direct à la mémoire |
 
@@ -258,6 +258,14 @@ my_ai/
 │   ├── docx_processor.py                # Traitement DOCX avec compression
 │   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
 │   └── pdf_processor.py                 # Traitement PDF avec chunking intelligent
+├── relay/                               # My_AI Relay (accès mobile)
+│   ├── __init__.py
+│   ├── relay_bridge.py                  # Pont de synchronisation GUI ↔ Mobile
+│   ├── relay_server.py                  # Serveur FastAPI + WebSocket + tunnel
+│   └── static/
+│       ├── index.html                   # Interface mobile PWA (structure)
+│       ├── style.css                    # Styles de l'interface mobile
+│       └── app.js                       # Logique WebSocket et chat
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils
 ├── turboquant/                          # Modules d'optimisation et de quantification
@@ -311,7 +319,7 @@ pip install wmi
 
 > **Sans ces packages**, l'application fonctionne normalement — les métriques GPU affichent simplement "N/A".
 
-#### 🌐 Réseaux avec Proxy (générique, open source)
+#### 🌐 Réseaux avec Proxy *(Optionnel)*
 
 Le projet supporte les proxys standards via variables d'environnement **et** via `config.yaml` (section `network`).
 
@@ -335,9 +343,7 @@ Si votre proxy intercepte TLS, renseignez aussi `network.ca_bundle` dans `config
 
 > Le mode `network.allow_insecure_ssl: true` existe en dernier recours, mais il est déconseillé en production.
 
-### 3 · Installer Ollama *(Optionnel mais Recommandé)*
-
-> **Sans Ollama**, l'IA fonctionne en mode fallback avec des patterns/règles.
+### 3 · Installer Ollama
 
 ```bash
 # Télécharger depuis https://ollama.com/download, puis :
@@ -374,6 +380,46 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
 ```
 
 Si vous observez des comportements inattendus ou des erreurs après plusieurs lancements, ce script supprime tous les fichiers temporaires (logs, caches, historiques) pour repartir sur une base propre.
+
+---
+
+## 📡 My_AI Relay — Accès Mobile
+
+Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, tant que l'application tourne sur votre PC.
+
+### Fonctionnement
+
+1. Cliquez sur le bouton **📡 Relay** dans la barre latérale gauche
+2. My_AI Relay démarre un serveur WebSocket et ouvre un tunnel sécurisé (cloudflared)
+3. Scannez le QR code ou copiez l'URL sur votre téléphone
+4. Chattez depuis votre mobile — les messages apparaissent en temps réel sur le PC
+5. Joignez images, PDF, DOCX, Excel ou fichiers de code via le bouton **+** de la zone de saisie mobile : ils sont traités par les mêmes processeurs que le PC (modèle vision pour les images, contexte vectoriel pour les documents)
+
+### Caractéristiques
+
+| Fonctionnalité | Détail |
+|---|---|
+| 📱 **Interface mobile** | PWA responsive, thème sombre, style messagerie |
+| 🔒 **Authentification** | Token unique par session ou mot de passe configurable |
+| 🌐 **Tunnel sécurisé** | cloudflared (gratuit, HTTPS automatique) |
+| 🔄 **Synchronisation** | Messages visibles en temps réel sur PC et mobile |
+| ⚡ **WebSocket** | Communication instantanée, indicateur de frappe |
+| 📎 **Pièces jointes** | Images + documents (PDF, DOCX, XLSX, CSV, code) jusqu'à 25 Mo, routés vers vision + contexte |
+| 📥 **Auto-install** | cloudflared est téléchargé automatiquement si absent |
+
+### Configuration (`config.yaml`)
+
+```yaml
+relay:
+  auto_start: false      # Démarrage auto au lancement du GUI
+  port: 8765             # Port du serveur Relay
+  response_timeout: 500  # Délai max de réponse IA (secondes)
+  password: ""           # Mot de passe (vide = token aléatoire)
+  tunnel: true           # Activer le tunnel cloudflared
+  host: "0.0.0.0"        # Adresse d'écoute
+```
+
+> **Sans cloudflared**, le Relay reste accessible sur le réseau local uniquement.
 
 ---
 
@@ -436,6 +482,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
+| 📡 **My_AI Relay** | Accès mobile via tunnel sécurisé + WebSocket |
 | 🔩 **Extensible** | Architecture modulaire |
 | 🔒 **Sécurisé** | Données locales protégées |
 
@@ -445,7 +492,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 
 ## ✨ Évolutions Futures
 
-- 🌐 **Application Web**
+- 📡 **My_AI Relay** : Agents et workspaces accessibles depuis le mobile
 - 💻 **Extension VS Code**
 - 🔗 **Intégrations API tierces**
 

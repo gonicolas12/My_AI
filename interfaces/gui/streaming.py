@@ -806,6 +806,147 @@ class StreamingMixin:
         except Exception as e:
             print(f"⚠️ [STREAM] Erreur finalisation bloc code: {e}")
 
+    def _rehighlight_all_code_blocks_from_buffer(self, text_widget, raw_source):
+        """
+        Re-applique la coloration syntaxique à TOUS les blocs de code du widget
+        en se basant sur le buffer original (raw_source) pour identifier les
+        langages. Cela corrige les pertes de couleur après la finalisation.
+        """
+        try:
+            if not raw_source or not text_widget:
+                return
+
+            text_widget.configure(state="normal")
+
+            # Trouver tous les blocs de code dans le source original
+            code_pattern = re.compile(r"```([\w+#-]+)?\n(.*?)```", re.DOTALL)
+            blocks = []
+            for match in code_pattern.finditer(raw_source):
+                language = (match.group(1) or "").strip().lower()
+                code = match.group(2)
+                if code and language:
+                    # Utiliser les premières lignes comme signature pour trouver
+                    # le bloc dans le widget (les positions ont pu changer)
+                    blocks.append((language, code))
+
+            if not blocks:
+                text_widget.configure(state="disabled")
+                return
+
+            widget_text = text_widget.get("1.0", "end-1c")
+
+            for language, code_raw in blocks:
+                code = code_raw.strip()
+                if not code:
+                    continue
+
+                # Trouver le code dans le widget en cherchant le contenu
+                # (les marqueurs ``` ont été supprimés pendant le streaming)
+                # Utiliser la première ligne significative comme ancre
+                code_lines = code.split("\n")
+                anchor = ""
+                for line in code_lines:
+                    if line.strip():
+                        anchor = line.strip()
+                        break
+                if not anchor or len(anchor) < 3:
+                    continue
+
+                # Chercher l'ancre dans le widget
+                search_pos = "1.0"
+                found = False
+                while not found:
+                    pos = text_widget.search(anchor, search_pos, "end")
+                    if not pos:
+                        break
+
+                    # Vérifier que cette position est dans un bloc de code
+                    tags = text_widget.tag_names(pos)
+                    is_code = any(
+                        t in tags for t in (
+                            "code_block", "Token.Keyword", "Token.Name",
+                            "js_keyword", "bash_keyword", "html_tag",
+                            "css_property", "sql_keyword",
+                        )
+                    )
+                    if not is_code:
+                        search_pos = text_widget.index(f"{pos}+1c")
+                        continue
+
+                    # Remonter au début du bloc de code (chercher la première
+                    # position qui a le tag code_block dans cette zone)
+                    line_num = int(pos.split(".")[0])
+                    block_start_line = line_num
+                    for back_line in range(line_num - 1, max(0, line_num - 5), -1):
+                        test_pos = f"{back_line}.0"
+                        try:
+                            test_tags = text_widget.tag_names(test_pos)
+                            if any(t.startswith("Token.") or t in (
+                                "code_block", "js_keyword", "bash_keyword",
+                                "html_tag", "css_property",
+                            ) for t in test_tags):
+                                block_start_line = back_line
+                            else:
+                                break
+                        except Exception:
+                            break
+
+                    # Extraire tout le texte du bloc depuis le widget
+                    block_start = f"{block_start_line}.0"
+                    # Chercher la fin du bloc (jusqu'à ce qu'on sorte des tags code)
+                    current_line = block_start_line
+                    max_search = current_line + len(code_lines) + 5
+                    total_lines = int(text_widget.index("end-1c").split(".")[0])
+                    while current_line <= min(max_search, total_lines):
+                        test_pos = f"{current_line}.0"
+                        try:
+                            line_content = text_widget.get(
+                                f"{current_line}.0", f"{current_line}.end"
+                            )
+                            if not line_content.strip():
+                                current_line += 1
+                                continue
+                            test_tags = text_widget.tag_names(test_pos)
+                            if not any(t.startswith("Token.") or t in (
+                                "code_block", "js_keyword", "js_string",
+                                "bash_keyword", "bash_command",
+                                "html_tag", "css_property", "sql_keyword",
+                            ) for t in test_tags):
+                                break
+                        except Exception:
+                            break
+                        current_line += 1
+
+                    block_end = f"{current_line}.0"
+                    block_text = text_widget.get(block_start, block_end).rstrip("\n")
+
+                    if not block_text:
+                        search_pos = text_widget.index(f"{pos}+1c")
+                        continue
+
+                    # Appliquer la coloration syntaxique
+                    tokens = self._get_code_tokens(language, block_text)
+                    for rel_pos, token_type in tokens.items():
+                        if token_type != "code_block" and rel_pos < len(block_text):
+                            tk_start = f"{block_start} + {rel_pos} chars"
+                            tk_end = f"{block_start} + {rel_pos + 1} chars"
+                            try:
+                                text_widget.tag_add(token_type, tk_start, tk_end)
+                            except Exception:
+                                pass
+
+                    found = True
+
+            text_widget.configure(state="disabled")
+            print(f"🎨 [STREAM] Re-coloration de {len(blocks)} bloc(s) de code terminée")
+
+        except Exception as e:
+            print(f"⚠️ [STREAM] Erreur re-highlighting blocs de code: {e}")
+            try:
+                text_widget.configure(state="disabled")
+            except Exception:
+                pass
+
     def _get_code_tokens(self, language: str, code: str) -> dict:
         """
         Analyse le code et retourne un dictionnaire position_relative -> token_type.
@@ -1329,6 +1470,15 @@ class StreamingMixin:
         try:
             if not hasattr(self, "typing_widget") or self.typing_widget is None:
                 self.set_input_state(True)
+                # Si le message venait du relay, signaler une réponse vide
+                if getattr(self, '_current_message_from_relay', False):
+                    self._current_message_from_relay = False
+                    try:
+                        relay_srv = getattr(self, '_relay_server', None)
+                        if relay_srv and relay_srv.bridge.active:
+                            relay_srv.bridge.submit_ai_response("⚠️ Réponse interrompue.")
+                    except Exception:
+                        pass
                 return
 
             # Handle unclosed code blocks from progressive streaming
@@ -1375,17 +1525,20 @@ class StreamingMixin:
             # l'animation : les autres restaient en markdown brut.
             raw_source = getattr(self, "_streaming_buffer_original", "") or getattr(self, "_streaming_buffer", "") or current_widget_text
 
-            # Normaliser les listes numérotées / checkboxes en puces dans le source
-            # (le Modelfile interdit les "1. " et minicpm-v en génère souvent)
-            raw_source = re.sub(r"^(\s*)\d+[\.\)]\s+", r"\1- ", raw_source, flags=re.MULTILINE)
-            raw_source = re.sub(r"^(\s*)\d+\s{2,}[\□☐]?\s*", r"\1- ", raw_source, flags=re.MULTILINE)
+            # Normaliser les sauts de ligne multiples (max 2 consécutifs = 1 ligne vide)
+            # Évite les grands espaces vides entre tableaux/code et texte
+            raw_source = re.sub(r'\n{3,}', '\n\n', raw_source)
+
+            # Normaliser les checkboxes en puces dans le source
+            # Les listes numérotées (1. 2. 3.) restent intactes pour
+            # conserver la cohérence entre le streaming et l'affichage final.
             raw_source = re.sub(r"^(\s*)[\□☐☑✓✔]\s*", r"\1- ", raw_source, flags=re.MULTILINE)
 
             # Appliquer dans le widget de façon CIBLÉE (sans delete/insert global
             # qui détruirait tous les tags de formatage déjà appliqués)
+            # Seules les checkboxes sont converties en puces.
+            # Les listes numérotées (1. 2. 3.) restent telles quelles.
             _numlist_patterns = [
-                (r"^\d+[\.\)]\s+", "- "),        # "1. " ou "1) " → "- "
-                (r"^\d+\s{2,}[\□☐]?\s*", "- "),  # "1   □" → "- "
                 (r"^[\□☐☑✓✔]\s*", "- "),          # "□ " → "- "
             ]
             try:
@@ -1401,6 +1554,10 @@ class StreamingMixin:
                         line_start = self.typing_widget.index(f"{match_pos} linestart")
                         if match_pos != line_start:
                             scan_pos = self.typing_widget.index(f"{match_pos}+1c")
+                            continue
+                        # Ne PAS modifier à l'intérieur d'un bloc de code
+                        if self._is_position_in_code_block(self.typing_widget, match_pos):
+                            scan_pos = self.typing_widget.index(f"{match_pos} lineend +1c")
                             continue
                         # Mesurer le match dans le texte
                         line_end = self.typing_widget.index(f"{match_pos} lineend")
@@ -1464,6 +1621,14 @@ class StreamingMixin:
 
             # Convertir les liens en cliquables
             self._convert_temp_links_to_clickable(self.typing_widget)
+
+            # ============================================================
+            # 🎨 RE-COLORATION des blocs de code après formatage
+            # Le formatage full_scan ou la reconstruction des tableaux peut
+            # avoir perdu des tokens de coloration syntaxique. On re-applique
+            # la coloration à partir du buffer original.
+            # ============================================================
+            self._rehighlight_all_code_blocks_from_buffer(self.typing_widget, raw_source)
 
             # ============================================================
             # 📥 GESTION SPÉCIALE DU LIEN DE TÉLÉCHARGEMENT DE FICHIER
@@ -1567,6 +1732,17 @@ class StreamingMixin:
                 self.current_message_container.feedback_response = displayed_text
                 print(f"[DEBUG STOCKAGE FEEDBACK] Query: {getattr(self, '_last_user_query', 'None')[:50]}...")
                 print(f"[DEBUG STOCKAGE FEEDBACK] Response: {displayed_text[:50]}...")
+
+            # ── RELAY : renvoyer la réponse au mobile si le message venait du relay
+            if getattr(self, '_current_message_from_relay', False):
+                self._current_message_from_relay = False
+                try:
+                    relay_srv = getattr(self, '_relay_server', None)
+                    if relay_srv and relay_srv.bridge.active:
+                        relay_srv.bridge.submit_ai_response(history_text)
+                        print("📡 [RELAY] Réponse envoyée au mobile via bridge")
+                except Exception as e:
+                    print(f"⚠️ [RELAY] Erreur envoi réponse mobile: {e}")
 
             # Afficher le timestamp
             self._show_timestamp_for_current_message()
