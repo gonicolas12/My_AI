@@ -541,7 +541,13 @@ class SidebarMixin:
 
     def _make_history_entry(self, entry: dict):
         eid = entry.get("id")
-        text = entry.get("query", "")[:50]
+        full_query = entry.get("query", "")
+        # Aperçu : 4 premiers mots + "…" si plus long
+        words = full_query.split()
+        if len(words) <= 4:
+            text = full_query
+        else:
+            text = " ".join(words[:4]) + "…"
         is_fav = bool(entry.get("is_favorite", False))
         star = "⭐" if is_fav else "☆"
         row_bg = self.colors.get("bg_primary", "#212121")
@@ -549,6 +555,13 @@ class SidebarMixin:
         row = ctk.CTkFrame(self._history_list_frame, fg_color=row_bg, corner_radius=3) \
             if CTK_AVAILABLE else tk.Frame(self._history_list_frame, bg=row_bg)
         row.pack(fill="x", pady=1, padx=2)
+        # Poubelle en premier pour réserver sa place à droite
+        del_btn = self._sb_button(row, "🗑",
+                                   lambda eid_=eid: self._history_delete(eid_),
+                                   color="#ef4444", width=28)
+        if CTK_AVAILABLE:
+            del_btn.configure(height=22)
+        del_btn.pack(side="right", padx=(0, 2), pady=1)
         # Bouton favori
         fav_tc = "#f59e0b" if is_fav else self.colors.get("text_secondary", "#9ca3af")
         if CTK_AVAILABLE:
@@ -558,25 +571,32 @@ class SidebarMixin:
                 font=("Segoe UI", 10), corner_radius=3,
                 command=lambda eid_=eid: self._history_toggle_fav(eid_),
             ).pack(side="left", padx=(2, 0))
-            ctk.CTkButton(
+            cmd_btn = ctk.CTkButton(
                 row, text=text,
                 fg_color=row_bg, hover_color=hover,
                 text_color=self.colors.get("text_primary", "#ffffff"),
                 font=("Segoe UI", 10), height=22, corner_radius=3, anchor="w",
-                command=lambda t=entry.get("query", ""): self._history_reuse(t),
-            ).pack(side="left", fill="x", expand=True, padx=2)
+                command=lambda t=full_query: self._history_reuse(t),
+            )
+            cmd_btn.pack(side="left", fill="x", expand=True, padx=2)
         else:
             tk.Button(
                 row, text=star, bg=row_bg, fg=fav_tc,
                 font=("Segoe UI", 10), relief="flat",
                 command=lambda eid_=eid: self._history_toggle_fav(eid_),
             ).pack(side="left", padx=(2, 0))
-            tk.Button(
+            cmd_btn = tk.Button(
                 row, text=text, bg=row_bg,
                 fg=self.colors.get("text_primary", "#ffffff"),
                 font=("Segoe UI", 10), relief="flat", anchor="w",
-                command=lambda t=entry.get("query", ""): self._history_reuse(t),
-            ).pack(side="left", fill="x", expand=True, padx=2)
+                command=lambda t=full_query: self._history_reuse(t),
+            )
+            cmd_btn.pack(side="left", fill="x", expand=True, padx=2)
+        # Tooltip : afficher la commande complète au survol
+        try:
+            self._kb_attach_tooltip(cmd_btn, full_query)
+        except Exception:
+            pass
 
     def _history_toggle_fav(self, entry_id):
         engine = getattr(self, "ai_engine", None)
@@ -587,6 +607,18 @@ class SidebarMixin:
                 self._refresh_history()
             except Exception:
                 pass
+
+    def _history_delete(self, entry_id):
+        engine = getattr(self, "ai_engine", None)
+        ch = getattr(engine, "command_history", None) if engine else None
+        if not ch:
+            return
+        try:
+            ch.delete(entry_id)
+            self._refresh_history()
+        except Exception as exc:
+            print(f"[HIST][GUI] Erreur suppression entrée: {exc}")
+            self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
 
     def _history_reuse(self, text: str):
         if not hasattr(self, "input_text") or self.input_text is None:
@@ -782,8 +814,13 @@ class SidebarMixin:
 
     def _make_kb_fact_row(self, fact: dict):
         fact_id = fact.get("id")
-        value = fact.get("value", "") or fact.get("content", "")
-        content = str(value)[:45]
+        value = str(fact.get("value", "") or fact.get("content", ""))
+        # Aperçu : 2 premiers mots + "…" si plus long
+        words = value.split()
+        if len(words) <= 2:
+            display = value
+        else:
+            display = " ".join(words[:2]) + "…"
         category = fact.get("category", "")
         cat_colors = {
             "preference": "#8b5cf6", "decision": "#f59e0b",
@@ -795,24 +832,33 @@ class SidebarMixin:
         row = ctk.CTkFrame(self._kb_list_frame, fg_color=row_bg, corner_radius=3) \
             if CTK_AVAILABLE else tk.Frame(self._kb_list_frame, bg=row_bg)
         row.pack(fill="x", pady=1, padx=2)
-        self._sb_label(row, category[:8], font_size=9, color=cat_color
-                       ).pack(side="left", padx=(3, 2))
-        self._sb_label(row, content, font_size=10,
-                       color=self.colors.get("text_primary", "#ffffff")
-                       ).pack(side="left", fill="x", expand=True, padx=2)
+        # Poubelle en premier pour réserver sa place à droite
+        del_btn = self._sb_button(row, "🗑",
+                                   lambda fid=fact_id: self._kb_delete_fact(fid),
+                                   color="#ef4444", width=28)
         if CTK_AVAILABLE:
-            ctk.CTkButton(
-                row, text="✕", width=22, height=20,
-                fg_color="#ef4444", hover_color="#dc2626",
-                text_color="#ffffff", font=("Segoe UI", 9), corner_radius=3,
-                command=lambda fid=fact_id: self._kb_delete_fact(fid),
-            ).pack(side="right", padx=(0, 2), pady=1)
-        else:
-            tk.Button(
-                row, text="✕", bg="#ef4444", fg="#ffffff",
-                font=("Segoe UI", 9), relief="flat",
-                command=lambda fid=fact_id: self._kb_delete_fact(fid),
-            ).pack(side="right", padx=(0, 2), pady=1)
+            del_btn.configure(height=22)
+        del_btn.pack(side="right", padx=(0, 2), pady=1)
+        cat_lbl = self._sb_label(row, category[:8], font_size=9, color=cat_color)
+        if CTK_AVAILABLE:
+            try:
+                cat_lbl.configure(anchor="w")
+            except Exception:
+                pass
+        cat_lbl.pack(side="left", padx=(3, 2))
+        lbl = self._sb_label(row, display, font_size=10,
+                              color=self.colors.get("text_primary", "#ffffff"))
+        if CTK_AVAILABLE:
+            try:
+                lbl.configure(anchor="w")
+            except Exception:
+                pass
+        lbl.pack(side="left", fill="x", expand=True, padx=2)
+        # Tooltip : afficher la valeur complète au survol
+        try:
+            self._kb_attach_tooltip(lbl, value)
+        except Exception:
+            pass
 
     def _kb_add_fact(self):
         engine = getattr(self, "ai_engine", None)
@@ -862,3 +908,43 @@ class SidebarMixin:
             except Exception as exc:
                 print(f"[KB][GUI] Erreur suppression fait: {exc}")
                 self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
+
+    # ─── Tooltip simple ────────────────────────────────────────────────
+
+    def _kb_attach_tooltip(self, widget, text: str):
+        """Tooltip basique affichant le texte complet au survol."""
+        if not text:
+            return
+        tip = {"win": None}
+
+        def show(_e=None):
+            if tip["win"] is not None:
+                return
+            try:
+                x = widget.winfo_rootx() + 12
+                y = widget.winfo_rooty() + widget.winfo_height() + 4
+            except Exception:
+                return
+            w = tk.Toplevel(self.root)
+            w.wm_overrideredirect(True)
+            w.wm_geometry(f"+{x}+{y}")
+            bg = self.colors.get("bg_primary", "#212121")
+            fg = self.colors.get("text_primary", "#ffffff")
+            tk.Label(
+                w, text=text[:200], bg=bg, fg=fg,
+                font=("Segoe UI", 9), padx=6, pady=3,
+                wraplength=320, justify="left",
+                borderwidth=1, relief="solid",
+            ).pack()
+            tip["win"] = w
+
+        def hide(_e=None):
+            if tip["win"] is not None:
+                try:
+                    tip["win"].destroy()
+                except Exception:
+                    pass
+                tip["win"] = None
+
+        widget.bind("<Enter>", show)
+        widget.bind("<Leave>", hide)

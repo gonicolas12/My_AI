@@ -19,6 +19,7 @@ Coordonne les agents pour :
 - Orchestrer des workflows personnalisés (plusieurs agents en séquence via drag & drop)
 - Exécuter des tâches parallèles
 - Exécuter des DAG (graphes acycliques dirigés) via le canvas visuel
+- Lancer un **Mode Débat** entre deux agents (proposant vs opposant) sur un sujet donné
 
 ### Canvas Visuel de Workflow (style n8n)
 Le canvas permet de :
@@ -166,6 +167,69 @@ orchestrator.ask_agent("optimizer", "Optimise cette fonction pour de meilleures 
 ```python
 orchestrator.ask_agent("datascience", "Crée un modèle de classification pour ce dataset")
 ```
+
+## 🎭 Mode Débat (deux agents s'affrontent)
+
+### Vue d'Ensemble
+
+Le **Mode Débat** confronte **deux agents** sur un sujet donné selon des perspectives opposées. L'un joue le rôle de **proposant** (défend la position), l'autre celui d'**opposant** (contre-argumente). Les agents alternent sur plusieurs tours et chacun répond explicitement aux arguments de l'autre.
+
+Tous les agents sont éligibles : agents par défaut **et** agents personnalisés. Le streaming token-par-token est conservé, l'historique complet est retourné à la fin.
+
+### Lancement depuis le code
+
+```python
+from core.agent_orchestrator import AgentOrchestrator
+
+orchestrator = AgentOrchestrator()
+
+result = orchestrator.execute_debate(
+    agent_type_a="security",   # Proposant
+    agent_type_b="optimizer",  # Opposant
+    topic="Faut-il sacrifier la performance pour renforcer la sécurité ?",
+    rounds=3,
+    on_token=lambda tok: print(tok, end="", flush=True),
+    on_round_start=lambda n, agent: print(f"\n--- Tour {n} ({agent}) ---"),
+    on_should_stop=lambda: False,
+)
+
+for entry in result["debate_history"]:
+    print(f"Tour {entry['round']} [{entry['role']}] {entry['agent']} : {entry['argument']}")
+```
+
+### Paramètres
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `agent_type_a` | `str` | Clé de l'agent proposant (`code`, `security`, agent personnalisé…) |
+| `agent_type_b` | `str` | Clé de l'agent opposant — doit être différent de `agent_type_a` |
+| `topic` | `str` | Sujet du débat injecté dans les prompts des deux agents |
+| `rounds` | `int` | Nombre de tours (1 à 10 — chaque tour = 1 prise de parole par agent) |
+| `on_token` | `Callable` | Callback streaming token par token |
+| `on_round_start` | `Callable[[int, str], None]` | Notifié au début de chaque prise de parole |
+| `on_should_stop` | `Callable[[], bool]` | Permet d'interrompre le débat entre deux tours |
+
+### Format de la réponse
+
+```python
+{
+    "success": True,
+    "mode": "debate",
+    "topic": "...",
+    "agents": {"proposant": "security", "opposant": "optimizer"},
+    "rounds_completed": 3,
+    "debate_history": [
+        {"round": 1, "agent": "security",  "role": "proposant", "argument": "..."},
+        {"round": 1, "agent": "optimizer", "role": "opposant",  "argument": "..."},
+        # ...
+    ],
+    "timestamp": "2026-04-20T..."
+}
+```
+
+### Lancement depuis l'interface
+
+Voir [AGENTS_GUI.md](AGENTS_GUI.md#-mode-débat) — le bouton **🎭 Mode Débat** (violet) ouvre une boîte de dialogue pour choisir les deux agents, le sujet et le nombre de tours, puis affiche chaque tour dans une section dédiée de la zone de résultats.
 
 ## 🎨 Création d'Agents Personnalisés
 

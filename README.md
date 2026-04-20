@@ -87,9 +87,9 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 | Fonctionnalité | Détail |
 |---|---|
 | 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
-| ⚡ **Lancement rapide** | Démarrage d'agents spécialisés en un clic |
 | 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
 | 🔄 **Canvas de workflow visuel (style n8n)** | Nœuds connectables, zoom/pan, grille, minimap |
+| 🎭 **Mode Débat** | Confrontation argumentée entre deux agents (proposant vs opposant), 1 à 10 tours |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 
 </div>
@@ -353,7 +353,7 @@ ollama pull qwen3.5:2b       # Ultra léger — réponses concises (4 GB RAM)
 ollama pull qwen3.5:4b       # Recommandé — léger et rapide (8 GB RAM)
 ollama pull qwen3.5:9b       # Plus lourd — réponses détaillées (16 GB RAM)
 
-# [OPTIONNEL] Modèle vision pour l'analyse d'images
+# Modèle vision pour l'analyse d'images
 ollama pull minicpm-v        # Recommandé — meilleur rapport qualité/vitesse (3 GB)
 ollama pull llava            # Alternative (4.7 GB)
 

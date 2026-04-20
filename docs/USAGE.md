@@ -1321,6 +1321,22 @@ Dans l'onglet Agents, le canvas visuel propose trois boutons de gestion :
    Le workflow est restauré identiquement, prêt à être exécuté
 ```
 
+### 🎭 Mode Débat entre deux agents
+
+Dans l'onglet Agents, le bouton **🎭 Mode Débat** (violet) permet de lancer une **confrontation argumentée** entre deux agents au choix :
+
+```
+1. Cliquer 🎭 Mode Débat
+2. Choisir l'Agent A (proposant) et l'Agent B (opposant) — doivent être différents
+3. Saisir le sujet du débat (ex. "Microservices vs monolithe pour une startup")
+4. Régler le nombre de tours (1 à 10)
+5. Cliquer ▶ Démarrer le débat
+```
+
+Chaque tour s'affiche dans une section colorée distincte de la zone de résultats (`Tour N — NomAgent (rôle)`), avec streaming token par token. Le bouton **■ Stop** interrompt le débat entre deux prises de parole.
+
+> Détails complets et API Python : [AGENTS.md → Mode Débat](AGENTS.md#-mode-débat-deux-agents-saffrontent) et [AGENTS_GUI.md → Mode Débat](AGENTS_GUI.md#-mode-débat).
+
 ---
 
 **Version:** 7.2.0
