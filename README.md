@@ -89,7 +89,7 @@ Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complète
 | 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
 | 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
 | 🔄 **Canvas de workflow visuel (style n8n)** | Nœuds connectables, zoom/pan, grille, minimap |
-| 🎭 **Mode Débat** | Confrontation argumentée entre deux agents (proposant vs opposant), 1 à 10 tours |
+| 🎭 **Mode Débat** | Confrontation argumentée entre deux agents, 1 à 10 tours |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 
 </div>
