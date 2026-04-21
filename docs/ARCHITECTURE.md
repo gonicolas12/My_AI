@@ -855,21 +855,52 @@ Features:
 └─ Potentiel intégration command palette
 ```
 
-**`interfaces/agents_interface.py`** - Interface Agents IA
+**`interfaces/agents_interface.py`** - Façade Interface Agents IA
 ```python
-Features:
+Architecture: façade (~40 lignes) assemblant des mixins via héritage multiple.
+Importe from interfaces.agents.* et ré-exporte AgentsInterface pour compat.
+
+class AgentsInterface(
+    BaseMixin,              # __init__, header, construction racine
+    AgentSelectionMixin,    # grille cartes agents + icônes
+    DragDropMixin,          # drag & drop sur canvas / task entry
+    WorkflowMixin,          # add/clear/save/load/export workflow
+    FileHandlingMixin,      # PDF/DOCX/Excel/Code/Images attachés
+    TaskInputMixin,         # zone saisie + boutons Exécuter/Créer/Débat
+    OutputAreaMixin,        # zone scrollable des résultats
+    StatsSectionMixin,      # statistiques + moniteur ressources
+    ExecutionMixin,         # threads d'exécution (pipeline/DAG/canvas)
+    OutputRenderingMixin,   # sections dépliantes + markdown + syntax
+    CustomAgentsMixin,      # CRUD agents personnalisés + dialogues
+    DebateMixin,            # mode débat entre deux agents
+): ...
+```
+
+**`interfaces/agents/`** - Package des mixins (découpage de l'ancien 4000+ lignes)
+```python
+├─ _common.py            # imports partagés (tk/ctk + fallback)
+├─ syntax_helper.py      # SyntaxColorHelper + singletons SYNTAX_ANALYZER/AVAILABLE
+├─ base.py               # BaseMixin : init, header, paths, orchestrator
+├─ agent_selection.py    # AgentSelectionMixin : 9 agents intégrés + icônes
+├─ drag_drop.py          # DragDropMixin : motion, drop zones
+├─ workflow.py           # WorkflowMixin : pipeline + canvas (save/load/export)
+├─ file_handling.py      # FileHandlingMixin : lecture documents + vision image
+├─ task_input.py         # TaskInputMixin : textbox + boutons + canvas
+├─ output_area.py        # OutputAreaMixin : scrollable frame + isolation scroll
+├─ stats_section.py      # StatsSectionMixin : stats + barres + sparklines
+├─ execution.py          # ExecutionMixin : threads d'exécution tâches
+├─ output_rendering.py   # OutputRenderingMixin : sections + markdown + tables
+├─ custom_agents.py      # CustomAgentsMixin : agents perso (JSON persistance)
+└─ debate.py             # DebateMixin : popup + thread débat 2 agents
+
+Features préservées:
 ├─ Grille 3x3+ de cartes agents (drag & drop)
 ├─ Pipeline classique (liste séquentielle)
-├─ Canvas visuel n8n (WorkflowCanvas)
-│   ├─ Nœuds avec statuts temps réel
-│   ├─ Connexions Bézier
-│   └─ Exécution DAG/parallèle/séquentielle
-├─ Monitoring ressources (ResourceMonitor)
-│   ├─ Barres de progression CPU/RAM/GPU/VRAM
-│   ├─ Sparklines historiques
-│   └─ Temps d'inférence et tokens/s
+├─ Canvas visuel n8n (WorkflowCanvas) avec DAG/parallèle/séquentiel
+├─ Monitoring ressources (ResourceMonitor) CPU/RAM/GPU/VRAM + sparklines
 ├─ Création/édition/suppression agents personnalisés
 ├─ Streaming résultats token par token
+├─ Mode Débat entre deux agents (tours configurables)
 └─ Bouton Stop avec interruption immédiate
 ```
 

@@ -203,6 +203,22 @@ my_ai/
 │   ├── document_generator.py            # Génération docs avec contexte étendu
 │   └── code_generator.py                # Génération code avec analyse ultra
 ├── interfaces/                          # Interfaces utilisateur
+│   ├── agents/                          # Modules Agents IA
+│   │   ├── __init__.py
+│   │   ├── _common.py                   # Fonctions communes aux agents
+│   │   ├── agent_selection.py           # Interface de sélection d'agents
+│   │   ├── base.py                      # Interface de base pour les agents
+│   │   ├── custom_agents.py             # Gestion des agents personnalisés
+│   │   ├── debate.py                    # Interface de débat entre agents
+│   │   ├── drag_drop.py                 # Interface de glisser-déposer
+│   │   ├── execution.py                 # Gestion de l'exécution des agents
+│   │   ├── file_handling.py             # Gestion des fichiers pour les agents
+│   │   ├── output_area.py               # Zone de sortie pour les agents
+│   │   ├── output_rendering.py          # Rendu de la sortie pour les agents
+│   │   ├── stats_section.py             # Section de statistiques pour les agents
+│   │   ├── syntax_helper.py             # Aide syntaxique
+│   │   ├── task_input.py                # Interface de saisie des tâches pour les agents
+│   │   └── workflow.py                  # Gestion du workflow des agents
 │   ├── gui/                             # Modules GUI (mixins)
 │   │   ├── __init__.py
 │   │   ├── animations.py                # Animations et transitions modernes
@@ -217,7 +233,7 @@ my_ai/
 │   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
 │   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
-│   ├── agents_interface.py              # Interface Agents IA + pièces jointes
+│   ├── agents_interface.py              # Interface Agents IA
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
 │   ├── modern_styles.py                 # Styles et thèmes modernes
