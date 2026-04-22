@@ -11,6 +11,74 @@ from interfaces.agents.syntax_helper import (
 )
 
 
+# Commandes LaTeX → équivalents Unicode (flèches, opérateurs, lettres grecques, ensembles).
+_LATEX_SYMBOLS = {
+    r"\rightarrow": "→", r"\Rightarrow": "⇒",
+    r"\leftarrow": "←", r"\Leftarrow": "⇐",
+    r"\leftrightarrow": "↔", r"\Leftrightarrow": "⇔",
+    r"\longrightarrow": "⟶", r"\longleftarrow": "⟵",
+    r"\mapsto": "↦", r"\to": "→", r"\gets": "←",
+    r"\implies": "⇒", r"\iff": "⇔",
+    r"\uparrow": "↑", r"\downarrow": "↓", r"\updownarrow": "↕",
+    r"\times": "×", r"\cdot": "·", r"\div": "÷",
+    r"\pm": "±", r"\mp": "∓", r"\ast": "∗", r"\star": "⋆",
+    r"\leq": "≤", r"\le": "≤", r"\geq": "≥", r"\ge": "≥",
+    r"\neq": "≠", r"\ne": "≠", r"\approx": "≈", r"\equiv": "≡",
+    r"\sim": "∼", r"\simeq": "≃", r"\cong": "≅", r"\propto": "∝",
+    r"\ll": "≪", r"\gg": "≫",
+    r"\infty": "∞", r"\partial": "∂", r"\nabla": "∇",
+    r"\sum": "∑", r"\prod": "∏", r"\int": "∫", r"\oint": "∮",
+    r"\sqrt": "√", r"\surd": "√",
+    r"\forall": "∀", r"\exists": "∃", r"\nexists": "∄",
+    r"\in": "∈", r"\notin": "∉", r"\ni": "∋",
+    r"\subset": "⊂", r"\supset": "⊃",
+    r"\subseteq": "⊆", r"\supseteq": "⊇",
+    r"\cup": "∪", r"\cap": "∩", r"\setminus": "∖",
+    r"\emptyset": "∅", r"\varnothing": "∅",
+    r"\land": "∧", r"\wedge": "∧", r"\lor": "∨", r"\vee": "∨",
+    r"\lnot": "¬", r"\neg": "¬",
+    r"\top": "⊤", r"\bot": "⊥", r"\vdash": "⊢", r"\models": "⊨",
+    r"\ldots": "…", r"\cdots": "⋯", r"\vdots": "⋮", r"\ddots": "⋱",
+    r"\circ": "∘", r"\bullet": "•", r"\oplus": "⊕", r"\otimes": "⊗",
+    r"\degree": "°",
+    # Lettres grecques minuscules
+    r"\alpha": "α", r"\beta": "β", r"\gamma": "γ", r"\delta": "δ",
+    r"\epsilon": "ε", r"\varepsilon": "ε", r"\zeta": "ζ", r"\eta": "η",
+    r"\theta": "θ", r"\vartheta": "ϑ", r"\iota": "ι", r"\kappa": "κ",
+    r"\lambda": "λ", r"\mu": "μ", r"\nu": "ν", r"\xi": "ξ",
+    r"\pi": "π", r"\varpi": "ϖ", r"\rho": "ρ", r"\varrho": "ϱ",
+    r"\sigma": "σ", r"\varsigma": "ς", r"\tau": "τ", r"\upsilon": "υ",
+    r"\phi": "φ", r"\varphi": "φ", r"\chi": "χ", r"\psi": "ψ", r"\omega": "ω",
+    # Lettres grecques majuscules
+    r"\Gamma": "Γ", r"\Delta": "Δ", r"\Theta": "Θ", r"\Lambda": "Λ",
+    r"\Xi": "Ξ", r"\Pi": "Π", r"\Sigma": "Σ", r"\Upsilon": "Υ",
+    r"\Phi": "Φ", r"\Psi": "Ψ", r"\Omega": "Ω",
+}
+
+# Trier par longueur décroissante pour que \Rightarrow soit remplacé avant \to, etc.
+_LATEX_ORDERED = sorted(_LATEX_SYMBOLS.items(), key=lambda kv: -len(kv[0]))
+
+# Segment `$...$` contenant au moins une commande LaTeX `\word` (évite les faux positifs
+# comme "$100 et $200"). Autorise les espaces et autres caractères mais pas de saut de ligne.
+_LATEX_INLINE_RE = re.compile(r"\$([^\$\n]*\\[a-zA-Z]+[^\$\n]*)\$")
+
+
+def _render_latex_symbols(text: str) -> str:
+    """Remplace les segments `$...\\cmd...$` par leur équivalent Unicode."""
+    if "$" not in text or "\\" not in text:
+        return text
+
+    def _replace(match: re.Match) -> str:
+        content = match.group(1)
+        for cmd, sym in _LATEX_ORDERED:
+            content = content.replace(cmd, sym)
+        # Supprime les commandes non reconnues (conserve leur nom sans la barre).
+        content = re.sub(r"\\([a-zA-Z]+)", r"\1", content)
+        return content
+
+    return _LATEX_INLINE_RE.sub(_replace, text)
+
+
 class OutputRenderingMixin:
     """Gestion des sections dépliantes + formatage Markdown streaming."""
 
@@ -242,6 +310,9 @@ class OutputRenderingMixin:
 
     def _format_and_insert_line(self, section, line, newline=True):  # pylint: disable=unused-argument,W0613
         """Formate et insère une ligne complète avec le bon style Markdown."""
+        # Convertit les délimiteurs LaTeX inline (`$\rightarrow$`, etc.) en Unicode
+        # avant toute détection de structure (tableau, bullet, etc.).
+        line = _render_latex_symbols(line)
         stripped = line.strip()
         table_buf = section.get("_table_buf", [])
 
@@ -521,6 +592,7 @@ class OutputRenderingMixin:
 
     def _insert_with_markdown(self, tw, full_text):
         """Parse du texte Markdown et insertion formatée dans un widget texte."""
+        full_text = _render_latex_symbols(full_text)
         lines = full_text.split("\n")
         in_code_block = False
         current_lang = ""
