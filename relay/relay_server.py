@@ -395,15 +395,27 @@ class RelayServer:
         ):
             if not server.verify_token(token):
                 raise HTTPException(status_code=401, detail="Non autorisé")
+            # Priorité 1 : réponse terminée en cache
             pending = server.bridge.consume_pending_response(message_id)
-            if pending is None:
-                return {"pending": False, "message_id": message_id}
-            return {
-                "pending": True,
-                "message_id": message_id,
-                "message": pending,
-                "timestamp": datetime.now().isoformat(),
-            }
+            if pending is not None:
+                return {
+                    "pending": True,
+                    "final": True,
+                    "message_id": message_id,
+                    "message": pending,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            # Priorité 2 : génération encore en cours, retourner l'état courant
+            partial = server.bridge.get_active_stream(message_id)
+            if partial is not None:
+                return {
+                    "pending": True,
+                    "final": False,
+                    "message_id": message_id,
+                    "message": partial,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            return {"pending": False, "message_id": message_id}
 
         # =================================================================
         # POST /api/upload — Upload de fichier/image depuis le mobile
@@ -583,6 +595,11 @@ class RelayServer:
                     elif msg_data.get("type") == "resume":
                         # Mobile reconnecté : il demande si une réponse est
                         # disponible pour son dernier message_id envoyé.
+                        # Deux cas possibles :
+                        #   - la réponse est déjà complète → type "response"
+                        #   - la génération est encore en cours → type "chunk"
+                        #     (état courant du stream) ; les chunks suivants
+                        #     arriveront ensuite via le broadcast.
                         last_id = msg_data.get("last_message_id", "") or ""
                         pending = server.bridge.consume_pending_response(last_id)
                         if pending is not None:
@@ -594,10 +611,20 @@ class RelayServer:
                                 "resumed": True,
                             }))
                         else:
-                            await websocket.send_text(json.dumps({
-                                "type": "resume_empty",
-                                "message_id": last_id,
-                            }))
+                            partial = server.bridge.get_active_stream(last_id)
+                            if partial is not None:
+                                await websocket.send_text(json.dumps({
+                                    "type": "chunk",
+                                    "message_id": last_id,
+                                    "text": partial,
+                                    "timestamp": datetime.now().isoformat(),
+                                    "resumed": True,
+                                }))
+                            else:
+                                await websocket.send_text(json.dumps({
+                                    "type": "resume_empty",
+                                    "message_id": last_id,
+                                }))
 
                     elif msg_data.get("type") == "ping":
                         await websocket.send_text(json.dumps({"type": "pong"}))
@@ -627,6 +654,40 @@ class RelayServer:
     # ------------------------------------------------------------------
     # Cycle de vie du serveur
     # ------------------------------------------------------------------
+
+    def _broadcast_chunk(self, message_id: str, text: str) -> None:
+        """Callback déclenché par le bridge à chaque chunk de streaming.
+
+        Broadcaste l'état courant de la génération à tous les WebSockets
+        connectés, pour que le mobile voie la réponse se construire en
+        direct comme sur le GUI desktop. Le texte est cumulatif.
+        """
+        if not self._loop or not self._ws_clients:
+            return
+        payload = json.dumps({
+            "type": "chunk",
+            "message_id": message_id,
+            "text": text,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+        async def _push():
+            dead: List[WebSocket] = []
+            for ws in list(self._ws_clients):
+                try:
+                    await ws.send_text(payload)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                if ws in self._ws_clients:
+                    self._ws_clients.remove(ws)
+            if dead:
+                self._bridge.connected_clients = len(self._ws_clients)
+
+        try:
+            asyncio.run_coroutine_threadsafe(_push(), self._loop)
+        except Exception as e:
+            logger.debug("Broadcast chunk WS impossible : %s", e)
 
     def _broadcast_response(self, message_id: str, text: str) -> None:
         """Callback déclenché par le bridge à chaque réponse IA soumise.
@@ -677,9 +738,11 @@ class RelayServer:
             return
 
         self._bridge.active = True
-        # Enregistrer le callback de broadcast (une seule fois par start).
+        # Enregistrer les callbacks de broadcast (une seule fois par start).
         self._bridge.remove_response_callback(self._broadcast_response)
         self._bridge.on_response(self._broadcast_response)
+        self._bridge.remove_chunk_callback(self._broadcast_chunk)
+        self._bridge.on_chunk(self._broadcast_chunk)
 
         # Démarrer le serveur uvicorn
         config = uvicorn.Config(

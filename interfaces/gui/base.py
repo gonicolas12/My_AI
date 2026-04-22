@@ -2070,6 +2070,17 @@ class BaseGUI:
                 if not self._streaming_bubble_created:
                     self._streaming_bubble_created = True
                     self.root.after(0, self._create_streaming_bubble_with_animation)
+                # Relayer l'état courant au mobile si la requête vient du relay.
+                # Le bridge throttle lui-même pour limiter la charge WS.
+                if getattr(self, '_current_message_from_relay', False):
+                    try:
+                        relay_srv = getattr(self, '_relay_server', None)
+                        if relay_srv and relay_srv.bridge.active:
+                            relay_srv.bridge.submit_ai_chunk(
+                                self._streaming_buffer_original
+                            )
+                    except Exception:
+                        pass
                 return True
 
             def on_thinking_token(token):

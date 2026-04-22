@@ -30,6 +30,16 @@ let historyLoaded = false;
 let pendingAttachments = [];
 let attachmentCounter = 0;
 
+// Bulle IA en cours de streaming (rendue en direct token par token).
+// Un seul stream peut être actif à la fois côté mobile.
+let streamingMessageId = null;
+let streamingMessageEl = null;
+
+// Le scroll auto pendant le streaming ne doit pas se battre contre
+// l'utilisateur qui a fait défiler vers le haut pour relire quelque chose.
+// On considère "collé au bas" s'il y a moins de 80px sous la viewport.
+let userPinnedToBottom = true;
+
 // ── DOM ELEMENTS ────────────────────────────────────
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('messageInput');
@@ -98,6 +108,8 @@ function connect() {
       // broadcast ET via resume), ignorer le doublon.
       var mid = data.message_id || '';
       if (mid && renderedMessageIds.has('ai:' + mid)) {
+        // Nettoyer toute bulle de streaming résiduelle pour ce message.
+        if (streamingMessageId === mid) finalizeStreaming(mid, null, null);
         return;
       }
       if (mid) renderedMessageIds.add('ai:' + mid);
@@ -109,8 +121,18 @@ function connect() {
       if (mid && mid === lastSentMessageId) {
         lastSentMessageId = null;
       }
-      addMessage(data.message, false, data.timestamp);
+      // Si on était en train de streamer ce message, on finalise la bulle
+      // existante au lieu d'en créer une nouvelle (évite le doublon visuel).
+      finalizeStreaming(mid, data.message, data.timestamp);
       updateSendButton();
+    } else if (data.type === 'chunk') {
+      // Chunk de streaming : texte cumulatif courant de la génération.
+      var cmid = data.message_id || '';
+      if (!cmid) return;
+      // Si la réponse finale a déjà été rendue, ignorer les chunks tardifs.
+      if (renderedMessageIds.has('ai:' + cmid)) return;
+      removeTyping();
+      updateStreamingBubble(cmid, data.text || '');
     } else if (data.type === 'ack') {
       // Le serveur confirme avoir reçu notre message. On mémorise son id
       // pour pouvoir demander la réponse en cas de reconnexion, et on
@@ -224,6 +246,10 @@ async function loadHistory() {
 }
 
 // Demande au serveur s'il a une réponse IA en attente pour un message_id.
+// Le serveur peut répondre :
+//   - {pending: true, final: true, message}  → réponse complète
+//   - {pending: true, final: false, message} → génération encore en cours
+//   - {pending: false}                       → ni l'un ni l'autre
 async function checkPendingResponse(messageId) {
   if (!messageId) return;
   try {
@@ -232,16 +258,26 @@ async function checkPendingResponse(messageId) {
     var res = await fetch(url);
     if (!res.ok) return;
     var data = await res.json();
-    if (data && data.pending && typeof data.message === 'string') {
-      var key = 'ai:' + messageId;
-      if (renderedMessageIds.has(key)) return;
-      renderedMessageIds.add(key);
+    if (!data || !data.pending || typeof data.message !== 'string') return;
+
+    if (data.final === false) {
+      // Génération encore en cours : afficher l'état courant, les chunks
+      // suivants arriveront via le WS quand il sera reconnecté.
+      if (renderedMessageIds.has('ai:' + messageId)) return;
       removeTyping();
-      isWaiting = false;
-      if (messageId === lastSentMessageId) lastSentMessageId = null;
-      addMessage(data.message, false, data.timestamp);
-      updateSendButton();
+      updateStreamingBubble(messageId, data.message);
+      return;
     }
+
+    // Réponse finale
+    var key = 'ai:' + messageId;
+    if (renderedMessageIds.has(key)) return;
+    renderedMessageIds.add(key);
+    removeTyping();
+    isWaiting = false;
+    if (messageId === lastSentMessageId) lastSentMessageId = null;
+    finalizeStreaming(messageId, data.message, data.timestamp);
+    updateSendButton();
   } catch (e) {
     console.warn('[Relay] checkPendingResponse failed:', e);
   }
@@ -277,6 +313,8 @@ function sendMessage() {
     displayText = displayText ? (text + '\n' + attachDisplay) : attachDisplay;
   }
 
+  // Envoyer un message réinstalle l'intention « suivre la génération »
+  userPinnedToBottom = true;
   addMessage(displayText, true);
 
   // Envoyer au serveur (inclut les file_ids déjà uploadés)
@@ -437,6 +475,79 @@ function addMessage(text, isUser, timestamp) {
   scrollToBottom();
 }
 
+// ── STREAMING BUBBLE ────────────────────────────────
+// Ferme provisoirement un bloc de code ``` non terminé pour que le rendu
+// markdown pendant le streaming reste stable (sinon le ``` ouvrant
+// apparaît en texte brut tant que la clôture n'est pas reçue).
+function balanceMarkdownForStreaming(text) {
+  if (!text) return '';
+  // Compter les séquences ``` en début de ligne ou précédées d'un \n.
+  var fenceMatches = text.match(/(^|\n)```/g);
+  var count = fenceMatches ? fenceMatches.length : 0;
+  if (count % 2 === 1) {
+    // Ajouter une fermeture fantôme : le renderer voit un bloc complet,
+    // et la prochaine mise à jour arrivera avec plus de contenu.
+    text = text + '\n```';
+  }
+  return text;
+}
+
+function ensureStreamingBubble(mid) {
+  if (streamingMessageId === mid && streamingMessageEl && streamingMessageEl.isConnected) {
+    return streamingMessageEl;
+  }
+  // Nouveau stream : créer la bulle.
+  if (welcomeEl) welcomeEl.style.display = 'none';
+  streamingMessageId = mid;
+  var msg = document.createElement('div');
+  msg.className = 'message ai streaming';
+  msg.innerHTML =
+    '<div class="ai-icon">&#x1F916;</div>' +
+    '<div class="bubble">' +
+      '<div class="stream-content"></div>' +
+      '<span class="stream-cursor"></span>' +
+    '</div>';
+  messagesEl.appendChild(msg);
+  streamingMessageEl = msg;
+  return msg;
+}
+
+function updateStreamingBubble(mid, text) {
+  var bubble = ensureStreamingBubble(mid);
+  var content = bubble.querySelector('.stream-content');
+  if (content) {
+    content.innerHTML = renderMarkdown(balanceMarkdownForStreaming(text));
+  }
+  scrollToBottomStream();
+}
+
+// Finalise la bulle de streaming. Si `finalText` est fourni, la bulle est
+// convertie en bulle IA définitive (avec timestamp). Sinon, elle est juste
+// nettoyée (cas de déduplication).
+function finalizeStreaming(mid, finalText, timestamp) {
+  if (streamingMessageId !== mid || !streamingMessageEl) {
+    // Pas de bulle de streaming en cours pour ce message : rendu normal.
+    if (finalText !== null && finalText !== undefined) {
+      addMessage(finalText, false, timestamp);
+    }
+    return;
+  }
+  if (finalText === null || finalText === undefined) {
+    // Nettoyage sans finalisation : retirer la bulle.
+    streamingMessageEl.remove();
+  } else {
+    var time = formatTime(timestamp ? new Date(timestamp) : new Date());
+    streamingMessageEl.classList.remove('streaming');
+    streamingMessageEl.innerHTML =
+      '<div class="ai-icon">&#x1F916;</div>' +
+      '<div class="bubble">' + renderMarkdown(finalText) +
+      '<span class="time">' + time + '</span></div>';
+  }
+  streamingMessageEl = null;
+  streamingMessageId = null;
+  scrollToBottom();
+}
+
 function showTyping() {
   if (typingEl) return;
   typingEl = document.createElement('div');
@@ -480,6 +591,26 @@ function scrollToBottom() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   });
 }
+
+// Scroll agressif pendant le streaming : le rendu markdown réflue la
+// hauteur du conteneur après l'innerHTML, donc on applique le scroll
+// immédiatement ET à la frame suivante (post-reflow) pour être certain
+// que le curseur reste visible. Respecte l'utilisateur s'il a fait
+// défiler manuellement vers le haut.
+function scrollToBottomStream() {
+  if (!userPinnedToBottom) return;
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  requestAnimationFrame(function () {
+    if (!userPinnedToBottom) return;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  });
+}
+
+// Détecter si l'utilisateur s'est volontairement éloigné du bas.
+messagesEl.addEventListener('scroll', function () {
+  var gap = messagesEl.scrollHeight - (messagesEl.scrollTop + messagesEl.clientHeight);
+  userPinnedToBottom = gap < 80;
+}, { passive: true });
 
 // ═══════════════════════════════════════════════════
 // MARKDOWN LIGHT RENDERER

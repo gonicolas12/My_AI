@@ -24,6 +24,12 @@ _PENDING_RESPONSE_TTL = 600.0
 # Nombre max de réponses conservées en cache (protection mémoire).
 _PENDING_RESPONSE_MAX = 50
 
+# Cadence max de broadcast des chunks de streaming vers le mobile.
+# 50ms = 20 chunks/sec max, bon compromis fluidité / charge WS+tunnel.
+_CHUNK_THROTTLE_SEC = 0.05
+# Nombre max de streams actifs conservés (protection mémoire).
+_ACTIVE_STREAM_MAX = 20
+
 
 @dataclass
 class RelayMessage:
@@ -110,8 +116,17 @@ class RelayBridge:
         self._pending_responses: Dict[str, Tuple[str, float]] = {}
         self._pending_lock = threading.Lock()
 
+        # Streams en cours : message_id -> (texte_partiel_cumulatif, timestamp).
+        # Permet au mobile qui reconnecte en plein milieu de récupérer l'état
+        # courant de la génération.
+        self._active_streams: Dict[str, Tuple[str, float]] = {}
+        self._active_stream_lock = threading.Lock()
+        self._last_chunk_ts: float = 0.0
+
         # Callbacks déclenchés dès qu'une réponse est soumise (broadcast WS).
         self._response_callbacks: List[Callable[[str, str], None]] = []
+        # Callbacks déclenchés pour chaque chunk de streaming (broadcast WS).
+        self._chunk_callbacks: List[Callable[[str, str], None]] = []
 
         logger.info("RelayBridge initialisé (singleton)")
 
@@ -260,6 +275,38 @@ class RelayBridge:
             return ("⏱️ Délai d'attente dépassé pour la réponse.", self._latest_message_id)
         return (self._latest_response, self._latest_message_id)
 
+    def submit_ai_chunk(self, partial_text: str, message_id: Optional[str] = None) -> None:
+        """Soumet un chunk intermédiaire (texte cumulatif) au bridge.
+
+        Appelé depuis le thread GUI à chaque token reçu pendant le streaming.
+        Le texte passé doit être le cumul complet depuis le début de la
+        réponse (pas un delta). Les appels sont throttlés pour limiter la
+        charge WS/tunnel. L'état courant est aussi mémorisé dans
+        `_active_streams` pour qu'un mobile reconnecté en plein milieu
+        puisse récupérer l'état de la génération.
+        """
+        effective_id = message_id or self._latest_message_id
+        if not effective_id:
+            return
+
+        now = time.time()
+        with self._active_stream_lock:
+            self._active_streams[effective_id] = (partial_text, now)
+            self._gc_active_streams()
+
+        # Throttle : limite le débit global de broadcast. Le dernier chunk
+        # pourra être omis, mais `submit_ai_response` enverra de toute façon
+        # le texte final complet.
+        if now - self._last_chunk_ts < _CHUNK_THROTTLE_SEC:
+            return
+        self._last_chunk_ts = now
+
+        for cb in list(self._chunk_callbacks):
+            try:
+                cb(effective_id, partial_text)
+            except Exception as e:
+                logger.error("Erreur callback chunk broadcast: %s", e)
+
     def submit_ai_response(self, text: str, message_id: Optional[str] = None) -> None:
         """
         Soumet la réponse IA au bridge. Appelé depuis le thread GUI
@@ -281,6 +328,13 @@ class RelayBridge:
         # Cacher la réponse pour récupération ultérieure (mobile déconnecté)
         if effective_id:
             self._store_pending_response(effective_id, text)
+
+        # Le stream est terminé : on retire l'entrée du cache des streams actifs
+        if effective_id:
+            with self._active_stream_lock:
+                self._active_streams.pop(effective_id, None)
+        # Forcer le prochain chunk (autre message) à partir libre du throttle
+        self._last_chunk_ts = 0.0
 
         # Signaler au WebSocket d'origine que la réponse est prête
         self._response_event.set()
@@ -358,3 +412,44 @@ class RelayBridge:
         self._response_callbacks = [
             cb for cb in self._response_callbacks if cb != callback
         ]
+
+    # ------------------------------------------------------------------
+    # Streams actifs (génération en cours)
+    # ------------------------------------------------------------------
+
+    def on_chunk(self, callback: Callable[[str, str], None]) -> None:
+        """Enregistre un callback (message_id, partial_text) appelé à chaque
+        chunk de streaming soumis via submit_ai_chunk. Utilisé par le
+        serveur pour broadcaster l'état courant de la génération aux WS."""
+        self._chunk_callbacks.append(callback)
+
+    def remove_chunk_callback(self, callback: Callable[[str, str], None]) -> None:
+        """Supprime un callback de chunk enregistré."""
+        self._chunk_callbacks = [
+            cb for cb in self._chunk_callbacks if cb != callback
+        ]
+
+    def _gc_active_streams(self) -> None:
+        """Borne le nombre de streams actifs en mémoire (protection)."""
+        # En pratique submit_ai_response nettoie l'entrée quand la
+        # génération se termine proprement, donc ce GC ne se déclenche que
+        # sur des cas pathologiques (crash côté GUI sans soumettre la fin).
+        while len(self._active_streams) > _ACTIVE_STREAM_MAX:
+            oldest = min(
+                self._active_streams.items(),
+                key=lambda kv: kv[1][1],
+            )[0]
+            self._active_streams.pop(oldest, None)
+
+    def get_active_stream(self, message_id: str) -> Optional[str]:
+        """Retourne le texte partiel courant d'une génération en cours,
+        ou None s'il n'y a pas de stream actif pour ce message_id.
+
+        Utilisé quand un mobile reconnecté demande « où en est-on
+        actuellement ? » pour reprendre l'affichage en plein milieu.
+        """
+        if not message_id:
+            return None
+        with self._active_stream_lock:
+            entry = self._active_streams.get(message_id)
+        return entry[0] if entry else None
