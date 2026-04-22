@@ -352,7 +352,7 @@ Fonctionnalités:
 ```python
 AI_CONFIG:
 ├─ Modèles par défaut
-├─ Limites tokens (4096 standard, 1M ultra)
+├─ Limites tokens (32768 standard, 10M ultra)
 ├─ Types de fichiers supportés
 └─ Répertoires de travail
 
@@ -632,7 +632,7 @@ Architecture:
 Configuration Modelfile:
 ├─ Modèle de base: qwen3.5:4b (ou autre selon choix)
 ├─ Temperature: 0.7
-├─ Context window: 8192 tokens
+├─ Context window: 32768 tokens
 └─ System prompt personnalisé français
 ```
 
@@ -1244,7 +1244,7 @@ Total typique:            1.3GB - 2.5GB RAM
 ### Token Efficiency
 ```
 Tokenization précision:   tiktoken cl100k_base (compatible Llama 3) vs 70% (approximation mots)
-Context window standard:  4096 tokens
+Context window standard:  32768 tokens
 Context ultra mode:       10,485,760 tokens (10M)
 Chunk size VectorMemory:  256 tokens (aligné all-MiniLM-L6-v2)
 Chunk overlap:            32 tokens (~12%, contexte préservé)

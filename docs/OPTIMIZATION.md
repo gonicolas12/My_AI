@@ -47,7 +47,7 @@ ollama pull qwen3.5:4b
 ```dockerfile
 FROM qwen3.5:4b
 PARAMETER temperature 0.7
-PARAMETER num_ctx 8192
+PARAMETER num_ctx 32768
 
 SYSTEM """
 Tu es My_AI, un assistant IA personnel expert.
