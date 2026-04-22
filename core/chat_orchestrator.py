@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -1247,6 +1248,10 @@ class ChatOrchestrator:
         buffer_flushed: bool = False
         buffer_chars = 120  # Seuil avant de décider stream vs accumulation
 
+        # 📊 Mesure TTFT (Time To First Token) pour diagnostiquer la latence
+        _ttft_start = time.time()
+        _ttft_logged = False
+
         try:
             with _resilient_post(
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
@@ -1275,6 +1280,9 @@ class ChatOrchestrator:
                     # ── Accumulation du contenu ───────────────────────────
                     token: str = msg.get("content", "")
                     if token:
+                        if not _ttft_logged:
+                            _ttft_logged = True
+                            print(f"⏱️  [TTFT] smart_stream : {time.time() - _ttft_start:.2f}s avant 1er token")
                         full_content += token
 
                         if tool_calls_collected:

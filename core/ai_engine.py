@@ -125,7 +125,17 @@ class AIEngine:
         try:
             self.local_ai = CustomAIModel(conversation_memory=self.conversation_memory)
             self.ml_ai = MLFAQModel()  # Modèle ML local (TF-IDF)
-            # Debug supprimé : plus de log sur le chargement de la base FAQ/ML
+
+            # 📚 Préchargement FAQ en arrière-plan pour éviter le lazy-load
+            # de 2-5s sur le premier predict() utilisateur.
+            def _preload_faq():
+                try:
+                    self.ml_ai._ensure_loaded()
+                    self.logger.info("📚 FAQ préchargée en arrière-plan")
+                except Exception as exc:
+                    self.logger.warning("⚠️ Préchargement FAQ échoué : %s", exc)
+            threading.Thread(target=_preload_faq, daemon=True).start()
+
             self.model = (
                 self.local_ai
             )  # Alias pour compatibilité avec l'interface graphique

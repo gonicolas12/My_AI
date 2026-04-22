@@ -98,11 +98,21 @@ class BaseMixin:
         self.agents_grid = None  # Reference to agents grid for adding custom agents
         self._load_custom_agents()
 
-        # LLM for generating system prompts
-        self.llm = LocalLLM(model=_get_default_model())
+        # LLM pour générer des system prompts et décrire des images.
+        # Instanciation paresseuse : on ne charge pas un second modèle en VRAM
+        # au démarrage — l'instance est créée lors du premier usage réel
+        # (génération d'agent custom ou analyse d'image sur la page Agents).
+        self._llm: LocalLLM | None = None
 
         # Créer l'interface
         self.create_agents_interface()
+
+    @property
+    def llm(self) -> LocalLLM:
+        """Instance LocalLLM créée à la demande (lazy init)."""
+        if self._llm is None:
+            self._llm = LocalLLM(model=_get_default_model())
+        return self._llm
 
     def create_agents_interface(self):
         """Crée l'interface complète des agents"""

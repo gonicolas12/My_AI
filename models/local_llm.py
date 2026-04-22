@@ -46,6 +46,10 @@ class LocalLLM:
     Tente d'utiliser Ollama en priorité, sinon gère le fallback.
     """
 
+    # Set partagé entre toutes les instances : évite de relancer un warmup
+    # si le modèle a déjà été préchauffé au cours de cette session.
+    _warmed_up_models: set = set()
+
     def __init__(
         self,
         model="my_ai",
@@ -88,10 +92,38 @@ class LocalLLM:
             print(
                 f"   🧠 Mémoire de conversation activée (max {self.max_history_length} échanges)"
             )
+
+            # 🔥 Warmup : précharger le modèle en VRAM en arrière-plan
+            # pour éviter la latence de cold-load sur la 1re requête utilisateur.
+            # Skipper si ce modèle a déjà été préchauffé (ex: instances LocalLLM
+            # créées à la volée par les agents pendant une requête utilisateur).
+            if self.model not in LocalLLM._warmed_up_models:
+                LocalLLM._warmed_up_models.add(self.model)
+                import threading as _threading
+                _threading.Thread(target=self._warmup_model, daemon=True).start()
         else:
             print(
                 "⚠️ [LocalLLM] Ollama non détecté. Le mode génératif avancé sera désactivé."
             )
+
+    def _warmup_model(self):
+        """Préchauffe le modèle en VRAM avec un appel minimal (1 token).
+
+        Exécuté en thread au démarrage pour qu'Ollama ait déjà le modèle
+        chargé quand l'utilisateur envoie son premier message.
+        """
+        try:
+            data = {
+                "model": self.model,
+                "prompt": "hi",
+                "stream": False,
+                "keep_alive": "1h",
+                "options": {"num_predict": 1, "temperature": 0.0},
+            }
+            requests.post(self.ollama_url, json=data, timeout=60)
+            print(f"🔥 [LocalLLM] Warmup terminé — modèle '{self.model}' chargé en VRAM")
+        except Exception as exc:
+            print(f"⚠️ [LocalLLM] Warmup échoué (non bloquant) : {exc}")
 
     def _check_model_exists(self, model_name):
         """Vérifie si le modèle existe dans Ollama"""
@@ -276,6 +308,12 @@ class LocalLLM:
 
         full_response = ""
         _thinking_complete_fired = False  # Garantit un seul appel au callback
+
+        # 📊 Mesure TTFT (Time To First Token) pour diagnostiquer la latence
+        import time as _time
+        _ttft_start = _time.time()
+        _ttft_logged = False
+
         try:
             with _resilient_post(
                 self.chat_url, json=data, timeout=self.timeout, stream=True
@@ -297,12 +335,18 @@ class LocalLLM:
                     # dans message.thinking (champ séparé de message.content)
                     thinking_tok = msg.get("thinking", "")
                     if thinking_tok and on_thinking_token:
+                        if not _ttft_logged:
+                            _ttft_logged = True
+                            print(f"⏱️  [TTFT] generate_stream : {_time.time() - _ttft_start:.2f}s avant 1er token (thinking)")
                         if on_thinking_token(thinking_tok) is False:
                             break
                     # Réponse finale : au premier content token, signaler la fin
                     # du thinking pour que le widget passe à « Raisonnement ✓ »
                     token = msg.get("content", "")
                     if token:
+                        if not _ttft_logged:
+                            _ttft_logged = True
+                            print(f"⏱️  [TTFT] generate_stream : {_time.time() - _ttft_start:.2f}s avant 1er token")
                         if not _thinking_complete_fired and on_thinking_complete:
                             _thinking_complete_fired = True
                             on_thinking_complete()
@@ -1002,7 +1046,7 @@ class LocalLLM:
                 "stream": False,
                 "think": False,
                 "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-                "options": {"temperature": 0.3, "num_ctx": 8192, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+                "options": {"temperature": 0.3, "num_ctx": 32768, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
             response = _resilient_post(self.chat_url, json=data, timeout=60)
             if response.status_code == 200:
@@ -1055,7 +1099,6 @@ class LocalLLM:
                 f"🔄 [LocalLLM] Historique tronqué à {len(self.conversation_history)} messages"
             )
 
-    @staticmethod
     @staticmethod
     def _sanitize_vision_response(response_text: str) -> str:
         """Nettoie les amorces contradictoires de refus et les artefacts de traduction."""
