@@ -24,22 +24,30 @@ Contenu principal
 
 ### Gestion du Contexte & Conversation
 
-- `context_manager.py` — Outils pour gérer le contexte long (fenêtre glissante, résumé simple), sauvegarde/chargement de mémoire locale (JSONL) et utilitaires CLI.
 - `conversation.py` — `ConversationManager` : historique des échanges, sessions, sérialisation, et formatage du contexte pour les LLM.
 
 ### Apprentissage & RLHF
 
 - `rlhf_manager.py` — `RLHFManager` : collecte automatique du feedback utilisateur (scores 0-5), détection de patterns succès/échec, statistiques de satisfaction, export des données d'entraînement JSONL. Singleton partagé via `get_rlhf_manager()`.
 - `training_manager.py` — `TrainingManager` : gestion de l'entraînement et du fine-tuning de modèles locaux avec monitoring en temps réel (checkpoints, métriques, export).
-- `training_pipeline.py` — Pipeline d'entraînement/fine-tuning local (chargement dataset, boucles d'entraînement, checkpoints, sauvegarde).
-- `data_preprocessing.py` — Fonctions de nettoyage et pipeline de prétraitement pour datasets (`clean_text`, `load_dataset`, `preprocess_dataset`) pour JSONL et CSV.
 
 ### Monitoring & Évaluation
 
 - `compression_monitor.py` — `CompressionMonitor` : analyse l'efficacité du chunking et de la compression en temps réel. Calcule les ratios de compression par type de contenu, maintient un historique et génère des rapports.
+
+### Pipeline d'entraînement (réservé à un usage futur)
+
+Ces modules sont présents dans le dossier mais **ne sont pas encore câblés** dans le flux applicatif. Ils sont conservés pour un futur pipeline d'entraînement local complet.
+
+- `training_pipeline.py` — Pipeline d'entraînement/fine-tuning local (chargement dataset, boucles d'entraînement, checkpoints, sauvegarde).
+- `data_preprocessing.py` — Fonctions de nettoyage et pipeline de prétraitement pour datasets (`clean_text`, `load_dataset`, `preprocess_dataset`) pour JSONL et CSV.
 - `evaluation.py` — Outils et CLI pour évaluer un modèle local sur un jeu de tests (exact match, precision, recall, F1).
 - `error_analysis.py` — Scripts utilitaires pour analyser erreurs, générer rapports d'évaluation et produire un JSON de rapport.
 - `optimization.py` — Outils CLI pour optimiser des modèles locaux (quantization, pruning, etc.) et loader générique de modèles.
+
+### API REST (réservé à un usage futur)
+
+- `api_server.py` — Serveur FastAPI local exposant l'IA via HTTP/REST. Présent mais **pas encore lancé** par l'application.
 
 ### Infrastructure
 
@@ -78,7 +86,7 @@ Notes et bonnes pratiques
 - **Modèle partagé** : `shared.py` expose le modèle d'embeddings `all-MiniLM-L6-v2` via `get_shared_embedding_model()` pour éviter de le charger plusieurs fois (important pour les performances de démarrage).
 - **Source unique du modèle LLM** : Seul `config.yaml` (clé `llm.local.default_model`) définit le modèle Ollama. Ne pas le dupliquer dans d'autres fichiers.
 - **Sécurité des entrées** : utiliser `validation.py` (Pydantic) pour valider toutes les entrées utilisateur et les arguments d'outils avant de les transmettre au LLM.
-- Les dossiers `outputs/`, `temp/`, `backups/` sont utilisés par défaut pour sauvegarder résultats et fichiers temporaires (voir `config.py` pour les chemins configurables).
+- Le dossier `outputs/` est utilisé par défaut pour sauvegarder les résultats (voir `config.py` pour les chemins configurables).
 - Le code privilégie le fonctionnement 100% local (mode `local_mode` dans `config.py`).
 
 Besoin d'une mise à jour ?

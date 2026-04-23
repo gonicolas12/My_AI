@@ -22,18 +22,20 @@ Le système Ultra de My Personal AI implémente une **mémoire vectorielle inter
 
 ### Composants Clés
 
-#### 1. UltraCustomAI (`models/ultra_custom_ai.py`)
+#### 1. CustomAIModel (`models/custom_ai_model.py`)
+
+Le modèle principal intègre directement le support 10M tokens via `VectorMemory`. L'accès à la mémoire étendue se fait par l'attribut `context_manager` dès que le mode ultra est actif.
+
 ```python
-from models.ultra_custom_ai import UltraCustomAIModel
 from core.ai_engine import AIEngine
 
-# Initialisation Ultra
-base_engine = AIEngine()
-ultra_ai = UltraCustomAIModel(base_engine)
+# Initialisation — le support 10M tokens est activé automatiquement
+engine = AIEngine()
+response = engine.process_query("Analyse ce projet complet")
 
-# Génération avec contexte étendu
-response = ultra_ai.generate_response("Analyse ce projet complet")
-print(response['ultra_stats'])  # Statistiques 10M tokens
+# Statistiques de mémoire vectorielle
+stats = engine.local_ai.context_manager.get_stats()
+print(f"Tokens en mémoire : {stats['current_tokens']:,} / {stats['max_tokens']:,}")
 ```
 
 #### 2. VectorMemory (`memory/vector_memory.py`)
@@ -61,8 +63,6 @@ results = vector_mem.search_similar("ma requête", limit=10)
 stats = vector_mem.get_stats()
 print(f"Tokens en mémoire : {stats['current_tokens']:,} / 10,485,760")
 ```
-
-> **Note** : Dans `models/ultra_custom_ai.py`, `VectorMemory` est importé sous l'alias `MillionTokenContextManager` pour la compatibilité interne.
 
 ## ⚡ Performances et Optimisations
 
@@ -156,17 +156,17 @@ export ULTRA_SEARCH_ALGO="tfidf_cosine"
 
 ### Métriques Temps Réel
 ```python
-from models.ultra_custom_ai import UltraCustomAIModel
+from memory.vector_memory import VectorMemory
 
-ultra_ai = UltraCustomAIModel()
-stats = ultra_ai.get_context_stats()
+memory = VectorMemory(max_tokens=10_485_760)
+stats = memory.get_stats()
 
 print(f"""
 🚀 STATISTIQUES MÉMOIRE VECTORIELLE :
-   📊 Tokens en mémoire interne : {stats['current_tokens']:,} / {stats['max_context_length']:,}
+   📊 Tokens en mémoire interne : {stats['current_tokens']:,} / {stats['max_tokens']:,}
    ⚠️  Fenêtre LLM effective (Ollama) : 32 768 tokens (principal), 8 192 (appels simples), 4 096 (vision)
-   📄 Documents traités : {stats['documents_processed']}
-   🧩 Chunks créés : {stats['chunks_created']}
+   📄 Documents traités : {stats.get('documents_processed', 'N/A')}
+   🧩 Chunks créés : {stats.get('chunks_created', 'N/A')}
    🗜️  Ratio compression : {stats.get('compression_ratio', 'N/A')}
    ⚡ Temps recherche moyen : {stats.get('avg_search_time_ms', 'N/A')} ms
    💾 Taille DB : {stats.get('database_size_mb', 'N/A')} MB

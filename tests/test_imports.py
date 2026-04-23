@@ -23,7 +23,6 @@ def test_imports():
         ("core.ai_engine", "AIEngine"),
         ("models.custom_ai_model", "CustomAIModel"),
         ("models.conversation_memory", "ConversationMemory"),
-        ("models.ultra_custom_ai", "UltraCustomAIModel"),
         ("models.advanced_code_generator", "AdvancedCodeGenerator"),
         ("interfaces.gui_modern", "ModernAIGUI"),
         ("generators.document_generator", "DocumentGenerator"),

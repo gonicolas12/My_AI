@@ -66,9 +66,8 @@ class ConversationResponseMixin:
 
 ⚡ **Architecture modulaire :**
 • `LinguisticPatterns` : NLP et détection d'intentions
-• `KnowledgeBase` : Base de connaissances structurée  
+• `KnowledgeBase` : Base de connaissances structurée
 • `CodeGenerator` : Génération multi-langages optimisée
-• `ReasoningEngine` : Moteur d'inférence logique
 • `ConversationMemory` : Mémoire contextuelle persistante
 • `InternetSearch` : Requêtes web avec parsing intelligent
 

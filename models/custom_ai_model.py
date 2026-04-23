@@ -27,8 +27,6 @@ from .internet_search import InternetSearchEngine
 from .knowledge_base import KnowledgeBase
 from .linguistic_patterns import LinguisticPatterns
 from .local_llm import LocalLLM
-from .reasoning_engine import ReasoningEngine
-
 # Import du calculateur intelligent
 try:
     from utils.intelligent_calculator import intelligent_calculator
@@ -115,7 +113,6 @@ class CustomAIModel(
         self.knowledge_base = KnowledgeBase()
         self.code_generator = CodeGenerator()
         self.web_code_searcher = multi_source_searcher
-        self.reasoning_engine = ReasoningEngine()
         self.conversation_memory = conversation_memory or ConversationMemory()
         self.internet_search = InternetSearchEngine()
         self.ml_model = MLFAQModel()  # Instance unique, données chargées au 1er predict()
@@ -211,7 +208,7 @@ class CustomAIModel(
             ],
             "detailed": [
                 "Mes capacités principales sont :\n- Génération de code (Python, JavaScript, HTML/CSS, etc.)\n- Explication de concepts techniques\n- Analyse linguistique et détection d'intentions\n- Raisonnement logique et résolution de problèmes\n- Mémoire de conversation persistante\n- Fonctionnement 100% local sans dépendances externes",
-                "Je possède plusieurs modules spécialisés :\n• CodeGenerator : pour créer du code dans différents langages\n• KnowledgeBase : pour stocker et récupérer des connaissances\n• LinguisticPatterns : pour comprendre vos messages\n• ReasoningEngine : pour le raisonnement et la logique\n• ConversationMemory : pour mémoriser nos échanges\n\nTout fonctionne en local !",
+                "Je possède plusieurs modules spécialisés :\n• CodeGenerator : pour créer du code dans différents langages\n• KnowledgeBase : pour stocker et récupérer des connaissances\n• LinguisticPatterns : pour comprendre vos messages\n• ConversationMemory : pour mémoriser nos échanges\n\nTout fonctionne en local !",
             ],
         }
 
@@ -1333,7 +1330,6 @@ class CustomAIModel(
                 "LinguisticPatterns",
                 "KnowledgeBase",
                 "CodeGenerator",
-                "ReasoningEngine",
                 "ConversationMemory",
             ],
             "features": [

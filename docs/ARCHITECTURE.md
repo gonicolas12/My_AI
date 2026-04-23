@@ -81,10 +81,10 @@ My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Réponses naturelles      │  • Réponses contextuelles              │
 │  • 100% confidentiel        │  • Patterns et règles                  │
 ├─────────────────────────────┴────────────────────────────────────────┤
-│  UltraCustomAI (10M tokens) │  LocalLLM (Gestionnaire Ollama)        │
-│  • Extend CustomAI          │  • Vérification disponibilité          │
+│  VectorMemory (10M tokens)  │  LocalLLM (Gestionnaire Ollama)        │
+│  • Mémoire vectorielle      │  • Vérification disponibilité          │
 │  • Ultra-large context      │  • Fallback automatique                │
-│  • Advanced processors      │  • Modèle personnalisable (Modelfile)  │
+│  • Processeurs avancés      │  • Modèle personnalisable (Modelfile)  │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -112,12 +112,11 @@ My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire 
 │                         │   - Général                                │
 │                         │   - Exemples                               │
 ├─────────────────────────┴────────────────────────────────────────────┤
-│ ReasoningEngine         │ KnowledgeBase                              │
-│ • Opérateurs logiques   │ • Programmation (Python, web, data)        │
-│ • Chaînes raisonnement  │ • Web dev (frontend, backend)              │
-│ • Stratégies résolution │ • Mathématiques                            │
-│                         │ • Sciences                                 │
-│                         │ • Connaissances générales                  │
+│ KnowledgeBase                                                        │
+│ • Programmation (Python, web, data)                                  │
+│ • Web dev (frontend, backend)                                        │
+│ • Mathématiques / Sciences                                           │
+│ • Connaissances générales                                            │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -375,15 +374,6 @@ ConversationManager:
 └─ Format échanges (input + response)
 ```
 
-**`core/context_manager.py`** - Contexte basique
-```python
-Features:
-├─ Fenêtre glissante (2048 tokens)
-├─ Résumé automatique
-├─ Persistance JSONL
-└─ Base pour VectorMemory
-```
-
 **RLHF et Training**
 ```python
 core/rlhf_manager.py:
@@ -489,7 +479,6 @@ Architecture:
 ├─ LinguisticPatterns (détection intentions)
 ├─ KnowledgeBase (domaines expertise)
 ├─ AdvancedCodeGenerator (multi-sources)
-├─ ReasoningEngine (logique)
 ├─ ConversationMemory (persistance)
 ├─ InternetSearchEngine (DuckDuckGo + Météo)
 ├─ ML FAQ Model (TF-IDF)
@@ -503,16 +492,6 @@ Capacités clés:
 ├─ Météo temps réel (wttr.in)
 ├─ Mode ultra 10M tokens
 └─ Intégration processeurs avancés
-```
-
-**`models/ultra_custom_ai.py`** - Extension 10M tokens
-```python
-Features:
-├─ Hérite de CustomAIModel
-├─ Contexte ultra-large (10,485,760 tokens)
-├─ Stockage et retrieval documents
-├─ Processing par chunks
-└─ Initialisation processeurs avancés
 ```
 
 **`memory/vector_memory.py`** - Mémoire Vectorielle
@@ -634,15 +613,6 @@ Configuration Modelfile:
 ├─ Temperature: 0.7
 ├─ Context window: 32768 tokens
 └─ System prompt personnalisé français
-```
-
-**`models/reasoning_engine.py`** - Raisonnement logique
-```python
-Composants:
-├─ Opérateurs logiques (and, or, not, if-then)
-├─ Types questions (what, how, why, when, where, who)
-├─ Chaînes raisonnement (cause-effet, comparaison)
-└─ Stratégies résolution problèmes
 ```
 
 **`models/internet_search.py`** - Moteur recherche
@@ -982,11 +952,6 @@ utils/logger.py:
 ├─ Niveaux multiples
 └─ Output fichier + console
 
-utils/validators.py:
-├─ Vérification types données
-├─ Validation format
-└─ Contrôle bornes
-
 utils/intelligent_calculator.py:
 ├─ Évaluation expressions
 ├─ Opérations mathématiques
@@ -1168,10 +1133,10 @@ data/
 │   ├── enrichissement_informatique.jsonl  # Priorité 2
 │   ├── enrichissement_général.jsonl       # Priorité 3
 │   └── enrichissement_exemples.jsonl      # Priorité 4
-├── context_storage/        # (Legacy - remplacé par vector_store)
+├── knowledge_base/         # Base de faits (SQLite)
+├── web_cache/              # Cache des recherches web
+├── workspaces/             # Espaces de travail sauvegardés
 ├── outputs/                # Documents/code générés
-├── temp/                   # Fichiers temporaires
-├── backups/                # Sauvegardes
 └── logs/                   # Logs application
 
 memory/

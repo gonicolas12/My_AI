@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from .custom_ai_model import AdvancedLocalAI, CustomAIModel
     from .knowledge_base import KnowledgeBase
     from .linguistic_patterns import LinguisticPatterns
-    from .reasoning_engine import ReasoningEngine
 
 __all__ = [
     'CustomAIModel',
@@ -29,7 +28,6 @@ __all__ = [
     'LinguisticPatterns',
     'KnowledgeBase',
     'CodeGenerator',
-    'ReasoningEngine',
     'ConversationMemory'
 ]
 
@@ -41,7 +39,6 @@ _LAZY_IMPORTS = {
     'ConversationMemory': ('.conversation_memory', 'ConversationMemory'),
     'KnowledgeBase': ('.knowledge_base', 'KnowledgeBase'),
     'LinguisticPatterns': ('.linguistic_patterns', 'LinguisticPatterns'),
-    'ReasoningEngine': ('.reasoning_engine', 'ReasoningEngine'),
     'CodeGenerator': ('.advanced_code_generator', 'AdvancedCodeGenerator'),
 }
 

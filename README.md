@@ -12,7 +12,7 @@
 
 *Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
 
-[🚀 Démarrage rapide](#-démarrage-rapide) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [📡 My_AI Relay](#-my_ai-relay--accès-mobile) · [📖 Documentation](#-documentation-complète) 
+[🚀 Démarrage rapide](#-démarrage-rapide) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [📡 My_AI Relay](#-my_ai-relay--accès-mobile) · [📖 Documentation](#-documentation-complète)
 
 </div>
 
@@ -171,17 +171,16 @@ my_ai/
 │   ├── command_history.py               # Historique des commandes utilisateur
 │   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
 │   ├── config.py                        # Gestion de la configuration
-│   ├── context_manager.py               # Gestion de contexte long
 │   ├── conversation_exporter.py         # Export conversations (MD/HTML/PDF)
 │   ├── conversation.py                  # Gestion des conversations
 │   ├── data_preprocessing.py            # Prétraitement des données
 │   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
-│   ├── evaluation.py                    # Évaluation des performances et métriques
+│   ├── evaluation.py                    # Évaluation des performances
 │   ├── knowledge_base_manager.py        # Base de connaissances structurée
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── network.py                       # Gestion des connexions réseau et proxys
-│   ├── optimization.py                  # Optimisation des performances et ressources
+│   ├── optimization.py                  # Optimisation des performances
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── session_manager.py               # Gestionnaire de workspaces/sessions
 │   ├── shared.py                        # Modules partagés
@@ -193,8 +192,7 @@ my_ai/
 │   ├── enrichissement/                  # FAQ thématiques
 │   ├── knowledge_base/                  # Base de faits (SQLite)
 │   ├── web_cache/                       # Cache des recherches web
-│   ├── workspaces/                      # Espaces de travail sauvegardés
-│   └── data_collection.py               # Script de structuration des données
+│   └── workspaces/                      # Espaces de travail sauvegardés
 ├── docs/                                # Documentations
 ├── examples/                            # Exemples d'utilisation
 │   └── advanced_features_demo.py        # Démonstration des fonctionnalités avancées
@@ -262,10 +260,8 @@ my_ai/
 │   ├── local_llm.py                     # Gestionnaire Ollama (détection + fallback)
 │   ├── ml_faq_model.py                  # FAQ avec ML et fuzzy matching
 │   ├── real_web_code_generator.py       # Générateur de Code Basé sur Recherche Web Pure
-│   ├── reasoning_engine.py              # Moteur de raisonnement logique
 │   ├── smart_code_searcher.py           # Recherche de code intelligente
-│   ├── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
-│   └── ultra_custom_ai.py               # Modèle ULTRA
+│   └── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
 ├── outputs/                             # Fichiers générés par l'IA
 │   └── exports/                         # Conversations exportées (MD/HTML/PDF)
 ├── processors/                          # Processeurs de fichiers
@@ -283,21 +279,21 @@ my_ai/
 │       ├── style.css                    # Styles de l'interface mobile
 │       └── app.js                       # Logique WebSocket et chat
 ├── tests/                               # Tests unitaires
-├── tools/                               # Outils
-├── turboquant/                          # Modules d'optimisation et de quantification
+├── tools/                               # Outils (cloudflared pour le Relay)
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
 │   ├── file_manager.py                  # Gestion fichiers
 │   ├── file_processor.py                # Gestion traitement fichiers
 │   ├── intelligent_calculator.py        # Calculateur intelligent
-│   ├── logger.py                        # Gestion des logs
-│   └── validators.py                    # Validateurs et utilitaires divers
-├── main.py                              # Point d'entrée principal
+│   └── logger.py                        # Gestion des logs
+├── main.py                              # Point d'entrée principal (CLI)
+├── launch_unified.py                    # Point d'entrée GUI (lancé par launch.bat)
 ├── Modelfile                            # Configuration modèle Ollama
 ├── requirements.txt                     # Dépendances
 ├── launch.bat                           # Script pour lancer le programme
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
 ├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
+├── test_features.bat                    # Script de test des fonctionnalités avancées
 └── config.yaml                          # Configuration
 ```
 
