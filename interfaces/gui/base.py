@@ -618,15 +618,22 @@ class BaseGUI:
                 return
 
             qr_canvas.delete("all")
-            qr = qrcode.QRCode(version=1, box_size=1, border=2,
-                                error_correction=qrcode.constants.ERROR_CORRECT_M)
+            # ERROR_CORRECT_L (7%) au lieu de M (15%) pour réduire la
+            # densité — l'URL pointe vers une page HTTPS de redirection,
+            # un QR moins corrigé reste largement assez fiable et nettement
+            # plus facile à scanner sur écran vu la taille (200 px).
+            # border=4 = silence margin recommandée par la spec QR : un
+            # bord trop court empêche certains scanners de détecter les
+            # patterns de coin (problème observé sur iOS).
+            qr = qrcode.QRCode(version=None, box_size=1, border=4,
+                                error_correction=qrcode.constants.ERROR_CORRECT_L)
             qr.add_data(url)
             qr.make(fit=True)
             matrix = qr.get_matrix()
             rows = len(matrix)
             if rows == 0:
                 return
-            cell_size = min(200 // rows, 8)
+            cell_size = max(1, 200 // rows)
             offset_x = (200 - rows * cell_size) // 2
             offset_y = (200 - rows * cell_size) // 2
 
@@ -644,10 +651,13 @@ class BaseGUI:
         # Le QR encode désormais l'URL de la page de routage GitHub Pages,
         # qui contient les URLs de tous les tunnels actifs et bascule
         # automatiquement vers le premier joignable côté téléphone.
-        # On redessine le QR dès qu'un nouveau tunnel devient actif (pour
-        # ne pas servir un QR avec un seul tunnel si les autres arrivent
-        # plus tard).
-        _last_qr_signature = [""]
+        # Stratégie de redessin : on attend que la liste des tunnels soit
+        # stable pendant un cycle (≈2s sans nouveau tunnel) avant de
+        # redessiner le QR. Évite que le téléphone scanne pendant qu'un
+        # autre tunnel est en train de s'ajouter (la taille du QR change
+        # à chaque ajout d'URL, ce qui rend le scan instable).
+        _last_drawn_signature = [""]
+        _pending_signature = [""]
 
         def _refresh_popup():
             if not popup.winfo_exists():
@@ -658,7 +668,6 @@ class BaseGUI:
             try:
                 live_tunnels = server.tunnel_urls  # dict provider -> url
             except AttributeError:
-                # Backward-compat si tunnel_urls n'existe pas (vieille API)
                 fallback = server.tunnel_url
                 live_tunnels = {"tunnel": fallback} if fallback else {}
 
@@ -673,16 +682,21 @@ class BaseGUI:
                 )
                 url_display = relay_url if len(relay_url) < 60 else relay_url[:57] + "..."
                 url_label.configure(text=url_display)
-                # Redessiner le QR si la liste des tunnels a changé
+                # Redessin debouncé : on ne redessine que si la signature
+                # actuelle est identique à celle du tour précédent (i.e.
+                # rien n'a changé depuis 2s) ET différente du QR déjà
+                # dessiné. Permet aux 3 providers de remonter avant de
+                # geler le QR.
                 signature = "|".join(sorted(live_tunnels.values()))
-                if signature != _last_qr_signature[0]:
+                if (
+                    signature == _pending_signature[0]
+                    and signature != _last_drawn_signature[0]
+                ):
                     _draw_qr_on_canvas(relay_url)
-                    _last_qr_signature[0] = signature
+                    _last_drawn_signature[0] = signature
                     _qr_drawn[0] = True
+                _pending_signature[0] = signature
             else:
-                # Aucun tunnel encore prêt : afficher l'URL locale comme
-                # repli informatif (utile si le PC et le téléphone sont
-                # sur le même réseau).
                 local_url = f"http://localhost:{server.port}?token={t}"
                 current_url["value"] = local_url
                 status_label.configure(
@@ -695,7 +709,6 @@ class BaseGUI:
                 text=f"📱 {clients} appareil(s) connecté(s)"
             )
 
-            # Continuer le refresh tant que la popup est ouverte
             popup.after(2000, _refresh_popup)
 
         # Lancer le premier refresh immédiatement

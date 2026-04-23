@@ -923,12 +923,20 @@ class RelayServer:
         provider: str,
         cmd: List[str],
         url_pattern: str,
+        line_must_contain: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
     ) -> None:
         """Lance un sous-processus de tunnel et parse son URL en arrière-plan.
 
         Le sous-processus est arrêté automatiquement par _stop_tunnel().
-        L'URL est extraite de stdout+stderr via la regex `url_pattern`.
+        L'URL est extraite via la regex `url_pattern`. Si `line_must_contain`
+        est fourni, seules les lignes contenant cette sous-chaîne (case-
+        insensitive) sont scannées — utile pour ignorer les bannières SSH
+        (serveo affiche `console.serveo.net` dans son MOTD avant d'annoncer
+        la vraie URL avec `Forwarding HTTP traffic from ...`).
+
+        La première URL valide trouvée verrouille le provider : les
+        occurrences suivantes (autres bannières, reconnects) sont ignorées.
         """
         try:
             proc = subprocess.Popen(
@@ -952,14 +960,20 @@ class RelayServer:
 
         def _reader():
             compiled = re.compile(url_pattern)
+            keyword = line_must_contain.lower() if line_must_contain else None
             try:
                 if proc.stdout is None:
                     return
                 for line in proc.stdout:
+                    # Ignorer si on a déjà capté l'URL pour ce provider
+                    with self._tunnel_urls_lock:
+                        if self._tunnel_urls.get(provider):
+                            continue
+                    if keyword and keyword not in line.lower():
+                        continue
                     match = compiled.search(line)
                     if match:
                         self._set_tunnel_url(provider, match.group(0))
-                        # Continuer à drainer pour éviter de bloquer le pipe
             except Exception as e:
                 logger.debug("Lecture sortie tunnel %s : %s", provider, e)
 
@@ -1019,6 +1033,10 @@ class RelayServer:
             provider="serveo",
             cmd=cmd,
             url_pattern=r"https://[a-z0-9-]+\.serveo\.net",
+            # Évite de capturer "console.serveo.net" présent dans la
+            # bannière MOTD : on attend la ligne "Forwarding HTTP traffic
+            # from https://...serveo.net" qui annonce la vraie URL.
+            line_must_contain="forwarding",
         )
         logger.info("Tunnel serveo en cours de démarrage...")
 
@@ -1042,14 +1060,18 @@ class RelayServer:
         self._spawn_tunnel(
             provider="localhost.run",
             cmd=cmd,
-            # localhost.run attribue généralement *.lhr.life (legacy: *.localhost.run)
-            url_pattern=r"https://[a-z0-9-]+\.(?:lhr\.life|localhost\.run)",
+            # localhost.run attribue *.lhr.life pour les tunnels anonymes.
+            # On exclut volontairement "*.localhost.run" pour éviter de
+            # capter "admin.localhost.run" présent dans la bannière MOTD.
+            url_pattern=r"https://[a-z0-9-]+\.lhr\.life",
+            # La vraie ligne contient "tunneled with tls termination".
+            line_must_contain="tunneled",
         )
         logger.info("Tunnel localhost.run en cours de démarrage...")
 
     def _stop_tunnel(self) -> None:
         """Arrête tous les tunnels actifs."""
-        for provider, proc in list(self._tunnel_processes.items()):
+        for _, proc in list(self._tunnel_processes.items()):
             try:
                 proc.terminate()
                 proc.wait(timeout=5)
