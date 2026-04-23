@@ -641,34 +641,55 @@ class BaseGUI:
                         )
 
         # ── Auto-refresh : met à jour l'URL/QR/statut toutes les 2s ──
+        # Le QR encode désormais l'URL de la page de routage GitHub Pages,
+        # qui contient les URLs de tous les tunnels actifs et bascule
+        # automatiquement vers le premier joignable côté téléphone.
+        # On redessine le QR dès qu'un nouveau tunnel devient actif (pour
+        # ne pas servir un QR avec un seul tunnel si les autres arrivent
+        # plus tard).
+        _last_qr_signature = [""]
+
         def _refresh_popup():
             if not popup.winfo_exists():
                 return
 
-            tunnel = server.tunnel_url
             t = server.auth_token
             clients = server.bridge.connected_clients
+            try:
+                live_tunnels = server.tunnel_urls  # dict provider -> url
+            except AttributeError:
+                # Backward-compat si tunnel_urls n'existe pas (vieille API)
+                fallback = server.tunnel_url
+                live_tunnels = {"tunnel": fallback} if fallback else {}
 
-            if tunnel and "trycloudflare" in str(tunnel):
-                full = f"{tunnel}?token={t}"
-                current_url["value"] = full
-                status_label.configure(text="Tunnel actif", fg="#10b981")
-                url_display = full if len(full) < 60 else full[:57] + "..."
-                url_label.configure(text=url_display)
-                # Dessiner le QR code une fois le tunnel prêt
-                if not _qr_drawn[0]:
-                    _draw_qr_on_canvas(full)
-                    _qr_drawn[0] = True
-            elif tunnel and tunnel.startswith("http://localhost"):
-                current_url["value"] = f"{tunnel}?token={t}"
+            relay_url = server.relay_url
+
+            if relay_url and live_tunnels:
+                current_url["value"] = relay_url
+                providers_str = ", ".join(sorted(live_tunnels.keys()))
                 status_label.configure(
-                    text="Réseau local uniquement (tunnel en attente...)",
-                    fg="#f59e0b"
+                    text=f"Tunnels actifs : {providers_str}",
+                    fg="#10b981",
                 )
-                url_label.configure(text=current_url["value"])
+                url_display = relay_url if len(relay_url) < 60 else relay_url[:57] + "..."
+                url_label.configure(text=url_display)
+                # Redessiner le QR si la liste des tunnels a changé
+                signature = "|".join(sorted(live_tunnels.values()))
+                if signature != _last_qr_signature[0]:
+                    _draw_qr_on_canvas(relay_url)
+                    _last_qr_signature[0] = signature
+                    _qr_drawn[0] = True
             else:
-                status_label.configure(text="Tunnel en cours de connexion...",
-                                       fg="#f59e0b")
+                # Aucun tunnel encore prêt : afficher l'URL locale comme
+                # repli informatif (utile si le PC et le téléphone sont
+                # sur le même réseau).
+                local_url = f"http://localhost:{server.port}?token={t}"
+                current_url["value"] = local_url
+                status_label.configure(
+                    text="Tunnels en cours de connexion...",
+                    fg="#f59e0b",
+                )
+                url_label.configure(text=local_url)
 
             clients_label.configure(
                 text=f"📱 {clients} appareil(s) connecté(s)"

@@ -1221,8 +1221,8 @@ My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS o
 #### Démarrage
 
 1. Cliquez sur le bouton **📡 Relay** dans la **barre latérale gauche** de l'interface (visible en permanence, y compris sur l'écran d'accueil)
-2. My_AI Relay démarre un serveur WebSocket local et ouvre un **tunnel cloudflared** sécurisé
-3. Un **QR code** s'affiche dans le panneau Relay — scannez-le avec votre téléphone
+2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared, serveo, localhost.run) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics
+3. Un **QR code** s'affiche dans le panneau Relay — scannez-le avec votre téléphone. Le QR pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui ping tous les tunnels et redirige automatiquement vers le premier joignable
 4. Si un **mot de passe** est configuré (section `relay.password` dans `config.yaml`), entrez-le sur la page de login mobile ; sinon l'accès est direct via le QR code
 5. Chattez depuis votre mobile — les messages arrivent en temps réel sur le PC et la réponse s'affiche sur les deux écrans simultanément
 
@@ -1266,12 +1266,22 @@ relay:
   response_timeout: 500   # Délai max de réponse IA (secondes)
   password: ""            # Mot de passe (vide = token aléatoire, change à chaque redémarrage)
   tunnel: true            # false = réseau local uniquement (sans accès externe)
+  tunnel_providers:       # Providers de tunnel à démarrer en parallèle
+    - "cloudflared"       #   *.trycloudflare.com (auto-téléchargé)
+    - "serveo"            #   *.serveo.net (via SSH, anonyme)
+    - "localhost.run"     #   *.lhr.life (via SSH, anonyme)
   host: "0.0.0.0"         # Écoute sur toutes les interfaces réseau
 ```
 
+> **Pourquoi plusieurs providers ?** Certains opérateurs mobiles (notamment en 5G) filtrent au niveau DNS les domaines des tunnels publics éphémères (`*.trycloudflare.com` est le plus filtré). En lançant 3 tunnels en parallèle sur 3 domaines différents, le téléphone peut toujours en joindre au moins un. Si vous savez que votre opérateur ne filtre rien, vous pouvez ne garder qu'un provider pour économiser un peu de bande passante : `tunnel_providers: ["cloudflared"]`.
+
+#### Page de routage GitHub Pages (forkers du projet)
+
+Le QR code encode une URL de la forme `https://gonicolas12.github.io/My_AI/router.html#d=<base64>` — la page de routage est servie depuis le **GitHub Pages du repo officiel**. Si vous **forkez** le projet et changez l'URL dans `relay/relay_server.py` (constante `_ROUTER_PAGE_URL`), pensez à activer GitHub Pages sur **votre fork** : Settings → Pages → Source = `Deploy from a branch` → Branch = `main` / `/docs` → Save. Les utilisateurs en aval n'ont rien à configurer : ils clonent et ça marche.
+
 #### Accès réseau local (sans tunnel)
 
-Si cloudflared est indisponible ou si `tunnel: false`, le Relay reste accessible sur votre réseau local :
+Si tous les providers sont indisponibles ou si `tunnel: false`, le Relay reste accessible sur votre réseau local :
 
 ```
 http://<IP_de_votre_PC>:8765?token=<votre_token>
@@ -1285,8 +1295,9 @@ L'URL et le token sont affichés dans le panneau Relay de l'interface.
 |---|---|
 | **Token de session** | Généré aléatoirement à chaque démarrage (si pas de mot de passe) |
 | **Token permanent** | Dérivé du mot de passe via SHA-256 (reproductible entre sessions) |
-| **Tunnel HTTPS** | cloudflared chiffre tout le trafic externe (TLS automatique) |
-| **Aucune donnée cloud** | Le tunnel est juste un relais chiffré — vos données restent sur votre PC |
+| **Tunnel HTTPS** | Tous les providers (cloudflared/serveo/localhost.run) chiffrent en TLS de bout en bout |
+| **Token hors-serveur** | Le token est dans le **fragment** de l'URL de routage (`#d=...`) — il n'est jamais transmis au serveur GitHub Pages, seulement traité localement par le navigateur |
+| **Aucune donnée cloud** | Les tunnels ne sont que des relais chiffrés — vos données restent sur votre PC |
 
 ### ⚠️ Confirmation de Suppression MCP
 

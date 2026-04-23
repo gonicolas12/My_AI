@@ -367,10 +367,23 @@ relay:
   # Mot de passe pour l'authentification mobile
   # Si vide, un token aléatoire sera généré à chaque démarrage
   password: ""
-  # Activer le tunnel cloudflared pour l'accès hors réseau local
-  # Nécessite cloudflared installé (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-  # ou cloudflared.exe dans le dossier tools/
+  # Activer le tunnel pour l'accès hors réseau local.
+  # Si true, démarre tous les providers listés dans tunnel_providers
+  # en parallèle. Le QR code redirige le téléphone vers le premier
+  # tunnel joignable via une page de routage GitHub Pages.
   tunnel: true
+  # Liste des providers de tunnel à démarrer en parallèle. Plusieurs
+  # providers garantissent qu'au moins un est joignable même si un
+  # opérateur mobile filtre certains domaines (ex. *.trycloudflare.com
+  # bloqué chez certains MVNO 5G en France).
+  #   - "cloudflared"    : *.trycloudflare.com (auto-téléchargé dans tools/)
+  #   - "serveo"         : *.serveo.net (via SSH, anonyme)
+  #   - "localhost.run"  : *.lhr.life (via SSH, anonyme)
+  # Pour ne garder qu'un seul provider : tunnel_providers: ["cloudflared"]
+  tunnel_providers:
+    - "cloudflared"
+    - "serveo"
+    - "localhost.run"
   # Adresse d'écoute (0.0.0.0 = toutes les interfaces)
   host: "0.0.0.0"
 

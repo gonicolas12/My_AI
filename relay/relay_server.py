@@ -3,10 +3,13 @@ Relay Server - Serveur FastAPI avec WebSocket pour l'accès mobile.
 
 Expose une interface web mobile-friendly et un endpoint WebSocket
 pour la communication en temps réel avec My_AI depuis un téléphone.
-Gère l'authentification par token et le tunnel cloudflared.
+Gère l'authentification par token et plusieurs tunnels en parallèle
+(cloudflared + serveo + localhost.run) avec failover client-side via
+une page de routage statique hébergée sur GitHub Pages.
 """
 
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -29,6 +32,11 @@ from core.config import get_config
 from utils.logger import setup_logger
 
 from .relay_bridge import RelayBridge, RelayMessage
+
+# Page de routage statique (GitHub Pages) qui ping les tunnels côté client
+# et redirige vers le premier vivant. Évite que le téléphone soit bloqué
+# si l'un des providers est filtré par l'opérateur mobile.
+_ROUTER_PAGE_URL = "https://gonicolas12.github.io/My_AI/router.html"
 
 # Extensions acceptées pour l'upload mobile (doivent correspondre
 # aux processeurs supportés côté GUI dans file_handling.py)
@@ -118,9 +126,24 @@ class RelayServer:
         self._running: bool = False
         self._start_time: Optional[float] = None
 
-        # Tunnel cloudflared
-        self._tunnel_process: Optional[subprocess.Popen] = None
-        self._tunnel_url: Optional[str] = None
+        # Tunnels actifs : un sous-processus + une URL publique par provider.
+        # Plusieurs providers tournent en parallèle pour qu'au moins un soit
+        # joignable même si l'opérateur mobile en filtre certains (ex.
+        # *.trycloudflare.com bloqué par certains MVNO 5G).
+        self._tunnel_processes: Dict[str, subprocess.Popen] = {}
+        self._tunnel_urls: Dict[str, str] = {}
+        self._tunnel_urls_lock = threading.Lock()
+        # Liste des providers à activer. Personnalisable via config.yaml :
+        #   relay.tunnel_providers: ["cloudflared", "serveo", "localhost.run"]
+        raw_providers = config.get(
+            "tunnel_providers",
+            ["cloudflared", "serveo", "localhost.run"],
+        )
+        if isinstance(raw_providers, str):
+            raw_providers = [raw_providers]
+        self._tunnel_provider_names: List[str] = [
+            p.strip().lower() for p in raw_providers if p and p.strip()
+        ] or ["cloudflared"]
 
         # WebSocket clients connectés
         self._ws_clients: List[WebSocket] = []
@@ -163,8 +186,28 @@ class RelayServer:
 
     @property
     def tunnel_url(self) -> Optional[str]:
-        """Retourne l'URL publique du tunnel cloudflared ou None si non disponible."""
-        return self._tunnel_url
+        """Retourne la première URL de tunnel publique disponible (compat).
+
+        Pour la liste complète des tunnels actifs (un par provider), utiliser
+        `tunnel_urls`. Cette propriété est conservée pour la rétrocompat
+        avec l'ancienne popup GUI et le code externe.
+        """
+        with self._tunnel_urls_lock:
+            for name in self._tunnel_provider_names:
+                url = self._tunnel_urls.get(name)
+                if url:
+                    return url
+            # Fallback : n'importe quelle URL connue (ordre indéterminé)
+            for url in self._tunnel_urls.values():
+                if url:
+                    return url
+        return None
+
+    @property
+    def tunnel_urls(self) -> Dict[str, str]:
+        """Retourne un snapshot des URLs publiques actives par provider."""
+        with self._tunnel_urls_lock:
+            return dict(self._tunnel_urls)
 
     @property
     def auth_token(self) -> str:
@@ -173,10 +216,20 @@ class RelayServer:
 
     @property
     def relay_url(self) -> Optional[str]:
-        """URL complète pour accéder au Relay (avec token)."""
-        if self._tunnel_url:
-            return f"{self._tunnel_url}?token={self._auth_token}"
-        return None
+        """URL complète pour accéder au Relay (page de routage + tunnels + token).
+
+        Renvoie l'URL de la page de routage GitHub Pages, qui pinge tous
+        les tunnels publiés et redirige vers le premier joignable. Cette
+        URL est ce qui est encodé dans le QR code : un seul scan, failover
+        automatique côté client.
+        """
+        with self._tunnel_urls_lock:
+            urls = [u for u in self._tunnel_urls.values() if u]
+        if not urls:
+            return None
+        payload = json.dumps({"urls": urls, "token": self._auth_token})
+        encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+        return f"{_ROUTER_PAGE_URL}#d={encoded}"
 
     @property
     def port(self) -> int:
@@ -371,6 +424,17 @@ class RelayServer:
                 "engine_ready": server.ai_engine is not None,
                 "connected_clients": len(server.ws_clients),
             }
+
+        # =================================================================
+        # GET /api/tunnels — Liste des tunnels publics actuellement actifs
+        # (utilisé par la page de routage GitHub Pages pour faire le ping
+        # côté client et choisir un endpoint vivant). Pas authentifié : la
+        # liste contient juste des URLs déjà publiques.
+        # =================================================================
+
+        @app.get("/api/tunnels")
+        async def tunnels():
+            return {"tunnels": server.tunnel_urls}
 
         # =================================================================
         # GET /api/history — Historique de la conversation
@@ -822,89 +886,181 @@ class RelayServer:
             self._running = False
 
     # ------------------------------------------------------------------
-    # Tunnel cloudflared
+    # Tunnels publics (multi-provider, en parallèle)
     # ------------------------------------------------------------------
 
     def _start_tunnel(self) -> None:
-        """Démarre un tunnel cloudflared pour exposer le serveur."""
-        # Chercher cloudflared dans le PATH ou dans le répertoire tools/
-        cf_path = shutil.which("cloudflared")
-        if not cf_path:
-            tools_path = Path(__file__).parent.parent / "tools" / "cloudflared.exe"
-            if tools_path.exists():
-                cf_path = str(tools_path)
+        """Démarre tous les providers de tunnel configurés en parallèle.
 
-        if not cf_path:
-            # Tenter le téléchargement automatique
-            cf_path = self._download_cloudflared()
+        Chaque provider tourne dans son propre sous-processus et publie
+        son URL via _set_tunnel_url(). Les providers indisponibles sont
+        ignorés silencieusement (log warning) — au moins un autre devrait
+        fonctionner.
+        """
+        starters = {
+            "cloudflared": self._start_cloudflared,
+            "serveo": self._start_serveo,
+            "localhost.run": self._start_localhost_run,
+        }
+        for name in self._tunnel_provider_names:
+            starter = starters.get(name)
+            if not starter:
+                logger.warning("Provider de tunnel inconnu : %s", name)
+                continue
+            try:
+                starter()
+            except Exception as e:
+                logger.error("Démarrage tunnel %s impossible : %s", name, e)
 
-        if not cf_path:
-            logger.warning(
-                "cloudflared non trouvé. Installez-le depuis "
-                "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/ "
-                "ou placez cloudflared.exe dans le dossier tools/. "
-                "Le Relay restera accessible uniquement sur le réseau local."
-            )
-            # Fallback : URL locale
-            self._tunnel_url = f"http://localhost:{self._port}"
-            return
+    def _set_tunnel_url(self, provider: str, url: str) -> None:
+        """Enregistre l'URL publique d'un provider et la log."""
+        with self._tunnel_urls_lock:
+            self._tunnel_urls[provider] = url
+        logger.info("Tunnel %s actif : %s", provider, url)
 
+    def _spawn_tunnel(
+        self,
+        provider: str,
+        cmd: List[str],
+        url_pattern: str,
+        env: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """Lance un sous-processus de tunnel et parse son URL en arrière-plan.
+
+        Le sous-processus est arrêté automatiquement par _stop_tunnel().
+        L'URL est extraite de stdout+stderr via la regex `url_pattern`.
+        """
         try:
-            self._tunnel_process = subprocess.Popen(
-                [cf_path, "tunnel", "--url", f"http://localhost:{self._port}"],
+            proc = subprocess.Popen(
+                cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
+                bufsize=1,
+                env=env,
                 creationflags=(
                     subprocess.CREATE_NO_WINDOW
                     if sys.platform == "win32"
                     else 0
                 ),
             )
-
-            # Lire l'URL du tunnel dans un thread séparé
-            threading.Thread(
-                target=self._read_tunnel_url,
-                daemon=True,
-            ).start()
-
-            logger.info("Tunnel cloudflared en cours de démarrage...")
-
         except Exception as e:
-            logger.error("Erreur démarrage tunnel: %s", e)
-            self._tunnel_url = f"http://localhost:{self._port}"
-
-    def _read_tunnel_url(self) -> None:
-        """Lit la sortie de cloudflared pour extraire l'URL du tunnel."""
-        if not self._tunnel_process:
+            logger.error("Spawn tunnel %s échoué : %s", provider, e)
             return
 
-        try:
-            # cloudflared écrit l'URL sur stderr
-            for line in self._tunnel_process.stderr:
-                if "trycloudflare.com" in line or ".cloudflare" in line:
-                    # Extraire l'URL https://...trycloudflare.com
-                    match = re.search(r"(https://[^\s]+\.trycloudflare\.com)", line)
+        self._tunnel_processes[provider] = proc
+
+        def _reader():
+            compiled = re.compile(url_pattern)
+            try:
+                if proc.stdout is None:
+                    return
+                for line in proc.stdout:
+                    match = compiled.search(line)
                     if match:
-                        self._tunnel_url = match.group(1)
-                        logger.info("Tunnel actif : %s", self._tunnel_url)
-                        break
-        except Exception as e:
-            logger.error("Erreur lecture URL tunnel: %s", e)
+                        self._set_tunnel_url(provider, match.group(0))
+                        # Continuer à drainer pour éviter de bloquer le pipe
+            except Exception as e:
+                logger.debug("Lecture sortie tunnel %s : %s", provider, e)
+
+        threading.Thread(
+            target=_reader,
+            name=f"tunnel-reader-{provider}",
+            daemon=True,
+        ).start()
+
+    def _start_cloudflared(self) -> None:
+        """Démarre un tunnel cloudflared (trycloudflare.com)."""
+        cf_path = shutil.which("cloudflared")
+        if not cf_path:
+            tools_path = Path(__file__).parent.parent / "tools" / "cloudflared.exe"
+            if tools_path.exists():
+                cf_path = str(tools_path)
+        if not cf_path:
+            cf_path = self._download_cloudflared()
+        if not cf_path:
+            logger.warning(
+                "cloudflared introuvable. Tunnel cloudflared désactivé."
+            )
+            return
+
+        self._spawn_tunnel(
+            provider="cloudflared",
+            cmd=[cf_path, "tunnel", "--url", f"http://localhost:{self._port}"],
+            url_pattern=r"https://[a-z0-9-]+\.trycloudflare\.com",
+        )
+        logger.info("Tunnel cloudflared en cours de démarrage...")
+
+    def _start_serveo(self) -> None:
+        """Démarre un tunnel serveo.net via SSH (port forwarding distant).
+
+        Nécessite uniquement le client SSH (intégré sur Win10+/macOS/Linux).
+        Le tunnel reste anonyme — pas de compte requis.
+        """
+        ssh = shutil.which("ssh")
+        if not ssh:
+            logger.warning("ssh introuvable. Tunnel serveo désactivé.")
+            return
+
+        # -o options pour : pas de prompt host key, garder la connexion vive,
+        # pas de tty (on ne lit que la bannière). Serveo annonce l'URL HTTPS
+        # juste après l'auth.
+        cmd = [
+            ssh,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", f"UserKnownHostsFile={os.devnull}",
+            "-o", "ServerAliveInterval=30",
+            "-o", "ExitOnForwardFailure=yes",
+            "-T",  # pas de tty
+            "-R", f"80:localhost:{self._port}",
+            "serveo.net",
+        ]
+        self._spawn_tunnel(
+            provider="serveo",
+            cmd=cmd,
+            url_pattern=r"https://[a-z0-9-]+\.serveo\.net",
+        )
+        logger.info("Tunnel serveo en cours de démarrage...")
+
+    def _start_localhost_run(self) -> None:
+        """Démarre un tunnel localhost.run via SSH (anonyme, *.lhr.life)."""
+        ssh = shutil.which("ssh")
+        if not ssh:
+            logger.warning("ssh introuvable. Tunnel localhost.run désactivé.")
+            return
+
+        cmd = [
+            ssh,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", f"UserKnownHostsFile={os.devnull}",
+            "-o", "ServerAliveInterval=30",
+            "-o", "ExitOnForwardFailure=yes",
+            "-T",
+            "-R", f"80:localhost:{self._port}",
+            "nokey@localhost.run",
+        ]
+        self._spawn_tunnel(
+            provider="localhost.run",
+            cmd=cmd,
+            # localhost.run attribue généralement *.lhr.life (legacy: *.localhost.run)
+            url_pattern=r"https://[a-z0-9-]+\.(?:lhr\.life|localhost\.run)",
+        )
+        logger.info("Tunnel localhost.run en cours de démarrage...")
 
     def _stop_tunnel(self) -> None:
-        """Arrête le tunnel cloudflared."""
-        if self._tunnel_process:
+        """Arrête tous les tunnels actifs."""
+        for provider, proc in list(self._tunnel_processes.items()):
             try:
-                self._tunnel_process.terminate()
-                self._tunnel_process.wait(timeout=5)
+                proc.terminate()
+                proc.wait(timeout=5)
             except Exception:
                 try:
-                    self._tunnel_process.kill()
+                    proc.kill()
                 except Exception:
                     pass
-            self._tunnel_process = None
-            self._tunnel_url = None
+        self._tunnel_processes.clear()
+        with self._tunnel_urls_lock:
+            self._tunnel_urls.clear()
 
     # ------------------------------------------------------------------
     # Téléchargement automatique de cloudflared

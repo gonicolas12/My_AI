@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex,nofollow">
+<title>My_AI Relay — Connexion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f0f; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100dvh; padding: 24px;
+  }
+  .card {
+    background: #1a1a1a; border-radius: 20px;
+    padding: 40px 28px; width: 100%; max-width: 420px;
+    text-align: center; border: 1px solid #2d2d2d;
+  }
+  .logo { font-size: 48px; margin-bottom: 8px; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  p.sub { color: #9ca3af; font-size: 14px; margin-bottom: 24px; }
+  .spinner {
+    width: 40px; height: 40px; margin: 12px auto;
+    border: 3px solid #2d2d2d; border-top-color: #ff6b47;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status { font-size: 13px; color: #9ca3af; min-height: 18px; margin-top: 8px; }
+  .err {
+    color: #ef4444; font-size: 13px; margin-top: 12px;
+    text-align: left; word-break: break-all;
+  }
+  ul.tries { list-style: none; padding: 0; margin: 16px 0 0; text-align: left; font-size: 12px; }
+  ul.tries li { padding: 6px 0; color: #6b7280; border-bottom: 1px solid #1f1f1f; }
+  ul.tries li.ok { color: #10b981; }
+  ul.tries li.fail { color: #f87171; }
+  ul.tries li .host { font-family: ui-monospace, monospace; font-size: 11px; opacity: 0.7; display: block; }
+  a.btn {
+    display: inline-block; margin-top: 18px;
+    padding: 12px 20px; background: #ff6b47; color: #fff;
+    text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">&#x1F916;</div>
+  <h1>My_AI Relay</h1>
+  <p class="sub" id="sub">Connexion en cours…</p>
+  <div class="spinner" id="spinner"></div>
+  <div class="status" id="status">Recherche d'un tunnel disponible</div>
+  <ul class="tries" id="tries"></ul>
+  <div class="err" id="err" style="display:none"></div>
+</div>
+<script>
+(function () {
+  // ── Décodage du payload encodé dans le fragment d'URL ──────────────
+  // Format : #d=<base64url(JSON{urls,token})>
+  // On utilise le fragment (et pas la query string) parce qu'il n'est
+  // jamais envoyé au serveur GitHub Pages — confidentialité du token.
+  function b64urlDecode(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    try { return atob(s); } catch (e) { return null; }
+  }
+
+  function parsePayload() {
+    var hash = location.hash.replace(/^#/, '');
+    var params = {};
+    hash.split('&').forEach(function (pair) {
+      var idx = pair.indexOf('=');
+      if (idx < 0) return;
+      params[pair.slice(0, idx)] = pair.slice(idx + 1);
+    });
+    if (!params.d) return null;
+    var raw = b64urlDecode(decodeURIComponent(params.d));
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+
+  var payload = parsePayload();
+  var triesEl = document.getElementById('tries');
+  var statusEl = document.getElementById('status');
+  var errEl = document.getElementById('err');
+  var subEl = document.getElementById('sub');
+  var spinnerEl = document.getElementById('spinner');
+
+  function fail(msg) {
+    spinnerEl.style.display = 'none';
+    subEl.textContent = 'Échec de la connexion';
+    statusEl.textContent = '';
+    errEl.style.display = 'block';
+    errEl.innerHTML = msg + '<br><br>Vérifiez que My_AI Relay est bien démarré sur votre PC, puis rescannez le QR code.';
+  }
+
+  if (!payload || !Array.isArray(payload.urls) || payload.urls.length === 0 || !payload.token) {
+    fail('Lien invalide ou expiré.');
+    return;
+  }
+
+  // ── Ping de chaque tunnel et redirection vers le premier qui répond ─
+  // Stratégie : on lance les fetchs en parallèle (tous les tunnels sont
+  // queryés en même temps), et on prend le premier qui répond OK avec un
+  // payload JSON valide. Les autres requêtes sont annulées via AbortController.
+  var aborters = [];
+  var settled = false;
+  var perUrlEl = {};
+
+  function appendTry(url) {
+    var li = document.createElement('li');
+    var host = '';
+    try { host = new URL(url).hostname; } catch (e) { host = url; }
+    li.innerHTML = '<span>Test du tunnel</span><span class="host">' + host + '</span>';
+    triesEl.appendChild(li);
+    perUrlEl[url] = li;
+  }
+
+  function markResult(url, ok, reason) {
+    var li = perUrlEl[url];
+    if (!li) return;
+    li.className = ok ? 'ok' : 'fail';
+    var label = ok ? '✓ Joignable' : '✗ ' + (reason || 'Indisponible');
+    li.querySelector('span').textContent = label;
+  }
+
+  function abortAll() {
+    aborters.forEach(function (a) { try { a.abort(); } catch (e) {} });
+  }
+
+  function redirect(url) {
+    if (settled) return;
+    settled = true;
+    abortAll();
+    statusEl.textContent = 'Redirection…';
+    var sep = url.indexOf('?') >= 0 ? '&' : '?';
+    location.replace(url + sep + 'token=' + encodeURIComponent(payload.token));
+  }
+
+  payload.urls.forEach(function (url) { appendTry(url); });
+
+  var pending = payload.urls.length;
+  payload.urls.forEach(function (url) {
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    if (ctrl) aborters.push(ctrl);
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 5000);
+
+    fetch(url + '/api/health', {
+      method: 'GET',
+      signal: ctrl ? ctrl.signal : undefined,
+      cache: 'no-store',
+      mode: 'cors',
+      credentials: 'omit'
+    }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (j && j.status === 'ok') {
+        markResult(url, true);
+        redirect(url);
+      } else {
+        markResult(url, false, 'réponse inattendue');
+      }
+    }).catch(function (e) {
+      clearTimeout(timer);
+      var msg = (e && e.name === 'AbortError') ? 'délai dépassé' : 'erreur réseau';
+      markResult(url, false, msg);
+    }).finally(function () {
+      pending -= 1;
+      if (pending === 0 && !settled) {
+        fail('Aucun tunnel n\'a répondu. Votre opérateur peut filtrer les domaines des tunnels publics.');
+      }
+    });
+  });
+
+  // Garde-fou global : si tous les fetchs traînent (ex. CORS bloqué
+  // silencieusement), on affiche quand même un échec après 8 s.
+  setTimeout(function () {
+    if (!settled && pending > 0) {
+      fail('Délai dépassé sur tous les tunnels.');
+    }
+  }, 8000);
+})();
+</script>
+</body>
+</html>
