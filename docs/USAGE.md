@@ -1295,9 +1295,11 @@ L'URL et le token sont affichés dans le panneau Relay de l'interface.
 |---|---|
 | **Token de session** | Généré aléatoirement à chaque démarrage (si pas de mot de passe) |
 | **Token permanent** | Dérivé du mot de passe via SHA-256 (reproductible entre sessions) |
-| **Tunnel HTTPS** | Tous les providers (cloudflared/serveo/localhost.run) chiffrent en TLS de bout en bout |
-| **Token hors-serveur** | Le token est dans le **fragment** de l'URL de routage (`#d=...`) — il n'est jamais transmis au serveur GitHub Pages, seulement traité localement par le navigateur |
-| **Aucune donnée cloud** | Les tunnels ne sont que des relais chiffrés — vos données restent sur votre PC |
+| **Tunnel HTTPS** | Tous les providers (cloudflared/serveo/localhost.run) chiffrent en TLS sur le réseau, **mais terminent le TLS sur leur infrastructure** : sans la couche E2EE ci-dessous, le contenu serait lisible par eux |
+| **Chiffrement bout-en-bout (E2EE)** | **AES-256-GCM applicatif** au-dessus du WebSocket et des uploads. La clé symétrique (32 octets) est générée localement à chaque démarrage du Relay et transmise au mobile **uniquement via le QR code** (canal optique). Ni le serveur de tunnel public (Cloudflare, serveo, localhost.run) ni GitHub Pages ne peuvent déchiffrer le contenu : ils ne voient que des octets opaques. |
+| **Token + clé hors-serveur** | Le token et la clé E2EE voyagent dans le **fragment** de l'URL de routage (`#d=<base64>`) — le fragment n'est jamais émis sur le réseau, seul le navigateur le lit |
+| **Strict, pas de downgrade** | Le serveur **rejette** toute connexion WS dont les messages ne sont pas chiffrés (close 4002). Pas de mode dégradé : on ne peut pas forcer du clair via une attaque MITM applicative. |
+| **Aucune donnée cloud** | Les tunnels ne sont que des relais chiffrés — vos données restent sur votre PC, et le contenu transitant par les tunnels publics est illisible pour leurs opérateurs |
 
 ### ⚠️ Confirmation de Suppression MCP
 

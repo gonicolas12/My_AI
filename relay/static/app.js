@@ -9,6 +9,122 @@ const WS_URL = `${WS_PROTOCOL}//${location.host}/ws?token=${TOKEN}`;
 console.log('[Relay] Token:', TOKEN ? TOKEN.substring(0, 6) + '...' : 'EMPTY');
 console.log('[Relay] WS URL:', WS_URL);
 
+// ═══════════════════════════════════════════════════
+// E2EE — Chiffrement bout-en-bout AES-256-GCM
+//
+// La clé est passée par le serveur via le fragment d'URL (#k=<b64u>).
+// Le fragment n'est JAMAIS transmis au serveur de tunnel public
+// (Cloudflare, serveo, localhost.run) ni à GitHub Pages : seul le
+// navigateur le lit. La clé reste donc privée entre le PC qui l'a
+// générée et ce navigateur mobile qui a scanné le QR.
+// ═══════════════════════════════════════════════════
+
+let e2eKey = null;       // CryptoKey (AES-GCM) une fois importée
+let e2eReady = null;     // Promise résolue quand e2eKey est prête
+
+function b64uDecode(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function b64uEncode(bytes) {
+  var bin = '';
+  for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function importE2EKey() {
+  // Format du fragment : #k=<base64url-32-bytes>
+  var hash = location.hash.replace(/^#/, '');
+  var params = {};
+  hash.split('&').forEach(function (pair) {
+    var idx = pair.indexOf('=');
+    if (idx < 0) return;
+    params[pair.slice(0, idx)] = pair.slice(idx + 1);
+  });
+  if (!params.k) {
+    return Promise.reject(new Error('Clé E2EE absente du fragment URL — ' +
+      'rescannez le QR code depuis l\'application My_AI sur le PC.'));
+  }
+  var rawKey;
+  try {
+    rawKey = b64uDecode(decodeURIComponent(params.k));
+  } catch (e) {
+    return Promise.reject(new Error('Clé E2EE malformée dans l\'URL.'));
+  }
+  if (rawKey.length !== 32) {
+    return Promise.reject(new Error('Clé E2EE de taille invalide (' + rawKey.length + ' octets).'));
+  }
+  return crypto.subtle.importKey(
+    'raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
+  );
+}
+
+e2eReady = importE2EKey().then(function (k) {
+  e2eKey = k;
+  console.log('[Relay] E2EE prête (AES-256-GCM)');
+  return k;
+}).catch(function (err) {
+  console.error('[Relay] Échec import clé E2EE :', err);
+  // Bloquer l'application : sans clé, tout est inutilisable.
+  document.body.innerHTML =
+    '<div style="padding:32px;color:#fff;background:#0f0f0f;font-family:sans-serif;min-height:100vh">' +
+    '<h2 style="color:#ef4444">⚠️ Connexion impossible</h2>' +
+    '<p>' + (err && err.message ? err.message : 'Clé de chiffrement manquante.') + '</p>' +
+    '<p style="color:#9ca3af;font-size:14px;margin-top:16px">Rescannez le QR code depuis le panneau My_AI Relay sur votre PC.</p>' +
+    '</div>';
+  throw err;
+});
+
+async function aesGcmEncryptBytes(plainBytes) {
+  await e2eReady;
+  var nonce = crypto.getRandomValues(new Uint8Array(12));
+  var ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce }, e2eKey, plainBytes
+  );
+  var wire = new Uint8Array(12 + ct.byteLength);
+  wire.set(nonce, 0);
+  wire.set(new Uint8Array(ct), 12);
+  return wire;
+}
+
+async function aesGcmDecryptBytes(wireBytes) {
+  await e2eReady;
+  if (wireBytes.length < 12 + 16) throw new Error('ciphertext trop court');
+  var nonce = wireBytes.slice(0, 12);
+  var ct = wireBytes.slice(12);
+  var plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: nonce }, e2eKey, ct
+  );
+  return new Uint8Array(plain);
+}
+
+async function encryptObject(obj) {
+  var enc = new TextEncoder();
+  var plain = enc.encode(JSON.stringify(obj));
+  var wire = await aesGcmEncryptBytes(plain);
+  return { e: b64uEncode(wire) };
+}
+
+async function decryptEnvelope(wrapper) {
+  if (!wrapper || typeof wrapper.e !== 'string') {
+    throw new Error('enveloppe E2EE absente (clé "e" manquante)');
+  }
+  var wire = b64uDecode(wrapper.e);
+  var plain = await aesGcmDecryptBytes(wire);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+async function wsSendEncrypted(obj) {
+  if (!ws || ws.readyState !== 1) return;
+  var wrapper = await encryptObject(obj);
+  ws.send(JSON.stringify(wrapper));
+}
+
 // ── STATE ───────────────────────────────────────────
 let ws = null;
 let reconnectTimer = null;
@@ -89,19 +205,24 @@ function connect() {
     //     notre dernier message_id.
     if (isWaiting && lastSentMessageId) {
       console.log('[Relay] Resuming wait for message_id:', lastSentMessageId);
-      try {
-        ws.send(JSON.stringify({
-          type: 'resume',
-          last_message_id: lastSentMessageId,
-        }));
-      } catch (e) {
+      wsSendEncrypted({
+        type: 'resume',
+        last_message_id: lastSentMessageId,
+      }).catch(function (e) {
         console.warn('[Relay] Resume send failed:', e);
-      }
+      });
     }
   };
 
-  ws.onmessage = function (event) {
-    var data = JSON.parse(event.data);
+  ws.onmessage = async function (event) {
+    var data;
+    try {
+      var wrapper = JSON.parse(event.data);
+      data = await decryptEnvelope(wrapper);
+    } catch (err) {
+      console.error('[Relay] Message WS rejeté (E2EE invalide) :', err);
+      return;
+    }
 
     if (data.type === 'response') {
       // Déduplication : si on a déjà rendu ce message_id (ex. reçu via
@@ -191,7 +312,7 @@ function setStatus(state) {
 // Keepalive ping every 25s
 setInterval(function () {
   if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'ping' }));
+    wsSendEncrypted({ type: 'ping' }).catch(function () { /* swallow */ });
   }
 }, 25000);
 
@@ -203,13 +324,15 @@ setInterval(function () {
 async function loadHistory() {
   if (historyLoaded) return;
   try {
+    await e2eReady;
     var res = await fetch('/api/history?token=' + encodeURIComponent(TOKEN));
     if (!res.ok) {
       console.warn('[Relay] /api/history returned', res.status);
       historyLoaded = true;
       return;
     }
-    var data = await res.json();
+    var wrapper = await res.json();
+    var data = await decryptEnvelope(wrapper);
     var items = (data && data.history) ? data.history : [];
     if (items.length === 0) {
       historyLoaded = true;
@@ -253,11 +376,13 @@ async function loadHistory() {
 async function checkPendingResponse(messageId) {
   if (!messageId) return;
   try {
+    await e2eReady;
     var url = '/api/pending?token=' + encodeURIComponent(TOKEN) +
               '&message_id=' + encodeURIComponent(messageId);
     var res = await fetch(url);
     if (!res.ok) return;
-    var data = await res.json();
+    var wrapper = await res.json();
+    var data = await decryptEnvelope(wrapper);
     if (!data || !data.pending || typeof data.message !== 'string') return;
 
     if (data.final === false) {
@@ -322,7 +447,9 @@ function sendMessage() {
   if (hasAttachments) {
     payload.file_ids = readyAttachments.map(function (a) { return a.fileId; });
   }
-  ws.send(JSON.stringify(payload));
+  wsSendEncrypted(payload).catch(function (err) {
+    console.error('[Relay] Envoi chiffré échoué :', err);
+  });
   isWaiting = true;
 
   // Indicateur de frappe
@@ -352,7 +479,7 @@ function handleFileSelect(event) {
   event.target.value = '';
 }
 
-function uploadAttachment(file) {
+async function uploadAttachment(file) {
   var localId = 'att_' + (++attachmentCounter);
   var isImage = /^image\//i.test(file.type) ||
                 /\.(png|jpe?g|gif|bmp|webp|tiff?|heic|heif)$/i.test(file.name);
@@ -368,42 +495,60 @@ function uploadAttachment(file) {
   renderAttachments();
   updateSendButton();
 
-  var form = new FormData();
-  form.append('file', file);
+  try {
+    await e2eReady;
 
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/upload?token=' + encodeURIComponent(TOKEN));
-  xhr.onload = function () {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      try {
-        var resp = JSON.parse(xhr.responseText);
-        entry.fileId = resp.file_id;
-        entry.isImage = !!resp.is_image;
-        entry.name = resp.filename || entry.name;
-        entry.status = 'ready';
-      } catch (e) {
-        entry.status = 'error';
-        entry.error = 'Réponse serveur invalide';
-      }
-    } else {
-      entry.status = 'error';
-      try {
-        var j = JSON.parse(xhr.responseText);
-        entry.error = j.detail || ('HTTP ' + xhr.status);
-      } catch (e) {
-        entry.error = 'HTTP ' + xhr.status;
-      }
+    // 1. Construire le clair : "MYAI" || u16_be(filename_len) || filename || content
+    var fileBytes = new Uint8Array(await file.arrayBuffer());
+    var fnameBytes = new TextEncoder().encode(entry.name);
+    if (fnameBytes.length > 256) {
+      throw new Error('nom de fichier trop long');
     }
-    renderAttachments();
-    updateSendButton();
-  };
-  xhr.onerror = function () {
+    var header = new Uint8Array(4 + 2 + fnameBytes.length);
+    header[0] = 0x4D; header[1] = 0x59; header[2] = 0x41; header[3] = 0x49; // "MYAI"
+    header[4] = (fnameBytes.length >> 8) & 0xff;
+    header[5] = fnameBytes.length & 0xff;
+    header.set(fnameBytes, 6);
+    var plain = new Uint8Array(header.length + fileBytes.length);
+    plain.set(header, 0);
+    plain.set(fileBytes, header.length);
+
+    // 2. Chiffrer
+    var wire = await aesGcmEncryptBytes(plain);
+
+    // 3. Envoyer en multipart, avec un nom factice (le vrai nom est dans le clair)
+    var blob = new Blob([wire], { type: 'application/octet-stream' });
+    var form = new FormData();
+    form.append('file', blob, 'enc.bin');
+
+    // Utilisation de fetch (XHR ne gère pas async/await proprement ici)
+    var res = await fetch('/api/upload?token=' + encodeURIComponent(TOKEN), {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      var detail = 'HTTP ' + res.status;
+      try {
+        var j = await res.json();
+        if (j && j.detail) detail = j.detail;
+      } catch (_) {}
+      throw new Error(detail);
+    }
+
+    // 4. Déchiffrer la réponse (E2EE)
+    var wrapper = await res.json();
+    var resp = await decryptEnvelope(wrapper);
+    entry.fileId = resp.file_id;
+    entry.isImage = !!resp.is_image;
+    entry.name = resp.filename || entry.name;
+    entry.status = 'ready';
+  } catch (err) {
+    console.error('[Relay] Upload chiffré échoué :', err);
     entry.status = 'error';
-    entry.error = 'Erreur réseau';
-    renderAttachments();
-    updateSendButton();
-  };
-  xhr.send(form);
+    entry.error = (err && err.message) ? err.message : 'Erreur upload';
+  }
+  renderAttachments();
+  updateSendButton();
 }
 
 function removeAttachment(localId) {
@@ -747,7 +892,14 @@ function autoResize() {
 // INIT
 // ═══════════════════════════════════════════════════
 
-connect();
+// On attend que la clé E2EE soit importée avant d'ouvrir le WS : sans
+// elle, aucun message ne pourrait être chiffré/déchiffré et le serveur
+// fermerait la connexion (4002 E2EE requis).
+e2eReady.then(function () {
+  connect();
+}).catch(function () {
+  // L'erreur a déjà été rendue visible dans le DOM par importE2EKey().
+});
 
 // Handle visibility change (phone lock/unlock or Safari backgrounded)
 document.addEventListener('visibilitychange', function () {

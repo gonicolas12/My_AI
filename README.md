@@ -413,10 +413,11 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 |---|---|
 | 📱 **Interface mobile** | PWA responsive, thème sombre, style messagerie |
 | 🔒 **Authentification** | Token unique par session ou mot de passe configurable |
-| 🌐 **Tunnel sécurisé** | cloudflared (gratuit, HTTPS automatique) |
+| 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni Cloudflare/serveo/localhost.run, ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
+| 🌐 **Multi-tunnel** | cloudflared + serveo + localhost.run en parallèle, failover client-side |
 | 🔄 **Synchronisation** | Messages visibles en temps réel sur PC et mobile |
 | ⚡ **WebSocket** | Communication instantanée, indicateur de frappe |
-| 📎 **Pièces jointes** | Images + documents (PDF, DOCX, XLSX, CSV, code) jusqu'à 25 Mo, routés vers vision + contexte |
+| 📎 **Pièces jointes** | Images + documents (PDF, DOCX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
 | 📥 **Auto-install** | cloudflared est téléchargé automatiquement si absent |
 
 ### Configuration (`config.yaml`)

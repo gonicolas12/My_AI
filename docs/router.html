@@ -99,6 +99,13 @@
     fail('Lien invalide ou expiré.');
     return;
   }
+  // La clé E2EE est obligatoire depuis l'introduction du chiffrement
+  // applicatif (AES-256-GCM). Sans elle, l'app mobile ne pourra ni
+  // émettre ni déchiffrer aucun message.
+  if (!payload.key) {
+    fail('Clé de chiffrement absente. Mettez à jour My_AI Relay sur le PC, puis rescannez le QR code.');
+    return;
+  }
 
   // ── Ping de chaque tunnel et redirection vers le premier qui répond ─
   // Stratégie : on lance les fetchs en parallèle (tous les tunnels sont
@@ -135,7 +142,13 @@
     abortAll();
     statusEl.textContent = 'Redirection…';
     var sep = url.indexOf('?') >= 0 ? '&' : '?';
-    location.replace(url + sep + 'token=' + encodeURIComponent(payload.token));
+    // Le token reste en query (le serveur l'utilise pour authentifier),
+    // mais la clé E2EE va dans le fragment (#k=...) pour ne PAS être
+    // transmise au serveur de tunnel public. Seul le navigateur la lit.
+    location.replace(
+      url + sep + 'token=' + encodeURIComponent(payload.token) +
+      '#k=' + encodeURIComponent(payload.key)
+    );
   }
 
   payload.urls.forEach(function (url) { appendTry(url); });

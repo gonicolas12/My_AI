@@ -28,6 +28,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 from core.config import get_config
 from utils.logger import setup_logger
 
@@ -116,6 +118,17 @@ class RelayServer:
         # Générer un token d'authentification
         self._auth_token: str = ""
         self._generate_auth_token()
+
+        # Clé E2EE applicative (AES-256-GCM). Régénérée à chaque démarrage,
+        # **indépendamment** du token d'auth : ce dernier sert à authentifier
+        # la connexion (potentiellement stable si un mot de passe est
+        # configuré), tandis que la clé E2E sert à chiffrer le contenu et
+        # doit rester éphémère pour préserver une forme de forward secrecy
+        # côté QR. La clé n'est jamais transmise au serveur de tunnel : elle
+        # voyage uniquement dans le fragment d'URL du QR (jamais émis sur le
+        # réseau) et reste en mémoire côté navigateur mobile.
+        self._e2e_key: bytes = secrets.token_bytes(32)
+        self._aesgcm = AESGCM(self._e2e_key)
 
         # Bridge pour la synchronisation GUI
         self._bridge = RelayBridge()
@@ -214,6 +227,57 @@ class RelayServer:
         """Retourne le token d'authentification actuel pour accéder au Relay."""
         return self._auth_token
 
+    # ------------------------------------------------------------------
+    # Chiffrement applicatif bout-en-bout (E2EE)
+    #
+    # Toutes les données utilisateur (prompts, réponses IA, contenu des
+    # fichiers, historique) traversent un serveur de tunnel public
+    # (Cloudflare, serveo, localhost.run) qui termine le TLS et voit
+    # donc le HTTP en clair. Pour que la promesse « le contenu n'est
+    # lisible que par le PC et le mobile » soit vraie, on ajoute une
+    # couche AES-256-GCM au-dessus du WebSocket et des uploads. La clé
+    # est partagée via le QR code (canal optique, hors-réseau).
+    #
+    # Wire format :
+    #   - bytes : nonce(12) || ciphertext_avec_tag(N+16)
+    #   - JSON  : {"e": "<base64url(bytes)>"}  (pour endpoints HTTP/WS texte)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _b64u_encode(data: bytes) -> str:
+        return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _b64u_decode(s: str) -> bytes:
+        pad = s + ("=" * ((4 - len(s) % 4) % 4))
+        return base64.urlsafe_b64decode(pad.encode("ascii"))
+
+    def encrypt_bytes(self, plaintext: bytes) -> bytes:
+        """Chiffre des octets et retourne nonce(12) || ct(+tag)."""
+        nonce = secrets.token_bytes(12)
+        ct = self._aesgcm.encrypt(nonce, plaintext, None)
+        return nonce + ct
+
+    def decrypt_bytes(self, blob: bytes) -> bytes:
+        """Déchiffre nonce(12) || ct(+tag). Lève InvalidTag si altéré."""
+        if len(blob) < 12 + 16:
+            raise ValueError("payload chiffré trop court")
+        nonce, ct = blob[:12], blob[12:]
+        return self._aesgcm.decrypt(nonce, ct, None)
+
+    def encrypt_json(self, obj: Any) -> Dict[str, str]:
+        """Chiffre un objet sérialisable et l'enveloppe en {'e': '<b64u>'}."""
+        plain = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        return {"e": self._b64u_encode(self.encrypt_bytes(plain))}
+
+    def decrypt_json(self, wrapper: Dict[str, Any]) -> Any:
+        """Inverse de `encrypt_json`. Lève si le format est invalide."""
+        if not isinstance(wrapper, dict) or "e" not in wrapper:
+            raise ValueError("enveloppe E2EE absente (clé 'e' manquante)")
+        blob = self._b64u_decode(str(wrapper["e"]))
+        plain = self.decrypt_bytes(blob)
+        return json.loads(plain.decode("utf-8"))
+
     @property
     def relay_url(self) -> Optional[str]:
         """URL complète pour accéder au Relay (page de routage + tunnels + token).
@@ -227,7 +291,15 @@ class RelayServer:
             urls = [u for u in self._tunnel_urls.values() if u]
         if not urls:
             return None
-        payload = json.dumps({"urls": urls, "token": self._auth_token})
+        # La clé E2EE est intégrée au QR. Elle voyage par le fragment
+        # (`#d=...`) qui n'est JAMAIS transmis à GitHub Pages ni au
+        # serveur de tunnel : seul le navigateur du téléphone le lit.
+        # Voir relay/static/app.js pour la consommation côté client.
+        payload = json.dumps({
+            "urls": urls,
+            "token": self._auth_token,
+            "key": self._b64u_encode(self._e2e_key),
+        })
         encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
         return f"{_ROUTER_PAGE_URL}#d={encoded}"
 
@@ -444,7 +516,10 @@ class RelayServer:
         async def get_history(token: str = Query(...)):
             if not server.verify_token(token):
                 raise HTTPException(status_code=401, detail="Non autorisé")
-            return {"history": server.bridge.history}
+            # Réponse chiffrée E2EE : le clair {"history": [...]} est
+            # encapsulé dans {"e": "<b64u>"} pour ne pas être lisible
+            # par le serveur de tunnel public.
+            return server.encrypt_json({"history": server.bridge.history})
 
         # =================================================================
         # GET /api/pending — Récupérer une réponse IA en attente (après
@@ -459,27 +534,30 @@ class RelayServer:
         ):
             if not server.verify_token(token):
                 raise HTTPException(status_code=401, detail="Non autorisé")
-            # Priorité 1 : réponse terminée en cache
+            # Toutes les branches de cet endpoint contiennent du contenu
+            # utilisateur (réponse IA partielle ou finale) : on chiffre
+            # systématiquement la réponse, même celle "vide", pour éviter
+            # qu'un opérateur de tunnel apprenne par taille/structure
+            # qu'une génération est en cours pour un message donné.
             pending = server.bridge.consume_pending_response(message_id)
             if pending is not None:
-                return {
+                return server.encrypt_json({
                     "pending": True,
                     "final": True,
                     "message_id": message_id,
                     "message": pending,
                     "timestamp": datetime.now().isoformat(),
-                }
-            # Priorité 2 : génération encore en cours, retourner l'état courant
+                })
             partial = server.bridge.get_active_stream(message_id)
             if partial is not None:
-                return {
+                return server.encrypt_json({
                     "pending": True,
                     "final": False,
                     "message_id": message_id,
                     "message": partial,
                     "timestamp": datetime.now().isoformat(),
-                }
-            return {"pending": False, "message_id": message_id}
+                })
+            return server.encrypt_json({"pending": False, "message_id": message_id})
 
         # =================================================================
         # POST /api/upload — Upload de fichier/image depuis le mobile
@@ -490,15 +568,79 @@ class RelayServer:
             token: str = Query(...),
             file: UploadFile = File(...),
         ):
-            """Reçoit un fichier depuis le mobile, le stocke localement,
-            et renvoie un file_id à réutiliser dans le prochain message."""
+            """Reçoit un fichier chiffré (E2EE) depuis le mobile.
+
+            Wire format du body (après lecture des bytes) :
+              nonce(12) || aes_gcm_ciphertext(N+16)
+
+            Le clair (après déchiffrement) est :
+              "MYAI"(4) || filename_len(2 BE) || filename_utf8(L) || content
+
+            Le `filename` envoyé en multipart est ignoré côté serveur (le
+            client peut y mettre n'importe quoi pour ne pas révéler le
+            vrai nom au tunnel public). La taille `_MAX_UPLOAD_SIZE`
+            s'applique au **clair** : on borne la taille du ciphertext
+            lue à `_MAX_UPLOAD_SIZE + 1024` (marge nonce+tag+header) avant
+            de déchiffrer, et on revérifie après déchiffrement.
+            """
             if not server.verify_token(token):
                 raise HTTPException(status_code=401, detail="Non autorisé")
 
-            original_name = file.filename or "upload"
+            # 1. Lire le ciphertext en bornant la taille
+            cipher_max = _MAX_UPLOAD_SIZE + 1024
+            buf = bytearray()
+            try:
+                while True:
+                    chunk = await file.read(65536)
+                    if not chunk:
+                        break
+                    buf.extend(chunk)
+                    if len(buf) > cipher_max:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=(
+                                f"Fichier trop volumineux "
+                                f"(> {_MAX_UPLOAD_SIZE // (1024 * 1024)} Mo)"
+                            ),
+                        )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error("Erreur lecture upload Relay : %s", e)
+                raise HTTPException(status_code=500, detail="Erreur réception fichier") from e
+
+            # 2. Déchiffrer
+            try:
+                plain = server.decrypt_bytes(bytes(buf))
+            except Exception as e:
+                logger.warning("Upload rejeté (E2EE invalide) : %s", e)
+                raise HTTPException(status_code=400, detail="Payload chiffré invalide") from e
+
+            # 3. Parser le clair : "MYAI" || u16_be(filename_len) || filename || content
+            if len(plain) < 4 + 2 or plain[:4] != b"MYAI":
+                raise HTTPException(status_code=400, detail="Format upload invalide")
+            fname_len = int.from_bytes(plain[4:6], "big")
+            header_len = 4 + 2 + fname_len
+            if fname_len == 0 or fname_len > 256 or len(plain) < header_len:
+                raise HTTPException(status_code=400, detail="En-tête upload invalide")
+            try:
+                original_name = plain[6:6 + fname_len].decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise HTTPException(status_code=400, detail="Nom de fichier invalide") from exc
+            content = plain[header_len:]
+            size = len(content)
+            if size > _MAX_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        f"Fichier trop volumineux "
+                        f"(> {_MAX_UPLOAD_SIZE // (1024 * 1024)} Mo)"
+                    ),
+                )
+
+            # 4. Validation du nom et de l'extension (mêmes règles qu'avant)
             safe_name = re.sub(r"[^\w\.\-]", "_", original_name)[:120] or "upload"
             ext = Path(safe_name).suffix.lower()
-
             if ext in _IMAGE_EXTS:
                 is_image = True
             elif ext in _DOC_EXTS:
@@ -509,32 +651,14 @@ class RelayServer:
                     detail=f"Format non supporté : {ext or 'inconnu'}",
                 )
 
-            # Écrire le fichier par morceaux pour contrôler la taille
+            # 5. Écrire le clair sur disque
             file_id = uuid.uuid4().hex[:16]
             dest = server.upload_dir / f"{file_id}_{safe_name}"
-            size = 0
             try:
                 with dest.open("wb") as f:
-                    while True:
-                        chunk = await file.read(65536)
-                        if not chunk:
-                            break
-                        size += len(chunk)
-                        if size > _MAX_UPLOAD_SIZE:
-                            f.close()
-                            dest.unlink(missing_ok=True)
-                            raise HTTPException(
-                                status_code=413,
-                                detail=(
-                                    f"Fichier trop volumineux "
-                                    f"(> {_MAX_UPLOAD_SIZE // (1024 * 1024)} Mo)"
-                                ),
-                            )
-                        f.write(chunk)
-            except HTTPException:
-                raise
+                    f.write(content)
             except Exception as e:
-                logger.error("Erreur upload Relay : %s", e)
+                logger.error("Erreur écriture upload Relay : %s", e)
                 try:
                     dest.unlink(missing_ok=True)
                 except Exception:
@@ -549,15 +673,17 @@ class RelayServer:
             )
 
             logger.info(
-                "Upload Relay reçu : %s (%d octets, image=%s, id=%s)",
+                "Upload Relay reçu (E2EE) : %s (%d octets, image=%s, id=%s)",
                 safe_name, size, is_image, file_id,
             )
-            return {
+            # La réponse contient `filename` (le vrai nom, déchiffré) :
+            # on chiffre la réponse pour qu'elle ne fuite pas non plus.
+            return server.encrypt_json({
                 "file_id": file_id,
                 "filename": safe_name,
                 "is_image": is_image,
                 "size": size,
-            }
+            })
 
         # =================================================================
         # WebSocket /ws — Chat temps réel
@@ -583,10 +709,29 @@ class RelayServer:
                 "Client Relay connecté (%d actifs)", len(server.ws_clients)
             )
 
+            async def _send_encrypted(payload: Dict[str, Any]) -> None:
+                """Sérialise + chiffre + envoie un message WS."""
+                wrapper = server.encrypt_json(payload)
+                await websocket.send_text(json.dumps(wrapper, separators=(",", ":")))
+
             try:
                 while True:
                     data = await websocket.receive_text()
-                    msg_data = json.loads(data)
+                    # Tous les messages WS doivent arriver chiffrés
+                    # (enveloppe {"e": "..."}). Pas de fallback clair :
+                    # downgrade attack-proof.
+                    try:
+                        wrapper = json.loads(data)
+                        msg_data = server.decrypt_json(wrapper)
+                    except Exception as dec_err:
+                        logger.warning(
+                            "Message WS rejeté (E2EE invalide): %s", dec_err
+                        )
+                        await websocket.close(code=4002, reason="E2EE requis")
+                        break
+                    if not isinstance(msg_data, dict):
+                        logger.warning("Message WS ignoré : payload non-objet")
+                        continue
 
                     if msg_data.get("type") == "chat":
                         user_text = msg_data.get("message", "").strip()
@@ -620,10 +765,10 @@ class RelayServer:
                         server.bridge.send_to_gui(user_msg)
 
                         # Envoyer un accusé de réception
-                        await websocket.send_text(json.dumps({
+                        await _send_encrypted({
                             "type": "ack",
                             "message_id": user_msg.message_id,
-                        }))
+                        })
 
                         # Attendre que le GUI produise la réponse (streaming).
                         # Retourne (texte, message_id). On ignore l'id car il
@@ -637,12 +782,12 @@ class RelayServer:
                         # enregistré via on_response() aura déjà poussé la
                         # réponse à tous les autres WS actifs.
                         try:
-                            await websocket.send_text(json.dumps({
+                            await _send_encrypted({
                                 "type": "response",
                                 "message": response_text,
                                 "message_id": user_msg.message_id,
                                 "timestamp": datetime.now().isoformat(),
-                            }))
+                            })
                         except Exception as send_err:
                             # WS d'origine mort : la réponse reste en cache
                             # côté bridge, le mobile la récupérera via
@@ -667,31 +812,31 @@ class RelayServer:
                         last_id = msg_data.get("last_message_id", "") or ""
                         pending = server.bridge.consume_pending_response(last_id)
                         if pending is not None:
-                            await websocket.send_text(json.dumps({
+                            await _send_encrypted({
                                 "type": "response",
                                 "message": pending,
                                 "message_id": last_id,
                                 "timestamp": datetime.now().isoformat(),
                                 "resumed": True,
-                            }))
+                            })
                         else:
                             partial = server.bridge.get_active_stream(last_id)
                             if partial is not None:
-                                await websocket.send_text(json.dumps({
+                                await _send_encrypted({
                                     "type": "chunk",
                                     "message_id": last_id,
                                     "text": partial,
                                     "timestamp": datetime.now().isoformat(),
                                     "resumed": True,
-                                }))
+                                })
                             else:
-                                await websocket.send_text(json.dumps({
+                                await _send_encrypted({
                                     "type": "resume_empty",
                                     "message_id": last_id,
-                                }))
+                                })
 
                     elif msg_data.get("type") == "ping":
-                        await websocket.send_text(json.dumps({"type": "pong"}))
+                        await _send_encrypted({"type": "pong"})
 
             except WebSocketDisconnect:
                 logger.info("Client Relay déconnecté")
@@ -728,12 +873,12 @@ class RelayServer:
         """
         if not self._loop or not self._ws_clients:
             return
-        payload = json.dumps({
+        payload = json.dumps(self.encrypt_json({
             "type": "chunk",
             "message_id": message_id,
             "text": text,
             "timestamp": datetime.now().isoformat(),
-        })
+        }), separators=(",", ":"))
 
         async def _push():
             dead: List[WebSocket] = []
@@ -762,13 +907,13 @@ class RelayServer:
         """
         if not self._loop or not self._ws_clients:
             return
-        payload = json.dumps({
+        payload = json.dumps(self.encrypt_json({
             "type": "response",
             "message": text,
             "message_id": message_id,
             "timestamp": datetime.now().isoformat(),
             "broadcast": True,
-        })
+        }), separators=(",", ":"))
 
         async def _push():
             dead: List[WebSocket] = []

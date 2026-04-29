@@ -410,18 +410,25 @@ core/evaluation.py + error_analysis.py:
 Architecture:
 ├─ FastAPI app en thread daemon (non-bloquant)
 ├─ WebSocket /ws : chat temps réel (auth → messages → réponse)
-│   └─ Protocole : {type:'chat', message, file_ids:[...]}
+│   └─ Protocole : {"e": "<base64url>"} encapsulant {type, ...}
 ├─ REST :
-│   ├─ GET /, POST /auth, GET /api/health, GET /api/history
-│   └─ POST /api/upload : multipart → fichier temp + file_id
+│   ├─ GET /, POST /auth, GET /api/health (clair)
+│   ├─ GET /api/tunnels (clair, URLs déjà publiques)
+│   ├─ GET /api/history, GET /api/pending (réponse E2EE)
+│   └─ POST /api/upload : multipart binaire chiffré → fichier temp + file_id
+│       ├─ Wire body : nonce(12) || aes_gcm_ct(N+16)
+│       ├─ Clair : "MYAI" || u16_be(filename_len) || filename || content
 │       ├─ Allowlist extensions (images + PDF/DOCX/XLSX/CSV/code)
-│       ├─ Streaming 64 Ko vers {tempdir}/my_ai_relay_uploads/
-│       ├─ Plafond 25 Mo (413 + cleanup si dépassement)
+│       ├─ Plafond 25 Mo de clair (413 + cleanup si dépassement)
 │       └─ Registre Dict[file_id, meta] sous threading.Lock
 ├─ Authentification : token SHA-256 (password) ou secrets.token_urlsafe
-├─ Tunnel cloudflared : démarrage auto + lecture URL stderr
-│   └─ Téléchargement auto si absent (GitHub releases)
-├─ QR Code SVG via qrcode.image.svg (fill #ff6b47, back #0f0f0f)
+├─ Chiffrement E2EE : AES-256-GCM, clé éphémère 32 octets régénérée à
+│   chaque démarrage. Diffusion de la clé : exclusivement via le
+│   fragment du QR code (jamais émis sur le réseau).
+├─ Multi-tunnel parallèle : cloudflared + serveo + localhost.run
+│   └─ Téléchargement auto cloudflared si absent (GitHub releases)
+├─ QR Code SVG via qrcode.image.svg, encode {urls, token, key}
+│   en base64url dans le fragment d'une URL GitHub Pages
 └─ Interface login HTML embarquée (servie si token absent)
 ```
 
@@ -450,9 +457,16 @@ RelayMessage (dataclass):
 │                bouton + et chip container pour les pièces jointes
 ├─ style.css   — Thème sombre, layout mobile-first, scrollbar custom
 │                styles .attach-btn / .attachments / .attachment-chip
-└─ app.js      — WebSocket client : connexion, envoi, réception,
-                 indicateur de frappe, reconnexion auto,
-                 upload XHR → POST /api/upload → file_ids dans le message
+└─ app.js      — WebSocket client + couche E2EE :
+                 ├─ Import clé AES-GCM depuis location.hash (#k=<b64u>)
+                 ├─ encryptObject() / decryptEnvelope() (Web Crypto)
+                 ├─ wsSendEncrypted() pour tous les envois WS
+                 ├─ Upload : ArrayBuffer → header MYAI || filename →
+                 │    AES-GCM → POST /api/upload (body binaire opaque)
+                 ├─ /api/history et /api/pending : déchiffrement enveloppe
+                 ├─ Indicateur de frappe, reconnexion auto, resume
+                 └─ Bloque l'UI avec message d'erreur si la clé est absente
+                    du fragment URL (downgrade-attack-proof côté client).
 ```
 
 **Pipeline pièces jointes (GUI)** — `interfaces/gui/base.py`
