@@ -334,6 +334,14 @@ mcp:
       env:
         BRAVE_API_KEY: "${BRAVE_API_KEY}"
 
+    # Recherche Tavily (moteur optimisé pour l'IA)
+    # Requiert: clé API Tavily (https://app.tavily.com)
+    # Activé automatiquement dans EnhancedInternetSearchEngine si TAVILY_API_KEY est défini
+    tavily:
+      enabled: false
+      env:
+        TAVILY_API_KEY: "${TAVILY_API_KEY}"
+
     # Fetch HTTP (récupération de pages web)
     # Requiert: Node.js — npx @modelcontextprotocol/server-fetch
     fetch:
