@@ -23,6 +23,7 @@ tenacity>=8.2.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 cloudscraper
+tavily-python>=0.5.0
 
 # ====================================
 # TRAITEMENT DE DOCUMENTS
