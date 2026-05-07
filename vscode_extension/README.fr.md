@@ -19,11 +19,12 @@ exactement comme avant.
 
 ## Points forts
 
-- 🤖 **Mode agentique** (nouveau en 1.1.0) — le modèle peut lire, modifier
-  et créer des fichiers, lancer des commandes shell, et chercher dans le
-  workspace via neuf outils intégrés. Chaque appel d'outil s'affiche dans
-  le chat sous forme de carte pliable façon Claude Code, avec son statut,
-  ses arguments et sa sortie.
+- 🤖 **Mode agentique** — le modèle peut lire, modifier et créer des
+  fichiers, lancer des commandes shell, et chercher dans le workspace via
+  neuf outils intégrés. Chaque appel d'outil s'affiche dans le chat sous
+  forme de carte pliable façon Claude Code, **insérée inline dans l'ordre
+  de narration** (texte → carte outil → texte → carte outil → réponse
+  finale), avec son statut, ses arguments et sa sortie.
 - 🛡️ **Sandbox du workspace** — tous les chemins sont résolus à partir du
   dossier workspace ouvert. Tout accès en dehors du workspace nécessite
   une approbation modale par chemin, jamais auto-approuvable.

@@ -28,6 +28,11 @@ export interface IncomingPayload {
   resumed?: boolean;
   broadcast?: boolean;
   final?: boolean;
+  // Streaming par segment (mode VS Code agentique) : un segment = une
+  // passe LLM entre deux exécutions d'outils. Le client crée une bulle
+  // séparée par segment pour intercaler les cartes d'outils dans le bon
+  // ordre, comme Claude Code.
+  segment_index?: number;
   // tool_use
   call_id?: string;
   name?: string;

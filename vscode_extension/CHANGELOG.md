@@ -5,6 +5,51 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-05-07
+
+Polish pass on the agentic mode introduced in 1.1.0. Focuses on **streaming
+correctness, transport stability, and chat UX** — the agentic loop now
+renders like Claude Code (text → tool card → text → tool card → final
+answer), no longer leaks raw `<tool_use>` JSON during streaming, and stops
+spinning on repeated tool calls.
+
+### Added
+- **Inline tool-card rendering (Claude-Code parity).** The host now streams
+  responses as numbered *segments* (one per LLM iteration) and the chat
+  inserts each tool card between the segment that triggered it and the
+  segment that consumed its result. Tool cards no longer pile up above the
+  whole answer — they appear in narration order.
+- **Host-side INFO logging** for the VS Code agentic loop. Each user message
+  produces a log line at start (`message_id`, history size), one per
+  iteration (segment index, tool count and names), one per tool call
+  (`name(input) [call_id]`), one per result (`is_error`, content size), and
+  one at end (`%d chars, %.1fs`). Easier to diagnose without attaching a
+  debugger.
+
+### Fixed
+- **Partial `<tool_use>` blocks no longer leak into the chat.** Until the
+  closing tag arrived, the streaming text temporarily showed raw JSON like
+  `<tool_use>{"name": "read_file"…`. The host now strips any unfinished
+  open tag from the visible chunk on every push.
+- **Tunnel keepalive tightened** from 25 s to 15 s. Some public tunnels
+  (notably `serveo.net` and `localhost.run` over mobile data) close idle
+  WebSockets before the previous interval, causing repeated short-lived
+  reconnects. A failed ping now also force-closes the WebSocket so the
+  reconnect loop can pick a fresh tunnel instead of holding a zombie
+  socket.
+- **Anti-loop rules added to the agent system prompt.** Small models would
+  sometimes call `read_file` on the same path repeatedly when the previous
+  result was already in context. The prompt now forbids re-calling a tool
+  with identical arguments, forbids retrying after a `<tool_error>`, and
+  requires an explicit stop once all required tool calls have been made.
+
+### Notes
+- Wire-protocol change: the `chunk` message now carries an optional
+  `segment_index` field. Clients that ignore it (older 1.1.x extensions)
+  will see the entire response collapsed into a single bubble — old
+  behavior, just less pretty. The host stays backward-compatible with old
+  callers via a runtime signature check on `on_chunk`.
+
 ## [1.1.0] — 2026-05-06
 
 Adds an **agentic mode** for the VS Code chat. The extension now behaves like

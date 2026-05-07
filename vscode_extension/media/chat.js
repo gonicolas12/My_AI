@@ -36,6 +36,13 @@
   let attachmentCounter = 0;
   let streamingMessageId = null;
   let streamingMessageEl = null;
+  // Index du segment en cours pour le message en streaming. Un segment =
+  // une passe LLM entre deux exécutions d'outils (mode VS Code agentique).
+  // À chaque nouveau segment_index reçu dans un chunk, on "fige" la bulle
+  // courante et on en crée une nouvelle, ce qui permet aux cartes d'outils
+  // (insérées entre-temps via tool-event) d'apparaître inline, dans l'ordre,
+  // comme dans Claude Code. null tant qu'aucun chunk n'a été reçu.
+  let streamingSegmentIndex = null;
   let userPinnedToBottom = true;
   let autoAttachActive = false;
   // Map call_id → DOM node for the tool card. Used by tool-event handlers
@@ -177,13 +184,12 @@
     let card = toolCardEls.get(event.callId);
     if (!card) {
       card = createToolCard(event);
-      // Insert above the streaming bubble so cards render inline with
-      // the assistant's response.
-      if (streamingMessageEl && streamingMessageEl.isConnected) {
-        messagesEl.insertBefore(card, streamingMessageEl);
-      } else {
-        messagesEl.appendChild(card);
-      }
+      // Append at the bottom : la carte arrive APRÈS le segment de texte
+      // qui l'a déclenchée (segment N), et AVANT le segment de texte qui
+      // intègre son résultat (segment N+1, créé plus tard quand le LLM
+      // recommence à streamer). Si la bulle de streaming est encore là,
+      // c'est qu'elle est le dernier élément → appendChild la place après.
+      messagesEl.appendChild(card);
       toolCardEls.set(event.callId, card);
       // Drop the typing indicator: the agent is clearly working.
       removeTyping();
@@ -399,7 +405,10 @@
       if (!cmid) return;
       if (renderedMessageIds.has('ai:' + cmid)) return;
       removeTyping();
-      updateStreamingBubble(cmid, data.text || '');
+      // segment_index : optionnel (ancien protocole = pas de segments).
+      // Si absent, on traite tout comme segment 0.
+      const seg = (typeof data.segment_index === 'number') ? data.segment_index : 0;
+      updateStreamingBubble(cmid, data.text || '', seg);
     } else if (data.type === 'ack') {
       if (data.message_id) {
         lastSentMessageId = data.message_id;
@@ -561,14 +570,21 @@
     return text;
   }
 
-  function ensureStreamingBubble(mid) {
-    if (streamingMessageId === mid && streamingMessageEl && streamingMessageEl.isConnected) {
+  function ensureStreamingBubble(mid, segmentIndex) {
+    if (
+      streamingMessageId === mid
+      && streamingSegmentIndex === segmentIndex
+      && streamingMessageEl
+      && streamingMessageEl.isConnected
+    ) {
       return streamingMessageEl;
     }
     if (welcomeEl) welcomeEl.style.display = 'none';
     streamingMessageId = mid;
+    streamingSegmentIndex = segmentIndex;
     const msg = document.createElement('div');
     msg.className = 'message ai streaming';
+    msg.dataset.segment = String(segmentIndex);
     msg.innerHTML =
       '<div class="ai-icon">&#x1F916;</div>' +
       '<div class="bubble">' +
@@ -580,8 +596,41 @@
     return msg;
   }
 
-  function updateStreamingBubble(mid, text) {
-    const bubble = ensureStreamingBubble(mid);
+  // Fige la bulle de streaming courante (sans la déplacer dans le DOM)
+  // pour qu'elle reste visible quand on passe au segment suivant ou à la
+  // fin de la génération.
+  function promoteCurrentStreamingBubble(timestamp) {
+    if (!streamingMessageEl) return;
+    streamingMessageEl.classList.remove('streaming');
+    const cursor = streamingMessageEl.querySelector('.stream-cursor');
+    if (cursor) cursor.remove();
+    const bubble = streamingMessageEl.querySelector('.bubble');
+    if (bubble && !bubble.querySelector('.time')) {
+      const time = formatTime(timestamp ? new Date(timestamp) : new Date());
+      const timeEl = document.createElement('span');
+      timeEl.className = 'time';
+      timeEl.textContent = time;
+      bubble.appendChild(timeEl);
+    }
+  }
+
+  function updateStreamingBubble(mid, text, segmentIndex) {
+    if (typeof segmentIndex !== 'number') segmentIndex = 0;
+    // Détection d'un nouveau segment (= nouvelle itération LLM) : on
+    // promeut la bulle courante en bulle "finie" et on en crée une
+    // nouvelle, qui apparaîtra APRÈS les cartes d'outils déjà insérées
+    // entre les deux segments. C'est ce qui donne l'ordre Claude Code :
+    // texte → outils → texte → outils → ...
+    if (
+      streamingMessageId === mid
+      && streamingMessageEl
+      && streamingSegmentIndex !== null
+      && streamingSegmentIndex !== segmentIndex
+    ) {
+      promoteCurrentStreamingBubble(null);
+      streamingMessageEl = null;
+    }
+    const bubble = ensureStreamingBubble(mid, segmentIndex);
     const content = bubble.querySelector('.stream-content');
     if (content) {
       content.innerHTML = renderMarkdown(balanceMarkdownForStreaming(text));
@@ -591,25 +640,29 @@
   }
 
   function finalizeStreaming(mid, finalText, timestamp) {
-    if (streamingMessageId !== mid || !streamingMessageEl) {
+    if (streamingMessageId !== mid) {
+      // Le streaming n'a jamais commencé pour ce message : afficher la
+      // réponse finale d'un coup.
       if (finalText !== null && finalText !== undefined) {
         addMessage(finalText, false, timestamp);
       }
       return;
     }
-    if (finalText === null || finalText === undefined) {
-      streamingMessageEl.remove();
-    } else {
-      const time = formatTime(timestamp ? new Date(timestamp) : new Date());
-      streamingMessageEl.classList.remove('streaming');
-      streamingMessageEl.innerHTML =
-        '<div class="ai-icon">&#x1F916;</div>' +
-        '<div class="bubble">' + renderMarkdown(finalText) +
-        '<span class="time">' + time + '</span></div>';
-      enhanceCodeBlocks(streamingMessageEl);
+    // En mode segmenté, la bulle de streaming actuelle contient le DERNIER
+    // segment (pas la réponse complète). On la promeut sans toucher à son
+    // contenu : tous les segments précédents sont déjà des bulles figées
+    // au-dessus, intercalées avec les cartes d'outils. Le finalText reçu
+    // dans le message `response` est la concaténation de tous les segments
+    // (utile si le streaming a été manqué, mais redondant sinon).
+    if (streamingMessageEl) {
+      promoteCurrentStreamingBubble(timestamp);
+    } else if (finalText !== null && finalText !== undefined) {
+      // Streaming vide (jamais reçu de chunk) → afficher la réponse.
+      addMessage(finalText, false, timestamp);
     }
     streamingMessageEl = null;
     streamingMessageId = null;
+    streamingSegmentIndex = null;
     scrollToBottom();
   }
 
@@ -646,6 +699,7 @@
     renderedMessageIds.clear();
     streamingMessageId = null;
     streamingMessageEl = null;
+    streamingSegmentIndex = null;
     toolCardEls.clear();
   }
 

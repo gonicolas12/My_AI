@@ -222,6 +222,15 @@ sera prévenu et devra confirmer.
 voit déjà tout ce que tu as fait via les outils — pas besoin de tout \
 résumer.
 7. Réponds dans la langue de l'utilisateur (français par défaut).
+8. ANTI-BOUCLE : NE rappelle JAMAIS un outil avec exactement les mêmes \
+arguments dans la même conversation. Si tu vois <tool_result> ou \
+<tool_error> pour un appel donné, ce résultat reste valide pour TOUTE la \
+conversation : utilise-le directement plutôt que de relancer l'outil.
+9. Si <tool_error> indique qu'un fichier n'existe pas, NE retente PAS \
+read_file ou glob avec le même nom : utilise list_dir pour découvrir le \
+vrai nom du fichier ou demande à l'utilisateur.
+10. Quand tous les outils nécessaires ont été appelés, ARRÊTE d'émettre \
+des <tool_use> et donne ta réponse finale en texte normal.
 """
 
 
@@ -243,6 +252,53 @@ _TOOL_USE_RE = re.compile(
     r"<tool_use>\s*(?P<body>.+?)\s*</tool_use>",
     re.DOTALL | re.IGNORECASE,
 )
+
+# Repère une balise ouvrante `<tool_use>` non fermée (apparait pendant le
+# streaming, avant que le LLM ait fini d'écrire le bloc). Sert à masquer
+# les balises inachevées dans l'UI.
+_PARTIAL_TOOL_USE_OPEN_RE = re.compile(r"<tool_use\b", re.IGNORECASE)
+
+
+def strip_tool_use_for_display(text: str) -> str:
+    """Retire les blocs `<tool_use>...</tool_use>` ET tout bloc ouvert sans
+    fermeture (typiquement en cours d'écriture pendant le streaming).
+
+    Sans ça, l'utilisateur voit du JSON brut s'afficher au moment où le
+    modèle écrit ses appels d'outils, puis ce contenu disparaît : très
+    confus côté UX.
+    """
+    cleaned = _TOOL_USE_RE.sub("", text)
+    # Couper tout `<tool_use` non fermé encore présent après le sub().
+    open_match = _PARTIAL_TOOL_USE_OPEN_RE.search(cleaned)
+    if open_match is not None:
+        cleaned = cleaned[: open_match.start()]
+    return cleaned.strip()
+
+
+def _safe_on_chunk(
+    callback: Callable[..., None],
+    text: str,
+    segment_index: int,
+) -> None:
+    """Appelle ``callback(text, segment_index)`` ou retombe sur ``callback(text)``.
+
+    Permet aux anciens callers (qui ne connaissent pas la notion de segment)
+    de continuer à fonctionner sans modification, tout en passant l'info
+    aux nouveaux callers qui rendent les segments séparément.
+    """
+    try:
+        callback(text, segment_index)
+        return
+    except TypeError:
+        # callback à 1 argument (ancien protocole)
+        pass
+    except Exception as exc:
+        logger.debug("on_chunk a levé: %s", exc)
+        return
+    try:
+        callback(text)
+    except Exception as exc:
+        logger.debug("on_chunk(legacy) a levé: %s", exc)
 
 
 def parse_tool_calls(assistant_text: str) -> List[Dict[str, Any]]:
@@ -384,7 +440,7 @@ class AgenticExecutor:
         user_message: str,
         history: List[Dict[str, str]],
         tool_executor: RemoteToolExecutor,
-        on_chunk: Callable[[str], None],
+        on_chunk: Callable[..., None],
         on_tool_call_announced: Callable[[Dict[str, Any]], None],
         on_tool_result: Callable[[str, Dict[str, Any]], None],
         workspace_info: str,
@@ -395,8 +451,13 @@ class AgenticExecutor:
         - ``history`` est mutée en place (append-only) : la session VS Code
           réutilise la même liste pour conserver le contexte d'un message
           au suivant. La 1re entrée system_prompt est insérée si absente.
-        - ``on_chunk(text_partial_cumulatif)`` : appelé pendant le streaming
-          du LLM (pour broadcast au webview chat). Le texte est cumulatif.
+        - ``on_chunk(text, segment_index)`` : appelé pendant le streaming
+          du LLM. Le texte est CELUI DE L'ITÉRATION COURANTE uniquement
+          (pas cumulatif). Chaque itération a son propre ``segment_index``
+          (0, 1, 2, ...), ce qui permet au client de rendre une bulle
+          séparée par itération avec les cartes d'outils intercalées dans
+          le bon ordre. La signature accepte ``segment_index`` en kwarg
+          pour rester compatible avec les anciens callers à 1 arg.
         - ``on_tool_call_announced(call)`` : appelé juste avant qu'un appel
           d'outil parte au client (pour afficher la carte "tool_use" dans
           l'UI).
@@ -413,37 +474,50 @@ class AgenticExecutor:
         history.append({"role": "user", "content": user_message})
         messages = history
 
-        # Texte cumulatif visible par l'utilisateur (concaténation des
-        # passes successives du LLM, mais SANS les blocs <tool_use> qui
-        # sont déjà rendus comme cartes UI).
-        visible_so_far = ""
+        logger.info(
+            "Boucle agentique : démarrage (model=%s, max_iter=%d, history=%d msgs)",
+            self._model, max_iters, len(messages),
+        )
 
-        for iteration in range(max_iters):
+        # Texte par segment : un segment = une passe LLM (entre deux
+        # exécutions d'outils). Conservé pour reconstruire la réponse
+        # finale envoyée via ``response`` à la fin.
+        segments: List[str] = []
+
+        for iteration_index in range(max_iters):
+            segment_index = iteration_index
+            logger.info(
+                "Boucle agentique : itération %d/%d (segment=%d)",
+                iteration_index + 1, max_iters, segment_index,
+            )
             assistant_text = await self._call_llm_streaming(
                 messages,
-                visible_so_far,
+                segment_index,
                 on_chunk,
             )
             messages.append({"role": "assistant", "content": assistant_text})
 
             tool_calls = parse_tool_calls(assistant_text)
-
-            # Mettre à jour le texte visible : on retire les blocs tool_use
-            # de l'affichage (ils seront rendus comme cartes), mais on
-            # garde le reste du texte (raisonnement libre du modèle).
-            visible_chunk = _TOOL_USE_RE.sub("", assistant_text).strip()
+            visible_chunk = strip_tool_use_for_display(assistant_text)
             if visible_chunk:
-                if visible_so_far:
-                    visible_so_far = visible_so_far + "\n\n" + visible_chunk
-                else:
-                    visible_so_far = visible_chunk
-                # Pousser une mise à jour finale du chunk visible
-                on_chunk(visible_so_far)
+                segments.append(visible_chunk)
+                # Push final pour être sûr que le client a reçu la
+                # version complète du segment avant les cartes d'outils.
+                _safe_on_chunk(on_chunk, visible_chunk, segment_index)
 
             if not tool_calls:
-                # Le modèle a fini : pas de tool_use, on retourne la
-                # réponse visible cumulée.
-                return visible_so_far or assistant_text.strip()
+                final_text = "\n\n".join(segments) if segments else assistant_text.strip()
+                logger.info(
+                    "Boucle agentique : fin (itération %d, %d segment(s), %d chars)",
+                    iteration_index + 1, len(segments), len(final_text),
+                )
+                return final_text
+
+            tool_names = ", ".join(c["name"] for c in tool_calls)
+            logger.info(
+                "Boucle agentique : itération %d → %d tool call(s) [%s]",
+                iteration_index + 1, len(tool_calls), tool_names,
+            )
 
             # Exécuter les tool_calls (en parallèle pour aller vite).
             results = await self._dispatch_tool_calls(
@@ -460,8 +534,13 @@ class AgenticExecutor:
             results_block = self._format_tool_results(tool_calls, results)
             messages.append({"role": "user", "content": results_block})
 
+        logger.warning(
+            "Boucle agentique : limite d'itérations atteinte (%d), arrêt forcé",
+            max_iters,
+        )
+        truncated = "\n\n".join(segments) if segments else ""
         return (
-            visible_so_far
+            truncated
             + "\n\n[⚠️ Boucle agentique interrompue — limite d'itérations atteinte.]"
         ).strip()
 
@@ -472,8 +551,8 @@ class AgenticExecutor:
     async def _call_llm_streaming(
         self,
         messages: List[Dict[str, str]],
-        visible_prefix: str,
-        on_chunk: Callable[[str], None],
+        segment_index: int,
+        on_chunk: Callable[..., None],
     ) -> str:
         """Appelle Ollama /api/chat en streaming, retourne le texte complet."""
         loop = asyncio.get_event_loop()
@@ -481,15 +560,15 @@ class AgenticExecutor:
             None,
             self._sync_call_llm_streaming,
             messages,
-            visible_prefix,
+            segment_index,
             on_chunk,
         )
 
     def _sync_call_llm_streaming(
         self,
         messages: List[Dict[str, str]],
-        visible_prefix: str,
-        on_chunk: Callable[[str], None],
+        segment_index: int,
+        on_chunk: Callable[..., None],
     ) -> str:
         data = {
             "model": self._model,
@@ -535,19 +614,11 @@ class AgenticExecutor:
                     now = time.time()
                     if now - last_chunk_pushed_at >= 0.05:
                         last_chunk_pushed_at = now
-                        # Le texte visible est : préfixe + (nouvelle réponse
-                        # avec les tool_use retirés). On retire à la volée
-                        # pour éviter d'afficher du JSON brut pendant que le
-                        # modèle écrit le bloc.
-                        visible = _TOOL_USE_RE.sub("", full_response).strip()
-                        if visible_prefix and visible:
-                            visible = visible_prefix + "\n\n" + visible
-                        elif visible_prefix:
-                            visible = visible_prefix
-                        try:
-                            on_chunk(visible)
-                        except Exception as exc:
-                            logger.debug("on_chunk a levé: %s", exc)
+                        # On retire à la volée les blocs <tool_use> (et tout
+                        # bloc ouvert sans fermeture) pour éviter d'afficher
+                        # du JSON brut pendant que le modèle écrit le bloc.
+                        visible = strip_tool_use_for_display(full_response)
+                        _safe_on_chunk(on_chunk, visible, segment_index)
         except requests.RequestException as exc:
             logger.error("Erreur appel Ollama : %s", exc)
             return f"[Erreur LLM : {exc}]"
@@ -565,6 +636,17 @@ class AgenticExecutor:
         on_result: Callable[[str, Dict[str, Any]], None],
     ) -> List[Dict[str, Any]]:
         async def _one(call: Dict[str, Any]) -> Dict[str, Any]:
+            call_name = call.get("name", "?")
+            try:
+                input_repr = json.dumps(call.get("input", {}), ensure_ascii=False)
+            except (TypeError, ValueError):
+                input_repr = str(call.get("input", {}))
+            logger.info(
+                "→ Tool call: %s(%s) [call_id=%s]",
+                call_name,
+                input_repr if len(input_repr) < 200 else input_repr[:200] + "…",
+                call.get("call_id", "?"),
+            )
             try:
                 on_announced(call)
             except Exception as exc:
@@ -582,8 +664,16 @@ class AgenticExecutor:
                     "is_error": True,
                 }
             except Exception as exc:
-                logger.exception("Erreur lors de l'exécution distante de %s", call.get("name"))
+                logger.exception("Erreur lors de l'exécution distante de %s", call_name)
                 result = {"content": f"[Erreur exécution : {exc}]", "is_error": True}
+            content_len = len(result.get("content", "")) if isinstance(result, dict) else 0
+            logger.info(
+                "← Tool result: %s [call_id=%s, is_error=%s, %d chars]",
+                call_name,
+                call.get("call_id", "?"),
+                result.get("is_error", False) if isinstance(result, dict) else "?",
+                content_len,
+            )
             try:
                 on_result(call["call_id"], result)
             except Exception as exc:
@@ -624,4 +714,5 @@ __all__ = [
     "RemoteToolExecutor",
     "build_system_prompt",
     "parse_tool_calls",
+    "strip_tool_use_for_display",
 ]

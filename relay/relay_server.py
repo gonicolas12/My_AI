@@ -1465,10 +1465,17 @@ async def _handle_vscode_chat(
         return
 
     message_id = f"vscode_{uuid.uuid4().hex}"
+    logger.info(
+        "VS Code chat reçu : message_id=%s, %d chars, history=%d entrées",
+        message_id, len(user_text), len(history),
+    )
     await send_encrypted({"type": "ack", "message_id": message_id})
 
     cfg = _resolve_ollama_for_agentic(server)
     if cfg is None:
+        logger.warning(
+            "VS Code chat : moteur Ollama non prêt, message_id=%s", message_id,
+        )
         await send_encrypted({
             "type": "response",
             "message": (
@@ -1493,21 +1500,28 @@ async def _handle_vscode_chat(
     )
 
     # Throttling des chunks vers le client (50 ms) pour limiter la charge
-    # WS+tunnel. Le premier chunk part immédiatement.
+    # WS+tunnel. Le premier chunk d'un NOUVEAU segment est toujours poussé
+    # immédiatement (sinon le client ne saurait pas qu'une nouvelle bulle
+    # doit être créée et collerait le texte de la nouvelle itération à la
+    # bulle précédente).
     last_chunk_at = 0.0
+    last_segment = -1
 
-    def on_chunk(visible_text: str) -> None:
-        nonlocal last_chunk_at
+    def on_chunk(visible_text: str, segment_index: int = 0) -> None:
+        nonlocal last_chunk_at, last_segment
         now = time.time()
-        if now - last_chunk_at < 0.05:
+        new_segment = segment_index != last_segment
+        if not new_segment and now - last_chunk_at < 0.05:
             return
         last_chunk_at = now
+        last_segment = segment_index
         try:
             asyncio.run_coroutine_threadsafe(
                 send_encrypted({
                     "type": "chunk",
                     "message_id": message_id,
                     "text": visible_text,
+                    "segment_index": segment_index,
                     "timestamp": datetime.now().isoformat(),
                 }),
                 loop,
@@ -1536,6 +1550,7 @@ async def _handle_vscode_chat(
             len(result.get("content", "")),
         )
 
+    started_at = time.time()
     try:
         final_text = await executor.run(
             user_message=user_text,
@@ -1549,6 +1564,12 @@ async def _handle_vscode_chat(
     except Exception as exc:
         logger.exception("Boucle agentique échouée pour message_id=%s", message_id)
         final_text = f"❌ Erreur du moteur agentique : {exc}"
+
+    elapsed = time.time() - started_at
+    logger.info(
+        "VS Code chat terminé : message_id=%s, %d chars, %.1fs",
+        message_id, len(final_text), elapsed,
+    )
 
     try:
         await send_encrypted({

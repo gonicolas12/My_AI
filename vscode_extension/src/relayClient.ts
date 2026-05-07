@@ -10,7 +10,11 @@ import { HistoryItem, IncomingPayload, RelayCredentials } from './types';
 
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;
-const KEEPALIVE_MS = 25000;
+// Keepalive court (15s) car certains tunnels publics (serveo, localhost.run
+// via mobile data) coupent les WebSockets idle bien avant les 25s habituels
+// de cloudflared. Un ping plus fréquent garde la connexion vivante au prix
+// d'un petit overhead réseau.
+const KEEPALIVE_MS = 15000;
 
 export interface UploadResult {
   fileId: string;
@@ -368,8 +372,20 @@ export class RelayClient extends EventEmitter {
     this.stopKeepalive();
     this.keepaliveTimer = setInterval(() => {
       if (this.isOpen) {
-        this.sendEncrypted({ type: 'ping' }).catch(() => {
-          /* ignore */
+        this.sendEncrypted({ type: 'ping' }).catch((err) => {
+          // Un échec de ping est suspect : soit le WS est mort sans
+          // émettre 'close', soit la couche E2EE est cassée. Logger
+          // pour diagnostic, et fermer le WS pour déclencher le
+          // reconnect (sinon on reste bloqué sur un WS zombi).
+          // eslint-disable-next-line no-console
+          console.warn('[RelayClient] keepalive ping failed:', err);
+          if (this.ws) {
+            try {
+              this.ws.close();
+            } catch {
+              /* ignore */
+            }
+          }
         });
       }
     }, KEEPALIVE_MS);

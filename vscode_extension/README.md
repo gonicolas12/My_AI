@@ -18,10 +18,11 @@ exactly as before.
 
 ## Highlights
 
-- 🤖 **Agentic mode** (new in 1.1.0) — the model can read, edit, and create
-  files, run shell commands, and search the workspace via nine built-in
-  tools. Every tool call shows up as a Claude-Code-style foldable card in
-  the chat, with status, input, and captured output.
+- 🤖 **Agentic mode** — the model can read, edit, and create files, run
+  shell commands, and search the workspace via nine built-in tools. Every
+  tool call shows up as a Claude-Code-style foldable card **rendered inline
+  in narration order** (text → tool card → text → tool card → final
+  answer), with status, input, and captured output.
 - 🛡️ **Workspace sandbox** — all paths are resolved against the open
   workspace folder. Out-of-workspace access requires an explicit modal
   approval per path, never auto-approvable.
