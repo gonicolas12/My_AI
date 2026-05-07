@@ -45,7 +45,7 @@ llm:
     enable_learning: true
     conversation_memory: 10
     base_url: "http://localhost:11434"
-    default_model: "qwen3.5:2b"
+    default_model: "qwen3.5:4b"
     timeout: 60
     available_models:
       - "llama3.2"
