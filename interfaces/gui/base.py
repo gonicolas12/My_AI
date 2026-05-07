@@ -548,7 +548,7 @@ class BaseGUI:
         # block_update_dimensions_event de CustomTkinter
         popup = tk.Toplevel(self.root)
         popup.title("My_AI Relay")
-        popup.geometry("500x580")
+        popup.geometry("500x660")
         popup.configure(bg="#0f0f0f")
         popup.transient(self.root)
         popup.resizable(False, False)
@@ -578,11 +578,11 @@ class BaseGUI:
         status_label.pack(pady=(0, 8))
 
         # ── QR Code (canvas) ──
-        qr_canvas = tk.Canvas(popup, width=200, height=200, bg="#0f0f0f",
+        qr_canvas = tk.Canvas(popup, width=280, height=280, bg="#0f0f0f",
                               highlightthickness=0)
         qr_canvas.pack(pady=(5, 8))
         # Placeholder pendant que le tunnel se connecte
-        qr_canvas.create_text(100, 100, text="En attente\ndu tunnel...",
+        qr_canvas.create_text(140, 140, text="En attente\ndu tunnel...",
                               fill="#6b7280", font=("Segoe UI", 11),
                               justify="center")
 
@@ -684,9 +684,9 @@ class BaseGUI:
             rows = len(matrix)
             if rows == 0:
                 return
-            cell_size = max(1, 200 // rows)
-            offset_x = (200 - rows * cell_size) // 2
-            offset_y = (200 - rows * cell_size) // 2
+            cell_size = max(1, 280 // rows)
+            offset_x = (280 - rows * cell_size) // 2
+            offset_y = (280 - rows * cell_size) // 2
 
             for r, row in enumerate(matrix):
                 for c, val in enumerate(row):
