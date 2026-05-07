@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v7.2.0
+# 📖 Guide d'Installation - My Personal AI v7.3.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v7.2.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v7.3.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -186,6 +186,36 @@ python-multipart>=0.0.9  # Parsing multipart pour POST /api/upload (pièces join
 >
 > **Sans ces packages**, le bouton Relay dans le GUI est présent mais désactivé. L'application fonctionne normalement par ailleurs.
 
+### Extension VS Code (Optionnel — assistant agentique pour développeurs)
+
+L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Depuis sa **v1.1.0** (My_AI 7.3.0), elle expose un mode **agentique façon Claude Code** : le LLM local côté hôte peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code, via 9 outils délégués au client. Les opérations destructives demandent l'approbation de l'utilisateur, et les chemins sont sandboxés au workspace ouvert par défaut.
+
+**Installation côté utilisateur** (aucune dépendance Python supplémentaire) :
+
+```bash
+# Depuis VS Code : Extensions (Ctrl+Shift+X) → recherche "My_AI Relay" → Install
+# OU en ligne de commande :
+code --install-extension gonicolas12.my-ai
+```
+
+Puis : démarrez le Relay sur votre PC hôte → cliquez sur **🧩 Copier pour l'extension VS Code** dans la popup → collez la chaîne dans VS Code via la commande *My_AI Relay : Se connecter*. À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay, qui bascule la session en mode agentique.
+
+> 💡 **Recommandation modèle.** Le mode agentique fonctionne avec n'importe quel modèle Ollama (le format `<tool_use>{...}</tool_use>` est parsé côté hôte sans dépendre de l'API tools native). Pour des refactors multi-fichiers ou du scaffolding de projets, un modèle 4B ou plus (`qwen3.5:4b`, `qwen3.5:7b`...) est recommandé ; les 2B suffisent pour des éditions ponctuelles.
+
+> 🔧 **Optionnel — installer ripgrep** (`rg`) sur le PATH du PC qui exécute l'extension : l'outil `grep` l'utilisera pour des recherches plus rapides. Sinon un fallback JS est utilisé automatiquement.
+
+**Build local de l'extension** (uniquement si vous voulez modifier le code) :
+
+```bash
+cd vscode_extension
+npm install              # ~185 packages, Node 18+
+npm run build            # esbuild → dist/extension.js
+npm run package          # → my-ai-relay-X.Y.Z.vsix
+code --install-extension my-ai-relay-X.Y.Z.vsix --force
+```
+
+> Voir [`vscode_extension/README.md`](../vscode_extension/README.md) (EN) ou [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) (FR) pour la documentation complète, la liste exhaustive des outils, et les détails du flux d'approbation.
+
 ### Advanced Features (Optionnel)
 ```
 faiss-cpu>=1.7.4         # Semantic search
@@ -245,7 +275,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "7.2.0"
+  version: "7.3.0"
   max_tokens: 10485760      # 10M tokens (capacité VectorMemory)
   temperature: 0.7
   conversation_history_limit: 10
@@ -687,7 +717,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v7.2.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v7.3.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -844,4 +874,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 7.2.0 | Architecture: 100% locale | Capacité: 10M tokens*
+*Version: 7.3.0 | Architecture: 100% locale | Capacité: 10M tokens*

@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v7.2.0
+# 🏗️ Architecture - My Personal AI v7.3.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.2.0**, basée sur les principes suivants:
+My Personal AI v7.3.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.3.0**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -21,6 +21,7 @@ My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
+- **Extension VS Code agentique** *(v7.3.0, ext v1.1.0+)* : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique façon Claude Code** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 
 ## 🚀 Architecture Système Complète
@@ -30,9 +31,9 @@ My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire 
 │                    INTERFACES UTILISATEUR                            │
 ├──────────────────────────────────────────────────────────────────────┤
 │  GUI Modern (CustomTkinter) │  CLI Enhanced    │  VSCode Extension   │
-│  • Dark theme Claude-style  │  • Commandes     │  • (Prototype)      │
-│  • Code highlighting        │  • Historique    │  • Command palette  │
-│  • Drag-and-drop files      │  • Stats         │                     │
+│  • Dark theme Claude-style  │  • Commandes     │  • Mode agentique   │
+│  • Code highlighting        │  • Historique    │  • 9 outils workspace│
+│  • Drag-and-drop files      │  • Stats         │  • Sandbox + approval│
 ├─────────────────────────────┴──────────────────┴─────────────────────┤
 │  Agents Interface                                                    │
 │  • Canvas visuel workflow n8n (WorkflowCanvas)                       │
@@ -45,6 +46,8 @@ My Personal AI v7.2.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Tunnel cloudflared HTTPS → accès depuis n'importe où             │
 │  • Authentification token/mot de passe + QR code                    │
 │  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile           │
+│  • Routage par client_kind : "mobile" → bridge GUI, "vscode" →       │
+│    AgenticExecutor (boucle LLM ↔ outils, exécution côté extension)   │
 └──────────────────────────────────────────────────────────────────────┘
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -259,6 +262,40 @@ Architecture:
 ├─ Endpoints : health, chat, models, conversations, stats
 ├─ CORS configurable pour intégrations externes
 └─ Arrêt gracieux via stop()
+```
+
+**`core/agentic_executor.py`** - Boucle agentique pour clients VS Code
+```python
+Activé exclusivement quand un client Relay s'identifie comme
+client_kind: "vscode" (cf. relay/relay_server.py). Le mobile et le GUI
+desktop n'utilisent jamais ce module.
+
+Architecture:
+├─ AGENT_TOOLS              # Schéma déclaratif des 9 outils workspace
+│                           #   (read_file, write_file, edit_file,
+│                           #    list_dir, glob, grep, run_command,
+│                           #    get_active_editor, open_file)
+├─ build_system_prompt(...)  # Prompt système avec doc des outils
+│                           #   et format <tool_use>{...}</tool_use>
+├─ parse_tool_calls(...)    # Extrait les blocs <tool_use> du texte LLM
+│                           #   (tolérant : code-fence ```json, JSON
+│                           #    malformés silencieusement ignorés)
+├─ RemoteToolExecutor       # Pont WS : envoie tool_use, await tool_result
+│                           #   via asyncio.Future indexées par call_id
+└─ AgenticExecutor.run()    # Boucle :
+                            #   1. appel Ollama /api/chat en streaming
+                            #   2. callback on_chunk pour broadcast WS
+                            #   3. parse les tool_use éventuels
+                            #   4. dispatche en parallèle (asyncio.gather)
+                            #   5. réinjecte les résultats au LLM
+                            #   6. répète jusqu'à plus de tool_use
+                            #      (max 25 itérations) ou réponse finale
+
+L'historique de conversation est passé par référence (mutation in-place)
+pour permettre la continuité entre messages d'une même session WS.
+
+Format LLM-agnostique : les outils sont transmis via des balises texte
+(non via l'API tools native d'Ollama) → marche avec n'importe quel modèle.
 ```
 
 **`core/command_history.py`** - Historique des commandes
@@ -833,10 +870,45 @@ Features:
 └─ Adaptations plateforme
 ```
 
-**`interfaces/vscode_extension.py`**
-```python
-├─ Placeholder extension VSCode
-└─ Potentiel intégration command palette
+**`vscode_extension/`** - Extension VS Code (client Relay distant + agent codant)
+```
+vscode_extension/
+├─ package.json             # Manifest, commandes, vues, settings
+├─ src/
+│  ├─ extension.ts          # Entrée : commandes, status bar, activation
+│  ├─ connectionManager.ts  # SecretStorage, état, health-check, hello vscode,
+│  │                        #   forward des tool_use → ToolDispatcher
+│  ├─ relayClient.ts        # WebSocket E2EE, multi-tunnel failover, upload,
+│  │                        #   client_hello, sendToolResult
+│  ├─ chatViewProvider.ts   # WebviewView (sidebar) + bridge postMessage
+│  ├─ workspaceBridge.ts    # Auto-attach, send selection, insert at cursor
+│  ├─ agentTools.ts         # 9 outils workspace (read/write/edit/list/glob/
+│  │                        #   grep/run_command/get_active_editor/open_file)
+│  │                        #   avec sandbox path-resolution
+│  ├─ toolDispatcher.ts     # Politique d'approbation (auto pour read-only,
+│  │                        #   modal pour les opérations destructives,
+│  │                        #   options "session"/"par fichier")
+│  ├─ connectionString.ts   # Parse router.html#d=<base64(json)>
+│  ├─ crypto.ts             # AES-256-GCM (Node webcrypto)
+│  └─ types.ts
+├─ media/                   # Webview UI (HTML/CSS/JS, no bundling)
+│  ├─ chat.html
+│  ├─ chat.css              # Adapté de relay/static/style.css
+│  ├─ chat.js               # Rendu des messages + cartes d'outils Claude-Code
+│  └─ icon-activitybar.svg
+└─ README.md                # Doc Marketplace
+
+Architecture : l'extension est un *client Relay* (au même titre que la PWA mobile),
+mais à la connexion elle envoie un message chiffré
+`client_hello { client_kind: "vscode" }` qui fait basculer le Relay côté hôte
+vers la boucle agentique (`core/agentic_executor.py`). Cette boucle appelle
+Ollama directement, parse les balises `<tool_use>{...}</tool_use>` du modèle,
+et envoie chaque outil au client via WebSocket (`tool_use` chiffré). Le
+client exécute l'outil dans son `ToolDispatcher` (avec sandbox + approbation)
+puis renvoie le résultat via `tool_result`. Le LLM continue ses itérations
+jusqu'à produire une réponse finale. Le mobile n'envoie pas de
+`client_hello` → il reste sur le pipeline historique (bridge → GUI desktop
+avec MCP locaux complets).
 ```
 
 **`interfaces/agents_interface.py`** - Façade Interface Agents IA
@@ -1294,7 +1366,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 7.2.0
+**Version**: 7.3.0
 **Architecture**: Modulaire, extensible, 100% locale
-**Capacité contexte**: 10,485,760 tokens (10M) avec recherche sémantique
-**Interfaces**: GUI (CustomTkinter), CLI, VSCode (prototype)
+**Capacité contexte**: 10,485,760 tokens avec recherche sémantique
+**Interfaces**: GUI (CustomTkinter), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

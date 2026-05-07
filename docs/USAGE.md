@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.2.0
+# 📚 Guide d'Utilisation - My Personal AI v7.3.0
 
 ## 🚀 Démarrage Rapide
 
@@ -237,7 +237,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.2.0:
+État My Personal AI v7.3.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -806,11 +806,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.2.0
+  MY PERSONAL AI - System Status v7.3.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.2.0
+📊 Version: 7.3.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -844,7 +844,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.2.0
+My Personal AI v7.3.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1301,6 +1301,72 @@ L'URL et le token sont affichés dans le panneau Relay de l'interface.
 | **Strict, pas de downgrade** | Le serveur **rejette** toute connexion WS dont les messages ne sont pas chiffrés (close 4002). Pas de mode dégradé : on ne peut pas forcer du clair via une attaque MITM applicative. |
 | **Aucune donnée cloud** | Les tunnels ne sont que des relais chiffrés — vos données restent sur votre PC, et le contenu transitant par les tunnels publics est illisible pour leurs opérateurs |
 
+### 🧩 Extension VS Code — Mode agentique façon Claude Code
+
+L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code** depuis la v7.3.0. Depuis sa **v1.1.0** (toujours sous My_AI 7.3.0), elle expose un **mode agentique** : l'extension s'identifie auprès du Relay comme client `vscode`, et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM reste sur le PC hôte ; l'**exécution des outils est déléguée à l'extension**, qui les exécute dans le workspace VS Code de l'utilisateur, sandboxé par défaut. Le mobile et le GUI desktop continuent à utiliser le pipeline classique (avec MCP locaux complets) — strictement inchangés.
+
+#### Démarrage en 3 étapes
+
+1. **Sur le PC hôte** : démarrez le Relay (bouton 📡 dans la sidebar) → attendez qu'au moins un tunnel soit vert → cliquez sur **🧩 Copier pour l'extension VS Code** dans la popup.
+2. **Dans VS Code** : installez l'extension `gonicolas12.my-ai` depuis le Marketplace (Extensions → recherche "My_AI Relay" → Install).
+3. **Connexion** : ouvrez la vue *My_AI Relay* dans la sidebar → cliquez sur **Coller la chaîne de connexion…** → collez la chaîne de l'étape 1.
+
+À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay : la session bascule automatiquement en mode agentique.
+
+#### Outils exposés au LLM
+
+| Outil | Description | Approbation |
+|---|---|---|
+| `read_file` | Lecture d'un fichier du workspace (avec `offset` / `limit`) | Auto |
+| `list_dir` / `glob` | Listing de dossier / recherche par pattern | Auto |
+| `grep` | Recherche regex dans le contenu (ripgrep, fallback JS) | Auto |
+| `get_active_editor` / `open_file` | Lire le fichier ouvert / ouvrir un fichier dans l'éditeur | Auto |
+| `write_file` | Création / écrasement d'un fichier (crée les dossiers parents) | **Modal** |
+| `edit_file` | Remplacement par correspondance exacte (`replace_all` optionnel) | **Modal** |
+| `run_command` | Commande shell exécutée dans le workspace, sortie capturée | **Modal** |
+
+Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *Autoriser pour ce fichier (mémorisé pour la session)* / *Tout autoriser pour cet outil dans la session* / *Refuser*.
+
+#### Cartes d'outils dans le chat
+
+Chaque appel d'outil s'affiche comme une **carte pliable façon Claude Code**, avec une bordure gauche colorée selon l'état (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé). Cliquer déplie les arguments JSON et la sortie capturée (stdout/stderr pour les commandes shell, lignes modifiées pour les éditions).
+
+#### Sandbox & isolation
+
+- **Limité au workspace par défaut.** Tous les chemins sont résolus relativement au premier dossier workspace ouvert. Toute tentative de sortie déclenche un modal d'approbation par chemin (jamais auto-approuvable).
+- **Aucun accès aux MCP du PC hôte** depuis l'extension. Le mode agentique est **isolé** du pipeline GUI/mobile : l'utilisateur côté VS Code ne voit que son workspace.
+- **Mémoire de session.** Le contexte agentique est conservé pour toute la session WebSocket — *« édite le fichier que tu viens de lire »* fonctionne. Une reconnexion redémarre une session vierge.
+
+#### Exemples typiques
+
+> *« Liste tous les fichiers `.ts` du workspace et trouve celui qui a le plus de lignes »* → `glob('**/*.ts')` puis `read_file` sur les candidats, puis réponse synthétique.
+>
+> *« Crée un fichier `src/utils/dateFormat.ts` avec une fonction qui formate les dates ISO en français »* → modal `write_file` puis carte verte ✓.
+>
+> *« Initialise un projet Vite + React + TypeScript dans le dossier courant »* → modal `run_command("npm create vite@latest . -- --template react-ts")` puis modal `npm install` puis cartes ✓.
+
+#### Fonctionnalités également dispo
+
+| Fonctionnalité | Détail |
+|---|---|
+| 🧷 **Auto-attache du fichier actif** | Toggle dans le header — chaque message envoyé uploadera silencieusement le fichier ouvert dans l'éditeur |
+| 📤 **Envoyer la sélection à My_AI** | Palette ou clic droit dans l'éditeur — la sélection est encadrée avec le langage courant pour un rendu propre |
+| 📎 **Envoyer le fichier actif à My_AI** | Upload du fichier entier comme pièce jointe (PDF, DOCX, code, image…) |
+| 🔧 **Insérer au curseur / Copier** | Boutons sur chaque bloc de code des réponses, au survol |
+| 🔁 **Nouvelle connexion** | Bouton toujours visible dans le header — recoller une nouvelle chaîne si vous avez redémarré le Relay sur le PC hôte |
+| 💾 **SecretStorage** | Identifiants chiffrés par le keychain de l'OS — auto-restauration au prochain lancement de VS Code |
+| 🔄 **Auto-reconnexion** | Détection arrêt du Relay hôte (~30 s), reconnexion automatique au redémarrage |
+| 🌍 **Bilingue FR/EN** | UI, modaux d'approbation et doc Marketplace adaptés à la langue de VS Code (NLS) |
+
+#### Sécurité
+
+- La chaîne de connexion contient la clé AES — **traitez-la comme un mot de passe**.
+- Tout transite via le **même tunnel E2EE AES-256-GCM** que le mobile : Cloudflare/serveo/localhost.run ne voient que du ciphertext.
+- Les outils côté extension sont sandboxés au workspace par construction. Le LLM ne peut **pas** atteindre les MCP locaux du PC hôte (auxquels la GUI desktop et le mobile ont accès).
+- L'extension est **open source** — code dans [`vscode_extension/`](../vscode_extension/), aucune télémétrie.
+
+> Doc complète : [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) (français) ou [`vscode_extension/README.md`](../vscode_extension/README.md) (anglais). Détails techniques de la boucle agentique côté hôte : [`core/agentic_executor.py`](../core/agentic_executor.py).
+
 ### ⚠️ Confirmation de Suppression MCP
 
 Quand l'IA utilise l'outil MCP `delete_local_file` pour supprimer un fichier :
@@ -1352,9 +1418,9 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 7.2.0
-**Interfaces:** GUI (CustomTkinter), CLI, API REST
-**Capacité Contexte:** 1,048,576 tokens (1M)
+**Version:** 7.3.0
+**Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
+**Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale
 
 

@@ -1,0 +1,171 @@
+{
+  "name": "my-ai",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "1.1.0",
+  "publisher": "gonicolas12",
+  "license": "MIT",
+  "icon": "media/extension_logo.png",
+  "l10n": "./l10n",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gonicolas12/My_AI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gonicolas12/My_AI/issues"
+  },
+  "homepage": "https://github.com/gonicolas12/My_AI#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "chat",
+    "assistant",
+    "self-hosted",
+    "local",
+    "llm",
+    "myai",
+    "relay"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "myai-relay",
+          "title": "%view.container.title%",
+          "icon": "media/icon-activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "myai-relay": [
+        {
+          "id": "myai-relay.chat",
+          "name": "%view.chat.name%",
+          "type": "webview",
+          "icon": "media/icon-activitybar.svg",
+          "contextualTitle": "%view.chat.contextualTitle%"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "myai-relay.connect",
+        "title": "%command.connect%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.disconnect",
+        "title": "%command.disconnect%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.forgetCredentials",
+        "title": "%command.forgetCredentials%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.sendSelection",
+        "title": "%command.sendSelection%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.sendActiveFile",
+        "title": "%command.sendActiveFile%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.toggleAutoAttach",
+        "title": "%command.toggleAutoAttach%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.focusChat",
+        "title": "%command.focusChat%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.moveToSecondarySidebar",
+        "title": "%command.moveToSecondarySidebar%",
+        "category": "%command.category%"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "myai-relay.sendSelection",
+          "when": "editorHasSelection",
+          "group": "myai@1"
+        },
+        {
+          "command": "myai-relay.sendActiveFile",
+          "when": "editorTextFocus",
+          "group": "myai@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "myai-relay.sendSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%configuration.title%",
+      "properties": {
+        "myaiRelay.openInSecondarySidebar": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.openInSecondarySidebar.description%"
+        },
+        "myaiRelay.healthCheckIntervalSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 3,
+          "maximum": 300,
+          "description": "%configuration.healthCheckIntervalSeconds.description%"
+        },
+        "myaiRelay.autoReconnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.autoReconnect.description%"
+        },
+        "myaiRelay.requestTimeoutSeconds": {
+          "type": "number",
+          "default": 15,
+          "minimum": 2,
+          "maximum": 120,
+          "description": "%configuration.requestTimeoutSeconds.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

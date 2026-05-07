@@ -12,7 +12,7 @@
 
 *Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
 
-[🚀 Démarrage rapide](#-démarrage-rapide) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [📡 My_AI Relay](#-my_ai-relay--accès-mobile) · [📖 Documentation](#-documentation-complète)
+[🚀 Démarrage rapide](#-démarrage-rapide) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [📡 My_AI Relay](#-my_ai-relay--accès-mobile) · [🧩 Extension VS Code](#-extension-vs-code) · [📖 Documentation](#-documentation-complète)
 
 </div>
 
@@ -36,8 +36,8 @@ Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répon
 **🔌 Intégration MCP (Model Context Protocol)**  
 Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
 
-**🌐 API REST Locale**  
-Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
+**💼 Workspaces & Sessions**  
+Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
 
 </td>
 <td width="50%">
@@ -51,11 +51,11 @@ PDF, DOCX, Excel, CSV, Code, images, analyse contextuelle ultra-étendue avec co
 **📡 Accès Mobile**  
 Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
 
-**💼 Workspaces & Sessions**  
-Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
+**💻 Extension VS Code agentique**  
+Façon [Claude Code](https://claude.ai/code) : lecture, édition, création de fichiers... le tout via le tunnel chiffré.
 
-**📤 Export Multi-Format**  
-Exportez vos conversations en Markdown, HTML ou PDF avec métadonnées complètes.
+**🌐 API REST Locale**  
+Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 
 </td>
 </tr>
@@ -236,8 +236,12 @@ my_ai/
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   ├── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
-│   ├── vscode_extension.py              # Extension VS Code
 │   └── workflow_canvas.py               # Canvas visuel de workflow style n8n
+├── vscode_extension/                    # Extension VS Code (client Relay distant)
+│   ├── package.json                     # Manifest extension + commandes
+│   ├── src/                             # Code TypeScript (extension Node.js host)
+│   ├── media/                           # Webview UI (HTML/CSS/JS)
+│   └── README.md                        # Doc Marketplace
 ├── memory/                              # Mémoire vectorielle
 │   ├── vector_store/chroma_db/          # Base de données ChromaDB
 │   ├── __init__.py
@@ -436,24 +440,44 @@ relay:
 
 ---
 
-## 🔑 Clé API GitHub *(pour la génération de code sans Ollama)*
+## 🧩 Extension VS Code
 
-Si [Ollama](#3--installer-ollama-optionnel-mais-recommandé) n'est pas installé, la génération de code nécessite une clé API GitHub.
+**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Depuis la **v1.1.0**, elle ne se contente plus de relayer le chat : elle expose un **mode agentique façon Claude Code** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
 
-### Générer un token
+### Fonctionnement
 
-1. Rendez-vous sur [github.com/settings/tokens](https://github.com/settings/tokens)
-2. Cliquez sur **"Generate new token"** (classic ou fine-grained)
-3. Accordez les permissions nécessaires (`repo`, `user`, etc.)
-4. Copiez la clé générée
+1. Sur le PC hôte : démarrez le Relay (bouton 📡 dans la sidebar) → cliquez sur **🧩 Copier pour l'extension VS Code** dans la popup
+2. Dans VS Code : installez l'extension **My_AI Relay** depuis le Marketplace → ouvrez la vue dans la sidebar → **Coller la chaîne de connexion**
+3. À la connexion, l'extension s'identifie comme client `vscode` auprès du Relay et active le mode agentique. Demandez par exemple *« scaffold un projet Vite + React avec un router et un composant Header »* : vous verrez chaque `write_file` / `run_command` apparaître comme une carte dépliable dans le chat, avec demande d'approbation pour les opérations destructives.
 
-### Configurer le token
+> Le mobile et le GUI desktop continuent à utiliser le pipeline classique avec les MCP locaux complets — le mode agentique est exclusif aux clients VS Code.
 
-```powershell
-$env:GITHUB_TOKEN="votre_token_github"
+### Caractéristiques
+
+| Fonctionnalité | Détail |
+|---|---|
+| 🤖 **Mode agentique** | 9 outils exposés au LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) avec boucle de raisonnement multi-étapes |
+| 🛡️ **Sandbox workspace** | Tous les chemins sont résolus à partir du workspace VS Code ouvert. Toute sortie hors workspace nécessite une approbation modale par chemin |
+| ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* |
+| 🎴 **Cartes d'outils inline** | Chaque appel d'outil rendu comme carte pliable façon Claude Code (orange = en cours · vert = OK · rouge = erreur · gris = refusé) |
+| 🧠 **Mémoire de session** | Le contexte agentique est conservé pour toute la session WS (« édite le fichier que tu viens de lire » fonctionne) |
+| 🔧 **Marche avec n'importe quel modèle Ollama** | Format `<tool_use>{...}</tool_use>` parsé côté hôte — pas besoin de l'API tools native d'Ollama |
+| 🔐 **Chiffrement E2EE** | AES-256-GCM identique au mobile — le tunnel ne voit que du ciphertext |
+| 🌐 **Failover multi-tunnel** | cloudflared / serveo / localhost.run pingés côté client, bascule auto |
+| 💾 **Persistance** | Identifiants chiffrés dans le SecretStorage de VS Code (keychain OS) |
+| 🔄 **Auto-reconnexion** | Détection arrêt du Relay hôte, reconnexion auto au redémarrage |
+| 🌍 **Bilingue** | UI, prompts d'approbation et doc en français quand VS Code est en FR, en anglais sinon |
+| 🆓 **Open source** | Code dans [`vscode_extension/`](vscode_extension/) — MIT |
+
+### Installation
+
+```
+# Depuis VS Code : Extensions (Ctrl+Shift+X) → recherche "My_AI Relay" → Install
+# OU en ligne de commande :
+code --install-extension gonicolas12.my-ai
 ```
 
-> Sans clé, l'IA utilise automatiquement le backend local et les fonctionnalités GitHub sont désactivées. Consultez `config.yaml` pour personnaliser les backends et modèles.
+> Voir [`vscode_extension/README.md`](vscode_extension/README.md) (anglais) ou [`vscode_extension/README.fr.md`](vscode_extension/README.fr.md) (français) pour la doc complète, la liste exhaustive des outils, et les détails du flux d'approbation.
 
 ---
 
@@ -477,6 +501,7 @@ $env:GITHUB_TOKEN="votre_token_github"
 | [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
 | [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |
+| [🧩 Extension VS Code](vscode_extension/README.md) | Doc complète de l'extension VS Code (EN) — [version FR](vscode_extension/README.fr.md) |
 
 
 ## 🔧 Caractéristiques Techniques
@@ -495,7 +520,8 @@ $env:GITHUB_TOKEN="votre_token_github"
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
-| 📡 **My_AI Relay** | Accès mobile via tunnel sécurisé + WebSocket |
+| 📡 **Relay** | Accès mobile via tunnel sécurisé + WebSocket |
+| 🧩 **Extension VS Code** | Façon Claude Code sur LLM local |
 | 🔩 **Extensible** | Architecture modulaire |
 | 🔒 **Sécurisé** | Données locales protégées |
 
@@ -505,8 +531,9 @@ $env:GITHUB_TOKEN="votre_token_github"
 
 ## ✨ Évolutions Futures
 
-- 📡 **My_AI Relay** : Agents et workspaces accessibles depuis le mobile
-- 💻 **Extension VS Code**
+- 📡 **My_AI Relay** : Agents et workspaces accessibles depuis le mobile et VS Code
+- 🧩 **Extension VS Code** : intégration aux diagnostics VS Code (problems panel), application de diffs avant/après pour les éditions, terminaux dédiés pour `run_command`
+- 🧠 **Amélioration du moteur de raisonnement** (mode Thinking)
 - 🔗 **Intégrations API tierces**
 
 ---

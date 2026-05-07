@@ -235,9 +235,18 @@ Oui ! Dans l'onglet Agents, le canvas visuel dispose de boutons **💾 Sauvegard
 
 ### L'IA va-t-elle s'améliorer avec le temps ?
 Oui ! Évolutions prévues :
-- Extension VS Code intégrée
 - Application web
 - Intégrations API tierces
+- Enrichissement de l'extension VS Code (intégration aux diagnostics VS Code, application de diffs visuels avant/après pour les éditions, terminaux dédiés pour `run_command`)
+
+### Existe-t-il une extension VS Code ?
+Oui, depuis la v7.3.0 — et depuis sa **v1.1.0** elle est devenue **agentique façon Claude Code**. L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Elle se connecte à votre instance Relay via le même tunnel chiffré que l'interface mobile, mais avec un comportement très différent : à la connexion, elle s'identifie comme client `vscode` et active une **boucle de raisonnement** qui permet au LLM local de **lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code**. Chaque appel d'outil s'affiche comme une carte pliable dans le chat, et les opérations destructives (écriture, édition, commande shell) demandent l'approbation de l'utilisateur. Le LLM est sandboxé au workspace par défaut — il ne voit pas le reste du PC hôte (à l'inverse du GUI desktop ou du mobile, qui ont accès aux MCP locaux complets). Le chat classique avec attachements/auto-attache reste également disponible. Voir [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) pour la doc complète.
+
+### Le mode agentique de l'extension peut-il casser mon workspace ?
+En théorie non : tous les chemins sont résolus par rapport à la racine du workspace VS Code ouvert ; toute tentative de sortie (lecture/écriture en dehors) déclenche un modal d'approbation par chemin. Les outils `write_file`, `edit_file` et `run_command` demandent toujours confirmation avant exécution la première fois. En pratique : utilisez git, c'est ce qu'on fait avec n'importe quel assistant de codage. Vous pouvez voir précisément ce que le LLM a fait via les cartes d'outils dans le chat (input + output capturés).
+
+### Le mobile et le GUI desktop sont-ils impactés par le mode agentique ?
+Non. Le routage côté Relay distingue les clients par leur message `client_hello` : seul un client qui s'annonce comme `client_kind: "vscode"` passe par la boucle agentique. Le mobile et la GUI desktop continuent d'utiliser le pipeline historique avec les MCP locaux complets (accès PC entier).
 
 ### Puis-je contribuer au développement ?
 Bien sûr ! Le projet est ouvert aux contributions :

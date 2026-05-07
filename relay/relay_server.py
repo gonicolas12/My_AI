@@ -24,12 +24,13 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from core.agentic_executor import AgenticExecutor, RemoteToolExecutor
 from core.config import get_config
 from utils.logger import setup_logger
 
@@ -714,6 +715,25 @@ class RelayServer:
                 wrapper = server.encrypt_json(payload)
                 await websocket.send_text(json.dumps(wrapper, separators=(",", ":")))
 
+            # ----------------------------------------------------------------
+            # État par-WS pour le mode agentique "VS Code".
+            #
+            # Par défaut un client est "mobile" : pas de tool calling, le flux
+            # de chat reste celui d'avant (bridge → GUI desktop → MCP locaux
+            # complets). Si l'extension VS Code envoie un `client_hello` avec
+            # `client_kind: "vscode"`, on bascule sur la boucle agentique
+            # (core.agentic_executor) qui DÉLÈGUE l'exécution des outils au
+            # client. Le mode mobile n'est jamais affecté.
+            # ----------------------------------------------------------------
+            client_kind: str = "mobile"
+            workspace_info: str = ""
+            pending_tool_calls: Dict[str, "asyncio.Future[Dict[str, Any]]"] = {}
+            # Historique de conversation côté agent (mode VS Code uniquement).
+            # Conservé pour la durée de la connexion WS pour que le modèle
+            # se souvienne des tours précédents (ex: "ouvre X", puis "édite-le").
+            # Le mode mobile n'utilise jamais cette liste.
+            vscode_history: List[Dict[str, str]] = []
+
             try:
                 while True:
                     data = await websocket.receive_text()
@@ -733,7 +753,75 @@ class RelayServer:
                         logger.warning("Message WS ignoré : payload non-objet")
                         continue
 
-                    if msg_data.get("type") == "chat":
+                    msg_type = msg_data.get("type")
+
+                    # ────────────────────────────────────────────────────
+                    # client_hello : identification du client (VS Code)
+                    # ────────────────────────────────────────────────────
+                    # Reçu une fois à la connexion par l'extension VS Code
+                    # pour activer le mode agentique. Le mobile n'envoie
+                    # jamais ce message : son `client_kind` reste "mobile"
+                    # et le flux historique (bridge → GUI) reste utilisé.
+                    if msg_type == "client_hello":
+                        kind = msg_data.get("client_kind", "mobile")
+                        if isinstance(kind, str) and kind in ("vscode", "mobile"):
+                            client_kind = kind
+                        wi = msg_data.get("workspace_info", "")
+                        if isinstance(wi, str):
+                            workspace_info = wi[:4000]  # cap pour éviter prompt-injection démesurée
+                        await _send_encrypted({
+                            "type": "hello_ack",
+                            "server": "myai-relay",
+                            "client_kind": client_kind,
+                            "agentic_enabled": client_kind == "vscode",
+                        })
+                        logger.info(
+                            "Client identifié : kind=%s, workspace_info=%d chars",
+                            client_kind, len(workspace_info),
+                        )
+                        continue
+
+                    # ────────────────────────────────────────────────────
+                    # tool_result : réponse de l'extension à un tool_use
+                    # ────────────────────────────────────────────────────
+                    if msg_type == "tool_result":
+                        call_id = msg_data.get("call_id", "")
+                        if not isinstance(call_id, str) or not call_id:
+                            continue
+                        fut = pending_tool_calls.get(call_id)
+                        if fut is None or fut.done():
+                            logger.debug(
+                                "tool_result reçu pour call_id inconnu ou expiré: %s",
+                                call_id,
+                            )
+                            continue
+                        content = msg_data.get("content", "")
+                        if not isinstance(content, str):
+                            try:
+                                content = json.dumps(content, ensure_ascii=False)
+                            except Exception:
+                                content = str(content)
+                        fut.set_result({
+                            "content": content,
+                            "is_error": bool(msg_data.get("is_error", False)),
+                        })
+                        continue
+
+                    # ────────────────────────────────────────────────────
+                    # chat — branche agentique (VS Code uniquement)
+                    # ────────────────────────────────────────────────────
+                    if msg_type == "chat" and client_kind == "vscode":
+                        await _handle_vscode_chat(
+                            msg_data,
+                            send_encrypted=_send_encrypted,
+                            pending_tool_calls=pending_tool_calls,
+                            workspace_info=workspace_info,
+                            history=vscode_history,
+                            server=server,
+                        )
+                        continue
+
+                    if msg_type == "chat":
                         user_text = msg_data.get("message", "").strip()
                         raw_ids = msg_data.get("file_ids", []) or []
                         if not isinstance(raw_ids, list):
@@ -1310,6 +1398,170 @@ class RelayServer:
         except Exception as e:
             logger.error("Erreur génération QR: %s", e)
             return None
+
+
+# ===========================================================================
+# Mode agentique (VS Code) — helpers
+# ===========================================================================
+#
+# Ces fonctions n'existent QUE pour le mode "vscode". Elles sont totalement
+# absentes du chemin mobile/GUI et n'utilisent pas le RelayBridge : la
+# boucle "LLM ↔ outils" tourne à 100% côté Relay et délègue l'exécution
+# des outils à l'extension cliente.
+# ---------------------------------------------------------------------------
+
+
+def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any]]:
+    """Extrait l'URL Ollama et le nom du modèle depuis l'AIEngine du server.
+
+    Retourne ``{"chat_url": str, "model": str}`` ou ``None`` si rien
+    d'utilisable n'est dispo (ex: moteur pas encore initialisé).
+    """
+    engine = server.ai_engine
+    if engine is None:
+        return None
+    try:
+        local_ai = getattr(engine, "local_ai", None)
+        if local_ai is None:
+            return None
+        local_llm = getattr(local_ai, "local_llm", None)
+        if local_llm is None:
+            return None
+        chat_url = getattr(local_llm, "chat_url", None)
+        if not chat_url:
+            ollama_url = getattr(local_llm, "ollama_url", "")
+            if ollama_url:
+                chat_url = str(ollama_url).replace("/api/generate", "/api/chat")
+        model = getattr(local_llm, "model", None)
+        if not chat_url or not model:
+            return None
+        return {"chat_url": str(chat_url), "model": str(model)}
+    except Exception as exc:
+        logger.warning("Impossible de résoudre la config Ollama agentique : %s", exc)
+        return None
+
+
+async def _handle_vscode_chat(
+    msg_data: Dict[str, Any],
+    send_encrypted: Callable[[Dict[str, Any]], "asyncio.Future[None]"],
+    pending_tool_calls: Dict[str, "asyncio.Future[Dict[str, Any]]"],
+    workspace_info: str,
+    history: List[Dict[str, str]],
+    server: "RelayServer",
+) -> None:
+    """Exécute la boucle agentique pour un message ``chat`` venant de l'extension.
+
+    Pour chaque message :
+      1. envoie ``ack``
+      2. instancie un ``AgenticExecutor`` + ``RemoteToolExecutor``
+      3. lance la boucle (LLM stream → tool_use → tool_result → ...)
+      4. envoie la réponse finale via ``response``
+    """
+    user_text = msg_data.get("message", "")
+    if not isinstance(user_text, str):
+        user_text = ""
+    user_text = user_text.strip()
+    if not user_text:
+        return
+
+    message_id = f"vscode_{uuid.uuid4().hex}"
+    await send_encrypted({"type": "ack", "message_id": message_id})
+
+    cfg = _resolve_ollama_for_agentic(server)
+    if cfg is None:
+        await send_encrypted({
+            "type": "response",
+            "message": (
+                "❌ Le moteur IA n'est pas encore prêt côté hôte. "
+                "Vérifie que My_AI tourne et qu'Ollama est lancé."
+            ),
+            "message_id": message_id,
+            "timestamp": datetime.now().isoformat(),
+        })
+        return
+
+    executor = AgenticExecutor(
+        ollama_chat_url=cfg["chat_url"],
+        model=cfg["model"],
+    )
+    loop = asyncio.get_event_loop()
+    remote_executor = RemoteToolExecutor(
+        send_fn=send_encrypted,
+        pending_calls=pending_tool_calls,
+        message_id=message_id,
+        loop=loop,
+    )
+
+    # Throttling des chunks vers le client (50 ms) pour limiter la charge
+    # WS+tunnel. Le premier chunk part immédiatement.
+    last_chunk_at = 0.0
+
+    def on_chunk(visible_text: str) -> None:
+        nonlocal last_chunk_at
+        now = time.time()
+        if now - last_chunk_at < 0.05:
+            return
+        last_chunk_at = now
+        try:
+            asyncio.run_coroutine_threadsafe(
+                send_encrypted({
+                    "type": "chunk",
+                    "message_id": message_id,
+                    "text": visible_text,
+                    "timestamp": datetime.now().isoformat(),
+                }),
+                loop,
+            )
+        except Exception as exc:
+            logger.debug("Push chunk vers VS Code échoué : %s", exc)
+
+    def on_tool_call_announced(call: Dict[str, Any]) -> None:
+        # Hook réservé : pas d'envoi côté wire pour l'instant, l'extension
+        # apprend l'existence de l'appel via le `tool_use` qui suit
+        # immédiatement (et émet un événement "requested" dans son
+        # dispatcher, ce qui est largement suffisant pour piloter l'UI).
+        logger.debug(
+            "tool_call_announced (local): call_id=%s name=%s",
+            call.get("call_id"), call.get("name"),
+        )
+
+    def on_tool_result(call_id: str, result: Dict[str, Any]) -> None:
+        # On ne renvoie pas le résultat au client (il l'a déjà : c'est lui
+        # qui a exécuté l'outil). Cette callback existe pour permettre
+        # plus tard d'ajouter des hooks (logging, métriques, etc.).
+        logger.debug(
+            "Tool result reçu pour call_id=%s (is_error=%s, %d chars)",
+            call_id,
+            result.get("is_error"),
+            len(result.get("content", "")),
+        )
+
+    try:
+        final_text = await executor.run(
+            user_message=user_text,
+            history=history,
+            tool_executor=remote_executor,
+            on_chunk=on_chunk,
+            on_tool_call_announced=on_tool_call_announced,
+            on_tool_result=on_tool_result,
+            workspace_info=workspace_info,
+        )
+    except Exception as exc:
+        logger.exception("Boucle agentique échouée pour message_id=%s", message_id)
+        final_text = f"❌ Erreur du moteur agentique : {exc}"
+
+    try:
+        await send_encrypted({
+            "type": "response",
+            "message": final_text,
+            "message_id": message_id,
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as exc:
+        logger.info(
+            "Réponse VS Code non livrée (WS fermé) : %s (id=%s)",
+            exc, message_id,
+        )
 
 
 # ===========================================================================

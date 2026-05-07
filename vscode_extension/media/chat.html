@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src %CSP_SOURCE% 'unsafe-inline'; script-src 'nonce-%NONCE%'; img-src %CSP_SOURCE% data:; font-src %CSP_SOURCE%;">
+<title>My_AI Relay</title>
+<link rel="stylesheet" href="%CHAT_CSS_URI%">
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <span class="header-logo">&#x1F916;</span>
+      <div>
+        <div class="header-title">My_AI <span style="color: var(--accent); font-weight: 400;">Relay</span></div>
+        <div class="header-subtitle" id="statusText"></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-dot offline" id="statusDot"></div>
+      <button class="icon-btn" id="attachToggleBtn">
+        <span id="attachToggleLabel"></span>
+      </button>
+      <button class="icon-btn" id="reconnectBtn"></button>
+      <button class="icon-btn" id="clearBtn"></button>
+    </div>
+  </div>
+
+  <!-- Connection banner -->
+  <div class="connection-banner" id="connBanner"></div>
+
+  <!-- Connect screen (shown when no credentials saved) -->
+  <div class="connect-screen" id="connectScreen" style="display:none">
+    <div class="connect-icon">&#x1F517;</div>
+    <h1 id="connectTitle"></h1>
+    <p id="connectDescription"></p>
+    <button class="connect-btn" id="connectBtn"></button>
+    <div class="connect-hint" id="connectHint"></div>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" id="messages" style="display:none">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">&#x1F916;</div>
+      <div class="welcome-title" id="welcomeTitle"></div>
+      <div class="welcome-text" id="welcomeText"></div>
+    </div>
+  </div>
+
+  <!-- Input area -->
+  <div class="input-area" id="inputArea" style="display:none">
+    <div class="attachments" id="attachments"></div>
+    <div class="input-row">
+      <button class="attach-btn" id="attachBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+      <div class="input-wrapper">
+        <textarea id="messageInput" rows="1" autocomplete="off"></textarea>
+      </div>
+      <button class="send-btn" id="sendBtn" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script nonce="%NONCE%" src="%CHAT_JS_URI%"></script>
+</body>
+</html>

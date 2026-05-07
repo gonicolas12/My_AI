@@ -362,6 +362,30 @@ class BaseGUI:
             except (tk.TclError, AttributeError):
                 self._relay_polling = False
 
+    @staticmethod
+    def _display_attachment_name(path: str) -> str:
+        """Nom de fichier propre pour l'affichage des pièces jointes.
+
+        Les uploads via Relay sont sauvegardés sur disque sous la forme
+        `<file_id>_<nom_original>`, où `file_id` est 16 caractères hex
+        (cf. relay/relay_server.py). On retire ce préfixe à l'affichage.
+        """
+        name = os.path.basename(path or "")
+        return re.sub(r"^[0-9a-f]{16}_", "", name)
+
+    def _build_attachment_lines(self, files):
+        """Formate les pièces jointes en lignes `emoji nom_fichier`.
+
+        `files` est une liste de tuples `(path, file_type)`. file_type vaut
+        "Image", "PDF", "DOCX", "Excel" ou "Code". Tout sauf "Image" reçoit
+        l'emoji 📎 — même rendu que côté Relay pour cohérence.
+        """
+        lines = []
+        for path, file_type in files:
+            emoji = "🖼️" if file_type == "Image" else "📎"
+            lines.append(f"{emoji} {self._display_attachment_name(path)}")
+        return lines
+
     def _display_relay_message(self, relay_msg):
         """
         Affiche un message provenant du Relay dans le chat GUI.
@@ -385,13 +409,14 @@ class BaseGUI:
             image_path = getattr(relay_msg, "image_path", None)
             file_paths = list(getattr(relay_msg, "file_paths", []) or [])
 
-            attach_lines = []
+            relay_attachments = []
             if image_path:
-                attach_lines.append(f"🖼️ {os.path.basename(image_path)}")
+                relay_attachments.append((image_path, "Image"))
             for fp in file_paths:
-                attach_lines.append(f"📎 {os.path.basename(fp)}")
+                relay_attachments.append((fp, "Code"))
+            attach_lines = self._build_attachment_lines(relay_attachments)
 
-            bubble_text = "📱 " + (relay_msg.text or "")
+            bubble_text = "📡 " + (relay_msg.text or "")
             if attach_lines:
                 bubble_text = (bubble_text.rstrip() + "\n" + "\n".join(attach_lines)).strip()
 
@@ -585,12 +610,38 @@ class BaseGUI:
                              activebackground="#ff5730")
         copy_btn.pack(side="right", padx=10, pady=8)
 
+        # ── Bouton dédié extension VS Code ──
+        # Copie la même URL (router.html#d=<base64>) que le QR : l'extension
+        # parse le fragment pour extraire urls/token/clé E2EE. Bouton séparé
+        # pour rendre le cas d'usage évident côté UI.
+        def copy_vscode_string():
+            url = current_url["value"]
+            if not url or url.startswith("http://localhost"):
+                vscode_btn.configure(text="⏳ Tunnel non prêt")
+                popup.after(2000, lambda: vscode_btn.configure(
+                    text="🧩 Copier pour l'extension VS Code"))
+                return
+            self.root.clipboard_clear()
+            self.root.clipboard_append(url)
+            vscode_btn.configure(text="✅ Copié — collez dans VS Code")
+            popup.after(2500, lambda: vscode_btn.configure(
+                text="🧩 Copier pour l'extension VS Code"))
+
+        vscode_btn = tk.Button(popup, text="🧩 Copier pour l'extension VS Code",
+                               command=copy_vscode_string, bg="#1f2937",
+                               fg="#ffffff", font=("Segoe UI", 10),
+                               relief="flat", cursor="hand2", bd=0,
+                               padx=14, pady=6,
+                               activebackground="#374151",
+                               activeforeground="#ffffff")
+        vscode_btn.pack(padx=25, pady=(0, 8), fill="x")
+
         # ── Token ──
         _label(popup, text=f"Token : {token}", font=("Consolas", 10),
                fg="#6b7280").pack(pady=(4, 6))
 
         # ── Clients connectés (mis à jour dynamiquement) ──
-        clients_label = _label(popup, text="📱 0 appareil(s) connecté(s)",
+        clients_label = _label(popup, text="📡 0 appareil(s) connecté(s)",
                                font=("Segoe UI", 11), fg="#9ca3af")
         clients_label.pack(pady=(0, 12))
 
@@ -706,7 +757,7 @@ class BaseGUI:
                 url_label.configure(text=local_url)
 
             clients_label.configure(
-                text=f"📱 {clients} appareil(s) connecté(s)"
+                text=f"📡 {clients} appareil(s) connecté(s)"
             )
 
             popup.after(2000, _refresh_popup)
@@ -1456,9 +1507,19 @@ class BaseGUI:
             # Transition depuis l'écran d'accueil si actif
             self._dismiss_home_screen()
 
+            # Construire le texte de bulle avec les éventuelles pièces jointes
+            # (récupérer AVANT clear_file_previews qui vide _pending_files)
+            attached_files = [
+                (p, t) for p, t, _w in getattr(self, "_pending_files", [])
+            ]
+            bubble_text = message
+            if attached_files:
+                attach_lines = self._build_attachment_lines(attached_files)
+                bubble_text = (message.rstrip() + "\n" + "\n".join(attach_lines)).strip()
+
             # Ajouter le message utilisateur
             self._last_bubble_is_user = True
-            self.add_message_bubble(message, is_user=True)
+            self.add_message_bubble(bubble_text, is_user=True)
 
             # Nettoyer les aperçus de fichiers attachés
             if hasattr(self, "clear_file_previews"):

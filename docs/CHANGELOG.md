@@ -1,5 +1,173 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🧩 Version 7.3.0 — Extension VS Code (7 Mai 2026)
+
+### 🤖 Mise à jour : Mode Agentique (Extension VS Code v1.1.0)
+
+L'extension VS Code passe d'un simple client de chat à un **assistant agentique façon Claude Code**, tournant sur le LLM local du PC hôte. À la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM peut désormais lire, modifier et créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code — chaque appel d'outil est exécuté **côté extension**, sandboxé au workspace par défaut, et affiché dans le chat sous forme de carte pliable. **Le mobile et le GUI desktop ne sont absolument pas impactés** : sans `client_hello` un client reste en mode legacy et passe par le pipeline GUI/MCP local complet.
+
+#### `core/agentic_executor.py` — Boucle agentique (nouveau module)
+
+- **9 outils workspace** déclarés dans `AGENT_TOOLS` :
+  - Lecture (auto-approuvée) : `read_file`, `list_dir`, `glob`, `grep`, `get_active_editor`, `open_file`
+  - Modification (approbation utilisateur requise côté client) : `write_file`, `edit_file`, `run_command`
+- **Format LLM-agnostique** : les outils sont décrits en texte brut dans le prompt système, et invoqués via des balises `<tool_use>{"name":...,"input":{...}}</tool_use>` parsées côté hôte. Aucune dépendance à l'API tools native d'Ollama → fonctionne avec n'importe quel modèle (qwen3.5:2b/4b/7b, llama, mistral...)
+- **Streaming** : chaque token de la réponse Ollama est broadcast au client via `chunk` (avec retrait à la volée des blocs `<tool_use>` pour ne pas exposer le JSON brut à l'utilisateur)
+- **Boucle multi-itérations** : LLM → parse `<tool_use>` → dispatch en parallèle (`asyncio.gather`) → réinjection des résultats → répétition jusqu'à plus de tool_use ou max 25 itérations
+- **`RemoteToolExecutor`** : pont WS → extension via `asyncio.Future` indexées par `call_id`, avec timeout de 120 s par appel
+- **Mémoire de session** : l'historique de conversation est passé par référence au `run()` et muté en place pour conserver le contexte d'un message au suivant
+
+#### `relay/relay_server.py` — Routage par client_kind (modif chirurgicale)
+
+- **Per-WS state** : `client_kind` (défaut `"mobile"` → 100% backward compat), `pending_tool_calls`, `vscode_history`, `workspace_info`
+- **3 nouveaux types WS** dispatchés AVANT le handler `chat` legacy :
+  - `client_hello { client_kind, workspace_info }` → bascule la session en mode VS Code, répond `hello_ack`
+  - `tool_use` (sortant) → envoyé par la boucle agentique pour demander l'exécution d'un outil au client
+  - `tool_result { call_id, content, is_error }` (entrant) → résout la `Future` correspondante
+- **Branche `chat` agentique** : si `client_kind == "vscode"` → délègue à `_handle_vscode_chat` (qui crée un `AgenticExecutor` + `RemoteToolExecutor` et orchestre la boucle). **Le branche `chat` mobile est strictement intacte** (toujours `bridge.send_to_gui` → GUI desktop avec MCP locaux complets → `submit_ai_response`)
+- Le seul changement structurel dans le branche `chat` mobile est la lecture de `msg_data.get("type")` une fois dans une variable locale `msg_type` — aucun changement de comportement
+
+#### `vscode_extension/src/` — Modules ajoutés
+
+- **`agentTools.ts`** : implémentation des 9 outils avec sandbox par construction
+  - `resolveWorkspacePath` : résolution case-insensitive sur Windows, rejet par défaut hors workspace
+  - `read_file` / `write_file` / `edit_file` : I/O via `vscode.workspace.fs`, création auto des dossiers parents, plafond 500 Ko par lecture
+  - `glob` : `vscode.workspace.findFiles` avec cap 500 résultats
+  - `grep` : appel `rg` (ripgrep) externe avec fallback JS quand absent du PATH
+  - `run_command` : `cp.spawn` dans le workspace, `cmd.exe /d /s /c` sur Windows / `/bin/sh -c` ailleurs, output capé à 200 Ko, timeout configurable (1-600 s)
+  - `get_active_editor` / `open_file` : intégration `vscode.window.activeTextEditor` / `showTextDocument`
+- **`toolDispatcher.ts`** : politique d'approbation
+  - Auto-approuve les outils en lecture seule
+  - Modal pour les opérations destructives, avec 3 niveaux d'autorisation : *Une fois* / *Pour ce fichier (mémorisé pour la session)* / *Tout autoriser pour cet outil dans la session*
+  - Modal séparé et **non-mémorisable** pour les chemins hors workspace
+  - Émet des événements (`requested`, `awaiting-approval`, `running`, `completed`, `failed`, `denied`) consommés par le webview pour piloter les cartes
+  - Réinitialisé à chaque reconnexion
+- **Modifications de `relayClient.ts` et `connectionManager.ts`** :
+  - Envoi du `client_hello` à l'ouverture du WebSocket
+  - Construction de `workspace_info` à partir de `vscode.workspace.workspaceFolders`
+  - Interception des `tool_use` (jamais affichés comme texte) → dispatch local → renvoi du `tool_result`
+  - Forward des événements dispatcher au `ChatViewProvider` qui les transmet au webview
+
+#### `vscode_extension/media/` — UI cartes d'outils
+
+- **`chat.js`** : nouveau handler `applyToolEvent` qui crée/met à jour des cartes par `call_id`. La carte est insérée AVANT la bulle de streaming en cours pour respecter l'ordre d'arrivée
+- **`chat.css`** : style des cartes pliables (header cliquable, bordure gauche colorée selon l'état, sections input/output en `<pre>` scrollables)
+
+#### Bilingue (FR/EN)
+
+- Nouvelles strings localisées pour les modaux d'approbation : `Allow once`, `Allow for this file`, `Allow all {0} this session`, `Default: deny`, et 5 messages de prompt (`My_AI wants to WRITE/EDIT/run shell command/access outside workspace/use tool`)
+
+#### Garanties d'isolation
+
+- **Sandbox** par défaut : tous les chemins résolus contre le workspace root, sortie hors workspace = modal explicite par chemin (jamais auto-approuvable)
+- **Aucun accès aux MCP locaux** depuis le mode agentique VS Code : le LLM ne voit que ce que les 9 outils workspace lui donnent
+- **Mode mobile/GUI** : strictement intact (le routage `client_kind` est défensif, défaut `mobile`)
+
+#### Distribution
+
+- **Extension v1.1.0** : bump dans `vscode_extension/package.json`, descriptions Marketplace mises à jour (FR + EN) pour refléter le mode agentique
+
+---
+
+### 💻 Nouveau Module : Extension VS Code (`vscode_extension/`)
+
+L'extension VS Code **My_AI Relay** est un client distant officiel publié sur le Marketplace VS Code. Elle se connecte à une instance Relay déjà active sur un PC hôte (votre PC perso, votre serveur, etc.) via le même tunnel chiffré et le même protocole WebSocket que l'interface mobile. Toute l'inférence, les processeurs de fichiers et l'historique restent côté hôte — VS Code ne transporte que des prompts/réponses chiffrés. Bénéfice principal : faire tourner le LLM sur une grosse machine fixe et s'y connecter depuis n'importe quel laptop.
+
+#### Architecture
+
+- **Réutilise intégralement** l'infrastructure Relay existante (WebSocket `/ws`, endpoints REST `/api/health`, `/api/history`, `/api/pending`, `/api/upload`) — aucun nouveau composant côté serveur
+- **Chiffrement AES-256-GCM** identique à l'interface mobile (Node `webcrypto`)
+- **Failover multi-tunnel** côté client : ping de chaque URL, sélection du premier joignable, reconnexion automatique
+- **Identifiants persistants** dans le `SecretStorage` de VS Code (chiffré par le keychain de l'OS)
+- **Auto-déconnexion** quand le Relay hôte s'arrête, **auto-reconnexion** au redémarrage
+
+#### Fichiers et structure
+
+```
+vscode_extension/
+├─ package.json                # Manifest + 8 commandes + setting "openInSecondarySidebar"
+├─ src/
+│  ├─ extension.ts             # activate, status bar, prompts, déplacement secondary sidebar
+│  ├─ connectionManager.ts     # SecretStorage + état + health-check polling (3 échecs → déco)
+│  ├─ relayClient.ts           # WebSocket + AES-GCM + multi-tunnel failover + upload + history
+│  ├─ chatViewProvider.ts      # WebviewView (sidebar) + bridge postMessage + bundle l10n webview
+│  ├─ workspaceBridge.ts       # auto-attach, send selection, send active file, insert at cursor
+│  ├─ connectionString.ts      # Parse `router.html#d=<base64(json)>` (mêmes données que le QR)
+│  ├─ crypto.ts                # AES-256-GCM via Node `webcrypto`
+│  └─ types.ts
+├─ media/                      # Webview UI (HTML/CSS/JS, adaptée de relay/static/)
+│  ├─ chat.html chat.css chat.js
+│  ├─ extension_logo.png       # Icône Marketplace
+│  └─ icon-activitybar.svg
+├─ l10n/                       # Bundles runtime FR/EN pour `vscode.l10n.t()`
+│  ├─ bundle.l10n.json         # Source EN (fallback)
+│  └─ bundle.l10n.fr.json      # Traductions FR
+├─ package.nls.json            # Strings du manifest (EN, défaut Marketplace)
+├─ package.nls.fr.json         # Strings du manifest (FR)
+├─ README.md  README.fr.md     # Doc Marketplace bilingue (sélecteur en tête)
+├─ CHANGELOG.md  LICENSE
+├─ tsconfig.json esbuild.js    # Build TypeScript → bundle CommonJS
+└─ .vscodeignore .gitignore
+```
+
+#### Bouton GUI hôte (`interfaces/gui/base.py`)
+
+- Nouveau bouton **🧩 Copier pour l'extension VS Code** dans la popup Relay (`_show_relay_info_popup`), copie l'URL `router.html#d=<base64>` (même payload que le QR mobile)
+- Désactivé tant qu'aucun tunnel n'est actif, message contextuel "Tunnel non prêt"
+
+#### Commandes VS Code (palette + menus contextuels)
+
+| Commande | Description |
+|---|---|
+| `My_AI Relay : Se connecter` | Coller la chaîne de connexion |
+| `My_AI Relay : Se déconnecter` | Fermer la session (garde les credentials) |
+| `My_AI Relay : Oublier la connexion enregistrée` | Supprime du SecretStorage |
+| `My_AI Relay : Envoyer la sélection à My_AI` | Envoie la sélection avec fence langage (clic droit éditeur) |
+| `My_AI Relay : Envoyer le fichier actif à My_AI` | Upload + envoi du fichier courant |
+| `My_AI Relay : Activer / désactiver l'attache automatique du fichier actif` | Toggle |
+| `My_AI Relay : Ouvrir le chat` | Affiche le panneau |
+| `My_AI Relay : Déplacer le chat vers la barre latérale secondaire (droite)` | Déclenche le picker "Move View" |
+
+#### UI webview (`media/`)
+
+- **Adaptation desktop** de `relay/static/` (HTML/CSS/JS) avec densité plus compacte
+- **Header enrichi** : bouton toggle "Auto-attach", bouton "Nouvelle connexion" (toujours visible — récupération sans se retrouver bloqué si le token a changé), bouton "Effacer"
+- **Boutons par bloc de code** (au survol) : **Insérer** (au curseur de l'éditeur actif) et **Copier** (presse-papiers)
+- **Reprise de stream** identique à l'interface mobile (chunks cumulatifs, déduplication par `message_id`)
+- **Strings localisées injectées** depuis l'extension via `postMessage init-strings` au démarrage — la webview rend tout dans la langue active de VS Code
+
+#### Bilingue intégral (FR / EN)
+
+- **Manifest** : strings dans `package.nls.json` (EN, affiché par défaut sur le Marketplace) et `package.nls.fr.json` (FR, affiché aux utilisateurs FR)
+- **Runtime extension** : tous les `vscode.window.show*Message`, prompts, status bar, openDialog passent par `vscode.l10n.t('English source string')` avec bundle FR dans `l10n/bundle.l10n.fr.json`
+- **Webview** : bundle de strings localisées envoyé par l'extension à la webview au démarrage
+- **README bilingue** (`README.md` + `README.fr.md`) avec sélecteur de langue en tête
+
+#### Sécurité
+
+- La chaîne de connexion (URL + token + clé AES) ne quitte **jamais** le PC hôte sauf saisie manuelle de l'utilisateur
+- Stockée chiffrée dans le `SecretStorage` de VS Code (keychain OS)
+- Aucun token / credential n'est embarqué dans le code source publié sur GitHub ou le Marketplace
+
+#### Distribution
+
+- **Marketplace VS Code** : publiée sous l'identifiant `gonicolas12.my-ai`
+- **VSIX local** : `npm run package` génère un `.vsix` installable hors-ligne (`code --install-extension`)
+- **Open source** : tout le code de l'extension est dans le dossier `vscode_extension/` du dépôt principal
+
+### 📂 Documentation
+
+- `vscode_extension/README.md` (EN) et `vscode_extension/README.fr.md` (FR) — doc Marketplace complète
+- `vscode_extension/CHANGELOG.md` — historique des versions de l'extension (0.1.0 → 0.1.5)
+- Mise à jour `docs/ARCHITECTURE.md` (section dédiée à l'extension)
+- Mise à jour `README.md` racine (mention dans les Points Forts, lien dans la documentation)
+
+### 🗑️ Suppressions
+
+- `interfaces/vscode_extension.py` (ancien stub Python stdin/stdout, jamais finalisé) — remplacé par la vraie extension TypeScript dans `vscode_extension/`
+
+---
+
 # 📡 Version 7.2.0 — My_AI Relay : Accès Mobile (16 Avril 2026)
 
 ### 📱 Nouveau Module : My_AI Relay

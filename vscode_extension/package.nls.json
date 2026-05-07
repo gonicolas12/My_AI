@@ -1,0 +1,21 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "Agentic chat with your self-hosted My_AI assistant: read, edit, create files, run commands and search your workspace. The local LLM stays on your host PC; everything travels over an end-to-end encrypted tunnel.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "Chat",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "Connect",
+  "command.disconnect": "Disconnect",
+  "command.forgetCredentials": "Forget Saved Connection",
+  "command.sendSelection": "Send Selection to My_AI",
+  "command.sendActiveFile": "Send Active File to My_AI",
+  "command.toggleAutoAttach": "Toggle Auto-Attach Active File",
+  "command.focusChat": "Open Chat View",
+  "command.moveToSecondarySidebar": "Move Chat to Secondary Side Bar (right)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "On first activation, automatically prompt to move the My_AI Relay view to the Secondary Side Bar (right side, like Copilot Chat). Disable if you prefer the standard left activity bar location. VS Code remembers your manual adjustments after the first move.",
+  "configuration.healthCheckIntervalSeconds.description": "Interval between Relay health checks (seconds). Used to detect when the host stops the Relay and trigger automatic disconnection.",
+  "configuration.autoReconnect.description": "When enabled, the extension keeps polling tunnels after a disconnect and reconnects automatically as soon as the Relay comes back online.",
+  "configuration.requestTimeoutSeconds.description": "Per-request timeout for HTTP calls (health, history, upload, pending) in seconds."
+}

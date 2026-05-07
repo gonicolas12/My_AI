@@ -104,7 +104,16 @@ class FileHandlingMixin:
             file_type = "DOCX"
         elif ext in [".xlsx", ".xls", ".csv"]:
             file_type = "Excel"
-        elif ext in [".py", ".js", ".html", ".css", ".json", ".xml", ".md", ".txt"]:
+        elif ext in [
+            ".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+            ".html", ".htm", ".css", ".scss", ".sass", ".less",
+            ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+            ".md", ".rst", ".txt", ".log",
+            ".sh", ".bash", ".bat", ".cmd", ".ps1",
+            ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".kt",
+            ".go", ".rs", ".rb", ".php", ".lua", ".sql",
+            ".vue", ".svelte", ".dart", ".swift",
+        ]:
             file_type = "Code"
         elif ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"]:
             file_type = "Image"

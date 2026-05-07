@@ -181,7 +181,16 @@ class ContextManagementMixin:
                     content = ""
 
             elif (
-                file_ext in [".py", ".js", ".html", ".css", ".cpp", ".java"]
+                file_ext in [
+                    ".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+                    ".html", ".htm", ".css", ".scss", ".sass", ".less",
+                    ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+                    ".sh", ".bash", ".bat", ".cmd", ".ps1",
+                    ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".kt",
+                    ".go", ".rs", ".rb", ".php", ".lua", ".sql",
+                    ".vue", ".svelte", ".dart", ".swift",
+                    ".md", ".rst", ".txt", ".log",
+                ]
                 and self.code_processor
             ):
                 try:

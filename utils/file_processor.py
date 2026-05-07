@@ -22,10 +22,27 @@ class FileProcessor:
     """Processeur de fichiers pour documents"""
 
     def __init__(self):
-        self.supported_extensions = [
-            ".txt", ".md", ".py", ".pdf", ".docx", ".json",
-            ".xlsx", ".xls", ".csv",
-        ]
+        # Extensions texte/code lues comme du texte brut (UTF-8 + fallback latin-1).
+        # Alignées avec processors/code_processor.py et vscode_extension/workspaceBridge.ts.
+        self.text_extensions = {
+            ".txt", ".md", ".rst", ".log",
+            ".py", ".pyw",
+            ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+            ".html", ".htm", ".css", ".scss", ".sass", ".less",
+            ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env",
+            ".sh", ".bash", ".zsh", ".bat", ".cmd", ".ps1",
+            ".c", ".h", ".cpp", ".hpp", ".cc", ".hh", ".cs",
+            ".java", ".kt", ".kts", ".scala",
+            ".go", ".rs", ".rb", ".php", ".pl", ".lua", ".r",
+            ".sql", ".graphql", ".gql",
+            ".vue", ".svelte", ".dart", ".swift", ".m", ".mm",
+            ".dockerfile", ".gitignore", ".editorconfig",
+        }
+        # Extensions traitées par des processeurs spécialisés
+        self.binary_extensions = {".pdf", ".docx", ".xlsx", ".xls", ".csv"}
+        self.supported_extensions = list(
+            self.text_extensions | self.binary_extensions | {".json"}
+        )
 
     def process_file(self, file_path: str) -> Dict[str, Any]:
         """Traite un fichier et retourne son contenu"""
@@ -37,9 +54,7 @@ class FileProcessor:
 
             extension = path.suffix.lower()
 
-            if extension == ".txt" or extension == ".md" or extension == ".py":
-                return self._process_text_file(path)
-            elif extension == ".json":
+            if extension == ".json":
                 return self._process_json_file(path)
             elif extension == ".pdf":
                 return self._process_pdf_file(path)
@@ -47,6 +62,8 @@ class FileProcessor:
                 return self._process_docx_file(path)
             elif extension in (".xlsx", ".xls", ".csv"):
                 return self._process_excel_file(path)
+            elif extension in self.text_extensions:
+                return self._process_text_file(path)
             else:
                 return {"error": f"Type de fichier non supporté: {extension}"}
 

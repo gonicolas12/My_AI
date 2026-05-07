@@ -1016,7 +1016,7 @@ class WorkflowCanvas:
             for c in self.connections
         ]
         return {
-            "version": "7.2.0",
+            "version": "7.3.0",
             "nodes": nodes_data,
             "connections": connections_data,
             "zoom": self.zoom,
