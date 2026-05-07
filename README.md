@@ -52,7 +52,7 @@ PDF, DOCX, Excel, CSV, Code, images, analyse contextuelle ultra-étendue avec co
 Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
 
 **💻 Extension VS Code agentique**  
-Façon [Claude Code](https://claude.ai/code) : lecture, édition, création de fichiers... le tout via le tunnel chiffré.
+Façon Claude Code : lecture, édition, création de fichiers... le tout via le tunnel chiffré.
 
 **🌐 API REST Locale**  
 Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
@@ -442,7 +442,7 @@ relay:
 
 ## 🧩 Extension VS Code
 
-**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Depuis la **v1.1.0**, elle ne se contente plus de relayer le chat : elle expose un **mode agentique façon Claude Code** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
+**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Depuis la **v1.1.0**, elle ne se contente plus de relayer le chat : elle expose un **mode agentique façon [Claude Code](https://claude.ai/code)** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
 
 ### Fonctionnement
 
