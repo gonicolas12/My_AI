@@ -142,11 +142,27 @@ async function handleReadFile(
     .map((line, i) => `${String(startIdx + i + 1).padStart(6, ' ')}  ${line}`)
     .join('\n');
 
-  const header = lines.length > slice.length
-    ? `(showing lines ${startIdx + 1}-${endIdx} of ${lines.length})\n`
+  const totalLines = lines.length;
+  const isTruncated = totalLines > slice.length;
+  const header = isTruncated
+    ? `(lignes ${startIdx + 1}-${endIdx} sur ${totalLines})\n`
     : '';
 
-  return okOutcome(header + numbered);
+  // Quand le fichier est plus gros que ce qu'on a renvoyé, on AJOUTE un
+  // pied de message explicite qui dit au LLM exactement comment continuer.
+  // Sans ça, les petits modèles ne comprennent pas qu'ils doivent
+  // rappeler read_file avec un offset plus grand pour lire la suite.
+  let footer = '';
+  if (isTruncated) {
+    if (endIdx < totalLines) {
+      const remaining = totalLines - endIdx;
+      footer = `\n\n[Fichier tronqué : ${remaining} ligne(s) restante(s). `
+        + `Pour lire la suite, rappelle read_file avec `
+        + `offset=${endIdx + 1} (et limit identique ou plus grand).]`;
+    }
+  }
+
+  return okOutcome(header + numbered + footer);
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +400,7 @@ async function tryRipgrep(args: GrepArgs): Promise<ToolOutcome | null> {
   const flags: string[] = [
     '--no-config',
     '--no-ignore-vcs',
-    '--max-count', '50',
+    '--max-count', '100',
     '--max-columns', '500',
   ];
   if (args.caseInsensitive) {

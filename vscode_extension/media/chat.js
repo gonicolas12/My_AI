@@ -616,6 +616,7 @@
 
   function updateStreamingBubble(mid, text, segmentIndex) {
     if (typeof segmentIndex !== 'number') segmentIndex = 0;
+    const trimmedText = (text || '').trim();
     // Détection d'un nouveau segment (= nouvelle itération LLM) : on
     // promeut la bulle courante en bulle "finie" et on en crée une
     // nouvelle, qui apparaîtra APRÈS les cartes d'outils déjà insérées
@@ -627,8 +628,27 @@
       && streamingSegmentIndex !== null
       && streamingSegmentIndex !== segmentIndex
     ) {
-      promoteCurrentStreamingBubble(null);
+      // Si le segment précédent est resté vide (LLM n'a émis qu'un
+      // tool_use sans texte autour), on retire carrément sa bulle pour
+      // ne pas afficher un robot orphelin sans contenu.
+      const prevContent = streamingMessageEl.querySelector('.stream-content');
+      const prevText = prevContent ? prevContent.textContent.trim() : '';
+      if (!prevText) {
+        streamingMessageEl.remove();
+      } else {
+        promoteCurrentStreamingBubble(null);
+      }
       streamingMessageEl = null;
+    }
+    // Ne pas créer de bulle tant qu'il n'y a pas de contenu visible :
+    // évite les bulles fantômes pour les segments où le LLM n'émet que
+    // des balises <tool_use> (déjà strippées côté hôte).
+    if (!trimmedText) {
+      // On enregistre quand même le segment courant pour détecter la
+      // prochaine transition.
+      streamingMessageId = mid;
+      streamingSegmentIndex = segmentIndex;
+      return;
     }
     const bubble = ensureStreamingBubble(mid, segmentIndex);
     const content = bubble.querySelector('.stream-content');
@@ -655,9 +675,19 @@
     // dans le message `response` est la concaténation de tous les segments
     // (utile si le streaming a été manqué, mais redondant sinon).
     if (streamingMessageEl) {
-      promoteCurrentStreamingBubble(timestamp);
-    } else if (finalText !== null && finalText !== undefined) {
-      // Streaming vide (jamais reçu de chunk) → afficher la réponse.
+      // Si la bulle de streaming est restée vide (dernier segment sans
+      // texte), on l'efface et on bascule sur le finalText pour que
+      // l'utilisateur voie au moins la réponse complète une fois.
+      const content = streamingMessageEl.querySelector('.stream-content');
+      const currentText = content ? content.textContent.trim() : '';
+      if (!currentText && finalText && finalText.trim()) {
+        streamingMessageEl.remove();
+        addMessage(finalText, false, timestamp);
+      } else {
+        promoteCurrentStreamingBubble(timestamp);
+      }
+    } else if (finalText !== null && finalText !== undefined && finalText.trim()) {
+      // Streaming vide (jamais reçu de chunk visible) → afficher la réponse.
       addMessage(finalText, false, timestamp);
     }
     streamingMessageEl = null;

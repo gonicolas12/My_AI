@@ -733,6 +733,17 @@ class RelayServer:
             # se souvienne des tours précédents (ex: "ouvre X", puis "édite-le").
             # Le mode mobile n'utilise jamais cette liste.
             vscode_history: List[Dict[str, str]] = []
+            # Tâches agentiques en cours d'exécution sur ce WS. La boucle
+            # agentique s'exécute en tâche détachée (cf. plus bas) parce
+            # qu'elle awaite des `tool_result` qui n'arrivent que via la
+            # même boucle `while True: receive_text()`. Si on awaitait
+            # _handle_vscode_chat directement, on créerait un deadlock
+            # structurel : le tool_use partirait, le client répondrait,
+            # mais le tool_result resterait en queue WS jamais consommée
+            # car la boucle est bloquée → timeout 120s à chaque outil.
+            # En détachant, le receive loop reste libre de pomper les
+            # tool_result et de résoudre les Futures.
+            agentic_tasks: List[asyncio.Task] = []
 
             try:
                 while True:
@@ -811,13 +822,24 @@ class RelayServer:
                     # chat — branche agentique (VS Code uniquement)
                     # ────────────────────────────────────────────────────
                     if msg_type == "chat" and client_kind == "vscode":
-                        await _handle_vscode_chat(
+                        # IMPORTANT : tâche détachée, pas `await` direct.
+                        # Voir le commentaire sur `agentic_tasks` plus haut.
+                        task = asyncio.create_task(_handle_vscode_chat(
                             msg_data,
                             send_encrypted=_send_encrypted,
                             pending_tool_calls=pending_tool_calls,
                             workspace_info=workspace_info,
                             history=vscode_history,
                             server=server,
+                        ))
+                        agentic_tasks.append(task)
+                        # Auto-nettoyage : retirer la tâche de la liste
+                        # à sa terminaison pour ne pas leak les Task
+                        # objects sur des conversations longues.
+                        task.add_done_callback(
+                            lambda t, _tasks=agentic_tasks: (
+                                _tasks.remove(t) if t in _tasks else None
+                            )
                         )
                         continue
 
@@ -944,6 +966,12 @@ class RelayServer:
                 else:
                     logger.error("Erreur WebSocket Relay: %s", e)
             finally:
+                # Annuler les tâches agentiques encore en cours sur ce
+                # WS (sinon elles continueraient à essayer d'écrire sur
+                # un socket fermé et logueraient des erreurs bruyantes).
+                for task in agentic_tasks:
+                    if not task.done():
+                        task.cancel()
                 if websocket in server.ws_clients:
                     server.ws_clients.remove(websocket)
                 server.bridge.connected_clients = len(server.ws_clients)
@@ -1561,6 +1589,13 @@ async def _handle_vscode_chat(
             on_tool_result=on_tool_result,
             workspace_info=workspace_info,
         )
+    except asyncio.CancelledError:
+        # Le WS qui a porté ce chat est mort : la tâche a été cancel par
+        # le finally du handler WS. Inutile de logger une stacktrace.
+        logger.info(
+            "Boucle agentique annulée (WS fermé) : message_id=%s", message_id,
+        )
+        return
     except Exception as exc:
         logger.exception("Boucle agentique échouée pour message_id=%s", message_id)
         final_text = f"❌ Erreur du moteur agentique : {exc}"

@@ -5,6 +5,45 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] — 2026-05-07
+
+Hotfix on top of 1.2.0. Fixes a **critical deadlock** that made every tool
+call time out at 120 s after upgrade testing — the entire agentic loop was
+returning `[Timeout]` on every read_file/grep/edit and the model was
+spinning trying alternative approaches against a tool surface that never
+actually responded. Also cleans up two visible UX glitches.
+
+### Fixed
+- **Tool call deadlock (CRITICAL).** The Relay's WebSocket handler was
+  awaiting `_handle_vscode_chat` directly inside its `while
+  receive_text()` loop. The chat handler in turn awaited `tool_result`
+  Futures that could only be resolved by the **same** loop's next
+  iteration. Result: every tool call sent a `tool_use` to the extension,
+  the extension executed it and sent the `tool_result` back, but the
+  message stayed queued forever because the receive loop was blocked
+  waiting on the Future. Fixed by spawning the chat handler with
+  `asyncio.create_task` so the receive loop can keep pumping
+  `tool_result` messages while the agentic loop runs in parallel.
+  Pending tasks are cancelled cleanly when the WebSocket closes.
+- **Empty assistant bubbles** for iterations where the LLM only emitted
+  a `<tool_use>` block with no surrounding text. The webview now skips
+  bubble creation when the segment text is empty, and removes any leftover
+  empty bubble when the next segment arrives.
+
+### Changed
+- **`grep --max-count`** raised from 50 to 100. More matches per file in
+  workspace searches, in line with what the user saw as a useful default.
+- **`read_file` truncation footer.** When the requested window is
+  smaller than the file, the result now ends with an explicit
+  `[Fichier tronqué : N ligne(s) restante(s). Pour lire la suite,
+  rappelle read_file avec offset=…]` block. Small models (qwen3.5:2b,
+  llama3.2:3b…) didn't reliably interpret the `(showing lines …)`
+  header alone — they now have a directive instruction to follow up.
+- **Tool description for `read_file`** in the agent system prompt
+  now tells the model to keep calling `read_file` with growing offsets
+  until the truncation footer disappears, matching how Claude Code's
+  `Read` tool is used for whole-file reads.
+
 ## [1.2.0] — 2026-05-07
 
 Polish pass on the agentic mode introduced in 1.1.0. Focuses on **streaming

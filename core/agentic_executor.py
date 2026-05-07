@@ -50,8 +50,12 @@ AGENT_TOOLS: List[Dict[str, Any]] = [
         "name": "read_file",
         "description": (
             "Lit un fichier du workspace VS Code. Le chemin doit être relatif "
-            "au workspace (ex: 'src/index.ts'). Utiliser offset/limit pour "
-            "paginer les gros fichiers (lignes 1-indexées)."
+            "au workspace (ex: 'src/index.ts'). Le résultat affiche en tête "
+            "'(lignes A-B sur N)' quand le fichier est plus grand que la "
+            "fenêtre lue, et un pied de message indique l'offset à utiliser "
+            "pour lire la suite. Quand l'utilisateur demande l'intégralité "
+            "d'un fichier, RAPPELLE read_file en boucle avec offset croissant "
+            "jusqu'à ne plus voir de pied 'Fichier tronqué'."
         ),
         "input_schema": {
             "path": "string (relatif au workspace)",
