@@ -231,6 +231,35 @@ Depuis la v7.0.0, les boutons 👍/👎 ont été remplacés par une **notation 
 ### Puis-je sauvegarder et réutiliser un workflow d'agents ?
 Oui ! Dans l'onglet Agents, le canvas visuel dispose de boutons **💾 Sauvegarder** (export JSON) et **📂 Charger** (import JSON). Tu peux construire un workflow complexe, le sauvegarder dans un fichier `.json`, et le recharger à n'importe quelle session pour le relancer immédiatement. Un bouton **📤 Export** permet aussi d'exporter les résultats d'exécution en Markdown.
 
+## 🎙️ Saisie Vocale (Voice Mode)
+
+### Comment dicter mes prompts au lieu de les taper ?
+Depuis la **v7.4.0**, un bouton micro (🎙) est présent en haut-droite de chaque zone de saisie (chat accueil, chat conversation, onglet Agents). Toggle : clic = démarrer l'enregistrement (icône rouge avec pulsation), reclic = arrêter et lancer la transcription. Le texte transcrit s'insère au curseur de la zone active. La langue est auto-détectée (99+ langues), donc tu peux passer du français à l'anglais sans rien configurer.
+
+### Ma voix est-elle envoyée quelque part ?
+**Non**, tout est 100% local. La transcription utilise **faster-whisper** (une implémentation optimisée de Whisper d'OpenAI) qui tourne entièrement sur ton CPU. Aucune connexion réseau n'est faite pendant la dictée. Le seul cas où il y a une connexion : le **premier téléchargement** du modèle Whisper `small` (~150 Mo) depuis HuggingFace, qui se fait automatiquement au premier clic sur le micro. Ensuite, tout est en cache local.
+
+### Pourquoi le premier usage est-il plus lent ?
+La première dictée déclenche le chargement du modèle Whisper en mémoire (~5 secondes). Les transcriptions suivantes sont quasi-instantanées tant que l'application reste ouverte. Le modèle reste partagé entre tous les onglets (chat + agents) — pas de double chargement.
+
+### Quel modèle Whisper est utilisé et puis-je le changer ?
+Par défaut : `small` (~150 Mo, INT8 quantizé pour CPU). Bon compromis qualité/vitesse pour la majorité des cas. Si tu veux changer (par ex. `base` plus rapide ou `medium`/`large-v3` plus précis), édite la constante `MODEL_SIZE` dans `interfaces/gui/voice_input.py`. Les modèles disponibles : `tiny`, `base`, `small`, `medium`, `large-v3`.
+
+### Le bouton micro ne fait rien quand je clique
+Trois causes possibles :
+1. **Dépendances manquantes** : installe `pip install faster-whisper sounddevice` (déjà inclus dans `requirements.txt` v7.4.0). Une notification d'erreur apparaît dans le GUI si c'est le cas.
+2. **Pas de micro détecté** : vérifie que ton OS reconnaît un micro par défaut (Paramètres → Son → Entrée).
+3. **Durée trop courte** : les enregistrements de moins de 0,3 seconde sont ignorés (anti-clic accidentel).
+
+### Le micro fonctionne sur Linux/macOS ?
+Oui, mais `sounddevice` requiert la librairie système `portaudio` :
+- **Debian/Ubuntu** : `sudo apt install libportaudio2`
+- **macOS** : `brew install portaudio`
+- **Windows** : rien à installer (embarqué dans le wheel)
+
+### Puis-je désactiver la saisie vocale ?
+Le bouton micro est toujours présent mais purement opt-in : si tu ne cliques jamais dessus, aucune ressource n'est consommée (le modèle Whisper est chargé en lazy). Si tu veux le masquer complètement, retire les appels à `attach_mic_button` dans `interfaces/gui/layout.py`, `interfaces/gui/base.py` et `interfaces/agents/task_input.py`.
+
 ## 🚀 Évolutions et Support
 
 ### L'IA va-t-elle s'améliorer avec le temps ?
@@ -240,7 +269,7 @@ Oui ! Évolutions prévues :
 - Enrichissement de l'extension VS Code (intégration aux diagnostics VS Code, application de diffs visuels avant/après pour les éditions, terminaux dédiés pour `run_command`)
 
 ### Existe-t-il une extension VS Code ?
-Oui, depuis la v7.3.0 — et depuis sa **v1.1.0** elle est devenue **agentique façon Claude Code**. L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Elle se connecte à votre instance Relay via le même tunnel chiffré que l'interface mobile, mais avec un comportement très différent : à la connexion, elle s'identifie comme client `vscode` et active une **boucle de raisonnement** qui permet au LLM local de **lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code**. Chaque appel d'outil s'affiche comme une carte pliable dans le chat, et les opérations destructives (écriture, édition, commande shell) demandent l'approbation de l'utilisateur. Le LLM est sandboxé au workspace par défaut — il ne voit pas le reste du PC hôte (à l'inverse du GUI desktop ou du mobile, qui ont accès aux MCP locaux complets). Le chat classique avec attachements/auto-attache reste également disponible. Voir [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) pour la doc complète.
+Oui, et elle est **agentique façon Claude Code**. L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Elle se connecte à votre instance Relay via le même tunnel chiffré que l'interface mobile, mais avec un comportement très différent : à la connexion, elle s'identifie comme client `vscode` et active une **boucle de raisonnement** qui permet au LLM local de **lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code**. Chaque appel d'outil s'affiche comme une carte pliable dans le chat, et les opérations destructives (écriture, édition, commande shell) demandent l'approbation de l'utilisateur. Le LLM est sandboxé au workspace par défaut — il ne voit pas le reste du PC hôte (à l'inverse du GUI desktop ou du mobile, qui ont accès aux MCP locaux complets). Le chat classique avec attachements/auto-attache reste également disponible. Voir [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) pour la doc complète.
 
 ### Le mode agentique de l'extension peut-il casser mon workspace ?
 En théorie non : tous les chemins sont résolus par rapport à la racine du workspace VS Code ouvert ; toute tentative de sortie (lecture/écriture en dehors) déclenche un modal d'approbation par chemin. Les outils `write_file`, `edit_file` et `run_command` demandent toujours confirmation avant exécution la première fois. En pratique : utilisez git, c'est ce qu'on fait avec n'importe quel assistant de codage. Vous pouvez voir précisément ce que le LLM a fait via les cartes d'outils dans le chat (input + output capturés).

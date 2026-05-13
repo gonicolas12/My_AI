@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v7.3.0
+# 🚀 Guide d'Optimisation - My Personal AI v7.4.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.3.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.4.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -87,7 +87,7 @@ Au démarrage de l'application, vous verrez :
 
 ### Architecture VectorMemory
 
-Le gestionnaire de mémoire vectorielle permet de maintenir jusqu'à **10,485,760 tokens** en mémoire (capacité par défaut depuis la v7.3.0).
+Le gestionnaire de mémoire vectorielle permet de maintenir jusqu'à **10,485,760 tokens** en mémoire.
 
 **Fichier:** `memory/vector_memory.py`
 
@@ -1020,6 +1020,6 @@ Le `LanguageDetector` utilise un cache LRU de 128 entrées pour éviter de re-d�
 
 ---
 
-**Version:** 7.3.0
+**Version:** 7.4.0
 **Dernière mise à jour:** 8 Avril 2026
 **Performance target:** < 1s réponse, < 2GB RAM, 10M tokens context

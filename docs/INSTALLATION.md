@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v7.3.0
+# 📖 Guide d'Installation - My Personal AI v7.4.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v7.3.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v7.4.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -145,6 +145,20 @@ rapidfuzz                # Fuzzy matching
 tiktoken                 # Token counting (compatible Llama 3 / cl100k_base)
 ```
 
+### Saisie Vocale / Voice Mode (Requis pour la dictée dans le GUI)
+
+```
+faster-whisper>=1.0.0    # Transcription locale (Whisper, multi-langue)
+sounddevice>=0.4.6       # Capture micro cross-platform
+```
+
+> Le modèle Whisper `small` (~150 Mo) est téléchargé **automatiquement au premier clic sur le bouton micro** (cache HuggingFace dans `~/.cache/huggingface/hub/`). Pas de pré-téléchargement nécessaire.
+>
+> **Linux / macOS** : `sounddevice` requiert `portaudio` installé au niveau système :
+> - Debian/Ubuntu : `sudo apt install libportaudio2`
+> - macOS : `brew install portaudio`
+> - Windows : aucune action — la lib est embarquée dans le wheel `sounddevice`.
+
 ### Monitoring GPU (Optionnel)
 
 Le monitoring GPU dans l'onglet Agents détecte automatiquement votre carte graphique. Installez **uniquement le package correspondant à votre GPU** :
@@ -188,7 +202,7 @@ python-multipart>=0.0.9  # Parsing multipart pour POST /api/upload (pièces join
 
 ### Extension VS Code (Optionnel — assistant agentique pour développeurs)
 
-L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Depuis sa **v1.1.0** (My_AI 7.3.0), elle expose un mode **agentique façon Claude Code** : le LLM local côté hôte peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code, via 9 outils délégués au client. Les opérations destructives demandent l'approbation de l'utilisateur, et les chemins sont sandboxés au workspace ouvert par défaut.
+L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'identifiant `gonicolas12.my-ai`. Depuis sa **v1.1.0**, elle expose un mode **agentique façon Claude Code** : le LLM local côté hôte peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code, via 9 outils délégués au client. Les opérations destructives demandent l'approbation de l'utilisateur, et les chemins sont sandboxés au workspace ouvert par défaut.
 
 **Installation côté utilisateur** (aucune dépendance Python supplémentaire) :
 
@@ -275,7 +289,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "7.3.0"
+  version: "7.4.0"
   max_tokens: 10485760      # 10M tokens (capacité VectorMemory)
   temperature: 0.7
   conversation_history_limit: 10
@@ -717,7 +731,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v7.3.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v7.4.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -874,4 +888,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 7.3.0 | Architecture: 100% locale | Capacité: 10M tokens*
+*Version: 7.4.0 | Architecture: 100% locale | Capacité: 10M tokens*

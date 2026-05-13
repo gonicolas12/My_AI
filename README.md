@@ -54,8 +54,8 @@ Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunn
 **💻 Extension VS Code agentique**  
 Façon Claude Code : lecture, édition, création de fichiers... le tout via le tunnel chiffré.
 
-**🌐 API REST Locale**  
-Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
+**🎙️ Saisie vocale locale**  
+Dictée intégrée via faster-whisper dans toutes les zones de saisie (chat + agents).
 
 </td>
 </tr>
@@ -73,11 +73,11 @@ Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 
 | Fonctionnalité | Détail |
 |---|---|
-| 🎨 **Design moderne** | Interface sombre élégante avec bulles de chat optimisées |
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
 | 🧭 **Barre latérale** | Relay, sessions, historique, exports de conversations, base de connaissances |
-| 🎓 **Feedback RLHF** | Notation 1-5 étoiles (☆☆☆☆☆) — feedback enregistré automatiquement |
-| 📂 **Gestion de fichiers** | Glissez-déposez vos fichiers — ajout direct à la mémoire |
+| 🎓 **Feedback RLHF** | Notation 1-5 étoiles (☆☆☆☆☆), feedback enregistré automatiquement |
+| 📂 **Gestion de fichiers** | Glissez-déposez vos fichiers, ajout direct à la mémoire |
+| 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 
 ### Agents — Interface dédiée
 
@@ -119,13 +119,6 @@ Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
 - **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
 
-### 📚 FAQ Thématique Prioritaire
-
-- Placez vos fichiers d'enrichissement dans `data/enrichissement/`
-- Chargement automatique — toutes les Q/R sont fusionnées et accessibles instantanément
-- La FAQ répond **avant** tout autre modèle (priorité maximale)
-- Ajoutez, modifiez ou supprimez des fichiers à la volée
-
 ### 🔍 Recherche Internet Intelligente
 
 - Recherche web en temps réel via **DuckDuckGo**
@@ -134,10 +127,18 @@ Serveur FastAPI intégré pour piloter l'IA depuis n'importe quel outil externe.
 - Adaptation du format de réponse selon le type de recherche
 
 ### 🔌 Accès à tout le PC (Root System) via MCP Local
-- Outils locaux pour lire, écrire, déplacer des fichiers et créer des dossiers
-- Vérification rigoureuse des chemins complets retournés par les outils pour garantir une gestion précise des fichiers
-- Capacité à organiser les espaces de travail de manière autonome
-- Dialogue de confirmation avant toute suppression de fichier (sécurité utilisateur)
+- Outils locaux pour **lire, écrire, déplacer des fichiers** et **créer des dossiers**
+- Vérification rigoureuse des **chemins complets** retournés par les outils pour garantir une **gestion précise** des fichiers
+- Capacité à **organiser les espaces de travail** de manière autonome
+- Dialogue de **confirmation** avant toute **suppression de fichier** (sécurité utilisateur)
+
+### 🎙️ Saisie Vocale (Voice Mode)
+
+- **Bouton micro** en haut-droite de chaque zone de saisie (chat accueil, chat conversation, onglet Agents)
+- **Toggle** : 1er clic démarre l'écoute (icône rouge pulsante), 2ème clic stoppe et lance la transcription
+- **100% local** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — modèle `small` (~150 Mo) chargé à la demande
+- **Langue auto-détectée** (99+ langues supportées par Whisper)
+- **Insertion au curseur** de la zone active — pratique pour dicter des prompts longs sans interrompre sa frappe
 
 ---
 
@@ -229,6 +230,7 @@ my_ai/
 │   │   ├── sidebar.py                   # Sidebar avec historique et outils
 │   │   ├── streaming.py                 # Gestion du streaming de réponses
 │   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
+│   │   ├── voice_input.py               # Saisie vocale (faster-whisper + sounddevice)
 │   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
 │   ├── agents_interface.py              # Interface Agents IA
@@ -518,6 +520,7 @@ code --install-extension gonicolas12.my-ai
 | 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
 | 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
+| 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
 | 📡 **Relay** | Accès mobile via tunnel sécurisé + WebSocket |

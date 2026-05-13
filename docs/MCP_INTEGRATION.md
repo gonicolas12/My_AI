@@ -125,7 +125,7 @@ Quand l'IA décide d'utiliser l'outil `delete_local_file` pour supprimer un fich
 
 ## 🧩 Note sur l'extension VS Code
 
-Depuis la **v1.1.0** de l'extension VS Code (My_AI 7.3.0), un client connecté depuis VS Code n'utilise **PAS** les MCP locaux décrits ci-dessus. À la place, le Relay aiguille la conversation vers un mode agentique dédié (`core/agentic_executor.py`) qui expose un **set d'outils distinct** (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) dont l'**exécution est déléguée à l'extension** côté client.
+Depuis la **v1.1.0** de l'extension VS Code, un client connecté depuis VS Code n'utilise **PAS** les MCP locaux décrits ci-dessus. À la place, le Relay aiguille la conversation vers un mode agentique dédié (`core/agentic_executor.py`) qui expose un **set d'outils distinct** (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) dont l'**exécution est déléguée à l'extension** côté client.
 
 Cette séparation est intentionnelle : elle garantit que l'utilisateur de l'extension ne voit que son **workspace VS Code**, et pas l'intégralité du PC hôte (auquel le GUI desktop et le mobile ont accès via les MCP). C'est aussi pour ça que les outils VS Code sont sandboxés au workspace par défaut, avec un modal d'approbation obligatoire pour toute sortie de ce périmètre.
 

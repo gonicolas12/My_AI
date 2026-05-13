@@ -1,5 +1,62 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🎙️ Version 7.4.0 — Saisie vocale (Voice Mode) (13 Mai 2026)
+
+### 🎤 Nouvelle fonctionnalité : dictée vocale dans toutes les zones de saisie
+
+Un **bouton micro** remplace l'ancien sélecteur de modèle inline dans la zone de saisie du chat (écran d'accueil + mode conversation) et est également ajouté à la zone de saisie de l'onglet **Agents**. En toggle : un clic démarre l'enregistrement, un second clic l'arrête et lance la transcription locale. Le texte transcrit est inséré au curseur de la zone de saisie active. Tout fonctionne **100% localement** via **faster-whisper** — la voix ne quitte jamais la machine.
+
+#### `interfaces/gui/voice_input.py` — Nouveau module
+
+- **`VoiceInput`** : classe encapsulant capture audio + transcription
+  - **Capture micro** via `sounddevice` (cross-platform, 16 kHz mono, float32)
+  - **Transcription** via `faster-whisper` (modèle `small` ~150 Mo, `compute_type="int8"` CPU)
+  - **Langue auto-détectée** (`language=None` passé au modèle) — supporte 99+ langues
+  - **VAD intégré** (Voice Activity Detection de Whisper) pour ignorer les silences
+  - **Lazy-loading** du modèle Whisper : pas chargé au démarrage, première transcription = ~5 s (téléchargement HuggingFace si pas en cache), suivantes instantanées
+  - **Singleton de classe** `VoiceInput.get_shared(tk_root)` : une seule instance Whisper dans toute l'app, partagée entre chat & agents
+  - **Thread-safe** : enregistrement dans un thread audio, transcription dans un thread séparé, callbacks marshalés vers le thread Tk via `root.after(0, ...)`
+  - **Dégradation propre** : si `sounddevice` ou `faster-whisper` ne sont pas installés, `VoiceInput.available == False` et le bouton affiche une notification d'erreur sans crash
+- **`attach_mic_button(parent, tk_root, target_getter, colors, show_notification)`** : factory du bouton micro overlay
+  - Position : haut-droite du parent via `.place(relx=1.0, rely=0.0, anchor="ne")`
+  - 3 états visuels : 🎙 gris (idle) / ● rouge avec pulsation 500 ms (recording) / ⏳ orange (transcribing)
+  - **Insertion robuste au curseur** : détection automatique du placeholder par couleur (`cget("text_color")` ou `cget("fg")`), nettoyage manuel si présent, puis insertion différée de 50 ms via `tk_root.after()` pour laisser le binding `<FocusIn>` natif s'exécuter sans wiper le texte fraîchement inséré
+  - **Préfixe espace automatique** si le caractère précédent le curseur n'est pas un blanc
+  - **`target_getter` lazy** : résout le widget cible au moment du clic, ce qui permet à un bouton de cibler différents widgets selon l'écran/onglet actif
+
+#### Suppression du sélecteur de modèle inline
+
+L'ancien sélecteur (dropdown discret en haut-droite affichant `my_ai:latest`) est entièrement retiré :
+
+- **`_create_inline_model_selector`** (~125 lignes), `_populate_model_selector`, `_update_model_selector`, `_on_model_selected` supprimés dans [`interfaces/gui/layout.py`](../interfaces/gui/layout.py)
+- Variables `_model_selector_var`, `_model_list`, `_inline_model_selector`, `_home_inline_model_selector` retirées
+- **Motivation** : non utilisé en pratique, et le changement de modèle à chaud bypassait le `system_prompt` du `Modelfile` → comportement incohérent. La procédure officielle reste documentée (modifier `config.yaml` + `Modelfile` + `create_custom_model.bat`)
+
+#### Intégrations dans les deux interfaces
+
+- **[`interfaces/gui/layout.py`](../interfaces/gui/layout.py)** (mode conversation chat) : `attach_mic_button(target_getter=lambda: self.input_text, ...)` dans `create_modern_input_area`
+- **[`interfaces/gui/base.py`](../interfaces/gui/base.py)** (écran d'accueil chat) : `attach_mic_button(target_getter=lambda: self._home_input, ...)` dans le `home_screen`
+- **[`interfaces/agents/task_input.py`](../interfaces/agents/task_input.py)** (onglet Agents) : `attach_mic_button(target_getter=lambda: self.task_entry, ...)` après création de `task_wrapper`. Récupération du `tk_root` via `self.parent.winfo_toplevel()` car `AgentsInterface` n'est pas un mixin du GUI principal
+
+#### Nouvelles dépendances (`requirements.txt`)
+
+```
+faster-whisper>=1.0.0   # transcription locale, multi-langue
+sounddevice>=0.4.6      # capture micro cross-platform
+```
+
+> Sur Linux/macOS, `sounddevice` requiert `portaudio` (souvent déjà présent — sinon `apt install libportaudio2` ou `brew install portaudio`).
+
+#### Comportement détaillé
+
+- **Toggle** : 1er clic = start, 2ème clic = stop + transcription async
+- **Durée minimale** : enregistrements < 300 ms ignorés (évite les clics fantômes)
+- **Modèle Whisper `small`** : ~150 Mo, compromis qualité/poids ; téléchargé au premier usage dans le cache HuggingFace (`~/.cache/huggingface/hub/`)
+- **`int8` quantization** : ~3× plus rapide que `float32` sur CPU, perte de qualité négligeable
+- **Logs console** : `🎙️ [VOICE] fr (98%) en 1.2s : 'Salut ça va'` après chaque transcription
+
+---
+
 # 🧩 Version 7.3.0 — Extension VS Code (7 Mai 2026)
 
 ### 🤖 Mise à jour : Mode Agentique (Extension VS Code v1.1.0)

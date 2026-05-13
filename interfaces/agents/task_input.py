@@ -6,6 +6,7 @@ from tkinter import scrolledtext
 from PIL import Image, ImageGrab
 
 from interfaces.agents._common import ctk, tk
+from interfaces.gui.voice_input import attach_mic_button
 from interfaces.workflow_canvas import WorkflowCanvas
 
 
@@ -74,6 +75,14 @@ class TaskInputMixin:
             )
 
         self.task_entry.grid(row=1, column=0, sticky="nsew", padx=4, pady=2)
+
+        # ── Bouton micro (saisie vocale, toggle) overlay haut-droite ──
+        self._agent_mic_button = attach_mic_button(
+            parent=task_wrapper,
+            tk_root=self.parent.winfo_toplevel(),
+            target_getter=lambda: self.task_entry,
+            colors=self.colors,
+        )
 
         # ── Barre d'outils sous le textbox (bouton + pour fichiers) ──
         task_toolbar = self.create_frame(

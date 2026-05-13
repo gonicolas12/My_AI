@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v7.3.0
+# 🏗️ Architecture - My Personal AI v7.4.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v7.3.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.3.0**, basée sur les principes suivants:
+My Personal AI v7.4.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents v7.4.0**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -21,7 +21,7 @@ My Personal AI v7.3.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
-- **Extension VS Code agentique** *(v7.3.0, ext v1.1.0+)* : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique façon Claude Code** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
+- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique façon Claude Code** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 
 ## 🚀 Architecture Système Complète
@@ -1366,7 +1366,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 7.3.0
+**Version**: 7.4.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

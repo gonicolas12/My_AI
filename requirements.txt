@@ -139,6 +139,14 @@ qrcode[pil]>=7.4.0
 langdetect>=1.0.9
 
 # ====================================
+# SPEECH-TO-TEXT (saisie vocale)
+# ====================================
+# faster-whisper : transcription locale, multi-langue (auto-détection)
+# sounddevice : capture micro cross-platform (nécessite portaudio sur Linux/Mac)
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+
+# ====================================
 # DÉVELOPPEMENT & TESTS
 # ====================================
 pytest>=7.0.0

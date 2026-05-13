@@ -203,7 +203,7 @@ class BaseGUI:
         self._home_screen_active = False
         self._home_input = None
         self._home_input_wrapper = None
-        self._home_inline_model_selector = None
+        self._home_mic_button = None
         self._home_preview_frame = None
         self._pending_files = []
         self._conv_container = None
@@ -2575,7 +2575,9 @@ class BaseGUI:
         content_frame.grid_columnconfigure(0, weight=1)
 
         # ── Sélecteur de modèle inline (discret, en haut à droite) ────
-        self._home_inline_model_selector = self._create_inline_model_selector(content_frame)
+        self._home_mic_button = self._create_inline_mic_button(
+            content_frame, lambda: self._home_input
+        )
 
         if self.use_ctk:
             self._home_input = _ctk.CTkTextbox(

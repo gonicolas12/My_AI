@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.3.0
+# 📚 Guide d'Utilisation - My Personal AI v7.4.0
 
 ## 🚀 Démarrage Rapide
 
@@ -49,6 +49,7 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - **Chat Area** : Zone de conversation avec scroll
 - **Input Box** : Zone de saisie (supporte multilignes avec Shift+Enter)
 - **Send Button** : Bouton d'envoi (ou Enter)
+- **Mic Button (🎙)** : Saisie vocale toggle — clic pour démarrer, reclic pour transcrire au curseur
 - **Image Button (🖼️)** : Charger une image pour analyse
 - **Clear Chat Button** : Réinitialiser conversation
 - **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/Excel/CSV/Images/Code)
@@ -61,6 +62,7 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - 📁 **Drag-and-drop** fichiers PDF/DOCX/Excel/CSV/Images/Code
 - 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
+- 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
 
 ### Utilisation Typique GUI
 
@@ -123,6 +125,55 @@ Vous: "Quel texte est visible ?"
 ```
 
 > **Note:** Nécessite un modèle vision installé (`ollama pull llava`). L'image est automatiquement redimensionnée à 1024px max.
+
+### 🎙️ Saisie Vocale (Voice Mode)
+
+Un bouton micro (🎙) est présent en haut-droite de chaque zone de saisie :
+- **Écran d'accueil** du chat (avant le premier message)
+- **Mode conversation** du chat (pendant une discussion)
+- **Onglet Agents** (zone "Décrivez la tâche...")
+
+**Utilisation :**
+
+```
+1. Clic sur l'icône micro (🎙)
+   → L'icône passe en rouge avec une pulsation = enregistrement en cours.
+
+2. Parlez (sans limite de durée raisonnable).
+
+3. Clic sur l'icône (●) à nouveau pour arrêter
+   → L'icône devient ⏳ pendant la transcription (~1-3 s selon la durée).
+
+4. Le texte transcrit s'insère automatiquement au curseur de la zone active.
+```
+
+**Caractéristiques :**
+
+| Caractéristique | Valeur |
+|---|---|
+| **Moteur** | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — 100% local |
+| **Modèle** | `small` (~150 Mo, INT8 quantizé pour CPU) |
+| **Langues** | 99+ langues, **auto-détection** (français, anglais, espagnol, etc.) |
+| **Capture audio** | `sounddevice` — 16 kHz mono |
+| **VAD** | Voice Activity Detection intégré (ignore les silences) |
+| **Latence 1er usage** | ~5 s (chargement modèle Whisper depuis le cache HuggingFace ou téléchargement initial) |
+| **Latence suivantes** | Instantanée (modèle gardé en mémoire) |
+| **Insertion** | Au curseur de la zone de saisie, avec espace auto si nécessaire |
+
+**Astuces :**
+
+- **Dictée de prompts longs** : alternez voix et clavier librement — la transcription respecte la position du curseur.
+- **Multi-langues dans une même session** : Whisper détecte la langue à chaque prise. Vous pouvez dicter en français puis en anglais sans rien changer.
+- **Confidentialité** : la voix n'est jamais transmise sur internet, tout se passe en local sur votre machine.
+- **Si le bouton n'écrit rien** : vérifiez que vous avez bien parlé (durée min. 0,3 s) et que `faster-whisper` + `sounddevice` sont installés (`pip install -r requirements.txt`).
+
+**Dépendances supplémentaires :**
+
+```bash
+pip install faster-whisper sounddevice
+```
+
+> Sur **Linux/macOS**, `sounddevice` requiert la librairie système `portaudio` (généralement déjà présente — sinon `apt install libportaudio2` ou `brew install portaudio`).
 
 ### Commandes Spéciales GUI
 
@@ -237,7 +288,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.3.0:
+État My Personal AI v7.4.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -806,11 +857,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.3.0
+  MY PERSONAL AI - System Status v7.4.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.3.0
+📊 Version: 7.4.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -844,7 +895,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.3.0
+My Personal AI v7.4.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1303,7 +1354,7 @@ L'URL et le token sont affichés dans le panneau Relay de l'interface.
 
 ### 🧩 Extension VS Code — Mode agentique façon Claude Code
 
-L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code** depuis la v7.3.0. Depuis sa **v1.1.0** (toujours sous My_AI 7.3.0), elle expose un **mode agentique** : l'extension s'identifie auprès du Relay comme client `vscode`, et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM reste sur le PC hôte ; l'**exécution des outils est déléguée à l'extension**, qui les exécute dans le workspace VS Code de l'utilisateur, sandboxé par défaut. Le mobile et le GUI desktop continuent à utiliser le pipeline classique (avec MCP locaux complets) — strictement inchangés.
+L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code**. Depuis sa **v1.1.0**, elle expose un **mode agentique** : l'extension s'identifie auprès du Relay comme client `vscode`, et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM reste sur le PC hôte ; l'**exécution des outils est déléguée à l'extension**, qui les exécute dans le workspace VS Code de l'utilisateur, sandboxé par défaut. Le mobile et le GUI desktop continuent à utiliser le pipeline classique (avec MCP locaux complets) — strictement inchangés.
 
 #### Démarrage en 3 étapes
 
@@ -1418,7 +1469,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 7.3.0
+**Version:** 7.4.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale

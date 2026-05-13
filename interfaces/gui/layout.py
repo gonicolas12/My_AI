@@ -2,8 +2,8 @@
 
 import os
 import tkinter as tk
-import threading
 from tkinter import ttk
+from interfaces.gui.voice_input import attach_mic_button
 
 try:
     import customtkinter as ctk
@@ -406,10 +406,6 @@ class LayoutMixin:
         buttons_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])
         buttons_frame.grid(row=0, column=2, sticky="e", padx=(10, 0), pady=35)
 
-        # Initialiser la variable du modèle (utilisée par le sélecteur inline)
-        self._model_selector_var = tk.StringVar(value="")
-        self._model_list = []  # liste des modèles disponibles
-
         # Bouton Clear Chat
         self.clear_btn = self.create_modern_button(
             buttons_frame,
@@ -467,10 +463,10 @@ class LayoutMixin:
         content_frame.grid(row=0, column=0, sticky="ew", padx=3, pady=3)
         content_frame.grid_columnconfigure(0, weight=1)
 
-        # ── Sélecteur de modèle inline (discret, en haut à droite) ────
-        self._inline_model_selector = self._create_inline_model_selector(content_frame)
-        # Charger les modèles en arrière-plan
-        self.root.after(500, self._populate_model_selector)
+        # ── Bouton micro (saisie vocale) en haut à droite ────
+        self._inline_mic_button = self._create_inline_mic_button(
+            content_frame, lambda: self.input_text
+        )
 
         # ── Zone d'aperçu des documents attachés (initialement masquée) ────
         self._preview_frame = self.create_frame(
@@ -739,201 +735,14 @@ class LayoutMixin:
         """Retourne la liste des fichiers en attente [(path, type), ...]."""
         return [(p, t) for p, t, _ in self._pending_files]
 
-    # ── Sélecteur de modèle inline (discret, dans la zone de saisie) ─────
+    # ── Bouton micro inline (saisie vocale, toggle) ────────────────────
 
-    def _create_inline_model_selector(self, content_frame):
-        """
-        Crée un sélecteur de modèle discret (texte gris clair + chevron)
-        positionné en overlay haut-droite du content_frame via place().
-        Ne modifie pas la hauteur du rectangle de saisie.
-        Retourne le widget label créé.
-        """
-        ph_color = self.colors.get("placeholder", "#6b7280")
-        input_bg = self.colors.get("input_bg", "#2f2f2f")
-
-        # Utiliser un tk.Label brut (place() fiable sur tout parent, y compris CTkFrame)
-        selector_label = tk.Label(
-            content_frame,
-            text="modèle \u2227",
-            font=("Segoe UI", 10),
-            fg=ph_color,
-            bg=input_bg,
-            cursor="hand2",
-            padx=4,
-            pady=2,
+    def _create_inline_mic_button(self, content_frame, target_getter):
+        """Bouton micro (overlay haut-droite) -> delegue a voice_input.attach_mic_button."""
+        return attach_mic_button(
+            parent=content_frame,
+            tk_root=self.root,
+            target_getter=target_getter,
+            colors=self.colors,
+            show_notification=getattr(self, "show_notification", None),
         )
-
-        # Positionner en overlay haut-droite, puis lift() pour z-order
-        def _place_selector(_event=None):
-            selector_label.place(relx=1.0, rely=0.0, anchor="ne", x=-8, y=4)
-            selector_label.lift()
-
-        # Placer après que le parent soit rendu (after_idle)
-        content_frame.after_idle(_place_selector)
-        # Re-placer si le parent est redimensionné
-        content_frame.bind("<Configure>", _place_selector, add="+")
-
-        # Mettre à jour le texte quand le modèle change
-        def _update_label(*_args):
-            model_name = self._model_selector_var.get()
-            if model_name:
-                selector_label.configure(text=f"{model_name} \u2227")
-
-        self._model_selector_var.trace_add("write", _update_label)
-        # Initialiser si déjà rempli
-        if self._model_selector_var.get():
-            selector_label.configure(text=f"{self._model_selector_var.get()} \u2227")
-
-        # Référence au popup courant
-        _popup_ref = [None]
-
-        def _close_popup(popup):
-            try:
-                popup.destroy()
-            except Exception:
-                pass
-            _popup_ref[0] = None
-            # Remettre la flèche vers le haut
-            model_name = self._model_selector_var.get() or "modèle"
-            selector_label.configure(text=f"{model_name} \u2227")
-
-        def _open_model_dropdown(_event=None):
-            """Ouvre un dropdown des modèles au-dessus du label."""
-            if _popup_ref[0] is not None:
-                _close_popup(_popup_ref[0])
-                return
-
-            models = getattr(self, "_model_list", [])
-            if not models:
-                return
-
-            # Changer la flèche vers le bas
-            model_name = self._model_selector_var.get() or "modèle"
-            selector_label.configure(text=f"{model_name} \u2228")
-
-            bg = self.colors.get("bg_secondary", "#1e1e1e")
-            fg = self.colors.get("text_primary", "#ffffff")
-            accent = self.colors.get("accent", "#ff6b47")
-            current = self._model_selector_var.get()
-
-            popup = tk.Toplevel(self.root)
-            popup.overrideredirect(True)
-            popup.configure(bg=bg)
-            popup.attributes("-topmost", True)
-            _popup_ref[0] = popup
-
-            for i, model in enumerate(models):
-                def _make_cb(m, pop=popup):
-                    def _cb():
-                        _close_popup(pop)
-                        self._on_model_selected(m)
-                        self._model_selector_var.set(m)
-                    return _cb
-
-                # Marquer le modèle actif
-                is_current = (model == current)
-                item_fg = "#ffffff" if is_current else fg
-                item_font = ("Segoe UI", 11, "bold") if is_current else ("Segoe UI", 11)
-
-                btn = tk.Label(
-                    popup, text=f"  {model}  ", bg=bg, fg=item_fg,
-                    font=item_font, anchor="w", padx=14, pady=6, cursor="hand2",
-                )
-                btn.grid(row=i, column=0, sticky="ew")
-                popup.grid_columnconfigure(0, weight=1)
-
-                cb = _make_cb(model)
-                btn.bind("<Button-1>", lambda e, c=cb: c())
-                btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=accent, fg="#ffffff"))
-                btn.bind("<Leave>", lambda e, b=btn, f=item_fg: b.configure(bg=bg, fg=f))
-
-            # Positionner au-dessus du label
-            popup.update_idletasks()
-            ph = popup.winfo_reqheight()
-            lx = selector_label.winfo_rootx() + selector_label.winfo_width() - popup.winfo_reqwidth()
-            ly = selector_label.winfo_rooty() - ph - 4
-            popup.geometry(f"+{lx}+{ly}")
-
-            def _on_focus_out(_e):
-                self.root.after(50, lambda: _close_popup(popup) if _popup_ref[0] is popup else None)
-
-            popup.bind("<FocusOut>", _on_focus_out)
-            popup.bind("<Escape>", lambda _e: _close_popup(popup))
-            self.root.bind("<Button-1>",
-                           lambda _e: _close_popup(popup) if _popup_ref[0] is popup else None,
-                           add="+")
-            popup.focus_set()
-
-        selector_label.bind("<Button-1>", _open_model_dropdown)
-
-        return selector_label
-
-    # ── Sélecteur de modèle (hot-reload) ──────────────────────────────────
-
-    def _populate_model_selector(self):
-        """Charge la liste des modèles Ollama disponibles dans le sélecteur."""
-
-        def _load():
-            models = []
-            current = ""
-            try:
-                llm = None
-                if hasattr(self, "custom_ai") and self.custom_ai and hasattr(self.custom_ai, "local_llm"):
-                    llm = self.custom_ai.local_llm
-                elif hasattr(self, "ai_engine") and hasattr(self.ai_engine, "local_ai"):
-                    ai = self.ai_engine.local_ai
-                    if hasattr(ai, "local_llm"):
-                        llm = ai.local_llm
-                if llm:
-                    models = llm.list_available_models()
-                    current = llm.get_current_model()
-            except Exception as e:
-                print(f"⚠️ [MODEL_SELECTOR] Erreur chargement modèles: {e}")
-
-            if models:
-                self.root.after(0, lambda: self._update_model_selector(models, current))
-
-        threading.Thread(target=_load, daemon=True).start()
-
-    def _update_model_selector(self, models: list, current: str):
-        """Met à jour le sélecteur avec la liste des modèles."""
-        if not models:
-            return
-        self._model_list = models
-        if current and current in models:
-            self._model_selector_var.set(current)
-        elif models:
-            self._model_selector_var.set(models[0])
-
-    def _on_model_selected(self, selected_model: str):
-        """Callback quand l'utilisateur sélectionne un nouveau modèle."""
-
-        def _switch():
-            try:
-                llm = None
-                if hasattr(self, "custom_ai") and self.custom_ai and hasattr(self.custom_ai, "local_llm"):
-                    llm = self.custom_ai.local_llm
-                elif hasattr(self, "ai_engine") and hasattr(self.ai_engine, "local_ai"):
-                    ai = self.ai_engine.local_ai
-                    if hasattr(ai, "local_llm"):
-                        llm = ai.local_llm
-                if llm:
-                    success = llm.switch_model(selected_model)
-                    if success:
-                        self.root.after(
-                            0,
-                            lambda: self.show_notification(
-                                f"🔄 Modèle changé → {selected_model}", "success", 2000
-                            ),
-                        )
-                    else:
-                        self.root.after(
-                            0,
-                            lambda: self.show_notification(
-                                f"❌ Modèle {selected_model} indisponible", "error", 2000
-                            ),
-                        )
-            except Exception as e:
-                print(f"⚠️ [MODEL_SELECTOR] Erreur changement: {e}")
-
-        threading.Thread(target=_switch, daemon=True).start()
