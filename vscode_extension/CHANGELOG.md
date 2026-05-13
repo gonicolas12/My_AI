@@ -5,6 +5,21 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] — 2026-05-13
+
+Documentation hotfix. Fixes the French README link on the Marketplace
+listing, which resolved to `https://github.com/gonicolas12/My_AI/blob/HEAD/README.fr.md`
+(repo root) instead of the actual file under `vscode_extension/`. The
+Marketplace rewrites relative links from the repo root rather than from
+the extension subdirectory, so `./README.fr.md` was 404-ing for anyone
+clicking the language switcher from the listing.
+
+### Fixed
+- **Marketplace language switcher.** `README.md` and `README.fr.md` now
+  use absolute GitHub URLs (`blob/main/vscode_extension/...`) for the
+  English/Français toggle so the link works from both the Marketplace
+  listing and the in-repo view.
+
 ## [1.2.1] — 2026-05-07
 
 Hotfix on top of 1.2.0. Fixes a **critical deadlock** that made every tool

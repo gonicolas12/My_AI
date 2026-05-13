@@ -1,6 +1,6 @@
 # My_AI Relay — VS Code Extension
 
-**English** · [Français](./README.fr.md)
+**English** · [Français](https://github.com/gonicolas12/My_AI/blob/main/vscode_extension/README.fr.md)
 
 > **Agentic** chat with your **self-hosted [My_AI](https://github.com/gonicolas12/My_AI) assistant**
 > from VS Code, over an end-to-end encrypted tunnel — like Claude Code, but

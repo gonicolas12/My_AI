@@ -1,6 +1,6 @@
 # My_AI Relay — Extension VS Code
 
-[English](./README.md) · **Français**
+[English](https://github.com/gonicolas12/My_AI/blob/main/vscode_extension/README.md) · **Français**
 
 > Chat **agentique** avec votre **assistant [My_AI](https://github.com/gonicolas12/My_AI) auto-hébergé**
 > depuis VS Code, via un tunnel chiffré bout-en-bout — comme Claude Code,
