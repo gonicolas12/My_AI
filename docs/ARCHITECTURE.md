@@ -27,174 +27,174 @@ My Personal AI v7.4.0 est une **IA locale 100%** avec un système de **Mémoire 
 ## 🚀 Architecture Système Complète
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                    INTERFACES UTILISATEUR                            │
-├──────────────────────────────────────────────────────────────────────┤
-│  GUI Modern (CustomTkinter) │  CLI Enhanced    │  VSCode Extension   │
-│  • Dark theme Claude-style  │  • Commandes     │  • Mode agentique   │
+┌───────────────────────────────────────────────────────────────────────┐
+│                       INTERFACES UTILISATEUR                          │
+├───────────────────────────────────────────────────────────────────────┤
+│  GUI Modern (CustomTkinter) │  CLI Enhanced    │  VSCode Extension    │
+│  • Dark theme Claude-style  │  • Commandes     │  • Mode agentique    │
 │  • Code highlighting        │  • Historique    │  • 9 outils workspace│
 │  • Drag-and-drop files      │  • Stats         │  • Sandbox + approval│
-├─────────────────────────────┴──────────────────┴─────────────────────┤
-│  Agents Interface                                                    │
-│  • Canvas visuel workflow n8n (WorkflowCanvas)                       │
-│  • Monitoring ressources temps réel (ResourceMonitor)                │
-│  • Exécution DAG / parallèle / séquentielle                         │
-│  • Drag-and-drop agents + connexions Bézier                         │
-├──────────────────────────────────────────────────────────────────────┤
-│  My_AI Relay (relay/)                                                │
-│  • Interface mobile PWA (iOS/Android) via WebSocket                  │
-│  • Tunnel cloudflared HTTPS → accès depuis n'importe où             │
-│  • Authentification token/mot de passe + QR code                    │
-│  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile           │
-│  • Routage par client_kind : "mobile" → bridge GUI, "vscode" →       │
-│    AgenticExecutor (boucle LLM ↔ outils, exécution côté extension)   │
-└──────────────────────────────────────────────────────────────────────┘
+├─────────────────────────────┴──────────────────┴──────────────────────┤
+│  Agents Interface                                                     │
+│  • Canvas visuel workflow n8n (WorkflowCanvas)                        │
+│  • Monitoring ressources temps réel (ResourceMonitor)                 │
+│  • Exécution DAG / parallèle / séquentielle                           │
+│  • Drag-and-drop agents + connexions Bézier                           │
+├───────────────────────────────────────────────────────────────────────┤
+│  My_AI Relay (relay/)                                                 │
+│  • Interface mobile PWA (iOS/Android) via WebSocket                   │
+│  • Tunnel cloudflared HTTPS → accès depuis n'importe où               │
+│  • Authentification token/mot de passe + QR code                      │
+│  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile             │
+│  • Routage par client_kind : "mobile" → bridge GUI, "vscode" →        │
+│    AgenticExecutor (boucle LLM ↔ outils, exécution côté extension)    │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                        MOTEUR IA CENTRAL                             │
-├──────────────────────────────────────────────────────────────────────┤
-│                          AIEngine (core/ai_engine.py)                │
-│  • Orchestration de tous les modules                                 │
-│  • Routage intelligent selon intentions                              │
-│  • Gestion de session et contexte                                    │
-│  • Intégration processeurs, générateurs, outils                      │
-│  • Client MCP (Model Context Protocol) pour outils externes          │
-├──────────────────────────────────────────────────────────────────────┤
-│ ChatOrchestrator (core/chat_orchestrator.py)                         │
-│  • Boucle agentique ReAct (Reasoning + Acting)                       │
-│  • Plan & Execute avec scratchpad XML persistant                     │
-│  • Limite de tours (MAX_TOURS=15), LoopDetector, élagage contexte    │
-│  • Utilisé par AIEngine pour tout tool-calling de la page Chat       │
-├──────────────────────────────────────────────────────────────────────┤
-│ Modules v7.0.0 (initialisés par AIEngine._init_v7_modules())         │
+┌───────────────────────────────────────────────────────────────────────┐
+│                         MOTEUR IA CENTRAL                             │
+├───────────────────────────────────────────────────────────────────────┤
+│                          AIEngine (core/ai_engine.py)                 │
+│  • Orchestration de tous les modules                                  │
+│  • Routage intelligent selon intentions                               │
+│  • Gestion de session et contexte                                     │
+│  • Intégration processeurs, générateurs, outils                       │
+│  • Client MCP (Model Context Protocol) pour outils externes           │
+├───────────────────────────────────────────────────────────────────────┤
+│ ChatOrchestrator (core/chat_orchestrator.py)                          │
+│  • Boucle agentique ReAct (Reasoning + Acting)                        │
+│  • Plan & Execute avec scratchpad XML persistant                      │
+│  • Limite de tours (MAX_TOURS=15), LoopDetector, élagage contexte     │
+│  • Utilisé par AIEngine pour tout tool-calling de la page Chat        │
+├───────────────────────────────────────────────────────────────────────┤
+│ Modules v7.0.0 (initialisés par AIEngine._init_v7_modules())          │
 │  • APIServer         — Serveur REST FastAPI (localhost:8000)          │
 │  • CommandHistory     — Historique commandes SQLite + favoris         │
-│  • ConversationExporter — Export MD / HTML / PDF                     │
-│  • KnowledgeBaseManager — Faits structurés + extraction automatique  │
-│  • LanguageDetector   — Détection de 12 langues + suffix prompt      │
-│  • SessionManager     — Multi-workspaces avec persistance JSON       │
-│  • WebCache           — Cache disque (diskcache) avec TTL            │
-└──────────────────────────────────────────────────────────────────────┘
+│  • ConversationExporter — Export MD / HTML / PDF                      │
+│  • KnowledgeBaseManager — Faits structurés + extraction automatique   │
+│  • LanguageDetector   — Détection de 12 langues + suffix prompt       │
+│  • SessionManager     — Multi-workspaces avec persistance JSON        │
+│  • WebCache           — Cache disque (diskcache) avec TTL             │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                      MODÈLES IA ET INTELLIGENCE                      │
-├──────────────────────────────────────────────────────────────────────┤
-│  Ollama (Prioritaire)       │  CustomAIModel (Fallback)              │
-│  • LLM local (qwen3.5:4 b)  │  • Détection intentions                │
-│  • Réponses naturelles      │  • Réponses contextuelles              │
-│  • 100% confidentiel        │  • Patterns et règles                  │
-├─────────────────────────────┴────────────────────────────────────────┤
-│  VectorMemory (10M tokens)  │  LocalLLM (Gestionnaire Ollama)        │
-│  • Mémoire vectorielle      │  • Vérification disponibilité          │
-│  • Ultra-large context      │  • Fallback automatique                │
-│  • Processeurs avancés      │  • Modèle personnalisable (Modelfile)  │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                      MODÈLES IA ET INTELLIGENCE                       │
+├───────────────────────────────────────────────────────────────────────┤
+│  Ollama (Prioritaire)       │  CustomAIModel (Fallback)               │
+│  • LLM local (qwen3.5:4 b)  │  • Détection intentions                 │
+│  • Réponses naturelles      │  • Réponses contextuelles               │
+│  • 100% confidentiel        │  • Patterns et règles                   │
+├─────────────────────────────┴─────────────────────────────────────────┤
+│  VectorMemory (10M tokens)  │  LocalLLM (Gestionnaire Ollama)         │
+│  • Mémoire vectorielle      │  • Vérification disponibilité           │
+│  • Ultra-large context      │  • Fallback automatique                 │
+│  • Processeurs avancés      │  • Modèle personnalisable (Modelfile)   │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                   GESTION DU CONTEXTE ET MÉMOIRE                     │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ VectorMemory            │ ConversationMemory                         │
-│ • ChromaDB vectoriel    │ • Conversations persistantes               │
-│ • tiktoken cl100k_base  │ • Documents stockés                        │
-│ • Sentence-transformers │ • Préférences utilisateur                  │
-│ • 10M tokens contexte   │ • Cache contexte récent                    │
-│ • Recherche sémantique  │ • Format JSON enrichi                      │
-│ • AES-256 chiffrement   │                                            │
-│ • Similarité cosinus    │                                            │
-└─────────────────────────┴────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                   GESTION DU CONTEXTE ET MÉMOIRE                      │
+├─────────────────────────┬─────────────────────────────────────────────┤
+│ VectorMemory            │ ConversationMemory                          │
+│ • ChromaDB vectoriel    │ • Conversations persistantes                │
+│ • tiktoken cl100k_base  │ • Documents stockés                         │
+│ • Sentence-transformers │ • Préférences utilisateur                   │
+│ • 10M tokens contexte   │ • Cache contexte récent                     │
+│ • Recherche sémantique  │ • Format JSON enrichi                       │
+│ • AES-256 chiffrement   │                                             │
+│ • Similarité cosinus    │                                             │
+└─────────────────────────┴─────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│              RECONNAISSANCE ET ANALYSE LINGUISTIQUE                  │
-├──────────────────────────────────────────────────────────────────────┤
-│ LinguisticPatterns                                                   │
-│ • Détection salutations                                              │
-│ • Mots-clés code                                                     │
-│ • Questions types                                                    │
-│ • Tolérance typos                                                    │
-├──────────────────────────────────────────────────────────────────────┤
-│ KnowledgeBase                                                        │
-│ • Programmation (Python, web, data)                                  │
-│ • Web dev (frontend, backend)                                        │
-│ • Mathématiques / Sciences                                           │
-│ • Connaissances générales                                            │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                RECONNAISSANCE ET ANALYSE LINGUISTIQUE                 │
+├───────────────────────────────────────────────────────────────────────┤
+│ LinguisticPatterns                                                    │
+│ • Détection salutations                                               │
+│ • Mots-clés code                                                      │
+│ • Questions types                                                     │
+│ • Tolérance typos                                                     │
+├───────────────────────────────────────────────────────────────────────┤
+│ KnowledgeBase                                                         │
+│ • Programmation (Python, web, data)                                   │
+│ • Web dev (frontend, backend)                                         │
+│ • Mathématiques / Sciences                                            │
+│ • Connaissances générales                                             │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                    PROCESSEURS DE DOCUMENTS                          │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ PDFProcessor            │ DOCXProcessor                              │
-│ • PyMuPDF (primaire)    │ • python-docx                              │
-│ • PyPDF2 (fallback)     │ • Extraction paragraphes                   │
-│ • Extraction metadata   │ • Tables                                   │
-│ • Images                │ • Chunking intelligent                     │
-│ • Chunking pages        │                                            │
-├─────────────────────────┼────────────────────────────────────────────┤
-│ ExcelProcessor          │ CodeProcessor                              │
-│ • openpyxl (.xlsx)      │ • Détection langage                        │
-│ • xlrd (.xls legacy)    │ • Analyse structure (classes, fonctions)   │
-│ • stdlib csv (.csv)     │ • Extraction commentaires                  │
-│ • Multi-feuilles        │ • Analyse sémantique                       │
-│ • Formatage tableau     │                                            │
-│ • Encodage automatique  │                                            │
-└─────────────────────────┴────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                      PROCESSEURS DE DOCUMENTS                         │
+├─────────────────────────┬─────────────────────────────────────────────┤
+│ PDFProcessor            │ DOCXProcessor                               │
+│ • PyMuPDF (primaire)    │ • python-docx                               │
+│ • PyPDF2 (fallback)     │ • Extraction paragraphes                    │
+│ • Extraction metadata   │ • Tables                                    │
+│ • Images                │ • Chunking intelligent                      │
+│ • Chunking pages        │                                             │
+├─────────────────────────┼─────────────────────────────────────────────┤
+│ ExcelProcessor          │ CodeProcessor                               │
+│ • openpyxl (.xlsx)      │ • Détection langage                         │
+│ • xlrd (.xls legacy)    │ • Analyse structure (classes, fonctions)    │
+│ • stdlib csv (.csv)     │ • Extraction commentaires                   │
+│ • Multi-feuilles        │ • Analyse sémantique                        │
+│ • Formatage tableau     │                                             │
+│ • Encodage automatique  │                                             │
+└─────────────────────────┴─────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                    GÉNÉRATEURS DE CONTENU                            │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ AdvancedCodeGenerator   │ DocumentGenerator                          │
-│ • StackOverflow API     │ • Markdown                                 │
-│ • GitHub search         │ • PDF (reportlab)                          │
-│ • Web scraping          │ • Structured output                        │
-│ • Templates fallback    │ • Context-aware                            │
-│ • Semantic ranking      │                                            │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                       GÉNÉRATEURS DE CONTENU                          │
+├─────────────────────────┬─────────────────────────────────────────────┤
+│ AdvancedCodeGenerator   │ DocumentGenerator                           │
+│ • StackOverflow API     │ • Markdown                                  │
+│ • GitHub search         │ • PDF (reportlab)                           │
+│ • Web scraping          │ • Structured output                         │
+│ • Templates fallback    │ • Context-aware                             │
+│ • Semantic ranking      │                                             │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                    OUTILS ET RECHERCHE WEB                           │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ InternetSearchEngine    │ SmartWebSearcher                           │
-│ • DuckDuckGo API Instant│ • Code search                              │
-│ • Météo temps réel      │ • GitHub integration                       │
-│   (wttr.in gratuit)     │ • Real-time patterns                       │
-│ • Toutes les villes     |                                            |
-|   du monde              │                                            │
-│ • Multi-thread (8)      │                                            │
-│ • Pattern extraction:   │                                            │
-│   - Facts (taille,      │                                            │
-│     population, dates)  │                                            │
-│   - Définitions         │                                            │
-│   - Prix                │                                            │
-│   - Conditions météo    │                                            │
-│ • Caching (3600s)       │                                            │
-│ • BeautifulSoup scraping│                                            │
-├─────────────────────────┴────────────────────────────────────────────┤
-│ Local Tools: SearchTool, MathTool, InfoExtractionTool                │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                       OUTILS ET RECHERCHE WEB                         │
+├─────────────────────────┬─────────────────────────────────────────────┤
+│ InternetSearchEngine    │ SmartWebSearcher                            │
+│ • DuckDuckGo API Instant│ • Code search                               │
+│ • Météo temps réel      │ • GitHub integration                        │
+│   (wttr.in gratuit)     │ • Real-time patterns                        │
+│ • Toutes les villes     |                                             |
+|   du monde              │                                             │
+│ • Multi-thread (8)      │                                             │
+│ • Pattern extraction:   │                                             │
+│   - Facts (taille,      │                                             │
+│     population, dates)  │                                             │
+│   - Définitions         │                                             │
+│   - Prix                │                                             │
+│   - Conditions météo    │                                             │
+│ • Caching (3600s)       │                                             │
+│ • BeautifulSoup scraping│                                             │
+├─────────────────────────┴─────────────────────────────────────────────┤
+│ Local Tools: SearchTool, MathTool, InfoExtractionTool                 │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                RLHF ET AMÉLIORATION CONTINUE                         │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ RLHF Pipeline           │ Feedback Integration                       │
-│ • Dataset loading       │ • Merge feedback to training data          │
-│ • Human feedback (0-5)  │ • Rating incorporation                     │
-│ • Training loop         │ • Iterative retraining                     │
-│ • Model export          │ • Quality metrics                          │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                    RLHF ET AMÉLIORATION CONTINUE                      │
+├─────────────────────────┬─────────────────────────────────────────────┤
+│ RLHF Pipeline           │ Feedback Integration                        │
+│ • Dataset loading       │ • Merge feedback to training data           │
+│ • Human feedback (0-5)  │ • Rating incorporation                      │
+│ • Training loop         │ • Iterative retraining                      │
+│ • Model export          │ • Quality metrics                           │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│              OPTIMISATION ET ÉVALUATION                              │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ Optimization Module     │ Evaluation & Error Analysis                │
-│ • Quantization          │ • Metrics (P/R/F1/EM)                      │
-│ • Pruning               │ • Error tracking                           │
-│ • Model export          │ • Performance analysis                     │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                      OPTIMISATION ET ÉVALUATION                       │
+├─────────────────────────┬─────────────────────────────────────────────┤
+│ Optimization Module     │ Evaluation & Error Analysis                 │
+│ • Quantization          │ • Metrics (P/R/F1/EM)                       │
+│ • Pruning               │ • Error tracking                            │
+│ • Model export          │ • Performance analysis                      │
+└───────────────────────────────────────────────────────────────────────┘
                                    │
-┌──────────────────────────────────────────────────────────────────────┐
-│                          UTILITAIRES                                 │
-├──────────────────────────────────────────────────────────────────────┤
-│  FileManager │ Logger │ Validators │ Config │ FileProcessor          │
-└──────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                             UTILITAIRES                               │
+├───────────────────────────────────────────────────────────────────────┤
+│  FileManager │ Logger │ Validators │ Config │ FileProcessor           │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 📦 Structure Détaillée des Modules
