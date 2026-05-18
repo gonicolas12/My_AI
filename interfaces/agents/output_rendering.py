@@ -82,6 +82,88 @@ def _render_latex_symbols(text: str) -> str:
 class OutputRenderingMixin:
     """Gestion des sections dépliantes + formatage Markdown streaming."""
 
+    # ── HORIZONTAL RULE (---) ─────────────────────────────────────────
+    # Tkinter Text widgets have no native <hr>; we embed a 1-pixel-tall
+    # tk.Frame via window_create and resize it on the widget's <Configure>
+    # event so it always spans the visible width.
+
+    _HR_COLOR = "#6b7280"
+    _HR_PAD_X = 6
+    _HR_PAD_Y = 6
+
+    def _insert_horizontal_rule(self, text_widget, position="end"):
+        """Embed a 1-px Frame at ``position`` that resizes to the text widget width.
+
+        Per-widget state (the list of embedded separators + the resize callback)
+        is stored in ``self._hr_state`` keyed by ``id(text_widget)`` so we do
+        not pollute the Tk widget namespace with private attributes.
+        """
+        try:
+            sep = tk.Frame(
+                text_widget,
+                height=1,
+                bg=self._HR_COLOR,
+                bd=0,
+                highlightthickness=0,
+            )
+            text_widget.window_create(
+                position,
+                window=sep,
+                padx=self._HR_PAD_X,
+                pady=self._HR_PAD_Y,
+            )
+        except Exception:
+            try:
+                text_widget.insert(position, "─" * 60, "separator")
+            except Exception:
+                pass
+            return
+
+        if not hasattr(self, "_hr_state"):
+            self._hr_state = {}
+
+        wid = id(text_widget)
+        entry = self._hr_state.get(wid)
+        if entry is None:
+            separators = []
+
+            def _resize_hrs(_event=None):
+                try:
+                    width_px = text_widget.winfo_width()
+                    if width_px <= 1:
+                        return
+                    target = max(20, width_px - 2 * self._HR_PAD_X - 12)
+                    alive = []
+                    for s in separators:
+                        try:
+                            if s.winfo_exists():
+                                s.config(width=target)
+                                alive.append(s)
+                        except Exception:
+                            pass
+                    separators[:] = alive
+                except Exception:
+                    pass
+
+            def _on_destroy(_event=None):
+                self._hr_state.pop(wid, None)
+
+            text_widget.bind("<Configure>", _resize_hrs, add="+")
+            text_widget.bind("<Destroy>", _on_destroy, add="+")
+            entry = {"separators": separators, "resize_fn": _resize_hrs}
+            self._hr_state[wid] = entry
+
+        entry["separators"].append(sep)
+        resize_fn = entry["resize_fn"]
+        try:
+            resize_fn()
+        except Exception:
+            pass
+        try:
+            text_widget.after_idle(resize_fn)
+        except Exception:
+            pass
+
     # ── Section-based output management ────────────────────────────
 
     def _clear_output_sections(self):
@@ -474,9 +556,9 @@ class OutputRenderingMixin:
                 tw.insert("end", stripped[3:], "h2")
             elif stripped.startswith("# "):
                 tw.insert("end", stripped[2:], "h1")
-            # Separators
+            # Separators (---) : embed a Frame that spans the full widget width
             elif re.match(r'^[=\-]{3,}$', stripped):
-                tw.insert("end", "─" * 60, "separator")
+                self._insert_horizontal_rule(tw, position="end")
             # Bullet points
             elif re.match(r'^(\s*)[-*]\s+(.*)', line):
                 m = re.match(r'^(\s*)[-*]\s+(.*)', line)
@@ -579,7 +661,10 @@ class OutputRenderingMixin:
                          lmargin2=32, font=(base, 11))
         tw.tag_configure("normal", font=(base, 11),
                          foreground=self.colors.get("text_primary", "#ffffff"))
-        tw.tag_configure("separator", foreground="#3a3a5c", font=(base, 6))
+        # Regle horizontale (---) : ligne unicode propre, plus visible
+        tw.tag_configure("separator", foreground="#6b7280",
+                         font=(mono, 9), spacing1=6, spacing3=6,
+                         justify="center")
         # Table tags (matching chat page style)
         tw.tag_configure("table_header", font=(mono, 10, "bold"),
                          foreground="#58a6ff", background="#1a1a2e")
@@ -657,9 +742,9 @@ class OutputRenderingMixin:
                 i += 1
                 continue
 
-            # Separators
+            # Separators (---) : embed a Frame that spans the full widget width
             if re.match(r'^[=\-]{3,}$', stripped):
-                tw.insert("end", "─" * 60, "separator")
+                self._insert_horizontal_rule(tw, position="end")
                 i += 1
                 continue
 

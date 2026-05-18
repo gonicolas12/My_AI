@@ -773,6 +773,11 @@ function renderMarkdown(text) {
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
+  // Horizontal rule: a line containing only 3+ identical chars among - _ *
+  // ("---", "___", "***", with optional surrounding whitespace). Must run
+  // BEFORE the list transform so "---" is not interpreted as a bullet.
+  html = html.replace(/^[ \t]*([-_*])\1{2,}[ \t]*$/gm, '<hr>');
+
   // Headings # through ######
   html = html.replace(/^(#{1,6}) (.+)$/gm, function (_, hashes, content) {
     var lvl = hashes.length;
@@ -849,6 +854,34 @@ function renderMarkdown(text) {
   html = html.replace(/<br><\/ul>/g, '</ul>');
   html = html.replace(/<ol><br>/g, '<ol>');
   html = html.replace(/<br><\/ol>/g, '</ol>');
+
+  // <hr>: strip surrounding <br> so the rule stands on its own clean line,
+  // then split any wrapping <p>...<hr>...</p> into <p>before</p><hr><p>after</p>
+  // so the HTML stays valid (<hr> is a block element and cannot live inside <p>).
+  // The negative lookaheads `(?!<\/p>)` / `(?!<p>)` keep the match within a
+  // single paragraph so we never swallow neighbouring paragraphs.
+  html = html.replace(/<br>\s*<hr>/g, '<hr>');
+  html = html.replace(/<hr>\s*<br>/g, '<hr>');
+  var _hrIter = 100;
+  while (_hrIter-- > 0) {
+    var next = html.replace(
+      /<p>((?:(?!<\/p>)[^])*?)<hr>((?:(?!<p>)[^])*?)<\/p>/,
+      function (_m, before, after) {
+        var out = '';
+        if (before.trim()) out += '<p>' + before + '</p>';
+        out += '<hr>';
+        if (after.trim()) out += '<p>' + after + '</p>';
+        return out;
+      },
+    );
+    if (next === html) break;
+    html = next;
+  }
+  // Orphan </p> right after <hr> or orphan <p> right before <hr> (left over
+  // when the preceding/following block was already stripped of its <p> wrap,
+  // e.g. a <ul>...</ul>\n\n<hr> sequence): remove them.
+  html = html.replace(/<hr>\s*<\/p>/g, '<hr>');
+  html = html.replace(/<p>\s*<hr>/g, '<hr>');
 
   return html;
 }

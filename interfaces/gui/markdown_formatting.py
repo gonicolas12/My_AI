@@ -4,6 +4,7 @@ import json
 import keyword
 import os
 import re
+import tkinter as tk
 import traceback
 import webbrowser
 
@@ -19,6 +20,91 @@ except ImportError:
 
 class MarkdownFormattingMixin:
     """Markdown, tables, links, and code block formatting."""
+
+    # ── HORIZONTAL RULE (---) ─────────────────────────────────────────
+    # Tkinter Text widgets have no native <hr>; we embed a 1-pixel-tall
+    # tk.Frame via window_create and resize it on the widget's <Configure>
+    # event so it always spans the visible width.
+
+    _HR_COLOR = "#6b7280"
+    _HR_PAD_X = 6
+    _HR_PAD_Y = 6
+
+    def _insert_horizontal_rule(self, text_widget, position="end"):
+        """Embed a 1-px Frame at ``position`` that resizes to the text widget width.
+
+        Per-widget state (the list of embedded separators + the resize callback)
+        is stored in ``self._hr_state`` keyed by ``id(text_widget)`` so we do
+        not pollute the Tk widget namespace with private attributes.
+        """
+        try:
+            sep = tk.Frame(
+                text_widget,
+                height=1,
+                bg=self._HR_COLOR,
+                bd=0,
+                highlightthickness=0,
+            )
+            text_widget.window_create(
+                position,
+                window=sep,
+                padx=self._HR_PAD_X,
+                pady=self._HR_PAD_Y,
+            )
+        except Exception:
+            # Fallback: insert a unicode line if window_create fails
+            try:
+                text_widget.insert(position, "─" * 50, "horizontal_rule")
+            except Exception:
+                pass
+            return
+
+        if not hasattr(self, "_hr_state"):
+            self._hr_state = {}
+
+        wid = id(text_widget)
+        entry = self._hr_state.get(wid)
+        if entry is None:
+            separators = []
+
+            def _resize_hrs(_event=None):
+                try:
+                    width_px = text_widget.winfo_width()
+                    if width_px <= 1:
+                        return
+                    # Subtract horizontal padding (our padx + Text widget's own padx ~5).
+                    target = max(20, width_px - 2 * self._HR_PAD_X - 12)
+                    alive = []
+                    for s in separators:
+                        try:
+                            if s.winfo_exists():
+                                s.config(width=target)
+                                alive.append(s)
+                        except Exception:
+                            pass
+                    separators[:] = alive
+                except Exception:
+                    pass
+
+            def _on_destroy(_event=None):
+                self._hr_state.pop(wid, None)
+
+            text_widget.bind("<Configure>", _resize_hrs, add="+")
+            text_widget.bind("<Destroy>", _on_destroy, add="+")
+            entry = {"separators": separators, "resize_fn": _resize_hrs}
+            self._hr_state[wid] = entry
+
+        entry["separators"].append(sep)
+        resize_fn = entry["resize_fn"]
+        # Apply current size now and again after layout settles
+        try:
+            resize_fn()
+        except Exception:
+            pass
+        try:
+            text_widget.after_idle(resize_fn)
+        except Exception:
+            pass
 
     def _preanalyze_markdown_tables(self, text):
         """Pré-analyse les tableaux Markdown pour l'animation progressive"""
@@ -406,7 +492,11 @@ class MarkdownFormattingMixin:
     def _apply_simple_markdown_formatting(self, text_widget, text):
         """Applique le formatage markdown simple (gras, italique, titres, listes)"""
         # Patterns pour le markdown de base
+        # IMPORTANT: la regle horizontale ('---') doit etre detectee AVANT
+        # les puces pour eviter qu'une ligne de 3+ tirets ne soit confondue
+        # avec un debut de liste.
         patterns = [
+            (r"^[ \t]*([-*_])\1{2,}[ \t]*$", "horizontal_rule"),  # Regle horizontale ---/___/***
             (r"^(#{1,6})\s+(.+)$", "title_markdown"),  # Titres
             (r"\*\*([^*\n]+?)\*\*", "bold"),  # Gras
             (r"\*([^*\n]+?)\*", "italic"),  # Italique
@@ -430,7 +520,10 @@ class MarkdownFormattingMixin:
                     apply_formatting(pre_text, remaining_patterns)
 
                 # Appliquer le style
-                if style == "title_markdown":
+                if style == "horizontal_rule":
+                    # Embed a Frame separator that spans the full widget width.
+                    self._insert_horizontal_rule(text_widget, position="end")
+                elif style == "title_markdown":
                     level = len(match.group(1))
                     title_text = match.group(2)
                     # CORRECTION: utiliser title_1, title_2, title_3 (avec underscore)
@@ -2142,6 +2235,54 @@ class MarkdownFormattingMixin:
                 else:
                     start_pos = text_widget.index(f"{pos_start}+1c")
 
+            # === REGLE HORIZONTALE (---) ===
+            # Detecte les lignes composees uniquement de 3+ tirets, underscores
+            # ou etoiles ('---', '___', '***') et les remplace par une ligne
+            # horizontale unicode propre. IMPORTANT: doit etre AVANT le
+            # formatage des puces pour eviter qu'une ligne de tirets ne soit
+            # mal interpretee comme un debut de liste.
+            try:
+                end_idx_hr = text_widget.index("end-1c")
+                total_lines_hr = int(float(end_idx_hr.split(".")[0]))
+
+                # En streaming, on attend que la ligne soit suivie d'une autre
+                # (sinon une ligne incomplete "--" pourrait etre transformee
+                # avant que le 3e tiret n'arrive). En finalisation (full_scan)
+                # ou hors-streaming, on traite toutes les lignes.
+                streaming_done = (
+                    full_scan
+                    or not getattr(self, "typing_text", None)
+                    or self.typing_index >= len(self.typing_text)
+                )
+                last_processable = total_lines_hr if streaming_done else total_lines_hr - 1
+
+                hr_re = re.compile(r"^[ \t]*([-_*])\1{2,}[ \t]*$")
+
+                for line_num_hr in range(1, last_processable + 1):
+                    line_start_hr = f"{line_num_hr}.0"
+                    line_end_hr = f"{line_num_hr}.end"
+
+                    # Ignorer les lignes dans un bloc de code
+                    try:
+                        if self._is_position_in_code_block(text_widget, line_start_hr):
+                            continue
+                    except Exception:
+                        continue
+
+                    try:
+                        line_content_hr = text_widget.get(line_start_hr, line_end_hr)
+                    except Exception:
+                        continue
+
+                    if hr_re.match(line_content_hr):
+                        text_widget.delete(line_start_hr, line_end_hr)
+                        # Embed a Frame separator that spans the full width.
+                        self._insert_horizontal_rule(
+                            text_widget, position=line_start_hr
+                        )
+            except Exception:
+                pass  # Ne pas bloquer le reste du formatage
+
             # === FORMATAGE LISTES À PUCES (* texte, - texte, + texte) ===
             # Convertit les marqueurs Markdown de liste en bullet points visuels « • »
             # Supporte aussi les puces indentées (ex: "   * texte")
@@ -3090,6 +3231,18 @@ class MarkdownFormattingMixin:
             "docstring", font=("Consolas", 11, "italic"), foreground="#ff8c00"
         )
         text_widget.tag_configure("hidden", elide=True)  # Pour masquer les balises
+
+        # === TAG REGLE HORIZONTALE (---) ===
+        # Rendu unicode propre via une ligne de "─" (U+2500) plutot que des "-".
+        # Spacing1/3 = marge verticale autour de la separation.
+        text_widget.tag_configure(
+            "horizontal_rule",
+            foreground="#6b7280",
+            font=("Consolas", 9),
+            spacing1=6,
+            spacing3=6,
+            justify="center",
+        )
 
         # === TAG CODE_BLOCK (pour le code générique et whitespace) ===
         text_widget.tag_configure(
