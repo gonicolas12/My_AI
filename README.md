@@ -190,7 +190,6 @@ my_ai/
 │   ├── validation.py                    # Validation des entrées utilisateur
 │   └── web_cache.py                     # Cache web persistant (diskcache)
 ├── data/                                # Données persistantes
-│   ├── enrichissement/                  # FAQ thématiques
 │   ├── knowledge_base/                  # Base de faits (SQLite)
 │   ├── web_cache/                       # Cache des recherches web
 │   └── workspaces/                      # Espaces de travail sauvegardés
@@ -264,7 +263,6 @@ my_ai/
 │   ├── knowledge_base.py                # Base de connaissances locale
 │   ├── linguistic_patterns.py           # Reconnaissance d'intentions et patterns
 │   ├── local_llm.py                     # Gestionnaire Ollama (détection + fallback)
-│   ├── ml_faq_model.py                  # FAQ avec ML et fuzzy matching
 │   ├── real_web_code_generator.py       # Générateur de Code Basé sur Recherche Web Pure
 │   ├── smart_code_searcher.py           # Recherche de code intelligente
 │   └── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code

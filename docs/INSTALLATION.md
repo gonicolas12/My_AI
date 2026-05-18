@@ -260,8 +260,7 @@ My_AI/
 ├── interfaces/            # Interfaces utilisateur
 ├── tools/                 # Outils spécialisés
 ├── utils/                 # Utilitaires
-├── data/                  # Données et enrichissements
-│   ├── enrichissement/    # FAQ et connaissances
+├── data/                  # Données
 │   ├── context_storage/   # Storage contexte 10M tokens (créé auto)
 │   ├── outputs/           # Documents générés (créé auto)
 │   ├── temp/              # Fichiers temporaires (créé auto)
@@ -516,23 +515,6 @@ ai:
   max_tokens: 10485760       # Full 10M tokens
   conversation_history_limit: 20
 ```
-
-### Configuration Enrichissement FAQ
-
-Les fichiers d'enrichissement dans `data/enrichissement/` sont chargés par priorité:
-
-1. `enrichissement_culture.jsonl` (Priorité 1)
-2. `enrichissement_informatique.jsonl` (Priorité 2)
-3. `enrichissement_général.jsonl` (Priorité 3)
-4. `enrichissement_exemples.jsonl` (Priorité 4)
-
-Format JSONL:
-```json
-{"input": "Question ici", "target": "Réponse ici"}
-{"input": "Autre question", "target": "Autre réponse"}
-```
-
-Pour ajouter vos propres connaissances, éditez ces fichiers ou créez-en de nouveaux.
 
 ## 🧪 Vérification Installation
 

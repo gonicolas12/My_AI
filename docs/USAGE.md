@@ -378,7 +378,6 @@ IA> Salut ! Comment puis-je t'aider ? [Pattern de salutation]
 
 **Fonctionnalités toujours disponibles :**
 - Reconnaissance d'intentions (salutations, code, documents)
-- FAQ thématique
 - Traitement de documents
 - Recherche internet
 - Génération de code (via templates)
@@ -879,7 +878,6 @@ python main.py status
    ✅ Internet Search: Active
    ✅ Code Generation: Active
    ✅ RLHF: Configured
-   ✅ FAQ Model: Loaded (4 enrichment files)
 
 ⚙️  Performance:
    - Cache Hit Rate: 75%

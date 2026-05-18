@@ -105,16 +105,13 @@ My Personal AI v7.4.0 est une **IA locale 100%** avec un système de **Mémoire 
                                    │
 ┌──────────────────────────────────────────────────────────────────────┐
 │              RECONNAISSANCE ET ANALYSE LINGUISTIQUE                  │
-├─────────────────────────┬────────────────────────────────────────────┤
-│ LinguisticPatterns      │ ML FAQ Model                               │
-│ • Détection salutations │ • TF-IDF matching                          │
-│ • Mots-clés code        │ • Fuzzy matching (RapidFuzz)               │
-│ • Questions types       │ • Enrichissement thématique:               │
-│ • Tolérance typos       │   - Culture                                │
-│                         │   - Informatique                           │
-│                         │   - Général                                │
-│                         │   - Exemples                               │
-├─────────────────────────┴────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────────────┤
+│ LinguisticPatterns                                                   │
+│ • Détection salutations                                              │
+│ • Mots-clés code                                                     │
+│ • Questions types                                                    │
+│ • Tolérance typos                                                    │
+├──────────────────────────────────────────────────────────────────────┤
 │ KnowledgeBase                                                        │
 │ • Programmation (Python, web, data)                                  │
 │ • Web dev (frontend, backend)                                        │
@@ -532,7 +529,6 @@ Architecture:
 ├─ AdvancedCodeGenerator (multi-sources)
 ├─ ConversationMemory (persistance)
 ├─ InternetSearchEngine (DuckDuckGo + Météo)
-├─ ML FAQ Model (TF-IDF)
 ├─ Processors (PDF, DOCX, Code)
 └─ VectorMemory (ChromaDB + embeddings)
 
@@ -609,22 +605,6 @@ Features:
 ├─ Cache contexte pour optimisation
 ├─ Apprentissage préférences utilisateur
 └─ Extraction keywords
-```
-
-**`models/ml_faq_model.py`** - FAQ ML
-```python
-Implémentation TF-IDF:
-├─ Chargement enrichissements:
-│   ├─ enrichissement_culture.jsonl
-│   ├─ enrichissement_informatique.jsonl
-│   ├─ enrichissement_général.jsonl
-│   └─ enrichissement_exemples.jsonl
-├─ Normalisation questions
-├─ Matching 3 niveaux:
-│   1. Exact match (priorité max)
-│   2. TF-IDF cosine (seuil 0.9)
-│   3. RapidFuzz fuzzy (seuil 92%)
-└─ Return None si pas de match
 ```
 
 **`models/linguistic_patterns.py`** - Reconnaissance patterns
@@ -1070,7 +1050,6 @@ Ollama Check (LocalLLM.is_ollama_available)
     │            ├─ code_generation? → code_generator.generate()
     │            ├─ document_analysis? → pdf/docx_processor.process()
     │            ├─ internet_search? → internet_search_engine.search()
-    │            ├─ faq_match? → ml_faq_model.predict()
     │            └─ general? → custom_ai_model.respond()
     ↓
 Response Generation + Confidence Scoring
@@ -1214,11 +1193,6 @@ class ConversationManager:
 ### Structure Data Directory
 ```
 data/
-├── enrichissement/
-│   ├── enrichissement_culture.jsonl       # Priorité 1
-│   ├── enrichissement_informatique.jsonl  # Priorité 2
-│   ├── enrichissement_général.jsonl       # Priorité 3
-│   └── enrichissement_exemples.jsonl      # Priorité 4
 ├── knowledge_base/         # Base de faits (SQLite)
 ├── web_cache/              # Cache des recherches web
 ├── workspaces/             # Espaces de travail sauvegardés
@@ -1232,12 +1206,6 @@ memory/
 │   │   └── *.parquet      # Vecteurs
 │   └── README.md          # Documentation système
 └── vector_memory.py        # Gestionnaire mémoire
-```
-
-### Format Enrichissement (JSONL)
-```json
-{"input": "Quelle est la capitale de la France?", "target": "Paris"}
-{"input": "Comment faire une boucle en Python?", "target": "for i in range(10): ..."}
 ```
 
 ## 🚀 Points d'Entrée
@@ -1273,7 +1241,6 @@ python main.py generate code "desc"   # Génération code
 ### Temps Réponse Typiques
 ```
 Greeting response:        < 100ms
-FAQ match:                ~200ms
 Simple conversation:      500ms - 2s
 Météo wttr.in:            1-3s (API externe)
 Code generation:          2-5s (web search inclus)

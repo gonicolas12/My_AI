@@ -11,7 +11,6 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
-from models.ml_faq_model import MLFAQModel
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
@@ -115,7 +114,6 @@ class CustomAIModel(
         self.web_code_searcher = multi_source_searcher
         self.conversation_memory = conversation_memory or ConversationMemory()
         self.internet_search = InternetSearchEngine()
-        self.ml_model = MLFAQModel()  # Instance unique, données chargées au 1er predict()
 
         # Initialisation du LLM Local (Ollama)
         self.local_llm = LocalLLM()
@@ -295,7 +293,7 @@ class CustomAIModel(
         Args:
             user_message: Le message de l'utilisateur
             ai_response: La réponse de l'IA
-            intent: L'intention détectée (faq, calculation, joke, etc.)
+            intent: L'intention détectée (calculation, joke, etc.)
             confidence: Le niveau de confiance de la réponse
             context: Contexte additionnel
         """
@@ -316,22 +314,6 @@ class CustomAIModel(
         """Génère une réponse avec gestion améliorée des documents"""
         try:
             user_lower = user_input.lower()
-
-            # ============================================================
-            # 📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
-            # ============================================================
-            # La FAQ doit être consultée AVANT tout autre système
-            # pour garantir que les réponses enrichies soient utilisées
-            faq_response = None
-            try:
-                faq_response = self.ml_model.predict(user_input)
-                if faq_response is not None and str(faq_response).strip():
-                    print(f"📚 [FAQ] ✅ Réponse FAQ trouvée pour: '{user_input}'")
-                    # Synchroniser avec l'historique Ollama
-                    self._add_to_conversation_history(user_input, faq_response, "faq")
-                    return faq_response
-            except (ValueError, AttributeError, TypeError) as e:
-                print(f"⚠️ [FAQ] Erreur lors de la consultation FAQ: {e}")
 
             # ============================================================
             # 🎯 EXCEPTIONS À OLLAMA - Ces cas utilisent leurs outils dédiés
@@ -683,32 +665,6 @@ class CustomAIModel(
                     if on_token:
                         on_token(error_msg)
                     return error_msg
-
-            # ============================================================
-            # 📚 PRIORITÉ ABSOLUE : FAQ/ML - Vérifier EN PREMIER
-            # ============================================================
-            # La FAQ doit être consultée AVANT tout autre système, même en streaming
-            faq_response = None
-            try:
-                faq_response = self.ml_model.predict(user_input)
-                if faq_response is not None and str(faq_response).strip():
-                    print(
-                        f"📚 [FAQ STREAM] ✅ Réponse FAQ trouvée pour: '{user_input}'"
-                    )
-                    # IMPORTANT : Ajouter à l'historique Ollama pour le contexte
-                    self._add_to_conversation_history(
-                        user_input,
-                        faq_response,
-                        "faq",
-                        1.0,
-                        {"source": "enrichissement"},
-                    )
-                    print("🧠 [FAQ STREAM] Conversation ajoutée à l'historique Ollama")
-                    if on_token:
-                        on_token(faq_response)
-                    return faq_response
-            except (ValueError, AttributeError, TypeError) as e:
-                print(f"⚠️ [FAQ STREAM] Erreur lors de la consultation FAQ: {e}")
 
             # ============================================================
             # 🎯 EXCEPTIONS AU STREAMING - Réponses locales immédiates
@@ -1242,10 +1198,6 @@ class CustomAIModel(
             else:
                 # S'il n'y a pas de code en mémoire, générer du code comme pour une demande de génération
                 return self._generate_code_response(user_input, context)
-
-        # Note: La détection des blagues a été déplacée au début de generate_response()
-        # pour éviter que la FAQ/ML ne cache toujours la même blague
-        # Cette section a été supprimée pour éviter la duplication
 
         # Validation finale du type de réponse avec FALLBACK INTELLIGENT
         if intent == "document_question":

@@ -955,7 +955,7 @@ Réponds toujours en français par défaut.
 | Mode | Condition | Qualité Réponses |
 |------|-----------|------------------|
 | **Ollama** | Ollama installé et lancé | LLM complet, conversations naturelles |
-| **Fallback** | Ollama non disponible | Patterns, règles, FAQ |
+| **Fallback** | Ollama non disponible | Patterns, règles |
 
 ### 📊 Modèles Recommandés par RAM
 

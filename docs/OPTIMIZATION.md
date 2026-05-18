@@ -271,22 +271,6 @@ internet_search:
 - Réduction charge réseau
 - Économie bande passante
 
-### Cache FAQ Model
-
-**Fichier:** `models/ml_faq_model.py`
-
-Le modèle TF-IDF est chargé une fois en mémoire:
-- Matching instantané (< 50ms)
-- Pas de rechargement entre requêtes
-- Mémoire: ~50-100 MB selon taille enrichissements
-
-**Optimisation enrichissements:**
-```bash
-# Réduire taille fichiers JSONL si mémoire limitée
-# Garder seulement FAQ essentielles
-# Format: {"input": "Q", "target": "R"}
-```
-
 ### Caching Documents Processés
 
 ```yaml

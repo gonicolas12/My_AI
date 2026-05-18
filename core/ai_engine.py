@@ -26,7 +26,6 @@ from models.conversation_memory import ConversationMemory
 from models.custom_ai_model import CustomAIModel
 from models.internet_search import (EnhancedInternetSearchEngine,
                                     InternetSearchEngine)
-from models.ml_faq_model import MLFAQModel
 from models.smart_code_searcher import multi_source_searcher
 from models.smart_web_searcher import search_smart_code
 from processors.code_processor import CodeProcessor
@@ -124,23 +123,11 @@ class AIEngine:
         # Modèle IA local personnalisé avec mémoire de conversation (100% autonome)
         try:
             self.local_ai = CustomAIModel(conversation_memory=self.conversation_memory)
-            self.ml_ai = MLFAQModel()  # Modèle ML local (TF-IDF)
-
-            # 📚 Préchargement FAQ en arrière-plan pour éviter le lazy-load
-            # de 2-5s sur le premier predict() utilisateur.
-            def _preload_faq():
-                try:
-                    self.ml_ai._ensure_loaded()
-                    self.logger.info("📚 FAQ préchargée en arrière-plan")
-                except Exception as exc:
-                    self.logger.warning("⚠️ Préchargement FAQ échoué : %s", exc)
-            threading.Thread(target=_preload_faq, daemon=True).start()
 
             self.model = (
                 self.local_ai
             )  # Alias pour compatibilité avec l'interface graphique
             self.logger.info("✅ Modèle IA local avec mémoire initialisé")
-            self.logger.info("✅ Modèle ML (TF-IDF) initialisé")
             # Initialisation du gestionnaire de LLM
             self.llm_manager = (
                 self.local_ai
@@ -149,7 +136,6 @@ class AIEngine:
             self.logger.error("❌ Erreur lors de l'initialisation du modèle IA : %s", e)
             # Fallback sur l'ancien système
             self.local_ai = CustomAIModel()
-            self.ml_ai = None
             self.model = self.local_ai
             self.llm_manager = self.local_ai
 
@@ -962,14 +948,6 @@ Que voulez-vous que je fasse pour vous ?"""
             self.logger.error("Erreur dans le nouveau process_text: %s", e)
             return f"❌ **Erreur système:** {str(e)}\n\nLe nouveau système de recherche web rencontre des difficultés. Veuillez réessayer."
 
-    def _merge_responses(self, response_custom, response_ml):
-        """
-        Donne la priorité à la FAQ ML : si une réponse MLFAQ existe, elle est utilisée, sinon on utilise la réponse custom.
-        """
-        if response_ml is not None and str(response_ml).strip():
-            return str(response_ml)
-        return response_custom
-
     def _get_help_text(self) -> str:
         """Retourne le texte d'aide"""
         return """🤖 Aide - My AI Personal Assistant
@@ -1110,7 +1088,7 @@ Que voulez-vous que je fasse pour vous ?"""
             # Détection automatique de la langue de l'utilisateur
             self._current_lang_instruction = self._get_lang_instruction(query)
 
-            # 0. Vérifier la génération de fichier en priorité absolue pour court-circuiter FAQ et MCP
+            # 0. Vérifier la génération de fichier en priorité absolue pour court-circuiter MCP
             query_lower = query.lower()
             file_keywords = [
                 "génère moi un fichier",
@@ -1124,28 +1102,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 self.conversation_manager.add_exchange(query, response)
                 return response
 
-            print(f"[AIEngine] Appel FAQ pour: '{query}' (async)")
-            # 1. Tenter la FAQ ML d'abord
-            response_ml = None
-            if hasattr(self, "ml_ai") and self.ml_ai is not None:
-                try:
-                    response_ml = self.ml_ai.predict(query)
-                    self.logger.info("ML model response: %s...", str(response_ml)[:50])
-                except (ValueError, AttributeError, TypeError) as e:
-                    self.logger.warning("Erreur modèle ML: %s", e)
-            if response_ml is not None and str(response_ml).strip():
-                # On sauvegarde l'échange
-                try:
-                    self.conversation_manager.add_exchange(
-                        query, {"message": response_ml}
-                    )
-                except (OSError, AttributeError, TypeError):
-                    self.logger.warning(
-                        "Impossible de sauvegarder la conversation (FAQ async)"
-                    )
-                return {"type": "faq", "message": response_ml, "success": True}
-
-            # 2. Routage MCP tool-calling (prioritaire sur le keyword-routing)
+            # 1. Routage MCP tool-calling (prioritaire sur le keyword-routing)
             if (
                 self.mcp_manager.has_tools()
                 and hasattr(self.local_ai, "local_llm")
@@ -1160,7 +1117,7 @@ Que voulez-vous que je fasse pour vous ?"""
                     return response
                 # Fallback si MCP échoue (pas de réponse finale générée)
 
-            # 3. Fallback : routage classique par mots-clés
+            # 2. Fallback : routage classique par mots-clés
             query_type = self._analyze_query_type(query)
             full_context = self._prepare_context(query, context)
             if query_type == "web_search":
@@ -1913,38 +1870,7 @@ Que voulez-vous que je fasse pour vous ?"""
             )
 
         # ----------------------------------------------------------------
-        # 1.5. FAQ / Enrichissement — Priorité absolue avant MCP et Thinking
-        # La FAQ est vérifiée même en mode thinking (requête complexe) : si une
-        # réponse est trouvée, elle est retournée immédiatement sans raisonnement.
-        # Le widget de raisonnement éventuellement créé par le GUI est fermé via
-        # on_thinking_complete() → _finalize_reasoning_widget() → masqué si vide.
-        # ----------------------------------------------------------------
-        if self.ml_ai is not None:
-            try:
-                faq_response = self.ml_ai.predict(user_input)
-                if faq_response is not None and str(faq_response).strip():
-                    print(f"📚 [FAQ ENGINE] ✅ Réponse FAQ trouvée pour: '{user_input}'")
-                    # Sauvegarder dans l'historique Ollama pour que les questions
-                    # de rappel ("on a parlé de quoi ?") puissent y accéder
-                    if llm is not None:
-                        llm.add_to_history("user", user_input)
-                        llm.add_to_history("assistant", faq_response)
-                    try:
-                        self.conversation_manager.add_exchange(user_input, faq_response)
-                    except Exception:
-                        pass
-                    # Fermer le widget de raisonnement s'il était ouvert
-                    # (requête détectée complexe par le GUI mais couverte par FAQ)
-                    if on_thinking_complete:
-                        on_thinking_complete()
-                    if on_token:
-                        on_token(faq_response)
-                    return faq_response
-            except Exception as _faq_exc:
-                self.logger.warning("[FAQ ENGINE] Erreur consultation FAQ: %s", _faq_exc)
-
-        # ----------------------------------------------------------------
-        # 1.7. MODE THINKING — géré nativement par Qwen3.5 via generate_stream()
+        # 1.5. MODE THINKING — géré nativement par Qwen3.5 via generate_stream()
         # ----------------------------------------------------------------
         # Le thinking natif Qwen3.5 est activé directement dans generate_stream()
         # quand on_thinking_token est fourni ("think":True dans la requête Ollama).
@@ -2026,7 +1952,7 @@ Que voulez-vous que je fasse pour vous ?"""
             ]
             _q_lower = user_input.lower()
             if any(sig in _q_lower for sig in _history_signals):
-                # Source primaire : historique Ollama (contient FAQ + réponses LLM)
+                # Source primaire : historique Ollama (réponses LLM)
                 ollama_hist = getattr(llm, "conversation_history", [])
                 history_lines = []
                 if ollama_hist:

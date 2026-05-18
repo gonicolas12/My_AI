@@ -2303,8 +2303,8 @@ class BaseGUI:
                 print(
                     f"📥 [STREAM] Réception terminée : {len(self._streaming_buffer)} caractères reçus (animation en cours)"
                 )
-                # Si la réponse n'a pas été streamée token par token (ex: FAQ,
-                # fallback classique sans Ollama), l'afficher d'un bloc
+                # Si la réponse n'a pas été streamée token par token
+                # (fallback classique sans Ollama), l'afficher d'un bloc
                 if not self._streaming_bubble_created and response:
                     on_token_received(response)
             else:
