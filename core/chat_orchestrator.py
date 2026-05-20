@@ -286,24 +286,32 @@ class ChatOrchestrator:
         messages = self._compact_context_if_needed(messages, llm)
 
         # ── Plan & Execute : pré-planification pour requêtes complexes ────
-        # La planification n'a du sens que si le widget raisonnement est visible
-        # (on_thinking_token fourni). Sans widget, les tokens du plan sont
-        # générés mais invisibles ET jamais injectés (pas d'outil appelé) :
-        # pure perte de 10-15 secondes avant la vraie réponse.
+        # Le plan reste essentiel pour le SCRATCHPAD INTERNE qui guide le modèle
+        # tour après tour. En revanche, il n'est plus AFFICHÉ dans le widget
+        # raisonnement : le thinking natif (« 🧠 Analyse ») couvre déjà
+        # cette information sous une forme plus riche, et afficher les deux
+        # créait une redondance visible pour l'utilisateur.
+        #
+        # On garde le gate `on_thinking_token is not None` : sans widget, la
+        # requête est probablement assez simple pour ne pas mériter les 10-15s
+        # de latence du plan.
         if self._should_plan(user_input, tools) and on_thinking_token is not None:
             plan_steps = self._generate_plan_stream(
-                user_input, llm, on_thinking_token, messages=getattr(llm, "conversation_history", [])
+                user_input, llm,
+                on_thinking_token=None,  # ← ne stream PAS au widget (interne uniquement)
+                messages=getattr(llm, "conversation_history", []),
             )
             if plan_steps:
                 scratchpad.set_plan(plan_steps)
                 print(
-                    f"📋 [ChatOrchestrator] Plan généré ({len(plan_steps)} étapes) : "
-                    + " | ".join(plan_steps)
+                    f"📋 [ChatOrchestrator] Plan généré ({len(plan_steps)} étapes, "
+                    f"interne uniquement) : " + " | ".join(plan_steps)
                 )
-        # Stopper les dots du widget raisonnement maintenant que le plan est affiché.
-        # Le widget reste visible avec son contenu ; seule l'animation s'arrête.
-        if on_thinking_complete:
-            on_thinking_complete()
+        # NOTE : on_thinking_complete N'EST PAS appelé ici intentionnellement.
+        # L'animation « Raisonnement... » doit continuer pendant tout le cycle
+        # (plan → analyse → outils → synthèse), pour que l'utilisateur voie
+        # que le modèle réfléchit encore. Elle sera arrêtée au premier token
+        # de réponse réelle dans _call_ollama_smart_stream ou _stream_synthesis.
 
         # ── Boucle ReAct ─────────────────────────────────────────────────
         for tour in range(MAX_TOURS):
@@ -317,7 +325,9 @@ class ChatOrchestrator:
             # Injection du scratchpad dans le system prompt
             # S'il y a un plan ou s'il y a déjà eu des appels d'outils
             if tool_calls_log or scratchpad.plan:
-                messages = self._inject_scratchpad(messages, scratchpad)
+                messages = self._inject_scratchpad(
+                    messages, scratchpad, known_tool_names=known_tool_names,
+                )
 
             # Avertissement avant limite
             if tour == MAX_TOURS - 3 and tool_calls_log:
@@ -361,12 +371,21 @@ class ChatOrchestrator:
                 tools_for_call = tools
 
             _stream_direct = on_token if not tool_calls_log else None
+            # Raisonnement natif : activé au 1er tour seulement (décision
+            # initiale du modèle). Les tours suivants sont des dispatchs
+            # d'outils rapides — pas la peine d'ajouter la latence du
+            # thinking. La synthèse aura son propre thinking en fin de cycle.
+            _enable_thinking_this_turn = (tour == 0 and on_thinking_token is not None)
             response_msg = self._call_ollama_smart_stream(
                 llm=llm,
                 messages=messages,
                 tools=tools_for_call,
                 on_token=_stream_direct,
                 is_interrupted_callback=is_interrupted_callback,
+                on_thinking_token=on_thinking_token,
+                on_thinking_complete=on_thinking_complete,
+                enable_thinking=_enable_thinking_this_turn,
+                thinking_header="\n🧠 Analyse :\n",
             )
             if response_msg is None:
                 print(f"⚠️  [ChatOrchestrator] Appel Ollama échoué au tour {tour + 1}")
@@ -428,6 +447,8 @@ class ChatOrchestrator:
                         on_token=on_token,
                         is_interrupted_callback=is_interrupted_callback,
                         tool_calls_log=tool_calls_log,
+                        on_thinking_token=on_thinking_token,
+                        on_thinking_complete=on_thinking_complete,
                     )
                     if synthesis:
                         valid, reason = self._validate_response(
@@ -780,6 +801,8 @@ class ChatOrchestrator:
                 on_token=on_token,
                 is_interrupted_callback=is_interrupted_callback,
                 tool_calls_log=tool_calls_log,
+                on_thinking_token=on_thinking_token,
+                on_thinking_complete=on_thinking_complete,
             )
             # Validation finale de la synthèse
             if result:
@@ -1133,12 +1156,17 @@ class ChatOrchestrator:
         self,
         messages: List[Dict],
         scratchpad: Scratchpad,
+        known_tool_names: Optional[List[str]] = None,
     ) -> List[Dict]:
         """
         Injecte ou met à jour le bloc <scratchpad> dans le message système.
 
         Le scratchpad force le LLM à re-synthétiser son état à chaque tour,
         évitant la perte de cohérence sur des tâches multi-étapes.
+
+        Si known_tool_names est fourni, ajoute la liste explicite des outils
+        valides pour réduire les hallucinations (modèle inventant 'execute',
+        'run_python', 'bash', etc. qui n'existent pas dans le schéma MCP).
         """
         if not messages or messages[0].get("role") != "system":
             return messages
@@ -1152,6 +1180,21 @@ class ChatOrchestrator:
             flags=re.DOTALL,
         ).rstrip()
 
+        # Liste explicite des outils valides (anti-hallucination)
+        tools_whitelist = ""
+        if known_tool_names:
+            names = [n for n in known_tool_names if n]
+            if names:
+                names_str = ", ".join(f"`{n}`" for n in names)
+                tools_whitelist = (
+                    f"\n\n[OUTILS DISPONIBLES — LISTE EXHAUSTIVE] "
+                    f"Les SEULS outils que tu peux appeler sont : {names_str}. "
+                    "N'INVENTE JAMAIS un outil hors de cette liste (ex: pas de "
+                    "`execute`, `run_python`, `bash`, `shell`, etc.). Si aucun "
+                    "outil de la liste ne correspond à ce que tu veux faire, "
+                    "passe à l'étape suivante ou conclus avec ta réponse finale."
+                )
+
         # Ajouter le scratchpad mis à jour
         new_system = base_content + "\n\n" + scratchpad.to_context_block() + (
             "\n\n[CONSIGNE STRICTE D'OUTILS] "
@@ -1159,7 +1202,7 @@ class ChatOrchestrator:
             "Si l'étape demande un DÉPLACEMENT de fichier (ex: 'déplacer', 'move'), utilise OBLIGATOIREMENT "
             "'move_local_file'. NE RECRÉE PAS un fichier déjà existant avec 'write_local_file'. "
             "Si tu dois chercher, utilise le bon type de recherche, etc."
-        )
+        ) + tools_whitelist
 
         updated = list(messages)
         updated[0] = {"role": "system", "content": new_system}
@@ -1209,6 +1252,10 @@ class ChatOrchestrator:
         tools: List[Dict],
         on_token: Optional[Callable] = None,
         is_interrupted_callback: Optional[Callable] = None,
+        on_thinking_token: Optional[Callable] = None,
+        on_thinking_complete: Optional[Callable] = None,
+        enable_thinking: bool = False,
+        thinking_header: str = "\n🧠 Analyse :\n",
     ) -> Optional[Dict]:
         """
         Appel Ollama en streaming adaptatif avec détection de tool_calls.
@@ -1224,15 +1271,25 @@ class ChatOrchestrator:
           - Si le buffer est du texte naturel → flush + streaming temps réel
             via on_token
 
+        Mode raisonnement natif (Qwen3.5) :
+          - Activé si enable_thinking=True ET on_thinking_token fourni
+          - Les tokens message.thinking sont routés vers on_thinking_token
+          - Un header (thinking_header) est ajouté avant le 1er token de pensée
+          - on_thinking_complete est appelé au 1er token de contenu réel
+
         Returns:
             {"content": str, "tool_calls": list, "streamed": bool} ou None
         """
+        # Active le raisonnement natif uniquement quand le widget peut le recevoir
+        # ET que l'appelant l'a explicitement demandé (1er tour ou synthèse).
+        native_thinking = bool(enable_thinking and on_thinking_token)
+
         data = {
             "model": llm.model,
             "messages": messages,
             "tools": tools,
             "stream": True,
-            "think": False,
+            "think": native_thinking,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": 0.7,
@@ -1247,6 +1304,8 @@ class ChatOrchestrator:
         content_buffer: str = ""
         buffer_flushed: bool = False
         buffer_chars = 120  # Seuil avant de décider stream vs accumulation
+        thinking_header_sent: bool = False
+        thinking_complete_fired: bool = False
 
         # 📊 Mesure TTFT (Time To First Token) pour diagnostiquer la latence
         _ttft_start = time.time()
@@ -1272,6 +1331,14 @@ class ChatOrchestrator:
 
                     msg = chunk_data.get("message", {})
 
+                    # ── Raisonnement natif Qwen3.5 (message.thinking) ────
+                    thinking_tok: str = msg.get("thinking", "") if native_thinking else ""
+                    if thinking_tok and on_thinking_token:
+                        if not thinking_header_sent:
+                            thinking_header_sent = True
+                            on_thinking_token(thinking_header)
+                        on_thinking_token(thinking_tok)
+
                     # ── Détection des tool_calls structurés ───────────────
                     chunk_tc = msg.get("tool_calls")
                     if chunk_tc:
@@ -1283,6 +1350,11 @@ class ChatOrchestrator:
                         if not _ttft_logged:
                             _ttft_logged = True
                             print(f"⏱️  [TTFT] smart_stream : {time.time() - _ttft_start:.2f}s avant 1er token")
+                        # Transition raisonnement → réponse : arrêter l'animation
+                        # des dots du widget Raisonnement.
+                        if not thinking_complete_fired and on_thinking_complete:
+                            thinking_complete_fired = True
+                            on_thinking_complete()
                         full_content += token
 
                         if tool_calls_collected:
@@ -1340,12 +1412,22 @@ class ChatOrchestrator:
         on_token: Optional[Callable],
         is_interrupted_callback: Optional[Callable],
         tool_calls_log: List[Dict],
+        on_thinking_token: Optional[Callable] = None,
+        on_thinking_complete: Optional[Callable] = None,
     ) -> Optional[str]:
         """
         Synthèse streamée après exécution d'outils.
 
         Le system prompt de synthèse remplace l'original pour que le modèle
         ne réponde pas « je n'ai pas accès aux données en temps réel ».
+
+        Mode raisonnement natif :
+          - Si on_thinking_token est fourni, active le thinking Qwen3.5 sur
+            la synthèse : le modèle réfléchit explicitement à comment intégrer
+            les données des outils avant de répondre.
+          - Les tokens de pensée sont streamés au widget Raisonnement sous
+            la section « 💡 Synthèse ».
+          - on_thinking_complete est appelé au 1er token de la réponse finale.
         """
         synthesis_system = (
             "Tu interviens en bout de processus après avoir exécuté avec succès une série d'actions techniques (création de fichiers, recherches, etc.). "
@@ -1372,11 +1454,16 @@ class ChatOrchestrator:
         else:
             msgs.insert(0, {"role": "system", "content": synthesis_system})
 
+        # Active le raisonnement natif Qwen3.5 sur la synthèse uniquement quand
+        # le widget peut le recevoir. C'est ici que le raisonnement est le plus
+        # précieux à exposer (intégration des résultats d'outils).
+        native_thinking = on_thinking_token is not None
+
         data = {
             "model": llm.model,
             "messages": msgs,
             "stream": True,
-            "think": False,
+            "think": native_thinking,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": 0.7,
@@ -1387,6 +1474,8 @@ class ChatOrchestrator:
         }
 
         full_response: str = ""
+        thinking_header_sent: bool = False
+        thinking_complete_fired: bool = False
         try:
             with _resilient_post(
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
@@ -1405,8 +1494,23 @@ class ChatOrchestrator:
                     except json.JSONDecodeError:
                         continue
 
-                    token: str = chunk_data.get("message", {}).get("content", "")
+                    msg = chunk_data.get("message", {})
+
+                    # ── Raisonnement natif sur la synthèse ───────────────
+                    thinking_tok: str = msg.get("thinking", "") if native_thinking else ""
+                    if thinking_tok and on_thinking_token:
+                        if not thinking_header_sent:
+                            thinking_header_sent = True
+                            on_thinking_token("\n\n💡 Synthèse :\n")
+                        on_thinking_token(thinking_tok)
+
+                    # ── Contenu de la réponse finale ─────────────────────
+                    token: str = msg.get("content", "")
                     if token:
+                        # Transition raisonnement → réponse : arrêter les dots.
+                        if not thinking_complete_fired and on_thinking_complete:
+                            thinking_complete_fired = True
+                            on_thinking_complete()
                         full_response += token
                         if on_token:
                             result = on_token(token)

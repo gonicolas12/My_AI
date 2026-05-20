@@ -5,6 +5,8 @@ Support de l'historique de conversation pour un contexte persistant.
 
 import json
 import re
+import threading as _threading
+import time as _time
 from typing import Callable, Dict, List, Optional
 
 import requests
@@ -99,7 +101,6 @@ class LocalLLM:
             # créées à la volée par les agents pendant une requête utilisateur).
             if self.model not in LocalLLM._warmed_up_models:
                 LocalLLM._warmed_up_models.add(self.model)
-                import threading as _threading
                 _threading.Thread(target=self._warmup_model, daemon=True).start()
         else:
             print(
@@ -310,7 +311,6 @@ class LocalLLM:
         _thinking_complete_fired = False  # Garantit un seul appel au callback
 
         # 📊 Mesure TTFT (Time To First Token) pour diagnostiquer la latence
-        import time as _time
         _ttft_start = _time.time()
         _ttft_logged = False
 
