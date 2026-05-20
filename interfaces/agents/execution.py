@@ -566,6 +566,20 @@ class ExecutionMixin:
                         activebackground="#f3f3f3",
                         font=("Segoe UI", 16, "bold"),
                     )
+            # Désactiver le bouton micro pendant que les agents génèrent
+            mic_btn = getattr(self, "_agent_mic_button", None)
+            if mic_btn is not None and hasattr(mic_btn, "set_enabled"):
+                try:
+                    mic_btn.set_enabled(False)
+                except Exception:
+                    pass
+            # Désactiver le bouton "+" (ouverture du popup pièces jointes)
+            file_btn = getattr(self, "_agent_file_btn", None)
+            if file_btn is not None:
+                try:
+                    file_btn.configure(state="disabled")
+                except Exception:
+                    pass
         if self.parent.winfo_exists():
             self.parent.after(0, update)
 
@@ -596,6 +610,20 @@ class ExecutionMixin:
                         border=0,
                         relief="flat",
                     )
+            # Réactiver le bouton micro une fois la génération terminée
+            mic_btn = getattr(self, "_agent_mic_button", None)
+            if mic_btn is not None and hasattr(mic_btn, "set_enabled"):
+                try:
+                    mic_btn.set_enabled(True)
+                except Exception:
+                    pass
+            # Réactiver le bouton "+" (ouverture du popup pièces jointes)
+            file_btn = getattr(self, "_agent_file_btn", None)
+            if file_btn is not None:
+                try:
+                    file_btn.configure(state="normal")
+                except Exception:
+                    pass
         if self.parent.winfo_exists():
             self.parent.after(0, update)
 
