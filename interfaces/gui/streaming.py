@@ -311,10 +311,17 @@ class StreamingMixin:
                 )
                 self._finish_streaming_animation()
                 return
-            elif remaining > 50 and not getattr(self, '_streaming_in_code_block', False):
+            elif (
+                remaining > 50
+                and not getattr(self, '_streaming_in_code_block', False)
+                and not getattr(self, '_current_link_info', None)
+            ):
                 # Affichage rapide — batch jusqu'au prochain caractère spécial.
                 # Les backticks (blocs/inline code) et crochets (liens) sont
                 # traités un par un pour préserver toute la logique progressive.
+                # IMPORTANT: désactivé pendant qu'un lien Markdown est en cours
+                # d'affichage, sinon le titre serait inséré sans le tag link_temp
+                # et le `](url)` apparaîtrait en texte brut.
                 batch_size = min(25, remaining)
                 for _bi in range(batch_size):
                     if self._streaming_buffer[self.typing_index + _bi] in ('`', '['):
