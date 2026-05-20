@@ -385,7 +385,7 @@ class ChatOrchestrator:
                 on_thinking_token=on_thinking_token,
                 on_thinking_complete=on_thinking_complete,
                 enable_thinking=_enable_thinking_this_turn,
-                thinking_header="\n🧠 Analyse :\n",
+                thinking_header="🧠 Analyse :\n",
             )
             if response_msg is None:
                 print(f"⚠️  [ChatOrchestrator] Appel Ollama échoué au tour {tour + 1}")
@@ -1255,7 +1255,7 @@ class ChatOrchestrator:
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
         enable_thinking: bool = False,
-        thinking_header: str = "\n🧠 Analyse :\n",
+        thinking_header: str = "🧠 Analyse :\n",
     ) -> Optional[Dict]:
         """
         Appel Ollama en streaming adaptatif avec détection de tool_calls.
