@@ -346,7 +346,13 @@ def attach_mic_button(
 
     vi = VoiceInput.get_shared(tk_root)
 
+    # État activé/désactivé du bouton (désactivé pendant que le LLM écrit).
+    enabled_state = {"on": True}
+    disabled_color = "#3a3a3a"
+
     def _on_click(_event=None):
+        if not enabled_state["on"]:
+            return
         if not vi.available:
             reason = vi.unavailable_reason()
             print(f"[VOICE] {reason}")
@@ -362,5 +368,26 @@ def attach_mic_button(
         vi.on_state = _on_state
         vi.toggle()
 
+    def set_enabled(enabled: bool) -> None:
+        """Active/désactive le bouton micro (clic + apparence visuelle)."""
+        enabled_state["on"] = bool(enabled)
+        try:
+            if enabled:
+                mic_label.configure(cursor="hand2")
+                # Restaure l'apparence idle si on n'est pas en cours d'enregistrement
+                if vi.state == "idle":
+                    mic_label.configure(text="\U0001F399", fg=ph_color)
+            else:
+                # Si un enregistrement est en cours, l'arrêter proprement.
+                if vi._recording:
+                    vi.stop()
+                pulse_state["on"] = False
+                mic_label.configure(
+                    text="\U0001F399", fg=disabled_color, cursor="arrow"
+                )
+        except tk.TclError:
+            pass
+
+    mic_label.set_enabled = set_enabled  # type: ignore[attr-defined]
     mic_label.bind("<Button-1>", _on_click)
     return mic_label

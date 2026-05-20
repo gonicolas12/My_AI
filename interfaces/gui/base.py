@@ -830,6 +830,14 @@ class BaseGUI:
                         btn.configure(state="normal" if enabled else "disabled")
                     except (tk.TclError, AttributeError):
                         pass
+            # Boutons micro (saisie vocale) — désactivés pendant que le LLM écrit
+            for btn_name in ["_inline_mic_button", "_home_mic_button"]:
+                btn = getattr(self, btn_name, None)
+                if btn is not None and hasattr(btn, "set_enabled"):
+                    try:
+                        btn.set_enabled(enabled)
+                    except (tk.TclError, AttributeError):
+                        pass
             # Bouton d'envoi :
             if hasattr(self, "send_button"):
                 if enabled:
