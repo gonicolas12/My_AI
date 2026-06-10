@@ -247,7 +247,7 @@ Par défaut : `small` (~150 Mo, INT8 quantizé pour CPU). Bon compromis qualité
 
 ### Le bouton micro ne fait rien quand je clique
 Trois causes possibles :
-1. **Dépendances manquantes** : installe `pip install faster-whisper sounddevice` (déjà inclus dans `requirements.txt` v7.4.0). Une notification d'erreur apparaît dans le GUI si c'est le cas.
+1. **Dépendances manquantes** : installe `pip install faster-whisper sounddevice` (déjà inclus dans `requirements.txt`). Une notification d'erreur apparaît dans le GUI si c'est le cas.
 2. **Pas de micro détecté** : vérifie que ton OS reconnaît un micro par défaut (Paramètres → Son → Entrée).
 3. **Durée trop courte** : les enregistrements de moins de 0,3 seconde sont ignorés (anti-clic accidentel).
 
@@ -276,6 +276,12 @@ En théorie non : tous les chemins sont résolus par rapport à la racine du wor
 
 ### Le mobile et le GUI desktop sont-ils impactés par le mode agentique ?
 Non. Le routage côté Relay distingue les clients par leur message `client_hello` : seul un client qui s'annonce comme `client_kind: "vscode"` passe par la boucle agentique. Le mobile et la GUI desktop continuent d'utiliser le pipeline historique avec les MCP locaux complets (accès PC entier).
+
+### Puis-je utiliser les agents IA depuis mon téléphone ?
+Oui. L'interface mobile My_AI Relay propose une barre d'onglets **💬 Chat / 🤖 Agents** en haut. L'onglet Agents reprend toute la page Agents du PC en version tactile : grille des 9 agents spécialisés + vos agents personnalisés, **création/édition/suppression d'agents**, **workflow visuel n8n** (déplacer les nœuds au doigt, relier les ports), **Mode Débat** et exécution streamée. Les agents s'exécutent **côté PC** (orchestrateur + Ollama local) et le résultat est streamé au mobile dans le tunnel chiffré — rien ne part vers un cloud. Vous pouvez aussi joindre des fichiers/images à une tâche d'agent via le bouton **+**, comme sur le chat. Les agents personnalisés sont partagés avec le GUI desktop (même `data/custom_agents.json`).
+
+### Sur mobile, comment arrêter une réponse en cours de génération ?
+Pendant la génération, le **bouton d'envoi du chat se transforme en bouton Stop** (carré noir sur fond blanc). Le toucher interrompt la génération : la demande remonte au PC qui arrête le streaming et renvoie la réponse partielle. Sur la page Agents, le bouton **▶ Exécuter** devient **■ Stop** pendant un workflow ou un débat.
 
 ### Puis-je contribuer au développement ?
 Bien sûr ! Le projet est ouvert aux contributions :

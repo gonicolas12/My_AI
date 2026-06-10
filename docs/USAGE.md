@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.4.0
+# 📚 Guide d'Utilisation - My Personal AI v7.5.0
 
 ## 🚀 Démarrage Rapide
 
@@ -288,7 +288,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.4.0:
+État My Personal AI v7.5.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -856,11 +856,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.4.0
+  MY PERSONAL AI - System Status v7.5.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.4.0
+📊 Version: 7.5.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -893,7 +893,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.4.0
+My Personal AI v7.5.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1273,9 +1273,9 @@ My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS o
 2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared, serveo, localhost.run) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics
 3. Un **QR code** s'affiche dans le panneau Relay — scannez-le avec votre téléphone. Le QR pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui ping tous les tunnels et redirige automatiquement vers le premier joignable
 4. Si un **mot de passe** est configuré (section `relay.password` dans `config.yaml`), entrez-le sur la page de login mobile ; sinon l'accès est direct via le QR code
-5. Chattez depuis votre mobile — les messages arrivent en temps réel sur le PC et la réponse s'affiche sur les deux écrans simultanément
+5. L'interface mobile s'ouvre sur deux onglets en haut — **💬 Chat** et **🤖 Agents** — qui reprennent la navigation du GUI PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents.
 
-#### Fonctionnement
+#### Onglet 💬 Chat
 
 ```
 Téléphone                         PC (GUI desktop)
@@ -1283,16 +1283,31 @@ Téléphone                         PC (GUI desktop)
    │─── Message via WebSocket ──────────>│
    │                                     │── Affiché dans le chat GUI
    │                                     │── L'IA répond (streaming)
-   │<── Réponse complète ────────────────│
-   │    (après fin du streaming)         │
+   │<── Streaming + réponse finale ──────│
 ```
 
 - Le GUI traite le message **exactement comme un message local** (avec streaming, thinking, agents, etc.)
-- La réponse complète est transmise au mobile après la fin du streaming
+- La réponse est streamée en direct au mobile (token par token), puis finalisée
+- **Bouton Stop** : pendant la génération, le bouton d'envoi se transforme en bouton Stop (carré noir sur fond blanc). Le toucher interrompt la génération en cours — la demande remonte au GUI desktop qui appelle `interrupt_ai()` et renvoie la réponse partielle marquée « interrompue »
+- **Liens cliquables** : la syntaxe Markdown `[titre](url)` ainsi que les URLs nues s'affichent en **bleu souligné cliquable** (ouverture dans un nouvel onglet), comme sur le GUI PC
+
+#### Onglet 🤖 Agents
+
+L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du GUI desktop**, en version tactile. Tout s'exécute **côté PC** (orchestrateur d'agents + modèle Ollama local) et est streamé au mobile via le même tunnel chiffré — le contenu ne quitte jamais l'enveloppe E2EE.
+
+- **Grille d'agents** — les 9 agents spécialisés (CodeAgent, WebAgent, AnalystAgent, CreativeAgent, DebugAgent, PlannerAgent, SecurityAgent, OptimizerAgent, DataScienceAgent) plus vos agents personnalisés. Touchez une carte pour l'ajouter au workflow.
+- **Agents personnalisés** — bouton **➕ Créer Agent** : saisissez un nom + un rôle, le LLM local génère le *system prompt* (et la température). Modification ✏️ et suppression ✕ depuis la carte. Les agents sont stockés dans le **même `data/custom_agents.json` que le PC** → synchronisés dans les deux sens.
+- **Workflow visuel (style n8n)** — canvas tactile : déplacez les nœuds au doigt, reliez le **port de sortie** (droite) d'un nœud au **port d'entrée** (gauche) d'un autre. La topologie détermine l'exécution : agent seul, **séquentiel** (chaîne), **parallèle** (nœuds indépendants) ou **DAG** (graphe). Sauvegarde 💾 / chargement 📂 / export 📤 du workflow.
+- **Exécution** — décrivez la tâche, touchez **▶ Exécuter** : chaque agent apparaît comme une section dépliable qui se remplit en streaming, avec le statut du nœud (En attente / En cours / Terminé / Erreur). Le bouton **▶ Exécuter** devient **■ Stop** pendant l'exécution.
+- **Mode Débat** — bouton **🎭 Mode Débat** : choisissez deux agents, un sujet et un nombre de tours ; les deux agents s'opposent tour par tour, en streaming.
+- **Clear Workflow** — vide le canvas.
+- **Pièces jointes** — bouton **+** de la barre d'action (voir ci-dessous) : le contenu des fichiers (ou la description de l'image) est injecté dans la tâche des agents.
+
+> Les workflows/débats s'exécutent **un à la fois** (comme sur le PC). Le mode débat ne prend pas de pièces jointes, conformément au GUI desktop.
 
 #### 📎 Pièces jointes depuis le mobile
 
-Le bouton **+** à gauche du champ de saisie de l'interface mobile permet de joindre une ou plusieurs pièces jointes avant l'envoi du message. Les fichiers sont traités **exactement comme sur le PC** :
+Le bouton **+** permet de joindre une ou plusieurs pièces jointes — **à la fois sur l'onglet Chat** (à gauche du champ de saisie) **et sur l'onglet Agents** (au-dessus des boutons d'action). Les fichiers sont traités **exactement comme sur le PC** :
 
 - **Images** (PNG, JPG, JPEG, GIF, BMP, WebP, TIFF) → envoyées au **modèle vision** (encodage base64, même pipeline que le drag & drop PC)
 - **Documents** (PDF, DOCX, DOC, XLSX, XLS, CSV) → extrait de contenu ajouté au **contexte vectoriel** via les processeurs spécialisés
@@ -1300,8 +1315,9 @@ Le bouton **+** à gauche du champ de saisie de l'interface mobile permet de joi
 
 Détails techniques :
 
-- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier
-- Un fichier envoyé sans message déclenche une requête par défaut (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
+- L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier — l'upload chiffré (`POST /api/upload`) est partagé par le Chat et la page Agents
+- **Sur l'onglet Agents**, le contenu des documents (et la description vision des images) est injecté en fin de tâche sous forme de sections `--- Fichier joint : … ---` avant le lancement du workflow (même logique que `execute_agent_task` du GUI desktop)
+- Un fichier envoyé sans message (Chat) déclenche une requête par défaut (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
 - Image + documents peuvent être combinés dans un même message ; le premier fichier image est envoyé au modèle vision, les autres rejoignent le contexte
 - Le contexte est garanti **prêt avant** le démarrage de l'inférence (le pipeline document est exécuté de façon synchrone avant l'appel au modèle)
 - Endpoint côté serveur : `POST /api/upload?token=...` (multipart, retourne un `file_id`) ; le client WebSocket passe ensuite les `file_ids` dans le message de chat
@@ -1467,7 +1483,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 7.4.0
+**Version:** 7.5.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale

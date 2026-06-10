@@ -128,6 +128,11 @@ class RelayBridge:
         # Callbacks déclenchés pour chaque chunk de streaming (broadcast WS).
         self._chunk_callbacks: List[Callable[[str, str], None]] = []
 
+        # Demande d'interruption émise par le mobile (bouton STOP du chat).
+        # Le GUI desktop la consomme dans sa boucle de polling et appelle
+        # interrupt_ai(). Thread-safe via un simple flag booléen.
+        self._interrupt_requested = False
+
         logger.info("RelayBridge initialisé (singleton)")
 
     # ------------------------------------------------------------------
@@ -238,6 +243,7 @@ class RelayBridge:
         self._response_event.clear()
         self._latest_response = ""
         self._latest_message_id = ""
+        self._interrupt_requested = False
         with self._pending_lock:
             self._pending_responses.clear()
         logger.info("RelayBridge réinitialisé")
@@ -352,6 +358,26 @@ class RelayBridge:
             len(text),
             effective_id or "—",
         )
+
+    # ------------------------------------------------------------------
+    # Interruption de génération (bouton STOP du chat mobile)
+    # ------------------------------------------------------------------
+
+    def request_interrupt(self) -> None:
+        """Signale que le mobile a demandé l'arrêt de la génération en cours.
+
+        Appelé depuis le handler WebSocket. Le GUI desktop consomme ce
+        signal dans sa boucle de polling (consume_interrupt_request) et
+        appelle interrupt_ai().
+        """
+        self._interrupt_requested = True
+
+    def consume_interrupt_request(self) -> bool:
+        """Retourne True une seule fois si une interruption a été demandée."""
+        if self._interrupt_requested:
+            self._interrupt_requested = False
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # Cache de réponses en attente (récupération après reconnexion)

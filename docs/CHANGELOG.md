@@ -1,5 +1,48 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 📱 Version 7.5.0 — Page Agents sur My_AI Relay (Mobile) (10 Juin 2026)
+
+### 🤖 L'interface mobile gagne une page Agents complète
+
+My_AI Relay (l'interface mobile, **pas** l'extension VS Code) affiche désormais une barre d'onglets **💬 Chat / 🤖 Agents** en haut, à la manière du GUI desktop. L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du PC** en version tactile : grille des 9 agents spécialisés + agents personnalisés, création/édition/suppression d'agents, **workflow visuel n8n** (canvas tactile, nœuds reliables par les ports), **Mode Débat**, et exécution streamée avec sections dépliables et statuts de nœud.
+
+Tout s'exécute **côté serveur Relay** (orchestrateur d'agents + modèle Ollama local) — comme le mode agentique VS Code, et **sans** passer par le `RelayBridge`/GUI. Le contenu ne quitte jamais l'enveloppe E2EE AES-256-GCM.
+
+#### `relay/agent_relay.py` — Nouveau service `AgentRelayService`
+
+- `list_agents()` — 9 built-in + agents personnalisés, rechargés depuis **`data/custom_agents.json` (fichier partagé avec le GUI desktop)** → synchro bidirectionnelle
+- `create_agent()` / `edit_agent()` / `delete_agent()` — CRUD ; génération du *system prompt* + température via le LLM local (même prompt que `interfaces/agents/custom_agents.py`)
+- `compute_execution_plan()` — port de `WorkflowCanvas.get_execution_plan` (tri topologique de Kahn → `single` / `sequential` / `parallel` / `dag`)
+- `run_workflow()` — exécute le plan, streame chaque section via un callback `emit` ; étapes parallèles en threads ; respect de l'interruption (`on_token → False`)
+- `run_debate()` — `execute_debate` de l'orchestrateur, streamé tour par tour
+- `_augment_task_with_files()` — injecte le contenu des pièces jointes (PDF/DOCX/Excel/code via processeurs, images via modèle vision `describe_image`) dans la tâche
+- Gate d'exécution unique + drapeaux d'interruption par `exec_id`
+
+#### `relay/relay_server.py` — Dispatch Agents + corrections chat
+
+- Nouveaux messages WS : `agents_list`, `agent_create`, `agent_edit`, `agent_delete`, `agent_execute`, `agent_debate`, `agent_stop` → `_handle_agent_message`
+- **File d'émission unique drainée par une seule coroutine** : évite l'entrelacement de `send_text` concurrents pendant les étapes parallèles d'un workflow
+- **Correction bouton Stop du chat** : l'attente de la réponse mobile (`wait_for_ai_response`) est désormais **détachée dans une tâche** — auparavant elle bloquait la boucle `receive_text()`, si bien qu'un `stop_generation` envoyé pendant la génération n'était jamais lu (le bouton Stop ne faisait rien)
+- Nouveau message `stop_generation` → `bridge.request_interrupt()`
+- `agent_execute` résout les `file_ids` via `consume_upload_ids` (même mécanisme d'upload chiffré que le chat)
+
+#### `relay/relay_bridge.py` — Canal d'interruption
+
+- `request_interrupt()` / `consume_interrupt_request()` (one-shot, thread-safe) : posé par le handler WS, consommé par la boucle de polling du GUI (`interrupt_ai()` renvoie la réponse partielle marquée « interrompue »)
+
+#### `relay/static/` — Front-end mobile
+
+- **`index.html`** — barre d'onglets (largeur égale → séparation centrée), vue Agents (grille, canvas `#wfCanvas`/`#wfWorld` + SVG liens, zone résultats, barre d'action, bouton + pièces jointes), modales Créer agent / Mode Débat
+- **`agents.js`** (nouveau, `window.AgentsUI`) — grille, **canvas n8n tactile** (drag via *pointer events*, connexion par tap sur les ports, courbes de Bézier SVG, statuts de nœud), modales, exécution streamée, pièces jointes, Save/Load (localStorage) + Export (JSON)
+- **`app.js`** — refactor de l'upload chiffré en `uploadEncryptedFile()` partagé ; pont `window.RelayCore` exposé à `agents.js` ; **rendu des liens** dans `renderMarkdown` (`[titre](url)` et URLs nues → `<a>` bleu cliquable) ; **bouton d'envoi ⇄ Stop** pendant la génération
+- **`style.css`** — onglets, cartes (hauteur/largeur uniformes), canvas, sections, modales, bouton Stop (`.stopmode`), liens bleus soulignés ; barre d'action Agents compactée
+
+#### `interfaces/gui/base.py`
+
+- La boucle `_poll_relay_messages` consomme la demande d'interruption mobile et appelle `interrupt_ai()` (sur le thread Tk)
+
+---
+
 # 🎙️ Version 7.4.0 — Saisie vocale (Voice Mode) (13 Mai 2026)
 
 ### 🎤 Nouvelle fonctionnalité : dictée vocale dans toutes les zones de saisie

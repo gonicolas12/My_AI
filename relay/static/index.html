@@ -24,45 +24,160 @@
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
       <div class="status-dot connecting" id="statusDot"></div>
-      <button class="clear-btn" onclick="clearChat()">Effacer</button>
+      <button class="clear-btn" id="clearChatBtn" onclick="clearChat()">Effacer</button>
     </div>
+  </div>
+
+  <!-- Tab bar : Chat / Agents (façon GUI PC) -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabChat" onclick="switchTab('chat')">
+      <span class="tab-ico">&#x1F4AC;</span> Chat
+    </button>
+    <button class="tab-btn" id="tabAgents" onclick="switchTab('agents')">
+      <span class="tab-ico">&#x1F916;</span> Agents
+    </button>
   </div>
 
   <!-- Connection banner -->
   <div class="connection-banner" id="connBanner">Connexion perdue. Tentative de reconnexion...</div>
 
-  <!-- Messages -->
-  <div class="messages" id="messages">
-    <div class="welcome" id="welcome">
-      <div class="welcome-icon">&#x1F916;</div>
-      <div class="welcome-title">My_AI Relay</div>
-      <div class="welcome-text">Votre IA personnelle, accessible depuis votre mobile. Tapez un message pour commencer.</div>
+  <!-- ════════════════ VUE CHAT ════════════════ -->
+  <div class="view view-chat active" id="viewChat">
+    <!-- Messages -->
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">&#x1F916;</div>
+        <div class="welcome-title">My_AI Relay</div>
+        <div class="welcome-text">Votre IA personnelle, accessible depuis votre mobile. Tapez un message pour commencer.</div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <!-- Aperçus des pièces jointes (chips) -->
+      <div class="attachments" id="attachments"></div>
+      <div class="input-row">
+        <button class="attach-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Joindre un fichier ou une image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <input type="file" id="fileInput" style="display:none"
+               accept="image/*,.pdf,.docx,.doc,.xlsx,.xls,.csv,.py,.js,.html,.css,.json,.xml,.md,.txt"
+               onchange="handleFileSelect(event)">
+        <div class="input-wrapper">
+          <textarea id="messageInput" rows="1" placeholder="Tapez votre message..." autocomplete="off" autocorrect="on" autocapitalize="sentences"></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Input -->
-  <div class="input-area">
-    <!-- Aperçus des pièces jointes (chips) -->
-    <div class="attachments" id="attachments"></div>
-    <div class="input-row">
-      <button class="attach-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Joindre un fichier ou une image">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-      </button>
-      <input type="file" id="fileInput" style="display:none"
-             accept="image/*,.pdf,.docx,.doc,.xlsx,.xls,.csv,.py,.js,.html,.css,.json,.xml,.md,.txt"
-             onchange="handleFileSelect(event)">
-      <div class="input-wrapper">
-        <textarea id="messageInput" rows="1" placeholder="Tapez votre message..." autocomplete="off" autocorrect="on" autocapitalize="sentences"></textarea>
+  <!-- ════════════════ VUE AGENTS ════════════════ -->
+  <div class="view view-agents" id="viewAgents">
+    <div class="agents-scroll" id="agentsScroll">
+
+      <!-- Sélection d'agents -->
+      <div class="ag-section">
+        <div class="ag-section-title">&#x1F916; Agents IA Spécialisés</div>
+        <div class="ag-section-sub">Touchez une carte pour l'ajouter au workflow. Choisissez un agent ou enchaînez-en plusieurs.</div>
+        <div class="agents-grid" id="agentsGrid"></div>
       </div>
-      <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
+
+      <!-- Workflow visuel (n8n-style, tactile) -->
+      <div class="ag-section">
+        <div class="wf-head">
+          <div class="ag-section-title">&#x1F517; Workflow Visuel</div>
+          <div class="wf-tools">
+            <button class="wf-tool" id="wfSaveBtn" title="Sauvegarder">&#x1F4BE;</button>
+            <button class="wf-tool" id="wfLoadBtn" title="Charger">&#x1F4C2;</button>
+            <button class="wf-tool" id="wfExportBtn" title="Exporter">&#x1F4E4;</button>
+          </div>
+        </div>
+        <div class="wf-hint" id="wfHint">Touchez un agent ci-dessus pour l'ajouter. Touchez le port droit d'un nœud puis le port gauche d'un autre pour les relier.</div>
+        <div class="wf-canvas" id="wfCanvas">
+          <div class="wf-world" id="wfWorld">
+            <svg class="wf-links" id="wfLinks" width="1400" height="1000"></svg>
+          </div>
+          <div class="wf-empty" id="wfEmpty">Touchez un agent pour l'ajouter</div>
+        </div>
+      </div>
+
+      <!-- Résultats / sortie -->
+      <div class="ag-section">
+        <div class="ag-section-title">&#x1F4DD; Résultats</div>
+        <div class="agent-output" id="agentOutput">
+          <div class="ag-welcome" id="agentOutputWelcome">Les résultats des agents s'afficheront ici.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barre d'action agents -->
+    <div class="agents-actionbar">
+      <div class="ag-status" id="agentStatus">Glissez-déposez des agents pour créer votre workflow</div>
+      <!-- Aperçus des pièces jointes (chips) -->
+      <div class="attachments ag-attachments" id="agentAttachments"></div>
+      <div class="ag-task-row">
+        <button class="attach-btn" id="agentAttachBtn" title="Joindre un fichier ou une image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <input type="file" id="agentFileInput" style="display:none"
+               accept="image/*,.pdf,.docx,.doc,.xlsx,.xls,.csv,.py,.js,.html,.css,.json,.xml,.md,.txt">
+        <div class="input-wrapper ag-task-wrap">
+          <textarea id="agentTask" rows="1" placeholder="Décrivez la tâche..." autocomplete="off" autocapitalize="sentences"></textarea>
+        </div>
+      </div>
+      <div class="ag-buttons">
+        <button class="ag-btn ag-btn-exec" id="agentExecBtn">&#x25B6; Exécuter</button>
+        <button class="ag-btn ag-btn-create" id="agentCreateBtn">&#x2795; Créer Agent</button>
+        <button class="ag-btn ag-btn-debate" id="agentDebateBtn">&#x1F3AD; Mode Débat</button>
+        <button class="ag-btn ag-btn-clear" id="agentClearBtn">&#x2716; Clear Workflow</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ MODALE : Créer / Modifier un agent ════════════════ -->
+<div class="modal-overlay" id="agentModal">
+  <div class="modal-card">
+    <div class="modal-title" id="agentModalTitle">&#x1F916; Créer un Agent Personnalisé</div>
+    <label class="modal-label">Nom de l'agent</label>
+    <input type="text" class="modal-input" id="agentModalName" placeholder="Ex: MyCustomAgent" autocomplete="off">
+    <label class="modal-label">Rôle / Description</label>
+    <textarea class="modal-textarea" id="agentModalRole" rows="4" placeholder="Décrivez ce que fait cet agent..."></textarea>
+    <div class="modal-msg" id="agentModalMsg"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="agentModalCancel">Annuler</button>
+      <button class="modal-btn modal-btn-ok" id="agentModalOk">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ MODALE : Mode Débat ════════════════ -->
+<div class="modal-overlay" id="debateModal">
+  <div class="modal-card">
+    <div class="modal-title">&#x1F3AD; Mode Débat entre deux agents</div>
+    <label class="modal-label">Agent A — Proposant</label>
+    <select class="modal-input" id="debateAgentA"></select>
+    <label class="modal-label">Agent B — Opposant</label>
+    <select class="modal-input" id="debateAgentB"></select>
+    <label class="modal-label">Sujet du débat</label>
+    <textarea class="modal-textarea" id="debateTopic" rows="3" placeholder="Sujet à débattre..."></textarea>
+    <label class="modal-label">Nombre de tours</label>
+    <input type="number" class="modal-input" id="debateRounds" value="3" min="1" max="10">
+    <div class="modal-msg" id="debateModalMsg"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="debateModalCancel">Annuler</button>
+      <button class="modal-btn modal-btn-debate" id="debateModalOk">&#x25B6; Démarrer</button>
     </div>
   </div>
 </div>
@@ -70,5 +185,6 @@
 <!-- Token injecté par le serveur -->
 <script>window.__RELAY_TOKEN__ = "%%RELAY_TOKEN%%";</script>
 <script src="/static/app.js?v=%%ASSET_VERSION%%"></script>
+<script src="/static/agents.js?v=%%ASSET_VERSION%%"></script>
 </body>
 </html>

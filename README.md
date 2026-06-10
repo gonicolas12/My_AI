@@ -278,10 +278,12 @@ my_ai/
 │   ├── __init__.py
 │   ├── relay_bridge.py                  # Pont de synchronisation GUI ↔ Mobile
 │   ├── relay_server.py                  # Serveur FastAPI + WebSocket + tunnel
+│   ├── agent_relay.py                   # Service Agents serveur (workflow/débat/CRUD)
 │   └── static/
-│       ├── index.html                   # Interface mobile PWA (structure)
+│       ├── index.html                   # Interface mobile PWA (onglets Chat/Agents)
 │       ├── style.css                    # Styles de l'interface mobile
-│       └── app.js                       # Logique WebSocket et chat
+│       ├── app.js                       # Logique WebSocket et chat
+│       └── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils (cloudflared pour le Relay)
 ├── utils/                               # Utilitaires
@@ -408,20 +410,23 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 1. Cliquez sur le bouton **📡 Relay** dans la barre latérale gauche
 2. My_AI Relay démarre un serveur WebSocket et ouvre un tunnel sécurisé (cloudflared)
 3. Scannez le QR code ou copiez l'URL sur votre téléphone
-4. Chattez depuis votre mobile — les messages apparaissent en temps réel sur le PC
-5. Joignez images, PDF, DOCX, Excel ou fichiers de code via le bouton **+** de la zone de saisie mobile : ils sont traités par les mêmes processeurs que le PC (modèle vision pour les images, contexte vectoriel pour les documents)
+4. L'interface mobile propose deux onglets en haut, **💬 Chat** et **🤖 Agents** (comme le GUI PC) :
+   - **Chat** — discutez en temps réel ; les messages apparaissent aussi sur le PC. Le bouton d'envoi devient un **bouton Stop** pendant la génération, et les liens `[titre](url)` s'affichent en bleu cliquable.
+   - **Agents** — toute la page Agents du PC en version tactile : grille d'agents, **création/édition/suppression d'agents personnalisés**, **workflow visuel n8n** (glisser des nœuds, relier les ports), **Mode Débat** et exécution streamée.
+5. Joignez images, PDF, DOCX, Excel ou fichiers de code via le bouton **+** (sur le Chat **et** sur la page Agents) : ils sont traités par les mêmes processeurs que le PC (modèle vision pour les images, contexte vectoriel pour les documents)
 
 ### Caractéristiques
 
 | Fonctionnalité | Détail |
 |---|---|
-| 📱 **Interface mobile** | PWA responsive, thème sombre, style messagerie |
+| 📱 **Interface mobile** | PWA responsive, thème sombre, onglets Chat / Agents |
+| 🤖 **Page Agents** | 9 agents spécialisés + agents personnalisés, workflow visuel (séquentiel / parallèle / DAG), Mode Débat — exécutés côté PC (Ollama local), streamés au mobile |
 | 🔒 **Authentification** | Token unique par session ou mot de passe configurable |
 | 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni Cloudflare/serveo/localhost.run, ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
 | 🌐 **Multi-tunnel** | cloudflared + serveo + localhost.run en parallèle, failover client-side |
-| 🔄 **Synchronisation** | Messages visibles en temps réel sur PC et mobile |
-| ⚡ **WebSocket** | Communication instantanée, indicateur de frappe |
-| 📎 **Pièces jointes** | Images + documents (PDF, DOCX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
+| 🔄 **Synchronisation** | Messages du chat visibles en temps réel sur PC et mobile |
+| ⚡ **WebSocket** | Communication instantanée, streaming, indicateur de frappe, bouton Stop |
+| 📎 **Pièces jointes** | Chat + Agents : images + documents (PDF, DOCX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
 | 📥 **Auto-install** | cloudflared est téléchargé automatiquement si absent |
 
 ### Configuration (`config.yaml`)
@@ -521,7 +526,7 @@ code --install-extension gonicolas12.my-ai
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
-| 📡 **Relay** | Accès mobile via tunnel sécurisé + WebSocket |
+| 📡 **Relay** | Accès mobile (Chat + Agents) via tunnel sécurisé |
 | 🧩 **Extension VS Code** | Façon Claude Code sur LLM local |
 | 🔩 **Extensible** | Architecture modulaire |
 | 🔒 **Sécurisé** | Données locales protégées |
@@ -532,7 +537,6 @@ code --install-extension gonicolas12.my-ai
 
 ## ✨ Évolutions Futures
 
-- 📡 **My_AI Relay** : Agents et workspaces accessibles depuis le mobile et VS Code
 - 🧩 **Extension VS Code** : intégration aux diagnostics VS Code (problems panel), application de diffs avant/après pour les éditions, terminaux dédiés pour `run_command`
 - 🧠 **Amélioration du moteur de raisonnement** (mode Thinking)
 - 🔗 **Intégrations API tierces**

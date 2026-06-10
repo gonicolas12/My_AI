@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v7.4.0
+# 🏗️ Architecture - My Personal AI v7.5.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v7.4.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et **7 modules intelligents**, basée sur les principes suivants:
+My Personal AI v7.5.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -42,10 +42,13 @@ My Personal AI v7.4.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Drag-and-drop agents + connexions Bézier                            │
 ├────────────────────────────────────────────────────────────────────────┤
 │  My_AI Relay (relay/)                                                  │
-│  • Interface mobile PWA (iOS/Android) via WebSocket                    │
+│  • Interface mobile PWA (iOS/Android) via WebSocket — onglets          │
+│    Chat / Agents (comme le GUI PC)                                     │
 │  • Tunnel cloudflared HTTPS → accès depuis n'importe où                │
 │  • Authentification token/mot de passe + QR code                       │
-│  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile              │
+│  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile (chat)       │
+│  • AgentRelayService : page Agents exécutée côté serveur               │
+│    (orchestrateur + Ollama local) — workflow/débat/CRUD streamés       │
 │  • Routage par client_kind : "mobile" → bridge GUI, "vscode" →         │
 │    AgenticExecutor (boucle LLM ↔ outils, exécution côté extension)     │
 └────────────────────────────────────────────────────────────────────────┘
@@ -444,7 +447,14 @@ core/evaluation.py + error_analysis.py:
 Architecture:
 ├─ FastAPI app en thread daemon (non-bloquant)
 ├─ WebSocket /ws : chat temps réel (auth → messages → réponse)
-│   └─ Protocole : {"e": "<base64url>"} encapsulant {type, ...}
+│   ├─ Protocole : {"e": "<base64url>"} encapsulant {type, ...}
+│   ├─ chat (mobile) : armé via bridge, attente DÉTACHÉE en tâche pour
+│   │   garder la boucle libre de lire stop_generation pendant la génération
+│   ├─ stop_generation : bridge.request_interrupt() → interrupt_ai() côté GUI
+│   └─ Messages page Agents (agents_list, agent_create/edit/delete,
+│       agent_execute, agent_debate, agent_stop) → AgentRelayService,
+│       streamés via une file unique drainée par une seule coroutine
+│       (évite l'entrelacement des envois pendant les étapes parallèles)
 ├─ REST :
 │   ├─ GET /, POST /auth, GET /api/health (clair)
 │   ├─ GET /api/tunnels (clair, URLs déjà publiques)
@@ -475,6 +485,9 @@ Architecture:
 ├─ Réponse asynchrone :
 │   ├─ wait_for_ai_response(timeout=relay.response_timeout) — asyncio + run_in_executor
 │   └─ submit_ai_response(text)          — appelé par le GUI Tkinter
+├─ Interruption (bouton Stop du chat mobile) :
+│   ├─ request_interrupt()               — posé par le handler WS
+│   └─ consume_interrupt_request()       — lu par le polling GUI → interrupt_ai()
 ├─ Historique session : List[RelayMessage] avec to_dict()
 └─ Propriétés : active, connected_clients, history
 
@@ -488,19 +501,53 @@ RelayMessage (dataclass):
 **`relay/static/`** - Interface Mobile PWA
 ```
 ├─ index.html  — Shell PWA (injecte %%RELAY_TOKEN%% côté serveur)
-│                bouton + et chip container pour les pièces jointes
+│                ├─ Barre d'onglets Chat / Agents (largeur égale → séparation
+│                │   centrée), vues #viewChat / #viewAgents
+│                ├─ bouton + et chip container (Chat ET page Agents)
+│                └─ Page Agents : grille, canvas workflow (#wfCanvas/#wfWorld
+│                    + SVG liens), zone résultats, modales Créer/Débat
 ├─ style.css   — Thème sombre, layout mobile-first, scrollbar custom
-│                styles .attach-btn / .attachments / .attachment-chip
-└─ app.js      — WebSocket client + couche E2EE :
-                 ├─ Import clé AES-GCM depuis location.hash (#k=<b64u>)
-                 ├─ encryptObject() / decryptEnvelope() (Web Crypto)
-                 ├─ wsSendEncrypted() pour tous les envois WS
-                 ├─ Upload : ArrayBuffer → header MYAI || filename →
-                 │    AES-GCM → POST /api/upload (body binaire opaque)
-                 ├─ /api/history et /api/pending : déchiffrement enveloppe
-                 ├─ Indicateur de frappe, reconnexion auto, resume
-                 └─ Bloque l'UI avec message d'erreur si la clé est absente
-                    du fragment URL (downgrade-attack-proof côté client).
+│                styles onglets, cartes agents, nœuds/ports/liens du canvas,
+│                sections de sortie, modales, bouton Stop (.stopmode), liens
+├─ app.js      — WebSocket client + couche E2EE :
+│                ├─ Import clé AES-GCM depuis location.hash (#k=<b64u>)
+│                ├─ encryptObject() / decryptEnvelope() (Web Crypto)
+│                ├─ wsSendEncrypted() pour tous les envois WS
+│                ├─ uploadEncryptedFile() partagé (Chat + Agents via RelayCore)
+│                ├─ renderMarkdown() : code, tableaux, listes + LIENS
+│                │    ([titre](url) et URLs nues → <a> bleu cliquable)
+│                ├─ Bouton d'envoi ⇄ Stop pendant la génération
+│                │    (stop_generation), routage des messages agent_*
+│                ├─ /api/history et /api/pending : déchiffrement enveloppe
+│                ├─ Indicateur de frappe, reconnexion auto, resume
+│                └─ window.RelayCore : pont exposé à agents.js
+└─ agents.js   — Page Agents (window.AgentsUI) :
+                 ├─ Grille d'agents (built-in + custom), tap → ajout au workflow
+                 ├─ Canvas n8n tactile : drag (pointer events), connexion par
+                 │    tap sur les ports, courbes de Bézier SVG, statuts de nœud
+                 ├─ Modales Créer/Modifier agent + Mode Débat
+                 ├─ Exécution : sections dépliables remplies en streaming
+                 ├─ Pièces jointes (via RelayCore.uploadEncryptedFile)
+                 └─ Save/Load (localStorage) + Export (téléchargement JSON)
+```
+
+**`relay/agent_relay.py`** - Service Agents serveur (AgentRelayService)
+```python
+Architecture:
+├─ Porte la page Agents du GUI desktop côté serveur (sans Tkinter), comme
+│   le mode VS Code : orchestrateur d'agents + Ollama local, jamais le bridge
+├─ list_agents()            — 9 built-in + custom (rechargés depuis
+│                             data/custom_agents.json, partagé avec le GUI)
+├─ create/edit/delete_agent — CRUD ; génération du system prompt via le LLM
+│                             local (même prompt que custom_agents.py)
+├─ compute_execution_plan() — port de WorkflowCanvas.get_execution_plan
+│                             (tri topologique → single/sequential/parallel/dag)
+├─ run_workflow()           — exécute le plan, streame chaque section via un
+│                             callback emit ; injecte les pièces jointes
+│                             (_augment_task_with_files : PDF/DOCX/Excel + vision)
+├─ run_debate()             — execute_debate de l'orchestrateur, streamé
+├─ Gate d'exécution unique + drapeaux d'interruption par exec_id
+└─ Émission : callback thread-safe → file asyncio → drainer → WS chiffré
 ```
 
 **Pipeline pièces jointes (GUI)** — `interfaces/gui/base.py`
@@ -1333,7 +1380,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 7.4.0
+**Version**: 7.5.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

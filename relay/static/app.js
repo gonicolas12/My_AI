@@ -200,6 +200,12 @@ function connect() {
       loadHistory();
     }
 
+    // (1b) Notifier le module Agents qu'on est connecté (pour rafraîchir
+    //      la liste des agents si la page Agents est ouverte).
+    if (window.AgentsUI && typeof window.AgentsUI.onConnect === 'function') {
+      window.AgentsUI.onConnect();
+    }
+
     // (2) Si on était en attente d'une réponse quand la connexion est
     //     tombée, demander au serveur s'il a une réponse en attente pour
     //     notre dernier message_id.
@@ -268,6 +274,12 @@ function connect() {
       // Soit la réponse est déjà arrivée, soit elle n'a pas encore fini
       // de se générer — on continue simplement d'attendre le broadcast.
       console.log('[Relay] Resume: aucune réponse en attente côté serveur');
+    } else if (typeof data.type === 'string' && data.type.indexOf('agent') === 0) {
+      // Messages de la page « Agents » (agents_list_result, agent_section_*,
+      // agent_exec_*, agent_create_result, ...). Délégués au module agents.js.
+      if (window.AgentsUI && typeof window.AgentsUI.onMessage === 'function') {
+        window.AgentsUI.onMessage(data);
+      }
     }
     // type === 'pong' → rien à faire
   };
@@ -479,6 +491,49 @@ function handleFileSelect(event) {
   event.target.value = '';
 }
 
+// Chiffre un fichier (E2EE) et l'envoie à /api/upload. Retourne la réponse
+// déchiffrée {file_id, filename, is_image, size}. Logique partagée entre le
+// chat (uploadAttachment) et la page Agents (via RelayCore.uploadEncryptedFile).
+async function uploadEncryptedFile(file) {
+  await e2eReady;
+  // 1. Construire le clair : "MYAI" || u16_be(filename_len) || filename || content
+  var fileBytes = new Uint8Array(await file.arrayBuffer());
+  var fnameBytes = new TextEncoder().encode(file.name || 'fichier');
+  if (fnameBytes.length > 256) throw new Error('nom de fichier trop long');
+  var header = new Uint8Array(4 + 2 + fnameBytes.length);
+  header[0] = 0x4D; header[1] = 0x59; header[2] = 0x41; header[3] = 0x49; // "MYAI"
+  header[4] = (fnameBytes.length >> 8) & 0xff;
+  header[5] = fnameBytes.length & 0xff;
+  header.set(fnameBytes, 6);
+  var plain = new Uint8Array(header.length + fileBytes.length);
+  plain.set(header, 0);
+  plain.set(fileBytes, header.length);
+
+  // 2. Chiffrer
+  var wire = await aesGcmEncryptBytes(plain);
+
+  // 3. Envoyer en multipart, avec un nom factice (le vrai nom est dans le clair)
+  var blob = new Blob([wire], { type: 'application/octet-stream' });
+  var form = new FormData();
+  form.append('file', blob, 'enc.bin');
+  var res = await fetch('/api/upload?token=' + encodeURIComponent(TOKEN), {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    var detail = 'HTTP ' + res.status;
+    try {
+      var j = await res.json();
+      if (j && j.detail) detail = j.detail;
+    } catch (_) {}
+    throw new Error(detail);
+  }
+
+  // 4. Déchiffrer la réponse (E2EE)
+  var wrapper = await res.json();
+  return await decryptEnvelope(wrapper);
+}
+
 async function uploadAttachment(file) {
   var localId = 'att_' + (++attachmentCounter);
   var isImage = /^image\//i.test(file.type) ||
@@ -496,48 +551,7 @@ async function uploadAttachment(file) {
   updateSendButton();
 
   try {
-    await e2eReady;
-
-    // 1. Construire le clair : "MYAI" || u16_be(filename_len) || filename || content
-    var fileBytes = new Uint8Array(await file.arrayBuffer());
-    var fnameBytes = new TextEncoder().encode(entry.name);
-    if (fnameBytes.length > 256) {
-      throw new Error('nom de fichier trop long');
-    }
-    var header = new Uint8Array(4 + 2 + fnameBytes.length);
-    header[0] = 0x4D; header[1] = 0x59; header[2] = 0x41; header[3] = 0x49; // "MYAI"
-    header[4] = (fnameBytes.length >> 8) & 0xff;
-    header[5] = fnameBytes.length & 0xff;
-    header.set(fnameBytes, 6);
-    var plain = new Uint8Array(header.length + fileBytes.length);
-    plain.set(header, 0);
-    plain.set(fileBytes, header.length);
-
-    // 2. Chiffrer
-    var wire = await aesGcmEncryptBytes(plain);
-
-    // 3. Envoyer en multipart, avec un nom factice (le vrai nom est dans le clair)
-    var blob = new Blob([wire], { type: 'application/octet-stream' });
-    var form = new FormData();
-    form.append('file', blob, 'enc.bin');
-
-    // Utilisation de fetch (XHR ne gère pas async/await proprement ici)
-    var res = await fetch('/api/upload?token=' + encodeURIComponent(TOKEN), {
-      method: 'POST',
-      body: form,
-    });
-    if (!res.ok) {
-      var detail = 'HTTP ' + res.status;
-      try {
-        var j = await res.json();
-        if (j && j.detail) detail = j.detail;
-      } catch (_) {}
-      throw new Error(detail);
-    }
-
-    // 4. Déchiffrer la réponse (E2EE)
-    var wrapper = await res.json();
-    var resp = await decryptEnvelope(wrapper);
+    var resp = await uploadEncryptedFile(file);
     entry.fileId = resp.file_id;
     entry.isImage = !!resp.is_image;
     entry.name = resp.filename || entry.name;
@@ -590,11 +604,56 @@ function renderAttachments() {
   });
 }
 
+// Icônes du bouton d'envoi : avion en papier (envoi) / carré (stop).
+var SEND_ICON_HTML =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+  '<line x1="22" y1="2" x2="11" y2="13"></line>' +
+  '<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+var STOP_ICON_HTML =
+  '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>';
+var sendBtnMode = 'send';
+
+function setSendBtnMode(mode) {
+  if (sendBtnMode === mode) return;
+  sendBtnMode = mode;
+  if (mode === 'stop') {
+    sendBtn.classList.add('stopmode');
+    sendBtn.innerHTML = STOP_ICON_HTML;
+    sendBtn.onclick = stopGeneration;
+    sendBtn.title = 'Arrêter la génération';
+  } else {
+    sendBtn.classList.remove('stopmode');
+    sendBtn.innerHTML = SEND_ICON_HTML;
+    sendBtn.onclick = sendMessage;
+    sendBtn.title = '';
+  }
+}
+
 function updateSendButton() {
+  // Pendant la génération, le bouton devient un bouton STOP cliquable
+  // (carré noir sur fond blanc), comme sur la page Agents.
+  if (isWaiting) {
+    setSendBtnMode('stop');
+    sendBtn.disabled = false;
+    return;
+  }
+  setSendBtnMode('send');
   var hasText = !!inputEl.value.trim();
   var hasReady = pendingAttachments.some(function (a) { return a.status === 'ready'; });
   var uploading = pendingAttachments.some(function (a) { return a.status === 'uploading'; });
-  sendBtn.disabled = isWaiting || uploading || (!hasText && !hasReady);
+  sendBtn.disabled = uploading || (!hasText && !hasReady);
+}
+
+// Demande au serveur d'interrompre la génération en cours. Le GUI desktop
+// (qui produit la réponse via le bridge) reçoit la demande, appelle
+// interrupt_ai() et renvoie la réponse partielle marquée « interrompue »,
+// ce qui repasse isWaiting à false côté mobile.
+function stopGeneration() {
+  if (!isWaiting) return;
+  wsSendEncrypted({
+    type: 'stop_generation',
+    message_id: lastSentMessageId || '',
+  }).catch(function () { /* swallow */ });
 }
 
 function addMessage(text, isUser, timestamp) {
@@ -773,6 +832,27 @@ function renderMarkdown(text) {
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
+  // Liens Markdown [texte](url) → lien bleu souligné cliquable (on n'affiche
+  // que le titre, pas la syntaxe). Exécuté avant le gras/italique pour que
+  // l'URL entre parenthèses ne soit pas altérée.
+  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (_m, label, url) {
+    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' +
+      label + '</a>';
+  });
+
+  // URLs nues http(s):// → liens cliquables. Le groupe `pre` évite de
+  // re-cibler une URL déjà dans un attribut (href=") ou juste après un tag (>).
+  html = html.replace(
+    /(^|[^"'>=\]])(https?:\/\/[^\s<>"]+)/g,
+    function (_m, pre, url) {
+      var trail = '';
+      var tm = url.match(/[.,;:!?)\]]+$/);
+      if (tm) { trail = tm[0]; url = url.slice(0, -trail.length); }
+      return pre + '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' +
+        url + '</a>' + trail;
+    }
+  );
+
   // Horizontal rule: a line containing only 3+ identical chars among - _ *
   // ("---", "___", "***", with optional surrounding whitespace). Must run
   // BEFORE the list transform so "---" is not interpreted as a bullet.
@@ -920,6 +1000,23 @@ function autoResize() {
   inputEl.style.height = 'auto';
   inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
 }
+
+// ═══════════════════════════════════════════════════
+// PONT POUR LE MODULE AGENTS (agents.js)
+// ═══════════════════════════════════════════════════
+// agents.js est chargé dans un <script> séparé : il accède à la connexion
+// WebSocket chiffrée, au rendu Markdown et à l'état de connexion via cet
+// objet exposé sur window. Tout passe par la même enveloppe E2EE.
+window.RelayCore = {
+  send: function (obj) { return wsSendEncrypted(obj); },
+  isConnected: function () { return !!(ws && ws.readyState === 1); },
+  renderMarkdown: renderMarkdown,
+  escapeHtml: escapeHtml,
+  balanceMarkdownForStreaming: balanceMarkdownForStreaming,
+  uploadEncryptedFile: function (file) { return uploadEncryptedFile(file); },
+  e2eReady: function () { return e2eReady; },
+  getToken: function () { return TOKEN; },
+};
 
 // ═══════════════════════════════════════════════════
 // INIT

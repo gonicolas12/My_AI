@@ -35,6 +35,7 @@ from core.config import get_config
 from utils.logger import setup_logger
 
 from .relay_bridge import RelayBridge, RelayMessage
+from .agent_relay import AgentRelayService
 
 # Page de routage statique (GitHub Pages) qui ping les tunnels côté client
 # et redirige vers le premier vivant. Évite que le téléphone soit bloqué
@@ -134,6 +135,12 @@ class RelayServer:
         # Bridge pour la synchronisation GUI
         self._bridge = RelayBridge()
 
+        # Service d'agents (page « Agents » mobile). Instancié paresseusement
+        # au premier message agent reçu pour ne pas créer un orchestrateur +
+        # charger les agents personnalisés si la fonctionnalité n'est pas
+        # utilisée. Voir relay/agent_relay.py.
+        self._agent_service: Optional[Any] = None
+
         # État du serveur
         self._server_thread: Optional[threading.Thread] = None
         self._uvicorn_server: Optional[Any] = None
@@ -197,6 +204,13 @@ class RelayServer:
     def bridge(self) -> RelayBridge:
         """Retourne le RelayBridge pour synchroniser les messages entre les deux côtés."""
         return self._bridge
+
+    @property
+    def agent_service(self) -> Any:
+        """Service d'agents serveur (lazy). Voir relay/agent_relay.py."""
+        if self._agent_service is None:
+            self._agent_service = AgentRelayService()
+        return self._agent_service
 
     @property
     def tunnel_url(self) -> Optional[str]:
@@ -356,6 +370,7 @@ class RelayServer:
         asset_paths = [
             _STATIC_DIR / "index.html",
             _STATIC_DIR / "app.js",
+            _STATIC_DIR / "agents.js",
             _STATIC_DIR / "style.css",
         ]
         mtimes: List[int] = []
@@ -745,6 +760,41 @@ class RelayServer:
             # tool_result et de résoudre les Futures.
             agentic_tasks: List[asyncio.Task] = []
 
+            # ----------------------------------------------------------------
+            # Émission sérialisée des événements de la page « Agents ».
+            #
+            # Les workflows/débats s'exécutent dans des threads (orchestrateur
+            # bloquant). Plusieurs threads peuvent streamer en parallèle (étape
+            # parallèle d'un workflow). Pour éviter que deux `send_text`
+            # concurrents s'entrelacent sur le même WebSocket, tous les
+            # événements agents transitent par une file unique drainée par une
+            # seule coroutine. Les threads y poussent via call_soon_threadsafe.
+            # ----------------------------------------------------------------
+            agent_send_queue: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue()
+            agent_loop = asyncio.get_event_loop()
+            # exec_ids des workflows/débats lancés sur ce WS (pour interruption
+            # à la déconnexion).
+            active_agent_execs: set = set()
+
+            def agent_emit_threadsafe(event: Dict[str, Any]) -> None:
+                """Pousse un événement agent depuis un thread worker."""
+                try:
+                    agent_loop.call_soon_threadsafe(
+                        agent_send_queue.put_nowait, event
+                    )
+                except Exception:
+                    pass
+
+            async def _agent_drainer() -> None:
+                while True:
+                    event = await agent_send_queue.get()
+                    try:
+                        await _send_encrypted(event)
+                    except Exception:
+                        # WS mort : on cesse de drainer, le finally nettoiera.
+                        break
+            agent_drainer_task = asyncio.create_task(_agent_drainer())
+
             try:
                 while True:
                     data = await websocket.receive_text()
@@ -819,6 +869,40 @@ class RelayServer:
                         continue
 
                     # ────────────────────────────────────────────────────
+                    # Page « Agents » (mobile) — gestion + exécution
+                    # ────────────────────────────────────────────────────
+                    # Ces messages s'exécutent côté serveur (orchestrateur
+                    # d'agents local, modèle Ollama) et streament leurs
+                    # résultats via la file agent_send_queue. Indépendant du
+                    # flux de chat (qui délègue au GUI desktop via le bridge).
+                    if msg_type in (
+                        "agents_list", "agent_create", "agent_edit",
+                        "agent_delete", "agent_execute", "agent_debate",
+                        "agent_stop",
+                    ):
+                        await server.handle_agent_message(
+                            msg_type=msg_type,
+                            msg_data=msg_data,
+                            emit_async=agent_send_queue.put_nowait,
+                            emit_threadsafe=agent_emit_threadsafe,
+                            loop=agent_loop,
+                            tasks=agentic_tasks,
+                            active_execs=active_agent_execs,
+                        )
+                        continue
+
+                    # ────────────────────────────────────────────────────
+                    # stop_generation : arrêt de la génération du chat mobile
+                    # ────────────────────────────────────────────────────
+                    # Le bouton STOP du chat mobile. La réponse est produite
+                    # par le GUI desktop via le bridge ; on lui transmet la
+                    # demande d'interruption, qu'il consomme dans sa boucle de
+                    # polling (interrupt_ai → réponse partielle « interrompue »).
+                    if msg_type == "stop_generation":
+                        server.bridge.request_interrupt()
+                        continue
+
+                    # ────────────────────────────────────────────────────
                     # chat — branche agentique (VS Code uniquement)
                     # ────────────────────────────────────────────────────
                     if msg_type == "chat" and client_kind == "vscode":
@@ -852,64 +936,63 @@ class RelayServer:
                         # Résoudre les file_ids en chemins et séparer image/docs
                         image_path, file_paths = server.consume_upload_ids(raw_ids)
 
-                        if not user_text and not image_path and not file_paths:
-                            continue
-
-                        # Créer le message utilisateur (avec pièces jointes éventuelles)
-                        user_msg = RelayMessage(
-                            text=user_text,
-                            is_user=True,
-                            source="relay",
-                            image_path=image_path,
-                            file_paths=file_paths,
-                        )
-
-                        # Armer le bridge AVANT d'envoyer au GUI : la réponse
-                        # sera associée à ce message_id et mise en cache si
-                        # le WS d'origine meurt pendant la génération.
-                        server.bridge.arm_response(user_msg.message_id)
-
-                        # Notifier le GUI qu'un message arrive du mobile.
-                        # Le GUI va traiter le message en streaming (comme un
-                        # message local) et soumettre la réponse via le bridge.
-                        server.bridge.send_to_gui(user_msg)
-
-                        # Envoyer un accusé de réception
-                        await _send_encrypted({
-                            "type": "ack",
-                            "message_id": user_msg.message_id,
-                        })
-
-                        # Attendre que le GUI produise la réponse (streaming).
-                        # Retourne (texte, message_id). On ignore l'id car il
-                        # correspond forcément à user_msg.message_id ici.
-                        response_text, _ = await server.bridge.wait_for_ai_response(
-                            timeout=server.response_timeout
-                        )
-
-                        # Envoyer la réponse au mobile d'origine (si encore
-                        # connecté). En parallèle, le broadcast_response
-                        # enregistré via on_response() aura déjà poussé la
-                        # réponse à tous les autres WS actifs.
-                        try:
-                            await _send_encrypted({
-                                "type": "response",
-                                "message": response_text,
-                                "message_id": user_msg.message_id,
-                                "timestamp": datetime.now().isoformat(),
-                            })
-                        except Exception as send_err:
-                            # WS d'origine mort : la réponse reste en cache
-                            # côté bridge, le mobile la récupérera via
-                            # /api/pending ou au prochain handshake "resume".
-                            # Sortir de la boucle proprement pour éviter que
-                            # le receive_text() suivant ne relance une
-                            # exception bruyante sur un WS déjà fermé.
-                            logger.info(
-                                "WS d'origine indisponible (%s), réponse en cache id=%s",
-                                send_err, user_msg.message_id,
+                        if user_text or image_path or file_paths:
+                            # Créer le message utilisateur (avec pièces jointes éventuelles)
+                            user_msg = RelayMessage(
+                                text=user_text,
+                                is_user=True,
+                                source="relay",
+                                image_path=image_path,
+                                file_paths=file_paths,
                             )
-                            break
+
+                            # Armer le bridge AVANT d'envoyer au GUI : la réponse
+                            # sera associée à ce message_id et mise en cache si
+                            # le WS d'origine meurt pendant la génération.
+                            server.bridge.arm_response(user_msg.message_id)
+
+                            # Notifier le GUI qu'un message arrive du mobile.
+                            # Le GUI va traiter le message en streaming (comme un
+                            # message local) et soumettre la réponse via le bridge.
+                            server.bridge.send_to_gui(user_msg)
+
+                            # Envoyer un accusé de réception
+                            await _send_encrypted({
+                                "type": "ack",
+                                "message_id": user_msg.message_id,
+                            })
+
+                            # IMPORTANT : on DÉTACHE l'attente de la réponse dans
+                            # une tâche. Si on awaitait wait_for_ai_response()
+                            # directement ici, la boucle receive_text() serait
+                            # bloquée pendant toute la génération et ne pourrait
+                            # PAS lire un éventuel `stop_generation` envoyé par le
+                            # mobile → le bouton STOP ne ferait rien. En détachant,
+                            # la boucle reste libre de traiter l'interruption.
+                            async def _deliver_mobile_response(mid=user_msg.message_id):
+                                response_text, _ = await server.bridge.wait_for_ai_response(
+                                    timeout=server.response_timeout
+                                )
+                                try:
+                                    await _send_encrypted({
+                                        "type": "response",
+                                        "message": response_text,
+                                        "message_id": mid,
+                                        "timestamp": datetime.now().isoformat(),
+                                    })
+                                except Exception as send_err:
+                                    # WS d'origine mort : la réponse reste en cache
+                                    # côté bridge, le mobile la récupérera via
+                                    # /api/pending ou au prochain handshake "resume".
+                                    logger.info(
+                                        "WS d'origine indisponible (%s), réponse en cache id=%s",
+                                        send_err, mid,
+                                    )
+                            chat_task = asyncio.create_task(_deliver_mobile_response())
+                            agentic_tasks.append(chat_task)
+                            chat_task.add_done_callback(
+                                lambda t: agentic_tasks.remove(t) if t in agentic_tasks else None
+                            )
 
                     elif msg_data.get("type") == "resume":
                         # Mobile reconnecté : il demande si une réponse est
@@ -972,9 +1055,163 @@ class RelayServer:
                 for task in agentic_tasks:
                     if not task.done():
                         task.cancel()
+                # Interrompre les exécutions d'agents en cours sur ce WS et
+                # arrêter le drainer d'événements agents.
+                server.interrupt_agent_execs(active_agent_execs)
+                if not agent_drainer_task.done():
+                    agent_drainer_task.cancel()
                 if websocket in server.ws_clients:
                     server.ws_clients.remove(websocket)
                 server.bridge.connected_clients = len(server.ws_clients)
+
+    # ------------------------------------------------------------------
+    # Page « Agents » (mobile) — dispatch des messages WebSocket
+    # ------------------------------------------------------------------
+
+    def interrupt_agent_execs(self, exec_ids: set) -> None:
+        """Interrompt les exécutions d'agents listées (no-op si service absent).
+
+        Appelé à la fermeture d'un WebSocket pour stopper proprement les
+        workflows/débats lancés sur cette connexion. N'instancie pas le
+        service s'il n'a jamais été utilisé.
+        """
+        if self._agent_service is None:
+            return
+        for exec_id in list(exec_ids):
+            self._agent_service.interrupt(exec_id)
+
+    async def handle_agent_message(
+        self,
+        msg_type: str,
+        msg_data: Dict[str, Any],
+        emit_async: Callable[[Dict[str, Any]], None],
+        emit_threadsafe: Callable[[Dict[str, Any]], None],
+        loop: "asyncio.AbstractEventLoop",
+        tasks: List["asyncio.Task"],
+        active_execs: set,
+    ) -> None:
+        """Traite un message de la page Agents.
+
+        Les opérations rapides (lister, supprimer, stopper) répondent
+        immédiatement. Les opérations bloquantes (création/édition d'agent
+        via LLM, exécution de workflow/débat) sont lancées en tâche détachée
+        s'exécutant dans le pool de threads, pour ne pas figer la boucle de
+        réception WS (qui doit rester libre de recevoir un éventuel `agent_stop`).
+        """
+        service = self.agent_service
+
+        def _track(task: "asyncio.Task") -> None:
+            tasks.append(task)
+            task.add_done_callback(
+                lambda t: tasks.remove(t) if t in tasks else None
+            )
+
+        if msg_type == "agents_list":
+            data = await loop.run_in_executor(None, service.list_agents)
+            emit_async({"type": "agents_list_result", **data})
+            return
+
+        if msg_type == "agent_stop":
+            exec_id = msg_data.get("exec_id", "")
+            if isinstance(exec_id, str) and exec_id:
+                service.interrupt(exec_id)
+            return
+
+        if msg_type == "agent_create":
+            name = str(msg_data.get("name", ""))
+            role = str(msg_data.get("role", ""))
+
+            async def _create() -> None:
+                res = await loop.run_in_executor(
+                    None, service.create_agent, name, role
+                )
+                emit_async({"type": "agent_create_result", **res})
+            _track(asyncio.create_task(_create()))
+            return
+
+        if msg_type == "agent_edit":
+            key = str(msg_data.get("key", ""))
+            name = str(msg_data.get("name", ""))
+            role = str(msg_data.get("role", ""))
+
+            async def _edit() -> None:
+                res = await loop.run_in_executor(
+                    None, service.edit_agent, key, name, role
+                )
+                emit_async({"type": "agent_edit_result", **res})
+            _track(asyncio.create_task(_edit()))
+            return
+
+        if msg_type == "agent_delete":
+            key = str(msg_data.get("key", ""))
+
+            async def _delete() -> None:
+                res = await loop.run_in_executor(None, service.delete_agent, key)
+                emit_async({"type": "agent_delete_result", **res})
+            _track(asyncio.create_task(_delete()))
+            return
+
+        if msg_type == "agent_execute":
+            exec_id = str(msg_data.get("exec_id") or f"exec_{uuid.uuid4().hex}")
+            task_text = str(msg_data.get("task", "")).strip()
+            nodes = msg_data.get("nodes", []) or []
+            connections = msg_data.get("connections", []) or []
+            if not isinstance(nodes, list):
+                nodes = []
+            if not isinstance(connections, list):
+                connections = []
+            if not task_text:
+                emit_async({"type": "agent_exec_error", "exec_id": exec_id,
+                            "message": "Tâche vide."})
+                return
+            # Résoudre les pièces jointes (file_ids → chemins locaux). Même
+            # mécanisme d'upload chiffré que le chat ; la lecture des fichiers
+            # se fait dans le thread d'exécution (run_workflow).
+            raw_ids = msg_data.get("file_ids", []) or []
+            if not isinstance(raw_ids, list):
+                raw_ids = []
+            image_path, file_paths = (
+                self.consume_upload_ids(raw_ids) if raw_ids else (None, [])
+            )
+            active_execs.add(exec_id)
+
+            async def _run() -> None:
+                try:
+                    await loop.run_in_executor(
+                        None, service.run_workflow,
+                        exec_id, task_text, nodes, connections, emit_threadsafe,
+                        image_path, file_paths,
+                    )
+                finally:
+                    active_execs.discard(exec_id)
+            _track(asyncio.create_task(_run()))
+            return
+
+        if msg_type == "agent_debate":
+            exec_id = str(msg_data.get("exec_id") or f"deb_{uuid.uuid4().hex}")
+            agent_a = str(msg_data.get("agent_a", ""))
+            agent_b = str(msg_data.get("agent_b", ""))
+            topic = str(msg_data.get("topic", ""))
+            try:
+                rounds = int(msg_data.get("rounds", 3))
+            except (TypeError, ValueError):
+                rounds = 3
+            if not agent_a or not agent_b or agent_a == agent_b:
+                emit_async({"type": "agent_exec_error", "exec_id": exec_id,
+                            "message": "Choisis deux agents différents."})
+                return
+            active_execs.add(exec_id)
+
+            async def _run_debate() -> None:
+                try:
+                    await loop.run_in_executor(
+                        None, service.run_debate,
+                        exec_id, agent_a, agent_b, topic, rounds, emit_threadsafe,
+                    )
+                finally:
+                    active_execs.discard(exec_id)
+            _track(asyncio.create_task(_run_debate()))
+            return
 
     # ------------------------------------------------------------------
     # Cycle de vie du serveur

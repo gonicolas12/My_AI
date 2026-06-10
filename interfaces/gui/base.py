@@ -346,6 +346,16 @@ class BaseGUI:
 
         try:
             bridge = self._relay_server.bridge
+
+            # Demande d'arrêt envoyée depuis le bouton STOP du chat mobile.
+            # On est sur le thread Tk (via root.after), donc interrupt_ai()
+            # peut toucher l'UI en toute sécurité.
+            if bridge.consume_interrupt_request():
+                try:
+                    self.interrupt_ai()
+                except Exception as exc:
+                    print(f"⚠️ Erreur interruption Relay: {exc}")
+
             messages = bridge.poll_gui_messages()
 
             for msg in messages:
