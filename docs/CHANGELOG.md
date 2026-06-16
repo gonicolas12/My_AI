@@ -1,5 +1,47 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🎙️ Version 7.6.0 — Sortie vocale, Assistant de configuration & Panneau Réglages (16 Juin 2026)
+
+### Trois nouveautés pour une expérience plus fluide
+
+Cette version **complète la boucle vocale** (l'IA peut désormais **parler**, pas seulement écouter), ajoute un **assistant de premier lancement** qui configure le modèle automatiquement, et un **panneau Réglages** complet qui remplace l'édition manuelle de `config.yaml` / `Modelfile` / `.bat`.
+
+#### 🔊 Sortie vocale (Text-to-Speech) — `interfaces/gui/voice_output.py` (nouveau)
+
+- **`VoiceOutput`** : lecture vocale des réponses, **100% locale** via **pyttsx3** (moteur de l'OS — SAPI5 sur Windows, NSSpeechSynthesizer sur macOS, espeak-ng sur Linux) → aucun téléchargement de modèle.
+- **Bouton 🔊 par message** (sous chaque réponse IA, à côté des étoiles RLHF) : 1ᵉʳ clic = lecture, 2ᵉ clic = stop (icône ⏹ pendant la lecture).
+- **Toggle « 🔊 Lecture auto »** dans la sidebar : lit automatiquement chaque nouvelle réponse de l'IA.
+- **Sélection de voix automatique selon la langue détectée** (`langdetect`) — évite de lire du français avec une voix anglaise ; bascule FR↔EN↔… selon le contenu.
+- **`clean_for_speech()`** : retire blocs de code, markdown, URLs, emojis et pipes de tableaux avant lecture (prose naturelle).
+- **Worker thread + file d'attente**, callbacks marshalés vers Tk via `after()` (même architecture que la saisie vocale 7.4.0). Dégradation propre si `pyttsx3` absent.
+- **Correctif important** : `pyttsx3.init()` met le moteur en cache (WeakValueDictionary) et un moteur SAPI5 réutilisé **ne lit qu'une seule fois** ; on construit donc un `Engine` neuf à chaque lecture (`_new_engine`) → corrige l'impossibilité de réécouter un message.
+
+#### 🧭 Assistant de premier lancement — `interfaces/onboarding.py` (nouveau)
+
+- Au **tout premier démarrage** : vérifie qu'Ollama est joignable → détecte le **matériel** → recommande un modèle → le **télécharge** (progression streamée via `/api/pull`) → met à jour `Modelfile` (FROM) + `config.yaml` (`llm.local.default_model`) → crée le modèle personnalisé **`my_ai`**.
+- **Recommandation matérielle (priorité à la fluidité)** :
+  - **GPU dédié** (VRAM ≥ 4 Go, détecté via `nvidia-smi` → `pynvml` → `GPUtil` → `pyamdgpuinfo`) → dimensionné sur la **VRAM** (2b / 4b / 9b ≈ 4 / 6 / 10 Go).
+  - **CPU seul** → `qwen3.5:2b` par défaut ; `4b` uniquement si CPU ≥ 8 cœurs physiques **et** RAM ≥ 16 Go ; **jamais `9b` en CPU** (génération trop lente pour un usage agréable sur PC bureautique).
+- S'affiche **une seule fois** (marqueur `data/.onboarding_done`), et **jamais** si le modèle `my_ai` existe déjà (utilisateurs existants non dérangés). Échec **non bloquant** : l'app démarre quand même.
+- Branché dans `launch_unified.py` après le démarrage d'Ollama. Helpers réutilisables (pull, création modèle, édition config en **préservant les commentaires**) partagés avec le panneau Réglages.
+
+#### ⚙️ Panneau Réglages + gestionnaire de modèles — `interfaces/gui/settings_panel.py` (nouveau)
+
+- Bouton **⚙️ Réglages** dans la sidebar → fenêtre complète :
+  - **Modèles Ollama** : liste des modèles installés, choix du modèle de base, **pull** d'un nouveau modèle (barre de progression), **Appliquer** = régénère proprement `my_ai` (**system prompt du Modelfile préservé** → résout le problème de la 7.4.0 qui avait forcé le retrait du sélecteur de modèle inline).
+  - **Paramètres** : température, `num_ctx`, timeout — écrits dans `config.yaml` + `Modelfile` (**commentaires préservés**) et **appliqués en live** à l'instance `LocalLLM` en cours, sans redémarrage.
+  - **Autres réglages** : langue par défaut, lecture vocale auto, Relay auto-start, et **relance de l'assistant de configuration**.
+- Toute écriture dans `config.yaml` passe par un **remplacement de ligne ancré** (jamais `yaml.dump`, qui détruirait commentaires et mise en forme).
+
+#### Autres changements
+
+- `config.yaml` : nouvelles clés `llm.local.temperature` / `num_ctx` / `timeout` (réglables via ⚙️ Réglages).
+- `requirements.txt` : ajout de `pyttsx3>=2.90`.
+- `.gitignore` : `data/.onboarding_done` ignoré (marqueur d'état local).
+- Version du projet → **7.6.0**.
+
+---
+
 # 📱 Version 7.5.0 — Page Agents sur My_AI Relay (Mobile) (10 Juin 2026)
 
 ### 🤖 L'interface mobile gagne une page Agents complète

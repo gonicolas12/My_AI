@@ -54,8 +54,8 @@ Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunn
 **💻 Extension VS Code agentique**  
 Façon Claude Code : lecture, édition, création de fichiers... le tout via le tunnel chiffré.
 
-**🎙️ Saisie vocale locale**  
-Dictée intégrée via faster-whisper dans toutes les zones de saisie (chat + agents).
+**🎙️ Voix locale**  
+Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale des réponses.
 
 </td>
 </tr>
@@ -74,10 +74,10 @@ Dictée intégrée via faster-whisper dans toutes les zones de saisie (chat + ag
 | Fonctionnalité | Détail |
 |---|---|
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
-| 🧭 **Barre latérale** | Relay, sessions, historique, exports de conversations, base de connaissances |
+| 🧭 **Barre latérale** | Relay, réglages, sessions, historique, exports, base de connaissances |
 | 🎓 **Feedback RLHF** | Notation 1-5 étoiles (☆☆☆☆☆), feedback enregistré automatiquement |
-| 📂 **Gestion de fichiers** | Glissez-déposez vos fichiers, ajout direct à la mémoire |
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
+| 🔊 **Lecture vocale** | Bouton 🔊 sous chaque réponse + mode lecture auto (langue auto-détectée) |
 
 ### Agents — Interface dédiée
 
@@ -139,6 +139,18 @@ Dictée intégrée via faster-whisper dans toutes les zones de saisie (chat + ag
 - **100% local** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — modèle `small` (~150 Mo) chargé à la demande
 - **Langue auto-détectée** (99+ langues supportées par Whisper)
 - **Insertion au curseur** de la zone active — pratique pour dicter des prompts longs sans interrompre sa frappe
+
+### 🔊 Sortie Vocale (lecture des réponses)
+
+- **Bouton 🔊** sous chaque réponse de l'IA (1er clic = lecture, 2e clic = stop) + **toggle « Lecture auto »** dans la sidebar pour lire chaque nouvelle réponse
+- **100% local** via [pyttsx3](https://pyttsx3.readthedocs.io/) (moteur de l'OS — SAPI5 Windows / NSSpeechSynthesizer macOS / espeak-ng Linux) — aucun téléchargement
+- **Voix choisie automatiquement selon la langue détectée** de la réponse (évite l'accent anglais sur du texte français)
+- Code, markdown, URLs et emojis retirés avant lecture pour une **prose naturelle**
+
+### 🧭 Premier lancement & ⚙️ Réglages
+
+- **Assistant de configuration** au tout premier démarrage : détecte le matériel (RAM, cœurs CPU, VRAM GPU), **recommande le modèle adapté** (priorité à la fluidité), le télécharge et crée le modèle personnalisé `my_ai` — fini l'édition manuelle de `config.yaml`/`Modelfile`
+- **Panneau ⚙️ Réglages** intégré : gestion des modèles Ollama (lister / pull / régénérer `my_ai`), température, fenêtre de contexte, timeout, langue, lecture auto — le tout en **préservant les commentaires** de `config.yaml`
 
 ---
 
@@ -225,16 +237,19 @@ my_ai/
 │   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
 │   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
 │   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
-│   │   ├── message_bubbles.py           # Bulles de messages avec RLHF
-│   │   ├── sidebar.py                   # Sidebar avec historique et outils
+│   │   ├── message_bubbles.py           # Bulles de messages avec RLHF + bouton TTS
+│   │   ├── settings_panel.py            # Panneau Réglages (modèles, paramètres, toggles)
+│   │   ├── sidebar.py                   # Sidebar (Relay, Réglages, lecture auto, sessions...)
 │   │   ├── streaming.py                 # Gestion du streaming de réponses
 │   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
 │   │   ├── voice_input.py               # Saisie vocale (faster-whisper + sounddevice)
+│   │   ├── voice_output.py              # Sortie vocale / TTS (pyttsx3, voix par langue)
 │   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
 │   ├── agents_interface.py              # Interface Agents IA
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
+│   ├── onboarding.py                    # Assistant de premier lancement (wizard config)
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   ├── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
 │   └── workflow_canvas.py               # Canvas visuel de workflow style n8n
@@ -379,7 +394,9 @@ ollama pull llava            # Alternative (4.7 GB)
 .\create_custom_model.bat
 ```
 
-> **Changer de modèle** : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` dans le `Modelfile` avec la même valeur, puis relancez `create_custom_model.bat`. Les deux fichiers doivent toujours être cohérents.
+> 💡 **Plus simple — l'assistant de configuration s'en charge.** Au **tout premier lancement**, My_AI détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. Les commandes ci-dessus ne servent que pour une installation manuelle.
+
+> **Changer de modèle** : le plus simple est le **panneau ⚙️ Réglages** (sidebar) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez `create_custom_model.bat`.
 
 ### 4 · Lancer l'application
 
@@ -524,6 +541,9 @@ code --install-extension gonicolas12.my-ai
 | 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
+| 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
+| ⚙️ **Réglages intégrés** | Gestion des modèles Ollama + paramètres |
+| 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
 | 📡 **Relay** | Accès mobile (Chat + Agents) via tunnel sécurisé |
@@ -537,6 +557,7 @@ code --install-extension gonicolas12.my-ai
 
 ## ✨ Évolutions Futures
 
+- 🔊 **Voix** : sortie vocale sur mobile/Relay et mode conversation mains-libres (dictée → réponse → lecture en boucle)
 - 🧩 **Extension VS Code** : intégration aux diagnostics VS Code (problems panel), application de diffs avant/après pour les éditions, terminaux dédiés pour `run_command`
 - 🧠 **Amélioration du moteur de raisonnement** (mode Thinking)
 - 🔗 **Intégrations API tierces**

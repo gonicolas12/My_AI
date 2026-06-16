@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v7.5.0
+🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v7.6.0
 Lance l'interface avec CustomAI unifié (support 10M tokens intégré)
 """
 
@@ -110,12 +110,23 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 def main():
     """Point d'entrée principal"""
-    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v7.5.0\n")
+    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v7.6.0\n")
     print("=" * 50)
     print()
 
     # S'assurer qu'Ollama tourne avec le bon parallélisme
     _ensure_ollama_parallel()
+
+    # Assistant de premier lancement (détection RAM → pull modèle → modèle custom).
+    # Ne s'affiche qu'une fois (marqueur data/.onboarding_done) et jamais si le
+    # modèle 'my_ai' existe déjà. Échec non bloquant : l'app démarre quand même.
+    try:
+        from interfaces.onboarding import OnboardingWizard, should_run
+        if should_run():
+            print("🧭 Premier lancement détecté — assistant de configuration…")
+            OnboardingWizard().run()
+    except Exception as exc:
+        print(f"⚠️ Assistant d'onboarding ignoré : {exc}")
 
     print("   🧠 CustomAI avec support 10M tokens intégré")
     print("   🔧 Processeurs PDF, DOCX, Code avancés")

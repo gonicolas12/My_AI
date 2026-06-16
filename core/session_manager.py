@@ -1,5 +1,5 @@
 """
-Gestionnaire de workspaces et sessions pour My_AI v7.5.0
+Gestionnaire de workspaces et sessions pour My_AI v7.6.0
 Regroupe conversation, documents, agents et parametres dans une unite nommee et sauvegardable.
 """
 

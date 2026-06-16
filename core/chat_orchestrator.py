@@ -1228,8 +1228,8 @@ class ChatOrchestrator:
             "think": False,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
-                "temperature": 0.7,
-                "num_ctx": 16384,
+                "temperature": llm.gen_temperature,
+                "num_ctx": llm.gen_num_ctx,
                 "num_predict": 4096,
                 "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
@@ -1292,8 +1292,8 @@ class ChatOrchestrator:
             "think": native_thinking,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
-                "temperature": 0.7,
-                "num_ctx": 16384,
+                "temperature": llm.gen_temperature,
+                "num_ctx": llm.gen_num_ctx,
                 "num_predict": 4096,
                 "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
@@ -1466,8 +1466,8 @@ class ChatOrchestrator:
             "think": native_thinking,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
-                "temperature": 0.7,
-                "num_ctx": 8192,  # Réduit pour éviter le blocage VRAM/swapping lors de la synthèse
+                "temperature": llm.gen_temperature,
+                "num_ctx": min(llm.gen_num_ctx, 8192),  # Plafond VRAM préservé lors de la synthèse
                 "num_predict": 2048,
                 "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },

@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.5.0
+# 📚 Guide d'Utilisation - My Personal AI v7.6.0
 
 ## 🚀 Démarrage Rapide
 
@@ -50,6 +50,7 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - **Input Box** : Zone de saisie (supporte multilignes avec Shift+Enter)
 - **Send Button** : Bouton d'envoi (ou Enter)
 - **Mic Button (🎙)** : Saisie vocale toggle — clic pour démarrer, reclic pour transcrire au curseur
+- **Speaker Button (🔊)** : Sous chaque réponse de l'IA — lecture vocale (clic = lire, reclic = stop)
 - **Image Button (🖼️)** : Charger une image pour analyse
 - **Clear Chat Button** : Réinitialiser conversation
 - **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/Excel/CSV/Images/Code)
@@ -63,6 +64,8 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
+- 🔊 **Sortie vocale locale** (pyttsx3) — lecture des réponses, voix par langue, lecture auto
+- ⚙️ **Panneau Réglages** — gestion des modèles Ollama et paramètres, sans éditer de fichiers
 
 ### Utilisation Typique GUI
 
@@ -174,6 +177,23 @@ pip install faster-whisper sounddevice
 ```
 
 > Sur **Linux/macOS**, `sounddevice` requiert la librairie système `portaudio` (généralement déjà présente — sinon `apt install libportaudio2` ou `brew install portaudio`).
+
+### 🔊 Sortie Vocale (lecture des réponses)
+
+Depuis la **v7.6.0**, l'IA peut **lire ses réponses à voix haute** :
+
+- **Bouton 🔊** sous chaque réponse (clic = lecture, reclic = stop ; icône ⏹ pendant la lecture)
+- **Toggle « Lecture auto »** dans la sidebar : lit automatiquement chaque nouvelle réponse de l'IA
+
+| Caractéristique | Valeur |
+|---|---|
+| **Moteur** | [pyttsx3](https://pyttsx3.readthedocs.io/) — moteur de synthèse de l'OS, 100% local |
+| **Windows / macOS** | SAPI5 / NSSpeechSynthesizer — aucune installation supplémentaire |
+| **Linux** | nécessite `espeak-ng` (`sudo apt install espeak-ng`) |
+| **Voix** | choisie automatiquement selon la **langue détectée** de la réponse (langdetect) |
+| **Nettoyage** | code, markdown, URLs et emojis retirés avant lecture (prose naturelle) |
+
+> La voix ne quitte jamais la machine, et **aucun modèle n'est téléchargé** (contrairement au Whisper de la saisie vocale).
 
 ### Commandes Spéciales GUI
 
@@ -288,7 +308,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.5.0:
+État My Personal AI v7.6.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -856,11 +876,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.5.0
+  MY PERSONAL AI - System Status v7.6.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.5.0
+📊 Version: 7.6.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -893,7 +913,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.5.0
+My Personal AI v7.6.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1483,7 +1503,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 7.5.0
+**Version:** 7.6.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale

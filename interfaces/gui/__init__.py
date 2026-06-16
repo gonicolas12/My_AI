@@ -11,6 +11,7 @@ from .markdown_formatting import MarkdownFormattingMixin
 from .file_handling import FileHandlingMixin
 from .streaming import StreamingMixin
 from .sidebar import SidebarMixin
+from .settings_panel import SettingsPanelMixin
 
 __all__ = [
     "BaseGUI",
@@ -24,4 +25,5 @@ __all__ = [
     "FileHandlingMixin",
     "StreamingMixin",
     "SidebarMixin",
+    "SettingsPanelMixin",
 ]

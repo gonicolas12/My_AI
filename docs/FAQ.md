@@ -17,7 +17,9 @@ L'IA fonctionne dans les deux cas, mais Ollama offre des réponses beaucoup plus
 
 ### Comment changer de modèle Ollama ?
 
-Trois étapes, dans l'ordre :
+**Le plus simple (depuis la v7.6.0) : le panneau ⚙️ Réglages** (sidebar) → section *Modèles Ollama* → choisir ou télécharger un modèle → **Appliquer** : le modèle custom `my_ai` est régénéré automatiquement (system prompt préservé), sans toucher au moindre fichier.
+
+Manuellement, trois étapes, dans l'ordre :
 
 **Étape 1 — `config.yaml`** (pilote tout le code Python) :
 ```yaml
@@ -46,13 +48,26 @@ ollama pull qwen3.5:2b
 
 L'application détecte automatiquement Ollama au démarrage.
 
-### Quel modèle Ollama choisir selon ma RAM ?
+### Quel modèle Ollama choisir selon mon matériel ?
 
-| RAM | Modèle recommandé | Commande |
-|-----|-------------------|----------|
-| 8 GB | qwen3.5:4b | `ollama pull qwen3.5:4b` |
-| 16 GB | qwen3.5:9b ✅ | `ollama pull qwen3.5:9b` |
-| 32 GB+ | qwen3.5:27b | `ollama pull qwen3.5:27b` |
+L'**assistant de configuration** (premier lancement) et le panneau ⚙️ Réglages recommandent automatiquement, en **privilégiant la fluidité** :
+
+**Avec un GPU dédié** (le modèle tourne en VRAM → rapide) :
+
+| VRAM | Modèle |
+|------|--------|
+| 4–6 Go | qwen3.5:2b |
+| 6–10 Go | qwen3.5:4b |
+| ≥ 10 Go | qwen3.5:9b |
+
+**Sans GPU dédié** (inférence CPU — la **vitesse du CPU** est le facteur limitant, pas la RAM) :
+
+| CPU | Modèle |
+|-----|--------|
+| PC bureautique (< 8 cœurs) | qwen3.5:2b |
+| Desktop costaud (≥ 8 cœurs **et** ≥ 16 Go RAM) | qwen3.5:4b |
+
+> ⚠️ En CPU, on évite les gros modèles (9b/27b) : ils « rentrent » en RAM mais génèrent **trop lentement** pour un usage agréable. Un gros modèle n'a d'intérêt qu'avec un GPU disposant d'assez de VRAM.
 
 ### Mes données restent-elles confidentielles avec Ollama ?
 **Oui, 100% !** Ollama exécute le modèle **localement sur votre PC**. Aucune donnée n'est envoyée sur internet. C'est l'avantage principal par rapport à ChatGPT ou Claude.
@@ -259,6 +274,9 @@ Oui, mais `sounddevice` requiert la librairie système `portaudio` :
 
 ### Puis-je désactiver la saisie vocale ?
 Le bouton micro est toujours présent mais purement opt-in : si tu ne cliques jamais dessus, aucune ressource n'est consommée (le modèle Whisper est chargé en lazy). Si tu veux le masquer complètement, retire les appels à `attach_mic_button` dans `interfaces/gui/layout.py`, `interfaces/gui/base.py` et `interfaces/agents/task_input.py`.
+
+### Puis-je faire lire les réponses à voix haute ?
+Oui, depuis la **v7.6.0**. Un bouton **🔊** apparaît sous chaque réponse de l'IA (clic = lecture, reclic = stop), et un toggle **« Lecture auto »** dans la sidebar lit automatiquement chaque nouvelle réponse. C'est **100% local** via **pyttsx3** (moteur de synthèse de l'OS, aucun téléchargement). La voix est choisie selon la **langue détectée** de la réponse (pas d'accent anglais sur du français). Sous Linux, installe `espeak-ng` (`sudo apt install espeak-ng`) ; Windows et macOS fonctionnent d'origine.
 
 ## 🚀 Évolutions et Support
 

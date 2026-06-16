@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "7.5.0"
+  version: "7.6.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
@@ -46,7 +46,13 @@ llm:
     conversation_memory: 10
     base_url: "http://localhost:11434"
     default_model: "qwen3.5:4b"
-    timeout: 60
+    # Température de génération (créativité, 0.0–1.0) — réglable via ⚙️ Réglages
+    temperature: 0.7
+    # Fenêtre de contexte de la réponse (num_ctx Ollama) — réglable via ⚙️ Réglages
+    num_ctx: 16384
+    # Timeout d'une requête LLM en secondes — réglable via ⚙️ Réglages
+    # (1200 = comportement effectif historique de LocalLLM)
+    timeout: 1200
     available_models:
       - "llama3.2"
       - "llama3.2:13b"
@@ -141,6 +147,8 @@ generation:
 # INTERFACE UTILISATEUR
 # ====================================
 ui:
+  # Lecture vocale automatique des réponses de l'IA (TTS) — réglable via ⚙️ Réglages
+  tts_autoread: false
   # CLI
   cli:
     prompt: "🤖 MyAI> "

@@ -56,13 +56,29 @@ class LocalLLM:
         self,
         model="my_ai",
         ollama_url="http://localhost:11434/api/generate",
-        timeout=1200,
+        timeout=None,
     ):
         # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'qwen3.5:4b'
         self.model = model
         self.ollama_url = ollama_url
         self.chat_url = ollama_url.replace("/api/generate", "/api/chat")
-        self.timeout = timeout  # Timeout configurable
+
+        # 🔧 Paramètres de génération lus depuis config.yaml (llm.local.*),
+        # réglables via le Panneau Réglages. Source unique partagée avec
+        # ChatOrchestrator (qui lit ces attributs sur l'instance LocalLLM).
+        _temp, _ctx, _to = 0.7, 16384, 1200
+        try:
+            from core.config import get_config
+            _cfg = get_config()
+            _temp = float(_cfg.get("llm.local.temperature", 0.7))
+            _ctx = int(_cfg.get("llm.local.num_ctx", 16384))
+            _to = int(_cfg.get("llm.local.timeout", 1200))
+        except Exception:
+            pass
+        self.gen_temperature = _temp
+        self.gen_num_ctx = _ctx
+        # Timeout : argument explicite prioritaire, sinon config (défaut 1200)
+        self.timeout = timeout if timeout is not None else _to
         self.is_ollama_available = self._check_ollama_availability()
 
         # 🧠 Historique de conversation pour le contexte
@@ -227,8 +243,8 @@ class LocalLLM:
             "think": False,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
-                "temperature": 0.7,
-                "num_ctx": 32768,
+                "temperature": self.gen_temperature,
+                "num_ctx": self.gen_num_ctx,
                 "num_predict": 8192,
                 "num_keep": -1,  # [OPTIM] Préserver system prompt lors de troncature contexte
             },
@@ -304,7 +320,7 @@ class LocalLLM:
             "stream": True,
             "think": native_thinking,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-            "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 8192, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+            "options": {"temperature": self.gen_temperature, "num_ctx": self.gen_num_ctx, "num_predict": 8192, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
 
         full_response = ""
@@ -497,8 +513,8 @@ class LocalLLM:
                 "think": False,
                 "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
                 "options": {
-                    "temperature": 0.7,
-                    "num_ctx": 32768,
+                    "temperature": self.gen_temperature,
+                    "num_ctx": self.gen_num_ctx,
                     "num_predict": 4096,
                     "num_keep": -1,  # [OPTIM] Préserver system prompt lors de troncature contexte
                 },
@@ -757,7 +773,7 @@ class LocalLLM:
                     "stream": True,
                     "think": False,
                     "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-                    "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+                    "options": {"temperature": self.gen_temperature, "num_ctx": self.gen_num_ctx, "num_predict": 4096, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
                 }
                 full_response = ""
                 try:
@@ -806,7 +822,7 @@ class LocalLLM:
                 "stream": False,
                 "think": False,
                 "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-                "options": {"temperature": 0.7, "num_ctx": 32768, "num_predict": 4096, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+                "options": {"temperature": self.gen_temperature, "num_ctx": self.gen_num_ctx, "num_predict": 4096, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
 
             try:

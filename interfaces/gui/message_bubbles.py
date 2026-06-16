@@ -136,7 +136,68 @@ class MessageBubblesMixin:
                 text_color="#b3b3b3",
             )
             time_label.pack(side="left")
+
+            # ── Bouton lecture vocale (TTS) ──
+            self._add_speak_button(feedback_frame, captured_response)
+
+            # Lecture automatique de la réponse si le mode est activé (sidebar)
+            if getattr(self, "tts_autoread", False) and captured_response:
+                try:
+                    from interfaces.gui.voice_output import VoiceOutput
+                    VoiceOutput.get_shared(self.root).speak(captured_response)
+                except Exception:
+                    pass
         # Sinon, rien à faire (pas de container)
+
+    def _add_speak_button(self, parent, response_text):
+        """Ajoute un bouton 🔊 qui lit la réponse à voix haute (toggle start/stop)."""
+        if not response_text:
+            return
+        try:
+            from interfaces.gui.voice_output import VoiceOutput
+        except Exception:
+            return
+        vo = VoiceOutput.get_shared(self.root)
+
+        idle_color = "#888888"
+        active_color = self.colors.get("accent", "#ff6b47")
+        bg = self.colors["bg_chat"]
+
+        spk = tk.Label(
+            parent,
+            text="🔊",
+            font=("Segoe UI Emoji", 12),
+            fg=idle_color,
+            bg=bg,
+            cursor="hand2",
+            padx=4,
+        )
+        spk.pack(side="left", padx=(10, 0))
+
+        def _on_state(state, _w=spk):
+            try:
+                if state == "speaking":
+                    _w.configure(text="⏹", fg=active_color)
+                elif state == "error":
+                    _w.configure(text="🔇", fg="#ef4444")
+                    if hasattr(self, "show_notification"):
+                        self.show_notification(
+                            "Lecture vocale indisponible : installe 'pyttsx3'.",
+                            "error", 3000,
+                        )
+                    _w.after(1500, lambda: _w.configure(text="🔊", fg=idle_color))
+                else:  # idle
+                    _w.configure(text="🔊", fg=idle_color)
+            except tk.TclError:
+                pass
+
+        def _click(_event=None):
+            if not vo.available:
+                _on_state("error")
+                return
+            vo.toggle(response_text, on_state=_on_state)
+
+        spk.bind("<Button-1>", _click)
 
     def _on_star_rating(self, score, star_buttons, query, response):
         """Callback pour le feedback par étoiles (1-5)."""

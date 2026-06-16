@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v7.5.0
+# 📖 Guide d'Installation - My Personal AI v7.6.0
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v7.5.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI v7.6.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -48,6 +48,8 @@ python -c "import customtkinter; print('Installation réussie!')"
 ### 3. Installation Ollama (Optionnel mais Recommandé)
 
 Ollama permet d'avoir des réponses générées par un vrai LLM local.
+
+> 💡 **Le plus simple : laissez l'assistant de configuration faire.** Après avoir installé Ollama (Étape 1 ci-dessous), lancez My_AI : au **tout premier démarrage**, un assistant détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande, télécharge et configure** le modèle automatiquement (création de `my_ai` incluse). Les Étapes 2 et 3 ci-dessous ne servent que pour une installation manuelle. Vous pourrez changer de modèle à tout moment via le **panneau ⚙️ Réglages** (sidebar).
 
 **Étape 1 : Installer Ollama**
 ```bash
@@ -158,6 +160,19 @@ sounddevice>=0.4.6       # Capture micro cross-platform
 > - Debian/Ubuntu : `sudo apt install libportaudio2`
 > - macOS : `brew install portaudio`
 > - Windows : aucune action — la lib est embarquée dans le wheel `sounddevice`.
+
+### Sortie Vocale / Text-to-Speech (Requis pour la lecture des réponses)
+
+```
+pyttsx3>=2.90            # Synthèse vocale locale via le moteur de l'OS
+```
+
+> **100% local, aucun téléchargement** : pyttsx3 pilote le moteur de synthèse de l'OS.
+> - **Windows** : SAPI5 (installe automatiquement `pywin32` / `comtypes`)
+> - **macOS** : NSSpeechSynthesizer (intégré)
+> - **Linux** : nécessite `espeak-ng` (`sudo apt install espeak-ng`)
+>
+> La voix est **choisie selon la langue détectée** de la réponse (via `langdetect`). Utilisation : bouton 🔊 sous chaque message, ou toggle **« Lecture auto »** dans la sidebar.
 
 ### Monitoring GPU (Optionnel)
 
@@ -288,7 +303,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "7.5.0"
+  version: "7.6.0"
   max_tokens: 10485760      # 10M tokens (capacité VectorMemory)
   temperature: 0.7
   conversation_history_limit: 10
@@ -713,7 +728,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v7.5.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v7.6.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -870,4 +885,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 7.5.0 | Architecture: 100% locale | Capacité: 10M tokens*
+*Version: 7.6.0 | Architecture: 100% locale | Capacité: 10M tokens*

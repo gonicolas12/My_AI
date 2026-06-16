@@ -147,6 +147,15 @@ faster-whisper>=1.0.0
 sounddevice>=0.4.6
 
 # ====================================
+# TEXT-TO-SPEECH (sortie vocale / lecture des réponses)
+# ====================================
+# pyttsx3 : synthèse vocale 100% locale via le moteur de l'OS (aucun téléchargement)
+#   - Windows : SAPI5 (installe aussi pywin32/comtypes automatiquement)
+#   - macOS   : NSSpeechSynthesizer (intégré)
+#   - Linux   : espeak-ng requis (apt install espeak-ng)
+pyttsx3>=2.90
+
+# ====================================
 # DÉVELOPPEMENT & TESTS
 # ====================================
 pytest>=7.0.0

@@ -77,6 +77,8 @@ class SidebarMixin:
         # ── Contenu ───────────────────────────────────────────────────────
         self._make_sidebar_title()
         self._make_relay_button()
+        self._make_tts_button()
+        self._make_settings_button()
         self._make_section_sessions()
         self._make_section_history()
         self._make_section_export()
@@ -113,6 +115,102 @@ class SidebarMixin:
             )
             btn.pack(fill="x")
         self._sidebar_relay_btn = btn
+
+        self._sb_separator(self._sidebar_scroll)
+
+    # ─── Bouton Lecture vocale auto (TTS) ─────────────────────────────────
+
+    def _make_tts_button(self):
+        """Toggle de lecture vocale automatique des réponses de l'IA (TTS)."""
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        tc = self.colors.get("text_primary", "#ffffff")
+        accent = self.colors.get("accent", "#ff6b47")
+        inactive = self.colors.get("bg_tertiary", "#3a3a3a")
+
+        if not hasattr(self, "tts_autoread"):
+            try:
+                from core.config import get_config
+                self.tts_autoread = bool(get_config().get("ui.tts_autoread", False))
+            except Exception:
+                self.tts_autoread = False
+
+        wrapper = ctk.CTkFrame(self._sidebar_scroll, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(self._sidebar_scroll, bg=bg)
+        wrapper.pack(fill="x", padx=8, pady=(2, 6))
+
+        def _label():
+            return "🔊 Lecture auto : ON" if self.tts_autoread else "🔇 Lecture auto : OFF"
+
+        def _toggle():
+            self.tts_autoread = not self.tts_autoread
+            on = self.tts_autoread
+            try:
+                if CTK_AVAILABLE:
+                    btn.configure(text=_label(), fg_color=accent if on else inactive)
+                else:
+                    btn.configure(text=_label(), bg=accent if on else inactive)
+            except Exception:
+                pass
+            # Si on désactive en pleine lecture, stopper immédiatement
+            if not on:
+                try:
+                    from interfaces.gui.voice_output import VoiceOutput
+                    VoiceOutput.get_shared(self.root).stop()
+                except Exception:
+                    pass
+            if hasattr(self, "show_notification"):
+                self.show_notification(
+                    "🔊 Lecture auto activée" if on else "🔇 Lecture auto désactivée",
+                    "success" if on else "info", 1500,
+                )
+
+        if CTK_AVAILABLE:
+            btn = ctk.CTkButton(
+                wrapper, text=_label(), command=_toggle,
+                fg_color=inactive, hover_color=accent, text_color=tc,
+                font=("Segoe UI", 11), height=30, corner_radius=6,
+            )
+            btn.pack(fill="x")
+        else:
+            btn = tk.Button(
+                wrapper, text=_label(), command=_toggle,
+                bg=inactive, fg=tc, font=("Segoe UI", 11), relief="flat",
+            )
+            btn.pack(fill="x")
+        self._sidebar_tts_btn = btn
+
+        self._sb_separator(self._sidebar_scroll)
+
+    # ─── Bouton Réglages (⚙️) ─────────────────────────────────────────────
+
+    def _make_settings_button(self):
+        """Crée le bouton '⚙️ Réglages' ouvrant le panneau de configuration."""
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        accent = self.colors.get("accent", "#ff6b47")
+        hover = self.colors.get("accent_hover", "#e85a3a")
+        tc = self.colors.get("text_primary", "#ffffff")
+
+        wrapper = ctk.CTkFrame(self._sidebar_scroll, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(self._sidebar_scroll, bg=bg)
+        wrapper.pack(fill="x", padx=8, pady=(2, 6))
+
+        cmd = getattr(self, "open_settings_window", lambda: None)
+        if CTK_AVAILABLE:
+            btn = ctk.CTkButton(
+                wrapper, text="⚙️ Réglages", command=cmd,
+                fg_color=accent, hover_color=hover, text_color=tc,
+                font=("Segoe UI", 12, "bold"),
+                height=32, corner_radius=6,
+            )
+            btn.pack(fill="x")
+        else:
+            btn = tk.Button(
+                wrapper, text="⚙️ Réglages", command=cmd,
+                bg=accent, fg=tc, font=("Segoe UI", 12, "bold"),
+                relief="flat",
+            )
+            btn.pack(fill="x")
+        self._sidebar_settings_btn = btn
 
         self._sb_separator(self._sidebar_scroll)
 
