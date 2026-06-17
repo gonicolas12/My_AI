@@ -75,9 +75,9 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 |---|---|
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
 | 🧭 **Barre latérale** | Relay, réglages, sessions, historique, exports, base de connaissances |
-| 🎓 **Feedback RLHF** | Notation 1-5 étoiles (☆☆☆☆☆), feedback enregistré automatiquement |
+| 🎓 **Feedback RLHF** | Notation 1-5 étoiles, feedback enregistré automatiquement |
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
-| 🔊 **Lecture vocale** | Bouton 🔊 sous chaque réponse + mode lecture auto (langue auto-détectée) |
+| 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
 
 ### Agents — Interface dédiée
 
@@ -88,7 +88,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 |---|---|
 | 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
 | 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
-| 🔄 **Canvas de workflow visuel (style n8n)** | Nœuds connectables, zoom/pan, grille, minimap |
+| 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap |
 | 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 
