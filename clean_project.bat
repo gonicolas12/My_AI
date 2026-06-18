@@ -146,6 +146,7 @@ if exist "data\workspaces" rd /s /q "data\workspaces"
 echo [15/15] Suppression des exports de conversations...
 if exist "outputs\exports" rd /s /q "outputs\exports"
 if exist "outputs\artifacts" rd /s /q "outputs\artifacts"
+if exist "outputs\scheduled" rd /s /q "outputs\scheduled"
 
 echo.
 echo ========================================
