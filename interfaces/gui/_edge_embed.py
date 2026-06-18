@@ -5,8 +5,15 @@ aucune dépendance Python supplémentaire) sur un fichier HTML local, puis
 ré-parente sa fenêtre top-level dans un widget Tkinter via l'API Win32
 ``SetParent`` pour donner l'illusion d'un volet embarqué.
 
-Robustesse : toute opération échoue silencieusement (retourne False / None) ;
-l'appelant retombe alors sur un autre mode de rendu.
+Pour masquer la barre de titre dessinée par Edge en mode --app (qui n'est pas
+un caption Win32 standard), la fenêtre est décalée vers le haut de la hauteur
+de cette barre puis agrandie d'autant : seule la zone de contenu reste visible
+dans le volet. Les coins arrondis Win11 sont désactivés (DWM) pour éviter les
+bords blancs.
+
+Robustesse : toute opération échoue silencieusement (False/None) ; l'appelant
+retombe alors sur un autre mode de rendu. L'attachement est **non bloquant** :
+on lance Edge puis on sonde l'apparition de sa fenêtre via ``poll_attach``.
 """
 
 from __future__ import annotations
@@ -18,7 +25,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -34,6 +41,15 @@ _WS_THICKFRAME = 0x00040000
 _WS_VISIBLE = 0x10000000
 _SW_SHOW = 5
 
+# Hauteur (en px @96dpi) de la barre de titre Edge --app à masquer, et marge
+# latérale/bas pour rogner les éventuels bords.
+_TITLEBAR_BASE = 34
+_BORDER_BASE = 1
+
+# DWM : désactiver les coins arrondis (Win11).
+_DWMWA_WINDOW_CORNER_PREFERENCE = 33
+_DWMWCP_DONOTROUND = 1
+
 
 def find_edge() -> Optional[str]:
     """Retourne le chemin de msedge.exe, ou None s'il est introuvable."""
@@ -48,12 +64,11 @@ def find_edge() -> Optional[str]:
     for c in candidates:
         if c.exists():
             return str(c)
-    found = shutil.which("msedge")
-    return found
+    return shutil.which("msedge")
 
 
 def _load_win32():
-    """Charge ctypes/user32 ; retourne (user32, EnumWindowsProc) ou (None, None)."""
+    """Charge ctypes/user32 ; retourne le tuple d'helpers ou des None."""
     try:
         import ctypes
         from ctypes import wintypes
@@ -67,7 +82,7 @@ def _load_win32():
         return None, None, None, None
 
 
-def _list_chrome_windows(user32, EnumWindowsProc, ctypes, wintypes) -> set:
+def _list_chrome_windows(user32, EnumWindowsProc, ctypes) -> set:
     """Énumère les HWND top-level visibles de classe Chromium."""
     hwnds = set()
     buf = ctypes.create_unicode_buffer(256)
@@ -98,37 +113,39 @@ class EdgeEmbed:
         self._hwnd = None
         self._profile_dir: Optional[str] = None
         self._win32 = _load_win32()
+        self._before: set = set()
+        self._parent_hwnd: Optional[int] = None
+        self._deadline = 0.0
 
     @property
     def available(self) -> bool:
         return IS_WINDOWS and find_edge() is not None and self._win32[0] is not None
 
-    def embed(self, file_path: str, parent_widget, width: int, height: int) -> bool:
-        """Lance Edge sur file_path et ré-parente sa fenêtre dans parent_widget.
+    @property
+    def attached(self) -> bool:
+        return self._hwnd is not None
 
-        Retourne True si l'embarquement a réussi.
-        """
+    # ── Lancement non bloquant ────────────────────────────────────────────
+
+    def start(self, file_path: str, parent_widget, width: int, height: int) -> bool:
+        """Lance Edge --app ; l'attachement se fait ensuite via poll_attach()."""
         if not self.available:
             return False
-        self.close()  # nettoyer une éventuelle instance précédente
+        self.close()
 
-        edge = find_edge()
-        user32, EnumWindowsProc, ctypes, wintypes = self._win32
-
+        user32, EnumWindowsProc, ctypes, _ = self._win32
         try:
-            parent_hwnd = int(parent_widget.winfo_id())
+            self._parent_hwnd = int(parent_widget.winfo_id())
         except Exception:
             return False
 
-        before = _list_chrome_windows(user32, EnumWindowsProc, ctypes, wintypes)
-
-        # Profil dédié → garantit une NOUVELLE fenêtre identifiable.
+        self._before = _list_chrome_windows(user32, EnumWindowsProc, ctypes)
         self._profile_dir = tempfile.mkdtemp(prefix="myai_edge_")
         file_url = Path(file_path).as_uri()
         try:
             self._proc = subprocess.Popen(
                 [
-                    edge,
+                    find_edge(),
                     f"--app={file_url}",
                     f"--user-data-dir={self._profile_dir}",
                     "--no-first-run",
@@ -144,49 +161,102 @@ class EdgeEmbed:
             self._cleanup_profile()
             return False
 
-        # Attendre l'apparition d'une NOUVELLE fenêtre Chromium (max ~8s).
-        new_hwnd = None
-        deadline = time.time() + 8.0
-        while time.time() < deadline:
-            after = _list_chrome_windows(user32, EnumWindowsProc, ctypes, wintypes)
-            diff = after - before
-            if diff:
-                new_hwnd = next(iter(diff))
-                break
-            time.sleep(0.12)
+        self._deadline = time.time() + 8.0
+        return True
 
-        if new_hwnd is None:
+    def poll_attach(self, width: int, height: int) -> Optional[bool]:
+        """Sonde l'apparition de la fenêtre Edge et la ré-parente.
+
+        Retourne True (attaché), False (toujours en attente), None (échec/timeout).
+        Non bloquant : à appeler périodiquement via ``root.after``.
+        """
+        if self._hwnd is not None:
+            return True
+        if self._proc is None:
+            return None
+        if time.time() > self._deadline:
             self.close()
+            return None
+
+        user32, EnumWindowsProc, ctypes, _ = self._win32
+        diff = _list_chrome_windows(user32, EnumWindowsProc, ctypes) - self._before
+        if not diff:
             return False
 
-        # Ré-parentage : transformer la fenêtre top-level en enfant sans bordure.
+        hwnd = next(iter(diff))
         try:
-            style = user32.GetWindowLongW(new_hwnd, _GWL_STYLE)
+            style = user32.GetWindowLongW(hwnd, _GWL_STYLE)
             style = (style & ~_WS_POPUP & ~_WS_CAPTION & ~_WS_THICKFRAME) | _WS_CHILD | _WS_VISIBLE
-            user32.SetWindowLongW(new_hwnd, _GWL_STYLE, style)
-            user32.SetParent(new_hwnd, parent_hwnd)
-            user32.MoveWindow(new_hwnd, 0, 0, max(width, 1), max(height, 1), True)
-            user32.ShowWindow(new_hwnd, _SW_SHOW)
-            self._hwnd = new_hwnd
+            user32.SetWindowLongW(hwnd, _GWL_STYLE, style)
+            user32.SetParent(hwnd, self._parent_hwnd)
+            self._hwnd = hwnd
+            self._disable_rounded_corners(hwnd)
+            self._place(width, height)
+            user32.ShowWindow(hwnd, _SW_SHOW)
             return True
         except Exception:
             self.close()
-            return False
+            return None
 
-    def resize(self, width: int, height: int) -> None:
-        """Redimensionne la fenêtre embarquée pour épouser son parent."""
-        if self._hwnd is None or self._win32[0] is None:
-            return
+    # ── Géométrie ─────────────────────────────────────────────────────────
+
+    def _dpi_scale(self) -> float:
         try:
+            dpi = self._win32[0].GetDpiForWindow(self._hwnd)
+            if dpi:
+                return dpi / 96.0
+        except Exception:
+            pass
+        return 1.0
+
+    def _place(self, width: int, height: int) -> None:
+        """Positionne la fenêtre en masquant la barre de titre Edge (offset haut)."""
+        if self._hwnd is None:
+            return
+        scale = self._dpi_scale()
+        top = int(round(_TITLEBAR_BASE * scale))
+        border = int(round(_BORDER_BASE * scale))
+        try:
+            # Décalage vers le haut de `top` (barre de titre hors zone visible)
+            # + agrandissement pour que le contenu remplisse le volet, et léger
+            # rognage latéral/bas pour éviter les bords blancs.
             self._win32[0].MoveWindow(
-                self._hwnd, 0, 0, max(width, 1), max(height, 1), True
+                self._hwnd,
+                -border,
+                -top,
+                max(width, 1) + 2 * border,
+                max(height, 1) + top + border,
+                True,
             )
         except Exception:
             pass
 
+    def resize(self, width: int, height: int) -> None:
+        """Redimensionne la fenêtre embarquée pour épouser son parent."""
+        self._place(width, height)
+
+    def _disable_rounded_corners(self, hwnd) -> None:
+        """Désactive les coins arrondis Win11 pour éviter les bords blancs."""
+        try:
+            import ctypes
+
+            dwm = ctypes.WinDLL("dwmapi")
+            pref = ctypes.c_int(_DWMWCP_DONOTROUND)
+            dwm.DwmSetWindowAttribute(
+                ctypes.c_void_p(hwnd),
+                ctypes.c_int(_DWMWA_WINDOW_CORNER_PREFERENCE),
+                ctypes.byref(pref),
+                ctypes.sizeof(pref),
+            )
+        except Exception:
+            pass
+
+    # ── Cycle de vie ──────────────────────────────────────────────────────
+
     def close(self) -> None:
         """Ferme la fenêtre Edge et nettoie le profil temporaire."""
         self._hwnd = None
+        self._before = set()
         if self._proc is not None:
             try:
                 self._proc.terminate()

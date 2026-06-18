@@ -36,8 +36,11 @@ except Exception:
 from interfaces.artifacts import build_preview_document, write_artifact_html
 from interfaces.gui._edge_embed import EdgeEmbed
 
-# Largeur par défaut du volet (px). Il occupe la colonne 1 du content_container.
-_PANEL_WIDTH = 520
+# Largeur par défaut / bornes du volet (px). Il occupe la col 1 du content_container.
+_PANEL_WIDTH = 560
+_PANEL_MIN = 320
+_PANEL_MAX = 1200
+_GRIP_W = 6  # largeur de la poignée de redimensionnement
 
 
 class ArtifactsPanelMixin:
@@ -54,15 +57,22 @@ class ArtifactsPanelMixin:
         # Réserver une colonne à droite pour le volet (poids 0 = largeur fixe).
         container.grid_columnconfigure(1, weight=0, minsize=0)
 
+        # Largeur courante (modifiable par la poignée de redimensionnement).
+        self._panel_width = _PANEL_WIDTH
+
         panel = self.create_frame(container, fg_color=self.colors["bg_secondary"])
-        panel.grid(row=0, column=1, sticky="nsew", padx=(1, 0), pady=0)
+        panel.grid(row=0, column=1, sticky="nsew", padx=(0, 0), pady=0)
+        # col 0 = poignée de redimensionnement, col 1 = contenu
         panel.grid_rowconfigure(1, weight=1)
-        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_columnconfigure(1, weight=1)
         panel.grid_propagate(False)
         try:
-            panel.configure(width=_PANEL_WIDTH)
+            panel.configure(width=self._panel_width)
         except Exception:
             pass
+
+        # ── Poignée de redimensionnement (bord gauche du volet) ──
+        self._build_resize_grip(panel)
 
         self._artifacts_panel = panel
         self._artifacts_current = None  # Artifact actuellement affiché
@@ -76,7 +86,7 @@ class ArtifactsPanelMixin:
         self._artifacts_body = self.create_frame(
             panel, fg_color=self.colors["bg_chat"]
         )
-        self._artifacts_body.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
+        self._artifacts_body.grid(row=1, column=1, sticky="nsew", padx=6, pady=(0, 6))
         self._artifacts_body.grid_rowconfigure(0, weight=1)
         self._artifacts_body.grid_columnconfigure(0, weight=1)
         self._artifacts_view = None  # widget de rendu (HtmlFrame ou fallback Text)
@@ -94,7 +104,7 @@ class ArtifactsPanelMixin:
             text_color=self.colors["text_secondary"],
         )
         # Masqué par défaut ; affiché seulement en mode tkinterweb.
-        self._artifacts_hint.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 6))
+        self._artifacts_hint.grid(row=2, column=1, sticky="ew", padx=8, pady=(0, 6))
         self._artifacts_hint.grid_remove()
 
         # Nettoyage de la fenêtre Edge à la fermeture de l'application.
@@ -121,10 +131,47 @@ class ArtifactsPanelMixin:
             if embed is not None:
                 embed.close()
 
+    def _build_resize_grip(self, panel):
+        """Poignée verticale (bord gauche) pour redimensionner le volet à la souris."""
+        grip = tk.Frame(panel, width=_GRIP_W, bg=self.colors.get("border", "#404040"),
+                        cursor="sb_h_double_arrow")
+        grip.grid(row=0, column=0, rowspan=3, sticky="ns")
+        panel.grid_columnconfigure(0, weight=0, minsize=_GRIP_W)
+
+        def _press(e):
+            self._resize_start_x = e.x_root
+            self._resize_start_w = self._panel_width
+
+        def _drag(e):
+            # Glisser vers la gauche élargit le volet (la souris s'éloigne du bord droit).
+            delta = self._resize_start_x - e.x_root
+            new_w = max(_PANEL_MIN, min(_PANEL_MAX, self._resize_start_w + delta))
+            self._set_panel_width(new_w)
+
+        grip.bind("<Button-1>", _press)
+        grip.bind("<B1-Motion>", _drag)
+        # Survol : éclaircir la poignée
+        grip.bind("<Enter>", lambda _e: grip.configure(bg=self.colors.get("accent", "#ff6b47")))
+        grip.bind("<Leave>", lambda _e: grip.configure(bg=self.colors.get("border", "#404040")))
+
+    def _set_panel_width(self, width):
+        """Applique une nouvelle largeur de volet et resynchronise Edge."""
+        self._panel_width = int(width)
+        try:
+            self.content_container.grid_columnconfigure(1, minsize=self._panel_width)
+            self._artifacts_panel.configure(width=self._panel_width)
+            self._artifacts_panel.update_idletasks()
+        except Exception:
+            pass
+        embed = getattr(self, "_edge_embed", None)
+        if embed is not None and getattr(self, "_artifacts_mode", None) == "edge":
+            body = self._artifacts_body
+            embed.resize(body.winfo_width(), body.winfo_height())
+
     def _build_header(self, panel):
         """Barre de titre + toolbar (rafraîchir / navigateur / fermer)."""
         header = self.create_frame(panel, fg_color=self.colors["bg_secondary"])
-        header.grid(row=0, column=0, sticky="ew", padx=6, pady=6)
+        header.grid(row=0, column=1, sticky="ew", padx=6, pady=6)
         header.grid_columnconfigure(1, weight=1)
 
         icon = self.create_label(
@@ -193,7 +240,7 @@ class ArtifactsPanelMixin:
     def show_artifacts_panel(self):
         """Affiche le volet (colonne droite)."""
         self._ensure_artifacts_panel()
-        self.content_container.grid_columnconfigure(1, minsize=_PANEL_WIDTH)
+        self.content_container.grid_columnconfigure(1, minsize=self._panel_width)
         self._artifacts_panel.grid()
         self._artifacts_visible = True
         # Rétrécir la colonne chat re-wrappe les messages (hauteur change) et
@@ -238,7 +285,7 @@ class ArtifactsPanelMixin:
                 pass
 
         try:
-            for delay in (50, 200, 400, 700):
+            for delay in (50, 200, 400, 700, 1000):
                 self.root.after(delay, _to_bottom)
         except Exception:
             pass
@@ -266,7 +313,7 @@ class ArtifactsPanelMixin:
                 pass
             self._artifacts_view = None
 
-        # 1) Edge --app embarqué (rendu Chromium exact)
+        # 1) Edge --app embarqué (rendu Chromium exact) — lancement non bloquant
         if embed is not None and embed.available and self._artifacts_last_file is not None:
             if self._render_with_edge(artifact):
                 return
@@ -280,21 +327,48 @@ class ArtifactsPanelMixin:
         self._render_fallback(artifact)
 
     def _render_with_edge(self, artifact) -> bool:
-        """Embarque une fenêtre Edge --app dans le body. True si réussi."""
+        """Lance Edge --app puis sonde son attachement (non bloquant). True si lancé."""
         try:
             self._artifacts_body.update_idletasks()
-            w = self._artifacts_body.winfo_width() or _PANEL_WIDTH
+            w = self._artifacts_body.winfo_width() or self._panel_width
             h = self._artifacts_body.winfo_height() or 600
-            ok = self._edge_embed.embed(
+            if not self._edge_embed.start(
                 str(self._artifacts_last_file), self._artifacts_body, w, h
-            )
-            if ok:
-                self._artifacts_mode = "edge"
-                self._artifacts_hint.grid_remove()
-                return True
+            ):
+                return False
+            self._artifacts_mode = "edge"
+            self._artifacts_hint.grid_remove()
+            self._poll_edge_attach(artifact, 0)
+            return True
         except Exception as e:
-            print(f"⚠️ [ARTIFACTS] Embarquement Edge échoué: {e}")
+            print(f"⚠️ [ARTIFACTS] Lancement Edge échoué: {e}")
         return False
+
+    def _poll_edge_attach(self, artifact, attempts):
+        """Sonde périodiquement l'attachement Edge (via root.after, non bloquant)."""
+        if getattr(self, "_artifacts_mode", None) != "edge":
+            return
+        body = self._artifacts_body
+        try:
+            res = self._edge_embed.poll_attach(body.winfo_width(), body.winfo_height())
+        except Exception:
+            res = None
+
+        if res is True:
+            # Fenêtre attachée : le layout a bougé, on resynchronise le scroll.
+            self._restore_chat_scroll_bottom()
+            return
+        if res is None:
+            # Échec/timeout → repli sur tkinterweb puis code source.
+            print("⚠️ [ARTIFACTS] Edge non attaché → repli")
+            if TKINTERWEB_AVAILABLE:
+                self._render_with_tkinterweb(artifact)
+            else:
+                self._render_fallback(artifact)
+            return
+        # Toujours en attente
+        if attempts < 70:
+            self.root.after(120, lambda: self._poll_edge_attach(artifact, attempts + 1))
 
     def _render_with_tkinterweb(self, artifact):
         """Rendu embarqué via tkinterweb (CSS limité — voir doc)."""
