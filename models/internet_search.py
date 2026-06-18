@@ -4,6 +4,7 @@ Version corrigée sans doublons ni erreurs de syntaxe
 """
 
 import concurrent.futures
+import os
 import re
 import statistics
 import string
@@ -41,6 +42,14 @@ class _SSLBypassAdapter(HTTPAdapter):
         kwargs["ssl_context"] = ctx
         return super().init_poolmanager(*args, **kwargs)
 
+
+# Import Tavily pour recherche web optimisée LLM
+try:
+    from tavily import TavilyClient
+
+    TAVILY_AVAILABLE = True
+except ImportError:
+    TAVILY_AVAILABLE = False
 
 # Import cloudscraper pour contourner les protections anti-bot
 try:
@@ -2448,9 +2457,46 @@ Réponds de manière factuelle et structurée:"""
 
         return "Information trouvée mais nécessite une recherche plus spécifique."
 
+    def _search_tavily(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Recherche via Tavily Search API (optimisée pour LLM).
+        Nécessite TAVILY_API_KEY dans l'environnement.
+        """
+        api_key = os.environ.get("TAVILY_API_KEY", "")
+        if not api_key or not TAVILY_AVAILABLE:
+            return []
+
+        print("🔍 [TAVILY] Recherche via Tavily Search API...")
+        try:
+            client = TavilyClient(api_key=api_key)
+            response = client.search(
+                query=query,
+                max_results=self.max_results,
+                search_depth="basic",
+                topic="general",
+            )
+
+            results = []
+            for item in response.get("results", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "snippet": item.get("content", ""),
+                    "source": "tavily",
+                })
+
+            if results:
+                print(f"✅ [TAVILY] {len(results)} résultats trouvés")
+            return results
+
+        except Exception as e:
+            print(f"⚠️ [TAVILY] Échec: {str(e)}")
+            return []
+
     def _perform_search(self, query: str) -> List[Dict[str, Any]]:
         """Effectue la recherche sur internet"""
         search_methods = [
+            self._search_tavily,  # PRIORITÉ 0: Tavily API (si TAVILY_API_KEY configurée)
             self._search_duckduckgo_instant,  # PRIORITÉ 1: API officielle stable et rapide
             self._search_with_cloudscraper,  # PRIORITÉ 2: Contourne anti-bot si API échoue
             self._search_searxng,  # PRIORITÉ 3: Métamoteur alternatif
