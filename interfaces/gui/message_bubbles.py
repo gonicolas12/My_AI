@@ -37,6 +37,12 @@ class MessageBubblesMixin:
             # RÉCUPÉRER les valeurs stockées DANS LE CONTAINER (pas les globales)
             captured_query = getattr(self.current_message_container, "feedback_query", None)
             captured_response = getattr(self.current_message_container, "feedback_response", None)
+            # Texte BRUT (avec fences ```) pour la détection d'artifacts : en
+            # streaming, feedback_response est le texte rendu (fences élidées),
+            # donc on privilégie artifact_source quand il est disponible.
+            captured_source = getattr(
+                self.current_message_container, "artifact_source", None
+            ) or captured_response
 
             # Frame horizontale pour les boutons + timestamp
             feedback_frame = self.create_frame(
@@ -144,7 +150,7 @@ class MessageBubblesMixin:
             self._add_speak_button(feedback_frame, captured_response)
 
             # ── Bouton « Aperçu » si la réponse contient un artifact rendable ──
-            self._add_artifact_button(feedback_frame, captured_response)
+            self._add_artifact_button(feedback_frame, captured_source)
 
             # Lecture automatique de la réponse si le mode est activé (sidebar)
             if getattr(self, "tts_autoread", False) and captured_response:
@@ -404,6 +410,8 @@ class MessageBubblesMixin:
             # STOCKER la query et response dans le container pour les boutons de feedback
             message_container.feedback_query = getattr(self, "_last_user_query", None)
             message_container.feedback_response = text  # Le texte actuel passé à add_message_bubble
+            # Texte brut (= text ici, fences intactes) pour la détection d'artifacts
+            message_container.artifact_source = text
 
             # SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
             def setup_container_scroll_forwarding(container):
