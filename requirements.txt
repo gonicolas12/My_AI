@@ -54,6 +54,10 @@ customtkinter>=5.2.0
 tkinterdnd2>=0.3.0
 pillow>=10.0.0
 pygments
+# Optionnel : moteur de REPLI du volet « Artifacts ». Le rendu exact utilise
+# Edge --app embarqué (Windows, aucune dépendance) ; tkinterweb ne sert que si
+# Edge est indisponible (rendu approximatif). Voir docs/ARTIFACTS_PREVIEW.md.
+tkinterweb>=3.23.0
 
 # Interface web (optionnel)
 streamlit>=1.42.0

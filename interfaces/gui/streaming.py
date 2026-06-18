@@ -1737,6 +1737,9 @@ class StreamingMixin:
             if hasattr(self, "current_message_container") and self.current_message_container is not None:
                 self.current_message_container.feedback_query = getattr(self, "_last_user_query", None)
                 self.current_message_container.feedback_response = displayed_text
+                # Texte brut (avec fences ```) pour la détection d'artifacts —
+                # displayed_text a ses fences élidées après recoloration.
+                self.current_message_container.artifact_source = history_text
                 print(f"[DEBUG STOCKAGE FEEDBACK] Query: {getattr(self, '_last_user_query', 'None')[:50]}...")
                 print(f"[DEBUG STOCKAGE FEEDBACK] Response: {displayed_text[:50]}...")
 
@@ -1750,6 +1753,14 @@ class StreamingMixin:
                         print("📡 [RELAY] Réponse envoyée au mobile via bridge")
                 except Exception as e:
                     print(f"⚠️ [RELAY] Erreur envoi réponse mobile: {e}")
+
+            # Rendre la bulle responsive : recalcul de hauteur si la largeur
+            # change (ouverture/resize du volet Artifacts, resize fenêtre).
+            try:
+                if hasattr(self, "typing_widget") and self.typing_widget is not None:
+                    self.make_text_widget_responsive(self.typing_widget)
+            except Exception:
+                pass
 
             # Afficher le timestamp
             self._show_timestamp_for_current_message()

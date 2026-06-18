@@ -471,6 +471,35 @@ class AnimationsMixin:
             text_widget.configure(height=10)
             self._disable_text_scroll(text_widget)
 
+    def make_text_widget_responsive(self, text_widget):
+        """Rend une bulle IA responsive : recalcule sa hauteur quand sa largeur change.
+
+        Les bulles sont des tk.Text à hauteur fixe (en lignes) calculée à la
+        largeur du moment ; quand la colonne chat rétrécit (ouverture/resize du
+        volet Artifacts, ou resize fenêtre) le texte se re-wrappe et le bas
+        serait rogné. On réajuste la hauteur sur tout changement de **largeur**
+        (les changements de hauteur sont ignorés pour éviter les boucles).
+        """
+        def _on_configure(event, w=text_widget):
+            try:
+                last = getattr(w, "_last_reflow_width", None)
+                if last is not None and abs(event.width - last) < 4:
+                    return  # largeur inchangée → pas de re-wrap → rien à faire
+                w._last_reflow_width = event.width
+                # Recalcul SYNCHRONE immédiat (pas de debounce) pour éviter tout
+                # délai visible. La garde « largeur uniquement » ci-dessus empêche
+                # la boucle : configure(height=…) ne change que la hauteur.
+                if w.winfo_exists():
+                    self._adjust_height_final_no_scroll(w)
+                    if getattr(self, "_artifacts_visible", False):
+                        restore = getattr(self, "_restore_chat_scroll_bottom", None)
+                        if restore:
+                            restore()
+            except Exception:
+                pass
+
+        text_widget.bind("<Configure>", _on_configure, add="+")
+
     def _adjust_height_smoothly_during_animation(self, text_widget, current_text):
         """Ajustement de hauteur SMOOTH pendant l'animation pour éviter le scroll dans la bulle"""
         try:

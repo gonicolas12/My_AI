@@ -15,6 +15,9 @@ except ImportError:
 # Import RLHF Manager pour les feedbacks
 from core.rlhf_manager import get_rlhf_manager
 
+# Détection des artifacts (HTML/SVG rendables) pour le bouton « Aperçu »
+from interfaces.artifacts import detect_artifacts
+
 
 class MessageBubblesMixin:
     """Methods for creating user/AI message bubbles and copy UI."""
@@ -34,6 +37,12 @@ class MessageBubblesMixin:
             # RÉCUPÉRER les valeurs stockées DANS LE CONTAINER (pas les globales)
             captured_query = getattr(self.current_message_container, "feedback_query", None)
             captured_response = getattr(self.current_message_container, "feedback_response", None)
+            # Texte BRUT (avec fences ```) pour la détection d'artifacts : en
+            # streaming, feedback_response est le texte rendu (fences élidées),
+            # donc on privilégie artifact_source quand il est disponible.
+            captured_source = getattr(
+                self.current_message_container, "artifact_source", None
+            ) or captured_response
 
             # Frame horizontale pour les boutons + timestamp
             feedback_frame = self.create_frame(
@@ -140,6 +149,9 @@ class MessageBubblesMixin:
             # ── Bouton lecture vocale (TTS) ──
             self._add_speak_button(feedback_frame, captured_response)
 
+            # ── Bouton « Aperçu » si la réponse contient un artifact rendable ──
+            self._add_artifact_button(feedback_frame, captured_source)
+
             # Lecture automatique de la réponse si le mode est activé (sidebar)
             if getattr(self, "tts_autoread", False) and captured_response:
                 try:
@@ -198,6 +210,54 @@ class MessageBubblesMixin:
             vo.toggle(response_text, on_state=_on_state)
 
         spk.bind("<Button-1>", _click)
+
+    def _add_artifact_button(self, parent, response_text):
+        """Ajoute un bouton 🔍 Aperçu si la réponse contient un artifact HTML/SVG.
+
+        Au clic, ouvre le volet de preview (cf. ArtifactsPanelMixin). Si plusieurs
+        artifacts sont présents, le premier est affiché.
+        """
+        if not response_text:
+            return
+        try:
+            artifacts = detect_artifacts(response_text)
+        except Exception:
+            artifacts = []
+        if not artifacts:
+            return
+        # Le mixin du volet doit être présent (ModernAIGUI l'inclut).
+        if not hasattr(self, "open_artifact_preview"):
+            return
+
+        first = artifacts[0]
+        label = "🔍 Aperçu"
+        if len(artifacts) > 1:
+            label = f"🔍 Aperçu ({len(artifacts)})"
+
+        accent = self.colors.get("accent", "#ff6b47")
+        bg = self.colors["bg_chat"]
+
+        btn = tk.Label(
+            parent,
+            text=label,
+            font=("Segoe UI", 10, "bold"),
+            fg=accent,
+            bg=bg,
+            cursor="hand2",
+            padx=6,
+        )
+        btn.pack(side="left", padx=(10, 0))
+
+        def _open(_event=None):
+            try:
+                self.open_artifact_preview(first)
+            except Exception as e:
+                print(f"⚠️ [ARTIFACTS] Ouverture aperçu échouée: {e}")
+
+        btn.bind("<Button-1>", _open)
+        # Léger feedback visuel au survol
+        btn.bind("<Enter>", lambda _e: btn.configure(fg="#ffffff"))
+        btn.bind("<Leave>", lambda _e: btn.configure(fg=accent))
 
     def _on_star_rating(self, score, star_buttons, query, response):
         """Callback pour le feedback par étoiles (1-5)."""
@@ -350,6 +410,8 @@ class MessageBubblesMixin:
             # STOCKER la query et response dans le container pour les boutons de feedback
             message_container.feedback_query = getattr(self, "_last_user_query", None)
             message_container.feedback_response = text  # Le texte actuel passé à add_message_bubble
+            # Texte brut (= text ici, fences intactes) pour la détection d'artifacts
+            message_container.artifact_source = text
 
             # SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
             def setup_container_scroll_forwarding(container):
@@ -579,6 +641,8 @@ class MessageBubblesMixin:
                 text_widget.configure(state="disabled")
                 self._adjust_height_final_no_scroll(text_widget)
                 self._reactivate_text_scroll(text_widget)
+                if hasattr(self, "make_text_widget_responsive"):
+                    self.make_text_widget_responsive(text_widget)
                 self._show_timestamp_for_current_message()
             else:
                 # Démarrer l'animation de frappe avec hauteur dynamique

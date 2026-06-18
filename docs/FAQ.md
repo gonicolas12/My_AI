@@ -17,7 +17,7 @@ L'IA fonctionne dans les deux cas, mais Ollama offre des réponses beaucoup plus
 
 ### Comment changer de modèle Ollama ?
 
-**Le plus simple (depuis la v7.6.0) : le panneau ⚙️ Réglages** (sidebar) → section *Modèles Ollama* → choisir ou télécharger un modèle → **Appliquer** : le modèle custom `my_ai` est régénéré automatiquement (system prompt préservé), sans toucher au moindre fichier.
+**Le plus simple : le panneau ⚙️ Réglages** (sidebar) → section *Modèles Ollama* → choisir ou télécharger un modèle → **Appliquer** : le modèle custom `my_ai` est régénéré automatiquement (system prompt préservé), sans toucher au moindre fichier.
 
 Manuellement, trois étapes, dans l'ordre :
 
@@ -276,7 +276,7 @@ Oui, mais `sounddevice` requiert la librairie système `portaudio` :
 Le bouton micro est toujours présent mais purement opt-in : si tu ne cliques jamais dessus, aucune ressource n'est consommée (le modèle Whisper est chargé en lazy). Si tu veux le masquer complètement, retire les appels à `attach_mic_button` dans `interfaces/gui/layout.py`, `interfaces/gui/base.py` et `interfaces/agents/task_input.py`.
 
 ### Puis-je faire lire les réponses à voix haute ?
-Oui, depuis la **v7.6.0**. Un bouton **🔊** apparaît sous chaque réponse de l'IA (clic = lecture, reclic = stop), et un toggle **« Lecture auto »** dans la sidebar lit automatiquement chaque nouvelle réponse. C'est **100% local** via **pyttsx3** (moteur de synthèse de l'OS, aucun téléchargement). La voix est choisie selon la **langue détectée** de la réponse (pas d'accent anglais sur du français). Sous Linux, installe `espeak-ng` (`sudo apt install espeak-ng`) ; Windows et macOS fonctionnent d'origine.
+Oui. Un bouton **🔊** apparaît sous chaque réponse de l'IA (clic = lecture, reclic = stop), et un toggle **« Lecture auto »** dans la sidebar lit automatiquement chaque nouvelle réponse. C'est **100% local** via **pyttsx3** (moteur de synthèse de l'OS, aucun téléchargement). La voix est choisie selon la **langue détectée** de la réponse (pas d'accent anglais sur du français). Sous Linux, installe `espeak-ng` (`sudo apt install espeak-ng`) ; Windows et macOS fonctionnent d'origine.
 
 ## 🚀 Évolutions et Support
 
