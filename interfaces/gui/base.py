@@ -232,6 +232,10 @@ class BaseGUI:
         self._current_message_from_relay = False
         self._init_relay()
 
+        # ── Scheduler proactif (tâches planifiées) ──
+        self._scheduler = None
+        self._init_scheduler()
+
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
         try:
@@ -331,6 +335,121 @@ class BaseGUI:
         if self._relay_server:
             self._relay_server.stop()
             self._relay_polling = False
+
+    # ------------------------------------------------------------------
+    # Scheduler proactif — Tâches planifiées
+    # ------------------------------------------------------------------
+
+    def _init_scheduler(self):
+        """Démarre le scheduler proactif si activé (config.yaml → scheduler.enabled).
+
+        Le scheduler tourne tant que le GUI est lancé. S'il partage ensuite
+        l'exécuteur du Relay (quand celui-ci démarre), c'est le Relay qui le
+        ré-injecte via `set_executor`. Voir core/scheduler.py.
+        """
+        try:
+            sched_cfg = {}
+            if hasattr(self.config, "get_section"):
+                sched_cfg = self.config.get_section("scheduler") or {}
+            if not sched_cfg.get("enabled", True):
+                return
+            from core.scheduler import get_scheduler
+            self._scheduler = get_scheduler()
+            self._scheduler.add_listener(self._on_scheduled_task_done)
+            self._scheduler.start()
+            print("📅 Scheduler proactif démarré")
+        except Exception as e:
+            print(f"⚠️ Scheduler non démarré: {e}")
+
+    def _on_scheduled_task_done(self, result):
+        """Listener scheduler (thread worker) → marshal vers le thread Tk."""
+        root = getattr(self, "root", None)
+        if root is None:
+            return
+        try:
+            root.after(0, lambda r=result: self._display_scheduled_result(r))
+        except Exception:
+            pass
+
+    def _display_scheduled_result(self, result):
+        """Notifie la fin d'une tâche planifiée (sur le thread Tk)."""
+        try:
+            # Entrée visible : déléguée à la page Agents si elle l'implémente.
+            agents = getattr(self, "agents_interface", None)
+            if agents is not None and hasattr(agents, "notify_scheduled_result"):
+                try:
+                    agents.notify_scheduled_result(result)
+                except Exception as e:
+                    self.logger.debug("notify_scheduled_result échoué: %s", e)
+            # Toast in-app seulement si l'OS n'a pas déjà affiché de notification.
+            if not result.get("os_toast_shown"):
+                self._show_scheduled_toast(result)
+        except Exception as e:
+            self.logger.debug("Affichage résultat planifié échoué: %s", e)
+
+    def _show_scheduled_toast(self, result):
+        """Petit toast non-bloquant en bas à droite, auto-effacé après 6 s."""
+        root = getattr(self, "root", None)
+        if root is None:
+            return
+        try:
+            status = result.get("status")
+            accent = ("#10b981" if status == "success"
+                      else "#f59e0b" if status in ("partial", "interrupted")
+                      else "#ef4444")
+            name = result.get("name", "Tâche planifiée")
+            text = (result.get("summary") or result.get("status_text") or "").strip()
+            if len(text) > 160:
+                text = text[:157] + "…"
+
+            toast = _ctk.CTkToplevel(root)
+            toast.overrideredirect(True)
+            toast.attributes("-topmost", True)
+            try:
+                toast.configure(fg_color=self.colors.get("bg_secondary", "#1e1e2e"))
+            except Exception:
+                pass
+
+            bar = _ctk.CTkFrame(toast, fg_color=accent, width=6, corner_radius=0)
+            bar.pack(side="left", fill="y")
+            body = _ctk.CTkFrame(toast, fg_color="transparent")
+            body.pack(side="left", fill="both", expand=True, padx=12, pady=10)
+            _ctk.CTkLabel(
+                body, text=f"📅 {name}", anchor="w",
+                font=(FONT_CONFIG.get("family", "Segoe UI"), 13, "bold"),
+                text_color=self.colors.get("text_primary", "#ffffff"),
+            ).pack(fill="x")
+            if text:
+                _ctk.CTkLabel(
+                    body, text=text, anchor="w", justify="left", wraplength=300,
+                    font=(FONT_CONFIG.get("family", "Segoe UI"), 11),
+                    text_color=self.colors.get("text_secondary", "#aaaaaa"),
+                ).pack(fill="x", pady=(2, 0))
+
+            output_file = result.get("output_file")
+
+            def _open(_e=None):
+                if output_file:
+                    try:
+                        os.startfile(output_file)  # Windows
+                    except Exception:
+                        pass
+                try:
+                    toast.destroy()
+                except Exception:
+                    pass
+
+            toast.bind("<Button-1>", _open)
+            body.bind("<Button-1>", _open)
+
+            toast.update_idletasks()
+            tw = max(toast.winfo_reqwidth(), 320)
+            th = toast.winfo_reqheight()
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            toast.geometry(f"{tw}x{th}+{sw - tw - 24}+{sh - th - 60}")
+            toast.after(6000, lambda: toast.winfo_exists() and toast.destroy())
+        except Exception as e:
+            self.logger.debug("Toast tâche planifiée échoué: %s", e)
 
     def _start_relay_polling(self):
         """Démarre le polling des messages Relay pour les afficher dans le GUI."""

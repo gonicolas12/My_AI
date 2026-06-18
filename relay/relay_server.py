@@ -1290,6 +1290,69 @@ class RelayServer:
         except Exception as e:
             logger.debug("Broadcast WS impossible : %s", e)
 
+    # ------------------------------------------------------------------
+    # Scheduler proactif (tâches planifiées)
+    # ------------------------------------------------------------------
+
+    def _init_scheduler(self) -> None:
+        """Démarre le scheduler en partageant l'exécuteur d'agents du Relay.
+
+        Le scheduler tourne même en Relay standalone (sans GUI). Partager
+        ``agent_service`` garantit qu'une exécution planifiée et une exécution
+        mobile ne se chevauchent pas (même gate ``_busy``). Voir core/scheduler.py.
+        """
+        try:
+            sched_cfg = get_config().get_section("scheduler") or {}
+        except Exception:
+            sched_cfg = {}
+        if not sched_cfg.get("enabled", True):
+            return
+        try:
+            from core.scheduler import get_scheduler
+            scheduler = get_scheduler()
+            scheduler.set_executor(self.agent_service)
+            if sched_cfg.get("notify_mobile", True):
+                scheduler.add_listener(self._broadcast_scheduled_result)
+            scheduler.start()
+            logger.info("Scheduler proactif démarré (exécuteur partagé avec le Relay).")
+        except Exception as exc:
+            logger.warning("Scheduler non démarré : %s", exc)
+
+    def _broadcast_scheduled_result(self, result: Dict[str, Any]) -> None:
+        """Diffuse la fin d'une tâche planifiée aux WebSockets connectés.
+
+        Appelé depuis un thread worker du scheduler ; planifie l'envoi chiffré
+        sur la boucle asyncio (modèle de `_broadcast_chunk`). Le chemin du
+        fichier de résultat (local au PC) n'est pas transmis au mobile.
+        """
+        if not self._loop or not self._ws_clients:
+            return
+        payload = json.dumps(self.encrypt_json({
+            "type": "scheduled_task_result",
+            "task_id": result.get("task_id"),
+            "name": result.get("name"),
+            "status": result.get("status"),
+            "status_text": result.get("status_text"),
+            "summary": result.get("summary"),
+            "finished_at": result.get("finished_at"),
+        }), separators=(",", ":"))
+
+        async def _push():
+            dead: List[WebSocket] = []
+            for ws in list(self._ws_clients):
+                try:
+                    await ws.send_text(payload)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                if ws in self._ws_clients:
+                    self._ws_clients.remove(ws)
+
+        try:
+            asyncio.run_coroutine_threadsafe(_push(), self._loop)
+        except Exception as e:
+            logger.debug("Broadcast scheduled_task_result impossible : %s", e)
+
     def start(self, start_tunnel: bool = True) -> None:
         """Démarre le serveur Relay et optionnellement le tunnel."""
         if not _FASTAPI_AVAILABLE:
@@ -1324,6 +1387,10 @@ class RelayServer:
         self._server_thread.start()
         self._running = True
         self._start_time = time.time()
+
+        # Scheduler proactif : exécute les tâches planifiées (partage l'exécuteur
+        # d'agents du Relay et diffuse leur fin aux mobiles connectés).
+        self._init_scheduler()
 
         logger.info("Relay démarré sur http://%s:%s", self._host, self._port)
 
