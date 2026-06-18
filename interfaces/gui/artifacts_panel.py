@@ -71,6 +71,19 @@ class ArtifactsPanelMixin:
         self._artifacts_body.grid_columnconfigure(0, weight=1)
         self._artifacts_view = None  # widget de rendu (HtmlFrame ou fallback Text)
 
+        # Bandeau d'info : le rendu embarqué (tkinterweb) est approximatif
+        # (pas de flexbox/grid/JS) — invite à utiliser le navigateur pour le
+        # rendu exact. Affiché uniquement quand tkinterweb fait le rendu.
+        if TKINTERWEB_AVAILABLE:
+            hint = self.create_label(
+                panel,
+                text="⚠ Rendu approximatif (CSS limité) — cliquez 🌐 pour le rendu exact",
+                font=("Segoe UI", 9),
+                fg_color=self.colors["bg_secondary"],
+                text_color=self.colors["text_secondary"],
+            )
+            hint.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 6))
+
         # Caché par défaut
         panel.grid_remove()
         self._artifacts_visible = False
@@ -148,6 +161,10 @@ class ArtifactsPanelMixin:
         self.content_container.grid_columnconfigure(1, minsize=_PANEL_WIDTH)
         self._artifacts_panel.grid()
         self._artifacts_visible = True
+        # Rétrécir la colonne chat re-wrappe les messages (hauteur change) et
+        # Tk replace le scroll en haut : on restaure la position bas pour que
+        # la fin du message (et le bouton Aperçu) reste visible.
+        self._restore_chat_scroll_bottom()
 
     def hide_artifacts_panel(self):
         """Masque le volet et rend toute la largeur au chat."""
@@ -155,6 +172,20 @@ class ArtifactsPanelMixin:
             self._artifacts_panel.grid_remove()
         self.content_container.grid_columnconfigure(1, minsize=0)
         self._artifacts_visible = False
+        self._restore_chat_scroll_bottom()
+
+    def _restore_chat_scroll_bottom(self):
+        """Re-scrolle la conversation vers le bas après un reflow du layout."""
+        fn = getattr(self, "_final_smooth_scroll_to_bottom", None)
+        if fn is None:
+            return
+        try:
+            # Deux passes : une fois la géométrie recalculée, puis après le
+            # re-rendu des widgets Text (wrap) qui peut arriver tardivement.
+            self.root.after(60, fn)
+            self.root.after(220, fn)
+        except Exception:
+            pass
 
     def toggle_artifacts_panel(self):
         """Bascule l'affichage du volet."""
