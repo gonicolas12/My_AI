@@ -18,6 +18,13 @@ Jusqu'ici l'assistant était **réactif** : vous lanciez chaque agent, workflow 
 - **Défer-on-busy** : si l'exécuteur est occupé (workflow lancé par l'utilisateur ou le mobile), l'exécution planifiée est différée au tick suivant → pas de double charge LLM concurrente sur Ollama.
 - Singleton `get_scheduler()` (modèle `get_config()`), partage de l'exécuteur du Relay via `set_executor`.
 
+#### 🖥️ Exécution en arrière-plan (appli fermée) — `core/scheduler_runner.py` (nouveau)
+
+- Intégration optionnelle au **Planificateur de tâches Windows** : un **runner headless** s'exécute toutes les N minutes (`SchedulerService.run_once()`) et lance les tâches dues **même l'application fermée**, tant que la session Windows est ouverte — **sans droits admin ni mot de passe stocké**.
+- Activable d'un clic depuis la page Agents (**« 🖥️ Exécuter même l'appli fermée »**) ou en CLI (`python core/scheduler_runner.py --register [N]`).
+- **Verrou inter-processus** `data/scheduler.lock` (avec heartbeat) : le scheduler in-process (GUI/Relay) et le runner Windows ne lancent **jamais** la même tâche deux fois.
+- Limite physique : ne couvre pas un PC **éteint / en veille** (les tâches manquées sont alors rattrapées au retour).
+
 #### 🔌 Démarrage & notifications
 
 - **GUI** (`interfaces/gui/base.py`) : démarrage au lancement + **toast in-app** non-bloquant (auto-effacé, clic = ouvre le rapport) — affiché seulement si l'OS n'a pas déjà montré de notification native.
@@ -33,7 +40,8 @@ Jusqu'ici l'assistant était **réactif** : vous lanciez chaque agent, workflow 
 
 - `config.yaml` : nouvelle section **`scheduler:`**.
 - `requirements.txt` : ajout de `croniter>=2.0.0` (cron) ; `winotify` / `plyer` documentés en option (toast OS).
-- `tests/test_scheduler.py` : 20 tests (exécuteur factice, sans LLM).
+- `tests/test_scheduler.py` : 24 tests (exécuteur factice, sans LLM ; incl. verrou + runner).
+- `.gitignore` : `data/scheduled_tasks.json` + `data/scheduler.lock` (données locales).
 - Documentation : `docs/SCHEDULER.md`.
 - Version du projet → **7.8.0**.
 

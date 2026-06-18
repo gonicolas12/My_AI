@@ -5,6 +5,7 @@ d'agents, de workflows (canvas) ou de débats. Délègue toute la logique au
 ``SchedulerService`` (core/scheduler.py) — cette UI n'est qu'une façade CRUD.
 """
 
+import os
 from datetime import datetime
 
 from interfaces.agents._common import ctk, tk
@@ -108,6 +109,9 @@ class SchedulerMixin:
             font=("Segoe UI", 11), text_color=self.colors["text_secondary"],
             fg_color=self.colors["bg_secondary"], wraplength=860, justify="left",
         ).pack(anchor="w", pady=(2, 10))
+
+        # Exécution en arrière-plan (Windows uniquement)
+        self._build_background_control(content)
 
         self._scheduler_list_frame = self.create_frame(
             content, fg_color=self.colors["bg_secondary"]
@@ -258,6 +262,55 @@ class SchedulerMixin:
             self._refresh_scheduler_list()
         except Exception:
             pass
+
+    # ------------------------------------------------------------------
+    # Exécution en arrière-plan (Planificateur de tâches Windows)
+    # ------------------------------------------------------------------
+
+    def _build_background_control(self, parent):
+        """Switch « Exécuter même l'appli fermée » (Windows uniquement)."""
+        if os.name != "nt":
+            return
+        from core import scheduler_runner
+        try:
+            registered = scheduler_runner.is_windows_task_registered()
+        except Exception:
+            registered = False
+        self._bg_task_var = tk.BooleanVar(value=registered)
+        label = "🖥️ Exécuter même l'appli fermée (session Windows ouverte)"
+        if self.use_ctk:
+            ctk.CTkSwitch(
+                parent, text=label, variable=self._bg_task_var,
+                progress_color="#10b981", font=("Segoe UI", 11),
+                text_color=self.colors["text_primary"],
+                command=self._toggle_background_task,
+            ).pack(anchor="w", pady=(0, 10))
+        else:
+            tk.Checkbutton(
+                parent, text=label, variable=self._bg_task_var,
+                command=self._toggle_background_task,
+                bg=self.colors["bg_secondary"], fg=self.colors["text_primary"],
+                selectcolor=self.colors["bg_secondary"], font=("Segoe UI", 11),
+            ).pack(anchor="w", pady=(0, 10))
+
+    def _toggle_background_task(self):
+        """Enregistre/supprime la tâche Planificateur Windows."""
+        from core import scheduler_runner
+        want = bool(self._bg_task_var.get())
+        if want:
+            interval = 5
+            try:
+                from core.config import get_config
+                interval = int(get_config().get("scheduler.background_interval_minutes", 5))
+            except Exception:
+                pass
+            ok, msg = scheduler_runner.register_windows_task(interval)
+        else:
+            ok, msg = scheduler_runner.unregister_windows_task()
+        self._show_notification(("✅ " if ok else "❌ ") + msg,
+                                "#10b981" if ok else "#ef4444")
+        if not ok:
+            self._bg_task_var.set(not want)   # revert le switch si échec
 
     # ------------------------------------------------------------------
     # Dialogue créer / éditer

@@ -9,8 +9,10 @@ Exemples :
 - « Tous les lundis à 9h, **audit de sécurité** du dossier X. »
 - « Toutes les heures, surveille … »
 
-100% local. Aucune dépendance à un service système : la boucle tourne **tant que
-le GUI ou le Relay est lancé**.
+100% local. La boucle in-process tourne **tant que le GUI ou le Relay est lancé** ;
+pour exécuter les tâches **même l'appli fermée**, une intégration optionnelle au
+**Planificateur de tâches Windows** est disponible (voir
+[Exécution en arrière-plan](#exécution-en-arrière-plan-appli-fermée)).
 
 ---
 
@@ -83,6 +85,47 @@ Page **🤖 Agents** → section **📅 Tâches planifiées** (en bas) :
 
 ---
 
+## Exécution en arrière-plan (appli fermée)
+
+Par défaut, les tâches ne s'exécutent **que** si le GUI ou le Relay est ouvert
+(sinon elles sont rattrapées au prochain démarrage). Pour qu'elles s'exécutent
+**même l'application fermée**, activez l'intégration au **Planificateur de tâches
+Windows** :
+
+- **Depuis l'UI** : page Agents → section 📅 Tâches planifiées → coche
+  **« 🖥️ Exécuter même l'appli fermée »**.
+- **En ligne de commande** :
+  ```bash
+  python core/scheduler_runner.py --register      # toutes les 5 min (défaut)
+  python core/scheduler_runner.py --register 10   # toutes les 10 min
+  python core/scheduler_runner.py --unregister
+  python core/scheduler_runner.py --status
+  ```
+
+Ce que ça fait : enregistre une tâche Planificateur Windows (par utilisateur,
+**sans droits admin ni mot de passe stocké**) qui lance un **runner headless**
+(`core/scheduler_runner.py`) toutes les *N* minutes. Le runner exécute une passe
+de planification (`SchedulerService.run_once()`) puis s'arrête.
+
+- ✅ **Couvre** : PC allumé, **session Windows ouverte**, application **fermée**.
+- ❌ **Ne couvre pas** : PC **éteint ou en veille**, ou session **déconnectée**
+  (limite physique de toute solution locale). Les tâches manquées pendant ce
+  temps sont rattrapées au retour (selon `run_if_missed` / `catch_up_window_hours`).
+- 🔒 **Pas de double exécution** : un **verrou** `data/scheduler.lock` (avec
+  heartbeat) coordonne le scheduler in-process (GUI/Relay) et le runner Windows.
+  Quand l'appli est ouverte, le runner détecte qu'un scheduler est actif et ne
+  fait rien.
+- 🔔 **Notifications appli fermée** : seul le **toast OS** est possible (installez
+  `winotify` ou `plyer`) ; le rapport `.md` est toujours écrit dans
+  `outputs/scheduled/`. Les toasts in-app et messages mobiles ne s'affichent
+  qu'avec le GUI / Relay ouvert.
+
+> La granularité de déclenchement est l'intervalle de sondage
+> (`background_interval_minutes`, 5 min par défaut) : une tâche « 8h » part entre
+> 8h00 et 8h05. Réduisez l'intervalle pour plus de précision.
+
+---
+
 ## Configuration — `config.yaml`
 
 ```yaml
@@ -94,6 +137,9 @@ scheduler:
   max_history: 200              # entrées de résultats conservées
   tasks_file: "data/scheduled_tasks.json"
   output_directory: "outputs/scheduled"
+  lock_file: "data/scheduler.lock"          # verrou inter-processus
+  background_interval_minutes: 5            # sondage du runner Windows
+  windows_task_name: "My_AI Scheduler"      # nom de la tâche Planificateur
   notify_desktop: true          # toast OS (winotify/plyer) sinon toast in-app
   notify_mobile: true           # message WebSocket aux mobiles connectés
 ```
@@ -146,6 +192,7 @@ n'est pas transmis.
 | Fichier                                | Rôle                                            |
 |----------------------------------------|-------------------------------------------------|
 | `core/scheduler.py`                    | `SchedulerService` + `get_scheduler()`          |
+| `core/scheduler_runner.py`             | Runner headless + intégration Planificateur Windows |
 | `interfaces/agents/scheduler_ui.py`    | UI de gestion (mixin de `AgentsInterface`)      |
 | `data/scheduled_tasks.json`            | Définitions + historique des tâches             |
 | `outputs/scheduled/*.md`               | Rapports de résultats                           |
