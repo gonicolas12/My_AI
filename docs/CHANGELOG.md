@@ -1,5 +1,52 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 📅 Version 7.8.0 — Scheduler proactif (tâches planifiées) (18 Juin 2026)
+
+### My_AI devient proactif
+
+Jusqu'ici l'assistant était **réactif** : vous lanciez chaque agent, workflow ou débat à la main. Cette version ajoute un **planificateur** (type cron) qui exécute vos agents **automatiquement et de façon récurrente**, puis vous notifie du résultat — sans réimplémenter l'exécution (elle est déléguée à l'`AgentRelayService` existant).
+
+> Exemples : « chaque matin à 8h, WebAgent sur l'actu IA et résume », « tous les lundis, audit sécurité du dossier X », « toutes les heures, surveille … ».
+
+#### 🧠 SchedulerService — `core/scheduler.py` (nouveau)
+
+- **Boucle de thread maison** (daemon) qui vit tant que le **GUI** ou le **Relay** est lancé — 100% local, **aucun service système**.
+- **Délègue l'exécution** à `relay/agent_relay.py` (`run_workflow` / `run_debate`) : single / séquentiel / parallèle / DAG / débat, via un *emit-collector* qui reconstruit le rapport final.
+- **Persistance JSON** `data/scheduled_tasks.json` (écriture atomique, cohérent avec `data/custom_agents.json`) ; rapports `.md` dans `outputs/scheduled/`.
+- **Plannings** : quotidien (`HH:MM`), hebdomadaire (jours + `HH:MM`), intervalle, **cron** (via `croniter`, optionnel — les presets fonctionnent sans).
+- **Tâches manquées** (app fermée à l'heure prévue) : exécutées une fois au prochain démarrage si dans la fenêtre `catch_up_window_hours` et si `run_if_missed`.
+- **Défer-on-busy** : si l'exécuteur est occupé (workflow lancé par l'utilisateur ou le mobile), l'exécution planifiée est différée au tick suivant → pas de double charge LLM concurrente sur Ollama.
+- Singleton `get_scheduler()` (modèle `get_config()`), partage de l'exécuteur du Relay via `set_executor`.
+
+#### 🖥️ Exécution en arrière-plan (appli fermée) — `core/scheduler_runner.py` (nouveau)
+
+- Intégration optionnelle au **Planificateur de tâches Windows** : un **runner headless** s'exécute toutes les N minutes (`SchedulerService.run_once()`) et lance les tâches dues **même l'application fermée**, tant que la session Windows est ouverte — **sans droits admin ni mot de passe stocké**.
+- Activable d'un clic depuis la page Agents (**« 🖥️ Exécuter même l'appli fermée »**) ou en CLI (`python core/scheduler_runner.py --register [N]`).
+- **Verrou inter-processus** `data/scheduler.lock` (avec heartbeat) : le scheduler in-process (GUI/Relay) et le runner Windows ne lancent **jamais** la même tâche deux fois.
+- Limite physique : ne couvre pas un PC **éteint / en veille** (les tâches manquées sont alors rattrapées au retour).
+
+#### 🔌 Démarrage & notifications
+
+- **GUI** (`interfaces/gui/base.py`) : démarrage au lancement + **toast in-app** non-bloquant (auto-effacé, clic = ouvre le rapport) — affiché seulement si l'OS n'a pas déjà montré de notification native.
+- **Relay** (`relay/relay_server.py`) : démarrage dans `start()` en **partageant** son `AgentRelayService` (même gate `_busy` que le mobile) + **broadcast WebSocket** chiffré `scheduled_task_result` aux mobiles connectés. Le scheduler tourne donc aussi en **Relay standalone**.
+- **Notification OS** native optionnelle via `winotify` / `plyer` (import optionnel, fallback in-app).
+
+#### 🖥️ UI de gestion — `interfaces/agents/scheduler_ui.py` (nouveau)
+
+- Section **📅 Tâches planifiées** en bas de la page **Agents** : liste (planning lisible, prochaine/dernière exécution, statut coloré), **activer/désactiver**, **▶ exécuter maintenant**, **📝 éditer**, **✕ supprimer**.
+- **Dialogue créer/éditer** : source = *agent seul* / *workflow du canvas* (`WorkflowCanvas.to_dict()`) / *débat* ; prompt ; planning à paramètres dynamiques ; option *rattraper si manquée*.
+
+#### Autres changements
+
+- `config.yaml` : nouvelle section **`scheduler:`**.
+- `requirements.txt` : ajout de `croniter>=2.0.0` (cron) ; `winotify` / `plyer` documentés en option (toast OS).
+- `tests/test_scheduler.py` : 24 tests (exécuteur factice, sans LLM ; incl. verrou + runner).
+- `.gitignore` : `data/scheduled_tasks.json` + `data/scheduler.lock` (données locales).
+- Documentation : `docs/SCHEDULER.md`.
+- Version du projet → **7.8.0**.
+
+---
+
 # 🎙️ Version 7.6.0 — Sortie vocale, Assistant de configuration & Panneau Réglages (16 Juin 2026)
 
 ### Trois nouveautés pour une expérience plus fluide

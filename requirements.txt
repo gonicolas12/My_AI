@@ -138,6 +138,19 @@ python-multipart>=0.0.9
 qrcode[pil]>=7.4.0
 
 # ====================================
+# SCHEDULER (tâches planifiées / proactif)
+# ====================================
+# croniter : parsing des expressions cron (planning de type "cron").
+# Les plannings daily / weekly / interval fonctionnent sans.
+croniter>=2.0.0
+# Notification desktop native (toast OS) — fallback toast in-app si absent.
+# winotify : toast Windows (installé par défaut sous Windows ; nécessaire pour
+# voir les notifications quand l'appli est fermée — runner en arrière-plan).
+winotify>=1.1.0; platform_system == "Windows"
+# plyer : alternative cross-plateforme (Linux/macOS) — décommenter si besoin.
+# plyer>=2.1.0
+
+# ====================================
 # DÉTECTION DE LANGUE
 # ====================================
 langdetect>=1.0.9

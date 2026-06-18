@@ -46,6 +46,10 @@ data/rlhf_training_data.jsonl
 # Agents customisés
 data/custom_agents.json
 
+# Tâches planifiées (scheduler proactif — données locales par utilisateur)
+data/scheduled_tasks.json
+data/scheduler.lock
+
 # Marqueur d'onboarding (état local : empêche le wizard de se réafficher)
 data/.onboarding_done
 

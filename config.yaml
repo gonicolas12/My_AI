@@ -5,7 +5,7 @@
 # ====================================
 ai:
   name: "My Personal AI"
-  version: "7.7.0"
+  version: "7.8.0"
   description: "IA personnelle locale complète"
   
   # Paramètres généraux
@@ -411,6 +411,43 @@ knowledge_base:
   directory: "data/knowledge_base"
   auto_extract: true
   max_facts: 10000
+
+# ====================================
+# SCHEDULER (exécution récurrente d'agents/workflows)
+# ====================================
+# Transforme l'assistant réactif en assistant proactif : planifie des agents,
+# workflows visuels ou débats de façon récurrente (type cron). 100% local — la
+# boucle tourne tant que le GUI ou le Relay est lancé (pas de service système).
+scheduler:
+  # Active la boucle de planification au démarrage du GUI / Relay.
+  enabled: true
+  # Intervalle (secondes) entre deux vérifications des tâches dues (min 5).
+  check_interval: 30
+  # Exécuter au prochain démarrage les tâches dont l'échéance a été manquée
+  # (app fermée à l'heure prévue).
+  run_missed_on_startup: true
+  # Ne rattraper que les tâches manquées dans cette fenêtre (heures). Au-delà,
+  # la tâche est simplement resynchronisée sur sa prochaine échéance.
+  catch_up_window_hours: 24
+  # Nombre d'entrées d'historique de runs conservées dans le fichier JSON.
+  max_history: 200
+  # Persistance des définitions de tâches (cohérent avec data/custom_agents.json).
+  tasks_file: "data/scheduled_tasks.json"
+  # Répertoire des rapports de résultats (un .md par exécution).
+  output_directory: "outputs/scheduled"
+  # Verrou inter-processus (coordination GUI/Relay <-> runner Windows).
+  lock_file: "data/scheduler.lock"
+  # Exécution en arrière-plan (Planificateur de tâches Windows) : le runner
+  # headless s'exécute toutes les N minutes même appli fermée. Activable via le
+  # bouton « Exécuter même l'appli fermée » de la page Agents. Voir
+  # core/scheduler_runner.py et docs/SCHEDULER.md.
+  background_interval_minutes: 5
+  windows_task_name: "My_AI Scheduler"
+  # Notification OS à la fin d'une tâche (winotify/plyer si installés, sinon
+  # toast in-app dans le GUI). Voir requirements.txt.
+  notify_desktop: true
+  # Diffuser un message WebSocket aux mobiles connectés (via le Relay).
+  notify_mobile: true
 
 # ====================================
 # HISTORIQUE COMMANDES
