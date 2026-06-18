@@ -673,6 +673,7 @@ function addMessage(text, isUser, timestamp) {
       '<div class="ai-icon">&#x1F916;</div>' +
       '<div class="bubble">' + renderMarkdown(text) +
       '<span class="time">' + time + '</span></div>';
+    attachArtifactButton(msg.querySelector('.bubble'), text);
   }
 
   messagesEl.appendChild(msg);
@@ -746,6 +747,7 @@ function finalizeStreaming(mid, finalText, timestamp) {
       '<div class="ai-icon">&#x1F916;</div>' +
       '<div class="bubble">' + renderMarkdown(finalText) +
       '<span class="time">' + time + '</span></div>';
+    attachArtifactButton(streamingMessageEl.querySelector('.bubble'), finalText);
   }
   streamingMessageEl = null;
   streamingMessageId = null;
@@ -964,6 +966,128 @@ function renderMarkdown(text) {
   html = html.replace(/<p>\s*<hr>/g, '<hr>');
 
   return html;
+}
+
+// ═══════════════════════════════════════════════════
+// ARTIFACTS (aperçu live HTML/SVG, façon Claude Artifacts)
+// Détection client-side miroir de interfaces/artifacts.py. Rendu dans une
+// <iframe sandbox> via srcdoc → 100% local, aucune requête réseau.
+// ═══════════════════════════════════════════════════
+
+var ARTIFACT_FENCE_RE = /```([\w+#.-]+)?[ \t]*\n?([\s\S]*?)```/g;
+var ARTIFACT_HTML_HINT = /<!doctype html|<html[\s>]|<body[\s>]|<head[\s>]|<div[\s>]|<table[\s>]/i;
+var ARTIFACT_SVG_HINT = /<svg[\s>]/i;
+
+function detectArtifacts(text) {
+  if (!text || text.indexOf('```') === -1) return [];
+  var artifacts = [];
+  var m;
+  ARTIFACT_FENCE_RE.lastIndex = 0;
+  while ((m = ARTIFACT_FENCE_RE.exec(text)) !== null) {
+    var lang = (m[1] || '').toLowerCase().trim();
+    var code = (m[2] || '').trim();
+    if (!code) continue;
+    var kind = null;
+    if (lang === 'svg' || (ARTIFACT_SVG_HINT.test(code.slice(0, 300)) && ARTIFACT_SVG_HINT.test(code))) {
+      kind = 'svg';
+    } else if (lang === 'html' || lang === 'htm' || lang === 'xhtml') {
+      kind = 'html';
+    } else if ((lang === 'xml' || lang === '' || ['html', 'htm', 'xhtml'].indexOf(lang) === -1) && ARTIFACT_HTML_HINT.test(code)) {
+      kind = 'html';
+    }
+    if (!kind) continue;
+    artifacts.push({ kind: kind, code: code, title: deriveArtifactTitle(code, kind, artifacts.length) });
+  }
+  return artifacts;
+}
+
+function deriveArtifactTitle(code, kind, index) {
+  var t = code.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (t && t[1].trim()) return t[1].trim().slice(0, 80);
+  var h = code.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  if (h) {
+    var txt = h[1].replace(/<[^>]+>/g, '').trim();
+    if (txt) return txt.slice(0, 80);
+  }
+  return (kind === 'svg' ? 'SVG #' : 'Page HTML #') + (index + 1);
+}
+
+function buildArtifactDoc(art) {
+  var head = art.code.replace(/^\s+/, '').slice(0, 200).toLowerCase();
+  var isFullDoc = head.indexOf('<!doctype') === 0 || head.indexOf('<html') === 0 || head.slice(0, 50).indexOf('<html') !== -1;
+  if (art.kind === 'html' && isFullDoc) return art.code;
+  var body = art.kind === 'svg'
+    ? '<div style="display:flex;justify-content:center">' + art.code + '</div>'
+    : art.code;
+  return '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<style>html,body{margin:0;padding:0}body{background:#212121;color:#fff;' +
+    'font-family:"Segoe UI",system-ui,sans-serif;padding:16px;box-sizing:border-box}</style>' +
+    '</head><body>' + body + '</body></html>';
+}
+
+// Ajoute un bouton « Aperçu » dans une bulle IA si elle contient un artifact.
+function attachArtifactButton(bubbleEl, text) {
+  if (!bubbleEl) return;
+  var artifacts = detectArtifacts(text);
+  if (!artifacts.length) return;
+  var first = artifacts[0];
+  var btn = document.createElement('button');
+  btn.className = 'artifact-btn';
+  btn.type = 'button';
+  btn.innerHTML = '&#x1F50D; Aperçu' + (artifacts.length > 1 ? ' (' + artifacts.length + ')' : '');
+  btn.onclick = function () { openArtifactPreview(first); };
+  bubbleEl.appendChild(btn);
+}
+
+function ensureArtifactOverlay() {
+  var overlay = document.getElementById('artifactOverlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.className = 'artifact-overlay';
+  overlay.id = 'artifactOverlay';
+  overlay.innerHTML =
+    '<div class="artifact-modal">' +
+      '<div class="artifact-head">' +
+        '<span class="artifact-title" id="artifactTitle">Aperçu</span>' +
+        '<div class="artifact-tools">' +
+          '<button class="artifact-tool" id="artifactOpenBtn" title="Ouvrir dans le navigateur">&#x1F310;</button>' +
+          '<button class="artifact-tool" id="artifactCloseBtn" title="Fermer">&#x2716;</button>' +
+        '</div>' +
+      '</div>' +
+      '<iframe class="artifact-frame" id="artifactFrame" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#artifactCloseBtn').onclick = closeArtifactPreview;
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closeArtifactPreview();
+  });
+  return overlay;
+}
+
+function openArtifactPreview(art) {
+  var overlay = ensureArtifactOverlay();
+  var doc = buildArtifactDoc(art);
+  overlay.querySelector('#artifactTitle').textContent = art.title || 'Aperçu';
+  var frame = overlay.querySelector('#artifactFrame');
+  frame.srcdoc = doc;
+  // Fallback « Ouvrir dans le navigateur » : Blob local, nouvel onglet.
+  overlay.querySelector('#artifactOpenBtn').onclick = function () {
+    try {
+      var blob = new Blob([doc], { type: 'text/html' });
+      window.open(URL.createObjectURL(blob), '_blank', 'noopener');
+    } catch (err) { /* no-op */ }
+  };
+  overlay.classList.add('active');
+}
+
+function closeArtifactPreview() {
+  var overlay = document.getElementById('artifactOverlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+    var frame = overlay.querySelector('#artifactFrame');
+    if (frame) frame.srcdoc = '';
+  }
 }
 
 // ═══════════════════════════════════════════════════
