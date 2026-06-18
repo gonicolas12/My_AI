@@ -515,3 +515,9 @@ network:
 # ====================================
 github:
   token: "${GITHUB_TOKEN}"
+
+# ====================================
+# TAVILY (optional, for web search)
+# ====================================
+tavily:
+  api_key: "${TAVILY_API_KEY}"
