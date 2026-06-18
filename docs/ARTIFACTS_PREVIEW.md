@@ -37,32 +37,55 @@ mêmes titres déduits via `<title>` puis `<h1>`).
 
 ## Rendu desktop — choix du moteur
 
-**Décision : `tkinterweb` embarqué + fallback navigateur systématique.**
+**Décision : Edge `--app` embarqué (rendu Chromium EXACT), avec repli
+tkinterweb puis code source.**
 
-| Option | Avantages | Inconvénients |
-|---|---|---|
-| **tkinterweb** *(retenu)* | Volet réellement **embarqué** dans le GUI, léger, pur Python, pas de fenêtre séparée | **CSS limité** (pas de flexbox/grid complet, JS quasi inexistant) |
-| pywebview (WebView2/Edge) | Fidélité CSS/JS **totale** | Ouvre une **fenêtre séparée** (pas un vrai volet « à côté du chat »), dépendance plus lourde |
-| Navigateur uniquement | Le plus simple, 100% fiable, fidélité totale | Pas de panneau intégré |
+Le moteur est sélectionné dans cet ordre par
+[`artifacts_panel.py`](../interfaces/gui/artifacts_panel.py) :
+
+| Priorité | Moteur | Rendu | Notes |
+|---|---|---|---|
+| 1 | **Edge `--app` embarqué** | **Exact** (Chromium) | Windows ; **aucune dépendance Python** (réutilise Edge + WebView2 déjà présents) |
+| 2 | tkinterweb | Approximatif | Pur Python, CSS limité (pas de flexbox/grid/JS) — bandeau d'avertissement affiché |
+| 3 | Code source + bouton 🌐 | — | Dernier recours |
+
+### Comment fonctionne l'embarquement Edge
+
+[`_edge_embed.py`](../interfaces/gui/_edge_embed.py) lance
+`msedge.exe --app=file://…/outputs/artifacts/artifact_*.html` avec un profil
+temporaire dédié, repère la **nouvelle** fenêtre Chromium (classe
+`Chrome_WidgetWin_1`) par diff avant/après lancement, puis la **ré-parente**
+dans le widget du volet via l'API Win32 `SetParent` (en retirant bordure et
+barre de titre). La fenêtre est redimensionnée avec le volet (`<Configure>`)
+et le processus Edge est fermé à la fermeture du volet ou de l'application.
 
 ### Compromis assumé
 
-`tkinterweb` rend le HTML/CSS **simple** correctement (titres, paragraphes,
-tableaux, couleurs, images, SVG basique) mais ne gère pas la mise en page
-moderne (flexbox/grid) ni le JavaScript. Pour ces cas, le bouton
-**« 🌐 Ouvrir dans le navigateur »** ouvre le fichier généré
-(`outputs/artifacts/artifact_*.html`) dans le navigateur par défaut, avec une
-**fidélité totale**.
+- **Windows uniquement** : le ré-parentage `SetParent` est spécifique à Win32.
+  Sur les autres OS, on retombe automatiquement sur tkinterweb puis le code
+  source + bouton navigateur.
+- **Hack natif** : juggling de `HWND` entre processus — robuste mais peut
+  présenter de légers artefacts (z-order/redimensionnement) dans des cas
+  limites ; tout échec est silencieux et déclenche le repli.
+- **Ressources externes** : comme c'est un vrai Chromium, un artifact qui
+  référence un CDN (police Google, etc.) **chargera** cette ressource — c'est
+  le prix du « rendu exact ». L'IA, elle, reste 100% locale.
 
-### Dégradation propre
+### Pourquoi pas pywebview / PySide6 (QtWebEngine) ?
 
-`tkinterweb` est une **dépendance optionnelle**. S'il est absent, le volet
-affiche un message d'aide (`pip install tkinterweb`) + le **code source** de
-l'artifact, et le bouton « Ouvrir dans le navigateur » reste pleinement
-fonctionnel. Le rendu embarqué n'est donc jamais bloquant.
+Tous deux donnent un rendu Chromium exact, mais :
+- **pywebview** ouvre une fenêtre séparée (boucle d'événements bloquante sur le
+  thread principal, difficile à embarquer dans Tk) ;
+- **PySide6 + QtWebEngine** embarquerait, mais ajoute une dépendance lourde
+  (plusieurs centaines de Mo), en tension avec la promesse « léger ».
+
+Edge `--app` embarqué donne le **rendu exact sans aucune dépendance Python
+supplémentaire**.
+
+### Repli léger optionnel
 
 ```bash
-pip install tkinterweb   # active le rendu embarqué (sinon : fallback navigateur)
+pip install tkinterweb   # moteur de repli si Edge indisponible (rendu approximatif)
 ```
 
 ## Rendu mobile
@@ -80,6 +103,10 @@ texte déjà reçu, ce qui évite tout état côté serveur et reste 100% local.
 
 ## Limitations connues
 
-- `tkinterweb` : pas de flexbox/grid/JS → utiliser le fallback navigateur.
-- Les ressources externes (CDN, polices distantes) ne sont volontairement pas
-  chargées (confidentialité) ; un artifact qui en dépend s'affichera dégradé.
+- **Edge embarqué** : Windows uniquement ; ré-parentage natif (`SetParent`)
+  pouvant présenter de légers artefacts dans des cas limites.
+- **tkinterweb** (repli) : pas de flexbox/grid/JS → utiliser le bouton 🌐.
+- Côté **desktop**, le rendu exact (Edge) charge les ressources externes
+  référencées par l'artifact (CDN, polices). Côté **mobile**, l'iframe
+  `srcdoc` ne charge rien d'extérieur par défaut au-delà de ce que le HTML
+  demande explicitement.
