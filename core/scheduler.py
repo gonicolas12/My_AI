@@ -221,7 +221,7 @@ class SchedulerService:
         self._started = False
         self._current_exec_id: Optional[str] = None
 
-        self._data: Dict[str, Any] = {"version": "7.7.0", "tasks": [], "history": []}
+        self._data: Dict[str, Any] = {"version": "7.8.0", "tasks": [], "history": []}
         self._load()
 
         logger.info(
