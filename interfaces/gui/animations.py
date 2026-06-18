@@ -486,24 +486,15 @@ class AnimationsMixin:
                 if last is not None and abs(event.width - last) < 4:
                     return  # largeur inchangée → pas de re-wrap → rien à faire
                 w._last_reflow_width = event.width
-                aid = getattr(w, "_reflow_after_id", None)
-                if aid is not None:
-                    try:
-                        self.root.after_cancel(aid)
-                    except Exception:
-                        pass
-
-                def _do():
-                    if not w.winfo_exists():
-                        return
+                # Recalcul SYNCHRONE immédiat (pas de debounce) pour éviter tout
+                # délai visible. La garde « largeur uniquement » ci-dessus empêche
+                # la boucle : configure(height=…) ne change que la hauteur.
+                if w.winfo_exists():
                     self._adjust_height_final_no_scroll(w)
-                    # Si le volet Artifacts est ouvert, recoller le scroll en bas.
                     if getattr(self, "_artifacts_visible", False):
                         restore = getattr(self, "_restore_chat_scroll_bottom", None)
                         if restore:
                             restore()
-
-                w._reflow_after_id = self.root.after(90, _do)
             except Exception:
                 pass
 
