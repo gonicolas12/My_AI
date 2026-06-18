@@ -641,6 +641,8 @@ class MessageBubblesMixin:
                 text_widget.configure(state="disabled")
                 self._adjust_height_final_no_scroll(text_widget)
                 self._reactivate_text_scroll(text_widget)
+                if hasattr(self, "make_text_widget_responsive"):
+                    self.make_text_widget_responsive(text_widget)
                 self._show_timestamp_for_current_message()
             else:
                 # Démarrer l'animation de frappe avec hauteur dynamique

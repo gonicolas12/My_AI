@@ -1754,6 +1754,14 @@ class StreamingMixin:
                 except Exception as e:
                     print(f"⚠️ [RELAY] Erreur envoi réponse mobile: {e}")
 
+            # Rendre la bulle responsive : recalcul de hauteur si la largeur
+            # change (ouverture/resize du volet Artifacts, resize fenêtre).
+            try:
+                if hasattr(self, "typing_widget") and self.typing_widget is not None:
+                    self.make_text_widget_responsive(self.typing_widget)
+            except Exception:
+                pass
+
             # Afficher le timestamp
             self._show_timestamp_for_current_message()
 
