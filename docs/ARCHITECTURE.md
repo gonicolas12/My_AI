@@ -1375,6 +1375,7 @@ elif intent == "new_intent":
 - `OPTIMIZATION.md` - Optimisations performance
 - `ULTRA_10M_TOKENS.md` - Détails contexte 10M
 - `INTERNET_SEARCH.md` - Fonctionnalités recherche
+- `ARTIFACTS_PREVIEW.md` - Panneau « Artifacts » (aperçu live HTML/CSS/SVG)
 - `FAQ.md` - Questions fréquentes
 - `CHANGELOG.md` - Historique versions
 
