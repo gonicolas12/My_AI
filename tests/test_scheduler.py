@@ -68,6 +68,7 @@ def _make_service(tmp_path, executor=None, **overrides):
         "max_history": 5,
         "tasks_file": str(tmp_path / "scheduled_tasks.json"),
         "output_directory": str(tmp_path / "out"),
+        "lock_file": str(tmp_path / "scheduler.lock"),
         "notify_desktop": False,   # pas d'appel OS pendant les tests
         "notify_mobile": False,
     }
@@ -319,3 +320,53 @@ class TestHistoryCap:
         for _ in range(5):
             svc._fire(svc.get_task(task["id"]))
         assert len(svc.history()) == 3
+
+
+# ----------------------------------------------------------------------
+# Verrou inter-processus + exécution one-shot (runner headless)
+# ----------------------------------------------------------------------
+
+class TestCrossProcessLock:
+
+    def test_second_instance_blocked_then_freed(self, tmp_path):
+        svc1 = _make_service(tmp_path)
+        svc2 = _make_service(tmp_path)              # même lock_file
+        assert svc1._try_acquire_lock() is True
+        assert svc2._try_acquire_lock() is False    # détenu par svc1 (frais)
+        svc1._release_lock()
+        assert svc2._try_acquire_lock() is True      # libéré → acquisition OK
+        svc2._release_lock()
+
+    def test_reacquire_is_idempotent(self, tmp_path):
+        svc = _make_service(tmp_path)
+        assert svc._try_acquire_lock() is True
+        assert svc._try_acquire_lock() is True       # déjà détenteur
+        svc._release_lock()
+
+    def test_run_once_fires_when_free(self, tmp_path):
+        executor = FakeExecutor()
+        runner = _make_service(tmp_path, executor=executor)
+        task = runner.create_task(
+            name="X", kind="workflow", task="x",
+            schedule={"type": "interval", "seconds": 60}, nodes=_WF_NODE,
+        )
+        runner._data["tasks"][0]["next_run"] = (datetime.now() - timedelta(seconds=1)).isoformat()
+        assert runner.run_once() is True
+        assert executor.calls == [("workflow", "x")]
+        # Le verrou est libéré à la fin de run_once.
+        assert runner._try_acquire_lock() is True
+        runner._release_lock()
+
+    def test_run_once_skips_when_locked(self, tmp_path):
+        holder = _make_service(tmp_path)
+        holder._try_acquire_lock()                   # simule GUI/Relay actif
+        executor = FakeExecutor()
+        runner = _make_service(tmp_path, executor=executor)
+        task = runner.create_task(
+            name="X", kind="workflow", task="x",
+            schedule={"type": "interval", "seconds": 60}, nodes=_WF_NODE,
+        )
+        runner._data["tasks"][0]["next_run"] = (datetime.now() - timedelta(seconds=1)).isoformat()
+        assert runner.run_once() is False
+        assert executor.calls == []                  # rien exécuté
+        holder._release_lock()

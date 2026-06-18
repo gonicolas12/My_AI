@@ -435,6 +435,14 @@ scheduler:
   tasks_file: "data/scheduled_tasks.json"
   # Répertoire des rapports de résultats (un .md par exécution).
   output_directory: "outputs/scheduled"
+  # Verrou inter-processus (coordination GUI/Relay <-> runner Windows).
+  lock_file: "data/scheduler.lock"
+  # Exécution en arrière-plan (Planificateur de tâches Windows) : le runner
+  # headless s'exécute toutes les N minutes même appli fermée. Activable via le
+  # bouton « Exécuter même l'appli fermée » de la page Agents. Voir
+  # core/scheduler_runner.py et docs/SCHEDULER.md.
+  background_interval_minutes: 5
+  windows_task_name: "My_AI Scheduler"
   # Notification OS à la fin d'une tâche (winotify/plyer si installés, sinon
   # toast in-app dans le GUI). Voir requirements.txt.
   notify_desktop: true

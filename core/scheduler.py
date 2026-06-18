@@ -33,6 +33,7 @@ plus une tentative de toast OS native (``winotify`` / ``plyer``, optionnels).
 """
 
 import json
+import os
 import threading
 import uuid
 from datetime import datetime, timedelta
@@ -220,6 +221,18 @@ class SchedulerService:
         self._thread: Optional[threading.Thread] = None
         self._started = False
         self._current_exec_id: Optional[str] = None
+
+        # Verrou inter-processus : coordonne le scheduler in-process (GUI/Relay)
+        # et le runner headless lancé par le Planificateur de tâches Windows,
+        # pour qu'une même tâche ne soit JAMAIS exécutée deux fois. Le détenteur
+        # rafraîchit un « heartbeat » ; un verrou plus vieux que
+        # _lock_stale_seconds est considéré abandonné (process mort).
+        self._lock_path = self._resolve(cfg.get("lock_file", "data/scheduler.lock"))
+        self._lock_id = uuid.uuid4().hex
+        self._have_lock = False
+        self._lock_stale_seconds = max(self.check_interval * 3, 120)
+        self._hb_thread: Optional[threading.Thread] = None
+        self._hb_stop = threading.Event()
 
         self._data: Dict[str, Any] = {"version": "7.8.0", "tasks": [], "history": []}
         self._load()
@@ -553,6 +566,7 @@ class SchedulerService:
                 pass
         if self._thread is not None:
             self._thread.join(timeout=5)
+        self._release_lock()
 
     @property
     def is_running(self) -> bool:
@@ -563,12 +577,16 @@ class SchedulerService:
         # dans le thread dédié, la programmation reprend juste après).
         if self.run_missed_on_startup:
             try:
-                self._handle_missed()
+                if self._try_acquire_lock():
+                    self._handle_missed()
             except Exception:
                 logger.exception("Scheduler : rattrapage des tâches manquées échoué")
         while not self._stop_event.is_set():
             try:
-                self._tick()
+                # N'exécute que si on détient le verrou (sinon un runner Windows
+                # ou une autre instance est actif : on lui laisse la main).
+                if self._try_acquire_lock():
+                    self._tick()
             except Exception:
                 logger.exception("Scheduler : tick échoué")
             self._stop_event.wait(self.check_interval)
@@ -784,6 +802,100 @@ class SchedulerService:
             return True
         except Exception:
             return False
+
+    # ------------------------------------------------------------------
+    # Verrou inter-processus + exécution one-shot (runner headless)
+    # ------------------------------------------------------------------
+
+    def _read_lock(self) -> Optional[Dict[str, Any]]:
+        try:
+            with open(self._lock_path, "r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _write_lock(self) -> None:
+        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._lock_path.with_suffix(".lock.tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"owner": self._lock_id, "pid": os.getpid(),
+                       "heartbeat": datetime.now().isoformat()}, fh)
+        tmp.replace(self._lock_path)
+
+    def _lock_held_by_other(self) -> bool:
+        data = self._read_lock()
+        if not data or data.get("owner") == self._lock_id:
+            return False
+        hb = _parse_dt(data.get("heartbeat"))
+        if hb is None:
+            return False
+        return (datetime.now() - hb).total_seconds() < self._lock_stale_seconds
+
+    def _try_acquire_lock(self) -> bool:
+        """Tente de devenir le scheduler actif. Idempotent si déjà détenteur."""
+        with self._lock:
+            if self._have_lock:
+                return True
+            if self._lock_held_by_other():
+                return False
+            try:
+                self._write_lock()
+            except OSError as exc:
+                logger.warning("Écriture du verrou scheduler échouée : %s", exc)
+                return False
+            self._have_lock = True
+            self._start_heartbeat()
+            return True
+
+    def _start_heartbeat(self) -> None:
+        if self._hb_thread is not None and self._hb_thread.is_alive():
+            return
+        self._hb_stop.clear()
+        self._hb_thread = threading.Thread(
+            target=self._heartbeat_loop, daemon=True, name="SchedulerHeartbeat"
+        )
+        self._hb_thread.start()
+
+    def _heartbeat_loop(self) -> None:
+        interval = max(15, self.check_interval)
+        while not self._hb_stop.is_set() and self._have_lock:
+            try:
+                self._write_lock()
+            except OSError:
+                pass
+            self._hb_stop.wait(interval)
+
+    def _release_lock(self) -> None:
+        with self._lock:
+            was_owner = self._have_lock
+            self._have_lock = False
+            self._hb_stop.set()
+        if not was_owner:
+            return
+        data = self._read_lock()
+        if data and data.get("owner") == self._lock_id:
+            try:
+                self._lock_path.unlink()
+            except OSError:
+                pass
+
+    def run_once(self) -> bool:
+        """Exécute UN passage de planification puis rend la main (runner headless).
+
+        Acquiert le verrou ; si un autre scheduler (GUI/Relay ou autre runner)
+        est actif, ne fait rien et retourne False. Sinon : rattrape les tâches
+        manquées + exécute les tâches dues, puis libère le verrou.
+        """
+        if not self._try_acquire_lock():
+            logger.info("Scheduler déjà actif (verrou détenu) — runner ignoré.")
+            return False
+        try:
+            if self.run_missed_on_startup:
+                self._handle_missed()
+            self._tick()
+            return True
+        finally:
+            self._release_lock()
 
 
 # ======================================================================
