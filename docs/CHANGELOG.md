@@ -1,8 +1,33 @@
 # 📋 CHANGELOG - My Personal AI
 
-# 📅 Version 7.8.0 — Scheduler proactif (tâches planifiées) (18 Juin 2026)
+# 🎨 Version 7.7.0 — Artifacts live & Scheduler proactif (18 Juin 2026)
 
-### My_AI devient proactif
+### Voir le rendu en direct, et laisser l'IA travailler toute seule
+
+Deux grandes nouveautés : un **panneau Artifacts** qui affiche le rendu **live** du HTML/CSS/SVG généré par l'IA (façon *Claude Artifacts*), et un **scheduler proactif** qui exécute vos agents et workflows **automatiquement, de façon récurrente** (type cron). Le tout **100% local**.
+
+## 🎨 Aperçu Artifacts (HTML / CSS / SVG)
+
+Quand l'IA produit du HTML/CSS/SVG, un volet de **prévisualisation live** s'ouvre à côté du chat — sur le **GUI desktop** et sur le **mobile Relay**.
+
+#### Desktop — `interfaces/gui/artifacts_panel.py`, `interfaces/gui/_edge_embed.py` (nouveaux)
+
+- Bouton **« 🔍 Aperçu »** sous chaque réponse IA contenant un artifact rendable.
+- **Rendu Chromium EXACT via Edge `--app` embarqué** : la fenêtre Edge est ré-parentée dans un volet redimensionnable (Win32 `SetParent`, barre de titre masquée) — **sans aucune dépendance Python supplémentaire** (réutilise Edge/WebView2 déjà installés).
+- **Replis automatiques** : `tkinterweb` (pur Python, rendu approximatif) puis code source + bouton 🌐. L'embarquement exact est Windows-only.
+- Bulles IA **responsives** : hauteur recalculée au redimensionnement du volet.
+
+#### Mobile (Relay) — `relay/static/app.js`
+
+- Aperçu via **`<iframe sandbox>`** (`srcdoc`, sans `allow-same-origin`) : isolation forte, **aucune requête réseau** ; bouton **« 🌐 »** pour ouvrir dans un onglet via un `Blob` local.
+
+#### Détection partagée — `interfaces/artifacts.py` (nouveau)
+
+- Réutilise les blocs de code Markdown : rend `html` / `svg` (ou contenu ressemblant à du HTML/SVG), ignore JSON/Python/etc. La logique JS du mobile est un miroir exact.
+
+> Détails et compromis du moteur : [docs/ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md).
+
+## 📅 Scheduler proactif (tâches planifiées)
 
 Jusqu'ici l'assistant était **réactif** : vous lanciez chaque agent, workflow ou débat à la main. Cette version ajoute un **planificateur** (type cron) qui exécute vos agents **automatiquement et de façon récurrente**, puis vous notifie du résultat — sans réimplémenter l'exécution (elle est déléguée à l'`AgentRelayService` existant).
 
@@ -39,11 +64,11 @@ Jusqu'ici l'assistant était **réactif** : vous lanciez chaque agent, workflow 
 #### Autres changements
 
 - `config.yaml` : nouvelle section **`scheduler:`**.
-- `requirements.txt` : ajout de `croniter>=2.0.0` (cron) ; `winotify` / `plyer` documentés en option (toast OS).
+- `requirements.txt` : `croniter>=2.0.0` (cron) et `winotify` (toast Windows, notifications appli fermée) ; `tkinterweb` (repli artifacts) et `plyer` en option.
 - `tests/test_scheduler.py` : 24 tests (exécuteur factice, sans LLM ; incl. verrou + runner).
 - `.gitignore` : `data/scheduled_tasks.json` + `data/scheduler.lock` (données locales).
-- Documentation : `docs/SCHEDULER.md`.
-- Version du projet → **7.8.0**.
+- Documentation : `docs/ARTIFACTS_PREVIEW.md`, `docs/SCHEDULER.md`.
+- Version du projet → **7.7.0**.
 
 ---
 

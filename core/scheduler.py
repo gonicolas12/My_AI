@@ -234,7 +234,7 @@ class SchedulerService:
         self._hb_thread: Optional[threading.Thread] = None
         self._hb_stop = threading.Event()
 
-        self._data: Dict[str, Any] = {"version": "7.8.0", "tasks": [], "history": []}
+        self._data: Dict[str, Any] = {"version": "7.7.0", "tasks": [], "history": []}
         self._load()
 
         logger.info(

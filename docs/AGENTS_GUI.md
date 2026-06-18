@@ -125,6 +125,25 @@ Chaque ligne comporte :
 > **Ordre de détection :** NVIDIA pynvml → NVIDIA GPUtil → AMD pyamdgpuinfo → AMD rocm-smi → Windows WMI.
 > Sans aucun de ces packages, GPU et VRAM affichent "N/A".
 
+#### 6️⃣ **Tâches Planifiées (Scheduler proactif)**
+
+En bas de la page, la section **📅 Tâches planifiées** permet de transformer l'assistant
+réactif en assistant **proactif** : exécuter un agent, un workflow ou un débat **automatiquement
+et de façon récurrente** (type cron).
+
+- **➕ Nouvelle tâche** : nom · **source** (*agent seul* / *workflow du canvas courant* / *débat*) ·
+  prompt · **planning** (quotidien `HH:MM` / hebdomadaire / intervalle / **cron**) · option
+  *rattraper si manquée*.
+- Chaque tâche affiche son **planning**, sa **prochaine** et sa **dernière exécution** + statut
+  coloré. Boutons : **activer/désactiver**, **▶ exécuter maintenant**, **📝 éditer**, **✕ supprimer**.
+- **🖥️ Exécuter même l'appli fermée** (Windows) : enregistre une tâche du Planificateur de tâches
+  Windows qui lance les tâches dues même quand l'application est fermée (session ouverte).
+- À la fin d'une exécution : **notification** (toast OS / in-app), entrée dans la liste, et rapport
+  `.md` dans `outputs/scheduled/`.
+
+> Détails complets (plannings, rattrapage, exécution en arrière-plan, notifications) :
+> [docs/SCHEDULER.md](SCHEDULER.md).
+
 ## ⏹️ Bouton Stop
 
 Pendant la génération, le bouton **▶ Exécuter** se transforme en bouton **■ Stop** :

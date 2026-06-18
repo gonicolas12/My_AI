@@ -21,6 +21,8 @@ My Personal AI v7.7.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
+- **Scheduler proactif** : Exécution récurrente d'agents/workflows (type cron) via `core/scheduler.py` — tourne tant que le GUI/Relay est lancé, ou **même appli fermée** via le Planificateur de tâches Windows (`core/scheduler_runner.py`). Réutilise `AgentRelayService` (aucune réimplémentation de l'exécution), persistance JSON, verrou inter-processus.
+- **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA — Edge `--app` embarqué (rendu Chromium exact) côté desktop, `<iframe sandbox>` côté mobile. Détection partagée dans `interfaces/artifacts.py`.
 - **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique façon Claude Code** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 

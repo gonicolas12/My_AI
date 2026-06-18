@@ -36,8 +36,8 @@ Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répon
 **🔌 Intégration MCP (Model Context Protocol)**  
 Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
 
-**💼 Workspaces & Sessions**  
-Organisez vos conversations en espaces de travail isolés avec sauvegarde automatique.
+**📅 Tâches Planifiées (proactif)**  
+Planifiez vos agents et workflows en récurrence, exécution même l'application fermée.
 
 </td>
 <td width="50%">
@@ -78,6 +78,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🎓 **Feedback RLHF** | Notation 1-5 étoiles, feedback enregistré automatiquement |
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
+| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG à côté du chat |
 
 ### Agents — Interface dédiée
 
@@ -91,6 +92,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap |
 | 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
+| 📅 **Tâches planifiées** | Agents en récurrence, même l'appli fermée |
 
 </div>
 
@@ -152,6 +154,20 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Assistant de configuration** au tout premier démarrage : détecte le matériel (RAM, cœurs CPU, VRAM GPU), **recommande le modèle adapté** (priorité à la fluidité), le télécharge et crée le modèle personnalisé `my_ai` — fini l'édition manuelle de `config.yaml`/`Modelfile`
 - **Panneau ⚙️ Réglages** intégré : gestion des modèles Ollama (lister / pull / régénérer `my_ai`), température, fenêtre de contexte, timeout, langue, lecture auto — le tout en **préservant les commentaires** de `config.yaml`
 
+### 🎨 Aperçu Artifacts (HTML / CSS / SVG)
+
+- Quand l'IA génère du **HTML/CSS/SVG**, un bouton **« 🔍 Aperçu »** apparaît sous la réponse → un **volet de prévisualisation live** s'ouvre à côté du chat (façon *Claude Artifacts*)
+- **Desktop** : rendu **Chromium exact** via **Edge `--app` embarqué** (ré-parenté dans un volet redimensionnable, **sans dépendance Python supplémentaire**) ; replis automatiques `tkinterweb` puis code source + bouton 🌐
+- **Mobile (Relay)** : rendu en **`<iframe sandbox>`** isolée (aucune requête réseau), bouton 🌐 pour ouvrir dans un onglet
+- **100% local** — détails et compromis dans [docs/ARTIFACTS_PREVIEW.md](docs/ARTIFACTS_PREVIEW.md)
+
+### 📅 Tâches Planifiées (assistant proactif)
+
+- Planifiez l'exécution **récurrente** d'un **agent**, d'un **workflow** (canvas n8n) ou d'un **débat** : *quotidien*, *hebdomadaire*, *intervalle* ou **cron** — ex. « chaque matin 8h, WebAgent sur l'actu IA et résume »
+- **Exécution même l'application fermée** (option) via le **Planificateur de tâches Windows** — session ouverte, sans droits admin ni mot de passe stocké
+- **Rattrapage** des tâches manquées au redémarrage, **notifications** (toast OS + entrée GUI + message mobile), rapports `.md` dans `outputs/scheduled/`
+- 100% local, **réutilise l'orchestrateur d'agents existant** — voir [docs/SCHEDULER.md](docs/SCHEDULER.md)
+
 ---
 
 ## 💥 Capacités Techniques
@@ -195,6 +211,8 @@ my_ai/
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
+│   ├── scheduler.py                     # Scheduler proactif (tâches planifiées récurrentes)
+│   ├── scheduler_runner.py              # Runner headless + Planificateur de tâches Windows
 │   ├── session_manager.py               # Gestionnaire de workspaces/sessions
 │   ├── shared.py                        # Modules partagés
 │   ├── training_manager.py              # Training Manager moderne (pipeline complet)
@@ -225,6 +243,7 @@ my_ai/
 │   │   ├── file_handling.py             # Gestion des fichiers pour les agents
 │   │   ├── output_area.py               # Zone de sortie pour les agents
 │   │   ├── output_rendering.py          # Rendu de la sortie pour les agents
+│   │   ├── scheduler_ui.py              # UI des tâches planifiées (scheduler proactif)
 │   │   ├── stats_section.py             # Section de statistiques pour les agents
 │   │   ├── syntax_helper.py             # Aide syntaxique
 │   │   ├── task_input.py                # Interface de saisie des tâches pour les agents
@@ -232,6 +251,8 @@ my_ai/
 │   ├── gui/                             # Modules GUI (mixins)
 │   │   ├── __init__.py
 │   │   ├── animations.py                # Animations et transitions modernes
+│   │   ├── artifacts_panel.py           # Volet aperçu artifacts (Edge --app embarqué)
+│   │   ├── _edge_embed.py               # Embarquement Edge dans le volet (Win32 SetParent)
 │   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
 │   │   ├── chat_area.py                 # Zone de chat
 │   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
@@ -247,6 +268,7 @@ my_ai/
 │   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
 │   ├── agents_interface.py              # Interface Agents IA
+│   ├── artifacts.py                     # Détection/préparation des artifacts (partagé desktop/serveur)
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
 │   ├── onboarding.py                    # Assistant de premier lancement (wizard config)
@@ -520,6 +542,8 @@ code --install-extension gonicolas12.my-ai
 | [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
 | [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
 | [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide de l'interface graphique agents (canvas, monitoring) |
+| [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG (desktop Edge + mobile iframe) |
+| [📅 Tâches planifiées](docs/SCHEDULER.md) | Scheduler proactif : agents/workflows récurrents (cron) |
 | [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
 | [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |
@@ -542,6 +566,8 @@ code --install-extension gonicolas12.my-ai
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
+| 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG (Edge embarqué desktop, iframe mobile) |
+| 📅 **Scheduler proactif** | Agents/workflows planifiés (cron), même l'appli fermée |
 | ⚙️ **Réglages intégrés** | Gestion des modèles Ollama + paramètres |
 | 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
