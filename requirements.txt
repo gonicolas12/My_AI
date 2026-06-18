@@ -138,6 +138,18 @@ python-multipart>=0.0.9
 qrcode[pil]>=7.4.0
 
 # ====================================
+# SCHEDULER (tâches planifiées / proactif)
+# ====================================
+# croniter : parsing des expressions cron (planning de type "cron").
+# Les plannings daily / weekly / interval fonctionnent sans.
+croniter>=2.0.0
+# Notification desktop native (OPTIONNEL) — fallback toast in-app si absent.
+#   - Windows               : pip install winotify
+#   - cross-plateforme       : pip install plyer
+# winotify>=1.1.0
+# plyer>=2.1.0
+
+# ====================================
 # DÉTECTION DE LANGUE
 # ====================================
 langdetect>=1.0.9
