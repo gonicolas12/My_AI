@@ -143,10 +143,11 @@ qrcode[pil]>=7.4.0
 # croniter : parsing des expressions cron (planning de type "cron").
 # Les plannings daily / weekly / interval fonctionnent sans.
 croniter>=2.0.0
-# Notification desktop native (OPTIONNEL) — fallback toast in-app si absent.
-#   - Windows               : pip install winotify
-#   - cross-plateforme       : pip install plyer
-# winotify>=1.1.0
+# Notification desktop native (toast OS) — fallback toast in-app si absent.
+# winotify : toast Windows (installé par défaut sous Windows ; nécessaire pour
+# voir les notifications quand l'appli est fermée — runner en arrière-plan).
+winotify>=1.1.0; platform_system == "Windows"
+# plyer : alternative cross-plateforme (Linux/macOS) — décommenter si besoin.
 # plyer>=2.1.0
 
 # ====================================
