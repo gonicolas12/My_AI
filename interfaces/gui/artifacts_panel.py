@@ -147,9 +147,16 @@ class ArtifactsPanelMixin:
             delta = self._resize_start_x - e.x_root
             new_w = max(_PANEL_MIN, min(_PANEL_MAX, self._resize_start_w + delta))
             self._set_panel_width(new_w)
+            # Reflow debounced pendant le drag (évite de recalculer à chaque pixel).
+            self._schedule_reflow()
+
+        def _release(_e):
+            # Reflow final fiable au relâchement.
+            self._reflow_and_scroll()
 
         grip.bind("<Button-1>", _press)
         grip.bind("<B1-Motion>", _drag)
+        grip.bind("<ButtonRelease-1>", _release)
         # Survol : éclaircir la poignée
         grip.bind("<Enter>", lambda _e: grip.configure(bg=self.colors.get("accent", "#ff6b47")))
         grip.bind("<Leave>", lambda _e: grip.configure(bg=self.colors.get("border", "#404040")))
@@ -243,9 +250,9 @@ class ArtifactsPanelMixin:
         self.content_container.grid_columnconfigure(1, minsize=self._panel_width)
         self._artifacts_panel.grid()
         self._artifacts_visible = True
-        # Rétrécir la colonne chat re-wrappe les messages (hauteur change) et
-        # Tk replace le scroll en haut : on restaure la position bas pour que
-        # la fin du message (et le bouton Aperçu) reste visible.
+        # Rétrécir la colonne chat re-wrappe les messages : on recalcule les
+        # hauteurs (sinon le bas est rogné) puis on recolle le scroll en bas.
+        self._schedule_reflow(delay=60)
         self._restore_chat_scroll_bottom()
 
     def hide_artifacts_panel(self):
@@ -259,6 +266,8 @@ class ArtifactsPanelMixin:
             self._artifacts_panel.grid_remove()
         self.content_container.grid_columnconfigure(1, minsize=0)
         self._artifacts_visible = False
+        # Le chat reprend toute la largeur → recalculer les hauteurs + scroll.
+        self._schedule_reflow(delay=60)
         self._restore_chat_scroll_bottom()
 
     def _restore_chat_scroll_bottom(self):
@@ -289,6 +298,57 @@ class ArtifactsPanelMixin:
                 self.root.after(delay, _to_bottom)
         except Exception:
             pass
+
+    # ── Reflow responsive des bulles ───────────────────────────────────────
+
+    def _iter_text_widgets(self, widget):
+        """Itère récursivement sur les widgets tk.Text sous `widget`."""
+        try:
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Text):
+                    yield child
+                else:
+                    yield from self._iter_text_widgets(child)
+        except Exception:
+            return
+
+    def _reflow_chat_messages(self):
+        """Recalcule la hauteur des bulles IA après un changement de largeur.
+
+        Les bulles sont des tk.Text à hauteur fixe (en lignes) calculée à la
+        largeur du moment ; rétrécir la colonne chat re-wrappe le texte et
+        rognerait le bas. On réapplique la mesure pixel-perfect existante.
+        """
+        adjust = getattr(self, "_adjust_height_final_no_scroll", None)
+        if adjust is None:
+            return
+        for container in list(getattr(self, "_message_widgets", [])):
+            try:
+                if not container.winfo_exists():
+                    continue
+                for tw in self._iter_text_widgets(container):
+                    adjust(tw)
+            except Exception:
+                pass
+
+    def _reflow_and_scroll(self):
+        """Re-layout : recalcule les hauteurs puis recolle le scroll en bas."""
+        try:
+            self.root.update_idletasks()
+        except Exception:
+            pass
+        self._reflow_chat_messages()
+        self._restore_chat_scroll_bottom()
+
+    def _schedule_reflow(self, delay=140):
+        """Reflow debounced (utilisé pendant le drag de la poignée)."""
+        prev = getattr(self, "_reflow_after_id", None)
+        if prev is not None:
+            try:
+                self.root.after_cancel(prev)
+            except Exception:
+                pass
+        self._reflow_after_id = self.root.after(delay, self._reflow_and_scroll)
 
     def toggle_artifacts_panel(self):
         """Bascule l'affichage du volet."""
