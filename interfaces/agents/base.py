@@ -142,6 +142,9 @@ class BaseMixin:
         # Statistiques en bas
         self.create_stats_section(main_scroll)
 
+        # Tâches planifiées (scheduler proactif)
+        self.create_scheduler_section(main_scroll)
+
     def create_header(self, parent):
         """Crée l'en-tête de la page agents"""
         header_frame = self.create_frame(parent, fg_color=self.colors["bg_primary"])

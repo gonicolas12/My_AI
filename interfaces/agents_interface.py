@@ -16,6 +16,7 @@ from interfaces.agents.execution import ExecutionMixin
 from interfaces.agents.output_rendering import OutputRenderingMixin
 from interfaces.agents.custom_agents import CustomAgentsMixin
 from interfaces.agents.debate import DebateMixin
+from interfaces.agents.scheduler_ui import SchedulerMixin
 # Ré-exports publics pour la compatibilité ascendante.
 from interfaces.agents.syntax_helper import SyntaxColorHelper, SYNTAX_ANALYZER, SYNTAX_AVAILABLE  # noqa: F401  pylint: disable=unused-import
 
@@ -40,5 +41,6 @@ class AgentsInterface(
     OutputRenderingMixin,
     CustomAgentsMixin,
     DebateMixin,
+    SchedulerMixin,
 ):
     """Interface pour le système d'agents IA spécialisés."""
