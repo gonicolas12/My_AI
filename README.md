@@ -542,7 +542,7 @@ code --install-extension gonicolas12.my-ai
 | [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
 | [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
 | [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide de l'interface graphique agents (canvas, monitoring) |
-| [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG (desktop Edge + mobile iframe) |
+| [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG |
 | [📅 Tâches planifiées](docs/SCHEDULER.md) | Scheduler proactif : agents/workflows récurrents (cron) |
 | [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
@@ -566,7 +566,7 @@ code --install-extension gonicolas12.my-ai
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
-| 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG (Edge embarqué desktop, iframe mobile) |
+| 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG |
 | 📅 **Scheduler proactif** | Agents/workflows planifiés (cron), même l'appli fermée |
 | ⚙️ **Réglages intégrés** | Gestion des modèles Ollama + paramètres |
 | 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |
