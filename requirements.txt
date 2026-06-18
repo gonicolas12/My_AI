@@ -54,6 +54,8 @@ customtkinter>=5.2.0
 tkinterdnd2>=0.3.0
 pillow>=10.0.0
 pygments
+# Optionnel : rendu HTML embarqué du volet « Artifacts » (sinon fallback navigateur)
+tkinterweb>=3.23.0
 
 # Interface web (optionnel)
 streamlit>=1.42.0

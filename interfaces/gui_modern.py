@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from interfaces.gui import (
     AnimationsMixin,
+    ArtifactsPanelMixin,
     BaseGUI,
     ChatAreaMixin,
     FileHandlingMixin,
@@ -42,6 +43,7 @@ class ModernAIGUI(
     MarkdownFormattingMixin,
     FileHandlingMixin,
     StreamingMixin,
+    ArtifactsPanelMixin,
 ):
     """GUI Moderne (orchestrateur)."""
 
