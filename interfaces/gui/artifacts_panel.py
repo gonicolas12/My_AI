@@ -1,11 +1,16 @@
 """Volet « Artifacts » pour ModernAIGUI.
 
 Affiche un rendu live du HTML/CSS/SVG généré par l'IA, à côté du chat,
-façon Claude Artifacts. Rendu embarqué via ``tkinterweb`` quand disponible
-(léger, pur Python, mais CSS limité), avec un fallback systématique
-« Ouvrir dans le navigateur » pour la fidélité totale.
+façon Claude Artifacts.
 
-100% local : aucune ressource réseau n'est chargée.
+Moteur de rendu (ordre de préférence) :
+1. **Edge --app embarqué** (Windows) : Chromium, rendu EXACT, sans dépendance
+   Python supplémentaire — la fenêtre Edge est ré-parentée dans le volet.
+2. **tkinterweb** : moteur léger pur Python, rendu approximatif (CSS limité).
+3. **Fallback** : code source + bouton « Ouvrir dans le navigateur ».
+
+Le bouton 🌐 reste toujours disponible pour ouvrir le rendu exact dans le
+navigateur par défaut.
 """
 
 import tkinter as tk
@@ -19,7 +24,7 @@ except ImportError:
     CTK_AVAILABLE = False
     ctk = tk
 
-# Rendu HTML embarqué optionnel. Absence gérée proprement (cf. _build_body).
+# Rendu HTML embarqué léger optionnel (fallback si Edge indisponible).
 try:
     from tkinterweb import HtmlFrame  # type: ignore
 
@@ -29,6 +34,7 @@ except Exception:
     HtmlFrame = None
 
 from interfaces.artifacts import build_preview_document, write_artifact_html
+from interfaces.gui._edge_embed import EdgeEmbed
 
 # Largeur par défaut du volet (px). Il occupe la colonne 1 du content_container.
 _PANEL_WIDTH = 520
@@ -61,6 +67,10 @@ class ArtifactsPanelMixin:
         self._artifacts_panel = panel
         self._artifacts_current = None  # Artifact actuellement affiché
         self._artifacts_last_file = None  # dernier fichier écrit (fallback navigateur)
+        self._artifacts_mode = None  # "edge" | "tkinterweb" | "fallback"
+
+        # Moteur Edge embarqué (Windows) — rendu Chromium exact.
+        self._edge_embed = EdgeEmbed()
 
         self._build_header(panel)
         self._artifacts_body = self.create_frame(
@@ -71,23 +81,45 @@ class ArtifactsPanelMixin:
         self._artifacts_body.grid_columnconfigure(0, weight=1)
         self._artifacts_view = None  # widget de rendu (HtmlFrame ou fallback Text)
 
-        # Bandeau d'info : le rendu embarqué (tkinterweb) est approximatif
-        # (pas de flexbox/grid/JS) — invite à utiliser le navigateur pour le
-        # rendu exact. Affiché uniquement quand tkinterweb fait le rendu.
-        if TKINTERWEB_AVAILABLE:
-            hint = self.create_label(
-                panel,
-                text="⚠ Rendu approximatif (CSS limité) — cliquez 🌐 pour le rendu exact",
-                font=("Segoe UI", 9),
-                fg_color=self.colors["bg_secondary"],
-                text_color=self.colors["text_secondary"],
-            )
-            hint.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 6))
+        # Synchroniser la taille de la fenêtre Edge embarquée avec le body.
+        self._artifacts_body.bind("<Configure>", self._on_artifacts_body_resize)
+
+        # Bandeau d'info (affiché uniquement quand le moteur léger tkinterweb
+        # est utilisé, car son rendu est approximatif).
+        self._artifacts_hint = self.create_label(
+            panel,
+            text="⚠ Rendu approximatif (CSS limité) — cliquez 🌐 pour le rendu exact",
+            font=("Segoe UI", 9),
+            fg_color=self.colors["bg_secondary"],
+            text_color=self.colors["text_secondary"],
+        )
+        # Masqué par défaut ; affiché seulement en mode tkinterweb.
+        self._artifacts_hint.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 6))
+        self._artifacts_hint.grid_remove()
+
+        # Nettoyage de la fenêtre Edge à la fermeture de l'application.
+        try:
+            self.root.bind("<Destroy>", self._on_root_destroy, add="+")
+        except Exception:
+            pass
 
         # Caché par défaut
         panel.grid_remove()
         self._artifacts_visible = False
         return panel
+
+    def _on_artifacts_body_resize(self, event):
+        """Redimensionne la fenêtre Edge embarquée pour épouser le body."""
+        embed = getattr(self, "_edge_embed", None)
+        if embed is not None and getattr(self, "_artifacts_mode", None) == "edge":
+            embed.resize(event.width, event.height)
+
+    def _on_root_destroy(self, event):
+        """Ferme proprement Edge quand la fenêtre racine est détruite."""
+        if event.widget is self.root:
+            embed = getattr(self, "_edge_embed", None)
+            if embed is not None:
+                embed.close()
 
     def _build_header(self, panel):
         """Barre de titre + toolbar (rafraîchir / navigateur / fermer)."""
@@ -152,8 +184,11 @@ class ArtifactsPanelMixin:
             print(f"⚠️ [ARTIFACTS] Écriture fichier échouée: {e}")
 
         self._artifacts_title_label.configure(text=artifact.title or "Aperçu")
-        self._render_artifact(artifact)
+        # Afficher le volet AVANT de rendre : le body doit être mappé et
+        # dimensionné pour que le ré-parentage Edge cible la bonne géométrie.
         self.show_artifacts_panel()
+        self._artifacts_body.update_idletasks()
+        self._render_artifact(artifact)
 
     def show_artifacts_panel(self):
         """Affiche le volet (colonne droite)."""
@@ -168,6 +203,11 @@ class ArtifactsPanelMixin:
 
     def hide_artifacts_panel(self):
         """Masque le volet et rend toute la largeur au chat."""
+        # Fermer la fenêtre Edge embarquée (sinon elle resterait orpheline).
+        embed = getattr(self, "_edge_embed", None)
+        if embed is not None:
+            embed.close()
+        self._artifacts_mode = None
         if getattr(self, "_artifacts_panel", None) is not None:
             self._artifacts_panel.grid_remove()
         self.content_container.grid_columnconfigure(1, minsize=0)
@@ -175,15 +215,31 @@ class ArtifactsPanelMixin:
         self._restore_chat_scroll_bottom()
 
     def _restore_chat_scroll_bottom(self):
-        """Re-scrolle la conversation vers le bas après un reflow du layout."""
-        fn = getattr(self, "_final_smooth_scroll_to_bottom", None)
-        if fn is None:
-            return
+        """Re-scrolle la conversation vers le bas après un reflow du layout.
+
+        Rétrécir/élargir la colonne chat re-wrappe les widgets Text : leur
+        hauteur change en plusieurs étapes (géométrie, puis re-rendu). On force
+        donc le bas sur plusieurs passes échelonnées pour absorber ces étapes.
+        """
+        def _to_bottom():
+            try:
+                canvas = self._get_parent_canvas() if hasattr(self, "_get_parent_canvas") else None
+                if canvas is not None:
+                    canvas.update_idletasks()
+                    bbox = canvas.bbox("all")
+                    if bbox:
+                        canvas.configure(scrollregion=bbox)
+                    canvas.yview_moveto(1.0)
+                else:
+                    fn = getattr(self, "_final_smooth_scroll_to_bottom", None)
+                    if fn:
+                        fn()
+            except Exception:
+                pass
+
         try:
-            # Deux passes : une fois la géométrie recalculée, puis après le
-            # re-rendu des widgets Text (wrap) qui peut arriver tardivement.
-            self.root.after(60, fn)
-            self.root.after(220, fn)
+            for delay in (50, 200, 400, 700):
+                self.root.after(delay, _to_bottom)
         except Exception:
             pass
 
@@ -197,8 +253,12 @@ class ArtifactsPanelMixin:
     # ── Rendu ───────────────────────────────────────────────────────────--
 
     def _render_artifact(self, artifact):
-        """Rend l'artifact dans le body via tkinterweb, sinon fallback texte."""
-        # Détruire l'ancien widget de rendu
+        """Rend l'artifact : Edge embarqué (exact) → tkinterweb → fallback."""
+        # Fermer une éventuelle fenêtre Edge précédente
+        embed = getattr(self, "_edge_embed", None)
+        if embed is not None:
+            embed.close()
+        # Détruire l'ancien widget de rendu Tk
         if getattr(self, "_artifacts_view", None) is not None:
             try:
                 self._artifacts_view.destroy()
@@ -206,10 +266,35 @@ class ArtifactsPanelMixin:
                 pass
             self._artifacts_view = None
 
+        # 1) Edge --app embarqué (rendu Chromium exact)
+        if embed is not None and embed.available and self._artifacts_last_file is not None:
+            if self._render_with_edge(artifact):
+                return
+
+        # 2) tkinterweb (rendu approximatif)
         if TKINTERWEB_AVAILABLE:
             self._render_with_tkinterweb(artifact)
-        else:
-            self._render_fallback(artifact)
+            return
+
+        # 3) Fallback : code source
+        self._render_fallback(artifact)
+
+    def _render_with_edge(self, artifact) -> bool:
+        """Embarque une fenêtre Edge --app dans le body. True si réussi."""
+        try:
+            self._artifacts_body.update_idletasks()
+            w = self._artifacts_body.winfo_width() or _PANEL_WIDTH
+            h = self._artifacts_body.winfo_height() or 600
+            ok = self._edge_embed.embed(
+                str(self._artifacts_last_file), self._artifacts_body, w, h
+            )
+            if ok:
+                self._artifacts_mode = "edge"
+                self._artifacts_hint.grid_remove()
+                return True
+        except Exception as e:
+            print(f"⚠️ [ARTIFACTS] Embarquement Edge échoué: {e}")
+        return False
 
     def _render_with_tkinterweb(self, artifact):
         """Rendu embarqué via tkinterweb (CSS limité — voir doc)."""
@@ -223,6 +308,9 @@ class ArtifactsPanelMixin:
             else:
                 view.load_html(build_preview_document(artifact))
             self._artifacts_view = view
+            self._artifacts_mode = "tkinterweb"
+            # Rendu approximatif → afficher le bandeau d'avertissement.
+            self._artifacts_hint.grid()
         except Exception as e:
             print(f"⚠️ [ARTIFACTS] Rendu tkinterweb échoué: {e}")
             self._render_fallback(artifact, error=str(e))
@@ -234,13 +322,13 @@ class ArtifactsPanelMixin:
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(1, weight=1)
 
+        self._artifacts_mode = "fallback"
         if error:
             msg = "Rendu embarqué indisponible. Utilisez « 🌐 Ouvrir dans le navigateur »."
         else:
             msg = (
-                "Rendu embarqué désactivé (module 'tkinterweb' absent).\n"
-                "Installez-le avec : pip install tkinterweb\n"
-                "En attendant, utilisez « 🌐 Ouvrir dans le navigateur »."
+                "Rendu embarqué indisponible sur ce système.\n"
+                "Utilisez « 🌐 Ouvrir dans le navigateur » pour le rendu exact."
             )
         info = self.create_label(
             frame, text=msg, font=("Segoe UI", 11),
@@ -269,7 +357,8 @@ class ArtifactsPanelMixin:
                 path = write_artifact_html(self._artifacts_current)
                 self._artifacts_last_file = path
             if path is not None:
-                webbrowser.open(f"file://{path}")
+                from pathlib import Path as _P
+                webbrowser.open(_P(path).as_uri())
             elif hasattr(self, "show_notification"):
                 self.show_notification("Aucun artifact à ouvrir.", "error", 2500)
         except Exception as e:
