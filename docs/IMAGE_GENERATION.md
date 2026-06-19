@@ -41,7 +41,7 @@ core/ai_engine.py ── process_query_stream ──► ImageGenerator.generate(
 |------------------|---------------------------------|-----------|----------------|
 | **automatic1111**| service séparé (comme Ollama)   | `--medvram`, coexiste avec Ollama | GPU rapide |
 | **comfyui**      | service séparé                  | très économe | GPU rapide  |
-| **diffusers**    | `pip` lourd + torch CUDA        | concurrence Ollama (risque OOM) | lent sur CPU |
+| **diffusers**    | `pip` lourd (torch adapté au GPU) | concurrence Ollama (risque OOM) | dépend du device |
 | **auto**         | essaie a1111 → comfyui → diffusers | —      | —              |
 
 **Recommandé : AUTOMATIC1111 / Forge** — même philosophie qu'Ollama, zéro deps
@@ -97,7 +97,34 @@ dans `outputs/img_AAAAMMJJ_HHMMSS_<slug>.png`.
 > L'**analyse** d'image (« décris cette image », « analyse cette photo ») reste
 > gérée par la vision Ollama et n'est **pas** confondue avec la génération.
 
-## 6. Accès mobile & chiffrement (E2EE)
+## 6. Support matériel (tous GPU + CPU)
+
+My_AI parle au backend en **HTTP**, il est donc **agnostique au matériel** : les
+backends **AUTOMATIC1111/Forge** et **ComfyUI** gèrent eux-mêmes **NVIDIA (CUDA),
+AMD (ROCm/DirectML/ZLUDA), Apple Silicon (MPS) et Intel Arc** — installez la
+variante adaptée à votre carte, la config My_AI ne change pas.
+
+Le backend **`diffusers`** (en process) détecte automatiquement le meilleur
+device, **dans cet ordre** :
+
+| Device détecté | Matériel | dtype |
+|---|---|---|
+| `cuda` | **NVIDIA** (CUDA) **et AMD** (build torch-ROCm, Linux) | float16 |
+| `mps` | **Apple Silicon** M1/M2/M3/M4 (Metal) | float16 |
+| `xpu` | **Intel Arc** (oneAPI / IPEX) | float16 |
+| DirectML | **Windows** AMD / Intel / NVIDIA (DirectX 12, via `torch-directml`) | float16 |
+| `cpu` | **aucun GPU** — repli universel | float32 |
+
+> **Sans GPU** : tout fonctionne sur **CPU** (repli automatique), mais comptez
+> **plusieurs minutes par image**. Privilégiez des modèles **« Turbo »**
+> (SD-Turbo / SDXL-Turbo, 1–4 steps). Pour les backends HTTP : `--use-cpu all`
+> (A1111/Forge) ou `--cpu` (ComfyUI).
+>
+> Pour **AMD/Intel sous Windows** avec le backend `diffusers`, installez
+> `torch-directml` ; pour **AMD sous Linux**, installez un build **torch-ROCm**.
+> Le device réellement utilisé est affiché dans la console au chargement.
+
+## 7. Accès mobile & chiffrement (E2EE)
 
 L'image générée transite vers le mobile **chiffrée AES-256-GCM**, dans la même
 enveloppe que les pièces jointes : le serveur Relay envoie un événement WS
@@ -107,7 +134,7 @@ n'apparaît **jamais en clair** sur le réseau ni dans une URL servie.
 > Voir `_broadcast_image()` dans [`relay/relay_server.py`](../relay/relay_server.py)
 > et `addImageMessage()` dans [`relay/static/app.js`](../relay/static/app.js).
 
-## 7. Dépannage
+## 8. Dépannage
 
 | Symptôme | Cause probable | Solution |
 |----------|----------------|----------|

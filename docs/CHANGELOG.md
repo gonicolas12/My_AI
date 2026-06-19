@@ -11,7 +11,7 @@ My_AI gérait déjà l'**entrée vision** (décrire une image via Ollama `minicp
 - **Backend configurable** (`config.yaml` → `image_generation:`) calqué sur le pattern Ollama de `LocalLLM` : on parle à un service Stable Diffusion **local en HTTP**.
   - **`automatic1111`** (défaut, recommandé) : API AUTOMATIC1111 / **Forge** WebUI (`/sdapi/v1/txt2img`), démarrée avec `--api`. Forge + `--medvram` conseillé sur **6 Go VRAM** ; coexiste avec Ollama via services séparés.
   - **`comfyui`** : API ComfyUI (workflow txt2img par graphe, `/prompt` + `/history`).
-  - **`diffusers`** : pipeline Python en process (optionnel, deps lourdes + torch CUDA).
+  - **`diffusers`** : pipeline Python en process (optionnel) — détection automatique de device **tous GPU** : NVIDIA/AMD (CUDA/ROCm), **Apple Silicon** (MPS), **Intel Arc** (XPU), **DirectML** (Windows), repli **CPU** universel.
   - **`auto`** : essaie `automatic1111` puis `comfyui` puis `diffusers`.
 - **Dégradation propre** : si aucun backend n'est joignable, message clair expliquant comment en lancer un (exactement comme le fallback Ollama existant) — **aucun crash**.
 - **Indicateur de progression** : poll `/sdapi/v1/progress` (A1111) / `/history` (ComfyUI) → barre d'avancement dans l'UI (génération = opération lourde).

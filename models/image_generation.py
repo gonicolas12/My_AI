@@ -576,19 +576,32 @@ class ImageGenerator:
         if not hasattr(self, "_diffusers_pipe") or self._diffusers_pipe is None:
             if on_progress:
                 on_progress(0.05, "Chargement du modèle diffusers…")
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            dtype = torch.float16 if device == "cuda" else torch.float32
+
+            device, dtype, label = self._detect_diffusers_device(torch)
+            print(f"🎨 [ImageGen] Backend diffusers sur {label} (dtype={dtype})")
+
             pipe = AutoPipelineForText2Image.from_pretrained(
                 self.config.diffusers_model, torch_dtype=dtype
             )
-            pipe = pipe.to(device)
-            if device == "cuda":
-                # Économies VRAM pour cohabiter avec Ollama (6 Go).
+
+            # DirectML (Windows AMD/Intel) expose un device objet, pas une chaîne.
+            try:
+                pipe = pipe.to(device)
+            except Exception as exc:
+                print(f"⚠️ [ImageGen] .to({label}) a échoué ({exc}) → repli CPU")
+                device, dtype, label = "cpu", torch.float32, "CPU"
+                pipe = AutoPipelineForText2Image.from_pretrained(
+                    self.config.diffusers_model, torch_dtype=dtype
+                ).to("cpu")
+
+            # Économies mémoire (utile sur toute VRAM, ex. 6 Go partagés avec Ollama).
+            if label != "CPU":
                 try:
                     pipe.enable_attention_slicing()
                     pipe.enable_vae_slicing()
                 except Exception:
                     pass
+
             self._diffusers_pipe = pipe
             self._diffusers_device = device
 
@@ -617,6 +630,53 @@ class ImageGenerator:
         buf = io.BytesIO()
         image.save(buf, format="PNG")
         return buf.getvalue()
+
+    @staticmethod
+    def _detect_diffusers_device(torch):
+        """Détecte le meilleur device disponible pour diffusers, tous GPU confondus.
+
+        Ordre de préférence : CUDA (NVIDIA + AMD ROCm) → Apple MPS (Metal) →
+        Intel XPU → DirectML (Windows AMD/Intel) → CPU. Renvoie un triplet
+        (device, dtype, label_humain). float16 sur GPU, float32 sur CPU.
+        """
+        # CUDA couvre NVIDIA ET AMD ROCm (les builds torch-ROCm exposent l'API cuda).
+        try:
+            if torch.cuda.is_available():
+                # torch.version.hip != None → build ROCm (AMD)
+                is_amd = getattr(torch.version, "hip", None) is not None
+                name = "AMD ROCm" if is_amd else "NVIDIA CUDA"
+                try:
+                    name = f"{name} ({torch.cuda.get_device_name(0)})"
+                except Exception:
+                    pass
+                return "cuda", torch.float16, name
+        except Exception:
+            pass
+
+        # Apple Silicon (Metal Performance Shaders)
+        try:
+            if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+                return "mps", torch.float16, "Apple MPS (Metal)"
+        except Exception:
+            pass
+
+        # Intel Arc / GPU Intel (oneAPI / IPEX)
+        try:
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                return "xpu", torch.float16, "Intel XPU"
+        except Exception:
+            pass
+
+        # DirectML (Windows : AMD / Intel / NVIDIA via DirectX 12)
+        try:
+            import torch_directml  # type: ignore
+
+            return torch_directml.device(), torch.float16, "DirectML (Windows)"
+        except Exception:
+            pass
+
+        # Repli CPU (lent mais universel)
+        return "cpu", torch.float32, "CPU"
 
     # ------------------------------------------------------------------
     # Utilitaires
