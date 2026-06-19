@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================================
-REM Script de nettoyage du projet My_AI v7.7.0
+REM Script de nettoyage du projet My_AI v7.8.0
 REM Deux niveaux : leger (caches) ou complet (caches + donnees utilisateur)
 REM Le cache HuggingFace n'est JAMAIS supprime (modeles ML).
 REM ============================================================================
@@ -147,6 +147,7 @@ echo [15/15] Suppression des exports de conversations...
 if exist "outputs\exports" rd /s /q "outputs\exports"
 if exist "outputs\artifacts" rd /s /q "outputs\artifacts"
 if exist "outputs\scheduled" rd /s /q "outputs\scheduled"
+for %%f in ("outputs\img*") do if exist "%%f" del /q "%%f"
 
 echo.
 echo ========================================

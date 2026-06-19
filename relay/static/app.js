@@ -269,6 +269,13 @@ function connect() {
         lastSentMessageId = data.message_id;
         renderedMessageIds.add('user:' + data.message_id);
       }
+    } else if (data.type === 'ai_image') {
+      // 🎨 Image générée (texte → image) reçue chiffrée dans l'enveloppe WS.
+      // `data.data` est le PNG en base64 ; on l'affiche en data: URI.
+      removeTyping();
+      isWaiting = false;
+      addImageMessage(data.data, data.mime || 'image/png', data.filename || '', data.timestamp);
+      updateSendButton();
     } else if (data.type === 'resume_empty') {
       // Le serveur n'a pas de réponse en attente pour notre dernier id.
       // Soit la réponse est déjà arrivée, soit elle n'a pas encore fini
@@ -676,6 +683,42 @@ function addMessage(text, isUser, timestamp) {
     attachArtifactButton(msg.querySelector('.bubble'), text);
   }
 
+  messagesEl.appendChild(msg);
+  scrollToBottom();
+}
+
+// 🎨 Affiche une image générée par l'IA dans une bulle. `b64` est le PNG
+// encodé en base64 (déchiffré depuis l'enveloppe WS E2EE). L'image est
+// rendue en data: URI (jamais transmise en clair sur le réseau) et cliquable
+// pour ouverture plein écran.
+function addImageMessage(b64, mime, filename, timestamp) {
+  if (welcomeEl) welcomeEl.style.display = 'none';
+  if (!b64) return;
+
+  var msg = document.createElement('div');
+  msg.className = 'message ai';
+  var time = formatTime(timestamp ? new Date(timestamp) : new Date());
+  var src = 'data:' + (mime || 'image/png') + ';base64,' + b64;
+
+  var bubble = document.createElement('div');
+  bubble.className = 'bubble';
+
+  var img = document.createElement('img');
+  img.className = 'generated-image';
+  img.src = src;
+  img.alt = filename || 'Image générée';
+  img.loading = 'lazy';
+  img.addEventListener('click', function () { window.open(src, '_blank'); });
+
+  bubble.appendChild(img);
+
+  var timeSpan = document.createElement('span');
+  timeSpan.className = 'time';
+  timeSpan.textContent = time;
+  bubble.appendChild(timeSpan);
+
+  msg.innerHTML = '<div class="ai-icon">&#x1F3A8;</div>';
+  msg.appendChild(bubble);
   messagesEl.appendChild(msg);
   scrollToBottom();
 }

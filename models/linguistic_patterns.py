@@ -437,6 +437,48 @@ class LinguisticPatterns:
                     "weight": 1.4,
                     "priority": "high",
                 },
+                # ✅ Génération d'image (texte → image) : sortie multimodale
+                "image_generation": {
+                    "patterns": [
+                        r"(?:génère|genere|generate|crée|cree|create|fais|fait|dessine|dessines)[-\s]?(?:moi\s+)?(?:une?|le|la|un)?\s*(?:image|images|illustration|dessin|photo|photos|peinture|portrait|logo|affiche|rendu|visuel|tableau|croquis|art)",
+                        r"(?:génère|genere|crée|cree|montre|donne)[-\s]?(?:moi\s+)?(?:une?|un)\s+(?:image|illustration|dessin|photo|visuel)\s+(?:de|d'|du|d’|avec|représentant|montrant)",
+                        r"\b(?:dessine|dessines|illustre|peins)[-\s]?moi\b",
+                        r"(?:peux[- ]tu|pourrais[- ]tu|tu peux)\s+(?:me\s+)?(?:générer|generer|créer|cree|dessiner|faire)\s+(?:une?|un)\s+(?:image|illustration|dessin|photo|visuel)",
+                        r"(?:image|illustration|dessin|photo|visuel|rendu)\s+(?:de|d'|du|d’)\s+.+\s+(?:en|style|façon)\b",
+                        r"\bgénère\s+(?:moi\s+)?(?:un\s+)?visuel\b",
+                        r"\btext[- ]?to[- ]?image\b",
+                    ],
+                    "indicators": [
+                        "image",
+                        "illustration",
+                        "dessin",
+                        "dessine",
+                        "photo",
+                        "peinture",
+                        "portrait",
+                        "logo",
+                        "affiche",
+                        "visuel",
+                        "rendu",
+                        "croquis",
+                    ],
+                    # Exclure si la demande concerne explicitement du code/fichier
+                    "exclude_if": [
+                        "code",
+                        "programme",
+                        "script",
+                        "fonction",
+                        "classe",
+                        "fichier python",
+                        "analyse cette image",
+                        "décris cette image",
+                        "décris l'image",
+                        "que vois-tu",
+                        "que contient cette image",
+                    ],
+                    "weight": 1.6,
+                    "priority": "high",
+                },
                 "programming_question": {
                     "patterns": [
                         r"comment\s+(?:définir|utiliser|employer|se servir de).+(?:python|javascript|html|css|fonction)",

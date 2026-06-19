@@ -1290,6 +1290,56 @@ class RelayServer:
         except Exception as e:
             logger.debug("Broadcast WS impossible : %s", e)
 
+    def _broadcast_image(self, message_id: str, image_path: str) -> None:
+        """🎨 Callback bridge : pousse une image générée à tous les WS (chiffrée).
+
+        L'image (PNG) est lue, encodée en base64 et placée dans un événement
+        WS `ai_image`. Tout l'événement passe par encrypt_json() → AES-256-GCM,
+        donc l'image transite chiffrée de bout en bout, exactement comme les
+        pièces jointes uploadées depuis le mobile.
+        """
+        if not self._loop or not self._ws_clients:
+            return
+        try:
+            with open(image_path, "rb") as f:
+                raw = f.read()
+        except Exception as e:
+            logger.error("Lecture image à broadcaster impossible : %s", e)
+            return
+
+        b64 = base64.b64encode(raw).decode("ascii")
+        filename = os.path.basename(image_path)
+        ext = os.path.splitext(filename)[1].lower().lstrip(".") or "png"
+        mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+
+        payload = json.dumps(self.encrypt_json({
+            "type": "ai_image",
+            "message_id": message_id,
+            "filename": filename,
+            "mime": mime,
+            "data": b64,
+            "timestamp": datetime.now().isoformat(),
+        }), separators=(",", ":"))
+
+        async def _push():
+            dead: List[WebSocket] = []
+            for ws in list(self._ws_clients):
+                try:
+                    await ws.send_text(payload)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                if ws in self._ws_clients:
+                    self._ws_clients.remove(ws)
+            if dead:
+                self._bridge.connected_clients = len(self._ws_clients)
+
+        try:
+            asyncio.run_coroutine_threadsafe(_push(), self._loop)
+            logger.info("Image IA broadcastée aux WS (E2EE) : %s (%d octets)", filename, len(raw))
+        except Exception as e:
+            logger.debug("Broadcast image WS impossible : %s", e)
+
     # ------------------------------------------------------------------
     # Scheduler proactif (tâches planifiées)
     # ------------------------------------------------------------------
@@ -1368,6 +1418,8 @@ class RelayServer:
         self._bridge.on_response(self._broadcast_response)
         self._bridge.remove_chunk_callback(self._broadcast_chunk)
         self._bridge.on_chunk(self._broadcast_chunk)
+        self._bridge.remove_image_callback(self._broadcast_image)
+        self._bridge.on_image(self._broadcast_image)
 
         # Démarrer le serveur uvicorn
         config = uvicorn.Config(

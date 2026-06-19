@@ -121,6 +121,15 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
 - **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
 
+### 🎨 Génération d'images locale (texte → image)
+
+- **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
+- **100% local** via un backend **Stable Diffusion** en HTTP : **AUTOMATIC1111 / Forge** (recommandé), **ComfyUI**, ou **diffusers** (optionnel) — configurable dans `config.yaml` → `image_generation:`.
+- **Dégradation propre** : message clair si aucun backend (comme le fallback Ollama), **indicateur de progression**, image sauvegardée dans `outputs/`.
+- **Affichage desktop & mobile** : aperçu cliquable dans le chat ; sur mobile, l'image transite **chiffrée AES-256-GCM** (même E2EE que les pièces jointes).
+
+> Guide complet : [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md)
+
 ### 🔍 Recherche Internet Intelligente
 
 - Recherche web en temps réel via **DuckDuckGo**
@@ -141,25 +150,6 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **100% local** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — modèle `small` (~150 Mo) chargé à la demande
 - **Langue auto-détectée** (99+ langues supportées par Whisper)
 - **Insertion au curseur** de la zone active — pratique pour dicter des prompts longs sans interrompre sa frappe
-
-### 🔊 Sortie Vocale (lecture des réponses)
-
-- **Bouton 🔊** sous chaque réponse de l'IA (1er clic = lecture, 2e clic = stop) + **toggle « Lecture auto »** dans la sidebar pour lire chaque nouvelle réponse
-- **100% local** via [pyttsx3](https://pyttsx3.readthedocs.io/) (moteur de l'OS — SAPI5 Windows / NSSpeechSynthesizer macOS / espeak-ng Linux) — aucun téléchargement
-- **Voix choisie automatiquement selon la langue détectée** de la réponse (évite l'accent anglais sur du texte français)
-- Code, markdown, URLs et emojis retirés avant lecture pour une **prose naturelle**
-
-### 🧭 Premier lancement & ⚙️ Réglages
-
-- **Assistant de configuration** au tout premier démarrage : détecte le matériel (RAM, cœurs CPU, VRAM GPU), **recommande le modèle adapté** (priorité à la fluidité), le télécharge et crée le modèle personnalisé `my_ai` — fini l'édition manuelle de `config.yaml`/`Modelfile`
-- **Panneau ⚙️ Réglages** intégré : gestion des modèles Ollama (lister / pull / régénérer `my_ai`), température, fenêtre de contexte, timeout, langue, lecture auto — le tout en **préservant les commentaires** de `config.yaml`
-
-### 🎨 Aperçu Artifacts (HTML / CSS / SVG)
-
-- Quand l'IA génère du **HTML/CSS/SVG**, un bouton **« 🔍 Aperçu »** apparaît sous la réponse → un **volet de prévisualisation live** s'ouvre à côté du chat (façon *Claude Artifacts*)
-- **Desktop** : rendu **Chromium exact** via **Edge `--app` embarqué** (ré-parenté dans un volet redimensionnable, **sans dépendance Python supplémentaire**) ; replis automatiques `tkinterweb` puis code source + bouton 🌐
-- **Mobile (Relay)** : rendu en **`<iframe sandbox>`** isolée (aucune requête réseau), bouton 🌐 pour ouvrir dans un onglet
-- **100% local** — détails et compromis dans [docs/ARTIFACTS_PREVIEW.md](docs/ARTIFACTS_PREVIEW.md)
 
 ### 📅 Tâches Planifiées (assistant proactif)
 

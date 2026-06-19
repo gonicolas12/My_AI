@@ -1,5 +1,6 @@
 """Message bubbles mixin for ModernAIGUI."""
 
+import os
 import tkinter as tk
 import traceback
 from datetime import datetime
@@ -647,6 +648,136 @@ class MessageBubblesMixin:
             else:
                 # Démarrer l'animation de frappe avec hauteur dynamique
                 self.start_typing_animation_dynamic(text_widget, text)
+
+    def display_generated_image(self, image_path, max_width=420):
+        """🎨 Affiche une image générée (texte → image) dans une bulle du chat.
+
+        Crée une bulle IA dédiée contenant l'aperçu cliquable de l'image
+        sauvegardée dans outputs/. Appelée via le callback on_image du moteur
+        (toujours sur le thread Tk via root.after).
+        """
+        try:
+            from PIL import Image
+        except ImportError:
+            self.add_message_bubble(
+                "⚠️ **Pillow** est requis pour afficher l'image générée "
+                f"(`pip install Pillow`). Image sauvegardée : `{image_path}`",
+                is_user=False,
+                instant=True,
+            )
+            return
+
+        if not image_path or not os.path.isfile(image_path):
+            self.add_message_bubble(
+                f"⚠️ Image générée introuvable : `{image_path}`",
+                is_user=False,
+                instant=True,
+            )
+            return
+
+        try:
+            img = Image.open(image_path)
+            w, h = img.size
+            # Redimensionner pour l'affichage (conserve le ratio)
+            if w > max_width:
+                ratio = max_width / float(w)
+                disp_size = (max_width, int(h * ratio))
+            else:
+                disp_size = (w, h)
+
+            # Conteneur de message (même grille que les bulles)
+            msg_container = self.create_frame(
+                self.chat_frame, fg_color=self.colors["bg_chat"]
+            )
+            msg_container.grid(
+                row=len(self.conversation_history), column=0, sticky="ew", pady=(0, 12)
+            )
+            msg_container.grid_columnconfigure(0, weight=1)
+            self._message_widgets.append(msg_container)
+            # Tracer dans l'historique (type image) pour le scroll/nettoyage
+            self.conversation_history.append(
+                {
+                    "text": f"[Image générée] {os.path.basename(image_path)}",
+                    "is_user": False,
+                    "timestamp": datetime.now(),
+                    "type": "image",
+                    "image_path": image_path,
+                }
+            )
+
+            center_frame = self.create_frame(
+                msg_container, fg_color=self.colors["bg_chat"]
+            )
+            center_frame.grid(row=0, column=0, padx=(250, 250), pady=(0, 0), sticky="ew")
+            center_frame.grid_columnconfigure(0, weight=0)
+            center_frame.grid_columnconfigure(1, weight=1)
+
+            icon_label = self.create_label(
+                center_frame,
+                text="🎨",
+                font=("Segoe UI", 16),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors["accent"],
+            )
+            icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+
+            if self.use_ctk and CTK_AVAILABLE:
+                ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=disp_size)
+                img_label = ctk.CTkLabel(center_frame, image=ctk_img, text="")
+                # Conserver une référence pour éviter le ramasse-miettes
+                img_label.image_ref = ctk_img
+            else:
+                from PIL import ImageTk
+
+                tk_img = ImageTk.PhotoImage(img.resize(disp_size))
+                img_label = tk.Label(
+                    center_frame, image=tk_img, bg=self.colors["bg_chat"]
+                )
+                img_label.image_ref = tk_img
+
+            img_label.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
+
+            # Clic : ouvrir l'image en taille réelle avec l'app système
+            def _open_full(_e=None, p=image_path):
+                try:
+                    import subprocess
+                    import sys
+
+                    if sys.platform == "win32":
+                        os.startfile(p)  # noqa: B606
+                    elif sys.platform == "darwin":
+                        subprocess.Popen(["open", p])
+                    else:
+                        subprocess.Popen(["xdg-open", p])
+                except Exception as exc:
+                    print(f"⚠️ [GUI] Ouverture image échouée : {exc}")
+
+            img_label.bind("<Button-1>", _open_full)
+            try:
+                img_label.configure(cursor="hand2")
+            except Exception:
+                pass
+
+            # Légende discrète sous l'image
+            caption = self.create_label(
+                center_frame,
+                text=f"📁 {os.path.basename(image_path)} — clic pour agrandir",
+                font=("Segoe UI", 9),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors.get("text_secondary", "#888888"),
+            )
+            caption.grid(row=1, column=1, sticky="w", padx=2, pady=(2, 0))
+
+            self.root.after(50, lambda: self._scroll_if_needed_user() if hasattr(self, "_scroll_if_needed_user") else None)
+            print(f"🎨 [GUI] Image affichée dans le chat : {image_path}")
+        except Exception as exc:
+            traceback.print_exc()
+            self.add_message_bubble(
+                f"⚠️ Erreur d'affichage de l'image générée : {exc}\n"
+                f"Image sauvegardée : `{image_path}`",
+                is_user=False,
+                instant=True,
+            )
 
     def create_user_message_bubble(self, parent, text):
         """Version avec hauteur précise et sélection activée pour les messages utilisateur"""

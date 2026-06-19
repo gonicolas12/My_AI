@@ -1,5 +1,46 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🎨 Version 7.8.0 — Génération d'images locale (19 Juin 2026)
+
+### La symétrie multimodale est complète : l'IA *voit* ET *dessine*
+
+My_AI gérait déjà l'**entrée vision** (décrire une image via Ollama `minicpm-v`/`llava`). Cette version ajoute la **sortie image** : demandez « *génère une image de…* » et l'IA produit l'image, l'affiche dans le chat (desktop **et** mobile) et la sauvegarde dans `outputs/`. Le tout **100% local**.
+
+## 🖼️ Backend Stable Diffusion local — `models/image_generation.py` (nouveau)
+
+- **Backend configurable** (`config.yaml` → `image_generation:`) calqué sur le pattern Ollama de `LocalLLM` : on parle à un service Stable Diffusion **local en HTTP**.
+  - **`automatic1111`** (défaut, recommandé) : API AUTOMATIC1111 / **Forge** WebUI (`/sdapi/v1/txt2img`), démarrée avec `--api`. Forge + `--medvram` conseillé sur **6 Go VRAM** ; coexiste avec Ollama via services séparés.
+  - **`comfyui`** : API ComfyUI (workflow txt2img par graphe, `/prompt` + `/history`).
+  - **`diffusers`** : pipeline Python en process (optionnel) — détection automatique de device **tous GPU** : NVIDIA/AMD (CUDA/ROCm), **Apple Silicon** (MPS), **Intel Arc** (XPU), **DirectML** (Windows), repli **CPU** universel.
+  - **`auto`** : essaie `automatic1111` puis `comfyui` puis `diffusers`.
+- **Dégradation propre** : si aucun backend n'est joignable, message clair expliquant comment en lancer un (exactement comme le fallback Ollama existant) — **aucun crash**.
+- **Indicateur de progression** : poll `/sdapi/v1/progress` (A1111) / `/history` (ComfyUI) → barre d'avancement dans l'UI (génération = opération lourde).
+- **Aucune dépendance ajoutée** au socle : les backends HTTP n'utilisent que `requests` (déjà présent) ; `diffusers` reste optionnel.
+
+## 🎯 Détection d'intention & routage
+
+- Nouvelle intention **`image_generation`** dans `models/linguistic_patterns.py` (« génère/dessine/crée une image/illustration/logo… »), **distincte** de la génération de code et de l'**analyse** d'image (vision) qui reste intacte.
+- Routage dans `core/ai_engine.py` (`process_query_stream` et `process_query`) : court-circuit prioritaire sur MCP, extraction du prompt pictural, callbacks `on_image` / `on_image_progress`.
+
+## 🖥️ Affichage desktop & 📱 mobile (E2EE)
+
+- **Desktop** — `interfaces/gui/message_bubbles.py` : `display_generated_image()` crée une bulle avec aperçu **cliquable** (ouverture taille réelle).
+- **Mobile (Relay)** — l'image transite **chiffrée AES-256-GCM** : `relay/relay_server.py` `_broadcast_image()` l'envoie dans un événement WS `ai_image` via `encrypt_json()` (même enveloppe E2EE que les pièces jointes) ; `relay/static/app.js` l'affiche en `data:` URI (**jamais en clair sur le réseau**).
+
+## ⚙️ Installation automatique (zéro config) — `models/comfyui_manager.py` (nouveau)
+
+Par défaut (`image_generation.auto_setup: true`), **rien à installer manuellement** : à la **première** demande d'image sans backend détecté, My_AI télécharge et lance automatiquement **ComfyUI portable** (Windows/NVIDIA, **Python + CUDA embarqués** — n'altère pas l'environnement de My_AI), récupère un **modèle par défaut** (SD-Turbo) et bascule dessus. Même esprit que le téléchargement auto de cloudflared pour le tunnel.
+
+## ✨ Expérience de génération (animation, STOP, annulation)
+
+- **Animation « 🎨 Génération de l'image en cours… »** dans une bulle dédiée (points + **% de progression**, et **% de téléchargement** pendant l'auto-installation).
+- Le **bouton STOP reste actif** pendant toute la génération (comme un message en cours d'écriture) ; le message **se finalise** seulement à la fin, puis l'**image s'affiche** directement dans le chat.
+- **Annulation conjointe** : un clic sur STOP arrête le **message ET la génération** (interruption propagée au backend : `/sdapi/v1/interrupt` A1111, `/interrupt` ComfyUI, `_interrupt` diffusers) — y compris pendant le téléchargement de l'auto-installation.
+
+> Détails, installation des backends et compromis VRAM : [docs/IMAGE_GENERATION.md](IMAGE_GENERATION.md).
+
+---
+
 # 🎨 Version 7.7.0 — Artifacts live & Scheduler proactif (18 Juin 2026)
 
 ### Voir le rendu en direct, et laisser l'IA travailler toute seule

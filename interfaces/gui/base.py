@@ -5,6 +5,8 @@ import os
 import platform
 import random
 import re
+import subprocess
+import sys as _sys
 import threading
 import tkinter as tk
 import traceback
@@ -12,12 +14,14 @@ from datetime import datetime
 from tkinter import messagebox
 
 import customtkinter as _ctk
+from PIL import ImageTk
 
 from core.ai_engine import AIEngine
 from core.config import Config
+from core.scheduler import get_scheduler
+from relay.relay_server import RelayServer
 from utils.file_processor import FileProcessor
 from utils.logger import setup_logger
-from relay.relay_server import RelayServer
 
 # Import des styles (uniquement ce qui est utilisé)
 try:
@@ -187,6 +191,13 @@ class BaseGUI:
         self._pending_image_path = None
         self._pending_image_base64 = None
 
+        # Génération d'image (texte → image) : conteneur de la bulle en cours
+        self._image_gen_container = None
+        self._image_gen_widget = None
+        self._image_gen_active = False
+        self._image_gen_dot_count = 0
+        self._image_gen_status = ""
+
         # Initialisation des placeholders UI
         self.thinking_frame = None
         self.thinking_label = None
@@ -235,6 +246,357 @@ class BaseGUI:
         # ── Scheduler proactif (tâches planifiées) ──
         self._scheduler = None
         self._init_scheduler()
+
+    def _handle_image_generation_ui(self, user_text, request_id):
+        """🎨 Pipeline génération d'image avec animation « Génération en cours »,
+        bouton STOP actif pendant toute la génération, affichage de l'image à la
+        fin, et annulation conjointe (message + génération) si STOP est cliqué.
+
+        Fonctionne pour le desktop ET le mobile (relay) : ce worker est appelé
+        dans les deux cas. L'image et la réponse finale sont poussées au mobile
+        (chiffrées) si la requête vient du relay.
+        """
+        self._image_gen_active = True
+        self._image_gen_dot_count = 0
+        self._image_gen_status = "Génération de l'image en cours"
+        self._image_gen_widget = None
+
+        # Réserver la ligne dans l'historique (comme la génération de fichier)
+        self.conversation_history.append(
+            {
+                "text": "Génération de l'image en cours…",
+                "is_user": False,
+                "timestamp": datetime.now(),
+                "type": "image_generation_placeholder",
+            }
+        )
+
+        # Bloquer la saisie → affiche le bouton STOP (comme un message en cours)
+        self.set_input_state(False)
+        self.is_thinking = False  # on gère notre propre animation
+
+        def create_bubble():
+            try:
+                msg_container = self.create_frame(
+                    self.chat_frame, fg_color=self.colors["bg_chat"]
+                )
+                msg_container.grid(
+                    row=len(self.conversation_history) - 1,
+                    column=0, sticky="ew", pady=(0, 12),
+                )
+                msg_container.grid_columnconfigure(0, weight=1)
+                center_frame = self.create_frame(
+                    msg_container, fg_color=self.colors["bg_chat"]
+                )
+                center_frame.grid(row=0, column=0, padx=(250, 250), sticky="ew")
+                center_frame.grid_columnconfigure(1, weight=1)
+                icon_label = self.create_label(
+                    center_frame, text="🎨", font=("Segoe UI", 16),
+                    fg_color=self.colors["bg_chat"], text_color=self.colors["accent"],
+                )
+                icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+                message_container = self.create_frame(
+                    center_frame, fg_color=self.colors["bg_chat"]
+                )
+                message_container.grid(row=0, column=1, sticky="ew", pady=(2, 2))
+                message_container.grid_columnconfigure(0, weight=1)
+                text_widget = tk.Text(
+                    message_container, width=120, height=1,
+                    bg=self.colors["bg_chat"], fg=self.colors["text_primary"],
+                    font=("Segoe UI", 11), wrap="word", relief="flat",
+                    state="normal", cursor="arrow", padx=10, pady=8,
+                    highlightthickness=0, borderwidth=0,
+                )
+                text_widget.grid(row=0, column=0, sticky="ew")
+                text_widget.insert("1.0", "Génération de l'image en cours.")
+                text_widget.configure(state="disabled")
+                self._image_gen_widget = text_widget
+                # Conserver le conteneur pour y intégrer l'image dans LA MÊME bulle
+                self._image_gen_container = message_container
+                self.current_message_container = message_container
+                self.root.after(100, self.scroll_to_bottom)
+            except (tk.TclError, AttributeError) as e:
+                print(f"Erreur création bulle image: {e}")
+
+        def set_widget_text(txt):
+            w = self._image_gen_widget
+            if not w:
+                return
+            try:
+                lines = txt.count("\n") + 1
+                w.configure(state="normal", height=max(lines, 1))
+                w.delete("1.0", "end")
+                # Rendu minimal du markdown **gras** (la bulle image n'utilise
+                # pas le pipeline de formatage des bulles texte classiques).
+                try:
+                    w.tag_configure("imgbold", font=("Segoe UI", 11, "bold"))
+                except Exception:
+                    pass
+                pos = 0
+                for m in re.finditer(r"\*\*(.+?)\*\*", txt):
+                    if m.start() > pos:
+                        w.insert("end", txt[pos:m.start()])
+                    w.insert("end", m.group(1), "imgbold")
+                    pos = m.end()
+                if pos < len(txt):
+                    w.insert("end", txt[pos:])
+                w.configure(state="disabled")
+            except (tk.TclError, AttributeError):
+                pass
+
+        def animate():
+            # Interruption → arrêter l'animation et afficher l'état annulé
+            if self.is_interrupted or self.current_request_id != request_id:
+                self._image_gen_active = False
+                set_widget_text("⏹️ Génération de l'image interrompue.")
+                return
+            if not self._image_gen_active:
+                return
+            dots = "." * ((self._image_gen_dot_count % 3) + 1)
+            self._image_gen_dot_count += 1
+            set_widget_text(f"{self._image_gen_status}{dots}")
+            self.root.after(450, animate)
+
+        def finalize_text(txt):
+            self._image_gen_active = False
+            set_widget_text(txt)
+            self.is_thinking = False
+            self.set_input_state(True)
+            try:
+                self._show_timestamp_for_current_message()
+            except Exception:
+                pass
+
+        def generate_async():
+            from_relay = getattr(self, "_current_message_from_relay", False)
+            try:
+                gen = getattr(self.ai_engine, "image_generator", None)
+                def on_progress(_frac, message):
+                    if message:
+                        self._image_gen_status = message
+
+                def is_interrupted():
+                    return self.is_interrupted or self.current_request_id != request_id
+
+                # Aucun backend détecté → auto-installation de ComfyUI portable
+                # (1ʳᵉ fois) si activée, avec progression dans la même animation.
+                if gen is not None and not gen.is_available():
+                    if not self._auto_setup_image_backend(gen, on_progress, is_interrupted):
+                        # Auto-setup impossible/refusé : message clair
+                        if is_interrupted():
+                            self.root.after(0, lambda: finalize_text(
+                                "⏹️ Génération de l'image interrompue."))
+                            if from_relay:
+                                self._relay_submit_text("⏹️ Génération de l'image interrompue.")
+                            return
+
+                if gen is None or not gen.is_available():
+                    msg = (
+                        gen.unavailable_message() if gen is not None
+                        else "🎨 Génération d'image indisponible."
+                    )
+                    self.root.after(0, lambda: finalize_text(msg))
+                    if from_relay:
+                        self._relay_submit_text(msg)
+                    return
+
+                prompt = self.ai_engine.extract_image_prompt(user_text)
+
+                result = gen.generate(
+                    prompt, on_progress=on_progress, is_interrupted=is_interrupted
+                )
+                self._image_gen_active = False
+
+                if result.interrupted or is_interrupted():
+                    self.root.after(
+                        0, lambda: finalize_text("⏹️ Génération de l'image interrompue.")
+                    )
+                    if from_relay:
+                        self._relay_submit_text("⏹️ Génération de l'image interrompue.")
+                    return
+
+                if result.success and result.image_path:
+                    # Mémoriser la génération dans le contexte du LLM local pour
+                    # qu'il sache (ex. « de quoi on a parlé ? ») qu'une image a
+                    # été générée.
+                    self._remember_image_generation(user_text, prompt, result.image_path)
+
+                    def _show_ok():
+                        # Texte + image dans LA MÊME bulle (une seule icône 🎨)
+                        finalize_text(result.message)
+                        self._attach_generated_image(
+                            self._image_gen_container, result.image_path
+                        )
+                    self.root.after(0, _show_ok)
+                    if from_relay:
+                        self._relay_submit_image(result.image_path)
+                        self._relay_submit_text(result.message)
+                else:
+                    self.root.after(0, lambda: finalize_text(result.message))
+                    if from_relay:
+                        self._relay_submit_text(result.message)
+            except Exception as exc:
+                traceback.print_exc()
+                self.root.after(
+                    0, lambda: finalize_text(f"⚠️ Erreur génération d'image : {exc}")
+                )
+            finally:
+                if from_relay:
+                    self._current_message_from_relay = False
+
+        create_bubble()
+        self.root.after(0, animate)
+        threading.Thread(target=generate_async, daemon=True).start()
+
+    def _auto_setup_image_backend(self, gen, on_progress, is_interrupted) -> bool:
+        """Installe/lance automatiquement ComfyUI portable au 1er usage.
+
+        Retourne True si un backend répond ensuite, False sinon. La progression
+        (téléchargement ~2 Go, extraction, modèle, démarrage) alimente
+        l'animation. Interruptible via le bouton STOP.
+        """
+        try:
+            auto = bool(self.config.get("image_generation.auto_setup", True))
+        except Exception:
+            auto = True
+        if not auto:
+            return False
+
+        try:
+            from models.comfyui_manager import (ComfyUISetupError,
+                                                get_comfyui_manager)
+        except Exception as exc:
+            print(f"⚠️ [ImageGen] comfyui_manager indisponible : {exc}")
+            return False
+
+        mgr = get_comfyui_manager()
+        if not mgr.is_supported():
+            return False  # → message d'install manuelle (non-Windows)
+
+        self._image_gen_status = "Installation de la génération d'image (1ʳᵉ fois)…"
+        try:
+            ok = mgr.ensure_running(on_progress=on_progress, is_interrupted=is_interrupted)
+        except ComfyUISetupError as exc:
+            if str(exc) == "__interrupted__" or is_interrupted():
+                return False
+            print(f"⚠️ [ImageGen] Auto-setup ComfyUI échoué : {exc}")
+            self._image_gen_status = f"Échec installation ComfyUI : {exc}"
+            return False
+        except Exception as exc:
+            print(f"⚠️ [ImageGen] Auto-setup ComfyUI exception : {exc}")
+            return False
+
+        if ok:
+            # Basculer le générateur sur l'instance ComfyUI gérée pour cette session
+            try:
+                gen.config.backend = "comfyui"
+                gen.resolve_backend(force=True)
+            except Exception:
+                pass
+        return ok and gen.is_available()
+
+    def _relay_submit_image(self, image_path):
+        """Pousse une image générée au mobile (chiffrée) via le bridge."""
+        try:
+            srv = getattr(self, "_relay_server", None)
+            if srv and srv.bridge.active:
+                srv.bridge.submit_ai_image(image_path)
+        except Exception as exc:
+            print(f"⚠️ [Relay] Envoi image échoué : {exc}")
+
+    def _relay_submit_text(self, text):
+        """Soumet la réponse texte finale au mobile via le bridge."""
+        try:
+            srv = getattr(self, "_relay_server", None)
+            if srv and srv.bridge.active:
+                srv.bridge.submit_ai_response(text)
+        except Exception as exc:
+            print(f"⚠️ [Relay] Envoi réponse échoué : {exc}")
+
+    def _attach_generated_image(self, container, image_path, max_width=420):
+        """Intègre l'image générée SOUS le texte, dans la même bulle (1 seule icône).
+
+        `container` est le message_container de la bulle de génération (le widget
+        texte est en row 0) : on ajoute l'aperçu cliquable en row 1 et la légende
+        en row 2.
+        """
+        try:
+            from PIL import Image
+        except ImportError:
+            return
+        if not container or not image_path or not os.path.isfile(image_path):
+            return
+        try:
+            img = Image.open(image_path)
+            w, h = img.size
+            if w > max_width:
+                disp_size = (max_width, int(h * max_width / float(w)))
+            else:
+                disp_size = (w, h)
+
+            if self.use_ctk and _ctk is not None:
+                ctk_img = _ctk.CTkImage(light_image=img, dark_image=img, size=disp_size)
+                img_label = _ctk.CTkLabel(container, image=ctk_img, text="")
+                # Réf. conservée pour éviter le ramasse-miettes (attribut public)
+                img_label.image_ref = ctk_img
+            else:
+                tk_img = ImageTk.PhotoImage(img.resize(disp_size))
+                img_label = tk.Label(container, image=tk_img, bg=self.colors["bg_chat"])
+                img_label.image_ref = tk_img
+            img_label.grid(row=1, column=0, sticky="w", padx=10, pady=(4, 2))
+
+            def _open_full(_e=None, p=image_path):
+                try:
+                    if _sys.platform == "win32":
+                        os.startfile(p)  # noqa: B606
+                    elif _sys.platform == "darwin":
+                        subprocess.Popen(["open", p])
+                    else:
+                        subprocess.Popen(["xdg-open", p])
+                except Exception as exc:
+                    print(f"⚠️ [GUI] Ouverture image échouée : {exc}")
+
+            img_label.bind("<Button-1>", _open_full)
+            try:
+                img_label.configure(cursor="hand2")
+            except Exception:
+                pass
+
+            caption = self.create_label(
+                container,
+                text=f"📁 {os.path.basename(image_path)} — clic pour agrandir",
+                font=("Segoe UI", 9),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors.get("text_secondary", "#888888"),
+            )
+            caption.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 2))
+            self.root.after(80, self.scroll_to_bottom)
+            print(f"🎨 [GUI] Image intégrée à la bulle : {image_path}")
+        except Exception as exc:
+            traceback.print_exc()
+            print(f"⚠️ [GUI] Intégration image échouée : {exc}")
+
+    def _remember_image_generation(self, user_text, prompt, image_path):
+        """Inscrit la génération d'image dans l'historique du LLM local.
+
+        Ainsi le modèle « sait » qu'une image a été générée et peut y faire
+        référence plus tard (ex. « de quoi on a parlé aujourd'hui ? »).
+        """
+        try:
+            local_ai = getattr(self.ai_engine, "local_ai", None)
+            llm = getattr(local_ai, "local_llm", None)
+            if llm is None or not hasattr(llm, "add_to_history"):
+                return
+            filename = os.path.basename(image_path)
+            llm.add_to_history("user", user_text)
+            llm.add_to_history(
+                "assistant",
+                f"🎨 J'ai généré une image à partir de la description « {prompt} » "
+                f"et je l'ai affichée dans le chat (fichier : {filename}).",
+            )
+            print("🧠 [ImageGen] Génération ajoutée au contexte du LLM local")
+        except Exception as exc:
+            print(f"⚠️ [ImageGen] Ajout au contexte LLM échoué : {exc}")
 
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
@@ -353,7 +715,6 @@ class BaseGUI:
                 sched_cfg = self.config.get_section("scheduler") or {}
             if not sched_cfg.get("enabled", True):
                 return
-            from core.scheduler import get_scheduler
             self._scheduler = get_scheduler()
             self._scheduler.add_listener(self._on_scheduled_task_done)
             self._scheduler.start()
@@ -788,7 +1149,7 @@ class BaseGUI:
         def _draw_qr_on_canvas(url):
             """Dessine un QR code directement sur le canvas Tk."""
             try:
-                import qrcode #pylint: disable=import-outside-toplevel
+                import qrcode  # pylint: disable=import-outside-toplevel
             except ImportError:
                 qr_canvas.delete("all")
                 qr_canvas.create_text(
@@ -2226,6 +2587,15 @@ class BaseGUI:
 
             return
 
+        # 🎨 DÉTECTION SPÉCIALE : Génération d'image (texte → image)
+        try:
+            _is_image_gen = self.ai_engine.is_image_generation_request(user_text)
+        except Exception:
+            _is_image_gen = False
+        if _is_image_gen:
+            self._handle_image_generation_ui(user_text, request_id)
+            return
+
         # Détection d'intention (code existant)
         intent = None
         confidence = 0.0
@@ -2420,6 +2790,9 @@ class BaseGUI:
                 event.wait()
                 return result["confirmed"]
 
+            # Note : la génération d'image (texte → image) est interceptée en
+            # amont par _handle_image_generation_ui() avec sa propre animation,
+            # son bouton STOP et son affichage. Ce chemin ne la gère donc pas.
             response = self.ai_engine.process_query_stream(
                 user_text,
                 on_token=on_token_received,
