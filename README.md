@@ -121,6 +121,15 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
 - **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
 
+### 🎨 Génération d'images locale (texte → image)
+
+- **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
+- **100% local** via un backend **Stable Diffusion** en HTTP : **AUTOMATIC1111 / Forge** (recommandé), **ComfyUI**, ou **diffusers** (optionnel) — configurable dans `config.yaml` → `image_generation:`.
+- **Dégradation propre** : message clair si aucun backend (comme le fallback Ollama), **indicateur de progression**, image sauvegardée dans `outputs/`.
+- **Affichage desktop & mobile** : aperçu cliquable dans le chat ; sur mobile, l'image transite **chiffrée AES-256-GCM** (même E2EE que les pièces jointes).
+
+> Guide complet : [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md)
+
 ### 🔍 Recherche Internet Intelligente
 
 - Recherche web en temps réel via **DuckDuckGo**
