@@ -171,7 +171,141 @@ class AIEngine:
         self.logger.info("✅ ChatOrchestrator initialisé (ReAct + scratchpad + détection de boucle)")
 
         self._current_lang_instruction = ""
+
+        # 🎨 Générateur d'images (texte → image, 100% local). Instancié
+        # paresseusement pour ne pas sonder le réseau au démarrage.
+        self._image_generator = None
+
         self._init_v7_modules()
+
+    # ------------------------------------------------------------------
+    # Génération d'images (sortie multimodale)
+    # ------------------------------------------------------------------
+
+    @property
+    def image_generator(self):
+        """Instance paresseuse du générateur d'images (models.image_generation)."""
+        if self._image_generator is None:
+            try:
+                from models.image_generation import get_image_generator
+                self._image_generator = get_image_generator()
+            except Exception as exc:
+                self.logger.warning("ImageGenerator indisponible : %s", exc)
+                self._image_generator = None
+        return self._image_generator
+
+    # Regex de détection « génère une image de … » (sortie image), distinct du
+    # code_generation. Exclut explicitement les demandes d'ANALYSE d'image (vision).
+    _IMAGE_GEN_RE = _re.compile(
+        r"(?:(?:génère|genere|generate|crée|cree|create|fais|fait|montre|donne|dessine|dessines|illustre|peins)"
+        r"[-\s]?(?:moi\s+)?(?:une?|le|la|un|du|des)?\s*"
+        r"(?:image|images|illustration|illustrations|dessin|dessins|photo|photos|peinture|"
+        r"portrait|logo|affiche|rendu|visuel|tableau|croquis|art\b))"
+        r"|(?:\b(?:dessine|dessines|illustre|peins)[-\s]?moi\b)"
+        r"|(?:\btext[- ]?to[- ]?image\b)",
+        _re.IGNORECASE,
+    )
+    _IMAGE_GEN_EXCLUDE_RE = _re.compile(
+        r"\b(?:analyse|décris|decris|que vois|que contient|qu'y a|reconnais|identifie)\b"
+        r"|cette image|l'image jointe|cette photo",
+        _re.IGNORECASE,
+    )
+
+    def _is_image_generation_request(self, query: str) -> bool:
+        """True si la requête demande de GÉNÉRER une image (pas d'en analyser une)."""
+        if not query or not isinstance(query, str):
+            return False
+        try:
+            cfg_enabled = bool(get_config().get("image_generation.enabled", True))
+        except Exception:
+            cfg_enabled = True
+        if not cfg_enabled:
+            return False
+        if self._IMAGE_GEN_EXCLUDE_RE.search(query):
+            return False
+        return bool(self._IMAGE_GEN_RE.search(query))
+
+    @staticmethod
+    def _extract_image_prompt(query: str) -> str:
+        """Nettoie la requête pour extraire la description picturale.
+
+        « génère-moi une image de chat astronaute » → « chat astronaute ».
+        Best-effort : si rien à retirer, renvoie la requête telle quelle.
+        """
+        q = (query or "").strip()
+        # Retirer l'amorce d'instruction jusqu'au nom (image/dessin/…) + liaison
+        cleaned = _re.sub(
+            r"^\s*(?:s'il te plaît\s+|stp\s+|peux[- ]tu\s+|pourrais[- ]tu\s+|tu peux\s+)?"
+            r"(?:me\s+)?(?:génère|genere|generate|crée|cree|create|fais|fait|montre|donne|"
+            r"dessine|dessines|illustre|peins|générer|generer|créer|dessiner|faire)"
+            r"[-\s]?(?:moi\s+)?"
+            r"(?:une?|le|la|un|du|des)?\s*"
+            r"(?:image|images|illustration|illustrations|dessin|dessins|photo|photos|peinture|"
+            r"portrait|logo|affiche|rendu|visuel|tableau|croquis|art)?"
+            r"\s*(?:de\s+|d'|d’|du\s+|représentant\s+|montrant\s+|avec\s+|:\s*)?",
+            "",
+            q,
+            flags=_re.IGNORECASE,
+        ).strip()
+        return cleaned if len(cleaned) >= 3 else q
+
+    def _run_image_generation(
+        self,
+        query: str,
+        on_token=None,
+        on_image=None,
+        on_progress=None,
+        is_interrupted_callback=None,
+    ) -> Dict[str, Any]:
+        """Génère une image et émet le résultat vers l'UI.
+
+        - on_token(str)   : streame le message texte (statut + confirmation).
+        - on_image(path)  : signale le chemin de l'image générée (GUI/mobile).
+        - on_progress(f,m) : indicateur de progression (0..1, message).
+        Retourne un dict réponse standard (type=image_generation).
+        """
+        gen = self.image_generator
+        if gen is None or not gen.is_available():
+            msg = (
+                gen.unavailable_message()
+                if gen is not None
+                else "🎨 Génération d'image indisponible (module non chargé)."
+            )
+            if on_token:
+                on_token(msg)
+            return {"type": "image_generation", "message": msg, "success": False}
+
+        prompt = self._extract_image_prompt(query)
+        if on_token:
+            on_token(f"🎨 Génération de l'image en cours… *({prompt})*")
+
+        result = gen.generate(
+            prompt,
+            on_progress=on_progress,
+            is_interrupted=is_interrupted_callback,
+        )
+
+        if result.success and result.image_path:
+            if on_image:
+                try:
+                    on_image(result.image_path)
+                except Exception as exc:
+                    self.logger.warning("on_image callback a échoué : %s", exc)
+            return {
+                "type": "image_generation",
+                "message": result.message,
+                "image_path": result.image_path,
+                "success": True,
+            }
+
+        # Échec : message clair (dégradation propre)
+        if on_token:
+            on_token("\n\n" + result.message)
+        return {
+            "type": "image_generation",
+            "message": result.message,
+            "success": False,
+        }
 
     # ------------------------------------------------------------------
     # Chargement du Modelfile
@@ -1088,6 +1222,13 @@ Que voulez-vous que je fasse pour vous ?"""
             # Détection automatique de la langue de l'utilisateur
             self._current_lang_instruction = self._get_lang_instruction(query)
 
+            # 0.a. Génération d'image (SORTIE image) — prioritaire sur MCP.
+            if self._is_image_generation_request(query):
+                print(f"🎨 [AIEngine] Génération d'image détectée pour : '{query}'")
+                response = self._run_image_generation(query)
+                self.conversation_manager.add_exchange(query, response)
+                return response
+
             # 0. Vérifier la génération de fichier en priorité absolue pour court-circuiter MCP
             query_lower = query.lower()
             file_keywords = [
@@ -1832,6 +1973,8 @@ Que voulez-vous que je fasse pour vous ?"""
         context: Optional[Dict] = None,
         is_interrupted_callback=None,
         on_delete_confirm=None,
+        on_image=None,
+        on_image_progress=None,
     ) -> str:
         """
         Point d'entrée synchrone et streamé pour la GUI.
@@ -1847,7 +1990,7 @@ Que voulez-vous que je fasse pour vous ?"""
         self._current_lang_instruction = self._get_lang_instruction(user_input)
 
         # ----------------------------------------------------------------
-        # 1. Vision
+        # 1. Vision (ENTRÉE image)
         # ----------------------------------------------------------------
         if image_base64:
             return self.local_ai.generate_response_stream(
@@ -1858,6 +2001,23 @@ Que voulez-vous que je fasse pour vous ?"""
                 on_thinking_token=on_thinking_token,
                 on_thinking_complete=on_thinking_complete,
             )
+
+        # ----------------------------------------------------------------
+        # 1.b. Génération d'image (SORTIE image) — symétrie multimodale.
+        # Court-circuite le routage MCP/LLM : on appelle le backend Stable
+        # Diffusion local et on émet l'image via on_image. Dégradation propre
+        # si aucun backend (message clair, comme le fallback Ollama).
+        # ----------------------------------------------------------------
+        if self._is_image_generation_request(user_input):
+            print("🎨 [AIEngine] Intention de génération d'image détectée")
+            result = self._run_image_generation(
+                user_input,
+                on_token=on_token,
+                on_image=on_image,
+                on_progress=on_image_progress,
+                is_interrupted_callback=is_interrupted_callback,
+            )
+            return result.get("message", "")
 
         llm = getattr(self.local_ai, "local_llm", None)
         # Rafraîchir le flag si nécessaire (cas : Ollama démarré après le lancement de l'app)

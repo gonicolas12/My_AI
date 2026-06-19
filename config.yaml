@@ -132,16 +132,51 @@ generation:
     default_format: "pdf"  # pdf, docx, txt
     include_metadata: true
     include_timestamp: true
-    
+
     pdf:
       page_size: "A4"
       margins: 20  # mm
       font_family: "Arial"
       font_size: 12
-    
+
     docx:
       style_template: "default"
       include_toc: false
+
+# ====================================
+# GÉNÉRATION D'IMAGES (texte → image, 100% local)
+# ====================================
+# Ferme la symétrie multimodale : l'ENTRÉE vision existe déjà (Ollama
+# minicpm-v/llava), cette section ajoute la SORTIE image. Calque le pattern
+# Ollama : on parle à un backend Stable Diffusion LOCAL en HTTP (localhost),
+# avec dégradation propre si aucun backend (message clair, comme le fallback
+# Ollama). Voir models/image_generation.py.
+image_generation:
+  # Active la fonctionnalité (intention "génère une image de…").
+  enabled: true
+  # Backend : auto | automatic1111 | comfyui | diffusers
+  #   - automatic1111 : API AUTOMATIC1111 / Forge WebUI (recommandé, défaut)
+  #                     démarrer la WebUI avec --api (Forge conseillé en 6 Go VRAM,
+  #                     ajouter --medvram). Coexiste avec Ollama via services séparés.
+  #   - comfyui       : API ComfyUI (workflow par graphe), très économe en VRAM.
+  #   - diffusers     : pipeline Python en process (deps lourdes + torch CUDA),
+  #                     déconseillé sur petite VRAM partagée avec Ollama.
+  #   - auto          : essaie automatic1111 puis comfyui puis diffusers.
+  backend: "automatic1111"
+  # Endpoints HTTP des backends locaux
+  automatic1111_url: "http://127.0.0.1:7860"
+  comfyui_url: "http://127.0.0.1:8188"
+  # Paramètres de génération par défaut (512x512 adapté à 6 Go VRAM)
+  width: 512
+  height: 512
+  steps: 25
+  cfg_scale: 7.0
+  sampler: "DPM++ 2M Karras"
+  negative_prompt: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry"
+  # Modèle utilisé uniquement si backend: diffusers
+  diffusers_model: "stabilityai/sd-turbo"
+  # Timeout d'une génération en secondes (une image peut être lente sur CPU/petite VRAM)
+  timeout: 300
 
 # ====================================
 # INTERFACE UTILISATEUR
