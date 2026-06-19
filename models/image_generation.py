@@ -52,6 +52,10 @@ except ImportError:
 ProgressCallback = Callable[[float, str], None]
 
 
+class _GenerationInterrupted(Exception):
+    """Signal interne : l'utilisateur a annulé la génération (bouton STOP)."""
+
+
 @dataclass
 class ImageGenConfig:
     """Configuration de la génération d'images (lue depuis config.yaml)."""
@@ -124,6 +128,7 @@ class ImageGenResult:
     message: str = ""  # message destiné à l'utilisateur (markdown)
     backend: str = ""
     error: Optional[str] = None
+    interrupted: bool = False  # True si annulé par l'utilisateur (bouton STOP)
     info: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -296,13 +301,21 @@ class ImageGenerator:
             elif backend == "comfyui":
                 png_bytes = self._generate_comfyui(params, on_progress, is_interrupted)
             elif backend == "diffusers":
-                png_bytes = self._generate_diffusers(params, on_progress)
+                png_bytes = self._generate_diffusers(params, on_progress, is_interrupted)
             else:
                 return ImageGenResult(
                     success=False,
                     message=self.unavailable_message(),
                     error="unknown_backend",
                 )
+        except _GenerationInterrupted:
+            return ImageGenResult(
+                success=False,
+                backend=backend,
+                interrupted=True,
+                error="interrupted",
+                message="⏹️ Génération de l'image interrompue.",
+            )
         except requests.exceptions.Timeout:
             return ImageGenResult(
                 success=False,
@@ -319,6 +332,16 @@ class ImageGenerator:
                 backend=backend,
                 error=str(exc),
                 message=f"⚠️ Échec de la génération d'image : {exc}",
+            )
+
+        # L'utilisateur a pu annuler pendant que le backend finissait sa requête.
+        if is_interrupted and is_interrupted():
+            return ImageGenResult(
+                success=False,
+                backend=backend,
+                interrupted=True,
+                error="interrupted",
+                message="⏹️ Génération de l'image interrompue.",
             )
 
         if not png_bytes:
@@ -368,44 +391,58 @@ class ImageGenerator:
             "n_iter": 1,
         }
 
-        # Thread de polling de progression (A1111 expose une jauge globale).
-        stop_poll = {"stop": False}
-        if on_progress:
-            import threading
+        # Thread de polling de progression (A1111 expose une jauge globale) qui
+        # sert aussi à détecter l'annulation utilisateur et à interrompre le
+        # backend via /sdapi/v1/interrupt (sinon le POST txt2img reste bloquant).
+        stop_poll = {"stop": False, "interrupted": False}
+        import threading
 
-            def _poll():
-                while not stop_poll["stop"]:
+        def _poll():
+            while not stop_poll["stop"]:
+                if is_interrupted and is_interrupted():
+                    stop_poll["interrupted"] = True
                     try:
-                        pr = requests.get(
-                            f"{self.config.automatic1111_url}/sdapi/v1/progress",
-                            params={"skip_current_image": "true"},
+                        requests.post(
+                            f"{self.config.automatic1111_url}/sdapi/v1/interrupt",
                             timeout=5,
                         )
-                        if pr.status_code == 200:
-                            data = pr.json()
-                            frac = float(data.get("progress", 0.0) or 0.0)
-                            eta = data.get("eta_relative", 0.0) or 0.0
-                            # Mapper 0..1 → 0.05..0.95 (réserver le début/fin)
-                            mapped = 0.05 + min(max(frac, 0.0), 1.0) * 0.9
-                            msg = (
-                                f"Génération… {int(frac * 100)}%"
-                                + (f" (≈{eta:.0f}s)" if eta else "")
-                            )
-                            try:
-                                on_progress(mapped, msg)
-                            except Exception:
-                                pass
                     except Exception:
                         pass
-                    time.sleep(0.7)
+                    break
+                try:
+                    pr = requests.get(
+                        f"{self.config.automatic1111_url}/sdapi/v1/progress",
+                        params={"skip_current_image": "true"},
+                        timeout=5,
+                    )
+                    if pr.status_code == 200 and on_progress:
+                        data = pr.json()
+                        frac = float(data.get("progress", 0.0) or 0.0)
+                        eta = data.get("eta_relative", 0.0) or 0.0
+                        # Mapper 0..1 → 0.05..0.95 (réserver le début/fin)
+                        mapped = 0.05 + min(max(frac, 0.0), 1.0) * 0.9
+                        msg = (
+                            f"Génération… {int(frac * 100)}%"
+                            + (f" (≈{eta:.0f}s)" if eta else "")
+                        )
+                        try:
+                            on_progress(mapped, msg)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                time.sleep(0.5)
 
-            t = threading.Thread(target=_poll, daemon=True)
-            t.start()
+        t = threading.Thread(target=_poll, daemon=True)
+        t.start()
 
         try:
             resp = self._post(url, json=payload, timeout=self.config.timeout)
         finally:
             stop_poll["stop"] = True
+
+        if stop_poll["interrupted"] or (is_interrupted and is_interrupted()):
+            raise _GenerationInterrupted()
 
         if resp.status_code != 200:
             raise RuntimeError(f"HTTP {resp.status_code} : {resp.text[:200]}")
@@ -505,7 +542,11 @@ class ImageGenerator:
         deadline = time.time() + self.config.timeout
         while time.time() < deadline:
             if is_interrupted and is_interrupted():
-                raise RuntimeError("Génération annulée.")
+                try:
+                    requests.post(f"{base}/interrupt", timeout=5)
+                except Exception:
+                    pass
+                raise _GenerationInterrupted()
             try:
                 h = requests.get(f"{base}/history/{prompt_id}", timeout=5)
                 if h.status_code == 200:
@@ -563,6 +604,7 @@ class ImageGenerator:
         self,
         params: Dict[str, Any],
         on_progress: Optional[ProgressCallback],
+        is_interrupted: Optional[Callable[[], bool]] = None,
     ) -> Optional[bytes]:
         """
         Pipeline diffusers local. Déconseillé sur petite VRAM partagée avec
@@ -607,7 +649,14 @@ class ImageGenerator:
 
         pipe = self._diffusers_pipe
 
-        def _cb(step: int, _t, _kw):
+        def _cb(pipe_ref, step: int, _t, _kw):
+            # diffusers appelle callback_on_step_end(pipe, step, timestep, kwargs).
+            if is_interrupted and is_interrupted():
+                try:
+                    pipe_ref._interrupt = True  # arrêt natif diffusers si supporté
+                except Exception:
+                    pass
+                raise _GenerationInterrupted()
             if on_progress:
                 frac = 0.1 + (step / max(params["steps"], 1)) * 0.85
                 on_progress(min(frac, 0.95), f"Diffusion… étape {step}")

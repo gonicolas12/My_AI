@@ -236,6 +236,190 @@ class BaseGUI:
         self._scheduler = None
         self._init_scheduler()
 
+    def _handle_image_generation_ui(self, user_text, request_id):
+        """🎨 Pipeline génération d'image avec animation « Génération en cours »,
+        bouton STOP actif pendant toute la génération, affichage de l'image à la
+        fin, et annulation conjointe (message + génération) si STOP est cliqué.
+
+        Fonctionne pour le desktop ET le mobile (relay) : ce worker est appelé
+        dans les deux cas. L'image et la réponse finale sont poussées au mobile
+        (chiffrées) si la requête vient du relay.
+        """
+        self._image_gen_active = True
+        self._image_gen_dot_count = 0
+        self._image_gen_status = "Génération de l'image en cours"
+        self._image_gen_widget = None
+
+        # Réserver la ligne dans l'historique (comme la génération de fichier)
+        self.conversation_history.append(
+            {
+                "text": "🎨 Génération de l'image en cours…",
+                "is_user": False,
+                "timestamp": datetime.now(),
+                "type": "image_generation_placeholder",
+            }
+        )
+
+        # Bloquer la saisie → affiche le bouton STOP (comme un message en cours)
+        self.set_input_state(False)
+        self.is_thinking = False  # on gère notre propre animation
+
+        def create_bubble():
+            try:
+                msg_container = self.create_frame(
+                    self.chat_frame, fg_color=self.colors["bg_chat"]
+                )
+                msg_container.grid(
+                    row=len(self.conversation_history) - 1,
+                    column=0, sticky="ew", pady=(0, 12),
+                )
+                msg_container.grid_columnconfigure(0, weight=1)
+                center_frame = self.create_frame(
+                    msg_container, fg_color=self.colors["bg_chat"]
+                )
+                center_frame.grid(row=0, column=0, padx=(250, 250), sticky="ew")
+                center_frame.grid_columnconfigure(1, weight=1)
+                icon_label = self.create_label(
+                    center_frame, text="🎨", font=("Segoe UI", 16),
+                    fg_color=self.colors["bg_chat"], text_color=self.colors["accent"],
+                )
+                icon_label.grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(1, 0))
+                message_container = self.create_frame(
+                    center_frame, fg_color=self.colors["bg_chat"]
+                )
+                message_container.grid(row=0, column=1, sticky="ew", pady=(2, 2))
+                message_container.grid_columnconfigure(0, weight=1)
+                text_widget = tk.Text(
+                    message_container, width=120, height=1,
+                    bg=self.colors["bg_chat"], fg=self.colors["text_primary"],
+                    font=("Segoe UI", 11), wrap="word", relief="flat",
+                    state="normal", cursor="arrow", padx=10, pady=8,
+                    highlightthickness=0, borderwidth=0,
+                )
+                text_widget.grid(row=0, column=0, sticky="ew")
+                text_widget.insert("1.0", "🎨 Génération de l'image en cours.")
+                text_widget.configure(state="disabled")
+                self._image_gen_widget = text_widget
+                self.current_message_container = message_container
+                self.root.after(100, self.scroll_to_bottom)
+            except (tk.TclError, AttributeError) as e:
+                print(f"Erreur création bulle image: {e}")
+
+        def set_widget_text(txt):
+            w = self._image_gen_widget
+            if not w:
+                return
+            try:
+                lines = txt.count("\n") + 1
+                w.configure(state="normal", height=max(lines, 1))
+                w.delete("1.0", "end")
+                w.insert("1.0", txt)
+                w.configure(state="disabled")
+            except (tk.TclError, AttributeError):
+                pass
+
+        def animate():
+            # Interruption → arrêter l'animation et afficher l'état annulé
+            if self.is_interrupted or self.current_request_id != request_id:
+                self._image_gen_active = False
+                set_widget_text("⏹️ Génération de l'image interrompue.")
+                return
+            if not self._image_gen_active:
+                return
+            dots = "." * ((self._image_gen_dot_count % 3) + 1)
+            self._image_gen_dot_count += 1
+            set_widget_text(f"🎨 {self._image_gen_status}{dots}")
+            self.root.after(450, animate)
+
+        def finalize_text(txt):
+            self._image_gen_active = False
+            set_widget_text(txt)
+            self.is_thinking = False
+            self.set_input_state(True)
+            try:
+                self._show_timestamp_for_current_message()
+            except Exception:
+                pass
+
+        def generate_async():
+            from_relay = getattr(self, "_current_message_from_relay", False)
+            try:
+                gen = getattr(self.ai_engine, "image_generator", None)
+                if gen is None or not gen.is_available():
+                    msg = (
+                        gen.unavailable_message() if gen is not None
+                        else "🎨 Génération d'image indisponible."
+                    )
+                    self.root.after(0, lambda: finalize_text(msg))
+                    if from_relay:
+                        self._relay_submit_text(msg)
+                    return
+
+                prompt = self.ai_engine._extract_image_prompt(user_text)
+
+                def on_progress(_frac, message):
+                    if message:
+                        self._image_gen_status = message
+
+                def is_interrupted():
+                    return self.is_interrupted or self.current_request_id != request_id
+
+                result = gen.generate(
+                    prompt, on_progress=on_progress, is_interrupted=is_interrupted
+                )
+                self._image_gen_active = False
+
+                if result.interrupted or is_interrupted():
+                    self.root.after(
+                        0, lambda: finalize_text("⏹️ Génération de l'image interrompue.")
+                    )
+                    if from_relay:
+                        self._relay_submit_text("⏹️ Génération de l'image interrompue.")
+                    return
+
+                if result.success and result.image_path:
+                    def _show_ok():
+                        finalize_text(result.message)
+                        self.display_generated_image(result.image_path)
+                    self.root.after(0, _show_ok)
+                    if from_relay:
+                        self._relay_submit_image(result.image_path)
+                        self._relay_submit_text(result.message)
+                else:
+                    self.root.after(0, lambda: finalize_text(result.message))
+                    if from_relay:
+                        self._relay_submit_text(result.message)
+            except Exception as exc:
+                traceback.print_exc()
+                self.root.after(
+                    0, lambda: finalize_text(f"⚠️ Erreur génération d'image : {exc}")
+                )
+            finally:
+                if from_relay:
+                    self._current_message_from_relay = False
+
+        create_bubble()
+        self.root.after(0, animate)
+        threading.Thread(target=generate_async, daemon=True).start()
+
+    def _relay_submit_image(self, image_path):
+        """Pousse une image générée au mobile (chiffrée) via le bridge."""
+        try:
+            srv = getattr(self, "_relay_server", None)
+            if srv and srv.bridge.active:
+                srv.bridge.submit_ai_image(image_path)
+        except Exception as exc:
+            print(f"⚠️ [Relay] Envoi image échoué : {exc}")
+
+    def _relay_submit_text(self, text):
+        """Soumet la réponse texte finale au mobile via le bridge."""
+        try:
+            srv = getattr(self, "_relay_server", None)
+            if srv and srv.bridge.active:
+                srv.bridge.submit_ai_response(text)
+        except Exception as exc:
+            print(f"⚠️ [Relay] Envoi réponse échoué : {exc}")
+
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""
         try:
@@ -2226,6 +2410,15 @@ class BaseGUI:
 
             return
 
+        # 🎨 DÉTECTION SPÉCIALE : Génération d'image (texte → image)
+        try:
+            _is_image_gen = self.ai_engine._is_image_generation_request(user_text)
+        except Exception:
+            _is_image_gen = False
+        if _is_image_gen:
+            self._handle_image_generation_ui(user_text, request_id)
+            return
+
         # Détection d'intention (code existant)
         intent = None
         confidence = 0.0
@@ -2420,34 +2613,9 @@ class BaseGUI:
                 event.wait()
                 return result["confirmed"]
 
-            def on_image_generated(image_path):
-                """🎨 Image générée : l'afficher dans le chat (et la pousser au mobile)."""
-                if self.current_request_id != request_id or self.is_interrupted:
-                    return
-                self.root.after(0, lambda p=image_path: self.display_generated_image(p))
-                # Relayer l'image au mobile (chiffrée) si la requête vient du relay.
-                if getattr(self, '_current_message_from_relay', False):
-                    try:
-                        relay_srv = getattr(self, '_relay_server', None)
-                        if relay_srv and relay_srv.bridge.active:
-                            relay_srv.bridge.submit_ai_image(image_path)
-                    except Exception as exc:
-                        print(f"⚠️ [Relay] Envoi image échoué : {exc}")
-
-            def on_image_progress(fraction, message):
-                """Indicateur de progression de la génération d'image."""
-                if self.current_request_id != request_id or self.is_interrupted:
-                    return
-                try:
-                    self.root.after(
-                        0,
-                        lambda f=fraction, m=message: self.show_status_message(
-                            f"🎨 {m}" if m else "🎨 Génération de l'image…"
-                        ) if hasattr(self, "show_status_message") else None,
-                    )
-                except Exception:
-                    pass
-
+            # Note : la génération d'image (texte → image) est interceptée en
+            # amont par _handle_image_generation_ui() avec sa propre animation,
+            # son bouton STOP et son affichage. Ce chemin ne la gère donc pas.
             response = self.ai_engine.process_query_stream(
                 user_text,
                 on_token=on_token_received,
@@ -2457,8 +2625,6 @@ class BaseGUI:
                 image_base64=image_b64,
                 is_interrupted_callback=lambda: self.is_interrupted or self.current_request_id != request_id,
                 on_delete_confirm=on_delete_confirm,
-                on_image=on_image_generated,
-                on_image_progress=on_image_progress,
             )
 
             # Marquer le streaming comme terminé SEULEMENT si cette requête est
