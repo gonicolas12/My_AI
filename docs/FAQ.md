@@ -185,6 +185,14 @@ Oui ! L'IA peut :
 - Détecter des problèmes
 - Proposer des alternatives
 
+### L'IA peut-elle générer des images ?
+Oui, 100% en local (texte → image). Demandez simplement « génère une image de… », « dessine-moi… » ou « crée un logo… » : l'image apparaît dans le chat et est sauvegardée dans `outputs/`.
+
+- **Zéro config :** au premier usage, si aucun backend n'est détecté, My_AI installe automatiquement **ComfyUI portable** (Windows/NVIDIA) + un modèle par défaut.
+- **Autres options :** AUTOMATIC1111/Forge, ou `diffusers` (tous GPU + CPU). Voir [IMAGE_GENERATION.md](IMAGE_GENERATION.md).
+- **Sans GPU :** ça fonctionne aussi sur CPU, mais comptez plusieurs minutes par image (préférez un modèle « Turbo »).
+- À ne pas confondre avec l'**analyse** d'image (« décris cette image »), gérée par la vision Ollama.
+
 ### Puis-je utiliser l'IA en ligne de commande ?
 Absolument ! 
 ```bash

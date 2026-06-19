@@ -24,7 +24,8 @@ My_AI gérait déjà l'**entrée vision** (décrire une image via Ollama `minicp
 
 ## 🖥️ Affichage desktop & 📱 mobile (E2EE)
 
-- **Desktop** — `interfaces/gui/message_bubbles.py` : `display_generated_image()` crée une bulle avec aperçu **cliquable** (ouverture taille réelle).
+- **Desktop** — l'image générée s'affiche **dans la même bulle** que le texte « Voici l'image générée… » (une seule icône 🎨), avec aperçu **cliquable** (ouverture en taille réelle). Le rendu **`**gras**`** du message est interprété dans la bulle.
+- **Contexte LLM** — la génération est inscrite dans l'historique du modèle local : si on demande ensuite « de quoi on a parlé ? », l'IA **sait** qu'elle a généré une image.
 - **Mobile (Relay)** — l'image transite **chiffrée AES-256-GCM** : `relay/relay_server.py` `_broadcast_image()` l'envoie dans un événement WS `ai_image` via `encrypt_json()` (même enveloppe E2EE que les pièces jointes) ; `relay/static/app.js` l'affiche en `data:` URI (**jamais en clair sur le réseau**).
 
 ## ⚙️ Installation automatique (zéro config) — `models/comfyui_manager.py` (nouveau)

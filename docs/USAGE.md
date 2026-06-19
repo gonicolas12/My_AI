@@ -129,6 +129,26 @@ Vous: "Quel texte est visible ?"
 
 > **Note:** Nécessite un modèle vision installé (`ollama pull llava`). L'image est automatiquement redimensionnée à 1024px max.
 
+### 🎨 Génération d'Images (texte → image)
+
+Symétrie de l'analyse d'images : l'IA peut aussi **créer** des images à partir d'une description, 100% en local.
+
+```
+Vous: "génère moi une image de dragon rouge"
+Vous: "dessine-moi un chat astronaute, style aquarelle"
+Vous: "crée un logo minimaliste pour une startup tech"
+Vous: "génère une illustration d'une forêt enchantée la nuit"
+```
+
+Ce qu'il se passe :
+1. Une bulle **« 🎨 Génération de l'image en cours… »** s'affiche (avec % de progression). Le bouton **STOP** reste actif — un clic annule à la fois le message et la génération.
+2. L'image générée s'affiche **dans la même bulle** (clic = ouverture en taille réelle) et est sauvegardée dans `outputs/`.
+3. La génération entre dans le **contexte** : « de quoi on a parlé ? » → l'IA se souvient de l'image créée.
+
+> **Premier lancement :** si aucun backend Stable Diffusion n'est détecté, My_AI **installe automatiquement ComfyUI portable** (Windows/NVIDIA) + un modèle par défaut — rien à configurer. Sur les autres systèmes, ou pour choisir un autre backend (AUTOMATIC1111/Forge), voir [IMAGE_GENERATION.md](IMAGE_GENERATION.md). Désactivable via `config.yaml` → `image_generation.auto_setup: false`.
+>
+> L'**analyse** d'image (« décris cette image ») reste gérée par la vision Ollama et n'est pas confondue avec la génération.
+
 ### 🎙️ Saisie Vocale (Voice Mode)
 
 Un bouton micro (🎙) est présent en haut-droite de chaque zone de saisie :
@@ -500,6 +520,18 @@ Sources:
 - [URL1]
 - [URL2]
 ```
+
+### 6. Génération d'Images
+
+**Triggers:** génère/dessine/crée une image, une illustration, un dessin, un logo, un visuel…
+
+```bash
+Vous> dessine-moi un dragon rouge
+IA> 🎨 Génération de l'image en cours… 60%
+    [image affichée dans la bulle + sauvegardée dans outputs/]
+```
+
+> Distincte de l'**analyse** d'image (« décris cette image ») et de la génération de **code**.
 
 ---
 

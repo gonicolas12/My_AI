@@ -79,6 +79,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
 | 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG à côté du chat |
+| 🖼️ **Génération d'images** | « génère une image de… » → image dans le chat (backend SD local auto-installé) |
 
 ### Agents — Interface dédiée
 
@@ -124,9 +125,11 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 ### 🎨 Génération d'images locale (texte → image)
 
 - **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
-- **100% local** via un backend **Stable Diffusion** en HTTP : **AUTOMATIC1111 / Forge** (recommandé), **ComfyUI**, ou **diffusers** (optionnel) — configurable dans `config.yaml` → `image_generation:`.
-- **Dégradation propre** : message clair si aucun backend (comme le fallback Ollama), **indicateur de progression**, image sauvegardée dans `outputs/`.
-- **Affichage desktop & mobile** : aperçu cliquable dans le chat ; sur mobile, l'image transite **chiffrée AES-256-GCM** (même E2EE que les pièces jointes).
+- **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows/NVIDIA, Python+CUDA embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
+- **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU) — configurable dans `config.yaml` → `image_generation:`.
+- **Expérience soignée** : animation « Génération en cours… » avec **% de progression**, **bouton STOP** qui annule message **et** génération, image affichée **dans la bulle**, et génération mémorisée dans le **contexte du LLM**.
+- **Dégradation propre** : message clair si aucun backend, image sauvegardée dans `outputs/`.
+- **Desktop & mobile** : sur mobile, l'image transite **chiffrée AES-256-GCM** (même E2EE que les pièces jointes).
 
 > Guide complet : [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md)
 
@@ -283,7 +286,9 @@ my_ai/
 │   ├── ai_agents.py                     # Agents IA spécialisés
 │   ├── base_ai.py                       # Interface de base
 │   ├── conversation_memory.py           # Mémoire conversationnelle avancée
+│   ├── comfyui_manager.py               # Auto-installation/gestion de ComfyUI portable (image)
 │   ├── custom_ai_model.py               # Modèle IA principal avec intentions
+│   ├── image_generation.py              # Génération d'images locale (texte → image, SD)
 │   ├── intelligent_code_orchestrator.py # Orchestrateur pour la génération de code
 │   ├── intelligent_document_analyzer.py # Analyseur de documents intelligent
 │   ├── internet_search.py               # Moteur de recherche internet
@@ -530,6 +535,7 @@ code --install-extension gonicolas12.my-ai
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
 | [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
+| [🎨 Génération d'Images](docs/IMAGE_GENERATION.md) | Texte → image 100% local (backends, auto-install, GPU) |
 | [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
 | [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide de l'interface graphique agents (canvas, monitoring) |
 | [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG |
@@ -556,6 +562,7 @@ code --install-extension gonicolas12.my-ai
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
+| 🖼️ **Génération d'images** | Texte → image 100% local, backend SD auto-installé |
 | 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG |
 | 📅 **Scheduler proactif** | Agents/workflows planifiés (cron), même l'appli fermée |
 | ⚙️ **Réglages intégrés** | Gestion des modèles Ollama + paramètres |

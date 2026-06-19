@@ -695,6 +695,35 @@ Configuration Modelfile:
 └─ System prompt personnalisé français
 ```
 
+**`models/image_generation.py`** - Génération d'images (texte → image)
+```python
+ImageGenerator (sortie multimodale, miroir de la vision en entrée) :
+├─ Backend configurable (config.yaml → image_generation:)
+│   ├─ automatic1111 : API A1111/Forge (/sdapi/v1/txt2img)
+│   ├─ comfyui       : API ComfyUI (/prompt + /history)
+│   ├─ diffusers     : pipeline en process (tous GPU + CPU)
+│   └─ auto          : essaie a1111 → comfyui → diffusers
+├─ resolve_backend() : détection HTTP + cache (calque LocalLLM)
+├─ Dégradation propre si aucun backend (message clair, pas de crash)
+├─ Progression (/sdapi/v1/progress, polling /history) + interruption
+│   (/interrupt, ImageGenResult.interrupted, _GenerationInterrupted)
+└─ Sauvegarde outputs/img_AAAAMMJJ_HHMMSS_<slug>.png
+
+Routage : core/ai_engine.is_image_generation_request() / extract_image_prompt()
+          → court-circuit prioritaire sur MCP, callbacks on_image / on_image_progress
+```
+
+**`models/comfyui_manager.py`** - Auto-installation ComfyUI portable
+```python
+ComfyUIManager (zéro config, déclenché au 1er usage si auto_setup) :
+├─ Télécharge ComfyUI portable (Windows/NVIDIA, Python+CUDA embarqués)
+│   dans tools/ — n'altère pas l'environnement Python de My_AI
+├─ Extraction .7z via 7-Zip (7zr.exe auto-téléchargé, gère le filtre BCJ2)
+├─ Télécharge un modèle par défaut (SD-Turbo) si aucun checkpoint
+├─ Lance ComfyUI en sous-processus + health-check (localhost:8188)
+└─ Progression + interruption propagées à l'UI (même esprit que cloudflared)
+```
+
 **`models/internet_search.py`** - Moteur recherche
 ```python
 EnhancedInternetSearchEngine :

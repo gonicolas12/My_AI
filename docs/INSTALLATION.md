@@ -95,6 +95,16 @@ ollama run qwen3.5:4b "Bonjour"  # Tester
 
 > **Note:** Si Ollama n'est pas installé, l'IA utilisera automatiquement le mode fallback (CustomAIModel avec patterns).
 
+### 3.5. Génération d'Images (Optionnel — texte → image)
+
+**Rien à installer dans la plupart des cas.** À la première demande de génération d'image (« génère une image de… »), si aucun backend n'est détecté, My_AI **télécharge et lance automatiquement ComfyUI portable** (Windows/NVIDIA, Python+CUDA embarqués — n'altère pas votre environnement) ainsi qu'un modèle par défaut. La progression s'affiche dans le chat.
+
+- **Aucune dépendance Python** ajoutée pour les backends HTTP (ComfyUI / AUTOMATIC1111-Forge) : My_AI leur parle en localhost.
+- Pour **désactiver** l'auto-installation : `config.yaml` → `image_generation.auto_setup: false`.
+- Pour **choisir un autre backend** (Forge recommandé sur petite VRAM, ou `diffusers` 100% pip tous GPU/CPU) et les compromis VRAM : voir **[IMAGE_GENERATION.md](IMAGE_GENERATION.md)**.
+
+> **Non-Windows / non-NVIDIA :** l'auto-installation du portable n'est pas disponible — installez ComfyUI ou AUTOMATIC1111/Forge manuellement (procédure dans [IMAGE_GENERATION.md](IMAGE_GENERATION.md)).
+
 ### 4. Lancement Rapide
 
 ```bash
