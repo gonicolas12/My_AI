@@ -125,7 +125,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 - **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
 - **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows/NVIDIA, Python+CUDA embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
-- **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:` — voir [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md)
+- **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:`.
 
 ### 🔍 Recherche Internet Intelligente
 
@@ -153,7 +153,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - Planifiez l'exécution **récurrente** d'un **agent**, d'un **workflow** (canvas n8n) ou d'un **débat** : *quotidien*, *hebdomadaire*, *intervalle* ou **cron** — ex. « chaque matin 8h, WebAgent sur l'actu IA et résume »
 - **Exécution même l'application fermée** (option) via le **Planificateur de tâches Windows** — session ouverte, sans droits admin ni mot de passe stocké
 - **Rattrapage** des tâches manquées au redémarrage, **notifications** (toast OS + entrée GUI + message mobile), rapports `.md` dans `outputs/scheduled/`
-- 100% local, **réutilise l'orchestrateur d'agents existant** — voir [docs/SCHEDULER.md](docs/SCHEDULER.md)
+- 100% local, **réutilise l'orchestrateur d'agents existant**.
 
 ---
 
