@@ -190,6 +190,10 @@ isort>=5.12.0
 # service séparé à installer comme Ollama. My_AI n'utilise alors que `requests`
 # (déjà présent). Voir docs/IMAGE_GENERATION.md.
 #
+# L'auto-installation de ComfyUI portable (image_generation.auto_setup: true,
+# Windows/NVIDIA) installe elle-même `py7zr` au besoin pour extraire l'archive.
+# Pour l'éviter, vous pouvez le pré-installer :  pip install py7zr
+#
 # Seul le backend "diffusers" (image_generation.backend: diffusers dans
 # config.yaml) demande des paquets supplémentaires — à n'installer QUE si vous
 # choisissez ce mode (deps lourdes, ~GB de poids) :

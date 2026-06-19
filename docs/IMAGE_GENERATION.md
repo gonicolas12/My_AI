@@ -35,6 +35,27 @@ core/ai_engine.py ── process_query_stream ──► ImageGenerator.generate(
   on_image(path) ──► bulle desktop + push mobile (chiffré)   outputs/img_*.png
 ```
 
+## 1.5. Installation automatique (zéro config)
+
+Par défaut (`image_generation.auto_setup: true`), **rien à installer** : à la
+**première** demande d'image, si aucun backend n'est détecté, My_AI télécharge
+et lance automatiquement **ComfyUI portable** (Windows/NVIDIA) :
+
+1. téléchargement de **ComfyUI portable** (~2–2.5 Go, **Python + CUDA embarqués**
+   — n'altère **pas** l'environnement Python de My_AI) dans `tools/` ;
+2. extraction (l'extracteur `py7zr` est installé automatiquement si absent) ;
+3. téléchargement d'un **modèle par défaut** (SD-Turbo, ~2.5 Go, rapide et adapté
+   à 6 Go de VRAM) ;
+4. lancement de ComfyUI en arrière-plan et bascule automatique du backend.
+
+Toute la progression (téléchargement %, extraction, démarrage) s'affiche dans
+l'**animation « Génération en cours »**, et le bouton **STOP** annule l'opération.
+ComfyUI reste lancé en tâche de fond et est réutilisé aux usages suivants.
+
+> **Non-Windows / non-NVIDIA** : l'auto-installation du portable n'est pas
+> disponible — installez ComfyUI ou Forge manuellement (§3). Pour désactiver
+> l'auto-installation : `image_generation.auto_setup: false`.
+
 ## 2. Choix du backend
 
 | Backend          | Installation                    | VRAM 6 Go | Vitesse        |

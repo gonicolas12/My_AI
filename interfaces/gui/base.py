@@ -345,6 +345,25 @@ class BaseGUI:
             from_relay = getattr(self, "_current_message_from_relay", False)
             try:
                 gen = getattr(self.ai_engine, "image_generator", None)
+                def on_progress(_frac, message):
+                    if message:
+                        self._image_gen_status = message
+
+                def is_interrupted():
+                    return self.is_interrupted or self.current_request_id != request_id
+
+                # Aucun backend détecté → auto-installation de ComfyUI portable
+                # (1ʳᵉ fois) si activée, avec progression dans la même animation.
+                if gen is not None and not gen.is_available():
+                    if not self._auto_setup_image_backend(gen, on_progress, is_interrupted):
+                        # Auto-setup impossible/refusé : message clair
+                        if is_interrupted():
+                            self.root.after(0, lambda: finalize_text(
+                                "⏹️ Génération de l'image interrompue."))
+                            if from_relay:
+                                self._relay_submit_text("⏹️ Génération de l'image interrompue.")
+                            return
+
                 if gen is None or not gen.is_available():
                     msg = (
                         gen.unavailable_message() if gen is not None
@@ -356,13 +375,6 @@ class BaseGUI:
                     return
 
                 prompt = self.ai_engine._extract_image_prompt(user_text)
-
-                def on_progress(_frac, message):
-                    if message:
-                        self._image_gen_status = message
-
-                def is_interrupted():
-                    return self.is_interrupted or self.current_request_id != request_id
 
                 result = gen.generate(
                     prompt, on_progress=on_progress, is_interrupted=is_interrupted
@@ -401,6 +413,53 @@ class BaseGUI:
         create_bubble()
         self.root.after(0, animate)
         threading.Thread(target=generate_async, daemon=True).start()
+
+    def _auto_setup_image_backend(self, gen, on_progress, is_interrupted) -> bool:
+        """Installe/lance automatiquement ComfyUI portable au 1er usage.
+
+        Retourne True si un backend répond ensuite, False sinon. La progression
+        (téléchargement ~2 Go, extraction, modèle, démarrage) alimente
+        l'animation. Interruptible via le bouton STOP.
+        """
+        try:
+            auto = bool(self.config.get("image_generation.auto_setup", True))
+        except Exception:
+            auto = True
+        if not auto:
+            return False
+
+        try:
+            from models.comfyui_manager import (ComfyUISetupError,
+                                                get_comfyui_manager)
+        except Exception as exc:
+            print(f"⚠️ [ImageGen] comfyui_manager indisponible : {exc}")
+            return False
+
+        mgr = get_comfyui_manager()
+        if not mgr.is_supported():
+            return False  # → message d'install manuelle (non-Windows)
+
+        self._image_gen_status = "Installation de la génération d'image (1ʳᵉ fois)…"
+        try:
+            ok = mgr.ensure_running(on_progress=on_progress, is_interrupted=is_interrupted)
+        except ComfyUISetupError as exc:
+            if str(exc) == "__interrupted__" or is_interrupted():
+                return False
+            print(f"⚠️ [ImageGen] Auto-setup ComfyUI échoué : {exc}")
+            self._image_gen_status = f"Échec installation ComfyUI : {exc}"
+            return False
+        except Exception as exc:
+            print(f"⚠️ [ImageGen] Auto-setup ComfyUI exception : {exc}")
+            return False
+
+        if ok:
+            # Basculer le générateur sur l'instance ComfyUI gérée pour cette session
+            try:
+                gen.config.backend = "comfyui"
+                gen.resolve_backend(force=True)
+            except Exception:
+                pass
+        return ok and gen.is_available()
 
     def _relay_submit_image(self, image_path):
         """Pousse une image générée au mobile (chiffrée) via le bridge."""

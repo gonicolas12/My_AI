@@ -166,6 +166,16 @@ image_generation:
   # Endpoints HTTP des backends locaux
   automatic1111_url: "http://127.0.0.1:7860"
   comfyui_url: "http://127.0.0.1:8188"
+  # Auto-installation au 1er usage : si aucun backend n'est détecté, My_AI
+  # télécharge et lance automatiquement ComfyUI portable (Windows/NVIDIA,
+  # Python+CUDA embarqués — n'altère pas l'environnement de My_AI) dans tools/.
+  # Téléchargement ~2-2.5 Go + 1 modèle ~2.5 Go la 1ʳᵉ fois, avec progression.
+  # Mettre à false pour exiger une installation manuelle (Forge/ComfyUI).
+  auto_setup: true
+  # Sources de l'auto-installation (surchargeables si besoin)
+  comfyui_portable_url: "https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z"
+  comfyui_model_url: "https://huggingface.co/stabilityai/sd-turbo/resolve/main/sd_turbo.safetensors"
+  comfyui_model_filename: "sd_turbo.safetensors"
   # Paramètres de génération par défaut (512x512 adapté à 6 Go VRAM)
   width: 512
   height: 512

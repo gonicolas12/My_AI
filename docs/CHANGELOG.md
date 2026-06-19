@@ -27,7 +27,19 @@ My_AI gérait déjà l'**entrée vision** (décrire une image via Ollama `minicp
 - **Desktop** — `interfaces/gui/message_bubbles.py` : `display_generated_image()` crée une bulle avec aperçu **cliquable** (ouverture taille réelle).
 - **Mobile (Relay)** — l'image transite **chiffrée AES-256-GCM** : `relay/relay_server.py` `_broadcast_image()` l'envoie dans un événement WS `ai_image` via `encrypt_json()` (même enveloppe E2EE que les pièces jointes) ; `relay/static/app.js` l'affiche en `data:` URI (**jamais en clair sur le réseau**).
 
+## ⚙️ Installation automatique (zéro config) — `models/comfyui_manager.py` (nouveau)
+
+Par défaut (`image_generation.auto_setup: true`), **rien à installer manuellement** : à la **première** demande d'image sans backend détecté, My_AI télécharge et lance automatiquement **ComfyUI portable** (Windows/NVIDIA, **Python + CUDA embarqués** — n'altère pas l'environnement de My_AI), récupère un **modèle par défaut** (SD-Turbo) et bascule dessus. Même esprit que le téléchargement auto de cloudflared pour le tunnel.
+
+## ✨ Expérience de génération (animation, STOP, annulation)
+
+- **Animation « 🎨 Génération de l'image en cours… »** dans une bulle dédiée (points + **% de progression**, et **% de téléchargement** pendant l'auto-installation).
+- Le **bouton STOP reste actif** pendant toute la génération (comme un message en cours d'écriture) ; le message **se finalise** seulement à la fin, puis l'**image s'affiche** directement dans le chat.
+- **Annulation conjointe** : un clic sur STOP arrête le **message ET la génération** (interruption propagée au backend : `/sdapi/v1/interrupt` A1111, `/interrupt` ComfyUI, `_interrupt` diffusers) — y compris pendant le téléchargement de l'auto-installation.
+
 > Détails, installation des backends et compromis VRAM : [docs/IMAGE_GENERATION.md](IMAGE_GENERATION.md).
+
+---
 
 # 🎨 Version 7.7.0 — Artifacts live & Scheduler proactif (18 Juin 2026)
 
