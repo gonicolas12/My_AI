@@ -127,13 +127,6 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows/NVIDIA, Python+CUDA embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
 - **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:`.
 
-### 🔍 Recherche Internet Intelligente
-
-- Recherche web en temps réel via **DuckDuckGo**
-- Résumés automatiques et extraction de contenu avec **BeautifulSoup**
-- Traitement parallèle de plusieurs sources simultanément
-- Adaptation du format de réponse selon le type de recherche
-
 ### 🔌 Accès à tout le PC (Root System) via MCP Local
 - Outils locaux pour **lire, écrire, déplacer des fichiers** et **créer des dossiers**
 - Vérification rigoureuse des **chemins complets** retournés par les outils pour garantir une **gestion précise** des fichiers
