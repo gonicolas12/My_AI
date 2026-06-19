@@ -61,3 +61,9 @@ data/command_history*
 
 # Fichier exécutable de Cloudflared (trop spécifique à l'environnement local)
 tools/cloudflared.exe
+
+# Backend de génération d'image auto-installé dans tools/ au 1er usage
+# (téléchargé/extrait localement, ne doit jamais être committé)
+tools/ComfyUI_windows_portable/
+tools/ComfyUI_windows_portable_nvidia.7z
+tools/7zr.exe
