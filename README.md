@@ -79,7 +79,6 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
 | 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG à côté du chat |
-| 🖼️ **Génération d'images** | « génère une image de… » → image dans le chat (backend SD local auto-installé) |
 
 ### Agents — Interface dédiée
 
@@ -126,12 +125,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 - **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
 - **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows/NVIDIA, Python+CUDA embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
-- **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU) — configurable dans `config.yaml` → `image_generation:`.
-- **Expérience soignée** : animation « Génération en cours… » avec **% de progression**, **bouton STOP** qui annule message **et** génération, image affichée **dans la bulle**, et génération mémorisée dans le **contexte du LLM**.
-- **Dégradation propre** : message clair si aucun backend, image sauvegardée dans `outputs/`.
-- **Desktop & mobile** : sur mobile, l'image transite **chiffrée AES-256-GCM** (même E2EE que les pièces jointes).
-
-> Guide complet : [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md)
+- **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:` — voir [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md)
 
 ### 🔍 Recherche Internet Intelligente
 
