@@ -320,7 +320,20 @@ class BaseGUI:
                 lines = txt.count("\n") + 1
                 w.configure(state="normal", height=max(lines, 1))
                 w.delete("1.0", "end")
-                w.insert("1.0", txt)
+                # Rendu minimal du markdown **gras** (la bulle image n'utilise
+                # pas le pipeline de formatage des bulles texte classiques).
+                try:
+                    w.tag_configure("imgbold", font=("Segoe UI", 11, "bold"))
+                except Exception:
+                    pass
+                pos = 0
+                for m in re.finditer(r"\*\*(.+?)\*\*", txt):
+                    if m.start() > pos:
+                        w.insert("end", txt[pos:m.start()])
+                    w.insert("end", m.group(1), "imgbold")
+                    pos = m.end()
+                if pos < len(txt):
+                    w.insert("end", txt[pos:])
                 w.configure(state="disabled")
             except (tk.TclError, AttributeError):
                 pass

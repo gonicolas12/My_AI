@@ -363,7 +363,7 @@ class ImageGenerator:
             success=True,
             image_path=path,
             backend=backend,
-            message=f"🎨 Voici l'image générée pour : *{prompt}*",
+            message=f"Voici l'image générée pour : **{prompt}**",
             info={"prompt": prompt, **params},
         )
 

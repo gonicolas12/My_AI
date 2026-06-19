@@ -277,7 +277,7 @@ class AIEngine:
 
         prompt = self._extract_image_prompt(query)
         if on_token:
-            on_token(f"🎨 Génération de l'image en cours… *({prompt})*")
+            on_token(f"Génération de l'image en cours… *({prompt})*")
 
         result = gen.generate(
             prompt,
