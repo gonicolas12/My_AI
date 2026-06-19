@@ -218,6 +218,9 @@ class SchedulerService:
 
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
+        # Réveille la boucle immédiatement quand une tâche est créée/modifiée
+        # afin que le firing soit instantané (attente précise jusqu'à l'échéance).
+        self._wake_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._started = False
         self._current_exec_id: Optional[str] = None
@@ -400,6 +403,7 @@ class SchedulerService:
         with self._lock:
             self._data["tasks"].append(entry)
             self._save()
+        self._wake()  # firing instantané sans attendre le prochain poll
         logger.info("Tâche planifiée créée : '%s' (%s)", name, entry["id"])
         return dict(entry)
 
@@ -423,7 +427,8 @@ class SchedulerService:
                 nxt = self._compute_next_run(task.get("schedule") or {}, datetime.now())
                 task["next_run"] = nxt.isoformat() if nxt else None
             self._save()
-            return dict(task)
+        self._wake()
+        return dict(task)
 
     def delete_task(self, task_id: str) -> bool:
         with self._lock:
@@ -449,7 +454,9 @@ class SchedulerService:
                     nxt = self._compute_next_run(task.get("schedule") or {}, datetime.now())
                     task["next_run"] = nxt.isoformat() if nxt else None
             self._save()
-            return dict(task)
+            result = dict(task)
+        self._wake()
+        return result
 
     def run_now(self, task_id: str) -> Dict[str, Any]:
         """Force l'exécution immédiate d'une tâche (bouton ▶ de l'UI).
@@ -558,6 +565,7 @@ class SchedulerService:
                 return
             self._started = False
         self._stop_event.set()
+        self._wake_event.set()  # débloque l'attente précise de la boucle
         exec_id = self._current_exec_id
         if exec_id and self._executor is not None:
             try:
@@ -589,7 +597,37 @@ class SchedulerService:
                     self._tick()
             except Exception:
                 logger.exception("Scheduler : tick échoué")
-            self._stop_event.wait(self.check_interval)
+            # Attente PRÉCISE jusqu'à la prochaine échéance → firing instantané.
+            # Bornée par check_interval pour re-scanner (tâches manquées). Le
+            # réveil est immédiat si une tâche est créée/modifiée (_wake_event).
+            self._wake_event.wait(self._next_wait_delay())
+            self._wake_event.clear()
+
+    def _next_wait_delay(self) -> float:
+        """Secondes à attendre avant le prochain tick (= prochaine échéance).
+
+        Retourne le délai jusqu'à la tâche due la plus proche, borné par
+        ``check_interval``. ~0 si une tâche est déjà due (re-tick immédiat).
+        """
+        now = datetime.now()
+        soonest: Optional[float] = None
+        for task in self.list_tasks():
+            if not task.get("enabled"):
+                continue
+            nr = _parse_dt(task.get("next_run"))
+            if nr is None:
+                continue
+            secs = (nr - now).total_seconds()
+            if secs <= 0:
+                return 0.2  # déjà due → re-tick quasi immédiat
+            soonest = secs if soonest is None else min(soonest, secs)
+        if soonest is None:
+            return float(self.check_interval)
+        return max(0.2, min(float(self.check_interval), soonest))
+
+    def _wake(self) -> None:
+        """Réveille la boucle pour recalculer l'attente (tâche créée/modifiée)."""
+        self._wake_event.set()
 
     def _tick(self) -> None:
         now = datetime.now()

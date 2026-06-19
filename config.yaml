@@ -485,8 +485,9 @@ scheduler:
   # Exécution en arrière-plan (Planificateur de tâches Windows) : le runner
   # headless s'exécute toutes les N minutes même appli fermée. Activable via le
   # bouton « Exécuter même l'appli fermée » de la page Agents. Voir
-  # core/scheduler_runner.py et docs/SCHEDULER.md.
-  background_interval_minutes: 5
+  # core/scheduler_runner.py et docs/SCHEDULER.md. 1 = plancher Windows
+  # (schtasks /SC MINUTE), au plus 1 min de délai quand l'appli est fermée.
+  background_interval_minutes: 1
   windows_task_name: "My_AI Scheduler"
   # Notification OS à la fin d'une tâche (winotify/plyer si installés, sinon
   # toast in-app dans le GUI). Voir requirements.txt.

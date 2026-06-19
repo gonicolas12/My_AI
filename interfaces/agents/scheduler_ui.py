@@ -298,10 +298,10 @@ class SchedulerMixin:
         from core import scheduler_runner
         want = bool(self._bg_task_var.get())
         if want:
-            interval = 5
+            interval = 1
             try:
                 from core.config import get_config
-                interval = int(get_config().get("scheduler.background_interval_minutes", 5))
+                interval = int(get_config().get("scheduler.background_interval_minutes", 1))
             except Exception:
                 pass
             ok, msg = scheduler_runner.register_windows_task(interval)

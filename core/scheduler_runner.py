@@ -79,7 +79,7 @@ def _pythonw_path() -> str:
     return str(candidate if candidate.exists() else exe)
 
 
-def register_windows_task(interval_minutes: int = 5):
+def register_windows_task(interval_minutes: int = 1):
     """Enregistre une tâche Planificateur Windows (par utilisateur, sans admin).
 
     Tourne quand la session est ouverte (aucun mot de passe stocké). Retourne
@@ -136,7 +136,7 @@ def is_windows_task_registered() -> bool:
 def main(argv=None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--register" in argv:
-        interval = next((int(a) for a in argv if a.isdigit()), 5)
+        interval = next((int(a) for a in argv if a.isdigit()), 1)
         ok, msg = register_windows_task(interval)
         print(msg)
         sys.exit(0 if ok else 1)
