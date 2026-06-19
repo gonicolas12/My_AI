@@ -187,6 +187,11 @@ class BaseGUI:
         self._pending_image_path = None
         self._pending_image_base64 = None
 
+        # Génération d'image (texte → image) : conteneur de la bulle en cours
+        self._image_gen_container = None
+        self._image_gen_widget = None
+        self._image_gen_active = False
+
         # Initialisation des placeholders UI
         self.thinking_frame = None
         self.thinking_label = None
@@ -300,6 +305,8 @@ class BaseGUI:
                 text_widget.insert("1.0", "🎨 Génération de l'image en cours.")
                 text_widget.configure(state="disabled")
                 self._image_gen_widget = text_widget
+                # Conserver le conteneur pour y intégrer l'image dans LA MÊME bulle
+                self._image_gen_container = message_container
                 self.current_message_container = message_container
                 self.root.after(100, self.scroll_to_bottom)
             except (tk.TclError, AttributeError) as e:
@@ -390,9 +397,17 @@ class BaseGUI:
                     return
 
                 if result.success and result.image_path:
+                    # Mémoriser la génération dans le contexte du LLM local pour
+                    # qu'il sache (ex. « de quoi on a parlé ? ») qu'une image a
+                    # été générée.
+                    self._remember_image_generation(user_text, prompt, result.image_path)
+
                     def _show_ok():
+                        # Texte + image dans LA MÊME bulle (une seule icône 🎨)
                         finalize_text(result.message)
-                        self.display_generated_image(result.image_path)
+                        self._attach_generated_image(
+                            self._image_gen_container, result.image_path
+                        )
                     self.root.after(0, _show_ok)
                     if from_relay:
                         self._relay_submit_image(result.image_path)
@@ -478,6 +493,93 @@ class BaseGUI:
                 srv.bridge.submit_ai_response(text)
         except Exception as exc:
             print(f"⚠️ [Relay] Envoi réponse échoué : {exc}")
+
+    def _attach_generated_image(self, container, image_path, max_width=420):
+        """Intègre l'image générée SOUS le texte, dans la même bulle (1 seule icône).
+
+        `container` est le message_container de la bulle de génération (le widget
+        texte est en row 0) : on ajoute l'aperçu cliquable en row 1 et la légende
+        en row 2.
+        """
+        try:
+            from PIL import Image
+        except ImportError:
+            return
+        if not container or not image_path or not os.path.isfile(image_path):
+            return
+        try:
+            img = Image.open(image_path)
+            w, h = img.size
+            if w > max_width:
+                disp_size = (max_width, int(h * max_width / float(w)))
+            else:
+                disp_size = (w, h)
+
+            if self.use_ctk and _ctk is not None:
+                ctk_img = _ctk.CTkImage(light_image=img, dark_image=img, size=disp_size)
+                img_label = _ctk.CTkLabel(container, image=ctk_img, text="")
+                img_label._ctk_image_ref = ctk_img
+            else:
+                from PIL import ImageTk
+                tk_img = ImageTk.PhotoImage(img.resize(disp_size))
+                img_label = tk.Label(container, image=tk_img, bg=self.colors["bg_chat"])
+                img_label._tk_image_ref = tk_img
+            img_label.grid(row=1, column=0, sticky="w", padx=10, pady=(4, 2))
+
+            def _open_full(_e=None, p=image_path):
+                try:
+                    import subprocess
+                    import sys as _sys
+                    if _sys.platform == "win32":
+                        os.startfile(p)  # noqa: B606
+                    elif _sys.platform == "darwin":
+                        subprocess.Popen(["open", p])
+                    else:
+                        subprocess.Popen(["xdg-open", p])
+                except Exception as exc:
+                    print(f"⚠️ [GUI] Ouverture image échouée : {exc}")
+
+            img_label.bind("<Button-1>", _open_full)
+            try:
+                img_label.configure(cursor="hand2")
+            except Exception:
+                pass
+
+            caption = self.create_label(
+                container,
+                text=f"📁 {os.path.basename(image_path)} — clic pour agrandir",
+                font=("Segoe UI", 9),
+                fg_color=self.colors["bg_chat"],
+                text_color=self.colors.get("text_secondary", "#888888"),
+            )
+            caption.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 2))
+            self.root.after(80, self.scroll_to_bottom)
+            print(f"🎨 [GUI] Image intégrée à la bulle : {image_path}")
+        except Exception as exc:
+            traceback.print_exc()
+            print(f"⚠️ [GUI] Intégration image échouée : {exc}")
+
+    def _remember_image_generation(self, user_text, prompt, image_path):
+        """Inscrit la génération d'image dans l'historique du LLM local.
+
+        Ainsi le modèle « sait » qu'une image a été générée et peut y faire
+        référence plus tard (ex. « de quoi on a parlé aujourd'hui ? »).
+        """
+        try:
+            local_ai = getattr(self.ai_engine, "local_ai", None)
+            llm = getattr(local_ai, "local_llm", None)
+            if llm is None or not hasattr(llm, "add_to_history"):
+                return
+            filename = os.path.basename(image_path)
+            llm.add_to_history("user", user_text)
+            llm.add_to_history(
+                "assistant",
+                f"🎨 J'ai généré une image à partir de la description « {prompt} » "
+                f"et je l'ai affichée dans le chat (fichier : {filename}).",
+            )
+            print("🧠 [ImageGen] Génération ajoutée au contexte du LLM local")
+        except Exception as exc:
+            print(f"⚠️ [ImageGen] Ajout au contexte LLM échoué : {exc}")
 
     def interrupt_ai(self):
         """Interrompt l'IA : stop écriture, recherche, réflexion, etc."""

@@ -82,7 +82,7 @@ class WorkflowMixin:
         if filepath:
             try:
                 data = self.workflow_canvas.to_dict()
-                lines = ["# Workflow Export\n", f"**Version**: {data.get('version', '7.7.0')}\n"]
+                lines = ["# Workflow Export\n", f"**Version**: {data.get('version', '7.8.0')}\n"]
                 lines.append(f"**Nodes**: {len(data.get('nodes', {}))}\n")
                 lines.append(f"**Connections**: {len(data.get('connections', []))}\n\n")
                 for nid, node in data.get("nodes", {}).items():
