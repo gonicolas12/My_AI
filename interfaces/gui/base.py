@@ -2420,6 +2420,34 @@ class BaseGUI:
                 event.wait()
                 return result["confirmed"]
 
+            def on_image_generated(image_path):
+                """🎨 Image générée : l'afficher dans le chat (et la pousser au mobile)."""
+                if self.current_request_id != request_id or self.is_interrupted:
+                    return
+                self.root.after(0, lambda p=image_path: self.display_generated_image(p))
+                # Relayer l'image au mobile (chiffrée) si la requête vient du relay.
+                if getattr(self, '_current_message_from_relay', False):
+                    try:
+                        relay_srv = getattr(self, '_relay_server', None)
+                        if relay_srv and relay_srv.bridge.active:
+                            relay_srv.bridge.submit_ai_image(image_path)
+                    except Exception as exc:
+                        print(f"⚠️ [Relay] Envoi image échoué : {exc}")
+
+            def on_image_progress(fraction, message):
+                """Indicateur de progression de la génération d'image."""
+                if self.current_request_id != request_id or self.is_interrupted:
+                    return
+                try:
+                    self.root.after(
+                        0,
+                        lambda f=fraction, m=message: self.show_status_message(
+                            f"🎨 {m}" if m else "🎨 Génération de l'image…"
+                        ) if hasattr(self, "show_status_message") else None,
+                    )
+                except Exception:
+                    pass
+
             response = self.ai_engine.process_query_stream(
                 user_text,
                 on_token=on_token_received,
@@ -2429,6 +2457,8 @@ class BaseGUI:
                 image_base64=image_b64,
                 is_interrupted_callback=lambda: self.is_interrupted or self.current_request_id != request_id,
                 on_delete_confirm=on_delete_confirm,
+                on_image=on_image_generated,
+                on_image_progress=on_image_progress,
             )
 
             # Marquer le streaming comme terminé SEULEMENT si cette requête est

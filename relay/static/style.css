@@ -118,6 +118,12 @@ html, body {
 }
 .message.ai .bubble .time { color: var(--text-muted); }
 
+/* 🎨 Image générée (texte → image) */
+.bubble .generated-image {
+  display: block; max-width: 100%; width: auto; height: auto;
+  border-radius: 12px; cursor: zoom-in; margin-bottom: 4px;
+}
+
 /* AI icon */
 .ai-icon {
   width: 28px; height: 28px; border-radius: 50%;

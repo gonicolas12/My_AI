@@ -127,6 +127,9 @@ class RelayBridge:
         self._response_callbacks: List[Callable[[str, str], None]] = []
         # Callbacks déclenchés pour chaque chunk de streaming (broadcast WS).
         self._chunk_callbacks: List[Callable[[str, str], None]] = []
+        # Callbacks déclenchés quand une image générée doit être poussée au
+        # mobile (broadcast WS, chiffré). Signature : (message_id, image_path).
+        self._image_callbacks: List[Callable[[str, str], None]] = []
 
         # Demande d'interruption émise par le mobile (bouton STOP du chat).
         # Le GUI desktop la consomme dans sa boucle de polling et appelle
@@ -312,6 +315,33 @@ class RelayBridge:
                 cb(effective_id, partial_text)
             except Exception as e:
                 logger.error("Erreur callback chunk broadcast: %s", e)
+
+    def submit_ai_image(self, image_path: str, message_id: Optional[str] = None) -> None:
+        """🎨 Soumet une image générée à pousser au mobile (chiffrée).
+
+        Appelé depuis le thread GUI via le callback on_image du moteur quand
+        une image texte→image a été générée. Le broadcast réel (lecture du
+        PNG + chiffrement AES-256-GCM dans l'enveloppe WS) est délégué aux
+        callbacks enregistrés par le serveur Relay via on_image().
+        """
+        effective_id = message_id or self._latest_message_id
+        for cb in list(self._image_callbacks):
+            try:
+                cb(effective_id, image_path)
+            except Exception as e:
+                logger.error("Erreur callback image broadcast: %s", e)
+        logger.info("Image IA soumise au bridge (id=%s) : %s", effective_id or "—", image_path)
+
+    def on_image(self, callback: Callable[[str, str], None]) -> None:
+        """Enregistre un callback (message_id, image_path) appelé quand une
+        image générée doit être poussée aux WS connectés (chiffrée)."""
+        self._image_callbacks.append(callback)
+
+    def remove_image_callback(self, callback: Callable[[str, str], None]) -> None:
+        """Supprime un callback image enregistré."""
+        self._image_callbacks = [
+            cb for cb in self._image_callbacks if cb != callback
+        ]
 
     def submit_ai_response(self, text: str, message_id: Optional[str] = None) -> None:
         """
