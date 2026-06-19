@@ -221,20 +221,81 @@ class ComfyUIManager:
             pass
 
     def _extract_7z(self, archive: Path, dest: Path, prog, check) -> None:
+        """Extrait l'archive .7z.
+
+        L'archive ComfyUI portable utilise le filtre **BCJ2**, NON supporté par
+        py7zr. On utilise donc le vrai 7-Zip : binaire système (`7z`/`7za`/`7zr`)
+        s'il existe, sinon téléchargement de `7zr.exe` (standalone, ~600 Ko, gère
+        BCJ2). py7zr ne sert que de dernier recours (autres archives).
+        """
+        check()
+        exe = self._ensure_7zip(prog, check)
+        if exe is not None:
+            prog(0.62, "Extraction de ComfyUI…")
+            # 7-Zip : x = extract avec arborescence, -o<dir> = sortie, -y = oui à tout
+            proc = subprocess.run(
+                [exe, "x", str(archive), f"-o{dest}", "-y"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if proc.returncode != 0:
+                err = (proc.stderr or b"").decode("utf-8", "ignore")[:300]
+                raise ComfyUISetupError(f"Extraction 7-Zip échouée : {err}")
+            return
+
+        # Dernier recours : py7zr (échouera sur BCJ2, mais utile pour d'autres .7z)
         try:
             import py7zr  # type: ignore
         except ImportError:
             prog(0.62, "Installation de l'extracteur (py7zr)…")
             self._pip_install("py7zr")
-            try:
-                import py7zr  # type: ignore
-            except ImportError as exc:
-                raise ComfyUISetupError(
-                    "Impossible d'installer py7zr pour extraire ComfyUI : " + str(exc)
-                )
+            import py7zr  # type: ignore
         check()
         with py7zr.SevenZipFile(str(archive), mode="r") as z:
             z.extractall(path=str(dest))
+
+    def _ensure_7zip(self, prog, check) -> Optional[str]:
+        """Retourne le chemin d'un exécutable 7-Zip, en téléchargeant 7zr.exe au besoin."""
+        import shutil
+
+        # 1. 7-Zip déjà présent (système ou installé précédemment dans tools/)
+        for name in ("7z", "7za", "7zr"):
+            found = shutil.which(name)
+            if found:
+                return found
+        for cand in (
+            self._tools_dir / "7zr.exe",
+            Path(r"C:\Program Files\7-Zip\7z.exe"),
+            Path(r"C:\Program Files (x86)\7-Zip\7z.exe"),
+        ):
+            if cand.exists():
+                return str(cand)
+
+        # 2. Télécharger le 7-Zip standalone (Windows uniquement)
+        if sys.platform != "win32":
+            return None
+        self._tools_dir.mkdir(exist_ok=True)
+        dest = self._tools_dir / "7zr.exe"
+        prog(0.61, "Préparation de l'extracteur 7-Zip…")
+        try:
+            url = "https://www.7-zip.org/a/7zr.exe"
+            with requests.get(url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(dest, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        check()
+                        f.write(chunk)
+            return str(dest)
+        except ComfyUISetupError:
+            if dest.exists():
+                dest.unlink()
+            raise
+        except Exception as exc:
+            if dest.exists():
+                dest.unlink()
+            print(f"⚠️ [ComfyUI] Téléchargement de 7zr.exe échoué : {exc}")
+            return None
 
     # ------------------------------------------------------------------
     # 2. Modèle par défaut

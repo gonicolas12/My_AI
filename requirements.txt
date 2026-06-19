@@ -191,8 +191,9 @@ isort>=5.12.0
 # (déjà présent). Voir docs/IMAGE_GENERATION.md.
 #
 # L'auto-installation de ComfyUI portable (image_generation.auto_setup: true,
-# Windows/NVIDIA) installe elle-même `py7zr` au besoin pour extraire l'archive.
-# Pour l'éviter, vous pouvez le pré-installer :  pip install py7zr
+# Windows/NVIDIA) télécharge elle-même 7zr.exe (7-Zip standalone, ~600 Ko) dans
+# tools/ pour extraire l'archive .7z (filtre BCJ2, non géré par py7zr). Aucune
+# dépendance Python requise pour ça.
 #
 # Seul le backend "diffusers" (image_generation.backend: diffusers dans
 # config.yaml) demande des paquets supplémentaires — à n'installer QUE si vous
