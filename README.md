@@ -151,25 +151,6 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Langue auto-détectée** (99+ langues supportées par Whisper)
 - **Insertion au curseur** de la zone active — pratique pour dicter des prompts longs sans interrompre sa frappe
 
-### 🔊 Sortie Vocale (lecture des réponses)
-
-- **Bouton 🔊** sous chaque réponse de l'IA (1er clic = lecture, 2e clic = stop) + **toggle « Lecture auto »** dans la sidebar pour lire chaque nouvelle réponse
-- **100% local** via [pyttsx3](https://pyttsx3.readthedocs.io/) (moteur de l'OS — SAPI5 Windows / NSSpeechSynthesizer macOS / espeak-ng Linux) — aucun téléchargement
-- **Voix choisie automatiquement selon la langue détectée** de la réponse (évite l'accent anglais sur du texte français)
-- Code, markdown, URLs et emojis retirés avant lecture pour une **prose naturelle**
-
-### 🧭 Premier lancement & ⚙️ Réglages
-
-- **Assistant de configuration** au tout premier démarrage : détecte le matériel (RAM, cœurs CPU, VRAM GPU), **recommande le modèle adapté** (priorité à la fluidité), le télécharge et crée le modèle personnalisé `my_ai` — fini l'édition manuelle de `config.yaml`/`Modelfile`
-- **Panneau ⚙️ Réglages** intégré : gestion des modèles Ollama (lister / pull / régénérer `my_ai`), température, fenêtre de contexte, timeout, langue, lecture auto — le tout en **préservant les commentaires** de `config.yaml`
-
-### 🎨 Aperçu Artifacts (HTML / CSS / SVG)
-
-- Quand l'IA génère du **HTML/CSS/SVG**, un bouton **« 🔍 Aperçu »** apparaît sous la réponse → un **volet de prévisualisation live** s'ouvre à côté du chat (façon *Claude Artifacts*)
-- **Desktop** : rendu **Chromium exact** via **Edge `--app` embarqué** (ré-parenté dans un volet redimensionnable, **sans dépendance Python supplémentaire**) ; replis automatiques `tkinterweb` puis code source + bouton 🌐
-- **Mobile (Relay)** : rendu en **`<iframe sandbox>`** isolée (aucune requête réseau), bouton 🌐 pour ouvrir dans un onglet
-- **100% local** — détails et compromis dans [docs/ARTIFACTS_PREVIEW.md](docs/ARTIFACTS_PREVIEW.md)
-
 ### 📅 Tâches Planifiées (assistant proactif)
 
 - Planifiez l'exécution **récurrente** d'un **agent**, d'un **workflow** (canvas n8n) ou d'un **débat** : *quotidien*, *hebdomadaire*, *intervalle* ou **cron** — ex. « chaque matin 8h, WebAgent sur l'actu IA et résume »
