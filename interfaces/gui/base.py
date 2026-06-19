@@ -5,6 +5,8 @@ import os
 import platform
 import random
 import re
+import subprocess
+import sys as _sys
 import threading
 import tkinter as tk
 import traceback
@@ -12,12 +14,14 @@ from datetime import datetime
 from tkinter import messagebox
 
 import customtkinter as _ctk
+from PIL import ImageTk
 
 from core.ai_engine import AIEngine
 from core.config import Config
+from core.scheduler import get_scheduler
+from relay.relay_server import RelayServer
 from utils.file_processor import FileProcessor
 from utils.logger import setup_logger
-from relay.relay_server import RelayServer
 
 # Import des styles (uniquement ce qui est utilisé)
 try:
@@ -191,6 +195,8 @@ class BaseGUI:
         self._image_gen_container = None
         self._image_gen_widget = None
         self._image_gen_active = False
+        self._image_gen_dot_count = 0
+        self._image_gen_status = ""
 
         # Initialisation des placeholders UI
         self.thinking_frame = None
@@ -258,7 +264,7 @@ class BaseGUI:
         # Réserver la ligne dans l'historique (comme la génération de fichier)
         self.conversation_history.append(
             {
-                "text": "🎨 Génération de l'image en cours…",
+                "text": "Génération de l'image en cours…",
                 "is_user": False,
                 "timestamp": datetime.now(),
                 "type": "image_generation_placeholder",
@@ -302,7 +308,7 @@ class BaseGUI:
                     highlightthickness=0, borderwidth=0,
                 )
                 text_widget.grid(row=0, column=0, sticky="ew")
-                text_widget.insert("1.0", "🎨 Génération de l'image en cours.")
+                text_widget.insert("1.0", "Génération de l'image en cours.")
                 text_widget.configure(state="disabled")
                 self._image_gen_widget = text_widget
                 # Conserver le conteneur pour y intégrer l'image dans LA MÊME bulle
@@ -348,7 +354,7 @@ class BaseGUI:
                 return
             dots = "." * ((self._image_gen_dot_count % 3) + 1)
             self._image_gen_dot_count += 1
-            set_widget_text(f"🎨 {self._image_gen_status}{dots}")
+            set_widget_text(f"{self._image_gen_status}{dots}")
             self.root.after(450, animate)
 
         def finalize_text(txt):
@@ -394,7 +400,7 @@ class BaseGUI:
                         self._relay_submit_text(msg)
                     return
 
-                prompt = self.ai_engine._extract_image_prompt(user_text)
+                prompt = self.ai_engine.extract_image_prompt(user_text)
 
                 result = gen.generate(
                     prompt, on_progress=on_progress, is_interrupted=is_interrupted
@@ -531,18 +537,16 @@ class BaseGUI:
             if self.use_ctk and _ctk is not None:
                 ctk_img = _ctk.CTkImage(light_image=img, dark_image=img, size=disp_size)
                 img_label = _ctk.CTkLabel(container, image=ctk_img, text="")
-                img_label._ctk_image_ref = ctk_img
+                # Réf. conservée pour éviter le ramasse-miettes (attribut public)
+                img_label.image_ref = ctk_img
             else:
-                from PIL import ImageTk
                 tk_img = ImageTk.PhotoImage(img.resize(disp_size))
                 img_label = tk.Label(container, image=tk_img, bg=self.colors["bg_chat"])
-                img_label._tk_image_ref = tk_img
+                img_label.image_ref = tk_img
             img_label.grid(row=1, column=0, sticky="w", padx=10, pady=(4, 2))
 
             def _open_full(_e=None, p=image_path):
                 try:
-                    import subprocess
-                    import sys as _sys
                     if _sys.platform == "win32":
                         os.startfile(p)  # noqa: B606
                     elif _sys.platform == "darwin":
@@ -711,7 +715,6 @@ class BaseGUI:
                 sched_cfg = self.config.get_section("scheduler") or {}
             if not sched_cfg.get("enabled", True):
                 return
-            from core.scheduler import get_scheduler
             self._scheduler = get_scheduler()
             self._scheduler.add_listener(self._on_scheduled_task_done)
             self._scheduler.start()
@@ -1146,7 +1149,7 @@ class BaseGUI:
         def _draw_qr_on_canvas(url):
             """Dessine un QR code directement sur le canvas Tk."""
             try:
-                import qrcode #pylint: disable=import-outside-toplevel
+                import qrcode  # pylint: disable=import-outside-toplevel
             except ImportError:
                 qr_canvas.delete("all")
                 qr_canvas.create_text(
@@ -2586,7 +2589,7 @@ class BaseGUI:
 
         # 🎨 DÉTECTION SPÉCIALE : Génération d'image (texte → image)
         try:
-            _is_image_gen = self.ai_engine._is_image_generation_request(user_text)
+            _is_image_gen = self.ai_engine.is_image_generation_request(user_text)
         except Exception:
             _is_image_gen = False
         if _is_image_gen:

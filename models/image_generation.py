@@ -24,24 +24,29 @@ n'utilisent que `requests` (déjà présent) ; diffusers reste optionnel.
 from __future__ import annotations
 
 import base64
-import json
+import importlib.util
+import io
 import os
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 import requests
 
+from core.config import get_config
+
+# NB : torch / diffusers / torch_directml sont des dépendances OPTIONNELLES
+# (backend "diffusers" uniquement). Elles sont importées PARESSEUSEMENT dans les
+# méthodes concernées pour ne pas casser l'import du module quand elles sont
+# absentes (cas par défaut : backends HTTP A1111/ComfyUI).
+
 # [OPTIM] Retry résilient (réutilise tenacity si présent, comme local_llm.py)
 try:
-    from tenacity import (
-        retry,
-        retry_if_exception_type,
-        stop_after_attempt,
-        wait_exponential,
-    )
+    from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
+                          wait_exponential)
 
     TENACITY_AVAILABLE = True
 except ImportError:
@@ -88,8 +93,6 @@ class ImageGenConfig:
         """Construit la config depuis config.yaml (section image_generation)."""
         cfg = cls()
         try:
-            from core.config import get_config
-
             c = get_config()
             cfg.enabled = bool(c.get("image_generation.enabled", cfg.enabled))
             cfg.backend = str(c.get("image_generation.backend", cfg.backend))
@@ -153,6 +156,9 @@ class ImageGenerator:
         self._resolved_backend: Optional[str] = None
         self._last_probe: float = 0.0
         self._probe_ttl: float = 30.0  # re-sonder au plus toutes les 30 s
+        # Pipeline diffusers chargé paresseusement (backend "diffusers")
+        self._diffusers_pipe: Any = None
+        self._diffusers_device: Any = None
 
     # ------------------------------------------------------------------
     # Disponibilité / détection de backend
@@ -209,7 +215,6 @@ class ImageGenerator:
                 )
                 return r.status_code == 200
             if backend == "diffusers":
-                import importlib.util
 
                 return (
                     importlib.util.find_spec("diffusers") is not None
@@ -395,8 +400,6 @@ class ImageGenerator:
         # sert aussi à détecter l'annulation utilisateur et à interrompre le
         # backend via /sdapi/v1/interrupt (sinon le POST txt2img reste bloquant).
         stop_poll = {"stop": False, "interrupted": False}
-        import threading
-
         def _poll():
             while not stop_poll["stop"]:
                 if is_interrupted and is_interrupted():
@@ -610,12 +613,13 @@ class ImageGenerator:
         Pipeline diffusers local. Déconseillé sur petite VRAM partagée avec
         Ollama, mais fourni pour le mode 100% pip. Charge le pipeline une fois.
         """
-        import io
-
+        # Imports paresseux (dépendances optionnelles du backend diffusers).
+        # pylint: disable=import-error,import-outside-toplevel
         import torch  # type: ignore
         from diffusers import AutoPipelineForText2Image  # type: ignore
+        # pylint: enable=import-error,import-outside-toplevel
 
-        if not hasattr(self, "_diffusers_pipe") or self._diffusers_pipe is None:
+        if self._diffusers_pipe is None:
             if on_progress:
                 on_progress(0.05, "Chargement du modèle diffusers…")
 
@@ -653,7 +657,8 @@ class ImageGenerator:
             # diffusers appelle callback_on_step_end(pipe, step, timestep, kwargs).
             if is_interrupted and is_interrupted():
                 try:
-                    pipe_ref._interrupt = True  # arrêt natif diffusers si supporté
+                    # arrêt natif diffusers si supporté
+                    pipe_ref._interrupt = True  # pylint: disable=protected-access
                 except Exception:
                     pass
                 raise _GenerationInterrupted()
@@ -718,7 +723,7 @@ class ImageGenerator:
 
         # DirectML (Windows : AMD / Intel / NVIDIA via DirectX 12)
         try:
-            import torch_directml  # type: ignore
+            import torch_directml  # type: ignore  # pylint: disable=import-error,import-outside-toplevel
 
             return torch_directml.device(), torch.float16, "DirectML (Windows)"
         except Exception:

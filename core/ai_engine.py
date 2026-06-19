@@ -28,6 +28,7 @@ from models.internet_search import (EnhancedInternetSearchEngine,
                                     InternetSearchEngine)
 from models.smart_code_searcher import multi_source_searcher
 from models.smart_web_searcher import search_smart_code
+from models.image_generation import get_image_generator
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
@@ -187,7 +188,6 @@ class AIEngine:
         """Instance paresseuse du générateur d'images (models.image_generation)."""
         if self._image_generator is None:
             try:
-                from models.image_generation import get_image_generator
                 self._image_generator = get_image_generator()
             except Exception as exc:
                 self.logger.warning("ImageGenerator indisponible : %s", exc)
@@ -211,7 +211,7 @@ class AIEngine:
         _re.IGNORECASE,
     )
 
-    def _is_image_generation_request(self, query: str) -> bool:
+    def is_image_generation_request(self, query: str) -> bool:
         """True si la requête demande de GÉNÉRER une image (pas d'en analyser une)."""
         if not query or not isinstance(query, str):
             return False
@@ -226,7 +226,7 @@ class AIEngine:
         return bool(self._IMAGE_GEN_RE.search(query))
 
     @staticmethod
-    def _extract_image_prompt(query: str) -> str:
+    def extract_image_prompt(query: str) -> str:
         """Nettoie la requête pour extraire la description picturale.
 
         « génère-moi une image de chat astronaute » → « chat astronaute ».
@@ -275,7 +275,7 @@ class AIEngine:
                 on_token(msg)
             return {"type": "image_generation", "message": msg, "success": False}
 
-        prompt = self._extract_image_prompt(query)
+        prompt = self.extract_image_prompt(query)
         if on_token:
             on_token(f"Génération de l'image en cours… *({prompt})*")
 
@@ -1223,7 +1223,7 @@ Que voulez-vous que je fasse pour vous ?"""
             self._current_lang_instruction = self._get_lang_instruction(query)
 
             # 0.a. Génération d'image (SORTIE image) — prioritaire sur MCP.
-            if self._is_image_generation_request(query):
+            if self.is_image_generation_request(query):
                 print(f"🎨 [AIEngine] Génération d'image détectée pour : '{query}'")
                 response = self._run_image_generation(query)
                 self.conversation_manager.add_exchange(query, response)
@@ -2008,7 +2008,7 @@ Que voulez-vous que je fasse pour vous ?"""
         # Diffusion local et on émet l'image via on_image. Dégradation propre
         # si aucun backend (message clair, comme le fallback Ollama).
         # ----------------------------------------------------------------
-        if self._is_image_generation_request(user_input):
+        if self.is_image_generation_request(user_input):
             print("🎨 [AIEngine] Intention de génération d'image détectée")
             result = self._run_image_generation(
                 user_input,

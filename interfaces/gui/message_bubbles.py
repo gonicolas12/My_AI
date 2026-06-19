@@ -725,7 +725,7 @@ class MessageBubblesMixin:
                 ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=disp_size)
                 img_label = ctk.CTkLabel(center_frame, image=ctk_img, text="")
                 # Conserver une référence pour éviter le ramasse-miettes
-                img_label._ctk_image_ref = ctk_img
+                img_label.image_ref = ctk_img
             else:
                 from PIL import ImageTk
 
@@ -733,7 +733,7 @@ class MessageBubblesMixin:
                 img_label = tk.Label(
                     center_frame, image=tk_img, bg=self.colors["bg_chat"]
                 )
-                img_label._tk_image_ref = tk_img
+                img_label.image_ref = tk_img
 
             img_label.grid(row=0, column=1, sticky="w", padx=0, pady=(2, 2))
 
