@@ -34,13 +34,11 @@ except Exception:  # pragma: no cover - logger optionnel
 
 # Version du schema d'indexation : incrementer force une reindexation complete
 # (utile quand la LOGIQUE d'indexation change, a donnees inchangees).
-_INDEX_SCHEMA = 2
+_INDEX_SCHEMA = 3
 
-# Seuils de longueur, par role. Les messages utilisateur sont souvent courts
-# ("qui es tu ?") mais on veut pouvoir les retrouver, donc seuil tres bas ;
-# cote assistant on filtre le bruit avec un seuil plus eleve.
-_MIN_MESSAGE_LEN_USER = 2
-_MIN_MESSAGE_LEN_AI = 15
+# Types techniques (placeholders, images) qui n'ont pas de texte a chercher.
+# Aucun filtre de longueur : tout message non vide est indexable, quel que
+# soit le role, pour ne jamais limiter les recherches de l'utilisateur.
 _SKIP_TYPES = {"file_generation_placeholder", "image"}
 
 # Mots-outils ignores par le filet lexical (sinon "qui", "the"... matchent tout).
@@ -158,8 +156,8 @@ class ConversationSearch:
     def _iter_indexable_messages(history: List[dict]):
         """Genere (index, role, text, timestamp) pour les messages indexables.
 
-        Indexe les messages utilisateur ET assistant. Le seuil de longueur est
-        applique selon le role (plus permissif pour l'utilisateur).
+        Indexe TOUT message non vide (utilisateur comme assistant), sans aucun
+        filtre de longueur.
         """
         for idx, msg in enumerate(history):
             if not isinstance(msg, dict):
@@ -167,11 +165,10 @@ class ConversationSearch:
             if msg.get("type") in _SKIP_TYPES:
                 continue
             text = (msg.get("text") or msg.get("content") or "").strip()
+            if not text:
+                continue
             is_user = msg.get("is_user", msg.get("role", "user") == "user")
             role = "user" if is_user else "assistant"
-            min_len = _MIN_MESSAGE_LEN_USER if is_user else _MIN_MESSAGE_LEN_AI
-            if len(text) < min_len:
-                continue
             timestamp = str(msg.get("timestamp", ""))
             yield idx, role, text, timestamp
 

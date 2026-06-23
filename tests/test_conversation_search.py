@@ -188,18 +188,17 @@ def test_deleted_workspace_is_purged(env):
                    for m in vm.conversation_collection.store.values())
 
 
-def test_short_ai_messages_skipped_user_kept(env):
-    """Cote assistant on filtre le bruit court ; cote utilisateur on garde tout."""
+def test_all_nonempty_messages_indexed_no_length_limit(env):
+    """Aucune limite de longueur : tout message non vide est indexe, vides ignores."""
     sm, vm, cs = env
     _make_ws(sm, "Court", [
-        {"text": "salut", "is_user": True},          # user court -> garde
-        {"text": "Ok !", "is_user": False},           # assistant court -> ignore
-        {"text": "Ceci est un message assez long pour etre indexe", "is_user": False},
+        {"text": "ok", "is_user": True},      # tres court -> garde quand meme
+        {"text": "Ok !", "is_user": False},   # tres court -> garde quand meme
+        {"text": "   ", "is_user": True},     # vide apres strip -> ignore
+        {"text": "", "is_user": False},        # vide -> ignore
     ])
     cs.reindex(force=True)
-    roles = sorted(m["metadata"]["role"]
-                   for m in vm.conversation_collection.store.values())
-    assert roles == ["assistant", "user"]  # le "Ok !" assistant est ecarte
+    assert len(vm.conversation_collection.store) == 2
 
 
 def test_user_messages_are_searchable(env):
