@@ -645,6 +645,13 @@ class MessageBubblesMixin:
                 if hasattr(self, "make_text_widget_responsive"):
                     self.make_text_widget_responsive(text_widget)
                 self._show_timestamp_for_current_message()
+                # IMPORTANT : en mode instantané il n'y a pas d'animation à
+                # terminer, donc personne ne remet typing_widget à None. Sans
+                # ce reset, is_animation_running() reste vrai et on_enter_key
+                # avale silencieusement la touche Entrée (impossible d'envoyer
+                # un message après avoir chargé/ouvert une session).
+                self.typing_widget = None
+                self.typing_text = ""
             else:
                 # Démarrer l'animation de frappe avec hauteur dynamique
                 self.start_typing_animation_dynamic(text_widget, text)
