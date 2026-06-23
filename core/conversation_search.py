@@ -32,8 +32,15 @@ except Exception:  # pragma: no cover - logger optionnel
     logger = logging.getLogger("conversation_search")
 
 
-# Messages trop courts ou techniques a ne pas indexer (bruit)
-_MIN_MESSAGE_LEN = 15
+# Version du schema d'indexation : incrementer force une reindexation complete
+# (utile quand la LOGIQUE d'indexation change, a donnees inchangees).
+_INDEX_SCHEMA = 2
+
+# Seuils de longueur, par role. Les messages utilisateur sont souvent courts
+# ("qui es tu ?") mais on veut pouvoir les retrouver, donc seuil tres bas ;
+# cote assistant on filtre le bruit avec un seuil plus eleve.
+_MIN_MESSAGE_LEN_USER = 2
+_MIN_MESSAGE_LEN_AI = 15
 _SKIP_TYPES = {"file_generation_placeholder", "image"}
 
 # Mots-outils ignores par le filet lexical (sinon "qui", "the"... matchent tout).
@@ -114,22 +121,31 @@ class ConversationSearch:
     # ------------------------------------------------------------------
 
     def _load_manifest(self) -> Dict[str, str]:
+        """Charge la table {workspace_id: last_modified}.
+
+        Renvoie {} si le schema d'indexation a change, ce qui force une
+        reindexation complete (les regles d'indexation ont evolue).
+        """
         if not self._manifest_path.is_file():
             return {}
         try:
             with open(self._manifest_path, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
-            return data if isinstance(data, dict) else {}
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Manifeste de recherche illisible: %s", exc)
             return {}
+        if not isinstance(data, dict) or data.get("schema") != _INDEX_SCHEMA:
+            return {}  # schema obsolete -> tout reindexer
+        workspaces = data.get("workspaces", {})
+        return workspaces if isinstance(workspaces, dict) else {}
 
     def _save_manifest(self, manifest: Dict[str, str]) -> None:
         try:
             self._manifest_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self._manifest_path.with_suffix(".json.tmp")
+            payload = {"schema": _INDEX_SCHEMA, "workspaces": manifest}
             with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(manifest, fh, indent=2, ensure_ascii=False)
+                json.dump(payload, fh, indent=2, ensure_ascii=False)
             tmp.replace(self._manifest_path)
         except OSError as exc:
             logger.warning("Sauvegarde du manifeste echouee: %s", exc)
@@ -140,17 +156,22 @@ class ConversationSearch:
 
     @staticmethod
     def _iter_indexable_messages(history: List[dict]):
-        """Genere (index, role, text, timestamp) pour les messages indexables."""
+        """Genere (index, role, text, timestamp) pour les messages indexables.
+
+        Indexe les messages utilisateur ET assistant. Le seuil de longueur est
+        applique selon le role (plus permissif pour l'utilisateur).
+        """
         for idx, msg in enumerate(history):
             if not isinstance(msg, dict):
                 continue
             if msg.get("type") in _SKIP_TYPES:
                 continue
             text = (msg.get("text") or msg.get("content") or "").strip()
-            if len(text) < _MIN_MESSAGE_LEN:
-                continue
             is_user = msg.get("is_user", msg.get("role", "user") == "user")
             role = "user" if is_user else "assistant"
+            min_len = _MIN_MESSAGE_LEN_USER if is_user else _MIN_MESSAGE_LEN_AI
+            if len(text) < min_len:
+                continue
             timestamp = str(msg.get("timestamp", ""))
             yield idx, role, text, timestamp
 

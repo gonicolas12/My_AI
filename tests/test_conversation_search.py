@@ -188,15 +188,32 @@ def test_deleted_workspace_is_purged(env):
                    for m in vm.conversation_collection.store.values())
 
 
-def test_short_messages_skipped(env):
+def test_short_ai_messages_skipped_user_kept(env):
+    """Cote assistant on filtre le bruit court ; cote utilisateur on garde tout."""
     sm, vm, cs = env
     _make_ws(sm, "Court", [
-        {"text": "ok", "is_user": True},
-        {"text": "oui", "is_user": False},
-        {"text": "Ceci est un message assez long pour etre indexe correctement", "is_user": True},
+        {"text": "salut", "is_user": True},          # user court -> garde
+        {"text": "Ok !", "is_user": False},           # assistant court -> ignore
+        {"text": "Ceci est un message assez long pour etre indexe", "is_user": False},
     ])
     cs.reindex(force=True)
-    assert len(vm.conversation_collection.store) == 1
+    roles = sorted(m["metadata"]["role"]
+                   for m in vm.conversation_collection.store.values())
+    assert roles == ["assistant", "user"]  # le "Ok !" assistant est ecarte
+
+
+def test_user_messages_are_searchable(env):
+    """Coeur de la demande : retrouver SES propres messages, meme courts."""
+    sm, _, cs = env
+    ws_id = _make_ws(sm, "Mes questions", [
+        {"text": "comment configurer un reverse proxy nginx", "is_user": True},
+        {"text": "Voici comment faire avec un bloc server et proxy_pass", "is_user": False},
+    ])
+    cs.reindex(force=True)
+    res = cs.search("reverse proxy nginx", role="user", auto_reindex=False)
+    assert res
+    assert res[0]["workspace_id"] == ws_id
+    assert res[0]["role"] == "user"
 
 
 def test_irrelevant_query_returns_nothing(env):
