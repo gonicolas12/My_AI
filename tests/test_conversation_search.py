@@ -51,30 +51,41 @@ class _FakeCollection:
             del self.store[k]
 
 
+def _overlap(query, content):
+    return len(set(query.lower().split()) & set(content.lower().split()))
+
+
+class _FakeReranker:
+    """Mime le CrossEncoder : score bas (~ -11) sans recouvrement, eleve sinon."""
+
+    def predict(self, pairs):
+        return [float(_overlap(q, d) * 8 - 11) for q, d in pairs]
+
+
 class _FakeVectorMemory:
-    def __init__(self, storage_dir):
+    def __init__(self, storage_dir, with_reranker=True):
         self.storage_dir = Path(storage_dir)
         self.embedding_model = _FakeModel()
         self.conversation_collection = _FakeCollection()
+        self.reranker = _FakeReranker() if with_reranker else None
 
     def search_similar(self, query, n_results=5, collection_type="conversation",
                        rerank=True):
-        # Scoring deterministe par recouvrement de mots-cles.
-        q_words = set(query.lower().split())
+        # Comme ChromaDB : renvoie les n plus proches voisins SANS notion de
+        # seuil (proxy de distance = inverse du recouvrement de mots).
         scored = []
         for entry in self.conversation_collection.store.values():
             content = entry["document"]
-            overlap = len(q_words & set(content.lower().split()))
-            if overlap > 0:
-                scored.append((overlap, content, entry["metadata"]))
+            ov = _overlap(query, content)
+            scored.append((ov, content, entry["metadata"]))
+        # Tri par proximite decroissante, tronque a n_results
         scored.sort(key=lambda t: t[0], reverse=True)
         results = []
-        for overlap, content, meta in scored[:n_results]:
+        for ov, content, meta in scored[:n_results]:
             results.append({
                 "content": content,
                 "metadata": meta,
-                "distance": 1.0 / (1 + overlap),
-                "rerank_score": float(overlap),
+                "distance": 1.0 / (1 + ov),
             })
         return results
 
@@ -186,6 +197,53 @@ def test_short_messages_skipped(env):
     ])
     cs.reindex(force=True)
     assert len(vm.conversation_collection.store) == 1
+
+
+def test_irrelevant_query_returns_nothing(env):
+    """Le bug d'origine : une requete hors-sujet ne doit PAS tout remonter."""
+    sm, _, cs = env
+    _make_ws(sm, "Python", [
+        {"text": "Comment installer une bibliotheque avec pip et venv", "is_user": True},
+        {"text": "Utilise pip install puis active environnement virtuel", "is_user": False},
+    ])
+    cs.reindex(force=True)
+    # Aucun recouvrement lexical ni semantique -> score reranker tres bas -> filtre
+    results = cs.search("aujourd hui meteo", auto_reindex=False)
+    assert results == []
+
+
+def test_lexical_match_survives_low_rerank(env):
+    """Un mot-cle present litteralement passe meme si le reranker le note bas."""
+    sm, vm, cs = env
+
+    # Reranker qui note TOUT tres bas (simule la faiblesse sur le francais)
+    class _Harsh:
+        def predict(self, pairs):
+            return [-50.0 for _ in pairs]
+    vm.reranker = _Harsh()
+
+    _make_ws(sm, "Docker", [
+        {"text": "Procedure de deploiement docker en production avec compose", "is_user": True},
+    ])
+    cs.reindex(force=True)
+    results = cs.search("docker", auto_reindex=False)
+    assert results, "le filet lexical doit conserver une correspondance exacte"
+    assert "docker" in results[0]["excerpt"].lower()
+
+
+def test_no_reranker_distance_fallback():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sm = SessionManager(workspaces_dir=str(tmp / "workspaces"))
+        vm = _FakeVectorMemory(tmp / "vs", with_reranker=False)
+        (tmp / "vs").mkdir(parents=True, exist_ok=True)
+        cs = ConversationSearch(session_manager=sm, vector_memory=vm)
+        _make_ws(sm, "Notes", [
+            {"text": "Une note sur les algorithmes de tri rapide quicksort", "is_user": True},
+        ])
+        cs.reindex(force=True)
+        # Mot present -> filet lexical (distance proxy faible aussi)
+        assert cs.search("quicksort", auto_reindex=False)
 
 
 def test_role_and_keyword_filters(env):

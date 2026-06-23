@@ -36,19 +36,44 @@ except Exception:  # pragma: no cover - logger optionnel
 _MIN_MESSAGE_LEN = 15
 _SKIP_TYPES = {"file_generation_placeholder", "image"}
 
+# Mots-outils ignores par le filet lexical (sinon "qui", "the"... matchent tout).
+_STOPWORDS = {
+    "qui", "que", "quoi", "est", "es", "tu", "moi", "toi", "les", "des", "une",
+    "uns", "ses", "mes", "tes", "pour", "avec", "dans", "sur", "par", "pas",
+    "the", "and", "for", "with", "what", "who", "you", "are", "this", "that",
+    "aujourd", "hui",
+}
+
 
 class ConversationSearch:
     """Recherche semantique globale sur l'ensemble des workspaces."""
 
-    def __init__(self, session_manager: Any, vector_memory: Any) -> None:
+    def __init__(self, session_manager: Any, vector_memory: Any,
+                 min_rerank_score: Optional[float] = None,
+                 max_distance: Optional[float] = None) -> None:
         """
         Args:
             session_manager: instance de core.session_manager.SessionManager
             vector_memory: instance de memory.vector_memory.VectorMemory (partagee)
+            min_rerank_score: score CrossEncoder minimal pour qu'un resultat soit
+                conserve (defaut config `search.min_rerank_score`, sinon -7.0).
+                Les requetes sans rapport produisent des scores ~ -11 ; le seuil
+                par defaut elimine ce bruit tout en gardant les vrais resultats.
+            max_distance: distance cosinus maximale utilisee SEULEMENT en repli
+                si aucun reranker n'est disponible (defaut 0.55).
         """
         self.session_manager = session_manager
         self.vector_memory = vector_memory
         self._lock = threading.Lock()
+
+        self.min_rerank_score = (
+            min_rerank_score if min_rerank_score is not None
+            else self._cfg("search.min_rerank_score", -7.0)
+        )
+        self.max_distance = (
+            max_distance if max_distance is not None
+            else self._cfg("search.max_distance", 0.55)
+        )
 
         # Manifeste d'indexation, range a cote de l'index ChromaDB
         try:
@@ -56,6 +81,15 @@ class ConversationSearch:
         except Exception:
             storage_dir = Path("memory/vector_store")
         self._manifest_path = storage_dir / "conversation_index.json"
+
+    @staticmethod
+    def _cfg(key: str, default):
+        """Lit une valeur de config, avec repli silencieux."""
+        try:
+            from core.config import get_config
+            return get_config().get(key, default)
+        except Exception:
+            return default
 
     # ------------------------------------------------------------------
     # Disponibilite
@@ -273,15 +307,22 @@ class ConversationSearch:
             except Exception as exc:
                 logger.warning("Reindex avant recherche ignore: %s", exc)
 
-        # Sur-echantillonner pour absorber les post-filtres
-        fetch_n = max(n_results * 4, n_results)
+        # Sur-echantillonner largement : on filtre ensuite par pertinence reelle.
+        fetch_n = max(n_results * 6, 40)
         try:
+            # rerank=False : on recupere les plus proches voisins + distances,
+            # puis on reranke nous-memes pour pouvoir appliquer un SEUIL.
             raw = self.vector_memory.search_similar(
-                query, n_results=fetch_n, collection_type="conversation", rerank=True,
+                query, n_results=fetch_n, collection_type="conversation", rerank=False,
             )
         except Exception as exc:
             logger.warning("Recherche conversations echouee: %s", exc)
             return []
+
+        if not raw:
+            return []
+
+        raw = self._filter_by_relevance(query, raw)
 
         keyword_lc = keyword.lower() if keyword else None
         results: List[Dict[str, Any]] = []
@@ -313,3 +354,54 @@ class ConversationSearch:
                 break
 
         return results
+
+    @staticmethod
+    def _lexical_match(query: str, content: str) -> bool:
+        """True si tous les mots significatifs (>=3 lettres) de la requete
+        apparaissent litteralement dans le contenu. Sert de filet pour les
+        recherches par mot-cle, ou le reranker anglophone est peu fiable."""
+        content_lc = content.lower()
+        tokens = [w for w in query.lower().split()
+                  if len(w) >= 3 and w not in _STOPWORDS]
+        if not tokens:
+            return False
+        return all(tok in content_lc for tok in tokens)
+
+    def _filter_by_relevance(self, query: str, raw: List[dict]) -> List[dict]:
+        """Ecarte les resultats hors-sujet.
+
+        Le bi-encodeur (MiniLM) ne separe pas bien pertinent/non-pertinent sur
+        des requetes courtes ; on s'appuie donc sur le CrossEncoder, bien plus
+        discriminant : les requetes sans rapport produisent des scores tres bas
+        (~ -11) que le seuil elimine. Un resultat est conserve si :
+          - son score CrossEncoder >= seuil, OU
+          - il contient litteralement les mots-cles de la requete (filet lexical).
+        En l'absence de reranker, repli sur un seuil de distance cosinus.
+        """
+        reranker = getattr(self.vector_memory, "reranker", None)
+
+        if reranker is None:
+            kept = [
+                r for r in raw
+                if (r.get("distance") is None or r["distance"] <= self.max_distance)
+                or self._lexical_match(query, r.get("content", ""))
+            ]
+            kept.sort(key=lambda r: (r.get("distance")
+                                     if r.get("distance") is not None else 1.0))
+            return kept
+
+        try:
+            pairs = [[query, r.get("content", "")] for r in raw]
+            scores = reranker.predict(pairs)
+        except Exception as exc:
+            logger.warning("Reranking recherche echoue: %s", exc)
+            return raw
+
+        kept = []
+        for r, s in zip(raw, scores):
+            r["rerank_score"] = float(s)
+            if r["rerank_score"] >= self.min_rerank_score \
+                    or self._lexical_match(query, r.get("content", "")):
+                kept.append(r)
+        kept.sort(key=lambda r: r["rerank_score"], reverse=True)
+        return kept
