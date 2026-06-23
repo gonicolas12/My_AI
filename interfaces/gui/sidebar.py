@@ -669,6 +669,17 @@ class SidebarMixin:
         except Exception:
             pass
 
+        # Comme une vraie sélection souris : le surlignage disparaît au clic
+        def _clear_hl(_e=None, _w=tw):
+            try:
+                _w.tag_remove("search_hl", "1.0", "end")
+            except Exception:
+                pass
+        try:
+            tw.bind("<Button-1>", _clear_hl, add="+")
+        except Exception:
+            pass
+
         # Faire défiler le passage à l'écran (2e passe : les hauteurs des bulles
         # IA se stabilisent de façon asynchrone, ce qui peut décaler la position)
         self._scroll_widget_into_view(container, tw)
