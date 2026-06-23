@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from core.config import get_config
 
 try:
     from utils.logger import setup_logger
@@ -91,7 +92,6 @@ class ConversationSearch:
     def _cfg(key: str, default):
         """Lit une valeur de config, avec repli silencieux."""
         try:
-            from core.config import get_config
             return get_config().get(key, default)
         except Exception:
             return default

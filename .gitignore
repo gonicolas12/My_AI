@@ -11,6 +11,7 @@ rag_demo_index/
 
 # Base de données vectorielles (données personnelles locales)
 memory/vector_store/chroma_db/*
+memory/vector_store/conversation_index.json
 *.db
 *.sqlite
 *.sqlite3
