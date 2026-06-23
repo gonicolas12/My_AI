@@ -332,10 +332,17 @@ class ConversationSearch:
             # puis on reranke nous-memes pour pouvoir appliquer un SEUIL.
             raw = self.vector_memory.search_similar(
                 query, n_results=fetch_n, collection_type="conversation", rerank=False,
-            )
+            ) or []
         except Exception as exc:
             logger.warning("Recherche conversations echouee: %s", exc)
-            return []
+            raw = []
+
+        # Balayage mot-exact sur TOUTE la base : garantit qu'un message contenant
+        # litteralement les mots de la requete n'est jamais manque, meme s'il est
+        # hors des plus proches voisins semantiques (corpus volumineux, autre
+        # langue ou le reranker est faible...). Insensible a la casse -> OK pour
+        # toutes les langues.
+        raw = self._merge_lexical_hits(query, raw)
 
         if not raw:
             return []
@@ -374,16 +381,75 @@ class ConversationSearch:
         return results
 
     @staticmethod
+    def _content_tokens(query: str) -> List[str]:
+        """Mots significatifs de la requete pour le matching exact :
+        >= 2 lettres et hors mots-outils (sinon "qui", "the"... matchent tout)."""
+        return [w for w in (query or "").lower().split()
+                if len(w) >= 2 and w not in _STOPWORDS]
+
+    @staticmethod
     def _lexical_match(query: str, content: str) -> bool:
-        """True si tous les mots significatifs (>=3 lettres) de la requete
-        apparaissent litteralement dans le contenu. Sert de filet pour les
-        recherches par mot-cle, ou le reranker anglophone est peu fiable."""
+        """True si tous les mots significatifs de la requete apparaissent
+        litteralement dans le contenu. Filet par mot-exact, insensible a la
+        casse (toutes langues), la ou le reranker anglophone est peu fiable."""
         content_lc = content.lower()
-        tokens = [w for w in query.lower().split()
-                  if len(w) >= 3 and w not in _STOPWORDS]
+        tokens = ConversationSearch._content_tokens(query)
         if not tokens:
             return False
         return all(tok in content_lc for tok in tokens)
+
+    @staticmethod
+    def _result_key(r: dict):
+        """Cle d'unicite d'un resultat (workspace + position du message)."""
+        meta = r.get("metadata") or {}
+        return (meta.get("workspace_id"), meta.get("message_index"))
+
+    def _lexical_full_scan(self, query: str, cap: int = 200) -> List[dict]:
+        """Cherche les mots-exacts dans TOUTE la collection (pas seulement les
+        plus proches voisins). Insensible a la casse. Retourne des resultats au
+        meme format que search_similar (sans distance)."""
+        col = self._collection
+        tokens = self._content_tokens(query)
+        if col is None or not tokens:
+            return []
+        try:
+            data = col.get(include=["documents", "metadatas"])
+        except Exception as exc:
+            logger.warning("Balayage mot-exact echoue: %s", exc)
+            return []
+
+        ids = data.get("ids") or []
+        docs = data.get("documents") or []
+        metas = data.get("metadatas") or []
+        hits: List[dict] = []
+        for i, doc in enumerate(docs):
+            if not doc:
+                continue
+            doc_lc = doc.lower()
+            if all(tok in doc_lc for tok in tokens):
+                hits.append({
+                    "chunk_id": ids[i] if i < len(ids) else None,
+                    "content": doc,
+                    "metadata": metas[i] if i < len(metas) else {},
+                    "distance": None,
+                })
+                if len(hits) >= cap:
+                    break
+        return hits
+
+    def _merge_lexical_hits(self, query: str, raw: List[dict]) -> List[dict]:
+        """Ajoute a `raw` les correspondances mot-exact du corpus entier qui ne
+        sont pas deja presentes (dedup par workspace+position)."""
+        lex = self._lexical_full_scan(query)
+        if not lex:
+            return raw
+        seen = {self._result_key(r) for r in raw}
+        for hit in lex:
+            key = self._result_key(hit)
+            if key not in seen:
+                raw.append(hit)
+                seen.add(key)
+        return raw
 
     def _filter_by_relevance(self, query: str, raw: List[dict]) -> List[dict]:
         """Ecarte les resultats hors-sujet.

@@ -50,6 +50,14 @@ class _FakeCollection:
         for k in to_del:
             del self.store[k]
 
+    def get(self, include=None):
+        ids = list(self.store.keys())
+        return {
+            "ids": ids,
+            "documents": [self.store[i]["document"] for i in ids],
+            "metadatas": [self.store[i]["metadata"] for i in ids],
+        }
+
 
 def _overlap(query, content):
     return len(set(query.lower().split()) & set(content.lower().split()))
@@ -63,14 +71,19 @@ class _FakeReranker:
 
 
 class _FakeVectorMemory:
-    def __init__(self, storage_dir, with_reranker=True):
+    def __init__(self, storage_dir, with_reranker=True, semantic_blind=False):
         self.storage_dir = Path(storage_dir)
         self.embedding_model = _FakeModel()
         self.conversation_collection = _FakeCollection()
         self.reranker = _FakeReranker() if with_reranker else None
+        # semantic_blind : simule un corpus ou le bon message est HORS des plus
+        # proches voisins (search_similar ne le remonte pas).
+        self.semantic_blind = semantic_blind
 
     def search_similar(self, query, n_results=5, collection_type="conversation",
                        rerank=True):
+        if self.semantic_blind:
+            return []
         # Comme ChromaDB : renvoie les n plus proches voisins SANS notion de
         # seuil (proxy de distance = inverse du recouvrement de mots).
         scored = []
@@ -260,6 +273,44 @@ def test_no_reranker_distance_fallback():
         cs.reindex(force=True)
         # Mot present -> filet lexical (distance proxy faible aussi)
         assert cs.search("quicksort", auto_reindex=False)
+
+
+def test_exact_word_never_missed_even_outside_semantic_topn():
+    """Un mot exact doit etre trouve meme si la recherche semantique ne le
+    remonte PAS (corpus volumineux / autre langue)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sm = SessionManager(workspaces_dir=str(tmp / "workspaces"))
+        vm = _FakeVectorMemory(tmp / "vs", with_reranker=True, semantic_blind=True)
+        (tmp / "vs").mkdir(parents=True, exist_ok=True)
+        cs = ConversationSearch(session_manager=sm, vector_memory=vm)
+        ws_id = _make_ws(sm, "Ops", [
+            {"text": "On a deploye le cluster kubernetes hier soir", "is_user": True},
+            {"text": "Parfait, tout tourne correctement", "is_user": False},
+        ])
+        cs.reindex(force=True)
+        # search_similar renvoie [] (semantic_blind) -> seul le balayage exact agit
+        res = cs.search("kubernetes", auto_reindex=False)
+        assert res, "le mot exact doit ressortir via le balayage full-text"
+        assert res[0]["workspace_id"] == ws_id
+        assert "kubernetes" in res[0]["excerpt"].lower()
+
+
+def test_exact_word_other_language_case_insensitive():
+    """Mot exact dans une autre langue + casse differente."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sm = SessionManager(workspaces_dir=str(tmp / "workspaces"))
+        vm = _FakeVectorMemory(tmp / "vs", with_reranker=False, semantic_blind=True)
+        (tmp / "vs").mkdir(parents=True, exist_ok=True)
+        cs = ConversationSearch(session_manager=sm, vector_memory=vm)
+        _make_ws(sm, "ES", [
+            {"text": "Necesito ayuda con la Configuración del servidor", "is_user": True},
+        ])
+        cs.reindex(force=True)
+        res = cs.search("configuración", auto_reindex=False)  # minuscule
+        assert res
+        assert "configuración" in res[0]["excerpt"].lower()
 
 
 def test_role_and_keyword_filters(env):
