@@ -40,6 +40,7 @@ class SidebarMixin:
         self._sidebar_parent = parent
         self._sidebar_visible = False
         self._sidebar_sections_open = {
+            "search": False,
             "sessions": False,
             "history": False,
             "export": False,
@@ -79,6 +80,7 @@ class SidebarMixin:
         self._make_relay_button()
         self._make_tts_button()
         self._make_settings_button()
+        self._make_section_search()
         self._make_section_sessions()
         self._make_section_history()
         self._make_section_export()
@@ -351,6 +353,7 @@ class SidebarMixin:
         open_ = self._sidebar_sections_open[key]
         icon = "▼" if open_ else "▶"
         names = {
+            "search": "🔎 Recherche globale",
             "sessions": "💼 Sessions",
             "history": "📜 Historique",
             "export": "📤 Export",
@@ -373,6 +376,200 @@ class SidebarMixin:
         self._refresh_sessions()
         self._refresh_history()
         self._refresh_knowledge()
+
+    # ─── Section Recherche globale ────────────────────────────────────
+
+    def _make_section_search(self):
+        """Recherche sémantique sur TOUTES les conversations/workspaces."""
+        wrapper = self._make_section_wrapper()
+        self._sidebar_hdr_search = self._make_section_header_btn(
+            wrapper, "🔎 Recherche globale", "search"
+        )
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        body = ctk.CTkFrame(wrapper, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(wrapper, bg=bg)
+        self._sidebar_body_search = body
+
+        # Barre de recherche + bouton réindexer
+        search_bg = self.colors.get("bg_primary", "#212121")
+        sr = ctk.CTkFrame(body, fg_color=search_bg, corner_radius=4) \
+            if CTK_AVAILABLE else tk.Frame(body, bg=search_bg)
+        sr.pack(fill="x", padx=8, pady=(4, 2))
+
+        self._global_search_var = tk.StringVar()
+        if CTK_AVAILABLE:
+            entry = ctk.CTkEntry(
+                sr, textvariable=self._global_search_var,
+                placeholder_text="🔍 Rechercher dans tout l'historique…",
+                fg_color=search_bg,
+                border_color=self.colors.get("border", "#404040"),
+                text_color=self.colors.get("text_primary", "#ffffff"),
+                font=("Segoe UI", 10), height=26,
+            )
+            entry.pack(fill="x", padx=4, pady=3)
+        else:
+            entry = tk.Entry(
+                sr, textvariable=self._global_search_var,
+                bg=search_bg, fg=self.colors.get("text_primary", "#ffffff"),
+                font=("Segoe UI", 10), relief="flat",
+            )
+            entry.pack(fill="x", padx=4, pady=3)
+        entry.bind("<Return>", lambda _e: self._global_search_run())
+        self._global_search_entry = entry
+
+        # Ligne de boutons : Rechercher / Réindexer
+        btn_row = ctk.CTkFrame(body, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(body, bg=bg)
+        btn_row.pack(fill="x", padx=8, pady=(0, 2))
+        btn_go = self._sb_button(btn_row, "🔍 Rechercher", self._global_search_run,
+                                  color=self.colors.get("accent", "#3b82f6"))
+        btn_go.pack(side="left", fill="x", expand=True, padx=(0, 2))
+        btn_reidx = self._sb_button(btn_row, "🔄", self._global_search_reindex, width=34)
+        btn_reidx.pack(side="right")
+
+        # Statut
+        self._global_search_status = self._sb_label(
+            body, "", font_size=9,
+            color=self.colors.get("text_secondary", "#9ca3af"),
+        )
+        self._global_search_status.pack(anchor="w", padx=10, pady=(0, 2))
+
+        # Liste des résultats
+        list_bg = self.colors.get("bg_primary", "#212121")
+        if CTK_AVAILABLE:
+            self._global_search_results = ctk.CTkScrollableFrame(
+                body, fg_color=list_bg, corner_radius=4, height=180
+            )
+        else:
+            self._global_search_results = tk.Frame(body, bg=list_bg, height=180)
+        self._global_search_results.pack(fill="x", padx=8, pady=(0, 4))
+
+        if self._sidebar_sections_open.get("search", False):
+            body.pack(fill="x", padx=4, pady=(0, 4))
+        self._sb_separator(self._sidebar_scroll)
+
+    def _get_conversation_search(self):
+        """Récupère la couche de recherche cross-conversations depuis l'engine."""
+        engine = getattr(self, "ai_engine", None)
+        if engine is None or not hasattr(engine, "get_conversation_search"):
+            return None
+        try:
+            return engine.get_conversation_search()
+        except Exception:
+            return None
+
+    def _global_search_set_status(self, text: str):
+        try:
+            self._global_search_status.configure(text=f"  {text}" if text else "")
+        except Exception:
+            pass
+
+    def _global_search_run(self):
+        query = self._global_search_var.get().strip()
+        if not query:
+            return
+        cs = self._get_conversation_search()
+        if cs is None or not cs.is_available():
+            self._global_search_set_status("Recherche sémantique indisponible")
+            return
+        self._global_search_set_status("Recherche en cours…")
+        # Vider les résultats précédents
+        for w in self._global_search_results.winfo_children():
+            w.destroy()
+
+        def _work():
+            try:
+                results = cs.search(query, n_results=15)
+            except Exception as exc:
+                results = []
+                print(f"[SEARCH][GUI] Erreur recherche globale: {exc}")
+            try:
+                self.root.after(0, lambda: self._global_search_render(results))
+            except Exception:
+                pass
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _global_search_render(self, results: list):
+        for w in self._global_search_results.winfo_children():
+            w.destroy()
+        if not results:
+            self._global_search_set_status("Aucun résultat")
+            self._sb_label(self._global_search_results, "  Aucun résultat",
+                           font_size=10,
+                           color=self.colors.get("text_secondary", "#9ca3af")
+                           ).pack(anchor="w", padx=4, pady=2)
+            return
+        self._global_search_set_status(f"{len(results)} résultat(s)")
+        for res in results:
+            self._make_global_search_row(res)
+
+    def _make_global_search_row(self, res: dict):
+        ws_id = res.get("workspace_id", "")
+        ws_name = res.get("workspace_name", ws_id) or "(sans nom)"
+        excerpt = (res.get("excerpt", "") or "").replace("\n", " ").strip()
+        role = res.get("role", "")
+        icon = "🧑" if role == "user" else "🤖"
+        preview = excerpt[:48] + ("…" if len(excerpt) > 48 else "")
+
+        row_bg = self.colors.get("bg_primary", "#212121")
+        hover = self.colors.get("button_hover", "#404040")
+        row = ctk.CTkFrame(self._global_search_results, fg_color=row_bg, corner_radius=3) \
+            if CTK_AVAILABLE else tk.Frame(self._global_search_results, bg=row_bg)
+        row.pack(fill="x", pady=1, padx=2)
+
+        label = f"{icon} {ws_name[:18]} · {preview}"
+        if CTK_AVAILABLE:
+            btn = ctk.CTkButton(
+                row, text=label,
+                fg_color=row_bg, hover_color=hover,
+                text_color=self.colors.get("text_primary", "#ffffff"),
+                font=("Segoe UI", 10), height=24, corner_radius=3, anchor="w",
+                command=lambda wid=ws_id: self._global_search_open(wid),
+            )
+            btn.pack(fill="x", padx=2, pady=1)
+        else:
+            btn = tk.Button(
+                row, text=label, bg=row_bg,
+                fg=self.colors.get("text_primary", "#ffffff"),
+                font=("Segoe UI", 10), relief="flat", anchor="w",
+                command=lambda wid=ws_id: self._global_search_open(wid),
+            )
+            btn.pack(fill="x", padx=2, pady=1)
+        # Tooltip : extrait complet + nom du workspace
+        try:
+            self._kb_attach_tooltip(btn, f"[{ws_name}] {excerpt}")
+        except Exception:
+            pass
+
+    def _global_search_open(self, workspace_id: str):
+        """Ouvre la conversation/workspace source du résultat cliqué."""
+        if not workspace_id:
+            return
+        try:
+            self._session_load(workspace_id)
+        except Exception as exc:
+            self.show_notification(f"❌ Ouverture impossible : {exc}", "error", 2500)
+
+    def _global_search_reindex(self):
+        cs = self._get_conversation_search()
+        if cs is None or not cs.is_available():
+            self._global_search_set_status("Indexation indisponible")
+            return
+        self._global_search_set_status("Réindexation…")
+
+        def _work():
+            try:
+                stats = cs.reindex(force=True)
+                msg = f"Indexé : {stats['messages']} message(s)"
+            except Exception as exc:
+                msg = f"Erreur : {exc}"
+            try:
+                self.root.after(0, lambda: self._global_search_set_status(msg))
+            except Exception:
+                pass
+
+        threading.Thread(target=_work, daemon=True).start()
 
     # ─── Section Sessions ─────────────────────────────────────────────
 
