@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v7.8.0
+# 📚 Guide d'Utilisation - My Personal AI v7.9.0
 
 ## 🚀 Démarrage Rapide
 
@@ -328,7 +328,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v7.8.0:
+État My Personal AI v7.9.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -908,11 +908,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v7.8.0
+  MY PERSONAL AI - System Status v7.9.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 7.8.0
+📊 Version: 7.9.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -945,7 +945,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v7.8.0
+My Personal AI v7.9.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1535,7 +1535,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 7.8.0
+**Version:** 7.9.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale

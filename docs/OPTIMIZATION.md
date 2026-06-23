@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v7.8.0
+# 🚀 Guide d'Optimisation - My Personal AI v7.9.0
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.8.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v7.9.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -1017,6 +1017,6 @@ Le `LanguageDetector` utilise un cache LRU de 128 entrées pour éviter de re-d�
 
 ---
 
-**Version:** 7.8.0
+**Version:** 7.9.0
 **Dernière mise à jour:** 8 Avril 2026
 **Performance target:** < 1s réponse, < 2GB RAM, 10M tokens context

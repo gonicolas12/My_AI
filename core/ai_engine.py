@@ -78,6 +78,12 @@ try:
 except ImportError:
     _SESSION_AVAILABLE = False
 
+try:
+    from .conversation_search import ConversationSearch
+    _CONV_SEARCH_AVAILABLE = True
+except ImportError:
+    _CONV_SEARCH_AVAILABLE = False
+
 
 class AIEngine:
     """
@@ -405,6 +411,39 @@ class AIEngine:
             except Exception as e:
                 self.logger.warning("⚠️ SessionManager indisponible: %s", e)
 
+        # Mémoire vectorielle partagée + recherche cross-conversations (lazy)
+        self._vector_memory = None
+        self._conversation_search = None
+
+    def get_vector_memory(self):
+        """Retourne l'instance VectorMemory partagée (créée à la demande).
+
+        Réutilisée par l'outil search_memory et la recherche cross-conversations
+        pour ne pas multiplier les clients ChromaDB ni les pipelines d'embedding.
+        """
+        if self._vector_memory is None:
+            self._vector_memory = VectorMemory()
+        return self._vector_memory
+
+    def get_conversation_search(self):
+        """Retourne la couche de recherche globale cross-conversations (lazy).
+
+        Réutilise la collection ChromaDB "conversations" existante et l'embedding
+        partagé. Retourne None si les dépendances ne sont pas disponibles.
+        """
+        if self._conversation_search is None:
+            if not (_CONV_SEARCH_AVAILABLE and self.session_manager is not None):
+                return None
+            try:
+                self._conversation_search = ConversationSearch(
+                    session_manager=self.session_manager,
+                    vector_memory=self.get_vector_memory(),
+                )
+            except Exception as e:
+                self.logger.warning("⚠️ ConversationSearch indisponible: %s", e)
+                return None
+        return self._conversation_search
+
     # ── Détection de langue ─────────────────────────────────────────────
 
     # Suffixes de prompt par code de langue ISO 639-1
@@ -489,7 +528,7 @@ class AIEngine:
         # 2. Recherche en mémoire vectorielle
         # ----------------------------------------------------------------
         try:
-            vector_mem = VectorMemory()
+            vector_mem = self.get_vector_memory()
 
             def search_memory(query: str, n_results: int = 5) -> str:
                 """Recherche sémantique dans la mémoire vectorielle locale."""
