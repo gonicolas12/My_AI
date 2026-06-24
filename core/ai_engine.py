@@ -423,7 +423,8 @@ class AIEngine:
         pour ne pas multiplier les clients ChromaDB ni les pipelines d'embedding.
         """
         if self._vector_memory is None:
-            self._vector_memory = VectorMemory()
+            # Initialisation paresseuse (l'attribut est déclaré dans _init_v7_modules)
+            self._vector_memory = VectorMemory()  # pylint: disable=attribute-defined-outside-init
         return self._vector_memory
 
     def get_conversation_search(self):
@@ -436,6 +437,7 @@ class AIEngine:
             if not (_CONV_SEARCH_AVAILABLE and self.session_manager is not None):
                 return None
             try:
+                # pylint: disable-next=attribute-defined-outside-init
                 self._conversation_search = ConversationSearch(
                     session_manager=self.session_manager,
                     vector_memory=self.get_vector_memory(),
@@ -460,6 +462,7 @@ class AIEngine:
                 self.logger.warning("⚠️ MemoryStore indisponible: %s", e)
                 return None
             try:
+                # pylint: disable-next=attribute-defined-outside-init
                 self._memory_store = MemoryStore(
                     knowledge_base=self.knowledge_base,
                     vector_memory=self.get_vector_memory(),

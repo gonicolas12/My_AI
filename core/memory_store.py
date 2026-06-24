@@ -283,7 +283,7 @@ class MemoryStore:
             return False
 
         state, key, history = self._load_history(ws_id)
-        if state is None or not (0 <= idx < len(history)):
+        if state is None or idx < 0 or idx >= len(history):
             return False
         del history[idx]
         state[key] = history
@@ -307,7 +307,7 @@ class MemoryStore:
             return False
 
         state, key, history = self._load_history(ws_id)
-        if state is None or not (0 <= idx < len(history)):
+        if state is None or idx < 0 or idx >= len(history):
             return False
         msg = history[idx]
         if not isinstance(msg, dict):

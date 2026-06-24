@@ -743,10 +743,11 @@ class MemoryPanelMixin:
 
     def _mem_tooltip(self, widget, text):
         fn = getattr(self, "_kb_attach_tooltip", None)
-        if fn is None or not text:
+        if not text or not callable(fn):
             return
         try:
-            fn(widget, text)
+            # _kb_attach_tooltip provient d'un autre mixin (SidebarMixin)
+            fn(widget, text)  # pylint: disable=not-callable
         except Exception:
             pass
 
