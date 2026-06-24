@@ -15,7 +15,7 @@ class TestVectorMemoryInit:
 
     def test_initialization_default(self):
         """Test initialisation par défaut"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(storage_dir=tmpdir)
             assert memory.max_tokens >= 1_000_000
             assert memory.chunk_size == 256
@@ -23,7 +23,7 @@ class TestVectorMemoryInit:
 
     def test_initialization_custom_params(self):
         """Test initialisation avec paramètres personnalisés"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(
                 max_tokens=500_000, chunk_size=256, chunk_overlap=25, storage_dir=tmpdir
             )
@@ -33,7 +33,7 @@ class TestVectorMemoryInit:
 
     def test_storage_dir_created(self):
         """Test que le répertoire de stockage est créé"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             storage_path = Path(tmpdir) / "test_storage"
             _memory = VectorMemory(storage_dir=str(storage_path))
             assert storage_path.exists()
@@ -45,7 +45,7 @@ class TestTokenCounting:
     @pytest.fixture
     def memory(self):
         """Teste la mémoire"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             yield VectorMemory(storage_dir=tmpdir)
 
     def test_count_tokens_simple(self, memory):
@@ -73,7 +73,7 @@ class TestChunking:
     @pytest.fixture
     def memory(self):
         """Teste la mémoire"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             yield VectorMemory(chunk_size=50, chunk_overlap=10, storage_dir=tmpdir)
 
     def test_split_small_text(self, memory):
@@ -107,7 +107,7 @@ class TestDocumentManagement:
     @pytest.fixture
     def memory(self):
         """Teste la mémoire"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             yield VectorMemory(max_tokens=10000, storage_dir=tmpdir)
 
     def test_add_document_simple(self, memory):
@@ -156,7 +156,7 @@ class TestSearch:
     @pytest.fixture
     def memory(self):
         """Teste la mémoire"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             mem = VectorMemory(storage_dir=tmpdir)
 
             # Ajouter quelques documents de test
@@ -189,7 +189,7 @@ class TestEncryption:
 
     def test_encryption_enabled(self):
         """Test que le chiffrement peut être activé"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(enable_encryption=True, storage_dir=tmpdir)
 
             # Vérifier que le chiffrement est activé si cryptography disponible
@@ -198,7 +198,7 @@ class TestEncryption:
 
     def test_encrypt_decrypt(self):
         """Test chiffrement/déchiffrement"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(enable_encryption=True, storage_dir=tmpdir)
 
             if memory.enable_encryption:
@@ -220,7 +220,7 @@ class TestMemoryManagement:
 
     def test_cleanup_when_full(self):
         """Test nettoyage quand mémoire pleine"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(max_tokens=1000, storage_dir=tmpdir)
 
             # Ajouter plusieurs documents pour remplir
@@ -235,7 +235,7 @@ class TestMemoryManagement:
 
     def test_clear_all(self):
         """Test vidage complet de la mémoire"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(storage_dir=tmpdir)
 
             # Ajouter des documents
@@ -254,7 +254,7 @@ class TestStats:
 
     def test_get_stats_structure(self):
         """Test structure des statistiques"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(storage_dir=tmpdir)
             stats = memory.get_stats()
 
@@ -266,7 +266,7 @@ class TestStats:
 
     def test_usage_percent_calculation(self):
         """Test calcul du pourcentage d'utilisation"""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(max_tokens=1000, storage_dir=tmpdir)
 
             # Ajouter un document
@@ -274,6 +274,79 @@ class TestStats:
 
             stats = memory.get_stats()
             assert 0 <= stats["usage_percent"] <= 100
+
+
+class TestEntryCRUD:
+    """Tests du CRUD bas niveau par entrée (list / get / count / update / delete)."""
+
+    @pytest.fixture
+    def memory(self):
+        """VectorMemory temporaire alimentée d'un document."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            mem = VectorMemory(max_tokens=100000, storage_dir=tmpdir)
+            if not mem.embedding_model or not mem.document_collection:
+                pytest.skip("Embeddings/ChromaDB non disponibles")
+            mem.add_document("Le ciel est bleu et clair. " * 40, "doc_crud")
+            yield mem
+
+    def test_count_and_list(self, memory):
+        """count_entries et list_entries reflètent les chunks stockés."""
+        total = memory.count_entries("document")
+        assert total >= 1
+        entries = memory.list_entries("document")
+        assert len(entries) == total
+        first = entries[0]
+        assert set(first.keys()) == {"id", "content", "metadata"}
+        assert first["content"]
+
+    def test_list_pagination(self, memory):
+        """list_entries respecte limit et offset."""
+        total = memory.count_entries("document")
+        if total < 2:
+            pytest.skip("Pas assez de chunks pour tester la pagination")
+        page1 = memory.list_entries("document", limit=1, offset=0)
+        page2 = memory.list_entries("document", limit=1, offset=1)
+        assert len(page1) == 1 and len(page2) == 1
+        assert page1[0]["id"] != page2[0]["id"]
+
+    def test_get_entry(self, memory):
+        """get_entry retrouve une entrée par son id, None si inconnue."""
+        entry_id = memory.list_entries("document")[0]["id"]
+        got = memory.get_entry(entry_id, "document")
+        assert got is not None and got["id"] == entry_id
+        assert memory.get_entry("id_inexistant_xyz", "document") is None
+
+    def test_update_entry(self, memory):
+        """update_entry remplace le texte (et ré-embarque)."""
+        entry_id = memory.list_entries("document")[0]["id"]
+        assert memory.update_entry(entry_id, "Texte totalement nouveau", "document")
+        again = memory.get_entry(entry_id, "document")
+        assert again["content"] == "Texte totalement nouveau"
+
+    def test_delete_entry_is_real(self, memory):
+        """delete_entry retire DÉFINITIVEMENT l'entrée de ChromaDB."""
+        entry_id = memory.list_entries("document")[0]["id"]
+        before = memory.count_entries("document")
+        assert memory.delete_entry(entry_id, "document")
+        after = memory.count_entries("document")
+        assert after == before - 1
+        assert memory.get_entry(entry_id, "document") is None
+
+    def test_update_entry_with_encryption(self):
+        """Le texte mis à jour reste lisible (déchiffré) avec chiffrement activé."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            mem = VectorMemory(
+                max_tokens=100000, storage_dir=tmpdir, enable_encryption=True
+            )
+            if not mem.embedding_model or not mem.document_collection:
+                pytest.skip("Embeddings/ChromaDB non disponibles")
+            if not mem.enable_encryption:
+                pytest.skip("Chiffrement non disponible")
+            mem.add_document("Contenu chiffré initial. " * 30, "doc_enc")
+            entry_id = mem.list_entries("document")[0]["id"]
+            assert mem.update_entry(entry_id, "Secret mis à jour", "document")
+            got = mem.get_entry(entry_id, "document")
+            assert got["content"] == "Secret mis à jour"
 
 
 if __name__ == "__main__":
