@@ -604,6 +604,176 @@ class VectorMemory:
 
         return "\n".join(context_parts)
 
+    # ------------------------------------------------------------------
+    # CRUD par entrée (inspection / édition / suppression manuelle)
+    # Utilisé par la couche unifiée MemoryStore et la fenêtre « Mémoire ».
+    # ------------------------------------------------------------------
+
+    def _collection_for(self, collection_type: str):
+        """Retourne la collection ChromaDB correspondant au type demandé.
+
+        Args:
+            collection_type: "document" ou "conversation".
+
+        Returns:
+            La collection ChromaDB, ou None si indisponible.
+        """
+        if collection_type == "conversation":
+            return self.conversation_collection
+        return self.document_collection
+
+    def count_entries(self, collection_type: str = "document") -> int:
+        """Compte les entrées d'une collection.
+
+        Args:
+            collection_type: "document" ou "conversation".
+
+        Returns:
+            Nombre d'entrées (0 si la collection est indisponible).
+        """
+        collection = self._collection_for(collection_type)
+        if not collection:
+            return 0
+        try:
+            return collection.count()
+        except Exception as e:
+            print(f"⚠️ Erreur count_entries: {e}")
+            return 0
+
+    def list_entries(
+        self,
+        collection_type: str = "document",
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Liste les entrées d'une collection (déchiffrées si nécessaire).
+
+        Interroge directement ChromaDB : self.documents n'étant pas persisté,
+        c'est la seule source fiable après un redémarrage.
+
+        Args:
+            collection_type: "document" ou "conversation".
+            limit: Nombre maximum d'entrées (None = toutes).
+            offset: Décalage de départ (pagination).
+
+        Returns:
+            Liste de dicts {"id", "content", "metadata"}.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection:
+            return []
+        try:
+            data = collection.get(
+                include=["documents", "metadatas"],
+                limit=limit,
+                offset=offset,
+            )
+        except Exception as e:
+            print(f"⚠️ Erreur list_entries: {e}")
+            return []
+
+        ids = data.get("ids") or []
+        docs = data.get("documents") or []
+        metas = data.get("metadatas") or []
+        entries: List[Dict[str, Any]] = []
+        for i, entry_id in enumerate(ids):
+            content = docs[i] if i < len(docs) else ""
+            metadata = metas[i] if i < len(metas) else {}
+            if metadata and metadata.get("encrypted"):
+                try:
+                    content = self._decrypt(content)
+                except Exception:
+                    pass
+            entries.append(
+                {"id": entry_id, "content": content, "metadata": metadata or {}}
+            )
+        return entries
+
+    def get_entry(
+        self, entry_id: str, collection_type: str = "document"
+    ) -> Optional[Dict[str, Any]]:
+        """Récupère une entrée précise par son identifiant.
+
+        Args:
+            entry_id: Identifiant ChromaDB de l'entrée.
+            collection_type: "document" ou "conversation".
+
+        Returns:
+            Dict {"id", "content", "metadata"} ou None si introuvable.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection:
+            return None
+        try:
+            data = collection.get(ids=[entry_id], include=["documents", "metadatas"])
+        except Exception as e:
+            print(f"⚠️ Erreur get_entry: {e}")
+            return None
+        ids = data.get("ids") or []
+        if not ids:
+            return None
+        content = (data.get("documents") or [""])[0]
+        metadata = (data.get("metadatas") or [{}])[0] or {}
+        if metadata.get("encrypted"):
+            try:
+                content = self._decrypt(content)
+            except Exception:
+                pass
+        return {"id": ids[0], "content": content, "metadata": metadata}
+
+    def update_entry(
+        self, entry_id: str, new_text: str, collection_type: str = "document"
+    ) -> bool:
+        """Met à jour le texte d'une entrée (ré-embarque + rechiffre si besoin).
+
+        Args:
+            entry_id: Identifiant ChromaDB de l'entrée.
+            new_text: Nouveau contenu textuel.
+            collection_type: "document" ou "conversation".
+
+        Returns:
+            True si la mise à jour a réussi, False sinon.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection or not new_text or not new_text.strip():
+            return False
+
+        stored_text = self._encrypt(new_text) if self.enable_encryption else new_text
+        try:
+            if self.embedding_model:
+                embedding = self.embedding_model.encode(new_text).tolist()
+                collection.update(
+                    ids=[entry_id],
+                    documents=[stored_text],
+                    embeddings=[embedding],
+                )
+            else:
+                collection.update(ids=[entry_id], documents=[stored_text])
+            return True
+        except Exception as e:
+            print(f"⚠️ Erreur update_entry: {e}")
+            return False
+
+    def delete_entry(self, entry_id: str, collection_type: str = "document") -> bool:
+        """Supprime DÉFINITIVEMENT une entrée de ChromaDB.
+
+        Args:
+            entry_id: Identifiant ChromaDB de l'entrée.
+            collection_type: "document" ou "conversation".
+
+        Returns:
+            True si la suppression a réussi, False sinon.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection:
+            return False
+        try:
+            collection.delete(ids=[entry_id])
+            return True
+        except Exception as e:
+            print(f"⚠️ Erreur delete_entry: {e}")
+            return False
+
     def _generate_document_id(self, content: str, name: str) -> str:
         """Génère un ID unique pour un document"""
         content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
