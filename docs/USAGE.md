@@ -66,6 +66,8 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
 - 🔊 **Sortie vocale locale** (pyttsx3) — lecture des réponses, voix par langue, lecture auto
 - ⚙️ **Panneau Réglages** — gestion des modèles Ollama et paramètres, sans éditer de fichiers
+- 🔎 **Recherche globale** — recherche sémantique sur *toutes* vos conversations (sidebar → 🔎) ; un clic ouvre la conversation et surligne le passage — voir [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md)
+- 🧠 **Mémoire** — voir / éditer / supprimer ce que l'IA sait de vous : faits + entrées vectorielles (sidebar → 🧠) — voir [MEMORY.md](MEMORY.md)
 
 ### Utilisation Typique GUI
 

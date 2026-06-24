@@ -1,5 +1,49 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🧠 Version 7.9.0 — Mémoire & Recherche globale (24 Juin 2026)
+
+### Retrouver n'importe quel échange passé, et reprendre le contrôle total sur ce que l'IA sait de vous
+
+Deux grandes nouveautés, **100% locales** : une **recherche sémantique globale** qui fouille *toutes* vos conversations d'un coup, et une fenêtre **🧠 Mémoire** qui vous laisse **voir, éditer et supprimer** ce que l'IA a mémorisé de vous — les faits structurés (SQLite) **et** les entrées vectorielles (ChromaDB). Aucune donnée ne quitte votre machine ; vous décidez de ce qui reste.
+
+## 🔎 Recherche globale cross-conversations — `core/conversation_search.py` (nouveau)
+
+Jusqu'ici la recherche de l'historique se limitait à la conversation courante. Désormais, une **recherche sémantique** balaie **l'ensemble de vos workspaces/sessions** d'un seul coup, et vous emmène directement au bon message.
+
+- **Couche de recherche dédiée** `ConversationSearch` : interroge **toutes** les conversations sauvegardées en réutilisant l'**index ChromaDB existant** (collection `conversations`) et l'**embedding partagé** (`core/shared.py`) — **aucun second pipeline d'embedding** n'est créé.
+- **Indexation incrémentale** : un manifeste `memory/vector_store/conversation_index.json` mémorise le `last_modified` de chaque workspace déjà indexé. À chaque réindex, seuls les workspaces **nouveaux ou modifiés** sont retraités, et les workspaces **supprimés** sont purgés de l'index. Un numéro de schéma force une réindexation complète quand la logique d'indexation évolue.
+- **Indexe chaque message non vide** — utilisateur **et** assistant, **sans aucune limite de longueur** — pour ne jamais brider une recherche (les types techniques comme les placeholders d'image sont ignorés).
+- **Recherche hybride** : plus proches voisins sémantiques **+ reranking CrossEncoder** (si dispo) pour la finesse, **+ filet lexical mot-exact sur tout le corpus** qui garantit qu'un message contenant littéralement les mots cherchés n'est **jamais manqué** (insensible à la casse, toutes langues), **+ seuil de pertinence** qui élimine le bruit hors-sujet.
+- **Post-filtres** optionnels : par **rôle** (utilisateur / assistant), par **mot-clé exact**, par **date** (`since`).
+- **Section « 🔎 Recherche globale » dans la sidebar** (`interfaces/gui/sidebar.py`) : barre de recherche, bouton **🔄 Réindexer**, liste de résultats (icône rôle + nom de session + extrait). Recherche lancée en arrière-plan (thread) pour ne pas figer l'UI.
+- **Ouverture + surlignage** : un clic sur un résultat **ouvre la conversation source** et **surligne le passage trouvé** (mots de la requête, ou message entier en recherche purement sémantique), avec défilement automatique jusqu'au passage. Le surlignage **disparaît au clic**, comme une vraie sélection.
+- **Câblage** : exposée via `AIEngine.get_conversation_search()` (paresseux), réutilise le `SessionManager` et la `VectorMemory` partagés. Couverte par `tests/test_conversation_search.py`.
+
+## 🧠 Mémoire — voir / éditer / supprimer ce que l'IA sait (argument confidentialité)
+
+L'IA mémorise des choses sur vous dans **deux** stores locaux : des **faits structurés** (`core/knowledge_base_manager.py`, SQLite) et une **mémoire vectorielle** (`memory/vector_memory.py`, ChromaDB — collections `documents` et `conversations`). Cette version ajoute une **fenêtre dédiée** pour en reprendre le **contrôle total**, avec de **vraies** opérations CRUD (aucun mock, aucune suppression simulée).
+
+#### 🗂️ CRUD bas niveau sur la mémoire vectorielle — `memory/vector_memory.py`
+
+- Nouvelles méthodes génériques par collection (`document` / `conversation`) : `list_entries` / `get_entry` / `count_entries` (pagination native ChromaDB), `update_entry` (**ré-embarque** le texte modifié), `delete_entry` (**vraie suppression** `collection.delete`). Interroge **directement ChromaDB** (le dictionnaire en mémoire n'est pas persistant) et **déchiffre** les entrées si le chiffrement AES-256 est actif.
+
+#### 🔗 Couche d'accès unifiée — `core/memory_store.py` (nouveau)
+
+- `MemoryStore` : une **façade homogène** au-dessus des deux stores (testable sans GUI), exposée par `AIEngine.get_memory_store()` (paresseux). Lister / paginer / filtrer / éditer / supprimer faits **et** vecteurs via une seule API.
+- **Suppression durable des entrées de conversation** : la collection `conversations` étant **reconstruite** depuis les workspaces, une suppression directe réapparaîtrait au réindex. En mode **« à la source »**, `MemoryStore` supprime/édite le **message d'origine** dans le workspace **puis relance un réindex incrémental** → la modification est **définitive**.
+
+#### 🖥️ Fenêtre « 🧠 Mémoire » — `interfaces/gui/memory_panel.py` (nouveau)
+
+- **3 onglets** : **Faits** (SQLite) · **Documents** (chunks vectoriels) · **Conversations** (index de recherche).
+- **Recherche** + **filtre par catégorie** (faits), **pagination**, **provenance** affichée par entrée (source/confiance pour les faits ; session · rôle · horodatage pour les conversations ; nom de document · chunk pour les documents).
+- **Édition inline** (✏️) et **suppression** (🗑️) avec **dialogue de confirmation** stylé comme la confirmation MCP existante. Pour les conversations, une case **« Supprimer aussi le message d'origine »** pilote la suppression durable.
+- **Remplace** l'ancienne mini-section « Connaissances » de la sidebar par un bouton **« 🧠 Mémoire »** : un seul endroit, plus complet (faits **et** vecteurs), zéro doublon.
+- Chargements ChromaDB et réindex exécutés en **thread** (UI non bloquée). Couvert par `tests/test_memory_store.py` (vrais SQLite + ChromaDB) ; le CRUD bas niveau est couvert par `tests/test_vector_memory.py`.
+
+> Détails : [docs/CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md) et [docs/MEMORY.md](MEMORY.md).
+
+---
+
 # 🎨 Version 7.8.0 — Génération d'images locale (19 Juin 2026)
 
 ### La symétrie multimodale est complète : l'IA *voit* ET *dessine*

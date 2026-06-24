@@ -332,6 +332,15 @@ Architecture:
 └─ CRUD complet avec recherche plein texte
 ```
 
+**`core/memory_store.py`** - Accès CRUD unifié à la mémoire *(7.9.0)*
+```python
+Rôle:
+├─ Façade homogène sur les 2 stores (faits SQLite + vecteurs ChromaDB)
+├─ Lister / paginer / filtrer / éditer / supprimer faits ET entrées vectorielles
+├─ Conversations : suppression/édition « à la source » (workspace + réindex) → durable
+└─ Exposé via AIEngine.get_memory_store() (paresseux) ; testable sans GUI
+```
+
 **`core/language_detector.py`** - Détection de langue
 ```python
 Capacités:
@@ -349,6 +358,16 @@ Fonctionnalités:
 ├─ État complet : historique, documents, agents, paramètres
 ├─ Auto-save configurable (défaut 300s)
 └─ Limite 50 workspaces (configurable)
+```
+
+**`core/conversation_search.py`** - Recherche globale cross-conversations *(7.9.0)*
+```python
+Rôle:
+├─ Recherche sémantique sur TOUS les workspaces à la fois
+├─ Réutilise l'index ChromaDB « conversations » + embedding partagé (aucun 2e pipeline)
+├─ Indexation incrémentale (manifeste last_modified + schéma de version)
+├─ Hybride : voisins sémantiques + reranking CrossEncoder + filet lexical mot-exact + seuil
+└─ Filtres rôle / mot-clé / date ; exposé via AIEngine.get_conversation_search()
 ```
 
 **`core/web_cache.py`** - Cache web
@@ -618,7 +637,10 @@ Méthodes principales:
 ├─ count_tokens(text) → int (tiktoken précis)
 ├─ split_into_chunks(text) → List[str]
 ├─ get_stats() → Dict
-└─ clear_all() → void
+├─ clear_all() → void
+├─ list_entries / get_entry / count_entries(type) → inspection par entrée (7.9.0)
+├─ update_entry(id, text, type) → bool — ré-embarque le texte modifié (7.9.0)
+└─ delete_entry(id, type) → bool — vraie suppression ChromaDB (7.9.0)
 
 Avantages vs ancien système:
 ✅ Tokenization précise tiktoken (cl100k_base, compatible Llama 3) vs 70% (mots)
@@ -899,6 +921,23 @@ Architecture:
 ├─ Threading opérations longues
 ├─ Updates UI temps réel
 └─ Affichage messages memory-efficient
+```
+
+**`interfaces/gui/memory_panel.py`** - Fenêtre Mémoire *(7.9.0)*
+```python
+Rôle: Voir / éditer / supprimer ce que l'IA sait (via core/memory_store.py)
+├─ 3 onglets : Faits (SQLite) · Documents · Conversations (ChromaDB)
+├─ Recherche, filtre catégorie, pagination, provenance par entrée
+├─ Édition inline + suppression confirmée (dialogue style MCP)
+└─ Conversations : option « supprimer à la source » (durable après réindex)
+```
+
+**`interfaces/gui/sidebar.py`** - Barre latérale *(MAJ 7.9.0)*
+```python
+├─ Boutons : Relay, lecture auto (TTS), ⚙️ Réglages, 🧠 Mémoire
+├─ 🔎 Recherche globale : champ + réindex + résultats (ouverture/surlignage)
+├─ Sections : Sessions, Historique, Export
+└─ (La section « Connaissances » est remplacée par la fenêtre 🧠 Mémoire)
 ```
 
 **`interfaces/cli.py`** - CLI améliorée
@@ -1405,6 +1444,8 @@ elif intent == "new_intent":
 - `USAGE.md` - Guide utilisation
 - `OPTIMIZATION.md` - Optimisations performance
 - `ULTRA_10M_TOKENS.md` - Détails contexte 10M
+- `MEMORY.md` - Contrôle de la mémoire (voir/éditer/supprimer faits + vecteurs)
+- `CONVERSATION_SEARCH.md` - Recherche sémantique globale cross-conversations
 - `INTERNET_SEARCH.md` - Fonctionnalités recherche
 - `ARTIFACTS_PREVIEW.md` - Panneau « Artifacts » (aperçu live HTML/CSS/SVG)
 - `FAQ.md` - Questions fréquentes

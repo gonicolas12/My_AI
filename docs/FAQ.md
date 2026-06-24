@@ -5,6 +5,12 @@
 ### Mon IA est-elle vraiment 100% locale ?
 Oui ! Absolument aucune donnée n'est envoyée à l'extérieur. Votre IA fonctionne entièrement sur votre machine sans connexion internet après installation. Vos conversations, documents et code restent complètement privés.
 
+### Comment voir et supprimer ce que l'IA sait de moi ?
+Ouvrez la sidebar (**☰**) → **🧠 Mémoire**. Vous y trouvez **tout** ce que l'IA a mémorisé, réparti en 3 onglets : **Faits** (base SQLite), **Documents** et **Conversations** (mémoire vectorielle ChromaDB). Vous pouvez **chercher, filtrer, éditer en ligne et supprimer** chaque entrée — ce sont de **vraies** suppressions locales (rien n'est simulé). Pour une entrée de conversation, cochez « supprimer aussi le message d'origine » pour que la suppression soit **définitive**. Détails : [MEMORY.md](MEMORY.md).
+
+### Comment retrouver un ancien échange dans toutes mes conversations ?
+Sidebar (**☰**) → section **🔎 Recherche globale**. La recherche est **sémantique** et porte sur **toutes** vos sessions à la fois (pas seulement la conversation ouverte). Un clic sur un résultat **ouvre la conversation source et surligne le passage**. Détails : [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md).
+
 ### Ai-je besoin d'Ollama, OpenAI ou autres services ?
 **Ollama est optionnel mais recommandé !**
 

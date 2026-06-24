@@ -74,7 +74,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | Fonctionnalité | Détail |
 |---|---|
 | 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
-| 🧭 **Barre latérale** | Relay, réglages, sessions, historique, exports, base de connaissances |
+| 🧭 **Barre latérale** | Relay, réglages, recherche globale, sessions, historique, exports, mémoire |
 | 🎓 **Feedback RLHF** | Notation 1-5 étoiles, feedback enregistré automatiquement |
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
@@ -87,7 +87,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 | Fonctionnalité | Détail |
 |---|---|
-| 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec rôles et descriptions |
+| 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec descriptions |
 | 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
 | 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap |
 | 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
@@ -148,6 +148,13 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Rattrapage** des tâches manquées au redémarrage, **notifications** (toast OS + entrée GUI + message mobile), rapports `.md` dans `outputs/scheduled/`
 - 100% local, **réutilise l'orchestrateur d'agents existant**.
 
+### 🧠 Contrôle total de la mémoire (confidentialité)
+
+- Une fenêtre **mémoire** pour **voir, éditer et supprimer** ce que l'IA sait de vous — **vraies** opérations CRUD, 100% local, **sans mock**.
+- **3 onglets** : **Faits** (SQLite), **Documents** et **Conversations** (vecteurs ChromaDB), avec **recherche, filtre par catégorie, pagination et provenance** (quelle session / quel document).
+- **Édition inline** et **suppression confirmée** (dialogue cohérent avec la confirmation MCP). Pour les conversations, option **« supprimer à la source »** = suppression **durable** (le message d'origine est retiré du workspace puis réindexé, il ne réapparaît pas).
+- La suppression d'une entrée vectorielle est une **vraie suppression dans ChromaDB** (`collection.delete`).
+
 ---
 
 ## 💥 Capacités Techniques
@@ -182,12 +189,14 @@ my_ai/
 │   ├── config.py                        # Gestion de la configuration
 │   ├── conversation_exporter.py         # Export conversations (MD/HTML/PDF)
 │   ├── conversation.py                  # Gestion des conversations
+│   ├── conversation_search.py           # Recherche sémantique globale cross-conversations
 │   ├── data_preprocessing.py            # Prétraitement des données
 │   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
 │   ├── evaluation.py                    # Évaluation des performances
 │   ├── knowledge_base_manager.py        # Base de connaissances structurée
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
+│   ├── memory_store.py                  # Couche d'accès CRUD unifiée mémoire (faits + vecteurs)
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
@@ -238,6 +247,7 @@ my_ai/
 │   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
 │   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
 │   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
+│   │   ├── memory_panel.py              # Fenêtre Mémoire (faits/documents/conversations)
 │   │   ├── message_bubbles.py           # Bulles de messages avec RLHF + bouton TTS
 │   │   ├── settings_panel.py            # Panneau Réglages (modèles, paramètres, toggles)
 │   │   ├── sidebar.py                   # Sidebar (Relay, Réglages, lecture auto, sessions...)
@@ -518,6 +528,8 @@ code --install-extension gonicolas12.my-ai
 | [🔍 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
 | [⚡ Optimisation](docs/OPTIMIZATION.md) | Conseils et techniques d'optimisation locale |
 | [💾 Mémoire Vectorielle 10M](docs/ULTRA_10M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
+| [🧠 Mémoire (contrôle)](docs/MEMORY.md) | Voir / éditer / supprimer ce que l'IA sait (faits + vecteurs) |
+| [🔎 Recherche globale](docs/CONVERSATION_SEARCH.md) | Recherche sémantique sur toutes les conversations |
 | [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
@@ -543,7 +555,8 @@ code --install-extension gonicolas12.my-ai
 | 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
 | 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
 | 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
-| 🧠 **Base de connaissances** | Extraction automatique de faits depuis les conversations |
+| 🔎 **Recherche globale** | Recherche sémantique cross-conversations |
+| 🧠 **Contrôle mémoire** | Voir/éditer/supprimer faits + vecteurs, avec provenance |
 | 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
 | 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |
 | 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
