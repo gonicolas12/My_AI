@@ -480,7 +480,6 @@ class MemoryPanelMixin:
         if store is None:
             return
         kind = item.get("kind")
-        self._mem_notify("💾 Enregistrement…", "info", 1200)
 
         def _work():
             try:
@@ -521,7 +520,6 @@ class MemoryPanelMixin:
         if store is None:
             return
         kind = item.get("kind")
-        self._mem_notify("🗑️ Suppression…", "info", 1200)
 
         def _work():
             try:
