@@ -414,6 +414,7 @@ class AIEngine:
         # Mémoire vectorielle partagée + recherche cross-conversations (lazy)
         self._vector_memory = None
         self._conversation_search = None
+        self._memory_store = None
 
     def get_vector_memory(self):
         """Retourne l'instance VectorMemory partagée (créée à la demande).
@@ -443,6 +444,32 @@ class AIEngine:
                 self.logger.warning("⚠️ ConversationSearch indisponible: %s", e)
                 return None
         return self._conversation_search
+
+    def get_memory_store(self):
+        """Retourne la couche d'accès CRUD unifiée à la mémoire (lazy).
+
+        Agrège la base de connaissances (faits SQLite) et la mémoire vectorielle
+        (collections ChromaDB), avec de quoi propager à la source les
+        modifications des entrées de conversation. Utilisée par la fenêtre
+        « Mémoire » du GUI. Retourne None si aucun store n'est disponible.
+        """
+        if self._memory_store is None:
+            try:
+                from core.memory_store import MemoryStore
+            except Exception as e:
+                self.logger.warning("⚠️ MemoryStore indisponible: %s", e)
+                return None
+            try:
+                self._memory_store = MemoryStore(
+                    knowledge_base=self.knowledge_base,
+                    vector_memory=self.get_vector_memory(),
+                    session_manager=self.session_manager,
+                    conversation_search=self.get_conversation_search(),
+                )
+            except Exception as e:
+                self.logger.warning("⚠️ MemoryStore indisponible: %s", e)
+                return None
+        return self._memory_store
 
     # ── Détection de langue ─────────────────────────────────────────────
 
