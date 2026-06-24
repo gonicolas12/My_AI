@@ -12,6 +12,7 @@ from .file_handling import FileHandlingMixin
 from .streaming import StreamingMixin
 from .sidebar import SidebarMixin
 from .settings_panel import SettingsPanelMixin
+from .memory_panel import MemoryPanelMixin
 from .artifacts_panel import ArtifactsPanelMixin
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "StreamingMixin",
     "SidebarMixin",
     "SettingsPanelMixin",
+    "MemoryPanelMixin",
     "ArtifactsPanelMixin",
 ]

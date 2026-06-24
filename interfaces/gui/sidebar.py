@@ -44,7 +44,6 @@ class SidebarMixin:
             "sessions": False,
             "history": False,
             "export": False,
-            "knowledge": False,
         }
 
         bg = self.colors.get("bg_secondary", "#2f2f2f")
@@ -80,11 +79,11 @@ class SidebarMixin:
         self._make_relay_button()
         self._make_tts_button()
         self._make_settings_button()
+        self._make_memory_button()
         self._make_section_search()
         self._make_section_sessions()
         self._make_section_history()
         self._make_section_export()
-        self._make_section_knowledge()
 
     # ─── Bouton Relay ─────────────────────────────────────────────────
 
@@ -213,6 +212,44 @@ class SidebarMixin:
             )
             btn.pack(fill="x")
         self._sidebar_settings_btn = btn
+
+        self._sb_separator(self._sidebar_scroll)
+
+    # ─── Bouton Mémoire (🧠) ──────────────────────────────────────────────
+
+    def _make_memory_button(self):
+        """Crée le bouton '🧠 Mémoire' ouvrant la fenêtre de gestion de la mémoire.
+
+        Remplace l'ancienne section « Connaissances » : la fenêtre Mémoire couvre
+        les faits ET les entrées vectorielles (documents + conversations) avec
+        édition, pagination et suppression confirmée.
+        """
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        accent = self.colors.get("accent", "#ff6b47")
+        hover = self.colors.get("accent_hover", "#e85a3a")
+        tc = self.colors.get("text_primary", "#ffffff")
+
+        wrapper = ctk.CTkFrame(self._sidebar_scroll, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(self._sidebar_scroll, bg=bg)
+        wrapper.pack(fill="x", padx=8, pady=(2, 6))
+
+        cmd = getattr(self, "open_memory_window", lambda: None)
+        if CTK_AVAILABLE:
+            btn = ctk.CTkButton(
+                wrapper, text="🧠 Mémoire", command=cmd,
+                fg_color=accent, hover_color=hover, text_color=tc,
+                font=("Segoe UI", 12, "bold"),
+                height=32, corner_radius=6,
+            )
+            btn.pack(fill="x")
+        else:
+            btn = tk.Button(
+                wrapper, text="🧠 Mémoire", command=cmd,
+                bg=accent, fg=tc, font=("Segoe UI", 12, "bold"),
+                relief="flat",
+            )
+            btn.pack(fill="x")
+        self._sidebar_memory_btn = btn
 
         self._sb_separator(self._sidebar_scroll)
 
@@ -357,7 +394,6 @@ class SidebarMixin:
             "sessions": "💼 Sessions",
             "history": "📜 Historique",
             "export": "📤 Export",
-            "knowledge": "🧠 Connaissances",
         }
         hdr = getattr(self, f"_sidebar_hdr_{key}", None)
         if hdr:
@@ -375,7 +411,6 @@ class SidebarMixin:
     def _refresh_sidebar(self):
         self._refresh_sessions()
         self._refresh_history()
-        self._refresh_knowledge()
 
     # ─── Section Recherche globale ────────────────────────────────────
 
@@ -1177,180 +1212,6 @@ class SidebarMixin:
                 ))
 
         threading.Thread(target=_do_export, daemon=True).start()
-
-    # ─── Section Connaissances ─────────────────────────────────────────
-
-    def _make_section_knowledge(self):
-        wrapper = self._make_section_wrapper()
-        self._sidebar_hdr_knowledge = self._make_section_header_btn(
-            wrapper, "🧠 Connaissances", "knowledge"
-        )
-        bg = self.colors.get("bg_secondary", "#2f2f2f")
-        body = ctk.CTkFrame(wrapper, fg_color=bg, corner_radius=0) \
-            if CTK_AVAILABLE else tk.Frame(wrapper, bg=bg)
-        self._sidebar_body_knowledge = body
-
-        # Barre de recherche
-        search_bg = self.colors.get("bg_primary", "#212121")
-        sr = ctk.CTkFrame(body, fg_color=search_bg, corner_radius=4) \
-            if CTK_AVAILABLE else tk.Frame(body, bg=search_bg)
-        sr.pack(fill="x", padx=8, pady=(4, 2))
-
-        self._kb_search_var = tk.StringVar()
-        self._kb_search_var.trace_add("write", lambda *_: self._refresh_knowledge())
-        if CTK_AVAILABLE:
-            ctk.CTkEntry(
-                sr, textvariable=self._kb_search_var,
-                placeholder_text="🔍 Rechercher un fait...",
-                fg_color=search_bg,
-                border_color=self.colors.get("border", "#404040"),
-                text_color=self.colors.get("text_primary", "#ffffff"),
-                font=("Segoe UI", 10), height=26,
-            ).pack(fill="x", padx=4, pady=3)
-        else:
-            tk.Entry(
-                sr, textvariable=self._kb_search_var,
-                bg=search_bg, fg=self.colors.get("text_primary", "#ffffff"),
-                font=("Segoe UI", 10), relief="flat",
-            ).pack(fill="x", padx=4, pady=3)
-
-        btn_add = self._sb_button(body, "➕ Ajouter un fait", self._kb_add_fact,
-                                   width=_SIDEBAR_W - 20)
-        btn_add.pack(fill="x", padx=8, pady=(0, 4))
-
-        list_bg = self.colors.get("bg_primary", "#212121")
-        if CTK_AVAILABLE:
-            self._kb_list_frame = ctk.CTkScrollableFrame(
-                body, fg_color=list_bg, corner_radius=4, height=160
-            )
-        else:
-            self._kb_list_frame = tk.Frame(body, bg=list_bg, height=160)
-        self._kb_list_frame.pack(fill="x", padx=8, pady=(0, 4))
-
-        if self._sidebar_sections_open.get("knowledge", False):
-            body.pack(fill="x", padx=4, pady=(0, 4))
-        self._sb_separator(self._sidebar_scroll)
-
-    def _refresh_knowledge(self):
-        for w in self._kb_list_frame.winfo_children():
-            w.destroy()
-        engine = getattr(self, "ai_engine", None)
-        kb = getattr(engine, "knowledge_base", None) if engine else None
-        if kb is None:
-            self._sb_label(self._kb_list_frame, "  (base indisponible)",
-                           font_size=10, color=self.colors.get("text_secondary", "#9ca3af")
-                           ).pack(anchor="w", padx=4, pady=2)
-            return
-        query = getattr(self, "_kb_search_var", tk.StringVar()).get().strip()
-        try:
-            facts = kb.search_facts(query, limit=20) if query else kb.get_all_facts()[:20]
-        except Exception as exc:
-            print(f"[KB][GUI] Erreur refresh connaissance: {exc}")
-            facts = []
-        if not facts:
-            self._sb_label(self._kb_list_frame, "  Aucun fait enregistré",
-                           font_size=10, color=self.colors.get("text_secondary", "#9ca3af")
-                           ).pack(anchor="w", padx=4, pady=2)
-            return
-        for fact in facts:
-            self._make_kb_fact_row(fact)
-
-    def _make_kb_fact_row(self, fact: dict):
-        fact_id = fact.get("id")
-        value = str(fact.get("value", "") or fact.get("content", ""))
-        # Aperçu : 2 premiers mots + "…" si plus long
-        words = value.split()
-        if len(words) <= 2:
-            display = value
-        else:
-            display = " ".join(words[:2]) + "…"
-        category = fact.get("category", "")
-        cat_colors = {
-            "preference": "#8b5cf6", "decision": "#f59e0b",
-            "person": "#10b981", "procedure": "#3b82f6",
-            "technical": "#ef4444", "general": "#9ca3af",
-        }
-        cat_color = cat_colors.get(category, "#9ca3af")
-        row_bg = self.colors.get("bg_primary", "#212121")
-        row = ctk.CTkFrame(self._kb_list_frame, fg_color=row_bg, corner_radius=3) \
-            if CTK_AVAILABLE else tk.Frame(self._kb_list_frame, bg=row_bg)
-        row.pack(fill="x", pady=1, padx=2)
-        # Poubelle en premier pour réserver sa place à droite
-        del_btn = self._sb_button(row, "🗑",
-                                   lambda fid=fact_id: self._kb_delete_fact(fid),
-                                   color="#ef4444", width=28)
-        if CTK_AVAILABLE:
-            del_btn.configure(height=22)
-        del_btn.pack(side="right", padx=(0, 2), pady=1)
-        cat_lbl = self._sb_label(row, category[:8], font_size=9, color=cat_color)
-        if CTK_AVAILABLE:
-            try:
-                cat_lbl.configure(anchor="w")
-            except Exception:
-                pass
-        cat_lbl.pack(side="left", padx=(3, 2))
-        lbl = self._sb_label(row, display, font_size=10,
-                              color=self.colors.get("text_primary", "#ffffff"))
-        if CTK_AVAILABLE:
-            try:
-                lbl.configure(anchor="w")
-            except Exception:
-                pass
-        lbl.pack(side="left", fill="x", expand=True, padx=2)
-        # Tooltip : afficher la valeur complète au survol
-        try:
-            self._kb_attach_tooltip(lbl, value)
-        except Exception:
-            pass
-
-    def _kb_add_fact(self):
-        engine = getattr(self, "ai_engine", None)
-        kb = getattr(engine, "knowledge_base", None) if engine else None
-        if kb is None:
-            messagebox.showwarning("Indisponible",
-                                   "La base de connaissances n'est pas disponible.",
-                                   parent=self.root)
-            return
-        categories = ["general", "preference", "decision", "person", "procedure", "technical"]
-        cat = simpledialog.askstring(
-            "Catégorie", f"Catégorie ({', '.join(categories)}) :",
-            initialvalue="general", parent=self.root,
-        )
-        if not cat or cat.strip() not in categories:
-            cat = "general"
-        content = simpledialog.askstring("Nouveau fait", "Contenu :", parent=self.root)
-        if not content or not content.strip():
-            return
-        try:
-            fact_value = content.strip()
-            auto_key = fact_value.split("\n", 1)[0].strip()
-            if len(auto_key) > 80:
-                auto_key = auto_key[:77] + "..."
-            if not auto_key:
-                auto_key = "fait manuel"
-
-            kb.add_fact(
-                category=cat.strip(),
-                key=auto_key,
-                value=fact_value,
-                source="manual",
-            )
-            self._refresh_knowledge()
-            self.show_notification("✅ Fait ajouté", "success", 2000)
-        except Exception as exc:
-            print(f"[KB][GUI] Erreur ajout fait: {exc}")
-            self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
-
-    def _kb_delete_fact(self, fact_id):
-        engine = getattr(self, "ai_engine", None)
-        kb = getattr(engine, "knowledge_base", None) if engine else None
-        if kb:
-            try:
-                kb.delete_fact(fact_id)
-                self._refresh_knowledge()
-            except Exception as exc:
-                print(f"[KB][GUI] Erreur suppression fait: {exc}")
-                self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
 
     # ─── Tooltip simple ────────────────────────────────────────────────
 
