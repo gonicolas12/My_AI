@@ -196,21 +196,25 @@ class MemoryPanelMixin:
         self._mem_edit_key = None
         self._mem_query.set("")
         self._mem_category.set("Toutes")
-        self._mem_build_toolbar()
+        self._mem_update_toolbar()
         self._mem_reload()
 
     # ─── Barre d'outils ─────────────────────────────────────────────────
 
     def _mem_build_toolbar(self):
-        """(Re)construit la barre d'outils selon l'onglet courant."""
-        for w in self._mem_toolbar.winfo_children():
-            w.destroy()
+        """Construit la barre d'outils UNE SEULE FOIS (widgets persistants).
+
+        On ne reconstruit jamais les widgets : détruire un CTkEntry lié à un
+        StringVar laisse sa callback de placeholder branchée sur le StringVar,
+        ce qui provoque des « invalid command name » au prochain .set(). On
+        bascule donc seulement la visibilité des contrôles propres aux faits.
+        """
         bg = self.colors.get("bg_primary", "#212121")
         search_bg = self.colors.get("bg_secondary", "#2f2f2f")
 
-        # Champ de recherche
+        # Champ de recherche (persistant)
         if CTK_AVAILABLE:
-            entry = ctk.CTkEntry(
+            self._mem_search_entry = ctk.CTkEntry(
                 self._mem_toolbar, textvariable=self._mem_query,
                 placeholder_text="🔍 Rechercher…",
                 fg_color=search_bg,
@@ -218,20 +222,22 @@ class MemoryPanelMixin:
                 text_color=self.colors.get("text_primary", "#ffffff"),
                 font=("Segoe UI", 11), height=32,
             )
-            entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
         else:
-            entry = tk.Entry(self._mem_toolbar, textvariable=self._mem_query)
-            entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        entry.bind("<Return>", lambda _e: self._mem_search())
+            self._mem_search_entry = tk.Entry(
+                self._mem_toolbar, textvariable=self._mem_query
+            )
+        self._mem_search_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._mem_search_entry.bind("<Return>", lambda _e: self._mem_search())
 
         self._mem_button(self._mem_toolbar, "🔍", self._mem_search, width=44).pack(
             side="left", padx=(0, 6)
         )
 
-        # Filtre catégorie (faits uniquement)
-        if self._mem_tab == "facts" and CTK_AVAILABLE:
+        # Contrôles propres aux faits : catégorie + ajout (affichés à la demande)
+        self._mem_facts_extra = self._mem_frame(self._mem_toolbar, bg)
+        if CTK_AVAILABLE:
             ctk.CTkOptionMenu(
-                self._mem_toolbar, values=_FACT_CATEGORIES,
+                self._mem_facts_extra, values=_FACT_CATEGORIES,
                 variable=self._mem_category, command=lambda _v: self._mem_search(),
                 fg_color=search_bg,
                 button_color=self.colors.get("accent", "#ff6b47"),
@@ -239,18 +245,27 @@ class MemoryPanelMixin:
                 text_color=self.colors.get("text_primary", "#ffffff"),
                 font=("Segoe UI", 11), width=130,
             ).pack(side="left", padx=(0, 6))
+        self._mem_button(
+            self._mem_facts_extra, "➕ Ajouter", self._mem_add_fact,
+            width=110, accent=True,
+        ).pack(side="left")
 
-        # Bouton « Ajouter un fait » (faits uniquement)
-        if self._mem_tab == "facts":
-            self._mem_button(
-                self._mem_toolbar, "➕ Ajouter", self._mem_add_fact,
-                width=110, accent=True,
-            ).pack(side="left", padx=(0, 6))
-
-        # Rafraîchir
+        # Rafraîchir (toujours à droite)
         self._mem_button(self._mem_toolbar, "🔄", self._mem_reload, width=44).pack(
             side="right"
         )
+
+        self._mem_update_toolbar()
+
+    def _mem_update_toolbar(self):
+        """Affiche/masque les contrôles propres aux faits selon l'onglet."""
+        extra = getattr(self, "_mem_facts_extra", None)
+        if extra is None:
+            return
+        if self._mem_tab == "facts":
+            extra.pack(side="left", padx=(0, 6))
+        else:
+            extra.pack_forget()
 
     def _mem_search(self):
         self._mem_page = 0
