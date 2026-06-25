@@ -5,6 +5,20 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] — 2026-06-25
+
+Slash commands now behave like Claude Code commands (prompt engineering) instead
+of plain text completion.
+
+### Changed
+- **Slash commands expand at send time.** Selecting a command in the autocomplete
+  menu now inserts just `/command `; you then type your own text — e.g.
+  `/code a tic-tac-toe game`. At send time the desktop host substitutes your text
+  into the template's `{arguments}` placeholder and sends the resulting detailed
+  prompt to the AI, while the chat bubble keeps showing the short command. A short
+  command therefore yields a well-engineered prompt. (Previously the full template
+  text was inserted inline into the message box.)
+
 ## [1.3.0] — 2026-06-25
 
 Adds slash command autocompletion and reusable prompt templates to the chat.
@@ -13,11 +27,8 @@ Adds slash command autocompletion and reusable prompt templates to the chat.
 - **Slash commands.** Typing `/` at the start of the message box opens an
   autocomplete menu listing the prompt templates defined in My_AI (fetched from
   the desktop app over the existing end-to-end-encrypted Relay channel via the new
-  `GET /api/prompts` endpoint). Selecting a command inserts just `/command `; you
-  then type your own text — e.g. `/code a tic-tac-toe game`. The desktop host
-  expands it into a detailed prompt (your text injected into the template) before
-  the AI sees it, so a short command yields a well-engineered prompt. Navigate the
-  menu with ↑/↓, accept with Enter/Tab, dismiss with Escape.
+  `GET /api/prompts` endpoint). Navigate the menu with ↑/↓, accept with Enter/Tab,
+  dismiss with Escape.
 
 ## [1.2.2] — 2026-05-13
 
