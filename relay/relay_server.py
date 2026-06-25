@@ -538,6 +538,36 @@ class RelayServer:
             return server.encrypt_json({"history": server.bridge.history})
 
         # =================================================================
+        # GET /api/prompts — Bibliothèque de prompts / slash commands
+        # (pour l'autocomplétion "/" et l'insertion de templates côté
+        # mobile web ET extension VS Code, tous deux clients E2EE).
+        # =================================================================
+
+        @app.get("/api/prompts")
+        async def get_prompts(token: str = Query(...)):
+            if not server.verify_token(token):
+                raise HTTPException(status_code=401, detail="Non autorisé")
+            lib = getattr(server.ai_engine, "prompt_library", None)
+            prompts = []
+            if lib is not None:
+                try:
+                    prompts = [
+                        {
+                            "id": t.get("id"),
+                            "command": t.get("command"),
+                            "title": t.get("title"),
+                            "description": t.get("description", ""),
+                            "content": t.get("content", ""),
+                        }
+                        for t in lib.list()
+                        if t.get("command")
+                    ]
+                except Exception as exc:  # pragma: no cover - dégradation gracieuse
+                    logger.warning("Lecture prompts échouée: %s", exc)
+            # Chiffré E2EE comme l'historique (contenu utilisateur potentiel).
+            return server.encrypt_json({"prompts": prompts})
+
+        # =================================================================
         # GET /api/pending — Récupérer une réponse IA en attente (après
         # reconnexion d'un mobile dont le WebSocket est mort pendant la
         # génération). Le client fournit le dernier message_id connu.

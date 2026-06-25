@@ -141,6 +141,8 @@ let lastSentMessageId = null;
 let renderedMessageIds = new Set();
 // Signal "historique déjà chargé au moins une fois"
 let historyLoaded = false;
+let slashPrompts = [];        // bibliothèque de prompts (slash commands)
+let slashPromptsLoaded = false;
 
 // Pièces jointes en attente d'envoi : [{localId, fileId, name, isImage, status}]
 let pendingAttachments = [];
@@ -200,7 +202,10 @@ function connect() {
       loadHistory();
     }
 
-    // (1b) Notifier le module Agents qu'on est connecté (pour rafraîchir
+    // (1b) Charger la bibliothèque de prompts (slash commands) pour l'autocomplétion "/".
+    loadPrompts();
+
+    // (1c) Notifier le module Agents qu'on est connecté (pour rafraîchir
     //      la liste des agents si la page Agents est ouverte).
     if (window.AgentsUI && typeof window.AgentsUI.onConnect === 'function') {
       window.AgentsUI.onConnect();
@@ -384,6 +389,26 @@ async function loadHistory() {
   } catch (e) {
     console.warn('[Relay] loadHistory failed:', e);
     historyLoaded = true;
+  }
+}
+
+// Charge la bibliothèque de prompts (slash commands) pour l'autocomplétion "/".
+// Même enveloppe E2EE que l'historique : le clair est {"prompts": [...]}.
+async function loadPrompts() {
+  if (slashPromptsLoaded) return;
+  try {
+    await e2eReady;
+    var res = await fetch('/api/prompts?token=' + encodeURIComponent(TOKEN));
+    if (!res.ok) {
+      console.warn('[Relay] /api/prompts returned', res.status);
+      return;
+    }
+    var wrapper = await res.json();
+    var data = await decryptEnvelope(wrapper);
+    slashPrompts = (data && Array.isArray(data.prompts)) ? data.prompts : [];
+    slashPromptsLoaded = true;
+  } catch (e) {
+    console.warn('[Relay] loadPrompts failed:', e);
   }
 }
 
@@ -1151,12 +1176,142 @@ function formatTime(date) {
 // INPUT HANDLING
 // ═══════════════════════════════════════════════════
 
+// ── Autocomplétion des slash commands ("/" en début de saisie) ──────
+let slashMenuEl = null;
+let slashItems = [];
+let slashIndex = 0;
+let slashMenuOpen = false;
+
+function slashNormalize(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function ensureSlashMenu() {
+  if (slashMenuEl) return slashMenuEl;
+  slashMenuEl = document.createElement('div');
+  slashMenuEl.className = 'slash-menu';
+  slashMenuEl.style.display = 'none';
+  var anchor = inputEl.closest('.input-area') || document.body;
+  anchor.appendChild(slashMenuEl);
+  return slashMenuEl;
+}
+
+function hideSlashMenu() {
+  slashMenuOpen = false;
+  slashItems = [];
+  if (slashMenuEl) slashMenuEl.style.display = 'none';
+}
+
+function updateSlashActive() {
+  if (!slashMenuEl) return;
+  var rows = slashMenuEl.querySelectorAll('.slash-item');
+  rows.forEach(function (r, i) {
+    r.classList.toggle('active', i === slashIndex);
+    if (i === slashIndex && r.scrollIntoView) {
+      r.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
+
+function slashMove(delta) {
+  if (!slashItems.length) return;
+  slashIndex = (slashIndex + delta + slashItems.length) % slashItems.length;
+  updateSlashActive();
+}
+
+function renderSlashMenu() {
+  var el = ensureSlashMenu();
+  el.innerHTML = '';
+  slashItems.forEach(function (item, i) {
+    var row = document.createElement('div');
+    row.className = 'slash-item' + (i === slashIndex ? ' active' : '');
+
+    var cmd = document.createElement('div');
+    cmd.className = 'slash-cmd';
+    cmd.textContent = '/' + (item.command || '');
+    row.appendChild(cmd);
+
+    var sub = (item.title || '') + (item.description ? ' — ' + item.description : '');
+    if (sub.trim()) {
+      var desc = document.createElement('div');
+      desc.className = 'slash-desc';
+      desc.textContent = sub;
+      row.appendChild(desc);
+    }
+
+    // mousedown (et non click) : devance le blur du textarea / fiable au tactile.
+    row.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      slashAccept(item);
+    });
+    row.addEventListener('mouseenter', function () {
+      slashIndex = i;
+      updateSlashActive();
+    });
+    el.appendChild(row);
+  });
+}
+
+function updateSlashMenu() {
+  var m = /^\/(\S*)$/.exec(inputEl.value);
+  if (!m || !slashPrompts.length) {
+    hideSlashMenu();
+    return;
+  }
+  var pref = slashNormalize(m[1]);
+  slashItems = slashPrompts.filter(function (p) {
+    return p.command && slashNormalize(p.command).indexOf(pref) === 0;
+  }).slice(0, 8);
+  if (!slashItems.length) {
+    hideSlashMenu();
+    return;
+  }
+  slashIndex = 0;
+  renderSlashMenu();
+  ensureSlashMenu().style.display = 'block';
+  slashMenuOpen = true;
+}
+
+function slashAccept(item) {
+  inputEl.value = item.content || '';
+  hideSlashMenu();
+  inputEl.focus();
+  // Placer le curseur sur le premier placeholder {nom} (sélectionné).
+  var ph = /\{([^{}]+)\}/.exec(inputEl.value);
+  try {
+    if (ph) {
+      inputEl.setSelectionRange(ph.index, ph.index + ph[0].length);
+    } else {
+      var len = inputEl.value.length;
+      inputEl.setSelectionRange(len, len);
+    }
+  } catch (e) { /* setSelectionRange peut échouer selon le navigateur */ }
+  autoResize();
+  updateSendButton();
+}
+
 inputEl.addEventListener('input', function () {
   autoResize();
   updateSendButton();
+  updateSlashMenu();
+});
+
+inputEl.addEventListener('blur', function () {
+  // Léger délai : laisse le mousedown d'une ligne s'exécuter avant de fermer.
+  setTimeout(hideSlashMenu, 150);
 });
 
 inputEl.addEventListener('keydown', function (e) {
+  if (slashMenuOpen) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); slashMove(1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); slashMove(-1); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (slashItems[slashIndex]) slashAccept(slashItems[slashIndex]);
+      return;
+    }
+    if (e.key === 'Escape') { e.preventDefault(); hideSlashMenu(); return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage();

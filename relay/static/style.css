@@ -300,9 +300,30 @@ html, body {
 .input-area {
   padding: 8px 12px; padding-bottom: calc(8px + var(--safe-bottom));
   background: var(--bg-secondary); border-top: 1px solid var(--border);
-  flex-shrink: 0;
+  flex-shrink: 0; position: relative;
 }
 .input-row { display: flex; align-items: flex-end; gap: 8px; }
+
+/* Menu d'autocomplétion des slash commands ("/" en début de saisie) */
+.slash-menu {
+  position: absolute;
+  left: 12px; right: 12px; bottom: calc(100% + 6px);
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 14px; overflow-y: auto; max-height: 240px;
+  z-index: 60; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  -webkit-overflow-scrolling: touch;
+}
+.slash-item {
+  padding: 10px 14px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.slash-item:last-child { border-bottom: none; }
+.slash-item.active { background: var(--accent); }
+.slash-cmd { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.slash-desc { font-size: 12px; color: var(--text-secondary); }
+.slash-item.active .slash-cmd,
+.slash-item.active .slash-desc { color: #ffffff; }
 
 .input-wrapper {
   flex: 1; background: var(--bg-primary); border: 1px solid var(--border);
