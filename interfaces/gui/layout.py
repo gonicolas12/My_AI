@@ -622,6 +622,9 @@ class LayoutMixin:
         self.input_text.bind("<Shift-Return>", self.on_shift_enter)
         self.input_text.bind("<Control-v>", self._on_paste)
 
+        # Autocomplétion des slash commands ("/" en début de saisie)
+        self._attach_slash_autocomplete(self.input_text)
+
         # Placeholder text
         self.set_placeholder()
 

@@ -1826,6 +1826,11 @@ class BaseGUI:
     def on_enter_key(self, event):
         """Gère la touche Entrée - VERSION CORRIGÉE"""
         try:
+            # Si le menu d'autocomplétion "/" est ouvert, Entrée valide la
+            # suggestion au lieu d'envoyer le message.
+            if getattr(self, "_slash_popup_consume_enter", None) and \
+                    self._slash_popup_consume_enter():
+                return "break"
             # Permettre l'envoi même si animation interrompue
             if self.is_animation_running():
                 if getattr(self, "_typing_interrupted", False):
@@ -3156,6 +3161,10 @@ class BaseGUI:
                 pass
 
         def _on_home_enter(_event=None):
+            # Le menu d'autocomplétion "/" a la priorité sur l'envoi.
+            if getattr(self, "_slash_popup_consume_enter", None) and \
+                    self._slash_popup_consume_enter():
+                return "break"
             self._home_screen_send(_ph_active)
             return "break"
 
@@ -3165,6 +3174,9 @@ class BaseGUI:
         self._home_input.bind("<Return>", _on_home_enter)
         self._home_input.bind("<Shift-Return>", lambda e: None)
         self._home_input.bind("<Control-v>", self._on_paste)
+
+        # Autocomplétion des slash commands sur l'écran d'accueil
+        self._attach_slash_autocomplete(self._home_input)
 
         # ── Barre de boutons — row=2 (après preview row=0 et input row=1) ──
         buttons_row = self.create_frame(content_frame, fg_color=self.colors["input_bg"], corner_radius=0)
