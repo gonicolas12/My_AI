@@ -51,6 +51,7 @@
   "Paste a new connection string (use this if you restarted the Relay and the token changed)": "Coller une nouvelle chaîne de connexion (utile si vous avez redémarré le Relay et que le token a changé)",
   "Type your message…": "Tape ton message…",
   "Attach a file or image": "Joindre un fichier ou une image",
+  "Stop generation": "Arrêter la génération",
   "Insert": "Insérer",
   "Copy": "Copier",
   "Inserted!": "Inséré !",

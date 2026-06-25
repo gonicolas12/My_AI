@@ -338,6 +338,11 @@ html, body {
 .send-btn:active { background: var(--accent-hover); transform: scale(0.92); }
 .send-btn:disabled { background: var(--bg-tertiary); color: var(--text-muted); cursor: not-allowed; }
 .send-btn svg { width: 16px; height: 16px; }
+/* Mode STOP pendant la génération : carré noir sur fond blanc (identique au
+   bouton Stop du chat mobile My_AI Relay). */
+.send-btn.stopmode { background: #ffffff; color: #111111; }
+.send-btn.stopmode:active { background: #f3f3f3; }
+.send-btn.stopmode svg { width: 16px; height: 16px; }
 
 .attach-btn {
   width: 32px; height: 32px; border-radius: 50%;

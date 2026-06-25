@@ -120,6 +120,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           await vscode.env.clipboard.writeText(m.text);
         }
         break;
+      case 'stop-generation':
+        await this.manager.stopGeneration(
+          typeof m.messageId === 'string' ? m.messageId : '',
+        );
+        break;
     }
   }
 
@@ -283,6 +288,7 @@ function getWebviewStrings(): Record<string, string> {
     ),
     'webview.input.placeholder': vscode.l10n.t('Type your message…'),
     'webview.input.attachTooltip': vscode.l10n.t('Attach a file or image'),
+    'webview.send.stopTooltip': vscode.l10n.t('Stop generation'),
     'webview.code.insert': vscode.l10n.t('Insert'),
     'webview.code.copy': vscode.l10n.t('Copy'),
     'webview.code.inserted': vscode.l10n.t('Inserted!'),

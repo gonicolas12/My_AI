@@ -103,6 +103,13 @@ export class ConnectionManager extends EventEmitter {
     return this.client.loadPrompts();
   }
 
+  async stopGeneration(messageId: string): Promise<void> {
+    if (!this.client) {
+      return;
+    }
+    await this.client.sendStop(messageId);
+  }
+
   async sendChat(text: string, fileIds: string[] = []): Promise<void> {
     if (!this.client) {
       throw new Error('Not connected');

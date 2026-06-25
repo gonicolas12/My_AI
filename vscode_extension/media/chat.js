@@ -42,6 +42,8 @@
   let slashIndex = 0;
   let slashMenuOpen = false;
   let slashMenuEl = null;
+  // Mode du bouton d'envoi : 'send' (avion) ou 'stop' (carré) pendant la génération.
+  let sendBtnMode = 'send';
   // Index du segment en cours pour le message en streaming. Un segment =
   // une passe LLM entre deux exécutions d'outils (mode VS Code agentique).
   // À chaque nouveau segment_index reçu dans un chunk, on "fige" la bulle
@@ -86,7 +88,13 @@
     vscode.postMessage({ type: 'connect-request' });
   });
 
-  sendBtn.addEventListener('click', sendMessage);
+  sendBtn.addEventListener('click', () => {
+    if (sendBtnMode === 'stop') {
+      stopGeneration();
+    } else {
+      sendMessage();
+    }
+  });
   attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'pick-file' }));
   clearBtn.addEventListener('click', clearChat);
   reconnectBtn.addEventListener('click', () =>
@@ -480,11 +488,50 @@
     scrollToBottom();
   }
 
+  // Icônes du bouton d'envoi : avion en papier (envoi) / carré (stop), identiques
+  // au bouton STOP du chat mobile (My_AI Relay).
+  const SEND_ICON_HTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<line x1="22" y1="2" x2="11" y2="13"></line>' +
+    '<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+  const STOP_ICON_HTML =
+    '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>';
+
+  function setSendBtnMode(mode) {
+    if (sendBtnMode === mode) return;
+    sendBtnMode = mode;
+    if (mode === 'stop') {
+      sendBtn.classList.add('stopmode');
+      sendBtn.innerHTML = STOP_ICON_HTML;
+      sendBtn.title = t('webview.send.stopTooltip');
+    } else {
+      sendBtn.classList.remove('stopmode');
+      sendBtn.innerHTML = SEND_ICON_HTML;
+      sendBtn.title = '';
+    }
+  }
+
+  // Demande au host d'arrêter la génération en cours (LLM + appels d'outils).
+  // Le host annule la tâche agentique et renvoie une réponse « interrompue »,
+  // ce qui repasse isWaiting à false (via applyRelayMessage).
+  function stopGeneration() {
+    if (!isWaiting) return;
+    vscode.postMessage({ type: 'stop-generation', messageId: lastSentMessageId || '' });
+  }
+
   function updateSendButton() {
+    // Pendant la génération, le bouton devient un bouton STOP cliquable
+    // (carré noir sur fond blanc), exactement comme sur le chat mobile.
+    if (isWaiting) {
+      setSendBtnMode('stop');
+      sendBtn.disabled = false;
+      return;
+    }
+    setSendBtnMode('send');
     const hasText = !!inputEl.value.trim();
     const hasReady = pendingAttachments.some((a) => a.status === 'ready');
     const uploading = pendingAttachments.some((a) => a.status === 'uploading');
-    sendBtn.disabled = !isConnected || isWaiting || uploading || (!hasText && !hasReady);
+    sendBtn.disabled = !isConnected || uploading || (!hasText && !hasReady);
   }
 
   function autoResize() {

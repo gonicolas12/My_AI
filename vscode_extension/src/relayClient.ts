@@ -255,6 +255,11 @@ export class RelayClient extends EventEmitter {
     await this.sendEncrypted({ type: 'resume', last_message_id: lastMessageId });
   }
 
+  /** Demande au host d'arrêter la génération en cours (LLM + appels d'outils). */
+  async sendStop(messageId: string): Promise<void> {
+    await this.sendEncrypted({ type: 'stop_generation', message_id: messageId });
+  }
+
   /**
    * Reply to a `tool_use` request from the host's agentic loop with the
    * result of running the tool inside the VS Code workspace.

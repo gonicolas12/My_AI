@@ -929,7 +929,31 @@ class RelayServer:
                     # demande d'interruption, qu'il consomme dans sa boucle de
                     # polling (interrupt_ai → réponse partielle « interrompue »).
                     if msg_type == "stop_generation":
-                        server.bridge.request_interrupt()
+                        if client_kind == "vscode":
+                            # Le chat VS Code est une boucle agentique exécutée en
+                            # tâche détachée : on l'annule, ce qui interrompt la
+                            # génération du LLM ET les appels d'outils en cours
+                            # (l'await des tool_result tombe avec la tâche).
+                            stopped_mid = msg_data.get("message_id", "") or ""
+                            cancelled_any = False
+                            for task in list(agentic_tasks):
+                                if not task.done():
+                                    task.cancel()
+                                    cancelled_any = True
+                            # Débloquer le bouton STOP du client : réponse finale
+                            # « interrompue » (dédupliquée par message_id côté client
+                            # si la vraie réponse était déjà partie).
+                            if cancelled_any:
+                                await _send_encrypted({
+                                    "type": "response",
+                                    "message": "⏹️ Génération interrompue.",
+                                    "message_id": stopped_mid,
+                                    "timestamp": datetime.now().isoformat(),
+                                })
+                        else:
+                            # Chat mobile : la réponse vient du GUI desktop via le
+                            # bridge ; on lui transmet la demande d'interruption.
+                            server.bridge.request_interrupt()
                         continue
 
                     # ────────────────────────────────────────────────────
