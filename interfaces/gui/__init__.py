@@ -15,6 +15,7 @@ from .settings_panel import SettingsPanelMixin
 from .memory_panel import MemoryPanelMixin
 from .artifacts_panel import ArtifactsPanelMixin
 from .slash_commands import SlashCommandsMixin
+from .prompts_panel import PromptsPanelMixin
 
 __all__ = [
     "BaseGUI",
@@ -32,4 +33,5 @@ __all__ = [
     "MemoryPanelMixin",
     "ArtifactsPanelMixin",
     "SlashCommandsMixin",
+    "PromptsPanelMixin",
 ]

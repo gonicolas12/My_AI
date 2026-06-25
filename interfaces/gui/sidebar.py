@@ -80,6 +80,7 @@ class SidebarMixin:
         self._make_tts_button()
         self._make_settings_button()
         self._make_memory_button()
+        self._make_prompts_button()
         self._make_section_search()
         self._make_section_sessions()
         self._make_section_history()
@@ -250,6 +251,43 @@ class SidebarMixin:
             )
             btn.pack(fill="x")
         self._sidebar_memory_btn = btn
+
+        self._sb_separator(self._sidebar_scroll)
+
+    # ─── Bouton Prompts (📚) ──────────────────────────────────────────────
+
+    def _make_prompts_button(self):
+        """Crée le bouton '📚 Prompts' ouvrant la bibliothèque de prompts.
+
+        Permet de créer / nommer / éditer / supprimer des templates réutilisables.
+        Ceux dotés d'une commande « /xxx » alimentent l'autocomplétion du chat.
+        """
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        accent = self.colors.get("accent", "#ff6b47")
+        hover = self.colors.get("accent_hover", "#e85a3a")
+        tc = self.colors.get("text_primary", "#ffffff")
+
+        wrapper = ctk.CTkFrame(self._sidebar_scroll, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(self._sidebar_scroll, bg=bg)
+        wrapper.pack(fill="x", padx=8, pady=(2, 6))
+
+        cmd = getattr(self, "open_prompts_window", lambda: None)
+        if CTK_AVAILABLE:
+            btn = ctk.CTkButton(
+                wrapper, text="📚 Prompts", command=cmd,
+                fg_color=accent, hover_color=hover, text_color=tc,
+                font=("Segoe UI", 12, "bold"),
+                height=32, corner_radius=6,
+            )
+            btn.pack(fill="x")
+        else:
+            btn = tk.Button(
+                wrapper, text="📚 Prompts", command=cmd,
+                bg=accent, fg=tc, font=("Segoe UI", 12, "bold"),
+                relief="flat",
+            )
+            btn.pack(fill="x")
+        self._sidebar_prompts_btn = btn
 
         self._sb_separator(self._sidebar_scroll)
 
