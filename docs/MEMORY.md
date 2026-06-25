@@ -1,7 +1,5 @@
 # 🧠 Mémoire — voir, éditer et supprimer ce que l'IA sait
 
-*My Personal AI v7.9.0*
-
 My_AI mémorise des informations sur vous pour des réponses plus pertinentes. Comme **tout est local**, vous devez pouvoir **inspecter et reprendre le contrôle** de cette mémoire. La fenêtre **🧠 Mémoire** (sidebar) offre des opérations CRUD **réelles** sur les deux stores de mémoire — aucune donnée ne quitte votre machine, aucune suppression simulée.
 
 ---

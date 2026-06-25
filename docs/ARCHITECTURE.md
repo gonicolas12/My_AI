@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v7.9.0
+# 🏗️ Architecture - My Personal AI v8.0.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v7.9.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
+My Personal AI v8.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -332,7 +332,7 @@ Architecture:
 └─ CRUD complet avec recherche plein texte
 ```
 
-**`core/memory_store.py`** - Accès CRUD unifié à la mémoire *(7.9.0)*
+**`core/memory_store.py`** - Accès CRUD unifié à la mémoire
 ```python
 Rôle:
 ├─ Façade homogène sur les 2 stores (faits SQLite + vecteurs ChromaDB)
@@ -360,7 +360,7 @@ Fonctionnalités:
 └─ Limite 50 workspaces (configurable)
 ```
 
-**`core/conversation_search.py`** - Recherche globale cross-conversations *(7.9.0)*
+**`core/conversation_search.py`** - Recherche globale cross-conversations
 ```python
 Rôle:
 ├─ Recherche sémantique sur TOUS les workspaces à la fois
@@ -638,9 +638,9 @@ Méthodes principales:
 ├─ split_into_chunks(text) → List[str]
 ├─ get_stats() → Dict
 ├─ clear_all() → void
-├─ list_entries / get_entry / count_entries(type) → inspection par entrée (7.9.0)
-├─ update_entry(id, text, type) → bool — ré-embarque le texte modifié (7.9.0)
-└─ delete_entry(id, type) → bool — vraie suppression ChromaDB (7.9.0)
+├─ list_entries / get_entry / count_entries(type) → inspection par entrée
+├─ update_entry(id, text, type) → bool — ré-embarque le texte modifié
+└─ delete_entry(id, type) → bool — vraie suppression ChromaDB
 
 Avantages vs ancien système:
 ✅ Tokenization précise tiktoken (cl100k_base, compatible Llama 3) vs 70% (mots)
@@ -923,7 +923,7 @@ Architecture:
 └─ Affichage messages memory-efficient
 ```
 
-**`interfaces/gui/memory_panel.py`** - Fenêtre Mémoire *(7.9.0)*
+**`interfaces/gui/memory_panel.py`** - Fenêtre Mémoire
 ```python
 Rôle: Voir / éditer / supprimer ce que l'IA sait (via core/memory_store.py)
 ├─ 3 onglets : Faits (SQLite) · Documents · Conversations (ChromaDB)
@@ -932,7 +932,7 @@ Rôle: Voir / éditer / supprimer ce que l'IA sait (via core/memory_store.py)
 └─ Conversations : option « supprimer à la source » (durable après réindex)
 ```
 
-**`interfaces/gui/sidebar.py`** - Barre latérale *(MAJ 7.9.0)*
+**`interfaces/gui/sidebar.py`** - Barre latérale
 ```python
 ├─ Boutons : Relay, lecture auto (TTS), ⚙️ Réglages, 🧠 Mémoire
 ├─ 🔎 Recherche globale : champ + réindex + résultats (ouverture/surlignage)
@@ -1453,7 +1453,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 7.9.0
+**Version**: 8.0.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

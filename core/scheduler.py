@@ -237,7 +237,7 @@ class SchedulerService:
         self._hb_thread: Optional[threading.Thread] = None
         self._hb_stop = threading.Event()
 
-        self._data: Dict[str, Any] = {"version": "7.9.0", "tasks": [], "history": []}
+        self._data: Dict[str, Any] = {"version": "8.0.0", "tasks": [], "history": []}
         self._load()
 
         logger.info(
@@ -289,7 +289,7 @@ class SchedulerService:
                     with open(self._tasks_file, "r", encoding="utf-8") as fh:
                         data = json.load(fh) or {}
                     self._data = {
-                        "version": data.get("version", "7.9.0"),
+                        "version": data.get("version", "8.0.0"),
                         "tasks": list(data.get("tasks", [])),
                         "history": list(data.get("history", [])),
                     }

@@ -1,7 +1,5 @@
 # 🔎 Recherche globale cross-conversations
 
-*My Personal AI v7.9.0*
-
 Retrouvez **n'importe quel échange passé** par recherche **sémantique** — sur **toutes** vos conversations/sessions à la fois, pas seulement la conversation courante. 100% local, en réutilisant l'index et les modèles déjà chargés.
 
 ---
