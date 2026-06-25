@@ -35,6 +35,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.postState(state).catch(() => { /* webview may be closed */ });
       if (state.kind === 'connected') {
         this.loadHistory();
+        this.loadPrompts();
       }
     });
     manager.on('message', (payload: IncomingPayload) => {
@@ -85,6 +86,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         await this.post({ type: 'auto-attach-state', value: this.bridge.isAutoAttachEnabled() });
         if (this.manager.getState().kind === 'connected') {
           this.loadHistory();
+          this.loadPrompts();
         }
         break;
       case 'connect-request':
@@ -200,6 +202,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[my-ai-relay] loadHistory failed:', err);
+    }
+  }
+
+  private async loadPrompts(): Promise<void> {
+    try {
+      const items = await this.manager.loadPrompts();
+      await this.post({ type: 'prompts', items });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[my-ai-relay] loadPrompts failed:', err);
     }
   }
 

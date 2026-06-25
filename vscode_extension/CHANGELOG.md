@@ -5,6 +5,18 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-06-25
+
+Adds slash command autocompletion and reusable prompt templates to the chat.
+
+### Added
+- **Slash commands.** Typing `/` at the start of the message box opens an
+  autocomplete menu listing the prompt templates defined in My_AI (fetched from
+  the desktop app over the existing end-to-end-encrypted Relay channel via the new
+  `GET /api/prompts` endpoint). Selecting a template inserts its content and places
+  the caret on the first `{placeholder}`. Navigate with ↑/↓, accept with Enter/Tab,
+  dismiss with Escape.
+
 ## [1.2.2] — 2026-05-13
 
 Documentation hotfix. Fixes the French README link on the Marketplace

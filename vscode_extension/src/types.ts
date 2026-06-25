@@ -50,6 +50,16 @@ export interface HistoryItem {
   timestamp?: string;
 }
 
+// Template de la bibliothèque de prompts (slash commands) — voir
+// core/prompt_library.py. Servi par l'endpoint Relay GET /api/prompts.
+export interface PromptTemplate {
+  id?: string;
+  command?: string;
+  title?: string;
+  description?: string;
+  content: string;
+}
+
 // =============================================================================
 // Agent tool types — see core/agentic_executor.py for the host-side schema.
 // =============================================================================

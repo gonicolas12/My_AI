@@ -9,6 +9,7 @@ import {
   RelayCredentials,
   HistoryItem,
   IncomingPayload,
+  PromptTemplate,
   ToolCall,
 } from './types';
 
@@ -93,6 +94,13 @@ export class ConnectionManager extends EventEmitter {
       return [];
     }
     return this.client.loadHistory();
+  }
+
+  async loadPrompts(): Promise<PromptTemplate[]> {
+    if (!this.client) {
+      return [];
+    }
+    return this.client.loadPrompts();
   }
 
   async sendChat(text: string, fileIds: string[] = []): Promise<void> {

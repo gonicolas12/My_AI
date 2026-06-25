@@ -288,9 +288,29 @@ html, body {
 .input-area {
   padding: 6px 10px;
   background: var(--bg-secondary); border-top: 1px solid var(--border);
-  flex-shrink: 0;
+  flex-shrink: 0; position: relative;
 }
 .input-row { display: flex; align-items: flex-end; gap: 6px; }
+
+/* Menu d'autocomplétion des slash commands ("/" en début de saisie) */
+.slash-menu {
+  position: absolute;
+  left: 10px; right: 10px; bottom: calc(100% + 4px);
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 10px; overflow-y: auto; max-height: 220px;
+  z-index: 60; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.slash-item {
+  padding: 8px 12px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.slash-item:last-child { border-bottom: none; }
+.slash-item.active { background: var(--accent); }
+.slash-cmd { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.slash-desc { font-size: 11px; color: var(--text-secondary); }
+.slash-item.active .slash-cmd,
+.slash-item.active .slash-desc { color: #ffffff; }
 
 .input-wrapper {
   flex: 1; background: var(--bg-primary); border: 1px solid var(--border);

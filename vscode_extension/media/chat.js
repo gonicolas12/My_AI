@@ -36,6 +36,12 @@
   let attachmentCounter = 0;
   let streamingMessageId = null;
   let streamingMessageEl = null;
+  // Bibliothèque de prompts (slash commands) + état du menu d'autocomplétion.
+  let slashPrompts = [];
+  let slashItems = [];
+  let slashIndex = 0;
+  let slashMenuOpen = false;
+  let slashMenuEl = null;
   // Index du segment en cours pour le message en streaming. Un segment =
   // une passe LLM entre deux exécutions d'outils (mode VS Code agentique).
   // À chaque nouveau segment_index reçu dans un chunk, on "fige" la bulle
@@ -96,9 +102,25 @@
   inputEl.addEventListener('input', () => {
     autoResize();
     updateSendButton();
+    updateSlashMenu();
+  });
+
+  inputEl.addEventListener('blur', () => {
+    // Léger délai : laisse le mousedown d'une ligne s'exécuter avant de fermer.
+    setTimeout(hideSlashMenu, 150);
   });
 
   inputEl.addEventListener('keydown', (e) => {
+    if (slashMenuOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); slashMove(1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); slashMove(-1); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (slashItems[slashIndex]) slashAccept(slashItems[slashIndex]);
+        return;
+      }
+      if (e.key === 'Escape') { e.preventDefault(); hideSlashMenu(); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -149,6 +171,9 @@
         break;
       case 'history':
         applyHistory(msg.items || []);
+        break;
+      case 'prompts':
+        slashPrompts = Array.isArray(msg.items) ? msg.items : [];
         break;
       case 'relay-message':
         applyRelayMessage(msg.payload);
@@ -465,6 +490,100 @@
   function autoResize() {
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
+  }
+
+  // ── SLASH COMMAND AUTOCOMPLETE ("/" en début de saisie) ──────────────
+  function slashNormalize(s) {
+    return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+
+  function ensureSlashMenu() {
+    if (slashMenuEl) return slashMenuEl;
+    slashMenuEl = document.createElement('div');
+    slashMenuEl.className = 'slash-menu';
+    slashMenuEl.style.display = 'none';
+    (inputArea || document.body).appendChild(slashMenuEl);
+    return slashMenuEl;
+  }
+
+  function hideSlashMenu() {
+    slashMenuOpen = false;
+    slashItems = [];
+    if (slashMenuEl) slashMenuEl.style.display = 'none';
+  }
+
+  function updateSlashActive() {
+    if (!slashMenuEl) return;
+    const rows = slashMenuEl.querySelectorAll('.slash-item');
+    rows.forEach((r, i) => {
+      r.classList.toggle('active', i === slashIndex);
+      if (i === slashIndex && r.scrollIntoView) r.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function slashMove(delta) {
+    if (!slashItems.length) return;
+    slashIndex = (slashIndex + delta + slashItems.length) % slashItems.length;
+    updateSlashActive();
+  }
+
+  function renderSlashMenu() {
+    const el = ensureSlashMenu();
+    el.innerHTML = '';
+    slashItems.forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'slash-item' + (i === slashIndex ? ' active' : '');
+
+      const cmd = document.createElement('div');
+      cmd.className = 'slash-cmd';
+      cmd.textContent = '/' + (item.command || '');
+      row.appendChild(cmd);
+
+      const sub = (item.title || '') + (item.description ? ' — ' + item.description : '');
+      if (sub.trim()) {
+        const desc = document.createElement('div');
+        desc.className = 'slash-desc';
+        desc.textContent = sub;
+        row.appendChild(desc);
+      }
+
+      // mousedown (et non click) : devance le blur du textarea.
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); slashAccept(item); });
+      row.addEventListener('mouseenter', () => { slashIndex = i; updateSlashActive(); });
+      el.appendChild(row);
+    });
+  }
+
+  function updateSlashMenu() {
+    const m = /^\/(\S*)$/.exec(inputEl.value);
+    if (!m || !slashPrompts.length) { hideSlashMenu(); return; }
+    const pref = slashNormalize(m[1]);
+    slashItems = slashPrompts
+      .filter((p) => p.command && slashNormalize(p.command).indexOf(pref) === 0)
+      .slice(0, 8);
+    if (!slashItems.length) { hideSlashMenu(); return; }
+    slashIndex = 0;
+    renderSlashMenu();
+    ensureSlashMenu().style.display = 'block';
+    slashMenuOpen = true;
+  }
+
+  function slashAccept(item) {
+    inputEl.value = item.content || '';
+    hideSlashMenu();
+    inputEl.focus();
+    // Placer le curseur sur le premier placeholder {nom} (sélectionné).
+    const ph = /\{([^{}]+)\}/.exec(inputEl.value);
+    try {
+      if (ph) {
+        inputEl.setSelectionRange(ph.index, ph.index + ph[0].length);
+      } else {
+        const len = inputEl.value.length;
+        inputEl.setSelectionRange(len, len);
+      }
+    } catch (e) { /* setSelectionRange peut échouer selon le contexte */ }
+    autoResize();
+    updateSendButton();
   }
 
   // ── ATTACHMENT CHIPS ─────────────────────────────────

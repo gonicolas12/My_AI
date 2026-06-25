@@ -6,7 +6,7 @@ import {
   encryptEnvelope,
   importAesGcmKey,
 } from './crypto';
-import { HistoryItem, IncomingPayload, RelayCredentials } from './types';
+import { HistoryItem, IncomingPayload, PromptTemplate, RelayCredentials } from './types';
 
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;
@@ -140,6 +140,16 @@ export class RelayClient extends EventEmitter {
     const wrapper = await this.fetchJson(url);
     const decrypted = (await decryptEnvelope(this.cryptoKey, wrapper)) as { history?: HistoryItem[] };
     return Array.isArray(decrypted?.history) ? decrypted.history : [];
+  }
+
+  async loadPrompts(): Promise<PromptTemplate[]> {
+    if (!this.cryptoKey || !this.currentBaseUrl) {
+      throw new Error('Relay not connected');
+    }
+    const url = `${this.currentBaseUrl}/api/prompts?token=${encodeURIComponent(this.creds.token)}`;
+    const wrapper = await this.fetchJson(url);
+    const decrypted = (await decryptEnvelope(this.cryptoKey, wrapper)) as { prompts?: PromptTemplate[] };
+    return Array.isArray(decrypted?.prompts) ? decrypted.prompts : [];
   }
 
   async checkPending(messageId: string): Promise<{
