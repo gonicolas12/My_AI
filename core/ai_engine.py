@@ -73,6 +73,12 @@ except ImportError:
     _CMD_HISTORY_AVAILABLE = False
 
 try:
+    from .prompt_library import PromptLibrary
+    _PROMPT_LIB_AVAILABLE = True
+except ImportError:
+    _PROMPT_LIB_AVAILABLE = False
+
+try:
     from .session_manager import SessionManager
     _SESSION_AVAILABLE = True
 except ImportError:
@@ -398,6 +404,18 @@ class AIEngine:
                 self.logger.info("✅ CommandHistory initialisé")
             except Exception as e:
                 self.logger.warning("⚠️ CommandHistory indisponible: %s", e)
+
+        # Bibliothèque de prompts / slash commands
+        self.prompt_library = None
+        if _PROMPT_LIB_AVAILABLE:
+            try:
+                pl_cfg = full_config.get_section("prompt_library") or {}
+                self.prompt_library = PromptLibrary(
+                    path=pl_cfg.get("path", "data/prompt_templates.json"),
+                )
+                self.logger.info("✅ PromptLibrary initialisée")
+            except Exception as e:
+                self.logger.warning("⚠️ PromptLibrary indisponible: %s", e)
 
         # Gestionnaire de sessions / workspaces
         self.session_manager = None
