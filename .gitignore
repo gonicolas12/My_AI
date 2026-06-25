@@ -47,6 +47,10 @@ data/rlhf_training_data.jsonl
 # Agents customisés
 data/custom_agents.json
 
+# Bibliothèque de prompts / slash commands (les défauts sont seedés depuis le
+# code via core/prompt_library._DEFAULT_TEMPLATES ; ce fichier = prompts perso)
+data/prompt_templates.json
+
 # Tâches planifiées (scheduler proactif — données locales par utilisateur)
 data/scheduled_tasks.json
 data/scheduler.lock
