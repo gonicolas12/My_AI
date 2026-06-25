@@ -2000,10 +2000,10 @@ async def _handle_vscode_chat(
             workspace_info=workspace_info,
         )
     except asyncio.CancelledError:
-        # Le WS qui a porté ce chat est mort : la tâche a été cancel par
-        # le finally du handler WS. Inutile de logger une stacktrace.
+        # Tâche annulée : soit le bouton STOP du client (stop_generation), soit
+        # la fermeture du WS (finally du handler). Pas de stacktrace à logger.
         logger.info(
-            "Boucle agentique annulée (WS fermé) : message_id=%s", message_id,
+            "Boucle agentique annulée (STOP ou WS fermé) : message_id=%s", message_id,
         )
         return
     except Exception as exc:

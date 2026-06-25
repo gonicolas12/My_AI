@@ -338,6 +338,24 @@ def parse_tool_calls(assistant_text: str) -> List[Dict[str, Any]]:
     return calls
 
 
+def _tool_signature(call: Dict[str, Any]) -> str:
+    """Signature stable d'un appel d'outil, pour détecter les répétitions.
+
+    Pour les outils qui ciblent un fichier/chemin, on regroupe par chemin : le
+    *contenu* peut varier légèrement à chaque réécriture, mais réécrire 5 fois
+    le même fichier reste une boucle. Sinon on prend l'entrée canonique complète.
+    """
+    name = call.get("name", "")
+    inp = call.get("input", {}) or {}
+    key = inp.get("path") or inp.get("pattern")
+    if not key:
+        try:
+            key = json.dumps(inp, sort_keys=True, ensure_ascii=False)
+        except (TypeError, ValueError):
+            key = str(inp)
+    return f"{name}:{key}"
+
+
 def _strip_code_fence(text: str) -> str:
     """Retire un éventuel fence ```json ... ``` autour du JSON."""
     stripped = text.strip()
@@ -424,6 +442,12 @@ class AgenticExecutor:
     MAX_ITERATIONS = 25
     # Durée max d'une réponse LLM individuelle (avant timeout HTTP)
     LLM_TIMEOUT_SECONDS = 600
+    # Garde-fou anti-boucle : si le modèle répète la MÊME action (même outil
+    # sur le même fichier/chemin), on le recadre à partir de LOOP_SOFT_LIMIT
+    # répétitions, puis on coupe à LOOP_HARD_LIMIT (les modèles locaux faibles
+    # réécrivent parfois le même fichier en boucle sans jamais conclure).
+    LOOP_SOFT_LIMIT = 3
+    LOOP_HARD_LIMIT = 5
 
     def __init__(
         self,
@@ -488,6 +512,9 @@ class AgenticExecutor:
         # finale envoyée via ``response`` à la fin.
         segments: List[str] = []
 
+        # Compteur de signatures d'appels d'outils (garde-fou anti-boucle).
+        signature_counts: Dict[str, int] = {}
+
         for iteration_index in range(max_iters):
             segment_index = iteration_index
             logger.info(
@@ -523,6 +550,28 @@ class AgenticExecutor:
                 iteration_index + 1, len(tool_calls), tool_names,
             )
 
+            # Garde-fou anti-boucle : compter les signatures de cette itération.
+            iteration_sigs = [_tool_signature(c) for c in tool_calls]
+            for sig in iteration_sigs:
+                signature_counts[sig] = signature_counts.get(sig, 0) + 1
+            worst_sig = max(iteration_sigs, key=lambda s: signature_counts[s])
+            worst_count = signature_counts[worst_sig]
+
+            # Coupe nette : on stoppe AVANT de redispatcher l'action répétée
+            # (évite une N-ième réécriture du même fichier).
+            if worst_count >= self.LOOP_HARD_LIMIT:
+                logger.warning(
+                    "Boucle agentique : action répétée %d fois (%s) → arrêt anti-boucle",
+                    worst_count, worst_sig,
+                )
+                final_text = "\n\n".join(segments) if segments else assistant_text.strip()
+                return (
+                    final_text
+                    + "\n\n[⚠️ Arrêt automatique : la même action a été répétée "
+                    f"{worst_count} fois (boucle détectée). La tâche est probablement "
+                    "déjà faite — relance avec une consigne plus précise si besoin.]"
+                ).strip()
+
             # Exécuter les tool_calls (en parallèle pour aller vite).
             results = await self._dispatch_tool_calls(
                 tool_calls,
@@ -536,6 +585,14 @@ class AgenticExecutor:
             # pour rester compatible avec tous les modèles, même ceux qui
             # n'ont pas le rôle "tool").
             results_block = self._format_tool_results(tool_calls, results)
+            # Recadrage progressif : on prévient le modèle qu'il se répète,
+            # pour l'inciter à conclure sans nouvel appel d'outil.
+            if worst_count >= self.LOOP_SOFT_LIMIT:
+                results_block += (
+                    "\n\n[Système] Tu viens de répéter la même action plusieurs fois. "
+                    "Si le fichier est déjà créé et la tâche terminée, réponds MAINTENANT "
+                    "sans appel d'outil pour conclure. N'effectue pas à nouveau la même action."
+                )
             messages.append({"role": "user", "content": results_block})
 
         logger.warning(
