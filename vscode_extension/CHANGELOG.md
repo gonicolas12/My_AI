@@ -13,9 +13,11 @@ Adds slash command autocompletion and reusable prompt templates to the chat.
 - **Slash commands.** Typing `/` at the start of the message box opens an
   autocomplete menu listing the prompt templates defined in My_AI (fetched from
   the desktop app over the existing end-to-end-encrypted Relay channel via the new
-  `GET /api/prompts` endpoint). Selecting a template inserts its content and places
-  the caret on the first `{placeholder}`. Navigate with ↑/↓, accept with Enter/Tab,
-  dismiss with Escape.
+  `GET /api/prompts` endpoint). Selecting a command inserts just `/command `; you
+  then type your own text — e.g. `/code a tic-tac-toe game`. The desktop host
+  expands it into a detailed prompt (your text injected into the template) before
+  the AI sees it, so a short command yields a well-engineered prompt. Navigate the
+  menu with ↑/↓, accept with Enter/Tab, dismiss with Escape.
 
 ## [1.2.2] — 2026-05-13
 

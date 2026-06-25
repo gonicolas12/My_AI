@@ -28,28 +28,65 @@ logger = setup_logger("prompt_library")
 # Placeholders de la forme {nom} — on capture le nom sans les accolades.
 _PLACEHOLDER_RE = re.compile(r"\{([^{}]+)\}")
 
-# Slash commands fournies par défaut (seedées au 1ᵉʳ lancement uniquement).
+# Placeholder spécial remplacé par le texte saisi après la commande
+# (ex. « /code un jeu de morpion » → {arguments} = « un jeu de morpion »).
+_ARGS_PLACEHOLDER = "{arguments}"
+
+# Slash commands par défaut : ce sont des *wrappers de prompt engineering*.
+# La commande visible reste courte (« /code un jeu de morpion ») mais l'IA
+# reçoit le `content` détaillé, avec {arguments} remplacé par le texte saisi.
 _DEFAULT_TEMPLATES: List[Dict[str, str]] = [
+    {
+        "id": "code",
+        "command": "code",
+        "title": "Génération de code",
+        "description": "Génère un programme complet et commenté",
+        "content": (
+            "Tu es un développeur logiciel expert. Écris un programme complet, "
+            "fonctionnel et prêt à l'emploi pour répondre à la demande suivante :\n\n"
+            "{arguments}\n\n"
+            "Exigences :\n"
+            "- Choisis le langage le plus adapté si rien n'est précisé, et indique-le.\n"
+            "- Code clair, idiomatique et commenté.\n"
+            "- Gère les cas limites et les erreurs éventuelles.\n"
+            "- Termine par un court mode d'emploi (comment lancer / utiliser)."
+        ),
+    },
     {
         "id": "resume",
         "command": "résume",
         "title": "Résumé",
-        "description": "Résume un texte de façon concise",
-        "content": "Résume le texte suivant de façon claire et concise :\n\n{texte}",
+        "description": "Résume le texte ou le sujet fourni",
+        "content": (
+            "Résume de façon claire, fidèle et concise le contenu suivant :\n\n"
+            "{arguments}\n\n"
+            "Donne d'abord un résumé en 2 à 3 phrases, puis les points clés "
+            "sous forme de liste à puces."
+        ),
     },
     {
         "id": "traduis",
         "command": "traduis",
         "title": "Traduction",
-        "description": "Traduit un texte dans une langue cible",
-        "content": "Traduis le texte suivant en {langue} :\n\n{texte}",
+        "description": "Traduit le texte fourni",
+        "content": (
+            "Traduis le texte suivant. Si une langue cible est indiquée, utilise-la ; "
+            "sinon, traduis en anglais. Conserve le sens, le ton et la mise en forme.\n\n"
+            "{arguments}\n\n"
+            "Donne uniquement la traduction, sans commentaire."
+        ),
     },
     {
         "id": "explique",
         "command": "explique",
         "title": "Explication",
-        "description": "Explique simplement un concept",
-        "content": "Explique simplement le concept suivant, avec un exemple concret :\n\n{sujet}",
+        "description": "Explique un concept simplement",
+        "content": (
+            "Explique de façon simple et pédagogique le sujet suivant :\n\n"
+            "{arguments}\n\n"
+            "Utilise une analogie du quotidien et un exemple concret, puis termine "
+            "par un résumé en une phrase. Adapte-toi à un débutant."
+        ),
     },
     {
         "id": "corrige",
@@ -57,23 +94,23 @@ _DEFAULT_TEMPLATES: List[Dict[str, str]] = [
         "title": "Correction",
         "description": "Corrige l'orthographe et la grammaire",
         "content": (
-            "Corrige l'orthographe et la grammaire du texte suivant, "
-            "sans en changer le sens :\n\n{texte}"
+            "Corrige l'orthographe, la grammaire, la conjugaison et la ponctuation "
+            "du texte suivant, sans en changer le sens ni le style :\n\n"
+            "{arguments}\n\n"
+            "Donne d'abord le texte corrigé, puis la liste des corrections importantes."
         ),
     },
     {
         "id": "reformule",
         "command": "reformule",
         "title": "Reformulation",
-        "description": "Reformule un texte pour plus de clarté",
-        "content": "Reformule le texte suivant pour le rendre plus clair et fluide :\n\n{texte}",
-    },
-    {
-        "id": "code",
-        "command": "code",
-        "title": "Génération de code",
-        "description": "Écrit un programme commenté",
-        "content": "Écris un programme en {langage} qui {tâche}. Commente le code.",
+        "description": "Reformule un texte plus clairement",
+        "content": (
+            "Reformule le texte suivant pour le rendre plus clair, fluide et "
+            "professionnel, sans en changer le sens :\n\n"
+            "{arguments}\n\n"
+            "Propose la version reformulée, puis une variante plus concise."
+        ),
     },
 ]
 
@@ -166,6 +203,36 @@ class PromptLibrary:
         if not isinstance(raw, list):
             raw = []
         self._templates = [self._coerce(t) for t in raw if isinstance(t, dict)]
+        self._sync_builtins()
+
+    def _sync_builtins(self) -> None:
+        """Met à jour le contenu des templates builtin existants depuis le code.
+
+        Sert à migrer les prompts par défaut (ex. ancien format `{texte}` → wrapper
+        `{arguments}`). N'insère ni ne supprime aucun template, et ne touche pas aux
+        templates personnalisés (builtin=False) : une commande supprimée ou éditée
+        par l'utilisateur reste telle quelle.
+        """
+        defaults = {d["id"]: d for d in _DEFAULT_TEMPLATES}
+        changed = False
+        for tpl in self._templates:
+            if not tpl.get("builtin"):
+                continue
+            default = defaults.get(tpl["id"])
+            if default is None:
+                continue
+            new_vals = {
+                "command": default.get("command") or None,
+                "title": default["title"],
+                "description": default.get("description", ""),
+                "content": default["content"],
+            }
+            if any(tpl.get(key) != val for key, val in new_vals.items()):
+                tpl.update(new_vals)
+                tpl["updated_at"] = datetime.now().isoformat()
+                changed = True
+        if changed:
+            self._save_unlocked()
 
     def _save_unlocked(self) -> None:
         """Écrit les templates sur le disque (suppose le lock déjà tenu)."""
@@ -287,6 +354,51 @@ class PromptLibrary:
         return matches
 
     # ------------------------------------------------------------------
+    # Expansion (prompt engineering)
+    # ------------------------------------------------------------------
+
+    def expand(self, text: str) -> Optional[str]:
+        """Transforme « /commande arguments » en prompt détaillé pour l'IA.
+
+        L'utilisateur tape une commande courte (ex. « /code un jeu de morpion ») ;
+        l'IA reçoit le `content` du template avec le texte saisi injecté à la place
+        de ``{arguments}`` (ou ajouté à la suite si le template n'a pas ce
+        placeholder).
+
+        Returns:
+            Le prompt étendu, ou ``None`` si ``text`` n'est pas une slash command
+            connue (dans ce cas l'appelant envoie le texte tel quel).
+        """
+        if not text:
+            return None
+        stripped = text.lstrip()
+        if not stripped.startswith("/"):
+            return None
+        match = re.match(r"^/(\S+)\s*(.*)$", stripped, re.DOTALL)
+        if not match:
+            return None
+        command, args = match.group(1), match.group(2).strip()
+        tpl = self.find_by_command(command)
+        if tpl is None:
+            return None
+        return self.render(tpl, args)
+
+    @staticmethod
+    def render(tpl: Dict[str, Any], args: str) -> str:
+        """Injecte ``args`` dans le contenu d'un template.
+
+        - Si le contenu contient ``{arguments}``, on le remplace par ``args``.
+        - Sinon, ``args`` (s'il est non vide) est ajouté à la suite du contenu.
+        """
+        content = tpl.get("content", "") or ""
+        args = args or ""
+        if _ARGS_PLACEHOLDER in content:
+            return content.replace(_ARGS_PLACEHOLDER, args)
+        if args:
+            return content.rstrip() + "\n\n" + args
+        return content
+
+    # ------------------------------------------------------------------
     # API publique de mutation (persistance automatique)
     # ------------------------------------------------------------------
 
@@ -361,6 +473,9 @@ class PromptLibrary:
                 tpl["description"] = str(fields["description"]).strip()
             if fields.get("content") is not None:
                 tpl["content"] = str(fields["content"])
+            # Une fois édité par l'utilisateur, un template par défaut devient
+            # « personnel » : la migration des builtins ne l'écrasera plus.
+            tpl["builtin"] = False
             tpl["updated_at"] = datetime.now().isoformat()
             self._save_unlocked()
             return dict(tpl)

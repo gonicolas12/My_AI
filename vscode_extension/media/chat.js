@@ -569,19 +569,13 @@
   }
 
   function slashAccept(item) {
-    inputEl.value = item.content || '';
+    // Insère seulement « /commande » ; l'utilisateur tape ensuite son texte.
+    // L'expansion en prompt détaillé se fait côté hôte (desktop) à l'envoi.
+    inputEl.value = '/' + (item.command || '') + ' ';
     hideSlashMenu();
     inputEl.focus();
-    // Placer le curseur sur le premier placeholder {nom} (sélectionné).
-    const ph = /\{([^{}]+)\}/.exec(inputEl.value);
-    try {
-      if (ph) {
-        inputEl.setSelectionRange(ph.index, ph.index + ph[0].length);
-      } else {
-        const len = inputEl.value.length;
-        inputEl.setSelectionRange(len, len);
-      }
-    } catch (e) { /* setSelectionRange peut échouer selon le contexte */ }
+    const len = inputEl.value.length;
+    try { inputEl.setSelectionRange(len, len); } catch (e) { /* noop */ }
     autoResize();
     updateSendButton();
   }

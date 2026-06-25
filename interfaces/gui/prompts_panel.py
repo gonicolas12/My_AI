@@ -71,8 +71,9 @@ class PromptsPanelMixin:
         ).pack(anchor="w")
         self._pl_label(
             header,
-            "Créez des templates réutilisables. Une commande « /xxx » les rend "
-            "accessibles par autocomplétion dans le chat. Placeholders : {nom}.",
+            "Créez des prompts réutilisables. Tapez « /commande » dans le chat puis "
+            "votre texte (ex. « /code un jeu de morpion ») : l'IA reçoit le prompt "
+            "détaillé ci-dessous, avec {arguments} remplacé par votre texte.",
             size=10, color=self.colors.get("text_secondary", "#9ca3af"), bg=bg,
         ).pack(anchor="w")
 
@@ -223,7 +224,8 @@ class PromptsPanelMixin:
 
         # Champ : Contenu
         self._pl_label(
-            dialog, "Contenu  (placeholders : {nom})", size=11, bold=True,
+            dialog, "Contenu envoyé à l'IA  ({arguments} = le texte saisi après la commande)",
+            size=11, bold=True,
             color=self.colors.get("text_primary", "#ffffff"), bg=bg,
         ).pack(anchor="w", padx=20, pady=(8, 2))
         if CTK_AVAILABLE:

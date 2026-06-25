@@ -2083,6 +2083,13 @@ class BaseGUI:
         Traite le message utilisateur avec STREAMING pour réponse instantanée.
         Les tokens Ollama alimentent l'animation de frappe en temps réel.
         """
+        # Slash commands : « /commande arguments » → prompt détaillé envoyé à l'IA.
+        # La bulle affichée reste la commande courte ; seul le texte transmis au
+        # modèle est étendu. Point d'entrée unique : chat desktop, mobile Relay et
+        # extension VS Code passent tous par ici côté hôte.
+        if getattr(self, "_expand_slash_command", None):
+            user_text = self._expand_slash_command(user_text)
+
         # 🎯 DÉTECTION SPÉCIALE : Génération de fichier
         file_keywords = [
             "génère moi un fichier",

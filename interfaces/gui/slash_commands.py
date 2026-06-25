@@ -127,7 +127,6 @@ class SlashCommandsMixin:
 
         bg = self.colors.get("bg_secondary", "#2f2f2f")
         fg = self.colors.get("text_primary", "#ffffff")
-        sub = self.colors.get("text_secondary", "#9ca3af")
         border = self.colors.get("border", "#404040")
 
         popup = tk.Toplevel(self.root)
@@ -278,17 +277,23 @@ class SlashCommandsMixin:
     # ------------------------------------------------------------------
 
     def _slash_accept(self, item):
-        """Remplace le « /cmd » tapé par le contenu du template et place le curseur."""
+        """Insère « /commande » (+ espace) ; l'utilisateur tape ensuite ses arguments.
+
+        Le template n'est PAS déplié ici (ce n'est pas de la complétion de texte) :
+        c'est à l'envoi que « /commande arguments » devient un prompt détaillé pour
+        l'IA, via _expand_slash_command / PromptLibrary.expand.
+        """
         state = self._slash_get_state()
         textbox = state.get("textbox")
         inner = state.get("inner")
         if inner is None:
             self._slash_hide_popup()
             return
-        content = item.get("content", "") or ""
+        command = item.get("command", "") or ""
+        insertion = f"/{command} " if command else ""
         try:
             inner.delete("1.0", "end")
-            inner.insert("1.0", content)
+            inner.insert("1.0", insertion)
         except (tk.TclError, AttributeError):
             self._slash_hide_popup()
             return
@@ -304,35 +309,37 @@ class SlashCommandsMixin:
         if textbox is getattr(self, "input_text", None):
             self.placeholder_active = False
 
-        # Placer le curseur sur le premier placeholder {nom} (sélectionné).
-        placed = False
+        # Curseur en fin de ligne, prêt à recevoir les arguments.
         try:
-            from core.prompt_library import PromptLibrary
-            placeholders = PromptLibrary.extract_placeholders(content)
-        except Exception:
-            placeholders = []
-        if placeholders:
-            needle = "{" + placeholders[0] + "}"
-            try:
-                idx = inner.search(needle, "1.0", stopindex="end")
-                if idx:
-                    end = f"{idx}+{len(needle)}c"
-                    inner.tag_remove("sel", "1.0", "end")
-                    inner.tag_add("sel", idx, end)
-                    inner.mark_set("insert", idx)
-                    inner.see(idx)
-                    placed = True
-            except (tk.TclError, AttributeError):
-                pass
-        if not placed:
-            try:
-                inner.mark_set("insert", "end")
-                inner.see("end")
-            except (tk.TclError, AttributeError):
-                pass
+            inner.mark_set("insert", "end")
+            inner.see("end")
+        except (tk.TclError, AttributeError):
+            pass
 
         self._slash_hide_popup()
         try:
             inner.focus_set()
         except (tk.TclError, AttributeError):
             pass
+
+    # ------------------------------------------------------------------
+    # Expansion à l'envoi
+    # ------------------------------------------------------------------
+
+    def _expand_slash_command(self, text):
+        """Étend « /commande arguments » en prompt détaillé via la bibliothèque.
+
+        Retourne le texte étendu si ``text`` est une slash command connue, sinon
+        le texte d'origine inchangé. Appelé côté hôte juste avant l'inférence
+        (chat desktop, mobile Relay et extension VS Code passent tous par là).
+        """
+        if not text or not text.lstrip().startswith("/"):
+            return text
+        lib = self._get_prompt_library()
+        if lib is None:
+            return text
+        try:
+            expanded = lib.expand(text)
+        except Exception:
+            return text
+        return expanded if expanded else text

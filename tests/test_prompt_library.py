@@ -137,5 +137,85 @@ class TestMatchingAndPlaceholders:
         assert PromptLibrary.extract_placeholders("Aucun placeholder ici.") == []
 
 
+class TestExpansion:
+
+    @pytest.fixture
+    def lib(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            yield PromptLibrary(path=os.path.join(tmp, "p.json"))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_expand_injects_arguments(self, lib):
+        out = lib.expand("/code un jeu de morpion")
+        assert out is not None
+        assert "un jeu de morpion" in out          # texte saisi injecté
+        assert "{arguments}" not in out            # placeholder remplacé
+        assert out != "/code un jeu de morpion"    # prompt réellement étendu
+        assert len(out) > len("/code un jeu de morpion")
+
+    def test_expand_accent_insensitive_command(self, lib):
+        assert lib.expand("/resume ce paragraphe") is not None  # /résume
+
+    def test_expand_unknown_command_returns_none(self, lib):
+        assert lib.expand("/inconnu blabla") is None
+
+    def test_expand_non_slash_returns_none(self, lib):
+        assert lib.expand("bonjour le monde") is None
+        assert lib.expand("") is None
+
+    def test_render_appends_when_no_arguments_placeholder(self, lib):
+        created = lib.add(title="Sans ph", content="Fais ceci.", command="x")
+        out = lib.expand("/x mon contenu")
+        assert out == "Fais ceci.\n\nmon contenu"
+        # Et sans arguments, on renvoie le contenu tel quel.
+        assert lib.render(lib.get(created["id"]), "") == "Fais ceci."
+
+    def test_expand_command_without_args(self, lib):
+        out = lib.expand("/résume")
+        assert out is not None and "{arguments}" not in out
+
+
+class TestBuiltinMigration:
+
+    def test_old_builtin_content_is_migrated(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, "p.json")
+            # Ancien format persisté (avant le passage à {arguments}).
+            old = [{
+                "id": "code", "command": "code", "title": "Ancien",
+                "description": "old", "content": "Écris du code en {langage}.",
+                "builtin": True,
+                "created_at": "2020-01-01T00:00:00", "updated_at": "2020-01-01T00:00:00",
+            }]
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(old, fh)
+            lib = PromptLibrary(path=path)
+            code = lib.find_by_command("code")
+            assert "{arguments}" in code["content"]   # migré vers le nouveau format
+            assert "{langage}" not in code["content"]
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_user_edited_builtin_is_not_overwritten(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, "p.json")
+            edited = [{
+                "id": "code", "command": "code", "title": "Mon code",
+                "description": "perso", "content": "MON CONTENU PERSO",
+                "builtin": False,  # édité → personnel
+                "created_at": "2020-01-01T00:00:00", "updated_at": "2020-01-01T00:00:00",
+            }]
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(edited, fh)
+            lib = PromptLibrary(path=path)
+            assert lib.find_by_command("code")["content"] == "MON CONTENU PERSO"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

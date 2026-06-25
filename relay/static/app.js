@@ -1273,19 +1273,13 @@ function updateSlashMenu() {
 }
 
 function slashAccept(item) {
-  inputEl.value = item.content || '';
+  // Insère seulement « /commande » ; l'utilisateur tape ensuite son texte.
+  // L'expansion en prompt détaillé se fait côté hôte (desktop) au moment de l'envoi.
+  inputEl.value = '/' + (item.command || '') + ' ';
   hideSlashMenu();
   inputEl.focus();
-  // Placer le curseur sur le premier placeholder {nom} (sélectionné).
-  var ph = /\{([^{}]+)\}/.exec(inputEl.value);
-  try {
-    if (ph) {
-      inputEl.setSelectionRange(ph.index, ph.index + ph[0].length);
-    } else {
-      var len = inputEl.value.length;
-      inputEl.setSelectionRange(len, len);
-    }
-  } catch (e) { /* setSelectionRange peut échouer selon le navigateur */ }
+  var len = inputEl.value.length;
+  try { inputEl.setSelectionRange(len, len); } catch (e) { /* noop */ }
   autoResize();
   updateSendButton();
 }
