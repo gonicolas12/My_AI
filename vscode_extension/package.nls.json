@@ -10,6 +10,8 @@
   "command.forgetCredentials": "Forget Saved Connection",
   "command.sendSelection": "Send Selection to My_AI",
   "command.sendActiveFile": "Send Active File to My_AI",
+  "command.attachCodebase": "Attach Folder as @codebase",
+  "command.reindexCodebase": "Re-index @codebase Folder",
   "command.toggleAutoAttach": "Toggle Auto-Attach Active File",
   "command.focusChat": "Open Chat View",
   "command.moveToSecondarySidebar": "Move Chat to Secondary Side Bar (right)",

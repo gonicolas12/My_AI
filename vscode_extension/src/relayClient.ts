@@ -255,6 +255,15 @@ export class RelayClient extends EventEmitter {
     await this.sendEncrypted({ type: 'resume', last_message_id: lastMessageId });
   }
 
+  /**
+   * Attache / réindexe / détache un dossier projet (@codebase) côté host.
+   * `action` ∈ { codebase_attach, codebase_reindex, codebase_detach, codebase_status }.
+   * Les résultats arrivent via des messages 'codebase_result' / 'codebase_progress'.
+   */
+  async sendCodebase(action: string, folder: string): Promise<void> {
+    await this.sendEncrypted({ type: action, folder });
+  }
+
   /** Demande au host d'arrêter la génération en cours (LLM + appels d'outils). */
   async sendStop(messageId: string): Promise<void> {
     await this.sendEncrypted({ type: 'stop_generation', message_id: messageId });

@@ -10,6 +10,8 @@
   "command.forgetCredentials": "Oublier la connexion enregistrée",
   "command.sendSelection": "Envoyer la sélection à My_AI",
   "command.sendActiveFile": "Envoyer le fichier actif à My_AI",
+  "command.attachCodebase": "Attacher le dossier comme @codebase",
+  "command.reindexCodebase": "Ré-indexer le dossier @codebase",
   "command.toggleAutoAttach": "Activer / désactiver l'attache automatique du fichier actif",
   "command.focusChat": "Ouvrir le chat",
   "command.moveToSecondarySidebar": "Déplacer le chat vers la barre latérale secondaire (droite)",

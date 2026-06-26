@@ -85,6 +85,16 @@
         "category": "%command.category%"
       },
       {
+        "command": "myai-relay.attachCodebase",
+        "title": "%command.attachCodebase%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.reindexCodebase",
+        "title": "%command.reindexCodebase%",
+        "category": "%command.category%"
+      },
+      {
         "command": "myai-relay.toggleAutoAttach",
         "title": "%command.toggleAutoAttach%",
         "category": "%command.category%"
@@ -111,6 +121,13 @@
           "command": "myai-relay.sendActiveFile",
           "when": "editorTextFocus",
           "group": "myai@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "myai-relay.attachCodebase",
+          "when": "explorerResourceIsFolder",
+          "group": "myai@1"
         }
       ],
       "commandPalette": [

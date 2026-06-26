@@ -922,6 +922,28 @@ class RelayServer:
                         continue
 
                     # ────────────────────────────────────────────────────
+                    # Dossier projet attaché (@codebase) — VS Code
+                    # ────────────────────────────────────────────────────
+                    # Attache/réindexe/détache un DOSSIER ENTIER au workspace,
+                    # indexé localement (FolderIndexer). Tâche détachée : l'index
+                    # peut être long, la boucle WS doit rester réactive.
+                    if msg_type in (
+                        "codebase_attach", "codebase_reindex",
+                        "codebase_detach", "codebase_status",
+                    ):
+                        task = asyncio.create_task(
+                            server.handle_codebase_message(
+                                msg_type, msg_data, _send_encrypted,
+                            )
+                        )
+                        agentic_tasks.append(task)
+                        task.add_done_callback(
+                            lambda t: agentic_tasks.remove(t)
+                            if t in agentic_tasks else None
+                        )
+                        continue
+
+                    # ────────────────────────────────────────────────────
                     # stop_generation : arrêt de la génération du chat mobile
                     # ────────────────────────────────────────────────────
                     # Le bouton STOP du chat mobile. La réponse est produite
@@ -1133,6 +1155,100 @@ class RelayServer:
             return
         for exec_id in list(exec_ids):
             self._agent_service.interrupt(exec_id)
+
+    def _resolve_vscode_workspace(self, folder: str) -> Optional[str]:
+        """Renvoie (en le créant au besoin) le workspace associé à un dossier VS Code.
+
+        Mapping stable dossier -> workspace via la description du workspace (= chemin
+        du dossier). Définit ce workspace comme courant afin que l'outil
+        search_codebase et l'injection de contexte ciblent ce projet.
+        """
+        engine = self.ai_engine
+        sm = getattr(engine, "session_manager", None) if engine else None
+        if sm is None:
+            return None
+        from pathlib import Path as _Path
+        folder_key = str(_Path(folder))
+        try:
+            for ws in sm.list_workspaces():
+                if ws.get("description", "") == folder_key:
+                    sm.set_current_workspace(ws["id"])
+                    return ws["id"]
+            ws_id = sm.create_workspace(_Path(folder).name or "Projet VS Code",
+                                        description=folder_key)
+            sm.set_current_workspace(ws_id)
+            return ws_id
+        except Exception as exc:
+            logger.warning("Résolution workspace VS Code échouée: %s", exc)
+            return None
+
+    async def handle_codebase_message(
+        self,
+        msg_type: str,
+        msg_data: Dict[str, Any],
+        send_encrypted: Callable[[Dict[str, Any]], "asyncio.Future[None]"],
+    ) -> None:
+        """Gère l'attache/réindexation/détachement d'un dossier projet depuis VS Code.
+
+        Le dossier (local, même machine que le Relay) est indexé par le
+        FolderIndexer dans le pool de threads pour ne pas figer la boucle WS.
+        Résultats renvoyés via des messages "codebase_result".
+        """
+        engine = self.ai_engine
+        indexer = engine.get_folder_indexer() if (
+            engine and hasattr(engine, "get_folder_indexer")) else None
+        if indexer is None:
+            await send_encrypted({"type": "codebase_result", "action": msg_type,
+                                  "ok": False, "error": "Indexeur indisponible"})
+            return
+
+        folder = str(msg_data.get("folder", "")).strip()
+        loop = asyncio.get_running_loop()
+
+        if msg_type == "codebase_status":
+            ws_id = self._resolve_vscode_workspace(folder) if folder else (
+                getattr(engine, "session_manager", None)
+                and engine.session_manager.get_current_workspace())
+            status = await loop.run_in_executor(
+                None, indexer.get_status, ws_id) if ws_id else {"folders": []}
+            await send_encrypted({"type": "codebase_result", "action": "status",
+                                  "ok": True, "workspace_id": ws_id, **status})
+            return
+
+        if not folder:
+            await send_encrypted({"type": "codebase_result", "action": msg_type,
+                                  "ok": False, "error": "Aucun dossier fourni"})
+            return
+
+        ws_id = self._resolve_vscode_workspace(folder)
+        if not ws_id:
+            await send_encrypted({"type": "codebase_result", "action": msg_type,
+                                  "ok": False, "error": "Workspace indisponible"})
+            return
+
+        if msg_type == "codebase_detach":
+            ok = await loop.run_in_executor(None, indexer.remove_folder, ws_id, folder)
+            await send_encrypted({"type": "codebase_result", "action": "detach",
+                                  "ok": bool(ok), "folder": folder})
+            return
+
+        # codebase_attach / codebase_reindex : indexation (potentiellement longue)
+        force = (msg_type == "codebase_reindex")
+        await send_encrypted({"type": "codebase_progress", "action": msg_type,
+                              "folder": folder, "stage": "start"})
+
+        def _do_index():
+            return indexer.index_folder(ws_id, folder, force=force)
+
+        try:
+            res = await loop.run_in_executor(None, _do_index)
+        except Exception as exc:
+            await send_encrypted({"type": "codebase_result", "action": msg_type,
+                                  "ok": False, "folder": folder, "error": str(exc)})
+            return
+        ok = res.get("status") == "success"
+        await send_encrypted({"type": "codebase_result", "action": msg_type,
+                              "ok": ok, "workspace_id": ws_id, **res})
 
     async def handle_agent_message(
         self,

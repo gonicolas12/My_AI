@@ -96,6 +96,101 @@ export class WorkspaceBridge {
   }
 
   /**
+   * Attache (ou réindexe) un DOSSIER ENTIER du workspace VS Code au host comme
+   * contexte "@codebase" persistant : le host l'indexe localement (incrémental)
+   * et le rend disponible pour toutes les questions de ce workspace, sans
+   * re-glisser les fichiers. Affiche une barre de progression jusqu'au résultat.
+   */
+  async attachCodebase(options: { reindex?: boolean } = {}): Promise<void> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+      vscode.window.showWarningMessage(
+        vscode.l10n.t('My_AI Relay: open a folder/workspace first.'),
+      );
+      return;
+    }
+
+    let folder = folders[0];
+    if (folders.length > 1) {
+      const pick = await vscode.window.showQuickPick(
+        folders.map((f) => ({ label: f.name, description: f.uri.fsPath, folder: f })),
+        { placeHolder: vscode.l10n.t('Which folder to attach as @codebase?') },
+      );
+      if (!pick) {
+        return;
+      }
+      folder = pick.folder;
+    }
+
+    const folderPath = folder.uri.fsPath;
+    const action = options.reindex ? 'codebase_reindex' : 'codebase_attach';
+    const verb = options.reindex
+      ? vscode.l10n.t('Re-indexing')
+      : vscode.l10n.t('Indexing');
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `My_AI: ${verb} ${folder.name} (@codebase)…`,
+        cancellable: false,
+      },
+      () =>
+        new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = (msg: string, isError = false) => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            this.manager.removeListener('message', onMessage);
+            clearTimeout(timer);
+            if (isError) {
+              vscode.window.showErrorMessage(msg);
+            } else {
+              vscode.window.showInformationMessage(msg);
+            }
+            resolve();
+          };
+
+          const onMessage = (payload: { type?: string; action?: string;
+            ok?: boolean; error?: string; total_files?: number; chunks?: number }) => {
+            if (!payload || payload.type !== 'codebase_result') {
+              return;
+            }
+            if (payload.ok) {
+              finish(
+                vscode.l10n.t(
+                  'My_AI: «{0}» indexed — {1} files, {2} excerpts.',
+                  folder.name,
+                  String(payload.total_files ?? 0),
+                  String(payload.chunks ?? 0),
+                ),
+              );
+            } else {
+              finish(
+                vscode.l10n.t('My_AI: indexing failed: {0}',
+                  payload.error ?? 'unknown error'),
+                true,
+              );
+            }
+          };
+
+          // Garde-fou : ne pas laisser la barre tourner indéfiniment.
+          const timer = setTimeout(
+            () => finish(vscode.l10n.t('My_AI: indexing timed out.'), true),
+            5 * 60 * 1000,
+          );
+
+          this.manager.on('message', onMessage);
+          this.manager.sendCodebase(action, folderPath).catch((err) => {
+            finish(vscode.l10n.t('My_AI: cannot send request: {0}',
+              (err as Error).message), true);
+          });
+        }),
+    );
+  }
+
+  /**
    * Send the active editor's selection (or full file) as a chat message,
    * with the file attached so the model has full context.
    */

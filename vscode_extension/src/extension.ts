@@ -42,6 +42,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('myai-relay.sendActiveFile', () =>
       bridge!.sendActiveFile().catch(showError),
     ),
+    vscode.commands.registerCommand('myai-relay.attachCodebase', () =>
+      bridge!.attachCodebase().catch(showError),
+    ),
+    vscode.commands.registerCommand('myai-relay.reindexCodebase', () =>
+      bridge!.attachCodebase({ reindex: true }).catch(showError),
+    ),
     vscode.commands.registerCommand('myai-relay.toggleAutoAttach', async () => {
       const next = await bridge!.toggleAutoAttach();
       vscode.window.showInformationMessage(

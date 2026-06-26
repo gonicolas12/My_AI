@@ -124,6 +124,14 @@ export class ConnectionManager extends EventEmitter {
     return this.client.uploadFile(filename, data);
   }
 
+  /** Attache/réindexe/détache un dossier projet (@codebase) côté host. */
+  async sendCodebase(action: string, folder: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Not connected');
+    }
+    await this.client.sendCodebase(action, folder);
+  }
+
   async resumeIfWaiting(lastMessageId: string): Promise<void> {
     if (!this.client) {
       return;
