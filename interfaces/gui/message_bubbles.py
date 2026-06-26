@@ -639,6 +639,7 @@ class MessageBubblesMixin:
                 self._format_markdown_tables_in_widget(text_widget, processed_text)
                 self._apply_unified_progressive_formatting(text_widget, full_scan=True)
                 self._convert_temp_links_to_clickable(text_widget)
+                self._apply_inline_citations(text_widget, text)
                 text_widget.configure(state="disabled")
                 self._adjust_height_final_no_scroll(text_widget)
                 self._reactivate_text_scroll(text_widget)
