@@ -377,6 +377,14 @@ class MessageBubblesMixin:
 
         if is_user:
             self.create_user_message_bubble(msg_container, text)
+            # Hook édition/branchement : attache les contrôles ✏️ / ‹ k/n ›
+            if hasattr(self, "_register_bubble"):
+                try:
+                    self._register_bubble(
+                        len(self.conversation_history) - 1, msg_container, True, text
+                    )
+                except Exception as exc:
+                    print(f"⚠️ [Edit] _register_bubble échoué : {exc}")
             # Scroll utilisateur : scroller uniquement si le bas n'est pas visible
             self.root.after(50, self._scroll_if_needed_user())
         else:

@@ -17,6 +17,7 @@ from .artifacts_panel import ArtifactsPanelMixin
 from .slash_commands import SlashCommandsMixin
 from .prompts_panel import PromptsPanelMixin
 from .command_palette import CommandPaletteMixin
+from .message_editing import MessageEditingMixin
 
 __all__ = [
     "BaseGUI",
@@ -36,4 +37,5 @@ __all__ = [
     "SlashCommandsMixin",
     "PromptsPanelMixin",
     "CommandPaletteMixin",
+    "MessageEditingMixin",
 ]
