@@ -174,16 +174,26 @@ class VectorMemory:
                     name="documents", metadata={"hnsw:space": "cosine"}
                 )
 
+                # Collection dédiée aux dossiers attachés à un workspace
+                # (codebase / dossiers de docs indexés par core.folder_indexer).
+                # Séparée de "documents" pour ne pas mélanger l'index projet
+                # avec les fichiers attachés ad-hoc ; filtrable par workspace_id.
+                self.codebase_collection = self.chroma_client.get_or_create_collection(
+                    name="codebase", metadata={"hnsw:space": "cosine"}
+                )
+
                 print("✅ ChromaDB initialisé")
             except Exception as e:
                 print(f"⚠️ Erreur ChromaDB: {e}")
                 self.chroma_client = None
                 self.conversation_collection = None
                 self.document_collection = None
+                self.codebase_collection = None
         else:
             self.chroma_client = None
             self.conversation_collection = None
             self.document_collection = None
+            self.codebase_collection = None
 
         # Métadonnées et statistiques
         self.documents = {}
@@ -492,7 +502,7 @@ class VectorMemory:
 
     def search_similar(
         self, query: str, n_results: int = 5, collection_type: str = "document",
-        rerank: bool = True,
+        rerank: bool = True, where: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Recherche sémantique par similarité avec reranking optionnel
@@ -500,8 +510,10 @@ class VectorMemory:
         Args:
             query: Requête de recherche
             n_results: Nombre de résultats finaux souhaités
-            collection_type: "document" ou "conversation"
+            collection_type: "document", "conversation" ou "codebase"
             rerank: Si True et CrossEncoder dispo, sur-échantillonne puis reranke
+            where: Filtre de métadonnées ChromaDB (ex. {"workspace_id": "..."}),
+                appliqué côté base avant le reranking. None = aucun filtre.
 
         Returns:
             Liste de résultats avec scores
@@ -510,11 +522,7 @@ class VectorMemory:
             print("⚠️ Recherche sémantique non disponible (embeddings désactivés)")
             return []
 
-        collection = (
-            self.document_collection
-            if collection_type == "document"
-            else self.conversation_collection
-        )
+        collection = self._collection_for(collection_type)
 
         if not collection:
             return []
@@ -526,10 +534,11 @@ class VectorMemory:
             # Générer embedding de la requête
             query_embedding = self.embedding_model.encode(query).tolist()
 
-            # Rechercher dans ChromaDB
-            results = collection.query(
-                query_embeddings=[query_embedding], n_results=fetch_n
-            )
+            # Rechercher dans ChromaDB (filtre métadonnées optionnel)
+            query_kwargs = {"query_embeddings": [query_embedding], "n_results": fetch_n}
+            if where:
+                query_kwargs["where"] = where
+            results = collection.query(**query_kwargs)
 
             # Formater les résultats
             formatted_results = []
@@ -620,6 +629,8 @@ class VectorMemory:
         """
         if collection_type == "conversation":
             return self.conversation_collection
+        if collection_type == "codebase":
+            return self.codebase_collection
         return self.document_collection
 
     def count_entries(self, collection_type: str = "document") -> int:
@@ -870,6 +881,15 @@ class VectorMemory:
             except Exception as e:
                 print(f"⚠️ Erreur clear conversations: {e}")
 
+        if self.codebase_collection:
+            try:
+                self.chroma_client.delete_collection("codebase")
+                self.codebase_collection = self.chroma_client.create_collection(
+                    name="codebase", metadata={"hnsw:space": "cosine"}
+                )
+            except Exception as e:
+                print(f"⚠️ Erreur clear codebase: {e}")
+
         self.documents = {}
         self.current_tokens = 0
         self.stats = {
@@ -898,6 +918,7 @@ class VectorMemory:
                     self.chroma_client = None
                     self.document_collection = None
                     self.conversation_collection = None
+                    self.codebase_collection = None
                 except Exception as e:
                     print(f"⚠️ Erreur fermeture ChromaDB: {e}")
 
