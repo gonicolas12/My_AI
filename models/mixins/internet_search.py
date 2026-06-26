@@ -265,6 +265,19 @@ Erreur technique : {str(e)}"""
                         sources_section = match.group(1).strip()
                         break
 
+            # Construire un bloc de sources numérotées cliquables ([1], [2], …)
+            from utils.citations import build_numbered_sources, extract_sources
+            source_pairs = extract_sources(sources_section or raw_results)
+            sources_block = build_numbered_sources(source_pairs)
+
+            # Liste de référence injectée dans le prompt pour permettre au modèle
+            # de placer des marqueurs [n] inline pointant vers la bonne source.
+            sources_ref = ""
+            if source_pairs:
+                sources_ref = "\n".join(
+                    f"[{i}] {url}" for i, (_lbl, url) in enumerate(source_pairs, 1)
+                )
+
             system_prompt = """Tu es un assistant IA expert qui synthétise des informations de recherche internet.
 Ton rôle est de fournir une réponse claire, structurée et informative basée sur les résultats de recherche.
 
@@ -275,14 +288,20 @@ Instructions:
 - Réponds DIRECTEMENT à la question, sans section "Introduction" ni "Conclusion"
 - Ne mentionne pas que tu analyses des "résultats de recherche", réponds directement
 - Si les résultats contiennent des informations contradictoires, mentionne-le
+- Quand une affirmation provient d'une source précise, ajoute juste après un marqueur de citation numéroté entre crochets (ex. [1], [2]) correspondant à la liste des sources fournie
+- N'invente jamais de numéro de source : n'utilise que ceux présents dans la liste
 - Garde un ton amical et accessible"""
 
+            sources_ref_block = (
+                f"\n\nSources numérotées (pour tes marqueurs [n]) :\n{sources_ref}"
+                if sources_ref else ""
+            )
             user_prompt = f"""Question de l'utilisateur: {original_question}
 
 Informations trouvées sur internet concernant "{search_query}":
-{raw_results[:4000]}
+{raw_results[:4000]}{sources_ref_block}
 
-Génère la réponse finale directement à la question utilisateur, avec uniquement les informations présentes dans la source fournie."""
+Génère la réponse finale directement à la question utilisateur, avec uniquement les informations présentes dans la source fournie. Place des marqueurs de citation [n] inline après les affirmations issues d'une source."""
 
             print("🦙 [OLLAMA] Génération de la réponse basée sur la recherche...")
 
@@ -290,17 +309,7 @@ Génère la réponse finale directement à la question utilisateur, avec uniquem
             self.local_llm.conversation_history = []
 
             try:
-                sources_text = ""
-                if sources_section:
-                    sources_text = f"\n\n{sources_section}"
-                elif "http" in raw_results:
-                    urls = re.findall(r"https?://[^\s\)]+", raw_results)
-                    if urls:
-                        unique_urls = list(dict.fromkeys(urls))[:5]
-                        sources_text = "\n\n🔗 **Sources**\n"
-                        for url in unique_urls:
-                            clean_url = url.rstrip(".,;:)")
-                            sources_text += f"• [{clean_url[:50]}...]({clean_url})\n"
+                sources_text = f"\n\n{sources_block}" if sources_block else ""
 
                 ollama_response = self.local_llm.generate_stream(
                     user_prompt,

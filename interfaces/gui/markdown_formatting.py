@@ -2890,6 +2890,75 @@ class MarkdownFormattingMixin:
         # Assurer la priorité du tag
         text_widget.tag_raise(tag_name)
 
+    def _apply_inline_citations(self, text_widget, full_text):
+        """Rend cliquables les citations numérotées [n] (recherche web / RAG).
+
+        Analyse le bloc « Sources » de ``full_text`` pour construire la table
+        n→url, puis tague chaque marqueur ``[n]`` du widget (corps ET liste de
+        sources) comme lien cliquable ouvrant l'URL correspondante. Sans bloc de
+        sources numérotées, ne fait rien — dégradation propre.
+        """
+        try:
+            from utils.citations import parse_citation_map
+            cmap = parse_citation_map(full_text or "")
+        except Exception:
+            cmap = {}
+        if not cmap:
+            return
+
+        try:
+            was_disabled = str(text_widget.cget("state")) == "disabled"
+            if was_disabled:
+                text_widget.configure(state="normal")
+        except Exception:
+            was_disabled = False
+
+        try:
+            for n, url in cmap.items():
+                token = f"[{n}]"
+                start = "1.0"
+                occurrence = 0
+                while True:
+                    idx = text_widget.search(token, start, stopindex="end")
+                    if not idx:
+                        break
+                    end = f"{idx}+{len(token)}c"
+                    tag = f"citation_{n}_{occurrence}"
+                    text_widget.tag_add(tag, idx, end)
+                    text_widget.tag_configure(
+                        tag, foreground="#3b82f6", underline=True
+                    )
+
+                    def _open(_e, u=url):
+                        try:
+                            webbrowser.open(u)
+                        except Exception as exc:
+                            print(f"[CITATIONS] Ouverture lien échouée: {exc}")
+                        return "break"
+
+                    text_widget.tag_bind(tag, "<Button-1>", _open)
+                    text_widget.tag_bind(
+                        tag, "<Enter>",
+                        lambda _e: text_widget.configure(cursor="hand2"),
+                    )
+                    text_widget.tag_bind(
+                        tag, "<Leave>",
+                        lambda _e: text_widget.configure(cursor="xterm"),
+                    )
+                    text_widget.tag_raise(tag)
+                    start = end
+                    occurrence += 1
+                    if occurrence > 300:  # garde-fou
+                        break
+        except Exception as exc:
+            print(f"[CITATIONS] Application des citations échouée: {exc}")
+        finally:
+            if was_disabled:
+                try:
+                    text_widget.configure(state="disabled")
+                except Exception:
+                    pass
+
     def _process_links_preserve_formatting(self, text, text_widget):
         """Traite les liens tout en préservant le formatage du reste du texte"""
         # Configuration des liens

@@ -18,11 +18,13 @@ from interfaces.gui import (
     ArtifactsPanelMixin,
     BaseGUI,
     ChatAreaMixin,
+    CommandPaletteMixin,
     FileHandlingMixin,
     LayoutMixin,
     MarkdownFormattingMixin,
     MemoryPanelMixin,
     MessageBubblesMixin,
+    MessageEditingMixin,
     PromptsPanelMixin,
     SettingsPanelMixin,
     SidebarMixin,
@@ -44,12 +46,14 @@ class ModernAIGUI(
     LayoutMixin,
     ChatAreaMixin,
     MessageBubblesMixin,
+    MessageEditingMixin,
     AnimationsMixin,
     SyntaxHighlightingMixin,
     MarkdownFormattingMixin,
     FileHandlingMixin,
     StreamingMixin,
     ArtifactsPanelMixin,
+    CommandPaletteMixin,
 ):
     """GUI Moderne (orchestrateur)."""
 

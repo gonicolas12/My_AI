@@ -1629,6 +1629,9 @@ class StreamingMixin:
             # Convertir les liens en cliquables
             self._convert_temp_links_to_clickable(self.typing_widget)
 
+            # Citations numérotées [n] cliquables (recherche web / RAG)
+            self._apply_inline_citations(self.typing_widget, raw_source)
+
             # ============================================================
             # 🎨 RE-COLORATION des blocs de code après formatage
             # Le formatage full_scan ou la reconstruction des tableaux peut

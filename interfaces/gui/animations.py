@@ -323,6 +323,9 @@ class AnimationsMixin:
                 # Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
 
+                # Citations numérotées [n] cliquables (recherche web / RAG)
+                self._apply_inline_citations(self.typing_widget, original_text)
+
                 # Appliquer un nettoyage final pour les formatages manqués
                 self.typing_widget.configure(state="disabled")
             else:
@@ -347,6 +350,9 @@ class AnimationsMixin:
 
                 # Convertir les liens temporaires en liens clickables
                 self._convert_temp_links_to_clickable(self.typing_widget)
+
+                # Citations numérotées [n] cliquables (recherche web / RAG)
+                self._apply_inline_citations(self.typing_widget, original_text)
 
                 # Appliquer un nettoyage final pour les formatages manqués
                 self.typing_widget.configure(state="disabled")

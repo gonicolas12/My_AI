@@ -377,6 +377,14 @@ class MessageBubblesMixin:
 
         if is_user:
             self.create_user_message_bubble(msg_container, text)
+            # Hook édition/branchement : attache les contrôles ✏️ / ‹ k/n ›
+            if hasattr(self, "_register_bubble"):
+                try:
+                    self._register_bubble(
+                        len(self.conversation_history) - 1, msg_container, True, text
+                    )
+                except Exception as exc:
+                    print(f"⚠️ [Edit] _register_bubble échoué : {exc}")
             # Scroll utilisateur : scroller uniquement si le bas n'est pas visible
             self.root.after(50, self._scroll_if_needed_user())
         else:
@@ -639,6 +647,7 @@ class MessageBubblesMixin:
                 self._format_markdown_tables_in_widget(text_widget, processed_text)
                 self._apply_unified_progressive_formatting(text_widget, full_scan=True)
                 self._convert_temp_links_to_clickable(text_widget)
+                self._apply_inline_citations(text_widget, text)
                 text_widget.configure(state="disabled")
                 self._adjust_height_final_no_scroll(text_widget)
                 self._reactivate_text_scroll(text_widget)

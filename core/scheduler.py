@@ -819,25 +819,13 @@ class SchedulerService:
     def _notify_desktop(title: str, message: str) -> bool:
         """Tente une notification OS native. Retourne True si affichée.
 
-        Essaie winotify (Windows) puis plyer (cross-plateforme). En cas d'échec
+        Délègue à ``utils.desktop_notify`` (winotify → plyer). En cas d'échec
         ou d'absence des deux, retourne False : le fallback in-app est assuré
         par le listener GUI.
         """
         try:
-            from winotify import Notification  # type: ignore
-            toast = Notification(
-                app_id="My_AI", title=title, msg=message or " ",
-            )
-            toast.show()
-            return True
-        except Exception:
-            pass
-        try:
-            from plyer import notification  # type: ignore
-            notification.notify(
-                title=title, message=message or " ", app_name="My_AI", timeout=10,
-            )
-            return True
+            from utils.desktop_notify import notify_desktop
+            return notify_desktop(title, message)
         except Exception:
             return False
 
