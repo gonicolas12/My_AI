@@ -685,6 +685,11 @@
     updateMentionActive();
   }
 
+  function mentionIcon(item) {
+    if (item.kind === 'folder') return item.action === 'attach' ? '📎 ' : '📁 ';
+    return '📄 ';
+  }
+
   function renderMentionMenu() {
     const el = ensureMentionMenu();
     el.innerHTML = '';
@@ -694,13 +699,20 @@
 
       const cmd = document.createElement('div');
       cmd.className = 'slash-cmd';
-      cmd.textContent = (item.kind === 'folder' ? '📁 ' : '📄 ') + (item.label || '');
+      // Dossier navigable : suffixe « / » et chevron ; dossier-attache : libellé clair.
+      let label = mentionIcon(item) + (item.label || '');
+      if (item.kind === 'folder' && item.action === 'attach') {
+        label = '📎 ' + (item.label || '') + '  —  ' + t('webview.mention.attachFolder');
+      } else if (item.kind === 'folder') {
+        label = '📁 ' + (item.label || '') + '/';
+      }
+      cmd.textContent = label;
       row.appendChild(cmd);
 
       if (item.detail && item.detail !== item.label) {
         const desc = document.createElement('div');
         desc.className = 'slash-desc';
-        desc.textContent = item.detail;
+        desc.textContent = item.detail + (item.kind === 'folder' && item.action !== 'attach' ? '/' : '');
         row.appendChild(desc);
       }
 
@@ -708,6 +720,22 @@
       row.addEventListener('mouseenter', () => { mentionIndex = i; updateMentionActive(); });
       el.appendChild(row);
     });
+  }
+
+  // Remplace le token « @… » courant (de « @ » jusqu'au curseur) par newText.
+  function replaceMentionToken(newText) {
+    const text = inputEl.value;
+    const caret = (typeof inputEl.selectionStart === 'number')
+      ? inputEl.selectionStart : text.length;
+    const before = text.slice(0, caret);
+    const after = text.slice(caret);
+    const atPos = before.lastIndexOf('@');
+    const cut = atPos >= 0 ? atPos : before.length;
+    inputEl.value = before.slice(0, cut) + newText + after;
+    const pos = cut + newText.length;
+    try { inputEl.setSelectionRange(pos, pos); } catch (e) { /* noop */ }
+    autoResize();
+    updateSendButton();
   }
 
   function updateMentionMenu() {
@@ -737,26 +765,22 @@
   }
 
   function mentionAccept(item) {
-    // Retire le token « @… » de la saisie (le retour visuel est la puce de
-    // pièce jointe pour un fichier, ou la notification d'indexation pour un dossier).
-    const text = inputEl.value;
-    const caret = (typeof inputEl.selectionStart === 'number')
-      ? inputEl.selectionStart : text.length;
-    const before = text.slice(0, caret);
-    const after = text.slice(caret);
-    const m = MENTION_RE.exec(before);
-    if (m) {
-      const start = m.index + (m[0].length - m[0].trimStart().length); // garder l'espace initial
-      const atPos = before.lastIndexOf('@');
-      const cut = atPos >= 0 ? atPos : start;
-      inputEl.value = before.slice(0, cut) + after;
-      try { inputEl.setSelectionRange(cut, cut); } catch (e) { /* noop */ }
+    if (!item) return;
+    // Dossier navigable : on ENTRE dedans (insère « @dossier/ » et relance la
+    // requête), sans attacher. L'attache se fait via l'entrée « 📎 attacher ce
+    // dossier » ou en choisissant un fichier.
+    if (item.kind === 'folder' && item.action !== 'attach') {
+      replaceMentionToken('@' + (item.detail || item.label) + '/');
+      inputEl.focus();
+      updateMentionMenu();   // relance la requête sur le nouveau dossier
+      return;
     }
+    // Fichier ou « attacher ce dossier » : on retire le token et on attache
+    // (retour visuel = barre de progression / notification d'indexation côté host).
+    replaceMentionToken('');
     hideMentionMenu();
     inputEl.focus();
-    autoResize();
-    updateSendButton();
-    if (item && item.path) {
+    if (item.path) {
       vscode.postMessage({
         type: 'attach-mention', kind: item.kind || 'file', path: item.path, name: item.label,
       });

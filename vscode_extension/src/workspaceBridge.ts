@@ -122,16 +122,24 @@ export class WorkspaceBridge {
       folder = pick.folder;
     }
 
-    await this.runCodebaseAttach(folder.uri.fsPath, folder.name, !!options.reindex);
+    await this.runCodebaseAttach(
+      folder.uri.fsPath, folder.name, !!options.reindex, folder.uri.fsPath,
+    );
   }
 
   /**
-   * Attache un DOSSIER PRÉCIS (chemin absolu) comme @codebase — utilisé par le
-   * menu « @ » du chat, qui propose les dossiers du workspace VS Code.
+   * Attache un CHEMIN PRÉCIS (fichier OU dossier) comme @codebase — utilisé par
+   * le menu « @ » du chat, qui propose les fichiers et dossiers du workspace
+   * VS Code. Le host décide d'indexer un fichier seul ou un dossier entier.
+   * Tout est scopé à la RACINE du workspace VS Code contenant le chemin, pour
+   * que toutes les attaches d'un même projet partagent le même contexte.
    */
-  async attachCodebaseFolder(folderPath: string): Promise<void> {
-    const name = path.basename(folderPath) || folderPath;
-    await this.runCodebaseAttach(folderPath, name, false);
+  async attachCodebasePath(fsPath: string): Promise<void> {
+    const uri = vscode.Uri.file(fsPath);
+    const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
+    const root = wsFolder ? wsFolder.uri.fsPath : fsPath;
+    const name = path.basename(fsPath) || fsPath;
+    await this.runCodebaseAttach(fsPath, name, false, root);
   }
 
   /**
@@ -142,6 +150,7 @@ export class WorkspaceBridge {
     folderPath: string,
     displayName: string,
     reindex: boolean,
+    workspaceRoot: string,
   ): Promise<void> {
     const action = reindex ? 'codebase_reindex' : 'codebase_attach';
     const verb = reindex
@@ -202,7 +211,7 @@ export class WorkspaceBridge {
           );
 
           this.manager.on('message', onMessage);
-          this.manager.sendCodebase(action, folderPath).catch((err) => {
+          this.manager.sendCodebase(action, folderPath, workspaceRoot).catch((err) => {
             finish(vscode.l10n.t('My_AI: cannot send request: {0}',
               (err as Error).message), true);
           });

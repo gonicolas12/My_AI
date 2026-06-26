@@ -260,8 +260,10 @@ export class RelayClient extends EventEmitter {
    * `action` ∈ { codebase_attach, codebase_reindex, codebase_detach, codebase_status }.
    * Les résultats arrivent via des messages 'codebase_result' / 'codebase_progress'.
    */
-  async sendCodebase(action: string, folder: string): Promise<void> {
-    await this.sendEncrypted({ type: action, folder });
+  async sendCodebase(
+    action: string, folder: string, workspaceRoot?: string,
+  ): Promise<void> {
+    await this.sendEncrypted({ type: action, folder, workspace_root: workspaceRoot });
   }
 
   /** Demande au host d'arrêter la génération en cours (LLM + appels d'outils). */

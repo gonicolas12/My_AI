@@ -43,9 +43,10 @@ exactement comme avant.
   quand le Relay hôte revient en ligne, et se déconnecte quand il
   s'arrête.
 - 📎 **Mentions `@` & @codebase** — tapez `@` dans le chat pour attacher un
-  **fichier** du workspace (joint à votre prochain message) ou un **dossier**
-  entier comme contexte **@codebase** persistant, indexé côté hôte et gardé
-  disponible pour toutes les questions de ce workspace.
+  **fichier** ou un **dossier** du workspace comme contexte **@codebase**
+  persistant (indexé côté hôte, gardé disponible pour toutes les questions).
+  Naviguez dans les dossiers, descendez via `@src/utils/`, ou retrouvez
+  n'importe quel fichier en tapant son nom.
 - 🧩 **Intégration espace de travail**
   - Attache automatique du fichier actif à chaque message (toggle).
   - « Envoyer la sélection à My_AI » (palette de commandes + menu
@@ -187,10 +188,14 @@ démarre une nouvelle conversation agentique.
 - **Insérer au curseur / Copier** — chaque bloc de code d'une réponse IA
   reçoit ces deux boutons au survol.
 - **Mentions `@`** — tapez `@` dans la zone de saisie pour ouvrir un menu
-  d'autocomplétion des fichiers et dossiers du workspace. Choisir un **fichier**
-  le joint à votre prochain message ; choisir un **dossier** l'attache comme
-  contexte **@codebase** persistant (indexé de façon incrémentale côté hôte,
-  `.gitignore` respecté, dossiers lourds comme `node_modules` exclus).
+  d'autocomplétion des fichiers et dossiers du workspace. **Choisir un dossier
+  entre dedans** (sous-dossiers + fichiers) ; l'entrée **📎 attacher ce dossier**
+  l'attache comme contexte **@codebase** persistant. **Choisir un fichier**
+  indexe ce seul fichier dans le même contexte. Tapez `@src/utils/` pour
+  descendre dans un chemin, ou un nom de fichier pour le retrouver n'importe où.
+  L'indexation est incrémentale, respecte `.gitignore` et exclut les dossiers
+  lourds (`node_modules`, …). Toutes les attaches d'un même projet VS Code
+  partagent un seul contexte côté hôte.
 - **Attacher un dossier en @codebase** — palette → *My_AI Relay : Attacher le
   dossier comme @codebase*, ou clic droit sur un dossier dans l'explorateur.
   *Ré-indexer le dossier @codebase* rafraîchit un dossier déjà attaché.

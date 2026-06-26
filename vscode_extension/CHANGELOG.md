@@ -5,6 +5,29 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.5] — 2026-06-26
+
+Improves the `@` menu: browse into folders, attach single files reliably, and
+keep one shared context per VS Code project.
+
+### Added
+- **Folder navigation in `@`.** Selecting a folder now *enters* it and lists its
+  contents (sub-folders + files) instead of attaching the whole folder
+  immediately. An explicit **📎 attach this folder** entry attaches it as
+  @codebase. You can also type a path like `@src/utils/` to drill in, or just
+  type a file name to fuzzy-find it anywhere in the workspace.
+
+### Changed
+- **`@` file attach now uses the indexing channel.** Picking a file via `@`
+  indexes it on the host (same reliable WebSocket path as folders) instead of an
+  HTTP upload — this fixes the `… · fetch failed` errors and matches the
+  "attach to the workspace context" model. (The **+** button still uploads a
+  one-shot attachment.)
+- **One shared @codebase context per VS Code project.** Every file/folder you
+  attach from the same VS Code workspace now goes into a single host workspace
+  (keyed by the workspace root), so the assistant sees one coherent project
+  context instead of a separate one per attachment.
+
 ## [1.3.4] — 2026-06-26
 
 Adds an `@` mention menu to attach workspace files/folders, and fixes the file

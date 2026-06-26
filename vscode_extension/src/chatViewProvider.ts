@@ -207,74 +207,109 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const files = await this.getWorkspaceFiles();
-    const rootPaths = roots.map((r) => r.uri.fsPath);
+    const wsFiles = await this.getWorkspaceFiles();
 
-    // Dossiers : déduits des ancêtres des fichiers (dossiers non vides).
-    const folderRel = new Map<string, string>(); // fsPath -> relPath
-    for (const r of roots) {
-      folderRel.set(r.uri.fsPath, r.name);
-    }
-    const fileItems: { kind: string; label: string; detail: string; path: string }[] = [];
-    for (const uri of files) {
-      const rel = vscode.workspace.asRelativePath(uri, false);
-      fileItems.push({
-        kind: 'file', label: path.basename(uri.fsPath), detail: rel, path: uri.fsPath,
-      });
-      let dir = path.dirname(uri.fsPath);
-      while (dir && rootPaths.some((rp) => dir === rp || dir.startsWith(rp + path.sep))) {
-        if (!folderRel.has(dir)) {
-          folderRel.set(dir, vscode.workspace.asRelativePath(vscode.Uri.file(dir), false));
+    // Index : fichiers (rel POSIX + chemin absolu) et dossiers (rel -> abs),
+    // ces derniers déduits des ancêtres des fichiers (dossiers non vides).
+    type Item = { kind: string; label: string; detail: string; path: string; action?: string };
+    const files: { label: string; rel: string; abs: string }[] = [];
+    const folderAbs = new Map<string, string>(); // relPosix -> absFsPath
+    for (const uri of wsFiles) {
+      const rel = vscode.workspace.asRelativePath(uri, false).replace(/\\/g, '/');
+      files.push({ label: path.basename(uri.fsPath), rel, abs: uri.fsPath });
+      let relDir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+      let absDir = path.dirname(uri.fsPath);
+      while (relDir) {
+        if (!folderAbs.has(relDir)) {
+          folderAbs.set(relDir, absDir);
         }
-        const parent = path.dirname(dir);
-        if (parent === dir) {
-          break;
-        }
-        dir = parent;
+        const slash = relDir.lastIndexOf('/');
+        if (slash < 0) break;
+        relDir = relDir.slice(0, slash);
+        absDir = path.dirname(absDir);
       }
     }
 
-    const folderItems = Array.from(folderRel.entries()).map(([fsPath, rel]) => ({
-      kind: 'folder', label: path.basename(fsPath) || rel, detail: rel, path: fsPath,
-    }));
+    const baseName = (rel: string): string => rel.split('/').pop() || rel;
+    const raw = query.replace(/\\/g, '/');
+    const slashIdx = raw.lastIndexOf('/');
+    const dirRel = slashIdx >= 0 ? raw.slice(0, slashIdx) : '';
+    const tail = (slashIdx >= 0 ? raw.slice(slashIdx + 1) : raw).toLowerCase();
+    const match = (s: string): boolean => !tail || s.toLowerCase().includes(tail);
 
-    const q = query.trim().toLowerCase();
-    const rank = (it: { label: string; detail: string }): number => {
-      const label = it.label.toLowerCase();
-      const detail = it.detail.toLowerCase();
-      if (!q) return 0;
-      if (label === q) return 0;
-      if (label.startsWith(q)) return 1;
-      if (label.includes(q)) return 2;
-      if (detail.includes(q)) return 3;
-      return 99;
-    };
-    const filterRank = <T extends { label: string; detail: string }>(arr: T[]): T[] =>
-      arr
-        .map((it) => ({ it, r: rank(it) }))
-        .filter((x) => q === '' || x.r < 99)
-        .sort((a, b) => a.r - b.r || a.it.detail.length - b.it.detail.length)
-        .slice(0, q === '' ? 8 : 30)
-        .map((x) => x.it);
+    const items: Item[] = [];
 
-    // Dossiers d'abord (max 6), puis fichiers — total plafonné à 20.
-    const folders = filterRank(folderItems).slice(0, 6);
-    const remaining = 20 - folders.length;
-    const filesRanked = filterRank(fileItems).slice(0, Math.max(0, remaining));
-    const items = [...folders, ...filesRanked];
+    if (dirRel) {
+      // ── Navigation DANS un dossier : enfants directs + « attacher ce dossier »
+      const attachAbs = folderAbs.get(dirRel);
+      if (attachAbs) {
+        items.push({ kind: 'folder', action: 'attach', label: baseName(dirRel),
+          detail: dirRel, path: attachAbs });
+      }
+      const prefix = dirRel + '/';
+      const childFolders = new Set<string>();
+      const childFiles: Item[] = [];
+      for (const f of files) {
+        if (!f.rel.startsWith(prefix)) continue;
+        const rest = f.rel.slice(prefix.length);
+        const sl = rest.indexOf('/');
+        if (sl < 0) {
+          if (match(rest)) {
+            childFiles.push({ kind: 'file', label: f.label, detail: f.rel, path: f.abs });
+          }
+        } else {
+          childFolders.add(prefix + rest.slice(0, sl));
+        }
+      }
+      for (const fr of Array.from(childFolders).sort()) {
+        if (match(baseName(fr))) {
+          items.push({ kind: 'folder', action: 'navigate', label: baseName(fr),
+            detail: fr, path: folderAbs.get(fr) || '' });
+        }
+        if (items.length >= 30) break;
+      }
+      for (const it of childFiles) {
+        items.push(it);
+        if (items.length >= 40) break;
+      }
+    } else {
+      // ── Niveau racine / recherche globale : dossiers de 1er niveau (navigables)
+      // + fichiers correspondants n'importe où (permet d'atteindre un fichier
+      // imbriqué en tapant son nom).
+      const topFolders = Array.from(folderAbs.keys())
+        .filter((rel) => !rel.includes('/') && match(baseName(rel)))
+        .sort();
+      for (const fr of topFolders.slice(0, 6)) {
+        items.push({ kind: 'folder', action: 'navigate', label: baseName(fr),
+          detail: fr, path: folderAbs.get(fr) || '' });
+      }
+      const ranked = files
+        .filter((f) => !tail || f.label.toLowerCase().includes(tail)
+          || f.rel.toLowerCase().includes(tail))
+        .map((f) => {
+          const lbl = f.label.toLowerCase();
+          const r = !tail ? 0 : lbl === tail ? 0 : lbl.startsWith(tail) ? 1
+            : lbl.includes(tail) ? 2 : 3;
+          return { f, r };
+        })
+        .sort((a, b) => a.r - b.r || a.f.rel.length - b.f.rel.length)
+        .slice(0, 20 - items.length);
+      for (const { f } of ranked) {
+        items.push({ kind: 'file', label: f.label, detail: f.rel, path: f.abs });
+      }
+    }
 
-    await this.post({ type: 'mention-results', query, items });
+    await this.post({ type: 'mention-results', query, items: items.slice(0, 30) });
   }
 
-  private async handleAttachMention(kind: string, fsPath: string): Promise<void> {
+  private async handleAttachMention(_kind: string, fsPath: string): Promise<void> {
     if (!fsPath) {
       return;
     }
-    if (kind === 'folder') {
-      await this.bridge.attachCodebaseFolder(fsPath);
-    } else {
-      await this.uploadAndAnnounce(vscode.Uri.file(fsPath));
-    }
+    // Fichier comme dossier : on passe par le canal d'indexation (@codebase),
+    // fiable et cohérent avec le contexte du workspace. (Le bouton « + » reste
+    // disponible pour joindre un fichier en pièce jointe ponctuelle.)
+    await this.bridge.attachCodebasePath(fsPath);
   }
 
   private async uploadAndAnnounce(uri: vscode.Uri): Promise<void> {
@@ -398,6 +433,7 @@ function getWebviewStrings(): Record<string, string> {
     ),
     'webview.input.placeholder': vscode.l10n.t('Type your message…'),
     'webview.input.attachTooltip': vscode.l10n.t('Attach a file or image'),
+    'webview.mention.attachFolder': vscode.l10n.t('attach this folder'),
     'webview.send.stopTooltip': vscode.l10n.t('Stop generation'),
     'webview.code.insert': vscode.l10n.t('Insert'),
     'webview.code.copy': vscode.l10n.t('Copy'),

@@ -244,6 +244,33 @@ def test_get_status(env):
     assert set(status["folders"][0]["files"]) == {"main.py", "utils.py", "README.md"}
 
 
+def test_index_single_file(env):
+    tmp, vm, indexer = env
+    root = _make_project(tmp / "proj")
+    res = indexer.index_single_file("ws1", str(root / "utils.py"))
+
+    assert res["status"] == "success"
+    assert res["file"] == "utils.py"
+    assert res["chunks"] >= 1
+    indexed = {m["metadata"]["file_path"]
+               for m in vm.codebase_collection.store.values()}
+    assert indexed == {"utils.py"}
+    # Visible dans le statut du workspace
+    status = indexer.get_status("ws1")
+    assert status["total_files"] == 1
+
+
+def test_index_path_dispatch(env):
+    tmp, _, indexer = env
+    root = _make_project(tmp / "proj")
+    # Fichier -> 1 fichier
+    rf = indexer.index_path("ws1", str(root / "main.py"))
+    assert rf["status"] == "success" and rf.get("file") == "main.py"
+    # Dossier -> plusieurs fichiers
+    rd = indexer.index_path("ws2", str(root))
+    assert rd["status"] == "success" and rd["files_indexed"] == 3
+
+
 def test_progress_callback(env):
     tmp, _, indexer = env
     root = _make_project(tmp / "proj")

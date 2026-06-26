@@ -1203,10 +1203,14 @@ class RelayServer:
             return
 
         folder = str(msg_data.get("folder", "")).strip()
+        # Scope par RACINE du workspace VS Code : tous les fichiers/dossiers
+        # attachés depuis un même projet VS Code partagent UN seul workspace hôte
+        # (contexte codebase cohérent). Repli sur le chemin attaché si absent.
+        ws_root = str(msg_data.get("workspace_root", "")).strip() or folder
         loop = asyncio.get_running_loop()
 
         if msg_type == "codebase_status":
-            ws_id = self._resolve_vscode_workspace(folder) if folder else (
+            ws_id = self._resolve_vscode_workspace(ws_root) if ws_root else (
                 getattr(engine, "session_manager", None)
                 and engine.session_manager.get_current_workspace())
             status = await loop.run_in_executor(
@@ -1217,10 +1221,10 @@ class RelayServer:
 
         if not folder:
             await send_encrypted({"type": "codebase_result", "action": msg_type,
-                                  "ok": False, "error": "Aucun dossier fourni"})
+                                  "ok": False, "error": "Aucun chemin fourni"})
             return
 
-        ws_id = self._resolve_vscode_workspace(folder)
+        ws_id = self._resolve_vscode_workspace(ws_root)
         if not ws_id:
             await send_encrypted({"type": "codebase_result", "action": msg_type,
                                   "ok": False, "error": "Workspace indisponible"})
@@ -1232,13 +1236,14 @@ class RelayServer:
                                   "ok": bool(ok), "folder": folder})
             return
 
-        # codebase_attach / codebase_reindex : indexation (potentiellement longue)
+        # codebase_attach / codebase_reindex : indexation (fichier OU dossier,
+        # potentiellement longue)
         force = (msg_type == "codebase_reindex")
         await send_encrypted({"type": "codebase_progress", "action": msg_type,
                               "folder": folder, "stage": "start"})
 
         def _do_index():
-            return indexer.index_folder(ws_id, folder, force=force)
+            return indexer.index_path(ws_id, folder, force=force)
 
         try:
             res = await loop.run_in_executor(None, _do_index)

@@ -39,9 +39,9 @@ exactly as before.
   SecretStorage. The extension reconnects automatically when the host Relay
   comes back online, and disconnects when it shuts down.
 - 📎 **`@` mentions & @codebase** — type `@` in the chat to attach a workspace
-  **file** (joined to your next message) or a whole **folder** as a persistent
-  **@codebase** context, indexed on the host and kept in scope for every
-  question of that workspace.
+  **file** or **folder** as persistent **@codebase** context (indexed on the
+  host, kept in scope for every question). Browse into folders, drill in with
+  `@src/utils/`, or fuzzy-find any file by name.
 - 🧩 **Workspace integration**
   - Auto-attach the active editor file to every message (toggle).
   - "Send selection to My_AI" (Command Palette and editor context menu).
@@ -171,10 +171,13 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
 - **Insert at cursor / Copy** — every code block in an AI reply gets these
   two buttons on hover.
 - **`@` mentions** — type `@` in the message box to open an autocomplete menu of
-  the current workspace's files and folders. Selecting a **file** attaches it to
-  your next message; selecting a **folder** attaches it as a persistent
-  **@codebase** context (indexed incrementally on the host, `.gitignore`
-  respected, heavy folders like `node_modules` excluded).
+  the current workspace's files and folders. **Selecting a folder browses into
+  it** (sub-folders + files); use the **📎 attach this folder** entry to attach
+  it as a persistent **@codebase** context. **Selecting a file** indexes that
+  single file into the same context. Type `@src/utils/` to drill into a path, or
+  just type a file name to fuzzy-find it anywhere. Indexing is incremental,
+  `.gitignore`-aware, and excludes heavy folders (`node_modules`, …). All
+  attachments from one VS Code project share a single host context.
 - **Attach folder as @codebase** — Command Palette → *My_AI Relay: Attach Folder
   as @codebase*, or right-click a folder in the Explorer. *Re-index @codebase
   Folder* refreshes an already-attached folder.

@@ -507,6 +507,71 @@ class FolderIndexer:
             "total_files": len(new_files),
         }
 
+    def index_single_file(
+        self, workspace_id: str, file_path: str, force: bool = False,
+    ) -> Dict[str, Any]:
+        """Indexe UN fichier precis dans le workspace (sans son dossier entier).
+
+        Permet d'attacher un fichier ciblé (ex. choisi via le menu « @ » de
+        l'extension) comme contexte du workspace, sans indexer tout son dossier.
+        Le fichier est rattaché à son dossier parent dans le manifeste, donc une
+        attache ultérieure du dossier entier reste cohérente (fusion).
+
+        Returns:
+            {"status", "folder", "file", "total_files", "chunks"}.
+        """
+        if not self.is_available():
+            return {"status": "unavailable", "file": str(file_path), "chunks": 0}
+
+        p = Path(file_path).expanduser()
+        try:
+            p = p.resolve()
+        except OSError:
+            pass
+        if not p.is_file():
+            return {"status": "error", "file": str(file_path),
+                    "error": "Fichier introuvable", "chunks": 0}
+
+        folder_key = p.parent.as_posix()
+        rel = p.name
+
+        with self._lock:
+            manifest = self._load_manifest(workspace_id)
+            entry = manifest.get(folder_key)
+            files = entry.get("files", {}) if isinstance(entry, dict) else {}
+
+            sig = self._file_signature(p) or {"mtime": 0, "size": 0}
+            file_hash = self._file_hash(p)
+            prev = files.get(rel)
+            if not force and prev and prev.get("hash") and prev.get("hash") == file_hash:
+                n = int(prev.get("chunks", 0))
+            else:
+                n = self._index_file(workspace_id, folder_key, p.parent, p)
+
+            files[rel] = {**sig, "hash": file_hash, "chunks": n}
+            manifest[folder_key] = {
+                "files": files,
+                "indexed_at": datetime.now().isoformat(),
+                "file_count": len(files),
+            }
+            self._save_manifest(workspace_id, manifest)
+
+        logger.info("Index fichier '%s' (ws=%s): %d chunks", p.as_posix(),
+                    workspace_id, n)
+        return {"status": "success", "folder": folder_key, "file": rel,
+                "total_files": len(files), "chunks": n, "files_indexed": 1}
+
+    def index_path(
+        self, workspace_id: str, target_path: str, force: bool = False,
+        progress_cb: Optional[Callable[[int, int, str], None]] = None,
+    ) -> Dict[str, Any]:
+        """Indexe un chemin, qu'il soit un DOSSIER ou un FICHIER (dispatch)."""
+        p = Path(target_path).expanduser()
+        if p.is_file():
+            return self.index_single_file(workspace_id, target_path, force=force)
+        return self.index_folder(workspace_id, target_path, force=force,
+                                 progress_cb=progress_cb)
+
     def reindex(
         self,
         workspace_id: str,
