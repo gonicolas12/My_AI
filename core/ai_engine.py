@@ -90,6 +90,12 @@ try:
 except ImportError:
     _CONV_SEARCH_AVAILABLE = False
 
+try:
+    from .folder_indexer import FolderIndexer
+    _FOLDER_INDEXER_AVAILABLE = True
+except ImportError:
+    _FOLDER_INDEXER_AVAILABLE = False
+
 
 class AIEngine:
     """
@@ -433,6 +439,7 @@ class AIEngine:
         self._vector_memory = None
         self._conversation_search = None
         self._memory_store = None
+        self._folder_indexer = None
 
     def get_vector_memory(self):
         """Retourne l'instance VectorMemory partagée (créée à la demande).
@@ -464,6 +471,33 @@ class AIEngine:
                 self.logger.warning("⚠️ ConversationSearch indisponible: %s", e)
                 return None
         return self._conversation_search
+
+    def get_folder_indexer(self):
+        """Retourne l'indexeur de dossiers attachés au workspace (lazy).
+
+        Permet d'attacher un dossier entier (codebase / dossier de docs) à un
+        workspace de façon persistante ("@codebase"). Réutilise la VectorMemory
+        partagée (collection "codebase") et les processeurs de fichiers existants.
+        Retourne None si les dépendances ne sont pas disponibles.
+        """
+        if self._folder_indexer is None:
+            if not _FOLDER_INDEXER_AVAILABLE:
+                return None
+            try:
+                ws_dir = "data/workspaces"
+                if self.session_manager is not None:
+                    ws_dir = str(getattr(
+                        self.session_manager, "_workspaces_dir", ws_dir))
+                # pylint: disable-next=attribute-defined-outside-init
+                self._folder_indexer = FolderIndexer(
+                    vector_memory=self.get_vector_memory(),
+                    file_processor=getattr(self, "file_processor", None),
+                    workspaces_dir=ws_dir,
+                )
+            except Exception as e:
+                self.logger.warning("⚠️ FolderIndexer indisponible: %s", e)
+                return None
+        return self._folder_indexer
 
     def get_memory_store(self):
         """Retourne la couche d'accès CRUD unifiée à la mémoire (lazy).
@@ -619,6 +653,63 @@ class AIEngine:
             )
         except Exception as exc:
             self.logger.warning("Outil search_memory non disponible : %s", exc)
+
+        # ----------------------------------------------------------------
+        # 2bis. Recherche dans le dossier/codebase attaché au workspace
+        # ----------------------------------------------------------------
+        try:
+            def search_codebase(query: str, n_results: int = 5) -> str:
+                """Recherche sémantique dans le dossier projet attaché au workspace."""
+                indexer = self.get_folder_indexer()
+                if indexer is None or self.session_manager is None:
+                    return "Aucun dossier projet n'est attaché à ce workspace."
+                ws_id = self.session_manager.get_current_workspace()
+                if not ws_id:
+                    return "Aucun workspace actif : impossible de cibler un dossier projet."
+                if not indexer.list_folders(ws_id):
+                    return "Aucun dossier projet n'est attaché à ce workspace."
+                try:
+                    results = indexer.search(ws_id, query, n_results=n_results)
+                    if not results:
+                        return "Aucun passage pertinent trouvé dans le dossier projet."
+                    parts = []
+                    for i, r in enumerate(results, 1):
+                        meta = r.get("metadata", {}) or {}
+                        name = meta.get("file_path") or meta.get("file_name") or "fichier"
+                        parts.append(f"[{i}] {name}\n{r.get('content', '')[:700]}")
+                    return "\n\n".join(parts)
+                except Exception as exc:
+                    return f"Erreur recherche codebase : {exc}"
+
+            self.mcp_manager.register_local_tool(
+                name="search_codebase",
+                description=(
+                    "Recherche sémantique dans le DOSSIER PROJET (codebase ou dossier "
+                    "de documents) attaché de façon persistante au workspace courant. "
+                    "À utiliser pour répondre à des questions sur le code, l'architecture "
+                    "ou les fichiers du projet attaché (ex. 'où est définie cette "
+                    "fonction ?', 'comment marche tel module ?', 'résume ce projet'). "
+                    "Le contexte est limité au dossier attaché du workspace actif."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Requête de recherche dans le code/les documents du projet",
+                        },
+                        "n_results": {
+                            "type": "integer",
+                            "description": "Nombre de passages à retourner",
+                            "default": 5,
+                        },
+                    },
+                    "required": ["query"],
+                },
+                callable_fn=search_codebase,
+            )
+        except Exception as exc:
+            self.logger.warning("Outil search_codebase non disponible : %s", exc)
 
         # ----------------------------------------------------------------
         # 3. Lecture et analyse de fichiers locaux
@@ -1603,6 +1694,43 @@ Que voulez-vous que je fasse pour vous ?"""
             "'tu es sûr ?' → 'Oui, c'est bien toi qui me l'as indiqué.'"
         )
 
+    def _inject_codebase_context(self, query: str, system_prompt: str) -> str:
+        """
+        Injecte le contexte du DOSSIER PROJET attaché au workspace courant.
+
+        Récupération RAG au moment de la question : si un dossier (codebase /
+        dossier de docs) est attaché au workspace actif, on remonte les passages
+        les plus pertinents (plafonné par optimization.rag.max_retrieved_chunks)
+        et on les ajoute au system prompt. Utilisé sur les voies de réponse sans
+        appel d'outil (la voie MCP dispose en plus de l'outil search_codebase).
+        """
+        indexer = self.get_folder_indexer()
+        if indexer is None or self.session_manager is None:
+            return system_prompt
+        try:
+            ws_id = self.session_manager.get_current_workspace()
+            if not ws_id or not indexer.list_folders(ws_id):
+                return system_prompt
+            context = indexer.get_relevant_context(ws_id, query)
+        except Exception as exc:
+            self.logger.warning("Injection contexte codebase indisponible: %s", exc)
+            return system_prompt
+
+        if not context or not context.strip():
+            return system_prompt
+
+        return (
+            system_prompt
+            + "\n\n"
+            + "CONTEXTE DU PROJET ATTACHÉ (extraits pertinents du dossier indexé — "
+            "traite-les comme du code/des documents que tu connais déjà) :\n"
+            + context
+            + "\n\n"
+            "Appuie-toi sur ces extraits pour répondre aux questions sur le projet. "
+            "Ne mentionne pas explicitement « le contexte fourni » ; réponds "
+            "directement et naturellement."
+        )
+
     def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
         """
         Retourne uniquement les documents pertinents pour la requête.
@@ -1731,6 +1859,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}"
             )
             system_prompt = self._inject_knowledge_base_context(query, system_prompt)
+            system_prompt = self._inject_codebase_context(query, system_prompt)
 
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
@@ -2162,6 +2291,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
             system_prompt = self._inject_knowledge_base_context(user_input, system_prompt)
+            system_prompt = self._inject_codebase_context(user_input, system_prompt)
 
             # Ajouter le contexte des documents chargés
             full_context = self._prepare_context(user_input, context)
