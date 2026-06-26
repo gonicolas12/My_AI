@@ -38,6 +38,10 @@ exactly as before.
 - 💾 **Persistent connection** — credentials stay encrypted in VS Code
   SecretStorage. The extension reconnects automatically when the host Relay
   comes back online, and disconnects when it shuts down.
+- 📎 **`@` mentions & @codebase** — type `@` in the chat to attach a workspace
+  **file** (joined to your next message) or a whole **folder** as a persistent
+  **@codebase** context, indexed on the host and kept in scope for every
+  question of that workspace.
 - 🧩 **Workspace integration**
   - Auto-attach the active editor file to every message (toggle).
   - "Send selection to My_AI" (Command Palette and editor context menu).
@@ -166,6 +170,14 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
   My_AI*. Uploads the whole file as an attachment (PDF, DOCX, code, image…).
 - **Insert at cursor / Copy** — every code block in an AI reply gets these
   two buttons on hover.
+- **`@` mentions** — type `@` in the message box to open an autocomplete menu of
+  the current workspace's files and folders. Selecting a **file** attaches it to
+  your next message; selecting a **folder** attaches it as a persistent
+  **@codebase** context (indexed incrementally on the host, `.gitignore`
+  respected, heavy folders like `node_modules` excluded).
+- **Attach folder as @codebase** — Command Palette → *My_AI Relay: Attach Folder
+  as @codebase*, or right-click a folder in the Explorer. *Re-index @codebase
+  Folder* refreshes an already-attached folder.
 
 ## Commands
 
@@ -176,6 +188,8 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
 | `My_AI Relay: Forget Saved Connection` | Delete credentials from SecretStorage. |
 | `My_AI Relay: Send Selection to My_AI` | Send the editor selection as a message. |
 | `My_AI Relay: Send Active File to My_AI` | Upload and send the current file. |
+| `My_AI Relay: Attach Folder as @codebase` | Index a workspace folder as persistent RAG context. |
+| `My_AI Relay: Re-index @codebase Folder` | Refresh the index of an attached folder. |
 | `My_AI Relay: Toggle Auto-Attach Active File` | Toggle the auto-attach feature. |
 | `My_AI Relay: Open Chat View` | Reveal the chat panel. |
 | `My_AI Relay: Move Chat to Secondary Side Bar` | Open VS Code's "Move View" picker pre-selected on the chat view. |

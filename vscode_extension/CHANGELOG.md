@@ -5,6 +5,39 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.4] — 2026-06-26
+
+Adds an `@` mention menu to attach workspace files/folders, and fixes the file
+picker labels showing untranslated keys.
+
+### Added
+- **`@` mentions.** Typing `@` in the chat opens an autocomplete menu listing the
+  files and folders of the current VS Code workspace (like Copilot/Claude `@`).
+  Picking a **file** attaches it to your next message; picking a **folder**
+  attaches it as a persistent **@codebase** context (indexed on the host), so the
+  assistant keeps that project in scope for every question. Heavy directories
+  (`node_modules`, `.git`, `dist`, `.venv`, …) are excluded.
+
+### Fixed
+- **File picker labels.** The native "+" open dialog showed raw keys
+  (`openDialog.openLabel`, `openDialog.filter.allSupported`) instead of localized
+  text. The Open button and filter name are now translated to the user's VS Code
+  language (e.g. « Envoyer à My_AI », « Tous les formats pris en charge »). Two
+  other notifications (auto-attach / send failures) had the same issue and are
+  fixed too.
+
+## [1.3.3] — 2026-06-26
+
+Adds folder attachment as persistent `@codebase` context.
+
+### Added
+- **Attach a folder as @codebase.** New commands *Attach Folder as @codebase* and
+  *Re-index @codebase Folder* (Command Palette + right-click a folder in the
+  Explorer). The host indexes the folder incrementally (respects `.gitignore`,
+  excludes `node_modules`/`.git`/…) and keeps it available as RAG context for all
+  questions of that workspace — no need to re-attach files each time. A progress
+  notification reports the indexed file/excerpt counts.
+
 ## [1.3.2] — 2026-06-25
 
 Adds a Stop button to interrupt a running generation.

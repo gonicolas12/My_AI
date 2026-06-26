@@ -101,6 +101,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       case 'pick-file':
         await this.handlePickFile();
         break;
+      case 'mention-query':
+        await this.handleMentionQuery(typeof m.query === 'string' ? m.query : '');
+        break;
+      case 'attach-mention':
+        await this.handleAttachMention(
+          typeof m.kind === 'string' ? m.kind : '',
+          typeof m.path === 'string' ? m.path : '',
+        );
+        break;
       case 'remove-attachment':
         if (typeof m.localId === 'string') {
           this.uploadingByLocalId.delete(m.localId);
@@ -135,14 +144,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       allFileIds = autoIds.concat(allFileIds);
     } catch (err) {
       vscode.window.showWarningMessage(
-        vscode.l10n.t('warning.autoAttachFailed', (err as Error).message),
+        vscode.l10n.t('My_AI Relay: auto-attach failed: {0}', (err as Error).message),
       );
     }
     try {
       await this.manager.sendChat(text, allFileIds);
     } catch (err) {
       vscode.window.showErrorMessage(
-        vscode.l10n.t('error.sendFailed', (err as Error).message),
+        vscode.l10n.t('My_AI Relay: send failed: {0}', (err as Error).message),
       );
     }
   }
@@ -150,9 +159,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handlePickFile(): Promise<void> {
     const picks = await vscode.window.showOpenDialog({
       canSelectMany: true,
-      openLabel: vscode.l10n.t('openDialog.openLabel'),
+      openLabel: vscode.l10n.t('Send to My_AI'),
       filters: {
-        [vscode.l10n.t('openDialog.filter.allSupported')]: [
+        [vscode.l10n.t('All supported')]: [
           'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv',
           'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff', 'tif',
           'py', 'js', 'ts', 'tsx', 'jsx', 'html', 'css', 'json', 'xml', 'md', 'txt',
@@ -164,6 +173,107 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     for (const uri of picks) {
       await this.uploadAndAnnounce(uri);
+    }
+  }
+
+  // ── Mentions « @ » : fichiers et dossiers du workspace VS Code ───────────
+
+  /** Cache court des fichiers du workspace pour l'autocomplétion « @ ». */
+  private mentionCache: { time: number; files: vscode.Uri[] } | null = null;
+
+  private async getWorkspaceFiles(): Promise<vscode.Uri[]> {
+    const now = Date.now();
+    if (this.mentionCache && now - this.mentionCache.time < 15000) {
+      return this.mentionCache.files;
+    }
+    const exclude =
+      '**/{node_modules,.git,.hg,.svn,dist,build,out,.venv,venv,env,' +
+      '__pycache__,.mypy_cache,.pytest_cache,.next,.nuxt,.cache,coverage,' +
+      'target,bin,obj,.idea,.vscode}/**';
+    let files: vscode.Uri[] = [];
+    try {
+      files = await vscode.workspace.findFiles('**/*', exclude, 5000);
+    } catch {
+      files = [];
+    }
+    this.mentionCache = { time: now, files };
+    return files;
+  }
+
+  private async handleMentionQuery(query: string): Promise<void> {
+    const roots = vscode.workspace.workspaceFolders;
+    if (!roots || roots.length === 0) {
+      await this.post({ type: 'mention-results', query, items: [] });
+      return;
+    }
+
+    const files = await this.getWorkspaceFiles();
+    const rootPaths = roots.map((r) => r.uri.fsPath);
+
+    // Dossiers : déduits des ancêtres des fichiers (dossiers non vides).
+    const folderRel = new Map<string, string>(); // fsPath -> relPath
+    for (const r of roots) {
+      folderRel.set(r.uri.fsPath, r.name);
+    }
+    const fileItems: { kind: string; label: string; detail: string; path: string }[] = [];
+    for (const uri of files) {
+      const rel = vscode.workspace.asRelativePath(uri, false);
+      fileItems.push({
+        kind: 'file', label: path.basename(uri.fsPath), detail: rel, path: uri.fsPath,
+      });
+      let dir = path.dirname(uri.fsPath);
+      while (dir && rootPaths.some((rp) => dir === rp || dir.startsWith(rp + path.sep))) {
+        if (!folderRel.has(dir)) {
+          folderRel.set(dir, vscode.workspace.asRelativePath(vscode.Uri.file(dir), false));
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) {
+          break;
+        }
+        dir = parent;
+      }
+    }
+
+    const folderItems = Array.from(folderRel.entries()).map(([fsPath, rel]) => ({
+      kind: 'folder', label: path.basename(fsPath) || rel, detail: rel, path: fsPath,
+    }));
+
+    const q = query.trim().toLowerCase();
+    const rank = (it: { label: string; detail: string }): number => {
+      const label = it.label.toLowerCase();
+      const detail = it.detail.toLowerCase();
+      if (!q) return 0;
+      if (label === q) return 0;
+      if (label.startsWith(q)) return 1;
+      if (label.includes(q)) return 2;
+      if (detail.includes(q)) return 3;
+      return 99;
+    };
+    const filterRank = <T extends { label: string; detail: string }>(arr: T[]): T[] =>
+      arr
+        .map((it) => ({ it, r: rank(it) }))
+        .filter((x) => q === '' || x.r < 99)
+        .sort((a, b) => a.r - b.r || a.it.detail.length - b.it.detail.length)
+        .slice(0, q === '' ? 8 : 30)
+        .map((x) => x.it);
+
+    // Dossiers d'abord (max 6), puis fichiers — total plafonné à 20.
+    const folders = filterRank(folderItems).slice(0, 6);
+    const remaining = 20 - folders.length;
+    const filesRanked = filterRank(fileItems).slice(0, Math.max(0, remaining));
+    const items = [...folders, ...filesRanked];
+
+    await this.post({ type: 'mention-results', query, items });
+  }
+
+  private async handleAttachMention(kind: string, fsPath: string): Promise<void> {
+    if (!fsPath) {
+      return;
+    }
+    if (kind === 'folder') {
+      await this.bridge.attachCodebaseFolder(fsPath);
+    } else {
+      await this.uploadAndAnnounce(vscode.Uri.file(fsPath));
     }
   }
 

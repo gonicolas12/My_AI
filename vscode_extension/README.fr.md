@@ -42,6 +42,10 @@ exactement comme avant.
   SecretStorage de VS Code. L'extension se reconnecte automatiquement
   quand le Relay hôte revient en ligne, et se déconnecte quand il
   s'arrête.
+- 📎 **Mentions `@` & @codebase** — tapez `@` dans le chat pour attacher un
+  **fichier** du workspace (joint à votre prochain message) ou un **dossier**
+  entier comme contexte **@codebase** persistant, indexé côté hôte et gardé
+  disponible pour toutes les questions de ce workspace.
 - 🧩 **Intégration espace de travail**
   - Attache automatique du fichier actif à chaque message (toggle).
   - « Envoyer la sélection à My_AI » (palette de commandes + menu
@@ -182,6 +186,14 @@ démarre une nouvelle conversation agentique.
   (PDF, DOCX, code, image, etc.).
 - **Insérer au curseur / Copier** — chaque bloc de code d'une réponse IA
   reçoit ces deux boutons au survol.
+- **Mentions `@`** — tapez `@` dans la zone de saisie pour ouvrir un menu
+  d'autocomplétion des fichiers et dossiers du workspace. Choisir un **fichier**
+  le joint à votre prochain message ; choisir un **dossier** l'attache comme
+  contexte **@codebase** persistant (indexé de façon incrémentale côté hôte,
+  `.gitignore` respecté, dossiers lourds comme `node_modules` exclus).
+- **Attacher un dossier en @codebase** — palette → *My_AI Relay : Attacher le
+  dossier comme @codebase*, ou clic droit sur un dossier dans l'explorateur.
+  *Ré-indexer le dossier @codebase* rafraîchit un dossier déjà attaché.
 
 ## Commandes
 
@@ -192,6 +204,8 @@ démarre une nouvelle conversation agentique.
 | `My_AI Relay : Oublier la connexion enregistrée` | Supprime les identifiants du SecretStorage. |
 | `My_AI Relay : Envoyer la sélection à My_AI` | Envoie la sélection comme message. |
 | `My_AI Relay : Envoyer le fichier actif à My_AI` | Upload et envoie le fichier courant. |
+| `My_AI Relay : Attacher le dossier comme @codebase` | Indexe un dossier du workspace comme contexte RAG persistant. |
+| `My_AI Relay : Ré-indexer le dossier @codebase` | Rafraîchit l'index d'un dossier attaché. |
 | `My_AI Relay : Activer / désactiver l'attache automatique du fichier actif` | Bascule la fonctionnalité. |
 | `My_AI Relay : Ouvrir le chat` | Affiche le panneau de chat. |
 | `My_AI Relay : Déplacer le chat vers la barre latérale secondaire` | Ouvre le sélecteur « Déplacer la vue » de VS Code pré-positionné sur la vue chat. |

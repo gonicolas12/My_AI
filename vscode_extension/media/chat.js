@@ -42,6 +42,13 @@
   let slashIndex = 0;
   let slashMenuOpen = false;
   let slashMenuEl = null;
+  // Mentions « @ » : attache un fichier ou un dossier du workspace VS Code.
+  let mentionItems = [];
+  let mentionIndex = 0;
+  let mentionMenuOpen = false;
+  let mentionMenuEl = null;
+  let mentionQuery = null;       // requête « @… » courante (null = menu fermé)
+  let mentionDebounce = null;
   // Mode du bouton d'envoi : 'send' (avion) ou 'stop' (carré) pendant la génération.
   let sendBtnMode = 'send';
   // Index du segment en cours pour le message en streaming. Un segment =
@@ -111,14 +118,25 @@
     autoResize();
     updateSendButton();
     updateSlashMenu();
+    updateMentionMenu();
   });
 
   inputEl.addEventListener('blur', () => {
     // Léger délai : laisse le mousedown d'une ligne s'exécuter avant de fermer.
-    setTimeout(hideSlashMenu, 150);
+    setTimeout(() => { hideSlashMenu(); hideMentionMenu(); }, 150);
   });
 
   inputEl.addEventListener('keydown', (e) => {
+    if (mentionMenuOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); mentionMove(1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); mentionMove(-1); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (mentionItems[mentionIndex]) mentionAccept(mentionItems[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') { e.preventDefault(); hideMentionMenu(); return; }
+    }
     if (slashMenuOpen) {
       if (e.key === 'ArrowDown') { e.preventDefault(); slashMove(1); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); slashMove(-1); return; }
@@ -182,6 +200,9 @@
         break;
       case 'prompts':
         slashPrompts = Array.isArray(msg.items) ? msg.items : [];
+        break;
+      case 'mention-results':
+        applyMentionResults(msg.query, Array.isArray(msg.items) ? msg.items : []);
         break;
       case 'relay-message':
         applyRelayMessage(msg.payload);
@@ -625,6 +646,121 @@
     try { inputEl.setSelectionRange(len, len); } catch (e) { /* noop */ }
     autoResize();
     updateSendButton();
+  }
+
+  // ── MENTION « @ » : attacher un fichier / dossier du workspace ───────────
+  // Tapez « @ » suivi d'un terme : un menu propose les fichiers et dossiers du
+  // workspace VS Code. Un fichier est joint au prochain message ; un dossier
+  // est attaché comme @codebase (indexé côté host).
+  const MENTION_RE = /(?:^|\s)@([^\s@]*)$/;
+
+  function ensureMentionMenu() {
+    if (mentionMenuEl) return mentionMenuEl;
+    mentionMenuEl = document.createElement('div');
+    mentionMenuEl.className = 'slash-menu mention-menu';
+    mentionMenuEl.style.display = 'none';
+    (inputArea || document.body).appendChild(mentionMenuEl);
+    return mentionMenuEl;
+  }
+
+  function hideMentionMenu() {
+    mentionMenuOpen = false;
+    mentionItems = [];
+    mentionQuery = null;
+    if (mentionMenuEl) mentionMenuEl.style.display = 'none';
+  }
+
+  function updateMentionActive() {
+    if (!mentionMenuEl) return;
+    const rows = mentionMenuEl.querySelectorAll('.slash-item');
+    rows.forEach((r, i) => {
+      r.classList.toggle('active', i === mentionIndex);
+      if (i === mentionIndex && r.scrollIntoView) r.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function mentionMove(delta) {
+    if (!mentionItems.length) return;
+    mentionIndex = (mentionIndex + delta + mentionItems.length) % mentionItems.length;
+    updateMentionActive();
+  }
+
+  function renderMentionMenu() {
+    const el = ensureMentionMenu();
+    el.innerHTML = '';
+    mentionItems.forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'slash-item' + (i === mentionIndex ? ' active' : '');
+
+      const cmd = document.createElement('div');
+      cmd.className = 'slash-cmd';
+      cmd.textContent = (item.kind === 'folder' ? '📁 ' : '📄 ') + (item.label || '');
+      row.appendChild(cmd);
+
+      if (item.detail && item.detail !== item.label) {
+        const desc = document.createElement('div');
+        desc.className = 'slash-desc';
+        desc.textContent = item.detail;
+        row.appendChild(desc);
+      }
+
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); mentionAccept(item); });
+      row.addEventListener('mouseenter', () => { mentionIndex = i; updateMentionActive(); });
+      el.appendChild(row);
+    });
+  }
+
+  function updateMentionMenu() {
+    const caret = (typeof inputEl.selectionStart === 'number')
+      ? inputEl.selectionStart : inputEl.value.length;
+    const before = inputEl.value.slice(0, caret);
+    const m = MENTION_RE.exec(before);
+    if (!m) { hideMentionMenu(); return; }
+    // Slash et mention ne coexistent pas.
+    hideSlashMenu();
+    mentionQuery = m[1];
+    clearTimeout(mentionDebounce);
+    mentionDebounce = setTimeout(() => {
+      vscode.postMessage({ type: 'mention-query', query: mentionQuery || '' });
+    }, 120);
+  }
+
+  function applyMentionResults(query, items) {
+    // Ignorer les résultats obsolètes (l'utilisateur a continué à taper).
+    if (mentionQuery === null || query !== (mentionQuery || '')) return;
+    mentionItems = items.slice(0, 20);
+    if (!mentionItems.length) { hideMentionMenu(); return; }
+    mentionIndex = 0;
+    renderMentionMenu();
+    ensureMentionMenu().style.display = 'block';
+    mentionMenuOpen = true;
+  }
+
+  function mentionAccept(item) {
+    // Retire le token « @… » de la saisie (le retour visuel est la puce de
+    // pièce jointe pour un fichier, ou la notification d'indexation pour un dossier).
+    const text = inputEl.value;
+    const caret = (typeof inputEl.selectionStart === 'number')
+      ? inputEl.selectionStart : text.length;
+    const before = text.slice(0, caret);
+    const after = text.slice(caret);
+    const m = MENTION_RE.exec(before);
+    if (m) {
+      const start = m.index + (m[0].length - m[0].trimStart().length); // garder l'espace initial
+      const atPos = before.lastIndexOf('@');
+      const cut = atPos >= 0 ? atPos : start;
+      inputEl.value = before.slice(0, cut) + after;
+      try { inputEl.setSelectionRange(cut, cut); } catch (e) { /* noop */ }
+    }
+    hideMentionMenu();
+    inputEl.focus();
+    autoResize();
+    updateSendButton();
+    if (item && item.path) {
+      vscode.postMessage({
+        type: 'attach-mention', kind: item.kind || 'file', path: item.path, name: item.label,
+      });
+    }
   }
 
   // ── ATTACHMENT CHIPS ─────────────────────────────────

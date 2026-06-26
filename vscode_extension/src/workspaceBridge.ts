@@ -122,16 +122,36 @@ export class WorkspaceBridge {
       folder = pick.folder;
     }
 
-    const folderPath = folder.uri.fsPath;
-    const action = options.reindex ? 'codebase_reindex' : 'codebase_attach';
-    const verb = options.reindex
+    await this.runCodebaseAttach(folder.uri.fsPath, folder.name, !!options.reindex);
+  }
+
+  /**
+   * Attache un DOSSIER PRÉCIS (chemin absolu) comme @codebase — utilisé par le
+   * menu « @ » du chat, qui propose les dossiers du workspace VS Code.
+   */
+  async attachCodebaseFolder(folderPath: string): Promise<void> {
+    const name = path.basename(folderPath) || folderPath;
+    await this.runCodebaseAttach(folderPath, name, false);
+  }
+
+  /**
+   * Envoie une demande d'indexation @codebase au host et affiche une barre de
+   * progression jusqu'au résultat (succès / échec / délai dépassé).
+   */
+  private async runCodebaseAttach(
+    folderPath: string,
+    displayName: string,
+    reindex: boolean,
+  ): Promise<void> {
+    const action = reindex ? 'codebase_reindex' : 'codebase_attach';
+    const verb = reindex
       ? vscode.l10n.t('Re-indexing')
       : vscode.l10n.t('Indexing');
 
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `My_AI: ${verb} ${folder.name} (@codebase)…`,
+        title: `My_AI: ${verb} ${displayName} (@codebase)…`,
         cancellable: false,
       },
       () =>
@@ -161,7 +181,7 @@ export class WorkspaceBridge {
               finish(
                 vscode.l10n.t(
                   'My_AI: «{0}» indexed — {1} files, {2} excerpts.',
-                  folder.name,
+                  displayName,
                   String(payload.total_files ?? 0),
                   String(payload.chunks ?? 0),
                 ),
