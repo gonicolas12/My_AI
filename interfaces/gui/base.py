@@ -3406,26 +3406,146 @@ class BaseGUI:
                     pass
 
     def show_help(self):
-        """Affiche l'aide"""
-        help_text = """**🆘 Aide - My Personal AI**
+        """Ouvre une popup d'aide sur le projet (ne génère plus de bulle de chat)."""
+        # Réutiliser la popup si déjà ouverte
+        existing = getattr(self, "_help_popup", None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.lift()
+                    existing.focus_set()
+                    return
+            except tk.TclError:
+                pass
 
-**📝 Comment utiliser :**
-• Tapez votre message et appuyez sur Entrée
-• Utilisez Shift+Entrée pour un saut de ligne
-• Utilisez les boutons pour des actions rapides
+        colors = self.colors
+        bg = colors.get("bg_primary", "#212121")
+        bg2 = colors.get("bg_secondary", "#2f2f2f")
+        fg = colors.get("text_primary", "#ffffff")
+        fg_dim = colors.get("text_secondary", "#9ca3af")
+        accent = colors.get("accent", "#ff6b47")
 
-**💬 Exemples de messages :**
-• "Bonjour" - Salutation
-• "Résume ce document" - Analyse de fichier
-• "Génère une fonction Python" - Création de code
-• "Cherche sur internet les actualités IA" - Recherche web
+        win = tk.Toplevel(self.root)
+        self._help_popup = win
+        win.title("Aide — My_AI")
+        win.configure(bg=bg)
+        win.transient(self.root)
+        win.geometry("700x640")
 
-**🔧 Raccourcis :**
-• Entrée : Envoyer le message
-• Shift+Entrée : Nouvelle ligne
-• Ctrl+L : Effacer la conversation"""
+        def _close(_e=None):
+            self._help_popup = None
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
 
-        self.add_message_bubble(help_text, is_user=False)
+        win.protocol("WM_DELETE_WINDOW", _close)
+        win.bind("<Escape>", _close)
+
+        # ── En-tête ──
+        header = tk.Frame(win, bg=bg)
+        header.pack(fill="x", padx=24, pady=(20, 8))
+        tk.Label(
+            header, text="🆘 Aide — My_AI", bg=bg, fg=accent,
+            font=("Segoe UI", 20, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            header, text="Assistant IA personnel, 100 % local", bg=bg, fg=fg_dim,
+            font=("Segoe UI", 11),
+        ).pack(side="left", padx=(12, 0), pady=(9, 0))
+
+        # ── Corps scrollable ──
+        body = tk.Frame(win, bg=bg)
+        body.pack(fill="both", expand=True, padx=24, pady=(0, 8))
+        scrollbar = tk.Scrollbar(body)
+        scrollbar.pack(side="right", fill="y")
+        txt = tk.Text(
+            body, bg=bg2, fg=fg, relief="flat", wrap="word",
+            font=("Segoe UI", 11), padx=18, pady=14, bd=0,
+            highlightthickness=0, yscrollcommand=scrollbar.set, cursor="arrow",
+        )
+        txt.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=txt.yview)
+
+        txt.tag_configure(
+            "h", foreground=accent, font=("Segoe UI", 13, "bold"),
+            spacing1=12, spacing3=4,
+        )
+        txt.tag_configure("kbd", foreground=accent, font=("Consolas", 10, "bold"))
+
+        def add_section(title, lines):
+            txt.insert("end", title + "\n", "h")
+            for line in lines:
+                txt.insert("end", "   • " + line + "\n")
+            txt.insert("end", "\n")
+
+        add_section("💬 Chat", [
+            "Tapez votre message et appuyez sur Entrée pour l'envoyer.",
+            "Shift+Entrée insère un saut de ligne sans envoyer.",
+            "Double-clic sur un message (ou clic droit) pour le copier.",
+            "Notez les réponses de 1 à 5 étoiles pour améliorer l'IA.",
+        ])
+        add_section("✏️ Éditer & regénérer", [
+            "Sous chaque message envoyé, « Modifier » réécrit la demande "
+            "et regénère la réponse.",
+            "L'ancienne version est conservée : naviguez entre les variantes "
+            "avec ‹ k/n ›.",
+        ])
+        add_section("📎 Pièces jointes & documents", [
+            "Bouton « + » : joindre un PDF, DOCX, Excel/CSV, du code, une image "
+            "ou un dossier (codebase).",
+            "Posez ensuite vos questions sur le contenu attaché (RAG local).",
+            "Glisser-déposer de fichiers également pris en charge.",
+        ])
+        add_section("🌐 Recherche web & citations", [
+            "Ex. « Cherche sur internet les actualités IA ».",
+            "Les sources apparaissent numérotées ; cliquez sur un [n] pour "
+            "ouvrir le lien.",
+        ])
+        add_section("🤖 Agents", [
+            "Onglet « Agents » : composez des workflows (un ou plusieurs agents).",
+            "Une notification système prévient à la fin d'une tâche longue.",
+        ])
+        add_section("🧩 Autres fonctions", [
+            "📡 Relay : accédez à l'assistant depuis votre téléphone.",
+            "📚 Prompts : modèles réutilisables (commandes /xxx).",
+            "🧠 Mémoire : faits et documents mémorisés.",
+            "🔊 Lecture vocale et 🎤 saisie vocale.",
+            "🎨 Génération d'image (« génère une image de … »).",
+        ])
+
+        # ── Raccourcis clavier ──
+        txt.insert("end", "⌨️ Raccourcis clavier\n", "h")
+        shortcuts = [
+            ("Ctrl+K", "Palette de commandes"),
+            ("Entrée", "Envoyer le message"),
+            ("Shift+Entrée", "Nouvelle ligne"),
+            ("Ctrl+N", "Nouveau chat"),
+            ("Ctrl+S", "Sauvegarder la session"),
+            ("Ctrl+B", "Afficher / masquer la barre latérale"),
+            ("Ctrl+R", "Relay (accès mobile)"),
+            ("Ctrl+,", "Réglages"),
+            ("Ctrl+L", "Effacer la conversation"),
+            ("F1", "Cette aide"),
+        ]
+        for key, desc in shortcuts:
+            txt.insert("end", "   ")
+            txt.insert("end", f"{key:<14}", "kbd")
+            txt.insert("end", f"  {desc}\n")
+        txt.insert("end", "\n")
+
+        txt.configure(state="disabled")
+
+        # ── Pied : bouton Fermer ──
+        footer = tk.Frame(win, bg=bg)
+        footer.pack(fill="x", padx=24, pady=(0, 16))
+        tk.Button(
+            footer, text="Fermer", command=_close, bg=accent, fg="#ffffff",
+            relief="flat", font=("Segoe UI", 11, "bold"), padx=18, pady=6,
+            cursor="hand2", activebackground="#ff5730", activeforeground="#ffffff",
+        ).pack(side="right")
+
+        win.focus_set()
 
     def initialize_ai_async(self):
         """Version CORRIGÉE sans ai_status_var"""
