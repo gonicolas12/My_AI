@@ -564,12 +564,18 @@ class FolderIndexer:
         """Liste les chemins des dossiers attaches au workspace."""
         return list(self._load_manifest(workspace_id).keys())
 
-    def get_status(self, workspace_id: str) -> Dict[str, Any]:
+    def get_status(self, workspace_id: str, files_cap: int = 100) -> Dict[str, Any]:
         """Etat indexe du workspace : dossiers, nb de fichiers, date d'index.
 
+        Args:
+            workspace_id: workspace cible.
+            files_cap: nombre maximum de chemins de fichiers listes par dossier
+                (les noms servent a l'UI et a l'injection de contexte).
+
         Returns:
-            {"folders": [{"path", "file_count", "chunks", "indexed_at"}],
-             "total_files", "total_chunks"}.
+            {"folders": [{"path", "file_count", "chunks", "indexed_at", "files"}],
+             "total_files", "total_chunks"} ; "files" = liste (cappee) de chemins
+             relatifs indexes pour ce dossier.
         """
         manifest = self._load_manifest(workspace_id)
         folders = []
@@ -582,6 +588,7 @@ class FolderIndexer:
                 "file_count": len(files),
                 "chunks": n_chunks,
                 "indexed_at": entry.get("indexed_at", "") if isinstance(entry, dict) else "",
+                "files": sorted(files.keys())[:files_cap],
             })
             total_files += len(files)
             total_chunks += n_chunks

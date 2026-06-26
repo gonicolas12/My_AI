@@ -240,6 +240,8 @@ def test_get_status(env):
     assert status["total_files"] == 3
     assert len(status["folders"]) == 1
     assert status["folders"][0]["file_count"] == 3
+    # Les noms de fichiers sont exposés (pour l'UI et l'injection de contexte)
+    assert set(status["folders"][0]["files"]) == {"main.py", "utils.py", "README.md"}
 
 
 def test_progress_callback(env):

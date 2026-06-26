@@ -1711,25 +1711,53 @@ Que voulez-vous que je fasse pour vous ?"""
             ws_id = self.session_manager.get_current_workspace()
             if not ws_id or not indexer.list_folders(ws_id):
                 return system_prompt
+            status = indexer.get_status(ws_id)
             context = indexer.get_relevant_context(ws_id, query)
         except Exception as exc:
             self.logger.warning("Injection contexte codebase indisponible: %s", exc)
             return system_prompt
 
-        if not context or not context.strip():
+        folders = status.get("folders", []) if isinstance(status, dict) else []
+        if not folders:
             return system_prompt
 
-        return (
-            system_prompt
-            + "\n\n"
-            + "CONTEXTE DU PROJET ATTACHÉ (extraits pertinents du dossier indexé — "
-            "traite-les comme du code/des documents que tu connais déjà) :\n"
-            + context
-            + "\n\n"
-            "Appuie-toi sur ces extraits pour répondre aux questions sur le projet. "
-            "Ne mentionne pas explicitement « le contexte fourni » ; réponds "
-            "directement et naturellement."
+        # Bloc 1 : chemins + liste de fichiers du/des dossier(s) attaché(s). C'est
+        # CE que l'utilisateur désigne par « le dossier attaché / le projet / les
+        # fichiers dedans » — surtout PAS le répertoire d'exécution de l'app.
+        loc_lines = []
+        for f in folders:
+            path = f.get("path", "")
+            names = f.get("files", []) or []
+            shown = ", ".join(names[:40])
+            more = f" … (+{len(names) - 40})" if len(names) > 40 else ""
+            loc_lines.append(
+                f"- {path}  ({f.get('file_count', 0)} fichiers)\n"
+                f"    fichiers : {shown}{more}"
+            )
+
+        block = (
+            "DOSSIER(S) PROJET ATTACHÉ(S) à ce workspace — c'est CE que "
+            "l'utilisateur désigne par « le dossier attaché », « le projet » ou "
+            "« les fichiers dedans ». N'utilise JAMAIS le répertoire d'exécution "
+            "de l'application à la place :\n"
+            + "\n".join(loc_lines)
+            + "\n\nRègles pour répondre sur ce projet :\n"
+            "- Question sur le CONTENU (où est défini X, comment marche Y, résume Z) "
+            "→ utilise l'outil search_codebase.\n"
+            "- LISTER les fichiers → ils sont déjà donnés ci-dessus (ne lance pas "
+            "list_directory sur le répertoire courant).\n"
+            "- LIRE un fichier précis → construis son chemin absolu en préfixant le "
+            "chemin du dossier attaché ci-dessus (ex. <dossier>/<fichier>), puis "
+            "read_local_file ; n'invente pas un autre emplacement.\n"
         )
+
+        if context and context.strip():
+            block += (
+                "\nEXTRAITS PERTINENTS (déjà indexés, traite-les comme du contenu "
+                "que tu connais) :\n" + context + "\n"
+            )
+
+        return system_prompt + "\n\n" + block
 
     def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
         """
@@ -1787,6 +1815,7 @@ Que voulez-vous que je fasse pour vous ?"""
                 "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
             )
             system_prompt = self._inject_knowledge_base_context(query, system_prompt)
+            system_prompt = self._inject_codebase_context(query, system_prompt)
 
             # Ajouter le contexte des documents chargés si disponible
             full_context = self._prepare_context(query, context)
