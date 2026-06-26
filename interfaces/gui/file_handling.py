@@ -264,6 +264,22 @@ class FileHandlingMixin:
         if file_path:
             self.process_file(file_path, "Code")
 
+    def load_folder(self):
+        """Attache un DOSSIER ENTIER (codebase / dossier de docs) au workspace.
+
+        Délègue à la section « Dossiers du projet » de la sidebar, qui gère le
+        choix du dossier, l'indexation incrémentale en arrière-plan et la liste
+        des dossiers indexés. Le contexte reste disponible pour toutes les
+        questions du workspace (type @codebase), sans re-glisser les fichiers.
+        """
+        if hasattr(self, "_folder_attach"):
+            self._folder_attach()
+        else:
+            messagebox.showinfo(
+                "Indisponible",
+                "L'attache de dossier nécessite le panneau latéral (sidebar).",
+            )
+
     def process_file(self, file_path, file_type):
         """Traite un fichier : ajoute un aperçu dans la zone de saisie et prépare le contexte"""
         try:

@@ -522,6 +522,7 @@ class LayoutMixin:
             ("📊  Excel / CSV", self.load_excel_file),
             ("💻  Code",        self.load_code_file),
             ("🖼  Image",        self.load_image_file),
+            ("📁  Dossier (codebase)", self.load_folder),
         ]
         _chat_popup_ref = [None]
 

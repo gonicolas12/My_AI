@@ -42,6 +42,7 @@ class SidebarMixin:
         self._sidebar_sections_open = {
             "search": False,
             "sessions": False,
+            "project_folders": False,
             "history": False,
             "export": False,
         }
@@ -83,6 +84,7 @@ class SidebarMixin:
         self._make_prompts_button()
         self._make_section_search()
         self._make_section_sessions()
+        self._make_section_project_folders()
         self._make_section_history()
         self._make_section_export()
 
@@ -857,6 +859,232 @@ class SidebarMixin:
                 del_btn.configure(height=22)
             del_btn.pack(side="right", padx=(0, 2), pady=1)
 
+    # ─── Section Dossiers du projet (codebase attaché au workspace) ──────
+
+    def _make_section_project_folders(self):
+        wrapper = self._make_section_wrapper()
+        self._sidebar_hdr_folders = self._make_section_header_btn(
+            wrapper, "📁 Dossiers du projet", "project_folders"
+        )
+        bg = self.colors.get("bg_secondary", "#2f2f2f")
+        body = ctk.CTkFrame(wrapper, fg_color=bg, corner_radius=0) \
+            if CTK_AVAILABLE else tk.Frame(wrapper, bg=bg)
+        self._sidebar_body_folders = body
+
+        btn_attach = self._sb_button(body, "➕ Attacher un dossier",
+                                      self._folder_attach, width=_SIDEBAR_W - 20)
+        btn_attach.pack(fill="x", padx=8, pady=(4, 2))
+
+        list_bg = self.colors.get("bg_primary", "#212121")
+        self._folders_list_frame = ctk.CTkFrame(body, fg_color=list_bg, corner_radius=4) \
+            if CTK_AVAILABLE else tk.Frame(body, bg=list_bg)
+        self._folders_list_frame.pack(fill="x", padx=8, pady=(0, 4))
+
+        if self._sidebar_sections_open["project_folders"]:
+            body.pack(fill="x", padx=4, pady=(0, 4))
+        self._sb_separator(self._sidebar_scroll)
+        self._refresh_project_folders()
+
+    def _get_folder_indexer(self):
+        engine = getattr(self, "ai_engine", None)
+        if engine is None or not hasattr(engine, "get_folder_indexer"):
+            return None
+        try:
+            return engine.get_folder_indexer()
+        except Exception:
+            return None
+
+    def _current_workspace_id(self):
+        engine = getattr(self, "ai_engine", None)
+        sm = getattr(engine, "session_manager", None) if engine else None
+        if sm is None:
+            return None
+        try:
+            return sm.get_current_workspace()
+        except Exception:
+            return None
+
+    def _refresh_project_folders(self):
+        frame = getattr(self, "_folders_list_frame", None)
+        if frame is None:
+            return
+        for w in frame.winfo_children():
+            w.destroy()
+
+        sec = self.colors.get("text_secondary", "#9ca3af")
+        indexer = self._get_folder_indexer()
+        ws_id = self._current_workspace_id()
+
+        if indexer is None:
+            self._sb_label(frame, "  (indexeur indisponible)", font_size=10,
+                           color=sec).pack(anchor="w", padx=4, pady=2)
+            return
+        if not ws_id:
+            self._sb_label(frame, "  Aucune session active", font_size=10,
+                           color=sec).pack(anchor="w", padx=4, pady=2)
+            return
+
+        try:
+            status = indexer.get_status(ws_id)
+        except Exception:
+            status = {"folders": []}
+        folders = status.get("folders", [])
+        if not folders:
+            self._sb_label(frame, "  Aucun dossier attaché", font_size=10,
+                           color=sec).pack(anchor="w", padx=4, pady=2)
+            return
+
+        primary = self.colors.get("text_primary", "#ffffff")
+        row_bg = self.colors.get("bg_primary", "#212121")
+        for folder in folders:
+            path = folder.get("path", "")
+            name = Path(path).name or path
+            count = folder.get("file_count", 0)
+            row = ctk.CTkFrame(frame, fg_color=row_bg, corner_radius=3) \
+                if CTK_AVAILABLE else tk.Frame(frame, bg=row_bg)
+            row.pack(fill="x", pady=1)
+            self._sb_label(row, f"📁 {name[:18]}  ({count})", font_size=10,
+                           color=primary).pack(side="left", padx=(4, 2), pady=1,
+                                               fill="x", expand=True)
+            re_btn = self._sb_button(
+                row, "↻", lambda p=path: self._folder_reindex(p), width=28)
+            de_btn = self._sb_button(
+                row, "🗑", lambda p=path: self._folder_detach(p),
+                color="#ef4444", width=28)
+            if CTK_AVAILABLE:
+                re_btn.configure(height=22)
+                de_btn.configure(height=22)
+            de_btn.pack(side="right", padx=(0, 2), pady=1)
+            re_btn.pack(side="right", padx=(0, 2), pady=1)
+
+    def _folder_attach(self):
+        """Sélectionne un dossier et l'attache au workspace courant (indexation BG)."""
+        indexer = self._get_folder_indexer()
+        if indexer is None:
+            self.show_notification("❌ Indexeur indisponible", "error", 2500)
+            return
+        folder = filedialog.askdirectory(title="Attacher un dossier (codebase / docs)",
+                                          parent=self.root)
+        if not folder:
+            return
+
+        ws_id = self._ensure_workspace_for_folder(folder)
+        if not ws_id:
+            self.show_notification("❌ Aucune session active", "error", 2500)
+            return
+        self._index_folder_async(ws_id, folder, reindex=False)
+
+    def _folder_reindex(self, folder_path: str):
+        ws_id = self._current_workspace_id()
+        if not ws_id:
+            return
+        self._index_folder_async(ws_id, folder_path, reindex=True)
+
+    def _folder_detach(self, folder_path: str):
+        indexer = self._get_folder_indexer()
+        ws_id = self._current_workspace_id()
+        if indexer is None or not ws_id:
+            return
+        name = Path(folder_path).name or folder_path
+        if not messagebox.askyesno(
+            "Détacher le dossier",
+            f"Détacher '{name}' du projet ?\nSon index sera supprimé.",
+            parent=self.root,
+        ):
+            return
+        try:
+            indexer.remove_folder(ws_id, folder_path)
+            self._remove_folder_from_workspace(ws_id, folder_path)
+            self.show_notification("✅ Dossier détaché", "success", 1800)
+        except Exception as exc:
+            self.show_notification(f"❌ Erreur : {exc}", "error", 2500)
+        self._refresh_project_folders()
+
+    def _ensure_workspace_for_folder(self, folder: str):
+        """Renvoie le workspace courant, ou en crée un nommé d'après le dossier."""
+        engine = getattr(self, "ai_engine", None)
+        sm = getattr(engine, "session_manager", None) if engine else None
+        if sm is None:
+            return None
+        try:
+            ws_id = sm.get_current_workspace()
+            if ws_id:
+                return ws_id
+            ws_id = sm.create_workspace(Path(folder).name or "Projet")
+            sm.set_current_workspace(ws_id)
+            self._refresh_sessions()
+            return ws_id
+        except Exception:
+            return None
+
+    def _index_folder_async(self, ws_id: str, folder: str, reindex: bool):
+        """Lance l'indexation en arrière-plan avec progression (UI non bloquante)."""
+        indexer = self._get_folder_indexer()
+        if indexer is None:
+            return
+        verb = "Ré-indexation" if reindex else "Indexation"
+        name = Path(folder).name or folder
+        self.show_notification(f"⏳ {verb} de '{name}'…", "info", 2000)
+
+        def _progress(done, total, rel):
+            if done % 10 == 0 or done == total:
+                self.root.after(0, lambda: self.show_notification(
+                    f"⏳ {verb} '{name}' : {done}/{total}", "info", 1200))
+
+        def _run():
+            try:
+                res = indexer.index_folder(ws_id, folder, force=reindex,
+                                           progress_cb=_progress)
+            except Exception as exc:
+                self.root.after(0, lambda: self.show_notification(
+                    f"❌ Indexation échouée : {exc}", "error", 3000))
+                return
+            if res.get("status") != "success":
+                self.root.after(0, lambda: self.show_notification(
+                    f"❌ {res.get('error', 'Indexation impossible')}", "error", 3000))
+                return
+            self._add_folder_to_workspace(ws_id, res.get("folder", folder))
+            msg = (f"✅ '{name}' indexé : {res.get('total_files', 0)} fichiers, "
+                   f"{res.get('chunks', 0)} extraits")
+            self.root.after(0, lambda: self.show_notification(msg, "success", 2500))
+            self.root.after(0, self._refresh_project_folders)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    # -- Persistance de la liste des dossiers dans l'état du workspace --------
+
+    def _add_folder_to_workspace(self, ws_id: str, folder_key: str):
+        engine = getattr(self, "ai_engine", None)
+        sm = getattr(engine, "session_manager", None) if engine else None
+        if sm is None:
+            return
+        try:
+            state = sm.load_workspace(ws_id) or {}
+            folders = state.get("attached_folders", [])
+            if folder_key not in folders:
+                folders.append(folder_key)
+            state["attached_folders"] = folders
+            sm.save_workspace(ws_id, state)
+        except Exception:
+            pass
+
+    def _remove_folder_from_workspace(self, ws_id: str, folder_path: str):
+        engine = getattr(self, "ai_engine", None)
+        sm = getattr(engine, "session_manager", None) if engine else None
+        if sm is None:
+            return
+        try:
+            state = sm.load_workspace(ws_id) or {}
+            folders = state.get("attached_folders", [])
+            resolved = str(Path(folder_path))
+            state["attached_folders"] = [
+                f for f in folders
+                if f != folder_path and str(Path(f)) != resolved
+            ]
+            sm.save_workspace(ws_id, state)
+        except Exception:
+            pass
+
     def _session_new(self):
         name = simpledialog.askstring("Nouvelle session", "Nom de la session :",
                                        parent=self.root)
@@ -930,6 +1158,8 @@ class SidebarMixin:
                 "✅ Session chargée", "success", 2000
             )
             self._refresh_sessions()
+            if hasattr(self, "_refresh_project_folders"):
+                self._refresh_project_folders()
             # Surligner le passage recherché une fois le rendu stabilisé
             if highlight_excerpt:
                 self.root.after(
