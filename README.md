@@ -79,6 +79,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
 | 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG à côté du chat |
+| ⚡ **Slash commands** | Tapez `/` : autocomplétion de prompts réutilisables |
 
 ### Agents — Interface dédiée
 
@@ -93,6 +94,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 | 📅 **Tâches planifiées** | Agents en récurrence, même l'appli fermée |
+| 🔔 **Notifications desktop** | Notification système à la fin d'une tâche longue
 
 </div>
 
@@ -132,6 +134,20 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - Vérification rigoureuse des **chemins complets** retournés par les outils pour garantir une **gestion précise** des fichiers
 - Capacité à **organiser les espaces de travail** de manière autonome
 - Dialogue de **confirmation** avant toute **suppression de fichier** (sécurité utilisateur)
+
+### ⚡ Slash commands & Bibliothèque de prompts (façon Claude Code)
+
+- **Tapez `/`** en début de saisie : autocomplétion des **prompts réutilisables** (`/code`, `/résume`, `/traduis`, `/explique`, `/corrige`, `/reformule`…), navigables au clavier.
+- **Prompt engineering, pas du texte pré-rempli** : une **commande courte** (`/code un jeu de morpion`) est **expansée à l'envoi** en un prompt détaillé pour le modèle — la bulle de chat, elle, garde la commande courte.
+- **Gérez votre bibliothèque** : créez, nommez, éditez et supprimez vos templates (placeholder `{arguments}` pour injecter le texte saisi).
+- Disponible **partout** : GUI desktop, **mobile** (Relay, via `GET /api/prompts` chiffré) et **extension VS Code**.
+
+### 📁 Contexte projet « @codebase » (RAG persistant)
+
+- **Attachez un dossier entier** (codebase ou dossier de docs) à un workspace : l'IA garde ce contexte **disponible en permanence** pour toutes les questions — plus besoin de re-glisser les fichiers.
+- **Indexation incrémentale 100% local** : réutilise la mémoire vectorielle (collection `codebase`) et les processeurs existants ; **respecte `.gitignore`** et exclut `node_modules`, `.git`, `.venv`, `dist`… Seuls les fichiers modifiés sont retraités au réindex.
+- **Récupération au moment de la question** (RAG) + **court-circuit déterministe** pour les questions *sur* le dossier (chemin, liste de fichiers).
+- **GUI** : section sidebar. **VS Code** : menu **`@`** pour attacher fichiers/dossiers, un seul contexte `@codebase` par projet.
 
 ### 🎙️ Saisie Vocale (Voice Mode)
 
@@ -193,12 +209,14 @@ my_ai/
 │   ├── data_preprocessing.py            # Prétraitement des données
 │   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
 │   ├── evaluation.py                    # Évaluation des performances
+│   ├── folder_indexer.py                # Indexeur incrémental de dossier (@codebase) rattaché au workspace
 │   ├── knowledge_base_manager.py        # Base de connaissances structurée
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── memory_store.py                  # Couche d'accès CRUD unifiée mémoire (faits + vecteurs)
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
+│   ├── prompt_library.py                # Bibliothèque de prompts / slash commands (+ expansion {arguments})
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── scheduler.py                     # Scheduler proactif (tâches planifiées récurrentes)
 │   ├── scheduler_runner.py              # Runner headless + Planificateur de tâches Windows
@@ -244,13 +262,17 @@ my_ai/
 │   │   ├── _edge_embed.py               # Embarquement Edge dans le volet (Win32 SetParent)
 │   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
 │   │   ├── chat_area.py                 # Zone de chat
+│   │   ├── command_palette.py           # Command palette (Ctrl+K) + raccourcis clavier globaux
 │   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
 │   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
 │   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
 │   │   ├── memory_panel.py              # Fenêtre Mémoire (faits/documents/conversations)
 │   │   ├── message_bubbles.py           # Bulles de messages avec RLHF + bouton TTS
+│   │   ├── message_editing.py           # Édition + regénération de message avec branchement (‹ k/n ›)
+│   │   ├── prompts_panel.py             # Fenêtre Prompts (CRUD bibliothèque de prompts)
 │   │   ├── settings_panel.py            # Panneau Réglages (modèles, paramètres, toggles)
-│   │   ├── sidebar.py                   # Sidebar (Relay, Réglages, lecture auto, sessions...)
+│   │   ├── sidebar.py                   # Sidebar (Relay, Réglages, Prompts, Dossiers projet, sessions...)
+│   │   ├── slash_commands.py            # Autocomplétion « / » des slash commands dans la saisie
 │   │   ├── streaming.py                 # Gestion du streaming de réponses
 │   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
 │   │   ├── voice_input.py               # Saisie vocale (faster-whisper + sounddevice)
@@ -317,6 +339,8 @@ my_ai/
 ├── tools/                               # Outils (cloudflared pour le Relay)
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
+│   ├── citations.py                     # Citations web numérotées cliquables ([n] → url)
+│   ├── desktop_notify.py                # Notifications desktop natives (winotify/plyer)
 │   ├── file_manager.py                  # Gestion fichiers
 │   ├── file_processor.py                # Gestion traitement fichiers
 │   ├── intelligent_calculator.py        # Calculateur intelligent
@@ -493,6 +517,10 @@ relay:
 | Fonctionnalité | Détail |
 |---|---|
 | 🤖 **Mode agentique** | 9 outils exposés au LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) avec boucle de raisonnement multi-étapes |
+| 📎 **Menu `@`** | Taper `@` attache un fichier au message, ou un **dossier** comme contexte **@codebase** persistant (indexé côté hôte, un seul contexte par projet) |
+| ⚡ **Slash commands** | Autocomplétion `/` des prompts My_AI, expansés en prompt détaillé à l'envoi (la bulle garde la commande courte) |
+| ⏹️ **Bouton STOP** | Interrompt en un clic toute la génération du tour : LLM **et** boucle d'outils agentique (appels en attente compris) |
+| 🛟 **Garde-fou anti-boucle** | Détection des réécritures répétées du même fichier pour éviter qu'un agent ne tourne en rond |
 | 🛡️ **Sandbox workspace** | Tous les chemins sont résolus à partir du workspace VS Code ouvert. Toute sortie hors workspace nécessite une approbation modale par chemin |
 | ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* |
 | 🎴 **Cartes d'outils inline** | Chaque appel d'outil rendu comme carte pliable façon Claude Code (orange = en cours · vert = OK · rouge = erreur · gris = refusé) |
@@ -530,6 +558,8 @@ code --install-extension gonicolas12.my-ai
 | [💾 Mémoire Vectorielle 10M](docs/ULTRA_10M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
 | [🧠 Mémoire (contrôle)](docs/MEMORY.md) | Voir / éditer / supprimer ce que l'IA sait (faits + vecteurs) |
 | [🔎 Recherche globale](docs/CONVERSATION_SEARCH.md) | Recherche sémantique sur toutes les conversations |
+| [⚡ Bibliothèque de prompts](docs/PROMPT_LIBRARY.md) | Slash commands façon Claude Code (GUI, mobile, VS Code) |
+| [📁 Contexte @codebase](docs/CODEBASE.md) | Attacher un dossier projet entier en RAG persistant |
 | [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
@@ -556,6 +586,10 @@ code --install-extension gonicolas12.my-ai
 | 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
 | 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
 | 🔎 **Recherche globale** | Recherche sémantique cross-conversations |
+| ⚡ **Slash commands** | Bibliothèque de prompts façon Claude Code |
+| 📁 **Contexte @codebase** | Dossier projet attaché en RAG persistant |
+| 🎹 **Command palette** | Ctrl+K + raccourcis clavier globaux |
+| 🔗 **Citations web** | Sources numérotées `[n]` cliquables (desktop + mobile) |
 | 🧠 **Contrôle mémoire** | Voir/éditer/supprimer faits + vecteurs, avec provenance |
 | 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
 | 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |

@@ -370,6 +370,29 @@ Rôle:
 └─ Filtres rôle / mot-clé / date ; exposé via AIEngine.get_conversation_search()
 ```
 
+**`core/folder_indexer.py`** - Contexte projet « @codebase »
+```python
+Rôle:
+├─ Attache et indexe un DOSSIER entier rattaché à un workspace (RAG persistant)
+├─ Collection ChromaDB dédiée « codebase » ; chunks étiquetés workspace_id/folder/file
+├─ Réutilise FileProcessor + VectorMemory.split_into_chunks (aucun 2e pipeline)
+├─ Incrémental : manifeste mtime+taille+hash par fichier ; purge des supprimés
+├─ Respecte .gitignore (pathspec ou matcher intégré) + exclusions (node_modules…)
+└─ search(workspace_id, query) : filtre par workspace + rerank CrossEncoder
+   exposé via AIEngine.get_folder_indexer() ; outil MCP « search_codebase »
+```
+
+**`core/prompt_library.py`** - Bibliothèque de prompts / slash commands
+```python
+Rôle:
+├─ Templates persistés en JSON (data/prompt_templates.json, atomique, gitignored)
+├─ 6 commandes par défaut seedées au 1er lancement (/code, /résume, /traduis…)
+├─ expand("/cmd args") : slash command → prompt détaillé (placeholder {arguments})
+├─ render(tpl, args) : substitution {arguments} (ou ajout en suffixe)
+└─ _sync_builtins() : migration de format des builtins, sans toucher au custom
+   exposé via AIEngine.prompt_library ; endpoint Relay GET /api/prompts (E2EE)
+```
+
 **`core/web_cache.py`** - Cache web
 ```python
 Architecture:
@@ -934,10 +957,42 @@ Rôle: Voir / éditer / supprimer ce que l'IA sait (via core/memory_store.py)
 
 **`interfaces/gui/sidebar.py`** - Barre latérale
 ```python
-├─ Boutons : Relay, lecture auto (TTS), ⚙️ Réglages, 🧠 Mémoire
+├─ Boutons : Relay, lecture auto (TTS), ⚙️ Réglages, 🧠 Mémoire, 📚 Prompts
 ├─ 🔎 Recherche globale : champ + réindex + résultats (ouverture/surlignage)
+├─ 📁 Dossiers du projet : attacher/réindexer/détacher un dossier @codebase
 ├─ Sections : Sessions, Historique, Export
 └─ (La section « Connaissances » est remplacée par la fenêtre 🧠 Mémoire)
+```
+
+**`interfaces/gui/command_palette.py`** - Command palette (Ctrl+K)
+```python
+Rôle: Palette de commandes + raccourcis clavier globaux (mixin)
+├─ Ctrl+K : recherche filtrante des actions (chat, export, Relay, Réglages…)
+├─ Raccourcis : Ctrl+N/L/S/B/R, Ctrl+, , F1…
+└─ Actions résolues via getattr : une action absente est masquée, jamais d'erreur
+```
+
+**`interfaces/gui/slash_commands.py`** - Autocomplétion slash
+```python
+Rôle: Menu « / » d'autocomplétion des slash commands dans la saisie (mixin)
+├─ Déclenché par « / » en début de saisie (chat principal + écran d'accueil)
+├─ Toplevel(overrideredirect) non focusable ; navigation ↑/↓, Entrée/Tab, Échap
+└─ Insère « /commande » ; l'expansion en prompt détaillé se fait à l'envoi
+```
+
+**`interfaces/gui/prompts_panel.py`** - Fenêtre « 📚 Prompts »
+```python
+Rôle: CRUD de la bibliothèque de prompts (via core/prompt_library.py)
+├─ Créer / nommer / éditer / supprimer des templates (commande, titre, content)
+└─ Même pattern Toplevel+CTk éprouvé que memory_panel / settings_panel
+```
+
+**`interfaces/gui/message_editing.py`** - Édition + branchement
+```python
+Rôle: Éditer un message envoyé puis regénérer, en conservant les variantes
+├─ Modèle _turn_branches : versions par tour utilisateur + index courant
+├─ Navigation ‹ k/n › entre variantes ; branchement façon ChatGPT (avale l'aval)
+└─ Rendu reconstruit via add_message_bubble(instant=True)
 ```
 
 **`interfaces/cli.py`** - CLI améliorée

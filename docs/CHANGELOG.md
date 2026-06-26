@@ -1,5 +1,109 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🚀 Version 8.0.0 — Slash commands & contexte @codebase (26 Juin 2026)
+
+### Des prompts réutilisables façon Claude Code, un dossier projet toujours en tête, et une foule de confort au quotidien
+
+Version **majeure**. Deux grandes nouveautés structurantes : une **bibliothèque de prompts** avec des **slash commands façon Claude Code** (une commande courte `/code …` se transforme en prompt détaillé à l'envoi), et l'**attache d'un dossier entier en `@codebase`** — l'IA garde ce contexte projet **en permanence** pour toutes les questions du workspace (RAG persistant). S'y ajoutent une **command palette `Ctrl+K`**, l'**édition + regénération de message avec branchement**, des **citations web cliquables**, des **notifications desktop**, et une grosse passe sur l'**extension VS Code** (menu `@`, bouton STOP, garde-fou agentique). Le tout **100% local**, sur les trois surfaces (**GUI desktop · mobile Relay · extension VS Code**).
+
+## ⚡ Slash commands façon Claude Code — bibliothèque de prompts
+
+Tapez une **commande courte** (`/code un jeu de morpion`) ; l'IA reçoit un **prompt d'ingénierie complet**. Les slash commands ne sont plus du simple texte pré-rempli : ce sont des **wrappers de prompt engineering** dont le contenu détaillé est substitué **à l'envoi**, tandis que la bulle de chat continue d'afficher la commande courte.
+
+#### 🧩 Modèle & expansion — `core/prompt_library.py`
+
+- **`PromptLibrary`** : modèle de templates persistés en JSON (`data/prompt_templates.json`, écriture atomique), seedé au 1ᵉʳ lancement avec **6 commandes par défaut** : `/code`, `/résume`, `/traduis`, `/explique`, `/corrige`, `/reformule`.
+- **Placeholder `{arguments}`** : `expand("/code un jeu de morpion")` repère la commande, injecte le texte saisi à la place de `{arguments}` dans le `content` du template (ou l'ajoute à la suite si le template n'a pas ce placeholder) et renvoie le **prompt détaillé** envoyé au modèle. Texte sans commande connue → renvoyé tel quel.
+- **`_sync_builtins()`** : migre en douceur le contenu des commandes **builtin** existantes vers la dernière version du code (ex. ancien format `{texte}` → wrapper `{arguments}`) **sans toucher** aux templates personnalisés ni aux commandes supprimées/éditées par l'utilisateur.
+- Couvert par `tests/test_prompt_library.py`.
+
+#### 🖥️ Autocomplétion & gestion (GUI) — `interfaces/gui/slash_commands.py`, `interfaces/gui/prompts_panel.py` (nouveaux)
+
+- **Autocomplétion « / »** : taper `/` en **tout début** de saisie ouvre un menu déroulant des slash commands (`Toplevel(overrideredirect)` non focusable, mêmes fondations que les menus « + »). Navigation **clavier** (↑/↓, Entrée/Tab, Échap) ou souris ; sélection = insertion de `/commande ` (vous tapez ensuite votre texte). Actif sur les **deux** zones de saisie (chat principal **et** écran d'accueil).
+- **Expansion à l'envoi** : au `send`, le texte est passé par `PromptLibrary.expand()` → l'IA reçoit le prompt détaillé, la bulle garde la commande courte.
+- **Fenêtre « 📚 Prompts »** (`prompts_panel.py`) : créer, nommer, éditer et supprimer ses templates (CRUD complet, même pattern éprouvé que `memory_panel`/`settings_panel`). Bouton **📚 Prompts** ajouté à la sidebar.
+
+#### 📱 Mobile (Relay) & 🧩 VS Code
+
+- **Relay** — nouvel endpoint **`GET /api/prompts`** (chiffré E2EE) ; `relay/static/app.js` + `style.css` ajoutent l'**autocomplétion slash** sur mobile, avec **expansion côté hôte** à l'envoi.
+- **VS Code** — autocomplétion `/` dans le chat de l'extension (templates récupérés via le canal Relay chiffré) **et** expansion à l'envoi côté hôte (la bulle garde la commande courte). Voir `vscode_extension/CHANGELOG.md` (1.3.0 → 1.3.1).
+- `.gitignore` : `data/prompt_templates.json` (données locales par utilisateur).
+
+> Détails : [docs/PROMPT_LIBRARY.md](PROMPT_LIBRARY.md).
+
+## 📁 Attache de dossier « @codebase » — contexte projet persistant (RAG)
+
+Attachez un **dossier entier** (codebase ou dossier de docs) à un workspace : l'IA le garde **disponible en permanence** comme contexte, sans re-glisser les fichiers à chaque question. Façon **`@codebase`**.
+
+#### 🗂️ Indexeur incrémental — `core/folder_indexer.py` (nouveau)
+
+- **`FolderIndexer`** : indexe un dossier dans la collection dédiée **`codebase`** de `VectorMemory`, chaque chunk étiqueté `workspace_id` / `folder_path` / `file_path` → **filtrable et purgeable** par dossier ou par workspace.
+- **100% local, zéro nouveau pipeline** : réutilise les **processeurs de fichiers existants** (PDF/DOCX/Excel/code/texte) et `VectorMemory.split_into_chunks` + l'embedding partagé.
+- **Indexation incrémentale** : un **manifeste par workspace** (`folder_index.json`) garde `mtime`+`taille`+`hash` de chaque fichier ; au réindex, seuls les fichiers **nouveaux/modifiés** sont retraités, les **supprimés** sont purgés (et un saut de version de schéma force un réindex complet). Chemin rapide mtime/taille, repli sur le hash (évite un ré-embedding après un simple `git checkout`).
+- **Respecte `.gitignore`** (via `pathspec` si dispo, sinon un matcher `.gitignore` intégré) et **exclut** d'office `node_modules/`, `.git/`, `__pycache__/`, `.venv/`, `dist/`, `build/`… ; saute les fichiers > 2 Mo (binaires/dumps).
+- **Recherche filtrée par `workspace_id`** (réutilise le reranking **CrossEncoder** de `VectorMemory`) : changer de workspace change le contexte projet actif. `index_single_file` permet d'attacher **un** fichier ciblé sans indexer tout son dossier.
+
+#### 🔌 Branchement sur le chat — `core/ai_engine.py`
+
+- **`get_folder_indexer()`** (paresseux) + outil MCP **`search_codebase`** exposé au LLM.
+- **`_inject_codebase_context()`** : **RAG au moment de la question** — les passages pertinents du dossier attaché sont injectés dans le system prompt avant génération.
+- **`_try_codebase_direct_answer()`** : **court-circuit déterministe** pour les questions *sur* le dossier (chemin, liste de fichiers…) → réponse fiable sans dépendre d'un appel d'outil.
+
+#### 🖥️ GUI · 📱 Mobile · 🧩 VS Code
+
+- **GUI desktop** — section repliable **« 📁 Dossiers du projet »** dans la sidebar (`interfaces/gui/sidebar.py`) : **attacher / réindexer / détacher** un dossier avec **barre de progression** ; entrée **« 📁 Dossier (codebase) »** ajoutée au menu **« + »** (`interfaces/gui/base.py`).
+- **VS Code** — menu **`@`** (fichiers/dossiers du workspace, cf. ci-dessous), commandes *Attach Folder as @codebase* / *Re-index @codebase Folder* (palette + clic droit sur un dossier de l'Explorateur). Un **seul contexte `@codebase` partagé par projet VS Code** (clé = racine du workspace).
+- **Relay** — `handle_codebase_message()` (attache/réindex/détache/statut) + `_resolve_vscode_workspace()` côté serveur, sur le canal WebSocket chiffré.
+- Couvert par `tests/test_folder_indexer.py`.
+
+> Détails : [docs/CODEBASE.md](CODEBASE.md).
+
+## 🎹 Command palette (Ctrl+K) & raccourcis clavier — `interfaces/gui/command_palette.py` (nouveau)
+
+- **`Ctrl+K`** ouvre une **palette de commandes** (recherche filtrante au clavier) listant les actions principales : nouveau chat, effacer, sauvegarder, barre latérale, navigation d'onglets, Relay, Réglages, Mémoire, Prompts, exports (MD/HTML/PDF), Aide.
+- **Raccourcis globaux** bindés sur la fenêtre racine : `Ctrl+N` (nouveau chat), `Ctrl+L` (effacer), `Ctrl+S` (sauver), `Ctrl+B` (sidebar), `Ctrl+R` (Relay), `Ctrl+,` (Réglages), `F1` (Aide)…
+- **Mixin autonome** : chaque action est résolue via `getattr` → une action absente est simplement masquée, jamais d'erreur.
+- **Correctif** : survol qui clignotait et clic sans effet (gestion du focus/hover du menu) corrigés.
+
+## ✏️ Édition & regénération de message avec branchement — `interfaces/gui/message_editing.py` (nouveau)
+
+- Sous chaque **message envoyé**, un bouton **« Modifier »** permet de réécrire la demande puis de **regénérer** la réponse.
+- **Branchement façon ChatGPT** : l'ancienne version est **conservée**, navigation **‹ k/n ›** entre les variantes d'un même tour. Éditer un message en milieu de conversation **tronque/remplace** l'aval (l'utilisateur est prévenu avant).
+- Modèle de données léger (`_turn_branches`) ; rendu reconstruit via `add_message_bubble(..., instant=True)` (même chemin que le chargement de session).
+
+## 🔗 Citations inline numérotées et cliquables (web & RAG) — `utils/citations.py` (nouveau)
+
+- Après une **recherche web**, les sources sont **numérotées** (`[1]`, `[2]`, …) et le modèle place des **marqueurs `[n]` inline** après les affirmations issues d'une source (system prompt mis à jour dans `models/mixins/internet_search.py`, avec garde-fou « n'invente jamais de numéro »).
+- `utils/citations.py` : `extract_sources` (liens Markdown + URLs nues, dédupliqués), `build_numbered_sources` (bloc cliquable), `parse_citation_map` (`{n: url}`).
+- **Desktop** — `_apply_inline_citations()` (`interfaces/gui/markdown_formatting.py`) tague chaque `[n]` (corps **et** liste de sources) en lien cliquable bleu souligné ; **mobile** — même rendu cliquable dans `relay/static/app.js`. Dégradation propre sans bloc de sources.
+
+## 🔔 Notifications desktop (fin de tâche agent) — `utils/desktop_notify.py` (nouveau)
+
+- `notify_desktop()` : notification **système native** (backends **winotify** puis **plyer**, 100% local, jamais d'exception — repli `False` → notification in-app).
+- Émise à la **fin d'une tâche agent longue** (`interfaces/agents/execution.py`) : l'utilisateur est prévenu même s'il a basculé sur une autre fenêtre.
+
+## 🧩 Extension VS Code — menu « @ », bouton STOP, garde-fou agentique
+
+- **Menu `@`** (1.3.4 → 1.3.5) : taper `@` liste les **fichiers/dossiers du workspace** (façon Copilot/Claude). Sélectionner un **fichier** l'attache au prochain message ; un **dossier** l'attache en **`@codebase` persistant** (indexé côté hôte). **Navigation dans les dossiers**, attache de fichier **fiable** (canal d'indexation au lieu d'un upload HTTP → fin des erreurs `fetch failed`), **contexte unifié** par projet. Dossiers lourds exclus (`node_modules`, `.git`, `dist`, `.venv`…).
+- **Bouton STOP** (1.3.2) : pendant une génération, le bouton d'envoi devient un **Stop** (identique au mobile) ; un clic interrompt **tout** le tour côté hôte — génération LLM **et** boucle d'outils agentique (appels en attente compris).
+- **Garde-fou anti-boucle agentique** (`fix(agentic)`) : détection des **réécritures répétées du même fichier** pour éviter qu'un agent ne tourne en rond. Couvert par `tests/test_agentic_loop_guard.py`.
+- **Correctif libellés** : le dialogue natif d'ouverture de fichier (« + ») n'affiche plus de clés brutes (`openDialog.openLabel`…) mais les libellés **localisés** (FR/EN).
+- Extension **bumpée 1.3.0 → 1.3.5** ; détails dans `vscode_extension/CHANGELOG.md`, `vscode_extension/README.md` / `README.fr.md`.
+
+## 🐛 Correctifs & divers
+
+- **Relay** : **arrêt propre** à la fermeture de l'application — plus de fenêtre de terminal figée (`relay/relay_server.py`, couvert par `tests/test_relay_shutdown.py`).
+- **GUI** : la section sidebar **« Dossiers du projet »** se déplie/replie désormais correctement.
+- **Aide** : le bouton **Aide** ouvre maintenant une **popup d'aide projet** structurée (Chat, Éditer & regénérer, Pièces jointes, Recherche web & citations, Agents, Autres fonctions) **au lieu** d'une bulle de chat.
+
+#### Autres changements
+
+- Version du projet → **8.0.0** (`config.yaml`, `launch_unified.py`, en-têtes de docs).
+- Nouveaux tests : `tests/test_prompt_library.py`, `tests/test_folder_indexer.py`, `tests/test_agentic_loop_guard.py`, `tests/test_relay_shutdown.py`.
+- Nouvelles docs : [docs/PROMPT_LIBRARY.md](PROMPT_LIBRARY.md), [docs/CODEBASE.md](CODEBASE.md).
+
+---
+
 # 🧠 Version 7.9.0 — Mémoire & Recherche globale (24 Juin 2026)
 
 ### Retrouver n'importe quel échange passé, et reprendre le contrôle total sur ce que l'IA sait de vous

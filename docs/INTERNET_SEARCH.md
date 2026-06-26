@@ -34,6 +34,11 @@ La recherche internet dans My Personal AI est optimisée pour une expérience ut
 - **Adaptation de format** : Réponses personnalisées selon le type de recherche
 - **Gestion d'erreurs** : Fallback gracieux en cas de problème réseau
 
+### 🔗 Citations numérotées cliquables
+- Les sources sont **numérotées** (`[1]`, `[2]`, …) et l'IA place des **marqueurs `[n]` inline** juste après les affirmations issues d'une source (le modèle n'invente jamais de numéro).
+- Chaque `[n]` (dans le corps **et** la liste des sources) est **cliquable** et ouvre l'URL d'origine — sur **desktop** comme sur **mobile** (Relay).
+- Construit par `utils/citations.py` (`extract_sources` / `build_numbered_sources` / `parse_citation_map`) ; rendu cliquable côté GUI (`markdown_formatting._apply_inline_citations`).
+
 ## 💬 Comment Utiliser
 
 ### Exemples de Commandes

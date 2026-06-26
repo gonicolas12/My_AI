@@ -11,6 +11,12 @@ Ouvrez la sidebar (**☰**) → **🧠 Mémoire**. Vous y trouvez **tout** ce qu
 ### Comment retrouver un ancien échange dans toutes mes conversations ?
 Sidebar (**☰**) → section **🔎 Recherche globale**. La recherche est **sémantique** et porte sur **toutes** vos sessions à la fois (pas seulement la conversation ouverte). Un clic sur un résultat **ouvre la conversation source et surligne le passage**. Détails : [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md).
 
+### Comment utiliser des prompts réutilisables (slash commands) ?
+Tapez **`/`** en début de saisie : un menu propose des commandes (`/code`, `/résume`, `/traduis`…). Vous tapez une **commande courte** (ex. `/code un jeu de morpion`) et l'IA reçoit un **prompt détaillé** — la bulle garde la commande courte. Gérez votre bibliothèque via le bouton **📚 Prompts** de la sidebar. Ça marche aussi sur mobile et dans VS Code. Détails : [PROMPT_LIBRARY.md](PROMPT_LIBRARY.md).
+
+### Comment donner tout un dossier de code (ou de docs) à l'IA ?
+Sidebar (**☰**) → section **📁 Dossiers du projet** → **Attacher un dossier** (ou menu **« + » → 📁 Dossier (codebase)**). L'IA garde ce dossier en contexte pour **toutes** les questions du workspace (RAG persistant). L'indexation est **incrémentale et 100% locale**, respecte votre `.gitignore` et ignore `node_modules`/`.git`/`.venv`… Dans **VS Code**, tapez **`@`** pour attacher fichiers/dossiers. Détails : [CODEBASE.md](CODEBASE.md).
+
 ### Ai-je besoin d'Ollama, OpenAI ou autres services ?
 **Ollama est optionnel mais recommandé !**
 

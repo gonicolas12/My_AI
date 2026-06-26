@@ -217,6 +217,47 @@ L'IA peut **lire ses réponses à voix haute** :
 
 > La voix ne quitte jamais la machine, et **aucun modèle n'est téléchargé** (contrairement au Whisper de la saisie vocale).
 
+### ⚡ Slash commands & Bibliothèque de prompts
+
+Des **prompts réutilisables façon Claude Code**. Tapez **`/`** en début de saisie pour ouvrir l'autocomplétion :
+
+```
+Vous> /code un jeu de morpion en Python
+```
+
+- Naviguez au clavier (↑/↓), validez (Entrée/Tab) ou cliquez ; la saisie devient `/commande `, puis vous tapez votre texte.
+- À l'**envoi**, la commande courte est **expansée** en un prompt détaillé pour le modèle — la bulle de chat garde la commande courte.
+- **Commandes par défaut** : `/code`, `/résume`, `/traduis`, `/explique`, `/corrige`, `/reformule`.
+- **Gérez votre bibliothèque** : sidebar → **📚 Prompts** (créer/éditer/supprimer des templates, avec placeholder `{arguments}`).
+
+> Disponible aussi sur **mobile** (Relay) et dans l'**extension VS Code**. Détails : [PROMPT_LIBRARY.md](PROMPT_LIBRARY.md).
+
+### 📁 Contexte projet « @codebase »
+
+Attachez un **dossier entier** à votre workspace pour que l'IA le garde en contexte sur **toutes** vos questions :
+
+- **Sidebar → 📁 Dossiers du projet → Attacher un dossier** (ou menu **« + » → 📁 Dossier (codebase)**).
+- L'indexation est **incrémentale** et **100% locale** (respecte `.gitignore`, exclut `node_modules`, `.git`, `.venv`…).
+- Posez ensuite vos questions normalement : les passages pertinents sont injectés automatiquement (RAG), et les questions *sur* le dossier (chemin, liste de fichiers) reçoivent une réponse directe.
+- **Réindexer** après modification (seuls les fichiers changés sont retraités) ou **Détacher** pour retirer le contexte.
+
+> Dans VS Code, tapez **`@`** pour attacher fichiers/dossiers. Détails : [CODEBASE.md](CODEBASE.md).
+
+### 🎹 Command palette (Ctrl+K) & raccourcis clavier
+
+- **`Ctrl+K`** ouvre une palette de commandes avec recherche filtrante (nouveau chat, export, Relay, Réglages, Mémoire, Prompts, Aide…).
+- **Raccourcis globaux** : `Ctrl+N` (nouveau chat), `Ctrl+L` (effacer), `Ctrl+S` (sauver), `Ctrl+B` (sidebar), `Ctrl+R` (Relay), `Ctrl+,` (Réglages), `F1` (Aide).
+
+### ✏️ Éditer & regénérer un message
+
+- Sous chaque **message envoyé**, le bouton **« Modifier »** permet de réécrire votre demande puis de **regénérer** la réponse.
+- L'ancienne version est **conservée** : naviguez entre les variantes d'un même tour avec **‹ k/n ›**.
+- Éditer un message en milieu de conversation **remplace l'aval** (branchement façon ChatGPT) — vous êtes prévenu avant.
+
+### 🔗 Citations web cliquables
+
+Après une **recherche internet**, les sources sont **numérotées** et l'IA place des marqueurs **`[n]`** dans sa réponse. Cliquez sur un `[n]` (dans le corps ou la liste des sources) pour **ouvrir l'URL d'origine** — sur desktop **et** mobile.
+
 ### Commandes Spéciales GUI
 
 Dans la zone de saisie, vous pouvez taper:
