@@ -432,6 +432,7 @@ class SidebarMixin:
         names = {
             "search": "🔎 Recherche globale",
             "sessions": "💼 Sessions",
+            "project_folders": "📁 Dossiers du projet",
             "history": "📜 Historique",
             "export": "📤 Export",
         }
@@ -863,13 +864,13 @@ class SidebarMixin:
 
     def _make_section_project_folders(self):
         wrapper = self._make_section_wrapper()
-        self._sidebar_hdr_folders = self._make_section_header_btn(
+        self._sidebar_hdr_project_folders = self._make_section_header_btn(
             wrapper, "📁 Dossiers du projet", "project_folders"
         )
         bg = self.colors.get("bg_secondary", "#2f2f2f")
         body = ctk.CTkFrame(wrapper, fg_color=bg, corner_radius=0) \
             if CTK_AVAILABLE else tk.Frame(wrapper, bg=bg)
-        self._sidebar_body_folders = body
+        self._sidebar_body_project_folders = body
 
         btn_attach = self._sb_button(body, "➕ Attacher un dossier",
                                       self._folder_attach, width=_SIDEBAR_W - 20)
