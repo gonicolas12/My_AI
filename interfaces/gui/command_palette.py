@@ -134,7 +134,10 @@ class CommandPaletteMixin:
         self._cmd_palette_win = win
 
         # État de navigation
-        state = {"filtered": list(all_cmds), "selected": 0, "rows": []}
+        state = {
+            "filtered": list(all_cmds), "selected": 0,
+            "rows": [], "meta": [], "last_query": None,
+        }
 
         outer = tk.Frame(win, bg=border)
         outer.pack(fill="both", expand=True, padx=1, pady=1)
@@ -167,43 +170,63 @@ class CommandPaletteMixin:
             except Exception as exc:  # noqa: BLE001
                 print(f"⚠️ [Palette] '{cmd['label']}' a échoué : {exc}")
 
-        def _render():
+        def _highlight():
+            """Met à jour uniquement les couleurs selon la sélection (pas de rebuild)."""
+            for i, (row, lbl, hint_lbl) in enumerate(state["meta"]):
+                sel = i == state["selected"]
+                row_bg = accent if sel else bg
+                try:
+                    row.configure(bg=row_bg)
+                    lbl.configure(bg=row_bg, fg="#ffffff" if sel else fg)
+                    if hint_lbl is not None:
+                        hint_lbl.configure(
+                            bg=row_bg, fg="#ffffff" if sel else fg_dim
+                        )
+                except tk.TclError:
+                    pass
+
+        def _select(idx):
+            state["selected"] = idx
+            _highlight()
+
+        def _build_rows():
+            """Construit les lignes UNE fois ; le survol ne fait que recolorer."""
             for w in state["rows"]:
                 w.destroy()
             state["rows"] = []
+            state["meta"] = []
             for i, cmd in enumerate(state["filtered"]):
-                is_sel = i == state["selected"]
-                row_bg = accent if is_sel else bg
-                row = tk.Frame(list_frame, bg=row_bg, cursor="hand2")
+                row = tk.Frame(list_frame, bg=bg, cursor="hand2")
                 row.pack(fill="x")
                 lbl = tk.Label(
-                    row, text=cmd["label"], bg=row_bg,
-                    fg="#ffffff" if is_sel else fg,
+                    row, text=cmd["label"], bg=bg, fg=fg,
                     font=("Segoe UI", 12), anchor="w", padx=14, pady=7,
                 )
                 lbl.pack(side="left", fill="x", expand=True)
+                hint_lbl = None
                 if cmd["hint"]:
-                    hint = tk.Label(
-                        row, text=cmd["hint"], bg=row_bg,
-                        fg="#ffffff" if is_sel else fg_dim,
+                    hint_lbl = tk.Label(
+                        row, text=cmd["hint"], bg=bg, fg=fg_dim,
                         font=("Segoe UI", 10), anchor="e", padx=14,
                     )
-                    hint.pack(side="right")
+                    hint_lbl.pack(side="right")
 
-                def _on_click(_e, idx=i):
-                    _execute(idx)
-
-                def _on_enter(_e, idx=i):
-                    state["selected"] = idx
-                    _render()
-
-                for w in (row, lbl):
-                    w.bind("<Button-1>", _on_click)
-                    w.bind("<Enter>", _on_enter)
+                widgets = [row, lbl] + ([hint_lbl] if hint_lbl else [])
+                for w in widgets:
+                    w.bind("<Button-1>", lambda _e, idx=i: _execute(idx))
+                    w.bind("<Enter>", lambda _e, idx=i: _select(idx))
                 state["rows"].append(row)
+                state["meta"].append((row, lbl, hint_lbl))
+            _highlight()
 
         def _filter(_e=None):
             query = entry.get().strip().lower()
+            # Les touches de navigation (flèches, Entrée…) déclenchent aussi
+            # <KeyRelease> sans modifier le texte : ne rien reconstruire alors,
+            # sinon la sélection serait réinitialisée à chaque flèche.
+            if query == state["last_query"]:
+                return
+            state["last_query"] = query
             if not query:
                 state["filtered"] = list(all_cmds)
             else:
@@ -212,13 +235,13 @@ class CommandPaletteMixin:
                     if query in (c["label"] + " " + c["hint"]).lower()
                 ]
             state["selected"] = 0
-            _render()
+            _build_rows()
 
         def _move(delta):
             if not state["filtered"]:
                 return "break"
             state["selected"] = (state["selected"] + delta) % len(state["filtered"])
-            _render()
+            _highlight()
             return "break"
 
         entry.bind("<KeyRelease>", _filter)
@@ -228,18 +251,22 @@ class CommandPaletteMixin:
         entry.bind("<Escape>", lambda e: (self._close_command_palette(), "break")[1])
         win.bind("<FocusOut>", lambda e: self.root.after(120, self._close_if_unfocused))
 
-        _render()
+        _build_rows()
 
-        # ── Positionnement : centré horizontalement, ~15% du haut ──
+        # ── Positionnement : centré horizontalement, ~14% du haut ──
         self.root.update_idletasks()
-        width = max(480, min(640, self.root.winfo_width() - 80))
         win.update_idletasks()
+        rw = self.root.winfo_width()
+        rh = self.root.winfo_height()
+        width = max(480, min(640, rw - 80))
+        # Hauteur ajustée au contenu (entrée + lignes), bornée à 80% de l'écran
+        content_h = win.winfo_reqheight() + 4
+        height = min(content_h, int(self.root.winfo_screenheight() * 0.8))
         rx = self.root.winfo_rootx()
         ry = self.root.winfo_rooty()
-        rw = self.root.winfo_width()
         x = rx + (rw - width) // 2
-        y = ry + max(60, int(self.root.winfo_height() * 0.14))
-        win.geometry(f"{width}x{min(440, 90 + 38 * max(1, len(all_cmds)))}+{x}+{y}")
+        y = ry + max(60, int(rh * 0.14))
+        win.geometry(f"{width}x{height}+{x}+{y}")
 
         entry.focus_set()
 
