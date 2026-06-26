@@ -1759,6 +1759,115 @@ Que voulez-vous que je fasse pour vous ?"""
 
         return system_prompt + "\n\n" + block
 
+    # Signaux d'intention « question sur le dossier projet attaché ». Conservateur
+    # pour ne pas détourner des requêtes sans rapport.
+    _CODEBASE_SIGNALS = (
+        "fichier indexé", "fichiers indexés", "fichier dedans", "fichiers dedans",
+        "dans le dossier", "du dossier", "dossier attaché", "dossier attache",
+        "projet attaché", "projet attache", "le projet", "ce projet",
+        "liste les fichiers", "liste des fichiers", "lister les fichiers",
+        "quels fichiers", "quels sont les fichiers", "fichiers du projet",
+        "fichiers du dossier", "contenu du dossier", "contenu du projet",
+        "structure du projet", "structure du dossier", "arborescence",
+        "résume le projet", "resume le projet", "résumé du projet",
+        "list the files", "files in the folder", "files in the directory",
+        "what files", "project structure", "summarize the project",
+    )
+
+    def _try_codebase_direct_answer(
+        self, user_input: str, llm: Any, on_token=None,
+        is_interrupted_callback=None,
+    ) -> Optional[str]:
+        """Répond directement aux questions sur le dossier projet attaché.
+
+        Court-circuite la boucle d'outils (où un petit modèle local part souvent
+        explorer le répertoire d'exécution au lieu du dossier attaché). Construit
+        un contexte « projet » fiable depuis l'indexeur (chemins + liste de
+        fichiers + extraits pertinents) puis génère une réponse streamée sans
+        outils.
+
+        Returns:
+            La réponse (str) si la requête a été traitée ici, sinon None (la
+            voie normale avec outils prend le relais).
+        """
+        q = (user_input or "").lower()
+        if not any(sig in q for sig in self._CODEBASE_SIGNALS):
+            return None
+
+        # Si la requête demande une ACTION (créer/modifier/supprimer/exécuter…),
+        # ne pas court-circuiter : laisser la boucle d'outils opérer.
+        _action_verbs = (
+            "crée", "créer", "cree", "creer", "ajoute", "ajouter", "écris", "ecris",
+            "écrire", "modifie", "modifier", "supprime", "supprimer", "efface",
+            "déplace", "deplace", "déplacer", "renomme", "renommer", "exécute",
+            "execute", "exécuter", "lance", "lancer", "corrige", "corriger",
+            "refactor", "génère un fichier", "genere un fichier",
+            "create", "add", "write", "modify", "delete", "remove", "move", "run",
+        )
+        if any(v in q for v in _action_verbs):
+            return None
+
+        indexer = self.get_folder_indexer()
+        if indexer is None or self.session_manager is None:
+            return None
+        try:
+            ws_id = self.session_manager.get_current_workspace()
+            if not ws_id or not indexer.list_folders(ws_id):
+                return None
+            status = indexer.get_status(ws_id)
+            context = indexer.get_relevant_context(ws_id, user_input)
+        except Exception as exc:
+            self.logger.warning("Réponse directe codebase indisponible: %s", exc)
+            return None
+
+        folders = status.get("folders", []) if isinstance(status, dict) else []
+        if not folders:
+            return None
+
+        loc_lines = []
+        for f in folders:
+            path = f.get("path", "")
+            names = f.get("files", []) or []
+            listing = "\n".join(f"    - {n}" for n in names[:200])
+            more = f"\n    … (+{len(names) - 200} autres)" if len(names) > 200 else ""
+            loc_lines.append(
+                f"Dossier : {path}  ({f.get('file_count', 0)} fichiers)\n{listing}{more}"
+            )
+
+        project_block = (
+            "DOSSIER(S) PROJET ATTACHÉ(S) à ce workspace (source de vérité — "
+            "n'utilise PAS le répertoire d'exécution de l'application) :\n"
+            + "\n\n".join(loc_lines)
+        )
+        if context and context.strip():
+            project_block += (
+                "\n\nEXTRAITS PERTINENTS DU PROJET (déjà indexés) :\n" + context
+            )
+
+        system_prompt = (
+            "Tu es My AI, assistant local. L'utilisateur a attaché un dossier "
+            "projet à ce workspace ; voici son contenu indexé. Réponds DIRECTEMENT "
+            "et précisément à sa question en te basant UNIQUEMENT sur ces "
+            "informations, sans utiliser d'outils et sans explorer le système de "
+            "fichiers. Si on te demande la liste des fichiers, énumère-les. "
+            f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}\n\n"
+            + project_block
+        )
+
+        try:
+            response = llm.generate_stream(
+                prompt=user_input,
+                system_prompt=system_prompt,
+                on_token=on_token,
+                is_interrupted_callback=is_interrupted_callback,
+            )
+        except Exception as exc:
+            self.logger.warning("Génération directe codebase échouée: %s", exc)
+            return None
+        if response:
+            print("✅ [AIEngine] Réponse directe depuis le dossier projet attaché")
+        return response or None
+
     def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
         """
         Retourne uniquement les documents pertinents pour la requête.
@@ -2416,6 +2525,20 @@ Que voulez-vous que je fasse pour vous ?"""
                 )
                 if history_response:
                     return history_response
+
+            # ----------------------------------------------------------------
+            # 2.2. Requêtes sur le DOSSIER PROJET attaché — réponse directe
+            # ----------------------------------------------------------------
+            # Court-circuit déterministe : les petits modèles locaux ont tendance
+            # à explorer le répertoire d'exécution (cwd) au lieu du dossier
+            # attaché. Quand la question porte clairement sur le projet/les
+            # fichiers attachés, on répond directement depuis l'indexeur (liste
+            # de fichiers + extraits pertinents), sans la boucle d'outils.
+            codebase_response = self._try_codebase_direct_answer(
+                user_input, llm, on_token, is_interrupted_callback,
+            )
+            if codebase_response:
+                return codebase_response
 
             def tool_executor(tool_name: str, arguments: dict) -> str:
                 if is_interrupted_callback and is_interrupted_callback():
