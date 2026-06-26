@@ -76,6 +76,7 @@ class ExecutionMixin:
             self._agent_clear_previews()
 
         self.is_interrupted = False
+        self._task_started_at = time.time()
         self._set_execute_button_stop()
 
         # Utiliser le plan d'exécution du canvas si des nœuds y sont présents
@@ -207,6 +208,13 @@ class ExecutionMixin:
                 }
             )
 
+            if not self.is_interrupted:
+                ok = result.get("success")
+                self._notify_task_complete(
+                    f"{'✅' if ok else '❌'} {name} — tâche terminée",
+                    task[:120],
+                )
+
         except Exception:
             self._finish_section(self._active_section, success=False)
             self._active_section = None
@@ -279,6 +287,10 @@ class ExecutionMixin:
                 self._update_status(
                     f"✅ Workflow terminé ({summary['success_rate']:.0%} succès)",
                     "#10b981",
+                )
+                self._notify_task_complete(
+                    "✅ Workflow multi-agents terminé",
+                    f"{summary['success_rate']:.0%} de succès — {task[:90]}",
                 )
             self._update_stats()
 
@@ -507,6 +519,10 @@ class ExecutionMixin:
                 self._update_status(
                     f"✅ Workflow visuel terminé ({rate:.0%} succès)", "#10b981"
                 )
+                self._notify_task_complete(
+                    "✅ Workflow visuel terminé",
+                    f"{rate:.0%} de succès — {task[:90]}",
+                )
 
             self._update_stats()
             self.execution_history.append({
@@ -639,3 +655,41 @@ class ExecutionMixin:
 
         if self.parent.winfo_exists():
             self.parent.after(0, update)
+
+    # === Notification desktop de fin de tâche =========================
+
+    _NOTIFY_MIN_SECONDS = 8  # tâches courtes : pas de notification
+
+    def _notify_task_complete(self, title, message):
+        """Notifie l'OS qu'une tâche agent longue est terminée.
+
+        Ne notifie que si la tâche a duré assez longtemps ET que la fenêtre
+        principale n'a pas le focus (sinon l'utilisateur voit déjà le résultat).
+        La vérification du focus se fait sur le thread Tk ; la notification
+        elle-même n'effectue aucun appel Tk.
+        """
+        try:
+            elapsed = time.time() - getattr(self, "_task_started_at", 0)
+        except Exception:
+            elapsed = 0
+        if elapsed < self._NOTIFY_MIN_SECONDS:
+            return
+
+        def _maybe():
+            try:
+                top = self.parent.winfo_toplevel()
+                if top.focus_displayof() is not None:
+                    return  # fenêtre active → pas besoin de notifier
+            except Exception:
+                pass
+            try:
+                from utils.desktop_notify import notify_desktop
+                notify_desktop(title, message)
+            except Exception:
+                pass
+
+        try:
+            if self.parent.winfo_exists():
+                self.parent.after(0, _maybe)
+        except Exception:
+            pass
