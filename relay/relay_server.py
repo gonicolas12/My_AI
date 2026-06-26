@@ -1733,6 +1733,7 @@ class RelayServer:
         try:
             proc = subprocess.Popen(
                 cmd,
+                stdin=subprocess.DEVNULL,  # ne pas hériter du stdin de la console
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -1862,11 +1863,21 @@ class RelayServer:
         logger.info("Tunnel localhost.run en cours de démarrage...")
 
     def _stop_tunnel(self) -> None:
-        """Arrête tous les tunnels actifs."""
-        for _, proc in list(self._tunnel_processes.items()):
+        """Arrête tous les tunnels actifs (terminate de tous, puis wait borné).
+
+        On signale d'abord TOUS les sous-processus (terminate), puis on attend
+        brièvement chacun : l'arrêt total reste borné (~quelques secondes) même
+        avec plusieurs providers, pour ne pas ralentir la fermeture du GUI.
+        """
+        procs = list(self._tunnel_processes.values())
+        for proc in procs:
             try:
                 proc.terminate()
-                proc.wait(timeout=5)
+            except Exception:
+                pass
+        for proc in procs:
+            try:
+                proc.wait(timeout=3)
             except Exception:
                 try:
                     proc.kill()

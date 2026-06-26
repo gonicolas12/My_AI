@@ -3468,6 +3468,17 @@ class BaseGUI:
             self.is_searching = False
             self._typing_interrupted = True
 
+            # Arrêter proprement le Relay AVANT le os._exit ci-dessous : sinon
+            # les sous-processus de tunnel (cloudflared/ssh) restent orphelins
+            # et gardent la console → le terminal de lancement reste figé.
+            # os._exit court-circuite atexit, donc cet arrêt doit être explicite.
+            try:
+                if getattr(self, "_relay_server", None):
+                    print("🛑 Arrêt du Relay...")
+                    self.stop_relay()
+            except Exception as exc:
+                print(f"⚠️ Arrêt Relay à la fermeture: {exc}")
+
             # Détruire la fenêtre
             self.root.destroy()
         except tk.TclError as e:
@@ -3486,3 +3497,13 @@ class BaseGUI:
         except Exception as e:
             self.logger.error("Erreur dans l'interface: %s", e)
             messagebox.showerror("Erreur", f"Erreur dans l'interface: {e}")
+        finally:
+            # Filet de sécurité (Ctrl+C / exception) : la fermeture normale passe
+            # par on_closing() qui stoppe déjà le Relay. Ici on couvre les sorties
+            # de mainloop qui ne déclenchent pas on_closing, pour ne pas laisser
+            # de tunnels orphelins garder la console.
+            try:
+                if getattr(self, "_relay_server", None):
+                    self.stop_relay()
+            except Exception:
+                pass
