@@ -1875,6 +1875,10 @@ class BaseGUI:
         self.root.bind("<Control-l>", lambda e: self.clear_chat())
         self.root.bind("<Control-L>", lambda e: self.clear_chat())
 
+        # Palette de commandes (Ctrl+K) + raccourcis globaux
+        if hasattr(self, "setup_command_palette_shortcuts"):
+            self.setup_command_palette_shortcuts()
+
         # Focus sur le champ de saisie au démarrage
         self.root.after(100, self.input_text.focus())
 

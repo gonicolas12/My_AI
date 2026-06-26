@@ -18,6 +18,7 @@ from interfaces.gui import (
     ArtifactsPanelMixin,
     BaseGUI,
     ChatAreaMixin,
+    CommandPaletteMixin,
     FileHandlingMixin,
     LayoutMixin,
     MarkdownFormattingMixin,
@@ -50,6 +51,7 @@ class ModernAIGUI(
     FileHandlingMixin,
     StreamingMixin,
     ArtifactsPanelMixin,
+    CommandPaletteMixin,
 ):
     """GUI Moderne (orchestrateur)."""
 
