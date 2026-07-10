@@ -18,6 +18,8 @@ from urllib.parse import quote
 import aiohttp
 from bs4 import BeautifulSoup
 
+from core.shared import tavily_search, is_tavily_available
+
 # Configuration GitHub
 try:
     import yaml
@@ -122,6 +124,10 @@ class SmartWebSearcher:
 
             if "geeksforgeeks" in sources:
                 tasks.append(self._search_geeksforgeeks(query, language, max_results // len(sources) + 1))
+
+            # Tavily as additional async source (if API key available)
+            if is_tavily_available():
+                tasks.append(self._search_tavily(query, language, max_results // len(sources) + 1))
 
             # Exécuter toutes les recherches en parallèle
             try:
@@ -307,6 +313,48 @@ class SmartWebSearcher:
 
         except Exception as e:
             print(f"[ERROR] Erreur recherche GeeksforGeeks: {e}")
+
+        return results
+
+    async def _search_tavily(self, query: str, language: str, max_results: int) -> List[CodeSearchResult]:
+        """Recherche via Tavily API"""
+        results = []
+
+        try:
+            search_query = f"{query} {language} code example"
+            tavily_results = await tavily_search(
+                query=search_query,
+                max_results=max_results,
+                search_depth="basic",
+            )
+
+            for item in tavily_results:
+                url = item.get("url", "")
+                snippet_text = item.get("snippet", "")
+                title = item.get("title", "Tavily Result")
+
+                # Extract code blocks from the snippet content if available
+                code_blocks = self._extract_code_blocks(snippet_text) if snippet_text else []
+                code_text = code_blocks[0] if code_blocks else snippet_text
+
+                if code_text and len(code_text.strip()) > 20 and self._is_relevant_code(code_text, query, language):
+                    result = CodeSearchResult(
+                        code=code_text,
+                        title=title,
+                        description=snippet_text[:200] if snippet_text else "",
+                        language=language,
+                        source_url=url,
+                        source_name="Tavily",
+                        rating=3.5,
+                        relevance_score=self._calculate_relevance_score(code_text, query),
+                        author="Tavily",
+                        created_at=datetime.now(),
+                        tags=[language, "tavily"]
+                    )
+                    results.append(result)
+
+        except Exception as e:
+            print(f"[WARNING] Erreur Tavily: {e}")
 
         return results
 
