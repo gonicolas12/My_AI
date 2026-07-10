@@ -4,6 +4,7 @@ Version corrigée sans doublons ni erreurs de syntaxe
 """
 
 import concurrent.futures
+import os
 import re
 import statistics
 import string
@@ -50,6 +51,14 @@ try:
 except ImportError:
     CLOUDSCRAPER_AVAILABLE = False
     print("⚠️ cloudscraper non disponible, utilisation de requests standard")
+
+# Import optionnel de Tavily
+try:
+    from tavily import TavilyClient
+
+    TAVILY_AVAILABLE = True
+except ImportError:
+    TAVILY_AVAILABLE = False
 
 
 class EnhancedInternetSearchEngine:
@@ -115,6 +124,16 @@ class EnhancedInternetSearchEngine:
             print("✅ Cloudscraper initialisé (anti-bot + SSL bypass Python 3.13+)")
         else:
             self.scraper = None
+
+        # Tavily client (optionnel, activé si TAVILY_API_KEY est défini)
+        self._tavily_client = None
+        tavily_api_key = os.environ.get("TAVILY_API_KEY")
+        if tavily_api_key and TAVILY_AVAILABLE:
+            try:
+                self._tavily_client = TavilyClient(api_key=tavily_api_key)
+                print("✅ Tavily Search initialisé")
+            except Exception as e:
+                print(f"⚠️ Impossible d'initialiser Tavily: {e}")
 
         # Patterns pour l'extraction de réponses directes
         self.answer_patterns = self._init_answer_patterns()
@@ -2450,7 +2469,13 @@ Réponds de manière factuelle et structurée:"""
 
     def _perform_search(self, query: str) -> List[Dict[str, Any]]:
         """Effectue la recherche sur internet"""
-        search_methods = [
+        search_methods = []
+
+        # Tavily en priorité si configuré
+        if self._tavily_client is not None:
+            search_methods.append(self._search_tavily)  # PRIORITÉ 0: Tavily API (si clé configurée)
+
+        search_methods.extend([
             self._search_duckduckgo_instant,  # PRIORITÉ 1: API officielle stable et rapide
             self._search_with_cloudscraper,  # PRIORITÉ 2: Contourne anti-bot si API échoue
             self._search_searxng,  # PRIORITÉ 3: Métamoteur alternatif
@@ -2458,7 +2483,7 @@ Réponds de manière factuelle et structurée:"""
             self._search_google_html,  # PRIORITÉ 5: Google en dernier recours
             self._search_brave,  # PRIORITÉ 6: Brave alternatif
             self._search_fallback,  # PRIORITÉ 7: Wikipedia fallback
-        ]
+        ])
 
         for method in search_methods:
             try:
@@ -2471,6 +2496,29 @@ Réponds de manière factuelle et structurée:"""
                 continue
 
         return []
+
+    def _search_tavily(self, query: str) -> List[Dict[str, Any]]:
+        """Recherche via l'API Tavily (moteur optimisé pour l'IA)"""
+        if self._tavily_client is None:
+            return []
+
+        response = self._tavily_client.search(
+            query=query,
+            max_results=self.max_results,
+            search_depth="basic",
+        )
+
+        results = []
+        for item in response.get("results", []):
+            results.append({
+                "title": item.get("title", ""),
+                "snippet": item.get("content", ""),
+                "url": item.get("url", ""),
+                "source": "Tavily",
+            })
+
+        print(f"✅ Tavily: {len(results)} résultats trouvés")
+        return results[:self.max_results]
 
     def _search_with_cloudscraper(self, query: str) -> List[Dict[str, Any]]:
         """
