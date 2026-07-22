@@ -271,7 +271,7 @@ my_ai/
 │   │   ├── message_editing.py           # Édition + regénération de message avec branchement (‹ k/n ›)
 │   │   ├── prompts_panel.py             # Fenêtre Prompts (CRUD bibliothèque de prompts)
 │   │   ├── settings_panel.py            # Panneau Réglages (modèles, paramètres, toggles)
-│   │   ├── sidebar.py                   # Sidebar (Relay, Réglages, Prompts, Dossiers projet, sessions...)
+│   │   ├── sidebar.py                   # Sidebar latérale
 │   │   ├── slash_commands.py            # Autocomplétion « / » des slash commands dans la saisie
 │   │   ├── streaming.py                 # Gestion du streaming de réponses
 │   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
