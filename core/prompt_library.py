@@ -71,7 +71,7 @@ _DEFAULT_TEMPLATES: List[Dict[str, str]] = [
         "description": "Traduit le texte fourni",
         "content": (
             "Traduis le texte suivant. Si une langue cible est indiquée, utilise-la ; "
-            "sinon, traduis en anglais. Conserve le sens, le ton et la mise en forme.\n\n"
+            "sinon, traduis en français. Conserve le sens, le ton et la mise en forme.\n\n"
             "{arguments}\n\n"
             "Donne uniquement la traduction, sans commentaire."
         ),
