@@ -268,7 +268,7 @@ my_ai/
 │   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
 │   │   ├── memory_panel.py              # Fenêtre Mémoire (faits/documents/conversations)
 │   │   ├── message_bubbles.py           # Bulles de messages avec RLHF + bouton TTS
-│   │   ├── message_editing.py           # Édition + regénération de message avec branchement (‹ k/n ›)
+│   │   ├── message_editing.py           # Édition + regénération de message avec branchement
 │   │   ├── prompts_panel.py             # Fenêtre Prompts (CRUD bibliothèque de prompts)
 │   │   ├── settings_panel.py            # Panneau Réglages (modèles, paramètres, toggles)
 │   │   ├── sidebar.py                   # Sidebar latérale
@@ -280,7 +280,7 @@ my_ai/
 │   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
 │   ├── agents_interface.py              # Interface Agents IA
-│   ├── artifacts.py                     # Détection/préparation des artifacts (partagé desktop/serveur)
+│   ├── artifacts.py                     # Détection/préparation des artifacts
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
 │   ├── onboarding.py                    # Assistant de premier lancement (wizard config)
