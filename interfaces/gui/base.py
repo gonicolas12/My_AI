@@ -208,6 +208,9 @@ class BaseGUI:
         self.tab_frames = {}
         self.tab_buttons = {}
         self.agents_interface = None
+        self._help_popup = None  # Toplevel d'aide (None = fermé)
+        # Variantes d'édition par message (cf. MessageEditingMixin)
+        self._turn_branches = {}
 
         # Écran d'accueil (home screen style Claude)
         self._home_screen = None
@@ -771,8 +774,10 @@ class BaseGUI:
             except Exception:
                 pass
 
-            bar = _ctk.CTkFrame(toast, fg_color=accent, width=6, corner_radius=0)
-            bar.pack(side="left", fill="y")
+            accent_stripe = _ctk.CTkFrame(
+                toast, fg_color=accent, width=6, corner_radius=0
+            )
+            accent_stripe.pack(side="left", fill="y")
             body = _ctk.CTkFrame(toast, fg_color="transparent")
             body.pack(side="left", fill="both", expand=True, padx=12, pady=10)
             _ctk.CTkLabel(
@@ -912,7 +917,12 @@ class BaseGUI:
 
             # Afficher la bulle utilisateur
             self._last_bubble_is_user = True
-            self.add_message_bubble(bubble_text, is_user=True)
+            self.add_message_bubble(
+                bubble_text,
+                is_user=True,
+                attachments=relay_attachments,
+                image_path=image_path,
+            )
 
             # Scroll vers le bas
             self.scroll_to_bottom()
@@ -2024,9 +2034,16 @@ class BaseGUI:
                 attach_lines = self._build_attachment_lines(attached_files)
                 bubble_text = (message.rstrip() + "\n" + "\n".join(attach_lines)).strip()
 
-            # Ajouter le message utilisateur
+            # Ajouter le message utilisateur (les pièces jointes sont mémorisées
+            # dans l'historique pour pouvoir être réinjectées si le message est
+            # édité puis regénéré)
             self._last_bubble_is_user = True
-            self.add_message_bubble(bubble_text, is_user=True)
+            self.add_message_bubble(
+                bubble_text,
+                is_user=True,
+                attachments=attached_files,
+                image_path=getattr(self, "_pending_image_path", None),
+            )
 
             # Nettoyer les aperçus de fichiers attachés
             if hasattr(self, "clear_file_previews"):
@@ -2082,6 +2099,33 @@ class BaseGUI:
             except (tk.TclError, AttributeError):
                 pass
 
+    def _sync_visible_documents(self):
+        """Déclare au moteur les pièces jointes présentes dans la conversation.
+
+        Les documents restent stockés au niveau de la session (jamais purgés) :
+        sans ce filtre, un fichier joint dans une branche d'édition abandonnée
+        continuerait d'être injecté dans chaque prompt, alors qu'il n'apparaît
+        plus à l'écran (cf. AIEngine.set_visible_documents).
+        """
+        engine = getattr(self, "ai_engine", None)
+        if engine is None or not hasattr(engine, "set_visible_documents"):
+            return
+        names = set()
+        # Copie : l'historique peut être modifié par le thread Tk pendant l'itération
+        for msg in list(getattr(self, "conversation_history", [])):
+            for item in (msg.get("attachments") or []):
+                # (path, type) en mémoire, [path, type] après un aller-retour JSON.
+                # Une chaîne étant indexable, on exige explicitement une séquence
+                # sous peine d'ajouter sa première lettre comme nom de fichier.
+                if not isinstance(item, (list, tuple)) or not item:
+                    continue
+                path = item[0]
+                if isinstance(path, str) and path:
+                    # stored_documents est indexé par basename brut
+                    # (cf. process_file_background)
+                    names.add(os.path.basename(path))
+        engine.set_visible_documents(names)
+
     def quel_handle_message_with_id(self, user_text, request_id):
         """
         Traite le message utilisateur avec STREAMING pour réponse instantanée.
@@ -2093,6 +2137,9 @@ class BaseGUI:
         # extension VS Code passent tous par ici côté hôte.
         if getattr(self, "_expand_slash_command", None):
             user_text = self._expand_slash_command(user_text)
+
+        # Limiter les documents injectés à ceux joints dans la branche affichée
+        self._sync_visible_documents()
 
         # 🎯 DÉTECTION SPÉCIALE : Génération de fichier
         file_keywords = [
@@ -2911,6 +2958,10 @@ class BaseGUI:
         try:
             # Vider l'historique local de l'interface
             self.conversation_history.clear()
+
+            # Variantes d'édition : sans ce reset elles survivraient au
+            # changement de session et se rattacheraient à d'anciens messages.
+            self._turn_branches = {}
 
             # Vider l'interface de chat
             for widget in self.chat_frame.winfo_children():

@@ -209,14 +209,14 @@ my_ai/
 │   ├── data_preprocessing.py            # Prétraitement des données
 │   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
 │   ├── evaluation.py                    # Évaluation des performances
-│   ├── folder_indexer.py                # Indexeur incrémental de dossier (@codebase) rattaché au workspace
+│   ├── folder_indexer.py                # Indexeur incrémental de dossier rattaché au workspace
 │   ├── knowledge_base_manager.py        # Base de connaissances structurée
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── memory_store.py                  # Couche d'accès CRUD unifiée mémoire (faits + vecteurs)
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
-│   ├── prompt_library.py                # Bibliothèque de prompts / slash commands (+ expansion {arguments})
+│   ├── prompt_library.py                # Bibliothèque de prompts / slash commands
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── scheduler.py                     # Scheduler proactif (tâches planifiées récurrentes)
 │   ├── scheduler_runner.py              # Runner headless + Planificateur de tâches Windows

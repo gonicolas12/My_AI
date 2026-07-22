@@ -2044,10 +2044,20 @@ class MarkdownFormattingMixin:
                         # Déduplication par position pour autoriser les répétitions
                         pos_str = str(pos_start)
                         if pos_str not in self._formatted_positions:
+                            # Un lien déjà marqué sous ce contenu (**[titre](url)**)
+                            # perdrait ses tags avec le delete/insert : on les
+                            # relève ici pour les réappliquer après insertion.
+                            link_tags = self._link_tags_in_range(
+                                text_widget, content_start, pos_end
+                            )
                             # Supprimer **texte** et insérer texte en gras
                             end_pos_full = text_widget.index(f"{pos_end}+2c")
                             text_widget.delete(pos_start, end_pos_full)
-                            text_widget.insert(pos_start, content, "bold")
+                            insert_tags = ("bold",) + tuple(link_tags)
+                            if link_tags:
+                                self._configure_bold_link_tag(text_widget)
+                                insert_tags += ("bold_link",)
+                            text_widget.insert(pos_start, content, insert_tags)
                             self._formatted_positions.add(pos_str)
                             # Continuer après le texte inséré
                             start_pos = text_widget.index(
@@ -3621,6 +3631,37 @@ class MarkdownFormattingMixin:
             background="#16213e",
         )
 
+    @staticmethod
+    def _link_tags_in_range(text_widget, start, end):
+        """Tags de lien (`link_temp` / `clickable_link_N`) présents dans [start, end)."""
+        found = []
+        try:
+            for tag in text_widget.tag_names():
+                if tag == "link_temp" or tag.startswith("clickable_link_"):
+                    if text_widget.tag_nextrange(tag, start, end):
+                        found.append(tag)
+        except tk.TclError:
+            pass
+        return found
+
+    @staticmethod
+    def _configure_bold_link_tag(text_widget):
+        """Style d'un lien entouré de ``**`` : bleu souligné ET gras.
+
+        Configuré à la demande puis remonté en priorité, sinon `link_temp`
+        (police non grasse) écraserait le gras du tag `bold`.
+        """
+        try:
+            text_widget.tag_configure(
+                "bold_link",
+                foreground="#3b82f6",
+                underline=1,
+                font=("Segoe UI", 12, "bold"),
+            )
+            text_widget.tag_raise("bold_link")
+        except tk.TclError:
+            pass
+
     def _convert_temp_links_to_clickable(self, text_widget):
         """Convertit les liens temporaires en liens bleus clicables à la fin de l'animation"""
         try:
@@ -3687,8 +3728,17 @@ class MarkdownFormattingMixin:
                         unique_tag = f"clickable_link_{link_counter}"
                         link_counter += 1
 
-                        # Remplacer le tag link_temp par le tag unique
+                        # Un lien entouré de ** est gras : conserver le gras en
+                        # plus du style lien (bleu souligné + cliquable).
+                        range_tags = text_widget.tag_names(start_range)
+                        is_bold = "bold" in range_tags or "bold_link" in range_tags
+                        link_font = (
+                            ("Segoe UI", 12, "bold") if is_bold else ("Segoe UI", 12)
+                        )
+
+                        # Remplacer les tags temporaires par le tag unique
                         text_widget.tag_remove("link_temp", start_range, end_range)
+                        text_widget.tag_remove("bold_link", start_range, end_range)
                         text_widget.tag_add(unique_tag, start_range, end_range)
 
                         # Configurer le style du tag unique
@@ -3696,7 +3746,7 @@ class MarkdownFormattingMixin:
                             unique_tag,
                             foreground="#3b82f6",
                             underline=1,
-                            font=("Segoe UI", 12),
+                            font=link_font,
                         )
 
                         # CORRECTION CLOSURE : Créer une fonction avec l'URL capturée

@@ -1114,7 +1114,13 @@ class SidebarMixin:
             return
         current_ws = sm.get_current_workspace()
         if current_ws:
-            state = {"conversation_history": getattr(self, "conversation_history", [])}
+            # Conserver les clés déjà stockées (dossiers projet, réglages...) :
+            # save_workspace réécrit l'état complet.
+            state = sm.load_workspace(current_ws) or {}
+            state["conversation_history"] = getattr(self, "conversation_history", [])
+            # Variantes d'édition : sans elles, les flèches ‹ › disparaissent
+            # au rechargement et les versions alternatives sont perdues.
+            state["turn_branches"] = getattr(self, "_turn_branches", {})
             sm.save_workspace(current_ws, state)
 
     def _session_load(self, workspace_id: str, highlight_excerpt: str = None,
@@ -1148,12 +1154,27 @@ class SidebarMixin:
                 # Enlever l'écran d'accueil pour montrer la conversation
                 if hasattr(self, "_dismiss_home_screen"):
                     self._dismiss_home_screen()
-                # add_message_bubble ajoute aussi à conversation_history
+                # add_message_bubble ajoute aussi à conversation_history.
+                # `mid` est repropagé tel quel : les variantes d'édition y sont
+                # rattachées, le régénérer les détacherait.
                 for msg in history:
                     is_user = msg.get("is_user", msg.get("role", "user") == "user")
                     content = msg.get("text", msg.get("content", ""))
                     if content:
-                        self.add_message_bubble(content, is_user=is_user, instant=True)
+                        self.add_message_bubble(
+                            content,
+                            is_user=is_user,
+                            instant=True,
+                            attachments=msg.get("attachments"),
+                            image_path=msg.get("image_path"),
+                            mid=msg.get("mid"),
+                        )
+                # Restaurer les variantes d'édition APRÈS les bulles : les
+                # contrôles ‹ › sont créés pendant add_message_bubble et lisent
+                # déjà _turn_branches.
+                self._turn_branches = state.get("turn_branches") or {}
+                if self._turn_branches:
+                    self._rerender_all()
             sm.set_current_workspace(workspace_id)
             self.show_notification(
                 "✅ Session chargée", "success", 2000

@@ -1,9 +1,12 @@
 """Message bubbles mixin for ModernAIGUI."""
 
 import os
+import subprocess
+import sys
 import tkinter as tk
 import traceback
 from datetime import datetime
+from uuid import uuid4
 
 try:
     import customtkinter as ctk
@@ -329,8 +332,28 @@ class MessageBubblesMixin:
         """Rétro-compatibilité : redirige vers le système d'étoiles."""
         self._on_star_rating(1, [btn_up, btn_down], query, response)
 
-    def add_message_bubble(self, text, is_user=True, message_type="text", instant=False):
-        """Version FINALE avec animation de frappe pour les messages IA"""
+    def add_message_bubble(
+        self,
+        text,
+        is_user=True,
+        message_type="text",
+        instant=False,
+        attachments=None,
+        image_path=None,
+        mid=None,
+    ):
+        """Version FINALE avec animation de frappe pour les messages IA
+
+        `attachments` (liste de tuples `(path, file_type)`) et `image_path`
+        (image envoyée au modèle vision) sont mémorisés dans l'historique afin
+        qu'une édition du message puisse les réinjecter dans le pipeline IA.
+        On stocke le chemin et non l'encodage base64 : l'historique est
+        sérialisé tel quel dans les sessions (cf. `_session_save`).
+
+        `mid` est l'identifiant stable du message. Il DOIT être réutilisé quand
+        une bulle est reconstruite (changement de branche, rerender) : les
+        variantes d'édition y sont rattachées (cf. MessageEditingMixin).
+        """
         # Vérifier que le texte est une chaîne
         if not isinstance(text, str):
             if isinstance(text, dict):
@@ -357,6 +380,9 @@ class MessageBubblesMixin:
                 "is_user": is_user,
                 "timestamp": datetime.now(),
                 "type": message_type,
+                "attachments": list(attachments or []),
+                "image_path": image_path,
+                "mid": mid or uuid4().hex,
             }
         )
 
@@ -718,6 +744,7 @@ class MessageBubblesMixin:
                     "timestamp": datetime.now(),
                     "type": "image",
                     "image_path": image_path,
+                    "mid": uuid4().hex,
                 }
             )
 
@@ -756,9 +783,6 @@ class MessageBubblesMixin:
             # Clic : ouvrir l'image en taille réelle avec l'app système
             def _open_full(_e=None, p=image_path):
                 try:
-                    import subprocess
-                    import sys
-
                     if sys.platform == "win32":
                         os.startfile(p)  # noqa: B606
                     elif sys.platform == "darwin":
@@ -845,7 +869,7 @@ class MessageBubblesMixin:
         text_widget = tk.Text(
             bubble,
             width=text_width,
-            height=2,  # Valeur initiale minimale
+            height=1,  # Valeur initiale minimale (ajustée après rendu)
             bg=self.colors["bg_user"],
             fg="#ffffff",
             font=("Segoe UI", 12),
@@ -866,25 +890,30 @@ class MessageBubblesMixin:
 
         self.insert_formatted_text_tkinter(text_widget, text)
 
-        # Ajustement parfait de la hauteur après rendu
+        # Ajustement parfait de la hauteur après rendu.
+        # La bulle épouse exactement le nombre de lignes affichées : le
+        # timestamp n'y vit plus, donc aucune ligne de réserve n'est nécessaire.
         def adjust_height_later():
             text_widget.update_idletasks()
             # Compter les lignes AFFICHÉES (incluant le word-wrap), pas les lignes logiques
             try:
                 result = text_widget.count("1.0", "end-1c", "displaylines")
                 if result:
+                    # `count -displaylines` renvoie le nombre de SAUTS de ligne
+                    # affichés (0 pour un message d'une seule ligne) : +1 pour
+                    # obtenir le nombre de lignes.
                     display_lines = result[0] if isinstance(result, (tuple, list)) else result
-                    text_widget.configure(height=max(2, display_lines + 1))
+                    text_widget.configure(height=max(1, display_lines + 1))
                 else:
                     # Fallback : estimation manuelle pour les textes longs wrappés
                     line_count = int(text_widget.index("end-1c").split(".", maxsplit=1)[0])
                     widget_width = text_widget.cget("width")
                     total_chars = len(text)
                     estimated_display_lines = max(line_count, (total_chars // max(1, widget_width)) + 1)
-                    text_widget.configure(height=max(2, estimated_display_lines))
+                    text_widget.configure(height=max(1, estimated_display_lines))
             except Exception:
                 line_count = int(text_widget.index("end-1c").split(".", maxsplit=1)[0])
-                text_widget.configure(height=max(2, line_count))
+                text_widget.configure(height=max(1, line_count))
             text_widget.update_idletasks()
             # Scroll automatique après ajustement
             if hasattr(self, "_force_scroll_to_bottom"):
@@ -952,18 +981,9 @@ class MessageBubblesMixin:
             return "break"
 
         text_widget.bind("<Double-Button-1>", copy_on_double_click)
-        text_widget.grid(row=0, column=0, padx=8, pady=(6, 0), sticky="nw")
-
-        # Timestamp
-        timestamp = datetime.now().strftime("%H:%M")
-        time_label = self.create_label(
-            bubble,
-            text=timestamp,
-            font=("Segoe UI", 10),
-            fg_color=self.colors["bg_user"],
-            text_color="#b3b3b3",
-        )
-        time_label.grid(row=1, column=0, sticky="w", padx=8, pady=(0, 6))
+        # La bulle n'englobe QUE le texte : le timestamp est rendu sous la bulle
+        # par la barre d'actions (cf. MessageEditingMixin._add_edit_controls).
+        text_widget.grid(row=0, column=0, padx=8, pady=(6, 6), sticky="nw")
 
         # Menu contextuel amélioré
         def show_context_menu(event):

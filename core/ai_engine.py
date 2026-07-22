@@ -178,6 +178,19 @@ class AIEngine:
             "Moteur IA initialisé avec succès (Générateurs Ollama + Web activés)"
         )
 
+        # Sentinelles des modules à initialisation paresseuse.
+        # DOIVENT être déclarées avant _setup_mcp_tools() : l'enregistrement des
+        # outils peut appeler les getters get_*(), qui lèveraient sinon un
+        # AttributeError silencieusement avalé (outil jamais enregistré).
+        self._vector_memory = None
+        self._conversation_search = None
+        self._memory_store = None
+        self._folder_indexer = None
+
+        # Documents joints visibles dans la conversation affichée.
+        # None = pas de filtre (agents, tests, appels hors GUI).
+        self._visible_documents = None
+
         # Initialiser le gestionnaire MCP et enregistrer les outils locaux
         self.mcp_manager = MCPManager()
         self._setup_mcp_tools()
@@ -435,11 +448,11 @@ class AIEngine:
             except Exception as e:
                 self.logger.warning("⚠️ SessionManager indisponible: %s", e)
 
-        # Mémoire vectorielle partagée + recherche cross-conversations (lazy)
-        self._vector_memory = None
-        self._conversation_search = None
-        self._memory_store = None
-        self._folder_indexer = None
+        # NB : les sentinelles de mémoire vectorielle / recherche
+        # cross-conversations / memory store / indexeur de dossiers sont
+        # déclarées dans __init__ (avant _setup_mcp_tools). Les réinitialiser
+        # ici écraserait une instance déjà créée pendant l'enregistrement des
+        # outils, et dupliquerait le client ChromaDB.
 
     def get_vector_memory(self):
         """Retourne l'instance VectorMemory partagée (créée à la demande).
@@ -448,8 +461,8 @@ class AIEngine:
         pour ne pas multiplier les clients ChromaDB ni les pipelines d'embedding.
         """
         if self._vector_memory is None:
-            # Initialisation paresseuse (l'attribut est déclaré dans _init_v7_modules)
-            self._vector_memory = VectorMemory()  # pylint: disable=attribute-defined-outside-init
+            # Initialisation paresseuse (l'attribut est déclaré dans __init__)
+            self._vector_memory = VectorMemory()
         return self._vector_memory
 
     def get_conversation_search(self):
@@ -610,11 +623,14 @@ class AIEngine:
         # 2. Recherche en mémoire vectorielle
         # ----------------------------------------------------------------
         try:
-            vector_mem = self.get_vector_memory()
-
             def search_memory(query: str, n_results: int = 5) -> str:
                 """Recherche sémantique dans la mémoire vectorielle locale."""
                 try:
+                    # Résolution à l'appel (comme search_codebase) : construire la
+                    # VectorMemory dès l'enregistrement chargerait ChromaDB et le
+                    # pipeline d'embeddings au démarrage, pour un outil peut-être
+                    # jamais utilisé.
+                    vector_mem = self.get_vector_memory()
                     results = vector_mem.search_similar(query, n_results=n_results)
                     if not results:
                         return "Aucun résultat dans la mémoire vectorielle."
@@ -1868,13 +1884,38 @@ Que voulez-vous que je fasse pour vous ?"""
             print("✅ [AIEngine] Réponse directe depuis le dossier projet attaché")
         return response or None
 
+    def set_visible_documents(self, names) -> None:
+        """Restreint les documents injectables à ceux joints dans la conversation.
+
+        `stored_documents` vit au niveau de la session et n'est jamais purgé :
+        un fichier joint dans une branche d'édition abandonnée continuerait
+        sinon d'alimenter chaque prompt. Passer None désactive le filtre
+        (comportement historique, utilisé hors GUI).
+        """
+        self._visible_documents = set(names) if names is not None else None
+
     def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
         """
         Retourne uniquement les documents pertinents pour la requête.
 
-        Si l'utilisateur mentionne le nom d'un fichier spécifique dans sa requête,
-        seul ce document est retourné. Sinon, tous les documents sont retournés.
+        Sont d'abord écartés les documents absents de la conversation affichée
+        (cf. set_visible_documents), puis, si l'utilisateur mentionne le nom
+        d'un fichier précis, seul ce document est retourné.
         """
+        visible = self._visible_documents
+        if visible is not None and stored_documents:
+            kept = {
+                name: data
+                for name, data in stored_documents.items()
+                if name in visible
+            }
+            if len(kept) != len(stored_documents):
+                self.logger.debug(
+                    "Documents hors branche écartés du prompt : %s",
+                    sorted(set(stored_documents) - set(kept)),
+                )
+            stored_documents = kept
+
         if not stored_documents or len(stored_documents) == 1:
             return stored_documents
 

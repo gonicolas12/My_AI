@@ -107,8 +107,10 @@ class SessionManager:
             initial_state = {
                 "conversation_history": [],
                 "attached_documents": [],
+                "attached_folders": [],
                 "active_agents": [],
                 "settings": {},
+                "turn_branches": {},
                 "metadata": metadata,
             }
 
@@ -161,11 +163,18 @@ class SessionManager:
                         if key in user_meta:
                             metadata[key] = user_meta[key]
 
+                # ATTENTION : cette liste est exhaustive, toute clé absente est
+                # silencieusement perdue à la sauvegarde. Y ajouter les nouvelles
+                # sections d'état, sinon elles ne survivront pas au rechargement.
                 state_to_save = {
                     "conversation_history": state.get("conversation_history", []),
                     "attached_documents": state.get("attached_documents", []),
+                    "attached_folders": state.get("attached_folders", []),
                     "active_agents": state.get("active_agents", []),
                     "settings": state.get("settings", {}),
+                    # Variantes d'édition des messages (cf. MessageEditingMixin),
+                    # indexées par le `mid` stable du message utilisateur.
+                    "turn_branches": state.get("turn_branches", {}),
                     "metadata": metadata,
                 }
 
