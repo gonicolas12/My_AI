@@ -23,13 +23,29 @@ CREATE TABLE IF NOT EXISTS command_history (
     query           TEXT    NOT NULL,
     response_preview TEXT   NOT NULL DEFAULT '',
     agent_type      TEXT,
-    is_favorite     INTEGER NOT NULL DEFAULT 0,
-    metadata_json   TEXT
+    is_favorite     INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1)),
+    metadata_json   TEXT,
+    updated_at      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_ch_timestamp ON command_history(timestamp);
 CREATE INDEX IF NOT EXISTS idx_ch_favorite  ON command_history(is_favorite);
 CREATE INDEX IF NOT EXISTS idx_ch_query     ON command_history(query);
+"""
+
+# Déclencheur d'intégrité : met à jour automatiquement `updated_at` à chaque
+# modification d'une entrée (typiquement la bascule du statut favori). Ciblé sur
+# la seule colonne `is_favorite`, il ne modifie jamais que `updated_at` : il ne
+# peut donc pas se redéclencher lui-même (aucune récursion possible).
+_TRIGGER_SQL = """
+CREATE TRIGGER IF NOT EXISTS trg_ch_set_updated_at
+AFTER UPDATE OF is_favorite ON command_history
+FOR EACH ROW
+BEGIN
+    UPDATE command_history
+    SET updated_at = strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')
+    WHERE id = NEW.id;
+END;
 """
 
 
@@ -63,9 +79,36 @@ class CommandHistory:
     # ------------------------------------------------------------------
 
     def _init_db(self) -> None:
-        """Crée le schéma si nécessaire."""
+        """
+        Crée le schéma si nécessaire, applique les migrations légères, puis
+        (re)crée le déclencheur d'intégrité.
+
+        L'ordre est important : la colonne ``updated_at`` doit exister avant la
+        création du trigger qui la référence — y compris pour les bases créées
+        avant l'introduction de cette colonne.
+        """
         with self._connect() as conn:
             conn.executescript(_SCHEMA_SQL)
+            self._migrate(conn)
+            conn.executescript(_TRIGGER_SQL)
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """
+        Applique les migrations de schéma idempotentes.
+
+        Ajoute la colonne ``updated_at`` aux bases créées avant son
+        introduction : ``CREATE TABLE IF NOT EXISTS`` ne modifie pas une table
+        déjà existante, or le déclencheur qui référence ``updated_at``
+        échouerait à la création si la colonne manquait.
+        """
+        existing = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(command_history)")
+        }
+        if "updated_at" not in existing:
+            conn.execute("ALTER TABLE command_history ADD COLUMN updated_at TEXT")
+            logger.info("Migration : colonne 'updated_at' ajoutée à command_history")
 
     def _connect(self) -> sqlite3.Connection:
         """
