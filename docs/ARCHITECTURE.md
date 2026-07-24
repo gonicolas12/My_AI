@@ -173,7 +173,7 @@ My Personal AI v8.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │ • Caching (3600s)       │                                              │
 │ • BeautifulSoup scraping│                                              │
 ├─────────────────────────┴──────────────────────────────────────────────┤
-│ Local Tools: SearchTool, MathTool, InfoExtractionTool                  │
+│ Local Tools: local_math, local_search, extract_emails, extract_dates   │
 └────────────────────────────────────────────────────────────────────────┘
                                    │
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -1153,22 +1153,12 @@ Features:
 ### 🛠️ Tools - Outils Spécialisés
 
 ```python
-tools/search_tool.py:
-├─ Parcours récursif répertoires
-├─ Matching keywords fichiers
-└─ Recherche case-insensitive
-
-tools/math_tool.py:
-├─ Support calculatrice
-└─ Évaluation formules
-
-tools/local_tools.py:
-├─ Opérations fichiers
-└─ Informations système
-
-tools/info_extraction_tool.py:
-├─ Reconnaissance entités nommées
-└─ Extraction données texte
+tools/local_tools.py — outils locaux (fonctions, exposées via le client MCP):
+├─ local_math(expr)           : évaluation d'expressions / calculatrice
+├─ local_search(pattern,      : recherche récursive de fichiers par motif
+│    folder=".")
+├─ extract_emails(text)       : extraction d'adresses e-mail
+└─ extract_dates(text)        : extraction de dates
 ```
 
 ### 🔧 Utils - Utilitaires
