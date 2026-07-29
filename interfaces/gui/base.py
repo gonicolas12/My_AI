@@ -3618,12 +3618,15 @@ class BaseGUI:
                 if success:
                     print("✅ DEBUG: IA initialisée avec succès")
 
-                    # Test de génération de réponse
+                    # Vérification du backend : ping léger (2 s max), sans
+                    # génération. Passer par process_text() déclencherait une
+                    # inférence complète à chaque démarrage et ajouterait un
+                    # échange « test » parasite dans l'historique.
                     try:
-                        test_response = self.ai_engine.process_text("test")
-                        print(f"🔍 DEBUG: Test réponse: {test_response[:100]}...")
+                        backend_ok = self.ai_engine.is_ollama_active()
+                        print(f"🔍 DEBUG: Backend Ollama joignable: {backend_ok}")
                     except (ValueError, AttributeError) as e:
-                        print(f"⚠️ DEBUG: Erreur test réponse: {e}")
+                        print(f"⚠️ DEBUG: Erreur test backend: {e}")
                 else:
                     print("❌ DEBUG: Échec de l'initialisation")
 
