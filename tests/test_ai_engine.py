@@ -125,6 +125,30 @@ class TestConversationMemory:
         history = engine.conversation_memory.get_recent_history(limit=1)
         assert len(history) > 0
 
+    def test_model_exchange_is_stored_exactly_once(self):
+        """Le modèle mémorise lui-même : process_text ne doit pas dupliquer"""
+        engine = AIEngine()
+        question = "Explique-moi ce principe en détail"
+
+        # Simule fidèlement CustomAIModel.generate_response, qui enregistre
+        # l'échange via _add_to_conversation_history avant de retourner.
+        def fake_generate(user_input, context=None):
+            engine.conversation_memory.add_conversation(user_input, "Réponse simulée")
+            return "Réponse simulée"
+
+        with patch.object(
+            engine.local_ai, "generate_response", side_effect=fake_generate
+        ):
+            engine.process_text(question)
+
+        history = engine.conversation_memory.get_recent_history(limit=10)
+        stored = [
+            entry
+            for entry in history
+            if getattr(entry, "user_message", None) == question
+        ]
+        assert len(stored) == 1
+
 
 class TestErrorHandling:
     """Tests de gestion d'erreurs"""

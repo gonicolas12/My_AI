@@ -13,7 +13,7 @@ import threading
 import shutil
 from pathlib import Path
 from datetime import datetime as _dt
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests as _req
 
@@ -1172,7 +1172,7 @@ class AIEngine:
         self.logger.info("[VALIDÉ] process_text: %s", repr(text[:100]))
 
         try:
-            response = self._route_validated_query(text, context)
+            response, recorded_by_model = self._route_validated_query(text, context)
         except (ValueError, TypeError, AttributeError) as e:
             self.logger.error("Erreur de routage dans process_text: %s", e)
             response = (
@@ -1180,8 +1180,15 @@ class AIEngine:
                 "Le traitement de votre demande a rencontré un problème. "
                 "Veuillez réessayer."
             )
+            recorded_by_model = False
 
-        self._remember_exchange(text, response)
+        # Le modèle local mémorise lui-même les échanges qu'il produit
+        # (CustomAIModel._add_to_conversation_history, avec l'intention et la
+        # confiance). On ne mémorise donc ici que les réponses produites SANS
+        # lui, faute de quoi chaque échange serait enregistré deux fois.
+        if not recorded_by_model:
+            self._remember_exchange(text, response)
+
         return response
 
     def _remember_exchange(self, user_message: str, ai_response: str) -> None:
@@ -1198,7 +1205,7 @@ class AIEngine:
 
     def _generate_with_local_model(
         self, text: str, context: Optional[Dict[str, Any]] = None
-    ) -> str:
+    ) -> Tuple[str, bool]:
         """
         Délègue la génération de la réponse au modèle local.
 
@@ -1207,10 +1214,11 @@ class AIEngine:
             context: Contexte additionnel (optionnel)
 
         Returns:
-            Réponse du modèle, ou message d'erreur lisible en cas d'incident
+            (réponse, échange déjà mémorisé par le modèle). Le second élément
+            vaut False si la génération a échoué : rien n'a alors été mémorisé.
         """
         try:
-            return self.local_ai.generate_response(text, context)
+            return self.local_ai.generate_response(text, context), True
         except Exception as e:  # noqa: BLE001 - frontière avec un backend externe
             # Le backend LLM (Ollama, réseau, désérialisation) peut lever
             # n'importe quelle exception : on la convertit en message lisible
@@ -1219,12 +1227,13 @@ class AIEngine:
             return (
                 f"❌ **Erreur du modèle:** {str(e)}\n\n"
                 "Un problème est survenu pendant la génération de la réponse. "
-                "Veuillez réessayer."
+                "Veuillez réessayer.",
+                False,
             )
 
     def _route_validated_query(
         self, text: str, context: Optional[Dict[str, Any]] = None
-    ) -> str:
+    ) -> Tuple[str, bool]:
         """
         Aiguille une requête DÉJÀ validée vers le traitement approprié.
 
@@ -1233,7 +1242,9 @@ class AIEngine:
             context: Contexte additionnel (optionnel)
 
         Returns:
-            Réponse générée
+            (réponse, échange déjà mémorisé par le modèle). Les réponses
+            construites ici sans appel au modèle renvoient False : c'est
+            process_text() qui se charge alors de les mémoriser.
         """
         # Analyser rapidement le type de requête
         text_lower = text.lower()
@@ -1249,7 +1260,10 @@ class AIEngine:
                 "statistiques",
             ]
         ):
-            return "🔍 **Recherche web en cours...**\n\nJe recherche cette information sur internet pour vous donner une réponse à jour.\n\n*(Note: Le système de recherche web est en cours d'implémentation)*"
+            return (
+                "🔍 **Recherche web en cours...**\n\nJe recherche cette information sur internet pour vous donner une réponse à jour.\n\n*(Note: Le système de recherche web est en cours d'implémentation)*",
+                False,
+            )
 
         # 2. Demandes de code → Nouveau générateur web
         code_keywords = [
@@ -1284,18 +1298,33 @@ class AIEngine:
                     source = result.get("source", "Web")
                     explanation = result.get("explanation", "")
 
-                    return f"🌐 **Code trouvé sur {source}:**\n\n```{language}\n{code}\n```\n\n💬 **Explication:** {explanation}"
+                    return (
+                        f"🌐 **Code trouvé sur {source}:**\n\n```{language}\n{code}\n```\n\n💬 **Explication:** {explanation}",
+                        False,
+                    )
                 else:
                     # Fallback minimal seulement si recherche web échoue
                     if "tri" in text_lower or "sort" in text_lower:
-                        return f"🛠️ **Code généré localement (recherche web échouée):**\n\n```{language}\ndef sort_list(items):\n    \"\"\"Trie une liste par ordre alphabétique\"\"\"\n    return sorted(items)\n\n# Exemple\nwords = ['pomme', 'banane', 'cerise']\nsorted_words = sort_list(words)\nprint(sorted_words)  # ['banane', 'cerise', 'pomme']\n```"
+                        return (
+                            f"🛠️ **Code généré localement (recherche web échouée):**\n\n```{language}\ndef sort_list(items):\n    \"\"\"Trie une liste par ordre alphabétique\"\"\"\n    return sorted(items)\n\n# Exemple\nwords = ['pomme', 'banane', 'cerise']\nsorted_words = sort_list(words)\nprint(sorted_words)  # ['banane', 'cerise', 'pomme']\n```",
+                            False,
+                        )
                     else:
-                        return f'❌ **Impossible de trouver du code pour:** "{text}"\n\n🔍 **Recherches effectuées:**\n• GitHub, Stack Overflow, GeeksforGeeks\n\n💡 **Suggestions:**\n• Soyez plus spécifique (ex: "fonction Python qui trie une liste")\n• Précisez le langage souhaité'
+                        return (
+                            f'❌ **Impossible de trouver du code pour:** "{text}"\n\n🔍 **Recherches effectuées:**\n• GitHub, Stack Overflow, GeeksforGeeks\n\n💡 **Suggestions:**\n• Soyez plus spécifique (ex: "fonction Python qui trie une liste")\n• Précisez le langage souhaité',
+                            False,
+                        )
 
             except ImportError:
-                return "❌ **Erreur:** Module de recherche web non disponible.\n\nVeuillez vérifier que tous les modules sont installés correctement."
+                return (
+                    "❌ **Erreur:** Module de recherche web non disponible.\n\nVeuillez vérifier que tous les modules sont installés correctement.",
+                    False,
+                )
             except (ConnectionError, TimeoutError) as e:
-                return f"❌ **Erreur lors de la recherche web:** {str(e)}\n\nLe système de recherche web rencontre des difficultés."
+                return (
+                    f"❌ **Erreur lors de la recherche web:** {str(e)}\n\nLe système de recherche web rencontre des difficultés.",
+                    False,
+                )
 
         # 3. Questions conversationnelles
         if any(
@@ -1312,16 +1341,23 @@ class AIEngine:
             if "comment ça va" in text_lower and not any(
                 tech in text_lower for tech in ["python", "code", "fonction"]
             ):
-                return "Salut ! Je vais bien, merci ! 😊 Je suis votre assistant IA et je suis prêt à vous aider. Que puis-je faire pour vous ?"
+                return (
+                    "Salut ! Je vais bien, merci ! 😊 Je suis votre assistant IA et je suis prêt à vous aider. Que puis-je faire pour vous ?",
+                    False,
+                )
             else:
-                return "Bonjour ! Comment puis-je vous aider aujourd'hui ? Je peux générer du code, répondre à vos questions techniques, ou rechercher des informations sur internet."
+                return (
+                    "Bonjour ! Comment puis-je vous aider aujourd'hui ? Je peux générer du code, répondre à vos questions techniques, ou rechercher des informations sur internet.",
+                    False,
+                )
 
         # 4. Questions sur l'IA
         if any(
             phrase in text_lower
             for phrase in ["qui es-tu", "que fais-tu", "tes capacités"]
         ):
-            return """Je suis votre assistant IA personnel ! 🤖
+            return (
+                """Je suis votre assistant IA personnel ! 🤖
 
 🌐 **Mes capacités principales :**
 • **Génération de code** (Python, JavaScript, etc.) avec recherche web
@@ -1333,7 +1369,9 @@ class AIEngine:
 • Je cherche maintenant du code sur GitHub, Stack Overflow, etc.
 • Plus de templates pré-codés - uniquement du vrai code trouvé sur le web !
 
-Que voulez-vous que je fasse pour vous ?"""
+Que voulez-vous que je fasse pour vous ?""",
+                False,
+            )
 
         # 5. Cas général → délégation au modèle local
         return self._generate_with_local_model(text, context)
