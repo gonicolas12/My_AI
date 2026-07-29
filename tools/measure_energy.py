@@ -30,12 +30,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import models.local_llm as llm_mod
-from models.local_llm import LocalLLM
-
+# La racine du projet doit etre sur sys.path avant tout import de My_AI :
+# le script est lance depuis tools/, qui n'est pas le repertoire du package.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+import models.local_llm as llm_mod  # noqa: E402
+from models.local_llm import LocalLLM  # noqa: E402
 import psutil  # noqa: E402  (dependance codecarbon)
 from codecarbon import OfflineEmissionsTracker  # noqa: E402
 
