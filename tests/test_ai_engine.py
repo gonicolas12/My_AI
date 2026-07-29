@@ -63,15 +63,31 @@ class TestProcessText:
     def test_process_text_with_context(self, engine):
         """Test que le contexte est passé correctement"""
         context = {"rag_context": "Test context", "source_file": "test.pdf"}
-        result = engine.process_text("Question?", context=context)
-        assert result is not None
+
+        # Le modèle est simulé : ce test vérifie le passage du contexte,
+        # pas la qualité de la génération (et garde le test déterministe).
+        with patch.object(
+            engine.local_ai, "generate_response", return_value="Réponse simulée"
+        ) as mock_generate:
+            result = engine.process_text("Question?", context=context)
+
+        assert result == "Réponse simulée"
+        # Le contexte validé doit effectivement parvenir au modèle
+        transmitted_context = mock_generate.call_args[0][1]
+        assert transmitted_context["rag_context"] == "Test context"
+        assert transmitted_context["source_file"] == "test.pdf"
 
     def test_process_text_sanitizes_input(self, engine):
         """Test que l'entrée est nettoyée"""
-        # Espaces en début/fin
-        result = engine.process_text("  Question  ")
+        with patch.object(
+            engine.local_ai, "generate_response", return_value="Réponse simulée"
+        ) as mock_generate:
+            # Espaces en début/fin
+            result = engine.process_text("  Question  ")
+
         assert result is not None
-        # Vérifie que la requête a été traitée (pas rejetée)
+        # La requête transmise au modèle est débarrassée des espaces superflus
+        assert mock_generate.call_args[0][0] == "Question"
 
 
 class TestFileProcessing:

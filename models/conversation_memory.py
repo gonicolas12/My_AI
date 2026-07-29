@@ -128,6 +128,17 @@ class ConversationMemory:
         """Récupère les conversations récentes"""
         return self.conversations[-limit:] if limit > 0 else self.conversations
 
+    def get_recent_history(self, limit: int = 5) -> List[ConversationEntry]:
+        """
+        Récupère l'historique récent des échanges.
+
+        Alias de get_recent_conversations() : harmonise le nom avec
+        ConversationManager.get_recent_history() (core/conversation.py), les
+        deux classes étant exposées côté appelant sous le même rôle de
+        « mémoire de conversation ».
+        """
+        return self.get_recent_conversations(limit)
+
     def get_conversation_by_intent(
         self, intent: str, limit: int = 3
     ) -> List[ConversationEntry]:

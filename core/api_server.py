@@ -25,7 +25,7 @@ try:
     import uvicorn
     from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from pydantic import BaseModel, Field
+    from pydantic import BaseModel, Field, ValidationError
 
     _FASTAPI_AVAILABLE = True
 except ImportError:
@@ -250,6 +250,15 @@ class APIServer:
                     "response": response_text,
                     "model": model_name,
                 }
+            except ValidationError as exc:
+                # Entrée rejetée par la validation du moteur (requête vide,
+                # trop longue, motif dangereux) : c'est une erreur du client,
+                # pas du serveur → 422 et non 500.
+                logger.warning("Requête rejetée par la validation : %s", exc)
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Requête invalide : {exc}",
+                ) from exc
             except Exception as exc:
                 logger.error("Erreur lors du traitement du message : %s", exc)
                 raise HTTPException(
