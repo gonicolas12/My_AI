@@ -223,14 +223,21 @@ class TestMemoryManagement:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             memory = VectorMemory(max_tokens=1000, storage_dir=tmpdir)
 
+            # Dimensionner la charge d'après le compteur réellement actif.
+            # count_tokens() retombe sur une approximation (mots x 0,75) quand
+            # tiktoken est absent : un nombre de documents figé en dur ne
+            # remplirait alors pas la mémoire et le test passerait à côté de
+            # l'éviction qu'il prétend vérifier.
+            document = "Document de test avec du contenu. " * 20
+            tokens_per_document = max(1, memory.count_tokens(document))
+            document_count = (memory.max_tokens // tokens_per_document) + 5
+
             # Ajouter plusieurs documents pour remplir
-            for i in range(10):
-                memory.add_document(
-                    "Document de test avec du contenu. " * 20, f"Doc{i}"
-                )
+            for i in range(document_count):
+                memory.add_document(document, f"Doc{i}")
 
             # Vérifier que des documents ont été supprimés
-            assert len(memory.documents) < 10
+            assert len(memory.documents) < document_count
             assert memory.current_tokens <= memory.max_tokens
 
     def test_clear_all(self):
