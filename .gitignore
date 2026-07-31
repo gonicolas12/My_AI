@@ -72,3 +72,6 @@ tools/cloudflared.exe
 tools/ComfyUI_windows_portable/
 tools/ComfyUI_windows_portable_nvidia.7z
 tools/7zr.exe
+
+# Fichiers de couverture de test
+.coverage
