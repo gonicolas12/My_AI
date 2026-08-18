@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 from sentence_transformers import util
 
 # Import depuis le module partagé pour éviter imports circulaires
-from core.shared import CodeSnippet, PRIORITY_CODE_SITES, DEFAULT_TIMEOUT, DEFAULT_MAX_RESULTS, DEFAULT_USER_AGENT, get_shared_embedding_model
+from core.shared import CodeSnippet, PRIORITY_CODE_SITES, DEFAULT_TIMEOUT, DEFAULT_MAX_RESULTS, DEFAULT_USER_AGENT, get_shared_embedding_model, tavily_search, is_tavily_available
 
 
 class SmartCodeSearcher:
@@ -174,14 +174,20 @@ class SmartCodeSearcher:
         return final_query
 
     async def _search_web(self, query: str, _language: str) -> List[Dict]:
-        """Recherche web avec DuckDuckGo"""
+        """Recherche web avec DuckDuckGo + Tavily (si disponible)"""
         results = []
 
-        # Recherche HTML DuckDuckGo (plus de résultats)
-        try:
-            results.extend(await self._search_duckduckgo_html(query))
-        except Exception as e:
-            print(f"⚠️ Erreur DuckDuckGo HTML: {e}")
+        # Recherches en parallèle : DuckDuckGo + Tavily
+        tasks = [self._search_duckduckgo_html(query)]
+        if is_tavily_available():
+            tasks.append(self._search_tavily(query))
+
+        task_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for task_result in task_results:
+            if isinstance(task_result, list):
+                results.extend(task_result)
+            elif isinstance(task_result, Exception):
+                print(f"⚠️ Erreur recherche: {task_result}")
 
         # Filtrer pour garder les sites de code prioritaires
         filtered_results = []
@@ -252,6 +258,19 @@ class SmartCodeSearcher:
         except Exception as e:
             print(f"⚠️ Erreur recherche DuckDuckGo: {e}")
 
+        return results
+
+    async def _search_tavily(self, query: str) -> List[Dict]:
+        """Recherche via Tavily API (code-oriented domains)"""
+        print("🔍 Recherche Tavily en cours...")
+        results = await tavily_search(
+            query=query,
+            max_results=5,
+            search_depth="basic",
+            include_domains=["github.com", "stackoverflow.com", "geeksforgeeks.org",
+                             "realpython.com", "developer.mozilla.org"],
+        )
+        print(f"📊 Tavily: {len(results)} résultats")
         return results
 
     async def _extract_code_snippets(self, web_results: List[Dict],
