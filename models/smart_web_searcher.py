@@ -7,6 +7,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from urllib.parse import quote
 import aiohttp
 from bs4 import BeautifulSoup
 
-# Configuration GitHub
+# Configuration GitHub & Tavily
 try:
     import yaml
     config_path = Path(__file__).parent.parent / "config.yaml"
@@ -26,10 +27,30 @@ try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         GITHUB_TOKEN = config.get('github', {}).get('token', '')
+        TAVILY_API_KEY = config.get('tavily', {}).get('api_key', '')
     else:
         GITHUB_TOKEN = ''
+        TAVILY_API_KEY = ''
 except Exception:
     GITHUB_TOKEN = ''
+    TAVILY_API_KEY = ''
+
+# Resolve env var references and allow direct env override
+if TAVILY_API_KEY.startswith('${') and TAVILY_API_KEY.endswith('}'):
+    TAVILY_API_KEY = os.environ.get(TAVILY_API_KEY[2:-1], '')
+if not TAVILY_API_KEY:
+    TAVILY_API_KEY = os.environ.get('TAVILY_API_KEY', '')
+
+# Initialize Tavily client if available
+_tavily_client = None
+if TAVILY_API_KEY:
+    try:
+        from tavily import TavilyClient
+        _tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+    except ImportError:
+        print("[WARNING] tavily-python not installed, falling back to Google scraping for GeeksforGeeks")
+    except Exception as e:
+        print(f"[WARNING] Failed to initialize Tavily client: {e}")
 
 @dataclass
 class CodeSearchResult:
@@ -52,6 +73,7 @@ class SmartWebSearcher:
     def __init__(self):
         self.cache_db = self._init_cache_db()
         self.session = None
+        self.tavily_client = _tavily_client
         self.github_headers = {
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'Python-Code-Generator/1.0'
@@ -121,7 +143,10 @@ class SmartWebSearcher:
                 tasks.append(self._search_stackoverflow(query, language, max_results // len(sources) + 1))
 
             if "geeksforgeeks" in sources:
-                tasks.append(self._search_geeksforgeeks(query, language, max_results // len(sources) + 1))
+                if self.tavily_client:
+                    tasks.append(self._search_geeksforgeeks_tavily(query, language, max_results // len(sources) + 1))
+                else:
+                    tasks.append(self._search_geeksforgeeks(query, language, max_results // len(sources) + 1))
 
             # Exécuter toutes les recherches en parallèle
             try:
@@ -236,6 +261,63 @@ class SmartWebSearcher:
 
         except Exception as e:
             print(f"[ERROR] Erreur recherche Stack Overflow: {e}")
+
+        return results
+
+    async def _search_geeksforgeeks_tavily(self, query: str, language: str, max_results: int) -> List[CodeSearchResult]:
+        """Recherche sur GeeksforGeeks via Tavily API"""
+        results = []
+
+        try:
+            search_query = f"{query} {language}"
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.tavily_client.search(
+                    query=search_query,
+                    max_results=max_results,
+                    search_depth="advanced",
+                    include_domains=["geeksforgeeks.org"],
+                    include_raw_content=True,
+                )
+            )
+
+            for item in response.get("results", []):
+                url = item.get("url", "")
+                title = item.get("title", "GeeksforGeeks Solution")
+                content = item.get("content", "")
+
+                # Try to extract code blocks from the raw content
+                code_text = content
+                if item.get("raw_content"):
+                    # Parse raw_content for code blocks if available
+                    raw_soup = BeautifulSoup(item["raw_content"], "html.parser")
+                    code_elements = raw_soup.find_all(["pre", "code"])
+                    for code_elem in code_elements:
+                        candidate = code_elem.get_text()
+                        if len(candidate) > 50 and self._is_relevant_code(candidate, query, language):
+                            code_text = candidate
+                            break
+
+                if code_text and len(code_text) > 20:
+                    result = CodeSearchResult(
+                        code=code_text,
+                        title=title,
+                        description="Solution from GeeksforGeeks (via Tavily)",
+                        language=language,
+                        source_url=url,
+                        source_name="GeeksforGeeks",
+                        rating=4.0,
+                        relevance_score=item.get("score", 0.5),
+                        author="GeeksforGeeks",
+                        created_at=datetime.now(),
+                        tags=[language, "tutorial"],
+                    )
+                    results.append(result)
+
+        except Exception as e:
+            print(f"[WARNING] Tavily GeeksforGeeks search failed, falling back to Google scrape: {e}")
+            return await self._search_geeksforgeeks(query, language, max_results)
 
         return results
 
