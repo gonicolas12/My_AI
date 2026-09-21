@@ -67,21 +67,50 @@ streamlit>=1.42.0
 # ====================================
 # protobuf 5.26+ requis (4.x cause ImportError: runtime_version avec tensorflow/transformers)
 protobuf>=5.26,<7
-torch>=2.0.0
 scikit-learn>=1.3.0
 rapidfuzz
 spacy
 tiktoken
-numpy>=1.24.0
+
+# ------------------------------------------------------------------------
+# Pile ML : deux jeux de contraintes mutuellement exclusifs.
+#
+# macOS Intel (x86_64) : PyTorch ne publie plus de wheel x86_64 au-delà de
+# 2.2.2, ce qui plafonne toute la pile. Sans ces bornes, pip installe
+# transformers 5.x (qui exige torch >= 2.5), désactive torch en silence, puis
+# échoue sur « NameError: name 'nn' is not defined ». numpy doit rester en 1.x :
+# torch 2.2.2 est compilé contre l'ABI numpy 1.
+#
+# Partout ailleurs (Windows, Linux, Apple Silicon) : bornes hautes majeures
+# calées sur la pile validée en local (torch 2.8, transformers 4.56,
+# sentence-transformers 5.1, numpy 2.3) pour qu'une installation neuve ne
+# ramasse pas « la dernière version de tout ».
+# ------------------------------------------------------------------------
+
+# --- macOS Intel (x86_64) ---
+torch<=2.2.2; platform_system == "Darwin" and platform_machine == "x86_64"
+numpy>=1.24.0,<2; platform_system == "Darwin" and platform_machine == "x86_64"
+transformers>=4.40,<5; platform_system == "Darwin" and platform_machine == "x86_64"
+sentence-transformers>=2.2.0,<4; platform_system == "Darwin" and platform_machine == "x86_64"
+peft>=0.4.0,<0.14; platform_system == "Darwin" and platform_machine == "x86_64"
+
+# --- Windows / Linux / Apple Silicon ---
+torch>=2.0.0,<3; platform_system != "Darwin" or platform_machine != "x86_64"
+numpy>=1.24.0,<3; platform_system != "Darwin" or platform_machine != "x86_64"
+# transformers est tiré par sentence-transformers ; on l'épingle explicitement
+# car c'est lui qui pilote la contrainte torch de toute la pile.
+transformers>=4.40,<5; platform_system != "Darwin" or platform_machine != "x86_64"
+sentence-transformers>=2.2.0,<6; platform_system != "Darwin" or platform_machine != "x86_64"
+peft>=0.4.0,<1.0; platform_system != "Darwin" or platform_machine != "x86_64"
 
 # Embeddings & RAG
-sentence-transformers>=2.2.0
 chromadb
 faiss-cpu>=1.7.4
 
 # Fine-tuning (optionnel)
-peft>=0.4.0
-bitsandbytes>=0.40.0
+# bitsandbytes ne publie aucune wheel macOS : sans ce marqueur, l'installation
+# complète échoue sur Mac (même motif que winotify plus bas).
+bitsandbytes>=0.40.0,<1.0; platform_system != "Darwin"
 
 # ====================================
 # SÉCURITÉ
