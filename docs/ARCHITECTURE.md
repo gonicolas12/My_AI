@@ -995,6 +995,20 @@ Rôle: Éditer un message envoyé puis regénérer, en conservant les variantes
 └─ Rendu reconstruit via add_message_bubble(instant=True)
 ```
 
+**`interfaces/gui/_wheel.py`** - Normalisation molette souris
+```python
+Rôle: Ramener les événements de molette à une unité commune, le « cran »
+├─ Windows : event.delta en multiples de 120 (un cran = 120)
+├─ macOS   : event.delta en petits entiers (un cran = ±1), PAS de facteur 120
+├─ Linux   : aucun delta, mais les boutons 4 (haut) et 5 (bas)
+└─ wheel_notches(event) -> float, positif vers le haut ; chaque appelant
+   applique ensuite son propre facteur d'amplification
+```
+
+> ⚠️ **Pour tout nouveau gestionnaire de molette, passez par `wheel_notches`.**
+> Diviser `event.delta` par 120 (ou 6, ou 2) donne **0 sur macOS** pour un cran
+> standard : la molette reste inerte alors que la scrollbar fonctionne.
+
 **`interfaces/cli.py`** - CLI améliorée
 ```python
 Commandes:
