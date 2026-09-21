@@ -197,6 +197,7 @@ my_ai/
 ├── core/                                # Cœur de l'IA
 │   ├── __init__.py
 │   ├── agent_orchestrator.py            # Orchestrateur d'agents
+│   ├── agentic_executor.py              # Exécuteur agentique (outils distants via Relay)
 │   ├── ai_engine.py                     # Moteur principal IA
 │   ├── api_server.py                    # Serveur API REST (FastAPI)
 │   ├── chat_orchestrator.py             # Orchestrateur de chat (ReAct + Plan & Execute)
@@ -216,6 +217,7 @@ my_ai/
 │   ├── memory_store.py                  # Couche d'accès CRUD unifiée mémoire (faits + vecteurs)
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
+│   ├── platform_paths.py                # Exemples de chemins adaptés à l'OS (prompts)
 │   ├── prompt_library.py                # Bibliothèque de prompts / slash commands
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
 │   ├── scheduler.py                     # Scheduler proactif (tâches planifiées récurrentes)
@@ -373,6 +375,11 @@ cd My_AI
 ```bash
 pip install -r requirements.txt
 ```
+
+> ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de
+> build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à
+> Python 3.12. Sous Python 3.13+, l'installation échoue. `launch.sh` vérifie ce
+> point au démarrage. Apple Silicon, Windows et Linux ne sont pas concernés.
 
 #### 🎮 Monitoring GPU *(Optionnel)*
 
