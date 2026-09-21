@@ -467,8 +467,6 @@ Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
 > d'Ollama) et `python main.py --mode gui` (GUI seule) fonctionnent sur les
 > trois systèmes.
 
-> 💡 L'interface intègre des **boutons de feedback** sous chaque réponse de l'IA. Chaque feedback est automatiquement enregistré pour améliorer le modèle.
-
 ### 🧹 Nettoyage en cas de problème
 
 ```bash
