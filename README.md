@@ -346,10 +346,11 @@ my_ai/
 │   ├── intelligent_calculator.py        # Calculateur intelligent
 │   └── logger.py                        # Gestion des logs
 ├── main.py                              # Point d'entrée principal (CLI)
-├── launch_unified.py                    # Point d'entrée GUI (lancé par launch.bat)
+├── launch_unified.py                    # Point d'entrée GUI (lancé par launch.bat / launch.sh)
 ├── Modelfile                            # Configuration modèle Ollama
 ├── requirements.txt                     # Dépendances
-├── launch.bat                           # Script pour lancer le programme
+├── launch.bat                           # Script pour lancer le programme (Windows)
+├── launch.sh                            # Script pour lancer le programme (macOS / Linux)
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
 ├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
 ├── test_features.bat                    # Script de test des fonctionnalités avancées
@@ -438,11 +439,23 @@ ollama pull llava            # Alternative (4.7 GB)
 
 ### 4 · Lancer l'application
 
+**Windows :**
+
 ```bash
 .\launch.bat
 ```
 
+**macOS / Linux :**
+
+```bash
+./launch.sh
+```
+
 Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
+
+> 💡 Sans passer par un lanceur, `python launch_unified.py` (GUI + configuration
+> d'Ollama) et `python main.py --mode gui` (GUI seule) fonctionnent sur les
+> trois systèmes.
 
 > 💡 L'interface intègre des **boutons de feedback** sous chaque réponse de l'IA. Chaque feedback est automatiquement enregistré pour améliorer le modèle.
 

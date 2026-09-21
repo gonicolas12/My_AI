@@ -141,25 +141,23 @@ class DOCXProcessor:
         if os.path.exists(file_path):
             return file_path
 
-        # Chemins OneDrive courants
+        # Chemins OneDrive courants. Tout est relatif au dossier personnel :
+        # OneDrive se monte sous ~ sur Windows comme sur macOS, et l'ancienne
+        # version codait "C:/Users/" + %USERNAME%, inopérant hors Windows
+        # (macOS expose USER, pas USERNAME).
+        home = Path.home()
         onedrive_paths = [
-            os.path.expanduser("~/OneDrive"),
-            os.path.expanduser("~/OneDrive - Personnel"),
-            os.path.expanduser("~/OneDrive - Professionnel"),
-            "C:/Users/" + os.getenv("USERNAME", "") + "/OneDrive",
-            "C:/Users/" + os.getenv("USERNAME", "") + "/OneDrive - Personnel",
+            str(home / "OneDrive"),
+            str(home / "OneDrive - Personnel"),
+            str(home / "OneDrive - Professionnel"),
         ]
 
-        # Ajouter les chemins OneDrive spécifiques détectés automatiquement
-        username = os.getenv("USERNAME", "")
-        if username:
-            # Chemins OneDrive Business/Enterprise
-            enterprise_patterns = [
-                f"C:/Users/{username}/OneDrive - *",
-                f"C:/Users/{username}/OneDrive*",
-            ]
-            for pattern in enterprise_patterns:
-                onedrive_paths.extend(glob.glob(pattern))
+        # Ajouter les chemins OneDrive Business/Enterprise détectés automatiquement
+        for pattern in ("OneDrive - *", "OneDrive*"):
+            onedrive_paths.extend(glob.glob(str(home / pattern)))
+
+        # Dédoublonner en conservant l'ordre de préférence
+        onedrive_paths = list(dict.fromkeys(onedrive_paths))
 
         # Extraire le nom de fichier de base
         file_name = os.path.basename(file_path)
@@ -168,7 +166,7 @@ class DOCXProcessor:
         for onedrive_path in onedrive_paths:
             if os.path.exists(onedrive_path):
                 # Recherche récursive dans OneDrive
-                for root, files in os.walk(onedrive_path):
+                for root, _dirs, files in os.walk(onedrive_path):
                     if file_name in files:
                         potential_path = os.path.join(root, file_name)
                         print(f"✅ Fichier trouvé dans OneDrive: {potential_path}")
