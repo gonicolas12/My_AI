@@ -341,6 +341,7 @@ my_ai/
 │       └── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils (cloudflared pour le Relay)
+│   └── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
 │   ├── citations.py                     # Citations web numérotées cliquables ([n] → url)

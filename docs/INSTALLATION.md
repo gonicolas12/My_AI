@@ -191,6 +191,21 @@ pyttsx3>=2.90            # Synthèse vocale locale via le moteur de l'OS
 > - **Windows** : SAPI5 (installe automatiquement `pywin32` / `comtypes`)
 > - **macOS** : NSSpeechSynthesizer (intégré)
 > - **Linux** : nécessite `espeak-ng` (`sudo apt install espeak-ng`)
+
+> ⏱️ **macOS — temps d'installation.** `pyttsx3` déclare une dépendance sur le
+> paquet parapluie `pyobjc`, qui installe ~200 bindings de frameworks Apple
+> (AVKit, CallKit, ShazamKit, PencilKit…) alors que la synthèse vocale n'utilise
+> que Foundation et AppKit. C'est le principal poste de temps à l'installation
+> sur Mac. La dépendance est déclarée par pyttsx3 lui-même, à toutes ses
+> versions : l'épingler n'y change rien.
+>
+> Si ce coût vous gêne et que vous n'avez pas besoin de la lecture vocale,
+> installez sans elle — le bouton 🔊 affichera simplement « indisponible », sans
+> rien casser :
+> ```bash
+> grep -v '^pyttsx3' requirements.txt > /tmp/req-sans-tts.txt
+> pip install -r /tmp/req-sans-tts.txt
+> ```
 >
 > La voix est **choisie selon la langue détectée** de la réponse (via `langdetect`). Utilisation : bouton 🔊 sous chaque message, ou toggle **« Lecture auto »** dans la sidebar.
 
@@ -618,6 +633,41 @@ pip install -r requirements.txt
 pip install customtkinter
 ```
 
+### Problème: Installation interrompue (environnement à moitié vidé)
+
+**Symptômes:** après un `pip install` coupé en cours de route, les erreurs
+n'ont aucun rapport visible avec la cause. pip désinstalle avant de réinstaller,
+donc une interruption laisse des paquets réduits à leur seul `__pycache__` et
+des dossiers `.dist-info` vidés de leur `METADATA`.
+
+Le message typique ne désigne rien d'utile :
+```
+ValueError: Unable to compare versions for regex!=2019.12.17:
+            need=2019.12.17 found=None
+```
+Il signifie qu'un ancien `regex-<vieille>.dist-info` sans `METADATA` subsiste à
+côté du dossier neuf, et que `importlib.metadata` ne peut plus lire sa version.
+
+**Solutions:**
+```bash
+# 1. Inventorier les .dist-info corrompus (ne supprime rien)
+python tools/clean_broken_dist_info.py
+
+# 2. Les supprimer
+python tools/clean_broken_dist_info.py --delete
+
+# 3. Réinstaller
+pip install -r requirements.txt
+```
+
+Si le dossier `venv/` existe mais que `venv/bin/activate` a disparu, c'est un
+venv incomplet et non une absence de venv — `launch.sh` le détecte et s'arrête.
+Recréez-le :
+```bash
+rm -rf venv && python3 -m venv venv
+. venv/bin/activate && pip install -r requirements.txt
+```
+
 ### Problème: Tkinter non disponible
 
 **Erreur:** `No module named 'tkinter'` ou `_tkinter`
@@ -773,13 +823,40 @@ python test_installation.py
 ### Mise à jour dépendances
 
 ```bash
-# Mettre à jour toutes les dépendances
-pip install -r requirements.txt --upgrade
+# Appliquer requirements.txt (recommandé)
+pip install -r requirements.txt
 
-# Mettre à jour package spécifique
+# Mettre à jour un package spécifique
 pip install --upgrade customtkinter
-pip install --upgrade transformers
 ```
+
+> ⚠️ **Évitez `--upgrade` sur tout le fichier.** Sans ce drapeau, pip laisse
+> intactes les dépendances qui satisfont déjà les contraintes et n'installe que
+> ce qui manque. Avec `--upgrade`, il re-résout **l'intégralité** de la pile vers
+> les dernières versions disponibles ce jour-là : sur un retour de terrain,
+> 344 paquets réinstallés pour quelques versions de patch. Au-delà du temps
+> perdu, cela allonge la fenêtre pendant laquelle une interruption laisse
+> l'environnement inutilisable.
+
+### Reproduire une pile identique
+
+`requirements.txt` exprime des **bornes** (`>=`), pas des versions figées : deux
+installations à quelques semaines d'écart ne donnent donc pas exactement la même
+pile. Pour figer la vôtre :
+
+```bash
+# Enregistrer l'état validé
+pip freeze > requirements.lock.txt
+
+# Le rejouer à l'identique ailleurs
+pip install -r requirements.lock.txt
+```
+
+> Un tel fichier est **spécifique à un OS et à une version de Python** : la pile
+> macOS Intel est plafonnée (torch 2.2.2, numpy 1.x) là où Windows, Linux et
+> Apple Silicon utilisent des versions bien plus récentes. Un lock généré sur une
+> machine n'est pas transposable telle quelle sur une autre — générez-en un par
+> plateforme cible.
 
 ### Mise à jour projet
 

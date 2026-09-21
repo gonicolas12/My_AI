@@ -39,7 +39,21 @@ if [ -z "$PYTHON" ]; then
     exit 1
 fi
 
-# Activer l'environnement virtuel s'il existe
+# Activer l'environnement virtuel s'il existe.
+# Un venv/ present mais sans activate est un venv CASSE, pas une absence de
+# venv : continuer sur le Python systeme donnerait un ModuleNotFoundError
+# quarante lignes plus loin, sans rapport visible avec la vraie cause.
+if [ -d "venv" ] && [ ! -f "venv/bin/activate" ]; then
+    echo "[ERROR] Le dossier venv/ existe mais venv/bin/activate est absent."
+    echo "        L'environnement virtuel est incomplet (installation interrompue ?)."
+    echo "[AIDE]  Recreez-le :"
+    echo "          rm -rf venv"
+    echo "          $PYTHON -m venv venv"
+    echo "          . venv/bin/activate"
+    echo "          pip install -r requirements.txt"
+    exit 1
+fi
+
 if [ -f "venv/bin/activate" ]; then
     echo "[INFO] Activation environnement virtuel..."
     # shellcheck disable=SC1091
@@ -84,6 +98,26 @@ if ! "$PYTHON" -c "import click, yaml, rich" >/dev/null 2>&1; then
         echo "[ERROR] Echec installation dependances"
         exit 1
     fi
+fi
+
+# Sonde elargie. Les trois paquets ci-dessus sont legers : un environnement
+# massivement ampute (installation interrompue) passe ce controle sans broncher,
+# puis echoue bien plus loin sur un ModuleNotFoundError illisible. On teste donc
+# un echantillon representatif des couches reellement necessaires.
+missing=""
+for mod in customtkinter PIL numpy requests; do
+    if ! "$PYTHON" -c "import $mod" >/dev/null 2>&1; then
+        missing="$missing $mod"
+    fi
+done
+if [ -n "$missing" ]; then
+    echo "[ERROR] Dependances manquantes ou environnement incomplet :$missing"
+    echo "[AIDE]  Reinstallez :  $PYTHON -m pip install -r requirements.txt"
+    echo "        Si une installation precedente a ete interrompue, des dossiers"
+    echo "        .dist-info vides peuvent subsister et provoquer des erreurs de"
+    echo "        version illisibles. Nettoyez-les avant de reinstaller :"
+    echo "          $PYTHON tools/clean_broken_dist_info.py"
+    exit 1
 fi
 
 # Menu de choix
