@@ -44,6 +44,7 @@ def parse_arguments():
 Exemples d'utilisation:
   python main.py                           # Lance l'interface CLI interactive
   python main.py --mode cli                # Lance l'interface CLI
+  python main.py --mode gui                # Lance l'interface graphique
   python main.py chat "Bonjour l'IA"       # Requête directe
   python main.py status                     # Affiche le statut
   python main.py --help                     # Affiche cette aide
@@ -253,6 +254,33 @@ async def handle_generate_command(
         sys.exit(1)
 
 
+def handle_gui_command():
+    """
+    Lance l'interface graphique moderne.
+
+    Chemin portable (Windows / macOS / Linux) équivalent à launch_unified.py,
+    sans la configuration Ollama que ce dernier effectue.
+    """
+    try:
+        from interfaces.gui_modern import (  # pylint: disable=import-outside-toplevel
+            ModernAIGUI,
+        )
+    except ImportError as e:
+        print(f"❌ Interface graphique indisponible: {e}")
+        print()
+        print("🔧 Solutions possibles:")
+        print("   1. Installez les dépendances: pip install -r requirements.txt")
+        print("   2. Repliez-vous sur le mode CLI: python main.py --mode cli")
+        sys.exit(1)
+
+    try:
+        ModernAIGUI().run()
+    except (RuntimeError, OSError, AttributeError) as e:
+        print(f"❌ Erreur lors du lancement de l'interface: {e}")
+        print("💡 Repli possible: python main.py --mode cli")
+        sys.exit(1)
+
+
 def setup_logging(verbose: bool = False, quiet: bool = False):
     """
     Configure le logging selon les options
@@ -320,10 +348,7 @@ async def main():
                 cli = CLIInterface()
                 await cli.run()
             elif args.mode == "gui":
-                print("🚧 Interface GUI en cours de développement...")
-                print(
-                    "💡 Utilisez le mode CLI pour le moment: python main.py --mode cli"
-                )
+                handle_gui_command()
             else:
                 print(f"❌ Mode inconnu: {args.mode}")
                 sys.exit(1)

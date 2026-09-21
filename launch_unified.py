@@ -2,87 +2,158 @@
 """
 🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v8.0.0
 Lance l'interface avec CustomAI unifié (support 10M tokens intégré)
+
+Portable Windows / macOS / Linux : les appels propres à un OS (registre,
+taskkill, launchctl…) sont isolés derrière des gardes de plateforme et
+importés paresseusement, pour que ce module reste importable partout.
 """
 
 import os
 import subprocess
 import sys
 import time
-import winreg
-import ctypes
 from pathlib import Path
 
 import requests
+
+IS_WINDOWS = sys.platform.startswith("win")
+IS_MACOS = sys.platform == "darwin"
+
+# CREATE_NO_WINDOW n'existe que sous Windows (évite une console qui flashe)
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
+
+
+def _ollama_is_running(timeout: float = 2.0) -> bool:
+    """Vrai si un serveur Ollama répond déjà sur le port local."""
+    try:
+        return requests.get(OLLAMA_TAGS_URL, timeout=timeout).status_code == 200
+    except Exception:
+        return False
+
+
+def _persist_env_var(name: str, value: str) -> None:
+    """Enregistre la variable pour les prochains lancements, selon l'OS.
+
+    Windows : registre utilisateur (permanent, sans admin).
+    macOS   : ``launchctl setenv`` — vu par l'app Ollama lancée ensuite depuis
+              le Finder, mais remis à zéro à la fin de la session.
+    Linux   : pas de mécanisme utilisateur standard ; on se contente de
+              l'environnement de nos processus enfants.
+    """
+    if IS_WINDOWS:
+        try:
+            import ctypes  # pylint: disable=import-outside-toplevel
+            import winreg  # pylint: disable=import-outside-toplevel
+
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_ALL_ACCESS
+            )
+            try:
+                current, _ = winreg.QueryValueEx(key, name)
+            except FileNotFoundError:
+                current = None
+            if current != value:
+                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+                print(f"📝 Variable {name}={value} enregistrée (permanent)")
+                # Notifier Windows du changement
+                ctypes.windll.user32.SendMessageTimeoutW(
+                    0xFFFF, 0x001A, 0, "Environment", 0, 1000, None
+                )
+            winreg.CloseKey(key)
+        except Exception as e:
+            print(f"⚠️ Impossible d'écrire la variable registre: {e}")
+        return
+
+    if IS_MACOS:
+        try:
+            subprocess.run(
+                ["launchctl", "setenv", name, value],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            print(f"📝 Variable {name}={value} posée via launchctl (session courante)")
+        except FileNotFoundError:
+            print("⚠️ launchctl introuvable — variable posée pour ce processus seulement")
+        return
+
+    print(
+        f"💡 Pour rendre {name}={value} permanent sous Linux, passez par "
+        "'systemctl edit ollama.service' ou votre profil shell"
+    )
+
+
+def _kill_ollama() -> None:
+    """Arrête tous les processus Ollama, y compris l'application bureau."""
+    if IS_WINDOWS:
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "ollama.exe", "/T"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return
+
+    # macOS / Linux : le serveur tourne sous le nom exact « ollama ».
+    try:
+        subprocess.run(
+            ["pkill", "-x", "ollama"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except FileNotFoundError:
+        print("⚠️ pkill introuvable — arrêtez Ollama manuellement si besoin")
+
+    if IS_MACOS:
+        # Sans ça, l'app bureau relance le serveur avec l'ancien environnement.
+        subprocess.run(
+            ["osascript", "-e", 'tell application "Ollama" to quit'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False,
+        )
 
 
 def _ensure_ollama_parallel():
     """Configure Ollama pour le parallélisme et le redémarre si nécessaire."""
     num_parallel = "4"
 
-    # ── 1. Écrire la variable dans le registre Windows (permanent, sans admin) ──
-    try:
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_ALL_ACCESS
-        )
-        try:
-            current, _ = winreg.QueryValueEx(key, "OLLAMA_NUM_PARALLEL")
-        except FileNotFoundError:
-            current = None
-        if current != num_parallel:
-            winreg.SetValueEx(key, "OLLAMA_NUM_PARALLEL", 0, winreg.REG_SZ, num_parallel)
-            print(f"📝 Variable OLLAMA_NUM_PARALLEL={num_parallel} enregistrée (permanent)")
-            # Notifier Windows du changement
-            ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 0, 1000, None)
-        winreg.CloseKey(key)
-    except Exception as e:
-        print(f"⚠️ Impossible d'écrire la variable registre: {e}")
+    # ── 1. Rendre la variable persistante autant que l'OS le permet ──
+    _persist_env_var("OLLAMA_NUM_PARALLEL", num_parallel)
 
     # ── 2. Définir pour notre processus aussi ──
     os.environ["OLLAMA_NUM_PARALLEL"] = num_parallel
 
-    # ── 3. Vérifier si Ollama tourne déjà ──
-    try:
-        r = requests.get("http://localhost:11434/api/tags", timeout=2)
-        ollama_running = r.status_code == 200
-    except Exception:
-        ollama_running = False
-
-    if ollama_running:
+    # ── 3. Si Ollama tourne déjà, le redémarrer avec le bon environnement ──
+    if _ollama_is_running():
         # Tuer TOUS les processus Ollama (y compris l'app bureau)
         print("🔄 Redémarrage d'Ollama avec OLLAMA_NUM_PARALLEL=4...")
-        subprocess.run(
-            ["taskkill", "/F", "/IM", "ollama.exe", "/T"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            check=False,
-        )
+        _kill_ollama()
         # Attendre que le port soit libéré
         for _ in range(10):
-            try:
-                requests.get("http://localhost:11434/api/tags", timeout=0.5)
-                time.sleep(0.5)
-            except Exception:
+            if not _ollama_is_running(timeout=0.5):
                 break  # Port libéré, Ollama est bien mort
+            time.sleep(0.5)
 
     # ── 4. Lancer Ollama avec notre environnement ──
     env = os.environ.copy()
     env["OLLAMA_NUM_PARALLEL"] = num_parallel
+    popen_kwargs = {
+        "env": env,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if IS_WINDOWS:
+        popen_kwargs["creationflags"] = _NO_WINDOW
+    else:
+        # Détacher le serveur : il survit à la fermeture du lanceur.
+        popen_kwargs["start_new_session"] = True
     try:
-        subprocess.Popen(
-            ["ollama", "serve"],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
+        subprocess.Popen(["ollama", "serve"], **popen_kwargs)
         # Attendre qu'Ollama soit prêt
         for _ in range(20):
-            try:
-                r = requests.get("http://localhost:11434/api/tags", timeout=2)
-                if r.status_code == 200:
-                    print(f"✅ Ollama prêt (parallélisme: {num_parallel} requêtes simultanées)")
-                    return
-            except Exception:
-                pass
+            if _ollama_is_running():
+                print(f"✅ Ollama prêt (parallélisme: {num_parallel} requêtes simultanées)")
+                return
             time.sleep(0.5)
         print("⚠️ Ollama lancé mais pas encore prêt — il démarrera sous peu")
     except FileNotFoundError:
