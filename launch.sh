@@ -50,6 +50,20 @@ else
     echo "[INFO] Mode installation globale"
 fi
 
+# Mac Intel : PyTorch ne publie plus de wheel x86_64 au-dela de 2.2.2, et
+# celle-ci s'arrete a Python 3.12 (comme numpy 1.26.4). Sous Python 3.13+,
+# pip ne trouve aucune version installable et tente une compilation qui echoue.
+if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "x86_64" ]; then
+    if ! "$PYTHON" -c "import sys; sys.exit(0 if sys.version_info < (3, 13) else 1)"; then
+        pyver="$("$PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+        echo "[ERROR] Python $pyver detecte sur un Mac Intel (x86_64)."
+        echo "[AIDE]  PyTorch s'arrete a la version 2.2.2 sur cette architecture,"
+        echo "        et cette version ne fournit pas de build pour Python 3.13+."
+        echo "        Installez Python 3.12 (python.org) et relancez ce script."
+        exit 1
+    fi
+fi
+
 # tkinter n'est pas systematiquement fourni avec Python sur macOS/Linux :
 # sans lui, la GUI ne peut pas demarrer et l'erreur est peu explicite.
 if ! "$PYTHON" -c "import tkinter" >/dev/null 2>&1; then

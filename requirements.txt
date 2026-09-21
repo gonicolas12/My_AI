@@ -81,6 +81,11 @@ tiktoken
 # échoue sur « NameError: name 'nn' is not defined ». numpy doit rester en 1.x :
 # torch 2.2.2 est compilé contre l'ABI numpy 1.
 #
+# ⚠️ Mac Intel : PYTHON 3.12 MAXIMUM. Les wheels macOS x86_64 de torch 2.2.2
+# (cp38-cp312) et de numpy 1.26.4 (cp39-cp312) ne couvrent pas Python 3.13+.
+# Sous 3.13, pip ne trouve rien d'installable et tente une compilation qui
+# echoue. launch.sh verifie ce point et s'arrete avec un message explicite.
+#
 # Partout ailleurs (Windows, Linux, Apple Silicon) : bornes hautes majeures
 # calées sur la pile validée en local (torch 2.8, transformers 4.56,
 # sentence-transformers 5.1, numpy 2.3) pour qu'une installation neuve ne
