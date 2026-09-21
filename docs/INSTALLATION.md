@@ -13,6 +13,12 @@ My Personal AI v8.0.0 est une **IA 100% locale** avec un système de contexte de
 - **4 GB RAM** (8 GB recommandé, 16 GB idéal pour 10M tokens)
 - **500 MB d'espace disque** (1 GB recommandé pour cache et documents)
 - **Windows/Linux/macOS** supportés
+
+> ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de
+> build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à
+> Python 3.12 (idem numpy 1.26.4). Sous Python 3.13+, `pip install` échoue.
+> `launch.sh` vérifie ce point et s'arrête avec un message explicite.
+> Apple Silicon, Windows et Linux ne sont pas concernés.
 - **Connexion internet** (installation uniquement, optionnelle ensuite pour recherche web)
 
 **Configuration recommandée:**
@@ -108,7 +114,11 @@ ollama run qwen3.5:4b "Bonjour"  # Tester
 ### 4. Lancement Rapide
 
 ```bash
-# Lancement GUI (recommandé)
+# Via le lanceur (menu interactif)
+.\launch.bat            # Windows
+./launch.sh             # macOS / Linux
+
+# Lancement GUI direct (recommandé)
 python launch_unified.py
 
 # OU via main.py
@@ -259,7 +269,7 @@ code --install-extension my-ai-relay-X.Y.Z.vsix --force
 ```
 faiss-cpu>=1.7.4         # Semantic search
 peft>=0.4.0              # LoRA fine-tuning
-bitsandbytes>=0.40.0     # Quantization
+bitsandbytes>=0.40.0     # Quantization (hors macOS : aucune wheel publiée)
 sqlalchemy>=2.0.0        # Database ORM
 cryptography>=41.0.0     # Encryption
 ```
@@ -298,6 +308,8 @@ My_AI/
 ├── .env                   # Variables environnement (optionnel)
 ├── requirements.txt       # Dépendances Python
 ├── launch_unified.py      # Launcher principal
+├── launch.bat             # Lanceur Windows
+├── launch.sh              # Lanceur macOS / Linux
 └── main.py               # Entry point CLI
 ```
 
@@ -668,6 +680,7 @@ pip install torch torchvision torchaudio
 ```bash
 # Donner permissions sur répertoires
 chmod -R u+w data/
+chmod +x launch.sh
 chmod +x launch_unified.py
 chmod +x main.py
 

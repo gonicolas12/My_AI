@@ -1398,6 +1398,13 @@ python main.py generate code "desc"   # Génération code
 # Récupération erreurs
 ```
 
+### `launch.sh` - Script macOS / Linux
+```bash
+# Équivalent POSIX de launch.bat (même menu)
+# Vérifie tkinter, souvent absent des installations Python macOS/Linux
+# Bloque Python 3.13+ sur Mac Intel (torch x86_64 plafonne à 2.2.2)
+```
+
 ## ⚡ Performances et Caractéristiques
 
 ### Temps Réponse Typiques

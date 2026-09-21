@@ -74,7 +74,8 @@ rlhf.record_interaction(
 ## Lancement
 
 ```bash
-.\launch.bat
+.\launch.bat        # Windows
+./launch.sh         # macOS / Linux
 ```
 
 Sélectionnez l'interface graphique, puis notez chaque réponse en cliquant sur les étoiles.

@@ -115,8 +115,7 @@ de planification (`SchedulerService.run_once()`) puis s'arrête.
   heartbeat) coordonne le scheduler in-process (GUI/Relay) et le runner Windows.
   Quand l'appli est ouverte, le runner détecte qu'un scheduler est actif et ne
   fait rien.
-- 🔔 **Notifications appli fermée** : seul le **toast OS** est possible (installez
-  `winotify` ou `plyer`) ; le rapport `.md` est toujours écrit dans
+- 🔔 **Notifications appli fermée** : seul le **toast OS** est possible ; le rapport `.md` est toujours écrit dans
   `outputs/scheduled/`. Les toasts in-app et messages mobiles ne s'affichent
   qu'avec le GUI / Relay ouvert.
 
@@ -140,18 +139,26 @@ scheduler:
   lock_file: "data/scheduler.lock"          # verrou inter-processus
   background_interval_minutes: 5            # sondage du runner Windows
   windows_task_name: "My_AI Scheduler"      # nom de la tâche Planificateur
-  notify_desktop: true          # toast OS (winotify/plyer) sinon toast in-app
+  notify_desktop: true          # toast OS natif sinon toast in-app
   notify_mobile: true           # message WebSocket aux mobiles connectés
 ```
 
-### Notifications desktop natives (optionnel)
+### Notifications desktop natives
 
-Le fallback est un toast **in-app**. Pour de vraies notifications Windows hors
-application, installez l'un de :
+Le fallback est un toast **in-app**. Pour de vraies notifications hors
+application, `utils/desktop_notify.py` essaie dans l'ordre :
+
+1. **winotify** — Windows, toasts natifs de l'Action Center.
+2. **osascript** — macOS, natif et **sans dépendance** : rien à installer.
+3. **plyer** — repli cross-plateforme, seul backend natif sous Linux.
+
+`winotify` (Windows) et `plyer` (hors Windows) sont installés automatiquement
+par `requirements.txt` via des marqueurs de plateforme. Installation manuelle
+si besoin :
 
 ```bash
-pip install winotify   # Windows (recommandé)
-pip install plyer      # cross-plateforme
+pip install winotify   # Windows
+pip install plyer      # macOS / Linux
 ```
 
 ---

@@ -44,7 +44,7 @@ L'interface agents est divisée en plusieurs sections :
 - Les connexions définissent les **dépendances d'exécution** et le **passage de contexte** automatique
 - Le canvas prend priorité sur le pipeline classique quand il contient des nœuds
 
-> 🔔 **Notification desktop** : à la fin d'une tâche d'agent **longue**, une notification **système native** (winotify/plyer, 100% local) vous prévient même si vous avez basculé sur une autre fenêtre.
+> 🔔 **Notification desktop** : à la fin d'une tâche d'agent **longue**, une notification **système native** (100% locale, backend natif selon l'OS) vous prévient même si vous avez basculé sur une autre fenêtre.
 
 **Boutons :**
 - **► Exécuter** (orange) : Lance la tâche. Se transforme en **■ Stop** (blanc) pendant la génération

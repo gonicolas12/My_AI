@@ -106,7 +106,8 @@ Non ! Installation en 3 commandes :
 ```bash
 cd My_AI
 pip install -r requirements.txt
-.\launch.bat
+.\launch.bat        # Windows
+./launch.sh         # macOS / Linux
 ```
 
 **Pour Ollama (optionnel mais recommandé) :**
