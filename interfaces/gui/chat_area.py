@@ -2,6 +2,7 @@
 
 import tkinter as tk
 from tkinter import ttk
+from ._wheel import wheel_notches
 
 try:
     import customtkinter as ctk
@@ -60,7 +61,7 @@ class ChatAreaMixin:
                     canvas = self._get_parent_canvas()
                     if canvas:
                         if hasattr(event, "delta") and event.delta:
-                            scroll_delta = -1 * (event.delta // 120)
+                            scroll_delta = int(-1 * wheel_notches(event))
                         else:
                             scroll_delta = -1 if event.num == 4 else 1
                         canvas.yview_scroll(scroll_delta, "units")
@@ -70,7 +71,7 @@ class ChatAreaMixin:
                             parent = parent.master
                         if parent:
                             if hasattr(event, "delta") and event.delta:
-                                scroll_delta = -1 * (event.delta // 120)
+                                scroll_delta = int(-1 * wheel_notches(event))
                             else:
                                 scroll_delta = -1 if event.num == 4 else 1
                             parent.yview_scroll(scroll_delta, "units")
@@ -248,9 +249,9 @@ class ChatAreaMixin:
                     if canvas:
                         # Amplifier le delta pour scroll ultra rapide (x20 plus rapide)
                         if hasattr(event, "delta") and event.delta:
-                            scroll_delta = -1 * (
-                                event.delta // 6
-                            )  # 6 au lieu de 120 = 20x plus rapide
+                            scroll_delta = int(
+                                -20 * wheel_notches(event)
+                            )  # 20x plus rapide qu'un cran simple
                         elif hasattr(event, "num"):
                             scroll_delta = (
                                 -20 if event.num == 4 else 20
@@ -266,9 +267,9 @@ class ChatAreaMixin:
                         if parent:
                             # Amplifier le delta pour scroll MEGA ULTRA rapide (x60 plus rapide !)
                             if hasattr(event, "delta") and event.delta:
-                                scroll_delta = -1 * (
-                                    event.delta // 2
-                                )  # 2 au lieu de 120 = 60x plus rapide !
+                                scroll_delta = int(
+                                    -60 * wheel_notches(event)
+                                )  # 60x plus rapide qu'un cran simple
                             elif hasattr(event, "num"):
                                 scroll_delta = (
                                     -60 if event.num == 4 else 60
@@ -318,7 +319,7 @@ class ChatAreaMixin:
                     if canvas:
                         # EXACTEMENT la même amplification que les bulles USER
                         if hasattr(event, "delta") and event.delta:
-                            scroll_delta = -1 * (event.delta // 6)  # MÊME que USER
+                            scroll_delta = int(-20 * wheel_notches(event))  # MÊME que USER
                         elif hasattr(event, "num"):
                             scroll_delta = (
                                 -20 if event.num == 4 else 20
@@ -334,7 +335,7 @@ class ChatAreaMixin:
                         if parent:
                             # EXACTEMENT la même amplification que les bulles USER
                             if hasattr(event, "delta") and event.delta:
-                                scroll_delta = -1 * (event.delta // 6)  # MÊME que USER
+                                scroll_delta = int(-20 * wheel_notches(event))  # MÊME que USER
                             elif hasattr(event, "num"):
                                 scroll_delta = (
                                     -20 if event.num == 4 else 20

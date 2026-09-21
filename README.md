@@ -262,6 +262,7 @@ my_ai/
 │   │   ├── animations.py                # Animations et transitions modernes
 │   │   ├── artifacts_panel.py           # Volet aperçu artifacts (Edge --app embarqué)
 │   │   ├── _edge_embed.py               # Embarquement Edge dans le volet (Win32 SetParent)
+│   │   ├── _wheel.py                    # Normalisation molette souris (Windows/macOS/Linux)
 │   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
 │   │   ├── chat_area.py                 # Zone de chat
 │   │   ├── command_palette.py           # Command palette (Ctrl+K) + raccourcis clavier globaux

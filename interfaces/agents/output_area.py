@@ -1,6 +1,7 @@
 """Mixin : construction de la zone de résultats scrollable (sections dépliantes)."""
 
 from interfaces.agents._common import ctk, tk
+from interfaces.gui._wheel import wheel_notches
 
 
 class OutputAreaMixin:
@@ -85,7 +86,7 @@ class OutputAreaMixin:
 
             def _on_mousewheel(event):
                 # Multiplier par 6 pour une vitesse de scroll normale
-                canvas.yview_scroll(int(-6 * (event.delta / 120)), "units")
+                canvas.yview_scroll(int(-6 * wheel_notches(event)), "units")
                 return "break"
 
             canvas.bind("<MouseWheel>", _on_mousewheel)

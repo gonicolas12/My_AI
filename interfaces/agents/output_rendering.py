@@ -9,6 +9,7 @@ from interfaces.agents.syntax_helper import (
     SYNTAX_AVAILABLE,
     SyntaxColorHelper,
 )
+from interfaces.gui._wheel import wheel_notches
 
 
 # Commandes LaTeX → équivalents Unicode (flèches, opérateurs, lettres grecques, ensembles).
@@ -299,7 +300,7 @@ class OutputRenderingMixin:
 
         # Mousewheel scrolle le contenu du Text (pas le parent)
         def _text_scroll(event):
-            tw.yview_scroll(int(-3 * (event.delta / 120)), "units")
+            tw.yview_scroll(int(-3 * wheel_notches(event)), "units")
             return "break"
         tw.bind("<MouseWheel>", _text_scroll)
         sb_canvas.bind("<MouseWheel>", _text_scroll)

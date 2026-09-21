@@ -21,6 +21,7 @@ from core.rlhf_manager import get_rlhf_manager
 
 # Détection des artifacts (HTML/SVG rendables) pour le bouton « Aperçu »
 from interfaces.artifacts import detect_artifacts
+from ._wheel import wheel_notches
 
 
 class MessageBubblesMixin:
@@ -460,7 +461,7 @@ class MessageBubblesMixin:
                                 return
                             if hasattr(event, "delta") and event.delta:
                                 # AMPLIFICATION 60x pour égaler la vitesse utilisateur
-                                scroll_delta = -1 * (event.delta // 6) * 60
+                                scroll_delta = int(-1200 * wheel_notches(event))
                             else:
                                 scroll_delta = -20 * 60
                             canvas.yview_scroll(scroll_delta, "units")
@@ -540,8 +541,8 @@ class MessageBubblesMixin:
                             if not canvas:
                                 return
                             if hasattr(event, "delta") and event.delta:
-                                scroll_delta = -1 * (
-                                    event.delta // 6
+                                scroll_delta = int(
+                                    -20 * wheel_notches(event)
                                 )  # EXACTEMENT comme USER
                             elif hasattr(event, "num"):
                                 scroll_delta = (
@@ -580,9 +581,9 @@ class MessageBubblesMixin:
                             if canvas:
                                 # Amplifier le delta pour scroll ultra rapide (x20 plus rapide)
                                 if hasattr(event, "delta") and event.delta:
-                                    scroll_delta = -1 * (
-                                        event.delta // 6
-                                    )  # 6 au lieu de 120 = 20x plus rapide
+                                    scroll_delta = int(
+                                        -20 * wheel_notches(event)
+                                    )  # 20x plus rapide qu'un cran simple
                                 elif hasattr(event, "num"):
                                     scroll_delta = (
                                         -20 if event.num == 4 else 20
@@ -624,7 +625,7 @@ class MessageBubblesMixin:
                             if not canvas:
                                 return
                             if hasattr(event, "delta") and event.delta:
-                                scroll_delta = -1 * (event.delta // 6)
+                                scroll_delta = int(-20 * wheel_notches(event))
                             else:
                                 scroll_delta = -20
                             canvas.yview_scroll(scroll_delta, "units")
@@ -1091,7 +1092,7 @@ class MessageBubblesMixin:
                                 return
                             if hasattr(event, "delta") and event.delta:
                                 # AMPLIFICATION 60x pour égaler la vitesse utilisateur
-                                scroll_delta = -1 * (event.delta // 6) * 60
+                                scroll_delta = int(-1200 * wheel_notches(event))
                             else:
                                 scroll_delta = -20 * 60
                             canvas.yview_scroll(scroll_delta, "units")

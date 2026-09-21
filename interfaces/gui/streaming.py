@@ -4,6 +4,7 @@ import re
 import traceback
 from datetime import datetime
 import tkinter as tk
+from ._wheel import wheel_notches
 
 try:
     from pygments import lex
@@ -1935,7 +1936,7 @@ class StreamingMixin:
             # Scroll isolé : la molette ne propage pas vers le chat principal
             def _scroll_reasoning(event, _w=self._reasoning_text_widget):
                 if getattr(event, "delta", 0):
-                    _w.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                    _w.yview_scroll(int(-1 * wheel_notches(event)), "units")
                 elif getattr(event, "num", 0) == 4:
                     _w.yview_scroll(-1, "units")
                 elif getattr(event, "num", 0) == 5:
