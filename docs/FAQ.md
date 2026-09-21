@@ -293,6 +293,28 @@ Oui, mais `sounddevice` requiert la librairie système `portaudio` :
 - **macOS** : `brew install portaudio`
 - **Windows** : rien à installer (embarqué dans le wheel)
 
+### Sur macOS, l'application se ferme brutalement quand je dicte
+C'était un conflit de runtimes OpenMP, **corrigé automatiquement** — aucune action
+de votre part n'est nécessaire.
+
+Le détail, si vous êtes curieux : `ctranslate2` (moteur de faster-whisper), `torch`
+et `scikit-learn` embarquent chacun leur propre runtime OpenMP dans leurs `.dylibs`.
+Quand plusieurs cohabitent, le pool de threads de ctranslate2 meurt sur un
+`EXC_BAD_ACCESS`, **sans message d'erreur** : `scikit-learn` et `threadpoolctl`
+posent `KMP_DUPLICATE_LIB_OK=True` à l'import, ce qui remplace l'avertissement
+`OMP: Error #15` habituel par un crash muet.
+
+My_AI détecte maintenant cette situation et exécute Whisper dans un **process
+séparé**, qui ne charge pas `scikit-learn`. La transcription garde sa pleine
+vitesse. Si ce process échoue, l'application se replie sur une transcription
+mono-thread en interne — plus lente (environ 1,8x) mais stable.
+
+Pour forcer un mode lors d'un diagnostic :
+```bash
+MY_AI_WHISPER_WORKER=1 ./launch.sh   # toujours le process séparé
+MY_AI_WHISPER_WORKER=0 ./launch.sh   # toujours en interne
+```
+
 ### Puis-je désactiver la saisie vocale ?
 Le bouton micro est toujours présent mais purement opt-in : si tu ne cliques jamais dessus, aucune ressource n'est consommée (le modèle Whisper est chargé en lazy). Si tu veux le masquer complètement, retire les appels à `attach_mic_button` dans `interfaces/gui/layout.py`, `interfaces/gui/base.py` et `interfaces/agents/task_input.py`.
 

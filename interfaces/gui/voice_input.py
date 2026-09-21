@@ -7,9 +7,15 @@ The main thread is only touched via a Tk-safe callback (`on_result`).
 
 from __future__ import annotations
 
+import atexit
+import json
+import os
+import subprocess
+import sys
 import threading
 import time
 import tkinter as tk
+from pathlib import Path
 from typing import Callable, Optional
 
 try:
@@ -33,6 +39,143 @@ except Exception as _e:  # pragma: no cover - environment-dependent
 SAMPLE_RATE = 16000
 CHANNELS = 1
 MODEL_SIZE = "small"  # ~150 MB, bon compromis qualité/poids
+COMPUTE_TYPE = "int8"
+
+_WORKER_PATH = Path(__file__).with_name("_whisper_worker.py")
+
+# Forçage manuel du mode, utile pour tester le worker hors macOS :
+#   MY_AI_WHISPER_WORKER=1  -> toujours le process isolé
+#   MY_AI_WHISPER_WORKER=0  -> toujours en process
+_WORKER_ENV = "MY_AI_WHISPER_WORKER"
+
+
+def _openmp_runtimes() -> list:
+    """Runtimes OpenMP chargés dans ce process (macOS uniquement).
+
+    ctranslate2, torch et scikit-learn embarquent chacun le leur dans leurs
+    ``.dylibs``. Au-delà d'un seul, le pool de threads de ctranslate2 segfaulte
+    (``EXC_BAD_ACCESS`` dans ``__kmp_fork_barrier``) sans le message
+    ``OMP: Error #15`` habituel : sklearn et threadpoolctl posent
+    ``KMP_DUPLICATE_LIB_OK=True`` à l'import, ce qui remplace l'abort explicite
+    par un crash muet.
+
+    Voir ``_whisper_worker.py`` pour le détail : torch est inévitable, puisque
+    ctranslate2 l'importe lui-même ; c'est ``libomp`` (LLVM), apporté par
+    scikit-learn, qui fait la différence.
+    """
+    if sys.platform != "darwin":
+        return []
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL(None)
+        libc._dyld_image_count.restype = ctypes.c_uint32
+        libc._dyld_get_image_name.restype = ctypes.c_char_p
+        libc._dyld_get_image_name.argtypes = [ctypes.c_uint32]
+
+        found = []
+        for i in range(libc._dyld_image_count()):
+            raw = libc._dyld_get_image_name(i)
+            if not raw:
+                continue
+            base = os.path.basename(raw.decode("utf-8", "replace"))
+            if base.startswith(("libiomp5", "libomp", "libgomp")):
+                found.append(base)
+        return found
+    except Exception:
+        return []
+
+
+def _needs_isolation() -> bool:
+    """True si Whisper doit tourner dans un process séparé."""
+    forced = os.environ.get(_WORKER_ENV)
+    if forced is not None:
+        return forced.strip() not in ("", "0", "false", "False")
+    return len(_openmp_runtimes()) > 1
+
+
+class _WhisperWorker:
+    """Client du process de transcription isolé (voir ``_whisper_worker.py``).
+
+    Le process est persistant : le modèle n'est chargé qu'une fois, et les
+    transcriptions suivantes ne paient que le transfert de l'audio.
+    """
+
+    _instance: Optional["_WhisperWorker"] = None
+    _singleton_lock = threading.Lock()
+
+    def __init__(self):
+        self._proc: Optional[subprocess.Popen] = None
+        self._io_lock = threading.Lock()
+
+    @classmethod
+    def get(cls) -> "_WhisperWorker":
+        with cls._singleton_lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+
+    def _ensure_process(self) -> subprocess.Popen:
+        if self._proc is not None and self._proc.poll() is None:
+            return self._proc
+        if not _WORKER_PATH.exists():
+            raise RuntimeError(f"worker introuvable : {_WORKER_PATH}")
+
+        kwargs = {
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            # stderr hérité : les logs du worker arrivent dans la console.
+        }
+        if sys.platform == "win32":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        else:
+            kwargs["start_new_session"] = True
+
+        # Lancé PAR CHEMIN : un « -m interfaces.gui._whisper_worker » exécuterait
+        # le __init__.py du package, donc importerait torch dans le worker.
+        self._proc = subprocess.Popen(
+            [sys.executable, str(_WORKER_PATH), MODEL_SIZE, COMPUTE_TYPE], **kwargs
+        )
+        # Sans ça, un parent qui meurt sans fermer le tube laisse le worker
+        # bloqué indéfiniment sur readline().
+        atexit.register(self.stop)
+        return self._proc
+
+    def transcribe(self, audio) -> dict:
+        """Envoie l'audio au worker et retourne sa réponse décodée."""
+        with self._io_lock:
+            proc = self._ensure_process()
+            payload = audio.astype(np.float32).tobytes()
+            try:
+                proc.stdin.write(
+                    (json.dumps({"n": int(audio.shape[0])}) + "\n").encode("utf-8")
+                )
+                proc.stdin.write(payload)
+                proc.stdin.flush()
+                line = proc.stdout.readline()
+            except (BrokenPipeError, OSError) as exc:
+                self.stop()
+                raise RuntimeError(f"tube rompu : {exc}") from exc
+
+            if not line:
+                code = proc.poll()
+                self.stop()
+                raise RuntimeError(f"worker terminé sans réponse (code {code})")
+            return json.loads(line.decode("utf-8"))
+
+    def stop(self) -> None:
+        proc, self._proc = self._proc, None
+        if proc is None or proc.poll() is not None:
+            return
+        try:
+            if proc.stdin:
+                proc.stdin.close()
+            proc.wait(timeout=2)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
 
 
 class VoiceInput:
@@ -45,6 +188,7 @@ class VoiceInput:
     """
 
     _model: Optional["WhisperModel"] = None
+    _model_single: Optional["WhisperModel"] = None  # repli cpu_threads=1
     _model_lock = threading.Lock()
     _shared_instance: Optional["VoiceInput"] = None
 
@@ -160,18 +304,26 @@ class VoiceInput:
                 self._set_state("idle")
                 return
 
-            model = self._get_model()
             t0 = time.time()
-            segments, info = model.transcribe(
-                audio,
-                language=None,  # auto-détection
-                vad_filter=True,
-                beam_size=1,
-            )
-            text = " ".join(seg.text.strip() for seg in segments).strip()
+            if _needs_isolation():
+                try:
+                    reply = _WhisperWorker.get().transcribe(audio)
+                    if reply.get("error"):
+                        raise RuntimeError(reply["error"])
+                    text = reply["text"]
+                    lang = reply["language"]
+                    prob = reply["language_probability"]
+                except Exception as exc:
+                    # Dernier recours : en process mais mono-thread. Plus lent
+                    # (~1.8x), seule configuration qui ne segfault pas quand
+                    # plusieurs runtimes OpenMP cohabitent.
+                    print(f"⚠️ [VOICE] Process isolé indisponible ({exc}) "
+                          f"— repli mono-thread")
+                    text, lang, prob = self._transcribe_here(audio, single_thread=True)
+            else:
+                text, lang, prob = self._transcribe_here(audio, single_thread=False)
             dt = time.time() - t0
-            print(f"🎙️  [VOICE] {info.language} ({info.language_probability:.0%}) "
-                  f"en {dt:.1f}s : {text!r}")
+            print(f"🎙️  [VOICE] {lang} ({prob:.0%}) en {dt:.1f}s : {text!r}")
             if text:
                 self._deliver(text)
         except Exception as e:
@@ -193,17 +345,42 @@ class VoiceInput:
             cls._shared_instance = cls(tk_root=tk_root, on_result=lambda _t: None)
         return cls._shared_instance
 
+    def _transcribe_here(self, audio, single_thread: bool = False) -> tuple:
+        """Transcrit dans ce process. Retourne (texte, langue, probabilité)."""
+        model = self._get_model(single_thread=single_thread)
+        segments, info = model.transcribe(
+            audio,
+            language=None,  # auto-détection
+            vad_filter=True,
+            beam_size=1,
+        )
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        return text, info.language, info.language_probability
+
     @classmethod
-    def _get_model(cls) -> "WhisperModel":
-        if cls._model is not None:
-            return cls._model
+    def _get_model(cls, single_thread: bool = False) -> "WhisperModel":
+        cached = cls._model_single if single_thread else cls._model
+        if cached is not None:
+            return cached
         with cls._model_lock:
+            if single_thread:
+                if cls._model_single is None:
+                    print(f"🎙️  [VOICE] Chargement Whisper '{MODEL_SIZE}' "
+                          f"(mono-thread, contournement OpenMP)...")
+                    cls._model_single = WhisperModel(
+                        MODEL_SIZE,
+                        device="cpu",
+                        compute_type=COMPUTE_TYPE,
+                        cpu_threads=1,
+                    )
+                    print("🎙️  [VOICE] Whisper prêt (mono-thread).")
+                return cls._model_single
             if cls._model is None:
                 print(f"🎙️  [VOICE] Chargement Whisper '{MODEL_SIZE}' (premier appel)...")
                 cls._model = WhisperModel(
                     MODEL_SIZE,
                     device="cpu",
-                    compute_type="int8",
+                    compute_type=COMPUTE_TYPE,
                 )
                 print("🎙️  [VOICE] Whisper prêt.")
         return cls._model

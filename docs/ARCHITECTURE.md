@@ -995,6 +995,27 @@ Rôle: Éditer un message envoyé puis regénérer, en conservant les variantes
 └─ Rendu reconstruit via add_message_bubble(instant=True)
 ```
 
+**`interfaces/gui/_whisper_worker.py`** - Transcription isolée (process séparé)
+```python
+Rôle: Exécuter faster-whisper hors du process applicatif sur macOS
+├─ Problème : ctranslate2, torch et scikit-learn embarquent chacun un runtime
+│  OpenMP ; leur cohabitation segfaulte le pool de threads de ctranslate2
+│  (EXC_BAD_ACCESS dans __kmp_fork_barrier, sans « OMP: Error #15 » car
+│  sklearn/threadpoolctl posent KMP_DUPLICATE_LIB_OK=True)
+├─ torch est inévitable : ctranslate2 l'importe lui-même. Le worker exclut
+│  scikit-learn, qui apporte le troisième runtime (libomp, LLVM)
+├─ Process persistant : modèle chargé une fois, protocole JSON + float32 brut
+│  sur stdin/stdout
+└─ ⚠️ Lancé PAR CHEMIN, jamais par « -m » : le __init__.py du package
+   importerait toute la pile applicative dans le worker
+
+Déclenchement (voice_input.py) :
+├─ _openmp_runtimes() : inventaire via _dyld_image_count (macOS seulement)
+├─ > 1 runtime -> process isolé ; sinon en interne (Windows/Linux inchangés)
+├─ Forçage manuel : MY_AI_WHISPER_WORKER=1 / =0
+└─ Repli si le worker échoue : en interne avec cpu_threads=1 (~1.8x plus lent)
+```
+
 **`interfaces/gui/_wheel.py`** - Normalisation molette souris
 ```python
 Rôle: Ramener les événements de molette à une unité commune, le « cran »
