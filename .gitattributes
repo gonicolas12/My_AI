@@ -1,0 +1,7 @@
+# Les scripts shell DOIVENT rester en LF : un CRLF fait échouer bash sur
+# macOS/Linux avec « \r: command not found ».
+*.sh text eol=lf
+
+# Les scripts batch restent en CRLF (cmd.exe).
+*.bat text eol=crlf
+*.cmd text eol=crlf

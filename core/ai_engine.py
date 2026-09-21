@@ -40,6 +40,7 @@ from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .mcp_client import MCPManager
+from .platform_paths import PATH_EXAMPLES
 from .validation import validate_input
 
 try:
@@ -786,14 +787,17 @@ class AIEngine:
             description=(
                 "Lit et extrait le contenu d'un fichier local : PDF, DOCX, Python, "
                 "JavaScript, texte brut, JSON, etc. Retourne le texte du fichier. "
-                "A un accès total au PC via chemins absolus (ex: 'C:\\Users\\...')."
+                f"A un accès total au PC via chemins absolus (ex: '{PATH_EXAMPLES['home']}')."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Chemin absolu (C:\\...) ou relatif vers le fichier",
+                        "description": (
+                            f"Chemin absolu ({PATH_EXAMPLES['home']}) ou relatif "
+                            "vers le fichier"
+                        ),
                     }
                 },
                 "required": ["path"],
@@ -818,7 +822,8 @@ class AIEngine:
         self.mcp_manager.register_local_tool(
             name="list_directory",
             description=(
-                "Liste les fichiers présents dans un répertoire local (accès à TOUT le PC, ex: 'C:\\Users\\...'). "
+                "Liste les fichiers présents dans un répertoire local (accès à TOUT "
+                f"le PC, ex: '{PATH_EXAMPLES['home']}'). "
                 "Utile pour explorer l'ordinateur ou la structure d'un projet."
             ),
             parameters={
@@ -826,7 +831,10 @@ class AIEngine:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Répertoire à explorer (ex: 'C:\\Users\\Nom', ou '.' pour le projet)",
+                        "description": (
+                            f"Répertoire à explorer (ex: '{PATH_EXAMPLES['named_dir']}', "
+                            "ou '.' pour le projet)"
+                        ),
                         "default": ".",
                     },
                     "pattern": {
@@ -916,7 +924,10 @@ class AIEngine:
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Chemin absolu ou relatif où écrire le fichier (ex: 'C:\\Users\\...\\fichier.txt')",
+                        "description": (
+                            "Chemin absolu ou relatif où écrire le fichier "
+                            f"(ex: '{PATH_EXAMPLES['file']}')"
+                        ),
                     },
                     "content": {
                         "type": "string",
@@ -2556,16 +2567,16 @@ Que voulez-vous que je fasse pour vous ?""",
                 "Tu es My_AI, un assistant personnel local, confidentiel et puissant.\n\n"
             ) + (
                 "Tu as un ACCÈS TOTAL ET COMPLET à tout l'ordinateur de l'utilisateur. Tu n'es en aucun cas limité au répertoire de ton projet. "
-                "Tu peux lire, écrire, créer, supprimer ou déplacer n'importe quel fichier sur l'ensemble du disque dur (ex: C:\\, D:\\, répertoires systèmes, etc.) via tes outils.\n"
+                f"Tu peux lire, écrire, créer, supprimer ou déplacer n'importe quel fichier sur l'ensemble du disque dur (ex: {PATH_EXAMPLES['roots']}, etc.) via tes outils.\n"
                 f"L'utilisateur se trouve actuellement dans le répertoire de travail (racine du projet) : {cwd}. "
-                "Cependant, si on te demande de manipuler un fichier ou d'interagir avec le système, utilise systématiquement des CHEMINS ABSOLUS (ex: C:\\Users\\...).\n\n"
+                f"Cependant, si on te demande de manipuler un fichier ou d'interagir avec le système, utilise systématiquement des CHEMINS ABSOLUS (ex: {PATH_EXAMPLES['home']}).\n\n"
                 "⚠️ GESTION DES DOSSIERS STANDARDS : \n"
-                "Les répertoires systèmes personnels de l'utilisateur EXISTENT DÉJÀ (ils sont natifs à Windows/Linux). "
+                f"Les répertoires systèmes personnels de l'utilisateur EXISTENT DÉJÀ (ils sont natifs à {PATH_EXAMPLES['os']}). "
                 "Tu n'as PAS BESOIN de les créer avec 'create_directory'. Utilise directement 'write_local_file' avec ces chemins exacts absolus :\n"
                 f"- Téléchargements (Downloads) : {user_downloads}\n"
                 f"- Documents : {user_documents}\n"
                 f"- Bureau (Desktop) : {user_desktop}\n"
-                "Exemple : Si on te dit 'Crée le fichier info.txt dans Téléchargements', lance directement 'write_local_file' avec le path '{user_downloads}\\info.txt'. N'invente pas de sous-dossiers traduits en français comme 'Downloads\\Téléchargements'.\n\n"
+                f"Exemple : Si on te dit 'Crée le fichier info.txt dans Téléchargements', lance directement 'write_local_file' avec le path '{user_downloads}{PATH_EXAMPLES['sep']}info.txt'. N'invente pas de sous-dossiers traduits en français comme 'Downloads{PATH_EXAMPLES['sep']}Téléchargements'.\n\n"
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )

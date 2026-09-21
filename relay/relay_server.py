@@ -13,11 +13,13 @@ import base64
 import hashlib
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -1780,7 +1782,11 @@ class RelayServer:
         """Démarre un tunnel cloudflared (trycloudflare.com)."""
         cf_path = shutil.which("cloudflared")
         if not cf_path:
-            tools_path = Path(__file__).parent.parent / "tools" / "cloudflared.exe"
+            # Nom dépendant de la plateforme : hors Windows le binaire n'a pas
+            # d'extension, et le chercher en « .exe » relançait un
+            # téléchargement à chaque démarrage.
+            local_name, _url, _is_archive = self._cloudflared_asset()
+            tools_path = Path(__file__).parent.parent / "tools" / local_name
             if tools_path.exists():
                 cf_path = str(tools_path)
         if not cf_path:
@@ -1891,6 +1897,55 @@ class RelayServer:
     # Téléchargement automatique de cloudflared
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _cloudflared_asset() -> tuple:
+        """Retourne (nom_local, url, est_archive_tgz) pour la plateforme courante.
+
+        Cloudflare publie le binaire macOS uniquement sous forme d'archive .tgz ;
+        les autres plateformes servent l'exécutable brut.
+        """
+        machine = platform.machine().lower()
+        arch = "arm64" if machine in ("arm64", "aarch64") else "amd64"
+        base = (
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/"
+        )
+
+        if sys.platform == "win32":
+            return "cloudflared.exe", f"{base}cloudflared-windows-{arch}.exe", False
+        if sys.platform == "darwin":
+            return "cloudflared", f"{base}cloudflared-darwin-{arch}.tgz", True
+        return "cloudflared", f"{base}cloudflared-linux-{arch}", False
+
+    @staticmethod
+    def _extract_cloudflared_tgz(archive: Path, dest: Path) -> bool:
+        """Extrait le binaire « cloudflared » d'une archive .tgz vers ``dest``.
+
+        Extraction ciblée par ``extractfile`` plutôt que ``extractall`` : le
+        chemin de destination est imposé ici, donc aucun membre de l'archive ne
+        peut écrire ailleurs (tar-slip).
+        """
+        try:
+            with tarfile.open(archive, "r:gz") as tar:
+                member = next(
+                    (
+                        m for m in tar.getmembers()
+                        if m.isfile() and Path(m.name).name == "cloudflared"
+                    ),
+                    None,
+                )
+                if member is None:
+                    logger.error("Archive cloudflared sans binaire « cloudflared »")
+                    return False
+                src = tar.extractfile(member)
+                if src is None:
+                    return False
+                with src, open(dest, "wb") as out:
+                    shutil.copyfileobj(src, out)
+            return True
+        except (OSError, tarfile.TarError) as e:
+            logger.error("Extraction de l'archive cloudflared échouée: %s", e)
+            return False
+
     def _download_cloudflared(self) -> Optional[str]:
         """
         Télécharge cloudflared automatiquement dans tools/.
@@ -1901,17 +1956,9 @@ class RelayServer:
         tools_dir = Path(__file__).parent.parent / "tools"
         tools_dir.mkdir(exist_ok=True)
 
-        if sys.platform == "win32":
-            filename = "cloudflared.exe"
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
-        elif sys.platform == "darwin":
-            filename = "cloudflared"
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz"
-        else:
-            filename = "cloudflared"
-            url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-
+        filename, url, is_archive = self._cloudflared_asset()
         dest = tools_dir / filename
+        archive: Optional[Path] = None
 
         try:
             logger.info("Téléchargement de cloudflared depuis GitHub...")
@@ -1920,9 +1967,19 @@ class RelayServer:
             resp = requests.get(url, stream=True, timeout=60)
             resp.raise_for_status()
 
-            with open(dest, "wb") as f:
+            # Une archive est écrite à part : seul le binaire extrait doit
+            # porter le nom final, sinon on rend exécutable un .tgz.
+            target = tools_dir / "cloudflared.tgz" if is_archive else dest
+            if is_archive:
+                archive = target
+
+            with open(target, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
+
+            if is_archive and not self._extract_cloudflared_tgz(target, dest):
+                print("⚠️ Impossible d'extraire l'archive cloudflared")
+                return None
 
             # Rendre exécutable sur Unix
             if sys.platform != "win32":
@@ -1939,6 +1996,13 @@ class RelayServer:
             if dest.exists():
                 dest.unlink()
             return None
+
+        finally:
+            if archive is not None and archive.exists():
+                try:
+                    archive.unlink()
+                except OSError:
+                    pass
 
     # ------------------------------------------------------------------
     # QR Code

@@ -176,8 +176,10 @@ croniter>=2.0.0
 # winotify : toast Windows (installé par défaut sous Windows ; nécessaire pour
 # voir les notifications quand l'appli est fermée — runner en arrière-plan).
 winotify>=1.1.0; platform_system == "Windows"
-# plyer : alternative cross-plateforme (Linux/macOS) — décommenter si besoin.
-# plyer>=2.1.0
+# plyer : alternative cross-plateforme hors Windows. Sur macOS, utils/desktop_notify
+# passe d'abord par osascript (natif, sans dépendance) et ne s'en sert qu'en repli ;
+# sous Linux c'est le seul backend natif disponible.
+plyer>=2.1.0,<3; platform_system != "Windows"
 
 # ====================================
 # DÉTECTION DE LANGUE

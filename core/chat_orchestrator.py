@@ -27,6 +27,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
+from .platform_paths import PATH_EXAMPLES as _PATH_EX
+
 # [OPTIM] Retry résilient sur les appels réseau Ollama
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -1435,7 +1437,7 @@ class ChatOrchestrator:
             "RÈGLES STRICTES DE COMMUNICATION :\n"
             "1. Ne mentionne JAMAIS ton 'scratchpad', tes 'réflexions internes' ou ton 'plan d'action'. Ce sont des éléments de ton arrière-plan invisible.\n"
             "2. Parle directement à l'utilisateur du résultat de l'action de manière naturelle. Par exemple : 'J'ai créé le fichier X'.\n"
-            "3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les lettres de lecteurs et les chemins absolus complets. Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était 'C:\\Users\\...\\OneDrive\\Python\\My_AI\\Tuto', ne le transforme pas en 'C:\\Users\\...\\My_AI\\Tuto').\n"
+            f"3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les chemins absolus complets (y compris la lettre de lecteur sous Windows). Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était '{_PATH_EX['home']}{_PATH_EX['sep']}OneDrive{_PATH_EX['sep']}Python{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto', ne le transforme pas en '{_PATH_EX['home']}{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto').\n"
             "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
             "5. Si l'objectif était simplement de créer ou modifier un fichier, confirme la tâche et donne un résumé très bref.\n\n"
             "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
