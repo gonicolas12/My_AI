@@ -184,7 +184,7 @@ démarre une nouvelle conversation agentique.
   avec le langage courant pour un rendu propre.
 - **Envoyer le fichier actif** — palette → *My_AI Relay : Envoyer le
   fichier actif à My_AI*. Upload le fichier entier comme pièce jointe
-  (PDF, DOCX, code, image, etc.).
+  (PDF, DOCX, PowerPoint, code, image, etc.).
 - **Insérer au curseur / Copier** — chaque bloc de code d'une réponse IA
   reçoit ces deux boutons au survol.
 - **Mentions `@`** — tapez `@` dans la zone de saisie pour ouvrir un menu

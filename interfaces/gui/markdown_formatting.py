@@ -17,6 +17,8 @@ except ImportError:
     PYGMENTS_AVAILABLE = False
     PythonLexer = None
 
+from utils.path_links import find_existing_paths, reveal_in_file_manager
+
 
 class MarkdownFormattingMixin:
     """Markdown, tables, links, and code block formatting."""
@@ -3659,6 +3661,71 @@ class MarkdownFormattingMixin:
                 font=("Segoe UI", 12, "bold"),
             )
             text_widget.tag_raise("bold_link")
+        except tk.TclError:
+            pass
+
+    def _linkify_file_paths(self, text_widget):
+        """Rend cliquables les chemins de fichiers/dossiers existants d'une réponse.
+
+        Gras, bleu et souligné comme un lien ; un clic ouvre l'emplacement dans
+        l'explorateur (fichier sélectionné, ou dossier ouvert). Seuls les
+        chemins qui existent sur le disque sont concernés (cf. utils/path_links),
+        et jamais ceux cités dans un bloc de code.
+        """
+        try:
+            content = text_widget.get("1.0", "end-1c")
+        except tk.TclError:
+            return
+        matches = find_existing_paths(content)
+        if not matches:
+            return
+
+        try:
+            previous_state = text_widget.cget("state")
+            text_widget.configure(state="normal")
+        except tk.TclError:
+            return
+
+        # Compteur par widget : un nouveau rendu du même message ne doit pas
+        # réutiliser (et donc réécraser) une balise déjà liée.
+        counter = getattr(text_widget, "_path_link_counter", 0)
+        search_from = "1.0"
+        for match in matches:
+            # Recherche du texte plutôt que conversion d'offset : les fenêtres
+            # incrustées (tableaux) décaleraient les index calculés.
+            start = text_widget.search(match.text, search_from, stopindex="end", exact=True)
+            if not start:
+                continue
+            end = f"{start} + {len(match.text)} chars"
+            search_from = end
+            if any(
+                tag == "code_block" or tag.startswith("Token")
+                for tag in text_widget.tag_names(start)
+            ):
+                continue
+
+            tag = f"file_path_link_{counter}"
+            counter += 1
+            text_widget.tag_add(tag, start, end)
+            text_widget.tag_configure(
+                tag, foreground="#3b82f6", underline=1, font=("Segoe UI", 12, "bold")
+            )
+            text_widget.tag_raise(tag)
+
+            def _open(_event, target=match.path):
+                try:
+                    reveal_in_file_manager(target)
+                except OSError as exc:
+                    print(f"⚠️ [CHEMIN] Ouverture impossible : {exc}")
+                return "break"
+
+            text_widget.tag_bind(tag, "<Button-1>", _open)
+            text_widget.tag_bind(tag, "<Enter>", lambda _e: text_widget.configure(cursor="hand2"))
+            text_widget.tag_bind(tag, "<Leave>", lambda _e: text_widget.configure(cursor=""))
+
+        text_widget._path_link_counter = counter  # noqa: SLF001 - attribut propre au widget
+        try:
+            text_widget.configure(state=previous_state)
         except tk.TclError:
             pass
 

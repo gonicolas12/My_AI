@@ -220,6 +220,9 @@ class BaseGUI:
         self._home_mic_button = None
         self._home_preview_frame = None
         self._pending_files = []
+        # Documents produits par l'IA pendant le tour courant : alimentent le
+        # bouton « Aperçu » et l'ouverture automatique du volet.
+        self._pending_document_paths = []
         self._conv_container = None
         self._chat_content_frame = None
 
@@ -989,6 +992,8 @@ class BaseGUI:
                         ft = "DOCX"
                     elif ext in (".xlsx", ".xls", ".csv"):
                         ft = "Excel"
+                    elif ext in (".pptx", ".potx"):
+                        ft = "PowerPoint"
                     else:
                         ft = "Code"
                     filename = os.path.basename(fp)
@@ -2111,6 +2116,7 @@ class BaseGUI:
         if engine is None or not hasattr(engine, "set_visible_documents"):
             return
         names = set()
+        paths = []
         # Copie : l'historique peut être modifié par le thread Tk pendant l'itération
         for msg in list(getattr(self, "conversation_history", [])):
             for item in (msg.get("attachments") or []):
@@ -2124,7 +2130,12 @@ class BaseGUI:
                     # stored_documents est indexé par basename brut
                     # (cf. process_file_background)
                     names.add(os.path.basename(path))
+                    paths.append(path)
         engine.set_visible_documents(names)
+        # L'outil edit_document ouvre le vrai fichier : il lui faut le chemin,
+        # pas seulement le nom retenu par set_visible_documents.
+        if hasattr(engine, "set_attached_documents"):
+            engine.set_attached_documents(paths)
 
     def quel_handle_message_with_id(self, user_text, request_id):
         """
@@ -2725,6 +2736,9 @@ class BaseGUI:
             self._streaming_complete = False
             self._streaming_mode = True
             self._streaming_bubble_created = False
+            # Les documents du tour précédent ne doivent pas réapparaître sous
+            # la nouvelle réponse.
+            self._pending_document_paths = []
 
             def on_token_received(token):
                 """Callback appelé pour chaque token reçu d'Ollama."""
@@ -2772,6 +2786,8 @@ class BaseGUI:
                     "read_local_file": f"📄 Lecture du fichier : {args.get('path', '')}",
                     "list_directory": f"📁 Exploration du répertoire : {args.get('path', '.')}",
                     "generate_code": f"💻 Génération de code {args.get('language', '')}",
+                    "generate_document": f"📄 Rédaction du document {args.get('format', '')}",
+                    "edit_document": f"✏️ Modification de : {os.path.basename(args.get('path', '')) if 'path' in args else ''}",
                     "calculate": f"🔢 Calcul : {args.get('expression', '')}",
                     "search_local_files": f"🔎 Recherche de fichiers : « {args.get('query', '')} »",
                     "write_local_file": f"💾 Modification du fichier : {os.path.basename(args.get('path', '')) if 'path' in args else ''}",
@@ -2856,6 +2872,24 @@ class BaseGUI:
             # Note : la génération d'image (texte → image) est interceptée en
             # amont par _handle_image_generation_ui() avec sa propre animation,
             # son bouton STOP et son affichage. Ce chemin ne la gère donc pas.
+            def on_document(file_path: str) -> None:
+                """Mémorise un document produit et le pousse au mobile si besoin."""
+                if self.current_request_id != request_id:
+                    return
+                if not file_path or file_path in self._pending_document_paths:
+                    return
+                self._pending_document_paths.append(file_path)
+
+                # RELAY : envoyer l'aperçu + le fichier au mobile (chiffrés),
+                # comme pour une image générée.
+                if getattr(self, "_current_message_from_relay", False):
+                    try:
+                        relay_srv = getattr(self, "_relay_server", None)
+                        if relay_srv and relay_srv.bridge.active:
+                            relay_srv.bridge.submit_ai_document(file_path)
+                    except Exception as exc:
+                        print(f"⚠️ [RELAY] Envoi du document au mobile échoué : {exc}")
+
             response = self.ai_engine.process_query_stream(
                 user_text,
                 on_token=on_token_received,
@@ -2865,6 +2899,7 @@ class BaseGUI:
                 image_base64=image_b64,
                 is_interrupted_callback=lambda: self.is_interrupted or self.current_request_id != request_id,
                 on_delete_confirm=on_delete_confirm,
+                on_document=on_document,
             )
 
             # Marquer le streaming comme terminé SEULEMENT si cette requête est
@@ -3250,6 +3285,7 @@ class BaseGUI:
             ("📄  PDF",         self.load_pdf_file),
             ("📝  DOCX",        self.load_docx_file),
             ("📊  Excel / CSV", self.load_excel_file),
+            ("📽  PowerPoint",  self.load_pptx_file),
             ("💻  Code",        self.load_code_file),
             ("🖼  Image",        self.load_image_file),
             ("📁  Dossier (codebase)", self.load_folder),

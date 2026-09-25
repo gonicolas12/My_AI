@@ -167,7 +167,7 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
   My_AI*, or right-click in the editor. Fences the selection with the
   current language for clean rendering.
 - **Send active file** — Command Palette → *My_AI Relay: Send Active File to
-  My_AI*. Uploads the whole file as an attachment (PDF, DOCX, code, image…).
+  My_AI*. Uploads the whole file as an attachment (PDF, DOCX, PowerPoint, code, image…).
 - **Insert at cursor / Copy** — every code block in an AI reply gets these
   two buttons on hover.
 - **`@` mentions** — type `@` in the message box to open an autocomplete menu of

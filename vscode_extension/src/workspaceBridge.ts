@@ -13,7 +13,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const SUPPORTED_BINARY_EXTENSIONS = new Set([
-  '.pdf', '.docx', '.doc', '.xlsx', '.xls',
+  '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.potx',
   '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif',
 ]);
 

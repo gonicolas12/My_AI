@@ -118,6 +118,14 @@ dans `outputs/img_AAAAMMJJ_HHMMSS_<slug>.png`.
 > L'**analyse** d'image (« décris cette image », « analyse cette photo ») reste
 > gérée par la vision Ollama et n'est **pas** confondue avec la génération.
 
+> « **Tableau** » seul désigne un tableau de données (« génère un tableau
+> excel des ventes ») : la demande part vers la génération de documents ou le
+> chat. Il ne vaut peinture qu'avec un style pictural — « un tableau
+> impressionniste », « cubiste », « surréaliste », « abstrait », « à l'huile »,
+> « à la manière de… » — ou avec « peins-moi ». La même règle s'applique dans
+> `core/ai_engine.py` et dans le classifieur de repli
+> (`models/linguistic_patterns.py`).
+
 ## 6. Support matériel (tous GPU + CPU)
 
 My_AI parle au backend en **HTTP**, il est donc **agnostique au matériel** : les

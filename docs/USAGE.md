@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v8.0.0
+# 📚 Guide d'Utilisation - My Personal AI v8.1.0
 
 ## 🚀 Démarrage Rapide
 
@@ -53,14 +53,17 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - **Speaker Button (🔊)** : Sous chaque réponse de l'IA — lecture vocale (clic = lire, reclic = stop)
 - **Image Button (🖼️)** : Charger une image pour analyse
 - **Clear Chat Button** : Réinitialiser conversation
-- **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/Excel/CSV/Images/Code)
+- **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/PowerPoint/Excel/CSV/Images/Code)
+- **Volet Aperçu** : À droite du chat — pages HTML générées et documents produits, ouvert automatiquement en fin de réponse
 
 **Fonctionnalités:**
 - 🎨 **Thème sombre** moderne style Claude
 - 💬 **Bulles messages** utilisateur (droite) et IA (gauche)
 - 🕒 **Timestamps** sur chaque message
 - 🎨 **Syntax highlighting** pour code (via Pygments)
-- 📁 **Drag-and-drop** fichiers PDF/DOCX/Excel/CSV/Images/Code
+- 📁 **Drag-and-drop** fichiers PDF/DOCX/PowerPoint/Excel/CSV/Images/Code
+- 📝 **Génération de documents** Word/PDF/PowerPoint/Excel, avec aperçu au format natif — voir *Génération de Documents* plus bas
+- 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur
 - 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
@@ -371,7 +374,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v8.0.0:
+État My Personal AI v8.1.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -575,6 +578,27 @@ IA> 🎨 Génération de l'image en cours… 60%
 ```
 
 > Distincte de l'**analyse** d'image (« décris cette image ») et de la génération de **code**.
+> « Génère un **tableau**… » n'en fait pas partie : seul, le mot désigne un tableau de données.
+
+### 7. Génération de Documents
+
+**Triggers:** génère/crée/rédige/fais + un format ou un type de document (docx, Word, PDF, PowerPoint, présentation, Excel, tableur, rapport…)
+
+```bash
+Vous> génère un pdf sur les dauphins
+IA> [📄 Rédaction du document pdf]
+    J'ai créé le PDF « Les dauphins » : il présente leurs espèces, leur habitat…
+    [aperçu ouvert automatiquement dans le volet de droite]
+    [fichier dans outputs/documents/]
+
+# Modifier un document joint (📎 ou glisser-déposer) — l'original n'est jamais touché
+Vous> dans ce docx, remplace "rorqual commun" par "petit rorqual"
+IA> La version modifiée est enregistrée dans outputs/documents/rapport_modifie.docx
+```
+
+> Le bouton **🔍 Aperçu** sous la réponse rouvre le volet, le bouton **📂** ouvre le
+> fichier dans son application. Détails : [DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md)
+> et [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md).
 
 ---
 
@@ -586,6 +610,7 @@ IA> 🎨 Génération de l'image en cours… 60%
 |-----------|------------|-----------|
 | .pdf | PDFProcessor | Texte, metadata, images, chunking |
 | .docx | DOCXProcessor | Paragraphes, tables, formatage |
+| .pptx, .potx | PPTXProcessor | Titres, puces avec niveaux, tableaux, notes du présentateur |
 | .xlsx | ExcelProcessor | Feuilles multiples, cellules, formatage tableau |
 | .xls | ExcelProcessor | Ancien format Excel (via xlrd) |
 | .csv | ExcelProcessor | Données tabulaires, encodage automatique |
@@ -600,7 +625,7 @@ IA> 🎨 Génération de l'image en cours… 60%
 ```bash
 # Dans interface GUI:
 # 1. Ouvrir explorateur fichiers
-# 2. Sélectionner fichier (PDF, DOCX, Excel, CSV, code...)
+# 2. Sélectionner fichier (PDF, DOCX, PowerPoint, Excel, CSV, code...)
 # 3. Glisser dans fenêtre GUI
 # 4. Attendre confirmation: "Fichier chargé"
 ```
@@ -611,6 +636,7 @@ IA> 🎨 Génération de l'image en cours… 60%
 # Menu déroulant → choisir le type de fichier :
 #   📄  PDF        → sélection .pdf
 #   📝  DOCX       → sélection .docx
+#   📽  PowerPoint → sélection .pptx / .potx
 #   📊  Excel/CSV  → sélection .xlsx / .xls / .csv
 #   💻  Code       → sélection fichier source
 #   🖼️   Image      → sélection .png / .jpg
@@ -650,6 +676,7 @@ print(response["message"])
 3. Processeur approprié
    ├─ .pdf         → PDFProcessor
    ├─ .docx        → DOCXProcessor
+   ├─ .pptx/.potx  → PPTXProcessor (python-pptx)
    ├─ .xlsx/.xls   → ExcelProcessor (openpyxl / xlrd)
    ├─ .csv         → ExcelProcessor (stdlib csv)
    └─ .py/.js/...  → CodeProcessor
@@ -951,11 +978,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v8.0.0
+  MY PERSONAL AI - System Status v8.1.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 8.0.0
+📊 Version: 8.1.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -988,7 +1015,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v8.0.0
+My Personal AI v8.1.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: GUI (CustomTkinter), CLI
@@ -1353,7 +1380,7 @@ L'IA détecte automatiquement la langue de votre message et répond dans la mêm
 
 Dans l'onglet Agents, vous pouvez attacher des fichiers à vos tâches :
 1. Cliquez sur le bouton **"+"** à côté de la zone de saisie
-2. Sélectionnez un ou plusieurs fichiers (PDF, DOCX, TXT, code, CSV...)
+2. Sélectionnez un ou plusieurs fichiers (PDF, DOCX, PowerPoint, TXT, code, CSV...)
 3. Les fichiers apparaissent en preview dans la zone de saisie
 4. Le contenu des fichiers est automatiquement injecté dans le prompt de l'agent
 5. En workflow multi-agents, **tous les agents** reçoivent les fichiers joints
@@ -1405,8 +1432,10 @@ L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du GUI d
 Le bouton **+** permet de joindre une ou plusieurs pièces jointes — **à la fois sur l'onglet Chat** (à gauche du champ de saisie) **et sur l'onglet Agents** (au-dessus des boutons d'action). Les fichiers sont traités **exactement comme sur le PC** :
 
 - **Images** (PNG, JPG, JPEG, GIF, BMP, WebP, TIFF) → envoyées au **modèle vision** (encodage base64, même pipeline que le drag & drop PC)
-- **Documents** (PDF, DOCX, DOC, XLSX, XLS, CSV) → extrait de contenu ajouté au **contexte vectoriel** via les processeurs spécialisés
+- **Documents** (PDF, DOCX, DOC, PPTX, POTX, XLSX, XLS, CSV) → extrait de contenu ajouté au **contexte vectoriel** via les processeurs spécialisés
 - **Code & texte** (PY, JS, HTML, CSS, JSON, XML, MD, TXT) → chargés dans le contexte de la session
+
+Un document **généré** depuis le mobile (« *génère un pdf sur…* ») arrive avec son aperçu, ouvert automatiquement dans la modale, et un bouton **💾** pour télécharger le fichier. Aperçu et fichier transitent chiffrés, comme les images générées.
 
 Détails techniques :
 
@@ -1511,7 +1540,7 @@ Chaque appel d'outil s'affiche comme une **carte pliable façon Claude Code**, a
 |---|---|
 | 🧷 **Auto-attache du fichier actif** | Toggle dans le header — chaque message envoyé uploadera silencieusement le fichier ouvert dans l'éditeur |
 | 📤 **Envoyer la sélection à My_AI** | Palette ou clic droit dans l'éditeur — la sélection est encadrée avec le langage courant pour un rendu propre |
-| 📎 **Envoyer le fichier actif à My_AI** | Upload du fichier entier comme pièce jointe (PDF, DOCX, code, image…) |
+| 📎 **Envoyer le fichier actif à My_AI** | Upload du fichier entier comme pièce jointe (PDF, DOCX, PowerPoint, code, image…) |
 | 🔧 **Insérer au curseur / Copier** | Boutons sur chaque bloc de code des réponses, au survol |
 | 🔁 **Nouvelle connexion** | Bouton toujours visible dans le header — recoller une nouvelle chaîne si vous avez redémarré le Relay sur le PC hôte |
 | 💾 **SecretStorage** | Identifiants chiffrés par le keychain de l'OS — auto-restauration au prochain lancement de VS Code |
@@ -1578,7 +1607,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 8.0.0
+**Version:** 8.1.0
 **Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale

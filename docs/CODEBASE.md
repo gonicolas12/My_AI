@@ -25,7 +25,7 @@ Attachez un **dossier complet** (codebase ou dossier de documentation) à un wor
 
 ## 🗂️ Ce qui est indexé
 
-- **Formats** : tout ce que gèrent les processeurs de fichiers existants — code, texte, **PDF**, **DOCX**, **Excel/CSV**, Markdown, etc.
+- **Formats** : tout ce que gèrent les processeurs de fichiers existants — code, texte, **PDF**, **DOCX**, **PowerPoint**, **Excel/CSV**, Markdown, etc. Un dossier indexé avant la prise en charge de PowerPoint récupère ses `.pptx` au prochain réindex.
 - **Exclusions automatiques** : `.git`, `node_modules`, `__pycache__`, `.venv`/`venv`, `dist`, `build`, `out`, `target`, `.idea`, `.vscode`, caches divers… **en plus** des règles de votre `.gitignore`.
 - **Limite par fichier** : 2 Mo (au-delà, c'est en général un binaire/asset/dump, pas du contexte utile → sauté).
 - **Un fichier ciblé** : vous pouvez attacher **un seul fichier** (ex. via le menu `@` de VS Code) sans indexer tout son dossier.

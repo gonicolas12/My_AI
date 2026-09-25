@@ -10,6 +10,7 @@ from PIL import Image
 from interfaces.agents._common import ctk, tk
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
+from processors.pptx_processor import PPTXProcessor
 
 
 class FileHandlingMixin:
@@ -22,6 +23,7 @@ class FileHandlingMixin:
             "PDF": [("Fichiers PDF", "*.pdf")],
             "DOCX": [("Fichiers Word", "*.docx")],
             "Excel": [("Excel & CSV", "*.xlsx *.xls *.csv")],
+            "PowerPoint": [("Présentations PowerPoint", "*.pptx *.potx")],
             "Code": [("Code", "*.py *.js *.html *.css *.json *.xml *.md *.txt"), ("Tous", "*.*")],
             "Image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"), ("Tous", "*.*")],
         }
@@ -33,7 +35,8 @@ class FileHandlingMixin:
     def _agent_add_preview(self, file_path: str, file_type: str):
         """Ajoute un aperçu miniature dans la zone de tâche agents."""
         filename = os.path.basename(file_path)
-        type_icons = {"PDF": "📄", "DOCX": "📝", "Excel": "📊", "Code": "💻", "Image": "🖼"}
+        type_icons = {"PDF": "📄", "DOCX": "📝", "Excel": "📊", "PowerPoint": "📽",
+                      "Code": "💻", "Image": "🖼"}
         icon = type_icons.get(file_type, "📎")
 
         bg = self.colors.get("bg_secondary", "#2a2a2a")
@@ -154,6 +157,14 @@ class FileHandlingMixin:
                 proc = DOCXProcessor()
                 result = proc.process_file(file_path)
                 return result.get("content", "")
+            except ImportError:
+                pass
+
+        if file_type == "PowerPoint" or ext in (".pptx", ".potx"):
+            try:
+                result = PPTXProcessor().extract_text(file_path)
+                if result.get("success"):
+                    return result.get("content", "")
             except ImportError:
                 pass
 

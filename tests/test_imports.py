@@ -26,8 +26,12 @@ def test_imports():
         ("models.advanced_code_generator", "AdvancedCodeGenerator"),
         ("interfaces.gui_modern", "ModernAIGUI"),
         ("generators.document_generator", "DocumentGenerator"),
+        ("generators.document_editor", "DocumentEditor"),
+        ("generators.markdown_document", "parse_markdown"),
         ("generators.code_generator", "CodeGenerator"),
         ("processors.pdf_processor", "PDFProcessor"),
+        ("processors.pptx_processor", "PPTXProcessor"),
+        ("interfaces.document_preview", "build_document_preview"),
         ("utils.logger", "setup_logger"),
     ]
 

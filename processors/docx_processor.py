@@ -3,12 +3,13 @@ Processeur de fichiers DOCX
 Lecture, analyse et extraction de contenu Word
 """
 
-import glob
 import os
 from pathlib import Path
 from typing import Any, Dict
 
 import docx
+
+from processors.path_resolution import resolve_onedrive_path
 
 
 class DOCXProcessor:
@@ -136,53 +137,7 @@ class DOCXProcessor:
         Returns:
             Chemin résolu et accessible
         """
-
-        # Si le fichier existe déjà, le retourner tel quel
-        if os.path.exists(file_path):
-            return file_path
-
-        # Chemins OneDrive courants. Tout est relatif au dossier personnel :
-        # OneDrive se monte sous ~ sur Windows comme sur macOS, et l'ancienne
-        # version codait "C:/Users/" + %USERNAME%, inopérant hors Windows
-        # (macOS expose USER, pas USERNAME).
-        home = Path.home()
-        onedrive_paths = [
-            str(home / "OneDrive"),
-            str(home / "OneDrive - Personnel"),
-            str(home / "OneDrive - Professionnel"),
-        ]
-
-        # Ajouter les chemins OneDrive Business/Enterprise détectés automatiquement
-        for pattern in ("OneDrive - *", "OneDrive*"):
-            onedrive_paths.extend(glob.glob(str(home / pattern)))
-
-        # Dédoublonner en conservant l'ordre de préférence
-        onedrive_paths = list(dict.fromkeys(onedrive_paths))
-
-        # Extraire le nom de fichier de base
-        file_name = os.path.basename(file_path)
-
-        # Chercher le fichier dans tous les répertoires OneDrive
-        for onedrive_path in onedrive_paths:
-            if os.path.exists(onedrive_path):
-                # Recherche récursive dans OneDrive
-                for root, _dirs, files in os.walk(onedrive_path):
-                    if file_name in files:
-                        potential_path = os.path.join(root, file_name)
-                        print(f"✅ Fichier trouvé dans OneDrive: {potential_path}")
-                        return potential_path
-
-        # Si pas trouvé, essayer avec le répertoire Desktop OneDrive
-        desktop_onedrive = os.path.expanduser("~/OneDrive/Desktop")
-        if os.path.exists(desktop_onedrive):
-            desktop_file = os.path.join(desktop_onedrive, file_name)
-            if os.path.exists(desktop_file):
-                print(f"✅ Fichier trouvé sur Bureau OneDrive: {desktop_file}")
-                return desktop_file
-
-        # Retourner le chemin original si rien trouvé
-        print("⚠️ Fichier non trouvé dans OneDrive, tentative avec le chemin original")
-        return file_path
+        return resolve_onedrive_path(file_path)
 
     def is_supported(self, file_path: str) -> bool:
         """

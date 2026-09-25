@@ -130,6 +130,9 @@ class RelayBridge:
         # Callbacks déclenchés quand une image générée doit être poussée au
         # mobile (broadcast WS, chiffré). Signature : (message_id, image_path).
         self._image_callbacks: List[Callable[[str, str], None]] = []
+        # Callbacks déclenchés quand un document généré doit être poussé au
+        # mobile (broadcast WS, chiffré). Signature : (message_id, file_path).
+        self._document_callbacks: List[Callable[[str, str], None]] = []
 
         # Demande d'interruption émise par le mobile (bouton STOP du chat).
         # Le GUI desktop la consomme dans sa boucle de polling et appelle
@@ -341,6 +344,35 @@ class RelayBridge:
         """Supprime un callback image enregistré."""
         self._image_callbacks = [
             cb for cb in self._image_callbacks if cb != callback
+        ]
+
+    def submit_ai_document(self, file_path: str, message_id: Optional[str] = None) -> None:
+        """📄 Soumet un document généré à pousser au mobile (chiffré).
+
+        Appelé depuis le thread GUI via le callback on_document du moteur quand
+        generate_document / edit_document ont produit un fichier. Le broadcast
+        réel (rendu de l'aperçu HTML + chiffrement AES-256-GCM dans l'enveloppe
+        WS) est délégué aux callbacks enregistrés par le serveur Relay.
+        """
+        effective_id = message_id or self._latest_message_id
+        for cb in list(self._document_callbacks):
+            try:
+                cb(effective_id, file_path)
+            except Exception as e:
+                logger.error("Erreur callback document broadcast: %s", e)
+        logger.info(
+            "Document IA soumis au bridge (id=%s) : %s", effective_id or "—", file_path
+        )
+
+    def on_document(self, callback: Callable[[str, str], None]) -> None:
+        """Enregistre un callback (message_id, file_path) appelé quand un
+        document généré doit être poussé aux WS connectés (chiffré)."""
+        self._document_callbacks.append(callback)
+
+    def remove_document_callback(self, callback: Callable[[str, str], None]) -> None:
+        """Supprime un callback document enregistré."""
+        self._document_callbacks = [
+            cb for cb in self._document_callbacks if cb != callback
         ]
 
     def submit_ai_response(self, text: str, message_id: Optional[str] = None) -> None:

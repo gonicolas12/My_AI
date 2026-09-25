@@ -14,6 +14,7 @@ from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerato
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
+from processors.pptx_processor import PPTXProcessor
 
 try:
     from models.smart_code_searcher import multi_source_searcher
@@ -105,7 +106,7 @@ class CustomAIModel(
     def __init__(self, conversation_memory: ConversationMemory = None):
         super().__init__()
         self.name = "Assistant IA Local"
-        self.version = "8.0.0"
+        self.version = "8.1.0"
 
         # Modules spécialisés
         self.linguistic_patterns = LinguisticPatterns()
@@ -151,11 +152,13 @@ class CustomAIModel(
         if ADVANCED_PROCESSORS_AVAILABLE:
             self.pdf_processor = PDFProcessor()
             self.docx_processor = DOCXProcessor()
+            self.pptx_processor = PPTXProcessor()
             self.code_processor = CodeProcessor()
-            print("🔧 Processeurs avancés initialisés: PDF, DOCX, Code")
+            print("🔧 Processeurs avancés initialisés: PDF, DOCX, PPTX, Code")
         else:
             self.pdf_processor = None
             self.docx_processor = None
+            self.pptx_processor = None
             self.code_processor = None
 
         # Configuration
@@ -186,7 +189,7 @@ class CustomAIModel(
                 "Je suis votre assistant personnel ! Un modèle IA local qui peut coder, expliquer, et discuter avec vous. J'apprends de nos conversations pour mieux vous comprendre.",
             ],
             "detailed": [
-                "Je suis Assistant IA Local, version 8.0.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
+                "Je suis Assistant IA Local, version 8.1.0 Je suis un modèle d'intelligence artificielle conçu pour fonctionner entièrement en local, sans dépendance externe. Je peux générer du code, expliquer des concepts, et avoir des conversations naturelles avec vous.",
                 "Mon nom est Assistant IA Local. Je suis une IA modulaire avec plusieurs spécialisations : génération de code, analyse linguistique, base de connaissances, et raisonnement. Je garde en mémoire nos conversations pour mieux vous comprendre.",
                 "Je suis votre assistant IA personnel ! J'ai été conçu avec une architecture modulaire incluant la génération de code, l'analyse linguistique, une base de connaissances, et un moteur de raisonnement. Tout fonctionne en local sur votre machine.",
             ],

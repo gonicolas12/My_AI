@@ -104,6 +104,8 @@ class FileHandlingMixin:
             file_type = "DOCX"
         elif ext in [".xlsx", ".xls", ".csv"]:
             file_type = "Excel"
+        elif ext in [".pptx", ".potx"]:
+            file_type = "PowerPoint"
         elif ext in [
             ".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
             ".html", ".htm", ".css", ".scss", ".sass", ".less",
@@ -248,6 +250,20 @@ class FileHandlingMixin:
 
         if file_path:
             self.process_file(file_path, "Excel")
+
+    def load_pptx_file(self):
+        """Charge une présentation PowerPoint"""
+        file_path = filedialog.askopenfilename(
+            title="Sélectionner une présentation PowerPoint",
+            filetypes=[
+                ("Présentations PowerPoint", "*.pptx *.potx"),
+                ("PowerPoint (.pptx)", "*.pptx"),
+                ("Modèle PowerPoint (.potx)", "*.potx"),
+            ],
+        )
+
+        if file_path:
+            self.process_file(file_path, "PowerPoint")
 
     def load_code_file(self):
         """Charge un fichier de code"""

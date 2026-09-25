@@ -17,6 +17,12 @@ try:
 except Exception:
     _excel_proc = None
 
+try:
+    from processors.pptx_processor import PPTXProcessor as _PptxProc
+    _pptx_proc = _PptxProc()
+except Exception:
+    _pptx_proc = None
+
 
 class FileProcessor:
     """Processeur de fichiers pour documents"""
@@ -39,7 +45,7 @@ class FileProcessor:
             ".dockerfile", ".gitignore", ".editorconfig",
         }
         # Extensions traitées par des processeurs spécialisés
-        self.binary_extensions = {".pdf", ".docx", ".xlsx", ".xls", ".csv"}
+        self.binary_extensions = {".pdf", ".docx", ".xlsx", ".xls", ".csv", ".pptx"}
         self.supported_extensions = list(
             self.text_extensions | self.binary_extensions | {".json"}
         )
@@ -60,6 +66,8 @@ class FileProcessor:
                 return self._process_pdf_file(path)
             elif extension == ".docx":
                 return self._process_docx_file(path)
+            elif extension == ".pptx":
+                return self._process_pptx_file(path)
             elif extension in (".xlsx", ".xls", ".csv"):
                 return self._process_excel_file(path)
             elif extension in self.text_extensions:
@@ -165,6 +173,22 @@ class FileProcessor:
             return {"error": f"Erreur d'accès au fichier DOCX: {str(e)}"}
         except docx.opc.exceptions.PackageNotFoundError as e:
             return {"error": f"Erreur de lecture du fichier DOCX: {str(e)}"}
+
+    def _process_pptx_file(self, path: Path) -> Dict[str, Any]:
+        """Traite une présentation PowerPoint via PPTXProcessor."""
+        if _pptx_proc is None:
+            return {"error": "PPTXProcessor non disponible. Vérifiez processors/pptx_processor.py"}
+        result = _pptx_proc.read_pptx(str(path))
+        if not result.get("success"):
+            return {"error": result.get("error", "Erreur inconnue PPTX")}
+        content = result["content"]
+        return {
+            "type": "pptx",
+            "name": path.name,
+            "content": content["text"],
+            "slides": len(content["slides"]),
+            "size": len(content["text"]),
+        }
 
     def _extract_pdf_pypdf2(self, path: Path) -> Dict[str, Any]:
         """Extraction PDF avec PyPDF2"""

@@ -520,6 +520,7 @@ class LayoutMixin:
             ("📄  PDF",         self.load_pdf_file),
             ("📝  DOCX",        self.load_docx_file),
             ("📊  Excel / CSV", self.load_excel_file),
+            ("📽  PowerPoint",  self.load_pptx_file),
             ("💻  Code",        self.load_code_file),
             ("🖼  Image",        self.load_image_file),
             ("📁  Dossier (codebase)", self.load_folder),
@@ -647,7 +648,7 @@ class LayoutMixin:
 
         # Icônes par type de fichier
         type_icons = {
-            "PDF": "📄", "DOCX": "📝", "Excel": "📊",
+            "PDF": "📄", "DOCX": "📝", "Excel": "📊", "PowerPoint": "📽",
             "Code": "💻", "Image": "🖼",
         }
         icon = type_icons.get(file_type, "📎")

@@ -14,18 +14,34 @@ bords blancs.
 Robustesse : toute opération échoue silencieusement (False/None) ; l'appelant
 retombe alors sur un autre mode de rendu. L'attachement est **non bloquant** :
 on lance Edge puis on sonde l'apparition de sa fenêtre via ``poll_attach``.
+
+Identification du navigateur : le ``msedge.exe`` lancé n'est qu'un
+**lanceur**, qui démarre le vrai processus navigateur puis se termine
+aussitôt. On ne peut donc ni fermer Edge via le processus lancé, ni reconnaître
+sa fenêtre par ce PID. Le seul identifiant fiable est le profil temporaire
+(``--user-data-dir``) propre à chaque aperçu : il figure dans la ligne de
+commande de tous les processus de l'instance. VS Code, Teams ou le navigateur
+de l'utilisateur utilisent la même classe de fenêtre Chromium ; sans ce
+filtre, l'une de leurs fenêtres pouvait être avalée dans le volet.
 """
 
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
+
+try:
+    import psutil
+except ImportError:  # dépendance du projet, mais on dégrade proprement
+    psutil = None
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -40,6 +56,14 @@ _WS_CAPTION = 0x00C00000
 _WS_THICKFRAME = 0x00040000
 _WS_VISIBLE = 0x10000000
 _SW_SHOW = 5
+_WM_CLOSE = 0x0010
+
+# Préfixe des profils temporaires : sert aussi à reconnaître nos processus.
+_PROFILE_PREFIX = "myai_edge_"
+# Un profil plus ancien que cela n'appartient plus à aucun aperçu vivant.
+_STALE_PROFILE_AGE_S = 3600
+# Délai laissé aux processus Edge pour mourir avant de supprimer leur profil.
+_KILL_WAIT_S = 2.0
 
 # Hauteur (en px @96dpi) de la barre de titre Edge --app à masquer, et marge
 # latérale/bas pour rogner les éventuels bords.
@@ -105,17 +129,124 @@ def _list_chrome_windows(user32, EnumWindowsProc, ctypes) -> set:
     return hwnds
 
 
+@contextmanager
+def _window_dpi_context(user32, ctypes, hwnd):
+    """
+    Aligne le contexte DPI du thread sur celui d'une fenêtre, le temps du bloc.
+
+    Les coordonnées passées à MoveWindow et lues par GetClientRect dépendent du
+    contexte DPI du thread appelant. En l'alignant sur la fenêtre parente, on
+    travaille dans son repère : logique pour le volet Tk (non DPI-aware),
+    physique pour l'hôte DPI par écran (cf. interfaces/gui/_dpi_host.py).
+    """
+    previous = None
+    setter = None
+    try:
+        getter = user32.GetWindowDpiAwarenessContext
+        setter = user32.SetThreadDpiAwarenessContext
+        getter.restype = ctypes.c_void_p
+        setter.restype = ctypes.c_void_p
+        setter.argtypes = [ctypes.c_void_p]
+        target = getter(hwnd)
+        if target:
+            previous = setter(ctypes.c_void_p(target))
+    except (AttributeError, OSError):
+        previous = None  # Windows antérieur à 10 1607
+    try:
+        yield
+    finally:
+        if previous and setter is not None:
+            setter(ctypes.c_void_p(previous))
+
+
+def _client_size(user32, ctypes, hwnd) -> Optional[tuple]:
+    """Taille de la zone client d'une fenêtre, dans le contexte DPI courant."""
+    try:
+        from ctypes import wintypes
+
+        rect = wintypes.RECT()
+        if not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+            return None
+        return rect.right - rect.left, rect.bottom - rect.top
+    except Exception:
+        return None
+
+
+def _window_pid(user32, ctypes, hwnd) -> int:
+    """PID du processus propriétaire d'une fenêtre (0 si inconnu)."""
+    try:
+        from ctypes import wintypes
+
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return int(pid.value)
+    except Exception:
+        return 0
+
+
+def _window_area(user32, ctypes, hwnd) -> int:
+    """Surface d'une fenêtre en pixels (0 si inconnue)."""
+    try:
+        from ctypes import wintypes
+
+        rect = wintypes.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        return max(rect.right - rect.left, 0) * max(rect.bottom - rect.top, 0)
+    except Exception:
+        return 0
+
+
+def _profile_processes(profile_dir: str) -> List["psutil.Process"]:
+    """Processus Edge (navigateur, GPU, rendu…) lancés sur un profil donné."""
+    if psutil is None or not profile_dir:
+        return []
+    found = []
+    # Filtrer par nom avant de lire la ligne de commande : lire celle de
+    # chaque processus du système coûterait bien plus cher.
+    for proc in psutil.process_iter(["name"]):
+        try:
+            if (proc.info["name"] or "").lower() != "msedge.exe":
+                continue
+            if any(profile_dir in arg for arg in proc.cmdline()):
+                found.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return found
+
+
+def _sweep_stale_profiles() -> None:
+    """
+    Supprime les profils temporaires abandonnés par des sessions antérieures.
+
+    L'ancienne fermeture n'atteignait pas le vrai navigateur : le profil était
+    supprimé pendant qu'Edge l'utilisait encore, et des restes s'accumulaient
+    dans %TEMP%. Seuls les dossiers anciens sont visés, pour ne jamais toucher
+    au profil d'un aperçu en cours dans une autre instance de l'appli.
+    """
+    cutoff = time.time() - _STALE_PROFILE_AGE_S
+    pattern = os.path.join(tempfile.gettempdir(), f"{_PROFILE_PREFIX}*")
+    for path in glob.glob(pattern):
+        try:
+            if os.path.getmtime(path) < cutoff:
+                shutil.rmtree(path, ignore_errors=True)
+        except OSError:
+            continue
+
+
 class EdgeEmbed:
     """Gère le cycle de vie d'une fenêtre Edge embarquée dans un widget Tk."""
 
     def __init__(self):
-        self._proc: Optional[subprocess.Popen] = None
+        self._proc: Optional[subprocess.Popen] = None  # lanceur (meurt aussitôt)
+        self._browser_pid: Optional[int] = None  # vrai processus navigateur
         self._hwnd = None
         self._profile_dir: Optional[str] = None
         self._win32 = _load_win32()
         self._before: set = set()
         self._parent_hwnd: Optional[int] = None
         self._deadline = 0.0
+        if IS_WINDOWS:
+            _sweep_stale_profiles()
 
     @property
     def available(self) -> bool:
@@ -140,7 +271,8 @@ class EdgeEmbed:
             return False
 
         self._before = _list_chrome_windows(user32, EnumWindowsProc, ctypes)
-        self._profile_dir = tempfile.mkdtemp(prefix="myai_edge_")
+        self._browser_pid = None
+        self._profile_dir = tempfile.mkdtemp(prefix=_PROFILE_PREFIX)
         file_url = Path(file_path).as_uri()
         try:
             self._proc = subprocess.Popen(
@@ -172,7 +304,7 @@ class EdgeEmbed:
         """
         if self._hwnd is not None:
             return True
-        if self._proc is None:
+        if self._profile_dir is None:
             return None
         if time.time() > self._deadline:
             self.close()
@@ -180,10 +312,17 @@ class EdgeEmbed:
 
         user32, EnumWindowsProc, ctypes, _ = self._win32
         diff = _list_chrome_windows(user32, EnumWindowsProc, ctypes) - self._before
-        if not diff:
+        # Ne garder que les fenêtres de NOTRE instance : toute autre appli
+        # Chromium (VS Code, Teams, navigateur) peut ouvrir une fenêtre pendant
+        # la sonde, et l'embarquer à la place de la nôtre laissait celle-ci
+        # flotter sur l'écran avec sa barre de titre.
+        ours = [hwnd for hwnd in diff if self._is_ours(hwnd)]
+        if not ours:
             return False
 
-        hwnd = next(iter(diff))
+        # En pratique une seule fenêtre visible ; à défaut, la fenêtre
+        # d'application est la plus grande (les éventuelles bulles sont petites).
+        hwnd = max(ours, key=lambda h: _window_area(user32, ctypes, h))
         try:
             style = user32.GetWindowLongW(hwnd, _GWL_STYLE)
             style = (style & ~_WS_POPUP & ~_WS_CAPTION & ~_WS_THICKFRAME) | _WS_CHILD | _WS_VISIBLE
@@ -210,26 +349,38 @@ class EdgeEmbed:
         return 1.0
 
     def _place(self, width: int, height: int) -> None:
-        """Positionne la fenêtre en masquant la barre de titre Edge (offset haut)."""
+        """Positionne la fenêtre en masquant la barre de titre Edge (offset haut).
+
+        La taille vient de la zone client réelle du parent, lue dans le même
+        repère DPI que MoveWindow (celui du thread Tk) ; ``width``/``height``,
+        valeurs mises en cache par Tk, ne servent que de repli.
+        """
         if self._hwnd is None:
             return
-        scale = self._dpi_scale()
-        top = int(round(_TITLEBAR_BASE * scale))
-        border = int(round(_BORDER_BASE * scale))
-        try:
-            # Décalage vers le haut de `top` (barre de titre hors zone visible)
-            # + agrandissement pour que le contenu remplisse le volet, et léger
-            # rognage latéral/bas pour éviter les bords blancs.
-            self._win32[0].MoveWindow(
-                self._hwnd,
-                -border,
-                -top,
-                max(width, 1) + 2 * border,
-                max(height, 1) + top + border,
-                True,
-            )
-        except Exception:
-            pass
+        user32, _, ctypes, _ = self._win32
+        with _window_dpi_context(user32, ctypes, self._parent_hwnd):
+            size = None
+            if self._parent_hwnd:
+                size = _client_size(user32, ctypes, self._parent_hwnd)
+            if size and size[0] > 1 and size[1] > 1:
+                width, height = size
+            scale = self._dpi_scale()
+            top = int(round(_TITLEBAR_BASE * scale))
+            border = int(round(_BORDER_BASE * scale))
+            try:
+                # Décalage vers le haut de `top` (barre de titre hors zone
+                # visible) + agrandissement pour que le contenu remplisse le
+                # volet, et léger rognage latéral/bas contre les bords blancs.
+                user32.MoveWindow(
+                    self._hwnd,
+                    -border,
+                    -top,
+                    max(width, 1) + 2 * border,
+                    max(height, 1) + top + border,
+                    True,
+                )
+            except Exception:
+                pass
 
     def resize(self, width: int, height: int) -> None:
         """Redimensionne la fenêtre embarquée pour épouser son parent."""
@@ -253,21 +404,84 @@ class EdgeEmbed:
 
     # ── Cycle de vie ──────────────────────────────────────────────────────
 
+    def _is_ours(self, hwnd) -> bool:
+        """True si la fenêtre appartient à l'instance Edge lancée pour ce volet."""
+        user32, _, ctypes, _ = self._win32
+        pid = _window_pid(user32, ctypes, hwnd)
+        if not pid:
+            return False
+        if pid == self._browser_pid:
+            return True
+        if psutil is None:
+            # Sans psutil, impossible de vérifier : comportement historique.
+            return True
+        try:
+            cmdline = psutil.Process(pid).cmdline()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
+        if self._profile_dir and any(self._profile_dir in arg for arg in cmdline):
+            self._browser_pid = pid
+            return True
+        return False
+
     def close(self) -> None:
-        """Ferme la fenêtre Edge et nettoie le profil temporaire."""
-        self._hwnd = None
+        """Ferme la fenêtre Edge, son instance complète et le profil temporaire."""
+        hwnd, self._hwnd = self._hwnd, None
         self._before = set()
-        if self._proc is not None:
+
+        # Fermeture propre d'abord : Chromium quitte quand sa dernière fenêtre
+        # se ferme, et c'est la seule de ce profil dédié.
+        if hwnd is not None and self._win32[0] is not None:
             try:
-                self._proc.terminate()
-                try:
-                    self._proc.wait(timeout=2)
-                except Exception:
-                    self._proc.kill()
+                self._win32[0].PostMessageW(hwnd, _WM_CLOSE, 0, 0)
             except Exception:
                 pass
-            self._proc = None
+
+        self._terminate_browser()
+        self._proc = None
+        self._browser_pid = None
         self._cleanup_profile()
+
+    def _terminate_browser(self) -> None:
+        """
+        Termine toute l'instance Edge de ce volet.
+
+        Tuer le processus lancé ne suffit pas : c'est un lanceur déjà terminé.
+        On vise donc l'arbre du vrai navigateur, retrouvé par son profil. Le
+        profil n'est supprimé qu'une fois ces processus morts — le supprimer
+        sous un Edge vivant pouvait faire planter son rendu et laisser un
+        rectangle blanc dans le volet.
+        """
+        if self._proc is not None and self._proc.poll() is None:
+            try:
+                self._proc.terminate()
+            except Exception:
+                pass
+
+        if psutil is None:
+            return
+
+        procs: List["psutil.Process"] = []
+        if self._browser_pid:
+            try:
+                browser = psutil.Process(self._browser_pid)
+                procs = [browser] + browser.children(recursive=True)
+            except psutil.NoSuchProcess:
+                procs = []
+        if not procs and self._profile_dir:
+            # Fermeture avant attachement (timeout, rendu relancé) : navigateur
+            # encore inconnu, on le retrouve par son profil.
+            procs = _profile_processes(self._profile_dir)
+
+        for proc in procs:
+            try:
+                proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        try:
+            psutil.wait_procs(procs, timeout=_KILL_WAIT_S)
+        except Exception:
+            pass
 
     def _cleanup_profile(self) -> None:
         if self._profile_dir:
