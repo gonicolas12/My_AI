@@ -94,6 +94,7 @@ class TaskInputMixin:
             ("📄  PDF",         lambda: self._agent_load_file("PDF")),
             ("📝  DOCX",        lambda: self._agent_load_file("DOCX")),
             ("📊  Excel / CSV", lambda: self._agent_load_file("Excel")),
+            ("📽  PowerPoint",  lambda: self._agent_load_file("PowerPoint")),
             ("💻  Code",        lambda: self._agent_load_file("Code")),
             ("🖼  Image",       lambda: self._agent_load_file("Image")),
         ]

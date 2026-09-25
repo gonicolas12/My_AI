@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ====================================
-# My Personal AI ULTRA - Lanceur v8.0.0 (macOS / Linux)
+# My Personal AI ULTRA - Lanceur v8.1.0 (macOS / Linux)
 # Équivalent POSIX de launch.bat
 # ====================================
 
@@ -22,7 +22,7 @@ printf '%s/_/  /_/\\__, /___/_/  |_/___/   %s\n' "$ORANGE$BOLD" "$RESET"
 printf '%s       /____/                  %s\n' "$ORANGE$BOLD" "$RESET"
 printf '\n'
 printf '%s====================================%s\n' "$ORANGE" "$RESET"
-printf '%s           Version 8.0.0%s\n' "$BOLD" "$RESET"
+printf '%s           Version 8.1.0%s\n' "$BOLD" "$RESET"
 printf '%s====================================%s\n' "$ORANGE" "$RESET"
 printf '\n'
 

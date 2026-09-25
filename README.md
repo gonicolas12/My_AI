@@ -45,8 +45,8 @@ Planifiez vos agents et workflows en récurrence, exécution même l'application
 **🔍 Recherche Internet**  
 Accès aux informations en temps réel via DuckDuckGo. Résumés automatiques inclus.
 
-**📄 Traitement de Documents**
-PDF, DOCX, Excel, CSV, Code, images, analyse contextuelle ultra-étendue avec compression intelligente.
+**📄 Génération et traitement de Documents**  
+PDF, DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.
 
 **📡 Accès Mobile**  
 Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
@@ -78,7 +78,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | 🎓 **Feedback RLHF** | Notation 1-5 étoiles, feedback enregistré automatiquement |
 | 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
-| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG à côté du chat |
+| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG et des documents générés |
 | ⚡ **Slash commands** | Tapez `/` : autocomplétion de prompts réutilisables |
 
 ### Agents — Interface dédiée
@@ -128,6 +128,12 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
 - **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows/NVIDIA, Python+CUDA embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
 - **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:`.
+
+### 📝 Génération & modification de documents
+
+- **Documents bureautiques réels** : « *génère moi un docx sur les baleines* », « *fais-moi un PDF de synthèse* », « *crée une présentation PowerPoint…* », « *un tableur Excel comparant…* ». Le modèle local rédige, python-docx, reportlab, python-pptx et openpyxl mettent en forme : titres, listes imbriquées, tableaux stylés, sommaire Word, découpe automatique des diapos, onglets Excel avec filtre.
+- **Modification des pièces jointes** (docx, xlsx, pptx, md, pdf…) : remplacer un texte, réécrire une section, ajouter une ligne ou une diapo. **Le fichier d'origine n'est jamais touché** : la copie modifiée est écrite dans `outputs/documents/`.
+- **Aperçu au format natif** dans le volet latéral, ouvert automatiquement : visionneuses Word, PowerPoint et Excel de l'Explorateur Windows, lecteur PDF d'Edge. Rendu HTML de repli ailleurs, et sur le mobile Relay.
 
 ### 🔌 Accès à tout le PC (Root System) via MCP Local
 - Outils locaux pour **lire, écrire, déplacer des fichiers** et **créer des dossiers**
@@ -237,8 +243,10 @@ my_ai/
 │   └── advanced_features_demo.py        # Démonstration des fonctionnalités avancées
 ├── generators/                          # Générateurs de contenu
 │   ├── __init__.py
-│   ├── document_generator.py            # Génération docs avec contexte étendu
-│   └── code_generator.py                # Génération code avec analyse ultra
+│   ├── code_generator.py                # Génération code avec analyse ultra
+│   ├── document_editor.py               # Modification de documents joints (toujours sur une copie)
+│   ├── document_generator.py            # Documents Word/PDF/PowerPoint/Excel rédigés par le LLM
+│   └── markdown_document.py             # Parseur Markdown → blocs, socle des backends de rendu
 ├── interfaces/                          # Interfaces utilisateur
 │   ├── agents/                          # Modules Agents IA
 │   │   ├── __init__.py
@@ -260,8 +268,10 @@ my_ai/
 │   ├── gui/                             # Modules GUI (mixins)
 │   │   ├── __init__.py
 │   │   ├── animations.py                # Animations et transitions modernes
-│   │   ├── artifacts_panel.py           # Volet aperçu artifacts (Edge --app embarqué)
+│   │   ├── artifacts_panel.py           # Volet aperçu artifacts et documents (Visionneuses natives)
+│   │   ├── _dpi_host.py                 # Fenêtre hôte DPI par écran pour l'aperçu embarqué (Windows)
 │   │   ├── _edge_embed.py               # Embarquement Edge dans le volet (Win32 SetParent)
+│   │   ├── _preview_handler.py          # Visionneuses natives Word/PowerPoint/Excel (IPreviewHandler)
 │   │   ├── _wheel.py                    # Normalisation molette souris (Windows/macOS/Linux)
 │   │   ├── _whisper_worker.py           # Transcription isolée (contournement OpenMP macOS)
 │   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
@@ -284,8 +294,9 @@ my_ai/
 │   │   └── widgets.py                   # Widgets personnalisés
 │   ├── __init__.py
 │   ├── agents_interface.py              # Interface Agents IA
-│   ├── artifacts.py                     # Détection/préparation des artifacts
+│   ├── artifacts.py                     # Détection/préparation des artifacts (HTML, SVG, documents)
 │   ├── cli.py                           # Interface ligne de commande
+│   ├── document_preview.py              # Rendu HTML des documents (aperçu de repli, mobile)
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
 │   ├── onboarding.py                    # Assistant de premier lancement (wizard config)
 │   ├── modern_styles.py                 # Styles et thèmes modernes
@@ -322,13 +333,16 @@ my_ai/
 │   ├── smart_code_searcher.py           # Recherche de code intelligente
 │   └── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
 ├── outputs/                             # Fichiers générés par l'IA
+│   ├── documents/                       # Documents générés ou modifiés (docx, pdf, pptx, xlsx…)
 │   └── exports/                         # Conversations exportées (MD/HTML/PDF)
 ├── processors/                          # Processeurs de fichiers
 │   ├── __init__.py
 │   ├── code_processor.py                # Traitement de code avec analyse sémantique
 │   ├── docx_processor.py                # Traitement DOCX avec compression
 │   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
-│   └── pdf_processor.py                 # Traitement PDF avec chunking intelligent
+│   ├── path_resolution.py               # Résolution des chemins OneDrive (partagée docx/pptx)
+│   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
+│   └── pptx_processor.py                # Lecture PowerPoint (titres, puces, tableaux, notes)
 ├── relay/                               # My_AI Relay (accès mobile)
 │   ├── __init__.py
 │   ├── relay_bridge.py                  # Pont de synchronisation GUI ↔ Mobile
@@ -349,7 +363,8 @@ my_ai/
 │   ├── file_manager.py                  # Gestion fichiers
 │   ├── file_processor.py                # Gestion traitement fichiers
 │   ├── intelligent_calculator.py        # Calculateur intelligent
-│   └── logger.py                        # Gestion des logs
+│   ├── logger.py                        # Gestion des logs
+│   └── path_links.py                    # Chemins de fichiers cliquables dans les réponses
 ├── main.py                              # Point d'entrée principal (CLI)
 ├── launch_unified.py                    # Point d'entrée GUI (lancé par launch.bat / launch.sh)
 ├── Modelfile                            # Configuration modèle Ollama
@@ -489,7 +504,8 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 4. L'interface mobile propose deux onglets en haut, **💬 Chat** et **🤖 Agents** (comme le GUI PC) :
    - **Chat** — discutez en temps réel ; les messages apparaissent aussi sur le PC. Le bouton d'envoi devient un **bouton Stop** pendant la génération, et les liens `[titre](url)` s'affichent en bleu cliquable.
    - **Agents** — toute la page Agents du PC en version tactile : grille d'agents, **création/édition/suppression d'agents personnalisés**, **workflow visuel n8n** (glisser des nœuds, relier les ports), **Mode Débat** et exécution streamée.
-5. Joignez images, PDF, DOCX, Excel ou fichiers de code via le bouton **+** (sur le Chat **et** sur la page Agents) : ils sont traités par les mêmes processeurs que le PC (modèle vision pour les images, contexte vectoriel pour les documents)
+5. Joignez images, PDF, DOCX, PowerPoint, Excel ou fichiers de code via le bouton **+** (sur le Chat **et** sur la page Agents) : ils sont traités par les mêmes processeurs que le PC (modèle vision pour les images, contexte vectoriel pour les documents)
+6. Demandez un document (« *génère un pdf sur…* ») : son aperçu s'ouvre automatiquement dans la modale, avec un bouton 💾 pour télécharger le fichier
 
 ### Caractéristiques
 
@@ -502,7 +518,7 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 | 🌐 **Multi-tunnel** | cloudflared + serveo + localhost.run en parallèle, failover client-side |
 | 🔄 **Synchronisation** | Messages du chat visibles en temps réel sur PC et mobile |
 | ⚡ **WebSocket** | Communication instantanée, streaming, indicateur de frappe, bouton Stop |
-| 📎 **Pièces jointes** | Chat + Agents : images + documents (PDF, DOCX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
+| 📎 **Pièces jointes** | Chat + Agents : images + documents (PDF, DOCX, PPTX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
 | 📥 **Auto-install** | cloudflared est téléchargé automatiquement si absent |
 
 ### Configuration (`config.yaml`)
@@ -585,10 +601,11 @@ code --install-extension gonicolas12.my-ai
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
 | [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
 | [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
+| [📄 Génération de Documents](docs/DOCUMENT_GENERATION.md) | Word/PDF/PowerPoint/Excel : création, modification, aperçu |
 | [🎨 Génération d'Images](docs/IMAGE_GENERATION.md) | Texte → image 100% local (backends, auto-install, GPU) |
 | [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
 | [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide de l'interface graphique agents |
-| [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG |
+| [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG et documents |
 | [📅 Tâches planifiées](docs/SCHEDULER.md) | Scheduler proactif : agents/workflows récurrents (cron) |
 | [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
@@ -618,7 +635,8 @@ code --install-extension gonicolas12.my-ai
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
 | 🖼️ **Génération d'images** | Texte → image 100% local, backend SD auto-installé |
-| 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG |
+| 📝 **Génération de documents** | Word/PDF/PowerPoint/Excel rédigés en local |
+| 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG + documents au format natif |
 | 📅 **Scheduler proactif** | Agents/workflows planifiés (cron), même l'appli fermée |
 | ⚙️ **Réglages intégrés** | Gestion des modèles Ollama + paramètres |
 | 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |

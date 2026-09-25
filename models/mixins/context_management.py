@@ -161,6 +161,18 @@ class ContextManagementMixin:
                     with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
+            elif file_ext in [".pptx", ".potx"] and getattr(self, "pptx_processor", None):
+                try:
+                    result = self.pptx_processor.read_pptx(file_path)
+                    content_data = result.get("content", {}) if result.get("success") else {}
+                    content = content_data.get("text", "") if isinstance(content_data, dict) else ""
+                    processor_used = "PPTX"
+                    slide_count = len(content_data.get("slides", [])) if isinstance(content_data, dict) else 0
+                    print(f"📽️ [PPTX] Traitement PPTX: {slide_count} diapositives")
+                except (OSError, ValueError) as e:
+                    print(f"⚠️ Erreur processeur PPTX: {e}")
+                    content = ""
+
             elif file_ext in [".xlsx", ".xls", ".csv"]:
                 try:
                     excel_proc = ExcelProcessor()

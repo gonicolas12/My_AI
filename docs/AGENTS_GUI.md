@@ -560,6 +560,7 @@ Vous pouvez désormais attacher des fichiers aux tâches envoyées aux agents :
 |--------|-------------------|
 | **PDF** | PDFProcessor (extraction texte + métadonnées) |
 | **DOCX** | DOCXProcessor (paragraphes + tables) |
+| **PPTX, POTX** | PPTXProcessor (titres, puces, tableaux, notes) |
 | **TXT, CSV, MD, JSON** | Lecture directe (200 000 caractères max) |
 | **Code** (.py, .js, .ts, .java...) | Lecture directe |
 

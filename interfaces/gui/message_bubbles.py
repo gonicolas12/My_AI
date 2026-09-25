@@ -19,9 +19,14 @@ except ImportError:
 # Import RLHF Manager pour les feedbacks
 from core.rlhf_manager import get_rlhf_manager
 
-# Détection des artifacts (HTML/SVG rendables) pour le bouton « Aperçu »
-from interfaces.artifacts import detect_artifacts
+# Détection des artifacts (HTML/SVG rendables + documents produits) pour le
+# bouton « Aperçu » et l'ouverture automatique du volet.
+from interfaces.artifacts import artifacts_from_documents, detect_artifacts
 from ._wheel import wheel_notches
+
+# Délai avant l'ouverture automatique du volet : laisse la bulle finir son
+# layout, sinon le reflow provoqué par le volet la recalcule à mi-course.
+_AUTO_OPEN_DELAY_MS = 120
 
 
 class MessageBubblesMixin:
@@ -154,8 +159,12 @@ class MessageBubblesMixin:
             # ── Bouton lecture vocale (TTS) ──
             self._add_speak_button(feedback_frame, captured_response)
 
-            # ── Bouton « Aperçu » si la réponse contient un artifact rendable ──
-            self._add_artifact_button(feedback_frame, captured_source)
+            # ── Bouton « Aperçu » + ouverture automatique du volet ──
+            artifacts = self._collect_artifacts(
+                self.current_message_container, captured_source
+            )
+            self._add_artifact_button(feedback_frame, artifacts)
+            self._maybe_auto_open_artifact(self.current_message_container, artifacts)
 
             # Lecture automatique de la réponse si le mode est activé (sidebar)
             if getattr(self, "tts_autoread", False) and captured_response:
@@ -216,18 +225,64 @@ class MessageBubblesMixin:
 
         spk.bind("<Button-1>", _click)
 
-    def _add_artifact_button(self, parent, response_text):
-        """Ajoute un bouton 🔍 Aperçu si la réponse contient un artifact HTML/SVG.
+    def _collect_artifacts(self, container, response_text):
+        """Rassemble les artifacts d'un message : blocs HTML/SVG puis documents.
+
+        Les documents produits pendant le tour sont mémorisés sur le container
+        par le pipeline de streaming (attribut ``document_paths``), de la même
+        façon que ``artifact_source`` porte le texte brut.
+        """
+        artifacts = []
+        try:
+            if response_text:
+                artifacts.extend(detect_artifacts(response_text))
+        except Exception as e:
+            print(f"⚠️ [ARTIFACTS] Détection HTML échouée: {e}")
+        try:
+            paths = getattr(container, "document_paths", None) or []
+            artifacts.extend(artifacts_from_documents(paths, len(artifacts)))
+        except Exception as e:
+            print(f"⚠️ [ARTIFACTS] Détection documents échouée: {e}")
+        return artifacts
+
+    def _maybe_auto_open_artifact(self, container, artifacts):
+        """Ouvre le volet d'aperçu à la fin de la génération, comme Claude web.
+
+        Une seule ouverture par message, et jamais pendant la restauration
+        d'une session : recharger une conversation ne doit pas faire surgir le
+        volet pour chaque ancien message. Le bouton « 🔍 Aperçu » reste
+        disponible pour rouvrir manuellement.
+        """
+        if not artifacts or container is None:
+            return
+        if not hasattr(self, "open_artifact_preview"):
+            return
+        if getattr(container, "artifact_autoopened", False):
+            return
+        if not getattr(container, "autoopen_allowed", True):
+            return
+
+        container.artifact_autoopened = True
+        first = artifacts[0]
+
+        def _open():
+            try:
+                if container.winfo_exists():
+                    self.open_artifact_preview(first)
+            except Exception as e:
+                print(f"⚠️ [ARTIFACTS] Ouverture automatique échouée: {e}")
+
+        try:
+            self.root.after(_AUTO_OPEN_DELAY_MS, _open)
+        except Exception:
+            pass
+
+    def _add_artifact_button(self, parent, artifacts):
+        """Ajoute un bouton 🔍 Aperçu si le message a au moins un artifact.
 
         Au clic, ouvre le volet de preview (cf. ArtifactsPanelMixin). Si plusieurs
         artifacts sont présents, le premier est affiché.
         """
-        if not response_text:
-            return
-        try:
-            artifacts = detect_artifacts(response_text)
-        except Exception:
-            artifacts = []
         if not artifacts:
             return
         # Le mixin du volet doit être présent (ModernAIGUI l'inclut).
@@ -448,6 +503,16 @@ class MessageBubblesMixin:
             message_container.feedback_response = text  # Le texte actuel passé à add_message_bubble
             # Texte brut (= text ici, fences intactes) pour la détection d'artifacts
             message_container.artifact_source = text
+            # Le mode instantané sert à restaurer une session enregistrée :
+            # rouvrir le volet pour chaque ancien message serait intrusif, et
+            # les documents du tour courant n'appartiennent pas à ces bulles.
+            message_container.autoopen_allowed = not instant
+            # Chemin non streamé (repli sans Ollama) : le streaming ne passera
+            # pas, c'est donc ici qu'on rattache les documents produits.
+            if not instant:
+                message_container.document_paths = list(
+                    getattr(self, "_pending_document_paths", [])
+                )
 
             # SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
             def setup_container_scroll_forwarding(container):
@@ -675,6 +740,7 @@ class MessageBubblesMixin:
                 self._apply_unified_progressive_formatting(text_widget, full_scan=True)
                 self._convert_temp_links_to_clickable(text_widget)
                 self._apply_inline_citations(text_widget, text)
+                self._linkify_file_paths(text_widget)
                 text_widget.configure(state="disabled")
                 self._adjust_height_final_no_scroll(text_widget)
                 self._reactivate_text_scroll(text_widget)

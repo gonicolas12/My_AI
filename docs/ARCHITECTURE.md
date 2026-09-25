@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v8.0.0
+# 🏗️ Architecture - My Personal AI v8.1.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v8.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
+My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -22,7 +22,8 @@ My Personal AI v8.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
 - **Scheduler proactif** : Exécution récurrente d'agents/workflows (type cron) via `core/scheduler.py` — tourne tant que le GUI/Relay est lancé, ou **même appli fermée** via le Planificateur de tâches Windows (`core/scheduler_runner.py`). Réutilise `AgentRelayService` (aucune réimplémentation de l'exécution), persistance JSON, verrou inter-processus.
-- **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA — Edge `--app` embarqué (rendu Chromium exact) côté desktop, `<iframe sandbox>` côté mobile. Détection partagée dans `interfaces/artifacts.py`.
+- **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — Edge `--app` embarqué (rendu Chromium exact) et visionneuses natives Word/PowerPoint/Excel côté desktop, dans une fenêtre hôte DPI par écran ; `<iframe sandbox>` côté mobile. Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
+- **Génération de documents** : outils MCP `generate_document` / `edit_document` — le LLM rédige en Markdown, `generators/markdown_document.py` le découpe en blocs, un backend par format produit le docx, pdf, pptx ou xlsx dans `outputs/documents/`. Les pièces jointes sont modifiées sur une copie, jamais en place.
 - **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique façon Claude Code** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 
@@ -141,17 +142,23 @@ My Personal AI v8.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │ • Multi-feuilles        │ • Analyse sémantique                         │
 │ • Formatage tableau     │                                              │
 │ • Encodage automatique  │                                              │
+├─────────────────────────┼──────────────────────────────────────────────┤
+│ PPTXProcessor           │ path_resolution                              │
+│ • python-pptx           │ • Chemins OneDrive, partagé DOCX / PPTX      │
+│ • Titres, puces, niveaux│                                              │
+│ • Tableaux, notes       │                                              │
+│ • Modèles .potx         │                                              │
 └─────────────────────────┴──────────────────────────────────────────────┘
                                    │
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        GÉNÉRATEURS DE CONTENU                          │
 ├─────────────────────────┬──────────────────────────────────────────────┤
 │ AdvancedCodeGenerator   │ DocumentGenerator                            │
-│ • StackOverflow API     │ • Markdown                                   │
-│ • GitHub search         │ • PDF (reportlab)                            │
-│ • Web scraping          │ • Structured output                          │
-│ • Templates fallback    │ • Context-aware                              │
-│ • Semantic ranking      │                                              │
+│ • StackOverflow API     │ • docx / pdf / pptx / xlsx (+ md, csv…)      │
+│ • GitHub search         │ • Rédaction Markdown par le LLM              │
+│ • Web scraping          │ • markdown_document : Markdown → blocs       │
+│ • Templates fallback    │ • DocumentEditor : modification sur copie    │
+│ • Semantic ranking      │ • Outils MCP generate_ / edit_document       │
 └────────────────────────────────────────────────────────────────────────┘
                                    │
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -756,6 +763,8 @@ ImageGenerator (sortie multimodale, miroir de la vision en entrée) :
 
 Routage : core/ai_engine.is_image_generation_request() / extract_image_prompt()
           → court-circuit prioritaire sur MCP, callbacks on_image / on_image_progress
+          → « tableau » seul = tableau de données : il ne déclenche l'image
+            qu'avec un style pictural (impressionniste, à l'huile…)
 ```
 
 **`models/comfyui_manager.py`** - Auto-installation ComfyUI portable
@@ -861,6 +870,24 @@ Features:
 └─ Chunking pour optimisation contexte
 ```
 
+**`processors/pptx_processor.py`**
+```python
+Librairie: python-pptx (.pptx et modèles .potx ; .ppt binaire non lisible)
+
+Processing:
+├─ Une entrée par diapositive : titre, puces avec leur niveau, tableaux, notes
+├─ Représentation texte pour le contexte (« --- Diapositive N --- »)
+├─ .potx : type de contenu remplacé en mémoire (python-pptx le refuse)
+└─ Chemins OneDrive via processors/path_resolution.py (partagé avec DOCX)
+
+Output:
+{
+  "success": True,
+  "content": {"text": str, "slides": [...], "properties": {...}},
+  "file_info": {"original_path": str, "resolved_path": str, "size": int}
+}
+```
+
 **`processors/excel_processor.py`**
 ```python
 Librairies:
@@ -913,14 +940,38 @@ Features:
 └─ Injection exemples
 ```
 
-**`generators/document_generator.py`**
+**`generators/document_generator.py`** - Documents bureautiques
 ```python
-Formats:
-├─ Markdown
-├─ PDF (reportlab)
-├─ Structured output
-└─ Context-aware content
+generate_document(brief, fmt, title, content, filename, research)
+├─ Rédaction du corps en Markdown par le LLM (sauf content fourni),
+│  enrichie des résultats de recherche du tour (research)
+├─ markdown_document.parse_markdown() → blocs (Heading, ListBlock, Table…)
+├─ Un backend par format :
+│   ├─ docx : python-docx (listes imbriquées, tableaux, sommaire TOC)
+│   ├─ pdf  : reportlab platypus (styles, tableaux, numérotation)
+│   ├─ pptx : python-pptx (une diapo par section, découpe > 9 puces)
+│   ├─ xlsx : openpyxl (un onglet par tableau, filtre, vrais nombres)
+│   └─ md / txt / csv / html
+└─ outputs/documents/ → {success, file_path, format, title, size, outline}
+
+Exposé au chat par l'outil MCP generate_document (AIEngine._setup_local_tools)
 ```
+
+**`generators/document_editor.py`** - Modification de documents
+```python
+DocumentEditor.edit(path, operations, output_name) — toujours sur une copie
+├─ replace_text · append_markdown · replace_section · delete_paragraph
+├─ set_cell · append_row (xlsx) · append_slide (pptx)
+├─ Remplacement run par run : la mise en forme de l'occurrence est conservée
+├─ PDF : texte extrait, puis nouveau PDF régénéré
+└─ outputs/documents/<nom>_modifie.<ext> (compteur si la copie existe)
+
+Exposé au chat par l'outil MCP edit_document
+```
+
+**`generators/markdown_document.py`** - Parseur Markdown → blocs, socle commun
+des backends de rendu et de l'aperçu HTML des documents. Détails :
+[DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md).
 
 ### 🖥️ Interfaces - UI
 
@@ -1029,6 +1080,31 @@ Rôle: Ramener les événements de molette à une unité commune, le « cran »
 > ⚠️ **Pour tout nouveau gestionnaire de molette, passez par `wheel_notches`.**
 > Diviser `event.delta` par 120 (ou 6, ou 2) donne **0 sur macOS** pour un cran
 > standard : la molette reste inerte alors que la scrollbar fonctionne.
+
+**`interfaces/gui/artifacts_panel.py`** - Volet d'aperçu (artifacts + documents)
+```python
+Rôle: Afficher à droite du chat les pages HTML/SVG et les documents produits
+├─ Moteurs, par priorité : visionneuse native Office → Edge embarqué
+│  → tkinterweb → source
+├─ _preview_handler.py : IPreviewHandler COM (Word, PowerPoint, Excel),
+│  thread STA dédié pour ne pas figer Tk
+├─ _edge_embed.py      : Edge --app ré-parenté (SetParent) ; l'instance est
+│  identifiée par son profil (--user-data-dir), le msedge.exe lancé n'étant
+│  qu'un lanceur
+├─ _dpi_host.py        : fenêtre hôte DPI par écran — la racine Tk ne l'est pas,
+│  et Windows forcerait sinon la fenêtre embarquée en DPI virtualisé
+├─ Ouverture automatique en fin de réponse (jamais au rechargement de session)
+└─ Bouton 📂 : ouvre le fichier dans son application
+```
+
+**`interfaces/document_preview.py`** - Rendu HTML des documents
+```python
+build_document_preview(path) -> str : docx, xlsx, pptx, md, csv, txt, pdf (texte)
+├─ Rendu de repli du volet (sans Office ni Edge) et contenu de la modale mobile
+└─ Réutilise les processeurs de lecture (DOCX, Excel, PPTX, PDF)
+```
+
+Détails de l'aperçu : [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md).
 
 **`interfaces/cli.py`** - CLI améliorée
 ```python
@@ -1215,6 +1291,12 @@ utils/logger.py:
 ├─ Niveaux multiples
 └─ Output fichier + console
 
+utils/path_links.py:
+├─ find_existing_paths(text) : plus long préfixe qui existe sur le disque
+│  (les chemins Windows contiennent des espaces)
+├─ Lecteurs locaux seulement : un lecteur réseau déconnecté figerait l'UI
+└─ reveal_in_file_manager(path) : explorateur, fichier sélectionné
+
 utils/intelligent_calculator.py:
 ├─ Évaluation expressions
 ├─ Opérations mathématiques
@@ -1264,6 +1346,7 @@ File Upload
 Format Detection
     ├─ .pdf         → PDFProcessor
     ├─ .docx        → DOCXProcessor
+    ├─ .pptx/.potx  → PPTXProcessor
     ├─ .xlsx/.xls   → ExcelProcessor (openpyxl / xlrd)
     ├─ .csv         → ExcelProcessor (stdlib csv)
     └─ .py/.js/...  → CodeProcessor
@@ -1279,7 +1362,26 @@ Add to VectorMemory
 User can query: "résume ce document"
 ```
 
-### 3. Flux Génération Code
+### 3. Flux Génération de Document
+
+```
+"génère un pdf sur les dauphins"
+    ↓
+ChatOrchestrator.run() (boucle d'outils MCP)
+    ├─ Réponse texte qui annonce le document sans outil ? → une relance
+    ├─ Recherche éventuelle → résultats mémorisés (_remember_research)
+    ↓
+Outil generate_document → DocumentGenerator.generate_document()
+    ├─ Rédaction Markdown (LLM) → parse_markdown() → backend du format
+    └─ outputs/documents/<titre>.pdf
+    ↓
+on_document(path) → bouton « 🔍 Aperçu » + ouverture automatique du volet
+    │               (Relay : événement ai_document chiffré)
+    ↓
+Synthèse streamée : présentation du document d'après son plan
+```
+
+### 4. Flux Génération Code
 
 ```
 "Génère du code pour: [description]"
@@ -1302,7 +1404,7 @@ Format best solution
     └─ Source attribution
 ```
 
-### 4. Flux RLHF Training
+### 5. Flux RLHF Training
 
 ```
 Initial Model State
@@ -1324,7 +1426,7 @@ Evaluate Improvements
 Export Improved Model
 ```
 
-### 5. Flux Recherche Internet
+### 6. Flux Recherche Internet
 
 ```
 "cherche sur internet [query]"
@@ -1534,13 +1636,14 @@ elif intent == "new_intent":
 - `MEMORY.md` - Contrôle de la mémoire (voir/éditer/supprimer faits + vecteurs)
 - `CONVERSATION_SEARCH.md` - Recherche sémantique globale cross-conversations
 - `INTERNET_SEARCH.md` - Fonctionnalités recherche
-- `ARTIFACTS_PREVIEW.md` - Panneau « Artifacts » (aperçu live HTML/CSS/SVG)
+- `ARTIFACTS_PREVIEW.md` - Panneau « Artifacts » (aperçu live HTML/CSS/SVG + documents)
+- `DOCUMENT_GENERATION.md` - Génération et modification de documents bureautiques
 - `FAQ.md` - Questions fréquentes
 - `CHANGELOG.md` - Historique versions
 
 ---
 
-**Version**: 8.0.0
+**Version**: 8.1.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens avec recherche sémantique
 **Interfaces**: GUI (CustomTkinter), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

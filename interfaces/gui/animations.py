@@ -326,6 +326,9 @@ class AnimationsMixin:
                 # Citations numérotées [n] cliquables (recherche web / RAG)
                 self._apply_inline_citations(self.typing_widget, original_text)
 
+                # Chemins de fichiers/dossiers cliquables
+                self._linkify_file_paths(self.typing_widget)
+
                 # Appliquer un nettoyage final pour les formatages manqués
                 self.typing_widget.configure(state="disabled")
             else:
@@ -353,6 +356,9 @@ class AnimationsMixin:
 
                 # Citations numérotées [n] cliquables (recherche web / RAG)
                 self._apply_inline_citations(self.typing_widget, original_text)
+
+                # Chemins de fichiers/dossiers cliquables
+                self._linkify_file_paths(self.typing_widget)
 
                 # Appliquer un nettoyage final pour les formatages manqués
                 self.typing_widget.configure(state="disabled")

@@ -48,7 +48,12 @@ génère un fichier server.js pour un serveur Express simple
 
 #### 3. `generators/document_generator.py`
 - ✅ Intégration avec `LocalLLM` pour génération de contenu
-- ⏳ Prêt pour génération de documents avec Ollama
+- ✅ Génération de documents bureautiques (docx, pdf, pptx, xlsx, …)
+
+> 📄 La génération de **documents** (Word, PDF, PowerPoint, Excel) et la
+> modification de pièces jointes font l'objet de leur propre document :
+> [DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md). La présente page ne traite
+> que de la génération de **fichiers de code**.
 
 ## 🚀 Utilisation
 
@@ -240,7 +245,8 @@ Génère du code propre, bien commenté et fonctionnel.
 
 ## 🚀 Prochaines Étapes
 
-- [ ] Support de génération de documents (PDF, DOCX) avec Ollama
+- [x] Support de génération de documents (PDF, DOCX, PPTX, XLSX) avec Ollama —
+      voir [DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md)
 - [ ] Génération de tests unitaires automatiques
 - [ ] Support de templates de projets complets
 - [ ] Intégration de linters automatiques

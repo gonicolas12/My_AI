@@ -139,6 +139,22 @@ L'IA analyse vos messages et détecte automatiquement :
 2. **Ligne de commande** : `python main.py process votre_document.pdf`
 3. **Questions** : Ensuite, tapez "résume ce document" ou posez des questions spécifiques
 
+Les présentations PowerPoint (`.pptx`, modèles `.potx`) et les classeurs Excel se
+joignent de la même façon.
+
+### L'IA peut-elle créer un document Word, PDF, PowerPoint ou Excel ?
+
+Oui, en local : « *génère moi un docx sur les baleines* », « *fais-moi un PDF de
+synthèse* », « *crée une présentation sur le cycle de l'eau* ». Le fichier est
+écrit dans `outputs/documents/` et son aperçu s'ouvre à côté du chat. Voir
+[DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md).
+
+### Peut-elle modifier un document que je lui joins ?
+
+Oui : joignez-le, puis demandez la modification (« *remplace X par Y* », « *ajoute
+une diapo de conclusion* »). **Votre fichier d'origine n'est jamais modifié** :
+la version modifiée est une copie, enregistrée dans `outputs/documents/`.
+
 ### L'IA se souvient-elle de ce que je lui dis ?
 Oui ! L'IA garde en mémoire :
 - Les documents que vous avez traités

@@ -1,5 +1,67 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🚀 Version 8.1.0 — Génération de documents & aperçu natif (25 Septembre 2026)
+
+### Des documents Word, PDF, PowerPoint et Excel produits en local, modifiables, et affichés à côté du chat
+
+Jusqu'ici, « génère moi un docx sur les baleines » ne produisait aucun fichier : aucun outil n'exposait le générateur de documents au chat, et celui-ci écrivait la requête brute. Le modèle local rédige désormais le contenu, quatre backends le mettent en forme, les pièces jointes se modifient sur une copie, et l'aperçu s'ouvre au format natif dans le volet latéral — sur le **GUI desktop** comme sur le **mobile Relay**.
+
+## 📝 Génération de documents — `generators/document_generator.py` (réécrit), `generators/markdown_document.py` (nouveau)
+
+- Outil MCP **`generate_document`** : le LLM rédige le corps en Markdown dans un appel dédié ; un parseur maison le découpe en blocs (titres, listes imbriquées, tableaux, code, citations) ; un backend par format le rend.
+- **docx** (python-docx) : titres, listes, tableaux stylés, code tramé, pied de page numéroté, sommaire `TOC` dès 3 titres. **pdf** (reportlab) : styles, tableaux à en-tête coloré, numérotation. **pptx** (python-pptx) : couverture, une diapo par section, tableaux natifs, découpe au-delà de 9 puces. **xlsx** (openpyxl) : un onglet par tableau, en-tête figé et filtre, nombres convertis. Plus md, txt, csv et html.
+- **Markdown dans les cellules** : gras, italique et code sont restitués dans tous les formats ; les `**` n'apparaissent plus dans les tableaux.
+- Sortie dans `outputs/documents/`. Chemin non streamé (`_handle_document_generation()`) corrigé : un `await` manquant renvoyait une coroutine jamais exécutée.
+
+## ✏️ Modification des pièces jointes — `generators/document_editor.py` (nouveau)
+
+- Outil MCP **`edit_document`** : `replace_text`, `append_markdown`, `replace_section`, `delete_paragraph`, `set_cell`, `append_row`, `append_slide`. Noms d'actions et de champs normalisés (les synonymes des petits modèles sont acceptés).
+- **Le fichier d'origine n'est jamais touché** : la copie est écrite dans `outputs/documents/<nom>_modifie.<ext>`, avec un compteur si elle existe déjà.
+- Remplacement **run par run** : la mise en forme d'une occurrence est conservée. Un PDF, non modifiable en place, est régénéré, et la réponse le dit.
+
+## 📽 PowerPoint en lecture — `processors/pptx_processor.py` (nouveau)
+
+- Extraction par diapositive : titre, puces avec leur niveau, tableaux, notes du présentateur. Les modèles `.potx` sont lus aussi (type de contenu corrigé en mémoire).
+- Branché partout où les autres documents le sont : glisser-déposer, menu 📎 (entrée « 📽 PowerPoint »), contexte du modèle, page Agents, indexation `@codebase`, Relay et extension VS Code (1.3.6).
+- Résolution des chemins OneDrive extraite dans `processors/path_resolution.py`, partagée avec `DOCXProcessor`.
+
+## 🧭 Routage & orchestration — `core/chat_orchestrator.py`, `core/ai_engine.py`
+
+- **Recherche puis document** : après une recherche, la synthèse forcée ne coupe plus le plan quand un document est demandé (`_wants_document()`), et les résultats sont transmis au rédacteur (`_remember_research()`).
+- **Synthèse naturelle conservée** : `generate_document` renvoie le plan du document, que le modèle résume sans l'inventer ; une confirmation de secours n'apparaît que si la synthèse échoue.
+- **Document annoncé sans être créé** : quand le modèle répond « Je vais créer le document… » sans appeler l'outil, l'orchestrateur le relance une fois (`_announces_without_acting()`), sans doubler le texte déjà affiché. Le prompt système demande d'appeler l'outil sans annonce préalable.
+- **« Tableau » n'est plus une image** : « génère moi un tableau excel » partait en génération d'image. Seul, le mot désigne un tableau de données ; il ne vaut peinture qu'avec un style pictural (« impressionniste », « à l'huile »…). Même règle dans le classifieur de repli (`models/linguistic_patterns.py`).
+
+## 🎨 Aperçu des documents — `interfaces/gui/artifacts_panel.py`, `interfaces/artifacts.py`, `interfaces/document_preview.py` (nouveau)
+
+- Les documents produits deviennent des artifacts : bouton **« 🔍 Aperçu »** sous la réponse, bouton **📂** pour ouvrir le fichier dans son application.
+- **Ouverture automatique** du volet à la fin d'une réponse qui produit un document ou un artifact HTML ; jamais au rechargement d'une conversation.
+- **Format natif** : docx, pptx et xlsx dans les visionneuses de l'Explorateur Windows (`IPreviewHandler`, `interfaces/gui/_preview_handler.py`, thread STA dédié pour ne pas figer l'interface) ; PDF dans le lecteur d'Edge. Rendu HTML de repli sans Office ni Edge.
+- **Écran à 125 %** : l'aperçu apparaissait décalé et rogné. La racine Tk n'étant pas DPI-aware, Windows imposait à la fenêtre embarquée un DPI virtualisé ; elle est désormais accueillie dans une fenêtre hôte DPI par écran (`interfaces/gui/_dpi_host.py`).
+- **Edge embarqué** (`interfaces/gui/_edge_embed.py`) : le `msedge.exe` lancé n'est qu'un lanceur ; l'instance est maintenant identifiée par son profil. Fin des processus Edge qui survivaient à la fermeture et des fenêtres d'autres applications Chromium capturées dans le volet.
+
+## 🔗 Chemins cliquables — `utils/path_links.py` (nouveau), `interfaces/gui/markdown_formatting.py`
+
+- Les chemins de fichiers et de dossiers des réponses s'affichent en gras, bleu, souligné ; un clic ouvre leur emplacement dans l'explorateur, fichier sélectionné. Seuls les chemins qui existent sur le disque deviennent cliquables, et les lecteurs réseau ne sont jamais sondés.
+
+## 📱 Mobile Relay
+
+- Événement WebSocket **`ai_document`** chiffré (AES-256-GCM, comme `ai_image`) : aperçu ouvert automatiquement dans la modale et bouton **💾** de téléchargement. Même ouverture automatique pour les artifacts HTML.
+
+## 🧩 Extension VS Code 1.3.6
+
+- Les fichiers PowerPoint (`.pptx`, modèles `.potx`) se joignent avec le bouton **+** — ils manquaient au sélecteur de fichiers — ou comme fichier actif. Nécessite My_AI 8.1.0 côté hôte : les versions antérieures refusent l'upload.
+- Extension **bumpée 1.3.5 → 1.3.6** ; détails dans `vscode_extension/CHANGELOG.md`.
+
+#### Autres changements
+
+- Version du projet → **8.1.0** (`config.yaml`, lanceurs `launch.bat` / `launch.sh` / `launch_unified.py`, `clean_project.bat`, API REST, exports de conversation, scheduler, workflows, en-têtes de docs).
+- Nouveaux tests : `tests/test_markdown_document.py`, `test_document_generator.py`, `test_document_editor.py`, `test_document_routing.py`, `test_pptx_processor.py`, `test_document_preview.py`, `test_native_preview.py`, `test_edge_embed.py`, `test_path_links.py`.
+- Nouvelle doc : [docs/DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md). Mises à jour : README, ARTIFACTS_PREVIEW, ARCHITECTURE, USAGE, FAQ, INSTALLATION, IMAGE_GENERATION, CODEBASE, AGENTS_GUI, FILE_GENERATION.
+- Aucune nouvelle dépendance : python-docx, reportlab, python-pptx et openpyxl étaient déjà requis ; `comtypes` (aperçu natif) est installé sous Windows avec `pyttsx3`.
+
+---
+
 # 🚀 Version 8.0.0 — Slash commands & contexte @codebase (26 Juin 2026)
 
 ### Des prompts réutilisables façon Claude Code, un dossier projet toujours en tête, et une foule de confort au quotidien

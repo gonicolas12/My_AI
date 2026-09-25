@@ -1633,6 +1633,9 @@ class StreamingMixin:
             # Citations numérotées [n] cliquables (recherche web / RAG)
             self._apply_inline_citations(self.typing_widget, raw_source)
 
+            # Chemins de fichiers/dossiers cliquables
+            self._linkify_file_paths(self.typing_widget)
+
             # ============================================================
             # 🎨 RE-COLORATION des blocs de code après formatage
             # Le formatage full_scan ou la reconstruction des tableaux peut
@@ -1744,6 +1747,12 @@ class StreamingMixin:
                 # Texte brut (avec fences ```) pour la détection d'artifacts —
                 # displayed_text a ses fences élidées après recoloration.
                 self.current_message_container.artifact_source = history_text
+                # Documents produits pendant le tour (outils generate_document /
+                # edit_document) : alimentent le bouton « Aperçu » et
+                # l'ouverture automatique du volet.
+                self.current_message_container.document_paths = list(
+                    getattr(self, "_pending_document_paths", [])
+                )
                 print(f"[DEBUG STOCKAGE FEEDBACK] Query: {getattr(self, '_last_user_query', 'None')[:50]}...")
                 print(f"[DEBUG STOCKAGE FEEDBACK] Response: {displayed_text[:50]}...")
 

@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests as _req
 
 from generators.code_generator import CodeGenerator as OllamaCodeGenerator
-from generators.document_generator import DocumentGenerator
+from generators.document_editor import DocumentEditor
+from generators.document_generator import DOCUMENTS_DIR, DocumentGenerator
 from memory.vector_memory import VectorMemory
 from models.advanced_code_generator import \
     AdvancedCodeGenerator as WebCodeGenerator
@@ -32,6 +33,7 @@ from models.image_generation import get_image_generator
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.pdf_processor import PDFProcessor
+from processors.pptx_processor import PPTXProcessor
 from tools.local_tools import local_math
 from utils.file_manager import FileManager
 from utils.logger import setup_logger
@@ -96,6 +98,36 @@ try:
     _FOLDER_INDEXER_AVAILABLE = True
 except ImportError:
     _FOLDER_INDEXER_AVAILABLE = False
+
+# Outils dont le résultat sert de documentation au rédacteur de documents.
+_RESEARCH_TOOLS = frozenset({
+    "web_search", "search_memory", "read_local_file", "search_codebase",
+})
+# Plafond du contexte de recherche réinjecté dans la rédaction (caractères).
+_RESEARCH_CONTEXT_MAX = 8000
+# Nombre de sections du plan transmises à la synthèse pour présenter un document.
+_OUTLINE_MAX_SECTIONS = 12
+
+
+def _document_success_message(result: Dict[str, Any]) -> str:
+    """
+    Message de succès de l'outil generate_document, lu par la synthèse.
+
+    Le document a été rédigé par un appel LLM séparé : sans son plan, le modèle
+    qui le présente à l'utilisateur devrait inventer ce qu'il contient. Le
+    format « créé à <chemin> (<taille>) » est aussi lu par la confirmation de
+    secours de l'orchestrateur (cf. chat_orchestrator._document_confirmation).
+    """
+    outline = result.get("outline") or []
+    plan = " ; ".join(outline[:_OUTLINE_MAX_SECTIONS]) or "(pas de sections)"
+    return (
+        f"Succès : document {result['format'].upper()} "
+        f"« {result.get('title', '')} » créé à "
+        f"{result['file_path']} ({result['size']} octets).\n"
+        f"Plan du document : {plan}.\n"
+        "Présente ce document à l'utilisateur d'après ce plan, sans en "
+        "recopier le contenu."
+    )
 
 
 class AIEngine:
@@ -162,6 +194,7 @@ class AIEngine:
         # Processeurs
         self.pdf_processor = PDFProcessor()
         self.docx_processor = DOCXProcessor()
+        self.pptx_processor = PPTXProcessor()
         self.code_processor = CodeProcessor()
 
         # Générateurs avec support Ollama
@@ -169,6 +202,13 @@ class AIEngine:
             self.local_ai.local_llm if hasattr(self.local_ai, "local_llm") else None
         )
         self.document_generator = DocumentGenerator(llm=llm_instance)
+        self.document_editor = DocumentEditor(generator=self.document_generator)
+        # Documents produits pendant le tour courant : relayés au GUI par le
+        # callback on_document de process_query_stream (cf. volet « Aperçu »).
+        self._last_documents: List[str] = []
+        # Résultats des outils de collecte du tour courant, réinjectés dans la
+        # rédaction quand le modèle cherche avant de produire un document.
+        self._turn_research: List[str] = []
         self.ollama_code_generator = OllamaCodeGenerator(
             llm=llm_instance
         )  # Générateur avec Ollama
@@ -191,6 +231,10 @@ class AIEngine:
         # Documents joints visibles dans la conversation affichée.
         # None = pas de filtre (agents, tests, appels hors GUI).
         self._visible_documents = None
+        # Chemins complets des pièces jointes, indexés par nom de fichier :
+        # edit_document doit retrouver le fichier réel à partir du seul nom
+        # que le modèle cite dans son appel d'outil.
+        self._attached_documents: Dict[str, str] = {}
 
         # Initialiser le gestionnaire MCP et enregistrer les outils locaux
         self.mcp_manager = MCPManager()
@@ -232,7 +276,11 @@ class AIEngine:
         r"(?:(?:génère|genere|generate|crée|cree|create|fais|fait|montre|donne|dessine|dessines|illustre|peins)"
         r"[-\s]?(?:moi\s+)?(?:une?|le|la|un|du|des)?\s*"
         r"(?:image|images|illustration|illustrations|dessin|dessins|photo|photos|peinture|"
-        r"portrait|logo|affiche|rendu|visuel|tableau|croquis|art\b))"
+        r"portrait|logo|affiche|rendu|visuel|croquis|art\b|"
+        # « Tableau » désigne d'abord un tableau de données (« génère un
+        # tableau excel ») : il ne vaut peinture qu'avec un style pictural.
+        r"tableau\s+(?:impressionniste|cubiste|surr[ée]aliste|abstrait|"
+        r"[àa] l['’]huile|[àa] la mani[èe]re)))"
         r"|(?:\b(?:dessine|dessines|illustre|peins)[-\s]?moi\b)"
         r"|(?:\btext[- ]?to[- ]?image\b)",
         _re.IGNORECASE,
@@ -1095,6 +1143,169 @@ class AIEngine:
                 "required": ["description"],
             },
             callable_fn=generate_code,
+        )
+
+        # ----------------------------------------------------------------
+        # 5.b. Génération de documents bureautiques
+        # ----------------------------------------------------------------
+        async def generate_document(
+            brief: str,
+            format: str = "docx",  # noqa: A002 - nom imposé par le schéma d'outil
+            title: str = "",
+            content: str = "",
+            filename: str = "",
+        ) -> str:
+            """Rédige et écrit un document bureautique complet."""
+            try:
+                result = await self.document_generator.generate_document(
+                    brief, fmt=format, title=title, content=content,
+                    filename=filename, research=self._research_context(),
+                )
+                if not result.get("success"):
+                    return f"Génération impossible : {result.get('error', 'erreur inconnue')}"
+                self._register_document(result["file_path"])
+                return _document_success_message(result)
+            except Exception as exc:
+                return f"Erreur génération document : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="generate_document",
+            description=(
+                "Crée un DOCUMENT BUREAUTIQUE complet : Word (docx), PDF, "
+                "PowerPoint (pptx), Excel (xlsx), Markdown, CSV ou texte. "
+                "À utiliser dès que l'utilisateur demande un document, un "
+                "rapport, une note, une présentation, un diaporama ou un "
+                "tableur — et NON 'write_local_file', qui n'écrit que du texte "
+                "brut sans mise en forme. Le contenu est rédigé automatiquement "
+                "à partir de 'brief' ; ne fournis 'content' que si tu as déjà "
+                "rédigé le corps du document en Markdown."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "brief": {
+                        "type": "string",
+                        "description": (
+                            "Sujet et consignes de rédaction, en une ou deux "
+                            "phrases (ex: 'un rapport sur les baleines, avec "
+                            "leurs espèces et leur conservation')"
+                        ),
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Format du document",
+                        "enum": ["docx", "pdf", "pptx", "xlsx", "csv", "md", "txt", "html"],
+                        "default": "docx",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Titre du document (déduit du contenu si absent)",
+                        "default": "",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "Corps du document en Markdown, si tu l'as déjà "
+                            "rédigé. Laisse vide pour une rédaction automatique."
+                        ),
+                        "default": "",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Nom de fichier souhaité, sans dossier",
+                        "default": "",
+                    },
+                },
+                "required": ["brief"],
+            },
+            callable_fn=generate_document,
+        )
+
+        # ----------------------------------------------------------------
+        # 5.c. Modification d'un document existant (toujours sur une copie)
+        # ----------------------------------------------------------------
+        def edit_document(path: str, operations, output_name: str = "") -> str:
+            """Applique des modifications à un document, dans une copie."""
+            try:
+                resolved = self._resolve_attached_document(path)
+                if resolved is None:
+                    return (
+                        f"Document introuvable : {path}. Demande à l'utilisateur "
+                        "de joindre le fichier ou donne son chemin complet."
+                    )
+                result = self.document_editor.edit(
+                    resolved, operations, output_name=output_name
+                )
+                if not result.get("success"):
+                    return f"Modification impossible : {result.get('error', 'erreur inconnue')}"
+                self._register_document(result["file_path"])
+                message = (
+                    f"Succès : {result['applied']} modification(s) appliquée(s). "
+                    f"Copie modifiée écrite à {result['file_path']}. "
+                    f"Le fichier d'origine ({result['source_path']}) n'a pas été touché."
+                )
+                if result.get("notes"):
+                    message += " " + " ".join(result["notes"])
+                return message
+            except Exception as exc:
+                return f"Erreur modification document : {exc}"
+
+        self.mcp_manager.register_local_tool(
+            name="edit_document",
+            description=(
+                "Modifie un document existant (docx, xlsx, pptx, pdf, md, txt, "
+                "csv), typiquement une pièce jointe de l'utilisateur. Le fichier "
+                "d'origine n'est JAMAIS écrasé : une copie modifiée est écrite "
+                "dans outputs/documents/."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Chemin du document à modifier, ou simplement son "
+                            "nom de fichier s'il a été joint à la conversation"
+                        ),
+                    },
+                    "operations": {
+                        "type": "array",
+                        "description": (
+                            "Liste des modifications à appliquer, dans l'ordre. "
+                            "Actions disponibles : "
+                            "replace_text {find, replace} ; "
+                            "append_markdown {content} ; "
+                            "replace_section {heading, content} ; "
+                            "delete_paragraph {contains} ; "
+                            "set_cell {sheet, cell, value} et append_row {sheet, values} (xlsx) ; "
+                            "append_slide {title, content} (pptx)."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "action": {"type": "string"},
+                                "find": {"type": "string"},
+                                "replace": {"type": "string"},
+                                "content": {"type": "string"},
+                                "heading": {"type": "string"},
+                                "contains": {"type": "string"},
+                                "title": {"type": "string"},
+                                "sheet": {"type": "string"},
+                                "cell": {"type": "string"},
+                                "value": {"type": "string"},
+                            },
+                            "required": ["action"],
+                        },
+                    },
+                    "output_name": {
+                        "type": "string",
+                        "description": "Nom du fichier modifié (optionnel)",
+                        "default": "",
+                    },
+                },
+                "required": ["path", "operations"],
+            },
+            callable_fn=edit_document,
         )
 
         # ----------------------------------------------------------------
@@ -2005,6 +2216,85 @@ Que voulez-vous que je fasse pour vous ?""",
         """
         self._visible_documents = set(names) if names is not None else None
 
+    def set_attached_documents(self, paths) -> None:
+        """Déclare les chemins complets des pièces jointes de la conversation.
+
+        `set_visible_documents` ne transporte que des noms de fichiers, ce qui
+        suffit à filtrer les contenus déjà en mémoire. L'outil `edit_document`,
+        lui, doit ouvrir le fichier réel : il a besoin du chemin.
+        """
+        index: Dict[str, str] = {}
+        for path in paths or []:
+            if isinstance(path, str) and path:
+                index[os.path.basename(path).lower()] = path
+        self._attached_documents = index
+
+    def _resolve_attached_document(self, path: str) -> Optional[str]:
+        """
+        Résout le chemin d'un document cité par le modèle.
+
+        Le modèle appelle `edit_document` avec ce qu'il a sous les yeux : le
+        plus souvent le seul nom de fichier. On tente donc, dans l'ordre : le
+        chemin tel quel, l'index des pièces jointes, puis les documents déjà
+        produits dans outputs/documents/.
+
+        Returns:
+            Le chemin existant, ou None si rien ne correspond.
+        """
+        if not path:
+            return None
+
+        candidate = Path(path).expanduser()
+        if candidate.exists():
+            return str(candidate)
+
+        name = candidate.name.lower()
+        attached = self._attached_documents.get(name)
+        if attached and Path(attached).exists():
+            return attached
+
+        produced = DOCUMENTS_DIR / candidate.name
+        if produced.exists():
+            return str(produced)
+
+        return None
+
+    def _register_document(self, file_path: str) -> None:
+        """
+        Mémorise un document produit pendant le tour courant.
+
+        La liste est vidée au début de chaque appel streamé ; c'est
+        `tool_executor` qui en observe la croissance pour prévenir le GUI
+        (cf. le paramètre `on_document` de process_query_stream).
+        """
+        if file_path and file_path not in self._last_documents:
+            self._last_documents.append(file_path)
+
+    def _remember_research(self, tool_name: str, result: str) -> None:
+        """
+        Conserve le résultat d'un outil de collecte pour le tour courant.
+
+        Un plan « je cherche d'abord, je rédige ensuite » est fréquent. Sans
+        cette mémoire, `generate_document` relancerait le modèle sans aucun
+        accès à ce qui vient d'être trouvé, et la recherche serait perdue.
+        """
+        if tool_name not in _RESEARCH_TOOLS:
+            return
+        text = (result or "").strip()
+        if len(text) < 200:
+            # Un résultat vide ou une erreur n'apporte rien au rédacteur.
+            return
+        self._turn_research.append(f"[{tool_name}]\n{text}")
+
+    def _research_context(self) -> str:
+        """Assemble les résultats de collecte du tour, plafonnés en taille."""
+        if not self._turn_research:
+            return ""
+        joined = "\n\n".join(self._turn_research)
+        if len(joined) > _RESEARCH_CONTEXT_MAX:
+            joined = joined[:_RESEARCH_CONTEXT_MAX] + "\n[…]"
+        return joined
+
     def _select_relevant_docs(self, query: str, stored_documents: dict) -> dict:
         """
         Retourne uniquement les documents pertinents pour la requête.
@@ -2481,6 +2771,7 @@ Que voulez-vous que je fasse pour vous ?""",
         on_delete_confirm=None,
         on_image=None,
         on_image_progress=None,
+        on_document=None,
     ) -> str:
         """
         Point d'entrée synchrone et streamé pour la GUI.
@@ -2494,6 +2785,11 @@ Que voulez-vous que je fasse pour vous ?""",
         """
         # Détection automatique de la langue de l'utilisateur
         self._current_lang_instruction = self._get_lang_instruction(user_input)
+
+        # Les documents produits pendant ce tour sont accumulés par
+        # _register_document et relayés au GUI depuis tool_executor.
+        self._last_documents = []
+        self._turn_research = []
 
         # ----------------------------------------------------------------
         # 1. Vision (ENTRÉE image)
@@ -2577,6 +2873,16 @@ Que voulez-vous que je fasse pour vous ?""",
                 f"- Documents : {user_documents}\n"
                 f"- Bureau (Desktop) : {user_desktop}\n"
                 f"Exemple : Si on te dit 'Crée le fichier info.txt dans Téléchargements', lance directement 'write_local_file' avec le path '{user_downloads}{PATH_EXAMPLES['sep']}info.txt'. N'invente pas de sous-dossiers traduits en français comme 'Downloads{PATH_EXAMPLES['sep']}Téléchargements'.\n\n"
+                "📄 DOCUMENTS BUREAUTIQUES : \n"
+                "Pour un document Word/docx, un PDF, une présentation PowerPoint/pptx, "
+                "un classeur Excel/xlsx, un rapport, une note ou un diaporama, utilise "
+                "OBLIGATOIREMENT l'outil 'generate_document' — jamais 'write_local_file' "
+                "(qui n'écrit que du texte brut, sans mise en forme) ni 'generate_code'. "
+                "Pour modifier un document déjà joint à la conversation, utilise "
+                "'edit_document'. Appelle l'outil directement, sans annoncer d'abord ce "
+                "que tu vas faire : une réponse sans appel d'outil ne crée aucun fichier. "
+                "Après l'appel, annonce simplement que le document est "
+                "prêt : n'en recopie pas le contenu dans ta réponse.\n\n"
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
@@ -2710,7 +3016,20 @@ Que voulez-vous que je fasse pour vous ?""",
                 # Callback visuel GUI avec les arguments FINAUX (après optimisation)
                 if on_tool_call:
                     on_tool_call(tool_name, arguments)
+                known_documents = len(self._last_documents)
                 tool_result = self.mcp_manager.execute_tool_sync(tool_name, arguments)
+                # Mémoriser ce qu'ont rapporté les outils de collecte : sans
+                # cela, un generate_document appelé APRÈS une recherche web
+                # rédigerait de mémoire et jetterait les résultats trouvés.
+                self._remember_research(tool_name, tool_result)
+                # Un outil vient-il de produire un document ? Le signaler au
+                # GUI pour qu'il propose l'aperçu (cf. volet « Artifacts »).
+                if on_document:
+                    for path in self._last_documents[known_documents:]:
+                        try:
+                            on_document(path)
+                        except Exception as exc:  # noqa: BLE001 - frontière avec l'UI
+                            self.logger.warning("Callback document échoué : %s", exc)
                 return tool_result
 
             # Requêtes purement conversationnelles : pas d'outils
@@ -3306,13 +3625,31 @@ Que voulez-vous que je fasse pour vous ?""",
         Gère la génération de documents
         """
         try:
-            # Générer le document sans await (methode sync)
-            document = self.document_generator.generate_document(query, context)
+            document = await self.document_generator.generate_document(
+                query, title=(context or {}).get("title", "")
+            )
 
+            if not document.get("success"):
+                return {
+                    "type": "document_generation",
+                    "document": document,
+                    "message": (
+                        "❌ Génération du document impossible : "
+                        f"{document.get('error', 'erreur inconnue')}"
+                    ),
+                    "success": False,
+                }
+
+            self._register_document(document["file_path"])
             return {
                 "type": "document_generation",
                 "document": document,
-                "message": "Document généré avec succès",
+                "file_path": document["file_path"],
+                "filename": document["file_name"],
+                "message": (
+                    f"✅ Document {document['format'].upper()} généré : "
+                    f"{document['file_name']}"
+                ),
                 "success": True,
             }
         except (AttributeError, TypeError, ValueError, OSError) as e:

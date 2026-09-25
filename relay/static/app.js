@@ -153,6 +153,11 @@ let attachmentCounter = 0;
 let streamingMessageId = null;
 let streamingMessageEl = null;
 
+// Documents générés reçus (événements `ai_document`) en attente d'être
+// rattachés à la bulle de réponse. L'outil s'exécute avant que le modèle ne
+// rédige sa synthèse : le document arrive donc AVANT la réponse finale.
+let pendingDocuments = [];
+
 // Le scroll auto pendant le streaming ne doit pas se battre contre
 // l'utilisateur qui a fait défiler vers le haut pour relire quelque chose.
 // On considère "collé au bas" s'il y a moins de 80px sous la viewport.
@@ -281,6 +286,20 @@ function connect() {
       isWaiting = false;
       addImageMessage(data.data, data.mime || 'image/png', data.filename || '', data.timestamp);
       updateSendButton();
+    } else if (data.type === 'ai_document') {
+      // 📄 Document généré (docx, pdf, pptx, xlsx…) reçu chiffré dans
+      // l'enveloppe WS. `data.html` est l'aperçu rendu côté hôte et
+      // `data.data` le fichier réel en base64 pour le téléchargement.
+      // On le met en attente : il sera rattaché à la bulle de réponse.
+      pendingDocuments.push({
+        kind: 'document',
+        title: data.title || data.filename || 'Document',
+        filename: data.filename || 'document',
+        label: data.label || 'Document',
+        format: data.format || '',
+        html: data.html || '',
+        data: data.data || ''
+      });
     } else if (data.type === 'resume_empty') {
       // Le serveur n'a pas de réponse en attente pour notre dernier id.
       // Soit la réponse est déjà arrivée, soit elle n'a pas encore fini
@@ -688,7 +707,7 @@ function stopGeneration() {
   }).catch(function () { /* swallow */ });
 }
 
-function addMessage(text, isUser, timestamp) {
+function addMessage(text, isUser, timestamp, autoOpen) {
   if (welcomeEl) welcomeEl.style.display = 'none';
 
   const msg = document.createElement('div');
@@ -705,7 +724,7 @@ function addMessage(text, isUser, timestamp) {
       '<div class="ai-icon">&#x1F916;</div>' +
       '<div class="bubble">' + renderMarkdown(text) +
       '<span class="time">' + time + '</span></div>';
-    attachArtifactButton(msg.querySelector('.bubble'), text);
+    attachArtifactButton(msg.querySelector('.bubble'), text, autoOpen);
   }
 
   messagesEl.appendChild(msg);
@@ -800,8 +819,9 @@ function updateStreamingBubble(mid, text) {
 function finalizeStreaming(mid, finalText, timestamp) {
   if (streamingMessageId !== mid || !streamingMessageEl) {
     // Pas de bulle de streaming en cours pour ce message : rendu normal.
+    // C'est une réponse fraîche → l'aperçu s'ouvre tout seul.
     if (finalText !== null && finalText !== undefined) {
-      addMessage(finalText, false, timestamp);
+      addMessage(finalText, false, timestamp, true);
     }
     return;
   }
@@ -815,7 +835,7 @@ function finalizeStreaming(mid, finalText, timestamp) {
       '<div class="ai-icon">&#x1F916;</div>' +
       '<div class="bubble">' + renderMarkdown(finalText) +
       '<span class="time">' + time + '</span></div>';
-    attachArtifactButton(streamingMessageEl.querySelector('.bubble'), finalText);
+    attachArtifactButton(streamingMessageEl.querySelector('.bubble'), finalText, true);
   }
   streamingMessageEl = null;
   streamingMessageId = null;
@@ -1094,10 +1114,18 @@ function buildArtifactDoc(art) {
     '</head><body>' + body + '</body></html>';
 }
 
-// Ajoute un bouton « Aperçu » dans une bulle IA si elle contient un artifact.
-function attachArtifactButton(bubbleEl, text) {
+// Ajoute un bouton « Aperçu » dans une bulle IA si elle contient un artifact
+// (bloc HTML/SVG) ou si un document a été généré pendant le tour.
+// `autoOpen` ouvre la modale sans clic, comme sur le desktop ; il vaut false
+// au rechargement de l'historique pour ne pas surgir sur chaque ancien message.
+function attachArtifactButton(bubbleEl, text, autoOpen) {
   if (!bubbleEl) return;
   var artifacts = detectArtifacts(text);
+  // Les documents en attente appartiennent à la réponse qu'on rend ici.
+  if (pendingDocuments.length) {
+    artifacts = artifacts.concat(pendingDocuments);
+    pendingDocuments = [];
+  }
   if (!artifacts.length) return;
   var first = artifacts[0];
   var btn = document.createElement('button');
@@ -1106,6 +1134,7 @@ function attachArtifactButton(bubbleEl, text) {
   btn.innerHTML = '&#x1F50D; Aperçu' + (artifacts.length > 1 ? ' (' + artifacts.length + ')' : '');
   btn.onclick = function () { openArtifactPreview(first); };
   bubbleEl.appendChild(btn);
+  if (autoOpen) openArtifactPreview(first);
 }
 
 function ensureArtifactOverlay() {
@@ -1119,6 +1148,7 @@ function ensureArtifactOverlay() {
       '<div class="artifact-head">' +
         '<span class="artifact-title" id="artifactTitle">Aperçu</span>' +
         '<div class="artifact-tools">' +
+          '<button class="artifact-tool" id="artifactDownloadBtn" title="Télécharger le document">&#x1F4BE;</button>' +
           '<button class="artifact-tool" id="artifactOpenBtn" title="Ouvrir dans le navigateur">&#x1F310;</button>' +
           '<button class="artifact-tool" id="artifactCloseBtn" title="Fermer">&#x2716;</button>' +
         '</div>' +
@@ -1135,7 +1165,10 @@ function ensureArtifactOverlay() {
 
 function openArtifactPreview(art) {
   var overlay = ensureArtifactOverlay();
-  var doc = buildArtifactDoc(art);
+  var isDoc = art.kind === 'document';
+  // Un document arrive déjà rendu en HTML par l'hôte (document_preview.py) ;
+  // un bloc de code est enveloppé ici.
+  var doc = isDoc ? (art.html || '') : buildArtifactDoc(art);
   overlay.querySelector('#artifactTitle').textContent = art.title || 'Aperçu';
   var frame = overlay.querySelector('#artifactFrame');
   frame.srcdoc = doc;
@@ -1146,7 +1179,37 @@ function openArtifactPreview(art) {
       window.open(URL.createObjectURL(blob), '_blank', 'noopener');
     } catch (err) { /* no-op */ }
   };
+  // 💾 Téléchargement : seulement pour un vrai fichier, reconstruit depuis
+  // le base64 déchiffré (il n'a jamais transité en clair).
+  var dlBtn = overlay.querySelector('#artifactDownloadBtn');
+  if (isDoc && art.data) {
+    dlBtn.style.display = '';
+    dlBtn.onclick = function () { downloadArtifactDocument(art); };
+  } else {
+    dlBtn.style.display = 'none';
+    dlBtn.onclick = null;
+  }
   overlay.classList.add('active');
+}
+
+// Reconstitue le fichier depuis son base64 et déclenche le téléchargement.
+function downloadArtifactDocument(art) {
+  try {
+    var binary = atob(art.data);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = art.filename || 'document';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    // Laisser au navigateur le temps de démarrer le téléchargement.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  } catch (err) {
+    console.error('[Relay] Téléchargement du document échoué :', err);
+  }
 }
 
 function closeArtifactPreview() {

@@ -48,6 +48,121 @@ COMPACT_THRESHOLD: int = 28     # Nb de messages avant compaction (hors system +
 PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planification
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
 
+# Outils qui produisent un fichier livrable pour l'utilisateur.
+_DOCUMENT_TOOLS = frozenset({"generate_document", "edit_document"})
+
+# Vocabulaire signalant qu'un DOCUMENT est attendu en sortie. Sert à ne pas
+# couper la boucle agentique après une recherche préparatoire : l'utilisateur
+# attend un fichier, pas un résumé dans le chat.
+_DOCUMENT_WORDS = (
+    "docx", "doc word", "document word", "fichier word",
+    "pdf", "pptx", "powerpoint", "diaporama", "présentation", "presentation",
+    "xlsx", "excel", "tableur", "classeur", "feuille de calcul",
+    "document", "rapport", "note de synthèse", "compte rendu", "compte-rendu",
+    "slides", "diapositive", "mémo", "memo",
+)
+# Verbes de production : sans eux, « parle-moi de ce document » déclencherait
+# à tort la poursuite du plan.
+_DOCUMENT_VERBS = (
+    "génère", "genere", "générer", "generate", "crée", "cree", "créer", "create",
+    "fais", "fais-moi", "rédige", "redige", "rédiger", "écris", "ecris", "écrire",
+    "produis", "prépare", "prepare", "exporte", "export", "monte", "construis",
+)
+
+
+def _wants_document(user_input: str) -> bool:
+    """
+    True si la requête réclame la PRODUCTION d'un document.
+
+    Exige un verbe de production ET un mot de document : « génère un docx »
+    oui, « résume ce document » non.
+    """
+    query = (user_input or "").lower()
+    return any(word in query for word in _DOCUMENT_WORDS) and any(
+        verb in query for verb in _DOCUMENT_VERBS
+    )
+
+
+# Tour conclu par une annonce (« Je vais créer le document… ») ou un aveu
+# d'incapacité, au lieu de l'appel d'outil. Les petits modèles locaux le font
+# parfois : le texte s'affiche, puis plus rien, et aucun fichier n'existe.
+_UNFULFILLED_RE = re.compile(
+    r"\b(?:je vais|je m'en occupe|je m'occupe|je commence|je prépare|"
+    r"commençons|procédons|laisse[sz]?-moi|permettez-moi|je ne (?:peux|suis) pas|"
+    r"i'll|i will|let me|let's|i can't|i cannot)\b",
+    re.IGNORECASE,
+)
+# Au-delà, le modèle a rédigé une vraie réponse : la relancer coûterait un
+# passage complet du modèle sans garantie de mieux faire.
+_UNFULFILLED_MAX_CHARS = 600
+
+# Relance unique quand le modèle a annoncé le document sans appeler l'outil.
+_DOCUMENT_NUDGE = (
+    "[ORCHESTRATEUR] Tu as annoncé le document sans appeler d'outil : aucun "
+    "fichier n'a été créé. Passe à l'action MAINTENANT par un appel d'outil — "
+    "'generate_document' rédige et enregistre le fichier (fais d'abord une "
+    "recherche seulement si la demande en réclame une). Ne réponds pas en texte."
+)
+
+
+def _announces_without_acting(answer: str) -> bool:
+    """
+    True si une réponse sans outil annonce l'action au lieu de l'exécuter.
+
+    Une question à l'utilisateur (« Sur quel sujet ? ») n'en est pas une : le
+    modèle attend légitimement une précision.
+    """
+    text = (answer or "").strip().replace("’", "'")
+    if not text or len(text) > _UNFULFILLED_MAX_CHARS or "?" in text:
+        return False
+    return bool(_UNFULFILLED_RE.search(text))
+
+
+# Reconnaît le chemin dans le message de succès de generate_document /
+# edit_document (cf. AIEngine._setup_local_tools).
+_DOCUMENT_PATH_RE = re.compile(r"(?:créé à|écrite à)\s+(.+?)\s*(?:\(|\.\s|$)", re.DOTALL)
+
+
+def _document_confirmation(
+    tool_calls_log: List[Dict], last_tool_results: Dict[str, str]
+) -> Optional[str]:
+    """
+    Construit la confirmation de SECOURS quand un document vient d'être produit.
+
+    Le cas normal reste la synthèse du modèle, qui présente le document de
+    façon naturelle. Ce message ne sert que si cette synthèse n'aboutit pas,
+    pour ne pas laisser l'utilisateur devant un chat vide alors que son
+    fichier existe.
+
+    Returns:
+        Le message prêt à streamer, ou None si le dernier outil n'a pas produit
+        de document exploitable.
+    """
+    if not tool_calls_log:
+        return None
+    last_tool = tool_calls_log[-1].get("tool", "")
+    if last_tool not in _DOCUMENT_TOOLS:
+        return None
+
+    result = last_tool_results.get(last_tool, "")
+    if not result.startswith("Succès"):
+        return None
+
+    match = _DOCUMENT_PATH_RE.search(result)
+    if not match:
+        return None
+    path = match.group(1).strip()
+    name = path.replace("\\", "/").rsplit("/", 1)[-1]
+
+    if last_tool == "edit_document":
+        return (
+            f"✅ C'est fait. La version modifiée est enregistrée sous **{name}**, "
+            f"votre fichier d'origine n'a pas été touché.\n\n`{path}`"
+        )
+    return (
+        f"✅ Votre document **{name}** est prêt.\n\n`{path}`"
+    )
+
 
 # [OPTIM] Helper résilient pour les appels réseau Ollama (retry sur Timeout/ConnectionError)
 def _resilient_post(url, **kwargs):
@@ -276,6 +391,9 @@ class ChatOrchestrator:
         last_tool_results: Dict[str, str] = {}
         blocked_tools: set = set()  # Outils bloqués définitivement pour cette requête
         force_synthesis: bool = False  # Quand True, retirer tous les outils
+        # Réponse d'un modèle qui a annoncé le document sans le créer, avec son
+        # état d'affichage : rendue telle quelle si la relance n'aboutit pas.
+        announced_answer: Optional[Tuple[str, bool]] = None
 
         # Contexte de messages — élagage sélectif dès le départ
         messages: List[Dict] = self._build_initial_messages(
@@ -372,7 +490,11 @@ class ChatOrchestrator:
             else:
                 tools_for_call = tools
 
-            _stream_direct = on_token if not tool_calls_log else None
+            # Après une relance, l'annonce est déjà affichée : une seconde
+            # réponse textuelle ne doit pas s'y empiler.
+            _stream_direct = (
+                on_token if not tool_calls_log and announced_answer is None else None
+            )
             # Raisonnement natif : activé au 1er tour seulement (décision
             # initiale du modèle). Les tours suivants sont des dispatchs
             # d'outils rapides — pas la peine d'ajouter la latence du
@@ -452,6 +574,28 @@ class ChatOrchestrator:
                         on_thinking_token=on_thinking_token,
                         on_thinking_complete=on_thinking_complete,
                     )
+                    # Filet de sécurité : la synthèse n'a rien produit (délai
+                    # dépassé, Ollama tombé) alors qu'un document vient d'être
+                    # écrit. Sans cela, le moteur retomberait sur une génération
+                    # sans outils qui ignore l'existence du fichier.
+                    if not synthesis and not (
+                        is_interrupted_callback and is_interrupted_callback()
+                    ):
+                        _confirmation = _document_confirmation(
+                            tool_calls_log, last_tool_results
+                        )
+                        if _confirmation:
+                            print(
+                                "⚠️  [ChatOrchestrator] synthèse vide → "
+                                "confirmation de secours du document"
+                            )
+                            if on_thinking_complete:
+                                on_thinking_complete()
+                            if on_token:
+                                on_token(_confirmation)
+                            llm.add_to_history("user", user_input)
+                            llm.add_to_history("assistant", _confirmation)
+                            return _confirmation
                     if synthesis:
                         valid, reason = self._validate_response(
                             synthesis, user_input, tool_calls_log
@@ -472,6 +616,29 @@ class ChatOrchestrator:
                     return synthesis
                 else:
                     # Réponse directe sans outil
+                    if announced_answer is not None:
+                        # La relance n'a pas abouti à un appel d'outil : on s'en
+                        # tient à la première réponse, déjà affichée.
+                        raw_content, _content_was_streamed = announced_answer
+                    elif (
+                        _wants_document(user_input)
+                        and any(
+                            t.get("function", {}).get("name") == "generate_document"
+                            for t in tools_for_call
+                        )
+                        and _announces_without_acting(raw_content)
+                    ):
+                        # Document annoncé mais jamais créé : une relance, une
+                        # seule. L'annonce reste affichée, l'appel d'outil et la
+                        # synthèse s'y enchaînent comme pour un préambule.
+                        print(
+                            f"📄 [ChatOrchestrator] Document annoncé sans appel "
+                            f"d'outil → relance (tour {tour + 1})"
+                        )
+                        announced_answer = (raw_content, _content_was_streamed)
+                        messages.append({"role": "assistant", "content": raw_content})
+                        messages.append({"role": "user", "content": _DOCUMENT_NUDGE})
+                        continue
                     if raw_content:
                         # Validation (retry uniquement si pas encore streamé)
                         if not _content_was_streamed:
@@ -736,25 +903,41 @@ class ChatOrchestrator:
                     "copie", "copier", "copy",
                     "renomme", "renommer", "rename",
                     "crée", "créer", "create",
+                    "génère", "générer", "generate",
+                    "rédige", "rédiger", "écris", "écrire",
                     "ouvre", "ouvrir", "open",
                     "lance", "lancer", "run", "execute", "exécute",
                 ]
                 _user_wants_action = any(kw in user_input.lower() for kw in _action_keywords)
 
-                if _user_wants_action:
+                # Livrable demandé mais pas encore produit : la recherche n'était
+                # qu'une étape préparatoire. Couper ici laisserait l'utilisateur
+                # avec un résumé à la place du document qu'il a demandé.
+                _pending_document = _wants_document(user_input) and not any(
+                    tc.get("tool") in _DOCUMENT_TOOLS for tc in tool_calls_log
+                )
+
+                if _user_wants_action or _pending_document:
                     # La recherche était un prérequis pour l'action → laisser continuer
                     print(
                         f"   🔄 [ChatOrchestrator] données massives ({total_data_chars} chars) "
                         f"mais action détectée → poursuite du plan (tour {tour + 1})"
                     )
-                    messages.append({
-                        "role": "user",
-                        "content": (
+                    if _pending_document:
+                        _next_step = (
+                            "Tu as collecté les informations nécessaires. "
+                            "Appelle MAINTENANT l'outil 'generate_document' pour produire "
+                            "le document demandé, en te basant sur ces informations. "
+                            "Ne te contente pas de répondre en texte : l'utilisateur "
+                            "attend un fichier."
+                        )
+                    else:
+                        _next_step = (
                             "Tu as trouvé les informations nécessaires. "
                             "Maintenant exécute l'action demandée en utilisant les chemins exacts retournés ci-dessus. "
                             "N'invente aucun chemin, utilise ceux obtenus par tes outils."
-                        ),
-                    })
+                        )
+                    messages.append({"role": "user", "content": _next_step})
                 else:
                     force_synthesis = True
                     print(
@@ -821,6 +1004,12 @@ class ChatOrchestrator:
                     return retry_final_synthesis or result
             return result
 
+        if announced_answer is not None:
+            # Relance restée sans réponse (Ollama tombé) : l'annonce déjà
+            # affichée reste la réponse, plutôt qu'un repli qui la doublerait.
+            llm.add_to_history("user", user_input)
+            llm.add_to_history("assistant", announced_answer[0])
+            return announced_answer[0]
         return None
 
     # ─────────────────────────────────────── méthodes internes ──────────────
@@ -1439,7 +1628,11 @@ class ChatOrchestrator:
             "2. Parle directement à l'utilisateur du résultat de l'action de manière naturelle. Par exemple : 'J'ai créé le fichier X'.\n"
             f"3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les chemins absolus complets (y compris la lettre de lecteur sous Windows). Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était '{_PATH_EX['home']}{_PATH_EX['sep']}OneDrive{_PATH_EX['sep']}Python{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto', ne le transforme pas en '{_PATH_EX['home']}{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto').\n"
             "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
-            "5. Si l'objectif était simplement de créer ou modifier un fichier, confirme la tâche et donne un résumé très bref.\n\n"
+            "5. Si l'objectif était simplement de créer ou modifier un fichier (hors document, voir règle 6), confirme la tâche et donne un résumé très bref.\n"
+            "6. Si un DOCUMENT a été généré (Word, PDF, PowerPoint, Excel…), ne te contente pas de confirmer : "
+            "présente-le en 2 à 4 phrases naturelles — son titre, son sujet et les principales parties qu'il couvre, "
+            "en t'appuyant sur le « Plan du document » renvoyé par l'outil. N'invente aucune partie absente de ce plan "
+            "et ne recopie pas le contenu du document.\n\n"
             "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
             "Si les résultats des outils contiennent des URLs ou des liens au format [Titre](URL), "
             "tu DOIS les reproduire EXACTEMENT dans ta section Sources/Références.\n"
@@ -1640,6 +1833,8 @@ def _tool_display_name(tool_name: str) -> str:
         "read_local_file": "Lecture fichier",
         "list_directory": "Listing répertoire",
         "generate_code": "Génération code",
+        "generate_document": "Génération document",
+        "edit_document": "Modification document",
         "calculate": "Calcul",
         "search_local_files": "Recherche fichiers",
         "write_local_file": "Modification fichier",

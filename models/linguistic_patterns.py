@@ -440,7 +440,9 @@ class LinguisticPatterns:
                 # ✅ Génération d'image (texte → image) : sortie multimodale
                 "image_generation": {
                     "patterns": [
-                        r"(?:génère|genere|generate|crée|cree|create|fais|fait|dessine|dessines)[-\s]?(?:moi\s+)?(?:une?|le|la|un)?\s*(?:image|images|illustration|dessin|photo|photos|peinture|portrait|logo|affiche|rendu|visuel|tableau|croquis|art)",
+                        # Même règle que AIEngine._IMAGE_GEN_RE : « tableau » seul
+                        # est un tableau de données, pas une peinture.
+                        r"(?:génère|genere|generate|crée|cree|create|fais|fait|dessine|dessines)[-\s]?(?:moi\s+)?(?:une?|le|la|un)?\s*(?:image|images|illustration|dessin|photo|photos|peinture|portrait|logo|affiche|rendu|visuel|croquis|art\b|tableau\s+(?:impressionniste|cubiste|surr[ée]aliste|abstrait|[àa] l['’]huile|[àa] la mani[èe]re))",
                         r"(?:génère|genere|crée|cree|montre|donne)[-\s]?(?:moi\s+)?(?:une?|un)\s+(?:image|illustration|dessin|photo|visuel)\s+(?:de|d'|du|d’|avec|représentant|montrant)",
                         r"\b(?:dessine|dessines|illustre|peins)[-\s]?moi\b",
                         r"(?:peux[- ]tu|pourrais[- ]tu|tu peux)\s+(?:me\s+)?(?:générer|generer|créer|cree|dessiner|faire)\s+(?:une?|un)\s+(?:image|illustration|dessin|photo|visuel)",

@@ -48,7 +48,7 @@ _ROUTER_PAGE_URL = "https://gonicolas12.github.io/My_AI/router.html"
 # aux processeurs supportés côté GUI dans file_handling.py)
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 _DOC_EXTS = {
-    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv",
+    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".pptx", ".potx",
     ".py", ".js", ".html", ".css", ".json", ".xml", ".md", ".txt",
 }
 _MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 Mo
@@ -1517,6 +1517,63 @@ class RelayServer:
         except Exception as e:
             logger.debug("Broadcast image WS impossible : %s", e)
 
+    def _broadcast_document(self, message_id: str, file_path: str) -> None:
+        """📄 Callback bridge : pousse un document généré à tous les WS (chiffré).
+
+        L'événement transporte deux choses : l'aperçu HTML rendu côté hôte par
+        ``interfaces/document_preview`` (l'iframe mobile est en ``srcdoc``, elle
+        ne peut pas ouvrir un docx) et le fichier réel en base64 pour le
+        téléchargement. Tout passe par encrypt_json() → AES-256-GCM, donc le
+        document ne transite jamais en clair par le tunnel public.
+        """
+        if not self._loop or not self._ws_clients:
+            return
+
+        from interfaces.document_preview import build_document_preview, document_summary
+
+        try:
+            with open(file_path, "rb") as f:
+                raw = f.read()
+            preview_html = build_document_preview(file_path)
+            summary = document_summary(file_path)
+        except Exception as e:
+            logger.error("Préparation du document à broadcaster impossible : %s", e)
+            return
+
+        payload = json.dumps(self.encrypt_json({
+            "type": "ai_document",
+            "message_id": message_id,
+            "filename": summary["name"],
+            "title": summary["title"],
+            "label": summary["label"],
+            "format": summary["format"],
+            "html": preview_html,
+            "data": base64.b64encode(raw).decode("ascii"),
+            "timestamp": datetime.now().isoformat(),
+        }), separators=(",", ":"))
+
+        async def _push():
+            dead: List[WebSocket] = []
+            for ws in list(self._ws_clients):
+                try:
+                    await ws.send_text(payload)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                if ws in self._ws_clients:
+                    self._ws_clients.remove(ws)
+            if dead:
+                self._bridge.connected_clients = len(self._ws_clients)
+
+        try:
+            asyncio.run_coroutine_threadsafe(_push(), self._loop)
+            logger.info(
+                "Document IA broadcasté aux WS (E2EE) : %s (%d octets)",
+                summary["name"], len(raw),
+            )
+        except Exception as e:
+            logger.debug("Broadcast document WS impossible : %s", e)
+
     # ------------------------------------------------------------------
     # Scheduler proactif (tâches planifiées)
     # ------------------------------------------------------------------
@@ -1597,6 +1654,8 @@ class RelayServer:
         self._bridge.on_chunk(self._broadcast_chunk)
         self._bridge.remove_image_callback(self._broadcast_image)
         self._bridge.on_image(self._broadcast_image)
+        self._bridge.remove_document_callback(self._broadcast_document)
+        self._bridge.on_document(self._broadcast_document)
 
         # Démarrer le serveur uvicorn
         config = uvicorn.Config(

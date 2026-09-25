@@ -5,6 +5,20 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.6] — 2026-09-25
+
+Accepts PowerPoint files as attachments.
+
+### Added
+- **PowerPoint attachments.** `.pptx` presentations and `.potx` templates can
+  now be picked with the **+** button (they were missing from the file picker)
+  or sent as the active file. The host reads them — titles, bullets with their
+  level, tables, speaker notes — like Word and PDF documents.
+
+### Notes
+- Requires **My_AI 8.1.0** or later on the host: older hosts refuse the upload
+  (`Format non supporté : .pptx`).
+
 ## [1.3.5] — 2026-06-26
 
 Improves the `@` menu: browse into folders, attach single files reliably, and

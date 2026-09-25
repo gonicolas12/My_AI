@@ -162,7 +162,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       openLabel: vscode.l10n.t('Send to My_AI'),
       filters: {
         [vscode.l10n.t('All supported')]: [
-          'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv',
+          'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'potx', 'csv',
           'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff', 'tif',
           'py', 'js', 'ts', 'tsx', 'jsx', 'html', 'css', 'json', 'xml', 'md', 'txt',
         ],

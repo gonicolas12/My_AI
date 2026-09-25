@@ -41,19 +41,25 @@ _SVG_HINT_RE = re.compile(r"<svg[\s>]", re.IGNORECASE)
 
 @dataclass
 class Artifact:
-    """Un fragment rendable extrait d'une réponse de l'IA."""
+    """Un fragment rendable extrait d'une réponse de l'IA, ou un document produit."""
 
-    kind: str  # "html" | "svg"
-    code: str  # le code source brut du fragment
+    kind: str  # "html" | "svg" | "document"
+    code: str  # le code source brut du fragment (vide pour un document)
     title: str = "Artifact"
     language: str = ""  # langage de la fence d'origine ("html", "svg", "xml"…)
     index: int = 0  # position du bloc dans la réponse (0-based)
+    file_path: Optional[str] = None  # document sur disque (kind == "document")
 
     @property
     def is_full_document(self) -> bool:
         """True si le code est déjà un document HTML complet (<html>/<!doctype>)."""
         head = self.code.lstrip()[:200].lower()
         return head.startswith("<!doctype") or head.startswith("<html") or "<html" in head[:50]
+
+    @property
+    def is_file(self) -> bool:
+        """True si l'artifact représente un fichier produit, pas un bloc de code."""
+        return self.kind == "document" and bool(self.file_path)
 
 
 def _classify(language: str, code: str) -> Optional[str]:
@@ -131,6 +137,58 @@ def has_artifact(text: str) -> bool:
     return bool(detect_artifacts(text))
 
 
+# ── Artifacts « document » (fichiers produits par les générateurs) ─────────
+
+
+def artifact_from_document(path, index: int = 0) -> Optional[Artifact]:
+    """
+    Construit un Artifact à partir d'un document produit sur disque.
+
+    Args:
+        path: chemin du fichier (docx, pdf, pptx, xlsx, md, txt…)
+        index: position de l'artifact dans la réponse
+
+    Returns:
+        L'Artifact, ou None si le fichier n'existe pas ou n'est pas affichable.
+    """
+    from interfaces.document_preview import is_previewable
+
+    file_path = Path(path)
+    if not file_path.exists() or not is_previewable(str(file_path)):
+        return None
+
+    return Artifact(
+        kind="document",
+        code="",
+        title=file_path.name,
+        language=file_path.suffix.lstrip(".").lower(),
+        index=index,
+        file_path=str(file_path),
+    )
+
+
+def artifacts_from_documents(paths, start_index: int = 0) -> List[Artifact]:
+    """
+    Construit les artifacts d'une liste de documents, en ignorant les invalides.
+
+    Les doublons sont écartés : un même document peut être signalé plusieurs
+    fois sur un tour (outil rappelé, chemin relayé deux fois).
+    """
+    artifacts: List[Artifact] = []
+    seen = set()
+    for path in paths or []:
+        if not path:
+            continue
+        key = str(Path(path).resolve()) if Path(path).exists() else str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        artifact = artifact_from_document(path, start_index + len(artifacts))
+        if artifact is not None:
+            artifacts.append(artifact)
+    return artifacts
+
+
 # ── Préparation du document HTML rendable ──────────────────────────────────
 
 # Thème sombre cohérent avec le GUI (cf. interfaces/modern_styles.py).
@@ -162,10 +220,16 @@ def build_preview_document(artifact: Artifact) -> str:
     """
     Construit un document HTML complet et autonome pour le rendu.
 
+    - Un artifact « document » est rendu par ``interfaces/document_preview``.
     - Si l'artifact est déjà un document complet, on le renvoie tel quel.
     - Pour un fragment HTML ou un <svg>, on l'enveloppe dans une page sombre
       cohérente avec le thème du GUI.
     """
+    if artifact.is_file:
+        from interfaces.document_preview import build_document_preview
+
+        return build_document_preview(artifact.file_path)
+
     if artifact.kind == "html" and artifact.is_full_document:
         return artifact.code
 
@@ -194,11 +258,19 @@ def write_artifact_html(artifact: Artifact, directory: Optional[Path] = None) ->
 
     Utilisé par le fallback « Ouvrir dans le navigateur » (desktop) et par la
     route de service de l'iframe (mobile).
+
+    Un document dont le format a un lecteur natif (PDF) est renvoyé tel quel :
+    Edge et les navigateurs l'affichent mieux que toute conversion HTML.
     """
+    if artifact.is_file:
+        from interfaces.document_preview import needs_native_viewer
+
+        if needs_native_viewer(artifact.file_path):
+            return Path(artifact.file_path)
+
     target_dir = Path(directory) if directory else ARTIFACTS_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    suffix = "svg" if artifact.kind == "svg" else "html"
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     filename = f"artifact_{timestamp}_{artifact.index}.html"
     filepath = target_dir / filename

@@ -39,6 +39,7 @@ from utils.logger import setup_logger
 from processors.pdf_processor import PDFProcessor
 from processors.docx_processor import DOCXProcessor
 from processors.excel_processor import ExcelProcessor
+from processors.pptx_processor import PPTXProcessor
 
 try:
     from core.config import get_default_model as _get_default_model
@@ -507,6 +508,10 @@ class AgentRelayService:
                 return DOCXProcessor().process_file(file_path).get("content", "")
             if ext in (".xlsx", ".xls", ".csv"):
                 res = ExcelProcessor().extract_text(file_path)
+                if res.get("success"):
+                    return res.get("content", "")
+            if ext in (".pptx", ".potx"):
+                res = PPTXProcessor().extract_text(file_path)
                 if res.get("success"):
                     return res.get("content", "")
         except Exception as exc:
