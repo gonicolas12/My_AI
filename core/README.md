@@ -12,7 +12,7 @@ Contenu principal
   - **ReAct** (Reasoning + Acting) : boucle `Réfléchis → Agis → Observe` à chaque tour.
   - **Plan & Execute** : génération d'un plan structuré en étapes pour les requêtes > 55 caractères.
   - **Scratchpad persistant** : état interne (objectif, plan, étape, faits collectés, tours restants) injecté dans le system prompt sous forme de bloc XML.
-  - Sécurités intégrées : limite de tours (`MAX_TOURS = 15`), `LoopDetector` (boucle immédiate + boucle élargie), élagage sélectif du contexte (`MAX_HISTORY_MESSAGES = 40`), validation des arguments outils, synthèse forcée après `MAX_TOOL_USES = 5`.
+  - Sécurités intégrées : limite de tours (`MAX_TOURS = 15`), `LoopDetector` (boucle immédiate + boucle élargie), élagage sélectif du contexte (`MAX_HISTORY_MESSAGES = 40`), validation des arguments outils, synthèse forcée après `MAX_TOOL_USES = 5`, début de synthèse validé avant affichage (`SYNTHESIS_HEAD_CHARS = 160`).
 - `agent_orchestrator.py` — `AgentOrchestrator` : coordonne les agents IA spécialisés (page Agents). Gère la création à la demande des agents (`get_or_create_agent`), l'historique des tâches et l'exécution de workflows multi-agents. **Distinct** de `ChatOrchestrator` (usage exclusif page Agents).
 - `mcp_client.py` — Client MCP (Model Context Protocol). Expose les outils locaux au format MCP standardisé et permet la connexion à des serveurs MCP externes via le transport `stdio`. Utilisé par `AIEngine` pour étendre les capacités d'Ollama.
 

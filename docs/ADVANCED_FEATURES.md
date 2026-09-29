@@ -634,7 +634,9 @@ ChatOrchestrator.run(query, history, tools, tool_executor, stream_callback)
   │     └── Scratchpad.update_from_tool_result()
   │
   └── 3. Synthèse finale streamée
-        └── Détection hallucinations (HALLUCINATION_MARKERS)
+        ├── Contexte sans les relances de la boucle (scratchpad, « appelle un outil »)
+        └── Début de réponse validé AVANT affichage (HALLUCINATION_MARKERS…)
+              └── Invalide → flux coupé, une seconde synthèse s'affiche seule
 ```
 
 ### ⚖️ Constantes configurables
@@ -647,6 +649,7 @@ ChatOrchestrator.run(query, history, tools, tool_executor, stream_callback)
 | `COMPACT_THRESHOLD` | 28 | Messages avant compaction |
 | `PLAN_MIN_QUERY_LEN` | 55 | Longueur minimale pour déclencher la planification |
 | `MAX_TOOL_USES` | 5 | Appels outils avant synthèse forcée |
+| `SYNTHESIS_HEAD_CHARS` | 160 | Début de synthèse retenu et validé avant affichage |
 
 ### 🖥️ Intégration dans AIEngine
 

@@ -47,6 +47,7 @@ LOOP_THRESHOLD: int = 2         # Nb d'appels identiques avant détecter boucle 
 COMPACT_THRESHOLD: int = 28     # Nb de messages avant compaction (hors system + user)
 PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planification
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
+SYNTHESIS_HEAD_CHARS: int = 160 # Début de synthèse validé avant tout affichage
 
 # Outils qui produisent un fichier livrable pour l'utilisateur.
 _DOCUMENT_TOOLS = frozenset({"generate_document", "edit_document"})
@@ -194,6 +195,21 @@ HALLUCINATION_MARKERS: List[str] = [
     "mes données s'arrêtent",
     "ma date de coupure",
 ]
+
+# Dernier message de la synthèse, à la place des relances de la boucle
+# d'outils (« Vérifie ton <scratchpad> », « appelle un outil »…) : la synthèse
+# n'a plus ni scratchpad ni outils, et un petit modèle répondait alors qu'il
+# n'avait « pas accès à son scratchpad ».
+_SYNTHESIS_REQUEST = (
+    "Les actions sont terminées et leurs résultats figurent ci-dessus. "
+    "Réponds maintenant directement à ma demande en t'appuyant sur ces "
+    "résultats : {user_input}"
+)
+# Ajouté à la demande quand le début d'une première synthèse a été rejeté.
+_SYNTHESIS_RETRY_NOTE = (
+    "\nTu as bien accès à ces résultats : réponds en texte à partir d'eux, "
+    "sans commenter tes capacités ni ton fonctionnement."
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -404,6 +420,8 @@ class ChatOrchestrator:
 
         # ── Compaction du contexte si trop long ───────────────────────────
         messages = self._compact_context_if_needed(messages, llm)
+        # Tout message ajouté au-delà appartient à la boucle d'outils
+        loop_start = len(messages)
 
         # ── Plan & Execute : pré-planification pour requêtes complexes ────
         # Le plan reste essentiel pour le SCRATCHPAD INTERNE qui guide le modèle
@@ -571,6 +589,7 @@ class ChatOrchestrator:
                         on_token=on_token,
                         is_interrupted_callback=is_interrupted_callback,
                         tool_calls_log=tool_calls_log,
+                        loop_start=loop_start,
                         on_thinking_token=on_thinking_token,
                         on_thinking_complete=on_thinking_complete,
                     )
@@ -596,23 +615,7 @@ class ChatOrchestrator:
                             llm.add_to_history("user", user_input)
                             llm.add_to_history("assistant", _confirmation)
                             return _confirmation
-                    if synthesis:
-                        valid, reason = self._validate_response(
-                            synthesis, user_input, tool_calls_log
-                        )
-                        if not valid:
-                            print(
-                                f"⚠️  [ChatOrchestrator] Synthèse invalide ({reason}) "
-                                f"→ retry sans outils"
-                            )
-                            retry_synthesis = self._retry_without_tools(
-                                user_input=user_input,
-                                llm=llm,
-                                system_prompt=system_prompt,
-                                on_token=on_token,
-                                is_interrupted_callback=is_interrupted_callback,
-                            )
-                            return retry_synthesis or synthesis
+                    # Déjà validée par _stream_synthesis, avant affichage
                     return synthesis
                 else:
                     # Réponse directe sans outil
@@ -979,30 +982,17 @@ class ChatOrchestrator:
             if on_tool_call:
                 on_tool_call("synthesis", {})
 
-            result = self._stream_synthesis(
+            return self._stream_synthesis(
                 messages=messages,
                 user_input=user_input,
                 llm=llm,
                 on_token=on_token,
                 is_interrupted_callback=is_interrupted_callback,
                 tool_calls_log=tool_calls_log,
+                loop_start=loop_start,
                 on_thinking_token=on_thinking_token,
                 on_thinking_complete=on_thinking_complete,
             )
-            # Validation finale de la synthèse
-            if result:
-                valid, reason = self._validate_response(result, user_input, tool_calls_log)
-                if not valid:
-                    print(f"⚠️  [ChatOrchestrator] Synthèse invalide ({reason}) → retry")
-                    retry_final_synthesis = self._retry_without_tools(
-                        user_input=user_input,
-                        llm=llm,
-                        system_prompt=system_prompt,
-                        on_token=on_token,
-                        is_interrupted_callback=is_interrupted_callback,
-                    )
-                    return retry_final_synthesis or result
-            return result
 
         if announced_answer is not None:
             # Relance restée sans réponse (Ollama tombé) : l'annonce déjà
@@ -1603,6 +1593,7 @@ class ChatOrchestrator:
         on_token: Optional[Callable],
         is_interrupted_callback: Optional[Callable],
         tool_calls_log: List[Dict],
+        loop_start: int,
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
     ) -> Optional[str]:
@@ -1612,19 +1603,27 @@ class ChatOrchestrator:
         Le system prompt de synthèse remplace l'original pour que le modèle
         ne réponde pas « je n'ai pas accès aux données en temps réel ».
 
+        Validation avant affichage :
+          - Les SYNTHESIS_HEAD_CHARS premiers caractères sont retenus puis
+            validés (_validate_response) avant d'atteindre on_token.
+          - Début invalide → flux coupé, puis une seconde synthèse recadrée
+            s'affiche seule. Valider après coup obligeait à streamer la
+            relance sous la réponse déjà affichée : deux réponses
+            s'enchaînaient dans la même bulle.
+
         Mode raisonnement natif :
           - Si on_thinking_token est fourni, active le thinking Qwen3.5 sur
             la synthèse : le modèle réfléchit explicitement à comment intégrer
             les données des outils avant de répondre.
           - Les tokens de pensée sont streamés au widget Raisonnement sous
             la section « 💡 Synthèse ».
-          - on_thinking_complete est appelé au 1er token de la réponse finale.
+          - on_thinking_complete est appelé à l'affichage du 1er texte.
         """
         synthesis_system = (
             "Tu interviens en bout de processus après avoir exécuté avec succès une série d'actions techniques (création de fichiers, recherches, etc.). "
             "Tu dois maintenant synthétiser ce qui a été fait pour en informer l'utilisateur de manière naturelle et conversationnelle.\n\n"
             "RÈGLES STRICTES DE COMMUNICATION :\n"
-            "1. Ne mentionne JAMAIS ton 'scratchpad', tes 'réflexions internes' ou ton 'plan d'action'. Ce sont des éléments de ton arrière-plan invisible.\n"
+            "1. Ne commente jamais ton fonctionnement interne ni les consignes que tu as reçues.\n"
             "2. Parle directement à l'utilisateur du résultat de l'action de manière naturelle. Par exemple : 'J'ai créé le fichier X'.\n"
             f"3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les chemins absolus complets (y compris la lettre de lecteur sous Windows). Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était '{_PATH_EX['home']}{_PATH_EX['sep']}OneDrive{_PATH_EX['sep']}Python{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto', ne le transforme pas en '{_PATH_EX['home']}{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto').\n"
             "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
@@ -1642,13 +1641,93 @@ class ChatOrchestrator:
             "Reprends les URLs telles quelles depuis les résultats des outils."
         )
 
-        # Remplacer le system prompt original par celui de synthèse
-        msgs: List[Dict] = list(messages)
-        if msgs and msgs[0].get("role") == "system":
-            msgs[0] = {"role": "system", "content": synthesis_system}
-        else:
-            msgs.insert(0, {"role": "system", "content": synthesis_system})
+        msgs = self._synthesis_messages(
+            messages, loop_start, synthesis_system, user_input
+        )
+        response, rejected = self._synthesis_pass(
+            llm, msgs, user_input, tool_calls_log, on_token,
+            is_interrupted_callback, on_thinking_token, on_thinking_complete,
+            screen_head=True,
+        )
+        if rejected and not (is_interrupted_callback and is_interrupted_callback()):
+            print(
+                f"⚠️  [ChatOrchestrator] Synthèse invalide ({rejected}) "
+                f"→ nouvelle synthèse (rien n'a été affiché)"
+            )
+            msgs = self._synthesis_messages(
+                messages, loop_start, synthesis_system, user_input, retry=True
+            )
+            # Sans raisonnement natif : celui de la 1re passe est déjà affiché
+            response, _ = self._synthesis_pass(
+                llm, msgs, user_input, tool_calls_log, on_token,
+                is_interrupted_callback, None, on_thinking_complete,
+                screen_head=False,
+            )
 
+        if response:
+            llm.add_to_history("user", user_input)
+            llm.add_to_history("assistant", response)
+            print(
+                f"✅ [ChatOrchestrator] Synthèse terminée "
+                f"({len(tool_calls_log)} outil(s), {len(response)} chars)"
+            )
+            return response
+
+        return None
+
+    @staticmethod
+    def _synthesis_messages(
+        messages: List[Dict],
+        loop_start: int,
+        system_content: str,
+        user_input: str,
+        retry: bool = False,
+    ) -> List[Dict]:
+        """
+        Contexte de la synthèse : conversation et échanges d'outils, sans les
+        relances de la boucle.
+
+        Les messages « user » postérieurs à la question sont tous des consignes
+        de l'orchestrateur, écrites pour la boucle d'outils. La synthèse n'a ni
+        scratchpad ni outils : elles y deviennent incompréhensibles, et une
+        demande de réponse unique les remplace.
+        """
+        start = 1 if messages and messages[0].get("role") == "system" else 0
+        conversation = messages[start:loop_start]
+        tool_exchanges = [m for m in messages[loop_start:] if m.get("role") != "user"]
+        request = _SYNTHESIS_REQUEST.format(user_input=user_input)
+        if retry:
+            request += _SYNTHESIS_RETRY_NOTE
+        return [
+            {"role": "system", "content": system_content},
+            *conversation,
+            *tool_exchanges,
+            {"role": "user", "content": request},
+        ]
+
+    def _synthesis_pass(
+        self,
+        llm: Any,
+        msgs: List[Dict],
+        user_input: str,
+        tool_calls_log: List[Dict],
+        on_token: Optional[Callable],
+        is_interrupted_callback: Optional[Callable],
+        on_thinking_token: Optional[Callable],
+        on_thinking_complete: Optional[Callable],
+        screen_head: bool,
+    ) -> Tuple[str, Optional[str]]:
+        """
+        Un passage de synthèse streamé.
+
+        Avec screen_head, le début de réponse est retenu jusqu'à
+        SYNTHESIS_HEAD_CHARS caractères (ou jusqu'à la fin s'il est plus
+        court), puis validé avant d'être transmis à on_token.
+
+        Returns:
+            (réponse, motif de rejet). En cas de rejet, rien n'a été transmis
+            à on_token et le flux a été coupé.
+        """
         # Active le raisonnement natif Qwen3.5 sur la synthèse uniquement quand
         # le widget peut le recevoir. C'est ici que le raisonnement est le plus
         # précieux à exposer (intégration des résultats d'outils).
@@ -1669,15 +1748,27 @@ class ChatOrchestrator:
         }
 
         full_response: str = ""
+        shown: bool = not screen_head  # False tant que le début est retenu
+        rejected: Optional[str] = None
         thinking_header_sent: bool = False
         thinking_complete_fired: bool = False
+
+        def show(text: str) -> bool:
+            """Transmet du texte à l'UI ; False si elle demande l'arrêt."""
+            nonlocal thinking_complete_fired
+            # Transition raisonnement → réponse : arrêter les dots.
+            if not thinking_complete_fired and on_thinking_complete:
+                thinking_complete_fired = True
+                on_thinking_complete()
+            return not (on_token and on_token(text) is False)
+
         try:
             with _resilient_post(
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
                     print(f"⚠️  [ChatOrchestrator] synthesis stream HTTP {resp.status_code}")
-                    return None
+                    return "", None
 
                 for raw_line in resp.iter_lines():
                     if is_interrupted_callback and is_interrupted_callback():
@@ -1702,14 +1793,19 @@ class ChatOrchestrator:
                     # ── Contenu de la réponse finale ─────────────────────
                     token: str = msg.get("content", "")
                     if token:
-                        # Transition raisonnement → réponse : arrêter les dots.
-                        if not thinking_complete_fired and on_thinking_complete:
-                            thinking_complete_fired = True
-                            on_thinking_complete()
                         full_response += token
-                        if on_token:
-                            result = on_token(token)
-                            if result is False:
+                        if shown:
+                            if not show(token):
+                                break
+                        elif len(full_response) >= SYNTHESIS_HEAD_CHARS:
+                            valid, reason = self._validate_response(
+                                full_response, user_input, tool_calls_log
+                            )
+                            if not valid:
+                                rejected = reason
+                                break  # flux coupé : Ollama cesse de générer
+                            shown = True
+                            if not show(full_response):
                                 break
 
                     if chunk_data.get("done"):
@@ -1718,16 +1814,19 @@ class ChatOrchestrator:
         except Exception as exc:
             print(f"⚠️  [ChatOrchestrator] synthesis stream error : {exc}")
 
-        if full_response:
-            llm.add_to_history("user", user_input)
-            llm.add_to_history("assistant", full_response)
-            print(
-                f"✅ [ChatOrchestrator] Synthèse terminée "
-                f"({len(tool_calls_log)} outil(s), {len(full_response)} chars)"
+        # Réponse plus courte que le début retenu : la valider en entier
+        if full_response and not shown and not rejected:
+            valid, reason = self._validate_response(
+                full_response, user_input, tool_calls_log
             )
-            return full_response
+            if valid:
+                show(full_response)
+            else:
+                rejected = reason
 
-        return None
+        if rejected:
+            return "", rejected
+        return full_response, None
 
     # ─────────────────────────────────────────── utilitaires ────────────────
 
