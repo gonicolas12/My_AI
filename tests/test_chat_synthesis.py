@@ -20,6 +20,7 @@ from core.chat_orchestrator import (
     _SYNTHESIS_RETRY_NOTE,
     ChatOrchestrator,
 )
+from core.modelfile import with_modelfile
 
 _QUESTION = "tu vois quoi dans mon dossier téléchargements ?"
 _LISTING = (
@@ -120,7 +121,7 @@ class _LLM:
         return [m["content"] for m in self.conversation_history if m["role"] == "assistant"]
 
 
-def _synthesize(ollama, *replies):
+def _synthesize(ollama, *replies, **options):
     """Synthèse après un list_directory, suivie de la relance de la boucle."""
     ollama.replies.extend(replies)
     llm, shown = _LLM(), []
@@ -141,6 +142,7 @@ def _synthesize(ollama, *replies):
         is_interrupted_callback=None,
         tool_calls_log=[{"tool": "list_directory"}],
         loop_start=2,
+        **options,
     )
     return result, shown, llm
 
@@ -192,6 +194,16 @@ def test_synthesis_context_drops_the_loop_instructions(ollama):
     assert messages[-1]["content"].endswith(_QUESTION)
 
 
+def test_synthesis_keeps_the_modelfile_identity(ollama):
+    """Sans le Modelfile, My_AI se présentait comme « une IA qui synthétise »."""
+    _synthesize(ollama, _ANSWER)
+
+    system = ollama.requests[0]["messages"][0]["content"]
+    assert system.startswith(with_modelfile(tools=False))
+    assert "Tu interviens en bout de processus" in system
+    assert "## Outils" not in system
+
+
 def test_valid_synthesis_is_shown_once(ollama):
     result, shown, llm = _synthesize(ollama, _ANSWER)
 
@@ -219,6 +231,20 @@ def test_caveat_after_the_head_does_not_restart_the_answer(ollama):
     assert result == with_caveat
     assert "".join(shown) == with_caveat
     assert len(ollama.requests) == 1
+
+
+def test_empty_synthesis_is_redone_without_thinking(ollama):
+    """La réflexion avait consommé tout le budget : aucun texte, et le moteur
+    retombait sur une génération privée des résultats de l'outil."""
+    result, shown, llm = _synthesize(
+        ollama, "", _ANSWER, on_thinking_token=lambda _token: None
+    )
+
+    assert result == _ANSWER
+    assert "".join(shown) == _ANSWER
+    assert [request["think"] for request in ollama.requests] == [True, False]
+    assert {"role": "tool", "content": _LISTING} in ollama.requests[1]["messages"]
+    assert llm.replies() == [_ANSWER]
 
 
 def test_second_synthesis_is_shown_as_is(ollama):

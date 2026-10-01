@@ -221,6 +221,7 @@ my_ai/
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
 │   ├── memory_store.py                  # Couche d'accès CRUD unifiée mémoire (faits + vecteurs)
+│   ├── modelfile.py                     # SYSTEM du Modelfile en tête des prompts système
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
 │   ├── platform_paths.py                # Exemples de chemins adaptés à l'OS (prompts)

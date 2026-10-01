@@ -42,6 +42,7 @@ from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .mcp_client import MCPManager
+from .modelfile import with_modelfile
 from .platform_paths import PATH_EXAMPLES
 from .validation import validate_input
 
@@ -240,9 +241,6 @@ class AIEngine:
         self.mcp_manager = MCPManager()
         self._setup_mcp_tools()
 
-        # Charger l'identité depuis le Modelfile pour l'injecter dans le system prompt
-        self._modelfile_system = self._load_modelfile_system()
-
         # Orchestrateur amélioré pour la page Chat (ReAct + scratchpad + sécurités)
         self._chat_orchestrator = ChatOrchestrator()
         self.logger.info("✅ ChatOrchestrator initialisé (ReAct + scratchpad + détection de boucle)")
@@ -386,22 +384,6 @@ class AIEngine:
             "message": result.message,
             "success": False,
         }
-
-    # ------------------------------------------------------------------
-    # Chargement du Modelfile
-    # ------------------------------------------------------------------
-
-    def _load_modelfile_system(self) -> str:
-        """Lit le bloc SYSTEM du Modelfile et le retourne comme chaîne."""
-        try:
-            modelfile_path = Path(__file__).parent.parent / "Modelfile"
-            content = modelfile_path.read_text(encoding="utf-8")
-            m = _re.search(r'SYSTEM\s+"""(.*?)"""', content, _re.DOTALL)
-            if m:
-                return m.group(1).strip()
-        except Exception as exc:
-            self.logger.warning("Impossible de lire le Modelfile : %s", exc)
-        return ""
 
     def _init_v7_modules(self):
         """Initialise les modules ajoutés en v7.0.0 (chacun optionnel)."""
@@ -2182,14 +2164,17 @@ Que voulez-vous que je fasse pour vous ?""",
                 "\n\nEXTRAITS PERTINENTS DU PROJET (déjà indexés) :\n" + context
             )
 
-        system_prompt = (
-            "Tu es My AI, assistant local. L'utilisateur a attaché un dossier "
+        # Aucun outil ici : sans « ## Outils », le modèle n'est pas invité à
+        # explorer le disque.
+        system_prompt = with_modelfile(
+            "L'utilisateur a attaché un dossier "
             "projet à ce workspace ; voici son contenu indexé. Réponds DIRECTEMENT "
             "et précisément à sa question en te basant UNIQUEMENT sur ces "
             "informations, sans utiliser d'outils et sans explorer le système de "
             "fichiers. Si on te demande la liste des fichiers, énumère-les. "
             f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}\n\n"
-            + project_block
+            + project_block,
+            tools=False,
         )
 
         try:
@@ -2355,9 +2340,8 @@ Que voulez-vous que je fasse pour vous ?""",
             if not tools:
                 return {"type": "mcp", "message": "", "success": False}
 
-            # Construire le system prompt qui explique les outils
-            system_prompt = (
-                "Tu es My AI, un assistant IA local, confidentiel et puissant. "
+            # Identité du Modelfile, puis les consignes sur les outils
+            system_prompt = with_modelfile(
                 "Tu as un accès total à l'ordinateur de l'utilisateur. "
                 "Tu as accès à des outils que tu peux appeler automatiquement pour "
                 "répondre précisément et agir sur les fichiers (chemins absolus possibles). "
@@ -2857,11 +2841,7 @@ Que voulez-vous que je fasse pour vous ?""",
 
             # Partir du SYSTEM du Modelfile (identité + règles de formatage),
             # puis ajouter les instructions MCP spécifiques à cette session.
-            _base = self._modelfile_system
-            system_prompt = (
-                (_base + "\n\n") if _base else
-                "Tu es My_AI, un assistant personnel local, confidentiel et puissant.\n\n"
-            ) + (
+            system_prompt = with_modelfile(
                 "Tu as un ACCÈS TOTAL ET COMPLET à tout l'ordinateur de l'utilisateur. Tu n'es en aucun cas limité au répertoire de ton projet. "
                 f"Tu peux lire, écrire, créer, supprimer ou déplacer n'importe quel fichier sur l'ensemble du disque dur (ex: {PATH_EXAMPLES['roots']}, etc.) via tes outils.\n"
                 f"L'utilisateur se trouve actuellement dans le répertoire de travail (racine du projet) : {cwd}. "

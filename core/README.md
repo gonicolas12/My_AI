@@ -12,7 +12,9 @@ Contenu principal
   - **ReAct** (Reasoning + Acting) : boucle `Réfléchis → Agis → Observe` à chaque tour.
   - **Plan & Execute** : génération d'un plan structuré en étapes pour les requêtes > 55 caractères.
   - **Scratchpad persistant** : état interne (objectif, plan, étape, faits collectés, tours restants) injecté dans le system prompt sous forme de bloc XML.
-  - Sécurités intégrées : limite de tours (`MAX_TOURS = 15`), `LoopDetector` (boucle immédiate + boucle élargie), élagage sélectif du contexte (`MAX_HISTORY_MESSAGES = 40`), validation des arguments outils, synthèse forcée après `MAX_TOOL_USES = 5`, début de synthèse validé avant affichage (`SYNTHESIS_HEAD_CHARS = 160`).
+  - Sécurités intégrées : limite de tours (`MAX_TOURS = 15`), `LoopDetector` (boucle immédiate + boucle élargie), élagage sélectif du contexte (`MAX_HISTORY_MESSAGES = 40`), validation des arguments outils, synthèse forcée après `MAX_TOOL_USES = 5`, début de synthèse validé avant affichage (`SYNTHESIS_HEAD_CHARS = 160`), budget de synthèse réflexion comprise (`SYNTHESIS_NUM_PREDICT = 4096`) ; une synthèse vide est refaite sans réflexion.
+  - **Synthèse** : son prompt remplace celui de la boucle mais repart du SYSTEM du Modelfile (`with_modelfile`, sans la section « ## Outils »).
+- `modelfile.py` — Lit le bloc SYSTEM du `Modelfile` (identité, format, règles de My_AI). `with_modelfile(consignes, tools=True)` construit le prompt système d'une réponse : le Modelfile d'abord, puis les consignes de l'appel ; `tools=False` retire la section « ## Outils » quand l'appel n'offre aucun outil.
 - `agent_orchestrator.py` — `AgentOrchestrator` : coordonne les agents IA spécialisés (page Agents). Gère la création à la demande des agents (`get_or_create_agent`), l'historique des tâches et l'exécution de workflows multi-agents. **Distinct** de `ChatOrchestrator` (usage exclusif page Agents).
 - `mcp_client.py` — Client MCP (Model Context Protocol). Expose les outils locaux au format MCP standardisé et permet la connexion à des serveurs MCP externes via le transport `stdio`. Utilisé par `AIEngine` pour étendre les capacités d'Ollama.
 
@@ -85,6 +87,7 @@ Notes et bonnes pratiques
 - **Point d'entrée principal** : `AIEngine` orchestre tous les modules. Tout tool-calling passe par `ChatOrchestrator` (page Chat) ou `AgentOrchestrator` (page Agents) — ces deux orchestrateurs sont **indépendants** et ne se partagent pas.
 - **Modèle partagé** : `shared.py` expose le modèle d'embeddings `all-MiniLM-L6-v2` via `get_shared_embedding_model()` pour éviter de le charger plusieurs fois (important pour les performances de démarrage).
 - **Source unique du modèle LLM** : Seul `config.yaml` (clé `llm.local.default_model`) définit le modèle Ollama. Ne pas le dupliquer dans d'autres fichiers.
+- **Identité du Modelfile** : Ollama n'applique le SYSTEM du modèle `my_ai` que si la requête ne contient aucun message « system ». Tout prompt système d'une réponse affichée à l'utilisateur doit donc passer par `with_modelfile()` (`modelfile.py`) : sinon il remplace l'identité et le format de My_AI.
 - **Sécurité des entrées** : utiliser `validation.py` (Pydantic) pour valider toutes les entrées utilisateur et les arguments d'outils avant de les transmettre au LLM.
 - Le dossier `outputs/` est utilisé par défaut pour sauvegarder les résultats (voir `config.py` pour les chemins configurables).
 - Le code privilégie le fonctionnement 100% local (mode `local_mode` dans `config.py`).

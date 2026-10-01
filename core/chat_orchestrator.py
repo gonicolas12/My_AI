@@ -27,6 +27,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
+from .modelfile import with_modelfile
 from .platform_paths import PATH_EXAMPLES as _PATH_EX
 
 # [OPTIM] Retry résilient sur les appels réseau Ollama
@@ -48,6 +49,7 @@ COMPACT_THRESHOLD: int = 28     # Nb de messages avant compaction (hors system +
 PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planification
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
 SYNTHESIS_HEAD_CHARS: int = 160 # Début de synthèse validé avant tout affichage
+SYNTHESIS_NUM_PREDICT: int = 4096  # Tokens de la synthèse, réflexion comprise
 
 # Outils qui produisent un fichier livrable pour l'utilisateur.
 _DOCUMENT_TOOLS = frozenset({"generate_document", "edit_document"})
@@ -1600,8 +1602,11 @@ class ChatOrchestrator:
         """
         Synthèse streamée après exécution d'outils.
 
-        Le system prompt de synthèse remplace l'original pour que le modèle
-        ne réponde pas « je n'ai pas accès aux données en temps réel ».
+        Le system prompt de synthèse remplace celui de la boucle (scratchpad,
+        consignes d'outils) pour que le modèle ne réponde pas « je n'ai pas
+        accès aux données en temps réel ». Il repart du SYSTEM du Modelfile
+        (with_modelfile) : sans lui, la réponse affichée perdait l'identité et
+        le format de My_AI.
 
         Validation avant affichage :
           - Les SYNTHESIS_HEAD_CHARS premiers caractères sont retenus puis
@@ -1610,6 +1615,8 @@ class ChatOrchestrator:
             s'affiche seule. Valider après coup obligeait à streamer la
             relance sous la réponse déjà affichée : deux réponses
             s'enchaînaient dans la même bulle.
+          - Première passe terminée sans texte (la réflexion a consommé tout
+            le budget) → même relance, sans réflexion.
 
         Mode raisonnement natif :
           - Si on_thinking_token est fourni, active le thinking Qwen3.5 sur
@@ -1619,7 +1626,8 @@ class ChatOrchestrator:
             la section « 💡 Synthèse ».
           - on_thinking_complete est appelé à l'affichage du 1er texte.
         """
-        synthesis_system = (
+        # Sans « ## Outils » : la synthèse n'en offre aucun
+        synthesis_system = with_modelfile(
             "Tu interviens en bout de processus après avoir exécuté avec succès une série d'actions techniques (création de fichiers, recherches, etc.). "
             "Tu dois maintenant synthétiser ce qui a été fait pour en informer l'utilisateur de manière naturelle et conversationnelle.\n\n"
             "RÈGLES STRICTES DE COMMUNICATION :\n"
@@ -1638,7 +1646,8 @@ class ChatOrchestrator:
             "Format attendu pour chaque source : [Nom du site](URL complète)\n"
             "Exemple : [Real Python](https://realpython.com/article)\n"
             "Ne mets JAMAIS un nom de source sans son URL. "
-            "Reprends les URLs telles quelles depuis les résultats des outils."
+            "Reprends les URLs telles quelles depuis les résultats des outils.",
+            tools=False,
         )
 
         msgs = self._synthesis_messages(
@@ -1742,7 +1751,9 @@ class ChatOrchestrator:
             "options": {
                 "temperature": llm.gen_temperature,
                 "num_ctx": min(llm.gen_num_ctx, 8192),  # Plafond VRAM préservé lors de la synthèse
-                "num_predict": 2048,
+                # Réflexion comprise : à 2048, elle laissait parfois une
+                # réponse coupée, voire vide
+                "num_predict": SYNTHESIS_NUM_PREDICT,
                 "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
         }
@@ -1752,6 +1763,7 @@ class ChatOrchestrator:
         rejected: Optional[str] = None
         thinking_header_sent: bool = False
         thinking_complete_fired: bool = False
+        completed: bool = False  # Ollama a signalé la fin du flux
 
         def show(text: str) -> bool:
             """Transmet du texte à l'UI ; False si elle demande l'arrêt."""
@@ -1809,6 +1821,12 @@ class ChatOrchestrator:
                                 break
 
                     if chunk_data.get("done"):
+                        completed = True
+                        if chunk_data.get("done_reason") == "length":
+                            print(
+                                f"⚠️  [ChatOrchestrator] Synthèse coupée à "
+                                f"{SYNTHESIS_NUM_PREDICT} tokens (réflexion comprise)"
+                            )
                         break
 
         except Exception as exc:
@@ -1823,6 +1841,12 @@ class ChatOrchestrator:
                 show(full_response)
             else:
                 rejected = reason
+
+        # Flux terminé sans aucun texte : la réflexion a consommé tout le
+        # budget. Rejeté, il est refait sans réflexion avec les résultats des
+        # outils ; sinon le moteur retombait sur une génération qui les ignore.
+        if completed and not full_response:
+            rejected = "aucun texte généré"
 
         if rejected:
             return "", rejected

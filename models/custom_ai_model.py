@@ -10,6 +10,7 @@ import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.modelfile import with_modelfile
 from models.advanced_code_generator import AdvancedCodeGenerator as CodeGenerator
 from processors.code_processor import CodeProcessor
 from processors.docx_processor import DOCXProcessor
@@ -425,39 +426,11 @@ class CustomAIModel(
             # 🦙 OLLAMA PAR DÉFAUT - Pour tout le reste
             # ============================================================
             if self.local_llm and self.local_llm.is_ollama_available:
-                system_prompt = None  # Utiliser le system prompt du Modelfile par défaut
-
-                # 📄 5. QUESTIONS SUR DOCUMENTS - Injecter le contenu dans Ollama
-                if self._has_documents_in_memory() and (
-                    self._is_document_processing_request(user_input) or
-                    self._is_document_question(user_input)
-                ):
-                    print("📊 [DOC-QUESTION] Question sur document détectée - envoi à Ollama")
-                    doc_content = self._get_full_document_content()
-                    if doc_content:
-                        # Utiliser le contenu complet sans limitation
-                        system_prompt = (
-                            f"Tu es un assistant qui analyse des documents. "
-                            f"Voici le contenu du document que l'utilisateur a chargé :\n\n"
-                            f"{doc_content}\n\n"
-                            f"Réponds à la question de l'utilisateur en te basant UNIQUEMENT sur ce document. "
-                            f"Si l'utilisateur demande un résumé, fais un résumé structuré et détaillé du document."
-                        )
-                        print(f"📄 [DOC-QUESTION] Contexte document injecté: {len(doc_content)} chars")
-
-                # Injection du contexte RAG externe si fourni
-                if context and isinstance(context, dict):
-                    rag_content = context.get("rag_context", "")
-                    if rag_content and len(rag_content.strip()) > 50:
-                        rag_summary = (
-                            rag_content[:2000]
-                            if len(rag_content) > 2000
-                            else rag_content
-                        )
-                        if system_prompt:
-                            system_prompt += f"\n\nCONTEXTE ADDITIONNEL:\n{rag_summary}"
-                        else:
-                            system_prompt = f"CONTEXTE ADDITIONNEL:\n{rag_summary}"
+                # 📄 5. Questions sur documents et contexte RAG. Sans eux,
+                # None : LocalLLM envoie le SYSTEM du Modelfile par défaut.
+                system_prompt = self._ollama_system_prompt(
+                    user_input, context, "DOC-QUESTION"
+                )
 
                 print(f"🦙 [OLLAMA] Génération via Ollama pour: '{user_input}'")
                 llm_response = self.local_llm.generate(
@@ -730,39 +703,10 @@ class CustomAIModel(
             # ============================================================
 
             if self.local_llm and self.local_llm.is_ollama_available:
-                system_prompt = None
-
-                # 5️⃣ QUESTIONS SUR DOCUMENTS - Injecter le contenu du document dans Ollama
-                if self._has_documents_in_memory() and (
-                    self._is_document_processing_request(user_input) or
-                    self._is_document_question(user_input)
-                ):
-                    print("📊 [STREAM-DOC] Question sur document détectée - envoi à Ollama")
-                    doc_content = self._get_full_document_content()
-                    if doc_content:
-                        # Utiliser le contenu complet sans limitation
-                        system_prompt = (
-                            f"Tu es un assistant qui analyse des documents. "
-                            f"Voici le contenu du document que l'utilisateur a chargé :\n\n"
-                            f"{doc_content}\n\n"
-                            f"Réponds à la question de l'utilisateur en te basant UNIQUEMENT sur ce document. "
-                            f"Si l'utilisateur demande un résumé, fais un résumé structuré et détaillé du document."
-                        )
-                        print(f"📄 [STREAM-DOC] Contexte document injecté: {len(doc_content)} chars")
-
-                # Injection RAG si fourni
-                if context and isinstance(context, dict):
-                    rag_content = context.get("rag_context", "")
-                    if rag_content and len(rag_content.strip()) > 50:
-                        rag_summary = (
-                            rag_content[:2000]
-                            if len(rag_content) > 2000
-                            else rag_content
-                        )
-                        if system_prompt:
-                            system_prompt += f"\n\nCONTEXTE ADDITIONNEL:\n{rag_summary}"
-                        else:
-                            system_prompt = f"CONTEXTE ADDITIONNEL:\n{rag_summary}"
+                # 5️⃣ Questions sur documents et contexte RAG
+                system_prompt = self._ollama_system_prompt(
+                    user_input, context, "STREAM-DOC"
+                )
 
                 print(f"⚡ [STREAM] Génération streaming pour: '{user_input[:50]}...'")
 
@@ -816,6 +760,46 @@ class CustomAIModel(
         return (has_summary_keyword and has_document_keyword) or \
                user_lower.startswith("please summarize this pdf content") or \
                user_lower.startswith("please analyze this document content")
+
+    def _ollama_system_prompt(
+        self, user_input: str, context: Optional[Dict], tag: str
+    ) -> Optional[str]:
+        """
+        Prompt système d'une réponse Ollama : document chargé, contexte RAG.
+
+        Returns:
+            None sans document ni contexte : LocalLLM envoie alors le SYSTEM du
+            Modelfile. Sinon le Modelfile suivi du contexte, jamais le contexte
+            seul, qui remplaçait l'identité de My_AI.
+        """
+        parts: List[str] = []
+
+        if self._has_documents_in_memory() and (
+            self._is_document_processing_request(user_input) or
+            self._is_document_question(user_input)
+        ):
+            print(f"📊 [{tag}] Question sur document détectée - envoi à Ollama")
+            doc_content = self._get_full_document_content()
+            if doc_content:
+                # Utiliser le contenu complet sans limitation
+                parts.append(
+                    f"Voici le contenu du document que l'utilisateur a chargé :\n\n"
+                    f"{doc_content}\n\n"
+                    f"Réponds à la question de l'utilisateur en te basant UNIQUEMENT sur ce document. "
+                    f"Si l'utilisateur demande un résumé, fais un résumé structuré et détaillé du document."
+                )
+                print(f"📄 [{tag}] Contexte document injecté: {len(doc_content)} chars")
+
+        # Injection du contexte RAG externe si fourni
+        if context and isinstance(context, dict):
+            rag_content = context.get("rag_context", "")
+            if rag_content and len(rag_content.strip()) > 50:
+                parts.append(f"CONTEXTE ADDITIONNEL:\n{rag_content[:2000]}")
+
+        if not parts:
+            return None
+        # Aucun outil n'est offert à ces réponses
+        return with_modelfile("\n\n".join(parts), tools=False)
 
     def _get_full_document_content(self) -> str:
         """Récupère le contenu complet de tous les documents stockés en mémoire"""

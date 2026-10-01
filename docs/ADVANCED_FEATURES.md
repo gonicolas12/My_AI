@@ -615,7 +615,7 @@ Le **ChatOrchestrator** (`core/chat_orchestrator.py`) est la boucle agentique de
 - ✅ **Limite de tours** : `MAX_TOURS = 15` avec message forcé avant coupure
 - ✅ **Détection de boucle** : `LoopDetector` stoppe les appels identiques consécutifs ou répétitifs
 - ✅ **Élagage sélectif** du contexte (`MAX_HISTORY_MESSAGES = 40`)
-- ✅ **Synthèse streamée** après exécution d'outils
+- ✅ **Synthèse streamée** après exécution d'outils, avec l'identité et le format du Modelfile
 
 ### 💼 Architecture Interne
 
@@ -634,9 +634,10 @@ ChatOrchestrator.run(query, history, tools, tool_executor, stream_callback)
   │     └── Scratchpad.update_from_tool_result()
   │
   └── 3. Synthèse finale streamée
+        ├── Prompt : SYSTEM du Modelfile (sans « ## Outils ») + règles de synthèse
         ├── Contexte sans les relances de la boucle (scratchpad, « appelle un outil »)
         └── Début de réponse validé AVANT affichage (HALLUCINATION_MARKERS…)
-              └── Invalide → flux coupé, une seconde synthèse s'affiche seule
+              └── Invalide ou vide → flux coupé, une seconde synthèse (sans réflexion) s'affiche seule
 ```
 
 ### ⚖️ Constantes configurables
@@ -650,6 +651,7 @@ ChatOrchestrator.run(query, history, tools, tool_executor, stream_callback)
 | `PLAN_MIN_QUERY_LEN` | 55 | Longueur minimale pour déclencher la planification |
 | `MAX_TOOL_USES` | 5 | Appels outils avant synthèse forcée |
 | `SYNTHESIS_HEAD_CHARS` | 160 | Début de synthèse retenu et validé avant affichage |
+| `SYNTHESIS_NUM_PREDICT` | 4096 | Tokens de la synthèse, réflexion comprise |
 
 ### 🖥️ Intégration dans AIEngine
 

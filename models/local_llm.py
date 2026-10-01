@@ -11,6 +11,8 @@ from typing import Callable, Dict, List, Optional
 
 import requests
 
+from core.modelfile import modelfile_system
+
 # [OPTIM] Retry résilient sur les appels réseau Ollama
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -213,6 +215,19 @@ class LocalLLM:
         except Exception:
             return False
 
+    @staticmethod
+    def _system_messages(system_prompt: Optional[str]) -> List[Dict]:
+        """
+        Message « system » placé en tête de requête.
+
+        Sans prompt de l'appelant, le SYSTEM du Modelfile est envoyé
+        explicitement. Ollama n'applique celui de my_ai qu'en l'absence de
+        message « system », or le résumé glissant (_compress_old_history) en
+        place un en tête d'historique : il aurait pris la place de l'identité.
+        """
+        content = system_prompt or modelfile_system()
+        return [{"role": "system", "content": content}] if content else []
+
     def generate(self, prompt, system_prompt=None, save_history=True, use_history=True):
         """
         Génère une réponse avec contexte de conversation.
@@ -222,12 +237,8 @@ class LocalLLM:
         if not self.is_ollama_available:
             return None
 
-        # Construire les messages avec historique
-        messages = []
-
-        # Ajouter le system prompt s'il existe
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        # Construire les messages avec historique, derrière le prompt système
+        messages = self._system_messages(system_prompt)
 
         # Ajouter l'historique de conversation
         if use_history:
@@ -306,9 +317,7 @@ class LocalLLM:
         if not self.is_ollama_available:
             return ""
 
-        messages: List[Dict] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        messages: List[Dict] = self._system_messages(system_prompt)
         messages.extend(self.conversation_history)
         messages.append({"role": "user", "content": prompt})
 
@@ -493,9 +502,7 @@ class LocalLLM:
             return {"response": None, "tool_calls": [], "success": False}
 
         # Construction du contexte initial
-        messages: List[Dict] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+        messages: List[Dict] = self._system_messages(system_prompt)
         messages.extend(self.conversation_history)
         messages.append({"role": "user", "content": prompt})
 
