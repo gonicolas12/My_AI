@@ -16,15 +16,25 @@ class AnimationsMixin:
         Convertit ensuite en unités de la police par défaut.
         """
         try:
+            # Bulle non affichée (fenêtre réduite) : Tk la mesurerait sur une
+            # largeur de 1 px, un mot par ligne, et la hauteur ne faisant que
+            # croître, la bulle resterait démesurée jusqu'à la fin de l'écriture.
+            if not text_widget.winfo_ismapped():
+                return
+
             current_state = text_widget.cget("state")
             text_widget.configure(state="normal")
 
             # Mesure pixel-perfect : ypixels donne la distance du haut
             # de la 1ère ligne au haut de la dernière ligne.
             # On ajoute 1 linespace pour inclure la dernière ligne elle-même.
-            ypixels = text_widget.count("1.0", "end-1c", "ypixels")
-            if ypixels and ypixels[0] > 0:
-                px = ypixels[0] if isinstance(ypixels, tuple) else ypixels
+            # « update » : Tk calcule la hauteur des lignes en tâche de fond ;
+            # sans lui, la mesure retarde et la ligne en cours reste masquée
+            # sous le bas de la bulle.
+            ypixels = text_widget.count("1.0", "end-1c", "update", "ypixels")
+            # Avec deux options, tkinter renvoie un entier, pas un tuple
+            px = (ypixels[0] if isinstance(ypixels, tuple) else ypixels) or 0
+            if px > 0:
                 try:
                     default_font = tkfont.Font(font=text_widget.cget("font"))
                 except Exception:

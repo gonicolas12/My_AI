@@ -555,7 +555,7 @@ class MessageEditingMixin:
                 image_path=image_path,
                 mid=mid,
             )
-            self.scroll_to_bottom()
+            self._scroll_to_bottom_for_new_turn()
             self.show_thinking_animation()
 
             self.current_request_id = getattr(self, "current_request_id", 0) + 1

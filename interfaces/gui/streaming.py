@@ -137,8 +137,8 @@ class StreamingMixin:
             # Démarrer l'animation de frappe en mode streaming
             self._start_streaming_typing_animation(text_widget)
 
-            # Scroll vers le bas
-            self.scroll_to_bottom()
+            # Scroll vers le bas (sauf si l'utilisateur est remonté lire)
+            self._scroll_to_bottom_if_following()
 
         except Exception as e:
             print(f"❌ [STREAM] Erreur création bulle: {e}")
@@ -341,7 +341,7 @@ class StreamingMixin:
                         self._apply_unified_progressive_formatting(self.typing_widget)
                         self.adjust_text_widget_height(self.typing_widget)
                         self.root.after(2, self._smart_scroll_follow_animation)
-                    elif self.typing_index % 60 == 0:
+                    elif self.typing_index % 60 == 0 or self._typed_text_hidden():
                         self.adjust_text_widget_height(self.typing_widget)
                         self.root.after(2, self._smart_scroll_follow_animation)
 
@@ -482,8 +482,9 @@ class StreamingMixin:
                 if char == "\n":
                     self.adjust_text_widget_height(self.typing_widget)
                     self.root.after(1, self._smart_scroll_follow_animation)
-                elif self.typing_index % 25 == 0:
-                    # Scroll périodique même sans \n pour suivre le word-wrap
+                elif self.typing_index % 25 == 0 or self._typed_text_hidden():
+                    # Scroll périodique même sans \n pour suivre le word-wrap,
+                    # et dès que la ligne en cours déborde de la bulle
                     self.adjust_text_widget_height(self.typing_widget)
                     self.root.after(1, self._smart_scroll_follow_animation)
 
@@ -505,6 +506,20 @@ class StreamingMixin:
         except Exception as e:
             print(f"⚠️ [STREAM ANIM] Erreur: {e}")
             self._finish_streaming_animation(_interrupted=True)
+
+    def _typed_text_hidden(self):
+        """True si le dernier caractère écrit déborde sous le bas de la bulle.
+
+        La hauteur n'était réajustée qu'à chaque retour à la ligne ou tous les
+        25 caractères : entre-temps, la ligne en cours restait masquée et le
+        texte semblait ne plus s'écrire.
+        """
+        try:
+            widget = self.typing_widget
+            # Fenêtre réduite : rien n'est affiché, inutile de réajuster
+            return bool(widget.winfo_ismapped()) and widget.bbox("end-1c") is None
+        except (tk.TclError, AttributeError):
+            return False
 
     def _apply_streaming_syntax_coloring(self):
         """
@@ -1958,7 +1973,7 @@ class StreamingMixin:
 
             # Démarrer l'animation des points
             self._start_reasoning_dots()
-            self.scroll_to_bottom()
+            self._scroll_to_bottom_if_following()
 
         except Exception as exc:
             print(f"⚠️ [Reasoning Widget] Erreur création: {exc}")

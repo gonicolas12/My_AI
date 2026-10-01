@@ -16,6 +16,79 @@ except ImportError:
 class ChatAreaMixin:
     """Conversation area and scrolling helpers."""
 
+    # Unités de défilement par cran de molette, comme les bulles
+    # (setup_*scroll_forwarding) et, sous Windows, CTkScrollableFrame lui-même
+    # (delta / 6 avec yscrollincrement = 1).
+    _CHAT_WHEEL_UNITS = 20
+
+    # Marge laissée sous le dernier caractère suivi pendant l'écriture
+    _FOLLOW_MARGIN_PX = 12
+
+    # Suivi de la réponse en cours : interrompu dès que l'utilisateur remonte
+    # (molette, barre de défilement), repris quand il revient tout en bas et à
+    # chaque nouveau message.
+    _follow_chat_bottom = True
+
+    # En deçà de cette distance au bas du contenu, la vue est « en bas »
+    _BOTTOM_TOLERANCE_PX = 4
+
+    def _scroll_chat_with_wheel(self, event):
+        """Fait défiler la conversation d'un cran de molette, à la vitesse native."""
+        try:
+            target = self._get_parent_canvas()
+            if target is None:
+                target = self.chat_frame.master
+                while target and not hasattr(target, "yview_scroll"):
+                    target = target.master
+            if target is not None:
+                if getattr(event, "delta", 0):
+                    units = int(-self._CHAT_WHEEL_UNITS * wheel_notches(event))
+                else:
+                    units = self._CHAT_WHEEL_UNITS * (-1 if event.num == 4 else 1)
+                target.yview_scroll(units, "units")
+                self._note_manual_scroll()
+        except Exception:
+            pass
+        return "break"
+
+    def _note_manual_scroll(self):
+        """Défilement fait par l'utilisateur : la réponse en cours n'est plus
+        suivie, sauf s'il est revenu tout en bas."""
+        canvas = self._get_parent_canvas()
+        if canvas is None:
+            return
+        bbox = canvas.bbox("all")
+        view_bottom = canvas.canvasy(canvas.winfo_height())
+        self._follow_chat_bottom = (
+            not bbox or bbox[3] - view_bottom <= self._BOTTOM_TOLERANCE_PX
+        )
+
+    def _on_chat_wheel(self, event):
+        """Molette hors des bulles : CTkScrollableFrame vient de faire défiler."""
+        canvas = self._get_parent_canvas()
+        if canvas is None:
+            return
+        path, area = str(event.widget), str(canvas)
+        if path == area or path.startswith(area + "."):
+            self._note_manual_scroll()
+
+    def _on_chat_scrollbar(self, *args):
+        """Commande de la barre de défilement : glisser, clic ou molette dessus."""
+        canvas = self._get_parent_canvas()
+        if canvas is not None:
+            canvas.yview(*args)
+            self._note_manual_scroll()
+
+    def _scroll_to_bottom_if_following(self):
+        """scroll_to_bottom, sauf si l'utilisateur est remonté lire plus haut."""
+        if self._follow_chat_bottom:
+            self.scroll_to_bottom()
+
+    def _scroll_to_bottom_for_new_turn(self):
+        """Nouveau message : retour en bas et suivi de la réponse à venir."""
+        self._follow_chat_bottom = True
+        self.scroll_to_bottom()
+
     def _get_parent_canvas(self):
         """
         Récupère le canvas parent pour CustomTkinter ScrollableFrame.
@@ -54,35 +127,13 @@ class ChatAreaMixin:
         for event in scroll_events:
             text_widget.bind(event, block_scroll)
 
-        # Transférer le scroll vers le conteneur principal
-        def forward_to_main_scroll(event):
-            try:
-                if hasattr(self, "chat_frame"):
-                    canvas = self._get_parent_canvas()
-                    if canvas:
-                        if hasattr(event, "delta") and event.delta:
-                            scroll_delta = int(-1 * wheel_notches(event))
-                        else:
-                            scroll_delta = -1 if event.num == 4 else 1
-                        canvas.yview_scroll(scroll_delta, "units")
-                    else:
-                        parent = self.chat_frame.master
-                        while parent and not hasattr(parent, "yview_scroll"):
-                            parent = parent.master
-                        if parent:
-                            if hasattr(event, "delta") and event.delta:
-                                scroll_delta = int(-1 * wheel_notches(event))
-                            else:
-                                scroll_delta = -1 if event.num == 4 else 1
-                            parent.yview_scroll(scroll_delta, "units")
-            except Exception:
-                pass
-            return "break"
-
-        # Appliquer le transfert de scroll uniquement pour la molette
-        text_widget.bind("<MouseWheel>", forward_to_main_scroll)
-        text_widget.bind("<Button-4>", forward_to_main_scroll)
-        text_widget.bind("<Button-5>", forward_to_main_scroll)
+        # Transférer la molette à la conversation, à la vitesse normale. Ce
+        # blocage est réappliqué à chaque recalcul de hauteur (fin d'écriture,
+        # changement de largeur) : à 1 unité par cran, les bulles IA
+        # défilaient 20 fois moins vite que le reste de la conversation.
+        text_widget.bind("<MouseWheel>", self._scroll_chat_with_wheel)
+        text_widget.bind("<Button-4>", self._scroll_chat_with_wheel)
+        text_widget.bind("<Button-5>", self._scroll_chat_with_wheel)
 
     def _reactivate_text_scroll(self, text_widget):
         """Réactive le scroll après l'animation"""
@@ -174,6 +225,14 @@ class ChatAreaMixin:
                 fg_color=self.colors["bg_chat"],
                 scrollbar_fg_color=self.colors["bg_secondary"],
             )
+            # Défilement manuel (cf. _note_manual_scroll). Lié après le
+            # gestionnaire de CTkScrollableFrame, qui a donc déjà fait défiler.
+            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                self.root.bind_all(sequence, self._on_chat_wheel, add="+")
+            # pylint: disable=protected-access
+            scrollbar = getattr(self.chat_frame, "_scrollbar", None)
+            if scrollbar is not None:
+                scrollbar.configure(command=self._on_chat_scrollbar)
         else:
             # Fallback avec Canvas et Scrollbar
             canvas = tk.Canvas(
@@ -238,53 +297,11 @@ class ChatAreaMixin:
             pass
 
     def setup_scroll_forwarding(self, text_widget):
-        """Configure le transfert du scroll - Version ultra rapide pour bulles USER"""
-
-        def forward_scroll_to_page(event):
-            try:
-                # Transférer le scroll à la zone de conversation principale
-                if hasattr(self, "chat_frame"):
-                    # Pour CustomTkinter ScrollableFrame - SCROLL ULTRA RAPIDE
-                    canvas = self._get_parent_canvas()
-                    if canvas:
-                        # Amplifier le delta pour scroll ultra rapide (x20 plus rapide)
-                        if hasattr(event, "delta") and event.delta:
-                            scroll_delta = int(
-                                -20 * wheel_notches(event)
-                            )  # 20x plus rapide qu'un cran simple
-                        elif hasattr(event, "num"):
-                            scroll_delta = (
-                                -20 if event.num == 4 else 20
-                            )  # 20x plus rapide
-                        else:
-                            scroll_delta = -20
-                        canvas.yview_scroll(scroll_delta, "units")
-                    else:
-                        # Pour tkinter standard - SCROLL ULTRA RAPIDE
-                        parent = self.chat_frame.master
-                        while parent and not hasattr(parent, "yview_scroll"):
-                            parent = parent.master
-                        if parent:
-                            # Amplifier le delta pour scroll MEGA ULTRA rapide (x60 plus rapide !)
-                            if hasattr(event, "delta") and event.delta:
-                                scroll_delta = int(
-                                    -60 * wheel_notches(event)
-                                )  # 60x plus rapide qu'un cran simple
-                            elif hasattr(event, "num"):
-                                scroll_delta = (
-                                    -60 if event.num == 4 else 60
-                                )  # 60x plus rapide
-                            else:
-                                scroll_delta = -60
-                            parent.yview_scroll(scroll_delta, "units")
-            except Exception:
-                pass
-            return "break"  # Empêcher le scroll local
-
-        # Appliquer le transfert de scroll
-        text_widget.bind("<MouseWheel>", forward_scroll_to_page)
-        text_widget.bind("<Button-4>", forward_scroll_to_page)  # Linux scroll up
-        text_widget.bind("<Button-5>", forward_scroll_to_page)  # Linux scroll down
+        """Configure le transfert du scroll pour les bulles USER"""
+        # Transférer la molette à la conversation, comme toutes les bulles
+        text_widget.bind("<MouseWheel>", self._scroll_chat_with_wheel)
+        text_widget.bind("<Button-4>", self._scroll_chat_with_wheel)  # Linux scroll up
+        text_widget.bind("<Button-5>", self._scroll_chat_with_wheel)  # Linux scroll down
 
         # Désactiver toutes les autres formes de scroll
         text_widget.bind("<Up>", lambda e=None: "break")
@@ -309,71 +326,21 @@ class ChatAreaMixin:
         # Remettre en mode normal mais sans scroll interne
         text_widget.configure(state="normal")
 
-        # SOLUTION FINALE: Utiliser EXACTEMENT la même logique que les bulles USER
-        def forward_scroll_to_page(event):
-            try:
-                # Transférer le scroll à la zone de conversation principale
-                if hasattr(self, "chat_frame"):
-                    # Pour CustomTkinter ScrollableFrame - MÊME LOGIQUE QUE USER
-                    canvas = self._get_parent_canvas()
-                    if canvas:
-                        # EXACTEMENT la même amplification que les bulles USER
-                        if hasattr(event, "delta") and event.delta:
-                            scroll_delta = int(-20 * wheel_notches(event))  # MÊME que USER
-                        elif hasattr(event, "num"):
-                            scroll_delta = (
-                                -20 if event.num == 4 else 20
-                            )  # MÊME que USER
-                        else:
-                            scroll_delta = -20
-                        canvas.yview_scroll(scroll_delta, "units")
-                    else:
-                        # Pour tkinter standard - MÊME LOGIQUE QUE USER
-                        parent = self.chat_frame.master
-                        while parent and not hasattr(parent, "yview_scroll"):
-                            parent = parent.master
-                        if parent:
-                            # EXACTEMENT la même amplification que les bulles USER
-                            if hasattr(event, "delta") and event.delta:
-                                scroll_delta = int(-20 * wheel_notches(event))  # MÊME que USER
-                            elif hasattr(event, "num"):
-                                scroll_delta = (
-                                    -20 if event.num == 4 else 20
-                                )  # MÊME que USER
-                            else:
-                                scroll_delta = -20
-                            parent.yview_scroll(scroll_delta, "units")
-            except Exception:
-                pass
-            return "break"  # Empêcher le scroll local - MÊME que USER
-
         # SOLUTION: Désactiver les bindings par défaut de Tkinter qui interceptent le scroll
         text_widget.unbind("<MouseWheel>")
         text_widget.unbind("<Button-4>")
         text_widget.unbind("<Button-5>")
 
-        # Appliquer le transfert de scroll ultra rapide
-        text_widget.bind("<MouseWheel>", forward_scroll_to_page)
-        text_widget.bind("<Button-4>", forward_scroll_to_page)
-        text_widget.bind("<Button-5>", forward_scroll_to_page)
-
-        # Vérifier l'état du widget
-
-        # Tester les événements au niveau du PARENT aussi
-        parent_frame = text_widget.master
-
-        def parent_test_event(event):
-            # Transférer vers notre fonction
-            return forward_scroll_to_page(event)
-
-        # Ajouter les bindings au parent ET au text widget
-        parent_frame.bind("<MouseWheel>", parent_test_event)
-        parent_frame.bind("<Button-4>", parent_test_event)
-        parent_frame.bind("<Button-5>", parent_test_event)
+        # Transférer la molette à la conversation, sur la bulle et son parent
+        for widget in (text_widget, text_widget.master):
+            widget.bind("<MouseWheel>", self._scroll_chat_with_wheel)
+            widget.bind("<Button-4>", self._scroll_chat_with_wheel)
+            widget.bind("<Button-5>", self._scroll_chat_with_wheel)
 
     def _smart_scroll_follow_animation(self):
-        """Scroll optimisé qui suit le bas du contenu en temps réel.
-        Met à jour le scrollregion puis force le scroll vers le bas."""
+        """Scroll optimisé qui suit le texte en cours d'écriture.
+        Met à jour le scrollregion puis cale la vue sur le dernier caractère
+        écrit (cf. _typing_follow_fraction)."""
         try:
             if self.use_ctk:
                 canvas = self._get_parent_canvas()
@@ -384,16 +351,44 @@ class ChatAreaMixin:
                     bbox = canvas.bbox("all")
                     if bbox:
                         canvas.configure(scrollregion=bbox)
-                        canvas.yview_moveto(1.0)
+                        # Utilisateur remonté lire plus haut : la vue ne bouge pas
+                        if self._follow_chat_bottom:
+                            canvas.yview_moveto(self._typing_follow_fraction(canvas, bbox))
             else:
                 # Version tkinter standard
                 parent = self.chat_frame.master
-                if hasattr(parent, "yview_moveto"):
+                if hasattr(parent, "yview_moveto") and self._follow_chat_bottom:
                     parent.update_idletasks()
                     parent.yview_moveto(1.0)
 
         except Exception as e:
             print(f"[DEBUG] Erreur scroll animation: {e}")
+
+    def _typing_follow_fraction(self, canvas, bbox):
+        """Position de défilement (yview) qui met le dernier caractère écrit
+        en bas de la vue.
+
+        Se caler sur le bas du contenu (1.0) montrait ce qu'il y a sous le
+        texte au lieu du texte : pendant l'écriture, la bulle peut être plus
+        haute que son contenu (sa hauteur ne fait que croître). Retourne 1.0
+        quand le caractère n'est pas localisable.
+        """
+        widget = getattr(self, "typing_widget", None)
+        try:
+            char = widget.bbox("end-1c") if widget is not None and widget.winfo_exists() else None
+        except tk.TclError:
+            char = None
+        content_height = bbox[3] - bbox[1]
+        if not char or content_height <= 0:
+            return 1.0
+        # Bas du caractère, en coordonnées du canvas
+        char_bottom = (
+            widget.winfo_rooty() - canvas.winfo_rooty() + canvas.canvasy(0)
+            + char[1] + char[3]
+        )
+        view_top = char_bottom + self._FOLLOW_MARGIN_PX - canvas.winfo_height()
+        # Au-delà de la fin, Tk ramène la vue sur le bas du contenu
+        return max(0.0, (view_top - bbox[1]) / content_height)
 
     def _force_scroll_to_bottom(self):
         """Force un scroll vers le bas quand un gros contenu est ajouté"""
@@ -418,6 +413,9 @@ class ChatAreaMixin:
 
     def _final_smooth_scroll_to_bottom(self):
         """Scroll final fiable — met à jour le scrollregion puis force au bas"""
+        # Fin de réponse : l'utilisateur remonté lire plus haut y reste
+        if not self._follow_chat_bottom:
+            return
         try:
             self.root.update_idletasks()
 
@@ -432,6 +430,8 @@ class ChatAreaMixin:
                     # Double scroll après un court délai pour couvrir les
                     # éventuelles mises à jour de géométrie tardives
                     def _ensure_bottom():
+                        if not self._follow_chat_bottom:
+                            return
                         try:
                             canvas.update_idletasks()
                             bbox2 = canvas.bbox("all")

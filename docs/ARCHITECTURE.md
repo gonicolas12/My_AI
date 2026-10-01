@@ -1080,6 +1080,20 @@ Rôle: Ramener les événements de molette à une unité commune, le « cran »
 > ⚠️ **Pour tout nouveau gestionnaire de molette, passez par `wheel_notches`.**
 > Diviser `event.delta` par 120 (ou 6, ou 2) donne **0 sur macOS** pour un cran
 > standard : la molette reste inerte alors que la scrollbar fonctionne.
+>
+> Pour faire défiler la **conversation** depuis un widget (bulle, marge de
+> bulle), liez directement `ChatAreaMixin._scroll_chat_with_wheel` : 20 unités
+> par cran, la vitesse native de `CTkScrollableFrame` sous Windows. Un facteur
+> propre à chaque widget donnait des vitesses différentes selon l'endroit
+> survolé (×1 sur les bulles IA après un recalcul de hauteur, ×1200 sur leurs
+> marges).
+>
+> Ce point unique sert aussi au **suivi de la réponse en cours** : un
+> défilement manuel (molette ou barre de défilement) qui quitte le bas de la
+> conversation l'interrompt (`_note_manual_scroll`), y revenir le reprend, et
+> chaque nouveau message le relance (`_scroll_to_bottom_for_new_turn`). Les
+> défilements automatiques d'un tour d'IA passent par
+> `_scroll_to_bottom_if_following`.
 
 **`interfaces/gui/artifacts_panel.py`** - Volet d'aperçu (artifacts + documents)
 ```python

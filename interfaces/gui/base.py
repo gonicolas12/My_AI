@@ -320,7 +320,7 @@ class BaseGUI:
                 # Conserver le conteneur pour y intégrer l'image dans LA MÊME bulle
                 self._image_gen_container = message_container
                 self.current_message_container = message_container
-                self.root.after(100, self.scroll_to_bottom)
+                self.root.after(100, self._scroll_to_bottom_if_following)
             except (tk.TclError, AttributeError) as e:
                 print(f"Erreur création bulle image: {e}")
 
@@ -576,7 +576,7 @@ class BaseGUI:
                 text_color=self.colors.get("text_secondary", "#888888"),
             )
             caption.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 2))
-            self.root.after(80, self.scroll_to_bottom)
+            self.root.after(80, self._scroll_to_bottom_if_following)
             print(f"🎨 [GUI] Image intégrée à la bulle : {image_path}")
         except Exception as exc:
             traceback.print_exc()
@@ -927,8 +927,8 @@ class BaseGUI:
                 image_path=image_path,
             )
 
-            # Scroll vers le bas
-            self.scroll_to_bottom()
+            # Scroll vers le bas, et suivi de la réponse à venir
+            self._scroll_to_bottom_for_new_turn()
 
             # Afficher l'animation de réflexion
             self.show_thinking_animation()
@@ -1798,7 +1798,7 @@ class BaseGUI:
             # Démarrer l'animation des points
             self.root.after(400, self._animate_mcp_dots)
             # Scroll vers le bas pour afficher l'indicateur
-            self.root.after(60, self.scroll_to_bottom)
+            self.root.after(60, self._scroll_to_bottom_if_following)
 
         except Exception as exc:
             print(f"⚠️ [MCP Indicator] Erreur création: {exc}")
@@ -2066,8 +2066,8 @@ class BaseGUI:
             if was_disabled:
                 self.input_text.configure(state="disabled")
 
-            # Scroll vers le bas
-            self.scroll_to_bottom()
+            # Scroll vers le bas, et suivi de la réponse à venir
+            self._scroll_to_bottom_for_new_turn()
 
             # Afficher l'animation de réflexion
             self.show_thinking_animation()
@@ -2263,8 +2263,8 @@ class BaseGUI:
                     self._file_generation_widget = text_widget
                     self.current_message_container = message_container
 
-                    # Scroll vers le bas
-                    self.root.after(100, self.scroll_to_bottom)
+                    # Scroll vers le bas (sauf si l'utilisateur est remonté lire)
+                    self.root.after(100, self._scroll_to_bottom_if_following)
 
                 except (tk.TclError, AttributeError) as e:
                     print(f"Erreur création bulle: {e}")
@@ -2985,8 +2985,9 @@ class BaseGUI:
         self.add_message_bubble(text_response, is_user=False)
 
         # Scroll vers le bas avec délai pour s'assurer que le message est rendu
-        self.root.after(100, self.scroll_to_bottom)
-        self.root.after(300, self.scroll_to_bottom)  # Double tentative
+        # (sauf si l'utilisateur est remonté lire plus haut)
+        self.root.after(100, self._scroll_to_bottom_if_following)
+        self.root.after(300, self._scroll_to_bottom_if_following)  # Double tentative
 
     def clear_chat(self):
         """Efface la conversation ET les documents en mémoire pour repartir de zéro"""

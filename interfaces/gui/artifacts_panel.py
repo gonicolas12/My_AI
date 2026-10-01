@@ -367,6 +367,9 @@ class ArtifactsPanelMixin:
         donc le bas sur plusieurs passes échelonnées pour absorber ces étapes.
         """
         def _to_bottom():
+            # Utilisateur remonté lire plus haut : ne pas le ramener en bas
+            if not getattr(self, "_follow_chat_bottom", True):
+                return
             try:
                 canvas = self._get_parent_canvas() if hasattr(self, "_get_parent_canvas") else None
                 if canvas is not None:

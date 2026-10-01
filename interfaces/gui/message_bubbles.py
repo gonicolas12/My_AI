@@ -22,7 +22,6 @@ from core.rlhf_manager import get_rlhf_manager
 # Détection des artifacts (HTML/SVG rendables + documents produits) pour le
 # bouton « Aperçu » et l'ouverture automatique du volet.
 from interfaces.artifacts import artifacts_from_documents, detect_artifacts
-from ._wheel import wheel_notches
 
 # Délai avant l'ouverture automatique du volet : laisse la bulle finir son
 # layout, sinon le reflow provoqué par le volet la recalcule à mi-course.
@@ -514,31 +513,10 @@ class MessageBubblesMixin:
                     getattr(self, "_pending_document_paths", [])
                 )
 
-            # SOLUTION FINALE: Appliquer le scroll forwarding SUR LE CONTAINER !
-            def setup_container_scroll_forwarding(container):
-                """Configure le scroll forwarding sur le container IA pour égaler la vitesse utilisateur"""
-
-                def forward_from_container(event):
-                    try:
-                        if hasattr(self, "chat_frame") and self.use_ctk:
-                            canvas = self._get_parent_canvas()
-                            if not canvas:
-                                return
-                            if hasattr(event, "delta") and event.delta:
-                                # AMPLIFICATION 60x pour égaler la vitesse utilisateur
-                                scroll_delta = int(-1200 * wheel_notches(event))
-                            else:
-                                scroll_delta = -20 * 60
-                            canvas.yview_scroll(scroll_delta, "units")
-                        return "break"
-                    except Exception:
-                        return "break"
-
-                container.bind("<MouseWheel>", forward_from_container)
-                container.bind("<Button-4>", forward_from_container)
-                container.bind("<Button-5>", forward_from_container)
-
-            setup_container_scroll_forwarding(message_container)
+            # Molette sur le container (marges de la bulle IA) : même vitesse que
+            # le reste de la conversation. À x1200, un cran sautait plus d'un écran.
+            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                message_container.bind(sequence, self._scroll_chat_with_wheel)
 
             # Stocker le container pour l'affichage du timestamp
             self.current_message_container = message_container
@@ -598,32 +576,10 @@ class MessageBubblesMixin:
             # MAIS ON VA FORCER LA VITESSE A ÊTRE IDENTIQUE AUX USER !
             def setup_identical_scroll_to_user(text_widget_ia):
                 """SCROLL IDENTIQUE AUX BULLES USER - Version finale"""
-
-                def forward_user_style(event):
-                    try:
-                        if hasattr(self, "chat_frame") and self.use_ctk:
-                            canvas = self._get_parent_canvas()
-                            if not canvas:
-                                return
-                            if hasattr(event, "delta") and event.delta:
-                                scroll_delta = int(
-                                    -20 * wheel_notches(event)
-                                )  # EXACTEMENT comme USER
-                            elif hasattr(event, "num"):
-                                scroll_delta = (
-                                    -20 if event.num == 4 else 20
-                                )  # EXACTEMENT comme USER
-                            else:
-                                scroll_delta = -20
-                            canvas.yview_scroll(scroll_delta, "units")
-                    except Exception:
-                        pass
-                    return "break"
-
                 # Bindings IDENTIQUES aux USER
-                text_widget_ia.bind("<MouseWheel>", forward_user_style)
-                text_widget_ia.bind("<Button-4>", forward_user_style)
-                text_widget_ia.bind("<Button-5>", forward_user_style)
+                text_widget_ia.bind("<MouseWheel>", self._scroll_chat_with_wheel)
+                text_widget_ia.bind("<Button-4>", self._scroll_chat_with_wheel)
+                text_widget_ia.bind("<Button-5>", self._scroll_chat_with_wheel)
                 text_widget_ia.bind("<Up>", lambda e=None: "break")
                 text_widget_ia.bind("<Down>", lambda e=None: "break")
                 text_widget_ia.bind("<Prior>", lambda e=None: "break")
@@ -636,38 +592,10 @@ class MessageBubblesMixin:
             # SOLUTION DÉFINITIVE : Copier EXACTEMENT le système des bulles USER
             def apply_exact_user_scroll_system():
                 """Applique EXACTEMENT le même système que les bulles USER"""
-
-                def forward_scroll_to_page_ia(event):
-                    try:
-                        # Transférer le scroll à la zone de conversation principale
-                        if hasattr(self, "chat_frame"):
-                            # Pour CustomTkinter ScrollableFrame - SCROLL ULTRA RAPIDE
-                            canvas = self._get_parent_canvas()
-                            if canvas:
-                                # Amplifier le delta pour scroll ultra rapide (x20 plus rapide)
-                                if hasattr(event, "delta") and event.delta:
-                                    scroll_delta = int(
-                                        -20 * wheel_notches(event)
-                                    )  # 20x plus rapide qu'un cran simple
-                                elif hasattr(event, "num"):
-                                    scroll_delta = (
-                                        -20 if event.num == 4 else 20
-                                    )  # 20x plus rapide
-                                else:
-                                    scroll_delta = -20
-                                canvas.yview_scroll(scroll_delta, "units")
-                    except Exception:
-                        pass
-                    return "break"  # Empêcher le scroll local
-
                 # Appliquer le transfert de scroll EXACTEMENT comme USER
-                text_widget.bind("<MouseWheel>", forward_scroll_to_page_ia)
-                text_widget.bind(
-                    "<Button-4>", forward_scroll_to_page_ia
-                )  # Linux scroll up
-                text_widget.bind(
-                    "<Button-5>", forward_scroll_to_page_ia
-                )  # Linux scroll down
+                text_widget.bind("<MouseWheel>", self._scroll_chat_with_wheel)
+                text_widget.bind("<Button-4>", self._scroll_chat_with_wheel)  # Linux scroll up
+                text_widget.bind("<Button-5>", self._scroll_chat_with_wheel)  # Linux scroll down
 
                 # Désactiver toutes les autres formes de scroll EXACTEMENT comme USER
                 text_widget.bind("<Up>", lambda e=None: "break")
@@ -682,26 +610,10 @@ class MessageBubblesMixin:
             # FORCER L'APPLICATION APRÈS TOUS LES AUTRES SETUPS !
             def force_final_bindings():
                 """Force finale après que tout soit terminé"""
-
-                def final_scroll_handler(event):
-                    try:
-                        if hasattr(self, "chat_frame") and self.use_ctk:
-                            canvas = self._get_parent_canvas()
-                            if not canvas:
-                                return
-                            if hasattr(event, "delta") and event.delta:
-                                scroll_delta = int(-20 * wheel_notches(event))
-                            else:
-                                scroll_delta = -20
-                            canvas.yview_scroll(scroll_delta, "units")
-                    except Exception:
-                        pass
-                    return "break"
-
                 # Override avec force absolue
-                text_widget.bind("<MouseWheel>", final_scroll_handler, add=False)
-                text_widget.bind("<Button-4>", final_scroll_handler, add=False)
-                text_widget.bind("<Button-5>", final_scroll_handler, add=False)
+                text_widget.bind("<MouseWheel>", self._scroll_chat_with_wheel, add=False)
+                text_widget.bind("<Button-4>", self._scroll_chat_with_wheel, add=False)
+                text_widget.bind("<Button-5>", self._scroll_chat_with_wheel, add=False)
 
             # Appliquer après TOUS les autres setups (délais multiples)
             text_widget.after(200, force_final_bindings)
@@ -982,8 +894,8 @@ class MessageBubblesMixin:
                 line_count = int(text_widget.index("end-1c").split(".", maxsplit=1)[0])
                 text_widget.configure(height=max(1, line_count))
             text_widget.update_idletasks()
-            # Scroll automatique après ajustement
-            if hasattr(self, "_force_scroll_to_bottom"):
+            # Scroll automatique après ajustement (sauf si l'utilisateur lit plus haut)
+            if hasattr(self, "_force_scroll_to_bottom") and self._follow_chat_bottom:
                 self._force_scroll_to_bottom()
 
         text_widget.after(30, adjust_height_later)
@@ -1146,31 +1058,9 @@ class MessageBubblesMixin:
             message_container.grid(row=0, column=1, sticky="ew", padx=0, pady=(2, 2))
             message_container.grid_columnconfigure(0, weight=1)
 
-            # ⚡ SOLUTION: Appliquer le scroll forwarding SUR LE CONTAINER aussi ici !
-            def setup_container_scroll_forwarding_simple(container):
-                """Configure le scroll forwarding sur le container IA (version simple)"""
-
-                def forward_from_container(event):
-                    try:
-                        if hasattr(self, "chat_frame") and self.use_ctk:
-                            canvas = self._get_parent_canvas()
-                            if not canvas:
-                                return
-                            if hasattr(event, "delta") and event.delta:
-                                # AMPLIFICATION 60x pour égaler la vitesse utilisateur
-                                scroll_delta = int(-1200 * wheel_notches(event))
-                            else:
-                                scroll_delta = -20 * 60
-                            canvas.yview_scroll(scroll_delta, "units")
-                        return "break"
-                    except Exception:
-                        return "break"
-
-                container.bind("<MouseWheel>", forward_from_container)
-                container.bind("<Button-4>", forward_from_container)
-                container.bind("<Button-5>", forward_from_container)
-
-            setup_container_scroll_forwarding_simple(message_container)
+            # Molette sur le container : même vitesse que le reste de la conversation
+            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                message_container.bind(sequence, self._scroll_chat_with_wheel)
 
             # Stocker le container pour l'affichage du timestamp
             self.current_message_container = message_container
