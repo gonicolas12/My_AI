@@ -8,8 +8,8 @@ Ce guide explique comment utiliser les fonctionnalités avancées :
 2. [Training Manager](#-training-manager)
 3. [Compression Monitor](#-compression-monitor)
 4. [Intégration MCP (Model Context Protocol)](#-intégration-mcp)
-5. [ChatOrchestrator — Boucle Agentique Avancée](#-chatorchestrator--boucle-agentique-avancée-v670)
-6. [Modules v7.0.0](#-modules-v700)
+5. [ChatOrchestrator — Boucle Agentique Avancée](#-chatorchestrator--boucle-agentique-avancée)
+6. [Modules avancés](#-modules-avancés)
 
 ---
 
@@ -697,9 +697,9 @@ print(pad.to_context_block())  # Injecté dans le system prompt
 
 ---
 
-## 🆕 Modules v7.0.0
+## 🚀 Modules avancés
 
-La version 7.0.0 introduit 7 nouveaux modules avancés, tous optionnels et avec dégradation gracieuse si les dépendances sont manquantes.
+7 modules avancés, tous optionnels et avec dégradation gracieuse si les dépendances sont manquantes.
 
 ### 🌐 API REST Locale (`core/api_server.py`)
 

@@ -540,7 +540,7 @@ relay:
 
 ## 🧩 Extension VS Code
 
-**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Depuis la **v1.1.0**, elle ne se contente plus de relayer le chat : elle expose un **mode agentique façon [Claude Code](https://claude.ai/code)** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
+**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Elle ne se contente pas seulement de relayer le chat : elle expose un **mode agentique façon [Claude Code](https://claude.ai/code)** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
 
 ### Fonctionnement
 
