@@ -29,7 +29,9 @@ IS_MACOS = sys.platform == "darwin"
 # CREATE_NO_WINDOW n'existe que sous Windows (évite une console qui flashe)
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
+# 127.0.0.1 et non localhost : sous Windows, localhost essaie d'abord l'IPv6,
+# où Ollama n'écoute pas, et perd ≈ 2 s à chaque requête
+OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 
 
 def _ollama_is_running(timeout: float = 2.0) -> bool:

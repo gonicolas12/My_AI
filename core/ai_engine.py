@@ -2905,7 +2905,7 @@ Que voulez-vous que je fasse pour vous ?""",
         if llm is None:
             return False
         try:
-            url = getattr(llm, "ollama_url", "http://localhost:11434/api/generate")
+            url = getattr(llm, "ollama_url", "http://127.0.0.1:11434/api/generate")
             ping_url = url.replace("/api/generate", "")
             resp = _req.get(ping_url, timeout=2)
             alive = resp.status_code == 200

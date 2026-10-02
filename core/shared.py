@@ -72,11 +72,16 @@ def _load_embedding_model():
 
     try:
         print("📦 Chargement du modèle d'embeddings... (Mode offline)")
+        from huggingface_hub import snapshot_download  # pylint: disable=import-outside-toplevel
         from sentence_transformers import SentenceTransformer # pylint: disable=import-outside-toplevel
-        # local_files_only plutôt que HF_HUB_OFFLINE seul : huggingface_hub fige
-        # ce flag à son import (déjà fait par configure_network_environment),
-        # et sans lui un proxy TLS (Zscaler...) fait échouer un cache pourtant complet.
-        _SHARED_EMBEDDING_MODEL = SentenceTransformer(model_name, local_files_only=True)
+        # Chargé depuis le dossier du cache, sans aucune requête : HF_HUB_OFFLINE
+        # seul ne suffit pas (huggingface_hub le fige à son import, déjà fait par
+        # configure_network_environment), et même avec local_files_only,
+        # sentence-transformers 5 interroge encore le Hub pour le tokenizer. Un
+        # proxy TLS (Zscaler...) faisait alors échouer un cache pourtant complet.
+        model_path = (model_name if os.path.isdir(model_name)
+                      else snapshot_download(model_name, local_files_only=True))
+        _SHARED_EMBEDDING_MODEL = SentenceTransformer(model_path)
         _EMBEDDINGS_AVAILABLE = True
         print("✅ Modèle d'embeddings chargé depuis le cache")
         return _SHARED_EMBEDDING_MODEL, True

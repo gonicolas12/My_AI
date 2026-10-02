@@ -8,6 +8,7 @@ est absent ou incomplet.  Tout le code doit passer par get_config().
 
 import os
 from typing import Any, Dict
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
@@ -193,3 +194,23 @@ def get_config() -> Config:
 def get_default_model() -> str:
     """Retourne le modèle LLM local par défaut depuis config.yaml (llm.local.default_model)."""
     return get_config().get("llm.local.default_model", "qwen3.5:4b")
+
+
+def normalize_ollama_url(url: str) -> str:
+    """Remplace l'hôte « localhost » d'une adresse d'Ollama par 127.0.0.1.
+
+    Sous Windows, « localhost » essaie d'abord l'IPv6 (::1), où Ollama n'écoute
+    pas par défaut : chaque requête perdait ≈ 2 s avant de passer en IPv4. Le
+    config.yaml des utilisateurs (modifié par l'appli) garde donc « localhost » ;
+    toute autre adresse (Ollama sur une autre machine) reste telle quelle.
+    """
+    parts = urlsplit(url)
+    if (parts.hostname or "").lower() != "localhost":
+        return url
+    host_start = parts.netloc.rfind("@") + 1  # après d'éventuels identifiants
+    netloc = (
+        parts.netloc[:host_start]
+        + "127.0.0.1"
+        + parts.netloc[host_start + len("localhost"):]
+    )
+    return urlunsplit(parts._replace(netloc=netloc))

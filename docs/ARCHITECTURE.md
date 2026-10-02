@@ -468,7 +468,8 @@ Architecture:
 ```python
 Contenu:
 ├─ Modèle embeddings partagé (all-MiniLM-L6-v2)
-├─ Stratégie offline-first (HF_HUB_OFFLINE=1)
+├─ Offline-first : chargé depuis le dossier du cache, sans aucune requête au
+│  Hub ; téléchargé seulement s'il n'y est pas (premier lancement)
 └─ Évite de charger sentence_transformers 3× au démarrage
 ```
 
@@ -700,6 +701,9 @@ Architecture ML:
 │   └─ Comptage précis (vocabulaire aligné avec le LLM)
 ├─ Sentence-Transformers (all-MiniLM-L6-v2)
 │   └─ Embeddings 384 dimensions
+├─ CrossEncoder ms-marco-MiniLM-L-6-v2 (reranking)
+│   └─ Chargé une fois depuis le cache, sans requête au Hub, et partagé
+│      par toutes les instances (predict sérialisé entre threads)
 ├─ ChromaDB PersistentClient
 │   ├─ Collections: documents, conversations
 │   ├─ Backend: SQLite + Parquet
@@ -788,7 +792,8 @@ Organisation:
 **`models/local_llm.py`** - Gestionnaire Ollama
 ```python
 Architecture:
-├─ Connexion Ollama (http://localhost:11434)
+├─ Connexion Ollama (http://127.0.0.1:11434 ; « localhost » perdait ≈ 2 s
+│  par requête sous Windows, qui essaie d'abord l'IPv6)
 ├─ Vérification disponibilité serveur
 ├─ Détection modèle (my_ai → llama3 fallback)
 ├─ Génération de réponses via API

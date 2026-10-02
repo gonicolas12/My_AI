@@ -7,12 +7,14 @@ Supporte ChromaDB et FAISS, tokenization correcte (tiktoken), chiffrement AES-25
 import hashlib
 import os
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import huggingface_hub.constants as _hf_constants
 import transformers.utils.hub as _tf_hub
+from huggingface_hub import snapshot_download
 
 from core.config import get_config
 try:
@@ -63,6 +65,25 @@ try:
 except ImportError:
     CROSSENCODER_AVAILABLE = False
     print("⚠️ CrossEncoder non disponible (sentence-transformers requis)")
+
+# CrossEncoder partagé par toutes les instances (l'appli en crée plusieurs) :
+# chacune le rechargeait, en interrogeant le Hub (≈ 4 s et 30 requêtes).
+_SHARED_RERANKERS: Dict[str, "_SharedReranker"] = {}
+_RERANKER_LOCK = threading.Lock()
+
+
+class _SharedReranker:
+    """CrossEncoder partagé dont predict est sérialisé : son tokenizer ne
+    supporte pas deux appels simultanés depuis des threads différents."""
+
+    def __init__(self, model):
+        self._model = model
+        self._lock = threading.Lock()
+
+    def predict(self, *args, **kwargs):
+        with self._lock:
+            return self._model.predict(*args, **kwargs)
+
 
 try:
     import tiktoken
@@ -214,21 +235,33 @@ class VectorMemory:
         print(f"✅ VectorMemory initialisé (max: {max_tokens:,} tokens)")
 
     def _load_reranker(self):
+        """[OPTIM] Donne à l'instance le CrossEncoder partagé, chargé au premier besoin."""
+        reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        with _RERANKER_LOCK:
+            shared = _SHARED_RERANKERS.get(reranker_model)
+            if shared is None:
+                self._fetch_reranker(reranker_model)
+                if self.reranker is None:
+                    return  # pas de reranking ; nouvel essai à la prochaine instance
+                shared = _SHARED_RERANKERS[reranker_model] = _SharedReranker(self.reranker)
+            self.reranker = shared
+
+    def _fetch_reranker(self, reranker_model: str):
         """
         [OPTIM] Charge le CrossEncoder avec gestion offline identique à core.shared.
         1. Essaie en mode offline (cache local)
         2. Si échec, tente le téléchargement (premier lancement)
         3. Si pas de réseau → fallback sans reranking (graceful degradation)
         """
-        reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
         network_info = configure_network_environment()
         for warning in network_info.get("warnings", []):
             print(f"⚠️ [NETWORK] {warning}")
 
-        # Étape 1 : essayer depuis le cache (mode offline déjà activé par core.shared)
+        # Étape 1 : depuis le dossier du cache, sans aucune requête au Hub (même
+        # avec local_files_only, sentence-transformers 5 l'interroge encore pour
+        # le tokenizer) ; LocalEntryNotFoundError si le modèle n'y est pas
         try:
-            self.reranker = CrossEncoder(reranker_model)
+            self.reranker = CrossEncoder(snapshot_download(reranker_model, local_files_only=True))
             print("✅ CrossEncoder (ms-marco-MiniLM-L-6-v2) chargé pour reranking")
             return
         except Exception:

@@ -57,7 +57,8 @@ class LocalLLM:
     def __init__(
         self,
         model="my_ai",
-        ollama_url="http://localhost:11434/api/generate",
+        # 127.0.0.1 et non localhost : cf. core.config.normalize_ollama_url
+        ollama_url="http://127.0.0.1:11434/api/generate",
         timeout=None,
     ):
         # On essaie d'abord le modèle personnalisé 'my_ai', sinon fallback sur 'qwen3.5:4b'

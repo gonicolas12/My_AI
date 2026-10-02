@@ -605,11 +605,11 @@ def _resolve_ollama_base_url(engine: Any) -> str:
     Returns:
         URL de base Ollama (sans le chemin ``/api/*``).
     """
-    default_url = "http://localhost:11434"
+    default_url = "http://127.0.0.1:11434"
     try:
         llm = _resolve_local_llm(engine)
         if llm is not None and hasattr(llm, "ollama_url"):
-            # ollama_url est typiquement 'http://localhost:11434/api/generate'
+            # ollama_url est typiquement 'http://127.0.0.1:11434/api/generate'
             return llm.ollama_url.replace("/api/generate", "")
     except Exception:
         pass

@@ -40,13 +40,13 @@ MODEL_CHOICES = ["qwen3.5:2b", "qwen3.5:4b", "qwen3.5:9b"]
 
 # ── Helpers sans interface (testables) ───────────────────────────────────
 def _base_url() -> str:
-    """URL Ollama depuis config.yaml (fallback localhost)."""
+    """URL Ollama depuis config.yaml (fallback 127.0.0.1)."""
     try:
-        from core.config import get_config
-        url = get_config().get("llm.local.base_url", "http://localhost:11434")
-        return str(url).rstrip("/")
+        from core.config import get_config, normalize_ollama_url
+        url = get_config().get("llm.local.base_url", "http://127.0.0.1:11434")
+        return normalize_ollama_url(str(url).rstrip("/"))
     except Exception:
-        return "http://localhost:11434"
+        return "http://127.0.0.1:11434"
 
 
 def marker_path() -> Path:
