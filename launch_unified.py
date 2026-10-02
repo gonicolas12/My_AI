@@ -14,7 +14,14 @@ import sys
 import time
 from pathlib import Path
 
-import requests
+if __name__ == "__main__":
+    # Paquets ajoutés à requirements.txt depuis le dernier lancement (git pull) :
+    # installés avant les imports qui en ont besoin
+    from utils.requirements_sync import sync_requirements
+
+    sync_requirements()
+
+import requests  # pylint: disable=wrong-import-position
 
 IS_WINDOWS = sys.platform.startswith("win")
 IS_MACOS = sys.platform == "darwin"

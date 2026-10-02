@@ -14,6 +14,13 @@ from pathlib import Path
 # Ajout du répertoire courant au path Python
 sys.path.insert(0, str(Path(__file__).parent))
 
+if __name__ == "__main__":
+    # Paquets ajoutés à requirements.txt depuis le dernier lancement (git pull) :
+    # installés avant les imports qui en ont besoin
+    from utils.requirements_sync import sync_requirements
+
+    sync_requirements()
+
 # Permettre à Ollama de traiter plusieurs requêtes en parallèle
 os.environ.setdefault("OLLAMA_NUM_PARALLEL", "4")
 

@@ -1329,6 +1329,19 @@ utils/logger.py:
 ├─ Niveaux multiples
 └─ Output fichier + console
 
+utils/requirements_sync.py:
+├─ sync_requirements() : appelé tout en haut de launch_unified.py et main.py,
+│  avant les imports qui ont besoin des paquets (bibliothèque standard + packaging)
+├─ Installe avec pip les lignes de requirements.txt non satisfaites (paquet
+│  absent ou version hors bornes, marqueurs de plateforme évalués) : les
+│  dépendances ajoutées par un git pull arrivent au lancement suivant
+├─ Vérification refaite seulement si requirements.txt a changé (empreinte
+│  SHA-256 par interpréteur dans data/.requirements_sync.json) : 0,4 ms sinon
+├─ Une ligne qui échoue n'empêche pas les autres (nouvel essai ligne par ligne)
+│  et n'est retentée qu'au prochain changement du fichier
+├─ .dist-info vidés par une installation interrompue ignorés
+└─ Désactivation : MY_AI_SKIP_DEPS_SYNC=1 ; ignoré dans un exécutable figé
+
 utils/path_links.py:
 ├─ find_existing_paths(text) : plus long préfixe qui existe sur le disque
 │  (les chemins Windows contiennent des espaces)

@@ -367,7 +367,8 @@ my_ai/
 │   ├── file_processor.py                # Gestion traitement fichiers
 │   ├── intelligent_calculator.py        # Calculateur intelligent
 │   ├── logger.py                        # Gestion des logs
-│   └── path_links.py                    # Chemins de fichiers cliquables dans les réponses
+│   ├── path_links.py                    # Chemins de fichiers cliquables dans les réponses
+│   └── requirements_sync.py             # Installe au lancement les dépendances ajoutées (git pull)
 ├── main.py                              # Point d'entrée principal (CLI)
 ├── launch_unified.py                    # Point d'entrée GUI (lancé par launch.bat / launch.sh)
 ├── Modelfile                            # Configuration modèle Ollama
