@@ -35,6 +35,7 @@ plus une tentative de toast OS native (``winotify`` / ``plyer``, optionnels).
 import json
 import os
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -58,6 +59,12 @@ _WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
 _VALID_KINDS = ("single", "workflow", "debate")
 _VALID_SCHEDULE_TYPES = ("daily", "weekly", "interval", "cron")
+
+# Sous Windows, lire ou remplacer le fichier de verrou échoue parfois un instant
+# (PermissionError : remplacement en cours par un autre processus, antivirus,
+# indexation) : quelques nouvelles tentatives avant d'abandonner.
+_LOCK_IO_ATTEMPTS = 5
+_LOCK_IO_RETRY_SECONDS = 0.05
 
 
 # ======================================================================
@@ -834,19 +841,35 @@ class SchedulerService:
     # ------------------------------------------------------------------
 
     def _read_lock(self) -> Optional[Dict[str, Any]]:
-        try:
-            with open(self._lock_path, "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except (OSError, json.JSONDecodeError):
-            return None
+        for _ in range(_LOCK_IO_ATTEMPTS):
+            try:
+                with open(self._lock_path, "r", encoding="utf-8") as fh:
+                    return json.load(fh)
+            except PermissionError:
+                # Illisible un instant ≠ absent : sinon un autre scheduler
+                # prendrait un verrou pourtant détenu
+                time.sleep(_LOCK_IO_RETRY_SECONDS)
+            except (OSError, json.JSONDecodeError):
+                return None
+        return None
 
     def _write_lock(self) -> None:
         self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._lock_path.with_suffix(".lock.tmp")
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump({"owner": self._lock_id, "pid": os.getpid(),
-                       "heartbeat": datetime.now().isoformat()}, fh)
-        tmp.replace(self._lock_path)
+        # Fichier temporaire propre à l'instance : deux schedulers n'écrivent
+        # jamais le même
+        tmp = self._lock_path.with_name(f"{self._lock_path.name}.{self._lock_id}.tmp")
+        payload = {"owner": self._lock_id, "pid": os.getpid(),
+                   "heartbeat": datetime.now().isoformat()}
+        for attempt in range(_LOCK_IO_ATTEMPTS):
+            try:
+                with open(tmp, "w", encoding="utf-8") as fh:
+                    json.dump(payload, fh)
+                tmp.replace(self._lock_path)
+                return
+            except PermissionError:
+                if attempt == _LOCK_IO_ATTEMPTS - 1:
+                    raise
+                time.sleep(_LOCK_IO_RETRY_SECONDS)
 
     def _lock_held_by_other(self) -> bool:
         data = self._read_lock()
@@ -884,12 +907,18 @@ class SchedulerService:
 
     def _heartbeat_loop(self) -> None:
         interval = max(15, self.check_interval)
-        while not self._hb_stop.is_set() and self._have_lock:
-            try:
-                self._write_lock()
-            except OSError:
-                pass
-            self._hb_stop.wait(interval)
+        # _try_acquire_lock vient d'écrire le verrou : attendre avant de le
+        # rafraîchir. Écrire sous self._lock et seulement s'il est encore
+        # détenu : sinon une écriture en cours pendant _release_lock recréait
+        # le verrou d'une instance qui l'avait rendu.
+        while not self._hb_stop.wait(interval):
+            with self._lock:
+                if not self._have_lock:
+                    return
+                try:
+                    self._write_lock()
+                except OSError:
+                    pass
 
     def _release_lock(self) -> None:
         with self._lock:
