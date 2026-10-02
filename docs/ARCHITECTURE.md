@@ -219,6 +219,16 @@ Responsabilités:
 ├─ Initialisation de tous les modules
 ├─ Routage des requêtes selon intentions
 ├─ Gestion de session (documents, code, historique)
+├─ Texte des documents chargés dans le prompt : budget = 50 % de num_ctx
+│  (≈ 24 500 caractères pour 16 384 tokens), partagé entre documents ;
+│  au-delà, début du document + passages liés à la question par les mots et
+│  le sens (core/document_passages.py), sélection signalée au modèle
+├─ Garde-fou des réponses sur pièces jointes (_stream_document_answer) : le
+│  modèle demande parfois le fichier qu'il a déjà (≈ 1 réponse sur 30) ; un
+│  début en forme de refus est retenu jusqu'à la fin de sa première phrase ;
+│  un refus est coupé sans être affiché et la réponse redemandée une fois par
+│  un message de rappel, qui prolonge la conversation : Ollama reprend le
+│  prompt déjà calculé (quelques secondes au lieu de ≈ 2 min sur CPU)
 ├─ Coordination processeurs/générateurs
 ├─ Délégation tool-calling → ChatOrchestrator
 └─ Point d'entrée unique pour toutes les opérations
@@ -375,6 +385,50 @@ Rôle:
 ├─ Indexation incrémentale (manifeste last_modified + schéma de version)
 ├─ Hybride : voisins sémantiques + reranking CrossEncoder + filet lexical mot-exact + seuil
 └─ Filtres rôle / mot-clé / date ; exposé via AIEngine.get_conversation_search()
+```
+
+**`core/document_passages.py`** - Passages d'un long document selon la question
+```python
+Rôle:
+├─ select_passages(text, query, limit, similarity) : appelé par AIEngine quand
+│  un document chargé dépasse sa part du prompt
+├─ Passages d'≈ 1 000 caractères coupés sur les fins de ligne
+├─ Score des mots : BM25 sans accents, racine des mots (5 lettres), mots vides
+│  FR/EN, bonus pour deux mots de la question qui se suivent (« section 15 »),
+│  « rubrique » / « chapitre » = « section » (FDS françaises)
+├─ Score de sens (core/passage_embeddings.py) : relie une question et un
+│  passage de langues différentes (« gants » → « gloves ») ; les deux scores,
+│  ramenés entre 0 et 1, comptent à poids égal (mots seuls tant que le modèle
+│  n'est pas téléchargé)
+├─ Début du document + 3 meilleurs passages + leurs voisins + autres passages
+│  contenant des mots de la question, dans l'ordre du texte ; budget restant
+│  laissé vide (prompt plus court)
+├─ Aucun mot trouvé (« résume ce document ») → extraits répartis sur tout le texte
+└─ Mesuré sur 27 questions (FDS anglaise + FAQ française, petit budget) :
+   réponse dans les extraits 20/27 avec les mots seuls, 25/27 avec le sens
+```
+
+**`core/passage_embeddings.py`** - Modèle multilingue de la sélection des passages
+```python
+Modèle:
+├─ ibm-granite/granite-embedding-107m-multilingual (IBM, Apache 2.0), version
+│  figée (REVISION) ; 9 fichiers, 228 Mo (le dépôt contient aussi ONNX/PyTorch)
+├─ Choisi face à multilingual-e5-small (493 Mo) : même précision sur nos
+│  questions, 2 fois plus léger, 1,6 fois plus rapide sur CPU ;
+│  paraphrase-multilingual-MiniLM écarté (coupe à 128 tokens)
+Téléchargement:
+├─ prefetch_in_background() : thread démon lancé par launch_unified.py et
+│  main.py (modes interactifs) s'il manque un fichier dans le cache Hugging Face
+├─ hf_hub_download fichier par fichier, sans pool de threads : fermer l'app ne
+│  fige pas le terminal (reprise au lancement suivant), pas de WinError 1314
+│  (Windows sans droit de lien symbolique)
+├─ Échec réseau → message + aide proxy (core.network), nouvel essai au lancement suivant
+└─ Désactivation : optimization.rag.multilingual_passages: false (config.yaml)
+Utilisation:
+├─ similarities(query, passages) → cosinus ou None (absent, désactivé, inutilisable)
+├─ Chargement au premier long document (≈ 1 s, ≈ 430 Mo de RAM)
+└─ Vecteurs des passages en cache (4 096) : les questions suivantes sur le même
+   document n'encodent que la question
 ```
 
 **`core/folder_indexer.py`** - Contexte projet « @codebase »

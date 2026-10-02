@@ -11,6 +11,7 @@ import re as _re
 import tempfile
 import threading
 import shutil
+from functools import partial
 from pathlib import Path
 from datetime import datetime as _dt
 from typing import Any, Dict, List, Optional, Tuple
@@ -41,7 +42,9 @@ from utils.logger import setup_logger
 from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
+from .document_passages import select_passages
 from .mcp_client import MCPManager
+from .passage_embeddings import similarities as passage_similarities
 from .modelfile import with_modelfile
 from .platform_paths import PATH_EXAMPLES
 from .validation import validate_input
@@ -108,6 +111,83 @@ _RESEARCH_TOOLS = frozenset({
 _RESEARCH_CONTEXT_MAX = 8000
 # Nombre de sections du plan transmises à la synthèse pour présenter un document.
 _OUTLINE_MAX_SECTIONS = 12
+
+# Réponse sur une pièce jointe qui demande le fichier alors que son contenu est
+# déjà dans le prompt (qwen3.5:4b, ≈ 1 réponse sur 30, toujours dès la première
+# phrase : « j'ai besoin d'accéder au fichier… veuillez l'envoyer »). Sans faux
+# positif sur 76 réponses correctes (« ne partagez pas votre mot de passe »…).
+_ASKS_FOR_ATTACHMENT = _re.compile(
+    r"besoin d'acc[ée]der[^.?!]{0,40}(fichier|document|pdf|contenu)"
+    r"|(veuillez|pouvez[- ]vous|pourriez[- ]vous|peux[- ]tu|pourrais[- ]tu|merci de)[^.?!]{0,30}"
+    r"(envoyer|fournir|partager|transmettre|joindre|copier)[^.?!]{0,25}"
+    r"(fichier|document|pdf|contenu|texte)"
+    r"|copier[- ]coller (son|le|ce|votre) contenu"
+    r"|n'ai pas (acc[èe]s|re[çc]u)[^.?!]{0,30}(fichier|document|pdf|contenu)",
+    _re.IGNORECASE,
+)
+# Début de réponse retenu avant affichage : les refus commencent par « Pour
+# (mieux) répondre… », « Je ne peux… », « Désolé… ». Si les premiers
+# caractères n'ont pas cette forme (« Dans le document… », « Voici… »), tout
+# s'affiche aussitôt ; sinon, on attend la fin de la première phrase (après
+# au moins _GUARD_MIN_CHARS caractères) ou le plafond.
+_RISKY_OPENING = _re.compile(
+    r"\W*(pour|afin|avant|je ne|je n['’]|j['’]ai besoin|il me (faut|manque)|d[ée]sol[ée]"
+    r"|malheureusement|veuillez|pouvez|pourriez|merci|sans )",
+    _re.IGNORECASE,
+)
+_GUARD_PEEK_CHARS = 25
+_SENTENCE_END = _re.compile(r"[.!?:]\s|\n\n")
+_GUARD_MIN_CHARS = 40
+_GUARD_MAX_CHARS = 300
+# Message envoyé à la suite d'un tel refus pour régénérer la réponse. Un nouveau
+# message prolonge la conversation : Ollama reprend le prompt déjà calculé
+# (≈ 4 s sur CPU avec qwen3.5:4b, contre ≈ 32 s si la question était réécrite
+# avec ce rappel et ≈ 2 min sans cache).
+_ATTACHMENT_REMINDER = (
+    "Le contenu complet du fichier joint est déjà dans ton contexte, plus haut : "
+    "réponds à ma question à partir de lui, sans demander le fichier."
+)
+
+
+class _FirstSentenceGuard:
+    """Retient le début d'une réponse sur des pièces jointes avant de l'afficher.
+
+    Appelé à la place de on_token. Un début en forme de refus est retenu
+    jusqu'à la fin de sa première phrase ; si celle-ci demande le fichier joint
+    (_ASKS_FOR_ATTACHMENT), il renvoie False : generate_stream coupe la
+    génération et rien n'a été affiché.
+    """
+
+    def __init__(self, on_token):
+        self._on_token = on_token
+        self._text = ""
+        self.released = False
+        self.rejected = False
+
+    def __call__(self, token):
+        if self.released:
+            return self._on_token(token) if self._on_token else None
+        self._text += token
+        if _ASKS_FOR_ATTACHMENT.search(self._text):
+            self.rejected = True
+            return False
+        if len(self._text) < _GUARD_PEEK_CHARS:
+            return None
+        if not _RISKY_OPENING.match(self._text):
+            return self.release()  # début sans rapport avec un refus : afficher sans attendre
+        sentence_done = _SENTENCE_END.search(self._text, _GUARD_MIN_CHARS)
+        if sentence_done or len(self._text) >= _GUARD_MAX_CHARS:
+            return self.release()
+        return None
+
+    def release(self):
+        """Affiche le début retenu (première phrase, ou toute la réponse si plus courte)."""
+        if self.released or self.rejected:
+            return None
+        self.released = True
+        if self._on_token and self._text:
+            return self._on_token(self._text)
+        return None
 
 
 def _document_success_message(result: Dict[str, Any]) -> str:
@@ -763,6 +843,7 @@ class AIEngine:
         # ----------------------------------------------------------------
         def read_local_file(path: str) -> str:
             """Lit le contenu d'un fichier local (PDF, DOCX, code, texte)."""
+            limit = self._document_char_budget()
             # Vérifier d'abord la mémoire interne (documents déjà chargés en session)
             file_name = Path(path).name
             try:
@@ -772,20 +853,20 @@ class AIEngine:
                     if file_name in stored:
                         content = stored[file_name].get("content", "")
                         if content:
-                            return content[:8000]
+                            return self._clip_document(content, limit)
                     # Correspondance insensible à la casse
                     file_name_lower = file_name.lower()
                     for stored_name, stored_data in stored.items():
                         if stored_name.lower() == file_name_lower:
                             content = stored_data.get("content", "")
                             if content:
-                                return content[:8000]
+                                return self._clip_document(content, limit)
                     # Dernier recours : un seul document en mémoire → le retourner
                     if len(stored) == 1:
                         only_doc = next(iter(stored.values()))
                         content = only_doc.get("content", "")
                         if content:
-                            return content[:8000]
+                            return self._clip_document(content, limit)
                     # Plusieurs documents sans correspondance → signaler à l'IA
                     doc_list = ", ".join(stored.keys())
                     return (
@@ -803,12 +884,13 @@ class AIEngine:
             try:
                 if ext == ".pdf":
                     text = self.pdf_processor.extract_text(str(fpath))
-                    return text[:8000]
+                    return self._clip_document(text, limit)
                 elif ext in (".docx", ".doc"):
                     result = self.docx_processor.extract_text(str(fpath))
-                    return result.get("content", "")[:8000]
+                    return self._clip_document(result.get("content", ""), limit)
                 else:
-                    return fpath.read_text(encoding="utf-8", errors="replace")[:8000]
+                    text = fpath.read_text(encoding="utf-8", errors="replace")
+                    return self._clip_document(text, limit)
             except Exception as exc:
                 return f"Erreur lecture fichier : {exc}"
 
@@ -1936,8 +2018,10 @@ Que voulez-vous que je fasse pour vous ?""",
                 full_context["document_order"] = (
                     self.local_ai.conversation_memory.document_order
                 )
-                self.logger.info(
-                    "Contexte enrichi avec %d documents stockés", len(stored_docs)
+                # Documents en mémoire, pas forcément envoyés au modèle : le nombre
+                # réellement envoyé est journalisé par _document_sections
+                self.logger.debug(
+                    "%d document(s) en mémoire de session", len(stored_docs)
                 )
 
         return full_context
@@ -2321,6 +2405,107 @@ Que voulez-vous que je fasse pour vous ?""",
         # Si aucune correspondance → retourner tous les documents (pas de filtre)
         return matched if matched else stored_documents
 
+    # Part de la fenêtre de contexte (num_ctx) laissée au texte des documents ;
+    # le reste va aux consignes, à l'historique et à la réponse
+    _DOC_CONTEXT_SHARE = 0.5
+    # Estimation basse du nombre de caractères par token (texte français)
+    _DOC_CHARS_PER_TOKEN = 3
+
+    def _document_char_budget(self) -> int:
+        """Nombre de caractères de documents qui tiennent dans le prompt."""
+        llm = getattr(self.local_ai, "local_llm", None)
+        num_ctx = getattr(llm, "gen_num_ctx", None) or 16384
+        return int(num_ctx * self._DOC_CONTEXT_SHARE * self._DOC_CHARS_PER_TOKEN)
+
+    @staticmethod
+    def _clip_document(content: str, limit: int) -> str:
+        """Coupe un document à `limit` caractères en le signalant au modèle.
+
+        Sans cette mention, le modèle affirme que la suite n'existe pas
+        (« le document se termine à la section 14 »).
+        """
+        if len(content) <= limit:
+            return content
+        return (
+            f"{content[:limit]}\n[… Document tronqué : {len(content) - limit} caractères "
+            f"sur {len(content)} ne sont pas affichés. Si la question porte sur une partie "
+            "absente de cet extrait, dis-le au lieu d'affirmer qu'elle n'existe pas.]"
+        )
+
+    def _document_sections(self, query: str, stored_documents: dict) -> List[str]:
+        """Sections « === nom === » des documents pertinents, dans le budget du prompt.
+
+        Le budget est partagé : les documents courts passent en entier, le
+        reste revient aux plus longs. Un document qui dépasse sa part est
+        réduit au début et aux passages proches de la question, par les mots
+        et par le sens (modèle multilingue, s'il est téléchargé).
+        """
+        docs = {}
+        for doc_name, doc_data in self._select_relevant_docs(query, stored_documents).items():
+            doc_content = (
+                doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
+            )
+            if doc_content:
+                docs[doc_name] = doc_content
+
+        # Ce qui part réellement au modèle (la mémoire peut garder d'autres
+        # documents : absents de la conversation affichée, ou non désignés)
+        skipped = sorted(set(stored_documents) - set(docs))
+        self.logger.info(
+            "📄 Documents envoyés au modèle : %d sur %d en mémoire%s",
+            len(docs), len(stored_documents),
+            f" (non envoyés : {', '.join(skipped)})" if skipped else "",
+        )
+
+        remaining = self._document_char_budget()
+        limits = {}
+        for i, (doc_name, doc_content) in enumerate(sorted(docs.items(), key=lambda d: len(d[1]))):
+            limits[doc_name] = min(len(doc_content), remaining // (len(docs) - i))
+            remaining -= limits[doc_name]
+
+        return [
+            f"=== {doc_name} ===\n"
+            + select_passages(doc_content, query, limits[doc_name], passage_similarities)
+            for doc_name, doc_content in docs.items()
+        ]
+
+    def _stream_document_answer(self, llm, prompt: str, system_prompt: str, **stream_kwargs) -> str:
+        """Réponse en streaming à une question sur des pièces jointes, avec garde-fou.
+
+        Le modèle demande parfois d'envoyer un fichier dont le contenu est déjà
+        dans son prompt, et toujours dès sa première phrase. Celle-ci est donc
+        retenue avant affichage (_FirstSentenceGuard) ; si c'est un tel refus,
+        la génération est coupée sans que rien n'ait été vu, puis la réponse
+        est redemandée une fois par un message de rappel. Le refus coupé et ce
+        rappel restent dans l'historique du modèle (pas dans la conversation
+        affichée) : c'est ce qui permet à Ollama de reprendre le prompt calculé.
+        """
+        on_token = stream_kwargs.pop("on_token", None)
+        guard = _FirstSentenceGuard(on_token)
+        response = llm.generate_stream(
+            prompt=prompt, system_prompt=system_prompt, on_token=guard, **stream_kwargs
+        )
+        if not guard.rejected:
+            guard.release()  # réponse plus courte qu'une phrase
+            return response
+        is_interrupted = stream_kwargs.get("is_interrupted_callback")
+        if is_interrupted and is_interrupted():
+            return ""  # arrêt demandé : rien n'a été affiché
+
+        self.logger.warning(
+            "🔁 Réponse écartée (le modèle demandait le fichier joint, déjà fourni) : "
+            "nouvelle génération"
+        )
+        # Le raisonnement a déjà été affiché et clos lors du premier essai
+        stream_kwargs.pop("on_thinking_token", None)
+        stream_kwargs.pop("on_thinking_complete", None)
+        return llm.generate_stream(
+            prompt=_ATTACHMENT_REMINDER,
+            system_prompt=system_prompt,
+            on_token=on_token,
+            **stream_kwargs,
+        )
+
     async def _handle_with_mcp_tools(
         self,
         query: str,
@@ -2355,12 +2540,7 @@ Que voulez-vous que je fasse pour vous ?""",
             # Ajouter le contexte des documents chargés si disponible
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
-                relevant_docs = self._select_relevant_docs(query, full_context["stored_documents"])
-                doc_sections = []
-                for doc_name, doc_data in relevant_docs.items():
-                    doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
-                    if doc_content:
-                        doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
+                doc_sections = self._document_sections(query, full_context["stored_documents"])
                 if doc_sections:
                     # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
                     # Vider tools pour forcer une réponse directe sans appel d'outil.
@@ -2427,12 +2607,7 @@ Que voulez-vous que je fasse pour vous ?""",
 
             full_context = self._prepare_context(query, context)
             if full_context.get("stored_documents"):
-                relevant_docs = self._select_relevant_docs(query, full_context["stored_documents"])
-                doc_sections = []
-                for doc_name, doc_data in relevant_docs.items():
-                    doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
-                    if doc_content:
-                        doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
+                doc_sections = self._document_sections(query, full_context["stored_documents"])
                 if doc_sections:
                     # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
                     # Vider tools pour forcer une réponse directe sans appel d'outil.
@@ -2870,18 +3045,15 @@ Que voulez-vous que je fasse pour vous ?""",
             system_prompt = self._inject_codebase_context(user_input, system_prompt)
 
             # Ajouter le contexte des documents chargés
+            documents_injected = False
             full_context = self._prepare_context(user_input, context)
             if full_context.get("stored_documents"):
-                relevant_docs = self._select_relevant_docs(user_input, full_context["stored_documents"])
-                doc_sections = []
-                for doc_name, doc_data in relevant_docs.items():
-                    doc_content = doc_data.get("content", "") if isinstance(doc_data, dict) else str(doc_data)
-                    if doc_content:
-                        doc_sections.append(f"=== {doc_name} ===\n{doc_content[:8000]}")
+                doc_sections = self._document_sections(user_input, full_context["stored_documents"])
                 if doc_sections:
                     # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
                     # Vider tools pour forcer une réponse directe sans appel d'outil.
                     tools = []
+                    documents_injected = True
                     system_prompt += (
                         "\n\nContenu des documents chargés par l'utilisateur "
                         "(disponible comme contexte — utilise ces données si la question porte sur ce contenu, sinon réponds normalement depuis tes connaissances) :\n"
@@ -2922,7 +3094,12 @@ Que voulez-vous que je fasse pour vous ?""",
                                 i += 2
                             else:
                                 i += 1
-                            pairs.append((u_text, a_text))
+                            if u_text == _ATTACHMENT_REMINDER and pairs:
+                                # Nouvel essai de _stream_document_answer : l'utilisateur
+                                # n'a vu ni le refus coupé ni ce rappel, seulement la réponse
+                                pairs[-1] = (pairs[-1][0], a_text)
+                            else:
+                                pairs.append((u_text, a_text))
                         else:
                             i += 1
                     for u, a in pairs[-20:]:
@@ -3059,8 +3236,13 @@ Que voulez-vous que je fasse pour vous ?""",
                 if retry:
                     return retry
             else:
-                # Fallback si aucun outil n'est disponible
-                response = llm.generate_stream(
+                # Fallback si aucun outil n'est disponible ; avec des pièces
+                # jointes, garde-fou contre « envoyez-moi le fichier »
+                generate = (
+                    partial(self._stream_document_answer, llm)
+                    if documents_injected else llm.generate_stream
+                )
+                response = generate(
                     prompt=effective_input,
                     system_prompt=system_prompt,
                     on_token=on_token,

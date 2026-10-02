@@ -182,6 +182,8 @@ except Exception:
 # Import - core.shared gère le chargement du modèle d'embeddings
 from interfaces.gui_modern import \
     ModernAIGUI  # pylint: disable=wrong-import-position
+from core.passage_embeddings import \
+    prefetch_in_background  # pylint: disable=wrong-import-position
 
 # Ajouter le répertoire parent au chemin
 sys.path.insert(0, str(Path(__file__).parent))
@@ -191,6 +193,10 @@ def main():
     print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v8.1.0\n")
     print("=" * 50)
     print()
+
+    # Modèle multilingue des longs documents : téléchargé en arrière-plan s'il
+    # manque (premier lancement, ou mise à jour qui l'introduit)
+    prefetch_in_background()
 
     # S'assurer qu'Ollama tourne avec le bon parallélisme
     _ensure_ollama_parallel()

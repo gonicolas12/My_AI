@@ -214,6 +214,7 @@ my_ai/
 │   ├── conversation.py                  # Gestion des conversations
 │   ├── conversation_search.py           # Recherche sémantique globale cross-conversations
 │   ├── data_preprocessing.py            # Prétraitement des données
+│   ├── document_passages.py             # Passages d'un long document selon la question
 │   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
 │   ├── evaluation.py                    # Évaluation des performances
 │   ├── folder_indexer.py                # Indexeur incrémental de dossier rattaché au workspace
@@ -224,6 +225,7 @@ my_ai/
 │   ├── modelfile.py                     # SYSTEM du Modelfile en tête des prompts système
 │   ├── network.py                       # Gestion des connexions réseau et proxys
 │   ├── optimization.py                  # Optimisation des performances
+│   ├── passage_embeddings.py            # Modèle multilingue des passages (téléchargé au lancement)
 │   ├── platform_paths.py                # Exemples de chemins adaptés à l'OS (prompts)
 │   ├── prompt_library.py                # Bibliothèque de prompts / slash commands
 │   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)

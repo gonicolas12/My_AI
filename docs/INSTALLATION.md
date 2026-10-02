@@ -128,6 +128,43 @@ python main.py --mode gui
 python main.py
 ```
 
+### 5. Mises à jour (`git pull`)
+
+```bash
+git pull
+.\launch.bat            # ou ./launch.sh, python launch_unified.py, python main.py
+```
+
+Inutile de relancer `pip install -r requirements.txt` : au démarrage, My_AI
+installe les paquets de `requirements.txt` qui manquent ou dont la version ne
+convient plus (par exemple `rapidocr` pour l'OCR), sans toucher aux autres.
+
+- La vérification n'est refaite que si `requirements.txt` a changé depuis le
+  dernier lancement où tout était en place : un lancement ordinaire n'est pas ralenti.
+- Un paquet dont l'installation échoue est signalé avec la commande qui affiche
+  l'erreur, et n'est retenté qu'au prochain changement du fichier.
+- Pour désactiver : variable d'environnement `MY_AI_SKIP_DEPS_SYNC=1`.
+
+**Modèles téléchargés au premier lancement** (une seule fois, dans le cache
+Hugging Face) :
+
+| Modèle | Taille | Usage |
+|---|---|---|
+| `all-MiniLM-L6-v2` | 90 Mo | Mémoire et recherche sémantique |
+| `granite-embedding-107m-multilingual` (IBM, Apache 2.0) | 228 Mo | Passages des longs documents, y compris quand la question et le document ne sont pas dans la même langue |
+
+Le second se télécharge en arrière-plan, au premier lancement comme au premier
+lancement après la mise à jour qui l'introduit. L'app reste utilisable pendant
+ce temps (passages choisis par mots-clés), et un téléchargement interrompu par
+la fermeture de l'app reprend au lancement suivant. Pour s'en passer :
+
+```yaml
+# config.yaml
+optimization:
+  rag:
+    multilingual_passages: false
+```
+
 ## 📦 Dépendances Principales
 
 ### Core Dependencies (Requis)

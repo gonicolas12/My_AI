@@ -34,6 +34,7 @@ except Exception:
 
 from interfaces.cli import CLIInterface  # pylint: disable=wrong-import-position
 from core.ai_engine import AIEngine  # pylint: disable=ungrouped-imports wrong-import-position
+from core.passage_embeddings import prefetch_in_background  # pylint: disable=wrong-import-position
 from utils.logger import setup_logger  # pylint: disable=wrong-import-position
 
 
@@ -350,7 +351,9 @@ async def main():
             await handle_generate_command(args.type, args.description, args.output)
 
         else:
-            # Mode interactif
+            # Mode interactif : modèle multilingue des longs documents téléchargé
+            # en arrière-plan s'il manque
+            prefetch_in_background()
             if args.mode == "cli":
                 cli = CLIInterface()
                 await cli.run()
