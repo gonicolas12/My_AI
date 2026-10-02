@@ -142,8 +142,9 @@ python-dotenv>=1.0.0      # Environment variables
 
 ### Document Processing (Requis)
 ```
-PyMuPDF>=1.23.0          # PDF processing (primaire)
+PyMuPDF>=1.24.3          # PDF processing (primaire)
 PyPDF2>=3.0.0            # PDF processing (fallback)
+rapidocr>=3.9.2          # OCR des PDF scannés (hors ligne)
 python-docx>=0.8.11      # DOCX processing + génération
 openpyxl>=3.1.0          # Excel files (lecture + génération)
 python-pptx>=0.6.21      # PowerPoint files (lecture + génération)
@@ -684,12 +685,12 @@ rm -rf venv && python3 -m venv venv
 
 ### Problème: PyMuPDF installation failed
 
-**Erreur:** Problème compilation PyMuPDF/fitz
+**Erreur:** Problème compilation PyMuPDF
 
 **Solutions:**
 ```bash
 # Essayer version spécifique
-pip install PyMuPDF==1.23.8
+pip install PyMuPDF==1.28.2
 
 # OU utiliser wheel pre-compilé
 pip install --upgrade pip

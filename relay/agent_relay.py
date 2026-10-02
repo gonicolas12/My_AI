@@ -36,10 +36,7 @@ from models.ai_agents import AVAILABLE_AGENTS, AIAgent
 from models.local_llm import LocalLLM
 from utils.logger import setup_logger
 
-from processors.pdf_processor import PDFProcessor
-from processors.docx_processor import DOCXProcessor
-from processors.excel_processor import ExcelProcessor
-from processors.pptx_processor import PPTXProcessor
+from processors.attachments import read_attachment_text
 
 try:
     from core.config import get_default_model as _get_default_model
@@ -495,37 +492,17 @@ class AgentRelayService:
 
     @staticmethod
     def _read_attached_file(file_path: str) -> str:
-        """Lit le contenu textuel d'un fichier joint (PDF/DOCX/Excel/code/texte).
+        """Lit le contenu textuel d'un fichier joint (PDF/DOCX/Excel/PowerPoint/code/texte).
 
-        Réplique `interfaces/agents/file_handling.py:_read_attached_file` en
-        ajoutant la prise en charge d'Excel/CSV via ExcelProcessor.
+        Même lecture que la page Agents du GUI (`processors.attachments`). Un
+        document illisible devient « [Erreur de lecture : …] », comme dans le
+        GUI, et jamais ses octets bruts.
         """
-        ext = os.path.splitext(file_path)[1].lower()
         try:
-            if ext == ".pdf":
-                return PDFProcessor().process_file(file_path).get("content", "")
-            if ext in (".docx", ".doc"):
-                return DOCXProcessor().process_file(file_path).get("content", "")
-            if ext in (".xlsx", ".xls", ".csv"):
-                res = ExcelProcessor().extract_text(file_path)
-                if res.get("success"):
-                    return res.get("content", "")
-            if ext in (".pptx", ".potx"):
-                res = PPTXProcessor().extract_text(file_path)
-                if res.get("success"):
-                    return res.get("content", "")
+            return read_attachment_text(file_path)
         except Exception as exc:
             logger.warning("Lecture %s échouée : %s", file_path, exc)
-        # Texte / code / markdown — lecture directe (limite 200k chars)
-        try:
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read(200_000)
-        except Exception:
-            try:
-                with open(file_path, "rb") as f:
-                    return f.read(100_000).decode("utf-8", errors="replace")
-            except Exception as exc:
-                return f"[Erreur de lecture : {exc}]"
+            return f"[Erreur de lecture : {exc}]"
 
     def _describe_image(self, image_path: str) -> str:
         """Décrit une image via le modèle vision (même pipeline que le GUI)."""

@@ -7,8 +7,18 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-import fitz  # PyMuPDF
-import PyPDF2
+# Bibliothèques optionnelles : read_pdf utilise la première disponible
+try:
+    import pymupdf
+except ImportError:  # absent, ou PyMuPDF < 1.24.3 (module encore nommé fitz)
+    pymupdf = None
+
+try:
+    import PyPDF2
+except ImportError:
+    PyPDF2 = None
+
+from processors.ocr import OcrInterrupted, ocr_available, ocr_page
 
 
 class PDFProcessor:
@@ -27,18 +37,8 @@ class PDFProcessor:
         """
         Vérifie la disponibilité des bibliothèques PDF
         """
-        self.pymupdf_available = False
-        self.pypdf2_available = False
-
-        try:
-            self.pymupdf_available = True
-        except ImportError:
-            pass
-
-        try:
-            self.pypdf2_available = True
-        except ImportError:
-            pass
+        self.pymupdf_available = pymupdf is not None
+        self.pypdf2_available = PyPDF2 is not None
 
     def read_pdf(self, file_path: str) -> Dict[str, Any]:
         """
@@ -68,22 +68,30 @@ class PDFProcessor:
         Lit un PDF avec PyMuPDF (recommandé)
         """
         try:
-            doc = fitz.open(file_path)
+            doc = pymupdf.open(file_path)
             content = {
                 "text": "",
                 "pages": [],
-                "metadata": doc.metadata,
+                "metadata": doc.metadata,  # pylint: disable=no-member  # attribut dynamique
                 "page_count": len(doc),
             }
 
+            ocr_pages = 0
             for page_num, page in enumerate(doc):
                 page_text = page.get_text()
+
+                # Page sans couche texte (scan, PDF d'images) : OCR
+                is_ocr = not page_text.strip() and ocr_available()
+                if is_ocr:
+                    page_text = ocr_page(page)
+                    ocr_pages += 1
 
                 content["pages"].append(
                     {
                         "page_number": page_num + 1,
                         "text": page_text,
                         "word_count": len(page_text.split()),
+                        "ocr": is_ocr,
                     }
                 )
                 content["text"] += page_text + "\n"
@@ -97,9 +105,13 @@ class PDFProcessor:
                     "path": file_path,
                     "size": os.path.getsize(file_path),
                     "processor": "PyMuPDF",
+                    "ocr_pages": ocr_pages,
                 },
             }
 
+        except OcrInterrupted:
+            # Pièce jointe retirée : remonter tel quel, sans repli sur PyPDF2
+            raise
         except Exception as e:
             return {"error": f"Erreur PyMuPDF: {str(e)}", "content": ""}
 
@@ -167,7 +179,7 @@ class PDFProcessor:
         """
         try:
             result = self.read_pdf(file_path)
-            if result["success"]:
+            if result.get("success"):
                 return result["content"]["text"]
             raise ValueError(result.get("error", "Erreur inconnue"))
         except Exception as e:

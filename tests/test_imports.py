@@ -4,6 +4,8 @@
 Vérifie que tous les modules principaux peuvent être importés correctement
 """
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -61,6 +63,23 @@ def test_imports():
     else:
         print("\n🎉 TOUS LES IMPORTS FONCTIONNENT !")
         return True
+
+def test_agents_package_imports_on_its_own():
+    """interfaces.agents importé en premier, sans interfaces.gui : pas d'import circulaire.
+
+    Interpréteur neuf : dans ce processus, interfaces.gui est souvent déjà
+    chargé par d'autres tests, ce qui masquerait le cycle.
+    """
+    run = subprocess.run(
+        [sys.executable, "-c", "import interfaces.agents"],
+        cwd=project_root,
+        capture_output=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        timeout=300,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr[-3000:]
 
 if __name__ == "__main__":
     SUCCESS = test_imports()

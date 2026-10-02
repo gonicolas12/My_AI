@@ -23,6 +23,13 @@ try:
 except Exception:
     _pptx_proc = None
 
+try:
+    from processors.ocr import MISSING_OCR_HINT, ocr_available
+    from processors.pdf_processor import PDFProcessor as _PdfProc
+    _pdf_proc = _PdfProc()
+except Exception:
+    _pdf_proc = None
+
 
 class FileProcessor:
     """Processeur de fichiers pour documents"""
@@ -126,7 +133,24 @@ class FileProcessor:
             return {"error": f"Erreur d'accès au fichier JSON: {str(e)}"}
 
     def _process_pdf_file(self, path: Path) -> Dict[str, Any]:
-        """Traite un fichier PDF (nécessite PyPDF2 ou pdfplumber)"""
+        """Traite un fichier PDF : PDFProcessor (PyMuPDF, OCR des pages scannées),
+        sinon PyPDF2 ou pdfplumber"""
+        if _pdf_proc is not None:
+            result = _pdf_proc.read_pdf(str(path))
+            if result.get("success"):
+                content = result["content"]["text"]
+                if not content.strip() and not ocr_available():
+                    return {"error": MISSING_OCR_HINT}
+                return {
+                    "type": "pdf",
+                    "name": path.name,
+                    "content": content,
+                    "pages": result["content"]["page_count"],
+                    "size": len(content),
+                    "extractor": result["file_info"]["processor"],
+                    "ocr_pages": result["file_info"].get("ocr_pages", 0),
+                }
+
         try:
             # Essayer avec PyPDF2
             try:

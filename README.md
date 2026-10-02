@@ -338,9 +338,11 @@ my_ai/
 │   └── exports/                         # Conversations exportées (MD/HTML/PDF)
 ├── processors/                          # Processeurs de fichiers
 │   ├── __init__.py
+│   ├── attachments.py                   # Lecture des pièces jointes des agents (GUI + mobile)
 │   ├── code_processor.py                # Traitement de code avec analyse sémantique
 │   ├── docx_processor.py                # Traitement DOCX avec compression
 │   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
+│   ├── ocr.py                           # OCR des pages PDF scannées (RapidOCR)
 │   ├── path_resolution.py               # Résolution des chemins OneDrive (partagée docx/pptx)
 │   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
 │   └── pptx_processor.py                # Lecture PowerPoint (titres, puces, tableaux, notes)

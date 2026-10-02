@@ -42,8 +42,6 @@ except ImportError:
         "placeholder": "#6b7280",
     }
 
-from interfaces.agents_interface import AgentsInterface
-
 
 class LayoutMixin:
     """Layout and window setup methods."""
@@ -194,6 +192,12 @@ class LayoutMixin:
         agents_frame.grid_rowconfigure(0, weight=1)
 
         self.tab_frames["agents"] = agents_frame
+
+        # Import différé : les mixins de interfaces.agents importent des modules
+        # de interfaces.gui, dont le __init__ charge ce fichier (import circulaire)
+        from interfaces.agents_interface import (  # pylint: disable=import-outside-toplevel
+            AgentsInterface,
+        )
 
         # Créer l'interface agents
         self.agents_interface = AgentsInterface(

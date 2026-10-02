@@ -28,9 +28,12 @@ cloudscraper
 # TRAITEMENT DE DOCUMENTS
 # ====================================
 # PDF
-PyMuPDF>=1.23.0
+PyMuPDF>=1.24.3
 PyPDF2>=3.0.0
 pdfplumber
+
+# OCR des PDF scannés (modèles ONNX inclus, fonctionne hors ligne)
+rapidocr>=3.9.2
 
 # Word/DOCX
 python-docx>=0.8.11

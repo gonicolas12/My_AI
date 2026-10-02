@@ -841,11 +841,12 @@ base_ai.py:
 **`processors/pdf_processor.py`**
 ```python
 Librairies:
-├─ PyMuPDF (fitz) - Primaire (recommandé)
+├─ PyMuPDF (pymupdf) - Primaire (recommandé)
 └─ PyPDF2 - Fallback
 
 Processing:
 ├─ Extraction texte page par page
+├─ OCR des pages sans couche texte (processors/ocr.py)
 ├─ Extraction metadata
 ├─ Extraction images
 ├─ Chunking documents larges
@@ -911,6 +912,29 @@ Output:
   "total_rows": int,
   "processor": "openpyxl|xlrd|csv-stdlib"
 }
+```
+
+**`processors/attachments.py`**
+```python
+Pièces jointes des agents (page Agents du GUI + Relay mobile):
+├─ read_attachment_text(file_path, file_type="") → texte
+├─ PDF → PDFProcessor, DOCX → DOCXProcessor, PPTX/POTX → PPTXProcessor
+├─ XLSX/XLS/CSV → ExcelProcessor
+├─ Autres fichiers (code, texte, markdown) → lecture directe (200 000 caractères max)
+└─ Document illisible ou PDF sans texte reconnu → ValueError (jamais d'octets bruts dans le prompt)
+```
+
+**`processors/ocr.py`**
+```python
+OCR des pages PDF scannées (PDF d'images, sans couche texte):
+├─ RapidOCR : modèles ONNX inclus dans le paquet, hors ligne, accents français
+├─ ocr_page(page) : page PyMuPDF rendue à 200 dpi puis reconnue
+├─ Appelé par PDFProcessor pour chaque page sans texte (chat, agents, indexation RAG)
+├─ Cache par fichier + date de modification + page (le chat lit chaque PDF deux fois)
+├─ interruptible(cancel) : dans ce bloc et ce thread, OcrInterrupted avant la page
+│  suivante dès que cancel est levé (pièce jointe retirée pendant sa lecture) ;
+│  PDFProcessor la laisse remonter, sans repli sur PyPDF2 ni pdfplumber
+└─ rapidocr absent → MISSING_OCR_HINT au lieu de « vide ou illisible »
 ```
 
 **`processors/code_processor.py`**

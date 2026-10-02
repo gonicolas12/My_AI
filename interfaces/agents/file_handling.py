@@ -8,9 +8,7 @@ from tkinter import filedialog
 from PIL import Image
 
 from interfaces.agents._common import ctk, tk
-from processors.docx_processor import DOCXProcessor
-from processors.pdf_processor import PDFProcessor
-from processors.pptx_processor import PPTXProcessor
+from processors.attachments import read_attachment_text
 
 
 class FileHandlingMixin:
@@ -141,38 +139,9 @@ class FileHandlingMixin:
 
     @staticmethod
     def _read_attached_file(file_path: str, file_type: str) -> str:
-        """Lit le contenu d'un fichier attaché et retourne le texte brut."""
-        ext = os.path.splitext(file_path)[1].lower()
+        """Lit le contenu d'un fichier attaché et retourne le texte brut.
 
-        if file_type == "PDF" or ext == ".pdf":
-            try:
-                proc = PDFProcessor()
-                result = proc.process_file(file_path)
-                return result.get("content", "")
-            except ImportError:
-                pass
-
-        if file_type == "DOCX" or ext in (".docx", ".doc"):
-            try:
-                proc = DOCXProcessor()
-                result = proc.process_file(file_path)
-                return result.get("content", "")
-            except ImportError:
-                pass
-
-        if file_type == "PowerPoint" or ext in (".pptx", ".potx"):
-            try:
-                result = PPTXProcessor().extract_text(file_path)
-                if result.get("success"):
-                    return result.get("content", "")
-            except ImportError:
-                pass
-
-        # Fichiers texte / code / CSV / markdown — lecture directe
-        try:
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read(200_000)  # limiter à 200k chars
-        except Exception:
-            # Fallback binaire
-            with open(file_path, "rb") as f:
-                return f.read(100_000).decode("utf-8", errors="replace")
+        Un document illisible lève ValueError : execute_agent_task le signale
+        alors à l'agent par « [Erreur de lecture : …] ».
+        """
+        return read_attachment_text(file_path, file_type)

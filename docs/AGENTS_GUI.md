@@ -558,11 +558,14 @@ Vous pouvez désormais attacher des fichiers aux tâches envoyées aux agents :
 
 | Format | Méthode de lecture |
 |--------|-------------------|
-| **PDF** | PDFProcessor (extraction texte + métadonnées) |
+| **PDF** | PDFProcessor (extraction texte + métadonnées, OCR des pages scannées) |
 | **DOCX** | DOCXProcessor (paragraphes + tables) |
 | **PPTX, POTX** | PPTXProcessor (titres, puces, tableaux, notes) |
-| **TXT, CSV, MD, JSON** | Lecture directe (200 000 caractères max) |
+| **XLSX, XLS, CSV** | ExcelProcessor (feuilles en tableau texte, 200 lignes max par feuille) |
+| **TXT, MD, JSON** | Lecture directe (200 000 caractères max) |
 | **Code** (.py, .js, .ts, .java...) | Lecture directe |
+
+La lecture est commune à la page Agents et aux agents lancés depuis le mobile (`processors/attachments.py`).
 
 ### Comportement en workflow multi-agents
 
@@ -577,7 +580,9 @@ Dans un workflow séquentiel (A → B → C) avec des fichiers joints :
 
 - La hauteur du rectangle de saisie et des boutons reste **fixe** — seule la zone de texte réduit sa taille
 - Le contenu des fichiers est **injecté dans le prompt** sous forme de blocs textuels formatés
-- Les fichiers volumineux sont tronqués à 200 000 caractères
+- Les fichiers texte et de code sont tronqués à 200 000 caractères
+- Les PDF scannés (pages sans couche texte) sont lus par OCR : environ 4 s par page au premier envoi, puis instantané grâce au cache
+- Un document illisible (fichier corrompu, PDF dont aucun texte n'est reconnu) est signalé à l'agent par « [Erreur de lecture : …] », jamais injecté sous forme d'octets bruts
 
 ---
 
