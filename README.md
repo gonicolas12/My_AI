@@ -282,6 +282,7 @@ my_ai/
 │   │   ├── command_palette.py           # Command palette (Ctrl+K) + raccourcis clavier globaux
 │   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
 │   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
+│   │   ├── loading_spinner.py           # Cercle de chargement des pièces jointes (suit l'échelle d'écran)
 │   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
 │   │   ├── memory_panel.py              # Fenêtre Mémoire (faits/documents/conversations)
 │   │   ├── message_bubbles.py           # Bulles de messages avec RLHF + bouton TTS

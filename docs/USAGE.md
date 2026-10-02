@@ -62,6 +62,8 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - 🕒 **Timestamps** sur chaque message
 - 🎨 **Syntax highlighting** pour code (via Pygments)
 - 📁 **Drag-and-drop** fichiers PDF/DOCX/PowerPoint/Excel/CSV/Images/Code
+- ⏳ **Lecture des pièces jointes** — un cercle orange tourne dans l'aperçu tant que le fichier est lu (OCR d'un PDF scanné : 4 à 20 s par page selon la densité du texte) ; l'envoi attend la fin de la lecture, le message reste dans la zone de saisie
+- ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à un autre aperçu, ou déjà chargé avant cette pièce jointe
 - 📝 **Génération de documents** Word/PDF/PowerPoint/Excel, avec aperçu au format natif — voir *Génération de Documents* plus bas
 - 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur
 - 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)

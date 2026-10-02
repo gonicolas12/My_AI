@@ -220,6 +220,12 @@ class BaseGUI:
         self._home_mic_button = None
         self._home_preview_frame = None
         self._pending_files = []
+        # Pièces jointes en cours de lecture (chemin → un événement d'arrêt par
+        # lecture) : l'envoi du message attend leur fin
+        self._attachments_loading = {}
+        # Documents chargés en mémoire par un aperçu pas encore envoyé : retirer
+        # l'aperçu les oublie (cf. FileHandlingMixin._forget_if_unused)
+        self._attachments_introduced = set()
         # Documents produits par l'IA pendant le tour courant : alimentent le
         # bouton « Aperçu » et l'ouverture automatique du volet.
         self._pending_document_paths = []
@@ -2011,6 +2017,11 @@ class BaseGUI:
             if message == getattr(self, "placeholder_text", "") or not message:
                 return
 
+            # Pièce jointe encore en lecture : la question partirait sans son
+            # contenu ; le message reste dans la zone de saisie
+            if hasattr(self, "_refuse_send_while_loading") and self._refuse_send_while_loading():
+                return
+
             # S'assurer que la saisie est activée pour pouvoir lire et effacer
             was_disabled = False
             try:
@@ -3425,6 +3436,10 @@ class BaseGUI:
         except Exception:
             return
         if not text or text == "Tapez votre message...":
+            return
+
+        # Pièce jointe encore en lecture : rester sur l'accueil, texte conservé
+        if hasattr(self, "_refuse_send_while_loading") and self._refuse_send_while_loading():
             return
 
         # 1. Fermer l'écran d'accueil et restaurer le layout

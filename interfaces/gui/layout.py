@@ -3,6 +3,7 @@
 import os
 import tkinter as tk
 from tkinter import ttk
+from interfaces.gui.loading_spinner import create_loading_spinner
 from interfaces.gui.voice_input import attach_mic_button
 
 try:
@@ -688,7 +689,17 @@ class LayoutMixin:
                 fg=self.colors.get("text_primary", "#ffffff"),
                 font=("Segoe UI", 11),
             )
-        lbl.pack(side="left", padx=(8, 4), pady=4)
+
+        # Pièce jointe en cours de lecture : cercle de chargement avant le nom,
+        # retiré par _hide_attachment_spinner à la fin de la lecture
+        thumb.name_label = lbl
+        thumb.loading_spinner = None
+        if getattr(self, "_is_attachment_loading", lambda _path: False)(file_path):
+            thumb.loading_spinner = create_loading_spinner(thumb, accent, bg, self.use_ctk)
+            thumb.loading_spinner.pack(side="left", padx=(8, 0), pady=4)
+            lbl.pack(side="left", padx=(4, 4), pady=4)
+        else:
+            lbl.pack(side="left", padx=(8, 4), pady=4)
 
         # Bouton ✕ pour retirer le fichier
         _pf = preview_frame  # capturer la bonne frame dans la closure
@@ -700,6 +711,9 @@ class LayoutMixin:
             thumb.destroy()
             if not self._pending_files:
                 _pf.grid_remove()
+            # Lecture arrêtée et document oublié, s'il ne sert pas ailleurs
+            if hasattr(self, "_attachment_removed"):
+                self._attachment_removed(file_path)
 
         if self.use_ctk:
             close_btn = ctk.CTkButton(
@@ -723,8 +737,26 @@ class LayoutMixin:
         # Afficher la zone d'aperçu
         preview_frame.grid()
 
+    @staticmethod
+    def _hide_attachment_spinner(thumb):
+        """Retire le cercle de chargement d'un aperçu de fichier (lecture terminée)."""
+        spinner = getattr(thumb, "loading_spinner", None)
+        if spinner is None:
+            return
+        thumb.loading_spinner = None
+        try:
+            spinner.destroy()
+            thumb.name_label.pack_configure(padx=(8, 4))
+        except tk.TclError:  # aperçu retiré entre-temps
+            pass
+
     def clear_file_previews(self):
-        """Retire tous les aperçus de fichiers de la zone de saisie."""
+        """Retire tous les aperçus de fichiers de la zone de saisie (envoi du message)."""
+        # Les documents envoyés appartiennent désormais au message : retirer un
+        # aperçu du même fichier plus tard ne doit plus les oublier
+        introduced = getattr(self, "_attachments_introduced", None)
+        if introduced is not None:
+            introduced.difference_update(os.path.basename(p) for p, _t, _w in self._pending_files)
         for _, _, widget in self._pending_files:
             try:
                 widget.destroy()

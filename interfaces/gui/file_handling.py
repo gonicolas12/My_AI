@@ -25,6 +25,8 @@ except ImportError:
     CTK_AVAILABLE = False
     ctk = tk
 
+from processors.ocr import interruptible
+
 from .layout import DND_AVAILABLE
 
 try:
@@ -298,10 +300,16 @@ class FileHandlingMixin:
 
     def process_file(self, file_path, file_type):
         """Traite un fichier : ajoute un aperçu dans la zone de saisie et prépare le contexte"""
+        cancel = None
         try:
             filename = os.path.basename(file_path)
 
             self.logger.info("📎 [FILE] Fichier sélectionné: %s (type: %s)", filename, file_type)
+
+            # En lecture jusqu'à la fin du traitement : l'aperçu affiche un cercle
+            # de chargement, l'envoi du message attend, et retirer l'aperçu arrête
+            # la lecture (cancel)
+            cancel = self._attachment_loading_started(file_path)
 
             # Ajouter l'aperçu dans la zone de saisie (style ChatGPT/Claude)
             if hasattr(self, "add_file_preview"):
@@ -315,23 +323,37 @@ class FileHandlingMixin:
             # Traitement en arrière-plan (extraction du contenu, ajout au contexte)
             threading.Thread(
                 target=self.process_file_background,
-                args=(file_path, file_type, filename),
+                args=(file_path, file_type, filename, cancel),
                 daemon=True,
             ).start()
 
         except Exception as e:
+            if cancel is not None:
+                self._attachment_loading_finished(file_path, cancel)
             self.logger.error("Erreur lors du chargement du fichier: %s", e)
             messagebox.showerror("Erreur", f"Impossible de charger le fichier: {e}")
 
-    def process_file_background(self, file_path, file_type, filename):
-        """Traite le fichier en arrière-plan avec système 10M tokens"""
+    def process_file_background(self, file_path, file_type, filename, cancel=None):
+        """Traite le fichier en arrière-plan avec système 10M tokens
+
+        Args:
+            file_path: Chemin du fichier
+            file_type: Type choisi dans le menu (PDF, DOCX...)
+            filename: Nom du fichier
+            cancel: Levé quand l'aperçu est retiré pendant la lecture ; None pour
+                une lecture sans aperçu (pièce jointe du Relay mobile)
+        """
         try:
             self.logger.info(
                 "Traitement du fichier: %s (type: %s)", filename, file_type
             )
 
-            # Utiliser le processeur unifié
-            result = self.file_processor.process_file(file_path)
+            # Utiliser le processeur unifié ; l'OCR s'arrête avant la page
+            # suivante si la pièce jointe est retirée
+            with interruptible(cancel):
+                result = self.file_processor.process_file(file_path)
+            if cancel is not None and cancel.is_set():
+                return  # pièce jointe retirée : rien n'est gardé
 
             if result.get("error"):
                 raise ValueError(result["error"])
@@ -354,7 +376,8 @@ class FileHandlingMixin:
                     # Utiliser la nouvelle méthode qui exploite les processeurs PDF/DOCX/Code
                     if hasattr(self.custom_ai, "add_file_to_context"):
                         # Méthode avancée qui utilise les processeurs spécialisés
-                        result = self.custom_ai.add_file_to_context(file_path)
+                        with interruptible(cancel):
+                            result = self.custom_ai.add_file_to_context(file_path)
                         chunk_ids = result.get("chunk_ids", [])
                         chunks_created = result.get(
                             "chunks_created", len(chunk_ids) if chunk_ids else 0
@@ -401,6 +424,11 @@ class FileHandlingMixin:
                     self.logger.warning("Erreur ajout CustomAI: %s", e)
                     chunks_created = 0
 
+            if cancel is not None and cancel.is_set():
+                # Retirée pendant l'ajout au contexte : ce qui y est déjà est
+                # oublié à la fin de la lecture (_attachment_loading_finished)
+                return
+
             # Stocker aussi dans la mémoire classique pour compatibilité
             if hasattr(self.ai_engine, "local_ai") and hasattr(
                 self.ai_engine.local_ai, "conversation_memory"
@@ -437,10 +465,167 @@ class FileHandlingMixin:
             )
 
         except Exception as e:
+            if cancel is not None and cancel.is_set():
+                return  # lecture interrompue (OcrInterrupted) : pas d'erreur à signaler
             self.logger.error("Erreur lors du traitement de %s: %s", filename, str(e))
             self.is_thinking = False
             error_msg = f"❌ Erreur : {filename}"
             self.root.after(0, lambda: self.show_notification(error_msg, "error", 3000))
+
+        finally:
+            # Lecture terminée, réussie ou non : l'envoi redevient possible
+            if cancel is not None:
+                try:
+                    self.root.after(
+                        0, lambda: self._attachment_loading_finished(file_path, cancel)
+                    )
+                except (RuntimeError, tk.TclError):  # fenêtre fermée pendant la lecture
+                    pass
+
+    # ================================================================
+    # ⏳ PIÈCES JOINTES EN COURS DE LECTURE
+    # ================================================================
+
+    def _attachment_loading_started(self, file_path):
+        """Marque une pièce jointe en cours de lecture (fil de l'interface).
+
+        Returns:
+            Événement levé si l'aperçu est retiré pendant la lecture
+        """
+        loading = getattr(self, "_attachments_loading", None)
+        if loading is None:
+            loading = self._attachments_loading = {}
+        name = os.path.basename(file_path)
+        if not self._document_in_memory(name):
+            # Cette pièce jointe charge le document : la retirer pourra l'oublier
+            self._introduced_attachments().add(name)
+        cancel = threading.Event()
+        # Une lecture par aperçu : le même fichier peut être joint deux fois de suite
+        loading.setdefault(file_path, []).append(cancel)
+        return cancel
+
+    def _attachment_loading_finished(self, file_path, cancel):
+        """Fin d'une lecture (réussie, en échec ou interrompue) : retire le cercle.
+
+        Une pièce jointe retirée pendant sa lecture est oubliée ici, une fois la
+        lecture arrêtée : ce qu'elle avait déjà rangé en mémoire disparaît.
+        """
+        loading = getattr(self, "_attachments_loading", {})
+        events = loading.get(file_path, [])
+        if cancel in events:
+            events.remove(cancel)
+        if events:
+            return  # autre lecture du même fichier en cours
+        loading.pop(file_path, None)
+        for path, _type, thumb in getattr(self, "_pending_files", []):
+            if path == file_path and hasattr(self, "_hide_attachment_spinner"):
+                self._hide_attachment_spinner(thumb)
+        if cancel.is_set():
+            self._forget_if_unused(file_path)
+
+    def _attachment_removed(self, file_path):
+        """Aperçu retiré avant l'envoi (bouton ✕) : arrête sa lecture, oublie son document."""
+        if any(path == file_path for path, _t, _w in getattr(self, "_pending_files", [])):
+            return  # le même fichier reste joint à un autre aperçu
+        events = getattr(self, "_attachments_loading", {}).get(file_path)
+        if events:
+            # Lecture en cours : elle s'arrête avant la page suivante, et ce
+            # qu'elle a déjà rangé en mémoire est oublié à sa fin
+            self.logger.info(
+                "⏹️ Pièce jointe retirée pendant sa lecture, lecture arrêtée : %s",
+                os.path.basename(file_path),
+            )
+            for event in events:
+                event.set()
+            return
+        self._forget_if_unused(file_path)
+
+    def _forget_if_unused(self, file_path):
+        """Oublie le document d'une pièce jointe retirée, sauf s'il sert encore.
+
+        Il sert encore s'il était déjà en mémoire avant cette pièce jointe
+        (joint à un message d'une autre conversation), s'il est joint à un autre
+        aperçu, ou à un message de la conversation ou de l'une de ses variantes.
+        """
+        name = os.path.basename(file_path)
+        introduced = self._introduced_attachments()
+        if name not in introduced:
+            return
+        if any(os.path.basename(p) == name for p, _t, _w in getattr(self, "_pending_files", [])):
+            return
+        if name in self._names_attached_to_messages():
+            return
+        introduced.discard(name)
+        local_ai = getattr(getattr(self, "ai_engine", None), "local_ai", None)
+        forget = getattr(local_ai, "remove_document_from_context", None)
+        if forget is None:
+            return
+        try:
+            result = forget(name)
+        except Exception as exc:
+            self.logger.warning("Document %s non oublié : %s", name, exc)
+            return
+        if result.get("stored") or result.get("chunks_removed"):
+            self.logger.info(
+                "🗑️ Pièce jointe retirée, document oublié : %s (%d morceaux supprimés)",
+                name, result.get("chunks_removed", 0),
+            )
+
+    def _introduced_attachments(self) -> set:
+        """Noms des documents chargés en mémoire par un aperçu pas encore envoyé."""
+        introduced = getattr(self, "_attachments_introduced", None)
+        if introduced is None:
+            introduced = self._attachments_introduced = set()
+        return introduced
+
+    def _document_in_memory(self, name) -> bool:
+        """Vrai si le document est déjà dans la mémoire de session du moteur."""
+        local_ai = getattr(getattr(self, "ai_engine", None), "local_ai", None)
+        memory = getattr(local_ai, "conversation_memory", None)
+        return name in getattr(memory, "stored_documents", {})
+
+    def _names_attached_to_messages(self) -> set:
+        """Noms des fichiers joints aux messages : conversation affichée et autres
+        variantes d'édition, où l'on peut revenir avec ‹ k/n ›."""
+        messages = list(getattr(self, "conversation_history", []))
+        for branch in list(getattr(self, "_turn_branches", {}).values()):
+            for version in branch.get("versions", []):
+                messages.append(version)
+                messages.extend(version.get("tail") or [])
+        names = set()
+        for message in messages:
+            for item in message.get("attachments") or []:
+                # (path, type) en mémoire, [path, type] après un aller-retour JSON
+                if isinstance(item, (list, tuple)) and item and isinstance(item[0], str):
+                    names.add(os.path.basename(item[0]))
+        return names
+
+    def _is_attachment_loading(self, file_path) -> bool:
+        """Vrai tant que la lecture de la pièce jointe n'est pas terminée."""
+        return file_path in getattr(self, "_attachments_loading", {})
+
+    def _refuse_send_while_loading(self) -> bool:
+        """Refuse l'envoi, avec un message, si une pièce jointe du message est en lecture.
+
+        Sinon la question part sans le contenu du fichier, et le modèle répond
+        qu'il ne voit aucun document.
+        """
+        loading = [path for path, _t, _w in getattr(self, "_pending_files", [])
+                   if self._is_attachment_loading(path)]
+        if not loading:
+            return False
+        if len(loading) == 1:
+            message = (
+                "⏳ Pièce jointe en cours de chargement : "
+                "envoi possible dès qu'elle est prête"
+            )
+        else:
+            message = (
+                "⏳ Pièces jointes en cours de chargement : "
+                "envoi possible dès qu'elles sont prêtes"
+            )
+        self.show_notification(message, "warning", 2500)
+        return True
 
     # ================================================================
     # 🖼️ GESTION DES IMAGES

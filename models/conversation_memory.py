@@ -313,6 +313,28 @@ class ConversationMemory:
         print(f"📋 État actuel - Ordre: {self.document_order}")
         print(f"📚 Documents stockés: {list(self.stored_documents.keys())}")
 
+    def remove_document(self, filename: str) -> bool:
+        """
+        Retire un document de la mémoire de session (pièce jointe retirée)
+
+        Args:
+            filename: Nom du fichier
+
+        Returns:
+            True si le document était en mémoire
+        """
+        if filename not in self.stored_documents:
+            return False
+        del self.stored_documents[filename]
+        if filename in self.document_order:
+            self.document_order.remove(filename)
+        # Positions recalculées : « le premier document » désigne le bon fichier
+        for index, name in enumerate(self.document_order):
+            entry = self.stored_documents.get(name)
+            if isinstance(entry, dict):
+                entry["order_index"] = index
+        return True
+
     def get_document_by_reference(self, reference: str) -> Dict[str, Any]:
         """
         Récupère un document par référence temporelle

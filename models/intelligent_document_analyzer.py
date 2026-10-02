@@ -137,6 +137,8 @@ class IntelligentDocumentAnalyzer:
         self.relations: List[Relation] = []
         self.facts: List[Fact] = []
         self.sections: List[DocumentSection] = []
+        # Document dont l'analyse est en mémoire (une seule à la fois)
+        self.analyzed_document = ""
 
         # Index inversé pour recherche rapide
         self.entity_index: Dict[str, List[Entity]] = defaultdict(list)
@@ -303,6 +305,7 @@ class IntelligentDocumentAnalyzer:
 
         # Reset pour nouveau document (ou fusionner si multi-documents)
         self._prepare_for_analysis()
+        self.analyzed_document = document_name
 
         # Étape 1: Segmentation
         sections = self._segment_document(content)
@@ -348,6 +351,19 @@ class IntelligentDocumentAnalyzer:
             "graph_nodes": len(self.knowledge_graph),
             "stats": self.document_stats,
         }
+
+    def forget(self, document_name: str) -> bool:
+        """
+        Efface l'analyse en mémoire si elle porte sur ce document (pièce jointe retirée)
+
+        Returns:
+            True si l'analyse a été effacée
+        """
+        if not document_name or document_name != self.analyzed_document:
+            return False
+        self._prepare_for_analysis()
+        self.analyzed_document = ""
+        return True
 
     def _prepare_for_analysis(self):
         """Prépare les structures pour une nouvelle analyse (réinitialise l'état)."""

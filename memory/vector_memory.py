@@ -785,6 +785,42 @@ class VectorMemory:
             print(f"⚠️ Erreur delete_entry: {e}")
             return False
 
+    def remove_document(self, document_name: str) -> int:
+        """
+        Supprime un document ajouté pendant cette session, ChromaDB compris
+
+        Sans cela, une pièce jointe retirée avant l'envoi resterait dans la base
+        persistante et pourrait ressortir dans les recherches, même après un
+        redémarrage.
+
+        Args:
+            document_name: Nom du document (celui passé à add_document)
+
+        Returns:
+            Nombre de morceaux supprimés
+        """
+        doc_ids = [
+            doc_id for doc_id, info in self.documents.items()
+            if info.get("name") == document_name
+        ]
+        removed = 0
+        for doc_id in doc_ids:
+            info = self.documents.pop(doc_id)
+            chunks = info.get("chunks", [])
+            if self.document_collection and chunks:
+                try:
+                    self.document_collection.delete(ids=chunks)
+                except Exception as e:
+                    print(f"⚠️ Erreur suppression chunks: {e}")
+            removed += len(chunks)
+            self.current_tokens = max(0, self.current_tokens - info.get("total_tokens", 0))
+        if doc_ids:
+            self.stats["documents_added"] = max(0, self.stats["documents_added"] - len(doc_ids))
+            self.stats["chunks_created"] = max(0, self.stats["chunks_created"] - removed)
+            self.stats["total_tokens"] = self.current_tokens
+            self.stats["last_updated"] = datetime.now().isoformat()
+        return removed
+
     def _generate_document_id(self, content: str, name: str) -> str:
         """Génère un ID unique pour un document"""
         content_hash = hashlib.md5(content.encode()).hexdigest()[:8]

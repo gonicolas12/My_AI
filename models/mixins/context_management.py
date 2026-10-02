@@ -76,6 +76,34 @@ class ContextManagementMixin:
                 "message": f"Erreur lors de l'ajout du document: {str(e)}",
             }
 
+    def remove_document_from_context(self, document_name: str) -> Dict[str, Any]:
+        """
+        Oublie un document : mémoire de session, mémoire vectorielle (ChromaDB
+        compris) et analyse en cours. Sert quand une pièce jointe est retirée
+        avant l'envoi du message.
+
+        Args:
+            document_name: Nom du document (nom du fichier)
+
+        Returns:
+            {"stored": document trouvé en mémoire de session,
+             "chunks_removed": morceaux supprimés de la mémoire vectorielle}
+        """
+        stored = self.conversation_memory.remove_document(document_name)
+        chunks_removed = 0
+        if self.ultra_mode and self.context_manager is not None:
+            chunks_removed = self.context_manager.remove_document(document_name)
+        if self.document_analyzer:
+            self.document_analyzer.forget(document_name)
+        session = getattr(self, "session_context", None)
+        if isinstance(session, dict):
+            for key in ("documents_processed", "code_files_processed"):
+                if document_name in session.get(key, []):
+                    session[key].remove(document_name)
+            if session.get("current_document") == document_name:
+                session["current_document"] = None
+        return {"stored": stored, "chunks_removed": chunks_removed}
+
     def _add_document_to_classic_memory(
         self, content: str, doc_name: str
     ) -> Dict[str, Any]:
