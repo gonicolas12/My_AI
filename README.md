@@ -380,7 +380,6 @@ my_ai/
 ├── launch.sh                            # Script pour lancer le programme (macOS / Linux)
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
 ├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
-├── test_features.bat                    # Script de test des fonctionnalités avancées
 └── config.yaml                          # Configuration
 ```
 

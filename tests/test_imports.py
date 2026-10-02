@@ -59,10 +59,10 @@ def test_imports():
         print("\n⚠️ MODULES EN ÉCHEC:")
         for fail in results['failed']:
             print(f"   - {fail}")
-        return False
     else:
         print("\n🎉 TOUS LES IMPORTS FONCTIONNENT !")
-        return True
+    # Un échec doit faire échouer pytest (un return False n'y produisait qu'un avertissement)
+    assert not results['failed'], f"{len(results['failed'])} import(s) en échec"
 
 def test_agents_package_imports_on_its_own():
     """interfaces.agents importé en premier, sans interfaces.gui : pas d'import circulaire.
@@ -82,5 +82,7 @@ def test_agents_package_imports_on_its_own():
     assert run.returncode == 0, run.stderr[-3000:]
 
 if __name__ == "__main__":
-    SUCCESS = test_imports()
-    sys.exit(0 if SUCCESS else 1)
+    try:
+        test_imports()
+    except AssertionError:
+        sys.exit(1)
