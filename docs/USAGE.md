@@ -224,7 +224,7 @@ L'IA peut **lire ses réponses à voix haute** :
 
 ### ⚡ Slash commands & Bibliothèque de prompts
 
-Des **prompts réutilisables façon Claude Code**. Tapez **`/`** en début de saisie pour ouvrir l'autocomplétion :
+Des **prompts réutilisables**. Tapez **`/`** en début de saisie pour ouvrir l'autocomplétion :
 
 ```
 Vous> /code un jeu de morpion en Python
@@ -1489,7 +1489,7 @@ L'URL et le token sont affichés dans le panneau Relay de l'interface.
 | **Strict, pas de downgrade** | Le serveur **rejette** toute connexion WS dont les messages ne sont pas chiffrés (close 4002). Pas de mode dégradé : on ne peut pas forcer du clair via une attaque MITM applicative. |
 | **Aucune donnée cloud** | Les tunnels ne sont que des relais chiffrés — vos données restent sur votre PC, et le contenu transitant par les tunnels publics est illisible pour leurs opérateurs |
 
-### 🧩 Extension VS Code — Mode agentique façon Claude Code
+### 🧩 Extension VS Code — Mode agentique
 
 L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code**. Depuis sa **v1.1.0**, elle expose un **mode agentique** : l'extension s'identifie auprès du Relay comme client `vscode`, et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM reste sur le PC hôte ; l'**exécution des outils est déléguée à l'extension**, qui les exécute dans le workspace VS Code de l'utilisateur, sandboxé par défaut. Le mobile et le GUI desktop continuent à utiliser le pipeline classique (avec MCP locaux complets) — strictement inchangés.
 
@@ -1517,7 +1517,7 @@ Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *A
 
 #### Cartes d'outils dans le chat
 
-Chaque appel d'outil s'affiche comme une **carte pliable façon Claude Code**, avec une bordure gauche colorée selon l'état (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé). Cliquer déplie les arguments JSON et la sortie capturée (stdout/stderr pour les commandes shell, lignes modifiées pour les éditions).
+Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gauche colorée selon l'état (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé). Cliquer déplie les arguments JSON et la sortie capturée (stdout/stderr pour les commandes shell, lignes modifiées pour les éditions).
 
 #### Sandbox & isolation
 

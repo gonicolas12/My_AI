@@ -5,6 +5,18 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.7] — 2026-10-06
+
+Documentation release: no change to how the extension works.
+
+### Changed
+- **README and changelog** now describe the extension on its own terms,
+  without comparing it to another tool.
+
+### Notes
+- On the host, the agent system prompt now introduces the model as My_AI
+  only. That change ships with My_AI and applies to every extension version.
+
 ## [1.3.6] — 2026-09-25
 
 Accepts PowerPoint files as attachments.
@@ -88,8 +100,8 @@ Adds a Stop button to interrupt a running generation.
 
 ## [1.3.1] — 2026-06-25
 
-Slash commands now behave like Claude Code commands (prompt engineering) instead
-of plain text completion.
+Slash commands are now prompt-engineering wrappers instead of plain
+text completion.
 
 ### Changed
 - **Slash commands expand at send time.** Selecting a command in the autocomplete
@@ -162,19 +174,18 @@ actually responded. Also cleans up two visible UX glitches.
   header alone — they now have a directive instruction to follow up.
 - **Tool description for `read_file`** in the agent system prompt
   now tells the model to keep calling `read_file` with growing offsets
-  until the truncation footer disappears, matching how Claude Code's
-  `Read` tool is used for whole-file reads.
+  until the truncation footer disappears, so long files are read in full.
 
 ## [1.2.0] — 2026-05-07
 
 Polish pass on the agentic mode introduced in 1.1.0. Focuses on **streaming
 correctness, transport stability, and chat UX** — the agentic loop now
-renders like Claude Code (text → tool card → text → tool card → final
+renders in narration order (text → tool card → text → tool card → final
 answer), no longer leaks raw `<tool_use>` JSON during streaming, and stops
 spinning on repeated tool calls.
 
 ### Added
-- **Inline tool-card rendering (Claude-Code parity).** The host now streams
+- **Inline tool-card rendering.** The host now streams
   responses as numbered *segments* (one per LLM iteration) and the chat
   inserts each tool card between the segment that triggered it and the
   segment that consumed its result. Tool cards no longer pile up above the
@@ -212,8 +223,8 @@ spinning on repeated tool calls.
 
 ## [1.1.0] — 2026-05-06
 
-Adds an **agentic mode** for the VS Code chat. The extension now behaves like
-a Claude-Code-style coding assistant: the local LLM running on the host PC
+Adds an **agentic mode** for the VS Code chat. The extension now works as
+a coding assistant: the local LLM running on the host PC
 can read, edit, and create files, run shell commands, search the workspace,
 and inspect the active editor — all delegated to the extension and scoped to
 the open VS Code workspace by default. The mobile UI and the desktop GUI on
@@ -246,7 +257,7 @@ the host are **strictly unchanged**.
   - *Allow all <tool> this session* — auto-approves the same tool everywhere
     until disconnect/reconnect.
   Approvals reset on every reconnection.
-- **Inline tool cards in the chat (Claude-Code style).** Each tool call
+- **Inline tool cards in the chat.** Each tool call
   renders as a foldable card in the chat with a colored left border that
   reflects status: ⏳ running · 🔒 awaiting approval · ✓ ok · ⚠️ error ·
   🚫 denied. Click to expand the input (JSON) and the captured output

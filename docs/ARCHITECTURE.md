@@ -24,7 +24,7 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Scheduler proactif** : Exécution récurrente d'agents/workflows (type cron) via `core/scheduler.py` — tourne tant que le GUI/Relay est lancé, ou **même appli fermée** via le Planificateur de tâches Windows (`core/scheduler_runner.py`). Réutilise `AgentRelayService` (aucune réimplémentation de l'exécution), persistance JSON, verrou inter-processus.
 - **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — Edge `--app` embarqué (rendu Chromium exact) et visionneuses natives Word/PowerPoint/Excel côté desktop, dans une fenêtre hôte DPI par écran ; `<iframe sandbox>` côté mobile. Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
 - **Génération de documents** : outils MCP `generate_document` / `edit_document` — le LLM rédige en Markdown, `generators/markdown_document.py` le découpe en blocs, un backend par format produit le docx, pdf, pptx ou xlsx dans `outputs/documents/`. Les pièces jointes sont modifiées sur une copie, jamais en place.
-- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique façon Claude Code** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
+- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 
 ## 🚀 Architecture Système Complète
@@ -1257,7 +1257,7 @@ vscode_extension/
 ├─ media/                   # Webview UI (HTML/CSS/JS, no bundling)
 │  ├─ chat.html
 │  ├─ chat.css              # Adapté de relay/static/style.css
-│  ├─ chat.js               # Rendu des messages + cartes d'outils Claude-Code
+│  ├─ chat.js               # Rendu des messages + cartes d'outils inline
 │  └─ icon-activitybar.svg
 └─ README.md                # Doc Marketplace
 

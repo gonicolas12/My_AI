@@ -1,6 +1,6 @@
 # ⚡ Bibliothèque de prompts & Slash commands
 
-My_AI intègre une **bibliothèque de prompts réutilisables**, accessibles via des **slash commands façon [Claude Code](https://claude.com/claude-code)**. Vous tapez une **commande courte** (`/code un jeu de morpion`) et l'IA reçoit un **prompt d'ingénierie complet et détaillé**. La commande reste lisible dans le chat, mais le modèle, lui, travaille sur des instructions soignées. **100% local** — vos templates ne quittent jamais votre machine.
+My_AI intègre une **bibliothèque de prompts réutilisables**, accessibles via des **slash commands**. Vous tapez une **commande courte** (`/code un jeu de morpion`) et l'IA reçoit un **prompt d'ingénierie complet et détaillé**. La commande reste lisible dans le chat, mais le modèle, lui, travaille sur des instructions soignées. **100% local** — vos templates ne quittent jamais votre machine.
 
 ---
 

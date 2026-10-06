@@ -55,8 +55,8 @@
   // une passe LLM entre deux exécutions d'outils (mode VS Code agentique).
   // À chaque nouveau segment_index reçu dans un chunk, on "fige" la bulle
   // courante et on en crée une nouvelle, ce qui permet aux cartes d'outils
-  // (insérées entre-temps via tool-event) d'apparaître inline, dans l'ordre,
-  // comme dans Claude Code. null tant qu'aucun chunk n'a été reçu.
+  // (insérées entre-temps via tool-event) d'apparaître inline, dans l'ordre.
+  // null tant qu'aucun chunk n'a été reçu.
   let streamingSegmentIndex = null;
   let userPinnedToBottom = true;
   let autoAttachActive = false;
@@ -940,7 +940,7 @@
     // Détection d'un nouveau segment (= nouvelle itération LLM) : on
     // promeut la bulle courante en bulle "finie" et on en crée une
     // nouvelle, qui apparaîtra APRÈS les cartes d'outils déjà insérées
-    // entre les deux segments. C'est ce qui donne l'ordre Claude Code :
+    // entre les deux segments. C'est ce qui donne l'ordre :
     // texte → outils → texte → outils → ...
     if (
       streamingMessageId === mid

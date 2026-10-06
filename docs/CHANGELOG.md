@@ -64,11 +64,11 @@ Jusqu'ici, « génère moi un docx sur les baleines » ne produisait aucun fichi
 
 # 🚀 Version 8.0.0 — Slash commands & contexte @codebase (26 Juin 2026)
 
-### Des prompts réutilisables façon Claude Code, un dossier projet toujours en tête, et une foule de confort au quotidien
+### Des prompts réutilisables, un dossier projet toujours en tête, et une foule de confort au quotidien
 
-Version **majeure**. Deux grandes nouveautés structurantes : une **bibliothèque de prompts** avec des **slash commands façon Claude Code** (une commande courte `/code …` se transforme en prompt détaillé à l'envoi), et l'**attache d'un dossier entier en `@codebase`** — l'IA garde ce contexte projet **en permanence** pour toutes les questions du workspace (RAG persistant). S'y ajoutent une **command palette `Ctrl+K`**, l'**édition + regénération de message avec branchement**, des **citations web cliquables**, des **notifications desktop**, et une grosse passe sur l'**extension VS Code** (menu `@`, bouton STOP, garde-fou agentique). Le tout **100% local**, sur les trois surfaces (**GUI desktop · mobile Relay · extension VS Code**).
+Version **majeure**. Deux grandes nouveautés structurantes : une **bibliothèque de prompts** avec des **slash commands** (une commande courte `/code …` se transforme en prompt détaillé à l'envoi), et l'**attache d'un dossier entier en `@codebase`** — l'IA garde ce contexte projet **en permanence** pour toutes les questions du workspace (RAG persistant). S'y ajoutent une **command palette `Ctrl+K`**, l'**édition + regénération de message avec branchement**, des **citations web cliquables**, des **notifications desktop**, et une grosse passe sur l'**extension VS Code** (menu `@`, bouton STOP, garde-fou agentique). Le tout **100% local**, sur les trois surfaces (**GUI desktop · mobile Relay · extension VS Code**).
 
-## ⚡ Slash commands façon Claude Code — bibliothèque de prompts
+## ⚡ Slash commands — bibliothèque de prompts
 
 Tapez une **commande courte** (`/code un jeu de morpion`) ; l'IA reçoit un **prompt d'ingénierie complet**. Les slash commands ne sont plus du simple texte pré-rempli : ce sont des **wrappers de prompt engineering** dont le contenu détaillé est substitué **à l'envoi**, tandis que la bulle de chat continue d'afficher la commande courte.
 
@@ -470,7 +470,7 @@ sounddevice>=0.4.6      # capture micro cross-platform
 
 ### 🤖 Mise à jour : Mode Agentique (Extension VS Code v1.1.0)
 
-L'extension VS Code passe d'un simple client de chat à un **assistant agentique façon Claude Code**, tournant sur le LLM local du PC hôte. À la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM peut désormais lire, modifier et créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code — chaque appel d'outil est exécuté **côté extension**, sandboxé au workspace par défaut, et affiché dans le chat sous forme de carte pliable. **Le mobile et le GUI desktop ne sont absolument pas impactés** : sans `client_hello` un client reste en mode legacy et passe par le pipeline GUI/MCP local complet.
+L'extension VS Code passe d'un simple client de chat à un **assistant agentique**, tournant sur le LLM local du PC hôte. À la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM peut désormais lire, modifier et créer des fichiers, lancer des commandes shell et chercher dans le workspace VS Code — chaque appel d'outil est exécuté **côté extension**, sandboxé au workspace par défaut, et affiché dans le chat sous forme de carte pliable. **Le mobile et le GUI desktop ne sont absolument pas impactés** : sans `client_hello` un client reste en mode legacy et passe par le pipeline GUI/MCP local complet.
 
 #### `core/agentic_executor.py` — Boucle agentique (nouveau module)
 

@@ -3,15 +3,14 @@
 **English** · [Français](https://github.com/gonicolas12/My_AI/blob/main/vscode_extension/README.fr.md)
 
 > **Agentic** chat with your **self-hosted [My_AI](https://github.com/gonicolas12/My_AI) assistant**
-> from VS Code, over an end-to-end encrypted tunnel — like Claude Code, but
+> from VS Code, over an end-to-end encrypted tunnel,
 > running on the local LLM on your own machine.
 
 The extension is a remote client. The LLM, history, and file processing live
 on the **PC that hosts My_AI**; the extension delegates filesystem and shell
 operations on the workspace side, scoped to your VS Code workspace by
 default. This means you can run a beefy LLM on a desktop at home and use it
-from any laptop, anywhere — with full read/write/exec parity with Claude
-Code's developer experience, and the existing mobile web UI still works
+from any laptop, anywhere, and the existing mobile web UI still works
 exactly as before.
 
 ---
@@ -20,7 +19,7 @@ exactly as before.
 
 - 🤖 **Agentic mode** — the model can read, edit, and create files, run
   shell commands, and search the workspace via nine built-in tools. Every
-  tool call shows up as a Claude-Code-style foldable card **rendered inline
+  tool call shows up as a foldable card **rendered inline
   in narration order** (text → tool card → text → tool card → final
   answer), with status, input, and captured output.
 - 🛡️ **Workspace sandbox** — all paths are resolved against the open

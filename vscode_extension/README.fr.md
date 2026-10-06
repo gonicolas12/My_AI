@@ -3,16 +3,15 @@
 [English](https://github.com/gonicolas12/My_AI/blob/main/vscode_extension/README.md) · **Français**
 
 > Chat **agentique** avec votre **assistant [My_AI](https://github.com/gonicolas12/My_AI) auto-hébergé**
-> depuis VS Code, via un tunnel chiffré bout-en-bout — comme Claude Code,
-> mais sur le LLM local qui tourne sur votre propre machine.
+> depuis VS Code, via un tunnel chiffré bout-en-bout,
+> sur le LLM local qui tourne sur votre propre machine.
 
 L'extension est un client distant. Le LLM, l'historique et le traitement
 des fichiers vivent sur le **PC qui héberge My_AI** ; l'extension exécute
 les opérations sur le système de fichiers et le shell côté workspace,
 limitées au workspace VS Code par défaut. Vous pouvez ainsi faire tourner
 un gros LLM sur un desktop à la maison et l'utiliser depuis n'importe quel
-laptop, n'importe où — avec une expérience développeur équivalente à
-Claude Code, et l'interface mobile existante continue de fonctionner
+laptop, n'importe où, et l'interface mobile existante continue de fonctionner
 exactement comme avant.
 
 ---
@@ -22,7 +21,7 @@ exactement comme avant.
 - 🤖 **Mode agentique** — le modèle peut lire, modifier et créer des
   fichiers, lancer des commandes shell, et chercher dans le workspace via
   neuf outils intégrés. Chaque appel d'outil s'affiche dans le chat sous
-  forme de carte pliable façon Claude Code, **insérée inline dans l'ordre
+  forme de carte pliable, **insérée inline dans l'ordre
   de narration** (texte → carte outil → texte → carte outil → réponse
   finale), avec son statut, ses arguments et sa sortie.
 - 🛡️ **Sandbox du workspace** — tous les chemins sont résolus à partir du

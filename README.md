@@ -52,7 +52,7 @@ PDF, DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-éte
 Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
 
 **💻 Extension VS Code agentique**  
-Façon Claude Code : lecture, édition, création de fichiers... le tout via le tunnel chiffré.
+Lecture, édition, création de fichiers... le tout via le tunnel chiffré.
 
 **🎙️ Voix locale**  
 Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale des réponses.
@@ -141,7 +141,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - Capacité à **organiser les espaces de travail** de manière autonome
 - Dialogue de **confirmation** avant toute **suppression de fichier** (sécurité utilisateur)
 
-### ⚡ Slash commands & Bibliothèque de prompts (façon Claude Code)
+### ⚡ Slash commands & Bibliothèque de prompts
 
 - **Tapez `/`** en début de saisie : autocomplétion des **prompts réutilisables** (`/code`, `/résume`, `/traduis`, `/explique`, `/corrige`, `/reformule`…), navigables au clavier.
 - **Prompt engineering, pas du texte pré-rempli** : une **commande courte** (`/code un jeu de morpion`) est **expansée à l'envoi** en un prompt détaillé pour le modèle — la bulle de chat, elle, garde la commande courte.
@@ -545,7 +545,7 @@ relay:
 
 ## 🧩 Extension VS Code
 
-**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Elle ne se contente pas seulement de relayer le chat : elle expose un **mode agentique façon [Claude Code](https://claude.ai/code)** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
+**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Elle ne se contente pas seulement de relayer le chat : elle expose un **mode agentique** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
 
 ### Fonctionnement
 
@@ -566,7 +566,7 @@ relay:
 | 🛟 **Garde-fou anti-boucle** | Détection des réécritures répétées du même fichier pour éviter qu'un agent ne tourne en rond |
 | 🛡️ **Sandbox workspace** | Tous les chemins sont résolus à partir du workspace VS Code ouvert. Toute sortie hors workspace nécessite une approbation modale par chemin |
 | ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* |
-| 🎴 **Cartes d'outils inline** | Chaque appel d'outil rendu comme carte pliable façon Claude Code (orange = en cours · vert = OK · rouge = erreur · gris = refusé) |
+| 🎴 **Cartes d'outils inline** | Chaque appel d'outil rendu comme carte pliable (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé) |
 | 🧠 **Mémoire de session** | Le contexte agentique est conservé pour toute la session WS (« édite le fichier que tu viens de lire » fonctionne) |
 | 🔧 **Marche avec n'importe quel modèle Ollama** | Format `<tool_use>{...}</tool_use>` parsé côté hôte — pas besoin de l'API tools native d'Ollama |
 | 🔐 **Chiffrement E2EE** | AES-256-GCM identique au mobile — le tunnel ne voit que du ciphertext |
@@ -601,7 +601,7 @@ code --install-extension gonicolas12.my-ai
 | [💾 Mémoire Vectorielle 10M](docs/ULTRA_10M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
 | [🧠 Mémoire (contrôle)](docs/MEMORY.md) | Voir / éditer / supprimer ce que l'IA sait (faits + vecteurs) |
 | [🔎 Recherche globale](docs/CONVERSATION_SEARCH.md) | Recherche sémantique sur toutes les conversations |
-| [⚡ Bibliothèque de prompts](docs/PROMPT_LIBRARY.md) | Slash commands façon Claude Code |
+| [⚡ Bibliothèque de prompts](docs/PROMPT_LIBRARY.md) | Slash commands |
 | [📁 Contexte @codebase](docs/CODEBASE.md) | Attacher un dossier projet entier en RAG persistant |
 | [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
 | [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
@@ -630,7 +630,7 @@ code --install-extension gonicolas12.my-ai
 | 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
 | 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
 | 🔎 **Recherche globale** | Recherche sémantique cross-conversations |
-| ⚡ **Slash commands** | Bibliothèque de prompts façon Claude Code |
+| ⚡ **Slash commands** | Bibliothèque de prompts |
 | 📁 **Contexte @codebase** | Dossier projet attaché en RAG persistant |
 | 🎹 **Command palette** | Ctrl+K + raccourcis clavier globaux |
 | 🔗 **Citations web** | Sources numérotées `[n]` cliquables (desktop + mobile) |
@@ -649,7 +649,7 @@ code --install-extension gonicolas12.my-ai
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
 | 📡 **Relay** | Accès mobile (Chat + Agents) via tunnel sécurisé |
-| 🧩 **Extension VS Code** | Façon Claude Code sur LLM local |
+| 🧩 **Extension VS Code** | Mode agentique sur LLM local |
 | 🔩 **Extensible** | Architecture modulaire |
 | 🔒 **Sécurisé** | Données locales protégées |
 
