@@ -145,7 +145,8 @@ if __name__ == "__main__":
         }
 
     async def generate_code(
-        self, query: str, filename: Optional[str] = None, is_interrupted_callback=None
+        self, query: str, filename: Optional[str] = None, is_interrupted_callback=None,
+        memory: str = "",
     ) -> Dict[str, Any]:
         """
         Génère du code basé sur la requête en utilisant Ollama
@@ -154,6 +155,8 @@ if __name__ == "__main__":
             query: Demande de génération de code
             filename: Nom de fichier suggéré (optionnel)
             is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
+            memory: Faits mémorisés sur l'utilisateur, une ligne chacun (voir
+                _generate_with_ollama)
 
         Returns:
             Code généré avec métadonnées
@@ -179,7 +182,9 @@ if __name__ == "__main__":
                     }
 
                 print(f"🚀 [CodeGenerator] Démarrage génération Ollama pour {filename}...")
-                code = await self._generate_with_ollama(query, language, code_info, is_interrupted_callback)
+                code = await self._generate_with_ollama(
+                    query, language, code_info, is_interrupted_callback, memory
+                )
 
                 # Vérifier l'interruption APRÈS la génération Ollama
                 if is_interrupted_callback and is_interrupted_callback():
@@ -226,7 +231,8 @@ if __name__ == "__main__":
             }
 
     async def _generate_with_ollama(
-        self, query: str, language: str, _code_info: Dict, is_interrupted_callback=None
+        self, query: str, language: str, _code_info: Dict, is_interrupted_callback=None,
+        memory: str = "",
     ) -> Optional[str]:
         """
         Génère du code en utilisant Ollama
@@ -236,6 +242,8 @@ if __name__ == "__main__":
             language: Langage de programmation
             code_info: Informations extraites de la requête
             is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
+            memory: Faits mémorisés sur l'utilisateur, une ligne chacun : sans
+                eux, « un fichier qui affiche mon prénom » ignorait son prénom
 
         Returns:
             Code généré ou None
@@ -252,6 +260,18 @@ Génère du code propre, bien commenté et fonctionnel.
 Réponds UNIQUEMENT avec le code, sans explications avant ou après.
 Le code doit être prêt à être exécuté."""
 
+            # Faits mémorisés (l'appelant ne les passe que si la demande parle de
+            # l'utilisateur) : rien d'autre que ce qu'elle réclame, sans quoi
+            # le modèle les plaçait tous en en-tête, son chat compris
+            memory_block = ""
+            if memory and memory.strip():
+                memory_block = (
+                    "Ce que tu sais de l'utilisateur (sa mémoire) : n'en reprends que ce "
+                    "que la demande réclame (son prénom si elle parle de « mon prénom », "
+                    "par exemple), et rien d'autre, ni en commentaire ni en en-tête :\n"
+                    f"{memory.strip()}\n\n"
+                )
+
             # Prompt utilisateur détaillé
             user_prompt = f"""Génère un fichier {language} complet pour : {query}
 
@@ -261,7 +281,7 @@ Exigences :
 - Bonnes pratiques du langage {language}
 - Structure claire et organisée
 
-Génère le code maintenant :"""
+{memory_block}Génère le code maintenant :"""
 
             # Appel à Ollama (synchrone car LocalLLM.generate est synchrone)
             loop = asyncio.get_event_loop()
@@ -718,7 +738,9 @@ main();
             "javascript": "console.log('Page chargée avec succès');",
         }
 
-    async def generate_file(self, query: str, is_interrupted_callback=None) -> Dict[str, Any]:
+    async def generate_file(
+        self, query: str, is_interrupted_callback=None, memory: str = ""
+    ) -> Dict[str, Any]:
         """
         Génère un fichier complet basé sur la requête utilisateur
         Méthode principale à utiliser pour "génère moi un fichier..."
@@ -726,6 +748,7 @@ main();
         Args:
             query: Requête complète de l'utilisateur
             is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
+            memory: Faits mémorisés sur l'utilisateur, une ligne chacun
 
         Returns:
             Résultat avec chemin du fichier créé
@@ -739,7 +762,9 @@ main();
             print(f"🔧 Génération du fichier {filename} ({language})...")
 
             # Générer le code avec Ollama en passant le callback
-            result = await self.generate_code(query, filename, is_interrupted_callback)
+            result = await self.generate_code(
+                query, filename, is_interrupted_callback, memory=memory
+            )
 
             # Vérifier si l'opération a été interrompue
             if result.get("interrupted"):

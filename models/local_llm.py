@@ -1301,7 +1301,7 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception vision: {e}")
             return None
 
-    def generate_stream_with_image(self, prompt, image_base64, _system_prompt=None, on_token=None,
+    def generate_stream_with_image(self, prompt, image_base64, system_prompt=None, on_token=None,
                                     on_thinking_token=None, on_thinking_complete=None):
         """
         Pipeline vision en 2 étapes :
@@ -1314,7 +1314,9 @@ class LocalLLM:
         Args:
             prompt: Le message de l'utilisateur
             image_base64: L'image encodée en base64
-            _system_prompt: Ignoré (le system prompt du modèle texte est utilisé)
+            system_prompt: Prompt système de la rédaction (étape 2), qui doit
+                           partir du Modelfile (with_modelfile) ; None : le
+                           SYSTEM du Modelfile seul
             on_token: Callback pour chaque token de la réponse finale
             on_thinking_token: Callback pour le thinking Qwen3.5
             on_thinking_complete: Callback quand le thinking est terminé
@@ -1351,6 +1353,7 @@ class LocalLLM:
 
         result = self.generate_stream(
             prompt=redaction_prompt,
+            system_prompt=system_prompt,
             on_token=on_token,
             on_thinking_token=on_thinking_token,
             on_thinking_complete=on_thinking_complete,

@@ -983,13 +983,13 @@ web_cache:
 
 ### Base de Connaissances Structurée
 
-Le `KnowledgeBaseManager` indexe les faits extraits des conversations dans SQLite :
+Le `KnowledgeBaseManager` stocke dans SQLite les faits que vous demandez de retenir (« retiens que… ») ou ajoutez à la main :
 
 - **6 catégories** : preference, decision, person, procedure, technical, general
-- **Score de confiance** : les faits extraits automatiquement ont une confiance de 0.7, les faits manuels de 1.0
-- **Injection dans le prompt** : les faits pertinents sont automatiquement ajoutés au contexte de la requête
+- **Score de confiance** : 1.0 pour les faits retenus ou ajoutés à la main, 0.7 pour l'extraction automatique (`extract_facts_from_text`)
+- **Injection dans le prompt** : les faits qui partagent des mots avec la requête, puis les plus récents
 
-**Optimisation recommandée :** limiter `max_facts` dans `config.yaml` si la base grossit trop (défaut : 10 000).
+**Coût maîtrisé :** quel que soit le nombre de faits, le prompt en reçoit au plus 12 (2 500 caractères).
 
 ### Détection de Langue
 

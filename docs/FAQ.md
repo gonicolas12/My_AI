@@ -263,10 +263,10 @@ Activez `api.enabled: true` dans `config.yaml`, puis accédez à `http://localho
 L'export se fait via le module `ConversationExporter`. Les formats disponibles sont Markdown (.md), HTML (.html, avec thème sombre) et PDF (.pdf). Les fichiers sont sauvegardés dans `outputs/exports/`.
 
 ### Comment fonctionne la base de connaissances ?
-L'IA extrait automatiquement des faits depuis vos conversations (préférences, décisions, personnes, procédures, informations techniques). Ces faits sont stockés dans SQLite (`data/knowledge_base/facts.db`) avec un score de confiance. Les faits pertinents sont injectés dans le contexte des futures conversations.
+Elle contient les faits que vous demandez à l'IA de retenir (« retiens que… », « n'oublie pas que… ») et ceux ajoutés à la main dans la fenêtre 🧠 Mémoire. Ils sont stockés dans SQLite (`data/knowledge_base/facts.db`). À chaque réponse, les faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Détails : [MEMORY.md](MEMORY.md).
 
 ### L'IA peut-elle répondre dans une autre langue ?
-Oui ! Le `LanguageDetector` détecte automatiquement la langue de votre message parmi 12 langues (français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe) et génère un suffix de prompt système pour que l'IA réponde dans la même langue.
+Oui ! Le `LanguageDetector` détecte automatiquement la langue de votre message parmi 12 langues (français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe) et génère un suffix de prompt système pour que l'IA réponde dans la même langue. Pour un message en anglais, la consigne est aussi rappelée à la fin du message : les instructions du modèle sont en français, et il répondait parfois en français. Une consigne de langue mémorisée (« retiens que tu dois toujours me répondre en anglais ») passe avant la langue détectée.
 
 ### Comment attacher des fichiers aux agents ?
 Cliquez sur le bouton **"+"** dans la zone de saisie de l'onglet Agents, sélectionnez vos fichiers, et ils seront automatiquement lus et injectés dans le prompt de l'agent. Dans un workflow multi-agents, tous les agents reçoivent les fichiers joints.

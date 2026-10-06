@@ -12,6 +12,7 @@ import tempfile
 import traceback
 from typing import Any, Dict, List
 
+from core.modelfile import with_modelfile
 from processors.code_processor import CodeProcessor
 
 
@@ -3083,9 +3084,14 @@ Génère une réponse claire et synthétique en français qui répond à la ques
         try:
             # Utiliser le LLM pour générer un vrai résumé
             if hasattr(self, 'local_llm') and self.local_llm:
+                # Le SYSTEM du Modelfile d'abord : seul, ce prompt effaçait
+                # l'identité et le format de My_AI
                 llm_response = self.local_llm.generate(
                     summary_prompt,
-                    system_prompt="Tu es un assistant qui répond de manière concise et précise aux questions sur des documents."
+                    system_prompt=with_modelfile(
+                        "Réponds de manière concise et précise aux questions sur des documents.",
+                        tools=False,
+                    ),
                 )
                 if llm_response and len(llm_response.strip()) > 20:
                     return llm_response

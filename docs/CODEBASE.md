@@ -60,7 +60,7 @@ core/folder_indexer.py  ── FolderIndexer
 core/ai_engine.py
    ├─ get_folder_indexer()              # accès paresseux
    ├─ outil MCP « search_codebase »     # exposé au LLM
-   ├─ _inject_codebase_context()        # RAG injecté dans le system prompt
+   ├─ _codebase_context()               # RAG injecté dans le system prompt
    └─ _try_codebase_direct_answer()     # court-circuit déterministe (chemin, liste de fichiers…)
 
 interfaces/gui/sidebar.py   ── section « 📁 Dossiers du projet » (attacher/réindexer/détacher)
@@ -69,7 +69,7 @@ relay/relay_server.py       ── handle_codebase_message() + _resolve_vscode_w
 
 ### Deux voies de récupération
 
-- **Injection RAG** (`_inject_codebase_context`) : avant chaque génération, les passages pertinents du dossier attaché sont ajoutés au system prompt.
+- **Injection RAG** (`_codebase_context`) : avant chaque génération, les passages pertinents du dossier attaché sont ajoutés au system prompt, et repris dans la synthèse après appel d'outils.
 - **Court-circuit déterministe** (`_try_codebase_direct_answer`) : pour les questions *sur* le dossier lui-même (« quel est le chemin du projet ? », « liste les fichiers »…), une réponse fiable est construite directement, sans dépendre d'un appel d'outil du modèle.
 
 La recherche filtre par `workspace_id` côté ChromaDB et réutilise le **reranking CrossEncoder** de `VectorMemory`.

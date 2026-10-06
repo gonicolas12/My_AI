@@ -2793,7 +2793,8 @@ class BaseGUI:
                 """
                 tool_labels = {
                     "web_search": f"🔍 Recherche sur internet : « {args.get('query', '')} »",
-                    "search_memory": "🧠 Consultation de la mémoire vectorielle",
+                    "search_memory": "🧠 Consultation de la mémoire",
+                    "remember_fact": f"🧠 Mémorisé : « {args.get('fact', '')} »",
                     "read_local_file": f"📄 Lecture du fichier : {args.get('path', '')}",
                     "list_directory": f"📁 Exploration du répertoire : {args.get('path', '.')}",
                     "generate_code": f"💻 Génération de code {args.get('language', '')}",

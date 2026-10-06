@@ -204,6 +204,18 @@ def test_synthesis_keeps_the_modelfile_identity(ollama):
     assert "## Outils" not in system
 
 
+def test_synthesis_keeps_the_answer_context(ollama):
+    """Les faits de la fenêtre Mémoire n'étaient que dans le prompt de la
+    boucle : la synthèse, qui le remplace, répondait sans eux."""
+    facts = "\n\nFAITS UTILISATEUR :\n[Base de connaissances]\n- [general] Mon chat s'appelle Félix"
+    _synthesize(ollama, _OFF_TRACK, _ANSWER, answer_context=facts)
+
+    for request in ollama.requests:  # première synthèse et relance
+        system = request["messages"][0]["content"]
+        assert system.startswith(with_modelfile(tools=False))
+        assert system.endswith(facts)
+
+
 def test_valid_synthesis_is_shown_once(ollama):
     result, shown, llm = _synthesize(ollama, _ANSWER)
 

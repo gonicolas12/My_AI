@@ -781,12 +781,17 @@ kb.add_fact(category="technical", key="serveur prod", value="api.example.com:443
 facts = kb.extract_facts_from_text("Je préfère VS Code pour le Python")
 # → [{"category": "preference", "key": "préférence: VS Code pour le Python", ...}]
 
+# Ce que l'utilisateur demande de retenir dans le chat (« retiens que… »), sans doublon
+fact_id, created = kb.remember("mon chat s'appelle Félix")
+
 # Recherche
 results = kb.search_facts("Python", category="preference")
 
-# Contexte pour le prompt IA
-context = kb.get_context_for_prompt("Quel éditeur utiliser ?")
-# → "[Base de connaissances]\n- [preference] préférence: VS Code pour le Python (confiance: 70%)"
+# Faits pour le prompt IA : mots communs avec la requête (casse, accents,
+# pluriels ignorés), puis les plus récents
+facts = kb.select_facts("Comment s'appelle mon chat ?")
+context = kb.get_context_for_prompt("Quel éditeur pour le Python ?")  # pertinents seulement
+# → "[Base de connaissances]\n- [preference] VS Code pour le Python (confiance: 70%)"
 ```
 
 ### 🌍 Détection de Langue (`core/language_detector.py`)

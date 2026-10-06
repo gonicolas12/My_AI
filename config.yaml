@@ -454,6 +454,8 @@ workspaces:
 # ====================================
 knowledge_base:
   directory: "data/knowledge_base"
+  # Mémorisation depuis le chat : « retiens que… » (et l'outil remember_fact
+  # du modèle) ajoute le fait à la fenêtre 🧠 Mémoire. false = ajout manuel seulement.
   auto_extract: true
   max_facts: 10000
 

@@ -122,6 +122,7 @@ class DocumentGenerator:
         content: str = "",
         filename: str = "",
         research: str = "",
+        memory: str = "",
         is_interrupted_callback=None,
     ) -> Dict[str, Any]:
         """
@@ -136,6 +137,8 @@ class DocumentGenerator:
             filename: Nom de fichier souhaité. Dérivé du titre s'il est vide.
             research: Informations déjà collectées (recherche web, mémoire,
                 fichiers lus) à utiliser en priorité pour la rédaction.
+            memory: Faits mémorisés sur l'utilisateur, une ligne chacun, à
+                utiliser si la demande s'y rapporte (son nom pour un CV…).
             is_interrupted_callback: Fonction rendant True si l'utilisateur
                 a interrompu l'opération
 
@@ -147,7 +150,8 @@ class DocumentGenerator:
 
             if not content or not content.strip():
                 content = await self._write_content(
-                    brief, title, fmt, research, is_interrupted_callback
+                    brief, title, fmt, research=research, memory=memory,
+                    is_interrupted_callback=is_interrupted_callback,
                 )
                 if is_interrupted_callback and is_interrupted_callback():
                     return {
@@ -255,6 +259,7 @@ class DocumentGenerator:
         title: str,
         fmt: str,
         research: str = "",
+        memory: str = "",
         is_interrupted_callback=None,
     ) -> str:
         """
@@ -277,6 +282,16 @@ class DocumentGenerator:
                 "\nINFORMATIONS COLLECTÉES — appuie-toi EN PRIORITÉ dessus et "
                 "n'invente pas de faits qui les contrediraient :\n"
                 f"{research.strip()}\n"
+            )
+        if memory and memory.strip():
+            # L'appelant ne les passe que si la demande parle de l'utilisateur ;
+            # rien d'autre que ce qui sert le document : son chat n'a rien à
+            # faire dans son CV
+            user_prompt += (
+                "\nCE QUE TU SAIS DE L'UTILISATEUR (sa mémoire) : n'en reprends que "
+                "ce qui sert ce document (son nom et son poste pour un CV, par "
+                "exemple), et rien d'autre :\n"
+                f"{memory.strip()}\n"
             )
         user_prompt += "\nRéponds UNIQUEMENT avec le Markdown du document."
 

@@ -1338,20 +1338,17 @@ Les fichiers sont sauvegardés dans `outputs/exports/` avec horodatage automatiq
 
 ### 🧠 Base de Connaissances Structurée
 
-L'IA extrait automatiquement des faits depuis vos conversations :
+Demandez à l'IA de retenir une information : elle l'enregistre comme fait (fenêtre 🧠 Mémoire, onglet Faits) et s'en sert dans les conversations suivantes :
 
 ```
-Vous : "Je préfère Python pour les scripts d'automatisation"
-→ Fait extrait : [preference] préférence: Python pour les scripts d'automatisation (confiance: 70%)
+Vous : "Retiens que je préfère Python pour les scripts d'automatisation"
+→ Fait enregistré : [general] je préfère Python pour les scripts d'automatisation
 
-Vous : "Mon manager s'appelle Thomas Dupont"
-→ Fait extrait : [person] personne: Thomas Dupont (confiance: 70%)
-
-Vous : "On a décidé de migrer vers PostgreSQL"
-→ Fait extrait : [decision] décision: migrer vers PostgreSQL (confiance: 70%)
+Vous : "N'oublie pas que mon manager s'appelle Thomas Dupont"
+→ Fait enregistré : [general] mon manager s'appelle Thomas Dupont
 ```
 
-Les faits pertinents sont automatiquement injectés dans le contexte des futures conversations.
+Vous pouvez aussi ajouter, modifier ou supprimer des faits dans la fenêtre 🧠 Mémoire. À chaque réponse, les faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Détails : [MEMORY.md](MEMORY.md).
 
 ### 💼 Workspaces / Sessions
 

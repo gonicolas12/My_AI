@@ -9,6 +9,8 @@ self.local_llm, self.code_generator, self.conversation_memory, self.session_cont
 import random
 from typing import Any, Dict
 
+from core.modelfile import with_modelfile
+
 
 class ConversationResponseMixin:
     """Méthodes de réponse conversationnelle pour CustomAIModel."""
@@ -708,16 +710,12 @@ class ConversationResponseMixin:
 
         # 1. TENTATIVE LLM (Ollama) - Priorité absolue pour la conversation naturelle
         if self.local_llm and self.local_llm.is_ollama_available:
-            # Construction du prompt système
-            system_prompt = (
-                f"Tu es {self.name}, un assistant IA personnel fonctionnant en local. "
-                "Tu es utile, précis et expert en programmation. "
-                "Réponds toujours dans la langue de l'utilisateur (français par défaut)."
-            )
-
-            # Injection du contexte RAG si disponible
+            # Identité du Modelfile (sans outils : cet appel n'en offre aucun),
+            # puis le contexte RAG si disponible
+            instructions = ""
             if context and context.get("rag_context"):
-                system_prompt += f"\n\nCONTEXTE DOCUMENTAIRE:\n{context['rag_context']}\n\nUtilise ce contexte pour répondre."
+                instructions = f"CONTEXTE DOCUMENTAIRE:\n{context['rag_context']}\n\nUtilise ce contexte pour répondre."
+            system_prompt = with_modelfile(instructions, tools=False)
 
             print(f"🧠 [LLM] Génération via Ollama pour: '{user_input}'")
             llm_response = self.local_llm.generate(

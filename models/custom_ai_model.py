@@ -594,6 +594,7 @@ class CustomAIModel(
         self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None,
         image_base64: Optional[str] = None,
         on_thinking_token=None, on_thinking_complete=None,
+        answer_context: str = "",
     ) -> str:
         """
         Génère une réponse en STREAMING pour affichage temps réel.
@@ -607,6 +608,8 @@ class CustomAIModel(
                      Retourne False pour interrompre la génération
             context: Contexte optionnel (RAG, documents, etc.)
             image_base64: Image encodée en base64 pour analyse vision
+            answer_context: Contexte d'AIEngine à ajouter au prompt système
+                            (faits mémorisés, mémorisation du tour)
 
         Returns:
             La réponse complète une fois terminée
@@ -621,6 +624,8 @@ class CustomAIModel(
                 print("🖼️ [VISION] Image détectée - pipeline vision → texte")
                 response = self.local_llm.generate_stream_with_image(
                     user_input, image_base64,
+                    # Aucun outil à la rédaction ; les faits mémorisés en plus
+                    system_prompt=with_modelfile(answer_context.strip(), tools=False),
                     on_token=on_token,
                     on_thinking_token=on_thinking_token,
                     on_thinking_complete=on_thinking_complete,
@@ -681,10 +686,11 @@ class CustomAIModel(
                     on_token(response)
                 return response
 
-            # 3️⃣ CALCULS - Résultat instantané
-            if any(
-                op in user_input for op in ["+", "-", "*", "/", "^", "sqrt", "calcule"]
-            ):
+            # 3️⃣ CALCULS - Résultat instantané. Même détection que dans
+            # generate_response : le simple test d'un « - » envoyait ici
+            # « qui suis-je ? » ou « souviens-toi… », et generate_response ne
+            # reçoit pas answer_context (faits mémorisés perdus)
+            if CALCULATOR_AVAILABLE and intelligent_calculator.is_calculation_request(user_input):
                 response = self.generate_response(user_input, context)
                 if on_token:
                     on_token(response)
@@ -707,6 +713,8 @@ class CustomAIModel(
                 system_prompt = self._ollama_system_prompt(
                     user_input, context, "STREAM-DOC"
                 )
+                if answer_context:
+                    system_prompt = (system_prompt or with_modelfile(tools=False)) + answer_context
 
                 print(f"⚡ [STREAM] Génération streaming pour: '{user_input[:50]}...'")
 

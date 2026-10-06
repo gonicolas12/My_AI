@@ -11,7 +11,7 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **ChatOrchestrator** : Boucle agentique ReAct + Plan & Execute + Scratchpad persistant pour le tool-calling
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
 - **API REST Locale** : Serveur FastAPI pour intégrations externes (chat, modèles, stats)
-- **Base de Connaissances Structurée** : Extraction automatique de faits avec score de confiance
+- **Base de Connaissances Structurée** : Faits retenus depuis le chat (« retiens que… ») ou ajoutés à la main, injectés dans le prompt
 - **Multi-Workspaces** : Sessions isolées avec sauvegarde automatique et persistance JSON
 - **Export Multi-Format** : Conversations exportables en Markdown, HTML et PDF
 - **Détection de Langue** : 12 langues détectées automatiquement, réponse adaptée
@@ -345,7 +345,10 @@ Architecture:
 │   ├─ Préférences, Décisions, Personnes
 │   ├─ Procédures, Techniques
 │   └─ Confiance auto : 0.7
-├─ Injection contexte dans le prompt IA
+├─ Mémorisation depuis le chat : extract_remember_request (« retiens que… »)
+│   + remember() sans doublon (aussi l'outil remember_fact du modèle)
+├─ select_facts : mots communs avec la requête, puis les plus récents
+├─ Injection contexte dans le prompt IA (et dans la synthèse après outils)
 └─ CRUD complet avec recherche plein texte
 ```
 

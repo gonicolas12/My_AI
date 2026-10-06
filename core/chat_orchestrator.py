@@ -27,7 +27,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
-from .modelfile import with_modelfile
+from .modelfile import drop_tools_section, with_modelfile
 from .platform_paths import PATH_EXAMPLES as _PATH_EX
 
 # [OPTIM] Retry résilient sur les appels réseau Ollama
@@ -84,6 +84,17 @@ def _wants_document(user_input: str) -> bool:
     return any(word in query for word in _DOCUMENT_WORDS) and any(
         verb in query for verb in _DOCUMENT_VERBS
     )
+
+
+# Rappel de langue qu'AIEngine ajoute en fin de message (« (Always respond in
+# English.) ») : les seuils de longueur portent sur la question seule. Compté,
+# il faisait planifier une question anglaise de 25 caractères.
+_LANGUAGE_REMINDER_RE = re.compile(r"\n\n\([^\n]*\)\Z")
+
+
+def _question_length(user_input: str) -> int:
+    """Longueur du message de l'utilisateur, sans le rappel de langue."""
+    return len(_LANGUAGE_REMINDER_RE.sub("", user_input))
 
 
 # Tour conclu par une annonce (« Je vais créer le document… ») ou un aveu
@@ -373,6 +384,7 @@ class ChatOrchestrator:
         on_thinking_complete: Optional[Callable] = None,
         is_interrupted_callback: Optional[Callable] = None,
         on_tool_call: Optional[Callable] = None,
+        answer_context: str = "",
     ) -> Optional[str]:
         """
         Lance la boucle agentique ReAct.
@@ -386,6 +398,10 @@ class ChatOrchestrator:
                                      timeout, conversation_history, add_to_history,
                                      parse_text_tool_call)
             system_prompt:           prompt système de base (construit par AIEngine)
+            answer_context:          partie de system_prompt que garde la
+                                     synthèse après outils, dont le prompt
+                                     remplace celui de la boucle (faits
+                                     mémorisés, dossier projet)
             on_token:                callback pour streamer la réponse finale
             on_thinking_token:       callback pour streamer le plan dans le widget
                                      raisonnement (même widget que le Thinking Mode)
@@ -594,6 +610,7 @@ class ChatOrchestrator:
                         loop_start=loop_start,
                         on_thinking_token=on_thinking_token,
                         on_thinking_complete=on_thinking_complete,
+                        answer_context=answer_context,
                     )
                     # Filet de sécurité : la synthèse n'a rien produit (délai
                     # dépassé, Ollama tombé) alors qu'un document vient d'être
@@ -893,7 +910,7 @@ class ChatOrchestrator:
                 messages.append({
                     "role": "user",
                     "content": (
-                        "L'outil mémore vectorielle n'a retourné aucun résultat. "
+                        "L'outil search_memory n'a retourné aucun résultat. "
                         "N'insiste pas et ne reformule pas. L'information n'est pas en mémoire. "
                         "Passe immédiatement à l'action suivante ou réponds à l'utilisateur."
                     ),
@@ -994,6 +1011,7 @@ class ChatOrchestrator:
                 loop_start=loop_start,
                 on_thinking_token=on_thinking_token,
                 on_thinking_complete=on_thinking_complete,
+                answer_context=answer_context,
             )
 
         if announced_answer is not None:
@@ -1021,7 +1039,7 @@ class ChatOrchestrator:
         q = user_input.lower()
 
         # Questions courtes / conversationnelles → pas de plan
-        if len(user_input) < PLAN_MIN_QUERY_LEN:
+        if _question_length(user_input) < PLAN_MIN_QUERY_LEN:
             return False
 
         # Signaux de tâche complexe / multi-étapes
@@ -1177,7 +1195,7 @@ class ChatOrchestrator:
             return False, "réponse trop courte"
 
         # Règle 1b : réponse anormalement courte pour une question complexe
-        if len(user_input) > 80 and len(text) < 25:
+        if _question_length(user_input) > 80 and len(text) < 25:
             return False, "réponse trop courte pour une question complexe"
 
         # Règle 2 : marqueurs d'hallucination
@@ -1210,7 +1228,7 @@ class ChatOrchestrator:
         try:
             return llm.generate_stream(
                 prompt=user_input,
-                system_prompt=system_prompt,
+                system_prompt=drop_tools_section(system_prompt),
                 on_token=on_token,
                 is_interrupted_callback=is_interrupted_callback,
             )
@@ -1598,6 +1616,7 @@ class ChatOrchestrator:
         loop_start: int,
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
+        answer_context: str = "",
     ) -> Optional[str]:
         """
         Synthèse streamée après exécution d'outils.
@@ -1606,7 +1625,9 @@ class ChatOrchestrator:
         consignes d'outils) pour que le modèle ne réponde pas « je n'ai pas
         accès aux données en temps réel ». Il repart du SYSTEM du Modelfile
         (with_modelfile) : sans lui, la réponse affichée perdait l'identité et
-        le format de My_AI.
+        le format de My_AI. Il reprend ensuite answer_context (faits
+        mémorisés, dossier projet) : sans lui, elle perdait les faits de la
+        fenêtre Mémoire, qui ne figuraient que dans le prompt de la boucle.
 
         Validation avant affichage :
           - Les SYNTHESIS_HEAD_CHARS premiers caractères sont retenus puis
@@ -1648,7 +1669,7 @@ class ChatOrchestrator:
             "Ne mets JAMAIS un nom de source sans son URL. "
             "Reprends les URLs telles quelles depuis les résultats des outils.",
             tools=False,
-        )
+        ) + answer_context
 
         msgs = self._synthesis_messages(
             messages, loop_start, synthesis_system, user_input
@@ -1952,7 +1973,8 @@ def _tool_display_name(tool_name: str) -> str:
     """Retourne un nom lisible pour afficher dans le scratchpad."""
     mapping = {
         "web_search": "Recherche web",
-        "search_memory": "Mémoire vectorielle",
+        "search_memory": "Mémoire",
+        "remember_fact": "Mémorisation",
         "read_local_file": "Lecture fichier",
         "list_directory": "Listing répertoire",
         "generate_code": "Génération code",

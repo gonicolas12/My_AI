@@ -42,6 +42,15 @@ def modelfile_system() -> str:
     return match.group(1).strip()
 
 
+def drop_tools_section(prompt: str) -> str:
+    """
+    Retire la section « ## Outils » d'un prompt système déjà construit, pour
+    un appel qui n'offre aucun outil : elle pousse le modèle à appeler des
+    outils qu'il n'a pas.
+    """
+    return _TOOLS_SECTION_RE.sub("", prompt).strip()
+
+
 def with_modelfile(instructions: str = "", tools: bool = True) -> str:
     """
     Prompt système d'une réponse destinée à l'utilisateur : le SYSTEM du
@@ -51,11 +60,10 @@ def with_modelfile(instructions: str = "", tools: bool = True) -> str:
         instructions: consignes et contexte de l'appel, placés après
                       l'identité.
         tools:        False quand l'appel n'offre aucun outil. La section
-                      « ## Outils » est alors retirée : elle pousse le modèle
-                      à appeler des outils qu'il n'a pas.
+                      « ## Outils » est alors retirée (drop_tools_section).
     """
     base = modelfile_system()
     if base and not tools:
-        base = _TOOLS_SECTION_RE.sub("", base).strip()
+        base = drop_tools_section(base)
     base = base or FALLBACK_IDENTITY
     return f"{base}\n\n{instructions}" if instructions else base

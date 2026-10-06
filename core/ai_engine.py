@@ -45,7 +45,7 @@ from .conversation import ConversationManager
 from .document_passages import select_passages
 from .mcp_client import MCPManager
 from .passage_embeddings import similarities as passage_similarities
-from .modelfile import with_modelfile
+from .modelfile import drop_tools_section, with_modelfile
 from .platform_paths import PATH_EXAMPLES
 from .validation import validate_input
 
@@ -68,7 +68,16 @@ except ImportError:
     _EXPORTER_AVAILABLE = False
 
 try:
-    from .knowledge_base_manager import KnowledgeBaseManager
+    from .knowledge_base_manager import VALID_CATEGORIES as _FACT_CATEGORIES
+    from .knowledge_base_manager import (
+        KnowledgeBaseManager,
+        extract_remember_request,
+        fact_for_prompt,
+        is_assistant_fact,
+        is_only_remember_request,
+        memorization_confirmation,
+        reply_language,
+    )
     _KB_AVAILABLE = True
 except ImportError:
     _KB_AVAILABLE = False
@@ -290,6 +299,12 @@ class AIEngine:
         # Résultats des outils de collecte du tour courant, réinjectés dans la
         # rédaction quand le modèle cherche avant de produire un document.
         self._turn_research: List[str] = []
+        # Message de l'utilisateur pour le tour courant, lu par les outils qui
+        # ne reçoivent que les arguments écrits par le modèle
+        self._turn_request = ""
+        # Information que le message du tour demandait de retenir, déjà
+        # enregistrée (_remember_from_message)
+        self._turn_memorized: Optional[str] = None
         self.ollama_code_generator = OllamaCodeGenerator(
             llm=llm_instance
         )  # Générateur avec Ollama
@@ -678,6 +693,99 @@ class AIEngine:
                 pass
         return self._LANG_SUFFIXES["fr"]
 
+    def _language_instruction(self, text: str) -> str:
+        """
+        Consigne de langue du tour : celle de la langue détectée, sauf si la
+        mémoire impose une langue de réponse (« retiens que tu dois me
+        répondre en anglais » → « Always respond in English. », la plus
+        récente si plusieurs). « Réponds toujours en français. », répété à
+        chaque message, l'emportait sur la consigne mémorisée, même quand
+        le prompt disait de lui donner la priorité.
+        """
+        code = self._memory_reply_language()
+        if code:
+            return self._LANG_SUFFIXES[code]
+        # Le détecteur seul répond « fr » à « Who am I? », trop court
+        if self._message_in_english(text):
+            return self._LANG_SUFFIXES["en"]
+        return self._get_lang_instruction(text)
+
+    # Nom de chaque langue de _LANG_SUFFIXES, pour le rappel du bloc mémoire
+    _LANGUAGE_NAMES = {
+        "fr": "français", "en": "anglais", "es": "espagnol", "de": "allemand",
+        "it": "italien", "pt": "portugais", "nl": "néerlandais", "ru": "russe",
+        "zh": "chinois", "ja": "japonais", "ko": "coréen", "ar": "arabe",
+    }
+
+    def _memory_reply_language(self) -> Optional[str]:
+        """Langue de réponse imposée par la mémoire (la consigne la plus récente), ou None."""
+        kb = getattr(self, "knowledge_base", None)
+        if not _KB_AVAILABLE or kb is None:
+            return None
+        try:
+            facts = sorted(kb.get_all_facts(), key=lambda f: f["updated_at"], reverse=True)
+        except Exception as exc:
+            self.logger.warning("Lecture base de connaissances indisponible: %s", exc)
+            return None
+        for fact in facts:
+            code = reply_language(fact["value"])
+            if code in self._LANG_SUFFIXES:
+                return code
+        return None
+
+    # Mots-outils de l'anglais et du français. Le détecteur prend parfois un
+    # message français court pour de l'anglais (« Merci beaucoup ! » → en) :
+    # sans mot anglais, ou avec un mot français, pas de rappel.
+    _ENGLISH_WORDS_RE = _re.compile(
+        r"(?<![\w'’])(?:the|is|are|am|i|was|were|what|who|how|why|when|where|which|you|"
+        r"your|my|it|this|that|of|to|for|with|and|can|do|does|please|thanks?|hello|hi)\b",
+        _re.IGNORECASE,
+    )
+    _FRENCH_WORDS_RE = _re.compile(
+        r"(?<![\w'’])(?:(?:je|tu|il|elle|nous|vous|le|la|les|un|une|des|du|de|et|est|en|"
+        r"que|qui|quoi|pourquoi|avec|dans|pas|mon|ma|mes|ce|cette|ça|merci|bonjour|salut|"
+        r"traduis|traduire|traduction)\b|[cdjlmnst]['’]|qu['’])",
+        _re.IGNORECASE,
+    )
+    # Passage cité, souvent dans une autre langue (« Have a nice day »)
+    _QUOTED_TEXT_RE = _re.compile(r"«[^»]*»|\"[^\"]*\"|“[^”]*”")
+
+    def _message_in_english(self, text: str) -> bool:
+        """
+        Le message est-il clairement en anglais ? Aucun mot français, et deux
+        mots anglais, ou un seul si le détecteur conclut aussi à l'anglais :
+        sous 10 caractères, il répond la langue par défaut (« Who am I? » →
+        fr). Seul l'anglais est reconnu : sur un message court, le détecteur
+        confond les autres langues avec le français (« Pourquoi ? » → pt).
+        """
+        unquoted = self._QUOTED_TEXT_RE.sub(" ", text)
+        if self._FRENCH_WORDS_RE.search(unquoted):
+            return False
+        english_words = len(self._ENGLISH_WORDS_RE.findall(unquoted))
+        if english_words >= 2:
+            return True
+        if not english_words:
+            return False
+        detector = getattr(self, "language_detector", None)
+        try:
+            return detector is not None and detector.detect(text) == "en"
+        except Exception:
+            return False
+
+    def _reminded_language(self, text: str) -> Optional[str]:
+        """
+        Langue à rappeler à la fin du message : celle que la mémoire impose,
+        sinon l'anglais pour un message en anglais. Dans le prompt système, au
+        milieu des consignes en français, « Always respond in English. » ne
+        suffisait pas : « Remember that you must always end your answers
+        with… » était confirmé par « Noté : je dois toujours terminer mes
+        réponses par… ».
+        """
+        code = self._memory_reply_language()
+        if code:
+            return code
+        return "en" if self._message_in_english(text) else None
+
     def _setup_mcp_tools(self):
         """
         Enregistre toutes les capacités existantes du projet comme outils
@@ -731,33 +839,14 @@ class AIEngine:
             self.logger.warning("Outil web_search non disponible : %s", exc)
 
         # ----------------------------------------------------------------
-        # 2. Recherche en mémoire vectorielle
+        # 2. Recherche en mémoire (faits mémorisés + mémoire vectorielle)
         # ----------------------------------------------------------------
         try:
-            def search_memory(query: str, n_results: int = 5) -> str:
-                """Recherche sémantique dans la mémoire vectorielle locale."""
-                try:
-                    # Résolution à l'appel (comme search_codebase) : construire la
-                    # VectorMemory dès l'enregistrement chargerait ChromaDB et le
-                    # pipeline d'embeddings au démarrage, pour un outil peut-être
-                    # jamais utilisé.
-                    vector_mem = self.get_vector_memory()
-                    results = vector_mem.search_similar(query, n_results=n_results)
-                    if not results:
-                        return "Aucun résultat dans la mémoire vectorielle."
-                    parts = []
-                    for i, r in enumerate(results, 1):
-                        content = r.get("content", r.get("text", str(r)))
-                        parts.append(f"[{i}] {content[:500]}")
-                    return "\n\n".join(parts)
-                except Exception as exc:
-                    return f"Erreur mémoire : {exc}"
-
             self.mcp_manager.register_local_tool(
                 name="search_memory",
                 description=(
-                    "Recherche sémantique dans la mémoire locale de l'IA (documents "
-                    "précédemment indexés, historique de conversation, connaissances). "
+                    "Recherche dans la mémoire locale de l'IA : les faits que l'utilisateur "
+                    "lui a demandé de retenir et les documents précédemment indexés. "
                     "N'UTILISE PAS cet outil pour retrouver des fichiers fraîchement créés ou d'actions triviales. "
                     "À utiliser UNIQUEMENT pour retrouver des informations passées lointaines si l'utilisateur en parle."
                 ),
@@ -776,10 +865,49 @@ class AIEngine:
                     },
                     "required": ["query"],
                 },
-                callable_fn=search_memory,
+                callable_fn=self._search_memory,
             )
         except Exception as exc:
             self.logger.warning("Outil search_memory non disponible : %s", exc)
+
+        # ----------------------------------------------------------------
+        # 2ter. Mémorisation d'un fait (fenêtre Mémoire, onglet Faits)
+        # ----------------------------------------------------------------
+        if _KB_AVAILABLE and self._memory_auto_extract():
+            try:
+                self.mcp_manager.register_local_tool(
+                    name="remember_fact",
+                    description=(
+                        "Enregistre durablement une information que l'utilisateur te demande "
+                        "EXPLICITEMENT de retenir (« retiens », « souviens-toi », "
+                        "« n'oublie pas », « garde en tête »…) : préférence, fait personnel, "
+                        "décision, procédure. "
+                        "Elle reste disponible dans les conversations suivantes. N'enregistre "
+                        "JAMAIS une information que l'utilisateur ne t'a pas demandé de retenir."
+                    ),
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "fact": {
+                                "type": "string",
+                                "description": (
+                                    "L'information à retenir, en une phrase compréhensible hors "
+                                    "contexte (ex. « Le chat de l'utilisateur s'appelle Félix »)"
+                                ),
+                            },
+                            "category": {
+                                "type": "string",
+                                "enum": list(_FACT_CATEGORIES),
+                                "description": "Catégorie du fait",
+                                "default": "general",
+                            },
+                        },
+                        "required": ["fact"],
+                    },
+                    callable_fn=self._remember_fact_tool,
+                )
+            except Exception as exc:
+                self.logger.warning("Outil remember_fact non disponible : %s", exc)
 
         # ----------------------------------------------------------------
         # 2bis. Recherche dans le dossier/codebase attaché au workspace
@@ -1224,6 +1352,11 @@ class AIEngine:
                 result = await self.document_generator.generate_document(
                     brief, fmt=format, title=title, content=content,
                     filename=filename, research=self._research_context(),
+                    # Le message d'origine aussi : le modèle réécrit souvent
+                    # « mon CV » en « le CV de l'utilisateur » dans brief
+                    memory=self._generation_memory(
+                        f"{getattr(self, '_turn_request', '')} {title} {brief}"
+                    ),
                 )
                 if not result.get("success"):
                     return f"Génération impossible : {result.get('error', 'erreur inconnue')}"
@@ -1456,6 +1589,9 @@ class AIEngine:
         context = validated_input.context
 
         self.logger.info("[VALIDÉ] process_text: %s", repr(text[:100]))
+
+        # « Retiens que… » : enregistré quel que soit le chemin de réponse
+        self._remember_from_message(text)
 
         try:
             response, recorded_by_model = self._route_validated_query(text, context)
@@ -1798,9 +1934,14 @@ Que voulez-vous que je fasse pour vous ?""",
         """
         try:
             self.logger.info("Traitement de la requête: %s...", query[:100])
+            self._turn_request = query
 
-            # Détection automatique de la langue de l'utilisateur
-            self._current_lang_instruction = self._get_lang_instruction(query)
+            # « Retiens que… » : enregistré quel que soit le chemin de réponse
+            self._remember_from_message(query)
+
+            # Langue de l'utilisateur, sauf consigne de langue en mémoire
+            # (y compris celle qui vient d'être enregistrée)
+            self._current_lang_instruction = self._language_instruction(query)
 
             # 0.a. Génération d'image (SORTIE image) — prioritaire sur MCP.
             if self.is_image_generation_request(query):
@@ -2026,104 +2167,393 @@ Que voulez-vous que je fasse pour vous ?""",
 
         return full_context
 
-    def _inject_knowledge_base_context(self, query: str, system_prompt: str) -> str:
-        """
-        Injecte les faits pertinents de la base de connaissances dans le
-        system prompt pour favoriser des réponses factuelles.
+    # ── Mémoire : faits de la fenêtre « Mémoire » (onglet Faits) ────────
 
-        Injecte à la fois les faits pertinents à la requête courante ET les
-        faits les plus récents tous catégories confondues (plafonné), afin
-        que les questions de rappel courtes ("tu es sûr ?", "et alors ?")
-        conservent accès aux informations précédemment fournies.
+    @staticmethod
+    def _memory_auto_extract() -> bool:
+        """knowledge_base.auto_extract : l'IA mémorise-t-elle depuis le chat ?"""
+        try:
+            return bool(get_config().get("knowledge_base.auto_extract", True))
+        except Exception:
+            return True
+
+    def _remember_from_message(self, message: str) -> Optional[str]:
+        """
+        Enregistre ce que le message demande explicitement de retenir
+        (« retiens que… », voir extract_remember_request).
+
+        Filet déterministe à côté de l'outil remember_fact : un petit modèle
+        ne l'appelle pas toujours, et les messages conversationnels (« merci,
+        retiens que… ») partent sans outils. L'information est gardée dans
+        _turn_memorized : le prompt du tour la confirme et l'outil n'est pas
+        proposé, faute de quoi elle serait enregistrée deux fois.
+
+        Returns:
+            L'information enregistrée, ou None.
+        """
+        self._turn_memorized = None
+        kb = getattr(self, "knowledge_base", None)
+        if not _KB_AVAILABLE or kb is None or not self._memory_auto_extract():
+            return None
+        fact = extract_remember_request(message)
+        if not fact:
+            return None
+        try:
+            kb.remember(fact, source="conversation")
+        except Exception as exc:
+            self.logger.warning("Information non mémorisée : %s", exc)
+            return None
+        self.logger.info("🧠 Mémorisé depuis le chat : %s", fact[:80])
+        self._turn_memorized = fact
+        return fact
+
+    def _remember_fact_tool(self, fact: str, category: str = "general") -> str:
+        """Outil remember_fact : enregistre ce que l'utilisateur demande de retenir."""
+        kb = getattr(self, "knowledge_base", None)
+        if kb is None:
+            return "Mémoire indisponible : rien n'a été enregistré."
+        fact = str(fact or "").strip()
+        try:
+            _, created = kb.remember(fact, category=str(category or "general"))
+        except ValueError:
+            return "Rien à mémoriser : l'information est vide."
+        except Exception as exc:
+            return f"Erreur mémoire : {exc}"
+        status = "Mémorisé" if created else "Déjà en mémoire"
+        return (
+            f"{status} : « {fact} ». L'utilisateur le retrouve dans la fenêtre "
+            "🧠 Mémoire (onglet Faits)."
+        )
+
+    def _search_memory(self, query: str, n_results: int = 5) -> str:
+        """
+        Outil search_memory : les faits mémorisés qui partagent des mots avec
+        la requête, puis les passages les plus proches des documents indexés.
+        """
+        try:
+            n_results = max(1, int(n_results))
+        except (TypeError, ValueError):
+            n_results = 5
+
+        parts = []
+        kb = getattr(self, "knowledge_base", None)
+        if kb is not None:
+            try:
+                facts = kb.select_facts(query, max_facts=n_results, include_recent=False)
+                header = "Faits mémorisés :"
+                if not facts:
+                    # « fait retenu par l'utilisateur » ne partage aucun mot avec
+                    # les faits : « Aucun résultat » faisait croire la mémoire vide
+                    facts = kb.select_facts(query, max_facts=n_results)
+                    header = "Aucun fait ne correspond exactement ; les plus récents :"
+            except Exception as exc:
+                self.logger.warning("Recherche dans les faits indisponible : %s", exc)
+                facts = []
+            if facts:
+                parts.append(header + "\n" + "\n".join(kb.format_facts(facts)))
+
+        try:
+            # Résolution à l'appel (comme search_codebase) : construire la
+            # VectorMemory dès l'enregistrement chargerait ChromaDB et le
+            # pipeline d'embeddings au démarrage, pour un outil peut-être
+            # jamais utilisé.
+            results = self.get_vector_memory().search_similar(query, n_results=n_results)
+        except Exception as exc:
+            if not parts:
+                return f"Erreur mémoire : {exc}"
+            results = []
+        if results:
+            passages = [
+                f"[{i}] {str(r.get('content', r.get('text', r)))[:500]}"
+                for i, r in enumerate(results, 1)
+            ]
+            parts.append("Documents indexés :\n" + "\n\n".join(passages))
+
+        if not parts:
+            return "Aucun résultat dans la mémoire (faits mémorisés et documents indexés)."
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _without_tool(tools: List[Dict], name: str) -> List[Dict]:
+        """La liste d'outils Ollama, sans celui qui porte ce nom."""
+        return [t for t in tools if t.get("function", {}).get("name") != name]
+
+    def _answer_context(self, query: str) -> str:
+        """
+        Contexte à ajouter au prompt système d'une réponse : les faits
+        mémorisés, puis le dossier projet attaché, chacun précédé d'une
+        ligne vide. Chaîne vide s'il n'y a ni l'un ni l'autre.
+
+        La boucle d'outils le reçoit aussi à part (ChatOrchestrator.run) :
+        sa synthèse remplace le prompt de la boucle, et la réponse affichée
+        perdait sinon les faits de la fenêtre Mémoire.
+        """
+        blocks = (self._knowledge_base_context(query), self._codebase_context(query))
+        return "".join(f"\n\n{block}" for block in blocks if block)
+
+    # Ce qui, après « mon / ma / mes / notre / nos », parle de l'utilisateur
+    # lui-même ; « mon fichier », « ma liste », « mes données » n'en sont pas
+    _PERSONAL_NOUNS = (
+        r"pr[ée]nom|nom|name|[âa]ge|anniversaire|birthday|adresse|address|ville|city|"
+        r"pays|country|e-?mail|mail|t[ée]l[ée]phone|phone|num[ée]ro|entreprise|"
+        r"soci[ée]t[ée]|bo[iî]te|company|travail|job|poste|m[ée]tier|profession|"
+        r"[ée]quipe|team|manager|chef|coll[èe]gues?|famille|family|femme|mari|"
+        r"[ée]pou(?:x|se)|wife|husband|enfants?|fils|filles?|kids|children|parents|"
+        r"p[èe]re|m[èe]re|fr[èe]re|s[œo]e?ur|chat|chien|animal|pet|cat|dog|cv|profil|"
+        r"profile|signature|parcours|comp[ée]tences|skills|dipl[ôo]mes?|formation|"
+        r"loisirs|hobbies|passions?"
+    )
+    _PERSONAL_REQUEST_RE = _re.compile(
+        rf"(?<![\w'’])(?:mon|ma|mes|notre|nos|my|our)\s+(?:{_PERSONAL_NOUNS})\b"
+        r"|(?<![\w'’])(?:cv|curriculum|lettre|courrier|carte\s+de\s+visite|signature)\b",
+        _re.IGNORECASE,
+    )
+
+    def _generation_memory(self, query: str) -> str:
+        """
+        Faits mémorisés sur l'utilisateur, une ligne chacun, pour un contenu
+        généré (fichier de code, document), ou chaîne vide. Les générateurs
+        rédigent avec leur propre prompt : « génère un fichier qui affiche mon
+        prénom » ne pouvait pas savoir comment il s'appelle.
+
+        Seulement quand la demande parle de lui (_PERSONAL_REQUEST_RE) : avec
+        les faits sous les yeux, le modèle les plaçait n'importe où, consigne
+        ou pas (« Auteur : Sophie Martin… Chat : Félix » en tête d'un script
+        de tri, son entreprise dans un rapport sur les baleines). Les
+        consignes pour l'IA restent au chat : « termine tes réponses par
+        Have a nice day » n'a pas sa place à la fin d'un script.
+        """
+        kb = getattr(self, "knowledge_base", None)
+        if kb is None or not self._PERSONAL_REQUEST_RE.search(query or ""):
+            return ""
+        try:
+            facts = [fact for fact in kb.select_facts(query) if not kb.is_about_assistant(fact)]
+        except Exception as exc:
+            self.logger.warning("Lecture base de connaissances indisponible: %s", exc)
+            return ""
+        return "\n".join(kb.format_facts(facts))
+
+    # Exemples des règles du bloc mémoire, dans la langue de la réponse : le
+    # modèle recopie leurs modèles de phrase (« Je m'appelle… » donnait « Je
+    # m'appelle Friday. » à « What's your name? »). Chaque question anglaise
+    # y est rattachée à sa personne : un « My name is… » isolé attirait
+    # « What is my name? » vers le nom de l'IA.
+    _MEMORY_RULE_EXAMPLES = {
+        "fr": {
+            "to_user": "« L'utilisateur s'appelle… » → « Tu t'appelles… »",
+            "to_self": "« Tu t'appelles… » → « Je m'appelle… »",
+            "user_questions": "« Qui suis-je ? », « qui je suis ? », « comment je m'appelle ? »",
+            "user_answers": "« Tu es… », « Tu t'appelles… »",
+            "not_user_answers": "« Je suis… » ni « Je m'appelle… »",
+            "self_questions": "« Qui es-tu ? », « comment tu t'appelles ? »",
+            "recall_questions": (
+                "« Qu'est-ce que je t'ai demandé de retenir ? », « que sais-tu de moi ? »"
+            ),
+            "second_person": "« Tu… »",
+            "first_person": "« Je… »",
+            "example_1": "'qui est mon manager ?' → 'Ton manager est...' (rien de plus)",
+            "example_2": (
+                "après avoir dit 'Ton manager est...', si on te demande 'tu es sûr ?' → "
+                "'Oui, c'est bien toi qui me l'as indiqué.'"
+            ),
+        },
+        "en": {
+            "to_user": "« L'utilisateur s'appelle… » → « Your name is… »",
+            "to_self": "« Tu t'appelles… » → « My name is… »",
+            "user_questions": "« Who am I? », « What's my name? »",
+            "user_answers": "« You are… », « Your name is… »",
+            "not_user_answers": "« I am… » ni « My name is… »",
+            "self_questions": "« Who are you? », « What's your name? »",
+            "recall_questions": (
+                "« What did I ask you to remember? », « What do you know about me? »"
+            ),
+            "second_person": "« You… »",
+            "first_person": "« I… »",
+            "example_1": "'who is my manager?' → 'Your manager is...' (rien de plus)",
+            "example_2": (
+                "après avoir dit 'Your manager is...', si on te demande 'are you sure?' → "
+                "'Yes, you told me so yourself.'"
+            ),
+        },
+    }
+
+    def _knowledge_base_context(self, query: str) -> str:
+        """
+        Bloc « MÉMOIRE PERSISTANTE » du prompt système, ou chaîne vide.
+
+        Les faits qui partagent des mots avec la requête passent d'abord, puis
+        les plus récents (KnowledgeBaseManager.select_facts) : les questions
+        de rappel courtes (« tu es sûr ? », « et alors ? ») gardent accès aux
+        informations déjà fournies. Les faits sur l'utilisateur et les
+        consignes pour l'IA (« tu t'appelles Jarvis ») sont séparés : les uns
+        se disent à la deuxième personne, les autres à la première. Une
+        information mémorisée pendant ce tour (_remember_from_message) est
+        confirmée à part.
         """
         kb = getattr(self, "knowledge_base", None)
         if kb is None:
-            return system_prompt
-
-        collected: Dict[Any, Dict[str, Any]] = {}
-
-        def _add_fact(fact: Dict[str, Any]) -> None:
-            fid = fact.get("id")
-            key = fid if fid is not None else f"{fact.get('key', '')}|{fact.get('value', '')}"
-            if key not in collected:
-                collected[key] = fact
-
-        # 1. Faits pertinents à la requête courante
+            return ""
         try:
-            for fact in kb.search_facts(query, limit=6) or []:
-                _add_fact(fact)
-        except Exception as exc:
-            self.logger.warning("Recherche base de connaissances indisponible: %s", exc)
-
-        # 2. Toujours inclure les faits les plus récents (contexte persistant)
-        try:
-            for fact in (kb.get_all_facts() or [])[:6]:
-                _add_fact(fact)
+            facts = kb.select_facts(query)
         except Exception as exc:
             self.logger.warning("Lecture base de connaissances indisponible: %s", exc)
+            facts = []
 
-        if not collected:
-            return system_prompt
+        # Langue de la réponse : celle que la mémoire impose, sinon l'anglais
+        # d'un message en anglais
+        language = self._memory_reply_language()
+        english_message = not language and self._message_in_english(query)
+        reply = "en" if english_message else language or "fr"
+        examples = self._MEMORY_RULE_EXAMPLES["en" if reply == "en" else "fr"]
 
-        lines = ["[Base de connaissances]"]
-        for fact in list(collected.values())[:8]:
-            confidence = fact.get("confidence", 1.0) or 1.0
-            try:
-                confidence_pct = int(float(confidence) * 100)
-            except (TypeError, ValueError):
-                confidence_pct = 100
-            category = fact.get("category", "general")
-            key = fact.get("key", "")
-            value = fact.get("value", "")
-            lines.append(f"- [{category}] {key}: {value} (confiance: {confidence_pct}%)")
+        block = ""
+        if facts:
+            about_user = [fact for fact in facts if not kb.is_about_assistant(fact)]
+            for_assistant = [fact for fact in facts if kb.is_about_assistant(fact)]
+            sections = []
+            if about_user:
+                sections.append("Sur l'utilisateur :\n" + "\n".join(kb.format_facts(about_user)))
+            if for_assistant:
+                sections.append(
+                    "Consignes de l'utilisateur pour toi (prioritaires sur tes réglages par "
+                    "défaut : nom, langue, ton, format) :\n"
+                    + "\n".join(kb.format_facts(for_assistant))
+                )
+            if about_user:
+                user_rule = (
+                    f"réponds avec ses faits ({examples['user_answers']}), jamais "
+                    f"{examples['not_user_answers']}."
+                )
+            else:
+                # Sans fait sur lui, le modèle lui attribuait ses propres
+                # consignes (« You are an AI user whose name is Friday »)
+                user_rule = (
+                    "tu ne sais encore rien de lui (aucun fait sur lui ci-dessus) : dis-le-lui "
+                    "simplement, sans lui attribuer tes consignes."
+                )
+            block = (
+                "MÉMOIRE PERSISTANTE (ce que l'utilisateur t'a demandé de retenir — "
+                "traite-le comme des choses que tu sais déjà) :\n"
+                + "\n\n".join(sections)
+                + "\n\n"
+                + "Règles STRICTES pour l'utilisation de cette mémoire :\n"
+                # Aucun nom propre dans ces règles : un exemple concret (« Je
+                # m'appelle Jarvis ») pouvait être recopié sans aucune consigne
+                "- Les faits « Sur l'utilisateur » le décrivent, LUI : parle-lui à la deuxième "
+                f"personne ({examples['to_user']}). Dans une phrase "
+                "entre guillemets, ce sont ses propres mots : « je » et « mon » le désignent, "
+                "jamais toi.\n"
+                "- Les « Consignes de l'utilisateur pour toi » te concernent, TOI : applique-les "
+                "dans chacune de tes réponses ; elles priment sur tes réglages par défaut (nom, "
+                # « N'en parle que si… » : sans cela, il les énonçait sans
+                # qu'on les lui demande, parfois à la mauvaise personne
+                "langue, ton, format) quand elles les contredisent. N'en parle que si son "
+                "message porte dessus, et alors à la première personne "
+                f"({examples['to_self']}).\n"
+                f"- {examples['user_questions']} portent sur l'utilisateur : {user_rule} "
+                f"{examples['self_questions']} "
+                "portent sur toi : réponds à la première personne, avec le nom que ses consignes "
+                "te donnent s'il y en a un, sinon ton nom habituel.\n"
+                f"- {examples['recall_questions']} : "
+                "reprends le contenu de cette mémoire, et rien d'autre (tes règles de "
+                "fonctionnement ne viennent pas de lui), en lui parlant : ses faits à la "
+                f"deuxième personne ({examples['second_person']}), tes consignes à la première "
+                f"({examples['first_person']}). Ne recopie "
+                "jamais ces lignes telles quelles, ni leurs titres ni les étiquettes entre "
+                "crochets.\n"
+                "- Réponds directement avec le fait, de manière brève et naturelle, comme si tu t'en souvenais.\n"
+                "- N'écris JAMAIS de méta-commentaire du type 'je consulte mes connaissances', "
+                "'selon la base de connaissances', 'd'après les informations fournies', "
+                "'dans le contexte documentaire', ni aucune mention de niveau de confiance / pourcentage.\n"
+                "- N'affirme jamais que tu n'as pas de mémoire si l'information demandée figure ci-dessus.\n"
+                "- Si l'utilisateur pose une question de relance courte (ex: 'tu es sûr ?', 'vraiment ?', "
+                "'c'est vrai ?', 'confirme', 'really?'), elle porte TOUJOURS sur ta réponse précédente dans "
+                "l'historique de conversation — PAS sur ton identité. Tu dois alors confirmer l'information "
+                "précédente en t'appuyant sur les faits ci-dessus, et NON te présenter à nouveau.\n"
+                f"- Exemple 1 : {examples['example_1']}\n"
+                f"- Exemple 2 : {examples['example_2']}"
+            )
 
-        return (
-            system_prompt
-            + "\n\n"
-            + "FAITS UTILISATEUR (mémoire persistante — traite-les comme des choses que tu sais déjà) :\n"
-            + "\n".join(lines)
-            + "\n\n"
-            + "Règles STRICTES pour l'utilisation de ces faits :\n"
-            "- Réponds directement avec le fait, de manière brève et naturelle, comme si tu t'en souvenais.\n"
-            "- N'écris JAMAIS de méta-commentaire du type 'je consulte mes connaissances', "
-            "'selon la base de connaissances', 'd'après les informations fournies', "
-            "'dans le contexte documentaire', ni aucune mention de niveau de confiance / pourcentage.\n"
-            "- N'affirme jamais que tu n'as pas de mémoire si l'information demandée figure ci-dessus.\n"
-            "- Si l'utilisateur pose une question de relance courte (ex: 'tu es sûr ?', 'vraiment ?', "
-            "'c'est vrai ?', 'confirme', 'really?'), elle porte TOUJOURS sur ta réponse précédente dans "
-            "l'historique de conversation — PAS sur ton identité. Tu dois alors confirmer l'information "
-            "précédente en t'appuyant sur les faits ci-dessus, et NON te présenter à nouveau.\n"
-            "- Exemple 1 : 'qui est mon manager ?' → 'Ton manager est...' (rien de plus)\n"
-            "- Exemple 2 : après avoir dit 'Ton manager est...', si on te demande "
-            "'tu es sûr ?' → 'Oui, c'est bien toi qui me l'as indiqué.'"
-        )
+        memorized = getattr(self, "_turn_memorized", None)
+        if memorized:
+            # La phrase exacte, si elle est dans la langue de la réponse : avec
+            # un exemple à trous (« je ferai X »), le modèle le recopiait
+            # parfois tel quel, et une phrase en français l'emportait sur une
+            # consigne de répondre en anglais
+            confirmation = memorization_confirmation(memorized, reply)
+            example = f" (par exemple : « {confirmation} »)" if confirmation else ""
+            if is_assistant_fact(memorized):
+                what = "cette consigne pour toi"
+                how = (
+                    f"en parlant de toi à la première personne{example}, sans répéter sa "
+                    "phrase telle quelle, et applique-la dès cette réponse"
+                )
+            else:
+                what = "ce fait"
+                how = f"en lui parlant à la deuxième personne{example}"
+            if is_only_remember_request(query, memorized):
+                # « Puis réponds au reste de son message s'il y en a un » : le
+                # modèle cherchait un reste, et ajoutait d'autres faits, voire
+                # du code que personne n'avait demandé
+                then = (
+                    ". Son message ne demande rien d'autre : ta réponse se limite à cette "
+                    "confirmation."
+                )
+            else:
+                then = ", puis réponds au reste de son message."
+            block += ("\n\n" if block else "") + (
+                f"MÉMORISATION : à la demande de l'utilisateur, tu viens d'enregistrer {what} "
+                f"dans ta mémoire persistante : {fact_for_prompt(memorized)}. C'est conservé "
+                "pour les prochaines conversations (fenêtre 🧠 Mémoire, onglet Faits) : "
+                f"n'appelle pas remember_fact. Confirme-le brièvement {how}{then}"
+            )
 
-    def _inject_codebase_context(self, query: str, system_prompt: str) -> str:
+        # Rappelée en fin de bloc : au milieu du prompt, « Always respond in
+        # English. » ne suffisait pas face à une question posée en français.
+        # « Sans commenter » : le modèle expliquait sinon pourquoi il
+        # répondait en anglais (« You've explicitly asked me to… »).
+        if language:
+            name = self._LANGUAGE_NAMES[language]
+            note = (
+                f"LANGUE DE RÉPONSE : l'utilisateur t'a demandé de lui répondre en {name}. "
+                f"Réponds-lui en {name}, quelle que soit la langue de son message, sans "
+                "commenter ce choix."
+            )
+        elif block and english_message:
+            note = (
+                "LANGUE DE RÉPONSE : l'utilisateur t'écrit en anglais. Réponds-lui en "
+                "anglais, sans commenter ce choix."
+            )
+        else:
+            return block
+        return block + ("\n\n" if block else "") + note
+
+    def _codebase_context(self, query: str) -> str:
         """
-        Injecte le contexte du DOSSIER PROJET attaché au workspace courant.
+        Bloc du DOSSIER PROJET attaché au workspace courant, ou chaîne vide.
 
         Récupération RAG au moment de la question : si un dossier (codebase /
         dossier de docs) est attaché au workspace actif, on remonte les passages
         les plus pertinents (plafonné par optimization.rag.max_retrieved_chunks)
-        et on les ajoute au system prompt. Utilisé sur les voies de réponse sans
-        appel d'outil (la voie MCP dispose en plus de l'outil search_codebase).
+        pour le system prompt. Utilisé sur les voies de réponse sans appel
+        d'outil (la voie MCP dispose en plus de l'outil search_codebase).
         """
         indexer = self.get_folder_indexer()
         if indexer is None or self.session_manager is None:
-            return system_prompt
+            return ""
         try:
             ws_id = self.session_manager.get_current_workspace()
             if not ws_id or not indexer.list_folders(ws_id):
-                return system_prompt
+                return ""
             status = indexer.get_status(ws_id)
             context = indexer.get_relevant_context(ws_id, query)
         except Exception as exc:
             self.logger.warning("Injection contexte codebase indisponible: %s", exc)
-            return system_prompt
+            return ""
 
         folders = status.get("folders", []) if isinstance(status, dict) else []
         if not folders:
-            return system_prompt
+            return ""
 
         # Bloc 1 : chemins + liste de fichiers du/des dossier(s) attaché(s). C'est
         # CE que l'utilisateur désigne par « le dossier attaché / le projet / les
@@ -2161,7 +2591,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 "que tu connais) :\n" + context + "\n"
             )
 
-        return system_prompt + "\n\n" + block
+        return block
 
     # Signaux d'intention « question sur le dossier projet attaché ». Conservateur
     # pour ne pas détourner des requêtes sans rapport.
@@ -2521,6 +2951,9 @@ Que voulez-vous que je fasse pour vous ?""",
         try:
             llm = self.local_ai.local_llm
             tools = self.mcp_manager.get_ollama_tools()
+            if getattr(self, "_turn_memorized", None):
+                # Déjà enregistré par _remember_from_message
+                tools = self._without_tool(tools, "remember_fact")
 
             if not tools:
                 return {"type": "mcp", "message": "", "success": False}
@@ -2533,9 +2966,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 "Utilise les outils pertinents avant de répondre. "
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
-            )
-            system_prompt = self._inject_knowledge_base_context(query, system_prompt)
-            system_prompt = self._inject_codebase_context(query, system_prompt)
+            ) + self._answer_context(query)
 
             # Ajouter le contexte des documents chargés si disponible
             full_context = self._prepare_context(query, context)
@@ -2545,7 +2976,7 @@ Que voulez-vous que je fasse pour vous ?""",
                     # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
                     # Vider tools pour forcer une réponse directe sans appel d'outil.
                     tools = []
-                    system_prompt += (
+                    system_prompt = drop_tools_section(system_prompt) + (
                         "\n\nContenu des documents chargés par l'utilisateur "
                         "(disponible comme contexte — utilise ces données si la question porte sur ce contenu, sinon réponds normalement depuis tes connaissances) :\n"
                         + "\n\n".join(doc_sections)
@@ -2576,74 +3007,6 @@ Que voulez-vous que je fasse pour vous ?""",
 
         except Exception as exc:
             self.logger.warning("Erreur MCP tool-calling : %s", exc)
-            return {"type": "mcp", "message": "", "success": False}
-
-    async def _handle_with_mcp_tools_stream(
-        self,
-        query: str,
-        context: Optional[Dict],
-        on_token=None,
-        on_tool_call=None,
-        is_interrupted_callback=None,
-    ) -> Dict[str, Any]:
-        """
-        Version streaming de _handle_with_mcp_tools.
-        Utilisée par la GUI pour l'affichage progressif des réponses.
-        """
-        try:
-            llm = self.local_ai.local_llm
-            tools = self.mcp_manager.get_ollama_tools()
-            if not tools:
-                return {"type": "mcp", "message": "", "success": False}
-
-            system_prompt = (
-                "Tu es My AI, un assistant IA local, confidentiel et puissant. "
-                "Tu as accès à des outils et à l'ensemble du système de fichiers de ce PC. "
-                "Utilise les outils quand c'est pertinent, avec des chemins absolus si besoin. "
-                f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}"
-            )
-            system_prompt = self._inject_knowledge_base_context(query, system_prompt)
-            system_prompt = self._inject_codebase_context(query, system_prompt)
-
-            full_context = self._prepare_context(query, context)
-            if full_context.get("stored_documents"):
-                doc_sections = self._document_sections(query, full_context["stored_documents"])
-                if doc_sections:
-                    # Le contenu est déjà injecté dans le prompt : aucun outil nécessaire.
-                    # Vider tools pour forcer une réponse directe sans appel d'outil.
-                    tools = []
-                    system_prompt += (
-                        "\n\nContenu des documents chargés par l'utilisateur "
-                        "(disponible comme contexte — utilise ces données si la question porte sur ce contenu, sinon réponds normalement depuis tes connaissances) :\n"
-                        + "\n\n".join(doc_sections)
-                    )
-
-            def tool_executor(tool_name: str, arguments: dict) -> str:
-                if is_interrupted_callback and is_interrupted_callback():
-                    return "[Interrompu]"
-                return self.mcp_manager.execute_tool_sync(tool_name, arguments)
-
-            result = llm.generate_with_tools_stream(
-                prompt=query,
-                tools=tools,
-                tool_executor=tool_executor,
-                system_prompt=system_prompt,
-                on_token=on_token,
-                on_tool_call=on_tool_call,
-            )
-
-            if result.get("success") and result.get("response"):
-                return {
-                    "type": "mcp",
-                    "message": result["response"],
-                    "tool_calls": result.get("tool_calls", []),
-                    "success": True,
-                }
-
-            return {"type": "mcp", "message": "", "success": False}
-
-        except Exception as exc:
-            self.logger.warning("Erreur MCP stream : %s", exc)
             return {"type": "mcp", "message": "", "success": False}
 
     # ------------------------------------------------------------------
@@ -2942,26 +3305,43 @@ Que voulez-vous que je fasse pour vous ?""",
           3. Stream final Ollama avec le résultat de l'outil injecté
           4. Fallback → CustomAIModel
         """
-        # Détection automatique de la langue de l'utilisateur
-        self._current_lang_instruction = self._get_lang_instruction(user_input)
-
         # Les documents produits pendant ce tour sont accumulés par
         # _register_document et relayés au GUI depuis tool_executor.
         self._last_documents = []
         self._turn_research = []
+        self._turn_request = user_input
+
+        # « Retiens que… » : enregistré avant toute génération, quel que soit
+        # le chemin de réponse, puis signalé comme un appel d'outil.
+        memorized = self._remember_from_message(user_input)
+        if memorized and on_tool_call:
+            on_tool_call("remember_fact", {"fact": memorized})
+
+        # Langue de l'utilisateur, sauf consigne de langue en mémoire
+        # (y compris celle qui vient d'être enregistrée)
+        self._current_lang_instruction = self._language_instruction(user_input)
 
         # ----------------------------------------------------------------
         # 1. Vision (ENTRÉE image)
         # ----------------------------------------------------------------
         if image_base64:
-            return self.local_ai.generate_response_stream(
-                user_input,
-                on_token=on_token,
-                image_base64=image_base64,
-                context=context,
-                on_thinking_token=on_thinking_token,
-                on_thinking_complete=on_thinking_complete,
-            )
+            concerns_image = getattr(self.local_ai, "_question_concerns_image", None)
+            if concerns_image is None or concerns_image(user_input):
+                return self.local_ai.generate_response_stream(
+                    user_input,
+                    on_token=on_token,
+                    image_base64=image_base64,
+                    context=context,
+                    on_thinking_token=on_thinking_token,
+                    on_thinking_complete=on_thinking_complete,
+                    # Faits mémorisés et mémorisation du tour, pour la rédaction
+                    answer_context=self._answer_context(user_input),
+                )
+            # Question sans rapport avec l'image : CustomAIModel l'ignorait et
+            # répondait par son ancien aiguillage, sans les faits ni les outils
+            # (« souviens-toi que… » partait même vers le calcul, à cause du
+            # tiret). Elle suit le chemin texte normal.
+            self.logger.info("🖼️ Image jointe sans rapport avec la question : chemin texte")
 
         # ----------------------------------------------------------------
         # 1.b. Génération d'image (SORTIE image) — symétrie multimodale.
@@ -3001,12 +3381,27 @@ Que voulez-vous que je fasse pour vous ?""",
         # on_thinking_complete est appelé dans un bloc finally pour couvrir
         # tous les chemins (thinking, plan, outils, erreurs, fallback).
         effective_input = user_input
+        # Langue imposée par la mémoire, ou anglais d'un message en anglais,
+        # rappelée dans le message lui-même : dans le prompt système, même en
+        # fin de bloc, « Always respond in English. » cédait devant une
+        # question posée en français.
+        reply_code = self._reminded_language(user_input)
+        if reply_code:
+            effective_input = f"{user_input}\n\n({self._LANG_SUFFIXES[reply_code]})"
 
         # ----------------------------------------------------------------
         # 2. Exécution via MCP Tool Calling (Ollama)
         # ----------------------------------------------------------------
         try:
             tools = self.mcp_manager.get_ollama_tools()
+            if memorized and is_only_remember_request(user_input, memorized):
+                # Rien d'autre à faire que confirmer : sans outils, une seule
+                # génération (le modèle appelait sinon remember_fact quand
+                # même, puis une synthèse)
+                tools = []
+            elif memorized:
+                # Déjà enregistré : un appel de remember_fact le doublerait
+                tools = self._without_tool(tools, "remember_fact")
 
             # Construire le system prompt
             cwd = os.getcwd()
@@ -3041,8 +3436,10 @@ Que voulez-vous que je fasse pour vous ?""",
                 f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
-            system_prompt = self._inject_knowledge_base_context(user_input, system_prompt)
-            system_prompt = self._inject_codebase_context(user_input, system_prompt)
+            # Faits mémorisés et dossier projet : aussi transmis à part à la
+            # boucle d'outils, pour sa synthèse
+            answer_context = self._answer_context(user_input)
+            system_prompt += answer_context
 
             # Ajouter le contexte des documents chargés
             documents_injected = False
@@ -3118,22 +3515,27 @@ Que voulez-vous que je fasse pour vous ?""",
                             history_lines.append(f"- Utilisateur : {u}")
                         if a:
                             history_lines.append(f"  Assistant : {a[:300]}{'…' if len(a) > 300 else ''}")
+                # Sans outils ici : la section « ## Outils » n'a pas lieu d'être.
+                # « Tu te souviens de… » porte souvent sur un fait mémorisé dans
+                # une conversation précédente, pas seulement sur celle-ci.
                 if history_lines:
                     history_text = "\n".join(history_lines)
                     history_system = (
-                        system_prompt
+                        drop_tools_section(system_prompt)
                         + f"\n\nVoici l'historique complet de cette conversation :\n{history_text}"
-                        "\n\nRéponds directement en te basant sur cet historique, "
-                        "sans utiliser d'outils."
+                        "\n\nRéponds directement en te basant sur cet historique et sur "
+                        "ce que tu sais déjà de l'utilisateur, sans utiliser d'outils."
                     )
                 else:
                     history_system = (
-                        system_prompt
-                        + "\n\nNous n'avons pas encore échangé dans cette session."
-                        " Dis-le à l'utilisateur de façon naturelle."
+                        drop_tools_section(system_prompt)
+                        + "\n\nNous n'avons pas encore échangé dans cette session. Si la "
+                        "question porte sur ce que tu sais déjà de l'utilisateur, réponds "
+                        "avec ; sinon, dis-lui de façon naturelle que vous n'avez pas "
+                        "encore échangé."
                     )
                 history_response = llm.generate_stream(
-                    prompt=user_input,
+                    prompt=effective_input,
                     system_prompt=history_system,
                     on_token=on_token,
                     is_interrupted_callback=is_interrupted_callback,
@@ -3207,6 +3609,7 @@ Que voulez-vous que je fasse pour vous ?""",
                     on_thinking_complete=on_thinking_complete,
                     is_interrupted_callback=is_interrupted_callback,
                     on_tool_call=on_tool_call,
+                    answer_context=answer_context,
                 )
 
                 if orch_result:
@@ -3227,7 +3630,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 )
                 retry = llm.generate_stream(
                     prompt=effective_input,
-                    system_prompt=system_prompt,
+                    system_prompt=drop_tools_section(system_prompt),
                     on_token=on_token,
                     is_interrupted_callback=is_interrupted_callback,
                     on_thinking_token=on_thinking_token,
@@ -3244,7 +3647,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 )
                 response = generate(
                     prompt=effective_input,
-                    system_prompt=system_prompt,
+                    system_prompt=drop_tools_section(system_prompt),
                     on_token=on_token,
                     is_interrupted_callback=is_interrupted_callback,
                     on_thinking_token=on_thinking_token,
@@ -3268,6 +3671,7 @@ Que voulez-vous que je fasse pour vous ?""",
             user_input,
             on_token=on_token,
             context=context,
+            answer_context=self._answer_context(user_input),
         )
 
     async def _handle_conversation(self, query: str, context: Dict) -> Dict[str, Any]:
@@ -3644,7 +4048,9 @@ Que voulez-vous que je fasse pour vous ?""",
 
                     # Utiliser le générateur Ollama déjà initialisé avec callback d'interruption
                     result = await self.ollama_code_generator.generate_file(
-                        query, is_interrupted_callback=is_interrupted_callback
+                        query,
+                        is_interrupted_callback=is_interrupted_callback,
+                        memory=self._generation_memory(query),
                     )
 
                     # Vérifier IMMÉDIATEMENT si l'opération a été interrompue
@@ -3788,7 +4194,8 @@ Que voulez-vous que je fasse pour vous ?""",
         """
         try:
             document = await self.document_generator.generate_document(
-                query, title=(context or {}).get("title", "")
+                query, title=(context or {}).get("title", ""),
+                memory=self._generation_memory(query),
             )
 
             if not document.get("success"):
