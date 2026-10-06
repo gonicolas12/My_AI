@@ -13,10 +13,15 @@ ou Ollama absent, l'assistant se dégrade proprement et l'app démarre quand mê
 Le wizard ne s'affiche qu'une fois : un marqueur `data/.onboarding_done` est
 écrit après installation ou si l'utilisateur passe l'étape. Il est aussi
 considéré comme fait si le modèle 'my_ai' existe déjà (utilisateurs existants).
+
+Ensuite, à chaque lancement, sync_custom_model() recrée 'my_ai' si le Modelfile
+a changé depuis sa création (modifié à la main, par un git pull ou par
+⚙️ Réglages) : plus besoin de relancer create_custom_model.bat.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import re
@@ -32,6 +37,8 @@ _NO_WINDOW = 0x08000000 if platform.system() == "Windows" else 0
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _MARKER = PROJECT_ROOT / "data" / ".onboarding_done"
+# Empreinte du Modelfile dont 'my_ai' a été créé (cf. sync_custom_model)
+_MODELFILE_SYNC = PROJECT_ROOT / "data" / ".modelfile_sync"
 CUSTOM_MODEL = "my_ai"
 
 # Choix proposés (modèles texte) + RAM minimale indicative
@@ -378,12 +385,15 @@ def pull_model(
 
 def create_custom_model(on_log: Callable[[str], None]) -> None:
     """Crée le modèle 'my_ai' depuis le Modelfile (équiv. create_custom_model.bat)."""
+    digest = _modelfile_digest()
     try:
         proc = subprocess.run(
             ["ollama", "create", CUSTOM_MODEL, "-f", "Modelfile"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
-            text=True,
+            # Spinner d'Ollama en UTF-8 : l'encodage par défaut de Windows échoue dessus
+            encoding="utf-8",
+            errors="replace",
             creationflags=_NO_WINDOW,
         )
     except FileNotFoundError as exc:
@@ -391,7 +401,99 @@ def create_custom_model(on_log: Callable[[str], None]) -> None:
     if proc.stdout:
         on_log(proc.stdout.strip())
     if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or "ollama create a échoué.")
+        raise RuntimeError(_ollama_error(proc.stderr) or "ollama create a échoué.")
+    _remember_modelfile(digest)
+
+
+def sync_custom_model() -> bool:
+    """Recrée 'my_ai' au lancement si le Modelfile a changé depuis sa création.
+
+    Modelfile inchangé : aucun appel à Ollama. Ollama injoignable : nouvel essai
+    au prochain lancement. 'my_ai' absent (assistant passé) : rien n'est créé ni
+    téléchargé, la création reste le rôle de l'assistant et de ⚙️ Réglages.
+    La sortie d'Ollama est masquée : la console n'affiche que le début et
+    l'issue de la mise à jour.
+
+    Returns:
+        True si le modèle a été recréé
+    """
+    digest = _modelfile_digest()
+    try:
+        synced = _MODELFILE_SYNC.read_text(encoding="utf-8").strip()
+    except OSError:
+        synced = ""
+    if digest is None or digest == synced or not custom_model_exists():
+        return False
+    print(f"🔄 Mise à jour du modèle '{CUSTOM_MODEL}' depuis le Modelfile…", flush=True)
+    try:
+        _pull_base_model()
+        create_custom_model(lambda _message: None)
+    except (RuntimeError, OSError) as exc:  # OSError couvre aussi les erreurs de requests
+        print(f"⚠️ Modèle '{CUSTOM_MODEL}' non mis à jour : {exc}")
+        print("   Nouvel essai au prochain lancement")
+        return False
+    print(f"✅ Modèle '{CUSTOM_MODEL}' à jour")
+    return True
+
+
+def _pull_base_model() -> None:
+    """Télécharge le modèle de la ligne FROM s'il n'est pas encore dans Ollama.
+
+    « ollama create » le téléchargerait sinon lui-même, sortie masquée : la
+    console resterait muette pendant tout le téléchargement (plusieurs Go).
+    """
+    base = current_base_model()
+    installed = list_installed_models()
+    if base in installed or f"{base}:latest" in installed or (PROJECT_ROOT / base).exists():
+        return  # déjà dans Ollama, ou fichier local (GGUF)
+
+    def show(frac: float, _status: str = "") -> None:
+        print(f"\r📥 Téléchargement de {base} : {frac:>4.0%}", end="", flush=True)
+
+    show(0.0)
+    try:
+        pull_model(base, show, lambda _status: None)
+        show(1.0)  # Ollama ne renvoie pas toujours la dernière progression
+    finally:
+        print()  # termine la ligne de progression
+
+
+# Séquences ANSI de la progression qu'Ollama écrit sur stderr
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def _ollama_error(stderr: str) -> str:
+    """Message d'erreur d'Ollama, sans la progression qui le précède sur stderr."""
+    lines = [line.strip() for line in _ANSI_ESCAPE.sub("", stderr or "").splitlines()]
+    lines = [line for line in lines if line]
+    for line in reversed(lines):
+        if line.startswith("Error:"):
+            return line[len("Error:"):].strip()
+    return lines[-1] if lines else ""
+
+
+def _modelfile_digest() -> Optional[str]:
+    """Empreinte SHA-256 du Modelfile, ou None s'il est illisible.
+
+    Calculée sur le texte lu : le même Modelfile en CRLF (Windows) ou en LF
+    donne la même empreinte.
+    """
+    try:
+        text = (PROJECT_ROOT / "Modelfile").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _remember_modelfile(digest: Optional[str]) -> None:
+    """Retient l'empreinte du Modelfile dont 'my_ai' vient d'être créé."""
+    if digest is None:
+        return
+    try:
+        _MODELFILE_SYNC.parent.mkdir(parents=True, exist_ok=True)
+        _MODELFILE_SYNC.write_text(digest + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 # ── Interface graphique du wizard ────────────────────────────────────────

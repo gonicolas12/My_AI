@@ -302,7 +302,7 @@ my_ai/
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── document_preview.py              # Rendu HTML des documents (aperçu de repli, mobile)
 │   ├── gui_modern.py                    # Interface moderne (assemblage)
-│   ├── onboarding.py                    # Assistant de premier lancement (wizard config)
+│   ├── onboarding.py                    # Assistant de premier lancement + my_ai recréé si le Modelfile change
 │   ├── modern_styles.py                 # Styles et thèmes modernes
 │   ├── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
 │   └── workflow_canvas.py               # Canvas visuel de workflow style n8n
@@ -379,7 +379,7 @@ my_ai/
 ├── launch.bat                           # Script pour lancer le programme (Windows)
 ├── launch.sh                            # Script pour lancer le programme (macOS / Linux)
 ├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
-├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama
+├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama (manuel)
 └── config.yaml                          # Configuration
 ```
 
@@ -466,7 +466,9 @@ ollama pull llava            # Alternative (4.7 GB)
 
 > 💡 **Plus simple — l'assistant de configuration s'en charge.** Au **tout premier lancement**, My_AI détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. Les commandes ci-dessus ne servent que pour une installation manuelle.
 
-> **Changer de modèle** : le plus simple est le **panneau ⚙️ Réglages** (sidebar) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez `create_custom_model.bat`.
+> 🔄 **`Modelfile` modifié ?** (à la main, par un `git pull` ou par ⚙️ Réglages) : `my_ai` est **recréé automatiquement au lancement suivant**, inutile de relancer `create_custom_model.bat`. Le lancement ne fait rien de plus tant que le `Modelfile` ne change pas.
+
+> **Changer de modèle** : le plus simple est le **panneau ⚙️ Réglages** (sidebar) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez My_AI : `my_ai` est recréé au lancement.
 
 ### 4 · Lancer l'application
 

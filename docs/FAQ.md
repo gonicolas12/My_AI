@@ -48,10 +48,14 @@ FROM qwen3.5:2b   # ← même valeur
 **Étape 3 — Terminal** :
 ```bash
 ollama pull qwen3.5:2b
-.\create_custom_model.bat
 ```
 
+Puis relancez My_AI : le `Modelfile` ayant changé, `my_ai` est recréé automatiquement au lancement.
+
 > ⚠️ `config.yaml` et `Modelfile` doivent toujours avoir la **même valeur**. `config.yaml` contrôle le code Python, `Modelfile` contrôle la construction du modèle custom `my_ai` dans Ollama.
+
+### J'ai modifié le Modelfile : dois-je recréer `my_ai` ?
+Non. À chaque lancement, My_AI compare le `Modelfile` à celui dont `my_ai` a été créé et le recrée s'il a changé, que la modification vienne de vous, d'un `git pull` ou du panneau ⚙️ Réglages. `create_custom_model.bat` ne sert plus qu'à recréer le modèle sans relancer l'application.
 
 ### Comment installer Ollama ?
 1. Téléchargez depuis **https://ollama.com/download**

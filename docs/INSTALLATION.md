@@ -488,7 +488,7 @@ OUTPUT_DIR=./data/outputs
 
 ### Configuration Ollama (Modelfile)
 
-Le fichier `Modelfile` à la racine du projet configure le modèle personnalisé :
+Le fichier `Modelfile` à la racine du projet configure le modèle personnalisé. Après une modification (à la main ou par un `git pull`), `my_ai` est recréé automatiquement au lancement suivant :
 
 ```dockerfile
 # Modelfile pour My_AI

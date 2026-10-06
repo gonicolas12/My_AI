@@ -184,6 +184,8 @@ except Exception:
 # Import - core.shared gère le chargement du modèle d'embeddings
 from interfaces.gui_modern import \
     ModernAIGUI  # pylint: disable=wrong-import-position
+from interfaces.onboarding import \
+    sync_custom_model  # pylint: disable=wrong-import-position
 from core.passage_embeddings import \
     prefetch_in_background  # pylint: disable=wrong-import-position
 
@@ -213,6 +215,10 @@ def main():
             OnboardingWizard().run()
     except Exception as exc:
         print(f"⚠️ Assistant d'onboarding ignoré : {exc}")
+
+    # Modèle 'my_ai' recréé si le Modelfile a changé depuis sa création
+    # (modifié à la main, par un git pull ou par ⚙️ Réglages)
+    sync_custom_model()
 
     print("   🧠 CustomAI avec support 10M tokens intégré")
     print("   🔧 Processeurs PDF, DOCX, Code avancés")
