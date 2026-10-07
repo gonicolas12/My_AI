@@ -50,6 +50,7 @@ PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planific
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
 SYNTHESIS_HEAD_CHARS: int = 160 # Début de synthèse validé avant tout affichage
 SYNTHESIS_NUM_PREDICT: int = 4096  # Tokens de la synthèse, réflexion comprise
+SCRATCHPAD_GOAL_CHARS: int = 300   # Début de la demande repris en OBJECTIF du scratchpad
 
 # Outils qui produisent un fichier livrable pour l'utilisateur.
 _DOCUMENT_TOOLS = frozenset({"generate_document", "edit_document"})
@@ -284,7 +285,8 @@ class Scratchpad:
     Maintient l'état cognitif de l'agent entre les tours.
 
     Structure :
-        OBJECTIF       : la demande originale de l'utilisateur
+        OBJECTIF       : début de la demande de l'utilisateur (en entier plus
+                         haut dans la conversation)
         PLAN           : étapes prévues, avec ✓ sur les terminées
         ÉTAPE ACTUELLE : numéro de l'étape en cours
         FAITS COLLECTÉS: résultats d'outils résumés
@@ -315,43 +317,68 @@ class Scratchpad:
         """Avance d'une étape dans le plan."""
         self.current_step = min(self.current_step + 1, len(self.plan))
 
-    def to_context_block(self) -> str:
-        """
-        Sérialise le scratchpad en bloc XML pour la boucle d'outils
-        (cf. ChatOrchestrator._inject_scratchpad).
-        Le modèle DOIT lire ce bloc à chaque tour pour maintenir la cohérence.
-        """
+    def _plan_lines(self) -> str:
         plan_lines = ""
         for i, step in enumerate(self.plan):
             marker = "✓" if i < self.current_step else " "
             plan_lines += f"  {i + 1}. [{marker}] {step}\n"
-        if not plan_lines:
-            plan_lines = "  (plan à définir au prochain tour)\n"
+        return plan_lines or "  (plan à définir au prochain tour)\n"
 
+    def _remaining_line(self) -> str:
+        remaining = max(0, MAX_TOURS - self.tour)
+        urgency = " ⚠️ FINALISE MAINTENANT" if remaining <= 3 else ""
+        return f"TOURS RESTANTS : {remaining}/{MAX_TOURS}{urgency}\n"
+
+    def to_context_block(self) -> str:
+        """
+        Sérialise le scratchpad complet en bloc XML : premier bloc de la boucle
+        d'outils (cf. ChatOrchestrator._inject_scratchpad).
+        Le modèle DOIT lire ce bloc pour maintenir la cohérence.
+        """
         facts_lines = ""
         for k, v in self.facts.items():
             facts_lines += f"  • {k} : {v[:200]}\n"
         if not facts_lines:
             facts_lines = "  (aucun fait collecté pour l'instant)\n"
 
-        remaining = max(0, MAX_TOURS - self.tour)
-        urgency = " ⚠️ FINALISE MAINTENANT" if remaining <= 3 else ""
+        # Début de la demande seulement : recopiée en entier (le XML d'un
+        # ticket, par exemple), elle doublait la longueur du prompt
+        goal = " ".join(self.goal.split())
+        if len(goal) > SCRATCHPAD_GOAL_CHARS:
+            goal = goal[:SCRATCHPAD_GOAL_CHARS].rstrip() + "… (demande complète plus haut)"
 
         return (
             "<scratchpad>\n"
-            f"OBJECTIF : {self.goal}\n"
-            f"PLAN :\n{plan_lines}"
+            f"OBJECTIF : {goal}\n"
+            f"PLAN :\n{self._plan_lines()}"
             f"ÉTAPE ACTUELLE : {self.current_step + 1}\n"
             f"FAITS COLLECTÉS :\n{facts_lines}"
-            f"TOURS RESTANTS : {remaining}/{MAX_TOURS}{urgency}\n"
+            f"{self._remaining_line()}"
             f"PROCHAINE ACTION : {self.next_action}\n"
             "INSTRUCTION CRUCIALE : Exécute obligatoirement la prochaine action avec un OUTIL. Ne donne PAS de réponse textuelle finale tant que toutes les étapes du plan ne sont pas terminées.\n"
             "</scratchpad>"
         )
 
+    def to_progress_block(self) -> str:
+        """
+        Avancement depuis le bloc complet : plan coché, étape, tours restants
+        et prochaine action, ajoutés à chaque tour suivant de la boucle. Ni
+        objectif ni consignes : répétées à chaque tour, ces dernières
+        poussaient le modèle à rappeler un outil déjà utilisé au lieu de
+        conclure.
+        """
+        return (
+            "<scratchpad>\n"
+            f"PLAN :\n{self._plan_lines()}"
+            f"ÉTAPE ACTUELLE : {self.current_step + 1}\n"
+            f"{self._remaining_line()}"
+            f"PROCHAINE ACTION : {self.next_action}\n"
+            "</scratchpad>"
+        )
 
-# Début du message qui porte le scratchpad dans la boucle d'outils : il est
-# retrouvé, puis remplacé, à chaque tour (cf. ChatOrchestrator._inject_scratchpad)
+
+# Début des messages qui portent le scratchpad dans la boucle d'outils : état
+# complet au premier, avancement aux suivants (cf. ChatOrchestrator._inject_scratchpad)
 _SCRATCHPAD_HEADER = "[ORCHESTRATEUR] État de la tâche :"
 
 
@@ -1377,19 +1404,22 @@ class ChatOrchestrator:
         loop_start: int = 0,
     ) -> List[Dict]:
         """
-        Place le bloc <scratchpad> à jour après le dernier échange d'outils.
+        Ajoute l'état du <scratchpad> après le dernier échange d'outils.
 
         Le scratchpad force le LLM à re-synthétiser son état à chaque tour,
         évitant la perte de cohérence sur des tâches multi-étapes.
 
-        Il était réécrit dans le message système : le début du prompt changeait
-        à chaque tour, et Ollama relisait toute la conversation (prompt
-        système, outils, documents, résultats d'outils) avant chaque appel,
-        73 à 81 s par tour sur un GPU intégré au lieu de 12 à 32 s. C'est
-        maintenant un message de la boucle, remplacé à chaque tour : seul ce
-        que le dernier tour a ajouté est relu. Les relances de la boucle
-        (messages « user » ajoutés depuis le dernier résultat d'outil) restent
-        après lui, pour rester la dernière consigne lue par le modèle.
+        Il était réécrit dans le message système à chaque tour, si bien
+        qu'Ollama relisait toute la conversation (prompt système, outils,
+        documents, résultats d'outils) avant chaque appel. Rien n'est plus
+        retiré ni modifié en amont : avec un modèle hybride comme qwen3.5,
+        Ollama ne reprend la lecture que depuis un point de sauvegarde tout
+        près de la fin du prompt précédent (4 et 1 024 tokens avant), et chaque
+        tour doit donc prolonger le précédent. Le premier bloc donne l'état
+        complet, les consignes et la liste des outils ; les suivants, courts,
+        l'avancement. Les relances de la boucle (messages « user » ajoutés
+        depuis le dernier résultat d'outil) restent après le bloc, pour rester
+        la dernière consigne lue par le modèle.
 
         Si known_tool_names est fourni, ajoute la liste explicite des outils
         valides pour réduire les hallucinations (modèle inventant 'execute',
@@ -1399,6 +1429,10 @@ class ChatOrchestrator:
             loop_start: Index du premier message de la boucle d'outils : la
                 question de l'utilisateur, juste avant, reste devant le bloc
         """
+        if any(_is_scratchpad_message(m) for m in messages):
+            block = f"{_SCRATCHPAD_HEADER}\n" + scratchpad.to_progress_block()
+            return self._insert_before_nudges(messages, block, loop_start)
+
         # Liste explicite des outils valides (anti-hallucination)
         tools_whitelist = ""
         if known_tool_names:
@@ -1422,14 +1456,15 @@ class ChatOrchestrator:
             "Si tu dois chercher, utilise le bon type de recherche, etc."
         ) + tools_whitelist
 
-        # Le bloc du tour précédent est retiré, le nouveau placé avant les
-        # relances qui suivent le dernier résultat d'outil
-        updated = [m for m in messages if not _is_scratchpad_message(m)]
-        insert_at = len(updated)
-        while insert_at > loop_start and updated[insert_at - 1].get("role") == "user":
+        return self._insert_before_nudges(messages, block, loop_start)
+
+    @staticmethod
+    def _insert_before_nudges(messages: List[Dict], block: str, loop_start: int) -> List[Dict]:
+        """Bloc placé avant les relances qui suivent le dernier résultat d'outil."""
+        insert_at = len(messages)
+        while insert_at > loop_start and messages[insert_at - 1].get("role") == "user":
             insert_at -= 1
-        updated.insert(insert_at, {"role": "user", "content": block})
-        return updated
+        return [*messages[:insert_at], {"role": "user", "content": block}, *messages[insert_at:]]
 
     def _call_ollama_no_stream(
         self,

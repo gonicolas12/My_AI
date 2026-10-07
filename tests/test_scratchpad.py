@@ -1,13 +1,14 @@
 """
-Tests de l'emplacement du scratchpad de la boucle d'outils
-(core/chat_orchestrator.py).
+Tests du scratchpad de la boucle d'outils (core/chat_orchestrator.py).
 
-Le scratchpad était réécrit dans le message système à chaque tour : le début
-du prompt changeait, et Ollama relisait toute la conversation (prompt système,
-outils, documents, résultats d'outils) avant chaque appel, 73 à 81 s par tour
-sur un GPU intégré, contre 12 à 32 s une fois le scratchpad placé après le
-dernier échange d'outils. Aucun vrai Ollama n'est appelé ici : les tours de la
-boucle sont écrits à l'avance.
+Le scratchpad était réécrit dans le message système à chaque tour, et sa
+ligne OBJECTIF recopiait toute la demande (le XML d'un ticket, par exemple).
+Le début du prompt changeait donc à chaque appel : Ollama relisait toute la
+conversation, et la demande deux fois. Avec un modèle hybride comme qwen3.5,
+il ne reprend la lecture que depuis un point de sauvegarde tout près de la fin
+du prompt précédent : chaque tour doit prolonger le précédent, sans rien
+retirer ni modifier en amont. Aucun vrai Ollama n'est appelé ici : les tours de
+la boucle sont écrits à l'avance.
 """
 
 from core.chat_orchestrator import ChatOrchestrator, Scratchpad
@@ -46,7 +47,8 @@ def _blocks(messages):
     des relances qui y renvoient, « Vérifie ton <scratchpad>… »)."""
     return [
         i for i, message in enumerate(messages)
-        if message["role"] == "user" and "<scratchpad>\nOBJECTIF" in message["content"]
+        if message["role"] == "user"
+        and message["content"].startswith("[ORCHESTRATEUR] État de la tâche")
     ]
 
 
@@ -87,29 +89,30 @@ def test_system_message_no_longer_changes_between_turns():
     assert [messages[0] for messages in sent] == [{"role": "system", "content": SYSTEM}] * 3
 
 
-def test_each_turn_extends_what_ollama_already_read():
-    """Tout ce qui précède le bloc du tour précédent est renvoyé à l'identique :
-    Ollama ne relit que ce que le dernier tour a ajouté."""
+def test_each_turn_starts_with_the_whole_previous_prompt():
+    """Ni retrait ni modification en amont : Ollama reprend la lecture juste
+    avant la fin du prompt précédent."""
     sent = _three_turns()
     for previous, current in zip(sent, sent[1:]):
-        block = (_blocks(previous) or [len(previous)])[0]
-        assert current[:block] == previous[:block]
+        assert current[:len(previous)] == previous
 
 
-def test_one_block_right_after_the_last_tool_result():
+def test_full_state_then_progress_after_each_tool_result():
     """Les relances de la boucle (« Vérifie ton <scratchpad>… ») restent après
-    le bloc : elles sont la dernière consigne lue par le modèle."""
+    chaque bloc : elles sont la dernière consigne lue par le modèle."""
     last = _three_turns()[-1]
     blocks = _blocks(last)
-    assert len(blocks) == 1
-    assert last[blocks[0] - 1]["role"] == "tool"
-    assert all(message["role"] == "user" for message in last[blocks[0] + 1:])
+    assert len(blocks) == 2
+    full, progress = (last[i]["content"] for i in blocks)
+    assert "OBJECTIF" in full and "INSTRUCTION CRUCIALE" in full
+    assert "OBJECTIF" not in progress and "INSTRUCTION CRUCIALE" not in progress
+    assert all(last[i - 1]["role"] == "tool" for i in blocks)
+    assert all(message["role"] == "user" for message in last[blocks[-1] + 1:])
 
 
 def test_with_a_plan_the_block_follows_the_question():
     """Requête complexe : le plan existe dès le 1er tour. Placé devant la
-    question, le bloc aurait fait relire toute la question au tour suivant
-    (le XML d'un ticket, par exemple)."""
+    question, le bloc aurait fait relire toute la question au tour suivant."""
     scratchpad = Scratchpad(goal=QUESTION)
     scratchpad.set_plan(["Lister le dossier du ticket", "Lire les notes"])
     messages = [
@@ -125,7 +128,20 @@ def test_with_a_plan_the_block_follows_the_question():
     assert len(placed) == 5 and _blocks(placed) == [4]
 
 
-def test_synthesis_never_sees_the_block():
+def test_objective_is_only_the_start_of_the_request():
+    """OBJECTIF recopiait toute la demande : le XML du ticket LOGM-80 était lu
+    deux fois à chaque tour (13 224 tokens au lieu de ≈ 7 800)."""
+    from core.chat_orchestrator import SCRATCHPAD_GOAL_CHARS  # pylint: disable=import-outside-toplevel
+
+    xml ="<item><title>LOGM-80</title><description>Bases articles</description></item>\n"
+    block = Scratchpad(goal=f"Voici le xml de la mission :\n{xml * 110}").to_context_block()
+    objective = next(line for line in block.splitlines() if line.startswith("OBJECTIF"))
+    assert objective.endswith("… (demande complète plus haut)")
+    assert len(objective) < SCRATCHPAD_GOAL_CHARS + 50
+    assert "OBJECTIF : " + QUESTION in Scratchpad(goal=QUESTION).to_context_block()
+
+
+def test_synthesis_never_sees_the_blocks():
     last = _three_turns()[-1]
     synthesis = ChatOrchestrator._synthesis_messages(last, 2, "Synthèse", QUESTION)
     assert all("<scratchpad>" not in message["content"] for message in synthesis)
