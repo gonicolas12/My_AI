@@ -23,6 +23,13 @@ if __name__ == "__main__":
 
 import requests  # pylint: disable=wrong-import-position
 
+from utils.ollama_placement import (  # pylint: disable=wrong-import-position,ungrouped-imports
+    ensure_best_placement,
+    placement_label,
+    saved_env,
+    server_env,
+)
+
 IS_WINDOWS = sys.platform.startswith("win")
 IS_MACOS = sys.platform == "darwin"
 
@@ -96,11 +103,14 @@ def _persist_env_var(name: str, value: str) -> None:
 def _kill_ollama() -> None:
     """Arrête tous les processus Ollama, y compris l'application bureau."""
     if IS_WINDOWS:
-        subprocess.run(
-            ["taskkill", "/F", "/IM", "ollama.exe", "/T"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            check=False,
-        )
+        # L'application bureau d'abord : sinon elle relance aussitôt son propre
+        # serveur, avec son environnement à elle (sans nos variables)
+        for image in ("ollama app.exe", "ollama.exe"):
+            subprocess.run(
+                ["taskkill", "/F", "/IM", image, "/T"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False,
+            )
         return
 
     # macOS / Linux : le serveur tourne sous le nom exact « ollama ».
@@ -122,6 +132,46 @@ def _kill_ollama() -> None:
         )
 
 
+def _restart_ollama(placement_env: dict) -> bool:
+    """(Re)lance le serveur Ollama avec notre environnement et ce placement du modèle.
+
+    Returns:
+        True si le serveur répond
+
+    Raises:
+        FileNotFoundError: commande « ollama » introuvable
+    """
+    # ── 1. Si Ollama tourne déjà, l'arrêter : il garderait son environnement ──
+    if _ollama_is_running():
+        # Tuer TOUS les processus Ollama (y compris l'app bureau)
+        _kill_ollama()
+        # Attendre que le port soit libéré
+        for _ in range(10):
+            if not _ollama_is_running(timeout=0.5):
+                break  # Port libéré, Ollama est bien mort
+            time.sleep(0.5)
+
+    # ── 2. Le lancer avec notre environnement (OLLAMA_NUM_PARALLEL compris)
+    #       et les variables du placement (cf. utils/ollama_placement.py) ──
+    popen_kwargs = {
+        "env": server_env(os.environ, placement_env),
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+    }
+    if IS_WINDOWS:
+        popen_kwargs["creationflags"] = _NO_WINDOW
+    else:
+        # Détacher le serveur : il survit à la fermeture du lanceur.
+        popen_kwargs["start_new_session"] = True
+    subprocess.Popen(["ollama", "serve"], **popen_kwargs)
+    # Attendre qu'Ollama soit prêt
+    for _ in range(20):
+        if _ollama_is_running():
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def _ensure_ollama_parallel():
     """Configure Ollama pour le parallélisme et le redémarre si nécessaire."""
     num_parallel = "4"
@@ -132,41 +182,21 @@ def _ensure_ollama_parallel():
     # ── 2. Définir pour notre processus aussi ──
     os.environ["OLLAMA_NUM_PARALLEL"] = num_parallel
 
-    # ── 3. Si Ollama tourne déjà, le redémarrer avec le bon environnement ──
+    # ── 3. (Re)lancer Ollama avec ce parallélisme et le placement du modèle
+    #       retenu au dernier calibrage (GPU ou processeur) ──
     if _ollama_is_running():
-        # Tuer TOUS les processus Ollama (y compris l'app bureau)
         print("🔄 Redémarrage d'Ollama avec OLLAMA_NUM_PARALLEL=4...")
-        _kill_ollama()
-        # Attendre que le port soit libéré
-        for _ in range(10):
-            if not _ollama_is_running(timeout=0.5):
-                break  # Port libéré, Ollama est bien mort
-            time.sleep(0.5)
-
-    # ── 4. Lancer Ollama avec notre environnement ──
-    env = os.environ.copy()
-    env["OLLAMA_NUM_PARALLEL"] = num_parallel
-    popen_kwargs = {
-        "env": env,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-    }
-    if IS_WINDOWS:
-        popen_kwargs["creationflags"] = _NO_WINDOW
-    else:
-        # Détacher le serveur : il survit à la fermeture du lanceur.
-        popen_kwargs["start_new_session"] = True
     try:
-        subprocess.Popen(["ollama", "serve"], **popen_kwargs)
-        # Attendre qu'Ollama soit prêt
-        for _ in range(20):
-            if _ollama_is_running():
-                print(f"✅ Ollama prêt (parallélisme: {num_parallel} requêtes simultanées)")
-                return
-            time.sleep(0.5)
-        print("⚠️ Ollama lancé mais pas encore prêt — il démarrera sous peu")
+        ready = _restart_ollama(saved_env())
     except FileNotFoundError:
         print("⚠️ Ollama non trouvé dans le PATH — installez-le depuis ollama.com")
+        return
+    if not ready:
+        print("⚠️ Ollama lancé mais pas encore prêt — il démarrera sous peu")
+        return
+    label = placement_label()
+    details = f", {label}" if label else ""
+    print(f"✅ Ollama prêt (parallélisme: {num_parallel} requêtes simultanées{details})")
 
 # =========================================================================== #
 # NOTE: Le mode offline HuggingFace est géré automatiquement dans core.shared #
@@ -219,6 +249,11 @@ def main():
     # Modèle 'my_ai' recréé si le Modelfile a changé depuis sa création
     # (modifié à la main, par un git pull ou par ⚙️ Réglages)
     sync_custom_model()
+
+    # Modèle placé sur le matériel le plus rapide (carte graphique, GPU intégré
+    # ou processeur) : mesuré au premier lancement, puis après une mise à jour
+    # d'Ollama ou un changement de modèle ou de matériel
+    ensure_best_placement(_restart_ollama)
 
     print("   🧠 CustomAI avec support 10M tokens intégré")
     print("   🔧 Processeurs PDF, DOCX, Code avancés")

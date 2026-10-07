@@ -57,10 +57,15 @@ data/scheduler.lock
 
 # Marqueur d'onboarding (état local : empêche le wizard de se réafficher)
 data/.onboarding_done
+
 # Empreinte du Modelfile dont le modèle my_ai a été créé (recréé au lancement s'il change)
 data/.modelfile_sync
+
 # Échecs d'installation des dépendances au lancement (utils/requirements_sync.py)
 data/.requirements_sync.json
+
+# Placement du modèle mesuré au lancement, GPU ou processeur (utils/ollama_placement.py)
+data/.ollama_placement.json
 
 # Fichiers de cache locaux
 data/knowledge_base/

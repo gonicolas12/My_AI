@@ -85,6 +85,11 @@ L'**assistant de configuration** (premier lancement) et le panneau ⚙️ Régla
 
 > ⚠️ En CPU, on évite les gros modèles (9b/27b) : ils « rentrent » en RAM mais génèrent **trop lentement** pour un usage agréable. Un gros modèle n'a d'intérêt qu'avec un GPU disposant d'assez de VRAM.
 
+### Le modèle tourne-t-il sur ma carte graphique ?
+Oui, dès que c'est le plus rapide, sans rien régler. Ollama place déjà le modèle sur une **carte graphique dédiée** (en partie seulement si sa mémoire ne suffit pas, le reste sur le processeur), et sur le processeur sans carte graphique. Il écarte en revanche le **GPU intégré** au processeur (Intel Arc, AMD Radeon 780M…), qui selon la machine va bien plus vite que le processeur ou plus lentement. Au lancement par `launch.bat`, My_AI mesure donc les deux et garde le plus rapide. Ce choix vaut pour tous ses modèles : `my_ai` dans le chat comme le modèle des agents.
+
+La mesure prend jusqu'à une minute, une seule fois. Elle est refaite après une mise à jour d'Ollama, un changement de modèle, de carte graphique ou de pilote. Pour la refaire à la main, supprimez `data/.ollama_placement.json`. La console indique le placement retenu à chaque lancement (« modèle sur le GPU intégré », par exemple), et `ollama ps` montre la répartition dans sa colonne PROCESSOR.
+
 ### Mes données restent-elles confidentielles avec Ollama ?
 **Oui, 100% !** Ollama exécute le modèle **localement sur votre PC**. Aucune donnée n'est envoyée sur internet. C'est l'avantage principal par rapport à ChatGPT ou Claude.
 
