@@ -6,7 +6,7 @@ Le système Ultra de My Personal AI implémente une **mémoire vectorielle inter
 
 > ⚠️ **À ne pas confondre**
 > - **Mémoire interne (10M tokens)** : ce que l'IA stocke et indexe en local (historique, documents, contexte cumulatif)
-> - **Fenêtre de contexte LLM (32k tokens)** : ce qui est réellement envoyé à Ollama pour chaque génération de réponse (défini par `num_ctx` dans le `Modelfile`)
+> - **Fenêtre de contexte LLM (32k tokens)** : ce qui est réellement envoyé à Ollama pour chaque génération de réponse (`llm.local.num_ctx` dans `config.yaml`, réglable dans ⚙️ Réglages)
 >
 > Le moteur de recherche sémantique sélectionne les fragments les plus pertinents dans la mémoire interne, puis les injecte dans la fenêtre LLM disponible.
 

@@ -54,6 +54,11 @@ class LocalLLM:
     # si le modèle a déjà été préchauffé au cours de cette session.
     _warmed_up_models: set = set()
 
+    # Part de la fenêtre de contexte que l'historique peut occuper avant le
+    # résumé glissant : l'autre moitié reste au prompt système, aux outils,
+    # aux documents et à la réponse
+    _SUMMARY_CONTEXT_SHARE = 0.5
+
     def __init__(
         self,
         model="my_ai",
@@ -69,16 +74,20 @@ class LocalLLM:
         # 🔧 Paramètres de génération lus depuis config.yaml (llm.local.*),
         # réglables via le Panneau Réglages. Source unique partagée avec
         # ChatOrchestrator (qui lit ces attributs sur l'instance LocalLLM).
-        _temp, _ctx, _to = 0.7, 16384, 1200
+        _temp, _ctx, _to = 0.7, 32768, 1200
         try:
             from core.config import get_config
             _cfg = get_config()
             _temp = float(_cfg.get("llm.local.temperature", 0.7))
-            _ctx = int(_cfg.get("llm.local.num_ctx", 16384))
+            _ctx = int(_cfg.get("llm.local.num_ctx", 32768))
             _to = int(_cfg.get("llm.local.timeout", 1200))
         except Exception:
             pass
         self.gen_temperature = _temp
+        # Fenêtre de contexte de TOUS les appels au modèle (réponse,
+        # planification, synthèse, résumés, préchauffage, mode VS Code) : Ollama
+        # recharge le modèle (≈ 3,5 s sur GPU) dès qu'une requête demande un
+        # autre num_ctx, et perd la conversation déjà lue
         self.gen_num_ctx = _ctx
         # Timeout : argument explicite prioritaire, sinon config (défaut 1200)
         self.timeout = timeout if timeout is not None else _to
@@ -89,11 +98,10 @@ class LocalLLM:
         self.max_history_length = 200  # Garder les 200 derniers échanges
         self._streamed_already = False  # Flag pour tracking du streaming vision
 
-        # 📝 Résumé glissant : résumé compressé des anciens messages
+        # 📝 Résumé glissant : résumé compressé des anciens messages, dès que
+        # l'historique dépasse _summary_threshold_tokens
         self._conversation_summary: str = ""
-        # Seuil en tokens estimés avant déclenchement du résumé (laisser ~8k pour réponse+prompt)
-        self._summary_threshold_tokens: int = 24000
-        # Taille cible après résumé (en nombre de messages à conserver "vivants")
+        # Nombre maximal de messages récents conservés tels quels après résumé
         self._keep_recent_messages: int = 20
 
         if self.is_ollama_available:
@@ -138,7 +146,9 @@ class LocalLLM:
                 "prompt": "hi",
                 "stream": False,
                 "keep_alive": "1h",
-                "options": {"num_predict": 1, "temperature": 0.0},
+                # Même fenêtre que les vraies requêtes : sinon la première
+                # recharge le modèle et le préchauffage ne sert à rien
+                "options": {"num_predict": 1, "temperature": 0.0, "num_ctx": self.gen_num_ctx},
             }
             requests.post(self.ollama_url, json=data, timeout=60)
             print(f"🔥 [LocalLLM] Warmup terminé — modèle '{self.model}' chargé en VRAM")
@@ -423,7 +433,7 @@ class LocalLLM:
             "messages": messages,
             "stream": True,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-            "options": {"temperature": 0.7, "num_ctx": 8192, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+            "options": {"temperature": 0.7, "num_ctx": self.gen_num_ctx, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
 
         print(f"🧠 [THINKING STREAM] Démarrage — modèle: {self.model} | chat_url: {self.chat_url}")
@@ -1023,6 +1033,11 @@ class LocalLLM:
     # Gestion de l'historique avec résumé glissant
     # ------------------------------------------------------------------
 
+    @property
+    def _summary_threshold_tokens(self) -> int:
+        """Tokens estimés d'historique au-delà desquels le résumé glissant démarre."""
+        return int(self.gen_num_ctx * self._SUMMARY_CONTEXT_SHARE)
+
     @staticmethod
     def _estimate_tokens(messages: List[Dict[str, str]]) -> int:
         """Estime le nombre de tokens d'une liste de messages (≈4 chars/token)."""
@@ -1047,13 +1062,22 @@ class LocalLLM:
         Résume les messages les plus anciens de l'historique via Ollama
         et remplace les messages résumés par un unique message système.
         """
-        if len(self.conversation_history) < self.max_history_length // 2:
-            return  # Pas assez de messages pour résumer
+        # Messages récents gardés tels quels : au plus _keep_recent_messages, et
+        # au plus la moitié du seuil (le dernier échange au minimum), sinon de
+        # longs messages relanceraient le résumé à chaque nouveau message
+        budget = self._summary_threshold_tokens // 2
+        keep, kept_tokens = 0, 0
+        for message in reversed(self.conversation_history):
+            tokens = self._estimate_tokens([message])
+            if keep >= self._keep_recent_messages or (keep >= 2 and kept_tokens + tokens > budget):
+                break
+            keep += 1
+            kept_tokens += tokens
 
         # Séparer : anciens messages à résumer / récents à conserver
-        split_point = len(self.conversation_history) - self._keep_recent_messages
+        split_point = len(self.conversation_history) - keep
         if split_point <= 0:
-            return
+            return  # Tout l'historique fait partie des messages récents
 
         old_messages = self.conversation_history[:split_point]
         recent_messages = self.conversation_history[split_point:]
@@ -1070,7 +1094,7 @@ class LocalLLM:
                 "stream": False,
                 "think": False,
                 "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-                "options": {"temperature": 0.3, "num_ctx": 32768, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+                "options": {"temperature": 0.3, "num_ctx": self.gen_num_ctx, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
             response = _resilient_post(self.chat_url, json=data, timeout=60)
             if response.status_code == 200:

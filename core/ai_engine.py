@@ -2835,16 +2835,18 @@ Que voulez-vous que je fasse pour vous ?""",
         # Si aucune correspondance → retourner tous les documents (pas de filtre)
         return matched if matched else stored_documents
 
-    # Part de la fenêtre de contexte (num_ctx) laissée au texte des documents ;
-    # le reste va aux consignes, à l'historique et à la réponse
-    _DOC_CONTEXT_SHARE = 0.5
+    # Part de la fenêtre de contexte (num_ctx) laissée au texte des documents,
+    # ≈ 8 000 tokens à 32k ; le reste va aux consignes, aux outils, à
+    # l'historique et à la réponse. Une part plus grande allongerait d'autant
+    # la lecture du prompt, qui prend des minutes sans carte graphique
+    _DOC_CONTEXT_SHARE = 0.25
     # Estimation basse du nombre de caractères par token (texte français)
     _DOC_CHARS_PER_TOKEN = 3
 
     def _document_char_budget(self) -> int:
         """Nombre de caractères de documents qui tiennent dans le prompt."""
         llm = getattr(self.local_ai, "local_llm", None)
-        num_ctx = getattr(llm, "gen_num_ctx", None) or 16384
+        num_ctx = getattr(llm, "gen_num_ctx", None) or 32768
         return int(num_ctx * self._DOC_CONTEXT_SHARE * self._DOC_CHARS_PER_TOKEN)
 
     @staticmethod

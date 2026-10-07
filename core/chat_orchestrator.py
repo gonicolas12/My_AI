@@ -1111,13 +1111,15 @@ class ChatOrchestrator:
 
         plan_messages.append({"role": "user", "content": plan_prompt})
 
+        # Même fenêtre de contexte que la réponse : une autre ferait recharger
+        # le modèle par Ollama (cf. LocalLLM.gen_num_ctx)
         data = {
             "model": llm.model,
             "messages": plan_messages,
             "stream": True,
             "think": False,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-            "options": {"temperature": 0.3, "num_ctx": 4096, "num_predict": 300, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+            "options": {"temperature": 0.3, "num_ctx": llm.gen_num_ctx, "num_predict": 300, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
 
         full_content: str = ""
@@ -1300,7 +1302,8 @@ class ChatOrchestrator:
                 ],
                 "stream": False,
                 "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
-                "options": {"temperature": 0.1, "num_ctx": 8192, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
+                # Même fenêtre que la réponse : une autre ferait recharger le modèle
+                "options": {"temperature": 0.1, "num_ctx": llm.gen_num_ctx, "num_predict": 512, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
             }
             resp = _resilient_post(llm.chat_url, json=summary_data, timeout=60)
             if resp.status_code == 200:
@@ -1771,7 +1774,9 @@ class ChatOrchestrator:
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {
                 "temperature": llm.gen_temperature,
-                "num_ctx": min(llm.gen_num_ctx, 8192),  # Plafond VRAM préservé lors de la synthèse
+                # Même fenêtre que la réponse : un plafond plus bas faisait
+                # recharger le modèle par Ollama à chaque synthèse
+                "num_ctx": llm.gen_num_ctx,
                 # Réflexion comprise : à 2048, elle laissait parfois une
                 # réponse coupée, voire vide
                 "num_predict": SYNTHESIS_NUM_PREDICT,

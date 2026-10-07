@@ -30,7 +30,7 @@ def _keywords_only(monkeypatch):
 def _engine():
     """AIEngine minimal : seule la fenêtre de contexte du LLM sert au budget."""
     engine = AIEngine.__new__(AIEngine)
-    engine.local_ai = SimpleNamespace(local_llm=SimpleNamespace(gen_num_ctx=16384))
+    engine.local_ai = SimpleNamespace(local_llm=SimpleNamespace(gen_num_ctx=32768))
     engine._visible_documents = None
     engine.logger = logging.getLogger("test_document_context")
     return engine
@@ -62,7 +62,7 @@ def test_document_beyond_8000_chars_is_sent_whole(engine):
 
 def test_document_beyond_budget_keeps_passages_about_the_question(engine):
     budget = engine._document_char_budget()
-    assert budget == 16384 // 2 * 3
+    assert budget == 32768 // 4 * 3  # un quart de la fenêtre, ≈ 8 000 tokens
     assert BIG_FDS.index("SECTION 47") > budget
     section = engine._document_sections(
         "de quoi parle la section 47 ?", {"fds.pdf": {"content": BIG_FDS}}
@@ -104,7 +104,7 @@ def test_read_local_file_clip_is_announced():
 
 
 def test_budget_follows_context_window(engine):
-    engine.local_ai.local_llm.gen_num_ctx = 32768
+    engine.local_ai.local_llm.gen_num_ctx = 65536  # option 64k de ⚙️ Réglages
     section = engine._document_sections("q", {"doc.txt": {"content": "#" * 30_000}})[0]
     assert section.count("#") == 30_000
     assert "tronqué" not in section

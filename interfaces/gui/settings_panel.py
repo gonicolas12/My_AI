@@ -434,8 +434,9 @@ class SettingsPanelMixin:
         crow.pack(fill="x", pady=4)
         self._st_label(crow, "Fenêtre de contexte (num_ctx) :", size=12).pack(
             side="left", padx=(0, 8))
-        self._st_ctx_var = tk.StringVar(value=str(cfg.get("llm.local.num_ctx", 16384)))
-        ctx_values = ["2048", "4096", "8192", "16384", "32768"]
+        self._st_ctx_var = tk.StringVar(value=str(cfg.get("llm.local.num_ctx", 32768)))
+        # 65536 : pour une carte graphique confortable et de longs documents
+        ctx_values = ["2048", "4096", "8192", "16384", "32768", "65536"]
         if self._st_ctx_var.get() not in ctx_values:
             ctx_values.append(self._st_ctx_var.get())
         if CTK_AVAILABLE:
@@ -478,7 +479,7 @@ class SettingsPanelMixin:
         try:
             num_ctx = int(self._st_ctx_var.get())
         except Exception:
-            num_ctx = 16384
+            num_ctx = 32768
         try:
             timeout = int(float(self._st_timeout_var.get()))
         except Exception:

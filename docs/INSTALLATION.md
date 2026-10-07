@@ -496,7 +496,7 @@ FROM qwen3.5:4b
 
 # Paramètres
 PARAMETER temperature 0.7
-PARAMETER num_ctx 8192    # Fenêtre de contexte
+PARAMETER num_ctx 32768   # Fenêtre de contexte (même valeur que config.yaml)
 
 # System prompt personnalisé
 SYSTEM """
@@ -505,12 +505,7 @@ Réponds toujours en français par défaut.
 """
 ```
 
-**Paramètres `num_ctx` recommandés selon RAM :**
-| RAM | num_ctx | Usage |
-|-----|---------|-------|
-| 8 GB | 4096 | Conversations courtes |
-| 16 GB | 8192 | Conversations moyennes |
-| 32 GB | 16384 | Gros documents |
+**Fenêtre de contexte (`num_ctx`)** : 32 768 tokens par défaut, la même valeur dans `config.yaml` (`llm.local.num_ctx`) et dans le `Modelfile` ; le panneau ⚙️ Réglages écrit les deux. Elle coûte peu de mémoire aux modèles qwen3.5 (≈ 0,4 Go pour le 2b, 1 Go pour le 4b et le 9b). Une fenêtre plus petite (8k, 16k) oblige à résumer la conversation plus tôt ; 64k ne vaut la peine qu'avec une carte graphique confortable et de longs documents.
 
 ## 🚀 Options de Lancement
 

@@ -61,18 +61,20 @@ L'**assistant de configuration** (premier lancement) et le panneau ⚙️ Régla
 
 **Avec GPU dédié** (le modèle tourne en VRAM → rapide) :
 
-| VRAM | Modèle | num_ctx |
-|------|--------|---------|
-| 4–6 Go | `qwen3.5:2b` | 32768 |
-| 6–10 Go | `qwen3.5:4b` | 16384 |
-| ≥ 10 Go | `qwen3.5:9b` | 8192 |
+| VRAM | Modèle | Mémoire du contexte (32k) |
+|------|--------|---------------------------|
+| 4–6 Go | `qwen3.5:2b` | ≈ 0,4 Go |
+| 6–10 Go | `qwen3.5:4b` | ≈ 1 Go |
+| ≥ 10 Go | `qwen3.5:9b` | ≈ 1 Go |
 
 **Sans GPU dédié** (inférence CPU — la **vitesse du CPU** prime, pas la RAM) :
 
-| CPU | Modèle | num_ctx |
-|-----|--------|---------|
-| PC bureautique (< 8 cœurs) | `qwen3.5:2b` ✅ | 32768 |
-| Desktop costaud (≥ 8 cœurs **et** ≥ 16 Go RAM) | `qwen3.5:4b` | 16384 |
+| CPU | Modèle | Mémoire du contexte (32k) |
+|-----|--------|---------------------------|
+| PC bureautique (< 8 cœurs) | `qwen3.5:2b` ✅ | ≈ 0,4 Go |
+| Desktop costaud (≥ 8 cœurs **et** ≥ 16 Go RAM) | `qwen3.5:4b` | ≈ 1 Go |
+
+> La fenêtre de contexte est la même quel que soit le modèle : 32 768 tokens (`llm.local.num_ctx`, réglable dans ⚙️ Réglages). Les modèles qwen3.5 ne gardent un cache par token que dans une couche sur quatre, d'où ce faible coût en mémoire.
 
 > ⚠️ En CPU, un gros modèle (9b/27b) « rentre » en RAM mais génère **trop lentement** pour un usage agréable. Réservez-les à un GPU disposant d'assez de VRAM.
 
@@ -663,7 +665,8 @@ metrics_to_track:
 Lors des intéractions complexes (outil MCP, réflexion), des optimisations poussées sont appliquées pour accélérer Ollama côté backend :
 
 *   **Pré-chargement du modèle (Keep Alloc)** : Envoi de `keep_alive="1h"` pour éviter qu'Ollama ne décharge le modèle de la VRAM vidéo entre chaque réflexion ou chaque appel d'outil MCP, rendant les chaînes multi-étapes instantanées.
-*   **Contexte Sélectif (`num_ctx`)** : Ajustement dynamique de l'allocation mémoire selon les besoins (par exemple réduit à `8192` lors des synthèses très chargées, ou `16384` en mode agent normal), permettant d'éviter une sursaturation de la VRAM (OOM) et de limiter le _swapping_ système sous Windows qui freine dramatiquement le jetons/seconde.
+*   **Fenêtre de contexte unique (`num_ctx`)** : tous les appels au modèle (réponse, planification, synthèse, résumés, préchauffage, mode VS Code) demandent la même fenêtre, `llm.local.num_ctx` (32 768 par défaut). Ollama recharge le modèle dès qu'une requête en demande une autre (≈ 3,5 s sur un GPU intégré) et perd la conversation déjà lue. Avec une fenêtre identique, il ne lit que les nouveaux messages : ≈ 1,5 s au lieu de 58 s sur une conversation de 13 000 tokens (mesuré sur un Core Ultra 7 255H). Les documents reçoivent un quart de la fenêtre (≈ 8 000 tokens), et le résumé glissant démarre quand l'historique en dépasse la moitié.
+*   **64k (option de ⚙️ Réglages)** : utile seulement avec une carte graphique confortable et de longs documents. Tout ce qui entre dans la fenêtre doit être lu au moins une fois, et sans carte graphique, lire des dizaines de milliers de tokens prend plusieurs minutes.
 *   **Préservation du prompt System (`num_keep=-1`)** : Utilisé pour certifier à Ollama et Llama_cpp que le system prompt (et le "scratchpad" de réflexion de l'IA) reste ancré en mémoire cache K/V quoi qu'il arrive et ne doit jamais faire l'objet du rolling window eviction, conservant ainsi les règles structurelles sans les recalculer.
 
 

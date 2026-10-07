@@ -342,7 +342,7 @@ def test_vision_pipeline_writes_with_the_given_system_prompt():
     llm.is_ollama_available = True
     llm.conversation_history = []
     llm.max_history_length = 50
-    llm._summary_threshold_tokens = 10**9
+    llm.gen_num_ctx = 32768  # le résumé glissant démarre à la moitié de la fenêtre
     llm._get_vision_model = lambda: "minicpm-v"
     llm._get_vision_description = lambda _model, _prompt, _image: "Un chat roux sur un canapé."
 

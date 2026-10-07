@@ -219,8 +219,8 @@ Responsabilités:
 ├─ Initialisation de tous les modules
 ├─ Routage des requêtes selon intentions
 ├─ Gestion de session (documents, code, historique)
-├─ Texte des documents chargés dans le prompt : budget = 50 % de num_ctx
-│  (≈ 24 500 caractères pour 16 384 tokens), partagé entre documents ;
+├─ Texte des documents chargés dans le prompt : budget = 25 % de num_ctx
+│  (≈ 24 500 caractères pour 32 768 tokens), partagé entre documents ;
 │  au-delà, début du document + passages liés à la question par les mots et
 │  le sens (core/document_passages.py), sélection signalée au modèle
 ├─ Garde-fou des réponses sur pièces jointes (_stream_document_answer) : le

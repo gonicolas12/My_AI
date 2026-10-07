@@ -2105,10 +2105,10 @@ class RelayServer:
 
 
 def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any]]:
-    """Extrait l'URL Ollama et le nom du modèle depuis l'AIEngine du server.
+    """Extrait l'URL Ollama, le modèle et la fenêtre de contexte de l'AIEngine du server.
 
-    Retourne ``{"chat_url": str, "model": str}`` ou ``None`` si rien
-    d'utilisable n'est dispo (ex: moteur pas encore initialisé).
+    Retourne ``{"chat_url": str, "model": str, "num_ctx": int}`` ou ``None``
+    si rien d'utilisable n'est dispo (ex: moteur pas encore initialisé).
     """
     engine = server.ai_engine
     if engine is None:
@@ -2128,7 +2128,10 @@ def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any
         model = getattr(local_llm, "model", None)
         if not chat_url or not model:
             return None
-        return {"chat_url": str(chat_url), "model": str(model)}
+        # Même fenêtre de contexte que le reste de l'appli : une autre ferait
+        # recharger le modèle par Ollama à chaque passage d'un mode à l'autre
+        num_ctx = int(getattr(local_llm, "gen_num_ctx", 32768))
+        return {"chat_url": str(chat_url), "model": str(model), "num_ctx": num_ctx}
     except Exception as exc:
         logger.warning("Impossible de résoudre la config Ollama agentique : %s", exc)
         return None
@@ -2183,6 +2186,7 @@ async def _handle_vscode_chat(
     executor = AgenticExecutor(
         ollama_chat_url=cfg["chat_url"],
         model=cfg["model"],
+        num_ctx=cfg["num_ctx"],
     )
     loop = asyncio.get_event_loop()
     remote_executor = RemoteToolExecutor(
