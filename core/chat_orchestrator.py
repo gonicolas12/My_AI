@@ -317,7 +317,8 @@ class Scratchpad:
 
     def to_context_block(self) -> str:
         """
-        Sérialise le scratchpad en bloc XML pour injection dans le system prompt.
+        Sérialise le scratchpad en bloc XML pour la boucle d'outils
+        (cf. ChatOrchestrator._inject_scratchpad).
         Le modèle DOIT lire ce bloc à chaque tour pour maintenir la cohérence.
         """
         plan_lines = ""
@@ -347,6 +348,17 @@ class Scratchpad:
             "INSTRUCTION CRUCIALE : Exécute obligatoirement la prochaine action avec un OUTIL. Ne donne PAS de réponse textuelle finale tant que toutes les étapes du plan ne sont pas terminées.\n"
             "</scratchpad>"
         )
+
+
+# Début du message qui porte le scratchpad dans la boucle d'outils : il est
+# retrouvé, puis remplacé, à chaque tour (cf. ChatOrchestrator._inject_scratchpad)
+_SCRATCHPAD_HEADER = "[ORCHESTRATEUR] État de la tâche :"
+
+
+def _is_scratchpad_message(message: Dict) -> bool:
+    return message.get("role") == "user" and str(message.get("content", "")).startswith(
+        _SCRATCHPAD_HEADER
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -478,11 +490,12 @@ class ChatOrchestrator:
                 print(f"🛑 [ChatOrchestrator] Tour {tour + 1} — interruption utilisateur")
                 return None
 
-            # Injection du scratchpad dans le system prompt
-            # S'il y a un plan ou s'il y a déjà eu des appels d'outils
+            # Scratchpad à jour après le dernier échange d'outils, s'il y a un
+            # plan ou s'il y a déjà eu des appels d'outils
             if tool_calls_log or scratchpad.plan:
                 messages = self._inject_scratchpad(
                     messages, scratchpad, known_tool_names=known_tool_names,
+                    loop_start=loop_start,
                 )
 
             # Avertissement avant limite
@@ -1361,29 +1374,31 @@ class ChatOrchestrator:
         messages: List[Dict],
         scratchpad: Scratchpad,
         known_tool_names: Optional[List[str]] = None,
+        loop_start: int = 0,
     ) -> List[Dict]:
         """
-        Injecte ou met à jour le bloc <scratchpad> dans le message système.
+        Place le bloc <scratchpad> à jour après le dernier échange d'outils.
 
         Le scratchpad force le LLM à re-synthétiser son état à chaque tour,
         évitant la perte de cohérence sur des tâches multi-étapes.
 
+        Il était réécrit dans le message système : le début du prompt changeait
+        à chaque tour, et Ollama relisait toute la conversation (prompt
+        système, outils, documents, résultats d'outils) avant chaque appel,
+        73 à 81 s par tour sur un GPU intégré au lieu de 12 à 32 s. C'est
+        maintenant un message de la boucle, remplacé à chaque tour : seul ce
+        que le dernier tour a ajouté est relu. Les relances de la boucle
+        (messages « user » ajoutés depuis le dernier résultat d'outil) restent
+        après lui, pour rester la dernière consigne lue par le modèle.
+
         Si known_tool_names est fourni, ajoute la liste explicite des outils
         valides pour réduire les hallucinations (modèle inventant 'execute',
         'run_python', 'bash', etc. qui n'existent pas dans le schéma MCP).
+
+        Args:
+            loop_start: Index du premier message de la boucle d'outils : la
+                question de l'utilisateur, juste avant, reste devant le bloc
         """
-        if not messages or messages[0].get("role") != "system":
-            return messages
-
-        base_content = messages[0]["content"]
-        # Retirer l'ancien scratchpad s'il existe
-        base_content = re.sub(
-            r"\n*<scratchpad>.*?</scratchpad>",
-            "",
-            base_content,
-            flags=re.DOTALL,
-        ).rstrip()
-
         # Liste explicite des outils valides (anti-hallucination)
         tools_whitelist = ""
         if known_tool_names:
@@ -1399,8 +1414,7 @@ class ChatOrchestrator:
                     "passe à l'étape suivante ou conclus avec ta réponse finale."
                 )
 
-        # Ajouter le scratchpad mis à jour
-        new_system = base_content + "\n\n" + scratchpad.to_context_block() + (
+        block = f"{_SCRATCHPAD_HEADER}\n" + scratchpad.to_context_block() + (
             "\n\n[CONSIGNE STRICTE D'OUTILS] "
             "Sois précis de manière chirurgicale dans le choix de tes outils selon ton plan actuel. "
             "Si l'étape demande un DÉPLACEMENT de fichier (ex: 'déplacer', 'move'), utilise OBLIGATOIREMENT "
@@ -1408,8 +1422,13 @@ class ChatOrchestrator:
             "Si tu dois chercher, utilise le bon type de recherche, etc."
         ) + tools_whitelist
 
-        updated = list(messages)
-        updated[0] = {"role": "system", "content": new_system}
+        # Le bloc du tour précédent est retiré, le nouveau placé avant les
+        # relances qui suivent le dernier résultat d'outil
+        updated = [m for m in messages if not _is_scratchpad_message(m)]
+        insert_at = len(updated)
+        while insert_at > loop_start and updated[insert_at - 1].get("role") == "user":
+            insert_at -= 1
+        updated.insert(insert_at, {"role": "user", "content": block})
         return updated
 
     def _call_ollama_no_stream(
