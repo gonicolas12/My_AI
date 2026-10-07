@@ -486,7 +486,9 @@ class VectorMemory:
                         **(metadata or {}),
                     }
 
-                    self.document_collection.add(
+                    # upsert : après un redémarrage, le même document retrouve
+                    # les mêmes identifiants de morceaux, qu'add() ignorerait
+                    self.document_collection.upsert(
                         ids=[chunk_id],
                         embeddings=[embedding],
                         documents=[stored_text],
@@ -855,11 +857,15 @@ class VectorMemory:
         return removed
 
     def _generate_document_id(self, content: str, name: str) -> str:
-        """Génère un ID unique pour un document"""
-        content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
+        """Identifiant stable d'un document : même nom et même contenu, même ID.
+
+        Il contenait l'heure à la seconde près : un document ajouté deux fois
+        n'était reconnu comme doublon que dans la même seconde, et chaque
+        nouvel ajout recopiait ses morceaux dans ChromaDB.
+        """
+        content_hash = hashlib.md5(content.encode()).hexdigest()[:16]
         name_clean = re.sub(r"[^a-zA-Z0-9]", "_", name)[:20]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{name_clean}_{content_hash}_{timestamp}"
+        return f"{name_clean}_{content_hash}"
 
     def _cleanup_old_documents(self, tokens_needed: int):
         """

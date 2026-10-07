@@ -3,10 +3,12 @@ Tests unitaires pour memory/vector_memory.py
 """
 
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from memory import vector_memory
 from memory.vector_memory import VectorMemory
 
 
@@ -139,6 +141,40 @@ class TestDocumentManagement:
         result2 = memory.add_document(content, name)
         assert result2["status"] == "duplicate"
         assert result2["chunks_created"] == 0
+
+    @staticmethod
+    def _one_hour_later(monkeypatch):
+        """L'horloge de vector_memory avance d'une heure."""
+        later = datetime.now() + timedelta(hours=1)
+
+        class _Later(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return later
+
+        monkeypatch.setattr(vector_memory, "datetime", _Later)
+
+    def test_duplicate_detected_whatever_the_time(self, memory, monkeypatch):
+        """L'identifiant contenait l'heure à la seconde près : ajouté une
+        seconde plus tard (calcul des embeddings un peu long), le même document
+        n'était plus reconnu comme doublon."""
+        assert memory.add_document("Document unique", "TestDup")["status"] == "success"
+        self._one_hour_later(monkeypatch)
+        assert memory.add_document("Document unique", "TestDup")["status"] == "duplicate"
+
+    def test_same_document_after_restart_is_not_copied_again(self, memory, monkeypatch):
+        """Les documents de la session repartent de zéro au redémarrage, mais
+        ChromaDB garde leurs morceaux : chaque nouvel ajout les recopiait."""
+        if memory.document_collection is None or memory.embedding_model is None:
+            pytest.skip("ChromaDB ou modèle d'embeddings indisponible")
+        content = "Fiche de données de sécurité du produit X. " * 20
+        memory.add_document(content, "FDS")
+        stored = memory.document_collection.count()
+
+        self._one_hour_later(monkeypatch)  # redémarrage une heure plus tard
+        restarted = VectorMemory(max_tokens=10000, storage_dir=str(memory.storage_dir))
+        assert restarted.add_document(content, "FDS")["status"] == "success"
+        assert restarted.document_collection.count() == stored
 
     def test_document_stats_updated(self, memory):
         """Test que les statistiques sont mises à jour"""
