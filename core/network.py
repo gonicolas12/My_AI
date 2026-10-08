@@ -231,6 +231,31 @@ def configure_network_environment(force: bool = False) -> Dict[str, Any]:
     return dict(result)
 
 
+def tls_settings() -> Dict[str, Any]:
+    """
+    Vérification TLS demandée par la section network de config.yaml, pour les
+    sessions requests de l'application (recherche internet).
+
+    Returns:
+        {"ca_bundle": chemin d'un bundle CA existant ou "",
+         "use_system_truststore": bool, "allow_insecure_ssl": bool}
+    """
+    cfg = _load_network_config()
+    tls_cfg = cfg.get("tls") if isinstance(cfg.get("tls"), dict) else {}
+    ca_bundle = _as_str(cfg.get("ca_bundle", tls_cfg.get("ca_bundle", "")))
+    return {
+        "ca_bundle": _resolve_existing_file(ca_bundle) or "",
+        "use_system_truststore": _as_bool(
+            cfg.get("use_system_truststore", tls_cfg.get("use_system_truststore", True)),
+            True,
+        ),
+        "allow_insecure_ssl": _as_bool(
+            cfg.get("allow_insecure_ssl", tls_cfg.get("allow_insecure_ssl", False)),
+            False,
+        ),
+    }
+
+
 def build_network_error_help(error: Exception) -> str:
     """Retourne un message d'aide contextuel basé sur le type d'erreur réseau rencontrée."""
     message = str(error).lower()

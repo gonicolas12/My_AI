@@ -13,7 +13,6 @@ import threading
 import shutil
 from functools import partial
 from pathlib import Path
-from datetime import datetime as _dt
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests as _req
@@ -27,7 +26,7 @@ from models.advanced_code_generator import \
 from models.conversation_memory import ConversationMemory
 from models.custom_ai_model import CustomAIModel
 from models.internet_search import (EnhancedInternetSearchEngine,
-                                    InternetSearchEngine)
+                                    InternetSearchEngine, clean_query)
 from models.smart_code_searcher import multi_source_searcher
 from models.smart_web_searcher import search_smart_code
 from models.image_generation import get_image_generator
@@ -798,19 +797,12 @@ class AIEngine:
         # 1. Recherche Web
         # ----------------------------------------------------------------
         try:
-            search_engine = EnhancedInternetSearchEngine(
-                llm=(
-                    self.local_ai.local_llm
-                    if hasattr(self.local_ai, "local_llm")
-                    else None
-                )
-            )
-            # Exposer l'instance pour que tool_executor puisse y brancher
-            # le callback de streaming de la GUI.
-            self._web_search_engine = search_engine
+            # Sans modèle : l'outil rend des sources numérotées, c'est le
+            # modèle de la conversation qui rédige la réponse
+            search_engine = EnhancedInternetSearchEngine()
 
             def web_search(query: str) -> str:
-                """Effectue une recherche sur internet et retourne un résumé des résultats."""
+                """Recherche sur internet ; sources numérotées avec extraits et passages."""
                 try:
                     return search_engine.search_and_summarize(query)
                 except Exception as exc:
@@ -819,16 +811,22 @@ class AIEngine:
             self.mcp_manager.register_local_tool(
                 name="web_search",
                 description=(
-                    "Effectue une recherche sur internet pour obtenir des informations "
-                    "récentes, factuelles ou d'actualité. À utiliser pour : faits, "
-                    "données chiffrées, prix, actualités, informations techniques récentes."
+                    "Recherche sur internet. Renvoie des sources numérotées [1], [2]… "
+                    "avec leur lien, un extrait et des passages des pages. À utiliser "
+                    "pour les faits récents, actualités, prix, chiffres, classements, "
+                    "documentation technique. Météo d'un lieu : « météo <ville> ». "
+                    "Une URL comme requête lit directement cette page."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "La requête de recherche web",
+                            "description": (
+                                "Mots-clés de recherche (3 à 8), dans la langue de "
+                                "l'utilisateur, sans année sauf si l'utilisateur en "
+                                "donne une"
+                            ),
                         },
                     },
                     "required": ["query"],
@@ -3144,78 +3142,6 @@ Que voulez-vous que je fasse pour vous ?""",
         q = query.lower()
         return any(sig in q for sig in self._WEB_SEARCH_SIGNALS)
 
-    def _optimize_search_query(self, query: str, llm) -> str:
-        """Optimise la requête de recherche avec le LLM pour de meilleurs résultats."""
-        if not llm or not llm.is_ollama_available:
-            return query
-
-        now = _dt.now()
-        current_year = now.year
-        # Dernière année « complète » d'événements : si on est en début d'année,
-        # les compétitions/éditions de l'année courante n'ont souvent pas encore
-        # eu lieu, donc « dernier/dernière » pointe vers l'année précédente.
-        last_completed_year = current_year - 1 if now.month <= 6 else current_year
-
-        try:
-            prompt = (
-                "Transforme cette demande en mots-clés de recherche web "
-                "(2 à 5 mots-clés en anglais, sans phrase ni verbe).\n"
-                "Règles :\n"
-                "- Utilise l'ANGLAIS pour de meilleurs résultats\n"
-                "- Mots-clés courts et précis\n"
-                f"- Date du jour : {now.strftime('%Y-%m-%d')}.\n"
-                f"- Pour 'dernière', 'dernier', 'récent', 'latest' : utilise l'année {last_completed_year} "
-                f"(dernière édition terminée).\n"
-                f"- Pour l'actualité en cours : utilise {current_year}.\n"
-                "- Si l'utilisateur mentionne une année explicite, GARDE CETTE ANNÉE telle quelle.\n"
-                "- Réponds UNIQUEMENT avec les mots-clés\n\n"
-                f"Demande: {query}"
-            )
-            system_prompt = (
-                "Tu génères des mots-clés de recherche web. "
-                "Réponds uniquement avec les mots-clés, en anglais, sans phrase."
-            )
-
-            optimized = llm.generate(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                save_history=False,
-                use_history=False,
-            )
-
-            if optimized:
-                optimized = optimized.strip().strip("\"'.,!?:;\n\r")
-                # Si l'utilisateur a explicitement mentionné une année, la
-                # réinjecter pour éviter que le LLM l'écrase avec une autre.
-                user_year_match = _re.search(r'\b(20\d{2})\b', query)
-                if user_year_match:
-                    user_year = user_year_match.group(1)
-                    optimized = _re.sub(r'\b20\d{2}\b', user_year, optimized)
-                else:
-                    # Pas d'année dans la requête : ne corriger QUE les années
-                    # clairement obsolètes (< current_year - 2). On ne touche
-                    # pas à current_year-1 ou current_year car elles peuvent
-                    # être correctes selon le contexte (ex. « dernière
-                    # édition terminée » = current_year-1).
-                    threshold = current_year - 2
-
-                    def _fix_obsolete_year(match: "_re.Match") -> str:
-                        year = int(match.group(0))
-                        if year < threshold:
-                            return str(last_completed_year)
-                        return match.group(0)
-
-                    optimized = _re.sub(r'\b20\d{2}\b', _fix_obsolete_year, optimized)
-                if 3 <= len(optimized) <= 120:
-                    print(
-                        f"🔧 [AIEngine] Requête optimisée : '{query}' → '{optimized}'"
-                    )
-                    return optimized
-        except Exception as e:
-            self.logger.warning("Erreur lors de l'optimisation de la requête: %s", e)
-
-        return query
-
     def is_complex_query(self, query: str) -> bool:
         """Détermine si une requête nécessite un raisonnement multi-étapes (Thinking Mode).
 
@@ -3563,9 +3489,14 @@ Que voulez-vous que je fasse pour vous ?""",
                 if is_interrupted_callback and is_interrupted_callback():
                     return "[Interrompu par l'utilisateur]"
                 if tool_name == "web_search":
-                    # Optimiser la requête avant tout affichage ou exécution
-                    optimized_q = self._optimize_search_query(user_input, llm)
-                    arguments = {**arguments, "query": optimized_q}
+                    # La requête du modèle, nettoyée avant affichage et exécution.
+                    # Elle était remplacée par une requête tirée du message entier,
+                    # par un appel de plus au modèle : chaque recherche d'un même
+                    # tour cherchait alors la même chose.
+                    query = clean_query(str(arguments.get("query", "")), user_input)
+                    if query != arguments.get("query"):
+                        print(f"🔧 [AIEngine] Requête web : '{arguments.get('query', '')}' → '{query}'")
+                    arguments = {**arguments, "query": query}
                 # Confirmation utilisateur pour la suppression de fichier
                 if tool_name == "delete_local_file" and on_delete_confirm:
                     file_path = arguments.get("path", "")

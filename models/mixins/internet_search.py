@@ -3,13 +3,15 @@ InternetSearchMixin — Méthodes de recherche internet pour CustomAIModel.
 
 Regroupe : _handle_internet_search, _get_search_query_from_context,
 _clean_search_query, _generate_ollama_search_response, _extract_search_query,
-_optimize_search_query_with_ollama, _handle_url_summarization, _extract_url,
-_detect_search_type, _handle_parallel_search.
+_optimize_search_query_with_ollama, _handle_url_summarization, _extract_url.
+
+La recherche elle-même (moteurs, pages, météo) est dans models/internet_search.py.
 """
 
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict
+
+from models.internet_search import SOURCES_NOTE, clean_query
 
 
 class InternetSearchMixin:
@@ -72,21 +74,15 @@ Reformulez votre demande en précisant ce que vous voulez rechercher."""
                     f"🧠 [OLLAMA] Requête optimisée: '{search_query}' → '{optimized_query}'"
                 )
                 search_query = optimized_query
+        # Années que le modèle ajoute de lui-même (sa date d'apprentissage)
+        search_query = clean_query(search_query, user_input) or search_query
 
         # Effectuer la recherche avec le moteur de recherche internet
         try:
             print(f"🌐 Lancement de la recherche pour: '{search_query}'")
-
-            # Tenter une recherche parallèle (multi-sources) si WebCache est disponible
-            use_parallel = getattr(self, "_web_cache", None) is not None
-            if use_parallel:
-                raw_results = self._handle_parallel_search(search_query)
-            elif self.local_llm and self.local_llm.is_ollama_available:
-                # Mode single-pass: préparer un contexte de source unique
-                raw_results = self.internet_search.search_best_source_context(search_query)
-            else:
-                # Fallback sans LLM
-                raw_results = self.internet_search.search_and_summarize(search_query)
+            # Sources numérotées (ou météo, ou contenu d'une page) : lisibles
+            # telles quelles sans Ollama, synthétisées par lui sinon
+            raw_results = self.internet_search.search_and_summarize(search_query)
 
             # 🦙 NOUVEAU: Utiliser Ollama pour générer une réponse intelligente
             if self.local_llm and self.local_llm.is_ollama_available:
@@ -296,12 +292,16 @@ Instructions:
                 f"\n\nSources numérotées (pour tes marqueurs [n]) :\n{sources_ref}"
                 if sources_ref else ""
             )
+            # Plusieurs sources avec leurs passages : 4 000 caractères n'en
+            # gardaient que la première. La consigne de l'outil (« termine par
+            # ce bloc ») est retirée : ici, la liste est ajoutée après la réponse.
+            results_for_model = raw_results.replace(SOURCES_NOTE, "").strip()
             user_prompt = f"""Question de l'utilisateur: {original_question}
 
 Informations trouvées sur internet concernant "{search_query}":
-{raw_results[:4000]}{sources_ref_block}
+{results_for_model[:12000]}{sources_ref_block}
 
-Génère la réponse finale directement à la question utilisateur, avec uniquement les informations présentes dans la source fournie. Place des marqueurs de citation [n] inline après les affirmations issues d'une source."""
+Génère la réponse finale directement à la question utilisateur, avec uniquement les informations présentes dans les sources fournies. Place des marqueurs de citation [n] inline après les affirmations issues d'une source. N'écris pas de liste de sources : elle est ajoutée après ta réponse."""
 
             print("🦙 [OLLAMA] Génération de la réponse basée sur la recherche...")
 
@@ -393,8 +393,9 @@ Génère la réponse finale directement à la question utilisateur, avec uniquem
         """Utilise Ollama pour transformer une requête naturelle en requête de recherche concise."""
         try:
             prompt = (
-                f"Transforme cette demande en une requête de recherche Wikipedia courte et efficace "
-                f"(5 à 8 mots maximum, mots-clés essentiels uniquement, sans verbes ni politesse). "
+                f"Transforme cette demande en une requête courte pour un moteur de recherche web "
+                f"(3 à 8 mots-clés essentiels, dans la langue de la demande, sans verbes ni "
+                f"politesse, sans année si la demande n'en contient pas). "
                 f"Réponds UNIQUEMENT avec la requête, rien d'autre.\n\nDemande: {query}"
             )
 
@@ -432,7 +433,16 @@ Assurez-vous d'inclure une URL complète commençant par http:// ou https://"""
 
         try:
             print(f"🌐 Récupération et résumé de l'URL: {url}")
+            # Contenu principal de la page ; Ollama le résume s'il tourne
             result = self.internet_search.summarize_url(url)
+            if (
+                result.startswith("Contenu de la page")
+                and self.local_llm
+                and self.local_llm.is_ollama_available
+            ):
+                summary = self._generate_ollama_search_response(url, result, user_input)
+                if summary:
+                    return summary
             return result
         except (ConnectionError, TimeoutError, ValueError) as e:
             print(f"❌ Erreur lors du résumé de l'URL: {str(e)}")
@@ -465,111 +475,3 @@ Erreur technique : {str(e)}"""
             return url
 
         return ""
-
-    def _detect_search_type(self, user_input: str) -> str:
-        """Détecte le type de recherche demandé"""
-        user_lower = user_input.lower()
-
-        if any(
-            word in user_lower
-            for word in ["actualité", "news", "dernières nouvelles", "récent"]
-        ):
-            return "news"
-        elif any(
-            word in user_lower
-            for word in ["comment", "how to", "tutorial", "guide", "étapes"]
-        ):
-            return "tutorial"
-        elif any(
-            word in user_lower
-            for word in ["qu'est-ce que", "définition", "c'est quoi", "define"]
-        ):
-            return "definition"
-        elif any(word in user_lower for word in ["prix", "coût", "combien", "price"]):
-            return "price"
-        elif any(
-            word in user_lower for word in ["avis", "opinion", "review", "critique"]
-        ):
-            return "review"
-        else:
-            return "general"
-
-    def _handle_parallel_search(self, search_query: str, max_sources: int = 3) -> str:
-        """
-        Recherche parallèle multi-sources avec cache web.
-        Lance plusieurs recherches en parallèle et fusionne les résultats.
-
-        Args:
-            search_query: Requête de recherche
-            max_sources: Nombre max de sources à consulter en parallèle
-
-        Returns:
-            Contexte fusionné des meilleures sources
-        """
-        print(f"⚡ [PARALLEL] Recherche parallèle ({max_sources} sources) pour: '{search_query}'")
-
-        # Vérifier le cache web d'abord
-        cache = getattr(self, "_web_cache", None)
-        if cache:
-            cached = cache.get(f"search:{search_query}")
-            if cached:
-                print("💾 [CACHE] Résultat trouvé en cache")
-                return cached
-
-        # Obtenir les résultats de recherche
-        try:
-            search_results = self.internet_search._perform_search(search_query)  # pylint: disable=protected-access
-            if not search_results:
-                return self.internet_search.search_best_source_context(search_query)
-        except Exception:
-            return self.internet_search.search_best_source_context(search_query)
-
-        # Extraire les contenus en parallèle
-        urls = [r.get("url") or r.get("link", "") for r in search_results[:max_sources] if r.get("url") or r.get("link")]
-        titles = [r.get("title", "Source") for r in search_results[:max_sources]]
-
-        def _fetch_content(url_title):
-            url, title = url_title
-            try:
-                content_list = self.internet_search._extract_page_contents([{"url": url, "title": title, "link": url}])  # pylint: disable=protected-access
-                if content_list:
-                    text = content_list[0].get("full_content") or content_list[0].get("snippet", "")
-                    return {"title": title, "url": url, "content": text[:4000]}
-            except Exception:
-                pass
-            return None
-
-        results = []
-        with ThreadPoolExecutor(max_workers=max_sources) as executor:
-            futures = {
-                executor.submit(_fetch_content, (url, title)): url
-                for url, title in zip(urls, titles)
-            }
-            for future in as_completed(futures, timeout=15):
-                try:
-                    result = future.result()
-                    if result:
-                        results.append(result)
-                except Exception:
-                    pass
-
-        if not results:
-            print("⚠️ [PARALLEL] Aucun résultat parallèle, fallback single-source")
-            return self.internet_search.search_best_source_context(search_query)
-
-        print(f"✅ [PARALLEL] {len(results)} sources récupérées en parallèle")
-
-        # Fusionner les résultats
-        combined = f"**{len(results)} sources consultées en parallèle**\n\n"
-        sources_list = []
-        for i, r in enumerate(results, 1):
-            combined += f"--- Source {i}: {r['title']} ---\n{r['content']}\n\n"
-            sources_list.append(f"• [{r['title']}]({r['url']})")
-
-        combined += "🔗 **Sources**\n" + "\n".join(sources_list)
-
-        # Mettre en cache
-        if cache:
-            cache.set(f"search:{search_query}", combined, ttl=1800)
-
-        return combined

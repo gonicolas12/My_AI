@@ -828,56 +828,31 @@ IA> [Synthèse complète avec références croisées]
 
 ### Activation
 
-**Trigger:** "cherche sur internet", "recherche web", "google"
+Le modèle lance la recherche de lui-même quand une question demande des informations récentes (actualités, prix, classements, documentation à jour). « Cherche sur internet… » la demande explicitement.
 
 ```bash
-Vous> cherche sur internet capitale du Japon
-IA> 🌐 Recherche sur internet...
-
-Résultat:
-La capitale du Japon est Tokyo.
-
-Informations complémentaires:
-- Population: ~14 millions (agglomération: ~37 millions)
-- Fondation: 1603
-- Anciennement: Edo
-
-Sources:
-- [URL1]
-- [URL2]
+Vous> Cherche sur internet les meilleures marques de voiture, fais un tableau
+IA> | Rang | Marque | Points forts | …
+    | 1 | Toyota | Robustesse, fiabilité durable | …
+    …
+    📚 Sources
+    [Quelle est la meilleure marque de voiture 2026 - autohero.com](https://www.autohero.com/…)
+    …
 ```
 
 ### Fonctionnalités Recherche
 
-**Moteur:** DuckDuckGo API + Web Scraping
+**Moteurs :** DuckDuckGo, puis Yahoo en secours, puis Wikipédia (articles pertinents seulement)
 
-**Capacités:**
-- Recherche top 8 résultats
-- Extraction patterns:
-  - Faits (taille, poids, population, dates)
-  - Définitions
-  - Prix et spécifications techniques
-- BeautifulSoup scraping
-- Cache 1h (évite requêtes répétées)
+**Capacités :**
+- 8 sources au plus (2 par site), les 4 premières pages lues en parallèle
+- Passages de chaque page qui répondent à la requête, sans menus ni bandeaux
+- Sources numérotées et liens cliquables en fin de réponse
+- Météo : Open-Meteo, conditions actuelles et prévisions sur 7 jours (« météo Toulouse »)
+- URL dans la question : la page est lue directement (« résume https://… »)
+- Cache 30 min des recherches déjà faites
 
-**Patterns reconnus:**
-```python
-# Taille/Poids
-"Quelle est la taille de la Tour Eiffel?"
-→ "324 mètres"
-
-# Population
-"Population de New York?"
-→ "8,3 millions"
-
-# Dates
-"Quand a été construit le Taj Mahal?"
-→ "1632-1653"
-
-# Définitions
-"Qu'est-ce que le machine learning?"
-→ [Définition extraite]
-```
+Détails, réseau et dépannage : [INTERNET_SEARCH.md](INTERNET_SEARCH.md).
 
 ---
 
@@ -1190,9 +1165,9 @@ LOG_LEVEL=INFO
 - Tester: `python main.py chat "cherche sur internet test"`
 
 **Solutions:**
-1. Vérifier config: `enable_internet_search: true`
-2. Vérifier firewall/proxy
-3. DuckDuckGo peut avoir rate limits (attendre quelques minutes)
+1. Lire le message « Aucun résultat trouvé pour … » : il indique l'état de chaque moteur (bloqué, injoignable, sans résultat)
+2. Vérifier firewall/proxy (section `network` de `config.yaml`)
+3. DuckDuckGo bloqué : il est mis en pause 15 min, Yahoo prend le relais
 
 ### Problème: Mémoire pleine
 

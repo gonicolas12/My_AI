@@ -22,7 +22,8 @@ requests>=2.31.0
 tenacity>=8.2.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
-cloudscraper
+# Certificats du magasin système (racine d'un proxy d'entreprise) pour la recherche internet
+truststore>=0.9; python_version >= "3.10"
 
 # ====================================
 # TRAITEMENT DE DOCUMENTS

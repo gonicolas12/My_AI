@@ -8,7 +8,7 @@ from datetime import datetime
 import re
 
 from models.local_llm import LocalLLM
-from models.internet_search import EnhancedInternetSearchEngine
+from models.internet_search import EnhancedInternetSearchEngine, clean_query
 
 # ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
 try:
@@ -296,8 +296,8 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
             temperature=temperature,
         )
 
-        # Module de recherche internet RÉEL avec accès au LLM pour analyse intelligente
-        self.search_engine = EnhancedInternetSearchEngine(llm=self.llm)
+        # Module de recherche internet RÉEL : sources numérotées, que l'agent synthétise
+        self.search_engine = EnhancedInternetSearchEngine()
         self.focus_year = focus_year
 
         if focus_year:
@@ -322,8 +322,9 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
         if self.llm and self.llm.is_ollama_available:
             try:
                 llm_prompt = (
-                    f"Transforme cette demande en une requête de recherche Wikipedia courte et efficace "
-                    f"(5 à 8 mots maximum, mots-clés essentiels uniquement, sans verbes ni politesse). "
+                    f"Transforme cette demande en une requête courte pour un moteur de recherche web "
+                    f"(3 à 8 mots-clés essentiels, dans la langue de la demande, sans verbes ni "
+                    f"politesse, sans année si la demande n'en contient pas). "
                     f"Réponds UNIQUEMENT avec la requête, rien d'autre.\n\nDemande: {query_clean}"
                 )
                 optimized = self.llm.generate(
@@ -380,7 +381,7 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
 
         try:
             # ÉTAPE 0: Optimiser la requête avec Ollama
-            optimized_query = self._optimize_search_query(task)
+            optimized_query = clean_query(self._optimize_search_query(task), task) or task
             print(f"🌐 Lancement de la recherche pour: '{optimized_query[:100]}'")
 
             # ÉTAPE 1: Recherche source unique (sans synthèse intermédiaire)
@@ -489,7 +490,7 @@ Réponds maintenant:"""
 
         try:
             # ÉTAPE 0: Optimiser la requête avec Ollama
-            optimized_query = self._optimize_search_query(task)
+            optimized_query = clean_query(self._optimize_search_query(task), task) or task
             print(f"🌐 Lancement de la recherche pour: '{optimized_query[:100]}'")
 
             # ÉTAPE 1: Recherche source unique (pas de synthèse intermédiaire)

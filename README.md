@@ -43,7 +43,7 @@ Planifiez vos agents et workflows en récurrence, exécution même l'application
 <td width="50%">
 
 **🔍 Recherche Internet**  
-Accès aux informations en temps réel via DuckDuckGo. Résumés automatiques inclus.
+Informations en temps réel via DuckDuckGo (Yahoo et Wikipédia en secours).
 
 **📄 Génération et traitement de Documents**  
 PDF, DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.

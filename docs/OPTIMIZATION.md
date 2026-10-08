@@ -265,26 +265,18 @@ compression:
 
 ## 3. ⚡ Caching et Performances
 
-### Cache DuckDuckGo (Internet Search)
+### Cache de la Recherche Internet
 
 **Fichier:** `models/internet_search.py`
 
-```python
-# Cache automatique activé
-# Durée: 3600s (1 heure) par défaut
-# Évite requêtes répétées
-
-# Configuration
-internet_search:
-  cache_enabled: true
-  cache_duration: 3600        # secondes
-  max_cache_size_mb: 100
-```
+- Une recherche déjà faite (même requête, majuscules et espaces ignorés) est servie depuis la mémoire pendant **30 minutes**, sans requête réseau ; même chose pour la météo d'un lieu et pour une page lue par son URL.
+- Un moteur qui renvoie sa page anti-robot est mis en **pause 15 minutes** (1 minute s'il est injoignable) : les recherches suivantes passent directement au moteur suivant au lieu d'attendre un échec.
+- Cache et pauses sont partagés par tous les chemins (outil `web_search`, CustomAIModel, agents) et oubliés au redémarrage.
 
 **Bénéfices:**
 - Réponses instantanées pour requêtes répétées
-- Réduction charge réseau
-- Économie bande passante
+- Moins de requêtes vers les moteurs (moins de risque d'être bloqué)
+- Pas d'attente sur un moteur déjà connu pour bloquer
 
 ### Caching Documents Processés
 

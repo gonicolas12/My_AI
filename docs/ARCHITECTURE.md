@@ -7,7 +7,7 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
 - **Recherche Sémantique** : Sentence-transformers (384 dimensions, similarité cosinus)
-- **Météo Temps Réel** : Service wttr.in intégré (gratuit, toutes les villes du monde)
+- **Météo Temps Réel** : Open-Meteo intégré (gratuit, sans clé, prévisions sur 7 jours)
 - **ChatOrchestrator** : Boucle agentique ReAct + Plan & Execute + Scratchpad persistant pour le tool-calling
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
 - **API REST Locale** : Serveur FastAPI pour intégrations externes (chat, modèles, stats)
@@ -19,7 +19,7 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Historique des Commandes** : Suivi complet avec favoris, recherche et statistiques
 - **Reconnaissance d'intentions avancée** : Analyse linguistique multi-niveaux
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
-- **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo)
+- **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo, puis Yahoo et Wikipédia en secours)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
 - **Scheduler proactif** : Exécution récurrente d'agents/workflows (type cron) via `core/scheduler.py` — tourne tant que le GUI/Relay est lancé, ou **même appli fermée** via le Planificateur de tâches Windows (`core/scheduler_runner.py`). Réutilise `AgentRelayService` (aucune réimplémentation de l'exécution), persistance JSON, verrou inter-processus.
 - **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — Edge `--app` embarqué (rendu Chromium exact) et visionneuses natives Word/PowerPoint/Excel côté desktop, dans une fenêtre hôte DPI par écran ; `<iframe sandbox>` côté mobile. Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
@@ -165,20 +165,19 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 │                        OUTILS ET RECHERCHE WEB                         │
 ├─────────────────────────┬──────────────────────────────────────────────┤
 │ InternetSearchEngine    │ SmartWebSearcher                             │
-│ • DuckDuckGo API Instant│ • Code search                                │
-│ • Météo temps réel      │ • GitHub integration                         │
-│   (wttr.in gratuit)     │ • Real-time patterns                         │
-│ • Toutes les villes     |                                              |
-|   du monde              │                                              │
-│ • Multi-thread (8)      │                                              │
-│ • Pattern extraction:   │                                              │
-│   - Facts (taille,      │                                              │
-│     population, dates)  │                                              │
-│   - Définitions         │                                              │
-│   - Prix                │                                              │
-│   - Conditions météo    │                                              │
-│ • Caching (3600s)       │                                              │
-│ • BeautifulSoup scraping│                                              │
+│ • DuckDuckGo (HTML)     │ • Code search                                │
+│ • Yahoo, Wikipédia      │ • GitHub integration                         │
+│   en secours            │ • Real-time patterns                         │
+│ • Lecture des pages     │                                              │
+│   (4 en parallèle)      │                                              │
+│ • Météo Open-Meteo      │                                              │
+│   (7 jours, sans clé)   │                                              │
+│ • Sources numérotées    │                                              │
+│   et cliquables         │                                              │
+│ • HTTPS vérifié         │                                              │
+│   (truststore)          │                                              │
+│ • Pause si anti-robot   │                                              │
+│ • Cache 30 min          │                                              │
 ├─────────────────────────┴──────────────────────────────────────────────┤
 │ Local Tools: local_math, local_search, extract_emails, extract_dates   │
 └────────────────────────────────────────────────────────────────────────┘
@@ -684,7 +683,7 @@ Architecture:
 ├─ KnowledgeBase (domaines expertise)
 ├─ AdvancedCodeGenerator (multi-sources)
 ├─ ConversationMemory (persistance)
-├─ InternetSearchEngine (DuckDuckGo + Météo)
+├─ InternetSearchEngine (DuckDuckGo/Yahoo/Wikipédia + Météo)
 ├─ Processors (PDF, DOCX, Code)
 └─ VectorMemory (ChromaDB + embeddings)
 
@@ -692,7 +691,7 @@ Capacités clés:
 ├─ Détection intentions avec confiance
 ├─ Tracking contexte session
 ├─ Mémoire vectorielle sémantique
-├─ Météo temps réel (wttr.in)
+├─ Météo temps réel (Open-Meteo)
 ├─ Mode ultra 10M tokens
 └─ Intégration processeurs avancés
 ```
@@ -842,31 +841,23 @@ ComfyUIManager (zéro config, déclenché au 1er usage si auto_setup) :
 
 **`models/internet_search.py`** - Moteur recherche
 ```python
-EnhancedInternetSearchEngine :
-├─ DuckDuckGo API Instant
-├─ Météo temps réel intégrée:
-│   ├─ Service wttr.in (gratuit, sans API)
-│   ├─ Détection automatique requêtes météo
-│   ├─ Toutes les villes du monde reconnues
-│   ├─ Données: conditions, température, humidité, vent
-│   ├─ Prévisions 3 jours
-│   └─ Fallback Météo-France si indisponible
-├─ Multi-thread (max 8 résultats)
-├─ Extraction patterns réponses:
-│   ├─ Taille/poids
-│   ├─ Population
-│   ├─ Dates
-│   ├─ Prix
-│   └─ Définitions
-├─ BeautifulSoup scraping
-├─ Système caching (3600s)
-└─ Rotation user agents
-
-Ordre moteurs :
-1. DuckDuckGo API Instant (rapide, stable)
-2. Météo wttr.in (si détection météo)
-3. Wikipedia API (fallback)
-4. DuckDuckGo Lite (dernière chance, CAPTCHA)
+EnhancedInternetSearchEngine :          # aucun appel au modèle
+├─ search_and_summarize(query)          # résultat de l'outil web_search
+│   ├─ URL dans la requête → lecture directe de la page
+│   ├─ Météo → Open-Meteo (géocodage + 7 jours, sans clé)
+│   └─ Sinon moteurs, puis lecture des pages
+├─ Moteurs (le premier qui répond) :
+│   1. DuckDuckGo (html.duckduckgo.com, sans JavaScript)
+│   2. Yahoo (secours)
+│   3. Wikipédia (dernier recours, articles pertinents seulement)
+├─ Lecture des 4 premières pages en parallèle :
+│   ├─ Texte principal sans menus, bandeaux ni publicités
+│   └─ Début de page + passage le plus proche de la requête
+├─ Sources numérotées [n] + bloc 📚 Sources cliquable
+├─ clean_query() : requête du modèle sans les années qu'il ajoute
+├─ HTTPS vérifié (truststore / network.ca_bundle), User-Agent du projet
+├─ Moteur bloqué (page anti-robot) : pause de 15 min
+└─ Cache des recherches : 30 min
 ```
 
 **`models/advanced_code_generator.py`** - Génération code avancée
@@ -1542,21 +1533,19 @@ Export Improved Model
 ### 6. Flux Recherche Internet
 
 ```
-"cherche sur internet [query]"
+Le modèle appelle web_search(query)
     ↓
-DuckDuckGo API search
+clean_query : sa requête, sans les années qu'il a ajoutées
     ↓
-Top 8 results fetched
+DuckDuckGo → Yahoo → Wikipédia (le premier qui répond)
     ↓
-Web scraping (BeautifulSoup)
+8 sources max, 2 par site ; 4 pages lues en parallèle
     ↓
-Pattern-based answer extraction
-    ├─ Factual data (population, size)
-    ├─ Definitions
-    ├─ Dates/events
-    └─ Technical specs
+Passages pertinents de chaque page
     ↓
-Formatted response with sources
+Sources numérotées + bloc 📚 Sources → le modèle
+    ↓
+Synthèse streamée, liens des sources cliquables
 ```
 
 ## 🎯 Patterns Architecturaux
@@ -1661,10 +1650,10 @@ python main.py generate code "desc"   # Génération code
 ```
 Greeting response:        < 100ms
 Simple conversation:      500ms - 2s
-Météo wttr.in:            1-3s (API externe)
+Météo Open-Meteo:         ~0,5s (API externe)
 Code generation:          2-5s (web search inclus)
 Document processing:      Variable (50MB PDF ≈ 10-20s)
-Internet search:          3-8s (API + scraping)
+Internet search:          2-5s (moteur + 4 pages)
 Vector search (10M tokens): <20ms (ChromaDB HNSW)
 ```
 

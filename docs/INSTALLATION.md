@@ -951,18 +951,18 @@ features:
 
 ## 🌐 Configuration Réseau (Optionnel)
 
-Pour activer la recherche internet (DuckDuckGo):
+La recherche internet (DuckDuckGo, Yahoo, Wikipédia, météo Open-Meteo) ne demande ni clé ni configuration. Derrière un proxy d'entreprise, renseignez la section `network` :
 
 ```yaml
 # Dans config.yaml
-internet_search:
-  enabled: true
-  max_results: 8
-  cache_duration: 3600  # 1 heure
-  timeout: 10  # secondes
+network:
+  proxy_url: "http://proxy.entreprise.fr:8080"
+  ca_bundle: ""                 # certificat racine du proxy, s'il n'est pas dans le magasin du système
+  use_system_truststore: true   # magasin de certificats du système (paquet truststore)
+  allow_insecure_ssl: false     # dernier recours uniquement
 ```
 
-**Note:** La recherche internet est optionnelle. L'IA fonctionne 100% localement sans connexion.
+**Note:** La recherche internet est optionnelle. L'IA fonctionne 100% localement sans connexion. Voir [INTERNET_SEARCH.md](INTERNET_SEARCH.md).
 
 ## 📱 Interface Web (Future/Expérimental)
 
