@@ -31,7 +31,7 @@ import unicodedata
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -949,8 +949,6 @@ def read_pages(results: List[SearchResult], query: str, limit: int = _PAGES_TO_R
 
 # Consigne, puis le bloc que le modèle recopie à la fin de sa réponse : son
 # en-tête est celui de utils/citations.py, et les [n] y deviennent cliquables.
-# « Sans ajouter de chiffre » : qwen3.5:4b notait chaque marque « 98/100 »
-# alors qu'aucune source ne donnait de note.
 SOURCES_NOTE = (
     "Pour répondre : appuie-toi uniquement sur ces sources, sans ajouter de "
     "chiffre, de note ou de rang qu'elles ne donnent pas, place le marqueur [n] "
@@ -1040,9 +1038,12 @@ def _weather_report(place: Dict) -> str:
         part for part in (place.get("name"), place.get("admin1"), place.get("country")) if part
     )
     measured = current.get("time", "")
+    # Le jour du lieu, pas celui du PC : à New York, il est encore la veille
+    today = date.today()
     try:
         moment = datetime.fromisoformat(measured)
         measured = f"{_french_date(moment.date())} à {moment:%H:%M}"
+        today = moment.date()
     except ValueError:
         pass
 
@@ -1066,6 +1067,12 @@ def _weather_report(place: Dict) -> str:
         try:
             day = date.fromisoformat(day_text)
             label = f"{_DAYS_FR[day.weekday()]} {day.day} {_MONTHS_FR[day.month - 1]}"
+            # Le modèle ignore la date du jour : sans ces repères, « demain »
+            # devenait la première ligne, celle d'aujourd'hui
+            if day == today:
+                label = f"aujourd'hui ({label})"
+            elif day == today + timedelta(days=1):
+                label = f"demain ({label})"
         except ValueError:
             label = day_text
 
@@ -1077,12 +1084,13 @@ def _weather_report(place: Dict) -> str:
         chance = value("precipitation_probability_max")
         # Le code du jour est le temps le plus marqué : « pluie faible »
         # avec 0 mm au total ne mérite pas de cumul
+        # « probabilité de pluie » : « risque 98 % » était relu « 98 % d'orage »
         if rain >= 0.1:
-            rain_text = f", {_number(rain)} mm de pluie"
+            rain_text = f", pluie {_number(rain)} mm"
             if chance is not None:
-                rain_text += f" (risque {chance} %)"
+                rain_text += f" (probabilité de pluie {chance} %)"
         elif chance is not None and chance >= 20:
-            rain_text = f", risque de pluie {chance} %"
+            rain_text = f", probabilité de pluie {chance} %"
         else:
             rain_text = ""
         lines.append(

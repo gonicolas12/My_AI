@@ -239,9 +239,14 @@ def test_meteo_open_meteo(monkeypatch):
     assert "Météo à Toulouse, Occitanie, France" in text
     assert "Maintenant : couvert, 14,3 °C (ressenti 12,2 °C)" in text
     assert "vent 17 km/h de nord-ouest" in text
-    assert "- jeudi 8 octobre : pluie modérée, 12 à 17 °C, 7,4 mm de pluie (risque 98 %)" in text
-    # 0 mm et 5 % : ni cumul ni risque, plus de « pluie faible… pas de pluie prévue »
-    assert "- vendredi 9 octobre : pluie faible, 10 à 17 °C, vent jusqu'à 15 km/h" in text
+    # Jours repérés par rapport à la date du lieu : sans cela, l'agent web
+    # donnait pour « demain » la ligne d'aujourd'hui
+    assert (
+        "- aujourd'hui (jeudi 8 octobre) : pluie modérée, 12 à 17 °C, "
+        "pluie 7,4 mm (probabilité de pluie 98 %)"
+    ) in text
+    # 0 mm et 5 % : ni cumul ni probabilité, plus de « pluie faible… pas de pluie prévue »
+    assert "- demain (vendredi 9 octobre) : pluie faible, 10 à 17 °C, vent jusqu'à 15 km/h" in text
     assert parse_citation_map(text)[1].startswith("https://open-meteo.com/")
     assert "html.duckduckgo.com" not in session.hosts()
 

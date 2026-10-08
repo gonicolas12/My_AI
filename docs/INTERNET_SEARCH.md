@@ -16,7 +16,7 @@ La recherche n'appelle jamais le modèle elle-même : elle collecte, le modèle 
 
 ### 🌤️ Météo
 - **Open-Meteo** : sans clé, données des services météo nationaux (Météo-France pour la France), géocodage multilingue (« Londres », « Saint-Étienne », « São Paulo »).
-- Conditions actuelles (température, ressenti, humidité, vent et sa direction, précipitations) et **prévisions sur 7 jours**.
+- Conditions actuelles (température, ressenti, humidité, vent et sa direction, précipitations) et **prévisions sur 7 jours**, les deux premières marquées « aujourd'hui » et « demain » (date du lieu) : le modèle ne connaît pas la date du jour.
 - Détection stricte : « météo », « weather », « forecast », « quel temps ». « Combien de temps dure… » ou « temps de cuisson » ne partent plus vers la météo.
 - Lieu inconnu d'Open-Meteo (un quartier, une adresse) : recherche web à la place, plutôt qu'un homonyme à l'autre bout du monde.
 

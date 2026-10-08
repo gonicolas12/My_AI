@@ -395,13 +395,17 @@ Génère la réponse finale directement à la question utilisateur, avec uniquem
             prompt = (
                 f"Transforme cette demande en une requête courte pour un moteur de recherche web "
                 f"(3 à 8 mots-clés essentiels, dans la langue de la demande, sans verbes ni "
-                f"politesse, sans année si la demande n'en contient pas). "
-                f"Réponds UNIQUEMENT avec la requête, rien d'autre.\n\nDemande: {query}"
+                f"politesse, sans année si la demande n'en contient pas). Garde seulement le "
+                f"sujet à chercher, pas les consignes de présentation (tableau, liste, résumé, "
+                f"sources). Réponds UNIQUEMENT avec la requête, rien d'autre.\n\nDemande: {query}"
             )
 
+            # Hors historique : cet échange se retrouvait sinon dans la conversation
             response = self.local_llm.generate(
                 prompt=prompt,
                 system_prompt="Tu es un expert en recherche d'information. Réponds uniquement avec la requête optimisée, sans explication ni ponctuation.",
+                save_history=False,
+                use_history=False,
             )
 
             if response:
