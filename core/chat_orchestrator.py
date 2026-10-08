@@ -517,6 +517,13 @@ class ChatOrchestrator:
                 print(f"🛑 [ChatOrchestrator] Tour {tour + 1} — interruption utilisateur")
                 return None
 
+            # Recherche suffisante : la synthèse répond tout de suite. Le tour
+            # sans outils qui la précédait rédigeait une réponse complète,
+            # jamais affichée, que la synthèse refaisait ensuite (165 s de
+            # perdues sur une recherche web, qwen3.5:4b sur iGPU).
+            if force_synthesis:
+                break
+
             # Scratchpad à jour après le dernier échange d'outils, s'il y a un
             # plan ou s'il y a déjà eu des appels d'outils
             if tool_calls_log or scratchpad.plan:
@@ -1001,20 +1008,13 @@ class ChatOrchestrator:
                         )
                     messages.append({"role": "user", "content": _next_step})
                 else:
+                    # Synthèse au tour suivant (voir le début de la boucle) :
+                    # elle a son propre message de demande
                     force_synthesis = True
                     print(
                         f"   ✅ [ChatOrchestrator] données massives ({total_data_chars} chars) "
                         f"→ synthèse forcée (tour {tour + 1})"
                     )
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            "STOP — tu as collecté suffisamment de données. "
-                            "N'appelle PLUS aucun outil. "
-                            "En te basant UNIQUEMENT sur les résultats collectés ci-dessus, "
-                            f"réponds directement et précisément à ma question : {user_input}\n"
-                        ),
-                    })
             else:
                 # Cas intermédiaire (ou action réussie) → laisser le modèle décider sa prochaine étape
                 messages.append({
@@ -1031,13 +1031,19 @@ class ChatOrchestrator:
                     ),
                 })
 
-        # ── Sortie de boucle : synthèse de secours ────────────────────────
+        # ── Sortie de boucle : synthèse (données suffisantes, ou secours) ──
         if tool_calls_log:
-            print(
-                f"🔁 [ChatOrchestrator] Sortie de boucle — "
-                f"{len(tool_calls_log)} outil(s) — synthèse de secours"
-            )
-            # Signaler à l'UI le début de la synthèse de secours
+            if force_synthesis:
+                print(
+                    f"✅ [ChatOrchestrator] {len(tool_calls_log)} outil(s), données "
+                    "suffisantes → synthèse streamée"
+                )
+            else:
+                print(
+                    f"🔁 [ChatOrchestrator] Sortie de boucle — "
+                    f"{len(tool_calls_log)} outil(s) — synthèse de secours"
+                )
+            # Signaler à l'UI le début de la synthèse
             if on_tool_call:
                 on_tool_call("synthesis", {})
 

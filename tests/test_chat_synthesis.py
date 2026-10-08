@@ -267,3 +267,39 @@ def test_second_synthesis_is_shown_as_is(ollama):
     assert "".join(shown) == _OFF_TRACK
     assert len(ollama.requests) == 2
     assert llm.replies() == [_OFF_TRACK]
+
+
+def test_enough_search_results_go_straight_to_the_synthesis(ollama):
+    """Recherche web suffisante : la synthèse suit l'outil, sans tour de plus.
+
+    Ce tour sans outils rédigeait une réponse complète, jamais affichée, que
+    la synthèse refaisait : sur « cherche les meilleures marques de voiture »,
+    165 s de génération perdues sur 375 (qwen3.5:4b sur iGPU).
+    """
+    ollama.replies.append(_ANSWER)
+    turns = [{"name": "web_search", "arguments": {"query": "marques de voitures fiables"}}]
+    model_turns = []
+
+    def fake_turn(**kwargs):
+        model_turns.append(kwargs)
+        return {"content": "", "tool_calls": [{"function": turns.pop(0)}], "streamed": False}
+
+    orchestrator = ChatOrchestrator()
+    orchestrator._call_ollama_smart_stream = fake_turn
+    llm, shown = _LLM(), []
+    result = orchestrator.run(
+        user_input="cherche les marques de voitures les plus fiables",
+        tools=[{"type": "function", "function": {"name": "web_search"}}],
+        tool_executor=lambda _name, _arguments: "Résultats de recherche web " + "x" * 2000,
+        llm=llm,
+        system_prompt="système",
+        on_token=shown.append,
+    )
+
+    assert result == _ANSWER
+    assert "".join(shown) == _ANSWER
+    assert len(model_turns) == 1  # le tour qui a appelé la recherche
+    assert len(ollama.requests) == 1  # puis la synthèse, une fois
+    synthesis = ollama.requests[0]["messages"]
+    assert {"role": "tool", "content": "Résultats de recherche web " + "x" * 2000} in synthesis
+    assert not any("STOP" in str(m.get("content", "")) for m in synthesis)
