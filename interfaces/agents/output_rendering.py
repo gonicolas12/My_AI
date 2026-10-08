@@ -1,7 +1,9 @@
 """Mixin : rendu des sections de résultats (markdown, tableaux, coloration)."""
 
+import itertools
 import re
 import threading
+import webbrowser
 
 from interfaces.agents._common import tk
 from interfaces.agents.syntax_helper import (
@@ -78,6 +80,21 @@ def _render_latex_symbols(text: str) -> str:
         return content
 
     return _LATEX_INLINE_RE.sub(_replace, text)
+
+
+# Lien Markdown [libellé](https://…) et adresse nue, rendus cliquables comme
+# dans le chat : les sources du WebAgent s'affichaient en texte brut
+_MD_LINK_PATTERN = r"\[[^\]\n]+\]\(https?://[^)\s]+\)"
+_MD_LINK_RE = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
+_BARE_URL_PATTERN = r"https?://[^\s<>()\[\]]+[^\s<>()\[\].,;:!?»]"
+_LINK_TAGS = itertools.count()
+
+
+def _display_text(cell: str) -> str:
+    """Texte affiché d'une cellule de tableau : sans gras, code ni balisage de lien."""
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", cell)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    return _MD_LINK_RE.sub(r"\1", text)
 
 
 class OutputRenderingMixin:
@@ -447,9 +464,7 @@ class OutputRenderingMixin:
                 w = 3
                 for row in data_rows:
                     if col < len(row):
-                        cell_text = re.sub(r'\*\*([^*]+)\*\*', r'\1', row[col])
-                        cell_text = re.sub(r'`([^`]+)`', r'\1', cell_text)
-                        w = max(w, len(cell_text))
+                        w = max(w, len(_display_text(row[col])))
                 widths.append(min(w, max_col_w))
 
             # Newline before table
@@ -473,8 +488,7 @@ class OutputRenderingMixin:
                 for col_idx, width in enumerate(widths):
                     cell = cells[col_idx] if col_idx < len(cells) else ""
                     # Display length without markdown markers
-                    disp = re.sub(r'\*\*([^*]+)\*\*', r'\1', cell)
-                    disp = re.sub(r'`([^`]+)`', r'\1', disp)
+                    disp = _display_text(cell)
                     disp_len = len(disp)
                     if disp_len > width:
                         cell = disp[:width - 1] + "…"
@@ -503,13 +517,16 @@ class OutputRenderingMixin:
             self.parent.after(0, update)
 
     def _insert_table_cell(self, tw, cell_content, base_tag):
-        """Insère le contenu d'une cellule de tableau avec gras/code inline."""
-        pattern = r'(\*\*[^*]+\*\*|`[^`]+`)'
+        """Insère le contenu d'une cellule de tableau avec gras/code/liens inline."""
+        pattern = rf'({_MD_LINK_PATTERN}|\*\*[^*]+\*\*|`[^`]+`)'
         parts = re.split(pattern, cell_content)
         for part in parts:
             if not part:
                 continue
-            if part.startswith("**") and part.endswith("**"):
+            link = _MD_LINK_RE.fullmatch(part)
+            if link:
+                self._insert_link(tw, link.group(1), link.group(2), base_tag)
+            elif part.startswith("**") and part.endswith("**"):
                 tw.insert("end", part[2:-2], "table_cell_bold")
             elif part.startswith("`") and part.endswith("`"):
                 tw.insert("end", part[1:-1], "code_inline")
@@ -675,6 +692,9 @@ class OutputRenderingMixin:
                          foreground="#444466")
         tw.tag_configure("table_cell_bold", font=(mono, 10, "bold"),
                          foreground="#ffd700", background="#16213e")
+        # Liens : créé en dernier, ce tag l'emporte sur la couleur du texte ou
+        # de la cellule. Même bleu que les liens du chat.
+        tw.tag_configure("link", foreground="#3b82f6", underline=True)
 
     def _insert_with_markdown(self, tw, full_text):
         """Parse du texte Markdown et insertion formatée dans un widget texte."""
@@ -774,13 +794,18 @@ class OutputRenderingMixin:
         SYNTAX_ANALYZER.highlight_line(tw, line, lang)
 
     def _insert_inline_md(self, tw, text, base_tag):
-        """Insère du texte avec formatage inline Markdown (gras, italique, code)."""
-        pattern = r'(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)'
+        """Insère du texte avec formatage inline Markdown (gras, italique, code, liens)."""
+        pattern = rf'({_MD_LINK_PATTERN}|{_BARE_URL_PATTERN}|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)'
         parts = re.split(pattern, text)
         for part in parts:
             if not part:
                 continue
-            if part.startswith("**") and part.endswith("**"):
+            link = _MD_LINK_RE.fullmatch(part)
+            if link:
+                self._insert_link(tw, link.group(1), link.group(2), base_tag)
+            elif re.fullmatch(_BARE_URL_PATTERN, part):
+                self._insert_link(tw, part, part, base_tag)
+            elif part.startswith("**") and part.endswith("**"):
                 tw.insert("end", part[2:-2], "bold")
             elif part.startswith("*") and part.endswith("*") and len(part) > 2:
                 tw.insert("end", part[1:-1], "italic")
@@ -788,6 +813,21 @@ class OutputRenderingMixin:
                 tw.insert("end", part[1:-1], "code_inline")
             else:
                 tw.insert("end", part, base_tag)
+
+    @staticmethod
+    def _insert_link(tw, label, url, base_tag):
+        """Insère un lien cliquable : il ouvre l'adresse dans le navigateur."""
+        tag = f"link_{next(_LINK_TAGS)}"
+        tw.insert("end", label, (base_tag, "link", tag))
+
+        def open_url(_event, target=url):
+            webbrowser.open(target)
+            return "break"
+
+        default_cursor = tw.cget("cursor")
+        tw.tag_bind(tag, "<Button-1>", open_url)
+        tw.tag_bind(tag, "<Enter>", lambda _event: tw.configure(cursor="hand2"))
+        tw.tag_bind(tag, "<Leave>", lambda _event: tw.configure(cursor=default_cursor))
 
     def _append_output(self, text):
         """Ajoute du texte à la section active."""

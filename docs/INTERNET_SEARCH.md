@@ -21,7 +21,7 @@ La recherche n'appelle jamais le modèle elle-même : elle collecte, le modèle 
 - Lieu inconnu d'Open-Meteo (un quartier, une adresse) : recherche web à la place, plutôt qu'un homonyme à l'autre bout du monde.
 
 ### 🔗 Sources cliquables
-- Chaque résultat se termine par un bloc `📚 **Sources**` (`[n] [Titre](URL)`) que le modèle reprend en fin de réponse. Les liens sont cliquables, et les marqueurs `[n]` aussi quand le bloc est numéroté — sur **desktop** comme sur **mobile** (Relay).
+- Chaque résultat se termine par un bloc `📚 **Sources**` (`[n] [Titre](URL)`) que le modèle reprend en fin de réponse. Les liens sont cliquables, et les marqueurs `[n]` aussi quand le bloc est numéroté — sur **desktop** comme sur **mobile** (Relay). Sur la page **Agents**, les liens (`[Titre](URL)` et adresses nues) sont cliquables aussi, tableaux compris.
 - Construit avec `utils/citations.py` (`parse_citation_map`, `extract_sources`) ; rendu cliquable côté GUI par `markdown_formatting._apply_inline_citations`.
 - Les renvois de notes recopiés des wikis (`[1]`, `[réf. nécessaire]`) sont retirés du texte des pages : dans la réponse, ils seraient devenus de faux liens vers nos sources.
 
@@ -74,7 +74,7 @@ Le trafic de la recherche est celui d'un client ordinaire :
 3. `search_and_summarize()` : URL → lecture directe ; météo → Open-Meteo ; sinon moteurs puis lecture des pages.
 4. Le résultat revient au modèle. Quand il est assez fourni, l'orchestrateur passe directement à la synthèse streamée.
 
-Les autres chemins utilisent le même moteur : `CustomAIModel` (`models/mixins/internet_search.py`, qui ajoute lui-même le bloc de sources numérotées sous la réponse) et l'agent de recherche web de la page Agents (`models/ai_agents.py`).
+Les autres chemins utilisent le même moteur : `CustomAIModel` (`models/mixins/internet_search.py`, qui ajoute lui-même le bloc de sources numérotées sous la réponse) et le **WebAgent** de la page Agents (`models/ai_agents.py`, `WebSearchAgent`). Celui-ci fait d'abord écrire sa requête par le modèle, hors historique et sans les consignes de forme (« tableau », « sources »), puis synthétise en respectant la forme demandée. Son historique garde la question et la réponse, pas les résultats bruts.
 
 ### Module `models/internet_search.py`
 

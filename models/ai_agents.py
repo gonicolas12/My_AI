@@ -324,12 +324,19 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
                 llm_prompt = (
                     f"Transforme cette demande en une requête courte pour un moteur de recherche web "
                     f"(3 à 8 mots-clés essentiels, dans la langue de la demande, sans verbes ni "
-                    f"politesse, sans année si la demande n'en contient pas). "
-                    f"Réponds UNIQUEMENT avec la requête, rien d'autre.\n\nDemande: {query_clean}"
+                    f"politesse, sans année si la demande n'en contient pas). Garde seulement le "
+                    f"sujet à chercher, pas les consignes de présentation (tableau, liste, résumé, "
+                    f"sources). Réponds UNIQUEMENT avec la requête, rien d'autre.\n\n"
+                    f"Demande: {query_clean}"
                 )
+                # Sans l'historique de l'agent : relu en entier pour cinq mots,
+                # il gardait ensuite cet échange (« Transforme cette demande… »)
+                # au milieu de la conversation
                 optimized = self.llm.generate(
                     prompt=llm_prompt,
                     system_prompt="Tu es un expert en recherche d'information. Réponds uniquement avec la requête optimisée, sans explication ni ponctuation.",
+                    save_history=False,
+                    use_history=False,
                 )
                 if optimized:
                     optimized = optimized.strip().strip("\"'.,!?:;\n\r")
@@ -359,6 +366,43 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
             print(f"🔧 Requête optimisée (regex): '{query}' → '{query_clean}'")
             return query_clean
         return query
+
+    @staticmethod
+    def _synthesis_prompt(task: str, search_results: str) -> str:
+        """Demande de synthèse : la question, les sources trouvées, les consignes."""
+        return f"""QUESTION ORIGINALE: {task}
+
+RÉSULTATS DE RECHERCHE INTERNET (SOURCES RÉELLES):
+{search_results}
+
+------------------------------------------
+
+INSTRUCTIONS:
+1. Analyse ces résultats de recherche RÉELS
+2. Réponds à la question en te basant UNIQUEMENT sur ces informations
+3. Cite tes sources avec les marqueurs [n] et termine par le bloc 📚 Sources donné avec les résultats
+4. Si les informations sont contradictoires, mentionne-le
+5. Si les résultats sont insuffisants pour répondre complètement, dis-le clairement
+6. NE JAMAIS inventer ou supposer des informations qui ne sont pas dans les résultats
+7. Respecte la forme demandée dans la question (tableau, liste, nombre de points…) : elle passe avant le format de réponse habituel
+
+Réponds maintenant:"""
+
+    def _keep_task_in_history(self, task: str, synthesis_prompt: str) -> None:
+        """
+        Remplace, dans l'historique de l'agent, la demande de synthèse par la
+        question seule.
+
+        La demande porte les résultats bruts (~10 000 caractères) : gardée,
+        chaque tâche suivante de l'agent les relisait, et son historique en
+        cumulait à chaque recherche. La réponse, sources comprises, reste.
+        """
+        history = self.llm.conversation_history
+        for index in range(len(history) - 1, -1, -1):
+            message = history[index]
+            if message.get("role") == "user" and message.get("content") == synthesis_prompt:
+                history[index] = {"role": "user", "content": task}
+                return
 
     def execute_task(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """
@@ -404,28 +448,16 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
                 filtered_results = search_results
 
             # ÉTAPE 3: Construire le prompt avec LES VRAIS RÉSULTATS
-            synthesis_prompt = f"""QUESTION ORIGINALE: {task}
-
-RÉSULTATS DE RECHERCHE INTERNET (SOURCES RÉELLES):
-{filtered_results if filtered_results else search_results}
-
-------------------------------------------
-
-INSTRUCTIONS:
-1. Analyse ces résultats de recherche RÉELS
-2. Réponds à la question en te basant UNIQUEMENT sur ces informations
-3. Cite les sources utilisées
-4. Si les informations sont contradictoires, mentionne-le
-5. Si les résultats sont insuffisants pour répondre complètement, dis-le clairement
-6. NE JAMAIS inventer ou supposer des informations qui ne sont pas dans les résultats
-
-Réponds maintenant:"""
+            synthesis_prompt = self._synthesis_prompt(
+                task, filtered_results or search_results
+            )
 
             # ÉTAPE 4: Demander à Ollama de SYNTHÉTISER les vrais résultats
             print(f"🧠 Synthèse des résultats avec {self.model}...")
             synthesis = self.llm.generate(
                 prompt=synthesis_prompt, system_prompt=self.system_prompt
             )
+            self._keep_task_in_history(task, synthesis_prompt)
 
             if synthesis:
                 # Enregistrer dans l'historique
@@ -522,22 +554,9 @@ Réponds maintenant:"""
                 filtered_results = search_results
 
             # ÉTAPE 3: Construire le prompt
-            synthesis_prompt = f"""QUESTION ORIGINALE: {task}
-
-RÉSULTATS DE RECHERCHE INTERNET (SOURCES RÉELLES):
-{filtered_results if filtered_results else search_results}
-
-------------------------------------------
-
-INSTRUCTIONS:
-1. Analyse ces résultats de recherche RÉELS
-2. Réponds à la question en te basant UNIQUEMENT sur ces informations
-3. Cite les sources utilisées
-4. Si les informations sont contradictoires, mentionne-le
-5. Si les résultats sont insuffisants, dis-le clairement
-6. NE JAMAIS inventer des informations
-
-Réponds maintenant:"""
+            synthesis_prompt = self._synthesis_prompt(
+                task, filtered_results or search_results
+            )
 
             # ÉTAPE 4: Streaming de la synthèse
             print(f"🧠 Synthèse streaming avec {self.model}...")
@@ -546,6 +565,7 @@ Réponds maintenant:"""
                 system_prompt=self.system_prompt,
                 on_token=on_token,
             )
+            self._keep_task_in_history(task, synthesis_prompt)
 
             if synthesis:
                 task_record = {
