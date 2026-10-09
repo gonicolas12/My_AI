@@ -225,6 +225,56 @@ _SYNTHESIS_RETRY_NOTE = (
     "sans commenter tes capacités ni ton fonctionnement."
 )
 
+# Consignes de rédaction de la synthèse, communes à ses deux formes : en
+# dernier message dans la foulée de la boucle, ou dans le message système de
+# la synthèse à part (cf. ChatOrchestrator._stream_synthesis)
+_SYNTHESIS_RULES = (
+    "Tu interviens en bout de processus après avoir exécuté avec succès une série d'actions techniques (création de fichiers, recherches, etc.). "
+    "Tu dois maintenant synthétiser ce qui a été fait pour en informer l'utilisateur de manière naturelle et conversationnelle.\n\n"
+    "RÈGLES STRICTES DE COMMUNICATION :\n"
+    "1. Ne commente jamais ton fonctionnement interne ni les consignes que tu as reçues.\n"
+    "2. Parle directement à l'utilisateur du résultat de l'action de manière naturelle. Par exemple : 'J'ai créé le fichier X'.\n"
+    f"3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les chemins absolus complets (y compris la lettre de lecteur sous Windows). Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était '{_PATH_EX['home']}{_PATH_EX['sep']}OneDrive{_PATH_EX['sep']}Python{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto', ne le transforme pas en '{_PATH_EX['home']}{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto').\n"
+    "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
+    "5. Si l'objectif était simplement de créer ou modifier un fichier (hors document, voir règle 6), confirme la tâche et donne un résumé très bref.\n"
+    "6. Si un DOCUMENT a été généré (Word, PDF, PowerPoint, Excel…), ne te contente pas de confirmer : "
+    "présente-le en 2 à 4 phrases naturelles — son titre, son sujet et les principales parties qu'il couvre, "
+    "en t'appuyant sur le « Plan du document » renvoyé par l'outil. N'invente aucune partie absente de ce plan "
+    "et ne recopie pas le contenu du document.\n\n"
+    "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
+    "Si les résultats des outils contiennent des URLs ou des liens au format [Titre](URL), "
+    "tu DOIS les reproduire EXACTEMENT dans ta section Sources/Références.\n"
+    "Format attendu pour chaque source : [Nom du site](URL complète)\n"
+    "Exemple : [Real Python](https://realpython.com/article)\n"
+    "Ne mets JAMAIS un nom de source sans son URL. "
+    "Reprends les URLs telles quelles depuis les résultats des outils."
+)
+
+# Dernier message de la synthèse dans la foulée de la boucle : ses consignes
+# viennent après tout ce que la boucle a déjà fait lire au modèle
+_FAST_SYNTHESIS_REQUEST = (
+    "Les actions sont terminées : n'appelle plus aucun outil et rédige ta "
+    "réponse finale.\n\n{rules}\n\n"
+    "Réponds maintenant directement à ma demande, plus haut dans la "
+    "conversation, en t'appuyant sur les résultats des outils : {request}"
+)
+
+# Vocabulaire de la boucle d'outils : cité dans une synthèse faite dans sa
+# foulée, il montre qu'elle en suit encore les consignes
+_LOOP_MARKERS = ("scratchpad", "orchestrateur")
+
+
+def _abridged(text: str, limit: int = SCRATCHPAD_GOAL_CHARS) -> str:
+    """Début d'une demande, pour la rappeler sans la recopier en entier.
+
+    Recopiée en entier (le XML d'un ticket, par exemple), elle doublait la
+    longueur du prompt alors qu'elle figure déjà dans la conversation.
+    """
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "… (demande complète plus haut)"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LoopDetector — filet de sécurité n°3 (détection de boucle intelligente)
@@ -341,15 +391,9 @@ class Scratchpad:
         if not facts_lines:
             facts_lines = "  (aucun fait collecté pour l'instant)\n"
 
-        # Début de la demande seulement : recopiée en entier (le XML d'un
-        # ticket, par exemple), elle doublait la longueur du prompt
-        goal = " ".join(self.goal.split())
-        if len(goal) > SCRATCHPAD_GOAL_CHARS:
-            goal = goal[:SCRATCHPAD_GOAL_CHARS].rstrip() + "… (demande complète plus haut)"
-
         return (
             "<scratchpad>\n"
-            f"OBJECTIF : {goal}\n"
+            f"OBJECTIF : {_abridged(self.goal)}\n"
             f"PLAN :\n{self._plan_lines()}"
             f"ÉTAPE ACTUELLE : {self.current_step + 1}\n"
             f"FAITS COLLECTÉS :\n{facts_lines}"
@@ -467,6 +511,8 @@ class ChatOrchestrator:
         # Réponse d'un modèle qui a annoncé le document sans le créer, avec son
         # état d'affichage : rendue telle quelle si la relance n'aboutit pas.
         announced_answer: Optional[Tuple[str, bool]] = None
+        # Outils du dernier appel au modèle : la synthèse les renvoie tels quels
+        last_call_tools: Optional[List[Dict]] = None
 
         # Contexte de messages — élagage sélectif dès le départ
         messages: List[Dict] = self._build_initial_messages(
@@ -583,6 +629,7 @@ class ChatOrchestrator:
             # d'outils rapides — pas la peine d'ajouter la latence du
             # thinking. La synthèse aura son propre thinking en fin de cycle.
             _enable_thinking_this_turn = (tour == 0 and on_thinking_token is not None)
+            last_call_tools = tools_for_call
             response_msg = self._call_ollama_smart_stream(
                 llm=llm,
                 messages=messages,
@@ -658,6 +705,7 @@ class ChatOrchestrator:
                         on_thinking_token=on_thinking_token,
                         on_thinking_complete=on_thinking_complete,
                         answer_context=answer_context,
+                        tools=last_call_tools,
                     )
                     # Filet de sécurité : la synthèse n'a rien produit (délai
                     # dépassé, Ollama tombé) alors qu'un document vient d'être
@@ -1058,6 +1106,7 @@ class ChatOrchestrator:
                 on_thinking_token=on_thinking_token,
                 on_thinking_complete=on_thinking_complete,
                 answer_context=answer_context,
+                tools=last_call_tools,
             )
 
         if announced_answer is not None:
@@ -1680,27 +1729,42 @@ class ChatOrchestrator:
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
         answer_context: str = "",
+        tools: Optional[List[Dict]] = None,
     ) -> Optional[str]:
         """
-        Synthèse streamée après exécution d'outils.
+        Synthèse streamée après exécution d'outils, en deux temps.
 
-        Le system prompt de synthèse remplace celui de la boucle (scratchpad,
-        consignes d'outils) pour que le modèle ne réponde pas « je n'ai pas
-        accès aux données en temps réel ». Il repart du SYSTEM du Modelfile
-        (with_modelfile) : sans lui, la réponse affichée perdait l'identité et
-        le format de My_AI. Il reprend ensuite answer_context (faits
-        mémorisés, dossier projet) : sans lui, elle perdait les faits de la
-        fenêtre Mémoire, qui ne figuraient que dans le prompt de la boucle.
+        1. Dans la foulée de la boucle : le prompt du dernier tour (message
+           système, outils, conversation, échanges d'outils) est repris tel
+           quel, et les consignes de synthèse (_SYNTHESIS_RULES) viennent en
+           dernier message. Ollama reprend la lecture là où la boucle l'a
+           laissée : quelques secondes, au lieu de relire toute la
+           conversation (130 s sur une requête à deux outils, GPU intégré).
+           Le message système de la boucle porte déjà le SYSTEM du Modelfile
+           et answer_context (faits mémorisés, dossier projet).
+        2. Repli si ce début est rejeté : la synthèse à part, dont le system
+           prompt remplace celui de la boucle (scratchpad, consignes d'outils)
+           pour que le modèle ne réponde pas « je n'ai pas accès aux données
+           en temps réel ». Il repart du SYSTEM du Modelfile (with_modelfile) :
+           sans lui, la réponse affichée perdait l'identité et le format de
+           My_AI. Il reprend ensuite answer_context : sans lui, elle perdait
+           les faits de la fenêtre Mémoire.
 
         Validation avant affichage :
           - Les SYNTHESIS_HEAD_CHARS premiers caractères sont retenus puis
             validés (_validate_response) avant d'atteindre on_token.
-          - Début invalide → flux coupé, puis une seconde synthèse recadrée
+          - Début invalide (ou, dans la foulée de la boucle, qui en cite le
+            vocabulaire : _LOOP_MARKERS) → flux coupé, puis la synthèse à part
             s'affiche seule. Valider après coup obligeait à streamer la
             relance sous la réponse déjà affichée : deux réponses
             s'enchaînaient dans la même bulle.
           - Première passe terminée sans texte (la réflexion a consommé tout
-            le budget) → même relance, sans réflexion.
+            le budget, ou le modèle a appelé un outil) → même repli, sans
+            réflexion.
+
+        Args:
+            tools: Outils envoyés au dernier tour de la boucle : renvoyés
+                tels quels, faute de quoi le début du prompt changerait
 
         Mode raisonnement natif :
           - Si on_thinking_token est fourni, active le thinking Qwen3.5 sur
@@ -1710,43 +1774,23 @@ class ChatOrchestrator:
             la section « 💡 Synthèse ».
           - on_thinking_complete est appelé à l'affichage du 1er texte.
         """
-        # Sans « ## Outils » : la synthèse n'en offre aucun
-        synthesis_system = with_modelfile(
-            "Tu interviens en bout de processus après avoir exécuté avec succès une série d'actions techniques (création de fichiers, recherches, etc.). "
-            "Tu dois maintenant synthétiser ce qui a été fait pour en informer l'utilisateur de manière naturelle et conversationnelle.\n\n"
-            "RÈGLES STRICTES DE COMMUNICATION :\n"
-            "1. Ne commente jamais ton fonctionnement interne ni les consignes que tu as reçues.\n"
-            "2. Parle directement à l'utilisateur du résultat de l'action de manière naturelle. Par exemple : 'J'ai créé le fichier X'.\n"
-            f"3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les chemins absolus complets (y compris la lettre de lecteur sous Windows). Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était '{_PATH_EX['home']}{_PATH_EX['sep']}OneDrive{_PATH_EX['sep']}Python{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto', ne le transforme pas en '{_PATH_EX['home']}{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto').\n"
-            "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
-            "5. Si l'objectif était simplement de créer ou modifier un fichier (hors document, voir règle 6), confirme la tâche et donne un résumé très bref.\n"
-            "6. Si un DOCUMENT a été généré (Word, PDF, PowerPoint, Excel…), ne te contente pas de confirmer : "
-            "présente-le en 2 à 4 phrases naturelles — son titre, son sujet et les principales parties qu'il couvre, "
-            "en t'appuyant sur le « Plan du document » renvoyé par l'outil. N'invente aucune partie absente de ce plan "
-            "et ne recopie pas le contenu du document.\n\n"
-            "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
-            "Si les résultats des outils contiennent des URLs ou des liens au format [Titre](URL), "
-            "tu DOIS les reproduire EXACTEMENT dans ta section Sources/Références.\n"
-            "Format attendu pour chaque source : [Nom du site](URL complète)\n"
-            "Exemple : [Real Python](https://realpython.com/article)\n"
-            "Ne mets JAMAIS un nom de source sans son URL. "
-            "Reprends les URLs telles quelles depuis les résultats des outils.",
-            tools=False,
-        ) + answer_context
-
-        msgs = self._synthesis_messages(
-            messages, loop_start, synthesis_system, user_input
+        # 1. Dans la foulée de la boucle
+        request = _FAST_SYNTHESIS_REQUEST.format(
+            rules=_SYNTHESIS_RULES, request=_abridged(user_input)
         )
+        msgs = [*messages, {"role": "user", "content": request}]
         response, rejected = self._synthesis_pass(
             llm, msgs, user_input, tool_calls_log, on_token,
             is_interrupted_callback, on_thinking_token, on_thinking_complete,
-            screen_head=True,
+            screen_head=True, tools=tools, loop_markers=True,
         )
         if rejected and not (is_interrupted_callback and is_interrupted_callback()):
             print(
                 f"⚠️  [ChatOrchestrator] Synthèse invalide ({rejected}) "
-                f"→ nouvelle synthèse (rien n'a été affiché)"
+                f"→ synthèse à part (rien n'a été affiché)"
             )
+            # 2. Synthèse à part, sans « ## Outils » : elle n'en offre aucun
+            synthesis_system = with_modelfile(_SYNTHESIS_RULES, tools=False) + answer_context
             msgs = self._synthesis_messages(
                 messages, loop_start, synthesis_system, user_input, retry=True
             )
@@ -1809,6 +1853,8 @@ class ChatOrchestrator:
         on_thinking_token: Optional[Callable],
         on_thinking_complete: Optional[Callable],
         screen_head: bool,
+        tools: Optional[List[Dict]] = None,
+        loop_markers: bool = False,
     ) -> Tuple[str, Optional[str]]:
         """
         Un passage de synthèse streamé.
@@ -1817,10 +1863,24 @@ class ChatOrchestrator:
         SYNTHESIS_HEAD_CHARS caractères (ou jusqu'à la fin s'il est plus
         court), puis validé avant d'être transmis à on_token.
 
+        Args:
+            tools: Outils envoyés tels quels (synthèse dans la foulée de la
+                boucle), le modèle étant prié de ne plus en appeler
+            loop_markers: Rejeter aussi une réponse qui cite le vocabulaire
+                de la boucle d'outils (_LOOP_MARKERS)
+
         Returns:
             (réponse, motif de rejet). En cas de rejet, rien n'a été transmis
             à on_token et le flux a été coupé.
         """
+        def validate(text: str) -> Tuple[bool, str]:
+            valid, reason = self._validate_response(text, user_input, tool_calls_log)
+            lowered = text.lower()
+            cited = next((m for m in _LOOP_MARKERS if m in lowered), None) if loop_markers else None
+            if valid and cited:
+                return False, f"consigne de la boucle citée : '{cited}'"
+            return valid, reason
+
         # Active le raisonnement natif Qwen3.5 sur la synthèse uniquement quand
         # le widget peut le recevoir. C'est ici que le raisonnement est le plus
         # précieux à exposer (intégration des résultats d'outils).
@@ -1843,6 +1903,10 @@ class ChatOrchestrator:
                 "num_keep": -1,  # [OPTIM] Préserver le system prompt entier lors de troncature contexte
             },
         }
+        if tools is not None:
+            # Mêmes outils que la boucle : sans eux, le début du prompt
+            # changerait et Ollama relirait toute la conversation
+            data["tools"] = tools
 
         full_response: str = ""
         shown: bool = not screen_head  # False tant que le début est retenu
@@ -1896,9 +1960,7 @@ class ChatOrchestrator:
                             if not show(token):
                                 break
                         elif len(full_response) >= SYNTHESIS_HEAD_CHARS:
-                            valid, reason = self._validate_response(
-                                full_response, user_input, tool_calls_log
-                            )
+                            valid, reason = validate(full_response)
                             if not valid:
                                 rejected = reason
                                 break  # flux coupé : Ollama cesse de générer
@@ -1920,9 +1982,7 @@ class ChatOrchestrator:
 
         # Réponse plus courte que le début retenu : la valider en entier
         if full_response and not shown and not rejected:
-            valid, reason = self._validate_response(
-                full_response, user_input, tool_calls_log
-            )
+            valid, reason = validate(full_response)
             if valid:
                 show(full_response)
             else:

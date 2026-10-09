@@ -49,11 +49,17 @@ class _OllamaStream:
     status_code = 200
 
     def __init__(self, text, chunk=12):
-        pieces = [text[i:i + chunk] for i in range(0, len(text), chunk)]
-        self.lines = [
-            json.dumps({"message": {"content": piece}, "done": False}).encode()
-            for piece in pieces
-        ] + [json.dumps({"message": {"content": ""}, "done": True}).encode()]
+        if isinstance(text, dict):  # appel d'outil structuré, sans texte
+            self.lines = [json.dumps({
+                "message": {"content": "", "tool_calls": [{"function": text}]}, "done": False,
+            }).encode()]
+        else:
+            pieces = [text[i:i + chunk] for i in range(0, len(text), chunk)]
+            self.lines = [
+                json.dumps({"message": {"content": piece}, "done": False}).encode()
+                for piece in pieces
+            ]
+        self.lines.append(json.dumps({"message": {"content": ""}, "done": True}).encode())
         self.lines_read = 0
 
     def __enter__(self):
@@ -121,21 +127,24 @@ class _LLM:
         return [m["content"] for m in self.conversation_history if m["role"] == "assistant"]
 
 
+# Boucle d'outils au moment de la synthèse : un list_directory, puis la relance
+_LOOP_MESSAGES = [
+    {"role": "system", "content": "système"},
+    {"role": "user", "content": _QUESTION},
+    {"role": "assistant", "content": "", "tool_calls": [
+        {"function": {"name": "list_directory", "arguments": {}}}
+    ]},
+    {"role": "tool", "content": _LISTING},
+    {"role": "user", "content": _NUDGE},
+]
+
+
 def _synthesize(ollama, *replies, **options):
     """Synthèse après un list_directory, suivie de la relance de la boucle."""
     ollama.replies.extend(replies)
     llm, shown = _LLM(), []
-    messages = [
-        {"role": "system", "content": "système"},
-        {"role": "user", "content": _QUESTION},
-        {"role": "assistant", "content": "", "tool_calls": [
-            {"function": {"name": "list_directory", "arguments": {}}}
-        ]},
-        {"role": "tool", "content": _LISTING},
-        {"role": "user", "content": _NUDGE},
-    ]
     result = ChatOrchestrator()._stream_synthesis(
-        messages=messages,
+        messages=[dict(message) for message in _LOOP_MESSAGES],
         user_input=_QUESTION,
         llm=llm,
         on_token=shown.append,
@@ -184,36 +193,105 @@ def test_downloads_question_gets_a_single_answer(ollama):
     assert retry[-1]["content"].endswith(_SYNTHESIS_RETRY_NOTE)
 
 
-def test_synthesis_context_drops_the_loop_instructions(ollama):
-    """Le scratchpad et ses relances n'existent plus pour la synthèse."""
-    _synthesize(ollama, _ANSWER)
+def test_synthesis_continues_the_loop_prompt(ollama):
+    """Le prompt du dernier tour est repris tel quel, outils compris, et les
+    consignes de synthèse viennent en dernier : Ollama reprend la lecture là
+    où la boucle l'a laissée, au lieu de relire toute la conversation (130 s
+    sur une requête à deux outils, qwen3.5:4b sur GPU intégré)."""
+    tools = [{"type": "function", "function": {"name": "list_directory"}}]
+    _synthesize(ollama, _ANSWER, tools=tools)
 
-    messages = ollama.requests[0]["messages"]
+    assert len(ollama.requests) == 1
+    request = ollama.requests[0]
+    assert request["messages"][:-1] == _LOOP_MESSAGES
+    assert request["tools"] == tools
+    instructions = request["messages"][-1]
+    assert instructions["role"] == "user"
+    assert "Tu interviens en bout de processus" in instructions["content"]
+    assert instructions["content"].endswith(_QUESTION)
+
+
+def test_long_request_is_only_recalled_in_the_synthesis(ollama):
+    """Le XML d'un ticket aurait été recopié en entier dans la demande de
+    synthèse, alors qu'il figure déjà dans la conversation."""
+    ollama.replies.append(_ANSWER)
+    xml = "<item><title>LOGM-80 : bases articles</title></item>\n" * 200
+    messages = [dict(message) for message in _LOOP_MESSAGES]
+    messages[1] = {"role": "user", "content": xml}
+    ChatOrchestrator()._stream_synthesis(
+        messages=messages, user_input=xml, llm=_LLM(), on_token=None,
+        is_interrupted_callback=None, tool_calls_log=[{"tool": "list_directory"}], loop_start=2,
+    )
+
+    instructions = ollama.requests[0]["messages"][-1]["content"]
+    assert instructions.endswith("… (demande complète plus haut)")
+    assert len(instructions) < len(xml)
+
+
+def test_synthesis_citing_the_loop_falls_back(ollama):
+    """Dans la foulée de la boucle, le modèle en voit encore les consignes :
+    une réponse qui parle de son scratchpad n'est pas affichée, la synthèse à
+    part la remplace."""
+    citing = (
+        "D'après mon scratchpad, j'ai bien listé ton dossier Téléchargements : il "
+        "contient un PDF et l'installeur d'Ollama. Veux-tu que j'ouvre le PDF pour toi ?"
+    )
+    result, shown, llm = _synthesize(ollama, citing, _ANSWER)
+
+    assert result == _ANSWER
+    assert "".join(shown) == _ANSWER
+    assert len(ollama.requests) == 2
+    assert llm.replies() == [_ANSWER]
+
+
+def test_tool_call_instead_of_the_synthesis_falls_back(ollama):
+    """Les outils restent dans la requête, pour garder le même début de
+    prompt : un appel d'outil sans texte mène à la synthèse à part, qui n'en
+    propose aucun."""
+    tools = [{"type": "function", "function": {"name": "list_directory"}}]
+    result, shown, _llm = _synthesize(
+        ollama, {"name": "list_directory", "arguments": {}}, _ANSWER, tools=tools
+    )
+
+    assert result == _ANSWER
+    assert "".join(shown) == _ANSWER
+    assert "tools" not in ollama.requests[1]
+
+
+def test_fallback_synthesis_drops_the_loop_instructions(ollama):
+    """La synthèse à part n'a ni scratchpad ni relances de la boucle."""
+    _synthesize(ollama, _OFF_TRACK, _ANSWER)
+
+    messages = ollama.requests[1]["messages"]
     assert [m["role"] for m in messages] == ["system", "user", "assistant", "tool", "user"]
     assert all("scratchpad" not in m["content"].lower() for m in messages)
-    assert messages[-1]["content"].endswith(_QUESTION)
+    assert _QUESTION in messages[-1]["content"]
 
 
 def test_synthesis_keeps_the_modelfile_identity(ollama):
     """Sans le Modelfile, My_AI se présentait comme « une IA qui synthétise »."""
-    _synthesize(ollama, _ANSWER)
+    _synthesize(ollama, _OFF_TRACK, _ANSWER)
 
-    system = ollama.requests[0]["messages"][0]["content"]
+    # Dans la foulée de la boucle : son message système, qui porte le Modelfile
+    assert ollama.requests[0]["messages"][0] == _LOOP_MESSAGES[0]
+    # Synthèse à part : le Modelfile, sans « ## Outils »
+    system = ollama.requests[1]["messages"][0]["content"]
     assert system.startswith(with_modelfile(tools=False))
     assert "Tu interviens en bout de processus" in system
     assert "## Outils" not in system
 
 
-def test_synthesis_keeps_the_answer_context(ollama):
+def test_fallback_synthesis_keeps_the_answer_context(ollama):
     """Les faits de la fenêtre Mémoire n'étaient que dans le prompt de la
-    boucle : la synthèse, qui le remplace, répondait sans eux."""
+    boucle : la synthèse à part, qui le remplace, répondait sans eux. Dans la
+    foulée de la boucle, ils restent dans son message système
+    (test_memory_chat)."""
     facts = "\n\nFAITS UTILISATEUR :\n[Base de connaissances]\n- [general] Mon chat s'appelle Félix"
     _synthesize(ollama, _OFF_TRACK, _ANSWER, answer_context=facts)
 
-    for request in ollama.requests:  # première synthèse et relance
-        system = request["messages"][0]["content"]
-        assert system.startswith(with_modelfile(tools=False))
-        assert system.endswith(facts)
+    system = ollama.requests[1]["messages"][0]["content"]
+    assert system.startswith(with_modelfile(tools=False))
+    assert system.endswith(facts)
 
 
 def test_valid_synthesis_is_shown_once(ollama):

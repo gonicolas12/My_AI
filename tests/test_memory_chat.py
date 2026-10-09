@@ -588,10 +588,12 @@ def test_synthesis_after_a_tool_keeps_the_facts(kb, ollama):
     )
 
     assert answer == "Ton chat s'appelle Félix ! 🐱"
-    synthesis = ollama.systems()[-1]
-    assert "Tu interviens en bout de processus" in synthesis
-    assert synthesis.startswith(_IDENTITY)
-    assert "- [general] L'utilisateur : son chat s'appelle Félix" in synthesis
+    # Synthèse dans la foulée de la boucle : son message système, qui porte
+    # déjà l'identité et les faits, puis les consignes en dernier message
+    synthesis = ollama.requests[-1]["messages"]
+    assert synthesis[0]["content"].startswith(_IDENTITY)
+    assert "- [general] L'utilisateur : son chat s'appelle Félix" in synthesis[0]["content"]
+    assert "Tu interviens en bout de processus" in synthesis[-1]["content"]
 
 
 @pytest.mark.parametrize("message, replies", [

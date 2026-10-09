@@ -238,15 +238,21 @@ Responsabilités:
 Architecture:
 ├─ LoopDetector     : détecte boucles immédiates et élargies
 ├─ Scratchpad       : état cognitif persistant entre les tours
-│   ├─ OBJECTIF     : demande originale
+│   ├─ OBJECTIF     : début de la demande (300 caractères, en entier plus haut)
 │   ├─ PLAN         : étapes numérotées avec ✓
 │   ├─ FAITS        : résultats d'outils (tronqués 400 chars)
-│   └─ TOURS REST.  : urgence < 3 tours
+│   ├─ TOURS REST.  : urgence < 3 tours
+│   └─ Placement    : état complet après la question ou le 1er outil, puis
+│                     avancement après chaque outil ; rien n'est retiré ni
+│                     modifié en amont (chaque tour prolonge le précédent)
 └─ ChatOrchestrator : boucle agentique principale
     ├─ run()         : interface publique unique
     ├─ MAX_TOURS=15  : limite absolue de tours
     ├─ MAX_TOOL_USES=5 : synthèse forcée après N outils
     ├─ PLAN_MIN_QUERY_LEN=55 : seuil déclenchement planification
+    ├─ Synthèse      : dans la foulée de la boucle (même prompt, mêmes outils,
+    │                  consignes en dernier message) ; repli sur une synthèse à
+    │                  part si son début est rejeté ou cite la boucle
     └─ Patterns : ReAct + Plan & Execute
 
 Sécurités:
