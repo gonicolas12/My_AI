@@ -213,19 +213,27 @@ def test_synthesis_continues_the_loop_prompt(ollama):
 
 def test_long_request_is_only_recalled_in_the_synthesis(ollama):
     """Le XML d'un ticket aurait été recopié en entier dans la demande de
-    synthèse, alors qu'il figure déjà dans la conversation."""
+    synthèse, alors qu'il figure déjà dans la conversation. La question, qui
+    suit le XML, y reste."""
     ollama.replies.append(_ANSWER)
-    xml = "<item><title>LOGM-80 : bases articles</title></item>\n" * 200
+    request = (
+        "Voici le xml de la mission :\n"
+        + "<item><title>LOGM-80 : bases articles</title></item>\n" * 200
+        + "Résume-moi la mission et ce qu'il faut faire."
+    )
     messages = [dict(message) for message in _LOOP_MESSAGES]
-    messages[1] = {"role": "user", "content": xml}
+    messages[1] = {"role": "user", "content": request}
     ChatOrchestrator()._stream_synthesis(
-        messages=messages, user_input=xml, llm=_LLM(), on_token=None,
+        messages=messages, user_input=request, llm=_LLM(), on_token=None,
         is_interrupted_callback=None, tool_calls_log=[{"tool": "list_directory"}], loop_start=2,
     )
 
     instructions = ollama.requests[0]["messages"][-1]["content"]
-    assert instructions.endswith("… (demande complète plus haut)")
-    assert len(instructions) < len(xml)
+    assert instructions.endswith(
+        "Résume-moi la mission et ce qu'il faut faire. (demande complète plus haut)"
+    )
+    assert "Voici le xml de la mission" in instructions
+    assert len(instructions) < len(request)
 
 
 def test_synthesis_citing_the_loop_falls_back(ollama):

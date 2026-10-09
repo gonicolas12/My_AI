@@ -238,17 +238,21 @@ Responsabilités:
 Architecture:
 ├─ LoopDetector     : détecte boucles immédiates et élargies
 ├─ Scratchpad       : état cognitif persistant entre les tours
-│   ├─ OBJECTIF     : début de la demande (300 caractères, en entier plus haut)
-│   ├─ PLAN         : étapes numérotées avec ✓
+│   ├─ OBJECTIF     : début et fin de la demande (300 caractères, en entier
+│   │                 plus haut)
+│   ├─ PLAN         : étapes numérotées, ✓ faite, ✗ outil sans résultat ;
+│   │                 relancer cet outil retente l'étape, sans cocher la suivante
 │   ├─ FAITS        : résultats d'outils (tronqués 400 chars)
 │   ├─ TOURS REST.  : urgence < 3 tours
 │   └─ Placement    : état complet après la question ou le 1er outil, puis
-│                     avancement après chaque outil ; rien n'est retiré ni
-│                     modifié en amont (chaque tour prolonge le précédent)
+│                     objectif et avancement après chaque outil ; rien n'est
+│                     retiré ni modifié en amont (chaque tour prolonge le précédent)
 └─ ChatOrchestrator : boucle agentique principale
     ├─ run()         : interface publique unique
     ├─ MAX_TOURS=15  : limite absolue de tours
-    ├─ MAX_TOOL_USES=5 : synthèse forcée après N outils
+    ├─ MAX_TOOL_USES=5 : synthèse forcée après N outils ; seul l'outil de
+    │                  document reste offert tant que le document demandé
+    │                  n'existe pas
     ├─ PLAN_MIN_QUERY_LEN=55 : seuil déclenchement planification
     ├─ Synthèse      : dans la foulée de la boucle (même prompt, mêmes outils,
     │                  consignes en dernier message) ; repli sur une synthèse à
@@ -260,6 +264,8 @@ Sécurités:
 ├─ Détection de boucle (immédiate + élargie)
 ├─ Élagage sélectif contexte (MAX_HISTORY_MESSAGES=40)
 ├─ Validation légère des arguments avant exécution
+├─ Document demandé mais pas créé : une relance avant de conclure, avec ou
+│  sans outils déjà utilisés
 └─ Détection d'hallucinations dans la réponse finale
 ```
 

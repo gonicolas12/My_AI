@@ -50,7 +50,7 @@ PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planific
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
 SYNTHESIS_HEAD_CHARS: int = 160 # Début de synthèse validé avant tout affichage
 SYNTHESIS_NUM_PREDICT: int = 4096  # Tokens de la synthèse, réflexion comprise
-SCRATCHPAD_GOAL_CHARS: int = 300   # Début de la demande repris en OBJECTIF du scratchpad
+SCRATCHPAD_GOAL_CHARS: int = 300   # Début et fin de la demande repris en OBJECTIF du scratchpad
 
 # Outils qui produisent un fichier livrable pour l'utilisateur.
 _DOCUMENT_TOOLS = frozenset({"generate_document", "edit_document"})
@@ -87,6 +87,42 @@ def _wants_document(user_input: str) -> bool:
     )
 
 
+# Outils dont un appel livre le fichier demandé (un fichier texte écrit par
+# write_local_file en est un) : après eux, plus rien n'est attendu
+_DELIVERABLE_TOOLS = _DOCUMENT_TOOLS | {"write_local_file"}
+
+
+def _document_pending(user_input: str, tool_calls_log: List[Dict]) -> bool:
+    """True si la requête réclame un document qu'aucun outil n'a encore produit."""
+    return _wants_document(user_input) and not any(
+        tc.get("tool") in _DELIVERABLE_TOOLS for tc in tool_calls_log
+    )
+
+
+def _document_tools(tools: List[Dict]) -> List[Dict]:
+    """Outils de production de document parmi ceux offerts au modèle."""
+    return [t for t in tools if t.get("function", {}).get("name") in _DOCUMENT_TOOLS]
+
+
+# Début du résultat d'un outil qui n'a rien donné : erreur, recherche vide,
+# fichier introuvable (cf. AIEngine._setup_local_tools, models/internet_search.py)
+_FAILED_RESULT_STARTS = (
+    "[Erreur", "Erreur", "❌", "Aucun ", "Recherche impossible", "Page illisible",
+    "Fichier introuvable", "Impossible d'identifier",
+)
+# read_local_file rend le contenu du fichier, qui peut commencer par
+# « Erreur » : seuls ses propres messages valent échec
+_FAILED_READ_STARTS = (
+    "[Erreur", "Erreur lecture fichier", "Fichier introuvable", "Impossible d'identifier",
+)
+
+
+def _tool_failed(tool_name: str, result: str) -> bool:
+    """True si l'outil n'a rien rapporté d'exploitable."""
+    starts = _FAILED_READ_STARTS if tool_name == "read_local_file" else _FAILED_RESULT_STARTS
+    return result.lstrip().startswith(starts)
+
+
 # Rappel de langue qu'AIEngine ajoute en fin de message (« (Always respond in
 # English.) ») : les seuils de longueur portent sur la question seule. Compté,
 # il faisait planifier une question anglaise de 25 caractères.
@@ -117,6 +153,16 @@ _DOCUMENT_NUDGE = (
     "fichier n'a été créé. Passe à l'action MAINTENANT par un appel d'outil — "
     "'generate_document' rédige et enregistre le fichier (fais d'abord une "
     "recherche seulement si la demande en réclame une). Ne réponds pas en texte."
+)
+
+# Relance unique quand le modèle conclut, après des outils, sans avoir créé le
+# document demandé : des recherches vides épuisaient le budget d'outils, et la
+# réponse arrivait sans fichier.
+_PENDING_DOCUMENT_NUDGE = (
+    "[ORCHESTRATEUR] Le document demandé n'a pas encore été créé : aucun "
+    "fichier n'existe. Appelle MAINTENANT 'generate_document' pour le "
+    "produire avec ce que tu as collecté, ou avec tes connaissances si les "
+    "recherches n'ont rien donné. Ne réponds pas en texte."
 )
 
 
@@ -265,15 +311,18 @@ _LOOP_MARKERS = ("scratchpad", "orchestrateur")
 
 
 def _abridged(text: str, limit: int = SCRATCHPAD_GOAL_CHARS) -> str:
-    """Début d'une demande, pour la rappeler sans la recopier en entier.
+    """Début et fin d'une demande, pour la rappeler sans la recopier en entier.
 
     Recopiée en entier (le XML d'un ticket, par exemple), elle doublait la
-    longueur du prompt alors qu'elle figure déjà dans la conversation.
+    longueur du prompt alors qu'elle figure déjà dans la conversation. La fin
+    reste : la question suit souvent le texte collé (« Voici le xml : … puis
+    résume-moi la mission »), et le début seul n'en gardait que le XML.
     """
     text = " ".join(text.split())
     if len(text) <= limit:
         return text
-    return text[:limit].rstrip() + "… (demande complète plus haut)"
+    half = limit // 2
+    return f"{text[:half].rstrip()} […] {text[-half:].lstrip()} (demande complète plus haut)"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -335,9 +384,10 @@ class Scratchpad:
     Maintient l'état cognitif de l'agent entre les tours.
 
     Structure :
-        OBJECTIF       : début de la demande de l'utilisateur (en entier plus
-                         haut dans la conversation)
-        PLAN           : étapes prévues, avec ✓ sur les terminées
+        OBJECTIF       : début et fin de la demande de l'utilisateur (en
+                         entier plus haut dans la conversation)
+        PLAN           : étapes prévues, avec ✓ sur les terminées et ✗ sur
+                         celles dont l'outil n'a rien donné
         ÉTAPE ACTUELLE : numéro de l'étape en cours
         FAITS COLLECTÉS: résultats d'outils résumés
         TOURS RESTANTS : indicateur de proximité à la limite
@@ -351,6 +401,10 @@ class Scratchpad:
         self.facts: Dict[str, str] = {}
         self.next_action: str = "Analyser la demande et planifier les étapes"
         self.tour: int = 0
+        # Étapes dont l'outil n'a rien donné, et la dernière avec son outil :
+        # rappeler cet outil retente l'étape (cf. record_result)
+        self.failed_steps: set = set()
+        self._retry: Optional[Tuple[int, str]] = None
 
     def set_plan(self, steps: List[str]) -> None:
         """Initialise le plan à partir d'une liste d'étapes générées par le LLM."""
@@ -367,9 +421,32 @@ class Scratchpad:
         """Avance d'une étape dans le plan."""
         self.current_step = min(self.current_step + 1, len(self.plan))
 
+    def record_result(self, tool_name: str, failed: bool) -> None:
+        """
+        Avance dans le plan après le résultat d'un outil.
+
+        Chaque appel avançait d'une étape, relance comprise : deux recherches
+        vides cochaient « créer le document », et le modèle concluait sans
+        l'avoir créé. Une étape dont l'outil n'a rien donné est marquée ✗ ;
+        rappeler ce même outil la retente, et la coche s'il aboutit, sans
+        consommer l'étape suivante.
+        """
+        if self._retry and self._retry[1] == tool_name:
+            if not failed:
+                self.failed_steps.discard(self._retry[0])
+                self._retry = None
+            return
+        if failed and self.current_step < len(self.plan):
+            self.failed_steps.add(self.current_step)
+            self._retry = (self.current_step, tool_name)
+        self.mark_step_done()
+
     def _plan_lines(self) -> str:
         plan_lines = ""
         for i, step in enumerate(self.plan):
+            if i in self.failed_steps:
+                plan_lines += f"  {i + 1}. [✗] {step} (sans résultat)\n"
+                continue
             marker = "✓" if i < self.current_step else " "
             plan_lines += f"  {i + 1}. [{marker}] {step}\n"
         return plan_lines or "  (plan à définir au prochain tour)\n"
@@ -405,14 +482,16 @@ class Scratchpad:
 
     def to_progress_block(self) -> str:
         """
-        Avancement depuis le bloc complet : plan coché, étape, tours restants
-        et prochaine action, ajoutés à chaque tour suivant de la boucle. Ni
-        objectif ni consignes : répétées à chaque tour, ces dernières
-        poussaient le modèle à rappeler un outil déjà utilisé au lieu de
-        conclure.
+        Avancement depuis le bloc complet, ajouté à chaque tour suivant de la
+        boucle : objectif, plan coché, étape, tours restants et prochaine
+        action. Sans les consignes : répétées à chaque tour, elles poussaient
+        le modèle à rappeler un outil déjà utilisé au lieu de conclure. Sans
+        l'objectif, il perdait de vue la demande (un fichier lu en plus, un
+        document jamais créé).
         """
         return (
             "<scratchpad>\n"
+            f"OBJECTIF : {_abridged(self.goal)}\n"
             f"PLAN :\n{self._plan_lines()}"
             f"ÉTAPE ACTUELLE : {self.current_step + 1}\n"
             f"{self._remaining_line()}"
@@ -511,6 +590,9 @@ class ChatOrchestrator:
         # Réponse d'un modèle qui a annoncé le document sans le créer, avec son
         # état d'affichage : rendue telle quelle si la relance n'aboutit pas.
         announced_answer: Optional[Tuple[str, bool]] = None
+        # Relance déjà faite pour un document demandé que la boucle, outils
+        # utilisés, s'apprêtait à conclure sans l'avoir créé
+        document_nudged: bool = False
         # Outils du dernier appel au modèle : la synthèse les renvoie tels quels
         last_call_tools: Optional[List[Dict]] = None
 
@@ -608,8 +690,15 @@ class ChatOrchestrator:
             # Détecte automatiquement les tool_calls (structurés ou textuels).
             # Le streaming vers on_token n'est activé que s'il n'y a pas eu
             # d'appels d'outils précédents (sinon → synthèse séparée).
-            if len(tool_calls_log) >= MAX_TOOL_USES or force_synthesis:
+            if force_synthesis:
                 tools_for_call = []
+            elif len(tool_calls_log) >= MAX_TOOL_USES:
+                # Budget épuisé, par des recherches vides par exemple : il
+                # reste de quoi créer le document demandé, et lui seul
+                tools_for_call = (
+                    _document_tools(tools)
+                    if _document_pending(user_input, tool_calls_log) else []
+                )
             elif blocked_tools:
                 # Retirer les outils bloqués de la liste
                 tools_for_call = [
@@ -685,6 +774,25 @@ class ChatOrchestrator:
             # ── Cas B : réponse directe (pas d'outil) ────────────────────
             if not tool_calls_in_msg:
                 if tool_calls_log:
+                    # Document demandé, jamais créé : une relance, une seule,
+                    # avant de conclure. Ce tour n'a pas été affiché (sans
+                    # on_token ; « streamed » dit seulement qu'il était du
+                    # texte) ; une question à l'utilisateur attend sa réponse.
+                    if (
+                        not document_nudged
+                        and _stream_direct is None
+                        and _document_pending(user_input, tool_calls_log)
+                        and _document_tools(tools_for_call)
+                        and not raw_content.rstrip().endswith("?")
+                    ):
+                        document_nudged = True
+                        print(
+                            f"📄 [ChatOrchestrator] Document demandé mais pas créé "
+                            f"→ relance (tour {tour + 1})"
+                        )
+                        messages.append({"role": "assistant", "content": raw_content})
+                        messages.append({"role": "user", "content": _PENDING_DOCUMENT_NUDGE})
+                        continue
                     # Des outils ont été appelés → synthèse streamée + validation
                     print(
                         f"✅ [ChatOrchestrator] {len(tool_calls_log)} outil(s) utilisé(s) "
@@ -879,7 +987,7 @@ class ChatOrchestrator:
 
                 # ── Mise à jour du scratchpad ─────────────────────────────
                 scratchpad.update_from_tool_result(tool_name, result_str)
-                scratchpad.mark_step_done()
+                scratchpad.record_result(tool_name, failed=_tool_failed(tool_name, result_str))
 
                 # S'il reste des étapes dans le plan
                 if scratchpad.current_step < len(scratchpad.plan):
@@ -1030,9 +1138,7 @@ class ChatOrchestrator:
                 # Livrable demandé mais pas encore produit : la recherche n'était
                 # qu'une étape préparatoire. Couper ici laisserait l'utilisateur
                 # avec un résumé à la place du document qu'il a demandé.
-                _pending_document = _wants_document(user_input) and not any(
-                    tc.get("tool") in _DOCUMENT_TOOLS for tc in tool_calls_log
-                )
+                _pending_document = _document_pending(user_input, tool_calls_log)
 
                 if _user_wants_action or _pending_document:
                     # La recherche était un prérequis pour l'action → laisser continuer
@@ -1472,9 +1578,9 @@ class ChatOrchestrator:
         près de la fin du prompt précédent (4 et 1 024 tokens avant), et chaque
         tour doit donc prolonger le précédent. Le premier bloc donne l'état
         complet, les consignes et la liste des outils ; les suivants, courts,
-        l'avancement. Les relances de la boucle (messages « user » ajoutés
-        depuis le dernier résultat d'outil) restent après le bloc, pour rester
-        la dernière consigne lue par le modèle.
+        l'objectif et l'avancement. Les relances de la boucle (messages
+        « user » ajoutés depuis le dernier résultat d'outil) restent après le
+        bloc, pour rester la dernière consigne lue par le modèle.
 
         Si known_tool_names est fourni, ajoute la liste explicite des outils
         valides pour réduire les hallucinations (modèle inventant 'execute',

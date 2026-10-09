@@ -28,6 +28,8 @@ from core.ai_engine import (
 from core.chat_orchestrator import (
     _DOCUMENT_NUDGE,
     _DOCUMENT_TOOLS,
+    _PENDING_DOCUMENT_NUDGE,
+    MAX_TOOL_USES,
     ChatOrchestrator,
     _announces_without_acting,
     _document_confirmation,
@@ -377,12 +379,13 @@ class _ScriptedLLM:
         return None
 
 
-def _run_scripted(user_input, turns, tools=None):
+def _run_scripted(user_input, turns, tools=None, results=None):
     """
     Déroule l'orchestrateur sur des réponses de modèle écrites à l'avance.
 
     Chaque élément de ``turns`` est un tour du modèle : un texte, un appel
-    d'outil (dict) ou None (Ollama injoignable).
+    d'outil (dict) ou None (Ollama injoignable). ``results`` donne le résultat
+    d'un outil par son nom (par défaut, le succès de generate_document).
     """
     orchestrator = ChatOrchestrator()
     script = list(turns)
@@ -406,7 +409,7 @@ def _run_scripted(user_input, turns, tools=None):
 
     def executor(name, _arguments):
         executed.append(name)
-        return _GENERATE_OK
+        return (results or {}).get(name, _GENERATE_OK)
 
     orchestrator._call_ollama_smart_stream = fake_stream
     orchestrator._stream_synthesis = fake_synthesis
@@ -478,6 +481,113 @@ def test_no_nudge_when_the_document_tool_is_unavailable():
     )
     assert len(calls) == 1
     assert result == _ANNOUNCE
+
+
+# ── Document demandé, recherches vides ─────────────────────────────────────
+#
+# Hors ligne, ou quand aucun moteur ne répond, chaque recherche revient vide.
+# Le modèle (qwen3.5:4b) en relançait jusqu'à épuiser le budget d'outils, puis
+# concluait en texte : la réponse arrivait sans le document demandé.
+
+_STORAGE = "crée un document Word sur le stockage des produits chimiques"
+# Message réel d'une recherche vide (models/internet_search._no_result_message)
+_NO_RESULT = (
+    "Aucun résultat trouvé pour « stockage produits chimiques » (aucun moteur "
+    "disponible). Reformule avec d'autres mots-clés, ou réponds avec ce que tu "
+    "sais en précisant que la recherche n'a rien donné."
+)
+_RULES = "Voici les règles : séparer les produits incompatibles et ventiler le local."
+_WRITE_OK = "Succès : fichier écrit/modifié avec succès à l'emplacement rapport.txt"
+
+
+def _searches(count):
+    """Recherches aux mots-clés tous différents : pas une boucle (LoopDetector)."""
+    return [
+        {"name": "web_search", "arguments": {"query": f"stockage produits chimiques {n}"}}
+        for n in range(count)
+    ]
+
+
+def test_document_is_still_created_once_empty_searches_use_up_the_budget():
+    result, calls, _shown, executed, _llm = _run_scripted(
+        _STORAGE,
+        _searches(MAX_TOOL_USES) + [_GENERATE_CALL, "C'est fait."],
+        results={"web_search": _NO_RESULT},
+    )
+    assert executed == ["web_search"] * MAX_TOOL_USES + ["generate_document"]
+    # Budget épuisé : il ne reste que l'outil du document, puis plus rien
+    assert [t["function"]["name"] for t in calls[MAX_TOOL_USES]["tools"]] == ["generate_document"]
+    assert calls[MAX_TOOL_USES + 1]["tools"] == []
+    assert result == _SYNTHESIS
+
+
+def test_exhausted_budget_without_a_document_leaves_no_tool():
+    listings = [
+        {"name": "list_directory", "arguments": {"path": f"C:\\Missions\\M{n}"}}
+        for n in range(MAX_TOOL_USES)
+    ]
+    _result, calls, _shown, executed, _llm = _run_scripted(
+        "liste les dossiers de mes missions",
+        listings + ["Voici tes missions."],
+        tools=_TOOLS + [{"type": "function", "function": {"name": "list_directory"}}],
+        results={"list_directory": "C:\\Missions\\M0\\notes.txt"},
+    )
+    assert executed == ["list_directory"] * MAX_TOOL_USES
+    assert calls[MAX_TOOL_USES]["tools"] == []
+
+
+def test_pending_document_is_nudged_after_tools():
+    """Après une recherche vide, le modèle rédigeait sa réponse en texte : la
+    boucle concluait sans fichier."""
+    result, calls, shown, executed, _llm = _run_scripted(
+        _STORAGE,
+        _searches(1) + [_RULES, _GENERATE_CALL, "C'est fait."],
+        results={"web_search": _NO_RESULT},
+    )
+    assert executed == ["web_search", "generate_document"]
+    # La réponse en texte reste dans le contexte, la relance est la dernière
+    # consigne (l'avancement du scratchpad s'intercale juste avant elle)
+    messages = calls[2]["messages"]
+    assert messages[-1] == {"role": "user", "content": _PENDING_DOCUMENT_NUDGE}
+    assert messages[-3] == {"role": "assistant", "content": _RULES}
+    # Le tour en texte n'est pas affiché : seule la synthèse l'est
+    assert shown == [_SYNTHESIS]
+    assert result == _SYNTHESIS
+
+
+def test_a_single_nudge_for_a_pending_document():
+    result, calls, _shown, executed, _llm = _run_scripted(
+        _STORAGE,
+        _searches(1) + [_RULES, "Je ne peux pas faire mieux sans résultats."],
+        results={"web_search": _NO_RESULT},
+    )
+    assert executed == ["web_search"]
+    assert len(calls) == 3
+    assert result == _SYNTHESIS
+
+
+@pytest.mark.parametrize(
+    "user_input, turns, tools, results",
+    [
+        # Une question à l'utilisateur attend sa réponse
+        (_STORAGE, _searches(1) + ["Quels produits veux-tu que le document couvre ?"], None,
+         {"web_search": _NO_RESULT}),
+        # Pas de document demandé
+        ("cherche les règles de stockage des produits chimiques", _searches(1) + [_RULES], None,
+         {"web_search": _NO_RESULT}),
+        # Le rapport demandé est le fichier texte que write_local_file vient d'écrire
+        ("rédige un rapport dans rapport.txt",
+         [{"name": "write_local_file", "arguments": {"path": "rapport.txt"}}, "C'est écrit."],
+         _TOOLS + [{"type": "function", "function": {"name": "write_local_file"}}],
+         {"write_local_file": _WRITE_OK}),
+    ],
+)
+def test_no_pending_document_nudge(user_input, turns, tools, results):
+    result, calls, _shown, _executed, _llm = _run_scripted(
+        user_input, turns, tools=tools, results=results
+    )
+    assert len(calls) == 2
+    assert result == _SYNTHESIS
 
 
 # ── « Tableau » : données ou peinture ─────────────────────────────────────
