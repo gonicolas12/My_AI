@@ -9,6 +9,7 @@ importés paresseusement, pour que ce module reste importable partout.
 """
 
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -38,7 +39,11 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # 127.0.0.1 et non localhost : sous Windows, localhost essaie d'abord l'IPv6,
 # où Ollama n'écoute pas, et perd ≈ 2 s à chaque requête
-OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
+_OLLAMA_IP, _OLLAMA_PORT = "127.0.0.1", 11434
+OLLAMA_TAGS_URL = f"http://{_OLLAMA_IP}:{_OLLAMA_PORT}/api/tags"
+
+# Attente maximale, après l'arrêt d'Ollama, que son port soit rendu
+_PORT_RELEASE_TIMEOUT = 10.0
 
 
 def _ollama_is_running(timeout: float = 2.0) -> bool:
@@ -47,6 +52,24 @@ def _ollama_is_running(timeout: float = 2.0) -> bool:
         return requests.get(OLLAMA_TAGS_URL, timeout=timeout).status_code == 200
     except Exception:
         return False
+
+
+def _port_is_free() -> bool:
+    """Vrai si « ollama serve » pourrait prendre son port.
+
+    Contrairement à _ollama_is_running, voit aussi un serveur qui ne répond pas
+    encore (détection des GPU au démarrage) ou qui finit de s'arrêter.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if not IS_WINDOWS:
+            # Comme Ollama (Go) : sans cette option, les connexions de l'ancien
+            # serveur restées en TIME_WAIT bloqueraient le port jusqu'à une minute
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((_OLLAMA_IP, _OLLAMA_PORT))
+        except OSError:
+            return False
+    return True
 
 
 def _persist_env_var(name: str, value: str) -> None:
@@ -141,15 +164,18 @@ def _restart_ollama(placement_env: dict) -> bool:
     Raises:
         FileNotFoundError: commande « ollama » introuvable
     """
-    # ── 1. Si Ollama tourne déjà, l'arrêter : il garderait son environnement ──
-    if _ollama_is_running():
+    # ── 1. Si Ollama tourne déjà, l'arrêter : il garderait son environnement.
+    #       Port testé plutôt qu'une requête : un serveur qui démarre ne répond
+    #       pas encore, mais garde le port ──
+    if not _port_is_free():
         # Tuer TOUS les processus Ollama (y compris l'app bureau)
         _kill_ollama()
-        # Attendre que le port soit libéré
-        for _ in range(10):
-            if not _ollama_is_running(timeout=0.5):
-                break  # Port libéré, Ollama est bien mort
-            time.sleep(0.5)
+        # Attendre que le port soit rendu : taskkill rend la main avant la fin
+        # de l'arrêt, et un serveur lancé trop tôt s'arrêterait faute de port.
+        # Pas de requête ici : le serveur mourant ne répond plus mais garde le port
+        deadline = time.monotonic() + _PORT_RELEASE_TIMEOUT
+        while not _port_is_free() and time.monotonic() < deadline:
+            time.sleep(0.1)
 
     # ── 2. Le lancer avec notre environnement (OLLAMA_NUM_PARALLEL compris)
     #       et les variables du placement (cf. utils/ollama_placement.py) ──
@@ -163,11 +189,14 @@ def _restart_ollama(placement_env: dict) -> bool:
     else:
         # Détacher le serveur : il survit à la fermeture du lanceur.
         popen_kwargs["start_new_session"] = True
-    subprocess.Popen(["ollama", "serve"], **popen_kwargs)
+    server = subprocess.Popen(["ollama", "serve"], **popen_kwargs)
     # Attendre qu'Ollama soit prêt
     for _ in range(20):
+        stopped = server.poll() is not None
         if _ollama_is_running():
-            return True
+            return True  # le nôtre, ou un serveur que _kill_ollama ne peut arrêter
+        if stopped:
+            return False  # arrêté au démarrage : inutile d'attendre
         time.sleep(0.5)
     return False
 
@@ -184,7 +213,7 @@ def _ensure_ollama_parallel():
 
     # ── 3. (Re)lancer Ollama avec ce parallélisme et le placement du modèle
     #       retenu au dernier calibrage (GPU ou processeur) ──
-    if _ollama_is_running():
+    if not _port_is_free():
         print("🔄 Redémarrage d'Ollama avec OLLAMA_NUM_PARALLEL=4...")
     try:
         ready = _restart_ollama(saved_env())
@@ -192,7 +221,13 @@ def _ensure_ollama_parallel():
         print("⚠️ Ollama non trouvé dans le PATH — installez-le depuis ollama.com")
         return
     if not ready:
-        print("⚠️ Ollama lancé mais pas encore prêt — il démarrera sous peu")
+        if _port_is_free():  # serveur arrêté : il ne démarrera pas tout seul
+            print(
+                "⚠️ Ollama n'a pas pu démarrer — lancez l'application Ollama "
+                "ou « ollama serve »"
+            )
+        else:
+            print("⚠️ Ollama lancé mais pas encore prêt — il démarrera sous peu")
         return
     label = placement_label()
     details = f", {label}" if label else ""
