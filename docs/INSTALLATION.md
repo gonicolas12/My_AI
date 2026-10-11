@@ -505,7 +505,7 @@ Réponds toujours en français par défaut.
 """
 ```
 
-**Fenêtre de contexte (`num_ctx`)** : 32 768 tokens par défaut, la même valeur dans `config.yaml` (`llm.local.num_ctx`) et dans le `Modelfile` ; le panneau ⚙️ Réglages écrit les deux. Elle coûte peu de mémoire aux modèles qwen3.5 (≈ 0,4 Go pour le 2b, 1 Go pour le 4b et le 9b). Une fenêtre plus petite (8k, 16k) oblige à résumer la conversation plus tôt ; 64k ne vaut la peine qu'avec une carte graphique confortable et de longs documents.
+**Fenêtre de contexte (`num_ctx`)** : 32 768 tokens par défaut, la même valeur dans `config.yaml` (`llm.local.num_ctx`) et dans le `Modelfile` ; le panneau ⚙️ Réglages écrit les deux. Elle coûte peu de mémoire aux modèles qwen3.5 (≈ 0,4 Go pour le 2b, 1 Go pour le 4b et le 9b), deux fois moins quand le lanceur passe le contexte en 8 bits sur une carte graphique trop petite pour tout le modèle. Une fenêtre plus petite (8k, 16k) oblige à résumer la conversation plus tôt ; 64k ne vaut la peine qu'avec une carte graphique confortable et de longs documents.
 
 ## 🚀 Options de Lancement
 

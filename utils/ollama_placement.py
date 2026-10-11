@@ -10,10 +10,17 @@ plus vite que le processeur (prompt lu 4 fois plus vite sur un Core Ultra 7
 
 Au lancement, ce module regarde donc où Ollama place le modèle de l'appli. S'il
 reste sur le processeur, il mesure sa vitesse, relance Ollama avec le GPU
-intégré autorisé, mesure à nouveau et garde le plus rapide des deux. Le choix
-est retenu dans data/.ollama_placement.json : la mesure n'est refaite qu'après
-une mise à jour d'Ollama, un changement de modèle, de carte graphique ou de
-pilote. Pour la refaire à la main, supprimer ce fichier.
+intégré autorisé, mesure à nouveau et garde le plus rapide des deux.
+
+Si le modèle déborde du GPU retenu (77 % du modèle sur une RTX 3060 Laptop de
+6 Go), le module essaie aussi son contexte (cache K/V) en 8 bits : deux fois
+moins de mémoire, et le modèle tient sur la carte. Gardé seulement si la
+réponse type va plus vite (1,7 fois sur cette carte).
+
+Le choix est retenu dans data/.ollama_placement.json : la mesure n'est refaite
+qu'après une mise à jour d'Ollama, un changement de modèle, de fenêtre de
+contexte, de carte graphique ou de pilote. Pour la refaire à la main, supprimer
+ce fichier.
 """
 
 # Imports différés (core.config, interfaces.onboarding, winreg) : inutiles
@@ -42,6 +49,12 @@ CUSTOM_MODEL = "my_ai"
 # Vulkan (par lequel passent les GPU Intel) sur les versions d'Ollama où il
 # n'est pas encore actif d'office
 EXTRA_GPU_ENV = {"OLLAMA_VULKAN": "1", "OLLAMA_IGPU_ENABLE": "1"}
+
+# Contexte du modèle (cache K/V) en 8 bits au lieu de 16 : deux fois moins de
+# mémoire, sans perte mesurable sur les réponses (25 questions comparées sur
+# my_ai, dont 8 dans un document de 25 000 tokens). Essayé quand le modèle
+# déborde du GPU
+COMPACT_CONTEXT_ENV = {"OLLAMA_KV_CACHE_TYPE": "q8_0"}
 
 # Le lanceur ne pilote que le serveur local, sur le port par défaut
 _DEFAULT_URL = "http://127.0.0.1:11434"
@@ -107,8 +120,12 @@ def placement_label(state_file: Path = STATE_FILE) -> Optional[str]:
     where = "le GPU intégré" if placement == "gpu-integre" else "le GPU"
     share = state.get("gpu_share")
     if isinstance(share, (int, float)) and 0 < share < 99.5:
-        return f"modèle à {share:.0f} % sur {where}"
-    return f"modèle sur {where}"
+        label = f"modèle à {share:.0f} % sur {where}"
+    else:
+        label = f"modèle sur {where}"
+    if COMPACT_CONTEXT_ENV.items() <= saved_env(state_file).items():
+        label += ", contexte en 8 bits"
+    return label
 
 
 def ensure_best_placement(
@@ -173,6 +190,22 @@ def _calibrate(
     previous_env: Dict[str, str],
 ) -> dict:
     """Compare les placements possibles du modèle et laisse Ollama sur le meilleur."""
+    result = _best_device(base_url, model, restart, previous_env)
+    # Modèle à l'étroit sur le GPU retenu : contexte en 8 bits, sauf variable
+    # que l'utilisateur a fixée lui-même
+    share = result.get("gpu_share") or 0.0
+    if 0 < share < 99.5 and not any(key in os.environ for key in COMPACT_CONTEXT_ENV):
+        result = _try_compact_context(base_url, model, restart, result)
+    return result
+
+
+def _best_device(
+    base_url: str,
+    model: str,
+    restart: Callable[[Dict[str, str]], bool],
+    previous_env: Dict[str, str],
+) -> dict:
+    """Processeur, GPU intégré ou choix d'Ollama : le plus rapide pour ce modèle."""
     # 1. Choix par défaut d'Ollama, avec l'environnement de l'utilisateur seul
     if previous_env:
         _restart(restart, {})
@@ -226,6 +259,40 @@ def _try_integrated_gpu(
     return {**measured, "placement": "gpu-integre", "env": extra, "gpu_share": round(share, 1)}
 
 
+def _try_compact_context(
+    base_url: str,
+    model: str,
+    restart: Callable[[Dict[str, str]], bool],
+    result: dict,
+) -> dict:
+    """Relance Ollama avec le contexte du modèle en 8 bits et le garde s'il va plus vite."""
+    where = "GPU intégré" if result["placement"] == "gpu-integre" else "GPU"
+    measures = dict(result.get("measures") or {})
+    if "gpu" not in measures:  # GPU choisi par Ollama : pas encore mesuré
+        measures["gpu"] = _measure(base_url, model)
+        print(f"   • Contexte en 16 bits ({_share_text(result['gpu_share'], where)}) : "
+              f"{_speeds(measures['gpu'])}", flush=True)
+    before = measures["gpu"]
+    compact_env = {**result["env"], **COMPACT_CONTEXT_ENV}
+    try:
+        _restart(restart, compact_env)
+        share = _load(base_url, model)
+        after = _measure(base_url, model)
+    except PlacementError as exc:
+        print(f"   • Contexte en 8 bits : échec ({exc})", flush=True)
+        _restart(restart, result["env"])
+        return {**result, "measures": measures}
+    print(f"   • Contexte en 8 bits ({_share_text(share, where)}) : {_speeds(after)}", flush=True)
+    measures["gpu-8bits"] = after
+    speedup = _typical_time(before) / _typical_time(after)
+    if speedup < _MIN_SPEEDUP:
+        # Pas plus rapide : rien ne justifie de toucher au contexte
+        _restart(restart, result["env"])
+        return {**result, "measures": measures}
+    return {**result, "env": compact_env, "gpu_share": round(share, 1),
+            "measures": measures, "context_speedup": round(speedup, 2)}
+
+
 # Conclusion quand le modèle reste sur le processeur, selon la raison
 _CPU_CONCLUSIONS = {
     "slower": "✅ Modèle laissé sur le processeur : le GPU intégré ne fait pas mieux ici",
@@ -237,6 +304,13 @@ _CPU_CONCLUSIONS = {
 def _conclusion(result: dict) -> str:
     """Ligne de console qui annonce le placement retenu."""
     placement, reason = result["placement"], result.get("reason")
+    if "context_speedup" in result:
+        where = "GPU intégré" if placement == "gpu-integre" else "GPU"
+        share = _share_text(result["gpu_share"], where)
+        return (
+            f"✅ {share[0].upper()}{share[1:]} grâce à son contexte en 8 bits : réponse type "
+            f"{_decimal(result['context_speedup'])}× plus rapide qu'en 16 bits"
+        )
     if placement == "cpu":
         return _CPU_CONCLUSIONS.get(reason, _CPU_CONCLUSIONS["no-gpu"])
     if placement == "gpu-integre":
@@ -321,6 +395,12 @@ def _speeds(speeds: Dict[str, float]) -> str:
     )
 
 
+def _share_text(share: float, where: str) -> str:
+    if share >= 99.5:
+        return f"modèle entier sur le {where}"
+    return f"{share:.0f} % du modèle sur le {where}"
+
+
 def _decimal(value: float) -> str:
     return f"{value:.1f}".replace(".", ",")
 
@@ -347,15 +427,19 @@ def _model_to_place(base_url: str) -> Optional[str]:
 
 def _signature(base_url: str, model: str) -> dict:
     """Ce qui, en changeant, peut changer le meilleur placement."""
-    details = _request(base_url, "/api/show", {"model": model}).get("details") or {}
+    show = _request(base_url, "/api/show", {"model": model})
+    details = show.get("details") or {}
+    # Fenêtre du Modelfile, celle des chargements : sa mémoire décide du contexte en 8 bits
+    num_ctx = re.search(r"^num_ctx\s+(\d+)", str(show.get("parameters") or ""), re.MULTILINE)
     return {
         "ollama": _request(base_url, "/api/version").get("version", ""),
         "model": model,
         "weights": " ".join(
             str(details.get(key, "")) for key in ("family", "parameter_size", "quantization_level")
         ),
+        "num_ctx": int(num_ctx.group(1)) if num_ctx else None,
         # Une variable de placement posée ou retirée par l'utilisateur change la donne
-        "user_env": {key: os.environ.get(key) for key in EXTRA_GPU_ENV},
+        "user_env": {key: os.environ.get(key) for key in (*EXTRA_GPU_ENV, *COMPACT_CONTEXT_ENV)},
         "cpu": platform.processor() or platform.machine(),
         "gpus": _graphics_adapters(),
     }
