@@ -16,8 +16,9 @@ fichier, en commençant par « État actuel ».
   placement, service d'agents partagé et adresse locale du Relay : testés avec un moteur simulé, puis
   vérifiés sur le vrai Ollama (client WebSocket avec streaming et Stop, chat mobile sans fenêtre,
   reprise du prompt au deuxième tour identique à Tk). Détails dans le journal (section 12).
-- Prochaine étape : phase 2 (plan proposé en section 14), après le feu vert de Nicolas. Questions de la
-  phase 1 : section 9.
+- Questions de la phase 1 tranchées le 2026-10-12 : décisions D14 et D15 (section 8).
+- Prochaine étape : phase 2 (plan proposé en section 14), après le feu vert de Nicolas. Le relevé
+  des tokens/s (D15) sera fait en phase 2, avec l'affichage des réponses.
 
 ---
 
@@ -411,6 +412,19 @@ Numérotées comme les questions de la section 9.
 - **D13. Push** : sur le PC à RTX 3060, avec l'identifiant déjà enregistré, sans forcer le compte.
   Toujours ni push ni fusion sur `main` sans accord.
 
+### Prises le 2026-10-12 (réponses de Nicolas aux questions de la phase 1)
+
+- **D14. Écarts à Tk décidés en phase 1, validés.**
+  - Ctrl+L ouvre une nouvelle conversation, et l'ancienne reste enregistrée.
+  - La génération de fichier répond aussi au mobile.
+  - Une session rechargée garde ses horodatages.
+- **D15. Tokens/s (complète D10) : option (a).** `core/chat_orchestrator.py` reçoit un relevé en lecture
+  seule : `eval_count` et `eval_duration` du dernier flux, gardés dans un attribut que le `ChatService`
+  lit pour ses tokens/s.
+  - Requêtes à Ollama inchangées, aucun appel en plus.
+  - C'est la seule modification autorisée de l'orchestrateur.
+  - L'estimation actuelle (un fragment streamé = un jeton) sert de repli si le relevé manque.
+
 ### Constats techniques qui orientent la phase 1
 
 - **Brancher le mobile sans toucher au Relay** : `RelayBridge` offre déjà `on_gui_message(callback)` ;
@@ -492,6 +506,8 @@ questions 9 et 11 précisées puis tranchées le même jour (décisions D1 à D1
   structure du workflow en JSON. **Réponse : (c) (D11).**
 
 ### Questions de la phase 1 (posées le 2026-10-12)
+
+Réponses de Nicolas le 2026-10-12 : oui à la 14 (D14), option (a) pour la 15 (D15). Voir la section 8.
 
 14. **Écarts à Tk décidés en route** (journal, section 12) : Ctrl+L ouvre une nouvelle conversation et
     l'ancienne reste enregistrée ; la génération de fichier répond aussi au mobile ; une session
