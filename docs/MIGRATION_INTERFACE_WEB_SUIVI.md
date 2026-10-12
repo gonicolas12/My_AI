@@ -11,8 +11,11 @@ fichier, en commençant par « État actuel ».
 
 - **Phase 0 (préparation) terminée le 2026-10-12.** Réponses de Nicolas reçues le même jour :
   décisions D1 à D13 (section 8).
-- Toutes les questions de la phase 0 sont tranchées (D1 à D13). En attente du feu vert pour la phase 1
-  (section 13).
+- **Phase 1 en cours** (feu vert le 2026-10-12). Faits et testés avec un moteur simulé : protocole
+  d'événements, `ChatService`, serveur local, cycle de vie, mode `--headless`, progression du
+  placement, service d'agents partagé et adresse locale du Relay (journal, section 12).
+- Prochaine étape : vérifications sur le vrai Ollama (client WebSocket, chat mobile sans fenêtre,
+  reprise du prompt au deuxième tour comparée à Tk), puis suite complète des tests.
 
 ---
 
@@ -588,6 +591,30 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   consigne de Nicolas (D13).
 - Réponses de Nicolas aux questions : décisions D1 à D13 (section 8) ; questions 9 et 11 précisées puis
   tranchées (KaTeX : oui ; export d'un workflow : option c).
+
+### Phase 1 — à partir du 2026-10-12 (PC à RTX 3060)
+
+- `interfaces/desktop/events.py` : protocole (modèles Pydantic des événements et des messages de la
+  fenêtre) et `EventBus` (numérotation, ordre, reprise après reconnexion).
+- `core/chat_service.py` : pipeline de `quel_handle_message_with_id` (mêmes appels au moteur, même
+  ordre, vérifié par test), file d'attente commune (D1), pièces jointes, variantes d'édition et
+  régénération (D5), sessions créées au premier message, sauvegardées après chaque tour et rouvertes
+  au lancement (D2), historique du modèle reconstruit au chargement (D3), pas de troncature (D4),
+  clés optionnelles par message (D7), chat mobile par le `RelayBridge`. Stop du mobile : sa réponse
+  en cours, sinon ses messages en attente, sinon la réponse en cours (comme Tk).
+- Moteur : `process_query_stream` accepte `on_tool_result` (facultatif, observation seule) ;
+  `SessionManager.clear_current_workspace`.
+- `utils/ollama_placement.py` : `ensure_best_placement(on_progress=…)` (D12).
+- `relay/relay_server.py` : `agent_service` partagé (constructeur) et `local_url`.
+- `interfaces/desktop/server.py` et `lifecycle.py` ; `launch_unified.py --headless [--port N]`.
+- Écarts à Tk décidés en route (à valider) : Ctrl+L (« Effacer la conversation ») vide la mémoire du
+  moteur et ouvre une nouvelle conversation, la session précédente reste enregistrée (avec la
+  sauvegarde automatique, vider la session en place l'effacerait) ; la génération de fichier répond
+  aussi au mobile (Tk le laissait attendre jusqu'au délai maximal) ; une session rechargée garde ses
+  horodatages (Tk les remplaçait par l'heure du chargement).
+- Message de fin de la génération de fichier : 8 messages fixes tirés au hasard, comme Tk
+  (`base.py:2399`) ; les documents (Word, PDF…) gardent leur message rédigé par le modèle. Le faire
+  rédiger par le modèle serait un appel de plus : seulement si Nicolas le demande.
 
 ---
 
