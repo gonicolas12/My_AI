@@ -151,6 +151,32 @@ def test_faster_integrated_gpu_is_kept(ollama, state, capsys):
     assert "réponse type 1,8× plus rapide qu'avec le processeur" in out
 
 
+def test_calibration_lines_reach_the_loading_screen(ollama, state, capsys):
+    """Les lignes de la console vont aussi à l'écran de chargement de la fenêtre."""
+    lines = []
+    placement.ensure_best_placement(ollama.restart, state_file=state, on_progress=lines.append)
+    assert lines[0].startswith("🔍 Recherche du meilleur emplacement pour le modèle")
+    assert "• Processeur : lecture 70 tok/s, écriture 11,4 tok/s" in lines
+    assert lines[-1].startswith("✅ Modèle placé sur le GPU intégré")
+    # La console garde les mêmes lignes
+    out = capsys.readouterr().out
+    assert all(line in out for line in lines)
+
+    # Placement déjà mesuré : rien à annoncer
+    lines.clear()
+    placement.ensure_best_placement(ollama.restart, state_file=state, on_progress=lines.append)
+    assert not lines
+
+
+def test_failing_progress_display_never_stops_the_calibration(ollama, state):
+    def broken(_line):
+        raise RuntimeError("fenêtre fermée")
+
+    assert placement.ensure_best_placement(
+        ollama.restart, state_file=state, on_progress=broken
+    ) == "gpu-integre"
+
+
 def test_graphics_card_holding_the_whole_model_is_left_to_ollama(ollama, state):
     """Carte graphique dédiée assez grande : Ollama y place déjà tout le modèle,
     rien à mesurer ni à redémarrer."""
