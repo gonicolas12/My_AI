@@ -351,15 +351,16 @@ class DesktopApp:
             if self._closing:
                 return
             self._closing = True
-        print("🛑 Fermeture de l'application...")
+        # flush : le lanceur sort par os._exit, qui ne vide pas les tampons
+        print("🛑 Fermeture de l'application...", flush=True)
         # Le Relay d'abord : ses tunnels (cloudflared, ssh) resteraient orphelins
         # et garderaient la console
         if self.relay is not None:
             try:
-                print("🛑 Arrêt du Relay...")
+                print("🛑 Arrêt du Relay...", flush=True)
                 self.relay.stop()
             except Exception as exc:  # pylint: disable=broad-except
-                print(f"⚠️ Arrêt Relay à la fermeture: {exc}")
+                print(f"⚠️ Arrêt Relay à la fermeture: {exc}", flush=True)
         if self.scheduler is not None:
             try:
                 self.scheduler.stop()
