@@ -530,7 +530,10 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   `utils/path_links.py`, section 8 de `docs/OPTIMIZATION.md`, la documentation listée en phase 0, les trois
   captures de `docs/images/` et la PWA (`app.js`, `agents.js`, survol).
 - Aucun code applicatif modifié en phase 0.
-- Push de la branche : voir le compte rendu de fin de phase.
+- Push de la branche **non fait** : `git -c credential.https://github.com.username=gonicolas12 push -u
+  origin feat/interface-web` échoue (« could not read Password for 'https://gonicolas12@github.com':
+  terminal prompts disabled »), comme prévu sur ce PC. En attente de la décision de Nicolas : connexion
+  unique avec `gonicolas12` dans un terminal, ou push avec le jeton déjà enregistré.
 
 ---
 
