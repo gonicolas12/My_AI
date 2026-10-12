@@ -11,8 +11,8 @@ fichier, en commençant par « État actuel ».
 
 - **Phase 0 (préparation) terminée le 2026-10-12.** Réponses de Nicolas reçues le même jour :
   décisions D1 à D13 (section 8).
-- En attente : précisions sur les questions 9 (KaTeX) et 11 (export d'un workflow), qui ne concernent
-  que les phases 2 et 4, et feu vert pour la phase 1 (section 13).
+- Toutes les questions de la phase 0 sont tranchées (D1 à D13). En attente du feu vert pour la phase 1
+  (section 13).
 
 ---
 
@@ -390,9 +390,14 @@ Numérotées comme les questions de la section 9.
   documents, image générée, source mobile) ; l'interface Tk les ignore sans erreur.
 - **D8. Artefacts** : comme dans Tk, un artefact HTML peut charger des ressources externes (iframe
   `sandbox` sans `allow-same-origin`, sans CSP qui les bloque) ; les aperçus natifs des documents Office
-  sont conservés. Réponse lue ainsi : « oui, je veux bien garder les aperçus natifs des documents ».
+  sont conservés. Lecture de la réponse confirmée par Nicolas le 2026-10-12.
+- **D9. KaTeX** : les formules LaTeX sont rendues dans le chat et dans les sorties d'agents ; KaTeX et
+  ses polices sont livrés avec l'appli et chargés seulement quand une réponse contient une formule.
 - **D10. Tokens/s** calculés à partir des statistiques de fin de flux d'Ollama (`eval_count`,
   `eval_duration`), sans appel supplémentaire au modèle.
+- **D11. Export d'un workflow** (bouton « 📤 Export » du canvas) : un fichier Markdown avec la tâche, la
+  liste des agents (nom, type, statut), puis la réponse de chacun à la dernière exécution. « Save »
+  continue d'enregistrer la structure en JSON ; `docs/AGENTS_GUI.md` sera aligné en phase 5.
 - **D12. Progression du placement** : paramètre facultatif ajouté à `ensure_best_placement`
   (rétrocompatible), pour que l'écran de chargement nomme les sous-étapes du calibrage.
 - **D13. Push** : sur le PC à RTX 3060, avec l'identifiant déjà enregistré, sans forcer le compte.
@@ -419,8 +424,8 @@ Numérotées comme les questions de la section 9.
 
 ## 9. Questions de la phase 0
 
-Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, et consigne pour la 13
-(décisions D1 à D13, section 8). Les questions 9 et 11 restent ouvertes (fin de section).
+Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
+questions 9 et 11 précisées puis tranchées le même jour (décisions D1 à D13, section 8).
 
 1. **Chevauchement desktop / mobile** : reproduire la politique Tk (le dernier message interrompt le
    précédent) ou une **file d'attente** ? Je recommande la file : Ollama traite de toute façon une requête
@@ -447,18 +452,18 @@ Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, et cons
     rétrocompatible. D'accord ?
 13. **Push de la branche** sur ce PC : voir le journal (section 12).
 
-### Restent ouvertes
+### Précisées puis tranchées le 2026-10-12
 
 - **Question 9 — KaTeX** (phase 2), expliquée le 2026-10-12. KaTeX affiche comme dans un manuel les
   formules que l'IA écrit en LaTeX (fractions, racines, exposants, lettres grecques), au lieu du texte
   brut avec ses dollars et ses barres obliques que le chat Tk affiche aujourd'hui. Environ 300 Ko de code
   et de polices livrés avec l'appli (rien en ligne), chargés seulement quand une réponse contient une
-  formule. Recommandation : oui.
+  formule. Recommandation : oui. **Réponse : oui (D9).**
 - **Question 11 — Export d'un workflow** (phase 4), reformulée le 2026-10-12. Le bouton « 📤 Export » du
   canvas écrit un fichier Markdown : (a) la liste des agents du workflow, comme le code Tk ; (b) le texte
   produit par chaque agent à la dernière exécution, comme le dit `docs/AGENTS_GUI.md` ; (c) les deux : la
   tâche, les agents, puis la réponse de chacun. Recommandation : (c), puisque « Save » enregistre déjà la
-  structure du workflow en JSON.
+  structure du workflow en JSON. **Réponse : (c) (D11).**
 
 ## 10. Risques repérés
 
@@ -481,6 +486,9 @@ Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, et cons
 - **Glisser-déposer dans WebView2** : le vrai chemin des fichiers (`pywebviewFullPath`) est à vérifier ;
   les dossiers ne sont pas gérés par Tk aujourd'hui.
 - **Raccourcis du navigateur dans WebView2** (Ctrl+R, F5, Ctrl+N, Ctrl+S, Ctrl+P, Ctrl+F…) à neutraliser.
+- **KaTeX (D9)** : un montant en dollars (« entre 5 $ et 10 $ ») peut être pris pour une formule. À
+  régler et tester en phase 2 (par exemple, pas d'espace juste après le `$` ouvrant ni juste avant le `$`
+  fermant, comme pandoc).
 - **Outillage front** : TypeScript 7 incompatible avec typescript-eslint ; Vite 8 / Vitest 5 exigent
   Node ≥ 22.12 (à vérifier sur le PC Arc) ; Streamdown embarque `rehype-raw` (à désactiver).
 - **Autre session Claude active sur ce PC** (projet ML-et-DL, `pip install` dans le même Python) :
@@ -578,7 +586,8 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   feat/interface-web` échoue (« could not read Password for 'https://gonicolas12@github.com': terminal
   prompts disabled »), comme prévu sur ce PC. Poussée ensuite avec l'identifiant déjà enregistré, sur
   consigne de Nicolas (D13).
-- Réponses de Nicolas aux questions : décisions D1 à D13 (section 8) ; questions 9 et 11 à préciser.
+- Réponses de Nicolas aux questions : décisions D1 à D13 (section 8) ; questions 9 et 11 précisées puis
+  tranchées (KaTeX : oui ; export d'un workflow : option c).
 
 ---
 
