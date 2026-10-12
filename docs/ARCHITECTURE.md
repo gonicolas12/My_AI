@@ -266,6 +266,12 @@ Sécurités:
 ├─ Validation légère des arguments avant exécution
 ├─ Document demandé mais pas créé : une relance avant de conclure, avec ou
 │  sans outils déjà utilisés
+├─ Recherches web vides (MAX_EMPTY_SEARCHES=2) et document demandé : le
+│  créer avec les connaissances du modèle, au lieu de reformuler encore
+├─ Document demandé créé, sans autre action demandée (« puis déplace-le »…) :
+│  synthèse aussitôt, sans tour de plus
+├─ Appel à Ollama en échec, document demandé pas encore créé : refait une
+│  fois ; le corps des erreurs HTTP est journalisé
 └─ Détection d'hallucinations dans la réponse finale
 ```
 

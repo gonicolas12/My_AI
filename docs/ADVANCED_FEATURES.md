@@ -650,6 +650,7 @@ ChatOrchestrator.run(query, history, tools, tool_executor, stream_callback)
 | `COMPACT_THRESHOLD` | 28 | Messages avant compaction |
 | `PLAN_MIN_QUERY_LEN` | 55 | Longueur minimale pour déclencher la planification |
 | `MAX_TOOL_USES` | 5 | Appels outils avant synthèse forcée |
+| `MAX_EMPTY_SEARCHES` | 2 | Recherches web vides avant de créer le document demandé |
 | `SYNTHESIS_HEAD_CHARS` | 160 | Début de synthèse retenu et validé avant affichage |
 | `SYNTHESIS_NUM_PREDICT` | 4096 | Tokens de la synthèse, réflexion comprise |
 

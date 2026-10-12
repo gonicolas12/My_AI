@@ -28,11 +28,15 @@ from core.ai_engine import (
 from core.chat_orchestrator import (
     _DOCUMENT_NUDGE,
     _DOCUMENT_TOOLS,
+    _EMPTY_SEARCH_NUDGE,
+    _FOLLOW_UP_RE,
     _PENDING_DOCUMENT_NUDGE,
+    MAX_EMPTY_SEARCHES,
     MAX_TOOL_USES,
     ChatOrchestrator,
     _announces_without_acting,
     _document_confirmation,
+    _searches_came_back_empty,
     _wants_document,
 )
 
@@ -454,9 +458,11 @@ def test_a_single_nudge_then_the_first_answer_stands():
 
 def test_unreachable_model_during_the_nudge_keeps_the_first_answer():
     """Un None ferait relancer une génération sans outils qui doublerait l'annonce."""
-    result, _calls, shown, _executed, _llm = _run_scripted(
-        "génère un pdf sur les dauphins", [_ANNOUNCE, None]
+    # Le document n'existe pas encore : l'appel est refait une fois
+    result, calls, shown, _executed, _llm = _run_scripted(
+        "génère un pdf sur les dauphins", [_ANNOUNCE, None, None]
     )
+    assert len(calls) == 3
     assert result == _ANNOUNCE
     assert shown == [_ANNOUNCE]
 
@@ -515,9 +521,10 @@ def test_document_is_still_created_once_empty_searches_use_up_the_budget():
         results={"web_search": _NO_RESULT},
     )
     assert executed == ["web_search"] * MAX_TOOL_USES + ["generate_document"]
-    # Budget épuisé : il ne reste que l'outil du document, puis plus rien
+    # Budget épuisé : il ne reste que l'outil du document…
     assert [t["function"]["name"] for t in calls[MAX_TOOL_USES]["tools"]] == ["generate_document"]
-    assert calls[MAX_TOOL_USES + 1]["tools"] == []
+    # … et la synthèse suit le document, sans autre tour
+    assert len(calls) == MAX_TOOL_USES + 1
     assert result == _SYNTHESIS
 
 
@@ -588,6 +595,179 @@ def test_no_pending_document_nudge(user_input, turns, tools, results):
     )
     assert len(calls) == 2
     assert result == _SYNTHESIS
+
+
+def test_empty_searches_lead_to_the_document():
+    """Le modèle reformulait jusqu'à épuiser le budget d'outils : le document
+    arrivait au 6e tour, parfois sans arguments, parfois jamais."""
+    result, calls, _shown, executed, _llm = _run_scripted(
+        _STORAGE,
+        _searches(MAX_EMPTY_SEARCHES) + [_GENERATE_CALL, "C'est fait."],
+        results={"web_search": _NO_RESULT},
+    )
+    assert executed == ["web_search"] * MAX_EMPTY_SEARCHES + ["generate_document"]
+    # Reformuler d'abord, puis créer le document sans attendre
+    assert all(
+        call["messages"][-1]["content"] != _EMPTY_SEARCH_NUDGE
+        for call in calls[1:MAX_EMPTY_SEARCHES]
+    )
+    assert calls[MAX_EMPTY_SEARCHES]["messages"][-1] == {
+        "role": "user", "content": _EMPTY_SEARCH_NUDGE
+    }
+    # Mêmes outils : le début du prompt ne change pas
+    assert calls[MAX_EMPTY_SEARCHES]["tools"] == calls[0]["tools"]
+    assert result == _SYNTHESIS
+
+
+@pytest.mark.parametrize(
+    "user_input, tools",
+    [
+        # Pas de document demandé : reformuler la recherche reste utile
+        ("cherche les règles de stockage des produits chimiques", None),
+        # L'outil du document n'est pas offert
+        (_STORAGE, [{"type": "function", "function": {"name": "web_search"}}]),
+    ],
+)
+def test_empty_searches_without_a_document_to_create(user_input, tools):
+    _result, calls, _shown, _executed, _llm = _run_scripted(
+        user_input,
+        _searches(MAX_EMPTY_SEARCHES) + ["Je n'ai rien trouvé."],
+        tools=tools,
+        results={"web_search": _NO_RESULT},
+    )
+    assert all(
+        message["content"] != _EMPTY_SEARCH_NUDGE
+        for call in calls for message in call["messages"]
+    )
+
+
+def test_a_search_with_results_is_not_an_empty_search():
+    empty = {"tool": "web_search", "result_preview": _NO_RESULT[:200]}
+    useful = {"tool": "web_search", "result_preview": "Résultats de recherche web pour « stockage »"}
+    assert _searches_came_back_empty([empty] * MAX_EMPTY_SEARCHES)
+    assert not _searches_came_back_empty([empty] * (MAX_EMPTY_SEARCHES - 1))
+    assert not _searches_came_back_empty([useful] + [empty] * MAX_EMPTY_SEARCHES)
+
+
+# ── Appel au modèle en échec ───────────────────────────────────────────────
+#
+# Ollama a renvoyé une fois un HTTP 500 sur l'appel qui n'offrait plus que
+# l'outil du document (budget épuisé) : la boucle s'arrêtait, et la réponse
+# arrivait sans fichier.
+
+
+def test_failed_call_is_retried_while_the_document_is_pending():
+    result, calls, _shown, executed, _llm = _run_scripted(
+        _STORAGE,
+        _searches(1) + [None, _GENERATE_CALL, "C'est fait."],
+        results={"web_search": _NO_RESULT},
+    )
+    assert executed == ["web_search", "generate_document"]
+    # Le même appel, refait tel quel
+    assert calls[2]["messages"] == calls[1]["messages"]
+    assert calls[2]["tools"] == calls[1]["tools"]
+    assert result == _SYNTHESIS
+
+
+def test_a_single_retry_before_concluding():
+    result, calls, _shown, executed, _llm = _run_scripted(
+        _STORAGE, _searches(1) + [None, None], results={"web_search": _NO_RESULT}
+    )
+    assert executed == ["web_search"]
+    assert len(calls) == 3
+    # Synthèse de secours avec ce que la boucle a collecté
+    assert result == _SYNTHESIS
+
+
+@pytest.mark.parametrize(
+    "user_input, turns",
+    [
+        # Pas de document demandé
+        ("cherche les règles de stockage des produits chimiques", _searches(1) + [None]),
+        # Document déjà créé (la demande continue après lui)
+        (_STORAGE + " puis envoie-le par mail", [_GENERATE_CALL, None]),
+        # Premier tour : sa réponse s'affichait peut-être déjà
+        (_STORAGE, [None]),
+    ],
+)
+def test_failed_call_is_not_retried(user_input, turns):
+    _result, calls, _shown, _executed, _llm = _run_scripted(
+        user_input, turns, results={"web_search": _NO_RESULT}
+    )
+    assert len(calls) == len(turns)
+
+
+def test_ollama_error_body_is_logged(monkeypatch, capsys):
+    """L'Ollama lancé par launch_unified.py n'écrit aucun journal : sans le
+    corps de l'erreur, la cause d'un HTTP 500 restait inconnue."""
+
+    class _ErrorResponse:
+        status_code = 500
+        text = '{"error":"failed to parse tool call"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    monkeypatch.setattr(
+        "core.chat_orchestrator._resilient_post", lambda *_args, **_kwargs: _ErrorResponse()
+    )
+    result = ChatOrchestrator()._call_ollama_smart_stream(
+        llm=_ScriptedLLM(), messages=[], tools=[]
+    )
+    assert result is None
+    assert 'HTTP 500 : {"error":"failed to parse tool call"}' in capsys.readouterr().out
+
+
+# ── Synthèse dès le document créé ──────────────────────────────────────────
+#
+# Le tour qui suivait le document était rédigé puis jeté, et suivait parfois
+# une étape inventée du plan : le modèle déplaçait le document qu'il venait de
+# créer.
+
+
+def test_the_synthesis_follows_the_document():
+    result, calls, _shown, executed, _llm = _run_scripted(_STORAGE, [_GENERATE_CALL])
+    assert executed == ["generate_document"]
+    assert len(calls) == 1
+    assert result == _SYNTHESIS
+
+
+def test_a_follow_up_keeps_the_loop_going():
+    move = {"name": "move_local_file", "arguments": {"source": "a.docx", "destination": "Projets"}}
+    _result, _calls, _shown, executed, _llm = _run_scripted(
+        _STORAGE + " puis déplace-le dans Projets",
+        [_GENERATE_CALL, move, "C'est fait."],
+        tools=_TOOLS + [{"type": "function", "function": {"name": "move_local_file"}}],
+        results={"move_local_file": "Succès : déplacé/renommé de a.docx vers Projets"},
+    )
+    assert executed == ["generate_document", "move_local_file"]
+
+
+def test_a_failed_document_keeps_the_loop_going():
+    _result, calls, _shown, _executed, _llm = _run_scripted(
+        _STORAGE,
+        [_GENERATE_CALL, "Je n'ai pas pu créer le document."],
+        results={"generate_document": "Génération impossible : Ollama arrêté"},
+    )
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "request_text, follow_up",
+    [
+        ("crée un rapport sur les ventes puis envoie-le par mail", True),
+        ("génère un docx et déplace-le dans Projets", True),
+        ("fais un PowerPoint, ensuite ouvre-le", True),
+        ("crée un rapport depuis ces notes", False),
+        ("rédige un compte rendu du sprint", False),
+        (_STORAGE, False),
+    ],
+)
+def test_follow_up_actions_are_detected(request_text, follow_up):
+    assert bool(_FOLLOW_UP_RE.search(request_text)) is follow_up
 
 
 # ── « Tableau » : données ou peinture ─────────────────────────────────────

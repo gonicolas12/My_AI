@@ -48,6 +48,7 @@ LOOP_THRESHOLD: int = 2         # Nb d'appels identiques avant détecter boucle 
 COMPACT_THRESHOLD: int = 28     # Nb de messages avant compaction (hors system + user)
 PLAN_MIN_QUERY_LEN: int = 55    # Longueur minimale pour déclencher la planification
 MAX_TOOL_USES: int = 5          # Nb max d'appels outils avant synthèse forcée
+MAX_EMPTY_SEARCHES: int = 2     # Recherches web vides avant de créer le document demandé
 SYNTHESIS_HEAD_CHARS: int = 160 # Début de synthèse validé avant tout affichage
 SYNTHESIS_NUM_PREDICT: int = 4096  # Tokens de la synthèse, réflexion comprise
 SCRATCHPAD_GOAL_CHARS: int = 300   # Début et fin de la demande repris en OBJECTIF du scratchpad
@@ -90,6 +91,16 @@ def _wants_document(user_input: str) -> bool:
 # Outils dont un appel livre le fichier demandé (un fichier texte écrit par
 # write_local_file en est un) : après eux, plus rien n'est attendu
 _DELIVERABLE_TOOLS = _DOCUMENT_TOOLS | {"write_local_file"}
+
+
+# Action qu'une demande enchaîne après le document (« crée le rapport puis
+# déplace-le dans Projets ») : la boucle continue alors une fois le document créé
+_FOLLOW_UP_RE = re.compile(
+    r"\b(?:puis|ensuite|then|déplacer?|deplacer?|move|copier?|copy|renommer?|rename|"
+    r"envoie|envoyer|send|e-?mail|mail|ouvre|ouvrir|open|supprimer?|delete|"
+    r"imprimer?|print|partager?|share)\b",
+    re.IGNORECASE,
+)
 
 
 def _document_pending(user_input: str, tool_calls_log: List[Dict]) -> bool:
@@ -164,6 +175,25 @@ _PENDING_DOCUMENT_NUDGE = (
     "produire avec ce que tu as collecté, ou avec tes connaissances si les "
     "recherches n'ont rien donné. Ne réponds pas en texte."
 )
+
+# À la place de « Reformule ta recherche » quand les recherches web reviennent
+# vides et qu'un document est demandé : hors ligne, le modèle reformulait
+# jusqu'à épuiser le budget d'outils, et créait le document au 6e tour, parfois
+# jamais.
+_EMPTY_SEARCH_NUDGE = (
+    "La recherche web n'a rien donné : n'insiste pas. Appelle MAINTENANT "
+    "'generate_document' pour créer le document demandé avec tes "
+    "connaissances, puis précise dans ta réponse finale que la recherche "
+    "n'a rien donné."
+)
+
+
+def _searches_came_back_empty(tool_calls_log: List[Dict]) -> bool:
+    """True après MAX_EMPTY_SEARCHES recherches web, toutes vides."""
+    searches = [tc for tc in tool_calls_log if tc.get("tool") == "web_search"]
+    return len(searches) >= MAX_EMPTY_SEARCHES and all(
+        _tool_failed("web_search", tc.get("result_preview", "")) for tc in searches
+    )
 
 
 def _announces_without_acting(answer: str) -> bool:
@@ -283,10 +313,16 @@ _SYNTHESIS_RULES = (
     f"3. Règle absolue sur les fichiers : assure-toi de vérifier et de respecter rigoureusement les chemins absolus complets (y compris la lettre de lecteur sous Windows). Ne raccourcis surtout pas un chemin (par exemple, si le dossier précédent était '{_PATH_EX['home']}{_PATH_EX['sep']}OneDrive{_PATH_EX['sep']}Python{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto', ne le transforme pas en '{_PATH_EX['home']}{_PATH_EX['sep']}My_AI{_PATH_EX['sep']}Tuto').\n"
     "4. Si les outils ont renvoyé des informations, utilise TOUTES ces informations pour répondre.\n"
     "5. Si l'objectif était simplement de créer ou modifier un fichier (hors document, voir règle 6), confirme la tâche et donne un résumé très bref.\n"
+    # Chemin complet demandé : la synthèse suit désormais le document sans la
+    # relance de la boucle sur les chemins, et la réponse le réduisait parfois
+    # à « votre dossier OneDrive ». Demandé seul, il évinçait la phrase sur la
+    # recherche vide (2 réponses sur 6 au lieu de 11 sur 12) : elle l'est aussi
     "6. Si un DOCUMENT a été généré (Word, PDF, PowerPoint, Excel…), ne te contente pas de confirmer : "
-    "présente-le en 2 à 4 phrases naturelles — son titre, son sujet et les principales parties qu'il couvre, "
+    "présente-le en 2 à 4 phrases naturelles — son titre, son chemin complet, son sujet et les principales "
+    "parties qu'il couvre, "
     "en t'appuyant sur le « Plan du document » renvoyé par l'outil. N'invente aucune partie absente de ce plan "
-    "et ne recopie pas le contenu du document.\n\n"
+    "et ne recopie pas le contenu du document. Si les recherches web n'ont rien donné, dis-le en une "
+    "phrase : le document s'appuie alors sur tes connaissances.\n\n"
     "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
     "Si les résultats des outils contiennent des URLs ou des liens au format [Titre](URL), "
     "tu DOIS les reproduire EXACTEMENT dans ta section Sources/Références.\n"
@@ -593,6 +629,9 @@ class ChatOrchestrator:
         # Relance déjà faite pour un document demandé que la boucle, outils
         # utilisés, s'apprêtait à conclure sans l'avoir créé
         document_nudged: bool = False
+        # Appel au modèle déjà refait après un échec d'Ollama, le document
+        # demandé n'existant pas encore
+        call_retried: bool = False
         # Outils du dernier appel au modèle : la synthèse les renvoie tels quels
         last_call_tools: Optional[List[Dict]] = None
 
@@ -719,17 +758,35 @@ class ChatOrchestrator:
             # thinking. La synthèse aura son propre thinking en fin de cycle.
             _enable_thinking_this_turn = (tour == 0 and on_thinking_token is not None)
             last_call_tools = tools_for_call
-            response_msg = self._call_ollama_smart_stream(
-                llm=llm,
-                messages=messages,
-                tools=tools_for_call,
-                on_token=_stream_direct,
-                is_interrupted_callback=is_interrupted_callback,
-                on_thinking_token=on_thinking_token,
-                on_thinking_complete=on_thinking_complete,
-                enable_thinking=_enable_thinking_this_turn,
-                thinking_header="🧠 Analyse :\n",
-            )
+            call = {
+                "llm": llm,
+                "messages": messages,
+                "tools": tools_for_call,
+                "on_token": _stream_direct,
+                "is_interrupted_callback": is_interrupted_callback,
+                "on_thinking_token": on_thinking_token,
+                "on_thinking_complete": on_thinking_complete,
+                "enable_thinking": _enable_thinking_this_turn,
+                "thinking_header": "🧠 Analyse :\n",
+            }
+            response_msg = self._call_ollama_smart_stream(**call)
+            if (
+                response_msg is None
+                and not call_retried
+                and _stream_direct is None
+                and _document_pending(user_input, tool_calls_log)
+                and not (is_interrupted_callback and is_interrupted_callback())
+            ):
+                # Ollama a renvoyé une fois un HTTP 500 sur l'appel qui
+                # n'offrait plus que l'outil du document : la boucle s'arrêtait
+                # et la réponse arrivait sans fichier. Rien n'a été affiché
+                # (pas d'on_token) : l'appel est refait une fois, tel quel.
+                call_retried = True
+                print(
+                    f"🔁 [ChatOrchestrator] Appel Ollama échoué au tour {tour + 1}, "
+                    f"document pas encore créé → nouvel essai"
+                )
+                response_msg = self._call_ollama_smart_stream(**call)
             if response_msg is None:
                 print(f"⚠️  [ChatOrchestrator] Appel Ollama échoué au tour {tour + 1}")
                 break
@@ -1051,7 +1108,23 @@ class ChatOrchestrator:
                 )
             )
 
-            if _file_not_found and len(tool_calls_log) < MAX_TOOL_USES:
+            # Document demandé créé, sans autre action demandée : la synthèse le
+            # présente aussitôt. Le tour suivant, rédigé puis jeté, suivait
+            # parfois une étape inventée du plan (déplacer le document créé).
+            _document_delivered = (
+                _last_tool_name in _DOCUMENT_TOOLS
+                and _last_result.startswith("Succès")
+                and _wants_document(user_input)
+                and not _FOLLOW_UP_RE.search(user_input)
+            )
+
+            if _document_delivered:
+                force_synthesis = True
+                print(
+                    f"   📄 [ChatOrchestrator] Document créé, rien d'autre de demandé "
+                    f"→ synthèse (tour {tour + 1})"
+                )
+            elif _file_not_found and len(tool_calls_log) < MAX_TOOL_USES:
                 # Fichier introuvable → demander une recherche pour trouver le bon chemin
                 print(
                     f"   🔍 [ChatOrchestrator] Fichier introuvable → recherche automatique (tour {tour + 1})"
@@ -1064,6 +1137,20 @@ class ChatOrchestrator:
                         "et récupérer son chemin exact, puis réessaie l'action avec ce chemin."
                     ),
                 })
+            elif (
+                _result_is_poor
+                and len(tool_calls_log) < MAX_TOOL_USES
+                and _searches_came_back_empty(tool_calls_log)
+                and _document_pending(user_input, tool_calls_log)
+                and _document_tools(tools_for_call)
+            ):
+                # Recherches web vides, document demandé : le créer sans attendre
+                # plutôt que reformuler jusqu'à épuiser le budget d'outils
+                print(
+                    f"   📄 [ChatOrchestrator] Recherches web vides, document demandé "
+                    f"→ création sans attendre (tour {tour + 1})"
+                )
+                messages.append({"role": "user", "content": _EMPTY_SEARCH_NUDGE})
             elif _result_is_poor and len(tool_calls_log) < MAX_TOOL_USES:
                 # Résultats insuffisants → encourager à retenter avec d'autres termes
                 print(
@@ -1735,7 +1822,12 @@ class ChatOrchestrator:
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
-                    print(f"⚠️  [ChatOrchestrator] smart_stream HTTP {resp.status_code}")
+                    # Le corps de l'erreur en dit la cause : l'Ollama lancé par
+                    # launch_unified.py n'écrit aucun journal
+                    print(
+                        f"⚠️  [ChatOrchestrator] smart_stream HTTP {resp.status_code} : "
+                        f"{resp.text[:300]}"
+                    )
                     return None
 
                 for raw_line in resp.iter_lines():
@@ -2035,7 +2127,10 @@ class ChatOrchestrator:
                 llm.chat_url, json=data, timeout=llm.timeout, stream=True
             ) as resp:
                 if resp.status_code != 200:
-                    print(f"⚠️  [ChatOrchestrator] synthesis stream HTTP {resp.status_code}")
+                    print(
+                        f"⚠️  [ChatOrchestrator] synthesis stream HTTP {resp.status_code} : "
+                        f"{resp.text[:300]}"
+                    )
                     return "", None
 
                 for raw_line in resp.iter_lines():
