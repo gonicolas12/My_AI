@@ -11,11 +11,13 @@ fichier, en commençant par « État actuel ».
 
 - **Phase 0 (préparation) terminée le 2026-10-12.** Réponses de Nicolas reçues le même jour :
   décisions D1 à D13 (section 8).
-- **Phase 1 en cours** (feu vert le 2026-10-12). Faits et testés avec un moteur simulé : protocole
-  d'événements, `ChatService`, serveur local, cycle de vie, mode `--headless`, progression du
-  placement, service d'agents partagé et adresse locale du Relay (journal, section 12).
-- Prochaine étape : vérifications sur le vrai Ollama (client WebSocket, chat mobile sans fenêtre,
-  reprise du prompt au deuxième tour comparée à Tk), puis suite complète des tests.
+- **Phase 1 (backend sans interface) terminée le 2026-10-12**, en attente du feu vert pour la phase 2.
+  Protocole d'événements, `ChatService`, serveur local, cycle de vie, mode `--headless`, progression du
+  placement, service d'agents partagé et adresse locale du Relay : testés avec un moteur simulé, puis
+  vérifiés sur le vrai Ollama (client WebSocket avec streaming et Stop, chat mobile sans fenêtre,
+  reprise du prompt au deuxième tour identique à Tk). Détails dans le journal (section 12).
+- Prochaine étape : phase 2 (plan proposé en section 14), après le feu vert de Nicolas. Questions de la
+  phase 1 : section 9.
 
 ---
 
@@ -94,8 +96,11 @@ Vérifiable ici : Windows, WebView2, visionneuses Office natives, micro, carte N
 ## 3. Tests de référence (phase 0)
 
 `python -m pytest tests/` (avec `PYTHONIOENCODING=utf-8`, `-p no:cacheprovider`) : **930 réussis, aucun
-échec, aucun ignoré, 31 avertissements, 3 min 48 s**. Aucun test n'appelle le vrai Ollama : tous le
-simulent (aucun modèle chargé après la suite).
+échec, aucun ignoré, 31 avertissements, 3 min 48 s**. Aucun test ne demande de réponse au vrai Ollama.
+Correction du 2026-10-12 (phase 1) : quand Ollama tourne, `test_ai_engine.py` et
+`test_attachment_refusal.py` créent un vrai `AIEngine()`. Son préchauffage envoie alors « hi » à
+Ollama et charge `my_ai`. La note de la phase 0 (« aucun modèle chargé après la suite ») était fausse.
+Conséquence : ne pas lancer la suite pendant une mesure sur le vrai Ollama.
 
 - Plus longs : `test_imports.py::test_agents_package_imports_on_its_own` (15,5 s),
   `test_agent_attachments.py::test_pdf_without_text_raises` (6,5 s),
@@ -425,6 +430,24 @@ Numérotées comme les questions de la section 9.
   en texte, `connections` à identifiants entiers, `zoom`, `pan_x`, `pan_y`) ; la PWA utilise un autre
   format (liste de nœuds) dans son stockage local, sans incidence.
 
+### Constats de la phase 1 : reprise du prompt par Ollama avec `qwen3.5`
+
+- `my_ai` (qwen3.5) mêle couches d'attention et couches récurrentes. Ollama 0.40 (runner llama-server)
+  ne peut donc pas revenir à n'importe quelle position du cache. Il garde des points de reprise
+  (« context checkpoints », 50 Mo chacun), posés pendant la lecture de chaque prompt, dont un 4 jetons
+  avant la fin.
+- Le prompt d'un tour se termine par le bloc de réflexion vide du rendu `qwen3.5` (4 jetons). Dans
+  l'historique, la réponse est réécrite sans ce bloc. Au tour suivant, Ollama reprend donc au point posé
+  4 jetons avant la fin du prompt précédent, puis relit la réponse précédente et le nouveau message. Le
+  message système, les outils et les tours plus anciens ne sont pas relus.
+- Un prompt qui n'est que le début du précédent (requête intercalée plus courte, édition d'un tour
+  ancien) n'a aucun point de reprise utilisable : tout est relu (« forcing full prompt re-processing »).
+  Le cache de prompts du serveur (8 Go en mémoire vive) peut ensuite resservir un prompt déjà vu : le
+  préchauffage « hi », ou le premier tour d'une conversation qui commence pareil.
+- `prompt_eval_count` compte tout le prompt. Le nombre de jetons réellement relus figure dans le journal
+  du serveur (« prompt eval time = … ms / N tokens »), à condition de relancer `ollama serve` avec une
+  sortie capturée : le lanceur l'envoie dans DEVNULL.
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -467,6 +490,23 @@ questions 9 et 11 précisées puis tranchées le même jour (décisions D1 à D1
   produit par chaque agent à la dernière exécution, comme le dit `docs/AGENTS_GUI.md` ; (c) les deux : la
   tâche, les agents, puis la réponse de chacun. Recommandation : (c), puisque « Save » enregistre déjà la
   structure du workflow en JSON. **Réponse : (c) (D11).**
+
+### Questions de la phase 1 (posées le 2026-10-12)
+
+14. **Écarts à Tk décidés en route** (journal, section 12) : Ctrl+L ouvre une nouvelle conversation et
+    l'ancienne reste enregistrée ; la génération de fichier répond aussi au mobile ; une session
+    rechargée garde ses horodatages. D'accord ?
+15. **Tokens/s (D10)** : les statistiques de fin de flux d'Ollama sont lues uniquement dans
+    `core/chat_orchestrator.py`, que le prompt interdit de modifier. Trois options :
+    - (a) un relevé en lecture seule dans l'orchestrateur : `eval_count` et `eval_duration` du dernier
+      flux gardés dans un attribut, requêtes inchangées, aucun appel en plus ;
+    - (b) envelopper `_resilient_post` depuis le `ChatService`, comme le fait `tools/measure_energy.py`.
+      Le fichier reste intact, mais c'est plus fragile ;
+    - (c) garder l'estimation actuelle (un fragment streamé = un jeton). Comparée à Ollama, elle est 1 %
+      trop basse pour une réponse longue, 10 à 17 % trop basse pour une réponse de 120 jetons, et absente
+      sous 0,2 s.
+
+    Recommandation : (a).
 
 ## 10. Risques repérés
 
@@ -615,10 +655,60 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 - Message de fin de la génération de fichier : 8 messages fixes tirés au hasard, comme Tk
   (`base.py:2399`) ; les documents (Word, PDF…) gardent leur message rédigé par le modèle. Le faire
   rédiger par le modèle serait un appel de plus : seulement si Nicolas le demande.
+- `lifecycle.py` : les messages d'arrêt sont écrits tout de suite (`flush=True`). Le lanceur sort par
+  `os._exit`, qui perdait « 🛑 Fermeture… » dans un journal redirigé.
+- Vérifications sur le vrai Ollama, celui du lanceur (100 % GPU, contexte en 8 bits), avec des scripts
+  hors dépôt :
+  - `--headless` : les étapes du chargement s'enchaînent jusqu'à « prêt », avec le placement. Client
+    WebSocket : premier jeton en 6,9 s (modèle froid), 73 jetons/s ; Stop garde la réponse partielle,
+    marquée interrompue ; la session prend le nom du premier message.
+  - Chat mobile sans fenêtre : Relay démarré par l'API, client chiffré comme la PWA. Premier fragment en
+    0,8 s. Stop mobile : le texte partiel arrive suivi de « ⚠️ *Réponse interrompue.* ». Côté PC, le
+    message est enregistré avec `source=mobile` et marqué interrompu.
+  - Arrêt par `/api/shutdown` : Relay, puis scheduler (verrou libéré), puis serveur ; code de sortie 0.
+- **Reprise du prompt, Tk contre web** (critère de fin de la phase 1).
+  - Méthode : six essais alternés Tk / web, avec un moteur neuf à chaque essai. Tk est piloté par sa
+    vraie fenêtre (`send_message`), le web par le `ChatService`. Les jetons relus sont lus dans le
+    journal du serveur (section 8).
+  - Conversation : « Écris un texte d'environ trois cents mots sur l'histoire du café, en trois
+    paragraphes. », puis « Propose un titre court pour ce texte. ».
+
+  | Essai | Jetons repris au 2e tour | Jetons relus | Durée de relecture | Premier jeton |
+  |---|---|---|---|---|
+  | Tk 1 | 4 825 | 648 | 560 ms | 0,60 s |
+  | web 1 | 4 825 | 494 | 272 ms | 0,32 s |
+  | Tk 2 | 4 825 | 603 | 464 ms | 0,50 s |
+  | web 2 | 4 825 | 628 | 331 ms | 0,37 s |
+  | Tk 3 | 4 825 | 454 | 412 ms | 0,46 s |
+  | web 3 | 4 825 | 916 | 461 ms | 0,51 s |
+
+  - Premier tour : les deux interfaces envoient les mêmes messages, les mêmes options et les mêmes
+    15 outils (empreintes identiques). Le deuxième tour prolonge exactement le premier.
+  - Deuxième tour : Ollama reprend les 4 825 jetons du premier prompt (message système, outils, première
+    question). Il relit la réponse précédente et la nouvelle question (454 à 916 jetons, selon la
+    longueur de la réponse). Aucune relecture complète.
+  - Le web n'est pas plus lent : il relit même un peu plus vite par jeton (0,5 ms contre 0,8 ms). Cause
+    non vérifiée : peut-être la fenêtre Tk, qui occupe le processeur.
+  - Tokens/s estimés par le `ChatService`, comparés aux statistiques d'Ollama : 71,4 à 72,4 contre 72,2
+    à 73,1 pour des réponses de 470 à 900 jetons ; 61,7 à 67,4 contre 73,9 à 74,6 pour des réponses de
+    120 jetons ; aucune estimation pour une réponse de 11 jetons. Voir la question 15.
+  - Contrôle sans l'appli, par des requêtes `/api/chat` directes : un prompt qui prolonge exactement le
+    précédent coûte 83 ms, contre 1 230 ms à froid. C'est le comportement du modèle, pas de l'interface.
+- Suite complète : **987 réussis** (930 + 57 nouveaux), aucun échec, 33 avertissements. Les 2 nouveaux
+  avertissements viennent d'uvicorn 0.34, qui importe l'API `websockets.legacy`, dépréciée.
+- Nettoyage : j'ai retiré la session et les 6 entrées d'historique créées par les clients de test, ainsi
+  que `data/.desktop_state.json`. Les données de test de la phase 0 sont intactes (4 sessions,
+  12 entrées).
+- Ollama : le lanceur l'a relancé pendant les vérifications (l'application bureau d'Ollama a alors été
+  arrêtée). Je l'ai relancé ensuite avec le même environnement, journal capturé le temps du diagnostic.
+  Il tourne maintenant comme le lanceur le laisse.
 
 ---
 
-## 13. Plan de la phase 1 (proposé, en attente du feu vert)
+## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
+
+`--ui web|tk` est reporté à la phase 2, où le prompt le place. `tests/test_ollama_restart.py` n'a pas
+eu besoin de changer.
 
 Fichiers créés : `core/chat_service.py`, `interfaces/desktop/__init__.py`, `interfaces/desktop/server.py`,
 `interfaces/desktop/events.py`, `interfaces/desktop/lifecycle.py` (étapes de lancement et cycle de vie),
@@ -656,3 +746,73 @@ du calibrage, D12). Aucun fichier Tk modifié ; `core/chat_orchestrator.py` into
 Risques propres à la phase 1 : appels au moteur différents de Tk (reprise du prompt perdue) ; course
 entre le fil du moteur et la boucle asyncio ; sessions modifiées par le panneau Mémoire ; arrêt propre
 des tunnels du Relay.
+
+---
+
+## 14. Plan de la phase 2 (proposé, en attente du feu vert)
+
+But (prompt, §9) : le squelette de l'interface et le cœur du Chat, dans la vraie fenêtre.
+
+Fichiers créés :
+
+- `frontend/` : Vite 8, React 19.3, TypeScript 6.0.x en mode strict, ESLint (typescript-eslint),
+  Prettier, Vitest 5. Avec `src/styles/tokens.css` (couleurs du §8) et les polices Inter et JetBrains
+  Mono livrées avec l'appli (@fontsource). `frontend/dist/` est versionné (décision du prompt).
+- `interfaces/desktop/window.py` : la fenêtre pywebview (titre, icône, taille minimale, barre de titre
+  sombre, liens externes dans le navigateur du système, outils de développement en mode debug).
+- Tests : Vitest pour le protocole, l'état et le rendu Markdown ; pytest pour `window.py` et les
+  options du lanceur.
+
+Fichiers modifiés :
+
+- `launch_unified.py` : options `--ui web|tk` et `--dev` ; stubs de `tests/test_ollama_restart.py` si
+  ses imports changent.
+- `interfaces/desktop/lifecycle.py` et `server.py` : la fenêtre s'ouvre tout de suite sur l'écran de
+  chargement, et la fermer arrête l'appli proprement.
+- `requirements.txt` (pywebview), `.gitignore` (`frontend/node_modules/`, captures), `.gitattributes`
+  (`frontend/** text eol=lf`, `frontend/dist/** -diff linguist-generated`).
+- Ni Tk, ni l'orchestrateur, ni le Relay.
+
+Étapes :
+
+1. Outillage du front et jetons de couleur. Le build est vérifié hors ligne : aucune ressource externe.
+2. Couche protocole : le jeton est lu dans le fragment de l'URL puis retiré de l'adresse ; REST et
+   WebSocket authentifiés ; reprise après reconnexion (`seq`) ; état de l'appli dans Zustand.
+3. Écran de chargement branché sur `engine.status` (étapes, sous-étapes du calibrage, Ollama arrêté),
+   puis bascule sur « prêt ».
+4. Coquille : onglets Chat et Agents (Agents reste vide jusqu'à la phase 4), structure de la sidebar
+   (conversations, nouvelle conversation), écran d'accueil.
+5. Fil de messages :
+   - liste virtualisée (react-virtuoso) ;
+   - streaming regroupé par image affichée, pas un rendu par jeton ;
+   - Markdown sans HTML brut ; Streamdown (HTML brut désactivé) ou react-markdown + remark-gfm,
+     départagés par une mesure ;
+   - blocs de code colorés par Shiki, chargé à la demande ;
+   - réflexion repliable, appels d'outils, Stop, états « interrompu » et « erreur ».
+6. Saisie : Entrée envoie, Maj+Entrée va à la ligne, Échap arrête la réponse (D6), les messages en
+   attente sont visibles (D1).
+7. KaTeX chargé à la demande (D9). Règle des dollars : pas d'espace juste après le `$` ouvrant ni juste
+   avant le `$` fermant. Testée sur des montants (« entre 5 $ et 10 $ »).
+8. Fenêtre pywebview et `--ui web|tk` (défaut `web` dès que le Chat de base fonctionne). Raccourcis du
+   navigateur neutralisés (Ctrl+R, F5, Ctrl+N, Ctrl+P, Ctrl+F, Ctrl+S…).
+9. Mesures avec les DevTools et le React Profiler :
+   - défilement sur la session de 200 messages ;
+   - réponse de 5 000 jetons en streaming, sans bloquer la saisie ni le défilement ;
+   - fenêtre réactive pendant une indexation lourde.
+
+   Captures Playwright (Chromium headless) des états clés, comparées à `docs/images/` et au §8.
+
+Risques :
+
+- Streaming : un Markdown re-rendu à chaque jeton saccade. Parade : regrouper par image et figer les
+  blocs terminés.
+- Sécurité :
+  - aucun HTML brut, CSP stricte (`script-src 'self'`) ;
+  - Shiki avec son moteur JavaScript, sans WebAssembly, sinon la CSP doit l'autoriser ;
+  - en mode `--dev`, l'origine de Vite et le WebSocket du rechargement à chaud.
+- Installation :
+  - pywebview 6.2.1 dans le Python 3.11 global installerait pythonnet 3.2.1 et ferait passer cffi de
+    1.16.0 à 2.1.1. cryptography 45.0.5 en dépend : je le vérifierai après l'installation ;
+  - Playwright télécharge Chromium (environ 150 Mo, hors du dépôt).
+- WebView2 : raccourcis du navigateur, barre de titre sombre (API Windows), outils de développement.
+- `frontend/dist/` versionné : le build est à refaire avant chaque commit qui touche le front.
