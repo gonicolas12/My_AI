@@ -9,8 +9,10 @@ fichier, en commençant par « État actuel ».
 
 ## État actuel
 
-- **Phase 0 (préparation) terminée le 2026-10-12**, en attente du feu vert pour la phase 1.
-- Prochaine étape : réponses aux questions ouvertes (section 9), puis phase 1 (section 13).
+- **Phase 0 (préparation) terminée le 2026-10-12.** Réponses de Nicolas reçues le même jour :
+  décisions D1 à D13 (section 8).
+- En attente : précisions sur les questions 9 (KaTeX) et 11 (export d'un workflow), qui ne concernent
+  que les phases 2 et 4, et feu vert pour la phase 1 (section 13).
 
 ---
 
@@ -370,6 +372,32 @@ local sur 127.0.0.1 (REST + un WebSocket), jeton par lancement, vérification de
 `ChatService` sans dépendance d'interface ; `frontend/dist/` versionné ; module `shell` ; visionneuses
 Office natives dans le volet ; branche `feat/interface-web`.
 
+### Prises le 2026-10-12 (réponses de Nicolas aux questions de la phase 0)
+
+Numérotées comme les questions de la section 9.
+
+- **D1. File d'attente** : les messages du desktop et du mobile passent par une file commune et sont
+  traités un à la fois ; l'interface montre ceux qui attendent ; Stop arrête la requête en cours.
+- **D2. Sessions** : Ctrl+N ouvre une conversation vide, nommée d'après le début de son premier message
+  (aucun appel au modèle) ; la session courante est sauvegardée après chaque tour et retenue d'un
+  lancement à l'autre.
+- **D3. Rechargement d'une session** : l'historique du LLM est toujours reconstruit depuis la
+  conversation affichée (Tk ne le faisait que s'il y avait des variantes d'édition).
+- **D4.** Plus de troncature de l'historique à 100 messages.
+- **D5. « Régénérer »** au survol d'une réponse : nouvelle variante ‹ k/n › du même message.
+- **D6. Échap** arrête la génération quand aucun dialogue ni menu n'est ouvert.
+- **D7. Sessions enrichies** par des clés optionnelles dans chaque message (réflexion, appels d'outils,
+  documents, image générée, source mobile) ; l'interface Tk les ignore sans erreur.
+- **D8. Artefacts** : comme dans Tk, un artefact HTML peut charger des ressources externes (iframe
+  `sandbox` sans `allow-same-origin`, sans CSP qui les bloque) ; les aperçus natifs des documents Office
+  sont conservés. Réponse lue ainsi : « oui, je veux bien garder les aperçus natifs des documents ».
+- **D10. Tokens/s** calculés à partir des statistiques de fin de flux d'Ollama (`eval_count`,
+  `eval_duration`), sans appel supplémentaire au modèle.
+- **D12. Progression du placement** : paramètre facultatif ajouté à `ensure_best_placement`
+  (rétrocompatible), pour que l'écran de chargement nomme les sous-étapes du calibrage.
+- **D13. Push** : sur le PC à RTX 3060, avec l'identifiant déjà enregistré, sans forcer le compte.
+  Toujours ni push ni fusion sur `main` sans accord.
+
 ### Constats techniques qui orientent la phase 1
 
 - **Brancher le mobile sans toucher au Relay** : `RelayBridge` offre déjà `on_gui_message(callback)` ;
@@ -389,7 +417,10 @@ Office natives dans le volet ; branche `feat/interface-web`.
   en texte, `connections` à identifiants entiers, `zoom`, `pan_x`, `pan_y`) ; la PWA utilise un autre
   format (liste de nœuds) dans son stockage local, sans incidence.
 
-## 9. Questions ouvertes (réponses attendues avant la phase 1)
+## 9. Questions de la phase 0
+
+Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, et consigne pour la 13
+(décisions D1 à D13, section 8). Les questions 9 et 11 restent ouvertes (fin de section).
 
 1. **Chevauchement desktop / mobile** : reproduire la politique Tk (le dernier message interrompt le
    précédent) ou une **file d'attente** ? Je recommande la file : Ollama traite de toute façon une requête
@@ -415,6 +446,19 @@ Office natives dans le volet ; branche `feat/interface-web`.
     un paramètre facultatif de progression à `ensure_best_placement` (`utils/ollama_placement.py`),
     rétrocompatible. D'accord ?
 13. **Push de la branche** sur ce PC : voir le journal (section 12).
+
+### Restent ouvertes
+
+- **Question 9 — KaTeX** (phase 2), expliquée le 2026-10-12. KaTeX affiche comme dans un manuel les
+  formules que l'IA écrit en LaTeX (fractions, racines, exposants, lettres grecques), au lieu du texte
+  brut avec ses dollars et ses barres obliques que le chat Tk affiche aujourd'hui. Environ 300 Ko de code
+  et de polices livrés avec l'appli (rien en ligne), chargés seulement quand une réponse contient une
+  formule. Recommandation : oui.
+- **Question 11 — Export d'un workflow** (phase 4), reformulée le 2026-10-12. Le bouton « 📤 Export » du
+  canvas écrit un fichier Markdown : (a) la liste des agents du workflow, comme le code Tk ; (b) le texte
+  produit par chaque agent à la dernière exécution, comme le dit `docs/AGENTS_GUI.md` ; (c) les deux : la
+  tâche, les agents, puis la réponse de chacun. Recommandation : (c), puisque « Save » enregistre déjà la
+  structure du workflow en JSON.
 
 ## 10. Risques repérés
 
@@ -530,10 +574,11 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   `utils/path_links.py`, section 8 de `docs/OPTIMIZATION.md`, la documentation listée en phase 0, les trois
   captures de `docs/images/` et la PWA (`app.js`, `agents.js`, survol).
 - Aucun code applicatif modifié en phase 0.
-- Push de la branche **non fait** : `git -c credential.https://github.com.username=gonicolas12 push -u
-  origin feat/interface-web` échoue (« could not read Password for 'https://gonicolas12@github.com':
-  terminal prompts disabled »), comme prévu sur ce PC. En attente de la décision de Nicolas : connexion
-  unique avec `gonicolas12` dans un terminal, ou push avec le jeton déjà enregistré.
+- Push de la branche : `git -c credential.https://github.com.username=gonicolas12 push -u origin
+  feat/interface-web` échoue (« could not read Password for 'https://gonicolas12@github.com': terminal
+  prompts disabled »), comme prévu sur ce PC. Poussée ensuite avec l'identifiant déjà enregistré, sur
+  consigne de Nicolas (D13).
+- Réponses de Nicolas aux questions : décisions D1 à D13 (section 8) ; questions 9 et 11 à préciser.
 
 ---
 
@@ -544,23 +589,27 @@ Fichiers créés : `core/chat_service.py`, `interfaces/desktop/__init__.py`, `in
 `tests/test_chat_service.py`, `tests/test_desktop_server.py`.
 Fichiers modifiés : `launch_unified.py` (options `--headless` et `--ui`, imports de l'interface dans
 `main()`), `tests/test_ollama_restart.py` (stubs), éventuellement `relay/relay_server.py` (recevoir
-l'`AgentRelayService` partagé, sans changer le protocole) et `utils/ollama_placement.py` (progression,
-si accord). Aucun fichier Tk modifié ; `core/chat_orchestrator.py` intouché.
+l'`AgentRelayService` partagé, sans changer le protocole) et `utils/ollama_placement.py` (progression
+du calibrage, D12). Aucun fichier Tk modifié ; `core/chat_orchestrator.py` intouché.
 
 Étapes :
 
 1. `ChatService` : état de la conversation (format Tk), pipeline de `quel_handle_message_with_id` dans le
-   même ordre et avec les mêmes arguments, file ou politique `request_id` (selon la réponse 1),
+   même ordre et avec les mêmes arguments, file d'attente commune au desktop et au mobile (D1),
    interruption, confirmation de suppression par événement, pièces jointes (`process_file_background`,
-   image), branches d'édition (`message_editing.py`), sessions, `clear_chat`.
+   image), branches d'édition (`message_editing.py`) et régénération sans modification (D5), sessions
+   (D2 : création au premier message, nom tiré de ce message, sauvegarde après chaque tour, session
+   courante retenue ; D3 : historique du LLM reconstruit au rechargement ; D4 : pas de troncature ;
+   D7 : clés optionnelles par message), `clear_chat`.
 2. Événements (`events.py`) : `type`, `conversation_id`, `message_id`, `seq`, `payload` ; émission
    thread-safe vers la boucle asyncio.
 3. Branchement du mobile sur le bridge (`on_gui_message`, sondage de l'interruption, soumission des
    réponses) : chat mobile sans fenêtre.
 4. Serveur desktop : FastAPI sur 127.0.0.1, port libre, jeton par lancement, contrôle `Origin` / `Host`,
    REST (conversation, sessions, pièces jointes) et WebSocket, fichiers statiques de `frontend/dist`.
-5. Cycle de vie : étapes de lancement dans un fil avec état publié (`engine.status`), moteur, Relay,
-   scheduler après le placement, arrêt propre (Relay et tunnels, verrou du scheduler).
+5. Cycle de vie : étapes de lancement dans un fil avec état publié (`engine.status`, sous-étapes du
+   calibrage grâce à D12), moteur, Relay, scheduler après le placement, arrêt propre (Relay et tunnels,
+   verrou du scheduler).
 6. Mode `--headless`.
 7. Tests : `ChatService` avec moteur factice (streaming, stop, confirmation, pièces jointes, branches),
    API via `TestClient` (refus sans jeton ou avec une mauvaise origine), non-régression du Relay.
