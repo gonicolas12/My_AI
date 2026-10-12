@@ -8,6 +8,7 @@ taskkill, launchctl…) sont isolés derrière des gardes de plateforme et
 importés paresseusement, pour que ce module reste importable partout.
 """
 
+import argparse
 import os
 import socket
 import subprocess
@@ -246,9 +247,8 @@ try:
 except Exception:
     pass
 
-# Import - core.shared gère le chargement du modèle d'embeddings
-from interfaces.gui_modern import \
-    ModernAIGUI  # pylint: disable=wrong-import-position
+# L'interface (Tk ou web) s'importe dans main() : core.shared y charge le
+# modèle d'embeddings
 from interfaces.onboarding import \
     sync_custom_model  # pylint: disable=wrong-import-position
 from core.passage_embeddings import \
@@ -257,11 +257,37 @@ from core.passage_embeddings import \
 # Ajouter le répertoire parent au chemin
 sys.path.insert(0, str(Path(__file__).parent))
 
+
+def _parse_args(argv=None) -> argparse.Namespace:
+    """Options du lanceur."""
+    parser = argparse.ArgumentParser(description="Lanceur de My_AI")
+    parser.add_argument(
+        "--headless", action="store_true",
+        help="serveur de l'interface web et moteur, sans fenêtre (tests, client WebSocket)",
+    )
+    parser.add_argument(
+        "--port", type=int, default=0,
+        help="port du serveur de l'interface web (défaut : un port libre)",
+    )
+    return parser.parse_args(argv)
+
+
 def main():
     """Point d'entrée principal"""
+    args = _parse_args()
     print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v8.1.0\n")
     print("=" * 50)
     print()
+
+    if args.headless:
+        # Interface web sans fenêtre : le serveur local répond tout de suite, puis
+        # interfaces/desktop/lifecycle.py enchaîne les étapes ci-dessous (Ollama,
+        # assistant, my_ai, placement) avant le moteur
+        from interfaces.desktop.lifecycle import \
+            run_headless  # pylint: disable=import-outside-toplevel
+        run_headless(sys.modules[__name__], port=args.port)
+        # Comme à la fermeture de l'interface Tk : rien ne retient le processus
+        os._exit(0)
 
     # Modèle multilingue des longs documents : téléchargé en arrière-plan s'il
     # manque (premier lancement, ou mise à jour qui l'introduit)
@@ -304,6 +330,8 @@ def main():
         print()
 
         # Lancer l'interface
+        from interfaces.gui_modern import \
+            ModernAIGUI  # pylint: disable=import-outside-toplevel
         app = ModernAIGUI()
         app.run()
 
