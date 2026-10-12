@@ -3222,9 +3222,14 @@ Que voulez-vous que je fasse pour vous ?""",
         on_image=None,
         on_image_progress=None,
         on_document=None,
+        on_tool_result=None,
     ) -> str:
         """
         Point d'entrée synchrone et streamé pour la GUI.
+
+        on_tool_result(nom, arguments, résultat), facultatif, signale à
+        l'interface le résultat de chaque appel d'outil : il ne change rien aux
+        requêtes envoyées au modèle.
 
         Stratégie :
           1. Image (vision) → direct
@@ -3514,6 +3519,11 @@ Que voulez-vous que je fasse pour vous ?""",
                 # cela, un generate_document appelé APRÈS une recherche web
                 # rédigerait de mémoire et jetterait les résultats trouvés.
                 self._remember_research(tool_name, tool_result)
+                if on_tool_result:
+                    try:
+                        on_tool_result(tool_name, arguments, tool_result)
+                    except Exception as exc:  # noqa: BLE001 - frontière avec l'UI
+                        self.logger.warning("Callback résultat d'outil échoué : %s", exc)
                 # Un outil vient-il de produire un document ? Le signaler au
                 # GUI pour qu'il propose l'aperçu (cf. volet « Artifacts »).
                 if on_document:

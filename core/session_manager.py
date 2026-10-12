@@ -384,6 +384,12 @@ class SessionManager:
         self._current_workspace_id = workspace_id
         logger.info("Workspace actif defini: '%s'", workspace_id)
 
+    def clear_current_workspace(self) -> None:
+        """
+        Plus aucun workspace actif (nouvelle conversation pas encore enregistree).
+        """
+        self._current_workspace_id = None
+
     def auto_save(self, workspace_id: str, state: dict) -> bool:
         """
         Sauvegarde automatique periodique d'un workspace.
