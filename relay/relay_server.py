@@ -101,6 +101,7 @@ class RelayServer:
         self,
         ai_engine: Optional[Any] = None,
         config: Optional[Dict[str, Any]] = None,
+        agent_service: Optional[Any] = None,
     ) -> None:
         # Configuration
         if config is None:
@@ -140,8 +141,9 @@ class RelayServer:
         # Service d'agents (page « Agents » mobile). Instancié paresseusement
         # au premier message agent reçu pour ne pas créer un orchestrateur +
         # charger les agents personnalisés si la fonctionnalité n'est pas
-        # utilisée. Voir relay/agent_relay.py.
-        self._agent_service: Optional[Any] = None
+        # utilisée. Voir relay/agent_relay.py. L'appli desktop passe le sien :
+        # une seule exécution d'agents à la fois, desktop, mobile et scheduler.
+        self._agent_service: Optional[Any] = agent_service
 
         # État du serveur
         self._server_thread: Optional[threading.Thread] = None
@@ -319,6 +321,19 @@ class RelayServer:
         })
         encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
         return f"{_ROUTER_PAGE_URL}#d={encoded}"
+
+    @property
+    def local_url(self) -> str:
+        """Adresse du Relay sur ce PC, jeton et clé E2EE compris.
+
+        Même forme que l'adresse vers laquelle la page de routage redirige le
+        téléphone (`?token=…#k=…`) : sert à ouvrir l'interface mobile dans un
+        navigateur du PC, ou à un client de test, sans tunnel.
+        """
+        return (
+            f"http://127.0.0.1:{self._port}/?token={self._auth_token}"
+            f"#k={self._b64u_encode(self._e2e_key)}"
+        )
 
     @property
     def port(self) -> int:
