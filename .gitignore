@@ -67,6 +67,10 @@ data/.requirements_sync.json
 # Placement du modèle mesuré au lancement, GPU ou processeur (utils/ollama_placement.py)
 data/.ollama_placement.json
 
+# État local de l'interface web : session courante, fenêtre (interfaces/desktop/lifecycle.py)
+data/.desktop_state.json
+data/.desktop_state.json.tmp
+
 # Fichiers de cache locaux
 data/knowledge_base/
 data/web_cache/
