@@ -36,8 +36,13 @@ phase 2).
   lecture automatique, toast des tâches planifiées. Vérifiée dans Chromium (serveur de
   démonstration), et dans la vraie fenêtre WebView2 pour le volet d'aperçu (artefact isolé du pont
   pywebview, lecteur PDF). Détails, mesures et bogues corrigés dans le journal (section 12).
-- **En attente** : réponses aux questions de la phase 3a (21 à 25, section 9), essais au vrai
-  clavier et à la vraie souris (section 2), puis feu vert pour la phase 3b (plan en section 16).
+- Questions de la phase 3a tranchées le 2026-10-13 (décisions D21 à D25, section 8) et
+  appliquées : essais au vrai matériel faits (PC laissé libre par Nicolas), KaTeX 0.19.0 partout,
+  règle de Tk pour Whisper, dossier glissé dans la saisie = ses fichiers joints, vrai tour avec
+  Ollama. Ces essais ont trouvé quatre défauts, corrigés (journal, après la phase 3a). Reste à
+  essayer à la voix : une vraie dictée.
+- **En attente** : réponse à la question 26 (garder aussi « Dossiers du projet », section 9), puis
+  feu vert pour la phase 3b (plan en section 16).
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -127,7 +132,8 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
   1.3.1 et @radix-ui/react-tooltip à 1.4.1 : mêmes briques communes que le menu, sinon le build en
   embarquait deux copies. Rien côté Python. `frontend/dist/` : 4,8 Mo, 90 fichiers.
 - `npm audit` (dépendances de l'appli) : un avis de faible gravité, antérieur à la phase 3a, sur
-  KaTeX 0.16.47, la copie que `rehype-katex` installe pour lui (question 22).
+  KaTeX 0.16.47, la copie que `rehype-katex` installait pour lui. Réglé le 2026-10-13 (D22) :
+  `overrides` impose KaTeX 0.19.0 partout, `npm audit` ne trouve plus rien.
 
 ## 2. Ce que ce PC ne permet pas de vérifier
 
@@ -143,19 +149,14 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
 
 Vérifiable ici : Windows, WebView2, visionneuses Office natives, micro, carte NVIDIA, ComfyUI.
 
-À essayer par Nicolas après la phase 3a, au vrai clavier et à la vraie souris (je n'envoie ni
-touche ni curseur du système pendant que Nicolas se sert du PC, et ces essais ouvrent des fenêtres
-du système) :
+Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre par Nicolas (D21 ;
+`frontend/scripts/window_system.mjs`, journal). Restent :
 
-- menu « + » : dialogues de Windows pour PDF, Word, Excel, PowerPoint, code et image (une seule
-  image en attente), puis « Dossiers du projet » (choix d'un dossier, indexation) ;
-- glisser-déposer depuis l'Explorateur : fichiers joints avec leur vrai chemin, dossier refusé ;
-- Export : dialogue « Enregistrer sous » (Markdown, HTML, PDF) ;
-- micro (Whisper) et lecture vocale (pyttsx3), bouton de lecture automatique ;
-- chemin cité dans une réponse (Explorateur), « Ouvrir » d'un document produit (son application),
-  « Ouvrir dans le navigateur » d'un artefact, « Télécharger » (copie dans Téléchargements) ;
-- un vrai tour avec Ollama qui produit un artefact HTML (question 25) ;
-- fin d'une vraie tâche planifiée : notification du système, ou toast dans l'appli.
+- une vraie dictée à la voix : le micro de ce PC annule l'écho et n'entend pas la synthèse vocale
+  du PC, qui servait de voix aux essais ;
+- la fin d'une vraie tâche planifiée (notification du système ou toast) : sans page Agents
+  (phase 4), aucune tâche ne se lance depuis l'interface web ;
+- un message du téléphone (badge « Mobile ») : phase 3b, avec le panneau Relay.
 
 ## 3. Tests de référence (phase 0)
 
@@ -393,8 +394,8 @@ code, la documentation et §7.
 ### Où en est la checklist après la phase 3a
 
 Cochés ci-dessus : terminés dans l'interface web (phases 2 et 3a). Pièces jointes par les
-dialogues et le glisser-déposer du système, micro et lecture vocale sont testés (pytest, Vitest,
-Chromium avec une voix simulée), mais restent à essayer sur le vrai matériel (section 2). Restent :
+dialogues et le glisser-déposer du système, micro et lecture vocale sont aussi essayés sur le vrai
+matériel (le 2026-10-13) ; reste une vraie dictée à la voix (section 2). Restent :
 
 - **Aperçu des documents** : PDF dans le lecteur de WebView2 (vérifié dans la vraie fenêtre) ;
   Word, Excel et PowerPoint en page HTML de repli (`interfaces/document_preview.py`) jusqu'aux
@@ -528,6 +529,27 @@ Numérotées comme les questions de la section 9.
 - **D20. Boutons de la phase 3 gardés** : affichés et désactivés, avec leur infobulle, puis activés
   au fil de la phase 3.
 
+### Prises le 2026-10-13 (réponses de Nicolas aux questions de la phase 3a)
+
+- **D21. Essais au vrai matériel** : faits par moi, PC laissé libre par Nicolas
+  (`frontend/scripts/window_system.mjs`, journal).
+- **D22. KaTeX 0.19.0 partout** : `overrides` dans `frontend/package.json` (même paquet, rien de
+  nouveau) ; formules revérifiées.
+- **D23. Whisper suit la règle de Tk** : dans le processus ; isolé si plusieurs runtimes OpenMP
+  sont chargés (macOS) ou avec `MY_AI_WHISPER_WORKER=1`. Accord donné « si ça ne pose pas de
+  problème pour la suite », Tk devant disparaître : le code de la voix vit dans
+  `interfaces/desktop/` et n'importe rien de Tk. Au retrait de Tk (phase 5) partent seulement les
+  relais de `interfaces/gui/` et le paramètre facultatif `ui` de `VoiceInput` et `VoiceOutput`
+  (rappels par la boucle Tk).
+- **D24. Dossier glissé dans la saisie** : ses fichiers deviennent des pièces jointes, comme sur
+  claude.ai. Sous-dossiers compris, sauf les cachés et ceux que l'indexation ignore (`.git`,
+  `node_modules`, `__pycache__`…) ; images laissées de côté (le modèle n'en reçoit qu'une par
+  message) ; au-delà de 20 fichiers lisibles, refus avec un renvoi à « Dossiers du projet ». Le
+  menu « + » garde « Dossier (codebase) » pour les dossiers du projet, comme Tk. Garder aussi
+  « Dossiers du projet » : question 26.
+- **D25. Vrai tour avec Ollama** : fait (un artefact HTML, un document Word), session supprimée
+  ensuite, sans note ; `data/` et `outputs/` remis comme avant (journal).
+
 ### Constats techniques qui orientent la phase 1
 
 - **Brancher le mobile sans toucher au Relay** : `RelayBridge` offre déjà `on_gui_message(callback)` ;
@@ -632,8 +654,9 @@ Numérotées comme les questions de la section 9.
 - **Glisser-déposer** : le navigateur ne donne pas le chemin d'un fichier déposé ; WebView2 le
   passe à pywebview (`pywebviewFullPath`), qui le renvoie à la page par l'événement
   `files.dropped`, et la page le remet à la zone où le dépôt a eu lieu. Hors de la fenêtre
-  pywebview (navigateur, `--dev`), les fichiers sont envoyés au serveur. Un dossier est refusé,
-  avec un renvoi à « Dossiers du projet » (Tk disait « ❌ Chemin invalide », question 24).
+  pywebview (navigateur, `--dev`), les fichiers sont envoyés au serveur. Un dossier joint ses
+  fichiers (D24 ; Tk le refusait : « ❌ Chemin invalide ») ; dans un navigateur, sans chemin, il est
+  écarté avec un message.
 - **Notes** : même appel à `record_interaction` que Tk ; la note est gardée dans la session (clé
   facultative, D7), figée aussi à la réouverture.
 - **Variantes d'édition** : une variante garde toute sa réponse (réflexion, outils, documents,
@@ -658,6 +681,17 @@ Numérotées comme les questions de la section 9.
   seulement si la notification du système n'a pas été montrée.
 - **Serveur de démonstration** : n'écrit plus rien dans `data/` ni dans le `outputs/` du dépôt
   (incident du journal, phase 3a).
+- **Après la phase 3a** (essais au vrai système et vrai tour, journal) :
+  - une seule image par message : une nouvelle image remplace celle qui attendait (Tk gardait les
+    deux aperçus, mais n'envoyait au modèle que la dernière) ;
+  - « Télécharger » n'écrase jamais un fichier du même nom dans Téléchargements : la copie prend
+    le premier nom libre, « nom (1).ext », comme dans un navigateur (Tk écrasait) ;
+  - modules du micro chargés en arrière-plan à la fin du lancement, comme Tk qui les importait en
+    créant l'interface : le premier clic enregistre sans attendre ;
+  - artefacts : localStorage et sessionStorage, refusés à une origine opaque, sont remplacés dans
+    l'aperçu par un stockage en mémoire qui vit le temps de l'aperçu (ouverte dans un navigateur,
+    la page garde le vrai). Les artefacts produits par le modèle s'en servent souvent (état d'un
+    compteur, d'une liste) ; cookies et IndexedDB restent refusés.
 
 ## 9. Questions de la phase 0
 
@@ -746,6 +780,10 @@ retirés pour la 18, boutons gardés pour la 20 (décisions D16 à D20, section 
 
 ### Questions de la phase 3a (posées le 2026-10-13)
 
+Réponses de Nicolas le 2026-10-13 : essais laissés à ma charge pour la 21, oui à la 22, à la 23
+(si rien ne gêne le retrait de Tk) et à la 25 ; pour la 24, un dossier glissé doit joindre ses
+fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26.
+
 21. **Essais au vrai clavier et à la vraie souris** (section 2) : dialogues de fichiers,
     glisser-déposer depuis l'Explorateur, Export, micro, lecture vocale, ouverture des fichiers.
     Peux-tu les faire, ou me laisser le PC libre un moment pour que je les fasse ?
@@ -766,6 +804,16 @@ retirés pour la 18, boutons gardés pour la 20 (décisions D16 à D20, section 
 25. **Vrai tour avec Ollama** dans la vraie appli (un artefact HTML, un document) : je ne l'ai pas
     fait, pour ne laisser ni session de test dans `data/workspaces/` ni note dans le RLHF. Le faire
     (session supprimée ensuite, sans note), ou le laisser à tes essais ?
+
+### Question après la phase 3a (posée le 2026-10-13)
+
+26. **Garder « Dossiers du projet » à côté du dossier glissé ?** Nicolas demande mon avis.
+    Recommandation : garder les deux, qui ne font pas la même chose. Un dossier glissé met ses
+    fichiers dans le message, une fois : idéal pour quelques fichiers, mais tout passe dans le
+    contexte du modèle (32 768 jetons), d'où la limite de 20 fichiers. Un dossier du projet est
+    indexé une fois et reste attaché à la conversation : à chaque question, seuls les passages
+    utiles sont retrouvés, sans limite de taille, et il se réindexe quand le code change. Pour un
+    vrai projet (des centaines de fichiers), seul le second tient. D'accord ?
 
 ## 10. Risques repérés
 
@@ -814,6 +862,10 @@ retirés pour la 18, boutons gardés pour la 20 (décisions D16 à D20, section 
 - **Mémoire du PC** (phase 3a) : il est arrivé de n'avoir qu'1 Go libre sur 15,7 (PC en usage) ;
   deux tests qui lancent un interpréteur neuf ont alors échoué sur `MemoryError`, puis réussi une
   fois la mémoire revenue.
+- **Whisper sur un silence** (constat, comme dans Tk) : sur un enregistrement presque muet, il
+  invente parfois un texte (« Thank you. ») et devine la mauvaise langue. Une dictée réelle le dira ;
+  le filtre de silence de faster-whisper (`vad_filter`) ou la langue de `config.yaml` pourraient
+  l'éviter, sans requête au modèle de chat.
 
 ---
 
@@ -1211,6 +1263,61 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   visent désormais leurs boutons par nom exact et ne cliquent jamais « Ouvrir », « Explorateur »,
   « navigateur » ni « Télécharger » (`frontend/scripts/README.md`).
 
+### Après la phase 3a — 2026-10-13 (réponses aux questions, PC à RTX 3060)
+
+- **Essais au vrai système** (D21), PC laissé libre par Nicolas, sur le serveur de démonstration
+  avec la vraie voix (`--window --vraie-voix`), par `frontend/scripts/window_system.mjs` :
+  - menu « + » : les six dialogues de Windows, avec les filtres de Tk (PDF, Word, Excel et CSV,
+    PowerPoint, code, images), fichier choisi puis joint ; « Dossiers du projet » : dialogue
+    « Sélectionner un dossier », dossier indexé puis détaché ; Export : trois « Enregistrer sous »
+    (Markdown, HTML, PDF), fichiers écrits là où le dialogue l'a dit ;
+  - glisser-déposer à la vraie souris depuis l'Explorateur : un PDF, joint avec son vrai chemin ;
+    le dossier des fichiers de test, qui joint ses six fichiers lisibles (D24 ; l'image laissée de
+    côté) ;
+  - lecture d'une réponse à voix haute (pyttsx3) et lecture automatique, puis remise à `false`
+    (`config.yaml` identique ensuite) ; micro : enregistrement, Whisper chargé puis transcription
+    en 5 s, texte inséré. Le micro (réseau Intel Smart Sound) annule l'écho : il n'a pas entendu la
+    phrase dite par la synthèse du PC, et Whisper a rendu un texte vide, puis « Thank you. » ;
+  - chemin cité : Explorateur ; « Ouvrir » d'un document produit : Word ; « Ouvrir dans le
+    navigateur » : nouvelle fenêtre de Chrome ; « Télécharger » : copie dans Téléchargements.
+    Chaque fenêtre ouverte refermée, la copie supprimée ;
+  - outils : `win.py` remplit et valide les dialogues par des messages adressés au dialogue
+    (`dialog`), fait un vrai glisser-déposer après l'attente d'inactivité (`drag`), trouve un
+    fichier dans l'Explorateur par UI Automation (`element`), liste et ferme des fenêtres
+    précises (`windows`, `close HWND`). « Enregistrer sous » ignore un nom posé par `WM_SETTEXT` :
+    le nom est saisi caractère par caractère dans la zone (`WM_CHAR`) ; le choix d'un dossier
+    demande un second clic, une fois arrivé dans le dossier.
+- **Défauts trouvés par ces essais, corrigés** :
+  - deux images restaient en attente alors qu'une seule part au modèle : une nouvelle image
+    remplace la précédente ;
+  - premier clic sur le micro sans effet visible pendant l'import de faster-whisper (plus de 20 s
+    dans la démo, qui n'a pas encore chargé torch ; quelques secondes dans l'appli) : modules
+    chargés en arrière-plan à la fin du lancement ;
+  - « Télécharger » écrasait un fichier du même nom dans Téléchargements, comme Tk : copie en
+    « nom (1).ext » ;
+  - au vrai tour, l'artefact du modèle gardait son compteur dans `localStorage`, refusé à une
+    origine opaque : stockage en mémoire dans l'aperçu (section 8), vérifié dans Chromium et dans
+    WebView2 (contrôle ajouté à `capture_chat.mjs` et `window_preview.mjs`, 12 sur 12 dans la
+    vraie fenêtre).
+- **Vrai tour avec Ollama** (D25 ; vraie appli, `launch_unified.py`, pilotée par CDP) :
+  - « Crée une page HTML autonome… avec un bouton qui compte les clics » : réponse en 28 s
+    (71,7 tokens/s), volet d'aperçu ouvert seul, iframe sans `allow-same-origin`, le bouton fait
+    monter le compteur ;
+  - « Rédige un court document Word… » : document produit en 25 s (70,3 tokens/s), carte, aperçu
+    en page HTML ;
+  - ensuite : session supprimée, les deux requêtes retirées de l'historique, document supprimé de
+    `outputs/documents/`, conversation à rouvrir remise dans `data/.desktop_state.json`, journaux
+    SQLite repliés : `data/` et `outputs/` ont de nouveau les mêmes fichiers, aux mêmes tailles.
+- **KaTeX 0.19.0 partout** (D22) : `npm audit` sans avis ; réponse longue de la démonstration :
+  36 formules rendues, aucune erreur, montants en dollars laissés en texte.
+- **Dossier glissé** (D24) : `ChatService.add_folder`, `folder_indexer.is_excluded_dir` (mêmes
+  dossiers ignorés que l'indexation), dossier écarté avec un message dans un navigateur.
+- **Incident, données de test** : pendant la mise au point de `win.py dialog`, trois exports sont
+  partis dans `temp/migration_test_data/fichiers/` (nom proposé par le dialogue) ; supprimés.
+- **Tests** : `python -m pytest tests/` : **1086 réussis** (1080 + 6) ; front : 80 tests Vitest,
+  TypeScript, ESLint et Prettier propres ; `capture_chat.mjs` : 27 contrôles sur 27 ;
+  `window_system.mjs` : tous les contrôles passent ; `frontend/dist` reconstruit.
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -1398,7 +1505,8 @@ Fichiers créés ou complétés :
   visionneuses (Office est installé sur ce PC).
 
 Étapes : (1) Réglages et assistant de premier lancement (mêmes fonctions) ; (2) Mémoire ;
-(3) Prompts ; (4) Relay et QR code, puis vérification avec un vrai téléphone (badge « Mobile ») ;
+(3) Prompts ; (4) Relay et QR code, puis vérification avec un vrai téléphone (badge « Mobile »)
+et une vraie dictée à la voix ;
 (5) Aide F1, palette Ctrl+K et raccourcis ; (6) visionneuses Office natives ; (7) captures,
 mesures, recette et compte rendu.
 
