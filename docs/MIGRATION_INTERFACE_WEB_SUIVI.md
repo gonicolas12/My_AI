@@ -11,16 +11,17 @@ fichier, en commençant par « État actuel ».
 
 - **Phase 0 (préparation) terminée le 2026-10-12.** Décisions D1 à D13 (section 8).
 - **Phase 1 (backend sans interface) terminée le 2026-10-12.** Décisions D14 et D15 (section 8).
-- **Phase 2 (squelette de l'interface et cœur du Chat) terminée le 2026-10-13**, en attente du feu
-  vert pour la phase 3. `frontend/` (Vite, React 19, TypeScript strict), fenêtre pywebview,
-  `launch_unified.py --ui web|tk` (web par défaut sur la branche) et `--dev`. Vérifiée dans
-  Chromium (Playwright, serveur de démonstration), puis dans la vraie fenêtre WebView2 avec le vrai
-  Ollama. Détails, mesures et bogues corrigés dans le journal (section 12).
-- Questions de la phase 2 : section 9 (« Questions de la phase 2 »), dont des **fichiers étrangers**
-  apparus à la racine du dépôt pendant la session (question 18).
+- **Phase 2 (squelette de l'interface et cœur du Chat) terminée le 2026-10-13.** `frontend/` (Vite,
+  React 19, TypeScript strict), fenêtre pywebview, `launch_unified.py --ui web|tk` (web par défaut
+  sur la branche) et `--dev`. Vérifiée dans Chromium (Playwright, serveur de démonstration), puis
+  dans la vraie fenêtre WebView2 avec le vrai Ollama. Détails, mesures et bogues corrigés dans le
+  journal (section 12).
+- Questions de la phase 2 tranchées le 2026-10-13 (décisions D16 à D20, section 8) et appliquées :
+  libellé « Réflexion », tokens/s des réponses sans outils, fichiers étrangers retirés, outils de
+  vérification versés dans le dépôt, boutons de la phase 3 gardés.
 - Prochaine étape : phase 3 (plan proposé en section 15), après le feu vert de Nicolas.
-- Outils de vérification, hors dépôt : `temp/migration_tools/` (serveur de démonstration, scripts
-  Playwright, pilotage Win32 ; voir son README).
+- Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
+  et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
 ---
 
@@ -365,7 +366,7 @@ Cochés ci-dessus : terminés dans l'interface web (phase 2). En partie faits :
 - **Raccourcis** : Entrée, Maj+Entrée, Échap, Ctrl+B, Ctrl+N, Ctrl+L, Ctrl+S ; ceux du navigateur
   sont neutralisés (vérifié au vrai clavier). Ctrl+K, Ctrl+R, Ctrl+virgule et F1 en phase 3.
 - **Accès au Relay, à la lecture automatique, aux Réglages, à la Mémoire, aux Prompts, à l'Export** :
-  boutons en bas de la barre latérale, désactivés jusqu'à la phase 3 (question 20).
+  boutons en bas de la barre latérale, désactivés jusqu'à la phase 3 (D20).
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -464,6 +465,28 @@ Numérotées comme les questions de la section 9.
   - Requêtes à Ollama inchangées, aucun appel en plus.
   - C'est la seule modification autorisée de l'orchestrateur.
   - L'estimation actuelle (un fragment streamé = un jeton) sert de repli si le relevé manque.
+
+### Prises le 2026-10-13 (réponses de Nicolas aux questions de la phase 2)
+
+- **D16. Libellé « Réflexion »**, comme le prompt (§7, §8), suivi de la durée : « Réflexion · 12 s ».
+- **D17. Tokens/s des réponses sans outils** : le relevé en lecture seule de D15 est ajouté à
+  `models/local_llm.py`, à la fin de `generate_stream` (qui sert aussi aux réponses à une image) et
+  de la synthèse de `generate_with_tools_stream`. Le `ChatService` retient le relevé le plus récent
+  pris pendant la réponse, de l'orchestrateur ou de `LocalLLM`. Requêtes à Ollama inchangées.
+  - Le moment du relevé vient de `time.perf_counter`, dans les deux fichiers. Sous Windows,
+    `time.time` n'avance que par pas de 15,6 ms : deux relevés du même tour portaient la même heure,
+    et le mauvais l'emportait (test qui échouait). C'est le seul changement apporté au relevé de D15
+    dans l'orchestrateur.
+- **D18. Fichiers étrangers retirés** : `.env` (vide, du même espace de travail HyperFrames),
+  `.env.example`, `AGENTS.md`, `THIRD_PARTY_NOTICES.md`, `package.json`, `package-lock.json` et
+  `node_modules/` de la racine, `patterns/`, `templates/`, les six dossiers et le README ajoutés à
+  `examples/` (`examples/advanced_features_demo.py` gardé) ; `.gitignore` rendu à sa version commitée.
+- **D19. Outils de vérification versés dans le dépôt** : scripts Playwright dans `frontend/scripts/`
+  (mode d'emploi dans son README), outils Python dans `tools/interface_web/`. Le banc de rendu
+  Markdown ne l'est pas (il dépend de Streamdown, retiré des dépendances) ; les données de test
+  (section 4) restent hors dépôt.
+- **D20. Boutons de la phase 3 gardés** : affichés et désactivés, avec leur infobulle, puis activés
+  au fil de la phase 3.
 
 ### Constats techniques qui orientent la phase 1
 
@@ -604,6 +627,9 @@ Réponses de Nicolas le 2026-10-12 : oui à la 14 (D14), option (a) pour la 15 (
     Recommandation : (a).
 
 ### Questions de la phase 2 (posées le 2026-10-13)
+
+Réponses de Nicolas le 2026-10-13 : « Réflexion » pour la 16, oui à la 17 et à la 19, fichiers
+retirés pour la 18, boutons gardés pour la 20 (décisions D16 à D20, section 8).
 
 16. **Libellé du bloc de réflexion** : « Raisonnement » comme dans Tk, suivi de la durée
     (« Raisonnement · 12 s »), ou « Réflexion » comme dans le prompt (§7, §8) ? J'ai gardé le
@@ -921,6 +947,40 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 - Données : `data/.desktop_state.json` remis en « agrandie » après les essais ; une session réelle
   créée par la vérification (« Explique en détail, avec un exemple de code… ») est restée dans
   `data/workspaces/`.
+
+### Après la phase 2 — 2026-10-13 (réponses aux questions, PC à RTX 3060)
+
+- **Fichiers étrangers** retirés (D18). L'appli ne lit aucun `.env` (pas de `dotenv`).
+- **« Réflexion »** (D16) : libellé et test Vitest du bloc. Ce test voyait deux blocs : sans les
+  globales de Vitest, Testing Library ne démontait pas le rendu d'un test avant le suivant ; le
+  démontage est ajouté à `src/test/setup.ts`.
+- **Tokens/s des réponses sans outils** (D17) : relevé dans `LocalLLM`, lecture des deux relevés par
+  le `ChatService` ; `tests/test_stream_stats.py` (relevé de `LocalLLM`, flux coupé sans relevé,
+  relevés de l'orchestrateur) et deux tests du `ChatService`. Le test « le relevé le plus récent
+  l'emporte » a révélé l'égalité des heures (`time.time` par pas de 15,6 ms sous Windows) :
+  `time.perf_counter` dans les deux relevés.
+- **Outils versés** (D19), revus au passage :
+  - plus de chemin propre à ce PC (racine du dépôt déduite du script, fichier de la confirmation de
+    suppression pris dans le dossier personnel) ; aides communes dans `frontend/scripts/lib.mjs` ;
+    `real_checks.mjs` retiré, doublon de `window_keys.mjs` et `window_tooltips.mjs` ;
+  - `win.py` refuse touches, curseur et premier plan si le clavier ou la souris ont servi dans les
+    20 dernières secondes (ses propres saisies mises à part), et vérifie avant chaque touche que
+    My_AI est au premier plan (incident de la phase 2) ; la barre latérale s'ouvre par CDP, sans
+    touche système ;
+  - serveur de démonstration : sessions copiées dans `temp/demo_server/PORT/`, vidé à chaque
+    lancement, et non plus dans un dossier temporaire du système, où chaque arrêt brutal laissait une
+    copie (12 copies retirées de `%TEMP%`) ; option `--window` : la vraie fenêtre WebView2 sur le
+    serveur de démonstration, sans Ollama ;
+  - `make_icon.py` produit toujours exactement `interfaces/desktop/assets/my_ai.ico`.
+- **Vérifié avec les outils versés** (Chromium, serveur de démonstration) : 23 captures sans erreur
+  de console, bloc « Réflexion · 2 s » ; 10 cas d'infobulle sur 10 refermés ; le fil suit la réponse
+  (au plus 38 px du bas) ; défilement des 200 messages dans les fourchettes de la phase 2.
+- **Pas fait** : l'infobulle au vrai curseur dans la vraie fenêtre. Nicolas se servait du PC, et
+  ouvrir la fenêtre lui aurait pris le premier plan. À faire quand le PC est libre :
+  `demo_server.py 8765 --window` avec `MY_AI_WEBVIEW_CDP_PORT=9333`, puis
+  `node scripts/window_tooltips.mjs`.
+- **Tests** : `python -m pytest tests/` : **1034 réussis** (1029 + 5), aucun échec ; front : 47 tests
+  Vitest, TypeScript, ESLint et Prettier propres ; `frontend/dist` reconstruit.
 
 ---
 
