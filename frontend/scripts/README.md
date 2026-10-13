@@ -54,9 +54,10 @@ Les scripts lisent la même variable (9333 par défaut).
 | `node scripts/window_tooltips.mjs`        | infobulle fermée quand le vrai curseur quitte la fenêtre             | oui, curseur                  |
 
 Les touches et le curseur du système vont à la fenêtre au premier plan, quelle qu'elle soit.
-`tools/interface_web/win.py` refuse donc d'en envoyer si le clavier ou la souris ont servi dans les
-20 dernières secondes, et n'envoie une touche que si My_AI est au premier plan : ne pas lancer ces
-deux scripts pendant qu'on se sert du PC. `win.py` sert aussi seul : bornes, déplacement, fermeture,
+`tools/interface_web/win.py` attend donc que le clavier et la souris n'aient pas servi depuis
+20 secondes (une minute au plus, puis il refuse), et n'envoie une touche que si My_AI est au premier
+plan. Après avoir lancé l'un de ces deux scripts, ne plus toucher au clavier ni à la souris jusqu'à
+la fin. `win.py` sert aussi seul : bornes, déplacement, fermeture,
 capture avec la barre de titre (`python tools/interface_web/win.py` pour l'aide).
 
 ## Divers

@@ -12,10 +12,11 @@ Pilotage Win32 de la vraie fenêtre My_AI, pour les vérifications
   python tools/interface_web/win.py cursor X Y       déplace le vrai curseur
 
 Les touches et le curseur du système vont à la fenêtre au premier plan, pas à
-celle qu'on vise. shot, keys et cursor refusent donc d'agir (code de sortie 2)
-si quelqu'un s'est servi du clavier ou de la souris dans les IDLE_S dernières
-secondes, et keys n'envoie chaque touche que si My_AI est au premier plan.
-Le reste (rect, origin, state, move, close) ne touche ni au focus ni aux saisies.
+celle qu'on vise. shot, keys et cursor attendent donc que le clavier et la
+souris n'aient pas servi depuis IDLE_S secondes (WAIT_S secondes au plus,
+sinon refus, code de sortie 2), et keys n'envoie chaque touche que si My_AI est
+au premier plan. Le reste (rect, origin, state, move, close) ne touche ni au
+focus ni aux saisies.
 """
 
 import ctypes
@@ -33,6 +34,7 @@ user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
 
 TITLE = "My_AI"
 IDLE_S = 20
+WAIT_S = 60
 # Heure (GetTickCount) de la dernière saisie envoyée par cet outil
 OWN_INPUT = Path(tempfile.gettempdir()) / "my_ai_win_last_input.txt"
 VK = {
@@ -62,26 +64,42 @@ def rect(hwnd):
     return [r.left, r.top, r.right - r.left, r.bottom - r.top]
 
 
-def require_idle():
-    """Refuse d'agir si quelqu'un s'est servi du PC dans les IDLE_S dernières secondes.
-
-    Les saisies envoyées par cet outil ne comptent pas : si la dernière saisie
-    du système est la sienne, personne n'a rien fait depuis.
-    """
-    info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
-    user32.GetLastInputInfo(ctypes.byref(info))
+def own_input(last_tick):
+    """Vrai si la dernière saisie du système est celle que cet outil a envoyée."""
     try:
         own = int(OWN_INPUT.read_text(encoding="ascii"))
     except (OSError, ValueError):
-        own = None
+        return False
     # Compteurs de 32 bits en millisecondes : différences modulo 2**32
-    if own is not None and (own - info.dwTime) & 0xFFFFFFFF <= 1000:
-        return
-    idle = ((kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000
-    if idle < IDLE_S:
-        print(f"refusé : dernière saisie il y a {idle:.0f} s (moins de {IDLE_S} s), "
-              "le PC est en cours d'utilisation")
-        sys.exit(2)
+    return (own - last_tick) & 0xFFFFFFFF <= 1000
+
+
+def require_idle():
+    """Attend que le clavier et la souris n'aient pas servi depuis IDLE_S secondes.
+
+    WAIT_S secondes au plus, puis refuse (code de sortie 2). Les saisies
+    envoyées par cet outil ne comptent pas : si la dernière saisie du système
+    est la sienne, personne n'a rien fait depuis.
+    """
+    deadline = time.monotonic() + WAIT_S
+    told = False
+    while True:
+        info = LASTINPUTINFO(ctypes.sizeof(LASTINPUTINFO), 0)
+        user32.GetLastInputInfo(ctypes.byref(info))
+        if own_input(info.dwTime):
+            return
+        idle = ((kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000
+        if idle >= IDLE_S:
+            return
+        if time.monotonic() >= deadline:
+            print(f"refusé : clavier ou souris utilisés il y a {idle:.0f} s, rien n'est envoyé",
+                  file=sys.stderr)
+            sys.exit(2)
+        if not told:
+            print(f"en attente : ne plus toucher au clavier ni à la souris pendant {IDLE_S} s…",
+                  file=sys.stderr, flush=True)
+            told = True
+        time.sleep(0.5)
 
 
 def note_own_input():
@@ -109,7 +127,7 @@ def press(hwnd, combo):
     if None in codes:
         sys.exit(f"touche inconnue : {combo}")
     if user32.GetForegroundWindow() != hwnd:
-        print(f"refusé : My_AI n'est plus au premier plan, {combo} non envoyée")
+        print(f"refusé : My_AI n'est plus au premier plan, {combo} non envoyée", file=sys.stderr)
         sys.exit(2)
     for code in codes:
         user32.keybd_event(code, 0, 0, 0)
@@ -154,7 +172,8 @@ def main():  # pylint: disable=too-many-branches
     elif action == "keys":
         require_idle()
         if not foreground(hwnd):
-            print("refusé : Windows n'a pas mis My_AI au premier plan, aucune touche envoyée")
+            print("refusé : Windows n'a pas mis My_AI au premier plan, aucune touche envoyée",
+                  file=sys.stderr)
             sys.exit(2)
         for combo in sys.argv[2:]:
             press(hwnd, combo)

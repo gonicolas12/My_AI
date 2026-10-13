@@ -963,10 +963,10 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   - plus de chemin propre à ce PC (racine du dépôt déduite du script, fichier de la confirmation de
     suppression pris dans le dossier personnel) ; aides communes dans `frontend/scripts/lib.mjs` ;
     `real_checks.mjs` retiré, doublon de `window_keys.mjs` et `window_tooltips.mjs` ;
-  - `win.py` refuse touches, curseur et premier plan si le clavier ou la souris ont servi dans les
-    20 dernières secondes (ses propres saisies mises à part), et vérifie avant chaque touche que
-    My_AI est au premier plan (incident de la phase 2) ; la barre latérale s'ouvre par CDP, sans
-    touche système ;
+  - `win.py` n'envoie touches, curseur ni premier plan qu'après 20 secondes sans clavier ni souris
+    (ses propres saisies mises à part ; une minute d'attente au plus, puis refus), et vérifie avant
+    chaque touche que My_AI est au premier plan (incident de la phase 2) ; la barre latérale s'ouvre
+    par CDP, sans touche système ;
   - serveur de démonstration : sessions copiées dans `temp/demo_server/PORT/`, vidé à chaque
     lancement, et non plus dans un dossier temporaire du système, où chaque arrêt brutal laissait une
     copie (12 copies retirées de `%TEMP%`) ; option `--window` : la vraie fenêtre WebView2 sur le
