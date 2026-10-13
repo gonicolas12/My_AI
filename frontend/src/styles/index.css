@@ -3,6 +3,13 @@
 @import './markdown.css';
 
 /*
+ * Classes cherchées dans les sources de l'appli seulement : dist/ est commité,
+ * et sans cette règle le CSS d'un build dépendait du build précédent.
+ */
+@source not '../../dist';
+@source not '../../scripts';
+
+/*
  * Tailwind branché sur les jetons de tokens.css : les utilitaires (bg-bg-2,
  * text-fg-2, border-line…) lisent les variables, aucune couleur n'est écrite ici.
  * Les palettes par défaut de Tailwind sont retirées.
