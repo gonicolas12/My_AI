@@ -1,0 +1,248 @@
+/* Rendu Markdown des réponses (features/chat/markdown) */
+
+@layer components {
+  .md {
+    font-size: var(--fs-chat);
+    line-height: var(--line-chat);
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  .md > :first-child > :first-child,
+  .md > :first-child {
+    margin-top: 0;
+  }
+
+  .md p {
+    margin: 0 0 0.85em;
+  }
+
+  .md h1,
+  .md h2,
+  .md h3,
+  .md h4,
+  .md h5,
+  .md h6 {
+    margin: 1.4em 0 0.55em;
+    line-height: 1.3;
+    font-weight: 650;
+    color: var(--text-primary);
+  }
+
+  .md h1 {
+    font-size: 1.5em;
+  }
+  .md h2 {
+    font-size: 1.3em;
+  }
+  .md h3 {
+    font-size: 1.12em;
+  }
+  .md h4,
+  .md h5,
+  .md h6 {
+    font-size: 1em;
+  }
+
+  .md ul,
+  .md ol {
+    margin: 0 0 0.85em;
+    padding-left: 1.6em;
+  }
+
+  .md ul {
+    list-style: disc;
+  }
+
+  .md ol {
+    list-style: decimal;
+  }
+
+  .md li {
+    margin: 0.25em 0;
+  }
+
+  .md li::marker {
+    color: var(--text-secondary);
+  }
+
+  .md li > p {
+    margin: 0.25em 0;
+  }
+
+  .md ul ul,
+  .md ol ol,
+  .md ul ol,
+  .md ol ul {
+    margin: 0.2em 0;
+  }
+
+  .md input[type='checkbox'] {
+    accent-color: var(--accent);
+    margin-right: 0.45em;
+  }
+
+  .md strong {
+    font-weight: 650;
+  }
+
+  .md a {
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  .md a:hover {
+    text-decoration-color: var(--link);
+  }
+
+  .md .md-link-inert {
+    color: var(--link);
+  }
+
+  .md .md-image {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    color: var(--text-secondary);
+  }
+
+  .md blockquote {
+    margin: 0 0 0.85em;
+    padding: 0.1em 0 0.1em 1em;
+    border-left: 3px solid var(--border-light);
+    color: var(--text-secondary);
+  }
+
+  .md hr {
+    margin: 1.4em 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .md code {
+    /* Pas de ligatures (« => » reste « => ») : le code se lit et se copie tel quel */
+    font-variant-ligatures: none;
+  }
+
+  .md :not(pre) > code {
+    font-family: var(--font-code);
+    font-size: 0.88em;
+    padding: 0.12em 0.38em;
+    border-radius: var(--round-xs);
+    background: var(--code-inline-bg);
+    color: var(--accent-light);
+  }
+
+  /* Tableaux */
+  .md .md-table-wrap {
+    margin: 0 0 1em;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--round-md);
+  }
+
+  .md table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.94em;
+    line-height: 1.5;
+  }
+
+  .md th,
+  .md td {
+    padding: 0.5em 0.85em;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .md th {
+    font-weight: 600;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .md tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .md td + td,
+  .md th + th {
+    border-left: 1px solid var(--border);
+  }
+
+  /* Blocs de code */
+  .md .code-block {
+    margin: 0 0 1em;
+    border: 1px solid var(--border);
+    border-radius: var(--round-md);
+    background: var(--code-bg);
+    overflow: hidden;
+  }
+
+  .md .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.3em 0.5em 0.3em 0.9em;
+    background: var(--code-header-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+  }
+
+  .md .code-lang {
+    font-family: var(--font-code);
+    text-transform: lowercase;
+  }
+
+  .md .code-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.25em 0.55em;
+    border: 0;
+    border-radius: var(--round-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    transition:
+      background var(--motion-fast) var(--motion-ease),
+      color var(--motion-fast) var(--motion-ease);
+  }
+
+  .md .code-copy:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  .md .code-body {
+    margin: 0;
+    padding: 0.85em 1em;
+    overflow-x: auto;
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--shiki-foreground);
+    tab-size: 4;
+  }
+
+  .md .code-body code {
+    font-family: inherit;
+    white-space: pre;
+  }
+
+  /* Formules (KaTeX) */
+  .md .katex {
+    font-size: 1.08em;
+  }
+
+  .md .katex-display {
+    margin: 0.4em 0 1em;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.2em 0;
+  }
+}

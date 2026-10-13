@@ -1,0 +1,209 @@
+@import 'tailwindcss';
+@import './tokens.css';
+@import './markdown.css';
+
+/*
+ * Tailwind branché sur les jetons de tokens.css : les utilitaires (bg-bg-2,
+ * text-fg-2, border-line…) lisent les variables, aucune couleur n'est écrite ici.
+ * Les palettes par défaut de Tailwind sont retirées.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--bg-primary);
+  --color-bg-2: var(--bg-secondary);
+  --color-bg-3: var(--bg-tertiary);
+  --color-user: var(--bg-user);
+  --color-fg: var(--text-primary);
+  --color-fg-2: var(--text-secondary);
+  --color-fg-3: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-light);
+  --color-accent-soft: var(--accent-soft);
+  --color-line: var(--border);
+  --color-line-2: var(--border-light);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+  --color-success-soft: var(--success-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-error-soft: var(--error-soft);
+  --color-info-soft: var(--info-soft);
+  --color-hover: var(--surface-hover);
+  --color-active: var(--surface-active);
+  --color-raised: var(--surface-raised);
+  --color-scrim: var(--scrim);
+  --color-on-accent: var(--on-accent);
+  --color-on-user: var(--on-user);
+  --color-link: var(--link);
+
+  --font-*: initial;
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+
+  --text-*: initial;
+  --text-2xs: var(--fs-2xs);
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-base: var(--fs-base);
+  --text-chat: var(--fs-chat);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+  --text-2xl: var(--fs-2xl);
+  --text-display: var(--fs-display);
+
+  --radius-*: initial;
+  --radius-xs: var(--round-xs);
+  --radius-sm: var(--round-sm);
+  --radius-md: var(--round-md);
+  --radius-lg: var(--round-lg);
+  --radius-xl: var(--round-xl);
+  --radius-full: var(--round-full);
+
+  --shadow-*: initial;
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+
+  --ease-*: initial;
+  --ease-out: var(--motion-ease);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    background: var(--bg-primary);
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--fs-base);
+    line-height: 1.5;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+
+  *:hover {
+    scrollbar-color: var(--scrollbar-hover) transparent;
+  }
+}
+
+@layer components {
+  /* Texte qui scintille pendant une attente (réflexion, outil en cours) */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--text-muted) 0%,
+      var(--text-muted) 40%,
+      var(--text-primary) 50%,
+      var(--text-muted) 60%,
+      var(--text-muted) 100%
+    );
+    background-size: 300% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: shimmer 2.2s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer {
+      animation: none;
+      background: none;
+      color: var(--text-secondary);
+    }
+  }
+
+  .spin {
+    animation: spin 0.9s linear infinite;
+  }
+
+  .pulse-soft {
+    animation: pulse-soft 1.6s var(--motion-ease) infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spin,
+    .pulse-soft {
+      animation: none;
+    }
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

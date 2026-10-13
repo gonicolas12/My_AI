@@ -88,3 +88,10 @@ tools/7zr.exe
 
 # Fichiers de couverture de test
 .coverage
+
+# Interface web : dépendances de développement, rapports et captures d'écran
+frontend/node_modules/
+frontend/.vite/
+frontend/coverage/
+frontend/test-results/
+frontend/captures/
