@@ -9,16 +9,18 @@ fichier, en commençant par « État actuel ».
 
 ## État actuel
 
-- **Phase 0 (préparation) terminée le 2026-10-12.** Réponses de Nicolas reçues le même jour :
-  décisions D1 à D13 (section 8).
-- **Phase 1 (backend sans interface) terminée le 2026-10-12**, en attente du feu vert pour la phase 2.
-  Protocole d'événements, `ChatService`, serveur local, cycle de vie, mode `--headless`, progression du
-  placement, service d'agents partagé et adresse locale du Relay : testés avec un moteur simulé, puis
-  vérifiés sur le vrai Ollama (client WebSocket avec streaming et Stop, chat mobile sans fenêtre,
-  reprise du prompt au deuxième tour identique à Tk). Détails dans le journal (section 12).
-- Questions de la phase 1 tranchées le 2026-10-12 : décisions D14 et D15 (section 8).
-- Prochaine étape : phase 2 (plan proposé en section 14), après le feu vert de Nicolas. Le relevé
-  des tokens/s (D15) sera fait en phase 2, avec l'affichage des réponses.
+- **Phase 0 (préparation) terminée le 2026-10-12.** Décisions D1 à D13 (section 8).
+- **Phase 1 (backend sans interface) terminée le 2026-10-12.** Décisions D14 et D15 (section 8).
+- **Phase 2 (squelette de l'interface et cœur du Chat) terminée le 2026-10-13**, en attente du feu
+  vert pour la phase 3. `frontend/` (Vite, React 19, TypeScript strict), fenêtre pywebview,
+  `launch_unified.py --ui web|tk` (web par défaut sur la branche) et `--dev`. Vérifiée dans
+  Chromium (Playwright, serveur de démonstration), puis dans la vraie fenêtre WebView2 avec le vrai
+  Ollama. Détails, mesures et bogues corrigés dans le journal (section 12).
+- Questions de la phase 2 : section 9 (« Questions de la phase 2 »), dont des **fichiers étrangers**
+  apparus à la racine du dépôt pendant la session (question 18).
+- Prochaine étape : phase 3 (plan proposé en section 15), après le feu vert de Nicolas.
+- Outils de vérification, hors dépôt : `temp/migration_tools/` (serveur de démonstration, scripts
+  Playwright, pilotage Win32 ; voir son README).
 
 ---
 
@@ -79,6 +81,26 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
 - **Streamdown** dépend de `rehype-raw` (avec `rehype-sanitize` et `rehype-harden`) : le HTML brut est
   assaini, mais il faut le désactiver explicitement (contrainte de sécurité du §4). Choix à faire en phase 2
   entre Streamdown (gère le Markdown incomplet pendant le streaming) et react-markdown + remark-gfm.
+
+### Installé en phase 2 (2026-10-13)
+
+- Python 3.11 : pywebview 6.2.1, pythonnet 3.2.1, clr_loader 0.3.1, bottle 0.13.4, proxy_tools
+  0.1.0 ; cffi passé de 1.16.0 à 2.1.1 (accord de Nicolas). cryptography 45.0.5 fonctionne avec cffi
+  2.1.1 (AES-GCM du Relay vérifié, suite de tests verte). `pip check` ne signale que deux conflits
+  antérieurs, sans rapport (tf-keras, opencv et numpy).
+- Playwright 1.64 (dépendance de développement de `frontend/`) : Chromium 1248 et son « headless
+  shell » dans `%LOCALAPPDATA%\ms-playwright`, **environ 715 Mo sur disque** (les ~150 Mo annoncés
+  étaient la taille du téléchargement).
+- Node 22.12.0 est trop ancien pour ESLint 10 (Node ≥ 22.13) et jsdom 30 (≥ 22.22) : ESLint 9.39.5
+  et jsdom 28.1.0 à la place. Reste un avertissement d'engine sans effet (eslint-visitor-keys 5,
+  module de données). Conseillé sur les deux PC : Node ≥ 22.13.
+- Versions du front : react 19.3.0, vite 8.3.4, @vitejs/plugin-react 6.1.2, typescript 6.0.3,
+  typescript-eslint 8.71.2, tailwindcss 4.3.3, zustand 5.0.15, react-virtuoso 4.18.16,
+  react-markdown 10.1.0, remark-gfm 4.0.1, remark-breaks 4.0.0, marked 18.1.1, remend 1.4.0,
+  shiki 4.5.0, katex 0.19.0, remark-math 6.0.0, rehype-katex 7.0.1, lucide-react 1.55.0,
+  @radix-ui/react-dialog 1.3.0, @radix-ui/react-tooltip 1.4.0, @fontsource-variable/inter et
+  jetbrains-mono 5.3.0, vitest 5.0.4, prettier 3.9.10. `frontend/dist/` : 4,7 Mo, 88 fichiers
+  (coloration du code et formules en morceaux chargés à la demande).
 
 ## 2. Ce que ce PC ne permet pas de vérifier
 
@@ -154,16 +176,16 @@ code, la documentation et §7.
 
 ### Structure générale
 
-- [ ] **En-tête avec les onglets Chat et Agents** — `interfaces/gui/layout.py` (`create_modern_header`,
+- [x] **En-tête avec les onglets Chat et Agents** — `interfaces/gui/layout.py` (`create_modern_header`,
   `create_tab_buttons`, `create_header_buttons`, `switch_tab`, `_update_header_buttons_visibility`).
   Tk : ☰ à gauche (onglet Chat, sidebar fermée), onglets « 💬 Chat » et « 🤖 Agents » centrés,
   « 🗑️ Clear Chat », « ❓ Aide » et une pastille ● verte à droite, masqués sur l'accueil et sur
   l'onglet Agents ; quitter l'onglet Chat ferme la sidebar. La pastille ne change jamais de couleur.
-- [ ] **Sidebar repliable avec Ctrl+B** — `interfaces/gui/sidebar.py` (`create_left_sidebar`,
+- [x] **Sidebar repliable avec Ctrl+B** — `interfaces/gui/sidebar.py` (`create_left_sidebar`,
   `toggle_sidebar`), raccourci dans `command_palette.py`. Tk : fermée au lancement, 260 px ; sections
   repliables Recherche globale, Sessions, Dossiers du projet, Historique, Export (toutes fermées au
   lancement).
-- [ ] **Écran d'accueil** — `interfaces/gui/base.py` (`_create_home_screen`, `_home_screen_send`,
+- [x] **Écran d'accueil** — `interfaces/gui/base.py` (`_create_home_screen`, `_home_screen_send`,
   `_dismiss_home_screen`). Tk : 🤖 orange, « My_AI » en gras, saisie « Tapez votre message... », micro,
   menu ＋, « Envoyer ↗ », autocomplétion « / » ; les pièces jointes suivent quand on quitte l'accueil.
 - [ ] **Assistant de premier lancement** — `interfaces/onboarding.py` (`OnboardingWizard`, `should_run`,
@@ -177,15 +199,15 @@ code, la documentation et §7.
 
 ### Chat
 
-- [ ] **Streaming, bouton Stop et touche Échap** — `base.py` (`send_message`,
+- [x] **Streaming, bouton Stop et touche Échap** — `base.py` (`send_message`,
   `quel_handle_message_with_id`, `interrupt_ai`, `_set_send_button_stop`), `streaming.py`.
   Écart : dans Tk, **Échap n'arrête pas la génération** (il ferme seulement dialogues, palette et menus).
-- [ ] **Bloc « Réflexion » repliable** — `streaming.py` (`_create_reasoning_widget`,
+- [x] **Bloc « Réflexion » repliable** — `streaming.py` (`_create_reasoning_widget`,
   `_stream_thinking_token`, `_finalize_reasoning_widget`, `_toggle_reasoning_widget`). Tk : créé seulement
   pour une requête complexe (`is_complex_query`, non conversationnelle, sans image) ; « Raisonnement. .. ... »,
   déplié au premier jeton, masqué s'il reste vide ; en-têtes émis par l'orchestrateur « 🧠 Analyse : »,
   « 📋 Plan d'action : », « 💡 Synthèse : ». La réflexion **n'est pas enregistrée** dans la session.
-- [ ] **Indicateur d'outil MCP et confirmation de suppression** — `base.py` (`on_tool_call` et ses
+- [x] **Indicateur d'outil MCP et confirmation de suppression** — `base.py` (`on_tool_call` et ses
   libellés, `_show_mcp_tool_indicator`, `_hide_mcp_tool_indicator`, `on_delete_confirm`,
   `_show_delete_confirmation_dialog`). Tk : « synthesis » masque l'indicateur et force un saut de
   paragraphe ; dialogue « L'IA souhaite supprimer ce fichier : », « Oui, supprimer » / « Non, annuler »,
@@ -211,7 +233,7 @@ code, la documentation et §7.
   `_regenerate`). Tk : dialogue « Modifier le message », « Regénérer ↻ », refus pendant une génération ou
   sans réponse, texte inchangé = rien, avertissement si des messages suivent. Écart : **pas de
   « régénérer » sans modification** (§8 en demande un au survol).
-- [ ] **Copie d'un message** — `message_bubbles.py` (`copy_on_double_click`,
+- [x] **Copie d'un message** — `message_bubbles.py` (`copy_on_double_click`,
   `create_copy_menu_with_notification`), `message_editing.py` (`_copy_message`, bouton 📋 sous les
   messages de l'utilisateur).
 - [ ] **Note de 1 à 5 étoiles** — `message_bubbles.py` (`_show_timestamp_for_current_message`,
@@ -246,9 +268,9 @@ code, la documentation et §7.
 - [ ] **Fin de tâche planifiée : toast et notification système** — `base.py` (`_on_scheduled_task_done`,
   `_display_scheduled_result`, `_show_scheduled_toast` : 6 s, liseré vert / orange / rouge, clic = ouvre
   le rapport, seulement si `os_toast_shown` est faux), `core/scheduler.py`, `utils/desktop_notify.py`.
-- [ ] **Horodatage des messages** — `message_bubbles.py` (`_show_timestamp_for_current_message`, hh:mm
+- [x] **Horodatage des messages** — `message_bubbles.py` (`_show_timestamp_for_current_message`, hh:mm
   sous la réponse), `message_editing.py` (`_add_edit_controls`, hh:mm sous la bulle utilisateur).
-- [ ] **Remise à zéro avec Ctrl+L** — `base.py` (`clear_chat`) : vide l'historique, les branches,
+- [x] **Remise à zéro avec Ctrl+L** — `base.py` (`clear_chat`) : vide l'historique, les branches,
   `ai_engine.clear_conversation()`, `local_llm.clear_history()`, la mémoire de conversation (documents
   compris), le stockage Ultra, la liste `documents` du gestionnaire de contexte et `session_context`.
   L'appel à `vector_memory.clear_all()` ne s'exécute jamais (`CustomAIModel` n'a pas d'attribut
@@ -260,7 +282,7 @@ code, la documentation et §7.
   `_global_search_render`, `_global_search_open`, `_global_search_reindex`, `_highlight_in_chat`),
   `core/conversation_search.py`. Tk : 15 résultats « 🧑/🤖 session · extrait », surlignage des mots de la
   requête (sinon du message entier), effacé au clic.
-- [ ] **Sessions et workspaces** — `sidebar.py` (`_session_new`, `_session_save_current`,
+- [x] **Sessions et workspaces** — `sidebar.py` (`_session_new`, `_session_save_current`,
   `_session_load`, `_session_delete`, `_refresh_sessions`), `core/session_manager.py`. Voir les écarts
   (section 7) : pas de sauvegarde automatique, Ctrl+N ne bascule pas sur la nouvelle session.
 - [ ] **Dossiers projet** — `sidebar.py` (`_folder_attach`, `_folder_reindex`, `_folder_detach`,
@@ -326,6 +348,24 @@ code, la documentation et §7.
   Windows).
 - [ ] **Notification système à la fin d'une tâche longue** — `execution.py` (`_notify_task_complete` :
   plus de 8 s et fenêtre sans focus), `utils/desktop_notify.py`.
+
+### Où en est la checklist après la phase 2
+
+Cochés ci-dessus : terminés dans l'interface web (phase 2). En partie faits :
+
+- **Markdown complet** : titres, listes, tableaux, citations, règles, code coloré avec Copier, liens
+  ouverts dans le navigateur, formules (D9), sauts de ligne simples comme Tk. Restent pour la phase 3
+  les citations web `[n]` cliquables et les chemins de fichiers cliquables.
+- **Édition et régénération** : la navigation entre variantes ‹ k/n › fonctionne ; modifier un
+  message et régénérer arrivent en phase 3.
+- **Génération d'image** et **de fichiers** : progression et carte du fichier affichées ; afficher
+  l'image, l'ouvrir en grand et ouvrir le fichier arrivent en phase 3.
+- **Messages du mobile** : badge « Mobile » et affichage en direct prêts ; pas encore vérifiés avec
+  un vrai téléphone.
+- **Raccourcis** : Entrée, Maj+Entrée, Échap, Ctrl+B, Ctrl+N, Ctrl+L, Ctrl+S ; ceux du navigateur
+  sont neutralisés (vérifié au vrai clavier). Ctrl+K, Ctrl+R, Ctrl+virgule et F1 en phase 3.
+- **Accès au Relay, à la lecture automatique, aux Réglages, à la Mémoire, aux Prompts, à l'Export** :
+  boutons en bas de la barre latérale, désactivés jusqu'à la phase 3 (question 20).
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -462,6 +502,45 @@ Numérotées comme les questions de la section 9.
   du serveur (« prompt eval time = … ms / N tokens »), à condition de relancer `ollama serve` avec une
   sortie capturée : le lanceur l'envoie dans DEVNULL.
 
+### Choix techniques de la phase 2 (dans le cadre fixé, pour mémoire)
+
+- **Rendu Markdown** : react-markdown + remark-gfm, réponse découpée en blocs (jetons de bloc de
+  marked) mémoïsés, Markdown incomplet du dernier bloc refermé par remend. Départagé par une mesure
+  (journal, phase 2) : Streamdown, même sans HTML brut, est 4 fois plus lent et produit des tâches
+  longues. Le HTML brut s'affiche comme du texte ; les URL non web sont neutralisées.
+- **Coloration du code** : Shiki (moteur JavaScript, thème à variables CSS de `tokens.css`, palette
+  Dark+ de Tk), dans un **Web Worker** : la première coloration d'un langage compile sa grammaire
+  (54 ms pour Python, 112 ms pour JavaScript, plus d'une seconde pour C++), jamais sur le fil de la
+  fenêtre. Pendant le streaming, au plus une coloration toutes les 400 ms ; lignes en cours en brut.
+- **Sauts de ligne simples** gardés (remark-breaks), comme Tk et la PWA : bloc « Sources », listes
+  écrites sans ligne vide.
+- **Position des appels d'outils** : chaque appel garde `at`, la longueur du texte au moment de
+  l'appel (événement `tool.call` et `tool_calls` des sessions, clé optionnelle, D7). Les outils
+  s'affichent à leur place, en direct comme à la réouverture ; sans `at` (sessions anciennes), en tête.
+- **Session rouverte sans changement non réenregistrée** (empreinte de l'historique et des
+  variantes) : elle garde sa date et sa place dans la liste des conversations. Tk la réenregistrait
+  avant d'en ouvrir une autre ; avec la sauvegarde après chaque tour (D2), cela ne servait plus qu'à
+  la faire remonter en tête de liste, sous le curseur.
+- **Fenêtre** : processus en DPI par écran v2 avant pywebview ; navigation hors de l'appli annulée et
+  nouvelles fenêtres refusées (deux gestionnaires de pywebview remplacés : NavigationStarting,
+  NewWindowRequested) ; seuls http, https et mailto s'ouvrent dans le navigateur du système ;
+  téléchargements et `file://` interdits ; mode privé de WebView2 ; barre de titre sombre, aux
+  couleurs de `tokens.css` sous Windows 11 (la page les envoie à la fenêtre) ; taille, position et
+  état agrandi retenus (`window` dans `data/.desktop_state.json`) ; premier lancement agrandi, comme Tk.
+- **Raccourcis du navigateur** neutralisés deux fois : réglage de WebView2 (hors mode debug) et
+  `preventDefault` dans la page.
+- **`--dev`** : serveur local sur le port 5180, Vite sur 5173 (lancé par le lanceur, ou réutilisé
+  s'il tourne déjà), arrêté à la fermeture.
+- **Variables de développement** : `MY_AI_WEBVIEW_CDP_PORT` ouvre le port de débogage de WebView2,
+  seulement sur demande, pour piloter la vraie fenêtre depuis Playwright ; `MY_AI_WEBVIEW_DEBUG=1`
+  donne les outils de développement sans `--dev`. Build de profilage : `VITE_REACT_PROFILE=1`
+  (React Profiler), absent des builds normaux.
+- **Infobulles** sans contenu cliquable (`disableHoverableContent`) : elles se ferment dès que la
+  souris quitte leur bouton, même vers l'extérieur de la fenêtre (bogue signalé par Nicolas).
+- **Polices** Inter et JetBrains Mono variables (toutes les graisses, sous-ensembles chargés à la
+  demande) ; pas de ligatures dans le code (« => » reste « => », comme Consolas dans Tk) ; KaTeX
+  livré en WOFF2 seulement.
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -524,6 +603,26 @@ Réponses de Nicolas le 2026-10-12 : oui à la 14 (D14), option (a) pour la 15 (
 
     Recommandation : (a).
 
+### Questions de la phase 2 (posées le 2026-10-13)
+
+16. **Libellé du bloc de réflexion** : « Raisonnement » comme dans Tk, suivi de la durée
+    (« Raisonnement · 12 s »), ou « Réflexion » comme dans le prompt (§7, §8) ? J'ai gardé le
+    libellé de Tk.
+17. **Tokens/s des réponses sans outils** : elles passent par `LocalLLM.generate_stream`, que D15 ne
+    couvre pas ; l'estimation de repli y est 10 à 17 % trop basse pour une réponse courte. Ajouter le
+    même relevé en lecture seule (`eval_count`, `eval_duration`) à `models/local_llm.py` ?
+18. **Fichiers étrangers dans le dépôt** : le 2026-10-13 à 08:54:23, pendant la session, sont apparus
+    à la racine `package.json`, `package-lock.json`, `AGENTS.md`, `THIRD_PARTY_NOTICES.md`,
+    `.env.example`, `examples/` (six dossiers et un README), `patterns/` et `templates/`, ainsi qu'un
+    bloc « HyperFrames / motion design » à la fin de `.gitignore`. Ils viennent d'un espace de travail
+    « motion-design-claude-code » (HyperFrames). Je ne les ai ni créés, ni modifiés, ni commités (le
+    commit de `.gitignore` ne contient que le bloc `frontend/`). Les retirer, les garder ou les déplacer ?
+19. **Outils de vérification** (`temp/migration_tools/`, hors dépôt) : les verser dans le dépôt
+    (par exemple `frontend/scripts/` et `tools/`) pour les retrouver sur le PC Arc ?
+20. **Boutons de la phase 3** (Relay, lecture automatique, Réglages, Mémoire, Prompts, Export, pièces
+    jointes, micro, recherche) : affichés désactivés, avec une infobulle « arrive à la phase 3 », pour
+    juger la structure. Les garder ainsi, ou les masquer d'ici là ?
+
 ## 10. Risques repérés
 
 - **Reprise du prompt par Ollama** : `_rewind_engine_history` (édition, rechargement) réécrit tout
@@ -552,6 +651,14 @@ Réponses de Nicolas le 2026-10-12 : oui à la 14 (D14), option (a) pour la 15 (
   Node ≥ 22.12 (à vérifier sur le PC Arc) ; Streamdown embarque `rehype-raw` (à désactiver).
 - **Autre session Claude active sur ce PC** (projet ML-et-DL, `pip install` dans le même Python) :
   éviter d'installer des paquets en même temps.
+
+- **Échelles 125 % et 150 %, deux écrans** (phase 2) : non vérifiables ici. En DPI par écran v2, la
+  fenêtre WinForms (.NET Framework, sans app.config) ne se redimensionne pas d'elle-même en
+  changeant d'écran ; WebView2, lui, suit l'échelle. À vérifier sur le PC de travail (et en phase 3
+  avec les visionneuses Office).
+- **Chargement du moteur à froid** : 3 min au premier lancement du 2026-10-13, 10 s aux suivants
+  (imports de torch et du modèle d'embeddings, comme avec Tk). L'écran de chargement l'affiche
+  (« Chargement du moteur »).
 
 ---
 
@@ -719,6 +826,102 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   arrêtée). Je l'ai relancé ensuite avec le même environnement, journal capturé le temps du diagnostic.
   Il tourne maintenant comme le lanceur le laisse.
 
+### Phase 2 — 2026-10-12 et 2026-10-13 (PC à RTX 3060)
+
+- `main` n'avait pas bougé (rien à fusionner). pywebview et Playwright installés (section 1).
+- **Front** (`frontend/`) : Vite 8, React 19.3, TypeScript 6 strict, ESLint, Prettier, Vitest ;
+  `tokens.css` (couleurs du §8, palette Dark+ du code, typographie, formes, mouvement) branché sur
+  Tailwind 4, palettes par défaut retirées ; polices auto-hébergées.
+  - Protocole : `lib/events.ts` (miroir de `events.py`), client REST, WebSocket avec reprise
+    (`since`, `hello`), relecture de l'état et règle d'ordre par `seq`, actions par WebSocket avec
+    repli REST sans double envoi ; module `shell` (liens externes, couleurs de la barre de titre).
+  - État : réducteur du chat pur et testé, appliqué par lots à chaque image (minuteur de secours
+    quand la fenêtre est réduite).
+  - Écrans : chargement (étapes du lanceur, sous-étapes du calibrage, erreur d'Ollama), accueil,
+    onglets, barre latérale (conversations : ouvrir, supprimer, nouvelle ; reste en phase 3),
+    page Agents provisoire.
+  - Fil virtualisé (react-virtuoso), colonne de 720 px, collé en bas pendant une réponse (sans le
+    relancer à chaque changement de hauteur, il décroche jusqu'à 104 px), bouton « ↓ ».
+  - Réponse : Markdown par blocs, code coloré dans un worker avec Copier, formules (KaTeX à la
+    demande, règle des dollars), bloc Raisonnement, appels d'outils à leur place (« · 3 sources »),
+    activité (« L'IA réfléchit… », « Analyse du résultat et synthèse en cours… »), interrompue,
+    erreur, durée et tokens/s (D15).
+  - Saisie : carte, Entrée et Maj+Entrée, bouton rond devenant Stop, file d'attente visible et
+    annulable (D1), Échap (D6), confirmation de suppression (dialogue), notifications.
+- **Backend** :
+  - `tool.call` et `tool_calls` portent `at` ;
+  - `core/chat_orchestrator.py` : relevé en lecture seule `last_stream_stats` (D15, 15 lignes),
+    lu par le `ChatService` (repli sur l'estimation) ;
+  - une session rouverte sans changement n'est plus réenregistrée ;
+  - `/api/status` donne `chat` et `seq`, `/api/ui` garde l'état de la barre latérale ;
+  - `window.py` (fenêtre), `shell_api.py`, `devserver.py` (`--dev`), `run_desktop` dans
+    `lifecycle.py` ;
+  - `launch_unified.py --ui web|tk` (web par défaut) et `--dev` ; `requirements.txt` : pywebview,
+    pythonnet ≥ 3.1 sous Windows ; icône `interfaces/desktop/assets/my_ai.ico`.
+- **Tests** : `python -m pytest tests/` : **1029 réussis** (987 + 42), aucun échec, 33 avertissements,
+  86 s. Front : 45 tests Vitest, TypeScript, ESLint et Prettier propres.
+- **Captures** (Chromium, serveur de démonstration) : chargement, accueil, barre latérale, sessions,
+  conversation de 200 messages, streaming, réflexion, outils, file d'attente, Échap, confirmation,
+  erreur, Agents. Comparées à `docs/images/` et au §8 : même structure que Tk (☰, onglets centrés,
+  logo, « My_AI », carte de saisie), finition plus sobre ; le bouton « Envoyer ↗ » devient le bouton
+  rond du §8.
+- **Choix du rendu Markdown** (même réponse de 5 000 jetons, durée de chaque mise à jour, rendu et mise
+  en page compris, Chromium) :
+
+  | Rendu | Jetons par mise à jour | Moyenne | 95ᵉ centile | Pire | Tâches longues |
+  |---|---|---|---|---|---|
+  | Blocs mémoïsés (retenu) | 2 | 4,0 ms | 9,0 ms | 33 ms | 0 |
+  | Streamdown sans HTML brut | 2 | 18,6 ms | 61,9 ms | 226 ms | 17,8 s |
+  | react-markdown d'un bloc | 2 | 6,3 ms | 11,3 ms | 110 ms | 0,55 s |
+  | Blocs mémoïsés (retenu) | 20 | 1,6 ms | 3,0 ms | 23 ms | 0 |
+  | Streamdown sans HTML brut | 20 | 38,6 ms | 164 ms | 338 ms | 8,1 s |
+  | react-markdown d'un bloc | 20 | 16,4 ms | 94 ms | 204 ms | 2,8 s |
+
+- **Mesures de la phase 2** (build de profilage, React Profiler, Chromium sans GPU, serveur de
+  démonstration) :
+  - défilement des 200 messages à la molette (~2 400 px/s) : images à 16,7 ms (médiane et 95ᵉ
+    centile), 2 à 7 images sur 560 au-delà de 33 ms ; défilement très rapide (~15 000 px/s) : 11 à
+    22 images sur ~390 au-delà de 33 ms (Shiki dans le worker : 2 fois moins de tâches longues que
+    dans la page, mesuré en alternance) ;
+  - réponse de 5 000 jetons à 80 jetons/s avec saisie (une touche toutes les 120 ms) et défilement :
+    rendus React à 0,5 ms en médiane et 5,5 ms au 95ᵉ centile, saisie au pire à 72–80 ms, 4 à 5 %
+    d'images au-delà de 33 ms (une seule tâche longue de 62 ms dans une trace de 8 s) ;
+  - en charge (≈ 280 jetons/s) : rendus à 0,3 ms en médiane, 4,2–4,6 ms au 95ᵉ centile, 1,7 %
+    d'images au-delà de 33 ms ;
+  - calcul Python lourd (GIL tenu 12 s) pendant une réponse : affichage intact (95ᵉ centile à
+    16,8 ms) ; seuls les jetons arrivent plus lentement (53 au lieu de 70 par seconde, écart maximal
+    174 ms), le fil qui les lit partageant le GIL.
+- **Vraie fenêtre WebView2** (Edge 154), vrai Ollama (celui du lanceur), pilotée par CDP :
+  - lancement complet en 18 s (moteur 10 s), écran de chargement puis « prêt » ; premier
+    lancement agrandi ; barre de titre sombre aux couleurs de l'appli, avec l'icône du robot ;
+  - vraie question (code, tableau, recherche web) : réflexion en direct, « Recherche sur internet …
+    · 8 sources », synthèse, « 28 s · 69 tokens/s » (relevé d'Ollama, D15) ; affichage à 144 images/s
+    (écran à 144 Hz), 6,9 ms par image en médiane, 3 images sur 4 158 au-delà de 33 ms ;
+  - raccourcis du navigateur au vrai clavier (F5, Ctrl+R, Ctrl+Maj+R, Ctrl+F5, Ctrl+P, Ctrl+F, F3,
+    F7, Ctrl+U, Ctrl+G, Ctrl+J, Ctrl+H, Alt+←, Ctrl+T, Ctrl+W, Ctrl+O) : aucun rechargement, aucune
+    barre de recherche ni dialogue ; Ctrl+B ouvre et ferme la barre latérale ;
+  - fermeture : arrêt propre (Relay, scheduler, serveur), état enregistré ; taille et position
+    retenues (déplacée en 120, 80, 1400 × 900, relancée exactement là) ;
+  - `--dev` : Vite lancé (0,3 s), page servie par Vite, API et WebSocket relayés, Vite arrêté avec
+    l'appli ; `--ui tk` se lance toujours.
+- **Bogues trouvés et corrigés en route** : gestionnaires de fenêtre jamais appelés (pywebview ne
+  passe la fenêtre qu'à un paramètre nommé `window`) ; infobulle restée affichée quand la souris
+  quitte la fenêtre (signalé par Nicolas) ; bloc Raisonnement « déplié » avant tout texte ; un pixel
+  de bordure de la barre latérale fermée ; liste des conversations réordonnée à l'ouverture d'une
+  session ; doublon « ❌ » dans l'encadré d'erreur ; ligatures dans le code.
+- **`.gitattributes`** : la règle du prompt `frontend/** text eol=lf` traitait les polices WOFF2 de
+  `dist/` comme du texte, et Git y remplaçait des octets CRLF par LF (fichiers altérés dans le
+  commit). Remplacée par `frontend/** text=auto eol=lf`, plus `binary` pour les polices et images ;
+  les commits locaux concernés ont été refaits avant tout push, et chaque fichier de `dist/` commité
+  est identique au disque.
+- **Incident** : en vérifiant l'infobulle au vrai curseur, deux Ctrl+B sont partis vers la fenêtre
+  au premier plan de Nicolas (Windows refusait de mettre l'appli devant, il utilisait le PC). Plus de
+  touches système ensuite ; vérifications par CDP seulement.
+- **Fichiers étrangers** apparus à la racine pendant la session : question 18.
+- Données : `data/.desktop_state.json` remis en « agrandie » après les essais ; une session réelle
+  créée par la vérification (« Explique en détail, avec un exemple de code… ») est restée dans
+  `data/workspaces/`.
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -765,7 +968,7 @@ des tunnels du Relay.
 
 ---
 
-## 14. Plan de la phase 2 (proposé, en attente du feu vert)
+## 14. Plan de la phase 2 (approuvé le 2026-10-12, réalisé le 2026-10-13)
 
 But (prompt, §9) : le squelette de l'interface et le cœur du Chat, dans la vraie fenêtre.
 
@@ -832,3 +1035,46 @@ Risques :
   - Playwright télécharge Chromium (environ 150 Mo, hors du dépôt).
 - WebView2 : raccourcis du navigateur, barre de titre sombre (API Windows), outils de développement.
 - `frontend/dist/` versionné : le build est à refaire avant chaque commit qui touche le front.
+
+---
+
+## 15. Plan de la phase 3 (proposé, en attente du feu vert)
+
+But (prompt, §9) : tous les éléments des sections « Chat », « Sidebar » et « Fenêtres et
+panneaux » du §7, l'assistant de premier lancement et les visionneuses Office natives (§5).
+La phase est grosse : elle peut se découper en 3a (Chat et barre latérale) et 3b (panneaux,
+onboarding, visionneuses), avec un arrêt entre les deux.
+
+Fichiers créés ou complétés :
+
+- Front : menu « + », glisser-déposer (`pywebviewFullPath`), collage d'image, puces de pièces
+  jointes ; autocomplétion des slash commands ; modifier et régénérer, note de 1 à 5 étoiles,
+  lecture vocale, micro ; citations `[n]` et chemins de fichiers cliquables ; image générée (grand
+  format au clic), cartes de fichiers et de documents ; volet Artefacts (iframe `sandbox` sans
+  `allow-same-origin`, onglets Aperçu et Code, largeur réglable et retenue) ; volet d'aperçu
+  (PDF dans la page, visionneuses Office, aperçu HTML de repli) ; recherche globale, dossiers projet,
+  historique, export ; panneaux Réglages, Mémoire, Prompts, Relay (QR code), Aide ; palette Ctrl+K
+  (cmdk) et raccourcis restants ; assistant de premier lancement ; toast de fin de tâche planifiée.
+- Backend : routes REST et événements pour ces fonctions, en réutilisant le moteur (`MemoryStore`,
+  `PromptLibrary`, `conversation_search`, `folder_indexer`, `command_history`,
+  `conversation_exporter`, `rlhf_manager`, `scheduler`, fonctions de `interfaces/onboarding.py`) ;
+  fichiers servis seulement depuis des dossiers autorisés, ouverture selon les règles de
+  `utils/path_links.py` ; lecture vocale et Whisper côté Python (worker toujours isolé dans son
+  processus) ; `shell_api.py` : dialogues de fichiers, ouvrir, montrer dans l'Explorateur, placer la
+  visionneuse Office ; `_preview_handler.py` et `_dpi_host.py` déplacés dans `interfaces/desktop/`,
+  avec `tests/test_native_preview.py`.
+- Tests : pytest pour chaque route et service ; Vitest pour les composants ; captures Playwright.
+
+Étapes : (1) pièces jointes et dialogues ; (2) liens, cartes et ouverture des fichiers ; (3) édition,
+régénération, notes, voix ; (4) Artefacts et aperçus (PDF, Office, HTML) ; (5) barre latérale ;
+(6) panneaux, palette et raccourcis ; (7) onboarding ; (8) notifications et vérification avec le
+téléphone ; (9) captures, mesures et recette.
+
+Risques :
+
+- Visionneuses Office en fenêtre enfant au-dessus de WebView2, avec le DPI par écran : à prouver ;
+  masquer la visionneuse sous les menus, dialogues et notifications ; tests à 125 et 150 % impossibles ici.
+- `config.yaml` : garder ses commentaires (Réglages), comme le fait Tk aujourd'hui.
+- Service de fichiers locaux : chemins hors des dossiers autorisés refusés (traversée de dossiers).
+- Le panneau Mémoire modifie les messages d'origine des sessions : synchroniser avec l'état du chat.
+- Glisser-déposer : vrai chemin des fichiers à vérifier dans WebView2 ; dossiers refusés comme dans Tk.
