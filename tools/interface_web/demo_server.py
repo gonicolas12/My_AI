@@ -24,7 +24,15 @@ Scénarios (mot dans le message) :
   « erreur »     réponse en échec
   « attends »    réponse lente (10 s), pour le Stop et la file d'attente
   « indexe »     réponse pendant un calcul Python qui tient le GIL 12 s
+  « artefact »   page HTML (avec script) et logo SVG : volet d'aperçu
+  « document »   documents produits (PDF, Word, Markdown) : cartes et aperçus
+  « chemin »     réponse qui cite des chemins existants (Explorateur au clic)
+  « dessine »    génération d'image, avec progression
+  « génère un fichier X.py »  génération de fichier (carte, Téléchargements)
   autre          courte réponse avec code et formule
+
+Les fichiers produits vont dans temp/demo_server/PORT/outputs/, dossier des
+fichiers « produits par l'appli » pour ce serveur.
 """
 
 import argparse
@@ -34,6 +42,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -105,6 +114,43 @@ La formule $E = mc^2$ relie masse et énergie. Plus d'informations sur [MDN](htt
 """
 
 
+ARTIFACT = """Voici une petite page interactive, et un logo :
+
+```html
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><title>Compteur</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #1a1a1a; color: #fff;
+         display: grid; place-items: center; height: 100vh; margin: 0; }
+  button { background: #ff6b47; color: #fff; border: 0; border-radius: 8px;
+           padding: 10px 18px; font-size: 16px; cursor: pointer; }
+</style></head>
+<body>
+  <div>
+    <h1>Compteur</h1>
+    <p>Clics : <strong id="n">0</strong></p>
+    <button onclick="document.getElementById('n').textContent++">Cliquer</button>
+    <p id="api"></p>
+  </div>
+  <script>
+    // L'artefact ne peut pas joindre l'API de l'appli (iframe isolée)
+    fetch('/api/status').then(r => r.status).catch(() => 'bloqué')
+      .then(s => { document.getElementById('api').textContent = 'API : ' + s; });
+  </script>
+</body>
+</html>
+```
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <circle cx="80" cy="80" r="70" fill="#ff6b47"/>
+  <text x="80" y="92" font-size="36" text-anchor="middle" fill="#fff">AI</text>
+</svg>
+```
+"""
+
+
 def chunks(text: str, size: int = 4):
     """Découpe en « jetons » d'environ 4 caractères."""
     return [text[i:i + size] for i in range(0, len(text), size)]
@@ -119,12 +165,79 @@ def burn(seconds: float = 12.0) -> None:
             x = (x * 31 + i) % 1000003
 
 
+class DemoImageGenerator:
+    """Générateur d'image simulé : progression, puis un PNG dans outputs/."""
+
+    def __init__(self, outputs: Path):
+        self.outputs = outputs
+
+    @staticmethod
+    def is_available():
+        """Toujours disponible."""
+        return True
+
+    def generate(self, prompt, on_progress, is_interrupted):
+        """Dix étapes de diffusion, puis un dégradé à l'orange de l'appli."""
+        from PIL import Image  # pylint: disable=import-outside-toplevel
+
+        for step in range(1, 11):
+            if is_interrupted():
+                return SimpleNamespace(interrupted=True, success=False, image_path=None,
+                                       message="⏹️ Génération de l'image interrompue.")
+            on_progress(step / 10, f"Diffusion {step * 10} %")
+            time.sleep(0.25)
+        image = Image.new("RGB", (768, 512))
+        pixels = image.load()
+        for x in range(768):
+            for y in range(512):
+                pixels[x, y] = (255, max(0, 107 - x // 12), min(255, 71 + y // 4))
+        target = self.outputs / f"image_{int(time.time())}.png"
+        image.save(target)
+        return SimpleNamespace(interrupted=False, success=True, image_path=str(target),
+                               message=f"🎨 Image générée : « {prompt} »")
+
+
 class DemoEngine(FakeEngine):
     """Moteur scénarisé, à vitesse réaliste."""
 
-    def __init__(self, workspaces_dir, rate):
+    def __init__(self, workspaces_dir, rate, outputs: Path):
         super().__init__(workspaces_dir)
         self.rate = rate
+        self.outputs = outputs
+        self.generator = DemoImageGenerator(outputs)
+
+    def is_image_generation_request(self, text):
+        """« dessine » : génération d'image."""
+        self.calls.append("is_image_generation_request")
+        return "dessine" in text.lower()
+
+    async def process_query(self, query, context=None, is_interrupted_callback=None):
+        """Génération de fichier : un petit programme écrit dans outputs/."""
+        del context, is_interrupted_callback
+        last = query.split()[-1] if query.split() else ""
+        name = last if last.count(".") == 1 else "calcul.py"
+        target = self.outputs / name
+        target.write_text("def somme(a, b):\n    return a + b\n\n\nprint(somme(2, 3))\n",
+                          encoding="utf-8")
+        return {"type": "file_generation", "success": True, "filename": name,
+                "file_path": str(target)}
+
+    def demo_documents(self):
+        """Documents « produits » : copies des fichiers de test, et une note Markdown."""
+        documents = self.outputs / "documents"
+        documents.mkdir(parents=True, exist_ok=True)
+        produced = []
+        fixtures = ROOT / "temp" / "migration_test_data" / "fichiers"
+        for name in ("rapport_trimestriel.pdf", "note_projet.docx"):
+            if (fixtures / name).is_file():
+                shutil.copy2(fixtures / name, documents / name)
+                produced.append(documents / name)
+        note = documents / "synthese.md"
+        note.write_text("# Synthèse\n\n- Chiffre d'affaires : **+12 %**\n- Marge : 31 %\n\n"
+                        "| Trimestre | Ventes |\n|---|---|\n| T1 | 120 |\n| T2 | 134 |\n",
+                        encoding="utf-8")
+        produced.append(note)
+        return produced
 
     def is_complex_query(self, text):
         """Bloc Réflexion affiché d'emblée, comme pour une requête complexe."""
@@ -189,6 +302,24 @@ class DemoEngine(FakeEngine):
                                  "Le langage a 35 ans.\n\n📚 **Sources**\n"
                                  "[1] https://docs.python.org/3.14/whatsnew\n"
                                  "[2] https://peps.python.org/pep-0745/\n[3] https://realpython.com/")
+        if "artefact" in text:
+            return stream(ARTIFACT, size=12)
+        if "document" in text:
+            produced = self.demo_documents()
+            kwargs["on_tool_call"]("generate_document", {"format": "pdf"})
+            time.sleep(0.6)
+            for path in produced:
+                kwargs["on_document"](str(path))
+            kwargs["on_tool_result"]("generate_document", {}, f"Document créé : {produced[0]}")
+            kwargs["on_tool_call"]("synthesis", {})
+            names = ", ".join(path.name for path in produced)
+            return stream(f"J'ai rédigé les documents demandés ({names}). "
+                          f"Le rapport est dans {produced[0]}.\n")
+        if "chemin" in text:
+            readme = ROOT / "README.md"
+            return stream(f"Le fichier de présentation est {readme} et la documentation est "
+                          f"dans `{ROOT / 'docs'}`. Ce chemin n'existe pas : "
+                          "C:\\inexistant\\x.txt.\n")
         if "indexe" in text:
             threading.Thread(target=burn, name="indexation-simulee", daemon=True).start()
             return stream(long_answer()[:6000])
@@ -232,7 +363,13 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
                 time.sleep(pause)
         self._set_status(placement="modèle sur le GPU (100 %)")
         self._step("engine", "Chargement du moteur…")
-        engine = DemoEngine(self._workspaces, self._rate)
+        outputs = self._workspaces.parent / "outputs"
+        outputs.mkdir(parents=True, exist_ok=True)
+        # Dossier des fichiers « produits par l'appli » (files.generated_roots)
+        self.config = SimpleNamespace(
+            get=lambda key, default=None: str(outputs)
+            if key == "generation.output_directory" else default)
+        engine = DemoEngine(self._workspaces, self._rate, outputs)
         self.engine = engine
         self.chat = ChatService(engine, self.bus.publish, file_processor=FakeFileProcessor(),
                                 ui_connected=lambda: self.bus.subscriber_count > 0,
@@ -267,7 +404,7 @@ def main():
         workspaces.mkdir()
     if args.dist:
         from interfaces.desktop import server as desktop_server  # pylint: disable=import-outside-toplevel
-        desktop_server.DIST_DIR = Path(args.dist)
+        desktop_server.DIST_DIR = Path(args.dist).resolve()
 
     token = args.token or secrets.token_urlsafe(16)
     app = DemoApp(workspaces, args.rate, args.fast_launch, port=args.port,

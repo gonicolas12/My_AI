@@ -407,7 +407,7 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
         index = DIST_DIR / "index.html"
         if not index.is_file():
             return HTMLResponse(_PLACEHOLDER_PAGE)
-        candidate = (DIST_DIR / path).resolve() if path else index
+        candidate = (DIST_DIR / path).resolve() if path else index.resolve()
         try:
             candidate.relative_to(DIST_DIR.resolve())
         except ValueError:
