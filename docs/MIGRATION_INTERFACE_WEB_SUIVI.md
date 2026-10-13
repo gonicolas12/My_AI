@@ -25,7 +25,19 @@ phase 2).
 - Questions de la phase 2 tranchées le 2026-10-13 (décisions D16 à D20, section 8) et appliquées :
   libellé « Réflexion », tokens/s des réponses sans outils, fichiers étrangers retirés, outils de
   vérification versés dans le dépôt, boutons de la phase 3 gardés.
-- Prochaine étape : phase 3 (plan proposé en section 15), après le feu vert de Nicolas.
+- **Phase 3 : feu vert le 2026-10-13**, découpée en 3a (Chat et barre latérale) puis 3b
+  (panneaux, onboarding, visionneuses Office), avec un arrêt et un compte rendu à la fin de 3a.
+  Installations permises : paquets de la stack du §6 (cmdk, primitives Radix…) ; demander pour
+  tout autre paquet.
+- **Phase 3a (Chat et barre latérale) terminée le 2026-10-13** : pièces jointes (menu « + »,
+  glisser-déposer, collage), slash commands, modifier et régénérer, notes, lecture et saisie
+  vocales, citations et chemins cliquables, cartes de fichiers, image générée, volet d'aperçu
+  (artefacts HTML et SVG, PDF, documents), recherche globale, dossiers projet, historique, export,
+  lecture automatique, toast des tâches planifiées. Vérifiée dans Chromium (serveur de
+  démonstration), et dans la vraie fenêtre WebView2 pour le volet d'aperçu (artefact isolé du pont
+  pywebview, lecteur PDF). Détails, mesures et bogues corrigés dans le journal (section 12).
+- **En attente** : réponses aux questions de la phase 3a (21 à 25, section 9), essais au vrai
+  clavier et à la vraie souris (section 2), puis feu vert pour la phase 3b (plan en section 16).
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -109,6 +121,14 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
   jetbrains-mono 5.3.0, vitest 5.0.4, prettier 3.9.10. `frontend/dist/` : 4,7 Mo, 88 fichiers
   (coloration du code et formules en morceaux chargés à la demande).
 
+### Installé en phase 3a (2026-10-13)
+
+- @radix-ui/react-dropdown-menu 2.2.1 (menus « + » et Export). @radix-ui/react-dialog passe à
+  1.3.1 et @radix-ui/react-tooltip à 1.4.1 : mêmes briques communes que le menu, sinon le build en
+  embarquait deux copies. Rien côté Python. `frontend/dist/` : 4,8 Mo, 90 fichiers.
+- `npm audit` (dépendances de l'appli) : un avis de faible gravité, antérieur à la phase 3a, sur
+  KaTeX 0.16.47, la copie que `rehype-katex` installe pour lui (question 22).
+
 ## 2. Ce que ce PC ne permet pas de vérifier
 
 À faire sur le PC de travail, ou par Nicolas dans la vraie fenêtre :
@@ -118,10 +138,24 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
 - Python 3.14 + pythonnet ≥ 3.1 + pywebview (PC Arc).
 - Placement sur GPU intégré et contexte en 8 bits sur le PC Arc.
 - macOS et Linux (`launch.sh`) : aucun des deux PC.
-- Recette visuelle finale dans la fenêtre pywebview : je ne vois pas la fenêtre, seulement les captures
-  Playwright (Chromium headless).
+- Recette visuelle finale dans la fenêtre pywebview : je ne vois la fenêtre que par des captures
+  (Playwright, ou `win.py capture` pour ce que CDP ne montre pas, comme le lecteur PDF).
 
 Vérifiable ici : Windows, WebView2, visionneuses Office natives, micro, carte NVIDIA, ComfyUI.
+
+À essayer par Nicolas après la phase 3a, au vrai clavier et à la vraie souris (je n'envoie ni
+touche ni curseur du système pendant qu'il se sert du PC, et ces essais ouvrent des fenêtres du
+système) :
+
+- menu « + » : dialogues de Windows pour PDF, Word, Excel, PowerPoint, code et image (une seule
+  image en attente), puis « Dossiers du projet » (choix d'un dossier, indexation) ;
+- glisser-déposer depuis l'Explorateur : fichiers joints avec leur vrai chemin, dossier refusé ;
+- Export : dialogue « Enregistrer sous » (Markdown, HTML, PDF) ;
+- micro (Whisper) et lecture vocale (pyttsx3), bouton de lecture automatique ;
+- chemin cité dans une réponse (Explorateur), « Ouvrir » d'un document produit (son application),
+  « Ouvrir dans le navigateur » d'un artefact, « Télécharger » (copie dans Téléchargements) ;
+- un vrai tour avec Ollama qui produit un artefact HTML (question 25) ;
+- fin d'une vraie tâche planifiée : notification du système, ou toast dans l'appli.
 
 ## 3. Tests de référence (phase 0)
 
@@ -219,12 +253,12 @@ code, la documentation et §7.
   `_show_delete_confirmation_dialog`). Tk : « synthesis » masque l'indicateur et force un saut de
   paragraphe ; dialogue « L'IA souhaite supprimer ce fichier : », « Oui, supprimer » / « Non, annuler »,
   Échap ou fermeture = refus ; le fil du moteur attend la réponse.
-- [ ] **Markdown complet** — `markdown_formatting.py`, `syntax_highlighting.py`,
+- [x] **Markdown complet** — `markdown_formatting.py`, `syntax_highlighting.py`,
   `streaming.py` (`_finish_streaming_animation`), `utils/citations.py`, `utils/path_links.py`.
   Écart : Tk n'a **pas de bouton Copier sur les blocs de code** (nouveau dans la cible). Citations : bloc
   « 📚 **Sources** » et marqueurs `[n]` ouverts dans le navigateur ; chemins existants →
   `reveal_in_file_manager`.
-- [ ] **Pièces jointes** — `interfaces/gui/file_handling.py` (`process_dropped_file`, `process_file`,
+- [x] **Pièces jointes** — `interfaces/gui/file_handling.py` (`process_dropped_file`, `process_file`,
   `process_file_background`, `_attachment_loading_started/finished`, `_attachment_removed`,
   `_forget_if_unused`, `_refuse_send_while_loading`, `_process_image_file`, `_on_paste`),
   `layout.py` (`add_file_preview`, `_hide_attachment_spinner`, `clear_file_previews`).
@@ -232,10 +266,10 @@ code, la documentation et §7.
   attente (JPEG 1024 px) ; collage Ctrl+V vers un fichier temporaire au nom fixe ; retirer une pièce
   jointe arrête sa lecture et l'oublie si elle ne sert plus. Écart : le **glisser-déposer refuse les
   dossiers** (« ❌ Chemin invalide ») ; un dossier passe par « Dossiers du projet ».
-- [ ] **Slash commands** — `slash_commands.py` (`_attach_slash_autocomplete`, `_slash_*`,
+- [x] **Slash commands** — `slash_commands.py` (`_attach_slash_autocomplete`, `_slash_*`,
   `_expand_slash_command`), `core/prompt_library.py` (`expand`, `search`). La bulle garde la commande
   courte, le modèle reçoit le texte étendu.
-- [ ] **Édition et régénération avec branches ‹ k/n ›** — `message_editing.py` (`_begin_edit`,
+- [x] **Édition et régénération avec branches ‹ k/n ›** — `message_editing.py` (`_begin_edit`,
   `_apply_edit`, `_navigate`, `_persist_version`, `_rerender_all`, `_rewind_engine_history`,
   `_regenerate`). Tk : dialogue « Modifier le message », « Regénérer ↻ », refus pendant une génération ou
   sans réponse, texte inchangé = rien, avertissement si des messages suivent. Écart : **pas de
@@ -243,26 +277,26 @@ code, la documentation et §7.
 - [x] **Copie d'un message** — `message_bubbles.py` (`copy_on_double_click`,
   `create_copy_menu_with_notification`), `message_editing.py` (`_copy_message`, bouton 📋 sous les
   messages de l'utilisateur).
-- [ ] **Note de 1 à 5 étoiles** — `message_bubbles.py` (`_show_timestamp_for_current_message`,
+- [x] **Note de 1 à 5 étoiles** — `message_bubbles.py` (`_show_timestamp_for_current_message`,
   `_on_star_rating`), `core/rlhf_manager.py`. Tk : `record_interaction(user_query = texte de la bulle
   utilisateur, ai_response = texte affiché, feedback_type positive ≥ 4 / negative ≤ 2 / neutral,
   feedback_score, intent "conversation", confidence 1.0, model_version "ollama")` ; note figée ensuite.
-- [ ] **Lecture vocale** — `voice_output.py` (`VoiceOutput`), `message_bubbles.py`
+- [x] **Lecture vocale** — `voice_output.py` (`VoiceOutput`), `message_bubbles.py`
   (`_add_speak_button` : 🔊, ⏹ pendant la lecture, 🔇 en erreur), `sidebar.py` (`_make_tts_button`),
   réglage `ui.tts_autoread`.
-- [ ] **Saisie vocale** — `voice_input.py` (`VoiceInput`, `_WhisperWorker`, `attach_mic_button`),
+- [x] **Saisie vocale** — `voice_input.py` (`VoiceInput`, `_WhisperWorker`, `attach_mic_button`),
   `_whisper_worker.py`. Tk : modèle `small` int8 sur CPU ; processus séparé seulement si plusieurs
   runtimes OpenMP sont chargés (macOS) ou `MY_AI_WHISPER_WORKER=1`, avec repli mono-thread ; états
   idle / recording / transcribing / error ; insertion au curseur ; micro désactivé pendant une génération.
-- [ ] **Génération d'image** — `base.py` (`_handle_image_generation_ui`, `_auto_setup_image_backend`,
+- [x] **Génération d'image** — `base.py` (`_handle_image_generation_ui`, `_auto_setup_image_backend`,
   `_attach_generated_image`, `_remember_image_generation`), `models/comfyui_manager.py`,
   `core/ai_engine.py` (`is_image_generation_request`, `extract_image_prompt`, `image_generator`).
   Écart : la session enregistre le texte provisoire « Génération de l'image en cours… » ; **l'image est
   perdue au rechargement**.
-- [ ] **Génération de fichiers et de documents** — `base.py` (branche « génération de fichier » :
+- [x] **Génération de fichiers et de documents** — `base.py` (branche « génération de fichier » :
   mots-clés, `process_query`, message tiré au hasard parmi 8, nom cliquable), `file_handling.py`
   (`download_file_to_downloads` : copie dans Téléchargements), `on_document` → `_pending_document_paths`.
-- [ ] **Volet Artefacts** — `artifacts_panel.py`, `interfaces/artifacts.py`, `message_bubbles.py`
+- [x] **Volet Artefacts** — `artifacts_panel.py`, `interfaces/artifacts.py`, `message_bubbles.py`
   (`_collect_artifacts`, `_add_artifact_button` « 🔍 Aperçu (n) », `_maybe_auto_open_artifact` : une fois
   par message, jamais à la restauration d'une session). Tk : volet 560 px réglable de 320 à 1200, boutons
   📂 (document), 🌐 (navigateur), ✕. Écart : **pas d'onglets Aperçu / Code** dans Tk (nouveau). Edge
@@ -272,7 +306,7 @@ code, la documentation et §7.
   « ⏳ Ouverture de l'aperçu Word… »), `interfaces/document_preview.py`. PDF : lecteur d'Edge.
 - [ ] **Messages du mobile en direct, badge « Mobile »** — `base.py` (`_poll_relay_messages`,
   `_display_relay_message` avec le préfixe 📡, `_process_relay_attachments_then_ai`).
-- [ ] **Fin de tâche planifiée : toast et notification système** — `base.py` (`_on_scheduled_task_done`,
+- [x] **Fin de tâche planifiée : toast et notification système** — `base.py` (`_on_scheduled_task_done`,
   `_display_scheduled_result`, `_show_scheduled_toast` : 6 s, liseré vert / orange / rouge, clic = ouvre
   le rapport, seulement si `os_toast_shown` est faux), `core/scheduler.py`, `utils/desktop_notify.py`.
 - [x] **Horodatage des messages** — `message_bubbles.py` (`_show_timestamp_for_current_message`, hh:mm
@@ -285,20 +319,20 @@ code, la documentation et §7.
 
 ### Sidebar
 
-- [ ] **Recherche globale** — `sidebar.py` (`_make_section_search`, `_global_search_run`,
+- [x] **Recherche globale** — `sidebar.py` (`_make_section_search`, `_global_search_run`,
   `_global_search_render`, `_global_search_open`, `_global_search_reindex`, `_highlight_in_chat`),
   `core/conversation_search.py`. Tk : 15 résultats « 🧑/🤖 session · extrait », surlignage des mots de la
   requête (sinon du message entier), effacé au clic.
 - [x] **Sessions et workspaces** — `sidebar.py` (`_session_new`, `_session_save_current`,
   `_session_load`, `_session_delete`, `_refresh_sessions`), `core/session_manager.py`. Voir les écarts
   (section 7) : pas de sauvegarde automatique, Ctrl+N ne bascule pas sur la nouvelle session.
-- [ ] **Dossiers projet** — `sidebar.py` (`_folder_attach`, `_folder_reindex`, `_folder_detach`,
+- [x] **Dossiers projet** — `sidebar.py` (`_folder_attach`, `_folder_reindex`, `_folder_detach`,
   `_ensure_workspace_for_folder`, `_index_folder_async`), `core/folder_indexer.py`. Progression par
   notifications toutes les 10 fichiers ; un workspace est créé si aucun n'est actif.
-- [ ] **Historique des requêtes** — `sidebar.py` (`_refresh_history`, `_history_toggle_fav`,
+- [x] **Historique des requêtes** — `sidebar.py` (`_refresh_history`, `_history_toggle_fav`,
   `_history_delete`, `_history_reuse`), `core/command_history.py`. 20 entrées, recherche, « ⭐ Favoris
   uniquement », clic = texte remis dans la saisie.
-- [ ] **Export Markdown, HTML ou PDF** — `sidebar.py` (`_export_conversation`),
+- [x] **Export Markdown, HTML ou PDF** — `sidebar.py` (`_export_conversation`),
   `core/conversation_exporter.py`.
 - [ ] **Accès au Relay, à la lecture automatique, aux Réglages, à la Mémoire et aux Prompts** —
   `sidebar.py` (`_make_relay_button`, `_make_tts_button`, `_make_settings_button`,
@@ -356,23 +390,23 @@ code, la documentation et §7.
 - [ ] **Notification système à la fin d'une tâche longue** — `execution.py` (`_notify_task_complete` :
   plus de 8 s et fenêtre sans focus), `utils/desktop_notify.py`.
 
-### Où en est la checklist après la phase 2
+### Où en est la checklist après la phase 3a
 
-Cochés ci-dessus : terminés dans l'interface web (phase 2). En partie faits :
+Cochés ci-dessus : terminés dans l'interface web (phases 2 et 3a). Pièces jointes par les
+dialogues et le glisser-déposer du système, micro et lecture vocale sont testés (pytest, Vitest,
+Chromium avec une voix simulée), mais restent à essayer sur le vrai matériel (section 2). Restent :
 
-- **Markdown complet** : titres, listes, tableaux, citations, règles, code coloré avec Copier, liens
-  ouverts dans le navigateur, formules (D9), sauts de ligne simples comme Tk. Restent pour la phase 3
-  les citations web `[n]` cliquables et les chemins de fichiers cliquables.
-- **Édition et régénération** : la navigation entre variantes ‹ k/n › fonctionne ; modifier un
-  message et régénérer arrivent en phase 3.
-- **Génération d'image** et **de fichiers** : progression et carte du fichier affichées ; afficher
-  l'image, l'ouvrir en grand et ouvrir le fichier arrivent en phase 3.
-- **Messages du mobile** : badge « Mobile » et affichage en direct prêts ; pas encore vérifiés avec
-  un vrai téléphone.
-- **Raccourcis** : Entrée, Maj+Entrée, Échap, Ctrl+B, Ctrl+N, Ctrl+L, Ctrl+S ; ceux du navigateur
-  sont neutralisés (vérifié au vrai clavier). Ctrl+K, Ctrl+R, Ctrl+virgule et F1 en phase 3.
-- **Accès au Relay, à la lecture automatique, aux Réglages, à la Mémoire, aux Prompts, à l'Export** :
-  boutons en bas de la barre latérale, désactivés jusqu'à la phase 3 (D20).
+- **Aperçu des documents** : PDF dans le lecteur de WebView2 (vérifié dans la vraie fenêtre) ;
+  Word, Excel et PowerPoint en page HTML de repli (`interfaces/document_preview.py`) jusqu'aux
+  visionneuses natives de la phase 3b (D8).
+- **Messages du mobile** : badge « Mobile » et affichage en direct prêts depuis la phase 2, à
+  vérifier avec un vrai téléphone (phase 3b, avec le panneau Relay).
+- **Accès au Relay, aux Réglages, à la Mémoire et aux Prompts** : boutons de la barre latérale
+  désactivés jusqu'à la phase 3b (D20) ; lecture automatique et Export faits.
+- **Raccourcis** : Ctrl+K (palette), Ctrl+R (Relay), Ctrl+virgule (Réglages) et F1 (Aide) en
+  phase 3b ; ceux de la phase 2 restent vérifiés au vrai clavier.
+- **Structure générale** : assistant de premier lancement et Aide F1 en phase 3b.
+- **Agents** : phase 4.
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -570,6 +604,61 @@ Numérotées comme les questions de la section 9.
   demande) ; pas de ligatures dans le code (« => » reste « => », comme Consolas dans Tk) ; KaTeX
   livré en WOFF2 seulement.
 
+### Choix techniques de la phase 3a (dans le cadre fixé, pour mémoire)
+
+- **Fichiers locaux** : la page ne lit jamais un chemin de son choix. Images, PDF et aperçus
+  passent par des liens signés (`/files/<signature>/<chemin>/<nom>`, HMAC-SHA256 avec une clé
+  tirée à chaque lancement, servis hors de `/api`, sans jeton dans l'adresse). Le serveur ne les
+  signe que pour un chemin qu'il connaît : pièce jointe, image ou document de la conversation,
+  fichier produit par l'appli (`outputs/`, dossier de `generation.output_directory`, rapports de
+  `scheduler.output_directory`), image collée (dossier des envois, un sous-dossier par envoi).
+  Sauf les PDF, ces fichiers partent avec la CSP `sandbox` ; tous avec `nosniff`.
+- **Ouvrir, montrer, télécharger** (`utils/path_links.py`, comme Tk) : un chemin cité dans une
+  réponse n'est cliquable que s'il existe, et il se montre dans l'Explorateur, jamais exécuté ;
+  seuls les documents produits par l'appli s'ouvrent dans leur application ou se copient dans
+  Téléchargements.
+- **Artefacts** : page `/preview/<id>` avec sa propre CSP, `sandbox allow-scripts allow-forms
+  allow-modals allow-popups`, sans `allow-same-origin` : origine opaque, ni l'API ni la page de
+  l'appli ne lui sont accessibles ; ressources externes permises (D8). Documents (Word, Excel,
+  PowerPoint, Markdown…) en page HTML sans script ni ressource externe (`sandbox; default-src
+  'none'`). « Ouvrir dans le navigateur » écrit la page dans `outputs/artifacts/`.
+- **PDF hors bac à sable** : le lecteur PDF de Chromium ne s'affiche pas dans une iframe
+  `sandbox`. Le PDF est servi seul, en `application/pdf`, et seulement s'il est connu du serveur.
+- **Pont pywebview et iframes** : WebView2 donne `chrome.webview` à chaque cadre, artefacts
+  compris, mais pywebview n'écoute que les messages du document principal
+  (`CoreWebView2.WebMessageReceived`) et ne déclare aucun objet hôte : un message envoyé au pont
+  depuis un artefact n'arrive pas en Python (vérifié dans la vraie fenêtre). À revérifier à chaque
+  mise à jour de pywebview (`frontend/scripts/window_preview.mjs`, section 10).
+- **Glisser-déposer** : le navigateur ne donne pas le chemin d'un fichier déposé ; WebView2 le
+  passe à pywebview (`pywebviewFullPath`), qui le renvoie à la page par l'événement
+  `files.dropped`, et la page le remet à la zone où le dépôt a eu lieu. Hors de la fenêtre
+  pywebview (navigateur, `--dev`), les fichiers sont envoyés au serveur. Un dossier est refusé,
+  avec un renvoi à « Dossiers du projet » (Tk disait « ❌ Chemin invalide », question 24).
+- **Notes** : même appel à `record_interaction` que Tk ; la note est gardée dans la session (clé
+  facultative, D7), figée aussi à la réouverture.
+- **Variantes d'édition** : une variante garde toute sa réponse (réflexion, outils, documents,
+  image, durée, note : clé `ai_extra`, D7) ; dans Tk, revenir à une variante n'en rendait que le
+  texte. Une variante enregistrée par Tk se rouvre comme avant.
+- **Voix** : `voice_input.py`, `voice_output.py` et `_whisper_worker.py` passent dans
+  `interfaces/desktop/` (sans Tk) ; `interfaces/gui/` garde le bouton micro et des relais, Tk
+  inchangé. Le `VoiceService` publie l'état du micro, la dictée et l'état de la lecture
+  (`voice.input`, `voice.transcript`, `voice.output`), importe la voix au premier usage et
+  enregistre la lecture automatique dans `config.yaml` (`ui.tts_autoread`, commentaires gardés).
+  Whisper suit la règle de Tk : dans le processus, isolé seulement si plusieurs runtimes OpenMP
+  sont chargés (macOS) ou avec `MY_AI_WHISPER_WORKER=1` (question 23). Le micro reste actif
+  pendant une réponse, comme la zone de saisie (file d'attente, D1) ; Tk le désactivait avec toute
+  la saisie.
+- **Recherche globale** : surlignage par l'API CSS Custom Highlight, sans toucher au DOM de React ;
+  message entier surligné quand aucun mot de la requête n'y figure, comme Tk ; effacé au clic.
+- **Dossiers projet** : liste des dossiers dans l'état de la session, mise à jour sous le verrou
+  du `ChatService` : une sauvegarde de la conversation ne l'écrase pas.
+- **Export** : dialogue « Enregistrer sous » dans la fenêtre ; ailleurs (navigateur, `--dev`),
+  `outputs/exports/` avec un nom daté.
+- **Toast des tâches planifiées** : comme Tk (6 s, liseré selon le statut, clic = rapport), et
+  seulement si la notification du système n'a pas été montrée.
+- **Serveur de démonstration** : n'écrit plus rien dans `data/` ni dans le `outputs/` du dépôt
+  (incident du journal, phase 3a).
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -655,6 +744,29 @@ retirés pour la 18, boutons gardés pour la 20 (décisions D16 à D20, section 
     jointes, micro, recherche) : affichés désactivés, avec une infobulle « arrive à la phase 3 », pour
     juger la structure. Les garder ainsi, ou les masquer d'ici là ?
 
+### Questions de la phase 3a (posées le 2026-10-13)
+
+21. **Essais au vrai clavier et à la vraie souris** (section 2) : dialogues de fichiers,
+    glisser-déposer depuis l'Explorateur, Export, micro, lecture vocale, ouverture des fichiers.
+    Peux-tu les faire, ou me laisser le PC libre un moment pour que je les fasse ?
+22. **KaTeX** : les formules sont rendues par KaTeX 0.16.47, la copie que `rehype-katex` installe
+    pour lui, avec la feuille de style et les polices de KaTeX 0.19.0 (dépendance directe).
+    `npm audit` signale sur 0.16.47 un avis de faible gravité (GHSA-238p-pmpm-9mq7 : une pollution
+    de prototype déjà présente peut contourner l'option `trust`). Je propose d'imposer 0.19.0
+    partout (`overrides` dans `package.json` : même paquet, rien de nouveau), puis de revérifier
+    les formules. D'accord ?
+23. **Whisper** : le plan de la phase 3 (section 15) annonçait le worker toujours isolé ; j'ai
+    gardé la règle de Tk (dans le processus sous Windows ; isolé si plusieurs runtimes OpenMP sont
+    chargés, ou avec `MY_AI_WHISPER_WORKER=1`). Isoler toujours protégerait l'appli d'un plantage de
+    la transcription, au prix d'un processus de plus avec son propre modèle en mémoire et d'une
+    première dictée plus lente. Je recommande la règle de Tk. D'accord ?
+24. **Dossier déposé dans la saisie** : refusé avec « 📁 Pour un dossier, utilisez « Dossiers du
+    projet ». » au lieu de « ❌ Chemin invalide » (Tk). Le garder ainsi, ou l'attacher directement
+    comme dossier projet ?
+25. **Vrai tour avec Ollama** dans la vraie appli (un artefact HTML, un document) : je ne l'ai pas
+    fait, pour ne laisser ni session de test dans `data/workspaces/` ni note dans le RLHF. Le faire
+    (session supprimée ensuite, sans note), ou le laisser à tes essais ?
+
 ## 10. Risques repérés
 
 - **Reprise du prompt par Ollama** : `_rewind_engine_history` (édition, rechargement) réécrit tout
@@ -691,6 +803,17 @@ retirés pour la 18, boutons gardés pour la 20 (décisions D16 à D20, section 
 - **Chargement du moteur à froid** : 3 min au premier lancement du 2026-10-13, 10 s aux suivants
   (imports de torch et du modèle d'embeddings, comme avec Tk). L'écran de chargement l'affiche
   (« Chargement du moteur »).
+- **Pont pywebview et artefacts** (phase 3a) : un artefact a `chrome.webview` dans son iframe, sans
+  effet aujourd'hui (pywebview n'écoute que le document principal). Si une version de pywebview
+  écoutait aussi les cadres (`CoreWebView2Frame.WebMessageReceived`), un artefact pourrait appeler
+  `shell_api.py` (dialogues, liens externes) : revérifier avec `window_preview.mjs` à chaque mise à
+  jour de pywebview.
+- **Avertissement du build** (phase 3a) : l'optimiseur CSS de Vite (Lightning CSS) ne connaît pas
+  `::highlight()` et le signale ; la règle reste telle quelle dans le CSS construit et fonctionne
+  dans WebView2 (surlignage de la recherche vérifié).
+- **Mémoire du PC** (phase 3a) : il est arrivé de n'avoir qu'1 Go libre sur 15,7 (PC en usage) ;
+  deux tests qui lancent un interpréteur neuf ont alors échoué sur `MemoryError`, puis réussi une
+  fois la mémoire revenue.
 
 ---
 
@@ -994,6 +1117,100 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 - **Tests** : `python -m pytest tests/` : **1034 réussis** (1029 + 5), aucun échec ; front : 47 tests
   Vitest, TypeScript, ESLint et Prettier propres ; `frontend/dist` reconstruit.
 
+### Phase 3a — 2026-10-13 (PC à RTX 3060)
+
+- `main` n'a pas bougé (`543f083`). Paquets : section 1.
+- **Front** :
+  - pièces jointes : menu « + » (PDF, Word, Excel / CSV, PowerPoint, code, image, dossier projet),
+    dialogues du système dans la fenêtre, glisser-déposer sur toute la fenêtre, collage d'image,
+    puces (lecture en cours, prête, retrait), envoi refusé pendant une lecture, miniature des
+    images ;
+  - slash commands : liste sous la saisie (recherche par préfixe dans `PromptLibrary`), Entrée ou
+    Tab insère la commande ; la bulle garde la commande courte, le modèle reçoit le texte étendu ;
+  - modifier un message (dialogue, avertissement si des messages suivent), « Régénérer » au survol
+    d'une réponse (D5), variantes ‹ k/n › ; note de 1 à 5 étoiles, figée ensuite ; lecture d'une
+    réponse et lecture automatique ; micro (dictée insérée au curseur) ;
+  - réponses : citations `[n]` et chemins existants cliquables, cartes des fichiers et documents
+    produits (ouvrir, aperçu, télécharger, Explorateur), image générée avec sa progression, en
+    grand au clic ;
+  - volet d'aperçu à droite : artefacts HTML et SVG (onglets Aperçu et Code ; ouvert seul une fois
+    par réponse, jamais à la réouverture d'une session, comme Tk), PDF, documents en page HTML ;
+    largeur réglable de 320 à 1200 px, retenue ; navigateur et Explorateur ;
+  - barre latérale : recherche globale (15 résultats ; la conversation s'ouvre au message,
+    surligné), dossiers projet (indexation avec sa progression, réindexation, détachement),
+    historique des requêtes (20, recherche, favoris, clic = remis dans la saisie), Export
+    (Markdown, HTML, PDF), lecture automatique ; Relay, Réglages, Mémoire et Prompts restent
+    désactivés (D20) ;
+  - toast de fin de tâche planifiée.
+- **Backend** :
+  - `interfaces/desktop/files.py` (liens signés, fichiers produits par l'appli, ouverture,
+    Explorateur, Téléchargements), `previews.py` (pages d'aperçu), `api_files.py` ;
+  - `voice.py` et `api_voice.py` ; `voice_input.py`, `voice_output.py` et `_whisper_worker.py`
+    déplacés depuis `interfaces/gui/`, qui garde des relais ;
+  - `folders.py` (dossiers projet), `api_sidebar.py` (recherche, dossiers, historique, export),
+    `routing.py` (aides communes des routes) ;
+  - `core/chat_service.py` : note (RLHF), chemins existants des réponses, session d'un dossier
+    projet, export, variantes qui gardent toute leur réponse ; aucune requête au modèle en plus ;
+    `core/chat_orchestrator.py` inchangé ;
+  - `shell_api.py` (dialogues de fichiers), `window.py` (chemins des fichiers déposés),
+    `events.py` (événements des fichiers, de la voix, des dossiers et des notes).
+- **Tests** : `python -m pytest tests/` : **1080 réussis** (1034 + 46), aucun échec sur le code
+  final (2 min 30 à 6 min selon la charge du PC). Lors d'un passage précédent, deux tests qui
+  lancent un interpréteur neuf avaient échoué sur `MemoryError` (1 Go de mémoire libre), puis
+  réussi (section 10). Front : **80 tests Vitest** (47 + 33), TypeScript, ESLint et Prettier
+  propres. Tk importe toujours ses modules (`tests/test_imports.py` : 13 sur 13).
+- **Contrôles et captures** (`frontend/scripts/capture_chat.mjs`, Chromium, serveur de
+  démonstration) : 26 contrôles sur 26, aucune erreur de console, 32 captures relues. Artefact :
+  son script tourne, sa requête vers l'API est bloquée, iframe sans `allow-same-origin` ; volet
+  élargi de 200 px par la poignée ; trois cartes de documents, Markdown et Word en pages HTML ;
+  seuls les deux chemins existants cliquables ; six citations ; image générée, en grand ; carte
+  d'un fichier généré ; PDF choisi, image collée et CSV déposé, avec miniature ; « /code »
+  inséré ; variantes 2/2, 3/3 puis retour à 2/3 ; note figée à 4 ; lecture et dictée (voix
+  simulée) ; 15 résultats de recherche, deux passages surlignés ; historique ; dossier indexé ;
+  export Markdown.
+- **Mesures** (protocole de la phase 2 : build de profilage, Chromium sans GPU, serveur de
+  démonstration à 80 jetons/s ; PC en usage, environ 3 Go de mémoire libre) :
+  - défilement des 200 messages : aucune image au-delà de 33 ms, à la molette (576 images) comme
+    très vite (300 images) ; rendus React à 0,3–0,5 ms en médiane, 4,1–5,9 ms au 95ᵉ centile ;
+  - réponse de 5 000 jetons avec saisie (une touche toutes les 120 ms) et défilement : une image
+    sur 4 419 au-delà de 33 ms (33,4 ms) ; rendus React à 0,2 ms en médiane et 1,3 ms au 95ᵉ
+    centile ; saisie au pire à 40 ms (72–80 ms en phase 2) ;
+  - calcul Python qui tient le GIL pendant une réponse : affichage intact, jetons à 54 par seconde
+    (écart maximal 217 ms), comme en phase 2.
+- **Vraie fenêtre WebView2** (serveur de démonstration, `--window`, pilotée par CDP, inactivité du
+  PC vérifiée avant l'ouverture ; `frontend/scripts/window_preview.mjs`, 11 contrôles sur 11) :
+  - artefact : son script tourne, origine opaque, ni `window.pywebview` ni accès à la page de
+    l'appli, requête vers l'API bloquée. `chrome.webview` existe pourtant dans l'iframe (WebView2
+    le donne à chaque cadre) ; un message envoyé au pont depuis l'iframe n'arrive pas en Python,
+    alors que celui de la page arrive (appel « console » de pywebview, lu dans le journal du
+    serveur) : pywebview n'écoute que le document principal (section 8) ;
+  - PDF : le lecteur de WebView2 affiche la page (barre d'outils, zoom, « 1 sur 1 »). Les
+    captures par CDP le montrent gris, car il dessine hors de la page : `win.py capture` prend la
+    fenêtre par `PrintWindow`, sans premier plan ni saisie ;
+  - Word en page HTML ; `CSS.highlights` disponible (surlignage de la recherche).
+- **Bogues trouvés et corrigés en route** : `--dist` relatif servi en 404 (chemin résolu) ;
+  onglet Code sans style ; chemin cliquable coupé en fin de ligne ; cadre de l'image trop large ;
+  nom du fichier généré répété à la fin du texte, au-dessus de sa carte ; emoji doublé dans les
+  notifications ; deux copies de briques Radix dans le build (versions alignées) ; surlignage
+  absent après l'ouverture d'une autre conversation (la liste se place d'abord en bas : défilement
+  redemandé) ; une variante d'édition perdait sa réflexion, ses outils, ses documents et sa note ;
+  `--window` du serveur de démonstration cassé par son changement de dossier (pywebview situe
+  l'appli par `sys.argv[0]`) ; le CSS d'un build dépendait du build précédent, Tailwind cherchant
+  aussi des classes dans `frontend/dist/` (commité) : `@source not` sur `dist/` et `scripts/`,
+  16 classes inutilisées en moins (45 Ko au lieu de 48), deux builds de suite identiques.
+- **Incident, données** : avant d'être corrigé, le serveur de démonstration enregistrait les notes
+  dans le vrai `data/rlhf_feedback.db` (une note de test). Retirée : ligne 3 de `feedback` et de
+  `learned_patterns`, ligne du 2026-10-13 de `daily_metrics`, compteur remis à 2. Depuis, la
+  démonstration garde les notes en mémoire, copie l'historique des requêtes, travaille dans
+  `temp/demo_server/PORT/` (aperçus et exports compris). Seule écriture dans `data/` pendant les
+  vérifications suivantes : `data/web_cache/cache.db`, que `tests/test_ai_engine.py` (antérieur à
+  la migration) ouvre avec un vrai `AIEngine` (purge des entrées expirées).
+- **Incident, fenêtre** : en vérifiant le PDF, un clic par CDP visé par un sélecteur trop large a
+  touché « Ouvrir rapport_trimestriel.pdf » au lieu de l'aperçu : le PDF de démonstration s'est
+  ouvert dans un onglet du Chrome de Nicolas (application des PDF), laissé ouvert. Les scripts
+  visent désormais leurs boutons par nom exact et ne cliquent jamais « Ouvrir », « Explorateur »,
+  « navigateur » ni « Télécharger » (`frontend/scripts/README.md`).
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -1110,7 +1327,7 @@ Risques :
 
 ---
 
-## 15. Plan de la phase 3 (proposé, en attente du feu vert)
+## 15. Plan de la phase 3 (approuvé le 2026-10-13 ; 3a réalisée le 2026-10-13, 3b en section 16)
 
 But (prompt, §9) : tous les éléments des sections « Chat », « Sidebar » et « Fenêtres et
 panneaux » du §7, l'assistant de premier lancement et les visionneuses Office natives (§5).
@@ -1150,3 +1367,50 @@ Risques :
 - Service de fichiers locaux : chemins hors des dossiers autorisés refusés (traversée de dossiers).
 - Le panneau Mémoire modifie les messages d'origine des sessions : synchroniser avec l'état du chat.
 - Glisser-déposer : vrai chemin des fichiers à vérifier dans WebView2 ; dossiers refusés comme dans Tk.
+
+## 16. Plan de la phase 3b (proposé, en attente du feu vert)
+
+But (prompt, §9) : le reste des sections « Structure générale » et « Fenêtres et panneaux » du §7
+et les visionneuses Office natives (§5, D8) : Réglages, Mémoire, Prompts, Relay, Aide F1, palette
+Ctrl+K et raccourcis, assistant de premier lancement, aperçu natif de Word, Excel et PowerPoint
+dans le volet d'aperçu ; puis la vérification avec un vrai téléphone.
+
+Fichiers créés ou complétés :
+
+- Front : panneaux Réglages, Mémoire, Prompts, Relay (QR code) et Aide ; palette Ctrl+K (cmdk,
+  paquet du §6) avec les commandes de Tk ; raccourcis Ctrl+R (Relay), Ctrl+virgule (Réglages),
+  F1 (Aide) ; assistant de premier lancement, avant l'écran de chargement ; volet d'aperçu : place
+  réservée à la visionneuse native (position, taille et échelle envoyées au backend), visionneuse
+  masquée sous les menus, dialogues et notifications ; boutons de la barre latérale activés.
+- Backend : routes et événements, en réutilisant le moteur. Réglages : fonctions de
+  `interfaces/onboarding.py` (modèles installés, téléchargement avec progression, application du
+  modèle, paramètres de génération, drapeaux de `config.yaml` en gardant ses commentaires, comme
+  Tk). Mémoire : `MemoryStore` (faits, documents, conversations, édition, suppression avec le
+  message d'origine, synchronisée avec l'état du chat). Prompts : `PromptLibrary` (ajout, édition,
+  suppression). Relay : état, démarrer et arrêter, tunnels, jeton, appareils, QR code produit en
+  Python (`qrcode`, déjà dans `requirements.txt`). Assistant : détection du matériel,
+  recommandation, téléchargement, création du modèle `my_ai`, marqueur, à son étape du lanceur.
+  Visionneuses : `_preview_handler.py` et `_dpi_host.py` déplacés dans `interfaces/desktop/`
+  (relais côté Tk), visionneuse en fenêtre enfant au-dessus de WebView2, pilotée par
+  `shell_api.py`.
+- Tests : pytest pour chaque route et service, `tests/test_native_preview.py` sur les modules
+  déplacés ; Vitest pour les panneaux et la palette ; captures Playwright ; vraie fenêtre pour les
+  visionneuses (Office est installé sur ce PC).
+
+Étapes : (1) Réglages et assistant de premier lancement (mêmes fonctions) ; (2) Mémoire ;
+(3) Prompts ; (4) Relay et QR code, puis vérification avec un vrai téléphone (badge « Mobile ») ;
+(5) Aide F1, palette Ctrl+K et raccourcis ; (6) visionneuses Office natives ; (7) captures,
+mesures, recette et compte rendu.
+
+Risques :
+
+- Visionneuses Office en fenêtre enfant au-dessus de WebView2 : la page ne peut rien dessiner
+  par-dessus (menus, dialogues, notifications), il faut la masquer à temps et suivre le DPI de
+  l'écran ; tests à 125 et 150 % impossibles ici.
+- Assistant de premier lancement : il passe avant le placement et le chargement du moteur ; rien
+  ne doit appeler Ollama avant la fin du placement (section 10), panneau Réglages compris.
+- `config.yaml` : garder ses commentaires à chaque écriture (Réglages, assistant).
+- Mémoire : supprimer un fait « avec le message d'origine » modifie une session ; si c'est la
+  conversation ouverte, l'état du chat doit suivre sans écraser la modification (section 10).
+- Relay : le QR code doit se redessiner quand la liste des tunnels change, comme Tk ; vérification
+  avec le téléphone de Nicolas, à faire avec lui.
