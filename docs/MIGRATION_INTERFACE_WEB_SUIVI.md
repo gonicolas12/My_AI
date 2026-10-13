@@ -4,6 +4,12 @@ Ce fichier permet de reprendre la migration d'une session ou d'un PC à l'autre.
 relire le prompt de mission (`MIGRATION_INTERFACE_WEB_PROMPT*.md`, jamais commité), puis ce
 fichier, en commençant par « État actuel ».
 
+Les décisions de la section 8 sont des réponses de Nicolas : elles complètent le prompt et priment
+en cas d'écart (par exemple D13 pour le push sur le PC à RTX 3060, D15 et D17 pour l'orchestrateur).
+Écart technique à connaître : `.gitattributes` porte `frontend/** text=auto eol=lf`, et non la
+règle `text eol=lf` du prompt (§11), qui abîmait les polices de `frontend/dist/` (journal de la
+phase 2).
+
 - Branche : `feat/interface-web` (créée le 2026-10-12 depuis `main` à `543f083`).
 - `main` garde l'interface Tk jusqu'à la fusion.
 
