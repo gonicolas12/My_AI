@@ -55,6 +55,22 @@ export async function uploadFiles(files: File[], name?: string): Promise<void> {
   }
 }
 
+/**
+ * Fichiers déposés dans un navigateur, sans les dossiers : sans chemin, un
+ * dossier ne peut pas être lu (dans la fenêtre de l'appli, il joint ses fichiers)
+ */
+export function droppedFiles(transfer: DataTransfer): File[] {
+  const items = Array.from(transfer.items).filter((item) => item.kind === 'file');
+  const isFolder = (item: DataTransferItem) => Boolean(item.webkitGetAsEntry()?.isDirectory);
+  if (items.some(isFolder)) {
+    notify('info', '📁 Un dossier se joint en le glissant dans la fenêtre de l’appli');
+  }
+  return items
+    .filter((item) => !isFolder(item))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null);
+}
+
 /** Fichiers du presse-papiers (image copiée, capture d'écran) */
 export function clipboardFiles(event: React.ClipboardEvent): File[] {
   return Array.from(event.clipboardData?.files ?? []);

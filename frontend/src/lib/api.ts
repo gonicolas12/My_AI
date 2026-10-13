@@ -111,6 +111,13 @@ export interface UiState {
 }
 
 /** Page d'aperçu du volet de droite (interfaces/desktop/previews.py) */
+/** Dossier glissé dans la saisie : les fichiers joints, les images laissées de côté */
+export interface FolderAttachments {
+  folder: string;
+  attachments: AttachmentView[];
+  images_skipped: number;
+}
+
 export interface PreviewView {
   id: string;
   kind: 'html' | 'svg' | 'document' | 'pdf';
@@ -211,8 +218,9 @@ export const api = {
   removeAttachment: (id: string) =>
     request<{ removed: boolean }>('DELETE', `/api/attachments/${encodeURIComponent(id)}`),
 
+  /** Un fichier ; un dossier joint ses fichiers (ChatService.add_folder) */
   addAttachment: (path: string, type?: string) =>
-    post<AttachmentView>('/api/attachments', { path, type: type ?? null }),
+    post<AttachmentView | FolderAttachments>('/api/attachments', { path, type: type ?? null }),
   uploadAttachment: (file: Blob, name: string) => {
     const form = new FormData();
     form.append('file', file, name);

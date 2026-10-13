@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import core.chat_service as chat_service_module
 from core.chat_service import (FILE_GENERATION_HISTORY, ChatError, ChatService,
                                session_name_for)
 from core.session_manager import SessionManager
@@ -646,6 +647,69 @@ def test_image_attachment_goes_to_the_vision_model(chat):
     assert user["text"] == "Que vois-tu ?\n🖼️ schema.png" and user["image_path"] == str(image)
 
 
+def test_a_new_image_replaces_the_pending_one(chat):
+    from PIL import Image  # pylint: disable=import-outside-toplevel
+
+    first, second = chat.tmp_path / "schema.png", chat.tmp_path / "photo.png"
+    Image.new("RGB", (64, 32), (255, 107, 71)).save(first)
+    Image.new("RGB", (32, 64), (37, 99, 235)).save(second)
+    old = chat.service.add_attachment(str(first))
+    document = chat.tmp_path / "notes.txt"
+    document.write_text("notes", encoding="utf-8")
+    chat.service.add_attachment(str(document))
+    chat.service.add_attachment(str(second))
+
+    # Le modèle ne reçoit qu'une image : la puce de la première disparaît
+    names = [att["name"] for att in chat.service.attachments()]
+    assert names == ["notes.txt", "photo.png"]
+    assert {"id": old["id"]} in [event["payload"] for event in chat.events
+                                 if event["type"] == "attachment.removed"]
+    messages = [event["payload"]["message"] for event in chat.events if event["type"] == "notification"]
+    assert "✅ photo.png prête (32x64), à la place de schema.png (une image par message)" in messages
+
+
+def test_a_dropped_folder_attaches_its_files(chat):
+    from PIL import Image  # pylint: disable=import-outside-toplevel
+
+    folder = chat.tmp_path / "projet"
+    for sub in ("src", "node_modules/lib", ".git"):
+        (folder / sub).mkdir(parents=True)
+    (folder / "README.md").write_text("# Projet", encoding="utf-8")
+    (folder / "src" / "main.py").write_text("print(1)", encoding="utf-8")
+    (folder / "node_modules" / "lib" / "index.js").write_text("x", encoding="utf-8")
+    (folder / ".git" / "config").write_text("x", encoding="utf-8")
+    (folder / ".env").write_text("SECRET=1", encoding="utf-8")
+    (folder / "donnees.bin").write_bytes(bytes(4))
+    Image.new("RGB", (8, 8)).save(folder / "logo.png")
+
+    result = chat.service.add_attachment(str(folder))
+
+    # Comme sur claude.ai : chaque fichier lisible devient une pièce jointe
+    assert [att["name"] for att in chat.service.attachments()] == ["README.md", "main.py"]
+    assert [att["name"] for att in result["attachments"]] == ["README.md", "main.py"]
+    assert result["images_skipped"] == 1
+    messages = [event["payload"]["message"] for event in chat.events
+                if event["type"] == "notification"]
+    assert ("📁 2 fichiers de « projet » joints, 1 image laissée de côté "
+            "(une seule par message)") in messages
+
+
+def test_a_big_or_empty_folder_is_not_attached(chat, monkeypatch):
+    monkeypatch.setattr(chat_service_module, "FOLDER_ATTACHMENT_LIMIT", 3)
+    folder = chat.tmp_path / "gros"
+    folder.mkdir()
+    for index in range(5):
+        (folder / f"f{index}.py").write_text("x", encoding="utf-8")
+    with pytest.raises(ChatError, match="Attachez-le plutôt dans « Dossiers du projet »"):
+        chat.service.add_attachment(str(folder))
+    assert not chat.service.attachments()
+
+    empty = chat.tmp_path / "vide"
+    empty.mkdir()
+    with pytest.raises(ChatError, match="Aucun fichier lisible dans « vide »"):
+        chat.service.add_attachment(str(empty))
+
+
 def test_removed_attachment_is_forgotten_unless_still_used(chat):
     document = chat.tmp_path / "notes.txt"
     document.write_text("notes", encoding="utf-8")
@@ -664,9 +728,7 @@ def test_removed_attachment_is_forgotten_unless_still_used(chat):
     assert chat.engine.local_ai.removed == ["notes.txt"]
 
 
-def test_folders_and_unknown_formats_are_refused(chat):
-    with pytest.raises(ChatError, match="Dossiers du projet"):
-        chat.service.add_attachment(str(chat.tmp_path))
+def test_unknown_formats_are_refused(chat):
     unknown = chat.tmp_path / "archive.xyz"
     unknown.write_bytes(b"?")
     with pytest.raises(ChatError, match="Format non supporté"):

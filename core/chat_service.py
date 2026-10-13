@@ -97,6 +97,10 @@ _CODE_EXTENSIONS = {
 }
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 
+# Dossier glissé dans la saisie : ses fichiers deviennent des pièces jointes,
+# comme sur claude.ai. Au-delà, « Dossiers du projet » indexe le dossier entier
+FOLDER_ATTACHMENT_LIMIT = 20
+
 # Nom d'une session : début de son premier message
 _SESSION_NAME_MAX = 48
 
@@ -1290,12 +1294,15 @@ class ChatService:
     def add_attachment(self, path: str, file_type: Optional[str] = None) -> Dict[str, Any]:
         """Joint un fichier au prochain message ; un document est lu en arrière-plan.
 
+        Un dossier joint ses fichiers (add_folder).
+
         Raises:
-            ChatError: chemin invalide, dossier, format non supporté, image illisible
+            ChatError: chemin invalide, format non supporté, image illisible,
+                dossier vide ou trop gros
         """
         path = os.path.abspath(path or "")
         if os.path.isdir(path):
-            raise ChatError("📁 Pour un dossier, utilisez « Dossiers du projet ».")
+            return self.add_folder(path)
         if not os.path.isfile(path):
             raise ChatError(f"❌ Chemin invalide : {path}")
         file_type = file_type or file_type_for(path)
@@ -1311,9 +1318,16 @@ class ChatService:
             except Exception as exc:
                 raise ChatError(f"❌ Erreur lors du traitement de l'image : {exc}") from exc
             with self._lock:
+                # Une seule image par message : le modèle ne reçoit que la
+                # dernière (comme Tk), la nouvelle remplace donc la précédente
+                replaced = [att for att in self._attachments if att.type == "Image"]
+                for old in replaced:
+                    self._attachments.remove(old)
+                    self._emit("attachment.removed", {"id": old.id})
                 self._attachments.append(attachment)
                 self._emit("attachment.added", attachment.view())
-                self._notify("success", f"✅ {name} prête ({width}x{height})")
+                note = f", à la place de {replaced[-1].name} (une image par message)" if replaced else ""
+                self._notify("success", f"✅ {name} prête ({width}x{height}){note}")
             return attachment.view()
 
         attachment.status = "loading"
@@ -1328,6 +1342,46 @@ class ChatService:
             target=self._read_attachment, args=(attachment,), name="attachment", daemon=True
         ).start()
         return attachment.view()
+
+    def add_folder(self, folder: str) -> Dict[str, Any]:
+        """Joint les fichiers d'un dossier glissé dans la saisie, comme sur claude.ai.
+
+        Sous-dossiers compris, sauf les cachés et ceux que l'indexation ignore
+        (.git, node_modules, __pycache__…). Les images restent à part : le
+        modèle n'en reçoit qu'une par message. Au-delà de
+        FOLDER_ATTACHMENT_LIMIT fichiers, le dossier est refusé : « Dossiers du
+        projet » l'indexe en entier et n'en donne au modèle que les passages utiles.
+
+        Raises:
+            ChatError: aucun fichier lisible, ou trop de fichiers
+        """
+        from core.folder_indexer import is_excluded_dir  # pylint: disable=import-outside-toplevel
+        name = os.path.basename(os.path.normpath(folder)) or folder
+        files: List[str] = []
+        images = 0
+        for root, dirs, names in os.walk(folder):
+            dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not is_excluded_dir(d))
+            for file_name in sorted(names):
+                file_type = file_type_for(file_name)
+                if file_name.startswith(".") or file_type is None:
+                    continue
+                if file_type == "Image":
+                    images += 1
+                    continue
+                files.append(os.path.join(root, file_name))
+            if len(files) > FOLDER_ATTACHMENT_LIMIT:
+                raise ChatError(
+                    f"📁 « {name} » contient plus de {FOLDER_ATTACHMENT_LIMIT} fichiers lisibles : "
+                    "trop pour des pièces jointes. Attachez-le plutôt dans « Dossiers du projet »."
+                )
+        if not files:
+            raise ChatError(f"📁 Aucun fichier lisible dans « {name} »")
+        attachments = [self.add_attachment(path) for path in files]
+        skipped = (f", {images} image{'s' if images > 1 else ''} laissée{'s' if images > 1 else ''} "
+                   "de côté (une seule par message)") if images else ""
+        self._notify("info", f"📁 {len(attachments)} fichier{'s' if len(attachments) > 1 else ''} "
+                             f"de « {name} » joint{'s' if len(attachments) > 1 else ''}{skipped}")
+        return {"folder": folder, "attachments": attachments, "images_skipped": images}
 
     def remove_attachment(self, attachment_id: str) -> bool:
         """Retire une pièce jointe avant l'envoi : arrête sa lecture, oublie son document."""

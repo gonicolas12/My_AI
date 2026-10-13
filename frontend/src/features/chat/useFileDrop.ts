@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 import { type DropZone, hasFiles, noteDrop, onDroppedPaths } from '../../lib/drops';
 import { shell } from '../../lib/shell';
 import { setDropping } from '../../stores/composer';
-import { attachPaths, uploadFiles } from './attach';
+import { attachPaths, droppedFiles, uploadFiles } from './attach';
 
 export function useFileDrop(zone: DropZone) {
   // Survol de la fenêtre : entrées et sorties comptées, chaque élément en émet
@@ -58,7 +58,7 @@ export function useFileDrop(zone: DropZone) {
       event.preventDefault();
       noteDrop(zone);
       // Navigateur : pas de chemin, le contenu part au serveur
-      if (!shell.isDesktop()) void uploadFiles(Array.from(event.dataTransfer.files));
+      if (!shell.isDesktop()) void uploadFiles(droppedFiles(event.dataTransfer));
     },
   };
 }
