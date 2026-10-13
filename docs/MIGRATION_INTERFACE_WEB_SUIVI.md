@@ -144,8 +144,8 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
 Vérifiable ici : Windows, WebView2, visionneuses Office natives, micro, carte NVIDIA, ComfyUI.
 
 À essayer par Nicolas après la phase 3a, au vrai clavier et à la vraie souris (je n'envoie ni
-touche ni curseur du système pendant qu'il se sert du PC, et ces essais ouvrent des fenêtres du
-système) :
+touche ni curseur du système pendant que Nicolas se sert du PC, et ces essais ouvrent des fenêtres
+du système) :
 
 - menu « + » : dialogues de Windows pour PDF, Word, Excel, PowerPoint, code et image (une seule
   image en attente), puis « Dossiers du projet » (choix d'un dossier, indexation) ;
@@ -1413,4 +1413,4 @@ Risques :
 - Mémoire : supprimer un fait « avec le message d'origine » modifie une session ; si c'est la
   conversation ouverte, l'état du chat doit suivre sans écraser la modification (section 10).
 - Relay : le QR code doit se redessiner quand la liste des tunnels change, comme Tk ; vérification
-  avec le téléphone de Nicolas, à faire avec lui.
+  avec le téléphone de Nicolas, à faire ensemble.
