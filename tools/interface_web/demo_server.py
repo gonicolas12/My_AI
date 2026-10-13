@@ -34,10 +34,14 @@ Scénarios (mot dans le message) :
   autre          courte réponse avec code et formule
 
 Les fichiers produits vont dans temp/demo_server/PORT/outputs/, dossier des
-fichiers « produits par l'appli » pour ce serveur.
+fichiers « produits par l'appli » pour ce serveur. Rien n'est écrit dans data/ :
+les notes restent en mémoire, l'historique des requêtes est une copie de
+data/command_history.db, la recherche globale lit les sessions copiées (mots
+exacts, sans embeddings) et l'indexation des dossiers projet est simulée.
 """
 
 import argparse
+import os
 import secrets
 import shutil
 import sys
@@ -53,8 +57,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 from core.chat_service import ChatService  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
+from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.voice import VoiceService  # noqa: E402
-from test_chat_service import FakeEngine, FakeFileProcessor  # noqa: E402
+from core.command_history import CommandHistory  # noqa: E402
+from test_chat_service import FakeEngine, FakeFileProcessor, FakeRLHF  # noqa: E402
 
 LONG_SECTION = """## Section {n} : architecture du service
 
@@ -200,6 +206,84 @@ class DemoImageGenerator:
                                message=f"🎨 Image générée : « {prompt} »")
 
 
+class DemoSearch:
+    """Recherche globale par mots exacts dans les sessions copiées (sans embeddings)."""
+
+    def __init__(self, sessions):
+        self.sessions = sessions
+
+    @staticmethod
+    def is_available():
+        """Toujours disponible."""
+        return True
+
+    def _messages(self):
+        for workspace in self.sessions.list_workspaces():
+            state = self.sessions.load_workspace(workspace["id"]) or {}
+            for index, message in enumerate(state.get("conversation_history", [])):
+                text = (message.get("text") or "").strip()
+                if text:
+                    yield workspace, index, message, text
+
+    def search(self, query, n_results=10):
+        """Messages qui contiennent tous les mots de la requête."""
+        words = [word.lower() for word in query.split() if len(word) >= 2]
+        results = []
+        for workspace, index, message, text in self._messages():
+            if words and all(word in text.lower() for word in words):
+                results.append({
+                    "workspace_id": workspace["id"], "workspace_name": workspace.get("name"),
+                    "message_index": index,
+                    "role": "user" if message.get("is_user") else "assistant",
+                    "timestamp": str(message.get("timestamp", "")), "excerpt": text,
+                })
+        return results[:n_results]
+
+    def reindex(self, force=False):
+        """Compte les messages, comme une réindexation."""
+        del force
+        return {"indexed": 0, "messages": sum(1 for _ in self._messages()), "removed": 0}
+
+
+class DemoIndexer:
+    """Indexation des dossiers projet simulée : compte les fichiers, 20 ms chacun."""
+
+    def __init__(self):
+        self.manifest = {}
+
+    @staticmethod
+    def is_available():
+        """Toujours disponible."""
+        return True
+
+    def index_folder(self, workspace_id, folder_path, force=False, progress_cb=None):
+        """Parcourt le dossier (300 fichiers au plus) en publiant la progression."""
+        del force
+        files = []
+        for root, _dirs, names in os.walk(folder_path):
+            files.extend(os.path.join(root, name) for name in names)
+            if len(files) >= 300:
+                break
+        files = files[:300]
+        for done, path in enumerate(files, 1):
+            time.sleep(0.02)
+            if progress_cb:
+                progress_cb(done, len(files), os.path.relpath(path, folder_path))
+        self.manifest.setdefault(workspace_id, {})[folder_path] = len(files)
+        return {"status": "success", "folder": folder_path, "total_files": len(files),
+                "chunks": len(files) * 3}
+
+    def get_status(self, workspace_id):
+        """Dossiers indexés de la session."""
+        return {"folders": [{"path": path, "file_count": count, "chunks": count * 3,
+                             "indexed_at": time.strftime("%Y-%m-%d")}
+                            for path, count in self.manifest.get(workspace_id, {}).items()]}
+
+    def remove_folder(self, workspace_id, folder_path):
+        """Détache un dossier."""
+        return self.manifest.get(workspace_id, {}).pop(folder_path, None) is not None
+
+
 class DemoEngine(FakeEngine):
     """Moteur scénarisé, à vitesse réaliste."""
 
@@ -208,6 +292,21 @@ class DemoEngine(FakeEngine):
         self.rate = rate
         self.outputs = outputs
         self.generator = DemoImageGenerator(outputs)
+        # Historique des requêtes : copie de la vraie base, jamais la base elle-même
+        history_db = Path(workspaces_dir).parent / "command_history.db"
+        if (ROOT / "data" / "command_history.db").is_file():
+            shutil.copy2(ROOT / "data" / "command_history.db", history_db)
+        self.command_history = CommandHistory(db_path=str(history_db))
+        self.search_engine = DemoSearch(self.session_manager)
+        self.indexer = DemoIndexer()
+
+    def get_conversation_search(self):
+        """Recherche globale de la démonstration."""
+        return self.search_engine
+
+    def get_folder_indexer(self):
+        """Indexeur de dossiers de la démonstration."""
+        return self.indexer
 
     def is_image_generation_request(self, text):
         """« dessine » : génération d'image."""
@@ -468,9 +567,11 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
             if key == "generation.output_directory" else default)
         engine = DemoEngine(self._workspaces, self._rate, outputs)
         self.engine = engine
+        # Notes gardées en mémoire : jamais dans data/rlhf_feedback.db
         self.chat = ChatService(engine, self.bus.publish, file_processor=FakeFileProcessor(),
                                 ui_connected=lambda: self.bus.subscriber_count > 0,
-                                on_session_change=lambda sid: self.state.set("current_session", sid))
+                                on_session_change=lambda sid: self.state.set("current_session", sid),
+                                rlhf=FakeRLHF())
         self.chat.start()
         time.sleep(pause)
         self._step("services", "Démarrage des services…")
@@ -504,12 +605,16 @@ def main():
     if args.dist:
         from interfaces.desktop import server as desktop_server  # pylint: disable=import-outside-toplevel
         desktop_server.DIST_DIR = Path(args.dist).resolve()
+    # Chemins relatifs (export sans dialogue : outputs/exports/) dans le dossier
+    # temporaire, jamais dans le outputs/ du dépôt
+    os.chdir(tmp)
 
     token = args.token or secrets.token_urlsafe(16)
     app = DemoApp(workspaces, args.rate, args.fast_launch, real_voice=args.real_voice,
                   port=args.port,
                   state=DesktopState(tmp / ".desktop_state.json"))
     app.token = token  # pylint: disable=attribute-defined-outside-init
+    app.server.previews = PreviewStore(directory=tmp / "outputs" / "artifacts")
     url = app.start()
     print(f"DEMO {url}", flush=True)
     try:
@@ -523,6 +628,7 @@ def main():
         pass
     finally:
         app.shutdown()
+        os.chdir(ROOT)
         shutil.rmtree(tmp, ignore_errors=True)
 
 

@@ -17,7 +17,7 @@ import {
 } from './lib/actions';
 import { api, getToken } from './lib/api';
 import { installNavigationGuard, shell } from './lib/shell';
-import { installShortcuts, overlayOpen } from './lib/shortcuts';
+import { installShortcuts, overlayOpen, ownsEscape } from './lib/shortcuts';
 import { startSync } from './lib/sync';
 import { useApp } from './stores/app';
 import { useChat } from './stores/chat';
@@ -39,8 +39,9 @@ function useAppEffects() {
         'Ctrl+L': () => void clearConversation(),
         'Ctrl+S': () => void saveConversation(),
         Escape: (event) => {
-          // D6 : Échap arrête la réponse quand aucun dialogue ni menu n'est ouvert
-          if (overlayOpen() || !isGenerating(useChat.getState())) return;
+          // D6 : Échap arrête la réponse quand aucun dialogue ni menu n'est ouvert,
+          // ni un champ qui s'en sert lui-même (recherche à effacer)
+          if (overlayOpen() || ownsEscape(event) || !isGenerating(useChat.getState())) return;
           event.preventDefault();
           void stopGeneration();
         },

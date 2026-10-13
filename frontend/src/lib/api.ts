@@ -130,6 +130,49 @@ export interface VoiceStatus {
   autoread: boolean;
 }
 
+/** Résultat de la recherche globale (core/conversation_search.py) */
+export interface SearchResult {
+  workspace_id: string;
+  workspace_name: string;
+  message_index: number;
+  role: string;
+  timestamp: string;
+  excerpt: string;
+}
+
+export interface FolderView {
+  path: string;
+  name: string;
+  file_count: number;
+  chunks: number;
+  indexed_at: string;
+}
+
+/** Indexation d'un dossier projet en cours */
+export interface FolderJob {
+  path: string;
+  name: string;
+  verb: string;
+  done: number;
+  total: number;
+}
+
+export interface FoldersStatus {
+  available: boolean;
+  session: string | null;
+  folders: FolderView[];
+  running: FolderJob[];
+}
+
+export interface HistoryEntry {
+  id: number;
+  query: string;
+  is_favorite: boolean;
+  timestamp: string | null;
+}
+
+export type ExportFormat = 'markdown' | 'html' | 'pdf';
+
 export interface SlashCommand {
   command: string;
   title: string;
@@ -220,6 +263,29 @@ export const api = {
   stopSpeaking: () => post<{ ok: boolean }>('/api/voice/stop'),
   setAutoread: (enabled: boolean) =>
     request<{ autoread: boolean }>('PUT', '/api/voice/autoread', { enabled }),
+
+  search: (query: string) =>
+    request<{ available: boolean; results: SearchResult[] }>(
+      'GET',
+      `/api/search?q=${encodeURIComponent(query)}`,
+    ),
+  reindexSearch: () => post<{ available: boolean; messages: number }>('/api/search/reindex'),
+
+  folders: () => request<FoldersStatus>('GET', '/api/folders'),
+  attachFolder: (path: string) => post<FolderJob>('/api/folders', { path }),
+  reindexFolder: (path: string) => post<FolderJob>('/api/folders/reindex', { path }),
+  detachFolder: (path: string) => post<{ detached: boolean }>('/api/folders/detach', { path }),
+
+  history: (query: string, favorites: boolean) =>
+    request<{ entries: HistoryEntry[] }>(
+      'GET',
+      `/api/history?q=${encodeURIComponent(query)}&favorites=${favorites ? 'true' : 'false'}`,
+    ),
+  toggleFavorite: (id: number) => post<{ is_favorite: boolean }>(`/api/history/${id}/favorite`),
+  deleteHistory: (id: number) => request<{ deleted: boolean }>('DELETE', `/api/history/${id}`),
+
+  exportConversation: (format: ExportFormat, path: string | null) =>
+    post<{ path: string }>('/api/export', { format, path }),
 
   uiState: () => request<UiState>('GET', '/api/ui'),
   saveUiState: (state: UiState) => request<UiState>('PUT', '/api/ui', state),

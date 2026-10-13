@@ -164,6 +164,18 @@
   }
 }
 
+/* Recherche globale : mots trouvés, ou message entier (lib/highlight.ts) */
+::highlight(search-hit) {
+  background-color: var(--search-hit);
+  color: var(--on-search-hit);
+}
+
+.search-hit-message {
+  border-radius: var(--round-md);
+  background: var(--search-hit-soft);
+  box-shadow: 0 0 0 6px var(--search-hit-soft);
+}
+
 @keyframes shimmer {
   from {
     background-position: 100% 0;

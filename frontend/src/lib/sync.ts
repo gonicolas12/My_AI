@@ -10,6 +10,12 @@
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
 import { notify, useApp } from '../stores/app';
 import {
+  applyFolderProgress,
+  applyFoldersChanged,
+  refreshHistory,
+  useSidebar,
+} from '../stores/sidebar';
+import {
   applyTranscript,
   applyVoiceInput,
   applyVoiceOutput,
@@ -141,6 +147,14 @@ export function startSync(): () => void {
       }
       case 'sessions.changed':
         refreshSessions();
+        // Chaque tour enregistre la session : l'historique des requêtes a grandi
+        if (useSidebar.getState().sections.history) void refreshHistory();
+        return;
+      case 'folders.progress':
+        applyFolderProgress((event as ServerEvent<'folders.progress'>).payload);
+        return;
+      case 'folders.changed':
+        applyFoldersChanged((event as ServerEvent<'folders.changed'>).payload.path);
         return;
       case 'files.dropped':
         dispatchDroppedPaths((event as ServerEvent<'files.dropped'>).payload.paths);

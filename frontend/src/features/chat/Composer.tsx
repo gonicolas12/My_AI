@@ -20,6 +20,7 @@ import { useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
 import { setDraft, useComposer } from '../../stores/composer';
+import { attachProjectFolder } from '../shell/sidebar/folderActions';
 import { CLIPBOARD_IMAGE, clipboardFiles, uploadFiles } from './attach';
 import { AttachmentChips } from './AttachmentChips';
 import { AttachMenu } from './AttachMenu';
@@ -210,7 +211,7 @@ export function Composer({ variant }: ComposerProps) {
             )}
           />
           <div className="flex items-center gap-1 px-2.5 pt-1 pb-2.5">
-            <AttachMenu />
+            <AttachMenu onAttachFolder={attachProjectFolder} />
             <div className="flex-1" />
             <MicButton onTranscript={insertDictation} />
             {action}

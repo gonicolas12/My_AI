@@ -67,6 +67,12 @@ export function overlayOpen(): boolean {
   );
 }
 
+/** Le champ ciblé se sert d'Échap (data-own-escape : effacer une recherche…) */
+export function ownsEscape(event: KeyboardEvent): boolean {
+  const target = event.target instanceof Element ? event.target : null;
+  return target?.closest('[data-own-escape="true"]') !== null && target !== null;
+}
+
 export type ShortcutHandlers = Partial<Record<string, (event: KeyboardEvent) => void>>;
 
 export function installShortcuts(handlers: ShortcutHandlers): () => void {

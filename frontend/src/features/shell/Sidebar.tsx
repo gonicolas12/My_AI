@@ -8,25 +8,20 @@
 import {
   BookText,
   Brain,
-  ChevronRight,
-  Download,
-  FolderOpen,
-  History,
   MessagesSquare,
   PanelLeftClose,
   Radio,
-  Search,
   Settings,
   SquarePen,
   Trash2,
   Volume2,
+  VolumeX,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button, IconButton } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
-import { Tooltip } from '../../components/ui/Tooltip';
 import { newConversation, openSession, removeSession, toggleSidebar } from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import type { SessionSummary } from '../../lib/events';
@@ -34,8 +29,13 @@ import { formatDay } from '../../lib/format';
 import { useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
+import { refreshFolders, useSidebar } from '../../stores/sidebar';
+import { setAutoread, useVoice } from '../../stores/voice';
+import { ExportMenu } from './sidebar/ExportMenu';
+import { SearchBox, SearchResults } from './sidebar/SearchPanel';
+import { FoldersSection, HistorySection } from './sidebar/Sections';
 
-const PHASE_3 = 'arrive à la phase 3';
+const PHASE_3B = 'arrive à la phase 3b';
 
 function SessionItem({
   session,
@@ -74,36 +74,43 @@ function SessionItem({
   );
 }
 
-function LaterSection({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
-  return (
-    <Tooltip label={`${title} : ${PHASE_3}`} side="right">
-      <div
-        className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-fg-3"
-        aria-disabled="true"
-      >
-        <ChevronRight size={14} />
-        <Icon size={15} />
-        {title}
-      </div>
-    </Tooltip>
-  );
-}
-
-const TOOLS: { icon: LucideIcon; label: string; shortcut?: string }[] = [
+/** Boutons des panneaux de la phase 3b : affichés, désactivés (D20) */
+const LATER: { icon: LucideIcon; label: string; shortcut?: string }[] = [
   { icon: Radio, label: 'Relay', shortcut: 'Ctrl+R' },
-  { icon: Volume2, label: 'Lecture automatique' },
   { icon: Settings, label: 'Réglages', shortcut: 'Ctrl+,' },
   { icon: Brain, label: 'Mémoire' },
   { icon: BookText, label: 'Prompts' },
-  { icon: Download, label: 'Exporter la conversation' },
 ];
+
+function AutoreadButton() {
+  const autoread = useVoice((state) => state.autoread);
+  return (
+    <IconButton
+      label={autoread ? 'Lecture automatique : activée' : 'Lecture automatique : désactivée'}
+      tooltipSide="top"
+      aria-pressed={autoread}
+      active={autoread}
+      onClick={() => void setAutoread(!autoread)}
+      className={cn(autoread && 'text-accent hover:text-accent')}
+    >
+      {autoread ? <Volume2 size={17} /> : <VolumeX size={17} />}
+    </IconButton>
+  );
+}
 
 export function Sidebar() {
   const open = useApp((state) => state.sidebarOpen);
   const sessions = useApp((state) => state.sessions);
   const currentId = useChat((state) => state.conversationId);
   const busy = useChat(isGenerating);
+  const searching = useSidebar((state) => state.searched !== null);
+  const foldersOpen = useSidebar((state) => state.sections.folders);
   const [toDelete, setToDelete] = useState<SessionSummary | null>(null);
+
+  // Les dossiers projet sont ceux de la session courante
+  useEffect(() => {
+    if (foldersOpen) void refreshFolders();
+  }, [currentId, foldersOpen]);
 
   return (
     <aside
@@ -123,7 +130,7 @@ export function Sidebar() {
           </IconButton>
         </div>
 
-        <div className="space-y-1 px-2">
+        <div className="space-y-1.5 px-2">
           <button
             type="button"
             disabled={busy}
@@ -134,47 +141,45 @@ export function Sidebar() {
             Nouvelle conversation
             <kbd className="ml-auto font-sans text-2xs text-fg-3">Ctrl+N</kbd>
           </button>
-          <Tooltip label={`Recherche globale : ${PHASE_3}`} side="right">
-            <div
-              className="flex items-center gap-2.5 rounded-md border border-line px-2.5 py-1.5 text-sm text-fg-3"
-              aria-disabled="true"
-            >
-              <Search size={15} />
-              Rechercher…
-            </div>
-          </Tooltip>
+          <SearchBox />
         </div>
 
-        <div className="mt-4 flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 px-4 pb-1.5 text-2xs font-semibold tracking-wide text-fg-3 uppercase">
-            <MessagesSquare size={13} />
-            Conversations
-          </div>
-          <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
-            {sessions.length ? (
-              sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  current={session.id === currentId}
-                  onDelete={setToDelete}
-                />
-              ))
-            ) : (
-              <li className="px-2.5 py-1.5 text-sm text-fg-3">Aucune conversation</li>
-            )}
-          </ul>
+        <div className="mt-3 flex min-h-0 flex-1 flex-col">
+          {searching ? (
+            <SearchResults />
+          ) : (
+            <>
+              <div className="flex items-center gap-2 px-4 pb-1.5 text-2xs font-semibold tracking-wide text-fg-3 uppercase">
+                <MessagesSquare size={13} />
+                Conversations
+              </div>
+              <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+                {sessions.length ? (
+                  sessions.map((session) => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      current={session.id === currentId}
+                      onDelete={setToDelete}
+                    />
+                  ))
+                ) : (
+                  <li className="px-2.5 py-1.5 text-sm text-fg-3">Aucune conversation</li>
+                )}
+              </ul>
+            </>
+          )}
           <div className="space-y-0.5 border-t border-line px-2 py-2">
-            <LaterSection icon={FolderOpen} title="Dossiers du projet" />
-            <LaterSection icon={History} title="Historique" />
+            <FoldersSection />
+            <HistorySection />
           </div>
         </div>
 
         <div className="flex shrink-0 items-center justify-between border-t border-line px-2 py-2">
-          {TOOLS.map(({ icon: Icon, label, shortcut }) => (
+          {LATER.slice(0, 1).map(({ icon: Icon, label, shortcut }) => (
             <IconButton
               key={label}
-              label={`${label} : ${PHASE_3}`}
+              label={`${label} : ${PHASE_3B}`}
               shortcut={shortcut}
               tooltipSide="top"
               disabled
@@ -182,6 +187,19 @@ export function Sidebar() {
               <Icon size={17} />
             </IconButton>
           ))}
+          <AutoreadButton />
+          {LATER.slice(1).map(({ icon: Icon, label, shortcut }) => (
+            <IconButton
+              key={label}
+              label={`${label} : ${PHASE_3B}`}
+              shortcut={shortcut}
+              tooltipSide="top"
+              disabled
+            >
+              <Icon size={17} />
+            </IconButton>
+          ))}
+          <ExportMenu />
         </div>
       </div>
 

@@ -5,11 +5,13 @@
  */
 
 import { ArrowDown } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 import type { MessageView } from '../../lib/events';
+import { clearHighlight, findResultMessage, highlightElement } from '../../lib/highlight';
 import { useChat } from '../../stores/chat';
+import { clearHighlightTarget, type HighlightTarget, useHighlight } from '../../stores/highlight';
 import { isGenerating, type LiveTurn, type PendingTurn } from '../../stores/chatReducer';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
@@ -58,6 +60,44 @@ export function Thread() {
 
   const lastIndex = items.length - 1;
 
+  // Résultat de la recherche globale : défiler jusqu'au message, puis le surligner
+  const target = useHighlight((state) => state.target);
+  const handled = useRef<HighlightTarget | null>(null);
+  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!target || handled.current === target) return;
+    if (target.conversationId !== conversationId || !messages.length) return;
+    handled.current = target;
+    clearHighlightTarget();
+    const index = findResultMessage(messages, target.excerpt, target.messageIndex);
+    const mid = messages[index]?.mid;
+    if (!mid) return;
+    stick.current = false;
+    if (poll.current) clearInterval(poll.current);
+    let tries = 0;
+    // Liste virtualisée : le message n'existe dans la page qu'une fois affiché.
+    // La liste d'une conversation qui vient de s'ouvrir se place d'abord en
+    // bas : le défilement est redemandé tant que le message n'est pas là.
+    poll.current = setInterval(() => {
+      const element = document.querySelector<HTMLElement>(`[data-mid="${CSS.escape(mid)}"]`);
+      tries += 1;
+      if (!element && tries < 40) {
+        if (tries % 3 === 1) virtuoso.current?.scrollToIndex({ index, align: 'center' });
+        return;
+      }
+      if (poll.current) clearInterval(poll.current);
+      poll.current = null;
+      if (element) highlightElement(element, target.query);
+    }, 50);
+  }, [target, conversationId, messages]);
+  useEffect(
+    () => () => {
+      if (poll.current) clearInterval(poll.current);
+      clearHighlight();
+    },
+    [conversationId],
+  );
+
   const onBottom = useCallback((bottom: boolean) => {
     stick.current = bottom;
     setAtBottom(bottom);
@@ -74,7 +114,8 @@ export function Thread() {
   };
 
   return (
-    <div className="relative min-h-0 flex-1">
+    // Comme une sélection à la souris : le surlignage disparaît au clic
+    <div className="relative min-h-0 flex-1" onMouseDown={clearHighlight}>
       <Virtuoso
         // Nouvelle conversation : la liste repart du bas
         key={conversationId ?? 'new'}
@@ -90,7 +131,10 @@ export function Thread() {
         increaseViewportBy={{ top: 800, bottom: 400 }}
         components={{ Header: ThreadHeader, Footer: ThreadFooter }}
         itemContent={(index, item) => (
-          <div className="mx-auto w-full max-w-[var(--chat-column)] px-6">
+          <div
+            className="mx-auto w-full max-w-[var(--chat-column)] px-6"
+            data-mid={item.kind === 'message' ? item.message.mid : undefined}
+          >
             {item.kind === 'live' ? (
               <AssistantMessage live={item.live} pending={!item.live} isLast />
             ) : item.message.role === 'user' ? (

@@ -33,6 +33,9 @@
   /* Étoiles de la note d'une réponse (message_bubbles.py) */
   --rating: #fbbf24;
 
+  /* Passage trouvé par la recherche globale (_highlight_in_chat, sidebar.py) */
+  --search-hit: #2563eb;
+
   /* ── Agents (interfaces/agents/agent_selection.py) ────────────────────── */
   --agent-code: #3b82f6;
   --agent-web: #10b981;
@@ -61,6 +64,8 @@
   --link: var(--info);
   --scrollbar: color-mix(in srgb, var(--text-primary) 14%, transparent);
   --scrollbar-hover: color-mix(in srgb, var(--text-primary) 24%, transparent);
+  --search-hit-soft: color-mix(in srgb, var(--search-hit) 22%, transparent);
+  --on-search-hit: var(--text-primary);
 
   /* ── Coloration du code (palette Dark+ de l'interface Tk) ─────────────── */
   --code-bg: var(--bg-secondary);

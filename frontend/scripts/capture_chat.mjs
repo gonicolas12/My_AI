@@ -4,7 +4,7 @@
 //   node scripts/capture_chat.mjs URL_AVEC_JETON [DOSSIER] [étapes séparées par des virgules]
 import { mkdirSync } from 'node:fs';
 
-import { composer, openDemo, usage, waitIdle, waitReady } from './lib.mjs';
+import { composer, openDemo, openSidebar, usage, waitIdle, waitReady } from './lib.mjs';
 
 const [, , url, out = 'captures/chat', only = ''] = process.argv;
 if (!url) usage('node scripts/capture_chat.mjs URL_AVEC_JETON [DOSSIER] [étapes]');
@@ -22,6 +22,13 @@ page.on('console', (m) => {
   logs.push(`[${m.type()}] ${m.text()}`);
 });
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
+
+/** Chemin d'un fichier ou dossier du dépôt */
+const repoPath = (relative) =>
+  decodeURIComponent(new URL(`../../${relative}`, import.meta.url).pathname).replace(
+    /^\/([A-Za-z]:)/,
+    '$1',
+  );
 
 /** Fichier des données de test du suivi (section 4) */
 const fixture = (name) =>
@@ -303,6 +310,70 @@ if (wanted('voix')) {
   const value = await composer(page).inputValue();
   check('dictée : insérée au curseur', value === 'Bonjour texte dicté (démo)', value);
   await composer(page).fill('');
+}
+
+if (wanted('barre')) {
+  await newConversation();
+  await openSidebar(page);
+  // Recherche globale : Entrée, puis ouverture du résultat et surlignage
+  const search = page.getByRole('textbox', { name: 'Recherche globale' });
+  await search.fill('pagination');
+  await search.press('Enter');
+  const results = page.getByRole('list', { name: 'Résultats' }).locator('button');
+  await results.first().waitFor({ timeout: 10000 });
+  await shot('recherche_resultats');
+  const found = await results.count();
+  check('recherche : résultats affichés', found >= 1, `${found} résultat(s)`);
+  await results.first().click();
+  await page.waitForTimeout(1500);
+  const marked = await page.evaluate(
+    () =>
+      (CSS.highlights?.get('search-hit')?.size ?? 0) +
+      document.querySelectorAll('.search-hit-message').length,
+  );
+  check('recherche : passage surligné dans la conversation', marked > 0, `${marked}`);
+  await shot('recherche_surlignage');
+  await page.getByRole('button', { name: 'Effacer la recherche' }).click();
+
+  // Historique : réutiliser une requête
+  await page.getByRole('button', { name: 'Historique' }).click();
+  await page.waitForTimeout(600);
+  await shot('historique');
+  const history = page.getByRole('button', { name: /favoris/ });
+  check('historique : entrées listées', (await history.count()) >= 1, `${await history.count()}`);
+  const first = page.locator('aside[aria-label="Barre latérale"] button[title]').first();
+  const query = await first.getAttribute('title');
+  await first.click();
+  const draft = await composer(page).inputValue();
+  check('historique : requête remise dans la saisie', draft === query, draft);
+  await composer(page).fill('');
+
+  // Dossier projet : attaché par l'API (le dialogue du système n'existe pas ici)
+  await page.getByRole('button', { name: /^Dossiers du projet/ }).click();
+  const docs = repoPath('docs');
+  await page.evaluate(async (path) => {
+    const token = sessionStorage.getItem('my_ai.token');
+    await fetch('/api/folders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+  }, docs);
+  await page.getByText(/Indexation : \d+\/\d+/).waitFor({ timeout: 10000 });
+  await shot('dossiers_indexation');
+  await page.getByRole('button', { name: 'Réindexer' }).first().waitFor({ timeout: 20000 });
+  await page.waitForTimeout(400);
+  const folders = await page.getByRole('button', { name: 'Détacher' }).count();
+  check('dossiers : dossier indexé et listé', folders === 1, `${folders}`);
+  await shot('dossiers_indexes');
+
+  // Export (navigateur : sans dialogue, dans outputs/exports du serveur)
+  await send('Bonjour');
+  await page.getByRole('button', { name: 'Exporter la conversation' }).click();
+  await page.getByRole('menuitem', { name: 'Markdown (.md)' }).click();
+  await page.getByText(/Exporté en MARKDOWN/).waitFor({ timeout: 10000 });
+  check('export : fichier écrit', true);
+  await shot('export');
 }
 
 console.log(logs.length ? logs.join('\n') : 'Console : aucune erreur');
