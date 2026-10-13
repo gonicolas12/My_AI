@@ -302,13 +302,29 @@ function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         finishedMessage(state.live, p.text, {
           duration_ms: p.duration_ms,
           ...(p.tokens_per_s ? { tokens_per_s: p.tokens_per_s } : {}),
+          ...(p.paths?.length ? { paths: p.paths } : {}),
         }),
       );
     }
     case 'assistant.interrupted': {
       const p = (event as ServerEvent<'assistant.interrupted'>).payload;
       if (!state.live) return { ...state, pending: null };
-      return finish(state, finishedMessage(state.live, p.text, { interrupted: true }));
+      return finish(
+        state,
+        finishedMessage(state.live, p.text, {
+          interrupted: true,
+          ...(p.paths?.length ? { paths: p.paths } : {}),
+        }),
+      );
+    }
+    case 'message.rated': {
+      const p = (event as ServerEvent<'message.rated'>).payload;
+      return {
+        ...state,
+        messages: state.messages.map((message) =>
+          message.mid === p.mid ? { ...message, rating: p.rating } : message,
+        ),
+      };
     }
     case 'assistant.error': {
       const p = (event as ServerEvent<'assistant.error'>).payload;

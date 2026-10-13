@@ -44,6 +44,9 @@ export default defineConfig({
       // changeOrigin : le serveur local n'accepte que son propre en-tête Host
       '/api': { target: backend, changeOrigin: true },
       '/ws': { target: backend, ws: true, changeOrigin: true },
+      // Fichiers locaux (liens signés) et pages d'aperçu du volet de droite
+      '/files': { target: backend, changeOrigin: true },
+      '/preview': { target: backend, changeOrigin: true },
     },
   },
   build: {

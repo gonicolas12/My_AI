@@ -21,6 +21,7 @@ import { startSync } from './lib/sync';
 import { useApp } from './stores/app';
 import { useChat } from './stores/chat';
 import { isGenerating } from './stores/chatReducer';
+import { clampPreviewWidth, PREVIEW_WIDTH, usePreview } from './stores/preview';
 
 function useAppEffects() {
   useEffect(() => startSync(), []);
@@ -47,7 +48,12 @@ function useAppEffects() {
   useEffect(() => {
     api
       .uiState()
-      .then((state) => useApp.setState({ sidebarOpen: Boolean(state.sidebar_open) }))
+      .then((state) => {
+        useApp.setState({ sidebarOpen: Boolean(state.sidebar_open) });
+        usePreview.setState({
+          width: clampPreviewWidth(state.preview_width ?? PREVIEW_WIDTH.initial),
+        });
+      })
       .catch(() => undefined);
   }, []);
 }

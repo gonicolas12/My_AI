@@ -3,6 +3,8 @@ import { TriangleAlert } from 'lucide-react';
 import { useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
+import { PreviewPane } from '../preview/PreviewPane';
+import { useAutoOpenArtifacts } from '../preview/useAutoOpen';
 import { Composer } from './Composer';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 import { HomeScreen } from './HomeScreen';
@@ -22,18 +24,22 @@ function OllamaBanner() {
 }
 
 export function ChatPage() {
+  useAutoOpenArtifacts();
   const empty = useChat((state) => state.messages.length === 0 && !isGenerating(state));
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <OllamaBanner />
-      {empty ? (
-        <HomeScreen />
-      ) : (
-        <>
-          <Thread />
-          <Composer variant="dock" />
-        </>
-      )}
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <OllamaBanner />
+        {empty ? (
+          <HomeScreen />
+        ) : (
+          <>
+            <Thread />
+            <Composer variant="dock" />
+          </>
+        )}
+      </div>
+      <PreviewPane />
       <ConfirmDeleteDialog />
     </div>
   );

@@ -101,6 +101,37 @@
     color: var(--link);
   }
 
+  /* Citation « [n] » de la recherche web */
+  .md a.md-cite {
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+  }
+
+  .md a.md-cite:hover {
+    text-decoration: underline;
+  }
+
+  /* Chemin de fichier existant : gras, bleu, souligné, comme dans Tk */
+  .md .md-path {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 650;
+    color: var(--link);
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--link) 45%, transparent);
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+
+  .md .md-path:hover {
+    text-decoration-color: var(--link);
+  }
+
   .md .md-image {
     display: inline-flex;
     align-items: center;

@@ -104,7 +104,28 @@ export interface StatusResponse {
 
 export interface UiState {
   sidebar_open?: boolean;
+  /** Largeur du volet d'aperçu (px) */
+  preview_width?: number;
 }
+
+/** Page d'aperçu du volet de droite (interfaces/desktop/previews.py) */
+export interface PreviewView {
+  id: string;
+  kind: 'html' | 'svg' | 'document' | 'pdf';
+  title: string;
+  /** Page à charger dans l'iframe isolée, ou le PDF lui-même */
+  url: string;
+  /** Document d'origine (aperçu d'un fichier) */
+  path: string | null;
+}
+
+export interface SlashCommand {
+  command: string;
+  title: string;
+  description: string;
+}
+
+const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body);
 
 export const api = {
   status: () => request<StatusResponse>('GET', '/api/status'),
@@ -135,6 +156,41 @@ export const api = {
   attachments: () => request<{ attachments: AttachmentView[] }>('GET', '/api/attachments'),
   removeAttachment: (id: string) =>
     request<{ removed: boolean }>('DELETE', `/api/attachments/${encodeURIComponent(id)}`),
+
+  addAttachment: (path: string, type?: string) =>
+    post<AttachmentView>('/api/attachments', { path, type: type ?? null }),
+  uploadAttachment: (file: Blob, name: string) => {
+    const form = new FormData();
+    form.append('file', file, name);
+    return post<AttachmentView>('/api/attachments/upload', form);
+  },
+
+  rate: (mid: string, score: number) =>
+    post<{ rating: number }>(`/api/conversation/messages/${encodeURIComponent(mid)}/rating`, {
+      score,
+    }),
+  slashCommands: (prefix: string) =>
+    request<{ commands: SlashCommand[] }>(
+      'GET',
+      `/api/prompts/commands?prefix=${encodeURIComponent(prefix)}`,
+    ),
+
+  fileLinks: (paths: string[]) =>
+    post<{ links: Record<string, string | null> }>('/api/files/links', { paths }),
+  openFile: (path: string) => post<{ ok: boolean }>('/api/files/open', { path }),
+  revealFile: (path: string) => post<{ ok: boolean }>('/api/files/reveal', { path }),
+  downloadFile: (path: string) => post<{ path: string }>('/api/files/download', { path }),
+
+  artifactPreview: (body: {
+    code: string;
+    kind: 'html' | 'svg';
+    title: string;
+    language: string;
+    index: number;
+  }) => post<PreviewView>('/api/previews/artifact', body),
+  documentPreview: (path: string) => post<PreviewView>('/api/previews/document', { path }),
+  previewInBrowser: (id: string) =>
+    post<{ path: string }>(`/api/previews/${encodeURIComponent(id)}/browser`),
 
   uiState: () => request<UiState>('GET', '/api/ui'),
   saveUiState: (state: UiState) => request<UiState>('PUT', '/api/ui', state),

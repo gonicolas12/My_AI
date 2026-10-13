@@ -207,3 +207,15 @@
     transform: translateY(0);
   }
 }
+
+/* Volet d'aperçu : il glisse depuis la droite */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

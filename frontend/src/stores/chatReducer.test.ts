@@ -236,4 +236,37 @@ describe('reduceChat', () => {
     const state = initialChatState;
     expect(reduceChat(state, event('notification', { level: 'info', message: 'x' }))).toBe(state);
   });
+
+  it('garde les chemins cliquables et la note d’une réponse', () => {
+    const state = run(
+      event('message.user', {
+        mid: 'u1',
+        request_id: 'r1',
+        text: 'Où est le rapport ?',
+        source: 'desktop',
+        timestamp: '2026-10-12T10:00:00',
+        attachments: [],
+        image_path: null,
+      }),
+      event('assistant.start', {
+        mid: 'a1',
+        request_id: 'r1',
+        kind: 'chat',
+        reasoning: false,
+        filename: null,
+      }),
+      event('assistant.done', {
+        mid: 'a1',
+        text: 'Dans C:/out/r.docx',
+        duration_ms: 500,
+        tokens_per_s: null,
+        paths: [{ text: 'C:/out/r.docx', path: 'C:/out/r.docx' }],
+      }),
+      event('message.rated', { mid: 'a1', rating: 4 }),
+    );
+    const answer = state.messages[1];
+    expect(answer?.paths).toEqual([{ text: 'C:/out/r.docx', path: 'C:/out/r.docx' }]);
+    expect(answer?.rating).toBe(4);
+    expect(state.messages[0]?.rating).toBeUndefined();
+  });
 });

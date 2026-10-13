@@ -1,10 +1,14 @@
-import { CircleAlert, FileCode2, FileText, ImageIcon, OctagonX } from 'lucide-react';
+import { CircleAlert, Eye, OctagonX } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
 import { RobotLogo } from '../../components/ui/RobotLogo';
+import { baseName, messageArtifacts } from '../../lib/artifacts';
 import type { MessageView, ToolCallView } from '../../lib/events';
 import { formatDecimal, formatDuration, formatTime } from '../../lib/format';
 import type { LiveTurn } from '../../stores/chatReducer';
+import { openPreview } from '../../stores/preview';
+import { FileCard, GeneratedImage } from './FileCard';
+import { buildChatLinks, citationKey } from './markdown/links';
 import { Markdown } from './markdown/Markdown';
 import { CopyButton, MessageActions } from './MessageActions';
 import { buildParts } from './parts';
@@ -13,6 +17,7 @@ import { ToolRow } from './ToolRow';
 import { toolText } from './tools';
 
 const NO_TOOLS: ToolCallView[] = [];
+const NO_DOCUMENTS: string[] = [];
 
 /**
  * Bloc « Réflexion » en attente : requête complexe (comme Tk, affiché dès
@@ -56,20 +61,18 @@ function Activity({ label, progress }: { label: string; progress?: number | null
   );
 }
 
-function FileCard({ name, kind }: { name: string; kind: 'file' | 'document' | 'image' }) {
-  const Icon = kind === 'image' ? ImageIcon : kind === 'file' ? FileCode2 : FileText;
-  return (
-    <div
-      className="my-2 inline-flex max-w-full items-center gap-2.5 rounded-md border border-line bg-bg-2 px-3 py-2 text-sm"
-      title="Ouverture et aperçu : phase 3"
-    >
-      <Icon size={16} className="shrink-0 text-accent" />
-      <span className="truncate">{name}</span>
-    </div>
-  );
+/**
+ * Texte affiché d'une réponse. Celui d'une génération de fichier finit par le
+ * nom du fichier, que Tk rendait cliquable : la carte du fichier le montre.
+ */
+function shownText(message: MessageView | undefined): string {
+  const text = message?.text ?? '';
+  const name = message?.file_path ? baseName(message.file_path) : '';
+  if (message?.type === 'file_generation' && name && text.endsWith(name)) {
+    return text.slice(0, -name.length).trimEnd();
+  }
+  return text;
 }
-
-const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 interface AssistantMessageProps {
   message?: MessageView | undefined;
@@ -86,24 +89,32 @@ export const AssistantMessage = memo(function AssistantMessage({
   isLast = false,
 }: AssistantMessageProps) {
   const streaming = live !== null || pending;
-  const text = live ? live.text : (message?.text ?? '');
+  const mid = live?.mid ?? message?.mid ?? null;
+  const text = live ? live.text : shownText(message);
   const tools = live ? live.tools : (message?.tool_calls ?? NO_TOOLS);
   const thinking = live ? live.thinking : (message?.thinking ?? '');
+  const documents = live ? live.documents : (message?.documents ?? NO_DOCUMENTS);
   const parts = useMemo(() => buildParts(text, tools), [text, tools]);
   const lastText = parts.findLastIndex((part) => part.kind === 'text');
   const activity = streaming ? activityOf(live) : null;
   const thinkingNow = reasoningActive(live);
   const error = Boolean(message?.error);
 
-  const files: { name: string; kind: 'file' | 'document' | 'image' }[] = [];
-  const filePath = live?.file?.path ?? message?.file_path;
-  if (filePath) files.push({ name: live?.file?.name ?? baseName(filePath), kind: 'file' });
-  for (const doc of live?.documents ?? message?.documents ?? []) {
-    files.push({ name: baseName(doc), kind: 'document' });
-  }
+  // Citations « [n] » et chemins cliquables : références stables tant qu'ils ne changent pas
+  const citations = useMemo(() => citationKey(text), [text]);
+  const paths = message?.paths;
+  const links = useMemo(() => buildChatLinks(citations, paths), [citations, paths]);
+
+  // Artefacts (blocs HTML/SVG, documents), une fois la réponse écrite
+  const artifacts = useMemo(
+    () => (streaming || error ? [] : messageArtifacts(text, documents)),
+    [streaming, error, text, documents],
+  );
+
+  // Fichier généré : sa carte paraît une fois le fichier écrit
+  const filePath = live?.file?.path || message?.file_path;
   const imagePath =
     live?.image?.path ?? (message?.type === 'image_generation' ? message.image_path : null);
-  if (imagePath) files.push({ name: baseName(imagePath), kind: 'image' });
 
   const meta = message
     ? [
@@ -139,6 +150,7 @@ export const AssistantMessage = memo(function AssistantMessage({
               key={part.key}
               text={part.text}
               streaming={live !== null && index === lastText && index === parts.length - 1}
+              links={links}
             />
           ) : (
             <ToolRow
@@ -154,12 +166,33 @@ export const AssistantMessage = memo(function AssistantMessage({
         <Activity label={activity} progress={live?.kind === 'image' ? live.progress : null} />
       ) : null}
 
-      {files.length ? (
-        <div className="flex flex-wrap gap-2">
-          {files.map((file, index) => (
-            <FileCard key={`${file.name}-${index}`} name={file.name} kind={file.kind} />
-          ))}
-        </div>
+      {imagePath ? <GeneratedImage path={imagePath} /> : null}
+
+      {filePath ? <FileCard path={filePath} name={live?.file?.name} kind="file" /> : null}
+
+      {documents.map((path) => {
+        const index = artifacts.findIndex(
+          (artifact) => artifact.kind === 'document' && artifact.path === path,
+        );
+        return (
+          <FileCard
+            key={path}
+            path={path}
+            kind="document"
+            onPreview={index >= 0 ? () => openPreview(mid, artifacts, index) : undefined}
+          />
+        );
+      })}
+
+      {artifacts.length ? (
+        <button
+          type="button"
+          onClick={() => openPreview(mid, artifacts, 0)}
+          className="mt-1 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-semibold text-accent transition-colors duration-150 hover:bg-accent-soft"
+        >
+          <Eye size={15} />
+          Aperçu{artifacts.length > 1 ? ` (${artifacts.length})` : ''}
+        </button>
       ) : null}
 
       {message?.interrupted ? (

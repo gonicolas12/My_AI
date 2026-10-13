@@ -16,6 +16,13 @@ export interface AttachmentRef {
   type: string;
 }
 
+/** Chemin existant cité dans une réponse, montré dans l'Explorateur au clic */
+export interface PathLink {
+  /** Tel qu'il apparaît dans la réponse */
+  text: string;
+  path: string;
+}
+
 export interface ToolCallView {
   name: string;
   label: string;
@@ -44,6 +51,10 @@ export interface MessageView {
   error?: boolean;
   duration_ms?: number;
   tokens_per_s?: number;
+  /** Note de 1 à 5 étoiles (RLHF), figée une fois donnée */
+  rating?: number;
+  /** Chemins existants cités (réponses seulement), calculés par le serveur */
+  paths?: PathLink[];
 }
 
 export type TurnKind = 'chat' | 'file' | 'image';
@@ -137,6 +148,10 @@ export interface RelayStatus {
   local_url: string | null;
 }
 
+export type VoiceInputState = 'idle' | 'recording' | 'transcribing' | 'error';
+
+export type VoiceOutputState = 'speaking' | 'idle' | 'error';
+
 export interface SchedulerResult {
   task_id: string | null;
   name: string;
@@ -156,6 +171,12 @@ export interface EventPayloads {
   'relay.status': RelayStatus;
   'scheduler.result': SchedulerResult;
   'sessions.changed': Record<string, never>;
+  'files.dropped': { paths: string[] };
+  'folders.progress': { path: string; name: string; verb: string; done: number; total: number };
+  'folders.changed': { path: string | null; ok: boolean };
+  'voice.input': { state: VoiceInputState; message: string };
+  'voice.transcript': { text: string };
+  'voice.output': { state: VoiceOutputState; key: string | null; message: string };
   'conversation.loaded': {
     reason: 'new' | 'cleared' | 'loaded' | 'restored' | 'edited' | 'navigated';
     snapshot: ConversationSnapshot;
@@ -170,6 +191,7 @@ export interface EventPayloads {
     attachments: AttachmentRef[];
     image_path: string | null;
   };
+  'message.rated': { mid: string; rating: number };
   'assistant.start': {
     mid: string;
     request_id: string;
@@ -186,8 +208,9 @@ export interface EventPayloads {
     text: string;
     duration_ms: number;
     tokens_per_s: number | null;
+    paths?: PathLink[];
   };
-  'assistant.interrupted': { mid: string | null; text: string };
+  'assistant.interrupted': { mid: string | null; text: string; paths?: PathLink[] };
   'assistant.error': { mid: string | null; message: string };
   'tool.call': { name: string; label: string; args: Record<string, unknown>; at: number };
   'tool.result': { name: string; ok: boolean; summary: string; sources: number };

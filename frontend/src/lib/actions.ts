@@ -6,6 +6,7 @@
 
 import { notify, useApp } from '../stores/app';
 import { api } from './api';
+import { baseName } from './artifacts';
 import type { ClientMessage } from './events';
 import { getSocket } from './sync';
 import { SocketError } from './ws';
@@ -91,15 +92,52 @@ export async function removeSession(id: string): Promise<void> {
   await attempt(() => api.deleteSession(id));
 }
 
-let uiTimer: ReturnType<typeof setTimeout> | null = null;
+/** Note de 1 à 5 étoiles (RLHF) ; vrai si elle a été enregistrée */
+export async function rateAnswer(mid: string, score: number): Promise<boolean> {
+  const result = await attempt(() => api.rate(mid, score));
+  return result !== undefined;
+}
+
+/** Document produit par l'appli → son application (les autres sont refusés) */
+export async function openFile(path: string): Promise<void> {
+  await attempt(() => api.openFile(path));
+}
+
+/** Chemin cité ou joint → Explorateur, fichier sélectionné ; jamais exécuté */
+export async function revealPath(path: string): Promise<void> {
+  await attempt(() => api.revealFile(path));
+}
+
+/** Document produit → copie dans Téléchargements (clic sur le nom dans Tk) */
+export async function saveToDownloads(path: string): Promise<void> {
+  const result = await attempt(() => api.downloadFile(path), 'error');
+  if (result) {
+    notify('success', `✅ Votre fichier ${baseName(path)} a été téléchargé dans : ${result.path}`);
+  }
+}
+
+const uiTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Retient un état de l'interface d'un lancement à l'autre (data/.desktop_state.json) */
+function saveUiState(key: 'sidebar_open' | 'preview_width', value: boolean | number): void {
+  const previous = uiTimers.get(key);
+  if (previous) clearTimeout(previous);
+  uiTimers.set(
+    key,
+    setTimeout(() => {
+      uiTimers.delete(key);
+      void api.saveUiState({ [key]: value }).catch(() => undefined);
+    }, 400),
+  );
+}
 
 export function setSidebarOpen(open: boolean): void {
   useApp.setState({ sidebarOpen: open });
-  // Retenu d'un lancement à l'autre (data/.desktop_state.json)
-  if (uiTimer) clearTimeout(uiTimer);
-  uiTimer = setTimeout(() => {
-    void api.saveUiState({ sidebar_open: open }).catch(() => undefined);
-  }, 400);
+  saveUiState('sidebar_open', open);
+}
+
+export function savePreviewWidth(width: number): void {
+  saveUiState('preview_width', width);
 }
 
 export function toggleSidebar(): void {
