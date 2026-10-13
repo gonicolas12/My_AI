@@ -1979,6 +1979,27 @@ class ChatService:
             self._emit("sessions.changed")
             return session_id
 
+    def update_session(self, session_id: str, mutate: Callable[[Dict[str, Any]], None]) -> bool:
+        """Modifie l'état enregistré d'une session (dossiers projet…).
+
+        Sous le verrou du service : une sauvegarde de la conversation, qui
+        relit et réécrit le même fichier, ne peut pas l'écraser.
+        """
+        sessions = self._sessions()
+        if sessions is None or not session_id:
+            return False
+        with self._lock:
+            try:
+                state = sessions.load_workspace(session_id) or {}
+                mutate(state)
+                saved = bool(sessions.save_workspace(session_id, state))
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("Session %s non mise à jour : %s", session_id, exc)
+                return False
+            if saved:
+                self._emit("sessions.changed")
+            return saved
+
     def export_messages(self) -> List[Dict[str, Any]]:
         """Conversation affichée au format de l'export (_export_conversation de Tk)."""
         with self._lock:
