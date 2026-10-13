@@ -9,6 +9,7 @@ lenteur la trahirait sur le vrai modèle.
 """
 
 import json
+import os
 import threading
 import time
 from datetime import datetime
@@ -96,6 +97,24 @@ class FakePromptLibrary:
         if text.startswith("/code "):
             return "Écris un programme complet pour : " + text[len("/code "):]
         return None
+
+    @staticmethod
+    def search(prefix):
+        prefix = (prefix or "").lstrip("/").lower()
+        commands = [{"command": "code", "title": "Génération de code",
+                     "description": "Génère un programme complet et commenté"}]
+        return [dict(item) for item in commands if item["command"].startswith(prefix)]
+
+
+class FakeRLHF:
+    """Gestionnaire des notes (core.rlhf_manager) : garde ce qu'il reçoit."""
+
+    def __init__(self):
+        self.records = []
+
+    def record_interaction(self, **kwargs):
+        self.records.append(kwargs)
+        return len(self.records)
 
 
 class FakeEngine:
@@ -961,3 +980,86 @@ def test_published_events_follow_the_protocol(chat):
     # Arguments d'outil allégés pour la fenêtre
     call = wait_for(chat.events, "tool.call")[0]["payload"]
     assert len(call["args"]["query"]) < 1000
+
+
+# ── Notes, fichiers, dossiers, export (phase 3) ─────────────────────────────
+
+
+def test_rating_is_recorded_with_its_question_then_frozen(chat):
+    rlhf = FakeRLHF()
+    chat.service._rlhf_manager = rlhf  # pylint: disable=protected-access
+    done = ask(chat, "Explique les tuples")
+    assert chat.service.rate(done["mid"], 4) == 4
+    assert rlhf.records == [{
+        "user_query": "Explique les tuples", "ai_response": "Réponse à « Explique les tuples »",
+        "feedback_type": "positive", "feedback_score": 4, "intent": "conversation",
+        "confidence": 1.0, "model_version": "ollama",
+    }]
+    rated = wait_for(chat.events, "message.rated")[0]
+    assert rated["payload"] == {"mid": done["mid"], "rating": 4}
+    # Gardée dans la session (clé optionnelle, D7), et figée comme dans Tk
+    assert chat.service.snapshot()["messages"][1]["rating"] == 4
+    state = chat.engine.session_manager.load_workspace(chat.service.session_id)
+    assert state["conversation_history"][1]["rating"] == 4
+    with pytest.raises(ChatError, match="déjà notée"):
+        chat.service.rate(done["mid"], 2)
+    with pytest.raises(ChatError, match="de 1 à 5"):
+        chat.service.rate(done["mid"], 6)
+    user_mid = chat.service.snapshot()["messages"][0]["mid"]
+    with pytest.raises(ChatError, match="introuvable"):
+        chat.service.rate(user_mid, 3)
+
+
+def test_rating_types_follow_tk(chat):
+    rlhf = FakeRLHF()
+    chat.service._rlhf_manager = rlhf  # pylint: disable=protected-access
+    mids = [ask(chat, f"Question {n}")["mid"] for n in range(3)]
+    for mid, score in zip(mids, (1, 3, 5)):
+        chat.service.rate(mid, score)
+    assert [r["feedback_type"] for r in rlhf.records] == ["negative", "neutral", "positive"]
+
+
+def test_existing_paths_in_an_answer_become_links(chat):
+    target = chat.tmp_path / "rapport final.docx"
+    target.write_text("x", encoding="utf-8")
+    chat.engine.script = [("token", f"Le fichier est dans {target}. Voir aussi C:/absent/x.txt.")]
+    done = ask(chat, "Où est le rapport ?")
+    assert done["paths"] == [{"text": str(target), "path": os.path.normpath(str(target))}]
+    view = chat.service.snapshot()["messages"][1]
+    assert view["paths"] == done["paths"]
+    # Les messages de l'utilisateur ne sont pas concernés
+    assert "paths" not in chat.service.snapshot()["messages"][0]
+
+
+def test_known_paths_cover_attachments_and_produced_files(chat):
+    joined = chat.tmp_path / "joint.md"
+    joined.write_text("# joint", encoding="utf-8")
+    chat.service.add_attachment(str(joined))
+    wait_for(chat.events, "attachment.ready")
+    pending = os.path.normcase(os.path.abspath(str(joined)))
+    assert pending in chat.service.known_paths()
+    chat.engine.script = [("document", str(chat.tmp_path / "outputs" / "doc.docx")),
+                          ("token", "Voici.")]
+    ask(chat, "Rédige un document")
+    known = chat.service.known_paths()
+    assert pending in known
+    assert os.path.normcase(os.path.abspath(str(chat.tmp_path / "outputs" / "doc.docx"))) in known
+
+
+def test_project_folder_attaches_to_the_current_session_or_a_new_one(chat):
+    session_id = chat.service.ensure_session("mon-projet")
+    assert session_id and chat.service.session_id == session_id
+    sessions = chat.service.list_sessions()
+    assert sessions[0]["name"] == "mon-projet" and sessions[0]["current"]
+    # Une session existe déjà : elle sert, et le premier message y reste
+    assert chat.service.ensure_session("autre") == session_id
+    ask(chat, "Bonjour")
+    assert chat.service.session_id == session_id
+
+
+def test_export_messages_use_the_exporter_format(chat):
+    ask(chat, "Bonjour")
+    assert chat.service.export_messages() == [
+        {"role": "user", "content": "Bonjour"},
+        {"role": "assistant", "content": "Réponse à « Bonjour »"},
+    ]

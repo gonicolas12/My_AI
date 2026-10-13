@@ -17,7 +17,6 @@ import json
 import mimetypes
 import secrets
 import socket
-import tempfile
 import threading
 import time
 import uuid
@@ -28,11 +27,16 @@ import uvicorn
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.websockets import WebSocketDisconnect
 
 from core.chat_service import ChatError
+from interfaces.desktop import api_files
+from interfaces.desktop import files as local_files
 from interfaces.desktop.events import parse_client_message
+from interfaces.desktop.previews import PreviewStore
+from interfaces.desktop.routing import ENGINE_STARTING as _ENGINE_STARTING
+from interfaces.desktop.routing import call, chat_service
 from utils.logger import setup_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -56,9 +60,6 @@ DEV_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 
 # Image collée (Ctrl+V) : taille maximale acceptée
 _MAX_UPLOAD = 50 * 1024 * 1024
-_UPLOAD_DIR = Path(tempfile.gettempdir()) / "my_ai_desktop_uploads"
-
-_ENGINE_STARTING = "Le moteur démarre…"
 
 _PLACEHOLDER_PAGE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>My_AI</title>
@@ -114,6 +115,14 @@ class UiStateBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sidebar_open: Optional[bool] = None
+    # Volet d'aperçu : de 320 à 1200 px, comme dans Tk
+    preview_width: Optional[int] = Field(default=None, ge=320, le=1200)
+
+
+class RatingBody(BaseModel):
+    """POST /api/conversation/messages/{mid}/rating."""
+
+    score: int
 
 
 class DesktopServer:
@@ -125,6 +134,9 @@ class DesktopServer:
         self.port: Optional[int] = None
         self._server: Optional[uvicorn.Server] = None
         self._thread: Optional[threading.Thread] = None
+        # Liens vers les fichiers locaux et pages d'aperçu : valables pour ce lancement
+        self.links = local_files.FileLinks(secrets.token_bytes(32))
+        self.previews = PreviewStore()
         self.fastapi = create_app(app, self)
 
     # ── Contrôles d'accès ───────────────────────────────────────────────────
@@ -201,25 +213,17 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
             if not server.check_token(token):
                 return JSONResponse({"detail": "Jeton absent ou invalide"}, status_code=401)
         response = await call_next(request)
-        if response.headers.get("content-type", "").startswith("text/html"):
+        # Une page d'aperçu porte sa propre politique (previews.py) : l'isoler
+        # de l'appli est son rôle, elle ne doit pas hériter de la sienne
+        if (response.headers.get("content-type", "").startswith("text/html")
+                and "content-security-policy" not in response.headers):
             response.headers["Content-Security-Policy"] = _content_security_policy(server.port)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     def chat():
-        """Service de chat, ou 503 tant que le moteur démarre."""
-        service = app.chat
-        if service is None:
-            raise HTTPException(status_code=503, detail=_ENGINE_STARTING)
-        return service
-
-    async def call(func, *args, **kwargs):
-        """Appel bloquant du service, hors de la boucle ; ChatError → 409."""
-        try:
-            return await run_in_threadpool(func, *args, **kwargs)
-        except ChatError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return chat_service(app)
 
     # ── Application ─────────────────────────────────────────────────────────
 
@@ -293,6 +297,28 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
         await call(chat().navigate, mid, body.version)
         return {"ok": True}
 
+    @api.post("/api/conversation/messages/{mid}/rating")
+    async def rate(mid: str, body: RatingBody):
+        return {"rating": await call(chat().rate, mid, body.score)}
+
+    # ── Slash commands ──────────────────────────────────────────────────────
+
+    @api.get("/api/prompts/commands")
+    async def prompt_commands(prefix: str = ""):
+        """Commandes « / » dont le nom commence par `prefix` (autocomplétion)."""
+        library = getattr(app.engine, "prompt_library", None) if app.engine else None
+        if library is None or not hasattr(library, "search"):
+            return {"commands": []}
+        try:
+            matches = await run_in_threadpool(library.search, prefix)
+        except Exception:  # pylint: disable=broad-except
+            matches = []
+        return {"commands": [
+            {"command": item.get("command") or "", "title": item.get("title") or "",
+             "description": item.get("description") or ""}
+            for item in matches if item.get("command")
+        ]}
+
     # ── Sessions ────────────────────────────────────────────────────────────
 
     @api.get("/api/sessions")
@@ -326,8 +352,10 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
         if len(data) > _MAX_UPLOAD:
             raise HTTPException(status_code=413, detail="Fichier trop volumineux")
         name = Path(file.filename or "fichier").name or "fichier"
-        _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        target = _UPLOAD_DIR / f"{uuid.uuid4().hex[:8]}_{name}"
+        # Un sous-dossier par envoi : le fichier garde son nom, sans collision
+        folder = local_files.UPLOAD_DIR / uuid.uuid4().hex[:12]
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / name
         target.write_bytes(data)
         return await call(service.add_attachment, str(target))
 
@@ -366,11 +394,15 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
         await websocket.accept()
         await _serve_events(app, websocket)
 
+    # ── Fichiers locaux et aperçus (api_files.py) ───────────────────────────
+
+    api_files.register(api, app, server)
+
     # ── Interface ───────────────────────────────────────────────────────────
 
     @api.get("/{path:path}")
     async def frontend(path: str):
-        if path.startswith(("api/", "ws")):
+        if path.startswith(("api/", "ws", "files/", "preview/")):
             raise HTTPException(status_code=404)
         index = DIST_DIR / "index.html"
         if not index.is_file():

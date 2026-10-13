@@ -43,7 +43,8 @@ OLLAMA_FAILED = "Ollama n'a pas pu démarrer — lancez l'application Ollama ou 
 DEV_BACKEND_PORT = 5180
 
 # État de l'interface retenu d'un lancement à l'autre, avec sa valeur par défaut
-UI_DEFAULTS: Dict[str, Any] = {"sidebar_open": False}
+# (volet d'aperçu : 560 px, comme dans Tk)
+UI_DEFAULTS: Dict[str, Any] = {"sidebar_open": False, "preview_width": 560}
 
 
 class DesktopState:

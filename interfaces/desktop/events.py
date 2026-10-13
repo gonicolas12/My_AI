@@ -83,6 +83,53 @@ class SessionsChanged(_Payload):
     """La liste des sessions a changé : la fenêtre la relit."""
 
 
+class FilesDropped(_Payload):
+    """Fichiers déposés sur la fenêtre, avec leur vrai chemin (pywebview).
+
+    La page sait où ils ont été déposés : elle décide quoi en faire.
+    """
+
+    paths: List[str]
+
+
+class FoldersProgress(_Payload):
+    """Indexation d'un dossier projet en cours (_index_folder_async)."""
+
+    path: str
+    name: str
+    verb: str  # « Indexation », « Ré-indexation »
+    done: int = 0
+    total: int = 0
+
+
+class FoldersChanged(_Payload):
+    """Dossiers projet de la session changés (indexé, détaché, échec)."""
+
+    path: Optional[str] = None
+    ok: bool = True
+
+
+class VoiceInputState(_Payload):
+    """Saisie vocale : idle, recording, transcribing, error."""
+
+    state: Literal["idle", "recording", "transcribing", "error"]
+    message: str = ""
+
+
+class VoiceTranscript(_Payload):
+    """Texte dicté, à insérer au curseur de la zone de saisie."""
+
+    text: str
+
+
+class VoiceOutputState(_Payload):
+    """Lecture vocale : speaking, idle, error ; key désigne ce qui est lu."""
+
+    state: Literal["speaking", "idle", "error"]
+    key: Optional[str] = None
+    message: str = ""
+
+
 # ── Chat ────────────────────────────────────────────────────────────────────
 
 
@@ -162,6 +209,13 @@ class AssistantThinkingDone(_Payload):
     duration_ms: int
 
 
+class PathLink(BaseModel):
+    """Chemin existant cité dans une réponse, rendu cliquable (Explorateur)."""
+
+    text: str  # tel qu'il apparaît dans la réponse
+    path: str  # chemin absolu normalisé
+
+
 class AssistantDone(_Payload):
     """Réponse terminée."""
 
@@ -169,6 +223,7 @@ class AssistantDone(_Payload):
     text: str
     duration_ms: int
     tokens_per_s: Optional[float] = None
+    paths: List[PathLink] = Field(default_factory=list)
 
 
 class AssistantInterrupted(_Payload):
@@ -176,6 +231,14 @@ class AssistantInterrupted(_Payload):
 
     mid: Optional[str] = None
     text: str = ""
+    paths: List[PathLink] = Field(default_factory=list)
+
+
+class MessageRated(_Payload):
+    """Réponse notée de 1 à 5 étoiles (RLHF)."""
+
+    mid: str
+    rating: int
 
 
 class AssistantError(_Payload):
@@ -289,9 +352,16 @@ EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "relay.status": RelayStatus,
     "scheduler.result": SchedulerResult,
     "sessions.changed": SessionsChanged,
+    "files.dropped": FilesDropped,
+    "folders.progress": FoldersProgress,
+    "folders.changed": FoldersChanged,
+    "voice.input": VoiceInputState,
+    "voice.transcript": VoiceTranscript,
+    "voice.output": VoiceOutputState,
     "conversation.loaded": ConversationLoaded,
     "queue.updated": QueueUpdated,
     "message.user": MessageUser,
+    "message.rated": MessageRated,
     "assistant.start": AssistantStart,
     "assistant.token": AssistantToken,
     "assistant.sync": AssistantSync,

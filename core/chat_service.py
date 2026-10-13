@@ -40,6 +40,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from utils.logger import setup_logger
+from utils.path_links import IS_WINDOWS, find_existing_paths
 
 logger = setup_logger("ChatService")
 
@@ -102,6 +103,12 @@ _SESSION_NAME_MAX = 48
 # Résultat d'outil en échec (début du texte renvoyé par l'outil)
 _FAILED_TOOL_STARTS = ("❌", "⚠️", "Erreur", "[Erreur", "[Suppression annulée", "[Interrompu")
 _URL_RE = re.compile(r"https?://[^\s)\]]+")
+
+# Un texte sans aucune de ces marques ne cite aucun chemin (cf. utils/path_links)
+_PATH_MARKS = (":\\", ":/") if IS_WINDOWS else ("~/", "/")
+
+# Note d'une réponse (RLHF) : de 1 à 5 étoiles
+_RATING_RANGE = range(1, 6)
 
 
 class ChatError(Exception):
@@ -211,6 +218,24 @@ def _tool_summary(tool_name: str, result: Any) -> Dict[str, Any]:
         "summary": first,
         "sources": sources,
     }
+
+
+def answer_paths(text: str) -> List[Dict[str, str]]:
+    """Chemins existants cités dans une réponse, rendus cliquables (_linkify_file_paths).
+
+    Le disque est sondé à chaque lecture : un fichier créé ou supprimé depuis
+    la réponse change ce qui est cliquable, comme dans Tk au réaffichage.
+    """
+    if not text or not any(mark in text for mark in _PATH_MARKS):
+        return []
+    seen = set()
+    paths = []
+    for match in find_existing_paths(text):
+        if match.text in seen:
+            continue
+        seen.add(match.text)
+        paths.append({"text": match.text, "path": match.path})
+    return paths
 
 
 def _iso(stamp: Any) -> Optional[str]:
@@ -332,6 +357,7 @@ class ChatService:
         file_processor=None,
         ui_connected: Optional[Callable[[], bool]] = None,
         on_session_change: Optional[Callable[[Optional[str]], None]] = None,
+        rlhf=None,
     ):
         """
         Args:
@@ -341,6 +367,7 @@ class ChatService:
             file_processor: utils.file_processor.FileProcessor (pièces jointes)
             ui_connected: vrai si une fenêtre peut répondre à une confirmation
             on_session_change: appelé avec la session courante (persistance)
+            rlhf: gestionnaire des notes (core.rlhf_manager, par défaut le partagé)
         """
         self._engine = engine
         self._emit_fn = emit
@@ -348,6 +375,7 @@ class ChatService:
         self._file_processor = file_processor
         self._ui_connected = ui_connected or (lambda: False)
         self._on_session_change = on_session_change
+        self._rlhf_manager = rlhf
 
         # État et émission sous le même verrou : l'état renvoyé par snapshot()
         # contient exactement les événements de seq inférieur ou égal au sien
@@ -525,9 +553,14 @@ class ChatService:
             "image_path": entry.get("image_path"),
         }
         for key in ("source", "thinking", "thinking_ms", "tool_calls", "documents",
-                    "file_path", "interrupted", "error", "duration_ms", "tokens_per_s"):
+                    "file_path", "interrupted", "error", "duration_ms", "tokens_per_s",
+                    "rating"):
             if entry.get(key) not in (None, "", [], False):
                 view[key] = entry[key]
+        if not entry.get("is_user"):
+            paths = answer_paths(view["text"])
+            if paths:
+                view["paths"] = paths
         return view
 
     def _view_turn(self) -> Optional[Dict[str, Any]]:
@@ -1034,12 +1067,13 @@ class ChatService:
                 self._emit("assistant.error", {"mid": turn.mid, "message": error},
                            message_id=turn.mid)
             elif interrupted:
-                self._emit("assistant.interrupted", {"mid": turn.mid, "text": text},
-                           message_id=turn.mid)
+                self._emit("assistant.interrupted", {
+                    "mid": turn.mid, "text": text, "paths": answer_paths(text),
+                }, message_id=turn.mid)
             else:
                 self._emit("assistant.done", {
                     "mid": turn.mid, "text": text, "duration_ms": duration_ms,
-                    "tokens_per_s": tokens_per_s,
+                    "tokens_per_s": tokens_per_s, "paths": answer_paths(text),
                 }, message_id=turn.mid)
             self._turn = None
 
@@ -1816,6 +1850,131 @@ class ChatService:
         if deleted:
             self._emit("sessions.changed")
         return bool(deleted)
+
+    # ── Fichiers, notes, export ─────────────────────────────────────────────
+
+    def known_paths(self) -> set:
+        """Fichiers cités par la conversation : pièces jointes (en attente, des
+        messages, des variantes d'édition), images et documents produits.
+
+        La fenêtre ne peut afficher que ceux-là (liens signés, cf.
+        interfaces/desktop/files.py) ; chemins normalisés pour comparer.
+        """
+        with self._lock:
+            messages = list(self._history)
+            for branch in list(self._branches.values()):
+                for version in branch.get("versions", []):
+                    messages.append(version)
+                    messages.extend(version.get("tail") or [])
+            paths = [att.path for att in self._attachments]
+            turn = self._turn
+            if turn is not None:
+                paths.extend(turn.documents)
+                paths.extend(p for p in (turn.file_path, turn.image_path,
+                                         turn.request.image_path) if p)
+        for message in messages:
+            for item in message.get("attachments") or []:
+                if isinstance(item, (list, tuple)) and item and isinstance(item[0], str):
+                    paths.append(item[0])
+            paths.extend(p for p in message.get("documents") or [] if isinstance(p, str))
+            for key in ("image_path", "file_path"):
+                if isinstance(message.get(key), str) and message[key]:
+                    paths.append(message[key])
+        return {os.path.normcase(os.path.abspath(path)) for path in paths if path}
+
+    def _rlhf(self):
+        """Gestionnaire des notes : celui passé au service, sinon le partagé (Tk)."""
+        if self._rlhf_manager is None:
+            from core.rlhf_manager import get_rlhf_manager  # pylint: disable=import-outside-toplevel
+            self._rlhf_manager = get_rlhf_manager()
+        return self._rlhf_manager
+
+    def rate(self, mid: str, score: int) -> int:
+        """Note une réponse de 1 à 5 étoiles (_on_star_rating de Tk).
+
+        La note est enregistrée pour le RLHF avec la question qui la précède,
+        puis gardée dans la session (clé « rating », D7) : comme dans Tk, une
+        réponse ne se note qu'une fois.
+
+        Raises:
+            ChatError: note hors de 1 à 5, réponse introuvable ou déjà notée
+        """
+        if not isinstance(score, int) or score not in _RATING_RANGE:
+            raise ChatError("La note va de 1 à 5 étoiles.")
+        with self._lock:
+            index = next((i for i, entry in enumerate(self._history)
+                          if entry.get("mid") == mid and not entry.get("is_user")), None)
+            if index is None:
+                raise ChatError("Réponse introuvable.")
+            entry = self._history[index]
+            if entry.get("rating"):
+                raise ChatError("Cette réponse est déjà notée.")
+            query = next((self._history[i].get("text", "") for i in range(index - 1, -1, -1)
+                          if self._history[i].get("is_user")), "")
+            response = entry.get("text", "")
+        if score >= 4:
+            feedback_type = "positive"
+        elif score <= 2:
+            feedback_type = "negative"
+        else:
+            feedback_type = "neutral"
+        try:
+            self._rlhf().record_interaction(
+                user_query=query,
+                ai_response=response,
+                feedback_type=feedback_type,
+                feedback_score=score,
+                intent="conversation",
+                confidence=1.0,
+                model_version="ollama",
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Note non enregistrée : %s", exc)
+            raise ChatError("❌ Note non enregistrée.") from exc
+        with self._lock:
+            entry["rating"] = score
+            self._emit("message.rated", {"mid": mid, "rating": score}, message_id=mid)
+            busy = self._answering
+        # Pendant une réponse, la session sera enregistrée à sa fin
+        if not busy:
+            self._save_current()
+        return score
+
+    def ensure_session(self, name: str) -> Optional[str]:
+        """Session courante, ou une session vide créée sous ce nom (dossiers projet).
+
+        Comme _ensure_workspace_for_folder dans Tk : un dossier s'attache à la
+        session courante, sinon à une nouvelle session nommée d'après lui.
+        """
+        sessions = self._sessions()
+        if sessions is None:
+            return None
+        with self._lock:
+            if self._session_id:
+                return self._session_id
+            try:
+                session_id = sessions.create_workspace(name or "Projet")
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("Session du dossier non créée : %s", exc)
+                return None
+            self._set_session(session_id, name or "Projet")
+            self._emit("sessions.changed")
+            return session_id
+
+    def export_messages(self) -> List[Dict[str, Any]]:
+        """Conversation affichée au format de l'export (_export_conversation de Tk)."""
+        with self._lock:
+            messages = list(self._history)
+        exported = []
+        for message in messages:
+            if message.get("type") == "file_generation_placeholder":
+                continue
+            content = (message.get("text") or message.get("content") or "").strip()
+            if not content:
+                continue
+            exported.append({"role": "user" if message.get("is_user", True) else "assistant",
+                             "content": content})
+        return exported
 
     # ── Chat mobile (RelayBridge) ───────────────────────────────────────────
 

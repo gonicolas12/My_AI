@@ -34,12 +34,12 @@ def ws_connect(client, url, headers=None):
 class FakeApp:
     """DesktopApp réduite à ce que le serveur utilise."""
 
-    def __init__(self, chat, bus, dev=False):
+    def __init__(self, chat, bus, dev=False, engine=None):
         self.token = TOKEN
         self.dev = dev
         self.bus = bus
         self.chat = chat
-        self.engine = object()
+        self.engine = engine if engine is not None else object()
         self.shutdowns = 0
         self.relay_calls = []
         self.ui = {"sidebar_open": False}
@@ -83,7 +83,7 @@ def desktop_fixture(tmp_path):
     chat = ChatService(engine, bus.publish, file_processor=FakeFileProcessor(),
                        ui_connected=lambda: True)
     chat.start()
-    app = FakeApp(chat, bus)
+    app = FakeApp(chat, bus, engine=engine)
     server = DesktopServer(app)
     server.port = PORT
     client = TestClient(server.fastapi, base_url=BASE)
@@ -311,3 +311,26 @@ def test_ui_state_is_read_and_saved(desktop):
     assert desktop.client.put("/api/ui", headers=AUTH, json={"autre": 1}).status_code == 422
     # Sans jeton : refusé
     assert desktop.client.put("/api/ui", json={"sidebar_open": False}).status_code == 401
+
+
+# ── Phase 3 : note d'une réponse, slash commands ────────────────────────────
+
+
+def test_rating_route_records_once(desktop):
+    from test_chat_service import FakeRLHF  # pylint: disable=import-error,import-outside-toplevel
+
+    desktop.chat._rlhf_manager = FakeRLHF()  # pylint: disable=protected-access
+    desktop.client.post("/api/conversation/send", json={"text": "Bonjour"}, headers=AUTH)
+    mid = wait_for(desktop.events, "assistant.done")[0]["payload"]["mid"]
+    url = f"/api/conversation/messages/{mid}/rating"
+    assert desktop.client.post(url, json={"score": 5}, headers=AUTH).json() == {"rating": 5}
+    again = desktop.client.post(url, json={"score": 1}, headers=AUTH)
+    assert again.status_code == 409 and again.json()["detail"] == "Cette réponse est déjà notée."
+
+
+def test_slash_commands_are_searched_by_prefix(desktop):
+    found = desktop.client.get("/api/prompts/commands?prefix=co", headers=AUTH).json()
+    assert found == {"commands": [{"command": "code", "title": "Génération de code",
+                                   "description": "Génère un programme complet et commenté"}]}
+    assert desktop.client.get("/api/prompts/commands?prefix=zz",
+                              headers=AUTH).json() == {"commands": []}
