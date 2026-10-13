@@ -36,4 +36,11 @@ export default defineConfig([
     extends: [js.configs.recommended],
     languageOptions: { ecmaVersion: 2023, globals: globals.node },
   },
+  {
+    // Scripts de vérification (Node) : leurs fonctions page.evaluate tournent dans la page
+    files: ['scripts/**/*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: { ecmaVersion: 2023, globals: { ...globals.node, ...globals.browser } },
+    rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
+  },
 ]);

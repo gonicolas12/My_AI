@@ -1,0 +1,68 @@
+# Outils de vérification de l'interface web
+
+Scripts Playwright (dans ce dossier) et outils Python (`tools/interface_web/`) qui ont servi à
+vérifier la phase 2 de la migration (`docs/MIGRATION_INTERFACE_WEB_SUIVI.md`). Ils ne font pas partie
+de l'appli. Les scripts se lancent depuis `frontend/`, après `npm ci` et
+`npx playwright install chromium`. Les captures vont par défaut dans `frontend/captures/`, ignoré
+par git.
+
+## Sans Ollama : serveur de démonstration
+
+Le vrai serveur local et le vrai `ChatService`, avec un moteur scénarisé (« long », « outils »,
+« réflexion », « supprime », « erreur », « attends », « indexe » : voir son en-tête). Il travaille
+sur une copie de `data/workspaces` dans `temp/demo_server/PORT/` (ignoré par git, vidé à chaque
+lancement). Les sessions « Projet API REST » et « Conversation longue » de `capture.mjs` et
+`perf.mjs` viennent des données de test du suivi (section 4) : sans elles, ces étapes sont sautées.
+
+```powershell
+python tools/interface_web/demo_server.py 8765   # depuis la racine du dépôt
+# affiche DEMO http://127.0.0.1:8765/#token=…, l'URL à passer aux scripts
+```
+
+| Script                                                 | Rôle                                                                                                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `node scripts/capture.mjs URL [DOSSIER] [L H]`         | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur… |
+| `node scripts/perf.mjs URL [scroll,stream,stress,gil]` | images, tâches longues, latence des saisies, rendus React, cadence des jetons                        |
+| `node scripts/tooltips.mjs URL`                        | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                        |
+| `node scripts/follow_bottom.mjs URL`                   | le fil suit une longue réponse (distance au bas)                                                     |
+
+Rendus React : servir un build de profilage, sans toucher à `dist/` :
+
+```powershell
+$env:VITE_REACT_PROFILE = 1; npx vite build --outDir ../temp/dist_profil; Remove-Item Env:VITE_REACT_PROFILE
+python tools/interface_web/demo_server.py 8765 --dist temp/dist_profil   # depuis la racine du dépôt
+```
+
+## Vraie fenêtre (WebView2)
+
+Lancer l'appli avec le port de débogage, puis piloter la page par CDP. Sans Ollama, la même fenêtre
+s'ouvre sur le serveur de démonstration (`--window`) :
+
+```powershell
+$env:MY_AI_WEBVIEW_CDP_PORT = 9333; python launch_unified.py   # depuis la racine du dépôt
+$env:MY_AI_WEBVIEW_CDP_PORT = 9333; python tools/interface_web/demo_server.py 8765 --window
+```
+
+Les scripts lisent la même variable (9333 par défaut).
+
+| Script                                    | Rôle                                                                 | Touches ou curseur du système |
+| ----------------------------------------- | -------------------------------------------------------------------- | ----------------------------- |
+| `node scripts/window_look.mjs [DOSSIER]`  | adresse, pont pywebview, captures du chargement et de l'accueil      | non                           |
+| `node scripts/window_chat.mjs "QUESTION"` | vraie réponse d'Ollama : images par seconde, premier texte, captures | non                           |
+| `node scripts/tooltips.mjs --window`      | infobulles, souris de Playwright                                     | non                           |
+| `node scripts/window_keys.mjs`            | F5, Ctrl+R, Ctrl+P… ne rechargent, n'impriment ni ne cherchent rien  | oui, touches                  |
+| `node scripts/window_tooltips.mjs`        | infobulle fermée quand le vrai curseur quitte la fenêtre             | oui, curseur                  |
+
+Les touches et le curseur du système vont à la fenêtre au premier plan, quelle qu'elle soit.
+`tools/interface_web/win.py` refuse donc d'en envoyer si le clavier ou la souris ont servi dans les
+20 dernières secondes, et n'envoie une touche que si My_AI est au premier plan : ne pas lancer ces
+deux scripts pendant qu'on se sert du PC. `win.py` sert aussi seul : bornes, déplacement, fermeture,
+capture avec la barre de titre (`python tools/interface_web/win.py` pour l'aide).
+
+## Divers
+
+- `python tools/interface_web/make_icon.py interfaces/desktop/assets/my_ai.ico [APERCU.png]` :
+  icône de la fenêtre, le robot de l'extension VS Code dans la couleur `--accent`.
+- Le banc de rendu Markdown de la phase 2 (react-markdown par blocs, Streamdown, react-markdown
+  seul) n'est pas versé : il dépend de Streamdown, retiré des dépendances. Ses résultats sont dans le
+  suivi (journal de la phase 2).
