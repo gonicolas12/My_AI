@@ -283,6 +283,10 @@ class DesktopApp:
                 self._agent_service = AgentRelayService()
             return self._agent_service
 
+    def files_dropped(self, paths) -> None:
+        """Fichiers déposés sur la fenêtre (fil de pywebview) : la page décide."""
+        self.bus.publish("files.dropped", {"paths": [str(path) for path in paths]})
+
     def _on_scheduled_result(self, result: Dict[str, Any]) -> None:
         """Fin d'une tâche planifiée (fil du scheduler)."""
         self.bus.publish("scheduler.result", {

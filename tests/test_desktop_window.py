@@ -18,9 +18,10 @@ import pytest
 from interfaces.desktop import window as desktop_window
 from interfaces.desktop.devserver import ViteServer
 from interfaces.desktop.lifecycle import UI_DEFAULTS, DesktopApp, DesktopState
-from interfaces.desktop.shell_api import ShellApi, external_url, open_external
+from interfaces.desktop.shell_api import (ATTACH_FILTERS, EXPORT_FILTERS, ShellApi,
+                                          external_url, open_external)
 from interfaces.desktop.window import (WindowGeometry, app_origins, colorref,
-                                       is_app_url)
+                                       dropped_paths, is_app_url, watch_drops)
 
 APP = "http://127.0.0.1:53211"
 
@@ -153,7 +154,8 @@ def test_colorref_is_windows_byte_order():
 def test_shell_api_exposes_only_its_functions():
     # pywebview parcourt aussi les attributs publics : rien d'autre ne doit l'être
     public = [name for name in dir(ShellApi()) if not name.startswith("_")]
-    assert public == ["open_external", "platform", "set_title_bar_colors"]
+    assert public == ["open_external", "pick_files", "pick_folder", "platform", "save_file",
+                      "set_title_bar_colors"]
 
 
 def test_title_bar_colors_go_to_the_window():
@@ -162,6 +164,88 @@ def test_title_bar_colors_go_to_the_window():
     assert api.set_title_bar_colors("#0f0f0f", "#ffffff") is True
     assert calls == [("#0f0f0f", "#ffffff")]
     assert ShellApi().set_title_bar_colors("#0f0f0f", "#ffffff") is False
+
+
+# ── Dialogues de fichiers et glisser-déposer ────────────────────────────────
+
+
+def test_dialog_filters_follow_the_pywebview_format():
+    """pywebview refuse tout le dialogue si un seul filtre est mal formé."""
+    util = pytest.importorskip("webview.util")
+    filters = [f for types, _multiple in ATTACH_FILTERS.values() for f in types]
+    filters += [f for types in EXPORT_FILTERS.values() for f in types]
+    for file_type in filters:
+        util.parse_file_type(file_type)
+    assert set(ATTACH_FILTERS) == {"PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image"}
+
+
+class FakeDialogWindow:
+    """Fenêtre pywebview réduite à son dialogue de fichiers."""
+
+    def __init__(self, result):
+        self.result = result
+        self.calls = []
+
+    def create_file_dialog(self, dialog_type, **options):
+        self.calls.append((dialog_type, options))
+        return self.result
+
+
+def test_file_dialogs_go_through_the_window(monkeypatch):
+    webview = SimpleNamespace(FileDialog=SimpleNamespace(OPEN=10, FOLDER=20, SAVE=30))
+    monkeypatch.setitem(sys.modules, "webview", webview)
+    api = ShellApi()
+    assert api.pick_files("PDF") == []  # pas encore de fenêtre
+    window = FakeDialogWindow(("C:/a.pdf", "C:/b.pdf"))
+    api._attach_window(window)
+    assert api.pick_files("PDF") == ["C:/a.pdf", "C:/b.pdf"]
+    assert window.calls[-1] == (10, {"allow_multiple": True,
+                                     "file_types": ATTACH_FILTERS["PDF"][0]})
+    api.pick_files("Image")
+    assert window.calls[-1][1]["allow_multiple"] is False  # une seule image, comme Tk
+    window.result = "C:/Projet"
+    assert api.pick_folder() == "C:/Projet" and window.calls[-1][0] == 20
+    window.result = None
+    assert api.save_file("conversation", "pdf") is None
+    assert window.calls[-1] == (30, {"save_filename": "conversation",
+                                     "file_types": EXPORT_FILTERS["pdf"]})
+
+
+def test_dropped_paths_come_from_pywebview():
+    event = {"dataTransfer": {"files": [
+        {"name": "a.pdf", "pywebviewFullPath": "C:/Docs/a.pdf"},
+        {"name": "b.txt"},  # chemin inconnu de pywebview
+    ]}}
+    assert dropped_paths(event) == ["C:/Docs/a.pdf"]
+    assert dropped_paths(None) == [] and dropped_paths({"dataTransfer": None}) == []
+
+
+def test_drops_are_watched_on_the_document(monkeypatch):
+    registered, received = [], []
+
+    class Handler:  # pylint: disable=too-few-public-methods
+        def __init__(self, callback, prevent_default=False):
+            self.callback = callback
+            self.prevent_default = prevent_default
+
+    monkeypatch.setitem(sys.modules, "webview.dom", SimpleNamespace(DOMEventHandler=Handler))
+    document = SimpleNamespace(on=lambda event, handler: registered.append((event, handler)))
+    window = SimpleNamespace(dom=SimpleNamespace(document=document))
+    assert watch_drops(window, received.append) is True
+    event, handler = registered[0]
+    # La page garde la main sur le dépôt (elle seule sait où il a eu lieu)
+    assert event == "drop" and handler.prevent_default is False
+    handler.callback({"dataTransfer": {"files": [{"pywebviewFullPath": "C:/x.png"}]}})
+    handler.callback({"dataTransfer": {"files": []}})
+    assert received == [["C:/x.png"]]
+
+
+def test_dropped_files_reach_the_page_as_an_event(app):
+    events = []
+    app.bus.subscribe(events.append)
+    app.files_dropped(["C:/a.pdf"])
+    assert events[-1]["type"] == "files.dropped"
+    assert events[-1]["payload"] == {"paths": ["C:/a.pdf"]}
 
 
 # ── Taille et position retenues ─────────────────────────────────────────────
@@ -218,13 +302,14 @@ def app_fixture(tmp_path):
 
 
 def test_ui_state_has_defaults(app):
-    assert app.ui_state() == UI_DEFAULTS == {"sidebar_open": False}
+    assert app.ui_state() == UI_DEFAULTS == {"sidebar_open": False, "preview_width": 560}
 
 
 def test_ui_state_keeps_only_known_keys(app, tmp_path):
-    assert app.set_ui_state({"sidebar_open": True, "inconnu": 1}) == {"sidebar_open": True}
+    saved = app.set_ui_state({"sidebar_open": True, "preview_width": 700, "inconnu": 1})
+    assert saved == {"sidebar_open": True, "preview_width": 700}
     reloaded = DesktopApp(None, state=DesktopState(tmp_path / ".desktop_state.json"))
-    assert reloaded.ui_state() == {"sidebar_open": True}
+    assert reloaded.ui_state() == {"sidebar_open": True, "preview_width": 700}
     assert "inconnu" not in reloaded.state.get("ui")
 
 
@@ -277,12 +362,14 @@ class FakeWebview:
         self.created = (title, url, kwargs)
         self.window = SimpleNamespace(native=None)
         self.window.events = SimpleNamespace(before_show=FakeEvent(self.window),
+                                             loaded=FakeEvent(self.window),
                                              closing=FakeEvent(self.window))
         return self.window
 
     def start(self, **kwargs):
         self.started = kwargs
         self.window.events.before_show.set()
+        self.window.events.loaded.set()
         self.window.events.closing.set()
 
 
@@ -294,7 +381,12 @@ def test_open_window_wires_the_handlers_as_pywebview_calls_them(app, monkeypatch
     monkeypatch.setattr(desktop_window, "harden_edgechromium", lambda origins: origins)
     monkeypatch.delenv(desktop_window.ENV_CDP_PORT, raising=False)
 
+    watched = []
+    monkeypatch.setattr(desktop_window, "watch_drops",
+                        lambda window, on_paths: watched.append((window, on_paths)))
     assert desktop_window.open_window(app, f"{APP}/#token=x") is True
+    # Dépôts de fichiers écoutés à chaque chargement de la page
+    assert watched == [(fake.window, app.files_dropped)]
     title, url, kwargs = fake.created
     assert (title, url) == ("My_AI", f"{APP}/#token=x")
     assert kwargs["min_size"] == desktop_window.MIN_SIZE and kwargs["text_select"] is True

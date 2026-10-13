@@ -216,6 +216,44 @@ def _keep_title_bar_dark() -> None:
     form.is_dark_theme = lambda _self: True
 
 
+# ── Glisser-déposer : le vrai chemin des fichiers ───────────────────────────
+
+
+def dropped_paths(event: Any) -> list:
+    """Chemins des fichiers d'un dépôt, tels que pywebview les donne (pywebviewFullPath)."""
+    transfer = (event or {}).get("dataTransfer") if isinstance(event, dict) else None
+    files = (transfer or {}).get("files") or []
+    return [item["pywebviewFullPath"] for item in files
+            if isinstance(item, dict) and isinstance(item.get("pywebviewFullPath"), str)
+            and item["pywebviewFullPath"]]
+
+
+def watch_drops(window, on_paths) -> bool:
+    """Écoute les dépôts de fichiers sur la page (à refaire à chaque chargement).
+
+    Le navigateur ne donne pas le chemin d'un fichier déposé ; WebView2 le
+    passe à pywebview, qui le rend à cet écouteur côté Python. La page, elle,
+    sait où le fichier a été déposé : elle reçoit les chemins par un événement
+    (files.dropped) et décide quoi en faire.
+    """
+    try:
+        from webview.dom import DOMEventHandler  # pylint: disable=import-outside-toplevel
+    except Exception:  # pylint: disable=broad-except
+        return False
+
+    def on_drop(event):
+        paths = dropped_paths(event)
+        if paths:
+            on_paths(paths)
+
+    try:
+        window.dom.document.on("drop", DOMEventHandler(on_drop, prevent_default=False))
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning("Glisser-déposer des fichiers indisponible : %s", exc)
+        return False
+    return True
+
+
 # ── Taille et position retenues ─────────────────────────────────────────────
 
 
@@ -327,10 +365,11 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
     def title_bar(background: str, text: str) -> bool:
         return apply_title_bar(handle["hwnd"], background, text)
 
+    shell = ShellApi(title_bar=title_bar)
     main_window = webview.create_window(
         WINDOW_TITLE,
         url,
-        js_api=ShellApi(title_bar=title_bar),
+        js_api=shell,
         width=width,
         height=height,
         min_size=MIN_SIZE,
@@ -340,6 +379,8 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
     )
     if main_window is None:
         return False
+    # Dialogues de fichiers (menu « + », dossiers projet, export)
+    shell._attach_window(main_window)  # pylint: disable=protected-access
 
     # pywebview ne passe la fenêtre qu'à un paramètre nommé « window »
     def before_show(window):
@@ -362,8 +403,13 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Taille de la fenêtre non enregistrée : %s", exc)
 
+    def loaded(window):
+        # Chaque chargement de la page efface les écouteurs posés par pywebview
+        watch_drops(window, app.files_dropped)
+
     main_window.events.before_show += before_show
     main_window.events.closing += closing
+    main_window.events.loaded += loaded
 
     try:
         webview.start(

@@ -13,7 +13,7 @@ isolées, sans accès à ce pont.
 
 import sys
 import webbrowser
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 from urllib.parse import urlsplit
 
 from utils.logger import setup_logger
@@ -22,6 +22,36 @@ logger = setup_logger("ShellApi")
 
 # Schémas qu'un lien peut ouvrir hors de l'appli (navigateur, messagerie)
 EXTERNAL_SCHEMES = ("http", "https", "mailto")
+
+_ALL_FILES = "Tous les fichiers (*.*)"
+_CODE_EXTENSIONS = (
+    "*.py;*.pyw;*.js;*.mjs;*.cjs;*.ts;*.tsx;*.jsx;*.html;*.htm;*.css;*.scss;*.json;*.xml;"
+    "*.yaml;*.yml;*.toml;*.ini;*.cfg;*.md;*.rst;*.txt;*.log;*.sh;*.bat;*.ps1;*.c;*.h;*.cpp;"
+    "*.hpp;*.cs;*.java;*.kt;*.go;*.rs;*.rb;*.php;*.lua;*.sql;*.vue;*.svelte;*.dart;*.swift"
+)
+
+# Filtres des dialogues de pièces jointes, par entrée du menu « + » (comme Tk) ;
+# le multiple est refusé pour l'image : une seule part au modèle de vision
+ATTACH_FILTERS = {
+    "PDF": (("Fichiers PDF (*.pdf)",), True),
+    "DOCX": (("Fichiers Word (*.docx;*.doc)",), True),
+    "Excel": (("Fichiers Excel et CSV (*.xlsx;*.xls;*.csv)", "Excel (*.xlsx)",
+               "Excel ancien (*.xls)", "CSV (*.csv)", _ALL_FILES), True),
+    "PowerPoint": (("Présentations PowerPoint (*.pptx;*.potx)", "PowerPoint (*.pptx)",
+                    "Modèle PowerPoint (*.potx)"), True),
+    "Code": ((f"Fichiers de code ({_CODE_EXTENSIONS})", "Fichiers Python (*.py)",
+              "Fichiers JavaScript (*.js)", "Fichiers HTML (*.html)", _ALL_FILES), True),
+    "Image": (("Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tiff;*.tif)", "PNG (*.png)",
+               "JPEG (*.jpg;*.jpeg)", "GIF (*.gif)", "BMP (*.bmp)", "WebP (*.webp)",
+               _ALL_FILES), False),
+}
+
+# Filtres du dialogue d'export, par format
+EXPORT_FILTERS = {
+    "markdown": ("Markdown (*.md)", "Tous (*.*)"),
+    "html": ("HTML (*.html)", "Tous (*.*)"),
+    "pdf": ("PDF (*.pdf)", "Tous (*.*)"),
+}
 
 
 def external_url(url: str) -> Optional[str]:
@@ -62,6 +92,47 @@ class ShellApi:
             title_bar: pose les couleurs de la barre de titre (fond, texte « #rrggbb »)
         """
         self._title_bar = title_bar
+        self._window = None
+
+    def _attach_window(self, window) -> None:
+        """Fenêtre pywebview des dialogues (privé : pas exposé au JavaScript)."""
+        self._window = window
+
+    def _dialog(self, kind: str, **options) -> List[str]:
+        """Dialogue système de la fenêtre ; liste vide s'il est annulé ou impossible."""
+        window = self._window
+        if window is None:
+            return []
+        try:
+            import webview  # pylint: disable=import-outside-toplevel
+
+            dialog_type = getattr(webview.FileDialog, kind)
+            result = window.create_file_dialog(dialog_type, **options)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Dialogue de fichiers impossible : %s", exc)
+            return []
+        if not result:
+            return []
+        if isinstance(result, str):
+            return [result]
+        return [str(path) for path in result]
+
+    def pick_files(self, kind: str) -> List[str]:
+        """Fichiers à joindre, par entrée du menu « + » (PDF, DOCX, Excel…)."""
+        file_types, multiple = ATTACH_FILTERS.get(kind, ((_ALL_FILES,), True))
+        return self._dialog("OPEN", allow_multiple=multiple, file_types=file_types)
+
+    def pick_folder(self) -> Optional[str]:
+        """Dossier projet à attacher (codebase, documents)."""
+        paths = self._dialog("FOLDER")
+        return paths[0] if paths else None
+
+    def save_file(self, name: str, fmt: str) -> Optional[str]:
+        """Chemin d'enregistrement d'un export (Markdown, HTML, PDF)."""
+        file_types = EXPORT_FILTERS.get(fmt, (_ALL_FILES,))
+        paths = self._dialog("SAVE", save_filename=str(name or "conversation"),
+                             file_types=file_types)
+        return paths[0] if paths else None
 
     def open_external(self, url: str) -> bool:
         """Ouvre un lien dans le navigateur du système."""
