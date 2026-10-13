@@ -568,6 +568,19 @@ class ChatOrchestrator:
     Interface publique : une seule méthode `run()`.
     """
 
+    # Fin du dernier flux de réponse lu : eval_count et eval_duration (ns)
+    # renvoyés par Ollama, et l'heure du relevé. Lecture seule pour le service
+    # de chat (tokens/s) : les requêtes à Ollama n'en dépendent pas.
+    last_stream_stats: Optional[Dict[str, Any]] = None
+
+    def _record_stream_stats(self, chunk: Dict[str, Any]) -> None:
+        """Garde les statistiques du dernier fragment (done) d'un flux."""
+        self.last_stream_stats = {
+            "eval_count": chunk.get("eval_count"),
+            "eval_duration": chunk.get("eval_duration"),
+            "at": time.time(),
+        }
+
     # ---------------------------------------------------------------- run ---
 
     def run(
@@ -1897,6 +1910,7 @@ class ChatOrchestrator:
                                     break
 
                     if chunk_data.get("done"):
+                        self._record_stream_stats(chunk_data)
                         break
 
         except Exception as exc:
@@ -2171,6 +2185,7 @@ class ChatOrchestrator:
 
                     if chunk_data.get("done"):
                         completed = True
+                        self._record_stream_stats(chunk_data)
                         if chunk_data.get("done_reason") == "length":
                             print(
                                 f"⚠️  [ChatOrchestrator] Synthèse coupée à "

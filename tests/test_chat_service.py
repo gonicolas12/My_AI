@@ -117,6 +117,8 @@ class FakeEngine:
         self.delete_answers = []
         self.file_result = {}
         self.generator = None
+        # Relevé de fin de flux de l'orchestrateur (D15), écrit par l'étape « stats »
+        self._chat_orchestrator = SimpleNamespace(last_stream_stats=None)
 
     @property
     def image_generator(self):
@@ -188,6 +190,10 @@ class FakeEngine:
                     break
             elif kind == "raise":
                 raise step[1]
+            elif kind == "stats":
+                self._chat_orchestrator.last_stream_stats = {
+                    "eval_count": step[1], "eval_duration": step[2], "at": time.time(),
+                }
         return streamed
 
 
@@ -421,16 +427,39 @@ def test_tool_calls_keep_the_tk_line_breaks_and_their_results(chat):
     syncs = [e["payload"]["text"] for e in chat.events if e["type"] == "assistant.sync"]
     assert syncs == ["Je cherche.", "Je cherche.\n\n"]
     assert done["text"] == "Je cherche.\n\nVoici la réponse."
-    call = wait_for(chat.events, "tool.call")[0]["payload"]
-    assert call["label"] == "🔍 Recherche sur internet : « python »"
+    calls = [e["payload"] for e in chat.events if e["type"] == "tool.call"]
+    assert calls[0]["label"] == "🔍 Recherche sur internet : « python »"
+    # Position de chaque appel dans le texte, une fois les sauts de ligne normalisés
+    assert [(c["name"], c["at"]) for c in calls] == [("web_search", 11), ("synthesis", 13)]
     result = wait_for(chat.events, "tool.result")[0]["payload"]
     assert result == {"name": "web_search", "ok": True, "summary": "[1] https://a.example/page",
                       "sources": 2}
     answer = chat.service.snapshot()["messages"][-1]
     assert answer["tool_calls"] == [{
-        "name": "web_search", "label": "🔍 Recherche sur internet : « python »",
+        "name": "web_search", "label": "🔍 Recherche sur internet : « python »", "at": 11,
         "ok": True, "summary": "[1] https://a.example/page", "sources": 2,
     }]
+
+
+def test_tokens_per_second_come_from_ollama_stream_stats(chat):
+    # D15 : eval_count / eval_duration du dernier flux, relevés par l'orchestrateur
+    chat.engine.script = [("token", "Une réponse"), ("token", " assez longue."),
+                          ("stats", 146, 2_000_000_000)]
+    done = ask(chat, "Explique")
+
+    assert done["tokens_per_s"] == 73.0
+    assert chat.service.snapshot()["messages"][-1]["tokens_per_s"] == 73.0
+
+
+def test_stale_stream_stats_are_ignored(chat):
+    # Relevé d'une réponse précédente (réponse sans outils, flux coupé) : repli
+    # sur l'estimation, absente pour une réponse si brève
+    chat.engine._chat_orchestrator.last_stream_stats = {  # pylint: disable=protected-access
+        "eval_count": 999, "eval_duration": 1_000_000_000, "at": time.time() - 60,
+    }
+    done = ask(chat, "Bonjour")
+
+    assert done["tokens_per_s"] is None
 
 
 def test_file_deletion_waits_for_the_window(chat):
@@ -717,6 +746,35 @@ def test_new_conversation_resets_the_engine_and_loading_rebuilds_its_history(cha
         {"role": "assistant", "content": "Réponse à « Question A »"},
     ]
     assert chat.service.session_id == session_id
+
+
+def test_opening_another_session_keeps_an_unchanged_one_in_place(chat):
+    """Rouvrir une conversation sans y toucher ne la réenregistre pas : elle
+    garde sa date, donc sa place dans la liste (D2 l'a déjà enregistrée)."""
+    ask(chat, "Question A")
+    first = chat.service.session_id
+    chat.service.new_conversation()
+    ask(chat, "Question B")
+    second = chat.service.session_id
+    sessions = chat.engine.session_manager
+
+    def modified(session_id):
+        return next(w["last_modified"] for w in sessions.list_workspaces()
+                    if w["id"] == session_id)
+
+    before = modified(second)
+    time.sleep(0.05)
+    chat.service.load_session(first)
+    chat.service.load_session(second)
+    chat.service.load_session(first)
+    assert modified(second) == before
+    assert chat.service.save_session() is True  # Ctrl+S : déjà à jour
+
+    first_before = modified(first)
+    time.sleep(0.05)
+    ask(chat, "Question A2")
+    assert modified(first) > first_before
+    assert texts(chat.service.snapshot())[-1] == "Réponse à « Question A2 »"
 
 
 def test_a_session_saved_by_tk_opens_unchanged(chat):

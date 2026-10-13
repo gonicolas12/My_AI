@@ -23,7 +23,9 @@ que Tk ignore.
 
 import asyncio
 import base64
+import hashlib
 import io
+import json
 import os
 import random
 import re
@@ -375,6 +377,8 @@ class ChatService:
         self._bridge = None
         self._bridge_watch: Optional[threading.Thread] = None
         self._fallback_prompt_library = None
+        # Dernier état enregistré : (session, empreinte du contenu)
+        self._saved: Optional[Tuple[str, str]] = None
 
     # ── Cycle de vie ────────────────────────────────────────────────────────
 
@@ -881,9 +885,13 @@ class ChatService:
                 turn.text = turn.text.rstrip("\n")
             if turn.text != before:
                 self._emit("assistant.sync", {"text": turn.text}, message_id=turn.mid)
-            turn.tools.append({"name": tool_name, "label": label})
+            # Position de l'appel dans le texte : la fenêtre l'affiche à sa place,
+            # en direct comme à la réouverture de la session
+            at = len(turn.text)
+            turn.tools.append({"name": tool_name, "label": label, "at": at})
             self._emit("tool.call", {"name": tool_name, "label": label,
-                                     "args": _short_args(args)}, message_id=turn.mid)
+                                     "args": _short_args(args), "at": at},
+                       message_id=turn.mid)
 
     def _on_tool_result(self, turn: _Turn, tool_name: str, _args: Dict[str, Any],
                         result: Any) -> None:
@@ -980,11 +988,11 @@ class ChatService:
             text = turn.text or (error or "")
             now = time.time()
             duration_ms = int((now - turn.started) * 1000)
-            tokens_per_s = None
-            if turn.first_token_at and turn.tokens > 1:
+            tokens_per_s = self._ollama_tokens_per_s(turn) if text and not error else None
+            if tokens_per_s is None and turn.first_token_at and turn.tokens > 1:
                 span = now - turn.first_token_at
                 if span > 0.2:
-                    # Un fragment streamé par Ollama correspond à un jeton
+                    # Repli : un fragment streamé par Ollama correspond à un jeton
                     tokens_per_s = round(turn.tokens / span, 1)
             if turn.thinking_started is not None:
                 turn.thinking_ms += int((now - turn.thinking_started) * 1000)
@@ -1039,6 +1047,24 @@ class ChatService:
                 )
             else:
                 self._relay_submit_response(request, text or INTERRUPTED_EMPTY)
+
+    def _ollama_tokens_per_s(self, turn: _Turn) -> Optional[float]:
+        """Vitesse d'écriture relevée par Ollama sur le dernier flux de la réponse (D15).
+
+        L'orchestrateur garde eval_count et eval_duration du dernier flux lu ;
+        un relevé antérieur à la réponse (réponse sans outils, flux interrompu)
+        est ignoré.
+        """
+        orchestrator = getattr(self._engine, "_chat_orchestrator", None)
+        stats = getattr(orchestrator, "last_stream_stats", None)
+        if not isinstance(stats, dict) or (stats.get("at") or 0) < turn.started:
+            return None
+        count, duration = stats.get("eval_count"), stats.get("eval_duration")
+        if not isinstance(count, (int, float)) or not isinstance(duration, (int, float)):
+            return None
+        if count <= 0 or duration <= 0:
+            return None
+        return round(count / (duration / 1e9), 1)
 
     # ── Génération de fichier ───────────────────────────────────────────────
 
@@ -1671,6 +1697,11 @@ class ChatService:
                 return False
             history = [dict(message) for message in self._history]
             branches = self._branches
+            # Rien de changé depuis le dernier enregistrement : la session garde
+            # sa date, et sa place dans la liste des conversations
+            fingerprint = self._fingerprint(history, branches)
+            if self._saved == (session_id, fingerprint):
+                return True
             try:
                 # Garder les clés déjà stockées (dossiers projet, réglages…) :
                 # save_workspace réécrit l'état complet
@@ -1682,8 +1713,16 @@ class ChatService:
                 logger.warning("Session %s non enregistrée : %s", session_id, exc)
                 return False
             if saved:
+                self._saved = (session_id, fingerprint)
                 self._emit("sessions.changed")
             return bool(saved)
+
+    @staticmethod
+    def _fingerprint(history: List[Dict[str, Any]], branches: Dict[str, Any]) -> str:
+        """Empreinte du contenu d'une conversation (historique et variantes)."""
+        data = json.dumps({"history": history, "branches": branches},
+                          sort_keys=True, default=str, ensure_ascii=False)
+        return hashlib.sha1(data.encode("utf-8")).hexdigest()
 
     def save_session(self) -> bool:
         """Ctrl+S : enregistre la session courante."""
@@ -1752,6 +1791,9 @@ class ChatService:
             self._branches = state.get("turn_branches") or {}
             name = (state.get("metadata") or {}).get("name", session_id)
             self._set_session(session_id, name)
+            # Tel que lu : le rouvrir sans y toucher ne le réenregistre pas
+            self._saved = (session_id, self._fingerprint(
+                [dict(message) for message in history], self._branches))
             self._rewind_engine_history()
             self._emit("conversation.loaded", {"reason": reason, "snapshot": self.snapshot()})
 

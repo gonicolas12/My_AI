@@ -191,6 +191,7 @@ class ToolCall(_Payload):
     name: str
     label: str
     args: Dict[str, Any] = Field(default_factory=dict)
+    at: int = 0  # longueur du texte de la réponse au moment de l'appel
 
 
 class ToolResult(_Payload):
