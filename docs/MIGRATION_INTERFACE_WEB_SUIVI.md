@@ -41,8 +41,9 @@ phase 2).
   règle de Tk pour Whisper, dossier glissé dans la saisie = ses fichiers joints, vrai tour avec
   Ollama. Ces essais ont trouvé quatre défauts, corrigés (journal, après la phase 3a). Reste à
   essayer à la voix : une vraie dictée.
-- **En attente** : réponse à la question 26 (garder aussi « Dossiers du projet », section 9), puis
-  feu vert pour la phase 3b (plan en section 16).
+- Question 26 tranchée le 2026-10-13 : on garde aussi « Dossiers du projet » (D26).
+- **Phase 3b : feu vert le 2026-10-13**, en cours (plan en section 16, journal en section 12).
+  Arrêt et compte rendu à sa fin.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -549,6 +550,13 @@ Numérotées comme les questions de la section 9.
   « Dossiers du projet » : question 26.
 - **D25. Vrai tour avec Ollama** : fait (un artefact HTML, un document Word), session supprimée
   ensuite, sans note ; `data/` et `outputs/` remis comme avant (journal).
+- **D26. On garde les deux** : le dossier glissé dans la saisie (ses fichiers joints au message,
+  D24) et « Dossiers du projet » (dossier indexé, attaché à la conversation).
+
+Note sur D23 : le prompt (§7, §11) demande de garder l'isolation du worker Whisper et son repli
+quand il quitte `interfaces/gui/`. C'est fait à l'identique : worker lancé par son chemin, utilisé
+quand plusieurs runtimes OpenMP cohabitent (le plantage qu'il évite est propre à macOS) ou avec
+`MY_AI_WHISPER_WORKER=1`, repli sur une transcription mono-thread dans le processus.
 
 ### Constats techniques qui orientent la phase 1
 
@@ -808,6 +816,7 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
 ### Question après la phase 3a (posée le 2026-10-13)
 
 26. **Garder « Dossiers du projet » à côté du dossier glissé ?** Nicolas demande mon avis.
+    **Réponse le 2026-10-13 : oui, on garde les deux (D26).**
     Recommandation : garder les deux, qui ne font pas la même chose. Un dossier glissé met ses
     fichiers dans le message, une fois : idéal pour quelques fichiers, mais tout passe dans le
     contexte du modèle (32 768 jetons), d'où la limite de 20 fichiers. Un dossier du projet est
@@ -1475,7 +1484,7 @@ Risques :
 - Le panneau Mémoire modifie les messages d'origine des sessions : synchroniser avec l'état du chat.
 - Glisser-déposer : vrai chemin des fichiers à vérifier dans WebView2 ; dossiers refusés comme dans Tk.
 
-## 16. Plan de la phase 3b (proposé, en attente du feu vert)
+## 16. Plan de la phase 3b (feu vert le 2026-10-13, en cours)
 
 But (prompt, §9) : le reste des sections « Structure générale » et « Fenêtres et panneaux » du §7
 et les visionneuses Office natives (§5, D8) : Réglages, Mémoire, Prompts, Relay, Aide F1, palette
