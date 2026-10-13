@@ -11,6 +11,8 @@ Usage, depuis la racine du dépôt :
   --dist DOSSIER  autre build à servir (build de profilage, par exemple)
   --window        vraie fenêtre WebView2 (pywebview) sur ce serveur, fermée = arrêt ;
                   avec MY_AI_WEBVIEW_CDP_PORT, les scripts window_*.mjs s'y branchent
+  --vraie-voix    micro et synthèse du PC ; sinon voix simulée : la dictée renvoie
+                  « texte dicté (démo) », la lecture dure deux secondes, en silence
 
 Les sessions sont une copie de data/workspaces (les données de test du
 suivi, section 4) dans temp/demo_server/PORT/, effacée à l'arrêt (Ctrl+C) ou
@@ -51,6 +53,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 from core.chat_service import ChatService  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
+from interfaces.desktop.voice import VoiceService  # noqa: E402
 from test_chat_service import FakeEngine, FakeFileProcessor  # noqa: E402
 
 LONG_SECTION = """## Section {n} : architecture du service
@@ -334,14 +337,108 @@ class DemoEngine(FakeEngine):
         return stream(SHORT)
 
 
+class DemoVoiceInput:
+    """Micro simulé : enregistre, puis « transcrit » en une demi-seconde."""
+
+    available = True
+
+    def __init__(self, on_result=None, on_state=None):
+        self.on_result = on_result
+        self.on_state = on_state
+        self.state = "idle"
+        self.recording = False
+
+    @staticmethod
+    def unavailable_reason():
+        """Toujours disponible."""
+        return ""
+
+    def toggle(self):
+        """Enregistre, ou arrête et transcrit."""
+        if self.recording:
+            self.stop()
+            return
+        self.recording = True
+        self.state = "recording"
+        self.on_state("recording")
+
+    def stop(self):
+        """Transcription simulée."""
+        if not self.recording:
+            return
+        self.recording = False
+        self.state = "transcribing"
+        self.on_state("transcribing")
+
+        def transcribe():
+            time.sleep(0.5)
+            self.on_result("texte dicté (démo)")
+            self.state = "idle"
+            self.on_state("idle")
+
+        threading.Thread(target=transcribe, daemon=True).start()
+
+
+class DemoVoiceOutput:
+    """Synthèse simulée : une lecture dure deux secondes, sans son."""
+
+    available = True
+
+    def __init__(self):
+        self.is_speaking = False
+        self._on_state = None
+        self._generation = 0
+
+    def speak(self, _text, on_state=None):
+        """Lecture silencieuse."""
+        self._on_state = on_state
+        self._generation += 1
+        generation = self._generation
+        self.is_speaking = True
+        on_state("speaking")
+
+        def finish():
+            time.sleep(2)
+            if generation == self._generation and self.is_speaking:
+                self.is_speaking = False
+                on_state("idle")
+
+        threading.Thread(target=finish, daemon=True).start()
+
+    def stop(self):
+        """Coupe la lecture."""
+        self._generation += 1
+        self.is_speaking = False
+        if self._on_state:
+            self._on_state("idle")
+
+
+class DemoVoiceService(VoiceService):
+    """Voix de la démonstration : micro et synthèse simulés."""
+
+    def _voice_input(self):
+        if self._input is None:
+            self._input = DemoVoiceInput(on_result=self._on_transcript,
+                                         on_state=self._on_input_state)
+        return self._input
+
+    def _voice_output(self):
+        if self._output is None:
+            self._output = DemoVoiceOutput()
+        return self._output
+
+
 class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
     """DesktopApp sans Ollama : étapes du lancement simulées, moteur scénarisé."""
 
-    def __init__(self, workspaces, rate, fast, **kwargs):
+    def __init__(self, workspaces, rate, fast, real_voice=False, **kwargs):
         super().__init__(launcher=None, **kwargs)
         self._workspaces = workspaces
         self._rate = rate
         self._fast = fast
+        if not real_voice:
+            # Lecture automatique gardée en mémoire : rien n'est écrit dans config.yaml
+            self._voice = DemoVoiceService(self.bus.publish)
 
     def _launch(self):
         # engine et chat : posés au lancement, comme DesktopApp._launch
@@ -391,6 +488,8 @@ def main():
     parser.add_argument("--fast-launch", action="store_true")
     parser.add_argument("--dist", default=None, help="dossier dist à servir")
     parser.add_argument("--window", action="store_true", help="vraie fenêtre WebView2")
+    parser.add_argument("--vraie-voix", dest="real_voice", action="store_true",
+                        help="micro et synthèse du PC (sinon voix simulée)")
     args = parser.parse_args()
 
     # Dossier ignoré par git ; un arrêt brutal le laisse, le lancement suivant le vide
@@ -407,7 +506,8 @@ def main():
         desktop_server.DIST_DIR = Path(args.dist).resolve()
 
     token = args.token or secrets.token_urlsafe(16)
-    app = DemoApp(workspaces, args.rate, args.fast_launch, port=args.port,
+    app = DemoApp(workspaces, args.rate, args.fast_launch, real_voice=args.real_voice,
+                  port=args.port,
                   state=DesktopState(tmp / ".desktop_state.json"))
     app.token = token  # pylint: disable=attribute-defined-outside-init
     url = app.start()

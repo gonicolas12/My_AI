@@ -30,6 +30,9 @@
   --error: #ef4444;
   --info: #3b82f6;
 
+  /* Étoiles de la note d'une réponse (message_bubbles.py) */
+  --rating: #fbbf24;
+
   /* ── Agents (interfaces/agents/agent_selection.py) ────────────────────── */
   --agent-code: #3b82f6;
   --agent-web: #10b981;

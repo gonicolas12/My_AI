@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { TooltipProvider } from './components/ui/Tooltip';
 import { AgentsPage } from './features/agents/AgentsPage';
 import { ChatPage } from './features/chat/ChatPage';
+import { useAutoRead } from './features/chat/useAutoRead';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { Header } from './features/shell/Header';
 import { Sidebar } from './features/shell/Sidebar';
@@ -25,6 +26,7 @@ import { clampPreviewWidth, PREVIEW_WIDTH, usePreview } from './stores/preview';
 
 function useAppEffects() {
   useEffect(() => startSync(), []);
+  useAutoRead();
   useEffect(() => installNavigationGuard(), []);
   useEffect(() => shell.syncTitleBar(), []);
   useEffect(

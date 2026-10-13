@@ -24,6 +24,18 @@ function itemKey(_index: number, item: ThreadItem): string {
   return item.live?.mid ?? `pending-${item.pending?.mid ?? ''}`;
 }
 
+/** Question d'une réponse : le message de l'utilisateur qui la précède */
+function questionOf(messages: MessageView[], index: number): string | undefined {
+  const previous = messages[index - 1];
+  return previous?.role === 'user' ? previous.mid : undefined;
+}
+
+/** Des messages suivent le tour (question et réponse) qui commence à `index` */
+function followsTurn(messages: MessageView[], index: number): boolean {
+  const answered = messages[index + 1]?.role === 'assistant';
+  return index + (answered ? 2 : 1) < messages.length;
+}
+
 /** Hauteur sous laquelle on considère être en bas (px) */
 const BOTTOM_THRESHOLD = 96;
 
@@ -82,9 +94,20 @@ export function Thread() {
             {item.kind === 'live' ? (
               <AssistantMessage live={item.live} pending={!item.live} isLast />
             ) : item.message.role === 'user' ? (
-              <UserMessage message={item.message} branch={branches[item.message.mid]} busy={busy} />
+              <UserMessage
+                message={item.message}
+                branch={branches[item.message.mid]}
+                busy={busy}
+                hasFollowing={followsTurn(messages, index)}
+              />
             ) : (
-              <AssistantMessage message={item.message} isLast={index === lastIndex} />
+              <AssistantMessage
+                message={item.message}
+                isLast={index === lastIndex}
+                userMid={questionOf(messages, index)}
+                hasFollowing={index < messages.length - 1}
+                busy={busy}
+              />
             )}
           </div>
         )}

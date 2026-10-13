@@ -9,6 +9,12 @@
 
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
 import { notify, useApp } from '../stores/app';
+import {
+  applyTranscript,
+  applyVoiceInput,
+  applyVoiceOutput,
+  loadVoiceStatus,
+} from '../stores/voice';
 import { ApiError, api, getToken } from './api';
 import type { AnyServerEvent, ServerEvent } from './events';
 import { isAgentEvent, isChatEvent } from './events';
@@ -83,6 +89,7 @@ export function startSync(): () => void {
         await loadConversation();
         refreshSessions(0);
       }
+      void loadVoiceStatus();
     } catch {
       // serveur injoignable : la reconnexion relancera la relecture
     } finally {
@@ -138,6 +145,19 @@ export function startSync(): () => void {
       case 'files.dropped':
         dispatchDroppedPaths((event as ServerEvent<'files.dropped'>).payload.paths);
         return;
+      case 'voice.input': {
+        const p = (event as ServerEvent<'voice.input'>).payload;
+        applyVoiceInput(p.state, p.message);
+        return;
+      }
+      case 'voice.transcript':
+        applyTranscript((event as ServerEvent<'voice.transcript'>).payload.text);
+        return;
+      case 'voice.output': {
+        const p = (event as ServerEvent<'voice.output'>).payload;
+        applyVoiceOutput(p.state, p.key, p.message);
+        return;
+      }
       case 'scheduler.result': {
         const p = (event as ServerEvent<'scheduler.result'>).payload;
         useApp.setState({ lastScheduled: p });

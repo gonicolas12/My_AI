@@ -12,6 +12,8 @@ import type {
   EngineStatus,
   RelayStatus,
   SessionSummary,
+  VoiceInputState,
+  VoiceOutputState,
 } from './events';
 
 const TOKEN_KEY = 'my_ai.token';
@@ -119,6 +121,15 @@ export interface PreviewView {
   path: string | null;
 }
 
+export interface VoiceStatus {
+  input_available: boolean;
+  output_available: boolean;
+  input_state: VoiceInputState;
+  output_state: VoiceOutputState;
+  speaking_key: string | null;
+  autoread: boolean;
+}
+
 export interface SlashCommand {
   command: string;
   title: string;
@@ -191,6 +202,24 @@ export const api = {
   documentPreview: (path: string) => post<PreviewView>('/api/previews/document', { path }),
   previewInBrowser: (id: string) =>
     post<{ path: string }>(`/api/previews/${encodeURIComponent(id)}/browser`),
+
+  editMessage: (mid: string, text: string) =>
+    post<{ request_id: string }>('/api/conversation/send', { text, edit_mid: mid }),
+  regenerate: (mid: string) =>
+    post<{ request_id: string }>('/api/conversation/send', {
+      text: '',
+      edit_mid: mid,
+      regenerate: true,
+    }),
+
+  voiceStatus: () => request<VoiceStatus>('GET', '/api/voice'),
+  toggleDictation: () => post<{ state: VoiceInputState }>('/api/voice/input'),
+  stopDictation: () => post<{ ok: boolean }>('/api/voice/input/stop'),
+  speak: (text: string, key: string) =>
+    post<{ state: VoiceOutputState }>('/api/voice/speak', { text, key }),
+  stopSpeaking: () => post<{ ok: boolean }>('/api/voice/stop'),
+  setAutoread: (enabled: boolean) =>
+    request<{ autoread: boolean }>('PUT', '/api/voice/autoread', { enabled }),
 
   uiState: () => request<UiState>('GET', '/api/ui'),
   saveUiState: (state: UiState) => request<UiState>('PUT', '/api/ui', state),

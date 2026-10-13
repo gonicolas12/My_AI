@@ -9,11 +9,10 @@
  * Échap) ; Ctrl+V colle une image comme pièce jointe.
  */
 
-import { ArrowUp, Mic, Square } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
-import { Tooltip } from '../../components/ui/Tooltip';
 import { sendMessage, stopGeneration } from '../../lib/actions';
 import type { SlashCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -24,6 +23,7 @@ import { setDraft, useComposer } from '../../stores/composer';
 import { CLIPBOARD_IMAGE, clipboardFiles, uploadFiles } from './attach';
 import { AttachmentChips } from './AttachmentChips';
 import { AttachMenu } from './AttachMenu';
+import { MicButton } from './MessageControls';
 import { QueueList } from './QueueList';
 import { commandText, useSlashCommands } from './slash';
 import { SlashMenu } from './SlashMenu';
@@ -70,6 +70,22 @@ export function Composer({ variant }: ComposerProps) {
     setSending(false);
     if (sent) setDraft('');
     textarea.current?.focus();
+  };
+
+  /** Texte dicté : inséré au curseur, une espace devant s'il colle au mot précédent (Tk) */
+  const insertDictation = (spoken: string) => {
+    const element = textarea.current;
+    const current = useComposer.getState().draft;
+    const at = element ? element.selectionStart : current.length;
+    const before = current.slice(0, at);
+    const inserted = (before && !/\s$/.test(before) ? ' ' : '') + spoken;
+    setDraft(before + inserted + current.slice(at));
+    requestAnimationFrame(() => {
+      if (!element) return;
+      element.focus();
+      const caret = before.length + inserted.length;
+      element.setSelectionRange(caret, caret);
+    });
   };
 
   const choose = (command: SlashCommand) => {
@@ -196,18 +212,7 @@ export function Composer({ variant }: ComposerProps) {
           <div className="flex items-center gap-1 px-2.5 pt-1 pb-2.5">
             <AttachMenu />
             <div className="flex-1" />
-            <Tooltip label="Saisie vocale : arrive avec la suite de la phase 3" side="top">
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  disabled
-                  aria-label="Saisie vocale"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-3"
-                >
-                  <Mic size={17} />
-                </button>
-              </span>
-            </Tooltip>
+            <MicButton onTranscript={insertDictation} />
             {action}
           </div>
         </div>

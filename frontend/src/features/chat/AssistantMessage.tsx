@@ -11,6 +11,7 @@ import { FileCard, GeneratedImage } from './FileCard';
 import { buildChatLinks, citationKey } from './markdown/links';
 import { Markdown } from './markdown/Markdown';
 import { CopyButton, MessageActions } from './MessageActions';
+import { RegenerateButton, SpeakButton, StarRating } from './MessageControls';
 import { buildParts } from './parts';
 import { Reasoning } from './Reasoning';
 import { ToolRow } from './ToolRow';
@@ -80,6 +81,12 @@ interface AssistantMessageProps {
   /** Message de l'utilisateur traité, réponse pas encore commencée */
   pending?: boolean;
   isLast?: boolean;
+  /** Question de ce tour (régénération) */
+  userMid?: string | undefined;
+  /** Des messages suivent cette réponse */
+  hasFollowing?: boolean;
+  /** Réponse en cours ailleurs : pas de régénération */
+  busy?: boolean;
 }
 
 export const AssistantMessage = memo(function AssistantMessage({
@@ -87,6 +94,9 @@ export const AssistantMessage = memo(function AssistantMessage({
   live = null,
   pending = false,
   isLast = false,
+  userMid,
+  hasFollowing = false,
+  busy = false,
 }: AssistantMessageProps) {
   const streaming = live !== null || pending;
   const mid = live?.mid ?? message?.mid ?? null;
@@ -205,6 +215,11 @@ export const AssistantMessage = memo(function AssistantMessage({
       {message && !streaming ? (
         <MessageActions meta={meta} pinned={isLast}>
           <CopyButton text={text} label="Copier la réponse" />
+          {!error ? <SpeakButton text={text} mid={message.mid} /> : null}
+          {userMid ? (
+            <RegenerateButton userMid={userMid} hasFollowing={hasFollowing} busy={busy} />
+          ) : null}
+          {!error ? <StarRating mid={message.mid} rating={message.rating} /> : null}
         </MessageActions>
       ) : null}
     </article>

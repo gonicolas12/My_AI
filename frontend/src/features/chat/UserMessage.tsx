@@ -13,14 +13,18 @@ import { notify } from '../../stores/app';
 import { openPreview } from '../../stores/preview';
 import { attachmentIcon } from './attachKinds';
 import { splitAttachmentLines } from './attachments';
+import { EditDialog } from './EditDialog';
 import { CopyButton, MessageActions } from './MessageActions';
+import { EditButton } from './MessageControls';
 
 interface UserMessageProps {
   message: MessageView;
   /** Variantes d'édition de ce tour (‹ k/n ›) */
   branch?: { count: number; current: number } | undefined;
-  /** Réponse en cours : pas de changement de variante */
+  /** Réponse en cours : ni changement de variante ni modification */
   busy: boolean;
+  /** Des messages suivent la réponse de ce tour */
+  hasFollowing?: boolean;
 }
 
 /**
@@ -77,9 +81,15 @@ function navigate(mid: string, version: number) {
   });
 }
 
-export const UserMessage = memo(function UserMessage({ message, branch, busy }: UserMessageProps) {
+export const UserMessage = memo(function UserMessage({
+  message,
+  branch,
+  busy,
+  hasFollowing = false,
+}: UserMessageProps) {
   const { body } = splitAttachmentLines(message.text);
   const attachments = message.attachments;
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className="group/msg flex flex-col items-end py-3">
@@ -103,6 +113,7 @@ export const UserMessage = memo(function UserMessage({ message, branch, busy }: 
       ) : null}
       <MessageActions align="end" meta={formatTime(message.timestamp)}>
         <CopyButton text={body} label="Copier le message" />
+        {body ? <EditButton busy={busy} onClick={() => setEditing(true)} /> : null}
         {branch && branch.count > 1 ? (
           <div className="flex items-center text-xs text-fg-2 tabular-nums">
             <IconButton
@@ -127,6 +138,13 @@ export const UserMessage = memo(function UserMessage({ message, branch, busy }: 
           </div>
         ) : null}
       </MessageActions>
+      {editing ? (
+        <EditDialog
+          message={message}
+          hasFollowing={hasFollowing}
+          onClose={() => setEditing(false)}
+        />
+      ) : null}
     </div>
   );
 });

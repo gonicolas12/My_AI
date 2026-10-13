@@ -236,6 +236,75 @@ if (wanted('slash')) {
   await composer(page).fill('');
 }
 
+if (wanted('edition')) {
+  await newConversation();
+  await send('Explique les tuples');
+  await send('Et les listes ?');
+  // Modifier le premier message : des messages suivent, confirmation demandée
+  const first = page.locator('article, .group\\/msg').filter({ hasText: 'Explique les tuples' });
+  await first.first().hover();
+  await page.getByRole('button', { name: 'Modifier' }).first().click();
+  const editor = page.getByRole('textbox', { name: 'Message modifié' });
+  await editor.waitFor();
+  await editor.fill('Explique les tuples en Python');
+  await shot('edition_dialogue');
+  await page.getByRole('button', { name: 'Regénérer' }).click();
+  await page.getByText(/laisseront place/).waitFor();
+  await shot('edition_confirmation');
+  await page.getByRole('button', { name: 'Continuer' }).click();
+  await page.waitForSelector('[aria-busy="true"]', { timeout: 10000 }).catch(() => undefined);
+  await waitIdle(page);
+  await page.waitForTimeout(400);
+  const variants = await page.getByText('2/2').count();
+  check('édition : nouvelle variante ‹ 2/2 ›', variants === 1, `${variants}`);
+  await shot('edition_variante');
+  // Régénérer la réponse (D5) : troisième variante du même tour
+  await page.getByRole('button', { name: 'Régénérer' }).last().click();
+  await page.waitForSelector('[aria-busy="true"]', { timeout: 10000 }).catch(() => undefined);
+  await waitIdle(page);
+  await page.waitForTimeout(400);
+  check('régénération : variante ‹ 3/3 ›', (await page.getByText('3/3').count()) === 1);
+  await page.getByRole('button', { name: 'Version précédente' }).first().click();
+  await page.waitForTimeout(500);
+  check('variantes : retour à ‹ 2/3 ›', (await page.getByText('2/3').count()) === 1);
+  await shot('edition_navigation');
+}
+
+if (wanted('notes')) {
+  await newConversation();
+  await send('Note cette réponse');
+  const stars = page.getByRole('button', { name: /étoile/ });
+  await stars.nth(3).hover();
+  await shot('notes_survol');
+  await stars.nth(3).click();
+  await page.getByRole('group', { name: 'Réponse notée 4 sur 5' }).waitFor({ timeout: 5000 });
+  check('note : 4 étoiles, figée', (await stars.nth(0).isDisabled()) === true);
+  await shot('notes_figees');
+}
+
+if (wanted('voix')) {
+  await newConversation();
+  await send('Lis-moi cette réponse');
+  await page.getByRole('button', { name: 'Lire à voix haute' }).click();
+  await page.getByRole('button', { name: 'Arrêter la lecture' }).waitFor({ timeout: 5000 });
+  await shot('voix_lecture');
+  await page.getByRole('button', { name: 'Lire à voix haute' }).waitFor({ timeout: 6000 });
+  check('lecture : le bouton revient à la fin', true);
+  await composer(page).fill('Bonjour');
+  await page.getByRole('button', { name: 'Saisie vocale' }).click();
+  await page.getByRole('button', { name: 'Arrêter la dictée' }).waitFor({ timeout: 5000 });
+  await shot('voix_dictee');
+  await page.getByRole('button', { name: 'Arrêter la dictée' }).click();
+  await page.waitForFunction(
+    () => document.querySelector('textarea[aria-label="Message"]')?.value.includes('dicté'),
+    null,
+    { timeout: 5000 },
+  );
+  const value = await composer(page).inputValue();
+  check('dictée : insérée au curseur', value === 'Bonjour texte dicté (démo)', value);
+  await composer(page).fill('');
+}
+
 console.log(logs.length ? logs.join('\n') : 'Console : aucune erreur');
 const failed = checks.filter((item) => !item.ok);
 console.log(`${checks.length - failed.length}/${checks.length} contrôles réussis`);

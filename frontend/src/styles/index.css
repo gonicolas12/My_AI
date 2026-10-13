@@ -26,6 +26,7 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
   --color-info: var(--info);
+  --color-rating: var(--rating);
   --color-success-soft: var(--success-soft);
   --color-warning-soft: var(--warning-soft);
   --color-error-soft: var(--error-soft);

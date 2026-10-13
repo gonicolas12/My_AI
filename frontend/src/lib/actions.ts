@@ -51,6 +51,24 @@ export async function sendMessage(text: string): Promise<boolean> {
   return result !== undefined;
 }
 
+/** Nouvelle variante d'un tour : le message modifié, puis une nouvelle réponse */
+export async function editMessage(mid: string, text: string): Promise<boolean> {
+  const result = await attempt(() =>
+    viaSocket({ type: 'chat.send', text, edit_mid: mid }, () => api.editMessage(mid, text)),
+  );
+  return result !== undefined;
+}
+
+/** Régénère la réponse d'un tour (D5) : nouvelle variante ‹ k/n › du même message */
+export async function regenerateAnswer(userMid: string): Promise<boolean> {
+  const result = await attempt(() =>
+    viaSocket({ type: 'chat.send', text: '', edit_mid: userMid, regenerate: true }, () =>
+      api.regenerate(userMid),
+    ),
+  );
+  return result !== undefined;
+}
+
 export async function stopGeneration(): Promise<void> {
   await attempt(() => viaSocket({ type: 'chat.stop' }, () => api.stop()));
 }
