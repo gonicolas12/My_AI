@@ -220,3 +220,18 @@ def test_port_is_free_sees_a_listening_server(launcher, monkeypatch):
         server.listen()
         assert launcher._port_is_free() is False
     assert launcher._port_is_free() is True
+
+
+# ── Options du lanceur ──────────────────────────────────────────────────────
+
+
+def test_web_interface_is_the_default(launcher):
+    args = launcher._parse_args([])
+    assert (args.ui, args.dev, args.headless, args.port) == ("web", False, False, 0)
+
+
+def test_tk_interface_stays_available_for_comparison(launcher):
+    assert launcher._parse_args(["--ui", "tk"]).ui == "tk"
+    assert launcher._parse_args(["--dev", "--port", "5190"]).port == 5190
+    with pytest.raises(SystemExit):
+        launcher._parse_args(["--ui", "qt"])

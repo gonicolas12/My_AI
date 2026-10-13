@@ -262,12 +262,22 @@ def _parse_args(argv=None) -> argparse.Namespace:
     """Options du lanceur."""
     parser = argparse.ArgumentParser(description="Lanceur de My_AI")
     parser.add_argument(
+        "--ui", choices=("web", "tk"), default="web",
+        help="interface : web (fenêtre pywebview, par défaut) ou tk (ancienne interface, "
+             "gardée pour comparer jusqu'à la fin de la migration)",
+    )
+    parser.add_argument(
+        "--dev", action="store_true",
+        help="interface web servie par Vite, avec rechargement à chaud "
+             "(Node et « npm install » dans frontend/)",
+    )
+    parser.add_argument(
         "--headless", action="store_true",
         help="serveur de l'interface web et moteur, sans fenêtre (tests, client WebSocket)",
     )
     parser.add_argument(
         "--port", type=int, default=0,
-        help="port du serveur de l'interface web (défaut : un port libre)",
+        help="port du serveur de l'interface web (défaut : un port libre, 5180 avec --dev)",
     )
     return parser.parse_args(argv)
 
@@ -287,6 +297,14 @@ def main():
             run_headless  # pylint: disable=import-outside-toplevel
         run_headless(sys.modules[__name__], port=args.port)
         # Comme à la fermeture de l'interface Tk : rien ne retient le processus
+        os._exit(0)
+
+    if args.ui == "web":
+        # La fenêtre s'ouvre tout de suite sur l'écran de chargement, qui nomme
+        # les étapes ci-dessous, enchaînées par interfaces/desktop/lifecycle.py
+        from interfaces.desktop.lifecycle import \
+            run_desktop  # pylint: disable=import-outside-toplevel
+        run_desktop(sys.modules[__name__], dev=args.dev, port=args.port)
         os._exit(0)
 
     # Modèle multilingue des longs documents : téléchargé en arrière-plan s'il
