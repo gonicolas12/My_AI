@@ -56,6 +56,8 @@ check('artefact : son script tourne', (await view.locator('#n').textContent()) =
 await view.locator('#api:has-text("API")').waitFor({ timeout: 5000 });
 const api = (await view.locator('#api').textContent()) ?? '';
 check("artefact : pas d'accès à l'API de l'appli", /403|bloqué/.test(api), api);
+const memo = (await view.locator('#memo').textContent()) ?? '';
+check('artefact : stockage en mémoire (localStorage)', memo === 'Stockage : 1', memo);
 const frame = page.frames().find((f) => f.url().includes('/preview/'));
 const inside = await frame.evaluate(() => {
   let parent = 'lisible';

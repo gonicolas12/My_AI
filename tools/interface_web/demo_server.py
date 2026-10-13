@@ -141,11 +141,15 @@ ARTIFACT = """Voici une petite page interactive, et un logo :
     <p>Clics : <strong id="n">0</strong></p>
     <button onclick="document.getElementById('n').textContent++">Cliquer</button>
     <p id="api"></p>
+    <p id="memo"></p>
   </div>
   <script>
     // L'artefact ne peut pas joindre l'API de l'appli (iframe isolée)
     fetch('/api/status').then(r => r.status).catch(() => 'bloqué')
       .then(s => { document.getElementById('api').textContent = 'API : ' + s; });
+    // Mais il garde son état : stockage en mémoire de l'aperçu (origine opaque)
+    localStorage.setItem('visites', String(Number(localStorage.getItem('visites') || 0) + 1));
+    document.getElementById('memo').textContent = 'Stockage : ' + localStorage.getItem('visites');
   </script>
 </body>
 </html>
@@ -577,6 +581,7 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         self._step("services", "Démarrage des services…")
         time.sleep(pause)
         self._restore_session()
+        self.preload_voice()
         self._set_status(state="ready", step="ready", label="Prêt", detail="")
 
 

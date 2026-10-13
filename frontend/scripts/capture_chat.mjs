@@ -80,6 +80,8 @@ if (wanted('artefact')) {
   await frame.locator('#api:has-text("API")').waitFor({ timeout: 5000 });
   const api = await frame.locator('#api').textContent();
   check("artefact : pas d'accès à l'API de l'appli", /403|bloqué/.test(api ?? ''), api ?? '');
+  const memo = await frame.locator('#memo').textContent();
+  check('artefact : stockage en mémoire (localStorage)', memo === 'Stockage : 1', memo ?? '');
   const sandbox = await pane.locator('iframe').getAttribute('sandbox');
   check(
     'artefact : iframe sans allow-same-origin',
