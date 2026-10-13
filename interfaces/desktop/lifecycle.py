@@ -212,6 +212,7 @@ class DesktopApp:
             self._step("services", "Démarrage des services…")
             self._start_services()
             self._restore_session()
+            self.preload_voice()
             self._set_status(state="ready", step="ready", label="Prêt", detail="")
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("Lancement en échec")
@@ -289,6 +290,11 @@ class DesktopApp:
         except ChatError as exc:
             logger.info("Session %s non rouverte : %s", session_id, exc)
             self.state.set("current_session", None)
+
+    def preload_voice(self) -> None:
+        """Modules du micro chargés en arrière-plan, à la fin du lancement."""
+        threading.Thread(target=self.voice.preload_input, name="voice-preload",
+                         daemon=True).start()
 
     @property
     def voice(self):

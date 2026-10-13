@@ -169,6 +169,20 @@ def test_generated_file_is_copied_to_downloads(desk, monkeypatch):
                             headers=AUTH).status_code == 403
 
 
+def test_download_never_overwrites_a_file_of_the_same_name(desk, monkeypatch):
+    downloads = desk.tmp_path / "Téléchargements"
+    monkeypatch.setattr(local_files, "downloads_dir", lambda: downloads)
+    write(downloads / "calcul.py", "ancien")
+    write(downloads / "calcul (1).py", "ancien aussi")
+    generated = write(desk.outputs / "calcul.py", "print(2)")
+    copied = desk.client.post("/api/files/download", json={"path": generated},
+                              headers=AUTH).json()["path"]
+    assert copied == str(downloads / "calcul (2).py")
+    assert (downloads / "calcul (2).py").read_text(encoding="utf-8") == "print(2)"
+    assert (downloads / "calcul.py").read_text(encoding="utf-8") == "ancien"
+    assert (downloads / "calcul (1).py").read_text(encoding="utf-8") == "ancien aussi"
+
+
 # ── Aperçus ─────────────────────────────────────────────────────────────────
 
 
@@ -188,6 +202,17 @@ def test_artifact_page_keeps_its_scripts_but_is_isolated(desk):
     bad = desk.client.post("/api/previews/artifact", headers=AUTH,
                            json={"code": "x", "kind": "python"})
     assert bad.status_code == 422
+
+
+def test_artifact_page_gets_a_storage_before_its_own_scripts():
+    shim = desktop_previews.STORAGE_SHIM
+    full = "<!DOCTYPE html><html><head><title>t</title></head><body><script>x()</script></body></html>"
+    page = desktop_previews.with_storage(full)
+    assert page.startswith("<!DOCTYPE html><html><head>" + shim + "<title>")
+    # Sans <head> : après <html>, ou après le doctype (jamais devant : mode quirks)
+    assert desktop_previews.with_storage("<html><p>a</p></html>") == f"<html>{shim}<p>a</p></html>"
+    assert desktop_previews.with_storage("<!doctype html><p>a</p>") == f"<!doctype html>{shim}<p>a</p>"
+    assert desktop_previews.with_storage("<p>a</p>") == f"{shim}<p>a</p>"
 
 
 def test_document_preview_is_html_without_scripts(desk):

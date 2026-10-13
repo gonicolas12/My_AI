@@ -97,6 +97,17 @@ def payloads(events, event_type):
     return [event["payload"] for event in events if event["type"] == event_type]
 
 
+def test_microphone_modules_can_be_loaded_ahead(voice, monkeypatch):
+    voice.service.preload_input()
+    assert isinstance(voice.service._voice_input(), FakeVoiceInput)  # pylint: disable=protected-access
+    assert payloads(voice.events, "voice.input") == []  # rien ne s'enregistre
+
+    # Modules absents : le préchargement se tait, le clic dira pourquoi
+    broken = VoiceService(voice.bus.publish)
+    monkeypatch.setitem(sys.modules, "interfaces.desktop.voice_input", None)
+    broken.preload_input()
+
+
 def test_dictation_reaches_the_window_as_events(voice):
     assert voice.service.toggle_input() == "recording"
     assert voice.service.toggle_input() == "idle"

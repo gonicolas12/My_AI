@@ -12,8 +12,14 @@ politique de sécurité, qui l'isole aussi si on l'ouvrait hors de l'iframe :
 
 Un PDF n'a pas de page d'aperçu : la fenêtre l'affiche avec le lecteur de
 WebView2, par un lien signé vers le fichier (files.py).
+
+Une origine opaque n'a ni localStorage ni sessionStorage : y toucher lève une
+erreur, et un artefact qui garde son état (compteur, liste de tâches…) s'arrête
+en route. La page d'un artefact reçoit donc d'abord un stockage en mémoire, qui
+ne vit que le temps de l'aperçu. Ouverte dans un navigateur, elle garde le vrai.
 """
 
+import re
 import threading
 import time
 import uuid
@@ -33,6 +39,41 @@ PREVIEW_PREFIX = "/preview/"
 # Artefact : scripts et ressources externes permis, origine opaque (pas de
 # allow-same-origin), formulaires et fenêtres surgissantes comme dans un onglet
 ARTIFACT_CSP = "sandbox allow-scripts allow-forms allow-modals allow-popups"
+# Stockage en mémoire, posé avant les scripts de l'artefact quand l'origine
+# opaque refuse le vrai (sans effet ailleurs)
+STORAGE_SHIM = (
+    "<script>(function () {"
+    "function memory() {"
+    "var data = Object.create(null);"
+    "return {"
+    "getItem: function (k) { k = String(k); return k in data ? data[k] : null; },"
+    "setItem: function (k, v) { data[String(k)] = String(v); },"
+    "removeItem: function (k) { delete data[String(k)]; },"
+    "clear: function () { data = Object.create(null); },"
+    "key: function (i) { var keys = Object.keys(data); return i < keys.length ? keys[i] : null; },"
+    "get length() { return Object.keys(data).length; }"
+    "};"
+    "}"
+    "['localStorage', 'sessionStorage'].forEach(function (name) {"
+    "try { void window[name].length; } catch (refused) {"
+    "try { Object.defineProperty(window, name, { value: memory(), configurable: true }); }"
+    " catch (ignored) {}"
+    "}"
+    "});"
+    "})();</script>"
+)
+_SHIM_ANCHORS = (r"<head\b[^>]*>", r"<html\b[^>]*>", r"<!doctype[^>]*>")
+
+
+def with_storage(html: str) -> str:
+    """Page d'artefact précédée du stockage en mémoire (après <head>, jamais avant le doctype)."""
+    for anchor in _SHIM_ANCHORS:
+        match = re.search(anchor, html, flags=re.IGNORECASE)
+        if match:
+            return html[:match.end()] + STORAGE_SHIM + html[match.end():]
+    return STORAGE_SHIM + html
+
+
 # Document rendu en HTML : aucun script, aucune requête
 DOCUMENT_CSP = (
     "sandbox; default-src 'none'; style-src 'unsafe-inline'; "
@@ -91,7 +132,8 @@ class PreviewStore:
                             language=language or kind, index=index)
         return self._add(Preview(
             id=uuid.uuid4().hex, kind=kind, title=artifact.title,
-            html=build_preview_document(artifact), language=artifact.language, index=index,
+            html=with_storage(build_preview_document(artifact)), language=artifact.language,
+            index=index,
         ))
 
     def add_document(self, path: str) -> Preview:

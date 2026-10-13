@@ -89,6 +89,10 @@ class TestApp(DesktopApp):
         )
         self.chat.start()
 
+    def preload_voice(self):
+        # Les vrais modules du micro (faster-whisper, torch) restent hors des tests
+        self._launcher.calls.append("voice")
+
 
 @pytest.fixture(autouse=True)
 def _no_onboarding(monkeypatch):
@@ -129,7 +133,9 @@ def started_fixture(tmp_path):
 def test_launch_steps_follow_the_launcher_order(started):
     run = started()
 
-    assert run.app._launcher.calls == ["prefetch", "ollama", "model", "placement", "engine"]
+    # Une fois prête, l'appli prépare le micro (Tk l'importait en créant l'interface)
+    assert run.app._launcher.calls == ["prefetch", "ollama", "model", "placement", "engine",
+                                       "voice"]
     assert run.status["state"] == "ready"
     assert run.status["placement"] == "modèle sur le GPU, contexte en 8 bits"
     steps = []

@@ -158,9 +158,19 @@ def downloads_dir() -> Path:
 
 
 def copy_to_downloads(path: str) -> str:
-    """Copie un fichier dans Téléchargements ; renvoie le chemin de la copie."""
+    """Copie un fichier dans Téléchargements ; renvoie le chemin de la copie.
+
+    Un fichier du même nom déjà présent n'est jamais écrasé (Tk le
+    remplaçait) : la copie prend le premier nom libre, « nom (1).ext »,
+    comme dans un navigateur.
+    """
     target_dir = downloads_dir()
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / os.path.basename(path)
+    source = Path(path)
+    target = target_dir / source.name
+    number = 1
+    while target.exists():
+        target = target_dir / f"{source.stem} ({number}){source.suffix}"
+        number += 1
     shutil.copy2(path, target)
     return str(target)

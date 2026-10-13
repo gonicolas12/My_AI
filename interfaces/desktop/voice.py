@@ -95,6 +95,17 @@ class VoiceService:
                                          on_state=self._on_input_state)
             return self._input
 
+    def preload_input(self) -> None:
+        """Charge d'avance les modules du micro (faster-whisper), sans le modèle.
+
+        Tk les importait en créant l'interface : sans cela, le premier clic sur
+        le micro attend leur import (plusieurs secondes) avant d'enregistrer.
+        """
+        try:
+            self._voice_input()
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.info("[VOICE] Micro non préparé : %s", exc)
+
     def toggle_input(self) -> str:
         """Démarre l'enregistrement, ou l'arrête (transcription) ; renvoie l'état."""
         voice = self._voice_input()
