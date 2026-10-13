@@ -32,10 +32,18 @@ from utils.logger import setup_logger
 logger = setup_logger("DesktopApp")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-# État local de l'interface (session courante ; plus tard la fenêtre), ignoré par git
+# État local de l'interface (session courante, fenêtre, barre latérale), ignoré par git
 STATE_FILE = PROJECT_ROOT / "data" / ".desktop_state.json"
 
 OLLAMA_FAILED = "Ollama n'a pas pu démarrer — lancez l'application Ollama ou « ollama serve »"
+
+# Port du serveur local en mode --dev : celui que vise le proxy de Vite
+# (frontend/vite.config.ts, MY_AI_DESKTOP_PORT), pour lancer Vite et l'appli
+# dans n'importe quel ordre
+DEV_BACKEND_PORT = 5180
+
+# État de l'interface retenu d'un lancement à l'autre, avec sa valeur par défaut
+UI_DEFAULTS: Dict[str, Any] = {"sidebar_open": False}
 
 
 class DesktopState:
@@ -129,6 +137,20 @@ class DesktopApp:
         """Étape de lancement, ou état du moteur."""
         with self._lock:
             return dict(self._status)
+
+    def ui_state(self) -> Dict[str, Any]:
+        """État de l'interface retenu d'un lancement à l'autre (barre latérale…)."""
+        saved = self.state.get("ui")
+        saved = saved if isinstance(saved, dict) else {}
+        return {key: type(default)(saved.get(key, default))
+                for key, default in UI_DEFAULTS.items()}
+
+    def set_ui_state(self, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Retient les valeurs connues de l'état de l'interface ; renvoie l'état complet."""
+        state = self.ui_state()
+        state.update({key: value for key, value in values.items() if key in UI_DEFAULTS})
+        self.state.set("ui", state)
+        return self.ui_state()
 
     def _set_status(self, **fields) -> None:
         with self._lock:
@@ -388,3 +410,44 @@ def run_headless(launcher, port: int = 0) -> None:
         pass
     finally:
         app.shutdown()
+
+
+def run_desktop(launcher, *, dev: bool = False, port: int = 0) -> None:
+    """launch_unified.py --ui web : la fenêtre pywebview, ou le navigateur à défaut.
+
+    La fenêtre s'ouvre tout de suite sur l'écran de chargement ; les étapes du
+    lancement tournent dans leur fil. La fermer arrête l'appli proprement.
+    """
+    # pylint: disable=import-outside-toplevel
+    from interfaces.desktop.window import open_window
+
+    if dev and not port:
+        port = DEV_BACKEND_PORT
+    app = DesktopApp(launcher, dev=dev, port=port)
+    url = app.start()
+    vite = None
+    dev_origins: tuple = ()
+    if dev:
+        from interfaces.desktop.devserver import ViteServer
+        vite = ViteServer(backend_port=app.server.port)
+        try:
+            page = vite.start()
+        except RuntimeError as exc:
+            print(f"⚠️ {exc} — interface construite (frontend/dist) à la place", flush=True)
+            vite = None
+        else:
+            url = f"{page}/#token={app.token}"
+            dev_origins = (page,)
+    try:
+        if not open_window(app, url, dev_origins=dev_origins):
+            import webbrowser
+            print("🌐 Fenêtre indisponible (pywebview) : interface ouverte dans le navigateur. "
+                  "Fermez cette console ou faites Ctrl+C pour quitter.", flush=True)
+            webbrowser.open(url)
+            app.wait()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        app.shutdown()
+        if vite is not None:
+            vite.stop()

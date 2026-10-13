@@ -42,6 +42,7 @@ class FakeApp:
         self.engine = object()
         self.shutdowns = 0
         self.relay_calls = []
+        self.ui = {"sidebar_open": False}
 
     @staticmethod
     def status():
@@ -63,6 +64,13 @@ class FakeApp:
 
     def shutdown(self):
         self.shutdowns += 1
+
+    def ui_state(self):
+        return dict(self.ui)
+
+    def set_ui_state(self, values):
+        self.ui.update(values)
+        return dict(self.ui)
 
 
 @pytest.fixture(name="desktop")
@@ -280,3 +288,26 @@ def test_built_interface_is_served_without_escaping_its_folder(desktop, tmp_path
     assert desktop.client.get("/").text.startswith("<!doctype html>")
     assert desktop.client.get("/assets/absent.js").status_code == 404
     assert desktop.client.get("/%2e%2e/secret.txt").status_code == 404
+
+
+# ── État de l'appli et de l'interface ───────────────────────────────────────
+
+
+def test_status_tells_the_window_where_to_resume(desktop):
+    desktop.bus.publish("notification", {"level": "info", "message": "x"})
+    data = desktop.client.get("/api/status", headers=AUTH).json()
+    assert data["chat"] is True
+    # Seq du dernier événement publié : la fenêtre applique ensuite les plus récents
+    assert data["seq"] == desktop.bus.last_seq
+    assert data["status"]["state"] == "ready"
+
+
+def test_ui_state_is_read_and_saved(desktop):
+    assert desktop.client.get("/api/ui", headers=AUTH).json() == {"sidebar_open": False}
+    saved = desktop.client.put("/api/ui", headers=AUTH, json={"sidebar_open": True})
+    assert saved.json() == {"sidebar_open": True}
+    assert desktop.app.ui == {"sidebar_open": True}
+    # Clé inconnue : refusée par le schéma
+    assert desktop.client.put("/api/ui", headers=AUTH, json={"autre": 1}).status_code == 422
+    # Sans jeton : refusé
+    assert desktop.client.put("/api/ui", json={"sidebar_open": False}).status_code == 401

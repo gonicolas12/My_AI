@@ -28,7 +28,7 @@ import uvicorn
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
 from core.chat_service import ChatError
@@ -106,6 +106,14 @@ class RelayStartBody(BaseModel):
     """POST /api/relay/start."""
 
     tunnel: Optional[bool] = None  # None : réglage relay.tunnel
+
+
+class UiStateBody(BaseModel):
+    """PUT /api/ui : état de l'interface retenu d'un lancement à l'autre."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sidebar_open: Optional[bool] = None
 
 
 class DesktopServer:
@@ -217,7 +225,24 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
 
     @api.get("/api/status")
     async def status():
-        return {"status": app.status(), "relay": app.relay_status(), "dev": app.dev}
+        # Seq lu avant l'état : la fenêtre applique ensuite les événements plus
+        # récents, sans jamais revenir à un état plus ancien
+        seq = app.bus.last_seq
+        return {
+            "status": app.status(),
+            "relay": app.relay_status(),
+            "dev": app.dev,
+            "chat": app.chat is not None,
+            "seq": seq,
+        }
+
+    @api.get("/api/ui")
+    async def ui_state():
+        return app.ui_state()
+
+    @api.put("/api/ui")
+    async def save_ui_state(body: UiStateBody):
+        return app.set_ui_state(body.model_dump(exclude_none=True))
 
     @api.post("/api/shutdown")
     async def shutdown():
