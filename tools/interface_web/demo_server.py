@@ -606,7 +606,9 @@ def main():
         from interfaces.desktop import server as desktop_server  # pylint: disable=import-outside-toplevel
         desktop_server.DIST_DIR = Path(args.dist).resolve()
     # Chemins relatifs (export sans dialogue : outputs/exports/) dans le dossier
-    # temporaire, jamais dans le outputs/ du dépôt
+    # temporaire, jamais dans le outputs/ du dépôt. pywebview situe l'appli par
+    # le dossier du script (sys.argv[0]) : chemin absolu avant de changer de dossier
+    sys.argv[0] = os.path.abspath(sys.argv[0])
     os.chdir(tmp)
 
     token = args.token or secrets.token_urlsafe(16)

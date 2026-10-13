@@ -1,7 +1,7 @@
 # Outils de vérification de l'interface web
 
 Scripts Playwright (dans ce dossier) et outils Python (`tools/interface_web/`) qui ont servi à
-vérifier la phase 2 de la migration (`docs/MIGRATION_INTERFACE_WEB_SUIVI.md`). Ils ne font pas partie
+vérifier les phases 2 et 3 de la migration (`docs/MIGRATION_INTERFACE_WEB_SUIVI.md`). Ils ne font pas partie
 de l'appli. Les scripts se lancent depuis `frontend/`, après `npm ci` et
 `npx playwright install chromium`. Les captures vont par défaut dans `frontend/captures/`, ignoré
 par git.
@@ -9,22 +9,25 @@ par git.
 ## Sans Ollama : serveur de démonstration
 
 Le vrai serveur local et le vrai `ChatService`, avec un moteur scénarisé (« long », « outils »,
-« réflexion », « supprime », « erreur », « attends », « indexe » : voir son en-tête). Il travaille
-sur une copie de `data/workspaces` dans `temp/demo_server/PORT/` (ignoré par git, vidé à chaque
-lancement). Les sessions « Projet API REST » et « Conversation longue » de `capture.mjs` et
-`perf.mjs` viennent des données de test du suivi (section 4) : sans elles, ces étapes sont sautées.
+« réflexion », « artefact », « document », « dessine »… : voir son en-tête). Il travaille sur une
+copie de `data/workspaces` dans `temp/demo_server/PORT/` (ignoré par git, vidé à chaque lancement),
+et n'écrit ni dans `data/` ni dans le `outputs/` du dépôt : notes en mémoire, copie de l'historique
+des requêtes, voix simulée (sauf `--vraie-voix`). Les sessions « Projet API REST » et « Conversation
+longue » de `capture.mjs` et `perf.mjs` viennent des données de test du suivi (section 4) : sans
+elles, ces étapes sont sautées.
 
 ```powershell
 python tools/interface_web/demo_server.py 8765   # depuis la racine du dépôt
 # affiche DEMO http://127.0.0.1:8765/#token=…, l'URL à passer aux scripts
 ```
 
-| Script                                                 | Rôle                                                                                                 |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `node scripts/capture.mjs URL [DOSSIER] [L H]`         | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur… |
-| `node scripts/perf.mjs URL [scroll,stream,stress,gil]` | images, tâches longues, latence des saisies, rendus React, cadence des jetons                        |
-| `node scripts/tooltips.mjs URL`                        | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                        |
-| `node scripts/follow_bottom.mjs URL`                   | le fil suit une longue réponse (distance au bas)                                                     |
+| Script                                                 | Rôle                                                                                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/capture.mjs URL [DOSSIER] [L H]`         | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur…                                   |
+| `node scripts/perf.mjs URL [scroll,stream,stress,gil]` | images, tâches longues, latence des saisies, rendus React, cadence des jetons                                                          |
+| `node scripts/tooltips.mjs URL`                        | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                                                          |
+| `node scripts/follow_bottom.mjs URL`                   | le fil suit une longue réponse (distance au bas)                                                                                       |
+| `node scripts/capture_chat.mjs URL [DOSSIER] [ÉTAPES]` | parité du Chat (phase 3a) : artefacts, documents, chemins, citations, image, pièces jointes, `/`, édition, notes, voix, barre latérale |
 
 Rendus React : servir un build de profilage, sans toucher à `dist/` :
 
@@ -45,20 +48,28 @@ $env:MY_AI_WEBVIEW_CDP_PORT = 9333; python tools/interface_web/demo_server.py 87
 
 Les scripts lisent la même variable (9333 par défaut).
 
-| Script                                    | Rôle                                                                 | Touches ou curseur du système |
-| ----------------------------------------- | -------------------------------------------------------------------- | ----------------------------- |
-| `node scripts/window_look.mjs [DOSSIER]`  | adresse, pont pywebview, captures du chargement et de l'accueil      | non                           |
-| `node scripts/window_chat.mjs "QUESTION"` | vraie réponse d'Ollama : images par seconde, premier texte, captures | non                           |
-| `node scripts/tooltips.mjs --window`      | infobulles, souris de Playwright                                     | non                           |
-| `node scripts/window_keys.mjs`            | F5, Ctrl+R, Ctrl+P… ne rechargent, n'impriment ni ne cherchent rien  | oui, touches                  |
-| `node scripts/window_tooltips.mjs`        | infobulle fermée quand le vrai curseur quitte la fenêtre             | oui, curseur                  |
+| Script                                                | Rôle                                                                                        | Touches ou curseur du système |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------- |
+| `node scripts/window_look.mjs [DOSSIER]`              | adresse, pont pywebview, captures du chargement et de l'accueil                             | non                           |
+| `node scripts/window_chat.mjs "QUESTION"`             | vraie réponse d'Ollama : images par seconde, premier texte, captures                        | non                           |
+| `node scripts/window_preview.mjs [DOSSIER] [JOURNAL]` | sur le serveur de démonstration : artefact isolé du pont pywebview, lecteur PDF de WebView2 | non                           |
+| `node scripts/tooltips.mjs --window`                  | infobulles, souris de Playwright                                                            | non                           |
+| `node scripts/window_keys.mjs`                        | F5, Ctrl+R, Ctrl+P… ne rechargent, n'impriment ni ne cherchent rien                         | oui, touches                  |
+| `node scripts/window_tooltips.mjs`                    | infobulle fermée quand le vrai curseur quitte la fenêtre                                    | oui, curseur                  |
 
 Les touches et le curseur du système vont à la fenêtre au premier plan, quelle qu'elle soit.
 `tools/interface_web/win.py` attend donc que le clavier et la souris n'aient pas servi depuis
 20 secondes (une minute au plus, puis il refuse), et n'envoie une touche que si My_AI est au premier
 plan. Après avoir lancé l'un de ces deux scripts, ne plus toucher au clavier ni à la souris jusqu'à
 la fin. `win.py` sert aussi seul : bornes, déplacement, fermeture,
-capture avec la barre de titre (`python tools/interface_web/win.py` pour l'aide).
+capture avec la barre de titre (`python tools/interface_web/win.py` pour l'aide). `win.py capture`
+prend la fenêtre sans la mettre au premier plan (PrintWindow) : seule capture où paraît le lecteur
+PDF de WebView2, qui dessine hors de la page (gris dans les captures CDP).
+
+Dans ces scripts, ne jamais cliquer « Ouvrir … » sur une carte de fichier, « Afficher dans
+l'Explorateur », « Ouvrir dans le navigateur » ni « Télécharger » : ils lancent un programme du
+système (application par défaut, Explorateur, navigateur), qui prend le premier plan, ou écrivent
+dans Téléchargements.
 
 ## Divers
 

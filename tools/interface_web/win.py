@@ -10,6 +10,8 @@ Pilotage Win32 de la vraie fenêtre My_AI, pour les vérifications
   python tools/interface_web/win.py close            WM_CLOSE (comme la croix)
   python tools/interface_web/win.py front            met My_AI au premier plan
   python tools/interface_web/win.py shot FICHIER     premier plan, puis capture (barre de titre comprise)
+  python tools/interface_web/win.py capture FICHIER  capture sans premier plan ni saisie (PrintWindow),
+                                                     lecteur PDF compris (absent des captures CDP)
   python tools/interface_web/win.py keys TOUCHE...   premier plan, puis touches (ex. f5 ctrl+r ctrl+b esc)
   python tools/interface_web/win.py cursor X Y       déplace le vrai curseur
 
@@ -17,8 +19,8 @@ Les touches et le curseur du système vont à la fenêtre au premier plan, pas �
 celle qu'on vise. front, shot, keys et cursor attendent donc que le clavier et
 la souris n'aient pas servi depuis IDLE_S secondes (WAIT_S secondes au plus,
 sinon refus, code de sortie 2), et keys n'envoie chaque touche que si My_AI est
-au premier plan. rect, origin, state, screen et close ne touchent ni au focus
-ni aux saisies ; move restaure la fenêtre, ce qui peut l'activer.
+au premier plan. rect, origin, state, screen, capture et close ne touchent ni
+au focus ni aux saisies ; move restaure la fenêtre, ce qui peut l'activer.
 """
 
 import ctypes
@@ -49,6 +51,16 @@ VK = {
 class LASTINPUTINFO(ctypes.Structure):  # pylint: disable=too-few-public-methods
     """Structure de GetLastInputInfo."""
     _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+
+class BITMAPINFOHEADER(ctypes.Structure):  # pylint: disable=too-few-public-methods
+    """En-tête de GetDIBits (pixels de 32 bits, lignes de haut en bas)."""
+    _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG),
+                ("biHeight", wintypes.LONG), ("biPlanes", wintypes.WORD),
+                ("biBitCount", wintypes.WORD), ("biCompression", wintypes.DWORD),
+                ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
+                ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD),
+                ("biClrImportant", wintypes.DWORD)]
 
 
 def find():
@@ -122,6 +134,34 @@ def foreground(hwnd):
     return user32.GetForegroundWindow() == hwnd
 
 
+def print_window(hwnd, path):
+    """Capture de la fenêtre, même cachée par une autre, sans la mettre au premier plan.
+
+    PrintWindow avec PW_RENDERFULLCONTENT : rendu composé de WebView2, lecteur
+    PDF compris, que les captures par CDP laissent gris.
+    """
+    from PIL import Image  # pylint: disable=import-outside-toplevel
+    gdi32 = ctypes.windll.gdi32
+    _x, _y, width, height = rect(hwnd)
+    window_dc = user32.GetWindowDC(hwnd)
+    memory_dc = gdi32.CreateCompatibleDC(window_dc)
+    bitmap = gdi32.CreateCompatibleBitmap(window_dc, width, height)
+    try:
+        gdi32.SelectObject(memory_dc, bitmap)
+        if not user32.PrintWindow(hwnd, memory_dc, 2):  # PW_RENDERFULLCONTENT
+            sys.exit("PrintWindow a échoué")
+        header = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), width, -height, 1, 32,
+                                  0, 0, 0, 0, 0, 0)
+        pixels = ctypes.create_string_buffer(width * height * 4)
+        gdi32.GetDIBits(memory_dc, bitmap, 0, height, pixels, ctypes.byref(header), 0)
+        Image.frombuffer("RGB", (width, height), pixels, "raw", "BGRX", 0, 1).save(path)
+    finally:
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, window_dc)
+    return [width, height]
+
+
 def press(hwnd, combo):
     """Envoie une combinaison (ex. ctrl+b), si My_AI est toujours au premier plan."""
     keys = combo.lower().split("+")
@@ -180,6 +220,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements
         x, y, w, h = rect(hwnd)
         ImageGrab.grab(bbox=(x, y, x + w, y + h), all_screens=True).save(sys.argv[2])
         print("capture", sys.argv[2], [x, y, w, h])
+    elif action == "capture":
+        print("capture", sys.argv[2], print_window(hwnd, sys.argv[2]))
     elif action == "keys":
         require_idle()
         if not foreground(hwnd):
