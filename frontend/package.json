@@ -39,6 +39,9 @@
     "shiki": "^4.5.0",
     "zustand": "^5.0.15"
   },
+  "overrides": {
+    "katex": "$katex"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@tailwindcss/vite": "^4.3.3",
