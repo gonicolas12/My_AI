@@ -975,10 +975,16 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 - **Vérifié avec les outils versés** (Chromium, serveur de démonstration) : 23 captures sans erreur
   de console, bloc « Réflexion · 2 s » ; 10 cas d'infobulle sur 10 refermés ; le fil suit la réponse
   (au plus 38 px du bas) ; défilement des 200 messages dans les fourchettes de la phase 2.
-- **Pas fait** : l'infobulle au vrai curseur dans la vraie fenêtre. Nicolas se servait du PC, et
-  ouvrir la fenêtre lui aurait pris le premier plan. À faire quand le PC est libre :
-  `demo_server.py 8765 --window` avec `MY_AI_WEBVIEW_CDP_PORT=9333`, puis
-  `node scripts/window_tooltips.mjs`.
+- **Infobulle au vrai curseur, dans la vraie fenêtre** (WebView2 sur le serveur de démonstration,
+  `--window`, PC laissé libre par Nicolas) : elle s'affiche au survol et disparaît dès que le vrai
+  curseur quitte la fenêtre. Fenêtre restaurée : vers le bas, la barre de titre et la gauche ;
+  fenêtre agrandie : vers la barre des tâches et la barre de titre (rien à gauche sur un seul
+  écran). Les 10 cas de `tooltips.mjs` (souris de Playwright) passent aussi dans WebView2.
+  - Bogue trouvé en route : pywebview vérifie que le fil principal s'appelle `MainThread`, et le
+    serveur de démonstration le renommait : `--window` échouait. Corrigé.
+  - `win.py` gagne `front` (premier plan, même attente) et `screen` (bornes du bureau) ;
+    `window_tooltips.mjs` met la fenêtre devant avant le survol et saute un point de sortie hors de
+    l'écran.
 - **Tests** : `python -m pytest tests/` : **1034 réussis** (1029 + 5), aucun échec ; front : 47 tests
   Vitest, TypeScript, ESLint et Prettier propres ; `frontend/dist` reconstruit.
 
