@@ -290,5 +290,5 @@ def main():
 
 
 if __name__ == "__main__":
-    threading.current_thread().name = "demo-main"
+    # Fil principal laissé tel quel : pywebview vérifie qu'il s'appelle MainThread
     main()

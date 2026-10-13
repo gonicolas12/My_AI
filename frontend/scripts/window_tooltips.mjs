@@ -1,32 +1,44 @@
-// Vraie fenêtre : une infobulle disparaît quand le vrai curseur quitte la fenêtre (vers la barre
-// des tâches, la barre de titre, la gauche). Vrai curseur du système (win.py, qui refuse si le PC
-// sert), état de la page lu par CDP. Usage (depuis frontend/) : node scripts/window_tooltips.mjs
+// Vraie fenêtre : une infobulle disparaît quand le vrai curseur quitte la fenêtre (vers le bas, la
+// barre de titre, la gauche). Vrai curseur du système (win.py, qui attend que le PC ne serve plus),
+// état de la page lu par CDP. Fenêtre restaurée plutôt qu'agrandie : sur un seul écran, une fenêtre
+// agrandie n'a rien à sa gauche. Usage (depuis frontend/) : node scripts/window_tooltips.mjs
 import { connectWindow, openSidebar, tooltips, win } from './lib.mjs';
 
 const { browser, page } = await connectWindow();
 await openSidebar(page);
+win('front'); // le curseur doit survoler My_AI, pas une fenêtre posée dessus
 const [left, top, width, height] = JSON.parse(win('rect'));
 const [pageX, pageY] = JSON.parse(win('origin'));
+const [sx, sy, sw, sh] = JSON.parse(win('screen'));
 const dpr = await page.evaluate(() => devicePixelRatio);
+const onScreen = (x, y) => x >= sx && x < sx + sw && y >= sy && y < sy + sh;
 
-/** Vrai curseur au centre du bouton ; renvoie sa position à l'écran et les infobulles visibles */
-async function hover(name) {
+/** Centre du bouton, en pixels d'écran */
+async function center(name) {
   const box = await page.getByRole('button', { name }).boundingBox();
-  const x = Math.round(pageX + (box.x + box.width / 2) * dpr);
-  const y = Math.round(pageY + (box.y + box.height / 2) * dpr);
-  win('cursor', String(x), String(y));
-  await page.waitForTimeout(1000);
-  return { x, y, shown: await tooltips(page) };
+  return {
+    x: Math.round(pageX + (box.x + box.width / 2) * dpr),
+    y: Math.round(pageY + (box.y + box.height / 2) * dpr),
+  };
 }
 
+/** Survol du bouton au vrai curseur, puis départ vers le point `to(x, y)` */
 async function leave(label, name, to) {
-  const { x, y, shown } = await hover(name);
+  const { x, y } = await center(name);
   const [tx, ty] = to(x, y);
+  if (!onScreen(tx, ty)) {
+    console.log(`${label.padEnd(36)} sauté : point de sortie hors de l'écran`);
+    return;
+  }
+  win('cursor', String(x), String(y));
+  await page.waitForTimeout(1000);
+  const shown = await tooltips(page);
   win('cursor', String(tx), String(ty));
   await page.waitForTimeout(900);
   console.log(`${label.padEnd(36)} affichée : ${shown}   restante : ${await tooltips(page)}`);
 }
 
+console.log(`fenêtre ${win('state')} : [${left}, ${top}, ${width}, ${height}], échelle ${dpr}`);
 await leave('Réglages → sous la fenêtre', /^Réglages/, (x) => [x, top + height + 15]);
 await leave('Masquer la barre → barre de titre', 'Masquer la barre latérale', (x) => [
   x,

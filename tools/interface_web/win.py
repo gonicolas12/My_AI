@@ -5,18 +5,20 @@ Pilotage Win32 de la vraie fenêtre My_AI, pour les vérifications
   python tools/interface_web/win.py rect             bornes de la fenêtre, [x, y, largeur, hauteur]
   python tools/interface_web/win.py origin           coin haut gauche de la page, [x, y] à l'écran
   python tools/interface_web/win.py state            normale, agrandie ou réduite
+  python tools/interface_web/win.py screen           bornes du bureau (tous les écrans), [x, y, largeur, hauteur]
   python tools/interface_web/win.py move X Y W H     déplace et redimensionne (restaurée)
   python tools/interface_web/win.py close            WM_CLOSE (comme la croix)
+  python tools/interface_web/win.py front            met My_AI au premier plan
   python tools/interface_web/win.py shot FICHIER     premier plan, puis capture (barre de titre comprise)
   python tools/interface_web/win.py keys TOUCHE...   premier plan, puis touches (ex. f5 ctrl+r ctrl+b esc)
   python tools/interface_web/win.py cursor X Y       déplace le vrai curseur
 
 Les touches et le curseur du système vont à la fenêtre au premier plan, pas à
-celle qu'on vise. shot, keys et cursor attendent donc que le clavier et la
-souris n'aient pas servi depuis IDLE_S secondes (WAIT_S secondes au plus,
+celle qu'on vise. front, shot, keys et cursor attendent donc que le clavier et
+la souris n'aient pas servi depuis IDLE_S secondes (WAIT_S secondes au plus,
 sinon refus, code de sortie 2), et keys n'envoie chaque touche que si My_AI est
-au premier plan. Le reste (rect, origin, state, move, close) ne touche ni au
-focus ni aux saisies.
+au premier plan. rect, origin, state, screen et close ne touchent ni au focus
+ni aux saisies ; move restaure la fenêtre, ce qui peut l'activer.
 """
 
 import ctypes
@@ -137,7 +139,7 @@ def press(hwnd, combo):
     time.sleep(0.4)
 
 
-def main():  # pylint: disable=too-many-branches
+def main():  # pylint: disable=too-many-branches,too-many-statements
     """Action demandée sur la ligne de commande."""
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -153,6 +155,9 @@ def main():  # pylint: disable=too-many-branches
         print(json.dumps([point.x, point.y]))
     elif action == "state":
         print("agrandie" if user32.IsZoomed(hwnd) else "réduite" if user32.IsIconic(hwnd) else "normale")
+    elif action == "screen":
+        # SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN
+        print(json.dumps([user32.GetSystemMetrics(index) for index in (76, 77, 78, 79)]))
     elif action == "move":
         x, y, w, h = map(int, sys.argv[2:6])
         user32.ShowWindow(hwnd, 9)  # SW_RESTORE
@@ -162,6 +167,12 @@ def main():  # pylint: disable=too-many-branches
     elif action == "close":
         user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
         print("WM_CLOSE envoyé")
+    elif action == "front":
+        require_idle()
+        if not foreground(hwnd):
+            print("refusé : Windows n'a pas mis My_AI au premier plan", file=sys.stderr)
+            sys.exit(2)
+        print("premier plan")
     elif action == "shot":
         from PIL import ImageGrab  # pylint: disable=import-outside-toplevel
         require_idle()
