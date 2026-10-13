@@ -110,6 +110,12 @@ _PATH_MARKS = (":\\", ":/") if IS_WINDOWS else ("~/", "/")
 # Note d'une réponse (RLHF) : de 1 à 5 étoiles
 _RATING_RANGE = range(1, 6)
 
+# Clés d'une réponse au-delà du format Tk (D7) : gardées avec sa variante
+# d'édition (« ai_extra »), pour la retrouver entière en revenant dessus
+_ANSWER_EXTRA_KEYS = ("type", "timestamp", "thinking", "thinking_ms", "tool_calls", "documents",
+                      "file_path", "image_path", "interrupted", "error", "duration_ms",
+                      "tokens_per_s", "rating", "source")
+
 
 class ChatError(Exception):
     """Action refusée ; le message s'affiche tel quel à l'utilisateur."""
@@ -1502,6 +1508,12 @@ class ChatService:
         has_ai = end == start + 2
         version["ai"] = history[start + 1].get("text", "") if has_ai else None
         version["ai_mid"] = history[start + 1].get("mid") if has_ai else None
+        if has_ai:
+            answer = history[start + 1]
+            version["ai_extra"] = {key: answer[key] for key in _ANSWER_EXTRA_KEYS
+                                   if answer.get(key) not in (None, "", [], False)}
+        else:
+            version.pop("ai_extra", None)
         version["tail"] = [dict(message) for message in history[end:]]
 
     def _edit(self, turn_key: str, new_text: str, regenerate: bool) -> str:
@@ -1590,11 +1602,17 @@ class ChatService:
                 "mid": turn_key,
             })
             if version.get("ai") is not None:
-                history.append({
+                answer = {
                     "text": version["ai"], "is_user": False,
                     "timestamp": datetime.now(), "type": "text",
                     "mid": version.get("ai_mid") or uuid4().hex,
-                })
+                }
+                # Réflexion, outils, documents, durée, note… (variantes de Tk : sans)
+                extra = version.get("ai_extra")
+                if isinstance(extra, dict):
+                    answer.update({key: value for key, value in extra.items()
+                                   if key in _ANSWER_EXTRA_KEYS})
+                history.append(answer)
             history.extend(dict(message) for message in version.get("tail") or [])
             self._history = history
             self._rewind_engine_history()

@@ -1063,3 +1063,27 @@ def test_export_messages_use_the_exporter_format(chat):
         {"role": "user", "content": "Bonjour"},
         {"role": "assistant", "content": "Réponse à « Bonjour »"},
     ]
+
+
+def test_a_variant_keeps_its_whole_answer(chat):
+    """Revenir à une variante rend sa réponse entière : outils, documents, note (D7)."""
+    chat.service._rlhf_manager = FakeRLHF()  # pylint: disable=protected-access
+    chat.engine.script = [("tool", "web_search", {"query": "café"}),
+                          ("tool_result", "web_search", {}, "[1] https://a.example"),
+                          ("document", "C:/out/cafe.docx"), ("token", "Le café…")]
+    first = ask(chat, "Parle du café")
+    chat.service.rate(first["mid"], 5)
+    user_mid = chat.service.snapshot()["messages"][0]["mid"]
+    chat.engine.script = [("token", "Autre version")]
+    chat.service.send("", edit_mid=user_mid, regenerate=True)
+    wait_for(chat.events, "assistant.done", 2)
+    chat.service.navigate(user_mid, 0)
+    answer = chat.service.snapshot()["messages"][1]
+    assert answer["text"] == "Le café…" and answer["rating"] == 5
+    assert answer["documents"] == ["C:/out/cafe.docx"]
+    assert answer["tool_calls"][0]["name"] == "web_search"
+    # Variante enregistrée par Tk (sans « ai_extra ») : la réponse reste lisible
+    branch = chat.service._branches[user_mid]  # pylint: disable=protected-access
+    branch["versions"][1].pop("ai_extra")
+    chat.service.navigate(user_mid, 1)
+    assert chat.service.snapshot()["messages"][1]["text"] == "Autre version"
