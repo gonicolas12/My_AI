@@ -301,6 +301,9 @@ class _Turn:
     kind: str  # chat, file, image
     reasoning: bool = False
     started: float = field(default_factory=time.time)
+    # Même horloge que les relevés de fin de flux (time.time n'avance que
+    # toutes les 15,6 ms sous Windows)
+    started_clock: float = field(default_factory=time.perf_counter)
     text: str = ""
     tokens: int = 0
     first_token_at: Optional[float] = None
@@ -1051,14 +1054,19 @@ class ChatService:
     def _ollama_tokens_per_s(self, turn: _Turn) -> Optional[float]:
         """Vitesse d'écriture relevée par Ollama sur le dernier flux de la réponse (D15).
 
-        L'orchestrateur garde eval_count et eval_duration du dernier flux lu ;
-        un relevé antérieur à la réponse (réponse sans outils, flux interrompu)
-        est ignoré.
+        L'orchestrateur (réponses avec outils) et LocalLLM (réponses sans
+        outils, réponses à une image) gardent eval_count et eval_duration du
+        dernier flux lu : le plus récent pendant la réponse compte. Un relevé
+        antérieur (flux interrompu, autre chemin) est ignoré.
         """
         orchestrator = getattr(self._engine, "_chat_orchestrator", None)
-        stats = getattr(orchestrator, "last_stream_stats", None)
-        if not isinstance(stats, dict) or (stats.get("at") or 0) < turn.started:
+        candidates = [getattr(orchestrator, "last_stream_stats", None),
+                      getattr(self._llm(), "last_stream_stats", None)]
+        recent = [stats for stats in candidates
+                  if isinstance(stats, dict) and (stats.get("at") or 0) >= turn.started_clock]
+        if not recent:
             return None
+        stats = max(recent, key=lambda item: item.get("at") or 0)
         count, duration = stats.get("eval_count"), stats.get("eval_duration")
         if not isinstance(count, (int, float)) or not isinstance(duration, (int, float)):
             return None

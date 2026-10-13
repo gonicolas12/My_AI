@@ -569,8 +569,9 @@ class ChatOrchestrator:
     """
 
     # Fin du dernier flux de réponse lu : eval_count et eval_duration (ns)
-    # renvoyés par Ollama, et l'heure du relevé. Lecture seule pour le service
-    # de chat (tokens/s) : les requêtes à Ollama n'en dépendent pas.
+    # renvoyés par Ollama, et le moment du relevé (time.perf_counter : sous
+    # Windows, time.time n'avance que toutes les 15,6 ms). Lecture seule pour
+    # le service de chat (tokens/s) : les requêtes à Ollama n'en dépendent pas.
     last_stream_stats: Optional[Dict[str, Any]] = None
 
     def _record_stream_stats(self, chunk: Dict[str, Any]) -> None:
@@ -578,7 +579,7 @@ class ChatOrchestrator:
         self.last_stream_stats = {
             "eval_count": chunk.get("eval_count"),
             "eval_duration": chunk.get("eval_duration"),
-            "at": time.time(),
+            "at": time.perf_counter(),
         }
 
     # ---------------------------------------------------------------- run ---

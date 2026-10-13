@@ -32,6 +32,7 @@ class FakeLLM:
     def __init__(self):
         self.conversation_history = []
         self.calls = []
+        self.last_stream_stats = None  # relevé de fin de flux (D17)
 
     def add_to_history(self, role, content):
         self.conversation_history.append({"role": role, "content": content})
@@ -192,7 +193,11 @@ class FakeEngine:
                 raise step[1]
             elif kind == "stats":
                 self._chat_orchestrator.last_stream_stats = {
-                    "eval_count": step[1], "eval_duration": step[2], "at": time.time(),
+                    "eval_count": step[1], "eval_duration": step[2], "at": time.perf_counter(),
+                }
+            elif kind == "llm_stats":  # réponse sans outils (LocalLLM.generate_stream)
+                self.local_ai.local_llm.last_stream_stats = {
+                    "eval_count": step[1], "eval_duration": step[2], "at": time.perf_counter(),
                 }
         return streamed
 
@@ -451,11 +456,28 @@ def test_tokens_per_second_come_from_ollama_stream_stats(chat):
     assert chat.service.snapshot()["messages"][-1]["tokens_per_s"] == 73.0
 
 
+def test_tokens_per_second_of_an_answer_without_tools_come_from_local_llm(chat):
+    # D17 : LocalLLM.generate_stream garde le même relevé que l'orchestrateur
+    chat.engine.script = [("token", "Bonjour !"), ("llm_stats", 30, 400_000_000)]
+    done = ask(chat, "Salut")
+
+    assert done["tokens_per_s"] == 75.0
+
+
+def test_the_most_recent_stream_stats_win(chat):
+    # Orchestrateur sans réponse, puis relance sans outils par LocalLLM
+    chat.engine.script = [("stats", 20, 1_000_000_000), ("token", "Réponse"),
+                          ("llm_stats", 150, 2_000_000_000)]
+    done = ask(chat, "Question")
+
+    assert done["tokens_per_s"] == 75.0
+
+
 def test_stale_stream_stats_are_ignored(chat):
-    # Relevé d'une réponse précédente (réponse sans outils, flux coupé) : repli
-    # sur l'estimation, absente pour une réponse si brève
+    # Relevé d'une réponse précédente (flux coupé, autre chemin) : repli sur
+    # l'estimation, absente pour une réponse si brève
     chat.engine._chat_orchestrator.last_stream_stats = {  # pylint: disable=protected-access
-        "eval_count": 999, "eval_duration": 1_000_000_000, "at": time.time() - 60,
+        "eval_count": 999, "eval_duration": 1_000_000_000, "at": time.perf_counter() - 60,
     }
     done = ask(chat, "Bonjour")
 
