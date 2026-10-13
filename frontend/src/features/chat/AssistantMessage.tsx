@@ -15,7 +15,7 @@ import { toolText } from './tools';
 const NO_TOOLS: ToolCallView[] = [];
 
 /**
- * Bloc « Raisonnement » en attente : requête complexe (comme Tk, affiché dès
+ * Bloc « Réflexion » en attente : requête complexe (comme Tk, affiché dès
  * le début), ou jetons de réflexion en cours de réception.
  */
 function reasoningActive(live: LiveTurn | null): boolean {
@@ -28,7 +28,7 @@ function reasoningActive(live: LiveTurn | null): boolean {
 function activityOf(live: LiveTurn | null): string | null {
   if (!live) return "L'IA réfléchit";
   if (live.kind !== 'chat') return live.status || null;
-  if (reasoningActive(live)) return null; // le bloc Raisonnement s'anime
+  if (reasoningActive(live)) return null; // le bloc Réflexion s'anime
   const last = live.tools[live.tools.length - 1];
   if (last?.name === 'synthesis') {
     return live.text.length <= (last.at ?? 0) ? toolText(last.label) : null;

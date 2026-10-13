@@ -15,7 +15,7 @@ interface ReasoningProps {
 }
 
 /**
- * Bloc « Raisonnement » repliable (mode thinking) : déplié pendant la
+ * Bloc « Réflexion » repliable (mode thinking) : déplié pendant la
  * réflexion, comme dans l'interface Tk, puis replié une fois la réponse
  * commencée, sauf si l'utilisateur l'a ouvert ou fermé lui-même.
  */
@@ -45,7 +45,7 @@ export function Reasoning({ text, active, durationMs, live }: ReasoningProps) {
         className="group inline-flex items-center gap-1.5 rounded-sm py-1 pr-2 text-sm text-fg-2 transition-colors hover:text-fg"
       >
         <Brain size={15} className={cn('shrink-0', waiting && 'text-accent pulse-soft')} />
-        <span className={cn(waiting && 'shimmer')}>Raisonnement</span>
+        <span className={cn(waiting && 'shimmer')}>Réflexion</span>
         {duration ? <span className="text-fg-3">· {duration}</span> : null}
         {hasText ? (
           <ChevronRight

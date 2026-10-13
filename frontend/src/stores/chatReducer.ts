@@ -24,7 +24,7 @@ export interface LiveTurn {
   requestId: string;
   kind: TurnKind;
   source: Source;
-  /** Bloc « Raisonnement » attendu (requête complexe) */
+  /** Bloc « Réflexion » attendu (requête complexe) */
   reasoning: boolean;
   text: string;
   thinking: string;
