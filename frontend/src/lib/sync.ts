@@ -8,7 +8,7 @@
  */
 
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
-import { notify, useApp } from '../stores/app';
+import { notify, showScheduledResult, useApp } from '../stores/app';
 import {
   applyFolderProgress,
   applyFoldersChanged,
@@ -172,11 +172,9 @@ export function startSync(): () => void {
         applyVoiceOutput(p.state, p.key, p.message);
         return;
       }
-      case 'scheduler.result': {
-        const p = (event as ServerEvent<'scheduler.result'>).payload;
-        useApp.setState({ lastScheduled: p });
+      case 'scheduler.result':
+        showScheduledResult((event as ServerEvent<'scheduler.result'>).payload);
         return;
-      }
       default:
         return;
     }

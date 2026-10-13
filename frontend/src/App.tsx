@@ -7,6 +7,7 @@ import { useAutoRead } from './features/chat/useAutoRead';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { Header } from './features/shell/Header';
 import { Sidebar } from './features/shell/Sidebar';
+import { ScheduledToasts } from './features/shell/ScheduledToasts';
 import { Toasts } from './features/shell/Toasts';
 import {
   clearConversation,
@@ -95,6 +96,7 @@ export function App() {
         <LoadingScreen status={status} connection={connection} />
       )}
       <Toasts />
+      <ScheduledToasts />
     </TooltipProvider>
   );
 }

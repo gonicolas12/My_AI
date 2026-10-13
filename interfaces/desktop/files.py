@@ -92,21 +92,32 @@ class FileLinks:
             return None
 
 
+def _setting(config, key: str, default: str) -> str:
+    """Réglage `key` de la configuration (section.clé), ou `default`."""
+    if config is None:
+        return default
+    try:
+        return config.get(key, default) or default
+    except Exception:  # pylint: disable=broad-except
+        return default
+
+
 def generated_roots(config=None) -> List[str]:
-    """Dossiers où l'appli écrit ce qu'elle produit (documents, images, exports…)."""
-    roots = [str(PROJECT_ROOT / "outputs")]
-    configured = "outputs"
-    if config is not None:
-        try:
-            configured = config.get("generation.output_directory", "outputs") or "outputs"
-        except Exception:  # pylint: disable=broad-except
-            configured = "outputs"
+    """Dossiers où l'appli écrit ce qu'elle produit (documents, images, exports, rapports…)."""
     # Les générateurs écrivent souvent en relatif (« outputs/… ») : depuis le
     # dossier courant, qui n'est pas forcément la racine du projet
-    for candidate in (configured, "outputs"):
-        absolute = os.path.abspath(candidate)
-        if absolute not in roots:
-            roots.append(absolute)
+    candidates = [
+        str(PROJECT_ROOT / "outputs"),
+        os.path.abspath(_setting(config, "generation.output_directory", "outputs")),
+        os.path.abspath("outputs"),
+    ]
+    # Rapports des tâches planifiées : relatifs à la racine du projet (core/scheduler.py)
+    reports = Path(_setting(config, "scheduler.output_directory", "outputs/scheduled"))
+    candidates.append(str(reports if reports.is_absolute() else PROJECT_ROOT / reports))
+    roots: List[str] = []
+    for root in candidates:
+        if root not in roots:
+            roots.append(root)
     return roots
 
 

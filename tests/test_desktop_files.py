@@ -84,6 +84,13 @@ def test_generated_files_are_those_inside_outputs(tmp_path):
     assert not local_files.is_generated(str(tmp_path / "outputs" / "absent.docx"), roots)
 
 
+def test_scheduled_reports_count_as_generated(tmp_path):
+    config = {"scheduler.output_directory": str(tmp_path / "rapports")}
+    roots = local_files.generated_roots(SimpleNamespace(get=lambda key, default=None: config.get(key, default)))
+    assert str(tmp_path / "rapports") in roots
+    assert str(local_files.PROJECT_ROOT / "outputs" / "scheduled") in local_files.generated_roots()
+
+
 def test_links_are_signed_only_for_files_the_conversation_knows(desk):
     attached = write(desk.tmp_path / "Documents" / "joint.txt")
     generated = write(desk.outputs / "image.png")
