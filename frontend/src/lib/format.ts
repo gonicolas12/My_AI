@@ -1,3 +1,13 @@
+/**
+ * Emoji de tête d'un message du serveur (« ✅ … », format de l'interface Tk) :
+ * dans une notification, l'icône du niveau le remplace
+ */
+const LEADING_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Variation_Selector}|\u{200D}|\s)+/u;
+
+export function withoutLeadingEmoji(message: string): string {
+  return message.replace(LEADING_EMOJI, '') || message;
+}
+
 /** Heure « 14:05 » d'un horodatage ISO ('' s'il est invalide) */
 export function formatTime(iso: string | null | undefined): string {
   if (!iso) return '';

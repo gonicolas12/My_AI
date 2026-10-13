@@ -12,7 +12,13 @@ interface PywebviewApi {
   open_external(url: string): Promise<boolean>;
   platform(): Promise<string>;
   set_title_bar_colors(background: string, text: string): Promise<boolean>;
+  pick_files(kind: string): Promise<string[] | null>;
+  pick_folder(): Promise<string | null>;
+  save_file(name: string, fmt: string): Promise<string | null>;
 }
+
+/** Entrées du menu « + » : types de pièces jointes de l'interface Tk */
+export type AttachKind = 'PDF' | 'DOCX' | 'Excel' | 'PowerPoint' | 'Code' | 'Image';
 
 declare global {
   interface Window {
@@ -76,6 +82,44 @@ export const shell = {
   /** Vrai dans la fenêtre pywebview (une fois son pont injecté) */
   isDesktop(): boolean {
     return Boolean(api()?.open_external);
+  },
+
+  /** Dialogues de fichiers du système : dans la fenêtre pywebview seulement */
+  canPickFiles(): boolean {
+    return Boolean(api()?.pick_files);
+  },
+
+  /** Fichiers à joindre (dialogue du système) ; liste vide si annulé */
+  async pickFiles(kind: AttachKind): Promise<string[]> {
+    const pick = api()?.pick_files;
+    if (!pick) return [];
+    try {
+      return (await pick(kind)) ?? [];
+    } catch {
+      return [];
+    }
+  },
+
+  /** Dossier à attacher au projet (dialogue du système) */
+  async pickFolder(): Promise<string | null> {
+    const pick = api()?.pick_folder;
+    if (!pick) return null;
+    try {
+      return await pick();
+    } catch {
+      return null;
+    }
+  },
+
+  /** Chemin d'enregistrement d'un export (dialogue du système) */
+  async saveFile(name: string, fmt: string): Promise<string | null> {
+    const save = api()?.save_file;
+    if (!save) return null;
+    try {
+      return await save(name, fmt);
+    } catch {
+      return null;
+    }
   },
 
   /** Ouvre un lien dans le navigateur du système ; la fenêtre ne le charge jamais. */

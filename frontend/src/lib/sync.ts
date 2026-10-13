@@ -12,6 +12,7 @@ import { notify, useApp } from '../stores/app';
 import { ApiError, api, getToken } from './api';
 import type { AnyServerEvent, ServerEvent } from './events';
 import { isAgentEvent, isChatEvent } from './events';
+import { dispatchDroppedPaths } from './drops';
 import { createFrameBatcher } from './scheduleFrame';
 import { EventSocket } from './ws';
 
@@ -133,6 +134,9 @@ export function startSync(): () => void {
       }
       case 'sessions.changed':
         refreshSessions();
+        return;
+      case 'files.dropped':
+        dispatchDroppedPaths((event as ServerEvent<'files.dropped'>).payload.paths);
         return;
       case 'scheduler.result': {
         const p = (event as ServerEvent<'scheduler.result'>).payload;

@@ -2,6 +2,7 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react';
 
 import { cn } from '../../lib/cn';
 import type { NotificationLevel } from '../../lib/events';
+import { withoutLeadingEmoji } from '../../lib/format';
 import { dismissToast, useApp } from '../../stores/app';
 
 const STYLES: Record<NotificationLevel, { icon: typeof Info; color: string }> = {
@@ -29,7 +30,7 @@ export function Toasts() {
             style={{ animation: 'rise-in var(--motion) var(--motion-ease)' }}
           >
             <Icon size={16} className={cn('mt-0.5 shrink-0', color)} />
-            <span className="min-w-0 flex-1 break-words">{toast.message}</span>
+            <span className="min-w-0 flex-1 break-words">{withoutLeadingEmoji(toast.message)}</span>
             <button
               type="button"
               aria-label="Fermer"

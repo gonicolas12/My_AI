@@ -1,11 +1,17 @@
-import { ChevronLeft, ChevronRight, FileText, ImageIcon, Smartphone } from 'lucide-react';
-import { memo } from 'react';
+import { ChevronLeft, ChevronRight, Smartphone } from 'lucide-react';
+import { createElement, memo, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
+import { Lightbox } from '../../components/ui/Lightbox';
+import { revealPath } from '../../lib/actions';
 import { api } from '../../lib/api';
-import type { MessageView } from '../../lib/events';
+import { documentArtifacts } from '../../lib/artifacts';
+import type { AttachmentRef, MessageView } from '../../lib/events';
+import { useFileUrl } from '../../lib/files';
 import { formatTime } from '../../lib/format';
 import { notify } from '../../stores/app';
+import { openPreview } from '../../stores/preview';
+import { attachmentIcon } from './attachKinds';
 import { splitAttachmentLines } from './attachments';
 import { CopyButton, MessageActions } from './MessageActions';
 
@@ -15,6 +21,54 @@ interface UserMessageProps {
   branch?: { count: number; current: number } | undefined;
   /** Réponse en cours : pas de changement de variante */
   busy: boolean;
+}
+
+/**
+ * Pièce jointe d'un message envoyé : une image s'agrandit, un document qui a
+ * un aperçu s'ouvre dans le volet, un autre fichier se montre dans l'Explorateur.
+ */
+function SentAttachment({ attachment, mid }: { attachment: AttachmentRef; mid: string }) {
+  const image = attachment.type === 'Image';
+  const url = useFileUrl(image ? attachment.path : null);
+  const [zoom, setZoom] = useState(false);
+  const open = () => {
+    if (image) {
+      setZoom(true);
+      return;
+    }
+    const [artifact] = documentArtifacts([attachment.path], 0, false);
+    if (artifact) openPreview(mid, [artifact]);
+    else void revealPath(attachment.path);
+  };
+  return (
+    <>
+      <button
+        type="button"
+        onClick={open}
+        title={attachment.path}
+        className="inline-flex h-9 max-w-64 items-center gap-2 rounded-md border border-line bg-bg-2 pr-2.5 pl-1 text-xs text-fg-2 transition-colors duration-150 hover:border-line-2 hover:text-fg"
+      >
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-3">
+          {image && url ? (
+            <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+          ) : (
+            createElement(attachmentIcon(attachment.type), { size: 14 })
+          )}
+        </span>
+        <span className="truncate">{attachment.name}</span>
+      </button>
+      {image ? (
+        <Lightbox
+          open={zoom}
+          onOpenChange={setZoom}
+          url={url}
+          path={attachment.path}
+          name={attachment.name}
+          generated={false}
+        />
+      ) : null}
+    </>
+  );
 }
 
 function navigate(mid: string, version: number) {
@@ -43,14 +97,7 @@ export const UserMessage = memo(function UserMessage({ message, branch, busy }: 
       {attachments.length ? (
         <div className="mt-1.5 flex max-w-[85%] flex-wrap justify-end gap-1.5">
           {attachments.map((att) => (
-            <span
-              key={att.path}
-              title={att.path}
-              className="inline-flex max-w-64 items-center gap-1.5 rounded-md border border-line bg-bg-2 px-2 py-1 text-xs text-fg-2"
-            >
-              {att.type === 'Image' ? <ImageIcon size={13} /> : <FileText size={13} />}
-              <span className="truncate">{att.name}</span>
-            </span>
+            <SentAttachment key={att.path} attachment={att} mid={message.mid} />
           ))}
         </div>
       ) : null}

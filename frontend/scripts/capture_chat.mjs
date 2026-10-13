@@ -23,6 +23,12 @@ page.on('console', (m) => {
 });
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 
+/** Fichier des données de test du suivi (section 4) */
+const fixture = (name) =>
+  decodeURIComponent(
+    new URL(`../../temp/migration_test_data/fichiers/${name}`, import.meta.url).pathname,
+  ).replace(/^\/([A-Za-z]:)/, '$1');
+
 let n = 0;
 async function shot(name) {
   n += 1;
@@ -168,6 +174,66 @@ if (wanted('fichier')) {
   const card = page.getByRole('button', { name: 'Ouvrir somme.py' });
   check('fichier généré : carte', (await card.count()) === 1);
   await shot('fichier_genere');
+}
+
+if (wanted('pieces')) {
+  await newConversation();
+  // Menu « + » : dans un navigateur, le sélecteur de fichiers de la page
+  await page.getByRole('button', { name: 'Joindre un fichier' }).click();
+  await page.getByRole('menu', { name: 'Joindre' }).waitFor();
+  await shot('menu_joindre');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('menuitem', { name: 'PDF' }).click();
+  await (await chooser).setFiles(fixture('rapport_trimestriel.pdf'));
+  // Image collée (Ctrl+V) et fichier déposé, construits dans la page
+  await composer(page).focus();
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 48;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#ff6b47';
+    context.fillRect(0, 0, 64, 48);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    const paste = new DataTransfer();
+    paste.items.add(new File([blob], 'image.png', { type: 'image/png' }));
+    const box = document.querySelector('textarea[aria-label="Message"]');
+    box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: paste, bubbles: true }));
+    const drop = new DataTransfer();
+    drop.items.add(new File(['a,b\n1,2\n'], 'ventes.csv', { type: 'text/csv' }));
+    for (const type of ['dragenter', 'dragover', 'drop']) {
+      box.dispatchEvent(
+        new DragEvent(type, { dataTransfer: drop, bubbles: true, cancelable: true }),
+      );
+    }
+  });
+  await page.waitForTimeout(400);
+  await shot('pieces_en_lecture');
+  await page.waitForFunction(
+    () => !document.querySelector('[aria-label="Lecture en cours"]'),
+    null,
+    { timeout: 15000 },
+  );
+  const chips = await page.locator('button[aria-label^="Retirer "]').count();
+  check('pièces jointes : PDF, image collée, CSV déposé', chips === 3, `${chips} vignettes`);
+  const thumbs = await page.locator('img[alt=""]').count();
+  check('pièces jointes : miniature de l’image', thumbs >= 1, `${thumbs} miniature`);
+  await shot('pieces_pretes');
+  await send('Résume ces fichiers');
+  await shot('pieces_envoyees');
+}
+
+if (wanted('slash')) {
+  await newConversation();
+  await composer(page).fill('');
+  await composer(page).pressSequentially('/');
+  const list = page.getByRole('listbox', { name: 'Commandes' });
+  await list.waitFor({ timeout: 5000 });
+  await shot('slash_liste');
+  await composer(page).press('Enter');
+  const value = await composer(page).inputValue();
+  check('slash : Entrée insère la commande', value === '/code ', JSON.stringify(value));
+  await composer(page).fill('');
 }
 
 console.log(logs.length ? logs.join('\n') : 'Console : aucune erreur');

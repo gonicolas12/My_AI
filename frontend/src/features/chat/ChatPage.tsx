@@ -9,6 +9,7 @@ import { Composer } from './Composer';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 import { HomeScreen } from './HomeScreen';
 import { Thread } from './Thread';
+import { useFileDrop } from './useFileDrop';
 
 const OLLAMA_DOWN = "Ollama n'a pas pu démarrer — lancez l'application Ollama ou « ollama serve »";
 
@@ -25,10 +26,11 @@ function OllamaBanner() {
 
 export function ChatPage() {
   useAutoOpenArtifacts();
+  const drop = useFileDrop('chat');
   const empty = useChat((state) => state.messages.length === 0 && !isGenerating(state));
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col" {...drop}>
         <OllamaBanner />
         {empty ? (
           <HomeScreen />

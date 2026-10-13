@@ -195,3 +195,13 @@ describe('EventSocket', () => {
     socket.stop();
   });
 });
+
+describe('notifications', () => {
+  it("retire l'emoji de tête des messages du serveur, pas les chiffres", async () => {
+    const { withoutLeadingEmoji } = await import('./format');
+    expect(withoutLeadingEmoji('✅ rapport.pdf prêt')).toBe('rapport.pdf prêt');
+    expect(withoutLeadingEmoji('⚠️ Attention')).toBe('Attention');
+    expect(withoutLeadingEmoji('3 fichiers indexés')).toBe('3 fichiers indexés');
+    expect(withoutLeadingEmoji('✅')).toBe('✅');
+  });
+});
