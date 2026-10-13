@@ -82,6 +82,21 @@ class DesktopState:
                 logger.warning("État de l'interface non enregistré : %s", exc)
 
 
+def _config_flag(key: str, default=False):
+    """Réglage de config.yaml (core.config), avec repli silencieux."""
+    try:
+        from core.config import get_config  # pylint: disable=import-outside-toplevel
+        return get_config().get(key, default)
+    except Exception:  # pylint: disable=broad-except
+        return default
+
+
+def _save_autoread(enabled: bool) -> None:
+    """Lecture automatique enregistrée dans config.yaml, commentaires gardés."""
+    from interfaces.onboarding import set_config_flag  # pylint: disable=import-outside-toplevel
+    set_config_flag("ui.tts_autoread", bool(enabled))
+
+
 class DesktopApp:
     """Appli desktop : serveur local, étapes de lancement, moteur et services."""
 
@@ -108,6 +123,7 @@ class DesktopApp:
         self.relay = None
         self.scheduler = None
         self._agent_service = None
+        self._voice = None
 
         self._lock = threading.Lock()
         self._status: Dict[str, Any] = {
@@ -275,6 +291,16 @@ class DesktopApp:
             self.state.set("current_session", None)
 
     @property
+    def voice(self):
+        """Saisie et lecture vocales de la fenêtre (créées au premier usage)."""
+        with self._lock:
+            if self._voice is None:
+                from interfaces.desktop.voice import VoiceService  # pylint: disable=import-outside-toplevel
+                self._voice = VoiceService(self.bus.publish, autoread=_config_flag("ui.tts_autoread"),
+                                           save_autoread=_save_autoread)
+            return self._voice
+
+    @property
     def agent_service(self):
         """Exécuteur d'agents partagé : page Agents, Relay et scheduler."""
         with self._lock:
@@ -391,6 +417,11 @@ class DesktopApp:
         if self.scheduler is not None:
             try:
                 self.scheduler.stop()
+            except Exception:  # pylint: disable=broad-except
+                pass
+        if self._voice is not None:
+            try:
+                self._voice.shutdown()
             except Exception:  # pylint: disable=broad-except
                 pass
         if self.chat is not None:

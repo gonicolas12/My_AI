@@ -1,9 +1,10 @@
 """Worker de transcription Whisper, isolé dans son propre process.
 
 ⚠️ **Ce fichier doit être lancé PAR CHEMIN** (``python .../_whisper_worker.py``),
-jamais via ``python -m interfaces.gui._whisper_worker`` : le second exécuterait
-``interfaces/gui/__init__.py``, qui importe toute la pile applicative — donc
-torch — et réintroduirait exactement le conflit que ce worker existe pour éviter.
+jamais comme module d'un paquet (``python -m …``) : le paquet exécuterait ses
+``__init__.py`` — celui de ``interfaces/gui/``, où le worker vivait avant la
+migration web, importait toute la pile applicative, donc torch — et
+réintroduirait exactement le conflit que ce worker existe pour éviter.
 
 Pourquoi ce process séparé
 --------------------------
