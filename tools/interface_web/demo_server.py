@@ -48,12 +48,24 @@ fictifs, en mémoire, et les
 messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
 Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
 temp/demo_server/PORT/prompt_templates.json.
+
+Page Agents : le vrai AgentRelayService (plan d'exécution, événements, une
+exécution à la fois), avec un orchestrateur et un modèle scénarisés ; les agents
+personnalisés sont une copie de data/custom_agents.json, les fils d'exécution
+sont dans temp/demo_server/PORT/agent_runs.json. Scénarios (mot dans la tâche) :
+  « erreur »     chaque agent échoue après quelques lignes
+  « lent »       agents lents (10 caractères par seconde), pour Arrêter
+  code fourni    un fichier de code joint, ou un bloc de code dans la tâche :
+                 CodeAgent, DebugAgent, OptimizerAgent et SecurityAgent en rendent
+                 une version modifiée (diff dans le fil)
+  autre          réponse propre à chaque agent, au rythme du streaming
 """
 
 import argparse
 import base64
 import json
 import os
+import re
 import secrets
 import shutil
 import sys
@@ -70,7 +82,9 @@ sys.path.insert(0, str(ROOT / "tests"))
 from core.chat_service import ChatService  # noqa: E402
 from core.memory_store import MemoryStore  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
+from relay.agent_relay import AgentRelayService  # noqa: E402
 from relay.relay_server import _ROUTER_PAGE_URL  # noqa: E402
+from interfaces.desktop.agents import AgentsService  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
@@ -843,6 +857,181 @@ class DemoRelay:
         return f"http://127.0.0.1:{self.port}/?token={self.auth_token}#k={_b64u(self.key)}"
 
 
+AGENT_ANSWERS = {
+    "planner": """## Plan de développement
+
+1. **Modèle de données** : livres, auteurs, utilisateurs (SQLite, SQLAlchemy).
+2. **Authentification** : jetons signés, mots de passe hachés.
+3. **Routes** : CRUD des livres, recherche, pagination.
+4. **Tests** : un test par route, plus les cas limites.
+
+| Étape | Charge | Risque |
+|---|---|---|
+| Modèle | 0,5 j | faible |
+| Routes | 1 j | moyen |
+| Sécurité | 1 j | élevé |
+""",
+    "code": """Voici une première version de l'API :
+
+```python
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI(title="Bibliothèque")
+LIVRES: dict[int, dict] = {}
+
+
+@app.get("/livres")
+def lister_livres(page: int = 1, taille: int = 20):
+    debut = (page - 1) * taille
+    return list(LIVRES.values())[debut:debut + taille]
+
+
+@app.get("/livres/{livre_id}")
+def lire_livre(livre_id: int):
+    if livre_id not in LIVRES:
+        raise HTTPException(status_code=404, detail="Livre introuvable")
+    return LIVRES[livre_id]
+```
+
+Les routes d'écriture suivent le même modèle.
+""",
+    "security": """**Points de vigilance**
+
+- Le jeton doit expirer (15 min) et être signé avec une clé lue dans l'environnement.
+- Limiter les tentatives de connexion par adresse.
+- Valider la pagination : une `taille` de 10 000 épuiserait la mémoire.
+""",
+    "debug": """Aucun bogue bloquant. Deux remarques :
+
+1. `lister_livres` accepte `page = 0`, qui renvoie une liste vide sans erreur.
+2. Les identifiants ne sont jamais réutilisés : c'est voulu.
+""",
+    "web": """D'après les sources consultées, FastAPI reste le choix le plus courant pour une API
+Python moderne [1], devant Flask [2].
+
+📚 **Sources**
+[1] https://fastapi.tiangolo.com/
+[2] https://flask.palletsprojects.com/
+""",
+}
+
+
+def _user_task(task: str) -> str:
+    """Tâche saisie, sans le contexte des agents précédents ni les pièces jointes."""
+    if "\n\nTâche: " in task:
+        task = task.rsplit("\n\nTâche: ", 1)[1]
+    return re.split(r"\n\n--- (?:Fichier|Image) joint", task, maxsplit=1)[0]
+
+
+def _provided_code(task: str):
+    """Code fourni à l'agent : fichier de code joint, sinon premier bloc de la tâche."""
+    joined = re.search(r"--- Fichier joint : [^\n]+\.(?:py|js|ts|java|go|rs|cpp|c|cs|rb|php) ---\n"
+                       r"(.*?)(?=\n--- (?:Fichier|Image) joint|\Z)", task, re.S)
+    if joined:
+        return joined.group(1).rstrip("\n")
+    block = re.search(r"```[^\n]*\n(.*?)```", task, re.S)
+    return block.group(1).rstrip("\n") if block else None
+
+
+def _reviewed(code: str, agent_type: str) -> str:
+    """Version « revue » d'un code : quelques changements, pour un diff lisible."""
+    lines = code.split("\n")
+    out = []
+    documented = False
+    for line in lines:
+        if "print(" in line:
+            continue  # traces de débogage retirées
+        line = line.replace("== None", "is None").replace("!= None", "is not None")
+        out.append(line)
+        if not documented and line.lstrip().startswith(("def ", "function ")):
+            indent = len(line) - len(line.lstrip()) + 4
+            out.append(" " * indent + f'"""Revu par {agent_type.capitalize()}Agent."""')
+            documented = True
+    out.append("")
+    out.append("# Fin du module")
+    return "\n".join(out)
+
+
+def demo_agent_answer(agent_type: str, task: str) -> str:
+    """Réponse scénarisée d'un agent, selon la tâche."""
+    code = _provided_code(task)
+    if code and agent_type in ("code", "debug", "optimizer", "security"):
+        return (f"Voici la version revue du code fourni :\n\n```python\n{_reviewed(code, agent_type)}"
+                "\n```\n\nLes traces de débogage sont retirées et les comparaisons à `None` "
+                "passent par `is`.")
+    answer = AGENT_ANSWERS.get(agent_type)
+    if answer:
+        return answer
+    return (f"**{agent_type}** a traité la tâche :\n\n> {task.splitlines()[0][:160]}\n\n"
+            "Réponse de démonstration, écrite au rythme du streaming.")
+
+
+class DemoOrchestrator:
+    """Orchestrateur scénarisé : chaque agent écrit sa réponse au rythme du streaming."""
+
+    def __init__(self, rate):
+        self.agents = {}
+        self.rate = rate
+
+    def execute_single_task_stream(self, agent_type, task, context=None, on_token=None):
+        """Comme AgentOrchestrator.execute_single_task_stream, sans modèle."""
+        del context
+        text = demo_agent_answer(agent_type, task)
+        # Scénarios lus dans la tâche saisie : le contexte d'un agent précédent
+        # (« Contexte précédent ») ne doit pas les déclencher
+        wanted = _user_task(task).lower()
+        failing = "erreur" in wanted
+        if failing:
+            text = text[:120]
+        slow = "lent" in wanted
+        delay = 0.4 if slow else 1 / max(self.rate, 1)
+        for piece in chunks(text):
+            if on_token is not None and on_token(piece) is False:
+                return {"success": False, "error": "interrompu", "result": ""}
+            time.sleep(delay)
+        if failing:
+            return {"success": False, "error": "erreur simulée", "result": ""}
+        return {"success": True, "result": text, "agent": agent_type}
+
+
+class DemoAgentLLM:
+    """Modèle simulé : prompts des agents personnalisés, description des images."""
+
+    @staticmethod
+    def generate(prompt, system_prompt=None):
+        """Prompt système d'un agent personnalisé, après une courte rédaction."""
+        del system_prompt
+        time.sleep(1.5)
+        name = re.search(r"Voici le nom de l'agent: (.*)", prompt)
+        role = re.search(r"Voici la description de son rôle: (.*)", prompt)
+        name = name.group(1).strip() if name else "Agent"
+        role = role.group(1).strip() if role else ""
+        summary = " ".join(role.split()[:3]) or "Agent personnalisé"
+        return (f"Tu es {name}, un expert ({role}).\n\nEXPERTISE: {role}\n"
+                f"TEMPERATURE: 0.4\nSUMMARY: {summary}")
+
+    @staticmethod
+    def describe_image(_b64):
+        """Description d'une image jointe."""
+        time.sleep(0.8)
+        return "Capture d'écran d'une interface sombre : une grille de cartes et un canvas."
+
+
+class DemoAgentService(AgentRelayService):
+    """Le vrai AgentRelayService, sans Ollama : orchestrateur et modèle scénarisés,
+    agents personnalisés dans une copie de data/custom_agents.json."""
+
+    def __init__(self, agents_file, rate):
+        self._demo_agents_file = str(agents_file)
+        super().__init__()
+        self._orchestrator = DemoOrchestrator(rate)
+        self._llm = DemoAgentLLM()
+
+    def _load_and_register_custom(self):
+        self._custom_agents_file = self._demo_agents_file
+        super()._load_and_register_custom()
+
+
 class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
     """DesktopApp sans Ollama : étapes du lancement simulées, moteur scénarisé."""
 
@@ -857,6 +1046,28 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         if not real_voice:
             # Lecture automatique gardée en mémoire : rien n'est écrit dans config.yaml
             self._voice = DemoVoiceService(self.bus.publish)
+
+    @property
+    def agent_service(self):
+        """Exécuteur d'agents scénarisé (copie des agents personnalisés)."""
+        with self._lock:
+            if self._agent_service is None:
+                agents_file = self._workspaces.parent / "custom_agents.json"
+                if not agents_file.exists() and (ROOT / "data" / "custom_agents.json").is_file():
+                    shutil.copy2(ROOT / "data" / "custom_agents.json", agents_file)
+                self._agent_service = DemoAgentService(agents_file, self._rate)
+            return self._agent_service
+
+    @property
+    def agents(self):
+        """Page Agents : fils d'exécution dans le dossier temporaire, jamais dans data/."""
+        with self._services_lock:
+            if self._agents is None:
+                self._agents = AgentsService(
+                    lambda: self.agent_service, self.bus.publish,
+                    runs_file=self._workspaces.parent / "agent_runs.json",
+                    notify=self.notify, last_seq=lambda: self.bus.last_seq)
+            return self._agents
 
     def start_relay(self, tunnel=None):
         """Relay simulé (DemoRelay) : ni serveur ni tunnel réels."""
