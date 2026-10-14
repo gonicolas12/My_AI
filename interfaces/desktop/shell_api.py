@@ -47,12 +47,16 @@ ATTACH_FILTERS = {
                _ALL_FILES), False),
 }
 
-# Filtres du dialogue d'export, par format
+# Filtres du dialogue d'export, par format ; json : workflow de la page Agents
 EXPORT_FILTERS = {
     "markdown": ("Markdown (*.md)", "Tous (*.*)"),
     "html": ("HTML (*.html)", "Tous (*.*)"),
     "pdf": ("PDF (*.pdf)", "Tous (*.*)"),
+    "json": ("Fichiers JSON (*.json)", "Tous (*.*)"),
 }
+
+# Workflow enregistré à charger sur le canvas (WorkflowCanvas.to_dict de Tk)
+WORKFLOW_FILTERS = ("Fichiers JSON (*.json)", _ALL_FILES)
 
 
 def external_url(url: str) -> Optional[str]:
@@ -144,8 +148,13 @@ class ShellApi:
         paths = self._dialog("FOLDER")
         return paths[0] if paths else None
 
+    def pick_workflow(self) -> Optional[str]:
+        """Workflow à charger sur le canvas de la page Agents."""
+        paths = self._dialog("OPEN", allow_multiple=False, file_types=WORKFLOW_FILTERS)
+        return paths[0] if paths else None
+
     def save_file(self, name: str, fmt: str) -> Optional[str]:
-        """Chemin d'enregistrement d'un export (Markdown, HTML, PDF)."""
+        """Chemin d'enregistrement d'un export (Markdown, HTML, PDF) ou d'un workflow (JSON)."""
         file_types = EXPORT_FILTERS.get(fmt, (_ALL_FILES,))
         paths = self._dialog("SAVE", save_filename=str(name or "conversation"),
                              file_types=file_types)

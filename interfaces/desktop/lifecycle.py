@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.chat_service import ChatError, ChatService
+from interfaces.desktop.agents import AgentsService
 from interfaces.desktop.events import EventBus
 from interfaces.desktop.memory import MemoryService
 from interfaces.desktop.model_setup import FirstLaunch, ModelJobs, OllamaSetup
@@ -127,6 +128,7 @@ class DesktopApp:
         self.relay = None
         self.scheduler = None
         self._agent_service = None
+        self._agents: Optional[AgentsService] = None
         self._voice = None
         # Fonctions d'Ollama et de config.yaml (remplacées par la démonstration)
         self.ollama_setup = OllamaSetup()
@@ -388,6 +390,20 @@ class DesktopApp:
                 self._agent_service = AgentRelayService()
             return self._agent_service
 
+    @property
+    def agents(self) -> AgentsService:
+        """Page Agents : agents, fils d'exécution, workflows (sur l'exécuteur partagé)."""
+        with self._services_lock:
+            if self._agents is None:
+                self._agents = AgentsService(lambda: self.agent_service, self.bus.publish,
+                                             notify=self.notify,
+                                             last_seq=lambda: self.bus.last_seq)
+            return self._agents
+
+    def agent_attachments(self) -> set:
+        """Pièces jointes de la zone de tâche des agents (vignettes), sans créer le service."""
+        return self._agents.known_paths() if self._agents is not None else set()
+
     def files_dropped(self, paths) -> None:
         """Fichiers déposés sur la fenêtre (fil de pywebview) : la page décide."""
         self.bus.publish("files.dropped", {"paths": [str(path) for path in paths]})
@@ -484,7 +500,7 @@ class DesktopApp:
     # ── Arrêt ───────────────────────────────────────────────────────────────
 
     def shutdown(self) -> None:
-        """Arrêt propre : Relay et tunnels, scheduler et son verrou, chat, serveur."""
+        """Arrêt propre : Relay et tunnels, scheduler et son verrou, agents, chat, serveur."""
         with self._lock:
             if self._closing:
                 return
@@ -502,6 +518,12 @@ class DesktopApp:
         if self.scheduler is not None:
             try:
                 self.scheduler.stop()
+            except Exception:  # pylint: disable=broad-except
+                pass
+        if self._agents is not None:
+            # Fil en cours arrêté, enregistré comme interrompu
+            try:
+                self._agents.shutdown()
             except Exception:  # pylint: disable=broad-except
                 pass
         if self._voice is not None:

@@ -79,12 +79,18 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
         return local_files.generated_roots(getattr(app, "config", None))
 
     def showable(path: str) -> bool:
-        """Fichier que la fenêtre peut afficher : connu de la conversation, ou
-        produit par l'appli, ou envoyé par la page (image collée)."""
+        """Fichier que la fenêtre peut afficher : connu de la conversation ou de
+        la zone de tâche des agents, ou produit par l'appli, ou envoyé par la
+        page (image collée)."""
         if not path or not os.path.isfile(path):
             return False
+        normalized = local_files.normalize(path)
         chat = app.chat
-        if chat is not None and local_files.normalize(path) in chat.known_paths():
+        if chat is not None and normalized in chat.known_paths():
+            return True
+        # Pièces jointes de la zone de tâche des agents (vignettes)
+        agent_attachments = getattr(app, "agent_attachments", None)
+        if agent_attachments is not None and normalized in agent_attachments():
             return True
         allowed = roots() + [str(local_files.UPLOAD_DIR)]
         return any(local_files.is_inside(path, root) for root in allowed)

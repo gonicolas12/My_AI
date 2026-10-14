@@ -22,7 +22,7 @@ volée, il publie un événement par jeton de réponse.
 
 import threading
 from collections import deque
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Type, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -363,9 +363,118 @@ class AttachmentRemoved(_Payload):
 
 
 class AgentEvent(BaseModel):
-    """Événement de la page Agents, repris tel quel d'AgentRelayService."""
+    """Événement de la page Agents, repris tel quel d'AgentRelayService (type inconnu ici)."""
 
     model_config = ConfigDict(extra="allow")
+
+
+# ── Page Agents (agents.py) ─────────────────────────────────────────────────
+# Ceux d'AgentRelayService gardent son nom et sa charge utile (sans « type ») ;
+# le texte cumulé d'une section devient sa suite (agent_section_delta) ou son
+# texte entier (agent_section_text). section_id et node_id : identifiant du
+# nœud du canvas (entier), ou « deb_N » pour un tour de débat.
+
+
+class AgentsRunCreated(_Payload):
+    """Nouveau fil d'exécution (vue complète, comme GET /api/agents/runs/{id})."""
+
+    run: Dict[str, Any]
+
+
+class AgentsExecStart(_Payload):
+    """L'exécuteur démarre : mode du plan (single, sequential, parallel, dag, debate)."""
+
+    exec_id: str
+    mode: str
+
+
+class AgentsDebateTopic(_Payload):
+    """Sujet d'un débat."""
+
+    exec_id: str
+    topic: str
+
+
+class AgentsSectionStart(_Payload):
+    """Un agent commence : sa section dans le fil."""
+
+    exec_id: str
+    section_id: Union[int, str]
+    title: str
+    color: str
+
+
+class AgentsSectionDelta(_Payload):
+    """Suite du texte d'une section ; offset : longueur du texte avant cette suite."""
+
+    exec_id: str
+    section_id: Union[int, str]
+    text: str
+    offset: int
+
+
+class AgentsSectionText(_Payload):
+    """Texte entier d'une section, quand il ne prolonge pas le précédent."""
+
+    exec_id: str
+    section_id: Union[int, str]
+    text: str
+
+
+class AgentsSectionEnd(_Payload):
+    """Un agent a fini."""
+
+    exec_id: str
+    section_id: Union[int, str]
+    success: bool
+
+
+class AgentsNodeStatus(_Payload):
+    """Statut d'un nœud du canvas (couleurs de WorkflowCanvas.STATUS_META)."""
+
+    exec_id: str
+    node_id: Union[int, str]
+    status: Literal["idle", "running", "done", "error"]
+
+
+class AgentsExecEnd(_Payload):
+    """Fin de l'exécution."""
+
+    exec_id: str
+    success: bool
+    interrupted: bool
+    status_text: str
+
+
+class AgentsExecError(_Payload):
+    """Exécution en échec (ou refusée : une autre est en cours)."""
+
+    exec_id: str
+    message: str
+
+
+class AgentsRunsChanged(_Payload):
+    """La liste des fils a changé : la fenêtre la relit."""
+
+
+class AgentsListChanged(_Payload):
+    """Les agents personnalisés ont changé : la fenêtre relit la liste."""
+
+
+AGENT_EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
+    "agents.run_created": AgentsRunCreated,
+    "agents.agent_exec_start": AgentsExecStart,
+    "agents.agent_debate_topic": AgentsDebateTopic,
+    "agents.agent_section_start": AgentsSectionStart,
+    "agents.agent_section_delta": AgentsSectionDelta,
+    "agents.agent_section_text": AgentsSectionText,
+    "agents.agent_section_end": AgentsSectionEnd,
+    "agents.agent_node_status": AgentsNodeStatus,
+    "agents.agent_exec_end": AgentsExecEnd,
+    "agents.agent_exec_error": AgentsExecError,
+    "agents.runs_changed": AgentsRunsChanged,
+    "agents.list_changed": AgentsListChanged,
+}
 
 
 # Type d'événement → modèle de sa charge utile
@@ -426,7 +535,7 @@ CHAT_EVENT_TYPES = frozenset(
 def payload_model(event_type: str) -> Optional[Type[BaseModel]]:
     """Modèle de la charge utile d'un type d'événement (None s'il est inconnu)."""
     if event_type.startswith(AGENTS_PREFIX):
-        return AgentEvent
+        return AGENT_EVENT_PAYLOADS.get(event_type, AgentEvent)
     return EVENT_PAYLOADS.get(event_type)
 
 

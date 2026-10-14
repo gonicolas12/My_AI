@@ -31,8 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.websockets import WebSocketDisconnect
 
 from core.chat_service import ChatError
-from interfaces.desktop import (api_files, api_memory, api_prompts, api_settings, api_sidebar,
-                                api_voice)
+from interfaces.desktop import (api_agents, api_files, api_memory, api_prompts, api_settings,
+                                api_sidebar, api_voice)
 from interfaces.desktop import files as local_files
 from interfaces.desktop.events import parse_client_message
 from interfaces.desktop.previews import PreviewStore
@@ -415,6 +415,7 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
     api_settings.register(api, app)
     api_memory.register(api, app)
     api_prompts.register(api, app)
+    api_agents.register(api, app)
 
     # ── Interface ───────────────────────────────────────────────────────────
 

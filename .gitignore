@@ -71,6 +71,10 @@ data/.ollama_placement.json
 data/.desktop_state.json
 data/.desktop_state.json.tmp
 
+# Fils d'exécution de la page Agents, gardés d'un lancement à l'autre (interfaces/desktop/agents.py)
+data/agent_runs.json
+data/agent_runs.json.tmp
+
 # Fichiers de cache locaux
 data/knowledge_base/
 data/web_cache/

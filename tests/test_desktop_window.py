@@ -18,8 +18,8 @@ import pytest
 from interfaces.desktop import window as desktop_window
 from interfaces.desktop.devserver import ViteServer
 from interfaces.desktop.lifecycle import UI_DEFAULTS, DesktopApp, DesktopState
-from interfaces.desktop.shell_api import (ATTACH_FILTERS, EXPORT_FILTERS, ShellApi,
-                                          external_url, open_external)
+from interfaces.desktop.shell_api import (ATTACH_FILTERS, EXPORT_FILTERS, WORKFLOW_FILTERS,
+                                          ShellApi, external_url, open_external)
 from interfaces.desktop.window import (WindowGeometry, app_origins, colorref,
                                        dropped_paths, is_app_url, watch_drops)
 
@@ -156,7 +156,7 @@ def test_shell_api_exposes_only_its_functions():
     public = [name for name in dir(ShellApi()) if not name.startswith("_")]
     assert public == ["native_preview_available", "native_preview_close", "native_preview_place",
                       "native_preview_show", "open_external", "pick_files", "pick_folder",
-                      "platform", "save_file", "set_title_bar_colors"]
+                      "pick_workflow", "platform", "save_file", "set_title_bar_colors"]
 
 
 def test_title_bar_colors_go_to_the_window():
@@ -175,6 +175,7 @@ def test_dialog_filters_follow_the_pywebview_format():
     util = pytest.importorskip("webview.util")
     filters = [f for types, _multiple in ATTACH_FILTERS.values() for f in types]
     filters += [f for types in EXPORT_FILTERS.values() for f in types]
+    filters += list(WORKFLOW_FILTERS)
     for file_type in filters:
         util.parse_file_type(file_type)
     assert set(ATTACH_FILTERS) == {"PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image"}
@@ -210,6 +211,12 @@ def test_file_dialogs_go_through_the_window(monkeypatch):
     assert api.save_file("conversation", "pdf") is None
     assert window.calls[-1] == (30, {"save_filename": "conversation",
                                      "file_types": EXPORT_FILTERS["pdf"]})
+    # Page Agents : un workflow à charger, un seul fichier JSON
+    window.result = ("C:/flux/workflow.json",)
+    assert api.pick_workflow() == "C:/flux/workflow.json"
+    assert window.calls[-1] == (10, {"allow_multiple": False, "file_types": WORKFLOW_FILTERS})
+    window.result = None
+    assert api.pick_workflow() is None
 
 
 def test_dropped_paths_come_from_pywebview():
