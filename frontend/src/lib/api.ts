@@ -264,6 +264,23 @@ export interface MemoryPage {
   categories: string[];
 }
 
+/** Prompt de la bibliothèque (prompts.py) */
+export interface PromptTemplate {
+  id: string;
+  command: string | null;
+  title: string;
+  description: string;
+  content: string;
+  builtin: boolean;
+}
+
+export interface PromptFields {
+  title: string;
+  command: string;
+  description: string;
+  content: string;
+}
+
 const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body);
 
 export const api = {
@@ -406,6 +423,13 @@ export const api = {
       'DELETE',
       `/api/memory/${tab}/${encodeURIComponent(String(id))}?at_source=${atSource ? 'true' : 'false'}`,
     ),
+
+  prompts: () => request<{ prompts: PromptTemplate[] }>('GET', '/api/prompts'),
+  createPrompt: (fields: PromptFields) => post<PromptTemplate>('/api/prompts', fields),
+  updatePrompt: (id: string, fields: PromptFields) =>
+    request<PromptTemplate>('PUT', `/api/prompts/${encodeURIComponent(id)}`, fields),
+  deletePrompt: (id: string) =>
+    request<{ ok: boolean }>('DELETE', `/api/prompts/${encodeURIComponent(id)}`),
 
   onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
   installModel: (name: string) =>

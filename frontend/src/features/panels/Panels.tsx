@@ -9,6 +9,7 @@ import { usePanels } from '../../stores/panels';
 
 const SettingsPanel = lazy(() => import('./settings/SettingsPanel'));
 const MemoryPanel = lazy(() => import('./memory/MemoryPanel'));
+const PromptsPanel = lazy(() => import('./prompts/PromptsPanel'));
 const HelpPanel = lazy(() => import('./help/HelpPanel'));
 
 export function Panels() {
@@ -17,6 +18,7 @@ export function Panels() {
     <Suspense fallback={null}>
       {open === 'settings' ? <SettingsPanel /> : null}
       {open === 'memory' ? <MemoryPanel /> : null}
+      {open === 'prompts' ? <PromptsPanel /> : null}
       {open === 'help' ? <HelpPanel /> : null}
     </Suspense>
   );
