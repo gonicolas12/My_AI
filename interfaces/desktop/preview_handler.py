@@ -11,7 +11,7 @@ La visionneuse dessine dans une fenêtre qu'elle crée comme enfant de la
 fenêtre qu'on lui confie. Cette fenêtre hôte doit être « DPI par écran », sans
 quoi le rendu serait faussé sur un écran mis à l'échelle : c'est le cas de la
 fenêtre de l'interface web (native_viewer.py), et de l'hôte posé sur le volet
-de Tk (interfaces/gui/_dpi_host.py).
+de Tk (dpi_host.py).
 
 Windows uniquement, et dépend de comtypes (installé avec pyttsx3). Toute
 erreur est silencieuse : l'appelant retombe alors sur l'aperçu HTML.

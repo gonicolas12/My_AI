@@ -16,7 +16,7 @@ import webbrowser
 from typing import Any, Callable, List, Optional
 from urllib.parse import urlsplit
 
-from interfaces.desktop.native_viewer import NativeViewer, WinFormsHost, parse_rect
+from interfaces.desktop.native_viewer import NativeViewer, parse_rect, window_host
 from utils.logger import setup_logger
 
 logger = setup_logger("ShellApi")
@@ -103,9 +103,9 @@ class ShellApi:
         self._native = NativeViewer(self._native_host)
         self._background = background
 
-    def _native_host(self) -> Optional[WinFormsHost]:
+    def _native_host(self):
         form = getattr(self._window, "native", None)
-        return WinFormsHost(form, self._background) if form is not None else None
+        return window_host(form, self._background) if form is not None else None
 
     def _shutdown(self) -> None:
         """Fenêtre fermée : visionneuse déchargée (Office jamais orphelin)."""

@@ -1,5 +1,5 @@
 """
-Tests de l'hôte DPI (interfaces/gui/_dpi_host.py) et des visionneuses natives
+Tests de l'hôte DPI (interfaces/desktop/dpi_host.py, par son relais Tk) et des visionneuses natives
 (interfaces/desktop/preview_handler.py).
 
 Régression d'un bug observé sur un écran à 125 % : l'appli ne gère pas le DPI
@@ -30,6 +30,8 @@ from interfaces.desktop.preview_handler import (  # noqa: E402
     supports_native_preview,
 )
 from interfaces.gui._dpi_host import DpiAwareHost, is_dpi_virtualized  # noqa: E402
+from interfaces.desktop.dpi_host import client_origin, screen_rect  # noqa: E402
+from interfaces.desktop.native_viewer import PopupHost  # noqa: E402
 
 _PER_MONITOR = 2
 
@@ -141,6 +143,56 @@ def test_host_hide_and_destroy(frame):
 def test_plain_tk_window_is_dpi_virtualized(frame):
     """La racine de l'appli ne gère pas le DPI : c'est ce qui impose l'hôte."""
     assert is_dpi_virtualized(frame) is True
+
+
+# ── Repli de l'interface web : hôte popup posé sur un rectangle ─────────────
+
+
+class _TkWindow:
+    """FormWindow simulée sur la racine Tk : fil courant, déplacement signalé à la main."""
+
+    background = "#111111"
+
+    def __init__(self, root):
+        self.root = root
+        self.moved = None
+
+    @staticmethod
+    def invoke(action):
+        return action()
+
+    def hwnd(self):
+        return int(self.root.wm_frame(), 16)
+
+    def on_move(self, callback):
+        self.moved = callback
+
+
+def test_popup_host_sits_on_the_place_and_follows_the_window(tk_root):
+    """Fenêtre sans DPI par écran (racine Tk) : l'hôte popup se pose et suit."""
+    window = _TkWindow(tk_root)
+    host = PopupHost(window)
+    try:
+        host.place((40, 30, 300, 200), True)
+        inner = host._host  # pylint: disable=protected-access
+        x, y = client_origin(window.hwnd())
+        assert inner.visible and screen_rect(inner.hwnd) == (x + 40, y + 30, 300, 200)
+        assert host.handle() == inner.hwnd
+
+        tk_root.geometry("+90+110")
+        tk_root.update()
+        window.moved()
+        moved_x, moved_y = client_origin(window.hwnd())
+        assert (moved_x, moved_y) != (x, y)
+        assert screen_rect(inner.hwnd)[:2] == (moved_x + 40, moved_y + 30)
+
+        host.hide()
+        assert not inner.visible
+    finally:
+        if host._host is not None:  # pylint: disable=protected-access
+            host._host.destroy()  # pylint: disable=protected-access
+        tk_root.geometry("800x500+30+30")
+        tk_root.update()
 
 
 # ── Visionneuses : sélection ───────────────────────────────────────────────

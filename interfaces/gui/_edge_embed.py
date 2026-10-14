@@ -137,7 +137,7 @@ def _window_dpi_context(user32, ctypes, hwnd):
     Les coordonnées passées à MoveWindow et lues par GetClientRect dépendent du
     contexte DPI du thread appelant. En l'alignant sur la fenêtre parente, on
     travaille dans son repère : logique pour le volet Tk (non DPI-aware),
-    physique pour l'hôte DPI par écran (cf. interfaces/gui/_dpi_host.py).
+    physique pour l'hôte DPI par écran (cf. interfaces/desktop/dpi_host.py).
     """
     previous = None
     setter = None
