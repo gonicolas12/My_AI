@@ -147,6 +147,40 @@ def file_type_for(path: str) -> Optional[str]:
     return None
 
 
+def folder_attachment_files(folder: str) -> Tuple[List[str], int]:
+    """Fichiers lisibles d'un dossier glissé dans une zone de saisie, et le nombre d'images.
+
+    Sous-dossiers compris, sauf les cachés et ceux que l'indexation ignore
+    (.git, node_modules, __pycache__…). Les images sont comptées à part :
+    l'appelant décide de leur sort. Sert au chat et à la zone de tâche des agents.
+
+    Raises:
+        ChatError: aucun fichier lisible, ou plus de FOLDER_ATTACHMENT_LIMIT
+    """
+    from core.folder_indexer import is_excluded_dir  # pylint: disable=import-outside-toplevel
+    name = os.path.basename(os.path.normpath(folder)) or folder
+    files: List[str] = []
+    images = 0
+    for root, dirs, names in os.walk(folder):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not is_excluded_dir(d))
+        for file_name in sorted(names):
+            file_type = file_type_for(file_name)
+            if file_name.startswith(".") or file_type is None:
+                continue
+            if file_type == "Image":
+                images += 1
+                continue
+            files.append(os.path.join(root, file_name))
+        if len(files) > FOLDER_ATTACHMENT_LIMIT:
+            raise ChatError(
+                f"📁 « {name} » contient plus de {FOLDER_ATTACHMENT_LIMIT} fichiers lisibles : "
+                "trop pour des pièces jointes. Attachez-le plutôt dans « Dossiers du projet »."
+            )
+    if not files:
+        raise ChatError(f"📁 Aucun fichier lisible dans « {name} »")
+    return files, images
+
+
 def _message_text(message: Any) -> str:
     """Texte d'un message enregistré, tel que la recherche globale l'indexe."""
     if not isinstance(message, dict):
@@ -1391,27 +1425,8 @@ class ChatService:
         Raises:
             ChatError: aucun fichier lisible, ou trop de fichiers
         """
-        from core.folder_indexer import is_excluded_dir  # pylint: disable=import-outside-toplevel
         name = os.path.basename(os.path.normpath(folder)) or folder
-        files: List[str] = []
-        images = 0
-        for root, dirs, names in os.walk(folder):
-            dirs[:] = sorted(d for d in dirs if not d.startswith(".") and not is_excluded_dir(d))
-            for file_name in sorted(names):
-                file_type = file_type_for(file_name)
-                if file_name.startswith(".") or file_type is None:
-                    continue
-                if file_type == "Image":
-                    images += 1
-                    continue
-                files.append(os.path.join(root, file_name))
-            if len(files) > FOLDER_ATTACHMENT_LIMIT:
-                raise ChatError(
-                    f"📁 « {name} » contient plus de {FOLDER_ATTACHMENT_LIMIT} fichiers lisibles : "
-                    "trop pour des pièces jointes. Attachez-le plutôt dans « Dossiers du projet »."
-                )
-        if not files:
-            raise ChatError(f"📁 Aucun fichier lisible dans « {name} »")
+        files, images = folder_attachment_files(folder)
         attachments = [self.add_attachment(path) for path in files]
         skipped = (f", {images} image{'s' if images > 1 else ''} laissée{'s' if images > 1 else ''} "
                    "de côté (une seule par message)") if images else ""
