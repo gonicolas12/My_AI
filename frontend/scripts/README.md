@@ -21,13 +21,14 @@ python tools/interface_web/demo_server.py 8765   # depuis la racine du dépôt
 # affiche DEMO http://127.0.0.1:8765/#token=…, l'URL à passer aux scripts
 ```
 
-| Script                                                 | Rôle                                                                                                                                   |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `node scripts/capture.mjs URL [DOSSIER] [L H]`         | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur…                                   |
-| `node scripts/perf.mjs URL [scroll,stream,stress,gil]` | images, tâches longues, latence des saisies, rendus React, cadence des jetons                                                          |
-| `node scripts/tooltips.mjs URL`                        | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                                                          |
-| `node scripts/follow_bottom.mjs URL`                   | le fil suit une longue réponse (distance au bas)                                                                                       |
-| `node scripts/capture_chat.mjs URL [DOSSIER] [ÉTAPES]` | parité du Chat (phase 3a) : artefacts, documents, chemins, citations, image, pièces jointes, `/`, édition, notes, voix, barre latérale |
+| Script                                                   | Rôle                                                                                                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `node scripts/capture.mjs URL [DOSSIER] [L H]`           | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur…                                       |
+| `node scripts/perf.mjs URL [scroll,stream,stress,gil]`   | images, tâches longues, latence des saisies, rendus React, cadence des jetons                                                              |
+| `node scripts/tooltips.mjs URL`                          | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                                                              |
+| `node scripts/follow_bottom.mjs URL`                     | le fil suit une longue réponse (distance au bas)                                                                                           |
+| `node scripts/capture_chat.mjs URL [DOSSIER] [ÉTAPES]`   | parité du Chat (phase 3a) : artefacts, documents, chemins, citations, image, pièces jointes, `/`, édition, notes, voix, barre latérale     |
+| `node scripts/capture_panels.mjs URL [DOSSIER] [ÉTAPES]` | panneaux (phase 3b) : assistant (serveur lancé avec `--premier-lancement`), Réglages, Mémoire, Prompts, Relay simulé, Aide, palette Ctrl+K |
 
 Rendus React : servir un build de profilage, sans toucher à `dist/` :
 
@@ -48,15 +49,16 @@ $env:MY_AI_WEBVIEW_CDP_PORT = 9333; python tools/interface_web/demo_server.py 87
 
 Les scripts lisent la même variable (9333 par défaut).
 
-| Script                                                | Rôle                                                                                                                                                 | Touches ou curseur du système    |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `node scripts/window_look.mjs [DOSSIER]`              | adresse, pont pywebview, captures du chargement et de l'accueil                                                                                      | non                              |
-| `node scripts/window_chat.mjs "QUESTION"`             | vraie réponse d'Ollama : images par seconde, premier texte, captures                                                                                 | non                              |
-| `node scripts/window_preview.mjs [DOSSIER] [JOURNAL]` | sur le serveur de démonstration : artefact isolé du pont pywebview, lecteur PDF de WebView2                                                          | non                              |
-| `node scripts/tooltips.mjs --window`                  | infobulles, souris de Playwright                                                                                                                     | non                              |
-| `node scripts/window_keys.mjs`                        | F5, Ctrl+R, Ctrl+P… ne rechargent, n'impriment ni ne cherchent rien                                                                                  | oui, touches                     |
-| `node scripts/window_tooltips.mjs`                    | infobulle fermée quand le vrai curseur quitte la fenêtre                                                                                             | oui, curseur                     |
-| `node scripts/window_system.mjs [DOSSIER] [ÉTAPES]`   | sur le serveur de démonstration (`--window --vraie-voix`) : dialogues de Windows, glisser-déposer depuis l'Explorateur, voix, ouverture des fichiers | oui, souris ; ouvre des fenêtres |
+| Script                                                | Rôle                                                                                                                                                            | Touches ou curseur du système    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `node scripts/window_look.mjs [DOSSIER]`              | adresse, pont pywebview, captures du chargement et de l'accueil                                                                                                 | non                              |
+| `node scripts/window_chat.mjs "QUESTION"`             | vraie réponse d'Ollama : images par seconde, premier texte, captures                                                                                            | non                              |
+| `node scripts/window_preview.mjs [DOSSIER] [JOURNAL]` | sur le serveur de démonstration : artefact isolé du pont pywebview, lecteur PDF de WebView2                                                                     | non                              |
+| `node scripts/window_native.mjs [DOSSIER]`            | sur le serveur de démonstration : visionneuse Word posée sur la place du volet, masquée sous la palette et les toasts qui la touchent, déchargée à la fermeture | non                              |
+| `node scripts/tooltips.mjs --window`                  | infobulles, souris de Playwright                                                                                                                                | non                              |
+| `node scripts/window_keys.mjs`                        | F5, Ctrl+R, Ctrl+P… ne rechargent, n'impriment ni ne cherchent rien                                                                                             | oui, touches                     |
+| `node scripts/window_tooltips.mjs`                    | infobulle fermée quand le vrai curseur quitte la fenêtre                                                                                                        | oui, curseur                     |
+| `node scripts/window_system.mjs [DOSSIER] [ÉTAPES]`   | sur le serveur de démonstration (`--window --vraie-voix`) : dialogues de Windows, glisser-déposer depuis l'Explorateur, voix, ouverture des fichiers            | oui, souris ; ouvre des fenêtres |
 
 Les touches et le curseur du système vont à la fenêtre au premier plan, quelle qu'elle soit.
 `tools/interface_web/win.py` attend donc que le clavier et la souris n'aient pas servi depuis

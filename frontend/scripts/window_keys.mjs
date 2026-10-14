@@ -1,11 +1,12 @@
-// Vraie fenêtre : les raccourcis du navigateur (F5, Ctrl+R, Ctrl+P…) ne rechargent, n'impriment
-// ni ne cherchent rien. Vraies touches du système (win.py, qui refuse si le PC sert), état de la
-// page lu par CDP. Usage (depuis frontend/) : node scripts/window_keys.mjs
+// Vraie fenêtre : les raccourcis du navigateur (F5, Ctrl+Maj+R, Ctrl+P…) ne rechargent,
+// n'impriment ni ne cherchent rien. Vraies touches du système (win.py, qui refuse si le PC sert),
+// état de la page lu par CDP. Ctrl+R n'est pas envoyé : il ouvre le panneau Relay et démarre le
+// Relay, avec de vrais tunnels dans l'appli (vérifié sur le Relay simulé, capture_panels.mjs).
+// Usage (depuis frontend/) : node scripts/window_keys.mjs
 import { connectWindow, sidebarOpen, win } from './lib.mjs';
 
 const KEYS = [
   'f5',
-  'ctrl+r',
   'ctrl+shift+r',
   'ctrl+f5',
   'ctrl+p',

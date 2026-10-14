@@ -10,6 +10,10 @@ Pilotage Win32 de la vraie fenêtre My_AI, pour les vérifications
                                                      déplace et redimensionne My_AI (restaurée), ou HWND
   python tools/interface_web/win.py close [HWND]     WM_CLOSE (comme la croix) à My_AI, ou à la fenêtre HWND
   python tools/interface_web/win.py windows [CLASSE] fenêtres visibles : [hwnd, classe, processus, titre]
+  python tools/interface_web/win.py children         fenêtres enfants directes de My_AI : hwnd, classe,
+                                                     visible, bornes à l'écran, et programmes des fenêtres
+                                                     d'autres processus qu'elles contiennent (WebView2 :
+                                                     msedgewebview2.exe ; visionneuse Office : un autre)
   python tools/interface_web/win.py front            met My_AI au premier plan
   python tools/interface_web/win.py shot FICHIER     premier plan, puis capture (barre de titre comprise)
   python tools/interface_web/win.py capture FICHIER  capture sans premier plan ni saisie (PrintWindow),
@@ -31,8 +35,8 @@ Les touches et le curseur du système vont à la fenêtre au premier plan, pas �
 celle qu'on vise. front, shot, keys, cursor et drag attendent donc que le clavier
 et la souris n'aient pas servi depuis IDLE_S secondes (WAIT_S secondes au plus,
 sinon refus, code de sortie 2), et keys n'envoie chaque touche que si My_AI est
-au premier plan. rect, origin, state, screen, capture, close, windows, dialog
-et element ne touchent ni au focus ni aux saisies ; move restaure la fenêtre, ce qui peut
+au premier plan. rect, origin, state, screen, capture, close, windows, children,
+dialog et element ne touchent ni au focus ni aux saisies ; move restaure la fenêtre, ce qui peut
 l'activer.
 """
 
@@ -310,6 +314,49 @@ def drag(start, end, steps=30):
     note_own_input()
 
 
+def program(pid):
+    """Nom du programme d'un processus (« msedgewebview2.exe »), ou son numéro."""
+    process = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not process:
+        return str(pid)
+    try:
+        size = wintypes.DWORD(1024)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if kernel32.QueryFullProcessImageNameW(process, 0, buffer, ctypes.byref(size)):
+            return Path(buffer.value).name
+        return str(pid)
+    finally:
+        kernel32.CloseHandle(process)
+
+
+def children(parent):
+    """Enfants directs : {hwnd, classe, visible, bornes, programmes des descendants}."""
+    own = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(parent, ctypes.byref(own))
+    found = []
+
+    @ENUM_PROC
+    def collect(hwnd, _param):
+        if user32.GetParent(hwnd) == parent:
+            processes = set()
+
+            @ENUM_PROC
+            def inner(child, _param):
+                process = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(child, ctypes.byref(process))
+                processes.add(process.value)
+                return True
+
+            user32.EnumChildWindows(hwnd, inner, 0)
+            found.append({"hwnd": hwnd, "class": class_name(hwnd),
+                          "visible": bool(user32.IsWindowVisible(hwnd)), "rect": rect(hwnd),
+                          "foreign": sorted({program(pid) for pid in processes - {own.value}})})
+        return True
+
+    user32.EnumChildWindows(parent, collect, 0)
+    return found
+
+
 def visible_windows(wanted_class=None):
     """Fenêtres visibles et titrées : [hwnd, classe, processus, titre]."""
     found = []
@@ -390,10 +437,9 @@ def main():  # pylint: disable=too-many-branches,too-many-statements,too-many-lo
     if action == "rect":
         print(json.dumps(rect(hwnd)))
     elif action == "origin":
-        # La page est la première fenêtre enfant (WebView2)
+        # WebView2 remplit la zone client (la visionneuse Office se pose par-dessus)
         point = wintypes.POINT(0, 0)
-        child = user32.FindWindowExW(hwnd, None, None, None)
-        user32.ClientToScreen(child or hwnd, ctypes.byref(point))
+        user32.ClientToScreen(hwnd, ctypes.byref(point))
         print(json.dumps([point.x, point.y]))
     elif action == "state":
         print("agrandie" if user32.IsZoomed(hwnd) else "réduite" if user32.IsIconic(hwnd) else "normale")
@@ -414,6 +460,8 @@ def main():  # pylint: disable=too-many-branches,too-many-statements,too-many-lo
     elif action == "windows":
         print(json.dumps(visible_windows(sys.argv[2] if len(sys.argv) > 2 else None),
                          ensure_ascii=False))
+    elif action == "children":
+        print(json.dumps(children(hwnd), ensure_ascii=False))
     elif action == "front":
         require_idle()
         if not foreground(hwnd):
