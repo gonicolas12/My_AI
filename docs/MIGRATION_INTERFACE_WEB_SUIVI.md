@@ -990,6 +990,12 @@ garde les deux messages de l'essai dans sa conversation et les supprimera lui-m�
   du streaming varient du simple au décuple d'un passage à l'autre, pour le build de la phase 3a
   comme pour celui de la phase 3b ; comparer deux builds par passages alternés, dans les mêmes
   conditions.
+- **Fichier `nul` du Relay** (constaté le 2026-10-14) : les tunnels serveo et localhost.run lancent
+  `ssh` avec `UserKnownHostsFile=nul` (`os.devnull`). Le `ssh` de Git, premier dans le PATH de Git
+  Bash, prend `nul` pour un fichier ordinaire et l'écrit dans le dossier de lancement (clé
+  publique du serveur, rien de secret). Lancement normal (`launch.bat`, raccourci) : `ssh` de
+  Windows, rien d'écrit. Correction possible dans `relay/relay_server.py` (proposée à Nicolas,
+  pas faite) ; en attendant, supprimer le fichier après un essai du Relay lancé depuis Git Bash.
 - **Chromium sans fenêtre** (captures, phase 3b) : la première seconde après le lancement, les
   animations y avancent au ralenti, sans tâche longue de la page ; `capture_panels.mjs` attend
   1,5 s. À revoir dans la vraie fenêtre si une animation d'ouverture y semblait lente.
