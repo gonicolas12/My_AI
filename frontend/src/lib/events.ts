@@ -146,6 +146,8 @@ export interface RelayStatus {
   tunnels: Record<string, string>;
   url: string | null;
   local_url: string | null;
+  /** Jeton d'accès (affiché dans le panneau) */
+  token?: string | null;
 }
 
 export type VoiceInputState = 'idle' | 'recording' | 'transcribing' | 'error';

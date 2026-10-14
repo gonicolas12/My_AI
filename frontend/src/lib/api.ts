@@ -431,6 +431,11 @@ export const api = {
   deletePrompt: (id: string) =>
     request<{ ok: boolean }>('DELETE', `/api/prompts/${encodeURIComponent(id)}`),
 
+  startRelay: () => post<RelayStatus>('/api/relay/start', {}),
+  stopRelay: () => post<RelayStatus>('/api/relay/stop'),
+  /** QR code de la page de routage : lignes de « 0 » et « 1 », marge comprise */
+  relayQr: () => request<{ url: string; rows: string[] }>('GET', '/api/relay/qr'),
+
   onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
   installModel: (name: string) =>
     post<{ job: ModelJob | null }>('/api/onboarding/install', { name }),

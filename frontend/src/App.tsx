@@ -42,6 +42,8 @@ function useAppEffects() {
         'Ctrl+L': () => void clearConversation(),
         'Ctrl+S': () => void saveConversation(),
         'Ctrl+,': () => togglePanel('settings'),
+        // Relay : démarré à l'ouverture du panneau, jamais arrêté par le raccourci (Tk)
+        'Ctrl+R': () => togglePanel('relay'),
         F1: () => togglePanel('help'),
         Escape: (event) => {
           // D6 : Échap arrête la réponse quand aucun dialogue ni menu n'est ouvert,
