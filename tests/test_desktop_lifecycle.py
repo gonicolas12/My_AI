@@ -130,6 +130,50 @@ def started_fixture(tmp_path):
         app.shutdown()
 
 
+def wait_state(app, state, timeout=10.0):
+    """Attend un état du lancement (onboarding…)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if app.status()["state"] == state:
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"État {state} jamais atteint : {app.status()}")
+
+
+def test_first_launch_waits_for_the_wizard(tmp_path, monkeypatch):
+    monkeypatch.setattr(onboarding, "should_run", lambda: True)
+    app = TestApp(FakeLauncher(), tmp_path)
+    app.headless = False  # l'assistant ne s'affiche que dans la fenêtre
+    app.start()
+    try:
+        wait_state(app, "onboarding")
+        # Ni my_ai ni placement avant la fin de l'assistant (ordre du lanceur)
+        assert app._launcher.calls == ["prefetch", "ollama"]
+        time.sleep(0.2)
+        assert app.status()["state"] == "onboarding"
+        app.first_launch.finish()  # « Démarrer My_AI »
+        assert wait_ready(app)["state"] == "ready"
+        assert app._launcher.calls[:5] == ["prefetch", "ollama", "model", "placement", "engine"]
+    finally:
+        app.shutdown()
+
+
+def test_wizard_is_skipped_without_a_window(started, monkeypatch):
+    monkeypatch.setattr(onboarding, "should_run", lambda: True)
+    assert started().status["state"] == "ready"
+
+
+def test_closing_during_the_wizard_stops_the_launch(tmp_path, monkeypatch):
+    monkeypatch.setattr(onboarding, "should_run", lambda: True)
+    app = TestApp(FakeLauncher(), tmp_path)
+    app.headless = False
+    app.start()
+    wait_state(app, "onboarding")
+    app.shutdown()
+    time.sleep(0.5)
+    assert "engine" not in app._launcher.calls
+
+
 def test_launch_steps_follow_the_launcher_order(started):
     run = started()
 

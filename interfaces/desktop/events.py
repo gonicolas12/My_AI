@@ -109,6 +109,28 @@ class FoldersChanged(_Payload):
     ok: bool = True
 
 
+class ModelsProgress(_Payload):
+    """Téléchargement d'un modèle : avancée de la couche en cours (Ollama)."""
+
+    fraction: float
+    status: str = ""
+
+
+class ModelsLog(_Payload):
+    """Ligne du journal d'un téléchargement ou d'une création de modèle."""
+
+    line: str
+
+
+class ModelsDone(_Payload):
+    """Fin d'un travail sur les modèles : pull, apply (Réglages) ou install (assistant)."""
+
+    action: Literal["pull", "apply", "install"]
+    name: str
+    ok: bool
+    message: str = ""
+
+
 class VoiceInputState(_Payload):
     """Saisie vocale : idle, recording, transcribing, error."""
 
@@ -355,6 +377,9 @@ EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "files.dropped": FilesDropped,
     "folders.progress": FoldersProgress,
     "folders.changed": FoldersChanged,
+    "models.progress": ModelsProgress,
+    "models.log": ModelsLog,
+    "models.done": ModelsDone,
     "voice.input": VoiceInputState,
     "voice.transcript": VoiceTranscript,
     "voice.output": VoiceOutputState,

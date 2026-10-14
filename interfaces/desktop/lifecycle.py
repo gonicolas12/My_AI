@@ -26,7 +26,9 @@ from typing import Any, Dict, Optional
 
 from core.chat_service import ChatError, ChatService
 from interfaces.desktop.events import EventBus
+from interfaces.desktop.model_setup import FirstLaunch, ModelJobs, OllamaSetup
 from interfaces.desktop.server import DesktopServer
+from interfaces.desktop.settings import SettingsService
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopApp")
@@ -124,6 +126,12 @@ class DesktopApp:
         self.scheduler = None
         self._agent_service = None
         self._voice = None
+        # Fonctions d'Ollama et de config.yaml (remplacées par la démonstration)
+        self.ollama_setup = OllamaSetup()
+        self._model_jobs: Optional[ModelJobs] = None
+        self._first_launch: Optional[FirstLaunch] = None
+        self._settings: Optional[SettingsService] = None
+        self._services_lock = threading.RLock()
 
         self._lock = threading.Lock()
         self._status: Dict[str, Any] = {
@@ -194,7 +202,8 @@ class DesktopApp:
                 self._set_status(error=OLLAMA_FAILED, ollama=False)
 
             self._step("onboarding", "Vérification de la configuration…")
-            self._onboarding()
+            if not self._onboarding():
+                return  # appli fermée pendant l'assistant
 
             self._step("model", "Vérification du modèle my_ai…")
             launcher.sync_custom_model()
@@ -218,19 +227,33 @@ class DesktopApp:
             logger.exception("Lancement en échec")
             self._set_status(state="error", error=f"Lancement en échec : {exc}")
 
-    def _onboarding(self) -> None:
-        """Assistant de premier lancement (étape 3 du lanceur).
+    def _onboarding(self) -> bool:
+        """Assistant de premier lancement (étape 3 du lanceur), dans la fenêtre.
 
-        Son interface web arrive en phase 3 : d'ici là, l'étape est passée, sans
-        marquer l'assistant comme fait.
+        Si should_run() le demande, le lancement attend la fin de l'assistant :
+        « Démarrer My_AI » après l'installation, ou « Passer ». Sans fenêtre
+        (--headless), personne ne peut y répondre : l'étape est passée, sans
+        marquer l'assistant comme fait. Renvoie False si l'appli se ferme
+        pendant l'assistant.
         """
         try:
             from interfaces.onboarding import should_run  # pylint: disable=import-outside-toplevel
-            if should_run():
-                print("🧭 Premier lancement détecté — l'assistant de configuration "
-                      "n'est pas encore disponible dans l'interface web : étape passée")
+            needed = should_run()
         except Exception as exc:  # pylint: disable=broad-except
             print(f"⚠️ Assistant d'onboarding ignoré : {exc}")
+            return True
+        if not needed:
+            return True
+        if self.headless:
+            print("🧭 Premier lancement détecté — sans fenêtre, l'assistant de configuration "
+                  "est passé")
+            return True
+        print("🧭 Premier lancement détecté — assistant de configuration…")
+        self._set_status(state="onboarding", label="Configuration initiale")
+        if not self.first_launch.wait(lambda: self._closing):
+            return False
+        self._set_status(state="starting")
+        return True
 
     def _start_engine(self) -> None:
         """Moteur et service de chat (BaseGUI.__init__ puis initialize_ai_async)."""
@@ -295,6 +318,34 @@ class DesktopApp:
         """Modules du micro chargés en arrière-plan, à la fin du lancement."""
         threading.Thread(target=self.voice.preload_input, name="voice-preload",
                          daemon=True).start()
+
+    @property
+    def model_jobs(self) -> ModelJobs:
+        """Téléchargement et création de modèles (Réglages, assistant)."""
+        with self._services_lock:
+            if self._model_jobs is None:
+                self._model_jobs = ModelJobs(self.ollama_setup, self.bus.publish)
+            return self._model_jobs
+
+    @property
+    def first_launch(self) -> FirstLaunch:
+        """Assistant de premier lancement."""
+        with self._services_lock:
+            if self._first_launch is None:
+                self._first_launch = FirstLaunch(self.ollama_setup, self.model_jobs)
+            return self._first_launch
+
+    @property
+    def settings(self) -> SettingsService:
+        """Réglages du panneau."""
+        with self._services_lock:
+            if self._settings is None:
+                self._settings = SettingsService(self.ollama_setup, lambda: self.engine)
+            return self._settings
+
+    def notify(self, level: str, message: str) -> None:
+        """Notification brève dans la fenêtre (show_notification de Tk)."""
+        self.bus.publish("notification", {"level": level, "message": message})
 
     @property
     def voice(self):
