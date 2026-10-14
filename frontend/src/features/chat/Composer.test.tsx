@@ -73,6 +73,22 @@ describe('slash commands', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
+  it('ne suivent la souris que si elle bouge : la liste s’ouvre sous un curseur immobile', async () => {
+    const user = userEvent.setup();
+    renderComposer();
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), '/');
+    const options = await screen.findAllByRole<HTMLElement>('option');
+    const second = options[1]!;
+    // Premier événement : la position du curseur, sous lequel la liste vient de s'ouvrir
+    fireEvent.pointerMove(second, { clientX: 40, clientY: 12 });
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.pointerMove(second, { clientX: 40, clientY: 12 });
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    // La souris bouge : la commande survolée est choisie
+    fireEvent.pointerMove(second, { clientX: 44, clientY: 13 });
+    expect(second).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('se ferment avec Échap, et Entrée ne choisit plus rien ensuite', async () => {
     const user = userEvent.setup();
     renderComposer();

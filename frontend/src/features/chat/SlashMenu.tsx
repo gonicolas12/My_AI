@@ -1,4 +1,5 @@
 import { Slash } from 'lucide-react';
+import { useRef } from 'react';
 
 import type { SlashCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -13,6 +14,9 @@ interface SlashMenuProps {
 
 /** Liste des slash commands, au-dessus de la zone de saisie (le focus reste dans le texte) */
 export function SlashMenu({ id, commands, active, onHover, onChoose }: SlashMenuProps) {
+  // Survol pris en compte quand la souris bouge : une liste qui s'ouvre sous un curseur
+  // immobile garde sa première commande choisie (Entrée l'insère)
+  const pointer = useRef<{ x: number; y: number } | null>(null);
   return (
     <div
       id={id}
@@ -29,7 +33,11 @@ export function SlashMenu({ id, commands, active, onHover, onChoose }: SlashMenu
           aria-selected={index === active}
           // Le clic ne retire pas le focus de la zone de saisie
           onMouseDown={(event) => event.preventDefault()}
-          onMouseEnter={() => onHover(index)}
+          onPointerMove={(event) => {
+            const last = pointer.current;
+            pointer.current = { x: event.clientX, y: event.clientY };
+            if (last && (last.x !== event.clientX || last.y !== event.clientY)) onHover(index);
+          }}
           onClick={() => onChoose(command)}
           className={cn(
             'flex cursor-pointer items-baseline gap-3 rounded-md px-3 py-2 text-sm',
