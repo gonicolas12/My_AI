@@ -17,6 +17,8 @@ const WIN_PY = fileURLToPath(new URL('../../tools/interface_web/win.py', import.
 export function win(...args) {
   return execFileSync(process.env.PYTHON ?? 'python', [WIN_PY, ...args], {
     encoding: 'utf-8',
+    // Sortie en UTF-8 : en cp1252, la console de Windows ne sait pas écrire « → »
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   }).trim();
 }
 
