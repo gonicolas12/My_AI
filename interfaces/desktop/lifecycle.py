@@ -28,6 +28,7 @@ from core.chat_service import ChatError, ChatService
 from interfaces.desktop.events import EventBus
 from interfaces.desktop.memory import MemoryService
 from interfaces.desktop.model_setup import FirstLaunch, ModelJobs, OllamaSetup
+from interfaces.desktop.prompts import PromptsService
 from interfaces.desktop.server import DesktopServer
 from interfaces.desktop.settings import SettingsService
 from utils.logger import setup_logger
@@ -133,6 +134,7 @@ class DesktopApp:
         self._first_launch: Optional[FirstLaunch] = None
         self._settings: Optional[SettingsService] = None
         self._memory: Optional[MemoryService] = None
+        self._prompts: Optional[PromptsService] = None
         self._services_lock = threading.RLock()
 
         self._lock = threading.Lock()
@@ -352,6 +354,14 @@ class DesktopApp:
             if self._memory is None:
                 self._memory = MemoryService(lambda: self.engine, lambda: self.chat)
             return self._memory
+
+    @property
+    def prompts(self) -> PromptsService:
+        """Bibliothèque de prompts du panneau."""
+        with self._services_lock:
+            if self._prompts is None:
+                self._prompts = PromptsService(lambda: self.engine)
+            return self._prompts
 
     def notify(self, level: str, message: str) -> None:
         """Notification brève dans la fenêtre (show_notification de Tk)."""
