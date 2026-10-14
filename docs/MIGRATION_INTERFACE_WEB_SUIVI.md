@@ -42,8 +42,14 @@ phase 2).
   Ollama. Ces essais ont trouvé quatre défauts, corrigés (journal, après la phase 3a). Reste à
   essayer à la voix : une vraie dictée.
 - Question 26 tranchée le 2026-10-13 : on garde aussi « Dossiers du projet » (D26).
-- **Phase 3b : feu vert le 2026-10-13**, en cours (plan en section 16, journal en section 12).
-  Arrêt et compte rendu à sa fin.
+- **Phase 3b (panneaux, onboarding, visionneuses Office) terminée le 2026-10-14** : Réglages,
+  assistant de premier lancement, Mémoire, Prompts, Relay (QR code), Aide F1, palette Ctrl+K et
+  raccourcis Ctrl+R, Ctrl+virgule et F1, boutons de la barre latérale, Word, Excel et PowerPoint
+  dans le volet d'aperçu avec les visionneuses de Windows. Vérifiée dans Chromium (serveur de
+  démonstration) et, pour les visionneuses, dans la vraie fenêtre WebView2. Détails, mesures et
+  bogues corrigés dans le journal (section 12). Restent avec Nicolas : le téléphone (Relay, badge
+  « Mobile »), une vraie dictée, les raccourcis de la phase 3b au vrai clavier ; questions 27 à
+  31 (section 9). Plan de la phase 4 proposé (section 17), en attente du feu vert.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -136,6 +142,14 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
   KaTeX 0.16.47, la copie que `rehype-katex` installait pour lui. Réglé le 2026-10-13 (D22) :
   `overrides` impose KaTeX 0.19.0 partout, `npm audit` ne trouve plus rien.
 
+### Installé en phase 3b (2026-10-13 et 2026-10-14)
+
+- cmdk 1.1.1 (palette Ctrl+K), @radix-ui/react-tabs 1.2.1 (onglets de la Mémoire) et
+  @radix-ui/react-switch 1.4.1 (Réglages) : paquets du §6. @radix-ui/react-dismissable-layer
+  1.2.1 devient une dépendance directe (même version, déjà installée par Dialog) pour les zones
+  des toasts. Rien côté Python (`qrcode` était déjà dans `requirements.txt`). `npm audit` ne
+  trouve rien. `frontend/dist/` : 4,9 Mo, 99 fichiers.
+
 ## 2. Ce que ce PC ne permet pas de vérifier
 
 À faire sur le PC de travail, ou par Nicolas dans la vraie fenêtre :
@@ -157,7 +171,12 @@ Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre p
   du PC, qui servait de voix aux essais ;
 - la fin d'une vraie tâche planifiée (notification du système ou toast) : sans page Agents
   (phase 4), aucune tâche ne se lance depuis l'interface web ;
-- un message du téléphone (badge « Mobile ») : phase 3b, avec le panneau Relay.
+- un message du téléphone (badge « Mobile ») et le QR code scanné par un vrai téléphone : panneau
+  Relay fait en phase 3b, essai à faire avec Nicolas (question 27) ;
+- les raccourcis de la phase 3b au vrai clavier (Ctrl+K, Ctrl+virgule, F1, Ctrl+R) : le
+  2026-10-14, Windows a refusé de mettre My_AI au premier plan pour `win.py keys` (verrou de
+  premier plan), qui n'a donc rien envoyé (question 29) ;
+- les visionneuses Office à 125 et 150 % et sur deux écrans (vérifiées à 100 %).
 
 ## 3. Tests de référence (phase 0)
 
@@ -231,13 +250,13 @@ code, la documentation et §7.
 - [x] **Écran d'accueil** — `interfaces/gui/base.py` (`_create_home_screen`, `_home_screen_send`,
   `_dismiss_home_screen`). Tk : 🤖 orange, « My_AI » en gras, saisie « Tapez votre message... », micro,
   menu ＋, « Envoyer ↗ », autocomplétion « / » ; les pièces jointes suivent quand on quitte l'accueil.
-- [ ] **Assistant de premier lancement** — `interfaces/onboarding.py` (`OnboardingWizard`, `should_run`,
+- [x] **Assistant de premier lancement** — `interfaces/onboarding.py` (`OnboardingWizard`, `should_run`,
   `detect_ram_gb`, `detect_vram_gb`, `detect_cpu_cores`, `recommend_model`, `pull_model`,
   `apply_model_choice`, `create_custom_model`, `mark_done`), appelé par `launch_unified.py` (étape 3).
   Tk : « 🤖 Bienvenue dans My_AI », statut Ollama, matériel et recommandation, choix qwen3.5:2b/4b/9b,
   progression, journal, « 🚀 Installer » / « Passer » (marque l'assistant comme fait), « 🔄 Réessayer »,
   « ✅ Démarrer My_AI », « Continuer quand même ».
-- [ ] **Aide F1** — `base.py` (`show_help`). Tk : sections Chat, Éditer & regénérer, Pièces jointes &
+- [x] **Aide F1** — `base.py` (`show_help`). Tk : sections Chat, Éditer & regénérer, Pièces jointes &
   documents, Recherche web & citations, Agents, Autres fonctions, Raccourcis clavier ; Échap ferme.
 
 ### Chat
@@ -303,7 +322,7 @@ code, la documentation et §7.
   par message, jamais à la restauration d'une session). Tk : volet 560 px réglable de 320 à 1200, boutons
   📂 (document), 🌐 (navigateur), ✕. Écart : **pas d'onglets Aperçu / Code** dans Tk (nouveau). Edge
   charge les ressources externes d'un artefact (CDN, polices).
-- [ ] **Aperçu des documents** — `_preview_handler.py` (`NativePreview`, `AsyncNativePreview`,
+- [x] **Aperçu des documents** — `_preview_handler.py` (`NativePreview`, `AsyncNativePreview`,
   `supports_native_preview`, `NATIVE_EXTENSIONS`), `_dpi_host.py`, `artifacts_panel.py` (`_render_native`,
   « ⏳ Ouverture de l'aperçu Word… »), `interfaces/document_preview.py`. PDF : lecteur d'Edge.
 - [ ] **Messages du mobile en direct, badge « Mobile »** — `base.py` (`_poll_relay_messages`,
@@ -336,27 +355,27 @@ code, la documentation et §7.
   uniquement », clic = texte remis dans la saisie.
 - [x] **Export Markdown, HTML ou PDF** — `sidebar.py` (`_export_conversation`),
   `core/conversation_exporter.py`.
-- [ ] **Accès au Relay, à la lecture automatique, aux Réglages, à la Mémoire et aux Prompts** —
+- [x] **Accès au Relay, à la lecture automatique, aux Réglages, à la Mémoire et aux Prompts** —
   `sidebar.py` (`_make_relay_button`, `_make_tts_button`, `_make_settings_button`,
   `_make_memory_button`, `_make_prompts_button`).
 
 ### Fenêtres et panneaux
 
-- [ ] **Réglages** — `settings_panel.py` + utilitaires de `interfaces/onboarding.py`
+- [x] **Réglages** — `settings_panel.py` + utilitaires de `interfaces/onboarding.py`
   (`ollama_reachable`, `list_installed_models`, `pull_model`, `apply_model_choice`, `create_custom_model`,
   `apply_generation_params`, `set_config_flag`, `marker_path`). Modèles (liste sans `my_ai`, pull avec
   progression et journal, « ✅ Appliquer » avec confirmation) ; température 0–1 par pas de 0,05,
   num_ctx (2048 à 65536), timeout 30–7200 s, appliqués aussi à l'instance `LocalLLM` en cours ; langue
   par défaut, lecture automatique, `relay.auto_start`, relance de l'onboarding (supprime le marqueur).
-- [ ] **Mémoire** — `memory_panel.py`, `core/memory_store.py` (`MemoryStore`). Onglets Faits / Documents /
+- [x] **Mémoire** — `memory_panel.py`, `core/memory_store.py` (`MemoryStore`). Onglets Faits / Documents /
   Conversations, recherche, filtre par catégorie, 20 par page, provenance, édition en ligne, « ➕ Ajouter »,
   suppression confirmée avec « Supprimer aussi le message d'origine ».
-- [ ] **Prompts** — `prompts_panel.py`, `core/prompt_library.py` (`add`, `update`, `delete`).
-- [ ] **Relay** — `base.py` (`_toggle_relay`, `_show_relay_info_popup`, `start_relay`, `stop_relay`,
+- [x] **Prompts** — `prompts_panel.py`, `core/prompt_library.py` (`add`, `update`, `delete`).
+- [x] **Relay** — `base.py` (`_toggle_relay`, `_show_relay_info_popup`, `start_relay`, `stop_relay`,
   `_init_relay`). QR code (correction L, marge 4, redessiné quand la liste des tunnels est stable),
   statut des tunnels, URL copiable, « 🧩 Copier pour l'extension VS Code », jeton, appareils connectés,
   « Arrêter le Relay ».
-- [ ] **Palette Ctrl+K et raccourcis** — `command_palette.py` (`_build_command_list`,
+- [x] **Palette Ctrl+K et raccourcis** — `command_palette.py` (`_build_command_list`,
   `setup_command_palette_shortcuts`), `base.py` (`setup_keyboard_shortcuts`, `on_enter_key`),
   `layout.py`. Commandes : Nouveau chat, Effacer le chat, Sauvegarder la session, barre latérale, onglet
   Chat, onglet Agents, Relay, Réglages, Mémoire, Bibliothèque de prompts, Export ×3, Aide.
@@ -392,23 +411,18 @@ code, la documentation et §7.
 - [ ] **Notification système à la fin d'une tâche longue** — `execution.py` (`_notify_task_complete` :
   plus de 8 s et fenêtre sans focus), `utils/desktop_notify.py`.
 
-### Où en est la checklist après la phase 3a
+### Où en est la checklist après la phase 3b
 
-Cochés ci-dessus : terminés dans l'interface web (phases 2 et 3a). Pièces jointes par les
-dialogues et le glisser-déposer du système, micro et lecture vocale sont aussi essayés sur le vrai
-matériel (le 2026-10-13) ; reste une vraie dictée à la voix (section 2). Restent :
+Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a et 3b). Restent :
 
-- **Aperçu des documents** : PDF dans le lecteur de WebView2 (vérifié dans la vraie fenêtre) ;
-  Word, Excel et PowerPoint en page HTML de repli (`interfaces/document_preview.py`) jusqu'aux
-  visionneuses natives de la phase 3b (D8).
-- **Messages du mobile** : badge « Mobile » et affichage en direct prêts depuis la phase 2, à
-  vérifier avec un vrai téléphone (phase 3b, avec le panneau Relay).
-- **Accès au Relay, aux Réglages, à la Mémoire et aux Prompts** : boutons de la barre latérale
-  désactivés jusqu'à la phase 3b (D20) ; lecture automatique et Export faits.
-- **Raccourcis** : Ctrl+K (palette), Ctrl+R (Relay), Ctrl+virgule (Réglages) et F1 (Aide) en
-  phase 3b ; ceux de la phase 2 restent vérifiés au vrai clavier.
-- **Structure générale** : assistant de premier lancement et Aide F1 en phase 3b.
-- **Agents** : phase 4.
+- **Messages du mobile** : badge « Mobile » et affichage en direct prêts depuis la phase 2 ; le
+  panneau Relay et son QR code sont faits (Relay simulé dans Chromium). À vérifier avec un vrai
+  téléphone, avec Nicolas (question 27).
+- **Raccourcis de la phase 3b au vrai clavier** (Ctrl+K, Ctrl+virgule, F1 ; Ctrl+R démarre le
+  vrai Relay) : vérifiés par CDP et dans Chromium, pas encore au vrai clavier (question 29).
+- **Visionneuses Office** : vérifiées à 100 % sur un écran ; 125 %, 150 % et deux écrans restent
+  à voir (section 2).
+- **Agents** : phase 4 (section 17).
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -701,6 +715,52 @@ quand plusieurs runtimes OpenMP cohabitent (le plantage qu'il évite est propre 
     la page garde le vrai). Les artefacts produits par le modèle s'en servent souvent (état d'un
     compteur, d'une liste) ; cookies et IndexedDB restent refusés.
 
+### Choix techniques de la phase 3b (dans le cadre fixé, pour mémoire)
+
+- **Panneaux** : dialogues internes à la fenêtre (Radix), un seul à la fois, chargés à leur
+  première ouverture (morceaux séparés du build). Échap les ferme ; dans la Mémoire, Échap annule
+  d'abord une modification en cours.
+- **Réglages et assistant** (`model_setup.py`, `settings.py`) : mêmes fonctions de
+  `interfaces/onboarding.py` que Tk ; un téléchargement ou une régénération à la fois, progression
+  et journal en événements (`models.*`) ; paramètres de génération appliqués aussi au `LocalLLM` en
+  cours ; écritures de `config.yaml` qui gardent ses commentaires. L'assistant passe à son étape du
+  lancement, avant `my_ai` et le placement ; sans fenêtre (`--headless`), l'étape est sautée.
+- **Mémoire** (`memory.py`) : un message de conversation modifié, ou supprimé avec son origine,
+  passe par `ChatService.change_saved_message` : retrouvé par son texte près de son index (refus si
+  la conversation a changé depuis l'indexation), il change aussi dans la conversation ouverte, et
+  la sauvegarde suivante ne le fait pas revenir ; la recherche globale réindexe ensuite la session.
+  Le contexte déjà envoyé au modèle n'est pas réécrit, comme dans Tk. Couleurs des catégories en
+  jetons (`--memory-*`, reprises des jetons existants).
+- **Prompts** (`prompts.py`) : contrôles du formulaire de Tk, erreurs dans le formulaire ; une
+  commande créée apparaît aussitôt dans l'autocomplétion.
+- **Relay** : Ctrl+R (et le bouton) ouvre le panneau et démarre le Relay s'il ne tourne pas ; il
+  ne l'arrête jamais (Tk) ; le panneau se referme sans l'arrêter. Démarrage sous verrou (un seul
+  `RelayServer`). QR code calculé en Python (`qrcode`, correction L, marge de 4 modules, comme Tk),
+  dessiné en SVG aux couleurs de Tk (modules orange sur fond sombre), une fois la liste des
+  tunnels stable 2 s. Sans tunnel, « Copier » copie l'adresse locale avec la clé de chiffrement
+  (question 31). Le jeton passe dans `relay.status`.
+- **Palette Ctrl+K** (cmdk) : les 14 commandes de Tk, dans son ordre, filtre par sous-chaîne
+  (libellé et raccourci), ordre gardé ; palette ouverte, les autres raccourcis attendent sa
+  fermeture (fenêtre à part dans Tk). « Afficher / masquer la barre latérale » depuis l'onglet
+  Agents revient au Chat, barre ouverte.
+- **Toasts** : au-dessus des dialogues et des panneaux ; leurs zones sont des « branches » Radix :
+  fermer un toast ne ferme plus le dialogue ouvert. Un dialogue ouvert depuis un panneau voile
+  aussi le panneau.
+- **Visionneuses Office** (`native_viewer.py`, `preview_handler.py`, `dpi_host.py`) : la page
+  demande un aperçu « native » (`/api/previews/document`, champ `native`) ; le serveur ne produit
+  la page HTML qu'au repli. La visionneuse se charge masquée dans un `Panel` WinForms posé
+  au-dessus de WebView2 (fenêtre DPI par écran) ; si la fenêtre ne l'était pas, repli sur l'hôte
+  « popup » de `dpi_host.py` possédé par la fenêtre, comme Tk. Le pont ne connaît que les aperçus
+  acceptés par le serveur. La page la masque sous les dialogues, la palette et l'image en grand,
+  et sous les menus, infobulles, listes et toasts qui touchent sa place ; elle la recale sur sa
+  place (taille, échelle, contrôle toutes les 500 ms) et la masque pendant le redimensionnement du
+  volet à la souris. Infobulles de l'en-tête du volet à gauche. Délai d'ouverture : 45 s, puis
+  aperçu HTML. Le navigateur du système reçoit la page HTML.
+- **Liste « / »** : la souris ne choisit une commande que si elle bouge (une liste ouverte sous un
+  curseur immobile garde sa première commande).
+- **Serveur de démonstration** : Ollama, mémoire et Relay simulés (ni modèle téléchargé, ni base
+  touchée, ni port ni tunnel ouverts) ; vraie `PromptLibrary` sur une copie temporaire.
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -824,6 +884,30 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
     utiles sont retrouvés, sans limite de taille, et il se réindexe quand le code change. Pour un
     vrai projet (des centaines de fichiers), seul le second tient. D'accord ?
 
+### Questions de la phase 3b (posées le 2026-10-14)
+
+27. **Essai avec ton téléphone** (Relay, badge « Mobile ») : il faut la vraie appli, avec ses
+    tunnels publics, et ton téléphone. Quand tu es devant le PC : lance My_AI, Ctrl+R, scanne le
+    QR code, envoie un message depuis le téléphone ; je vérifie de mon côté (journal, badge, état
+    du panneau). Le QR code reprend les couleurs de Tk (modules orange sur fond sombre, code
+    « inversé ») : si ton lecteur ne le lit pas, je propose des modules sombres sur fond clair.
+    D'accord pour le faire ensemble ?
+28. **Vraie dictée** : il faut ta voix (le micro de ce PC n'entend pas la synthèse vocale du PC).
+    Peux-tu dicter une phrase dans la vraie appli (bouton micro) et me dire ce qui est inséré ?
+29. **Raccourcis au vrai clavier** : dans la vraie appli, Ctrl+K (palette), Ctrl+virgule
+    (Réglages) et F1 (Aide) ouvrent-ils bien leur panneau ? Ctrl+R démarre le vrai Relay : à
+    garder pour l'essai 27.
+30. **Word reste lancé après un aperçu** : la visionneuse de Word tourne dans un `WINWORD.EXE
+    -Embedding` qui reste ouvert après l'aperçu, et même après la fermeture de l'appli (Excel et
+    PowerPoint se ferment). C'est le comportement d'Office, le même avec Tk et avec le volet
+    d'aperçu de l'Explorateur ; le Word suivant s'ouvre alors en 0,2 s au lieu de 1,3 s. Je propose
+    de le laisser ainsi. Sinon, l'appli pourrait arrêter, à sa fermeture, le Word qu'elle a lancé.
+    D'accord ?
+31. **Adresse copiée sans tunnel** : avant l'arrivée des tunnels, « Copier » donne l'adresse
+    locale du Relay avec la clé de chiffrement (`http://127.0.0.1:8765/?token=…#k=…`), qui ouvre
+    l'interface mobile dans un navigateur du PC. Tk copiait `http://localhost:8765?token=…`, sans
+    la clé, qui ne suffit plus depuis le chiffrement. Je garde la nouvelle. D'accord ?
+
 ## 10. Risques repérés
 
 - **Reprise du prompt par Ollama** : `_rewind_engine_history` (édition, rechargement) réécrit tout
@@ -835,13 +919,14 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
 - **Le placement et l'ordre de démarrage** : rien ne doit appeler Ollama avant la fin du placement, y
   compris le panneau Réglages (`ollama_reachable`, `/api/tags`), la vérification `my_ai` du moteur, le
   préchargement, les agents, le Relay, le scheduler (rattrapage) et la recherche globale.
-- **Visionneuses Office et DPI** : passer le processus en « DPI par écran v2 » avant pywebview peut
-  changer le rendu de WebView2 ; l'hébergement en fenêtre enfant (`WS_CHILD`) au-dessus de WebView2 est à
-  prouver ; tests à 125 et 150 % impossibles ici.
+- **Visionneuses Office et DPI** : la fenêtre enfant au-dessus de WebView2 fonctionne dans la vraie
+  fenêtre à 100 % (2026-10-14 : place au pixel près, masquée sous la palette, suit le volet).
+  Restent 125 %, 150 % et deux écrans (la fenêtre WinForms ne se redimensionne pas d'elle-même en
+  changeant d'écran, voir plus bas) ; repli « popup » si la fenêtre n'est pas DPI par écran.
 - **pythonnet sur Python 3.14** (PC Arc) : version ≥ 3.1 obligatoire ; 3.2.x très récente.
-- **Mémoire et sessions** : le panneau Mémoire modifie les messages d'origine des sessions
-  (`at_source=True`). Avec l'état de la conversation côté backend, une sauvegarde de la session courante
-  pourrait écraser ces modifications : à synchroniser.
+- **Mémoire et sessions** : réglé en phase 3b. Les messages d'origine modifiés ou supprimés par le
+  panneau Mémoire passent par le `ChatService`, qui tient la conversation ouverte à jour : une
+  sauvegarde ne les écrase plus (section 8).
 - **Glisser-déposer dans WebView2** : le vrai chemin des fichiers (`pywebviewFullPath`) est à vérifier ;
   les dossiers ne sont pas gérés par Tk aujourd'hui.
 - **Raccourcis du navigateur dans WebView2** (Ctrl+R, F5, Ctrl+N, Ctrl+S, Ctrl+P, Ctrl+F…) à neutraliser.
@@ -875,6 +960,16 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
   invente parfois un texte (« Thank you. ») et devine la mauvaise langue. Une dictée réelle le dira ;
   le filtre de silence de faster-whisper (`vad_filter`) ou la langue de `config.yaml` pourraient
   l'éviter, sans requête au modèle de chat.
+- **Word lancé après un aperçu** (phase 3b) : `WINWORD.EXE -Embedding` reste ouvert après
+  l'aperçu et après la fermeture de l'appli (question 30) ; `test_native_preview.py` en laisse un
+  aussi.
+- **Mesures sur PC chargé** (phase 3b) : avec 2 Go de mémoire libre, les mesures du défilement et
+  du streaming varient du simple au décuple d'un passage à l'autre, pour le build de la phase 3a
+  comme pour celui de la phase 3b ; comparer deux builds par passages alternés, dans les mêmes
+  conditions.
+- **Chromium sans fenêtre** (captures, phase 3b) : la première seconde après le lancement, les
+  animations y avancent au ralenti, sans tâche longue de la page ; `capture_panels.mjs` attend
+  1,5 s. À revoir dans la vraie fenêtre si une animation d'ouverture y semblait lente.
 
 ---
 
@@ -1327,6 +1422,74 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   TypeScript, ESLint et Prettier propres ; `capture_chat.mjs` : 27 contrôles sur 27 ;
   `window_system.mjs` : tous les contrôles passent ; `frontend/dist` reconstruit.
 
+### Phase 3b — 2026-10-13 et 2026-10-14 (PC à RTX 3060)
+
+- `main` n'a pas bougé (`543f083`). Paquets : section 1.
+- **Front** :
+  - Réglages (Ctrl+virgule) : modèles Ollama (liste sans `my_ai`, téléchargement avec progression
+    et journal, « Appliquer » avec confirmation), température, num_ctx, délai, langue, lecture
+    automatique, Relay au lancement, relance de l'assistant ;
+  - assistant de premier lancement à la place de l'écran de chargement : Ollama, matériel, modèle
+    recommandé, installation avec progression et journal, « Passer », « Réessayer », « Démarrer
+    My_AI », « Continuer quand même » ;
+  - Mémoire : onglets Faits, Documents, Conversations, recherche, catégorie, pages de 20,
+    provenance, ajout d'un fait, modification sur place, suppression confirmée (avec le message
+    d'origine pour une conversation) ;
+  - Prompts : liste, création, modification, suppression ; erreurs dans le formulaire ;
+  - Relay (Ctrl+R) : démarrage à l'ouverture, état des tunnels, QR code, « Copier », « Copier pour
+    l'extension VS Code », jeton, appareils connectés, « Arrêter le Relay » ;
+  - Aide (F1, bouton de l'en-tête) ; palette Ctrl+K avec les 14 commandes de Tk ;
+  - boutons Relay, Réglages, Mémoire et Prompts de la barre latérale activés ;
+  - volet d'aperçu : Word, Excel et PowerPoint dans la visionneuse de Windows, aperçu HTML en
+    repli et dans un navigateur.
+- **Backend** :
+  - `model_setup.py` et `settings.py` (Réglages, assistant), `memory.py`, `prompts.py`, `qr.py` ;
+    routes `api_settings.py`, `api_memory.py`, `api_prompts.py`, `/api/relay/qr` ;
+  - `core/chat_service.py` : `change_saved_message` (Mémoire) ; aucune requête au modèle en plus ;
+  - lancement : étape de l'assistant ; Relay démarré sous verrou, jeton dans `relay.status` ;
+  - visionneuses : `preview_handler.py` et `dpi_host.py` déplacés depuis `interfaces/gui/` (relais
+    gardés pour Tk ; `dpi_host.py` prend un handle et un rectangle), `native_viewer.py`, quatre
+    fonctions du pont (`native_preview_*`), aperçu « native » de `previews.py`.
+- **Tests** : `python -m pytest tests/` : **1120 réussis** (1086 + 34), aucun échec (2 min 24). Front : **94 tests
+  Vitest** (80 + 14), TypeScript, ESLint et Prettier propres, `npm audit` sans avis.
+  `test_native_preview.py` (vrais Word, Excel et PowerPoint) passe par les modules déplacés ; Tk
+  importe toujours ses modules.
+- **Contrôles et captures** (Chromium, serveur de démonstration) : `capture_panels.mjs`,
+  **45 contrôles sur 45**, 20 captures relues (assistant, Réglages, Mémoire, Prompts, Relay
+  simulé, Aide, palette), aucune erreur de console ; `capture_chat.mjs` (phase 3a) : 27 sur 27.
+- **Vraie fenêtre WebView2** (serveur de démonstration, `--window`, pilotée par CDP, inactivité
+  du PC vérifiée avant chaque ouverture ; `frontend/scripts/window_native.mjs`, 11 contrôles sur
+  11, encore après le déplacement de l'hôte DPI) : Word affiche `note_projet.docx` dans le volet
+  (processus `WINWORD.EXE`) ; hôte posé au pixel près sur la place réservée par la page ; masqué
+  sous la palette, puis revenu ; visible sous un toast qui ne le touche pas ; recalé quand le volet
+  change de largeur ; masqué et déchargé à la fermeture du volet ; fermeture de l'appli propre.
+  Prête en 1,3 s avec Word fermé, 0,2 s Word déjà lancé.
+- **Mesures** (même protocole que la phase 3a, build normal, PC chargé : 2 Go de mémoire libre ;
+  deux passages alternés du build de la phase 3a et de celui de la phase 3b, un seul serveur de
+  démonstration à la fois) :
+  - défilement rapide des 200 messages : 4 et 38 images au-delà de 33 ms (3a), 15 et 46 (3b) ; à
+    la molette : 14 et 2 (3a), 3 et 9 (3b) ;
+  - réponse de 5 000 jetons avec saisie : 74 et 88 images au-delà de 33 ms sur environ 4 300
+    (3a), 105 et 60 (3b) ; saisie au pire à 56 et 48 ms (3a), 56 et 56 ms (3b) ;
+  - pas d'écart propre à la phase 3b ; ces chiffres sont moins bons que ceux du journal de la
+    phase 3a pour les deux builds, à cause de la charge du PC (section 10).
+- **Bogues trouvés et corrigés en route** : fermer un toast fermait le dialogue ouvert (Radix
+  traite le clic extérieur au `click`, une fois le toast retiré du DOM) et un toast passait sous
+  un panneau ; un dialogue ouvert depuis un panneau ne le voilait pas ; rouge au survol des boutons
+  « Supprimer » et « Détacher » perdu (`cn` ne fusionne pas les classes Tailwind) ; liste « / »
+  choisie par un curseur immobile (Entrée insérait « /reformule ») ; test de la palette non
+  conforme à ESLint (commité sans ESLint, corrigé) ; directives pylint des routes suivies d'un
+  texte lu comme des noms de messages (W0012).
+- **Outils** : `capture_panels.mjs` (assistant, Réglages, Mémoire, Prompts, Relay, Aide,
+  palette), `window_native.mjs` ; `win.py children` (enfants directs de la fenêtre et programmes
+  des fenêtres d'autres processus qu'ils contiennent) ; `win.py origin` par la zone client ;
+  `window_keys.mjs` n'envoie plus Ctrl+R (vrai Relay dans l'appli) et contrôle Ctrl+K,
+  Ctrl+virgule et F1. Serveur de démonstration : Ollama, mémoire et Relay simulés,
+  `--premier-lancement`.
+- **Incidents** : aucun sur les données. Les tests de visionneuse et les passages dans la vraie
+  fenêtre ont laissé des `WINWORD.EXE -Embedding` (lancés par eux, sans document de Nicolas) :
+  arrêtés à chaque fois (question 30).
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -1484,7 +1647,7 @@ Risques :
 - Le panneau Mémoire modifie les messages d'origine des sessions : synchroniser avec l'état du chat.
 - Glisser-déposer : vrai chemin des fichiers à vérifier dans WebView2 ; dossiers refusés comme dans Tk.
 
-## 16. Plan de la phase 3b (feu vert le 2026-10-13, en cours)
+## 16. Plan de la phase 3b (feu vert le 2026-10-13, réalisé le 2026-10-14)
 
 But (prompt, §9) : le reste des sections « Structure générale » et « Fenêtres et panneaux » du §7
 et les visionneuses Office natives (§5, D8) : Réglages, Mémoire, Prompts, Relay, Aide F1, palette
@@ -1531,3 +1694,60 @@ Risques :
   conversation ouverte, l'état du chat doit suivre sans écraser la modification (section 10).
 - Relay : le QR code doit se redessiner quand la liste des tunnels change, comme Tk ; vérification
   avec le téléphone de Nicolas, à faire ensemble.
+
+Écarts au plan, à la fin de la phase 3b :
+
+- Vérification avec un vrai téléphone et vraie dictée : à faire avec Nicolas (questions 27 et 28).
+- Raccourcis au vrai clavier : pas encore vérifiés (question 29).
+- Visionneuses : l'hôte « popup » de `dpi_host.py` reste en repli de la fenêtre enfant (§5 du
+  prompt), pour une fenêtre qui ne serait pas DPI par écran ; Vitest pour les couches et le
+  placement, `window_native.mjs` pour la vraie fenêtre.
+
+---
+
+## 17. Plan de la phase 4 (proposé le 2026-10-14, en attente du feu vert)
+
+But (prompt, §9) : tous les éléments de la section « Agents » du §7, avec le design de la page
+Agents du §8 (inspirée de Codex). Le backend existe (`relay/agent_relay.py`, `core/scheduler.py`,
+`interfaces/resource_monitor.py`) : l'exposer, ne pas le réécrire.
+
+Fichiers créés ou complétés :
+
+- Backend : `interfaces/desktop/agents.py` et `api_agents.py` (liste des agents, agents
+  personnalisés, plan d'exécution, exécution d'un agent ou d'un workflow, débat, arrêt), en
+  appelant `AgentRelayService` ; événements `agents.*` (début et fin de chaque agent, jetons
+  streamés par agent, statut des nœuds, fin du workflow) dans `events.py` et `lib/events.ts` ;
+  tâches planifiées (liste, création, édition, suppression, activation, « exécuter maintenant »,
+  historique) en routes et événements ; moniteur de ressources échantillonné côté serveur (CPU,
+  RAM, GPU, VRAM, inférence, tokens/s) en événements ; notification du système en fin de tâche
+  longue (`utils/desktop_notify.py`, comme Tk). Pièces jointes de la zone de tâche par le même
+  chemin que le chat (`processors/attachments.py`).
+- Front (`features/agents/`) : grille des 9 agents (icônes lucide teintées de leur couleur) et
+  des agents personnalisés ; dialogue de création et d'édition (prompt système généré) ; zone de
+  tâche (pièces jointes, collage d'image, micro) ; fils d'exécution avec statut en direct,
+  rouvrables, sorties streamées par agent, Stop, diff pour un code modifié ; canvas de workflow
+  avec `@xyflow/react` (paquet du §6) : glisser depuis la grille, ports, zoom, déplacement, grille
+  et aimantation, minimap, sélection multiple, suppression, liens animés pendant l'exécution,
+  statut des nœuds, Save / Load / Export au format JSON de `WorkflowCanvas.to_dict` ; mode Débat ;
+  statistiques et moniteur (barres par seuil, mini-graphiques de 60 mesures) ; vue des tâches
+  planifiées (prochaine exécution, dernier résultat).
+- Tests : pytest pour les routes et services ; Vitest pour le canvas (lecture et écriture du JSON
+  de Tk), les fils et les composants ; captures Playwright ; vraie exécution avec Ollama.
+
+Étapes : (1) routes et événements des agents, grille, agents personnalisés ; (2) zone de tâche,
+exécution d'un agent seul, fils, Stop ; (3) canvas, workflows séquentiel, parallèle et DAG,
+Save / Load / Export ; (4) Débat ; (5) statistiques et moniteur ; (6) tâches planifiées et
+notification de fin ; (7) captures, mesures, recette et compte rendu.
+
+Risques :
+
+- Une seule file vers Ollama (`n_slots = 1`) : un workflow en parallèle et une réponse du chat se
+  partagent le modèle ; garder l'ordre et l'arrêt de Tk, sans requête en plus (section 10).
+- Compatibilité du JSON des workflows existants (`WorkflowCanvas.to_dict`) : relire ceux de
+  `data/` avant d'en écrire.
+- Tokens/s du moniteur à 0 dans Tk (écart, section 5) : à calculer depuis les statistiques
+  d'Ollama, comme le chat (D10).
+- GPU et VRAM sur le PC Arc (pas de NVML) : affichage dégradé à prévoir.
+- « Exécuter même l'appli fermée » (Planificateur de tâches de Windows) : vérifier les droits et
+  ne rien laisser derrière les essais.
+- Canvas avec beaucoup de nœuds ; liens animés sans coût continu.
