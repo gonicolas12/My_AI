@@ -47,9 +47,12 @@ phase 2).
   raccourcis Ctrl+R, Ctrl+virgule et F1, boutons de la barre latérale, Word, Excel et PowerPoint
   dans le volet d'aperçu avec les visionneuses de Windows. Vérifiée dans Chromium (serveur de
   démonstration) et, pour les visionneuses, dans la vraie fenêtre WebView2. Détails, mesures et
-  bogues corrigés dans le journal (section 12). Restent avec Nicolas : le téléphone (Relay, badge
-  « Mobile »), une vraie dictée, les raccourcis de la phase 3b au vrai clavier ; questions 27 à
-  31 (section 9). Plan de la phase 4 proposé (section 17), en attente du feu vert.
+  bogues corrigés dans le journal (section 12). Plan de la phase 4 proposé (section 17), en
+  attente du feu vert.
+- Questions de la phase 3b tranchées le 2026-10-14 (décisions D27 à D31, section 8) et
+  appliquées : téléphone (Relay, QR code, badge « Mobile »), vraie dictée et raccourcis au vrai
+  clavier essayés avec Nicolas dans la vraie appli ; le Word caché des aperçus se ferme avec
+  l'appli (D30) ; adresse locale avec la clé gardée (D31). Détails dans le journal.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -167,15 +170,14 @@ Vérifiable ici : Windows, WebView2, visionneuses Office natives, micro, carte N
 Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre par Nicolas (D21 ;
 `frontend/scripts/window_system.mjs`, journal). Restent :
 
-- une vraie dictée à la voix : le micro de ce PC annule l'écho et n'entend pas la synthèse vocale
-  du PC, qui servait de voix aux essais ;
+- une vraie dictée à la voix : faite par Nicolas le 2026-10-14 (D28) ;
 - la fin d'une vraie tâche planifiée (notification du système ou toast) : sans page Agents
   (phase 4), aucune tâche ne se lance depuis l'interface web ;
-- un message du téléphone (badge « Mobile ») et le QR code scanné par un vrai téléphone : panneau
-  Relay fait en phase 3b, essai à faire avec Nicolas (question 27) ;
-- les raccourcis de la phase 3b au vrai clavier (Ctrl+K, Ctrl+virgule, F1, Ctrl+R) : le
-  2026-10-14, Windows a refusé de mettre My_AI au premier plan pour `win.py keys` (verrou de
-  premier plan), qui n'a donc rien envoyé (question 29) ;
+- un message du téléphone (badge « Mobile ») et le QR code scanné par un vrai téléphone : faits
+  avec Nicolas le 2026-10-14 (D27) ;
+- les raccourcis de la phase 3b au vrai clavier (Ctrl+K, Ctrl+virgule, F1, Ctrl+R) : `win.py keys`
+  avait été refusé par le verrou de premier plan de Windows ; essayés par Nicolas le 2026-10-14
+  (D29) ;
 - les visionneuses Office à 125 et 150 % et sur deux écrans (vérifiées à 100 %).
 
 ## 3. Tests de référence (phase 0)
@@ -325,7 +327,7 @@ code, la documentation et §7.
 - [x] **Aperçu des documents** — `_preview_handler.py` (`NativePreview`, `AsyncNativePreview`,
   `supports_native_preview`, `NATIVE_EXTENSIONS`), `_dpi_host.py`, `artifacts_panel.py` (`_render_native`,
   « ⏳ Ouverture de l'aperçu Word… »), `interfaces/document_preview.py`. PDF : lecteur d'Edge.
-- [ ] **Messages du mobile en direct, badge « Mobile »** — `base.py` (`_poll_relay_messages`,
+- [x] **Messages du mobile en direct, badge « Mobile »** — `base.py` (`_poll_relay_messages`,
   `_display_relay_message` avec le préfixe 📡, `_process_relay_attachments_then_ai`).
 - [x] **Fin de tâche planifiée : toast et notification système** — `base.py` (`_on_scheduled_task_done`,
   `_display_scheduled_result`, `_show_scheduled_toast` : 6 s, liseré vert / orange / rouge, clic = ouvre
@@ -413,13 +415,10 @@ code, la documentation et §7.
 
 ### Où en est la checklist après la phase 3b
 
-Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a et 3b). Restent :
+Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a et 3b). Le téléphone (Relay, QR
+code, badge « Mobile »), la dictée et les raccourcis au vrai clavier ont été essayés avec Nicolas
+dans la vraie appli le 2026-10-14 (D27 à D29). Restent :
 
-- **Messages du mobile** : badge « Mobile » et affichage en direct prêts depuis la phase 2 ; le
-  panneau Relay et son QR code sont faits (Relay simulé dans Chromium). À vérifier avec un vrai
-  téléphone, avec Nicolas (question 27).
-- **Raccourcis de la phase 3b au vrai clavier** (Ctrl+K, Ctrl+virgule, F1 ; Ctrl+R démarre le
-  vrai Relay) : vérifiés par CDP et dans Chromium, pas encore au vrai clavier (question 29).
 - **Visionneuses Office** : vérifiées à 100 % sur un écran ; 125 %, 150 % et deux écrans restent
   à voir (section 2).
 - **Agents** : phase 4 (section 17).
@@ -571,6 +570,20 @@ Note sur D23 : le prompt (§7, §11) demande de garder l'isolation du worker Whi
 quand il quitte `interfaces/gui/`. C'est fait à l'identique : worker lancé par son chemin, utilisé
 quand plusieurs runtimes OpenMP cohabitent (le plantage qu'il évite est propre à macOS) ou avec
 `MY_AI_WHISPER_WORKER=1`, repli sur une transcription mono-thread dans le processus.
+
+### Prises le 2026-10-14 (réponses de Nicolas aux questions de la phase 3b)
+
+- **D27. Essai avec le téléphone** : fait ensemble dans la vraie appli, tunnels publics compris
+  (journal, après la phase 3b). Le QR code garde les couleurs de Tk : le téléphone l'a lu.
+- **D28. Vraie dictée** : faite par Nicolas, dans la vraie appli.
+- **D29. Raccourcis au vrai clavier** : essayés par Nicolas, dans la vraie appli.
+- **D30. Word caché des aperçus** : il reste lancé tant que l'appli est ouverte (l'aperçu suivant
+  s'ouvre plus vite) et se ferme avec l'appli. Seul l'Office lancé par l'appli pour ses aperçus
+  est fermé : Word, Excel ou PowerPoint qui a porté une visionneuse de l'appli, lancé par COM
+  (« -Embedding ») après elle, sans fenêtre visible ; jamais un Office ouvert par Nicolas ni un
+  Office déjà là avant l'appli.
+- **D31. Adresse copiée sans tunnel** : l'adresse locale du Relay avec la clé de chiffrement est
+  gardée.
 
 ### Constats techniques qui orientent la phase 1
 
@@ -886,6 +899,10 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
 
 ### Questions de la phase 3b (posées le 2026-10-14)
 
+Réponses de Nicolas le 2026-10-14 : oui à la 27, faite ensemble le jour même, comme la 28 et la
+29 (un seul essai, dans la vraie appli) ; pour la 30, fermer le Word caché avec l'appli, le
+laisser tant qu'elle est ouverte ; oui à la 31 (décisions D27 à D31, section 8).
+
 27. **Essai avec ton téléphone** (Relay, badge « Mobile ») : il faut la vraie appli, avec ses
     tunnels publics, et ton téléphone. Quand tu es devant le PC : lance My_AI, Ctrl+R, scanne le
     QR code, envoie un message depuis le téléphone ; je vérifie de mon côté (journal, badge, état
@@ -960,9 +977,9 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
   invente parfois un texte (« Thank you. ») et devine la mauvaise langue. Une dictée réelle le dira ;
   le filtre de silence de faster-whisper (`vad_filter`) ou la langue de `config.yaml` pourraient
   l'éviter, sans requête au modèle de chat.
-- **Word lancé après un aperçu** (phase 3b) : `WINWORD.EXE -Embedding` reste ouvert après
-  l'aperçu et après la fermeture de l'appli (question 30) ; `test_native_preview.py` en laisse un
-  aussi.
+- **Word lancé après un aperçu** (phase 3b) : réglé (D30). Le Word caché reste ouvert tant que
+  l'appli tourne et se ferme avec elle ; `test_native_preview.py` ferme aussi celui de ses tests.
+  Une fin brutale de l'appli (processus tué) le laisse lancé, comme avant.
 - **Mesures sur PC chargé** (phase 3b) : avec 2 Go de mémoire libre, les mesures du défilement et
   du streaming varient du simple au décuple d'un passage à l'autre, pour le build de la phase 3a
   comme pour celui de la phase 3b ; comparer deux builds par passages alternés, dans les mêmes
@@ -1489,6 +1506,38 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 - **Incidents** : aucun sur les données. Les tests de visionneuse et les passages dans la vraie
   fenêtre ont laissé des `WINWORD.EXE -Embedding` (lancés par eux, sans document de Nicolas) :
   arrêtés à chaque fois (question 30).
+
+### Après la phase 3b — 2026-10-14 (réponses aux questions, PC à RTX 3060)
+
+- **Essai avec Nicolas** (D27 à D29) dans la vraie appli (`launch_unified.py`, port de débogage),
+  suivie en lecture par CDP (`frontend/scripts/window_watch.mjs`) et par le journal de l'appli,
+  sans saisie de ma part :
+  - raccourcis au vrai clavier : Ctrl+K a ouvert la palette, Ctrl+virgule les Réglages, F1
+    l'Aide ; Échap les a refermés ;
+  - dictée : micro, enregistrement, transcription par Whisper (« small », chargé au premier
+    appel) en 5,1 s, « Bonjour, ça va ? » inséré dans la zone de saisie ;
+  - Relay par Ctrl+R : tunnels localhost.run et cloudflared actifs en 4 et 8 s (serveo n'a pas
+    répondu) ; le téléphone s'est connecté par le QR code 23 s après l'ouverture du panneau ;
+    son message est arrivé avec le badge « Mobile », réponse en 3 s (premier jeton en 1,65 s),
+    envoyée au téléphone ; « Arrêter le Relay » a fermé les tunnels et le client. Comme dans
+    Tk, le message du téléphone s'ajoute à la conversation ouverte.
+- **D30 appliquée** (`native_viewer.py`) : les processus qui portent une visionneuse sont notés
+  quand elle se charge et quand elle se ferme ; à la fermeture de l'appli, après le déchargement de
+  la visionneuse, Word, Excel ou PowerPoint caché lancé pour les aperçus reçoit `WM_CLOSE`, puis
+  est arrêté s'il reste. Vérifié dans la vraie fenêtre : aperçu fermé, Word encore lancé ; appli
+  fermée, plus aucun Word (« Office caché des aperçus fermé avec l'appli »). Tests : sélection sur
+  des processus simulés, vrai Word lancé puis fermé (`test_native_preview.py`, 19 sur 19 ; plus
+  aucun Office derrière le module).
+- **Outil** : `frontend/scripts/window_watch.mjs`, journal d'un essai fait à la main (panneaux,
+  raccourcis reçus par la page, micro, saisie, Relay, messages, toasts), en lecture seule. Au
+  premier passage, il cherchait le jeton dans l'adresse : la page l'en retire et le garde dans
+  `sessionStorage` ; corrigé.
+- **Mémoire du PC** : avec l'appli de l'essai encore ouverte (environ 1 Go) et le modèle chargé, il
+  ne restait que 0,9 Go libre ; un passage de `test_native_preview.py` s'est arrêté sur une erreur
+  interne de pytest (`MemoryError`) et a laissé un Word et un Excel lancés, arrêtés ensuite. Appli
+  fermée, le passage suivant est complet.
+- **Tests** : `tests/test_desktop_*.py` et `tests/test_chat_service.py` : 183 réussis ;
+  `test_native_preview.py` : 19 réussis.
 
 ---
 
