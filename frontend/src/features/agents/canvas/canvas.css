@@ -1,0 +1,76 @@
+/*
+ * Canvas du workflow : thème de React Flow branché sur tokens.css, nœuds et
+ * liens de la page Agents (couleurs de statut de WorkflowCanvas, Tk).
+ */
+
+.agents-flow.react-flow {
+  --xy-background-color: var(--bg-secondary);
+  --xy-background-pattern-color: var(--canvas-dot);
+  --xy-minimap-background-color: var(--bg-primary);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+  --xy-minimap-mask-stroke-color: var(--accent);
+  --xy-minimap-mask-stroke-width: 1.5;
+  --xy-selection-background-color: var(--accent-soft);
+  --xy-selection-border: 1.5px dashed var(--accent);
+  --xy-node-boxshadow-selected: none;
+  --xy-edge-stroke: var(--border-light);
+  font-family: var(--font-ui);
+}
+
+.agents-flow .react-flow__minimap {
+  border: 1px solid var(--border);
+  border-radius: var(--round-sm);
+  overflow: hidden;
+}
+
+/* Ports : anneaux à la couleur de l'agent, zone de prise élargie (Tk : ×2,5) */
+.agents-flow .agent-port {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  border-style: solid;
+  background: var(--bg-tertiary);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.agents-flow .agent-port::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 9999px;
+}
+
+.agents-flow .agent-port:hover,
+.agents-flow .react-flow__handle.connectingto,
+.agents-flow .react-flow__handle.valid {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.agents-flow .react-flow__handle-right.agent-port:hover,
+.agents-flow .react-flow__handle-right.connectingto {
+  transform: translate(50%, -50%) scale(1.25);
+}
+
+/* Lien vers un agent en cours : le flux avance (Tk : nœud jaune) */
+.agents-flow .agent-edge-running {
+  stroke-dasharray: 8 5;
+  animation: agent-edge-flow 0.8s linear infinite;
+}
+
+@keyframes agent-edge-flow {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agents-flow .agent-edge-running {
+    animation: none;
+  }
+}
+
+/* Lien en cours de tracé : pointillés à la couleur du nœud source, comme Tk */
+.agents-flow .react-flow__connection-path {
+  stroke-width: 2.5;
+  stroke-dasharray: 6 3;
+}

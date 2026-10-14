@@ -246,16 +246,157 @@ export interface ServerEvent<T extends EventType = EventType> {
   payload: EventPayloads[T];
 }
 
-/** Événement de la page Agents (préfixe « agents. », repris d'AgentRelayService) */
-export interface AgentServerEvent {
-  type: `agents.${string}`;
+// ── Page Agents (interfaces/desktop/agents.py) ────────────────────────────
+
+/** Agent de la grille (AgentRelayService.list_agents) */
+export interface AgentInfo {
+  key: string;
+  /** Émoji de Tk (🐍, 🔍…) ; 🧩 pour un agent personnalisé */
+  icon: string;
+  name: string;
+  /** Description courte (rédigée par le modèle pour un agent personnalisé) */
+  desc: string;
+  color: string;
+  custom?: boolean;
+  /** Rôle saisi à la création d'un agent personnalisé */
+  full_desc?: string;
+}
+
+export interface AgentsList {
+  builtin: AgentInfo[];
+  custom: AgentInfo[];
+  default_model: string;
+}
+
+/** Statut d'un nœud du canvas (WorkflowCanvas.STATUS_META de Tk) */
+export type NodeStatus = 'idle' | 'running' | 'done' | 'error';
+
+export type RunStatus = 'running' | 'done' | 'error' | 'interrupted';
+
+export type RunKind = 'agent' | 'workflow' | 'debate';
+
+/** Section d'un nœud, ou « deb_N » pour un tour de débat */
+export type SectionId = number | string;
+
+export interface RunNode {
+  id: number;
+  agent_type: string;
+  name: string;
+  color: string;
+  icon?: string;
+  x?: number;
+  y?: number;
+}
+
+export interface RunSection {
+  id: SectionId;
+  title: string;
+  color: string;
+  agent_type: string | null;
+  text: string;
+  status: 'running' | 'done' | 'error';
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface RunPlan {
+  mode: string;
+  /** Étapes du plan : identifiants des nœuds, une étape à plusieurs = en parallèle */
+  steps: SectionId[][];
+  isolated: SectionId[];
+}
+
+export interface RunAttachment {
+  path: string;
+  name: string;
+  type: string;
+}
+
+/** Fil d'exécution complet (GET /api/agents/runs/{id}) */
+export interface RunView {
+  id: string;
+  kind: RunKind;
+  title: string;
+  task: string;
+  attachments: RunAttachment[];
+  /** Code joint à la tâche, gardé pour le diff des sorties qui le modifient */
+  sources: { name: string; text: string }[];
+  nodes: RunNode[];
+  connections: { from: number; to: number }[];
+  plan: RunPlan;
+  mode: string | null;
+  status: RunStatus;
+  status_text: string;
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  sections: RunSection[];
+  node_status: Record<string, NodeStatus>;
+}
+
+/** Ligne de la liste des fils */
+export interface RunSummary {
+  id: string;
+  kind: RunKind;
+  title: string;
+  task: string;
+  status: RunStatus;
+  status_text: string;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  agent_type: string | null;
+  color: string | null;
+  agents: number;
+}
+
+export interface AgentEventPayloads {
+  'agents.run_created': { run: RunView };
+  'agents.agent_exec_start': { exec_id: string; mode: string };
+  'agents.agent_debate_topic': { exec_id: string; topic: string };
+  'agents.agent_section_start': {
+    exec_id: string;
+    section_id: SectionId;
+    title: string;
+    color: string;
+  };
+  /** Suite du texte d'une section ; offset : longueur du texte avant elle */
+  'agents.agent_section_delta': {
+    exec_id: string;
+    section_id: SectionId;
+    text: string;
+    offset: number;
+  };
+  /** Texte entier d'une section, quand il ne prolonge pas le précédent */
+  'agents.agent_section_text': { exec_id: string; section_id: SectionId; text: string };
+  'agents.agent_section_end': { exec_id: string; section_id: SectionId; success: boolean };
+  'agents.agent_node_status': { exec_id: string; node_id: SectionId; status: NodeStatus };
+  'agents.agent_exec_end': {
+    exec_id: string;
+    success: boolean;
+    interrupted: boolean;
+    status_text: string;
+  };
+  'agents.agent_exec_error': { exec_id: string; message: string };
+  'agents.runs_changed': Record<string, never>;
+  'agents.list_changed': Record<string, never>;
+}
+
+export type AgentEventType = keyof AgentEventPayloads;
+
+/** Événement de la page Agents (préfixe « agents. ») */
+export interface AgentServerEvent<T extends AgentEventType = AgentEventType> {
+  type: T;
   conversation_id: string | null;
   message_id: string | null;
   seq: number;
-  payload: Record<string, unknown>;
+  payload: AgentEventPayloads[T];
 }
 
-export type AnyServerEvent = { [T in EventType]: ServerEvent<T> }[EventType] | AgentServerEvent;
+export type AnyAgentEvent = { [T in AgentEventType]: AgentServerEvent<T> }[AgentEventType];
+
+export type AnyServerEvent = { [T in EventType]: ServerEvent<T> }[EventType] | AnyAgentEvent;
 
 /** Messages de contrôle, hors protocole d'événements */
 export interface HelloMessage {
@@ -304,6 +445,6 @@ export function isChatEvent(type: string): boolean {
   return CHAT_PREFIXES.has(type.split('.')[0] ?? '');
 }
 
-export function isAgentEvent(event: AnyServerEvent): event is AgentServerEvent {
+export function isAgentEvent(event: AnyServerEvent): event is AnyAgentEvent {
   return event.type.startsWith('agents.');
 }

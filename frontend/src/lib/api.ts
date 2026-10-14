@@ -7,10 +7,15 @@
  */
 
 import type {
+  AgentInfo,
+  AgentsList,
   AttachmentView,
   ConversationSnapshot,
   EngineStatus,
   RelayStatus,
+  RunAttachment,
+  RunSummary,
+  RunView,
   SessionSummary,
   VoiceInputState,
   VoiceOutputState,
@@ -282,7 +287,62 @@ export interface PromptFields {
   content: string;
 }
 
+/** Liste des fils d'exécution de la page Agents, et le seq de sa lecture */
+export interface RunsResponse {
+  runs: RunSummary[];
+  /** Fil en cours sur la page Agents */
+  active: string | null;
+  /** L'exécuteur partagé est occupé (page Agents, mobile ou tâche planifiée) */
+  busy: boolean;
+  seq: number;
+}
+
+/** Nœud ou lien envoyé à l'exécution (identifiants entiers, comme Tk) */
+export interface RunRequest {
+  task: string;
+  nodes: {
+    id: number;
+    agent_type: string;
+    name: string;
+    color: string;
+    icon: string;
+    x: number;
+    y: number;
+  }[];
+  connections: { from: number; to: number }[];
+  attachments: { path: string; type: string }[];
+}
+
+/** Fichiers choisis ou déposés pour la zone de tâche des agents */
+export interface AgentAttachmentsResponse {
+  attachments: RunAttachment[];
+  refused: string[];
+}
+
+/** Fichier de workflow : format JSON de WorkflowCanvas.to_dict (Tk) */
+export interface WorkflowFile {
+  version: string;
+  nodes: Record<
+    string,
+    {
+      agent_type: string;
+      name: string;
+      color: string;
+      icon: string;
+      x: number;
+      y: number;
+      status: string;
+    }
+  >;
+  connections: { from: number; to: number }[];
+  zoom: number;
+  pan_x: number;
+  pan_y: number;
+}
+
 const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body);
+
+const enc = encodeURIComponent;
 
 export const api = {
   status: () => request<StatusResponse>('GET', '/api/status'),
@@ -438,6 +498,34 @@ export const api = {
   stopRelay: () => post<RelayStatus>('/api/relay/stop'),
   /** QR code de la page de routage : lignes de « 0 » et « 1 », marge comprise */
   relayQr: () => request<{ url: string; rows: string[] }>('GET', '/api/relay/qr'),
+
+  agents: () => request<AgentsList>('GET', '/api/agents'),
+  createAgent: (name: string, role: string) =>
+    post<{ agent: AgentInfo }>('/api/agents/custom', { name, role }),
+  editAgent: (key: string, name: string, role: string) =>
+    request<{ agent: AgentInfo }>('PUT', `/api/agents/custom/${enc(key)}`, { name, role }),
+  deleteAgent: (key: string) =>
+    request<{ ok: boolean }>('DELETE', `/api/agents/custom/${enc(key)}`),
+  agentRuns: () => request<RunsResponse>('GET', '/api/agents/runs'),
+  agentRun: (id: string) =>
+    request<{ run: RunView; seq: number }>('GET', `/api/agents/runs/${enc(id)}`),
+  startRun: (body: RunRequest) => post<{ run_id: string }>('/api/agents/runs', body),
+  stopRun: (id: string) => post<{ stopped: boolean }>(`/api/agents/runs/${enc(id)}/stop`),
+  deleteRun: (id: string) => request<{ ok: boolean }>('DELETE', `/api/agents/runs/${enc(id)}`),
+  clearRuns: () => request<{ removed: number }>('DELETE', '/api/agents/runs'),
+  agentAttachments: (paths: string[]) =>
+    post<AgentAttachmentsResponse>('/api/agents/attachments', { paths }),
+  uploadAgentAttachment: (file: Blob, name: string) => {
+    const form = new FormData();
+    form.append('file', file, name);
+    return post<AgentAttachmentsResponse>('/api/agents/attachments/upload', form);
+  },
+  saveWorkflow: (path: string | null, workflow: WorkflowFile) =>
+    post<{ path: string }>('/api/agents/workflow/save', { path, workflow }),
+  readWorkflow: (path: string) =>
+    post<{ workflow: unknown }>('/api/agents/workflow/read', { path }),
+  exportWorkflow: (path: string | null, workflow: WorkflowFile, runId: string | null) =>
+    post<{ path: string }>('/api/agents/workflow/export', { path, workflow, run_id: runId }),
 
   onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
   installModel: (name: string) =>

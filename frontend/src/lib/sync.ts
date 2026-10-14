@@ -7,6 +7,7 @@
  * lecture sont retenus, puis appliqués s'ils sont plus récents que lui.
  */
 
+import { applyAgentEvents, refreshAgentsPage, useAgents } from '../stores/agents';
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
 import { applyModelDone, applyModelLog, applyModelProgress } from '../stores/models';
 import { notify, showScheduledResult, useApp } from '../stores/app';
@@ -23,7 +24,7 @@ import {
   loadVoiceStatus,
 } from '../stores/voice';
 import { ApiError, api, getToken } from './api';
-import type { AnyServerEvent, ServerEvent } from './events';
+import type { AnyAgentEvent, AnyServerEvent, ServerEvent } from './events';
 import { isAgentEvent, isChatEvent } from './events';
 import { dispatchDroppedPaths } from './drops';
 import { createFrameBatcher } from './scheduleFrame';
@@ -64,8 +65,12 @@ export function startSync(): () => void {
   const applyBatch = (events: AnyServerEvent[]) => {
     const chatFloor = useChat.getState().seq;
     const chatEvents: ServerEvent[] = [];
+    const agentEvents: AnyAgentEvent[] = [];
     for (const event of events) {
-      if (isAgentEvent(event)) continue; // page Agents : phase 4
+      if (isAgentEvent(event)) {
+        agentEvents.push(event);
+        continue;
+      }
       if (isChatEvent(event.type)) {
         if (event.seq > chatFloor) chatEvents.push(event);
         continue;
@@ -73,6 +78,7 @@ export function startSync(): () => void {
       applyAppEvent(event, statusSeq);
     }
     applyChatEvents(chatEvents);
+    applyAgentEvents(agentEvents);
   };
 
   const batcher = createFrameBatcher<AnyServerEvent>(applyBatch);
@@ -95,6 +101,8 @@ export function startSync(): () => void {
       if (status.status.state === 'ready' || status.chat) {
         await loadConversation();
         refreshSessions(0);
+        // Page Agents déjà ouverte : ses fils ont pu avancer pendant la coupure
+        if (useAgents.getState().loaded) refreshAgentsPage();
       }
       void loadVoiceStatus();
     } catch {

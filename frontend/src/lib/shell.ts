@@ -14,6 +14,7 @@ interface PywebviewApi {
   set_title_bar_colors(background: string, text: string): Promise<boolean>;
   pick_files(kind: string): Promise<string[] | null>;
   pick_folder(): Promise<string | null>;
+  pick_workflow(): Promise<string | null>;
   save_file(name: string, fmt: string): Promise<string | null>;
   native_preview_available(): Promise<boolean>;
   native_preview_show(previewId: string, rect: DeviceRect): Promise<boolean>;
@@ -125,7 +126,18 @@ export const shell = {
     }
   },
 
-  /** Chemin d'enregistrement d'un export (dialogue du système) */
+  /** Workflow enregistré à charger sur le canvas des agents (dialogue du système) */
+  async pickWorkflow(): Promise<string | null> {
+    const pick = api()?.pick_workflow;
+    if (!pick) return null;
+    try {
+      return await pick();
+    } catch {
+      return null;
+    }
+  },
+
+  /** Chemin d'enregistrement d'un export ou d'un workflow (dialogue du système) */
   async saveFile(name: string, fmt: string): Promise<string | null> {
     const save = api()?.save_file;
     if (!save) return null;

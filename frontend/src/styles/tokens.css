@@ -47,6 +47,9 @@
   --agent-optimizer: #14b8a6;
   --agent-datascience: #f97316;
 
+  /* Canvas du workflow (workflow_canvas.py) : points de la grille */
+  --canvas-dot: #2a2a2a;
+
   /* Catégories des faits de la Mémoire (memory_panel.py) */
   --memory-preference: var(--agent-analyst);
   --memory-decision: var(--warning);

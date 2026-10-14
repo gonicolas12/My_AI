@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 
 import { TooltipProvider } from './components/ui/Tooltip';
-import { AgentsPage } from './features/agents/AgentsPage';
 import { ChatPage } from './features/chat/ChatPage';
 import { useAutoRead } from './features/chat/useAutoRead';
 import { LoadingScreen } from './features/loading/LoadingScreen';
@@ -23,11 +22,15 @@ import { installNavigationGuard, shell } from './lib/shell';
 import { installShortcuts, overlayOpen, ownsEscape, type ShortcutHandlers } from './lib/shortcuts';
 import { startSync } from './lib/sync';
 import { useApp } from './stores/app';
+import { stopAgentsRun, useAgents } from './stores/agents';
 import { useChat } from './stores/chat';
 import { isGenerating } from './stores/chatReducer';
 import { togglePalette, usePalette } from './stores/palette';
 import { togglePanel } from './stores/panels';
 import { clampPreviewWidth, PREVIEW_WIDTH, usePreview } from './stores/preview';
+
+/** Page Agents : chargée à la première ouverture de l'onglet (React Flow compris) */
+const AgentsPage = lazy(() => import('./features/agents/AgentsPage'));
 
 /** Raccourcis sans effet pendant que la palette a le clavier (fenêtre à part dans Tk) */
 function unlessPalette(handlers: ShortcutHandlers): ShortcutHandlers {
@@ -64,8 +67,16 @@ function useAppEffects() {
         }),
         Escape: (event) => {
           // D6 : Échap arrête la réponse quand aucun dialogue ni menu n'est ouvert,
-          // ni un champ qui s'en sert lui-même (recherche à effacer)
-          if (overlayOpen() || ownsEscape(event) || !isGenerating(useChat.getState())) return;
+          // ni un champ qui s'en sert lui-même (recherche à effacer) ; sur la page
+          // Agents, il arrête l'exécution en cours
+          if (overlayOpen() || ownsEscape(event)) return;
+          if (useApp.getState().tab === 'agents') {
+            if (!useAgents.getState().active) return;
+            event.preventDefault();
+            void stopAgentsRun();
+            return;
+          }
+          if (!isGenerating(useChat.getState())) return;
           event.preventDefault();
           void stopGeneration();
         },
@@ -111,7 +122,13 @@ export function App() {
           <div className="flex min-w-0 flex-1 flex-col">
             <Header />
             <main className="flex min-h-0 flex-1 flex-col">
-              {tab === 'chat' ? <ChatPage /> : <AgentsPage />}
+              {tab === 'chat' ? (
+                <ChatPage />
+              ) : (
+                <Suspense fallback={null}>
+                  <AgentsPage />
+                </Suspense>
+              )}
             </main>
           </div>
         </div>
