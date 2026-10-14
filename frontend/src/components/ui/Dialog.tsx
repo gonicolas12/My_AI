@@ -30,8 +30,9 @@ export function Dialog({
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
+        {/* z-50 : ouvert depuis un panneau (z-50), le voile le couvre aussi */}
         <RadixDialog.Overlay
-          className="fixed inset-0 z-40 bg-scrim"
+          className="fixed inset-0 z-50 bg-scrim"
           style={{ animation: 'fade-in var(--motion) var(--motion-ease)' }}
         />
         <RadixDialog.Content

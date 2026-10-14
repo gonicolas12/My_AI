@@ -106,7 +106,7 @@ function FolderRow({ folder }: { folder: FolderView }) {
           tooltipSide="top"
           disabled={Boolean(job)}
           onClick={() => setConfirming(true)}
-          className="h-6 w-6 hover:text-error"
+          className="h-6 w-6 hover:text-error!"
         >
           <Unlink size={12} />
         </IconButton>

@@ -1,3 +1,4 @@
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer';
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react';
 
 import { cn } from '../../lib/cn';
@@ -16,9 +17,12 @@ const STYLES: Record<NotificationLevel, { icon: typeof Info; color: string }> = 
 export function Toasts() {
   const toasts = useApp((state) => state.toasts);
   return (
-    <div
-      className="pointer-events-none fixed top-16 right-4 z-50 flex w-80 flex-col gap-2"
+    // Au-dessus des dialogues (z-60) ; pour Radix, une « branche » de chaque dialogue :
+    // un clic sur un toast ne ferme pas le dialogue ouvert
+    <DismissableLayerBranch
+      className="pointer-events-none fixed top-16 right-4 z-60 flex w-80 flex-col gap-2"
       aria-live="polite"
+      data-toast-region
     >
       {toasts.map((toast) => {
         const { icon: Icon, color } = STYLES[toast.level];
@@ -42,6 +46,6 @@ export function Toasts() {
           </div>
         );
       })}
-    </div>
+    </DismissableLayerBranch>
   );
 }

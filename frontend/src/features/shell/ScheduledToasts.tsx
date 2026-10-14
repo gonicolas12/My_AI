@@ -4,6 +4,7 @@
  * ouvre le rapport de la tâche (fichier produit par l'appli).
  */
 
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer';
 import { CalendarClock, X } from 'lucide-react';
 
 import { openFile } from '../../lib/actions';
@@ -27,9 +28,12 @@ export function ScheduledToasts() {
   const toasts = useApp((state) => state.scheduledToasts);
   if (!toasts.length) return null;
   return (
-    <div
-      className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-2"
+    // Au-dessus des dialogues (z-60) ; pour Radix, une « branche » de chaque dialogue :
+    // un clic sur un toast ne ferme pas le dialogue ouvert
+    <DismissableLayerBranch
+      className="pointer-events-none fixed right-4 bottom-4 z-60 flex w-80 flex-col gap-2"
       aria-live="polite"
+      data-toast-region
     >
       {toasts.map((toast) => {
         const text = summaryOf(toast);
@@ -72,6 +76,6 @@ export function ScheduledToasts() {
           </div>
         );
       })}
-    </div>
+    </DismissableLayerBranch>
   );
 }
