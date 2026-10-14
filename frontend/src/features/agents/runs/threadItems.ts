@@ -70,6 +70,22 @@ export function threadItems(run: RunView): ThreadItem[] {
   return items;
 }
 
+/**
+ * Agents lancés ensemble qui attendent le modèle. Avec qwen3.5, Ollama ne sert
+ * qu'une requête à la fois (n_slots = 1) : dans une étape parallèle, un agent
+ * en cours qui n'a encore rien écrit pendant qu'un autre écrit attend son
+ * tour. Rend, par id de section (celui du nœud), le nom de l'agent servi.
+ */
+export function queuedBehind(run: RunView | undefined): Record<string, string> {
+  const queued: Record<string, string> = {};
+  const writing = run?.sections.find((section) => section.status === 'running' && section.text);
+  if (!run || !writing) return queued;
+  for (const section of run.sections) {
+    if (section.status === 'running' && !section.text) queued[String(section.id)] = writing.title;
+  }
+  return queued;
+}
+
 /** Plan en une ligne : « Étape 1 : A · Étape 2, en parallèle : B, C · Agents isolés : D » */
 export function planSummary(run: RunView): string {
   if (run.kind !== 'workflow') return '';

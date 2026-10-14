@@ -81,6 +81,9 @@ export const NODE_STATUS: Record<NodeStatus, { label: string; color: string }> =
   error: { label: 'Erreur', color: 'var(--error)' },
 };
 
+/** Agent en cours qui attend que le modèle ait fini de répondre à un autre (queuedBehind) */
+export const QUEUED = { label: 'Attend son tour', color: 'var(--text-muted)' };
+
 /** Statut affiché d'un fil ; partial : workflow terminé avec des agents en échec */
 export type RunTone = RunStatus | 'partial';
 

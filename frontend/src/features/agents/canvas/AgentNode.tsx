@@ -2,8 +2,8 @@
  * Nœud du canvas : un agent du workflow (_draw_node de WorkflowCanvas, Tk).
  *
  * Liseré et pastille à la couleur de l'agent, nom, statut de la dernière
- * exécution (en attente, en cours, terminé, erreur), port d'entrée à gauche,
- * de sortie à droite, ✕ pour le retirer.
+ * exécution (en attente, en cours, attend son tour, terminé, erreur), port
+ * d'entrée à gauche, de sortie à droite, ✕ pour le retirer.
  */
 
 import { Handle, type NodeProps, Position } from '@xyflow/react';
@@ -12,7 +12,7 @@ import { createElement, memo } from 'react';
 
 import { cn } from '../../../lib/cn';
 import { useAgents } from '../../../stores/agents';
-import { agentColor, agentIcon, NODE_STATUS, tint } from '../agentMeta';
+import { agentColor, agentIcon, NODE_STATUS, QUEUED, tint } from '../agentMeta';
 import { NODE_H, NODE_W } from './graph';
 import { type AgentFlowNode, removeNode } from './workflowStore';
 
@@ -28,10 +28,11 @@ function useAgentKnown(agentType: string): boolean {
 
 export const AgentNode = memo(function AgentNode({ id, data, selected }: NodeProps<AgentFlowNode>) {
   const status = data.status ?? 'idle';
-  const meta = NODE_STATUS[status];
+  const queued = status === 'running' && Boolean(data.queuedBehind);
+  const meta = queued ? QUEUED : NODE_STATUS[status];
   const color = agentColor(data.agentType, data.color);
   const known = useAgentKnown(data.agentType);
-  const running = status === 'running';
+  const running = status === 'running' && !queued;
   return (
     <div
       className={cn(
@@ -48,7 +49,13 @@ export const AgentNode = memo(function AgentNode({ id, data, selected }: NodePro
             ? `0 0 0 2px ${tint(color, 35)}`
             : undefined,
       }}
-      title={`${data.name} — ${known ? meta.label : 'agent introuvable'}`}
+      title={`${data.name} — ${
+        !known
+          ? 'agent introuvable'
+          : queued
+            ? `${meta.label} : le modèle répond d’abord à ${data.queuedBehind}`
+            : meta.label
+      }`}
     >
       <span
         aria-hidden
@@ -67,7 +74,7 @@ export const AgentNode = memo(function AgentNode({ id, data, selected }: NodePro
         {known ? (
           <div className="flex items-center gap-1.5 text-xs text-fg-2">
             <span
-              className={cn('h-2 w-2 rounded-full', running && 'pulse-soft')}
+              className={cn('h-2 w-2 rounded-full', (running || queued) && 'pulse-soft')}
               style={{ background: meta.color }}
             />
             {meta.label}

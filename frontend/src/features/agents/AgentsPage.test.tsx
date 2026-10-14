@@ -198,9 +198,49 @@ describe('fils d’exécution', () => {
     expect(toggle).toHaveTextContent('+1');
     expect(toggle).toHaveTextContent('−2');
     expect(screen.getByText('print(x)')).toBeInTheDocument();
-    expect(screen.getByText('Plus de trace.')).toBeInTheDocument();
+    // L'onglet Diff ne montre que le code ; l'explication est dans Sortie
+    expect(screen.queryByText('Plus de trace.')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Sortie' }));
     expect(screen.queryByText('print(x)')).toBeNull();
+    expect(screen.getByText('Plus de trace.')).toBeInTheDocument();
+  });
+
+  it('en parallèle, l’agent que le modèle n’a pas encore servi attend son tour', () => {
+    const base = finishedRun().sections[0]!;
+    const run = finishedRun({
+      kind: 'workflow',
+      title: 'Workflow · 2 agents',
+      nodes: [
+        { id: 0, agent_type: 'security', name: 'SecurityAgent', color: '#ec4899' },
+        { id: 1, agent_type: 'optimizer', name: 'OptimizerAgent', color: '#14b8a6' },
+      ],
+      plan: { mode: 'parallel', steps: [[0, 1]], isolated: [] },
+      status: 'running',
+      status_text: '',
+      finished_at: null,
+      duration_ms: null,
+      sections: [
+        {
+          ...base,
+          id: 0,
+          title: 'SecurityAgent',
+          agent_type: 'security',
+          color: '#ec4899',
+          text: '',
+          status: 'running',
+          finished_at: null,
+        },
+        { ...base, id: 1, text: 'Analyse en cours', status: 'running', finished_at: null },
+      ],
+      node_status: { '0': 'running', '1': 'running' },
+    });
+    useAgents.setState({ runs: [summaryOf(run)], details: { exec_1: run }, openRunId: 'exec_1' });
+    wrap(<ThreadView />);
+    expect(screen.getByText('Attend son tour')).toBeInTheDocument();
+    expect(
+      screen.getByText('Le modèle répond d’abord à OptimizerAgent : cet agent écrira ensuite.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Analyse en cours')).toBeInTheDocument();
   });
 
   it('rouvre un fil de la liste en le relisant', async () => {

@@ -5,15 +5,13 @@
  * Code fourni : fichier de code joint à la tâche (gardé dans le fil, `sources`)
  * ou bloc de code écrit dans la tâche. Dans la sortie de l'agent, le bloc de
  * code le plus proche d'un code fourni, sans lui être identique, est montré en
- * diff par lignes (algorithme de Myers), le reste de la réponse à sa suite.
+ * diff par lignes (algorithme de Myers) ; la réponse entière reste dans
+ * l'onglet Sortie.
  */
 
 export interface CodeBlock {
   lang: string;
   code: string;
-  /** Position du bloc (clôtures comprises) dans le texte */
-  start: number;
-  end: number;
 }
 
 export type DiffKind = ' ' | '-' | '+';
@@ -46,26 +44,16 @@ const FENCE = /^( {0,3})(`{3,}|~{3,})[ \t]*([^\s`]*)[^\n]*$/;
 /** Blocs de code clos d'un texte Markdown (un bloc encore ouvert n'en est pas un) */
 export function codeBlocks(markdown: string): CodeBlock[] {
   const blocks: CodeBlock[] = [];
-  const lines = markdown.split('\n');
-  let offset = 0;
-  let open: { fence: string; lang: string; start: number; body: string[] } | null = null;
-  for (const line of lines) {
-    const lineStart = offset;
-    offset += line.length + 1;
+  let open: { fence: string; lang: string; body: string[] } | null = null;
+  for (const line of markdown.split('\n')) {
     if (!open) {
       const match = FENCE.exec(line);
-      if (match)
-        open = { fence: match[2] ?? '```', lang: match[3] ?? '', start: lineStart, body: [] };
+      if (match) open = { fence: match[2] ?? '```', lang: match[3] ?? '', body: [] };
       continue;
     }
     const trimmed = line.trim();
     if (trimmed.startsWith(open.fence) && /^[`~]+$/.test(trimmed) && trimmed[0] === open.fence[0]) {
-      blocks.push({
-        lang: open.lang.toLowerCase(),
-        code: open.body.join('\n'),
-        start: open.start,
-        end: Math.min(offset, markdown.length),
-      });
+      blocks.push({ lang: open.lang.toLowerCase(), code: open.body.join('\n') });
       open = null;
       continue;
     }
@@ -225,11 +213,4 @@ export function diffRows(lines: DiffLine[], context = 3): DiffRow[] {
   });
   if (hidden) rows.push({ kind: 'gap', hidden });
   return rows;
-}
-
-/** Texte de la sortie sans le bloc montré en diff (l'explication de l'agent) */
-export function withoutBlock(output: string, block: CodeBlock): string {
-  return `${output.slice(0, block.start)}${output.slice(block.end)}`
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }

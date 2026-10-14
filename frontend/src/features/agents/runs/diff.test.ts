@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  codeBlocks,
-  diffLines,
-  diffRows,
-  findCodeChange,
-  providedCode,
-  withoutBlock,
-} from './diff';
+import { codeBlocks, diffLines, diffRows, findCodeChange, providedCode } from './diff';
 
 describe('codeBlocks', () => {
   it('lit les blocs clos, avec leur langage, et laisse le bloc ouvert', () => {
@@ -17,7 +10,6 @@ describe('codeBlocks', () => {
       ['python', 'a = 1\nb = 2'],
       ['js', 'x()'],
     ]);
-    expect(text.slice(blocks[0]?.start, blocks[0]?.end)).toBe('```Python\na = 1\nb = 2\n```\n');
   });
 });
 
@@ -68,7 +60,6 @@ describe('findCodeChange', () => {
     expect(change?.name).toBe('utils.py');
     expect(change?.added).toBe(1);
     expect(change?.removed).toBe(5);
-    expect(withoutBlock(output, change!.block)).toBe('Voici la version optimisée :\n\nPlus court.');
   });
 
   it('prend aussi un bloc de code écrit dans la tâche', () => {

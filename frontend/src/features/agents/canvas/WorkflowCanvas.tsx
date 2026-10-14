@@ -7,7 +7,8 @@
  * Maj+clic = sélection multiple, Suppr = retirer la sélection, clic droit sur
  * un lien = le supprimer, grille avec aimantation, minimap en bas à droite.
  * Pendant une exécution, chaque nœud montre son statut et les liens vers un
- * agent en cours s'animent.
+ * agent en cours s'animent ; un agent qui attend son tour auprès du modèle
+ * (queuedBehind) le dit, et son lien reste immobile.
  */
 
 import '@xyflow/react/dist/style.css';
@@ -44,6 +45,7 @@ import { Button, IconButton } from '../../../components/ui/Button';
 import { cn } from '../../../lib/cn';
 import { useAgents } from '../../../stores/agents';
 import { agentColor } from '../agentMeta';
+import { queuedBehind } from '../runs/threadItems';
 import {
   exportWorkflowFile,
   loadWorkflowBlob,
@@ -145,6 +147,10 @@ function Flow() {
     })),
   );
   const nodeStatus = useAgents((state) => (runId ? state.details[runId]?.node_status : undefined));
+  // Relu à chaque fragment écrit, mais le même contenu ne redessine rien
+  const queued = useAgents(
+    useShallow((state) => queuedBehind(runId ? state.details[runId] : undefined)),
+  );
   const flow = useReactFlow<AgentFlowNode, AgentFlowEdge>();
   const [over, setOver] = useState(false);
 
@@ -153,18 +159,20 @@ function Flow() {
     () =>
       nodes.map((node) => {
         const status = nodeStatus?.[node.id] ?? 'idle';
-        return node.data.status === status ? node : { ...node, data: { ...node.data, status } };
+        const behind = queued[node.id];
+        if (node.data.status === status && node.data.queuedBehind === behind) return node;
+        return { ...node, data: { ...node.data, status, queuedBehind: behind } };
       }),
-    [nodes, nodeStatus],
+    [nodes, nodeStatus, queued],
   );
   const shownEdges = useMemo(
     () =>
       edges.map((edge) => {
-        const running = nodeStatus?.[edge.target] === 'running';
+        const running = nodeStatus?.[edge.target] === 'running' && !queued[edge.target];
         if (Boolean(edge.data?.running) === running) return edge;
         return { ...edge, data: { color: edge.data?.color ?? 'var(--border-light)', running } };
       }),
-    [edges, nodeStatus],
+    [edges, nodeStatus, queued],
   );
 
   const isAgentDrag = (event: React.DragEvent) =>

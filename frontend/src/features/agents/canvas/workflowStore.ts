@@ -31,6 +31,8 @@ export interface AgentNodeData extends Record<string, unknown> {
   icon: string;
   /** Statut de la dernière exécution lancée d'ici (posé à l'affichage) */
   status?: NodeStatus;
+  /** En cours, mais le modèle répond d'abord à cet agent (posé à l'affichage) */
+  queuedBehind?: string;
 }
 
 export type AgentFlowNode = Node<AgentNodeData, 'agent'>;

@@ -2,7 +2,8 @@
  * Fil ouvert (D32) : la tâche, le plan, puis une section par agent, comme la
  * zone « Résultats » de Tk (output_rendering.py) : liseré à la couleur de
  * l'agent, statut, sortie en Markdown qui s'écrit en direct ; une sortie qui
- * modifie un code fourni se relit en diff (§8).
+ * modifie un code fourni se relit en diff (§8). Un agent d'une étape parallèle
+ * que le modèle n'a pas encore servi « attend son tour » (queuedBehind).
  */
 
 import { ChevronDown, ChevronRight, Paperclip, Square } from 'lucide-react';
@@ -15,22 +16,30 @@ import { stopAgentsRun, useAgents } from '../../../stores/agents';
 import { summaryOf } from '../../../stores/agentsReducer';
 import { CopyButton } from '../../chat/MessageActions';
 import { Markdown } from '../../chat/markdown/Markdown';
-import { agentColor, agentIcon, NODE_STATUS, RUN_TONE, runTone } from '../agentMeta';
+import { agentColor, agentIcon, NODE_STATUS, QUEUED, RUN_TONE, runTone } from '../agentMeta';
 import { DiffView } from './DiffView';
 import { type CodeChange, findCodeChange, providedCode } from './diff';
 import { clock, useElapsed } from './elapsed';
 import { RunKindIcon } from './RunList';
-import { planSummary, type ThreadItem, threadItems } from './threadItems';
+import { planSummary, queuedBehind, type ThreadItem, threadItems } from './threadItems';
 
 /** Hauteur maximale d'une sortie avant défilement (Tk : 20 lignes) */
 const SECTION_MAX = 560;
 
-function SectionStatus({ item }: { item: ThreadItem }) {
+function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) {
   if (!item.section) {
     return (
       <span className="flex items-center gap-1.5 text-xs text-fg-3">
         <span className="h-2 w-2 rounded-full bg-fg-3" />
         {item.pending === 'skipped' ? 'Non exécuté' : NODE_STATUS.idle.label}
+      </span>
+    );
+  }
+  if (behind) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs" style={{ color: QUEUED.color }}>
+        <span className="h-2 w-2 rounded-full pulse-soft" style={{ background: QUEUED.color }} />
+        {QUEUED.label}
       </span>
     );
   }
@@ -56,9 +65,12 @@ function SectionStatus({ item }: { item: ThreadItem }) {
 const Section = memo(function Section({
   item,
   provided,
+  behind,
 }: {
   item: ThreadItem;
   provided: { name: string; text: string }[];
+  /** Agent que le modèle sert pendant que celui-ci attend son tour */
+  behind?: string;
 }) {
   const section = item.section;
   const running = section?.status === 'running';
@@ -144,7 +156,7 @@ const Section = memo(function Section({
         {section && section.text && !running ? (
           <CopyButton text={section.text} label="Copier la sortie" />
         ) : null}
-        <SectionStatus item={item} />
+        <SectionStatus item={item} behind={behind} />
       </div>
       {section && open ? (
         <div
@@ -157,9 +169,13 @@ const Section = memo(function Section({
           style={{ maxHeight: SECTION_MAX }}
         >
           {shown === 'diff' && change ? (
-            <DiffView change={change} output={text} />
+            <DiffView change={change} />
           ) : text ? (
             <Markdown text={text} streaming={running} />
+          ) : running && behind ? (
+            <p className="shimmer text-sm">
+              Le modèle répond d’abord à {behind} : cet agent écrira ensuite.
+            </p>
           ) : running ? (
             <p className="shimmer text-sm">L’agent rédige sa réponse…</p>
           ) : (
@@ -215,6 +231,7 @@ function TaskText({ text }: { text: string }) {
 function Thread({ run }: { run: RunView }) {
   const summary: RunSummary = useMemo(() => summaryOf(run), [run]);
   const items = useMemo(() => threadItems(run), [run]);
+  const queued = useMemo(() => queuedBehind(run), [run]);
   const provided = useMemo(() => providedCode(run.sources, run.task), [run.sources, run.task]);
   const plan = planSummary(run);
   const running = run.status === 'running';
@@ -258,7 +275,7 @@ function Thread({ run }: { run: RunView }) {
         </p>
       ) : null}
       {items.map((item) => (
-        <Section key={item.key} item={item} provided={provided} />
+        <Section key={item.key} item={item} provided={provided} behind={queued[item.key]} />
       ))}
       {!running && run.status_text ? (
         <p
