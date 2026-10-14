@@ -8,7 +8,8 @@ par git.
 
 ## Sans Ollama : serveur de démonstration
 
-Le vrai serveur local et le vrai `ChatService`, avec un moteur scénarisé (« long », « outils »,
+Le vrai serveur local, le vrai `ChatService` et le vrai `AgentRelayService`, avec un moteur et des
+agents scénarisés (« long », « outils »,
 « réflexion », « artefact », « document », « dessine »… : voir son en-tête). Il travaille sur une
 copie de `data/workspaces` dans `temp/demo_server/PORT/` (ignoré par git, vidé à chaque lancement),
 et n'écrit ni dans `data/` ni dans le `outputs/` du dépôt : notes en mémoire, copie de l'historique
@@ -21,14 +22,15 @@ python tools/interface_web/demo_server.py 8765   # depuis la racine du dépôt
 # affiche DEMO http://127.0.0.1:8765/#token=…, l'URL à passer aux scripts
 ```
 
-| Script                                                   | Rôle                                                                                                                                       |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `node scripts/capture.mjs URL [DOSSIER] [L H]`           | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur…                                       |
-| `node scripts/perf.mjs URL [scroll,stream,stress,gil]`   | images, tâches longues, latence des saisies, rendus React, cadence des jetons                                                              |
-| `node scripts/tooltips.mjs URL`                          | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                                                              |
-| `node scripts/follow_bottom.mjs URL`                     | le fil suit une longue réponse (distance au bas)                                                                                           |
-| `node scripts/capture_chat.mjs URL [DOSSIER] [ÉTAPES]`   | parité du Chat (phase 3a) : artefacts, documents, chemins, citations, image, pièces jointes, `/`, édition, notes, voix, barre latérale     |
-| `node scripts/capture_panels.mjs URL [DOSSIER] [ÉTAPES]` | panneaux (phase 3b) : assistant (serveur lancé avec `--premier-lancement`), Réglages, Mémoire, Prompts, Relay simulé, Aide, palette Ctrl+K |
+| Script                                                   | Rôle                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/capture.mjs URL [DOSSIER] [L H]`           | captures des états clés : chargement, accueil, sessions, streaming, réflexion, outils, file, erreur…                                                                                                                      |
+| `node scripts/perf.mjs URL [scroll,stream,stress,gil]`   | images, tâches longues, latence des saisies, rendus React, cadence des jetons                                                                                                                                             |
+| `node scripts/tooltips.mjs URL`                          | infobulles : survol, départ, clics, Ctrl+B, sortie de la page                                                                                                                                                             |
+| `node scripts/follow_bottom.mjs URL`                     | le fil suit une longue réponse (distance au bas)                                                                                                                                                                          |
+| `node scripts/capture_chat.mjs URL [DOSSIER] [ÉTAPES]`   | parité du Chat (phase 3a) : artefacts, documents, chemins, citations, image, pièces jointes, `/`, édition, notes, voix, barre latérale                                                                                    |
+| `node scripts/capture_panels.mjs URL [DOSSIER] [ÉTAPES]` | panneaux (phase 3b) : assistant (serveur lancé avec `--premier-lancement`), Réglages, Mémoire, Prompts, Relay simulé, Aide, palette Ctrl+K                                                                                |
+| `node scripts/capture_agents.mjs URL [DOSSIER] [ÉTAPES]` | page Agents (phase 4a) : grille, canvas (clic, liens, cycle refusé, glisser-déposer, Suppr, zoom, grille), workflow en DAG et ses fils, Arrêter, erreur, diff d'un code joint, agents personnalisés, fichiers de workflow |
 
 Rendus React : servir un build de profilage, sans toucher à `dist/` :
 
