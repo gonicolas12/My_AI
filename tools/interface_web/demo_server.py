@@ -13,6 +13,8 @@ Usage, depuis la racine du dépôt :
                   avec MY_AI_WEBVIEW_CDP_PORT, les scripts window_*.mjs s'y branchent
   --vraie-voix    micro et synthèse du PC ; sinon voix simulée : la dictée renvoie
                   « texte dicté (démo) », la lecture dure deux secondes, en silence
+  --premier-lancement
+                  l'assistant de premier lancement s'affiche au lancement
 
 Les sessions sont une copie de data/workspaces (les données de test du
 suivi, section 4) dans temp/demo_server/PORT/, effacée à l'arrêt (Ctrl+C) ou
@@ -37,7 +39,10 @@ Les fichiers produits vont dans temp/demo_server/PORT/outputs/, dossier des
 fichiers « produits par l'appli » pour ce serveur. Rien n'est écrit dans data/ :
 les notes restent en mémoire, l'historique des requêtes est une copie de
 data/command_history.db, la recherche globale lit les sessions copiées (mots
-exacts, sans embeddings) et l'indexation des dossiers projet est simulée.
+exacts, sans embeddings) et l'indexation des dossiers projet est simulée. Les
+Réglages et l'assistant travaillent sur un Ollama simulé (modèles, téléchargement,
+création de my_ai) et des réglages en mémoire : ni config.yaml ni Modelfile ne
+changent.
 """
 
 import argparse
@@ -58,6 +63,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 from core.chat_service import ChatService  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
+from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
 from interfaces.desktop.voice import VoiceService  # noqa: E402
 from core.command_history import CommandHistory  # noqa: E402
 from test_chat_service import FakeEngine, FakeFileProcessor, FakeRLHF  # noqa: E402
@@ -531,14 +537,79 @@ class DemoVoiceService(VoiceService):
         return self._output
 
 
+class DemoOllamaSetup(OllamaSetup):
+    """Ollama simulé : modèles, téléchargement par couches, création de my_ai ; réglages en mémoire."""
+
+    def __init__(self):
+        self.installed = ["qwen3.5:4b", "qwen3.5:2b", "my_ai:latest", "llava:latest"]
+        self.base = "qwen3.5:4b"
+        self.config = {"temperature": 0.7, "num_ctx": 32768, "timeout": 1200, "language": "fr",
+                       "languages": ["fr", "en", "es", "de", "it", "pt"],
+                       "relay_auto_start": False}
+        self.done = False
+
+    def values(self):
+        return dict(self.config)
+
+    def model_choices(self):
+        return ["qwen3.5:2b", "qwen3.5:4b", "qwen3.5:9b"]
+
+    def ollama_reachable(self):
+        return True
+
+    def installed_models(self):
+        return list(self.installed)
+
+    def base_model(self):
+        return self.base
+
+    def pull(self, name, on_progress, on_log):
+        on_log("pulling manifest")
+        for layer in ("2f5d1c", "9a8b7e", "c41d03"):
+            for step in range(1, 11):
+                time.sleep(0.12)
+                on_progress(step / 10, f"pulling {layer}")
+        for line in ("verifying sha256 digest", "writing manifest", "success"):
+            time.sleep(0.2)
+            on_log(line)
+        if name not in self.installed:
+            self.installed.append(name)
+
+    def apply_base(self, base):
+        self.base = base
+
+    def create_custom_model(self, on_log):
+        for line in ("gathering model components", "using existing layer sha256:2f5d1c",
+                     "writing manifest", "success"):
+            time.sleep(0.3)
+            on_log(line)
+
+    def save_generation(self, temperature, num_ctx, timeout):
+        self.config.update(temperature=temperature, num_ctx=num_ctx, timeout=timeout)
+
+    def set_flag(self, name, value):
+        key = {"language.default": "language", "relay.auto_start": "relay_auto_start"}.get(name)
+        if key:
+            self.config[key] = value
+
+    def mark_done(self):
+        self.done = True
+
+    def forget_done(self):
+        self.done = False
+
+
 class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
     """DesktopApp sans Ollama : étapes du lancement simulées, moteur scénarisé."""
 
-    def __init__(self, workspaces, rate, fast, real_voice=False, **kwargs):
+    def __init__(self, workspaces, rate, fast, real_voice=False, first_launch=False, **kwargs):
         super().__init__(launcher=None, **kwargs)
         self._workspaces = workspaces
         self._rate = rate
         self._fast = fast
+        self._first_launch_demo = first_launch
+        # Réglages et assistant : Ollama simulé, jamais config.yaml ni le Modelfile
+        self.ollama_setup = DemoOllamaSetup()
         if not real_voice:
             # Lecture automatique gardée en mémoire : rien n'est écrit dans config.yaml
             self._voice = DemoVoiceService(self.bus.publish)
@@ -557,6 +628,11 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         for step, label in steps:
             self._step(step, label)
             time.sleep(pause)
+            if step == "onboarding" and self._first_launch_demo:
+                self._set_status(state="onboarding", label="Configuration initiale")
+                if not self.first_launch.wait(lambda: self._closing):
+                    return
+                self._set_status(state="starting")
         if not self._fast:
             for line in ("Essai : choix d'Ollama — 61 tok/s", "Essai : contexte en 8 bits — 78 tok/s"):
                 self._set_status(detail=line)
@@ -594,6 +670,8 @@ def main():
     parser.add_argument("--fast-launch", action="store_true")
     parser.add_argument("--dist", default=None, help="dossier dist à servir")
     parser.add_argument("--window", action="store_true", help="vraie fenêtre WebView2")
+    parser.add_argument("--premier-lancement", dest="first_launch", action="store_true",
+                        help="assistant de premier lancement au lancement")
     parser.add_argument("--vraie-voix", dest="real_voice", action="store_true",
                         help="micro et synthèse du PC (sinon voix simulée)")
     args = parser.parse_args()
@@ -618,6 +696,7 @@ def main():
 
     token = args.token or secrets.token_urlsafe(16)
     app = DemoApp(workspaces, args.rate, args.fast_launch, real_voice=args.real_voice,
+                  first_launch=args.first_launch,
                   port=args.port,
                   state=DesktopState(tmp / ".desktop_state.json"))
     app.token = token  # pylint: disable=attribute-defined-outside-init
