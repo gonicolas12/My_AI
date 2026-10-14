@@ -45,6 +45,12 @@
   --color-on-accent: var(--on-accent);
   --color-on-user: var(--on-user);
   --color-link: var(--link);
+  --color-memory-general: var(--memory-general);
+  --color-memory-preference: var(--memory-preference);
+  --color-memory-decision: var(--memory-decision);
+  --color-memory-person: var(--memory-person);
+  --color-memory-procedure: var(--memory-procedure);
+  --color-memory-technical: var(--memory-technical);
 
   --font-*: initial;
   --font-sans: var(--font-ui);

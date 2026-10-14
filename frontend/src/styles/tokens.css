@@ -47,6 +47,14 @@
   --agent-optimizer: #14b8a6;
   --agent-datascience: #f97316;
 
+  /* Catégories des faits de la Mémoire (memory_panel.py) */
+  --memory-preference: var(--agent-analyst);
+  --memory-decision: var(--warning);
+  --memory-person: var(--success);
+  --memory-procedure: var(--info);
+  --memory-technical: var(--error);
+  --memory-general: var(--text-secondary);
+
   /* ── Teintes dérivées (mêmes couleurs, en transparence) ───────────────── */
   --surface-hover: color-mix(in srgb, var(--text-primary) 6%, transparent);
   --surface-active: color-mix(in srgb, var(--text-primary) 10%, transparent);

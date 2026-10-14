@@ -8,6 +8,7 @@ import { lazy, Suspense } from 'react';
 import { usePanels } from '../../stores/panels';
 
 const SettingsPanel = lazy(() => import('./settings/SettingsPanel'));
+const MemoryPanel = lazy(() => import('./memory/MemoryPanel'));
 const HelpPanel = lazy(() => import('./help/HelpPanel'));
 
 export function Panels() {
@@ -15,6 +16,7 @@ export function Panels() {
   return (
     <Suspense fallback={null}>
       {open === 'settings' ? <SettingsPanel /> : null}
+      {open === 'memory' ? <MemoryPanel /> : null}
       {open === 'help' ? <HelpPanel /> : null}
     </Suspense>
   );

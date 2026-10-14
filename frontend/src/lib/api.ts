@@ -235,6 +235,35 @@ export interface OnboardingInfo {
   job: ModelJob | null;
 }
 
+/** Onglets de la Mémoire (memory.py) */
+export type MemoryTab = 'facts' | 'document' | 'conversation';
+
+export interface MemoryItem {
+  kind: 'fact' | 'vector';
+  id: number | string;
+  /** Fait */
+  category?: string;
+  key?: string;
+  value?: string;
+  source?: string;
+  confidence?: number;
+  updated_at?: string;
+  /** Document ou message de conversation */
+  collection?: string;
+  content?: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  provenance: string;
+}
+
+export interface MemoryPage {
+  items: MemoryItem[];
+  total: number;
+  page: number;
+  pages: number;
+  stats: { facts: number; documents: number; conversations: number };
+  categories: string[];
+}
+
 const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body);
 
 export const api = {
@@ -359,6 +388,24 @@ export const api = {
   setSettingFlag: (name: 'language.default' | 'relay.auto_start', value: string | boolean) =>
     request<SettingsView>('PUT', '/api/settings/flags', { name, value }),
   restartOnboarding: () => post<{ ok: boolean }>('/api/settings/onboarding/restart'),
+
+  memoryPage: (tab: MemoryTab, query: string, category: string | null, page: number) =>
+    request<MemoryPage>(
+      'GET',
+      `/api/memory?tab=${tab}&q=${encodeURIComponent(query)}&page=${page}` +
+        (category ? `&category=${encodeURIComponent(category)}` : ''),
+    ),
+  addFact: (category: string, text: string) =>
+    post<{ id: number }>('/api/memory/facts', { category, text }),
+  updateMemory: (tab: MemoryTab, id: number | string, text: string) =>
+    request<{ ok: boolean }>('PUT', `/api/memory/${tab}/${encodeURIComponent(String(id))}`, {
+      text,
+    }),
+  deleteMemory: (tab: MemoryTab, id: number | string, atSource: boolean) =>
+    request<{ ok: boolean }>(
+      'DELETE',
+      `/api/memory/${tab}/${encodeURIComponent(String(id))}?at_source=${atSource ? 'true' : 'false'}`,
+    ),
 
   onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
   installModel: (name: string) =>

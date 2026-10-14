@@ -26,6 +26,8 @@ interface PanelDialogProps {
   width?: number;
   /** Corps sans marges (listes qui gèrent les leurs) */
   flush?: boolean;
+  /** Échap : event.preventDefault() garde le panneau ouvert (annuler une saisie) */
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
 }
 
 export function PanelDialog({
@@ -39,6 +41,7 @@ export function PanelDialog({
   children,
   width = 860,
   flush = false,
+  onEscapeKeyDown,
 }: PanelDialogProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   return (
@@ -55,6 +58,7 @@ export function PanelDialog({
             'focus:outline-none',
           )}
           style={{ maxWidth: width, animation: 'rise-in var(--motion) var(--motion-ease)' }}
+          onEscapeKeyDown={onEscapeKeyDown}
           onOpenAutoFocus={(event) => {
             // Focus sur le panneau, pas sur sa croix : son infobulle ne s'ouvre pas
             // d'elle-même (un champ avec autoFocus garde le sien)
