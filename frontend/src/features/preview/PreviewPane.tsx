@@ -35,6 +35,7 @@ import {
   usePreview,
 } from '../../stores/preview';
 import { CodeBlock } from '../chat/markdown/CodeBlock';
+import { NativeDocument } from './NativeDocument';
 import { usePreviewPage } from './usePreviewPage';
 
 /** Largeur gardée à la conversation quand le volet s'élargit (px) */
@@ -98,7 +99,7 @@ function ResizeHandle({ onDrag }: { onDrag: (dragging: boolean) => void }) {
 
 function PreviewBody({ artifact, dragging }: { artifact: Artifact; dragging: boolean }) {
   const tab = usePreview((state) => state.tab);
-  const { view, error } = usePreviewPage(artifact);
+  const { view, error, fallback } = usePreviewPage(artifact);
 
   if (tab === 'code' && artifact.kind !== 'document') {
     return (
@@ -131,6 +132,9 @@ function PreviewBody({ artifact, dragging }: { artifact: Artifact; dragging: boo
       </div>
     );
   }
+  if (view.kind === 'native') {
+    return <NativeDocument key={view.id} view={view} hidden={dragging} onFailed={fallback} />;
+  }
   return (
     <iframe
       key={view.id}
@@ -145,6 +149,7 @@ function PreviewBody({ artifact, dragging }: { artifact: Artifact; dragging: boo
   );
 }
 
+// Infobulles de l'en-tête à gauche : en dessous, elles passeraient sous une visionneuse Office
 export function PreviewPane() {
   const open = usePreview((state) => state.open);
   const items = usePreview((state) => state.items);
@@ -197,6 +202,7 @@ export function PreviewPane() {
         {items.length > 1 ? (
           <div className="flex items-center text-xs text-fg-2 tabular-nums">
             <IconButton
+              tooltipSide="left"
               label="Aperçu précédent"
               size="sm"
               disabled={index <= 0}
@@ -208,6 +214,7 @@ export function PreviewPane() {
               {index + 1}/{items.length}
             </span>
             <IconButton
+              tooltipSide="left"
               label="Aperçu suivant"
               size="sm"
               disabled={index >= items.length - 1}
@@ -248,6 +255,7 @@ export function PreviewPane() {
         ) : null}
         {isDocument && artifact.generated ? (
           <IconButton
+            tooltipSide="left"
             label="Ouvrir dans son application"
             onClick={() => void openFile(artifact.path)}
           >
@@ -256,16 +264,22 @@ export function PreviewPane() {
         ) : null}
         {isDocument && !artifact.generated ? (
           <IconButton
+            tooltipSide="left"
             label="Afficher dans l’Explorateur"
             onClick={() => void revealPath(artifact.path)}
           >
             <FolderOpen size={16} />
           </IconButton>
         ) : null}
-        <IconButton label="Ouvrir dans le navigateur" disabled={!view} onClick={openInBrowser}>
+        <IconButton
+          tooltipSide="left"
+          label="Ouvrir dans le navigateur"
+          disabled={!view}
+          onClick={openInBrowser}
+        >
           <Globe size={16} />
         </IconButton>
-        <IconButton label="Fermer l’aperçu" onClick={closePreview}>
+        <IconButton tooltipSide="left" label="Fermer l’aperçu" onClick={closePreview}>
           <X size={17} />
         </IconButton>
       </header>

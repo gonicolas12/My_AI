@@ -15,6 +15,18 @@ interface PywebviewApi {
   pick_files(kind: string): Promise<string[] | null>;
   pick_folder(): Promise<string | null>;
   save_file(name: string, fmt: string): Promise<string | null>;
+  native_preview_available(): Promise<boolean>;
+  native_preview_show(previewId: string, rect: DeviceRect): Promise<boolean>;
+  native_preview_place(rect: DeviceRect, visible: boolean): Promise<boolean>;
+  native_preview_close(): Promise<boolean>;
+}
+
+/** Rectangle en pixels de l'écran, dans la zone client de la fenêtre */
+export interface DeviceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** Entrées du menu « + » : types de pièces jointes de l'interface Tk */
@@ -78,6 +90,8 @@ function tokenColor(name: string): string | null {
   return cssColorToHex(color);
 }
 
+let nativeAvailable: Promise<boolean> | null = null;
+
 export const shell = {
   /** Vrai dans la fenêtre pywebview (une fois son pont injecté) */
   isDesktop(): boolean {
@@ -120,6 +134,41 @@ export const shell = {
     } catch {
       return null;
     }
+  },
+
+  /**
+   * Visionneuses Office de Windows dans le volet d'aperçu (fenêtre pywebview,
+   * interfaces/desktop/native_viewer.py). La visionneuse est une fenêtre enfant
+   * posée au-dessus de la page : la page la masque sous ses dialogues, menus et
+   * notifications (nativeLayer.ts).
+   */
+  nativePreview: {
+    available(): Promise<boolean> {
+      const check = api()?.native_preview_available;
+      if (!check) return Promise.resolve(false);
+      nativeAvailable ??= check().then(Boolean, () => false);
+      return nativeAvailable;
+    },
+    /** Charge l'aperçu (masqué) à la place donnée ; vrai quand la visionneuse est prête */
+    async show(previewId: string, rect: DeviceRect): Promise<boolean> {
+      const show = api()?.native_preview_show;
+      if (!show) return false;
+      try {
+        return Boolean(await show(previewId, rect));
+      } catch {
+        return false;
+      }
+    },
+    place(rect: DeviceRect, visible: boolean): void {
+      void api()
+        ?.native_preview_place?.(rect, visible)
+        .catch(() => false);
+    },
+    close(): void {
+      void api()
+        ?.native_preview_close?.()
+        .catch(() => false);
+    },
   },
 
   /** Ouvre un lien dans le navigateur du système ; la fenêtre ne le charge jamais. */

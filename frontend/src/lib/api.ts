@@ -120,9 +120,10 @@ export interface FolderAttachments {
 
 export interface PreviewView {
   id: string;
-  kind: 'html' | 'svg' | 'document' | 'pdf';
+  /** native : visionneuse Office de la fenêtre (shell.nativePreview), sans page */
+  kind: 'html' | 'svg' | 'document' | 'pdf' | 'native';
   title: string;
-  /** Page à charger dans l'iframe isolée, ou le PDF lui-même */
+  /** Page à charger dans l'iframe isolée, ou le PDF lui-même ; vide pour native */
   url: string;
   /** Document d'origine (aperçu d'un fichier) */
   path: string | null;
@@ -345,7 +346,9 @@ export const api = {
     language: string;
     index: number;
   }) => post<PreviewView>('/api/previews/artifact', body),
-  documentPreview: (path: string) => post<PreviewView>('/api/previews/document', { path }),
+  /** native : la fenêtre peut afficher Word, Excel et PowerPoint avec les visionneuses de Windows */
+  documentPreview: (path: string, native = false) =>
+    post<PreviewView>('/api/previews/document', { path, native }),
   previewInBrowser: (id: string) =>
     post<{ path: string }>(`/api/previews/${encodeURIComponent(id)}/browser`),
 
