@@ -69,6 +69,12 @@ phase 2).
   WebView2 (dont un vrai glisser-déposer à la souris) et sur le vrai Ollama, sans fenêtre. Détails
   dans le journal (section 12). Questions de la phase 4a en section 9 ; plan de la phase 4b en
   section 17, en attente du feu vert.
+- Questions de la phase 4a tranchées le 2026-10-14 (décisions D34 à D38, section 8) et
+  appliquées : essais de Nicolas dans la vraie appli réussis (Enregistrer, Charger, Exporter, vrai
+  workflow sur Ollama, Échap, micro, capture collée, fichier déposé depuis l'Explorateur). Ses deux
+  remarques sont réglées : l'onglet Diff ne montre plus que le code ; dans une étape parallèle,
+  l'agent que le modèle n'a pas encore servi « attend son tour » (Ollama n'en sert qu'un à la
+  fois). Phase 4b en attente du feu vert (plan en section 17, avec D37).
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -204,13 +210,13 @@ Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre p
   (D29) ;
 - les visionneuses Office à 125 et 150 % et sur deux écrans (vérifiées à 100 %).
 
-Essais de la phase 4a à faire avec Nicolas (question 38) :
+Essais de la phase 4a avec Nicolas (question 38) : faits le 2026-10-14 dans la vraie appli (D38,
+journal) :
 
 - Enregistrer, Charger et Exporter un workflow par les dialogues de Windows ;
-- un vrai workflow sur le vrai Ollama dans la vraie fenêtre (vérifié sans fenêtre, et dans la
-  fenêtre sur le serveur de démonstration) ;
+- un vrai workflow sur le vrai Ollama dans la vraie fenêtre, et son arrêt par Échap ;
 - le micro, une capture collée (Ctrl+V) et un fichier déposé depuis l'Explorateur dans la zone de
-  tâche (mêmes briques que le chat, essayées en 3a et 3b).
+  tâche.
 
 ## 3. Tests de référence (phase 0)
 
@@ -431,13 +437,15 @@ code, la documentation et §7.
 - [x] **Exécution : agent seul, séquentiel, parallèle, DAG, Stop** — `execution.py`,
   `output_rendering.py`, `output_area.py` ; service : `relay/agent_relay.py` (`run_workflow`,
   `compute_execution_plan`, `interrupt`). Tk utilise son propre `AgentOrchestrator` (voir section 7).
-  Interface web : l'exécuteur partagé, un fil par exécution (D32, D33), Échap arrête.
+  Interface web : l'exécuteur partagé, un fil par exécution (D32, D33), Échap arrête. Dans une
+  étape parallèle, les agents partent ensemble mais Ollama les sert un par un (`n_slots = 1`, comme
+  dans Tk) : celui qui attend le modèle « attend son tour » (D38).
 - [x] **Canvas de workflow** — `interfaces/workflow_canvas.py` (`to_dict`, `from_dict`,
   `get_execution_plan`), `drag_drop.py` (dépôt sur le canvas seulement), `workflow.py` (Save / Load /
   Export). Zoom 0,3 à 3, déplacement au clic milieu ou droit, grille avec aimantation, minimap,
   multi-sélection (Maj+clic, rectangle), Suppr, clic droit sur un lien pour le supprimer, liens de la
   couleur du nœud source. Statuts : gris `#6b7280`, jaune `#f59e0b`, vert `#10b981`, rouge `#ef4444`.
-  Interface web : React Flow, mêmes gestes ; tout cycle refusé (question 35).
+  Interface web : React Flow, mêmes gestes ; tout cycle refusé (D35).
 - [ ] **Mode Débat** — `debate.py`, `relay/agent_relay.py` (`run_debate`),
   `core/agent_orchestrator.py` (`execute_debate`). Proposant / Opposant, sujet, 1 à 10 tours.
 - [ ] **Statistiques et moniteur de ressources** — `stats_section.py`, `interfaces/resource_monitor.py`.
@@ -455,7 +463,7 @@ code, la documentation et §7.
 
 Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a, 3b et 4a). Le téléphone (Relay, QR
 code, badge « Mobile »), la dictée et les raccourcis au vrai clavier ont été essayés avec Nicolas
-dans la vraie appli le 2026-10-14 (D27 à D29). Restent :
+dans la vraie appli le 2026-10-14 (D27 à D29), puis la page Agents (D38). Restent :
 
 - **Visionneuses Office** : vérifiées à 100 % sur un écran ; 125 %, 150 % et deux écrans restent
   à voir (section 2).
@@ -658,6 +666,20 @@ ignoré par git).
 - **D33. Fils gardés d'un lancement à l'autre** : les 50 dernières exécutions (tâche, workflow,
   sorties de chaque agent, statut) dans `data/agent_runs.json`, ignoré par git, rouvrables après
   un redémarrage, avec « Effacer l'historique ».
+
+### Prises le 2026-10-14 (réponses de Nicolas aux questions de la phase 4a)
+
+- **D34. Clic sur une carte** : il ajoute l'agent au canvas, en cascade, en plus du
+  glisser-déposer de Tk (gardé).
+- **D35. Cycles** : la page refuse tout cycle, pas seulement l'aller-retour que Tk refusait.
+- **D36. Diff par défaut** : une sortie qui modifie un code joint s'ouvre en « Diff », « Sortie »
+  à côté. Précisé à l'essai (D38) : l'onglet Diff ne montre que la diff du code ; l'explication
+  de l'agent (texte, tableaux) se lit dans « Sortie ».
+- **D37. Exécutions du téléphone et des tâches planifiées** : montrées aussi en fils, en phase 4b.
+- **D38. Essais dans la vraie appli** : faits avec Nicolas le 2026-10-14 (journal, après la phase
+  4a). Ses deux remarques : les agents d'une étape parallèle écrivaient l'un après l'autre
+  (Ollama n'en sert qu'un à la fois avec qwen3.5 : la page montre désormais « Attend son tour »),
+  et l'onglet Diff montrait aussi l'explication de l'agent (D36).
 
 ### Constats techniques qui orientent la phase 1
 
@@ -875,8 +897,9 @@ ignoré par git).
   gardé dans le fil (200 000 caractères au plus) pour le diff.
 - **Diff (§8)** : une sortie terminée dont un bloc de code garde au moins 30 % des lignes utiles
   d'un code fourni (fichier joint, ou bloc de la tâche), sans lui être identique, s'ouvre en
-  « Diff » (Myers par lignes, 3 lignes de contexte, le reste replié), suivi de l'explication de
-  l'agent ; « Sortie » montre la réponse entière. Calcul dans la page, sans paquet.
+  « Diff » (Myers par lignes, 3 lignes de contexte, le reste replié), qui ne montre que le code
+  (D36 ; l'explication de l'agent le suivait avant l'essai, D38) ; « Sortie » montre la réponse
+  entière. Calcul dans la page, sans paquet.
 - **Fin d'un fil** : agent seul, messages de Tk (« ✅ Tâche terminée avec … », « ❌ Erreur lors de
   l'exécution »), dans le fil comme dans l'événement ; workflow dont des agents ont échoué :
   succès partiel, en orange ; à 0 %, échec.
@@ -1064,6 +1087,9 @@ gardés (D33).
 
 ### Questions de la phase 4a (posées le 2026-10-14)
 
+Réponses de Nicolas le 2026-10-14 : 34 oui (D34), 35 d'accord (D35), 36 diff par défaut (D36),
+37 oui (D37), 38 essais faits avec lui (D38).
+
 34. **Clic sur une carte** : il ajoute l'agent au canvas, en cascade (comme la PWA) ; dans Tk,
     seul le glisser-déposer l'ajoutait, un clic ne faisait rien. Je le garde ?
 35. **Cycles refusés** : Tk refusait l'aller-retour (A→B puis B→A) mais laissait tracer un cycle
@@ -1152,6 +1178,16 @@ gardés (D33).
   `llm.local.default_model` (`qwen3.5:4b` sur ce PC), comme la page Agents de Tk, et non `my_ai`.
   Une exécution d'agents charge donc un second modèle (premier texte en 8 s au vrai passage) ;
   aucun changement fait (moteur et réglages hors du périmètre de la migration).
+- **Agents en parallèle** (constaté à l'essai du 2026-10-14, D38) : l'exécuteur lance les agents
+  d'une étape parallèle ensemble, un fil Python chacun (comme Tk, `interfaces/agents/execution.py`).
+  Mais Ollama ne sert qu'une requête à la fois avec qwen3.5, `qwen3.5:4b` des agents comme
+  `my_ai` : son journal dit `n_slots = 1` et « model architecture does not currently support
+  parallel requests », malgré `OLLAMA_NUM_PARALLEL=4` posé par le lanceur (relevé sur les deux
+  PC). Les agents écrivent donc l'un après l'autre, et une étape parallèle dure la somme de ses
+  agents. La page le montre (« Attend son tour »).
+  Pour un vrai parallélisme, il faudrait donner aux agents un modèle qu'Ollama sait servir à
+  plusieurs, avec la mémoire de contexte en conséquence : c'est un réglage hors du périmètre de la
+  migration.
 
 ---
 
@@ -1762,6 +1798,46 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   non décodé) ; supprimé aussitôt, il ne contenait que ses trois captures. Rien sur les données de
   Nicolas.
 
+### Après la phase 4a — 2026-10-14 (réponses aux questions, PC à RTX 3060)
+
+- **Essai avec Nicolas** (D38) dans la vraie appli (`launch_unified.py`, port de débogage), suivi
+  en lecture par CDP et par le journal de l'appli, sans saisie de ma part. `window_watch.mjs` suit
+  désormais aussi la page Agents : onglet, nœuds et leur statut, liens, tâche et pièces jointes,
+  fils, et les requêtes de la page vers `/api/agents`, relevées sans en envoyer.
+  - PlannerAgent → CodeAgent, « code un morpion en python » : PlannerAgent en 31 s, CodeAgent en
+    58 s, « ✅ Workflow terminé (100% succès) ».
+  - Charger : `dag_audit.json` (workflow de Tk) par le dialogue de Windows, 4 nœuds et 4 liens.
+    Enregistrer : `workflow.json`, au format de Tk. Exécution du DAG : CodeAgent, puis
+    SecurityAgent et OptimizerAgent en parallèle, puis PlannerAgent. Échap pendant SecurityAgent :
+    fil « interrompu », PlannerAgent non lancé. Exporter : `workflow_export.md`, réponses
+    comprises. Un ancien fil a été supprimé pendant l'exécution.
+  - Micro : deux dictées transcrites dans la zone de tâche. Les textes sont approximatifs : une
+    personne parlait à côté, dit Nicolas.
+  - Ctrl+V : la capture collée devient la puce `clipboard_image.png`. Fichier déposé depuis
+    l'Explorateur : la puce de `script_tri.py`, avec son vrai chemin. OptimizerAgent, « optimise
+    ce fichier » : 46 s, sortie en diff.
+  - Rien d'anormal dans le journal de l'appli. Les deux fils de l'essai restent dans
+    `data/agent_runs.json` ; les fichiers enregistrés et exportés sont dans
+    `temp/migration_test_data/workflows/`, ignoré par git.
+- **Remarque 1 de Nicolas : les deux agents en parallèle ont écrit l'un après l'autre.** Les
+  horodatages du fil le confirment. SecurityAgent et OptimizerAgent ont démarré à la même
+  milliseconde (22:25:19,262 et ,263). OptimizerAgent a écrit seul pendant 62 s. SecurityAgent
+  n'avait que 1 204 caractères quand Échap l'a arrêté, 6 s après la fin d'OptimizerAgent.
+  L'interface n'y est pour rien : Ollama sert un agent à la fois (section 10, comme dans Tk).
+  Correction de l'affichage : un agent en cours, sans texte pendant qu'un autre écrit, « attend
+  son tour ». Son nœud le dit et son lien reste immobile ; son fil affiche « Le modèle répond
+  d'abord à X : cet agent écrira ensuite. ». Le serveur de démonstration sert désormais ses agents
+  un par un, comme Ollama.
+- **Remarque 2 de Nicolas : l'onglet Diff montrait aussi la réponse de l'agent** (texte,
+  tableaux), sous la diff, comme je l'avais prévu. Il ne montre plus que la diff du code ;
+  l'explication reste dans « Sortie » (D36).
+- **Tests** : 133 tests Vitest (130 + 3) ; TypeScript, ESLint et Prettier sans erreur. Dans
+  Chromium, sur le serveur de démonstration, `capture_agents.mjs` passe **46 contrôles sur 46**,
+  sans erreur de console. Il en avait 43 : « liens animés vers les agents en cours » est remplacé
+  par « l'agent pas encore servi attend son tour » et « seul le lien de l'agent qui écrit
+  s'anime » ; s'y ajoutent « l'onglet Diff ne montre que le code » et « l'explication est dans
+  Sortie ». Captures relues.
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -2038,9 +2114,14 @@ Risques :
   rendu ligne à ligne de Tk.
 - Mesures (canvas chargé, longue sortie en streaming) : reportées à l'étape 7, pour toute la phase.
 
-### Plan détaillé de la phase 4b (proposé le 2026-10-14, en attente du feu vert)
+### Plan détaillé de la phase 4b (proposé le 2026-10-14, complété de D37, en attente du feu vert)
 
 Fichiers créés ou complétés :
+
+- Fils des exécutions lancées par le téléphone (Relay) et par les tâches planifiées (D37) :
+  l'exécuteur partagé (`AgentRelayService`) les signale au service de la page, qui en fait des
+  fils marqués de leur origine (« Mobile », « Tâche planifiée »), suivis en direct comme les
+  autres, sans changer le protocole du Relay ni ce que reçoit le téléphone.
 
 - Backend (`interfaces/desktop/agents.py`, `api_agents.py`, et un module du scheduler) : débat
   (`run_debate` d'`AgentRelayService`, fil « Débat · A vs B », un tour par section, contrôles de
