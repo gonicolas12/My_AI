@@ -186,6 +186,55 @@ export interface SlashCommand {
   description: string;
 }
 
+/** Travail sur les modèles Ollama (model_setup.py) : pull, apply (Réglages), install (assistant) */
+export type ModelAction = 'pull' | 'apply' | 'install';
+
+export interface ModelJob {
+  action: ModelAction;
+  name: string;
+  running: boolean;
+  ok: boolean | null;
+  fraction: number;
+  status: string;
+  message: string;
+  log: string[];
+}
+
+/** Réglages lus dans config.yaml (settings.py) */
+export interface SettingsView {
+  base_model: string;
+  generation: GenerationParams;
+  num_ctx_choices: number[];
+  language: string;
+  languages: string[];
+  relay_auto_start: boolean;
+}
+
+export interface GenerationParams {
+  temperature: number;
+  num_ctx: number;
+  timeout: number;
+}
+
+/** Modèles d'Ollama : installés (my_ai compris), bases possibles de my_ai */
+export interface ModelsView {
+  ollama: boolean;
+  installed: string[];
+  bases: string[];
+  base_model: string;
+}
+
+/** Assistant de premier lancement : Ollama, matériel, recommandation */
+export interface OnboardingInfo {
+  ollama: boolean;
+  ram_gb: number | null;
+  vram_gb: number | null;
+  cpu_cores: number | null;
+  recommended: string;
+  choices: string[];
+  job: ModelJob | null;
+}
+
 const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body);
 
 export const api = {
@@ -297,4 +346,23 @@ export const api = {
 
   uiState: () => request<UiState>('GET', '/api/ui'),
   saveUiState: (state: UiState) => request<UiState>('PUT', '/api/ui', state),
+
+  settings: () => request<SettingsView>('GET', '/api/settings'),
+  settingsModels: () => request<ModelsView>('GET', '/api/settings/models'),
+  modelJob: () => request<{ job: ModelJob | null }>('GET', '/api/settings/models/job'),
+  pullModel: (name: string) =>
+    post<{ job: ModelJob | null }>('/api/settings/models/pull', { name }),
+  applyModel: (name: string) =>
+    post<{ job: ModelJob | null }>('/api/settings/models/apply', { name }),
+  saveGeneration: (params: GenerationParams) =>
+    request<GenerationParams>('PUT', '/api/settings/generation', params),
+  setSettingFlag: (name: 'language.default' | 'relay.auto_start', value: string | boolean) =>
+    request<SettingsView>('PUT', '/api/settings/flags', { name, value }),
+  restartOnboarding: () => post<{ ok: boolean }>('/api/settings/onboarding/restart'),
+
+  onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
+  installModel: (name: string) =>
+    post<{ job: ModelJob | null }>('/api/onboarding/install', { name }),
+  skipOnboarding: () => post<{ ok: boolean }>('/api/onboarding/skip'),
+  finishOnboarding: () => post<{ ok: boolean }>('/api/onboarding/finish'),
 };

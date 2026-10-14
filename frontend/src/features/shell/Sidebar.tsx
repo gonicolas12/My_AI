@@ -29,13 +29,12 @@ import { formatDay } from '../../lib/format';
 import { useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
+import { openPanel, type PanelId, usePanels } from '../../stores/panels';
 import { refreshFolders, useSidebar } from '../../stores/sidebar';
 import { setAutoread, useVoice } from '../../stores/voice';
 import { ExportMenu } from './sidebar/ExportMenu';
 import { SearchBox, SearchResults } from './sidebar/SearchPanel';
 import { FoldersSection, HistorySection } from './sidebar/Sections';
-
-const PHASE_3B = 'arrive à la phase 3b';
 
 function SessionItem({
   session,
@@ -74,13 +73,28 @@ function SessionItem({
   );
 }
 
-/** Boutons des panneaux de la phase 3b : affichés, désactivés (D20) */
-const LATER: { icon: LucideIcon; label: string; shortcut?: string }[] = [
-  { icon: Radio, label: 'Relay', shortcut: 'Ctrl+R' },
-  { icon: Settings, label: 'Réglages', shortcut: 'Ctrl+,' },
-  { icon: Brain, label: 'Mémoire' },
-  { icon: BookText, label: 'Prompts' },
+/** Panneaux ouverts depuis le bas de la barre latérale (aussi par la palette Ctrl+K) */
+const PANEL_BUTTONS: { id: PanelId; icon: LucideIcon; label: string; shortcut?: string }[] = [
+  { id: 'relay', icon: Radio, label: 'Relay', shortcut: 'Ctrl+R' },
+  { id: 'settings', icon: Settings, label: 'Réglages', shortcut: 'Ctrl+,' },
+  { id: 'memory', icon: Brain, label: 'Mémoire' },
+  { id: 'prompts', icon: BookText, label: 'Prompts' },
 ];
+
+function PanelButton({ id, icon: Icon, label, shortcut }: (typeof PANEL_BUTTONS)[number]) {
+  const open = usePanels((state) => state.open === id);
+  return (
+    <IconButton
+      label={label}
+      shortcut={shortcut}
+      tooltipSide="top"
+      active={open}
+      onClick={() => openPanel(id)}
+    >
+      <Icon size={17} />
+    </IconButton>
+  );
+}
 
 function AutoreadButton() {
   const autoread = useVoice((state) => state.autoread);
@@ -176,28 +190,10 @@ export function Sidebar() {
         </div>
 
         <div className="flex shrink-0 items-center justify-between border-t border-line px-2 py-2">
-          {LATER.slice(0, 1).map(({ icon: Icon, label, shortcut }) => (
-            <IconButton
-              key={label}
-              label={`${label} : ${PHASE_3B}`}
-              shortcut={shortcut}
-              tooltipSide="top"
-              disabled
-            >
-              <Icon size={17} />
-            </IconButton>
-          ))}
+          <PanelButton {...PANEL_BUTTONS[0]!} />
           <AutoreadButton />
-          {LATER.slice(1).map(({ icon: Icon, label, shortcut }) => (
-            <IconButton
-              key={label}
-              label={`${label} : ${PHASE_3B}`}
-              shortcut={shortcut}
-              tooltipSide="top"
-              disabled
-            >
-              <Icon size={17} />
-            </IconButton>
+          {PANEL_BUTTONS.slice(1).map((button) => (
+            <PanelButton key={button.id} {...button} />
           ))}
           <ExportMenu />
         </div>

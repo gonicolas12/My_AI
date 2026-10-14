@@ -1,10 +1,11 @@
-import { Bot, MessageSquare, PanelLeft, Trash2 } from 'lucide-react';
+import { Bot, CircleHelp, MessageSquare, PanelLeft, Trash2 } from 'lucide-react';
 
 import { IconButton } from '../../components/ui/Button';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { clearConversation, toggleSidebar } from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import { setTab, useApp, type Tab } from '../../stores/app';
+import { openPanel } from '../../stores/panels';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
 
@@ -91,6 +92,12 @@ export function Header() {
             onClick={() => void clearConversation()}
           >
             <Trash2 size={17} />
+          </IconButton>
+        ) : null}
+        {tab === 'chat' && hasMessages ? (
+          // Comme Tk : à côté d'« Effacer », hors de l'accueil ; F1 ouvre l'aide partout
+          <IconButton label="Aide" shortcut="F1" onClick={() => openPanel('help')}>
+            <CircleHelp size={17} />
           </IconButton>
         ) : null}
         <StatusDot />

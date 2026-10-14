@@ -5,6 +5,7 @@ import { AgentsPage } from './features/agents/AgentsPage';
 import { ChatPage } from './features/chat/ChatPage';
 import { useAutoRead } from './features/chat/useAutoRead';
 import { LoadingScreen } from './features/loading/LoadingScreen';
+import { Panels } from './features/panels/Panels';
 import { Header } from './features/shell/Header';
 import { Sidebar } from './features/shell/Sidebar';
 import { ScheduledToasts } from './features/shell/ScheduledToasts';
@@ -23,6 +24,7 @@ import { startSync } from './lib/sync';
 import { useApp } from './stores/app';
 import { useChat } from './stores/chat';
 import { isGenerating } from './stores/chatReducer';
+import { togglePanel } from './stores/panels';
 import { clampPreviewWidth, PREVIEW_WIDTH, usePreview } from './stores/preview';
 
 function useAppEffects() {
@@ -39,6 +41,8 @@ function useAppEffects() {
         'Ctrl+N': () => void newConversation(),
         'Ctrl+L': () => void clearConversation(),
         'Ctrl+S': () => void saveConversation(),
+        'Ctrl+,': () => togglePanel('settings'),
+        F1: () => togglePanel('help'),
         Escape: (event) => {
           // D6 : Échap arrête la réponse quand aucun dialogue ni menu n'est ouvert,
           // ni un champ qui s'en sert lui-même (recherche à effacer)
@@ -95,6 +99,7 @@ export function App() {
       ) : (
         <LoadingScreen status={status} connection={connection} />
       )}
+      {started ? <Panels /> : null}
       <Toasts />
       <ScheduledToasts />
     </TooltipProvider>

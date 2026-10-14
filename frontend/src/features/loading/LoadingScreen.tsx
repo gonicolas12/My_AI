@@ -2,7 +2,8 @@
  * Écran de chargement : la fenêtre s'affiche tout de suite, puis nomme
  * l'étape du lancement en cours (interfaces/desktop/lifecycle.py, _launch),
  * jusqu'à « prêt ». Ollama arrêté ou lancement en échec : l'erreur s'affiche
- * ici au lieu de laisser l'écran tourner.
+ * ici au lieu de laisser l'écran tourner. Au premier lancement, l'assistant de
+ * configuration prend sa place jusqu'à ce que le lancement reprenne.
  */
 
 import { Check, CircleAlert, LoaderCircle } from 'lucide-react';
@@ -11,6 +12,7 @@ import { RobotLogo } from '../../components/ui/RobotLogo';
 import { cn } from '../../lib/cn';
 import type { EngineStatus } from '../../lib/events';
 import type { ConnectionState } from '../../lib/ws';
+import { OnboardingWizard } from '../onboarding/OnboardingWizard';
 
 /** Étapes du lanceur, dans l'ordre de lifecycle.py */
 const LAUNCH_STEPS: { id: string; label: string }[] = [
@@ -33,6 +35,9 @@ export function LoadingScreen({ status, connection }: LoadingScreenProps) {
   const failed = status?.state === 'error';
   const ollamaDown = status?.ollama === false && Boolean(status.error);
   const connecting = connection !== 'open' || !status;
+
+  // Premier lancement : le lancement attend l'assistant de configuration
+  if (status?.state === 'onboarding' && connection === 'open') return <OnboardingWizard />;
 
   return (
     <div

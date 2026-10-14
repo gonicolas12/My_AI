@@ -174,6 +174,14 @@ export interface EventPayloads {
   'files.dropped': { paths: string[] };
   'folders.progress': { path: string; name: string; verb: string; done: number; total: number };
   'folders.changed': { path: string | null; ok: boolean };
+  'models.progress': { fraction: number; status: string };
+  'models.log': { line: string };
+  'models.done': {
+    action: 'pull' | 'apply' | 'install';
+    name: string;
+    ok: boolean;
+    message: string;
+  };
   'voice.input': { state: VoiceInputState; message: string };
   'voice.transcript': { text: string };
   'voice.output': { state: VoiceOutputState; key: string | null; message: string };

@@ -8,6 +8,7 @@
  */
 
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
+import { applyModelDone, applyModelLog, applyModelProgress } from '../stores/models';
 import { notify, showScheduledResult, useApp } from '../stores/app';
 import {
   applyFolderProgress,
@@ -152,6 +153,15 @@ export function startSync(): () => void {
         return;
       case 'folders.progress':
         applyFolderProgress((event as ServerEvent<'folders.progress'>).payload);
+        return;
+      case 'models.progress':
+        applyModelProgress((event as ServerEvent<'models.progress'>).payload);
+        return;
+      case 'models.log':
+        applyModelLog((event as ServerEvent<'models.log'>).payload);
+        return;
+      case 'models.done':
+        applyModelDone((event as ServerEvent<'models.done'>).payload);
         return;
       case 'folders.changed':
         applyFoldersChanged((event as ServerEvent<'folders.changed'>).payload.path);
