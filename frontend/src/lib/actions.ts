@@ -5,9 +5,10 @@
  */
 
 import { notify, useApp } from '../stores/app';
-import { api } from './api';
+import { api, type ExportFormat } from './api';
 import { baseName } from './artifacts';
 import type { ClientMessage } from './events';
+import { shell } from './shell';
 import { getSocket } from './sync';
 import { SocketError } from './ws';
 
@@ -131,6 +132,30 @@ export async function saveToDownloads(path: string): Promise<void> {
   const result = await attempt(() => api.downloadFile(path), 'error');
   if (result) {
     notify('success', `✅ Votre fichier ${baseName(path)} a été téléchargé dans : ${result.path}`);
+  }
+}
+
+const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
+  markdown: 'md',
+  html: 'html',
+  pdf: 'pdf',
+};
+
+/**
+ * Export de la conversation (section « Export » de Tk) vers le fichier choisi
+ * dans le dialogue du système ; dans un navigateur, dans outputs/exports/
+ */
+export async function exportConversation(format: ExportFormat): Promise<void> {
+  let path: string | null = null;
+  if (shell.canPickFiles()) {
+    path = await shell.saveFile(`conversation.${EXPORT_EXTENSIONS[format]}`, format);
+    if (!path) return; // dialogue annulé
+  }
+  try {
+    const result = await api.exportConversation(format, path);
+    notify('success', `✅ Exporté en ${format.toUpperCase()} : ${result.path}`);
+  } catch (error) {
+    notify('error', errorText(error));
   }
 }
 
