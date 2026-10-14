@@ -21,7 +21,11 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   };
-  Element.prototype.scrollIntoView ??= () => undefined;
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value: () => undefined,
+  });
 });
 
 beforeEach(() => {
