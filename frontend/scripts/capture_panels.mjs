@@ -2,7 +2,7 @@
 // premier lancement (serveur lancé avec --premier-lancement), Réglages, Mémoire, Prompts, Relay,
 // Aide, palette Ctrl+K. Usage (depuis frontend/) :
 //   node scripts/capture_panels.mjs URL_AVEC_JETON [DOSSIER] [étapes séparées par des virgules]
-// Étapes : assistant, reglages, memoire, prompts, relay, aide
+// Étapes : assistant, reglages, memoire, prompts, relay, aide, palette
 import { mkdirSync } from 'node:fs';
 
 import { composer, openDemo, openSidebar, usage, waitReady } from './lib.mjs';
@@ -419,6 +419,53 @@ if (wanted('aide')) {
   await panel.locator('footer').getByRole('button', { name: 'Fermer' }).click();
   await panel.waitFor({ state: 'detached', timeout: 3000 });
   check('aide : « Fermer » la ferme', true);
+}
+
+if (wanted('palette')) {
+  const palette = dialog('Palette de commandes');
+  const input = page.getByRole('combobox');
+  const options = page.getByRole('option');
+  await page.keyboard.press('Control+k');
+  await palette.waitFor({ timeout: 3000 });
+  await page.waitForTimeout(300);
+  await shot('palette');
+  check('palette : les 14 commandes de Tk', (await options.count()) === 14);
+  await input.pressSequentially('export');
+  await page.waitForTimeout(200);
+  await shot('palette_filtre');
+  check('palette : filtre par sous-chaîne', (await options.count()) === 3);
+  // Palette ouverte : les autres raccourcis attendent sa fermeture
+  await page.keyboard.press('Control+,');
+  await page.waitForTimeout(200);
+  check('palette : Ctrl+, sans effet', (await dialog('Réglages').count()) === 0);
+  await page.keyboard.press('Control+k');
+  await palette.waitFor({ state: 'detached', timeout: 3000 });
+  check('palette : Ctrl+K la referme', true);
+
+  await page.keyboard.press('Control+k');
+  await input.pressSequentially('mém');
+  await page.keyboard.press('Enter');
+  const memory = dialog('Mémoire locale');
+  await memory.waitFor({ timeout: 5000 });
+  check('palette : Entrée exécute (Mémoire)', (await palette.count()) === 0);
+  await page.keyboard.press('Escape');
+  await memory.waitFor({ state: 'detached', timeout: 3000 });
+
+  await page.keyboard.press('Control+k');
+  await input.pressSequentially('agents');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  const agentsTab = await page
+    .locator('[aria-label="Pages"] button', { hasText: 'Agents' })
+    .getAttribute('aria-current');
+  check('palette : onglet Agents', agentsTab === 'page');
+  await page.keyboard.press('Control+k');
+  await input.pressSequentially('onglet chat');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Control+k');
+  await page.keyboard.press('Escape');
+  await palette.waitFor({ state: 'detached', timeout: 3000 });
+  check('palette : Échap la ferme', true);
 }
 
 console.log(logs.length ? logs.join('\n') : 'Console : aucune erreur');
