@@ -53,8 +53,22 @@ phase 2).
   appliquées : téléphone (Relay, QR code, badge « Mobile »), vraie dictée et raccourcis au vrai
   clavier essayés avec Nicolas dans la vraie appli ; le Word caché des aperçus se ferme avec
   l'appli (D30) ; adresse locale avec la clé gardée (D31). Détails dans le journal.
-- **Phase 4 (page Agents)** : plan en section 17, découpage en 4a puis 4b proposé ; feu vert
-  attendu au début de la prochaine conversation.
+- **Phase 4 (page Agents) : feu vert le 2026-10-14**, selon le plan de la section 17, découpée en
+  4a (grille et agents personnalisés, zone de tâche, exécution d'un agent seul et des workflows,
+  canvas) puis 4b (Débat, statistiques et moniteur, tâches planifiées, notification de fin), avec
+  un arrêt et un compte rendu à la fin de 4a. Installations permises : paquets du §6 dont la phase
+  a besoin (`@xyflow/react`…) ; demander pour tout autre paquet. Maquettes des fils d'exécution
+  montrées le jour même (§8 du prompt) : disposition A retenue (D32), fils gardés d'un lancement à
+  l'autre (D33).
+- **Phase 4a (grille, agents personnalisés, zone de tâche, exécution, canvas) terminée le
+  2026-10-14** : grille des agents et agents personnalisés, zone de tâche (pièces jointes, collage,
+  dépôt, micro), exécution d'un agent seul et des workflows (séquentiel, parallèle, DAG) avec leurs
+  fils (D32, gardés d'un lancement à l'autre : D33), arrêt et Échap, diff d'un code joint modifié,
+  canvas avec `@xyflow/react` (gestes de Tk, statuts, liens animés, Enregistrer, Charger, Exporter
+  au format de Tk). Vérifiée dans Chromium (serveur de démonstration), dans la vraie fenêtre
+  WebView2 (dont un vrai glisser-déposer à la souris) et sur le vrai Ollama, sans fenêtre. Détails
+  dans le journal (section 12). Questions de la phase 4a en section 9 ; plan de la phase 4b en
+  section 17, en attente du feu vert.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -155,6 +169,14 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
   des toasts. Rien côté Python (`qrcode` était déjà dans `requirements.txt`). `npm audit` ne
   trouve rien. `frontend/dist/` : 4,9 Mo, 99 fichiers.
 
+### Installé en phase 4a (2026-10-14)
+
+- @xyflow/react 12.12.0 (paquet du §6, dernière version stable, publiée le 2026-09-24), avec
+  @xyflow/system 0.0.83 et sa propre copie de zustand 4.5.7 (quelques Ko, à côté de notre
+  zustand 5). Chargé avec la page Agents, à la première ouverture de l'onglet (morceau de
+  225 Ko, 73 Ko compressés). Rien côté Python. `npm audit` ne trouve rien. `frontend/dist/` :
+  5,1 Mo, 101 fichiers.
+
 ## 2. Ce que ce PC ne permet pas de vérifier
 
 À faire sur le PC de travail, ou par Nicolas dans la vraie fenêtre :
@@ -181,6 +203,14 @@ Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre p
   avait été refusé par le verrou de premier plan de Windows ; essayés par Nicolas le 2026-10-14
   (D29) ;
 - les visionneuses Office à 125 et 150 % et sur deux écrans (vérifiées à 100 %).
+
+Essais de la phase 4a à faire avec Nicolas (question 38) :
+
+- Enregistrer, Charger et Exporter un workflow par les dialogues de Windows ;
+- un vrai workflow sur le vrai Ollama dans la vraie fenêtre (vérifié sans fenêtre, et dans la
+  fenêtre sur le serveur de démonstration) ;
+- le micro, une capture collée (Ctrl+V) et un fichier déposé depuis l'Explorateur dans la zone de
+  tâche (mêmes briques que le chat, essayées en 3a et 3b).
 
 ## 3. Tests de référence (phase 0)
 
@@ -386,22 +416,28 @@ code, la documentation et §7.
 
 ### Agents
 
-- [ ] **Grille des 9 agents et agents personnalisés** — `interfaces/agents/agent_selection.py`,
+- [x] **Grille des 9 agents et agents personnalisés** — `interfaces/agents/agent_selection.py`,
   `custom_agents.py` (`_render_custom_agents_in_grid`, `_create_custom_agent_card` : icône 🤖, 📝, ✕).
   Le service `relay/agent_relay.py` (`list_agents`) donne aux agents personnalisés l'icône 🧩.
-- [ ] **Agents personnalisés : créer, éditer, supprimer** — `custom_agents.py`, `relay/agent_relay.py`
+  Interface web : icônes lucide teintées (§8), le robot pour un agent personnalisé ; une carte se
+  glisse sur le canvas, ou s'y ajoute par un clic (nouveau, question 34).
+- [x] **Agents personnalisés : créer, éditer, supprimer** — `custom_agents.py`, `relay/agent_relay.py`
   (`create_agent`, `edit_agent`, `delete_agent`, même prompt de génération), `data/custom_agents.json`.
-- [ ] **Zone de tâche avec pièces jointes, collage d'image et micro** — `task_input.py`,
+  Interface web : un agent supprimé quitte aussi le canvas (section 7, écart 13).
+- [x] **Zone de tâche avec pièces jointes, collage d'image et micro** — `task_input.py`,
   `interfaces/agents/file_handling.py` (`_agent_load_file`, `_analyze_image_for_agent`,
-  `_read_attached_file`), `processors/attachments.py`.
-- [ ] **Exécution : agent seul, séquentiel, parallèle, DAG, Stop** — `execution.py`,
+  `_read_attached_file`), `processors/attachments.py`. Interface web : plusieurs images, chacune
+  décrite, comme Tk ; fichiers et dossiers déposés en plus (règle D24).
+- [x] **Exécution : agent seul, séquentiel, parallèle, DAG, Stop** — `execution.py`,
   `output_rendering.py`, `output_area.py` ; service : `relay/agent_relay.py` (`run_workflow`,
   `compute_execution_plan`, `interrupt`). Tk utilise son propre `AgentOrchestrator` (voir section 7).
-- [ ] **Canvas de workflow** — `interfaces/workflow_canvas.py` (`to_dict`, `from_dict`,
+  Interface web : l'exécuteur partagé, un fil par exécution (D32, D33), Échap arrête.
+- [x] **Canvas de workflow** — `interfaces/workflow_canvas.py` (`to_dict`, `from_dict`,
   `get_execution_plan`), `drag_drop.py` (dépôt sur le canvas seulement), `workflow.py` (Save / Load /
   Export). Zoom 0,3 à 3, déplacement au clic milieu ou droit, grille avec aimantation, minimap,
   multi-sélection (Maj+clic, rectangle), Suppr, clic droit sur un lien pour le supprimer, liens de la
   couleur du nœud source. Statuts : gris `#6b7280`, jaune `#f59e0b`, vert `#10b981`, rouge `#ef4444`.
+  Interface web : React Flow, mêmes gestes ; tout cycle refusé (question 35).
 - [ ] **Mode Débat** — `debate.py`, `relay/agent_relay.py` (`run_debate`),
   `core/agent_orchestrator.py` (`execute_debate`). Proposant / Opposant, sujet, 1 à 10 tours.
 - [ ] **Statistiques et moniteur de ressources** — `stats_section.py`, `interfaces/resource_monitor.py`.
@@ -415,15 +451,16 @@ code, la documentation et §7.
 - [ ] **Notification système à la fin d'une tâche longue** — `execution.py` (`_notify_task_complete` :
   plus de 8 s et fenêtre sans focus), `utils/desktop_notify.py`.
 
-### Où en est la checklist après la phase 3b
+### Où en est la checklist après la phase 4a
 
-Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a et 3b). Le téléphone (Relay, QR
+Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a, 3b et 4a). Le téléphone (Relay, QR
 code, badge « Mobile »), la dictée et les raccourcis au vrai clavier ont été essayés avec Nicolas
 dans la vraie appli le 2026-10-14 (D27 à D29). Restent :
 
 - **Visionneuses Office** : vérifiées à 100 % sur un écran ; 125 %, 150 % et deux écrans restent
   à voir (section 2).
-- **Agents** : phase 4 (section 17).
+- **Agents, phase 4b** : Mode Débat, statistiques et moniteur de ressources, tâches planifiées,
+  notification du système en fin de tâche longue (section 17).
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -469,6 +506,23 @@ dans la vraie appli le 2026-10-14 (D27 à D29). Restent :
     (`_render_latex_symbols`) ; le chat Tk affiche le LaTeX brut. L'IA en produit donc.
 11. **Adresse d'écoute** : le Relay écoute sur `0.0.0.0` (`relay.host`) ; l'API desktop écoutera sur
     127.0.0.1 uniquement (rappel, aucun changement au Relay).
+12. **Statut de la page Agents de Tk** (constaté en phase 4a) : `status_label` n'est jamais créé
+    (`base.py` le laisse à None) ; les messages de `_update_status` (« ⏳ Workflow visuel en
+    cours... », « ✅ Tâche terminée avec … », « ⛔ Génération interrompue ») ne s'affichent nulle
+    part. Seules les sections portent un statut.
+13. **Agent personnalisé supprimé** : Tk laisse ses nœuds sur le canvas ; les exécuter échoue
+    (« Agent type invalide »).
+14. **Cycles sur le canvas** : Tk refuse l'aller-retour (A→B puis B→A) mais pas un cycle plus long
+    (A→B→C→A), dont les agents ne s'exécutent jamais (tri topologique).
+15. **Agents sans lien** : dans Tk, des nœuds sans aucun lien s'exécutent deux fois (l'étape en
+    parallèle, puis la passe des isolés) ; `AgentRelayService` ne le fait plus (sa docstring le
+    note).
+16. **Texte de fin d'`AgentRelayService`** : « ✅ Workflow terminé (0% succès) » quand tous les
+    agents ont échoué, et ce même texte pour un agent seul ; son `success` est faux dès qu'un agent
+    échoue.
+17. **Une exécution d'agents à la fois, partout** : la page Agents de Tk avait son propre
+    orchestrateur ; avec l'exécuteur partagé, une exécution du mobile ou une tâche planifiée occupe
+    aussi la page Agents (et le scheduler attend la fin d'une exécution de la page).
 
 ## 8. Décisions
 
@@ -588,6 +642,22 @@ quand plusieurs runtimes OpenMP cohabitent (le plantage qu'il évite est propre 
   Office déjà là avant l'appli.
 - **D31. Adresse copiée sans tunnel** : l'adresse locale du Relay avec la clé de chiffrement est
   gardée.
+
+### Prises le 2026-10-14 (maquettes de la page Agents, phase 4)
+
+Maquettes montrées avant la réorganisation, comme le demande le §8 du prompt : deux dispositions
+des fils d'exécution façon Codex, aux couleurs, polices et icônes de l'appli, avec un workflow de
+quatre agents en cours et une section en diff (captures dans `frontend/captures/maquettes_agents/`,
+ignoré par git).
+
+- **D32. Disposition A** : la page garde l'ordre de Tk (grille des agents, zone de tâche et ses
+  boutons, canvas du workflow), et « Exécutions » prend la place de « Résultats » : liste des fils
+  à gauche, fil ouvert à droite (une section par agent, statut en direct, Arrêter). Statistiques et
+  tâches planifiées suivent en bas (phase 4b). Écartée : une colonne des fils à gauche de la page
+  (option B).
+- **D33. Fils gardés d'un lancement à l'autre** : les 50 dernières exécutions (tâche, workflow,
+  sorties de chaque agent, statut) dans `data/agent_runs.json`, ignoré par git, rouvrables après
+  un redémarrage, avec « Effacer l'historique ».
 
 ### Constats techniques qui orientent la phase 1
 
@@ -778,6 +848,56 @@ quand plusieurs runtimes OpenMP cohabitent (le plantage qu'il évite est propre 
 - **Serveur de démonstration** : Ollama, mémoire et Relay simulés (ni modèle téléchargé, ni base
   touchée, ni port ni tunnel ouverts) ; vraie `PromptLibrary` sur une copie temporaire.
 
+### Choix techniques de la phase 4a (dans le cadre fixé, pour mémoire)
+
+- **Service de la page** (`interfaces/desktop/agents.py`) : il enveloppe l'exécuteur partagé
+  (`AgentRelayService`, créé par `lifecycle.py`), sans modifier `relay/agent_relay.py`. Routes
+  `/api/agents*`, 503 tant que le moteur démarre (rien n'appelle Ollama avant la fin du
+  placement). La rédaction d'un agent personnalisé par le modèle reste une requête qui attend sa
+  réponse, comme le dialogue de Tk attendait.
+- **Événements** : ceux d'`AgentRelayService` gardent leur nom (préfixe `agents.`) et leur charge
+  utile, sauf le texte des sections : le texte cumulé devient sa suite (`agent_section_delta`,
+  avec `offset`), ou le texte entier quand il ne prolonge pas le précédent
+  (`agent_section_text`). S'y ajoutent `run_created`, `runs_changed` et `list_changed`. La page
+  ignore une suite déjà reçue et relit le fil si une suite manque (reconnexion) ; chaque lecture
+  complète porte son `seq`.
+- **Fils (D32, D33)** : `data/agent_runs.json` (ignoré par git), écrit à la création et à la fin
+  de chaque fil (écriture atomique), les 50 derniers. Un fil resté « en cours » (appli tuée) est
+  relu comme interrompu ; à la fermeture de l'appli, le fil en cours est arrêté et enregistré comme
+  interrompu. Horodatages à la milliseconde (durée d'un agent rapide).
+- **Arrêt** : `run_workflow` remet son drapeau d'arrêt à zéro en démarrant ; un arrêt demandé
+  avant (pendant la lecture des pièces jointes) est redemandé à son premier événement, ou fait
+  finir le fil sans le lancer.
+- **Pièces jointes** : vérifiées par le serveur (fichier existant, type lisible), lues par
+  l'exécuteur au lancement, comme Tk. Plusieurs images, chacune décrite par le modèle de vision
+  (`_describe_image` d'`AgentRelayService` : `run_workflow` n'en prend qu'une) ; un dossier déposé
+  joint ses fichiers (règle du chat, D24, commune : `folder_attachment_files`). Le code joint est
+  gardé dans le fil (200 000 caractères au plus) pour le diff.
+- **Diff (§8)** : une sortie terminée dont un bloc de code garde au moins 30 % des lignes utiles
+  d'un code fourni (fichier joint, ou bloc de la tâche), sans lui être identique, s'ouvre en
+  « Diff » (Myers par lignes, 3 lignes de contexte, le reste replié), suivi de l'explication de
+  l'agent ; « Sortie » montre la réponse entière. Calcul dans la page, sans paquet.
+- **Fin d'un fil** : agent seul, messages de Tk (« ✅ Tâche terminée avec … », « ❌ Erreur lors de
+  l'exécution »), dans le fil comme dans l'événement ; workflow dont des agents ont échoué :
+  succès partiel, en orange ; à 0 %, échec.
+- **Canvas** (React Flow) : nœuds de 240 × 84 (260 × 110 dans Tk), grille et aimantation de 25 px,
+  zoom de 0,3 à 3, déplacement au clic milieu ou droit, rectangle de sélection dans le vide,
+  Maj+clic, Suppr et Retour arrière, clic droit sur un lien pour le supprimer, minimap. Liens
+  dessinés par la page (Bézier, flèche, couleur du nœud source, pointillés animés vers un agent en
+  cours, sans animation si `prefers-reduced-motion`). Refusés : lien d'un nœud vers lui-même,
+  doublon, aller-retour et tout cycle. Le canvas vit dans un store : il survit au passage par le
+  Chat, pas au redémarrage (comme Tk). Attribution de React Flow masquée (licence MIT).
+- **Fichiers de workflow** : format exact de `WorkflowCanvas.to_dict` (ordre des clés, émojis des
+  agents, 🤖 pour un agent personnalisé, statut des nœuds) ; un chargement renumérote les nœuds à
+  partir de 0 comme `from_dict`, lit aussi le format de la PWA et écarte les liens invalides.
+  Export Markdown (D11) : en-têtes de Tk, tâche, agents, puis la réponse de chacun à la dernière
+  exécution (un nœud n'a de réponse que s'il figurait, avec le même agent, dans ce fil). Sans
+  pywebview (navigateur, `--dev`) : `outputs/workflows/` et `outputs/exports/`, nom daté.
+- **Échap** : sur la page Agents, il arrête l'exécution en cours (D6) et ne touche pas au chat.
+- **Défilement** : au lancement, si les sorties sont hors de vue, la page descend jusqu'au canvas,
+  qui garde ses statuts visibles au-dessus d'elles. Une sortie suit la fin de son texte (560 px
+  au plus, puis défilement), sauf si l'utilisateur est remonté.
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -931,6 +1051,34 @@ garde les deux messages de l'essai dans sa conversation et les supprimera lui-m�
     l'interface mobile dans un navigateur du PC. Tk copiait `http://localhost:8765?token=…`, sans
     la clé, qui ne suffit plus depuis le chiffrement. Je garde la nouvelle. D'accord ?
 
+### Questions des maquettes de la page Agents (posées le 2026-10-14)
+
+Réponses de Nicolas le 2026-10-14 : maquettes demandées pour A et B, puis A retenue (D32) ; fils
+gardés (D33).
+
+32. **Disposition des fils d'exécution** (§8 du prompt : maquette avant toute réorganisation
+    notable) : A (ordre de Tk, « Exécutions » à la place de « Résultats »), B (colonne des fils à
+    gauche de la page) ou C (composition et fil côte à côte) ?
+33. **Fils d'un lancement à l'autre** : gardés (les 50 derniers, `data/agent_runs.json`), ou le
+    temps de la session, comme l'historique d'exécution de Tk ?
+
+### Questions de la phase 4a (posées le 2026-10-14)
+
+34. **Clic sur une carte** : il ajoute l'agent au canvas, en cascade (comme la PWA) ; dans Tk,
+    seul le glisser-déposer l'ajoutait, un clic ne faisait rien. Je le garde ?
+35. **Cycles refusés** : Tk refusait l'aller-retour (A→B puis B→A) mais laissait tracer un cycle
+    plus long, dont les agents ne s'exécutaient jamais. La page refuse tout cycle. D'accord ?
+36. **Diff par défaut** : une sortie qui modifie un code joint s'ouvre en « Diff », « Sortie » à
+    côté. La détection est une règle simple (au moins 30 % de lignes utiles en commun avec un code
+    fourni) : elle peut prendre un code voisin pour une modification. Diff par défaut, ou
+    « Sortie » par défaut avec le bouton « Diff » ?
+37. **Exécutions du mobile et des tâches planifiées** : elles passent par le même exécuteur, une à
+    la fois partout. Pendant ce temps, la page Agents refuse d'en lancer une (« Un agent est déjà
+    en train de traiter une tâche. ») sans les montrer. Les montrer aussi en fils, en 4b ?
+38. **Essais avec toi** dans la vraie appli (section 2) : Enregistrer, Charger et Exporter un
+    workflow (dialogues de Windows) ; un vrai workflow sur Ollama ; le micro, une capture collée
+    (Ctrl+V) et un fichier déposé depuis l'Explorateur dans la zone de tâche.
+
 ## 10. Risques repérés
 
 - **Reprise du prompt par Ollama** : `_rewind_engine_history` (édition, rechargement) réécrit tout
@@ -999,6 +1147,11 @@ garde les deux messages de l'essai dans sa conversation et les supprimera lui-m�
 - **Chromium sans fenêtre** (captures, phase 3b) : la première seconde après le lancement, les
   animations y avancent au ralenti, sans tâche longue de la page ; `capture_panels.mjs` attend
   1,5 s. À revoir dans la vraie fenêtre si une animation d'ouverture y semblait lente.
+
+- **Modèle des agents** (constaté en phase 4a) : `AgentRelayService` utilise
+  `llm.local.default_model` (`qwen3.5:4b` sur ce PC), comme la page Agents de Tk, et non `my_ai`.
+  Une exécution d'agents charge donc un second modèle (premier texte en 8 s au vrai passage) ;
+  aucun changement fait (moteur et réglages hors du périmètre de la migration).
 
 ---
 
@@ -1554,6 +1707,61 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 - **Tests** : `tests/test_desktop_*.py` et `tests/test_chat_service.py` : 183 réussis ;
   `test_native_preview.py` : 19 réussis.
 
+### Phase 4a — 2026-10-14 (PC à RTX 3060)
+
+- `main` n'a pas bougé (`543f083`). Paquets : section 1.
+- **Maquettes** (§8 du prompt) : deux dispositions des fils d'exécution, construites avec le front
+  (React, Tailwind branché sur `tokens.css`, icônes lucide, Inter) et servies par Vite, captures
+  dans `frontend/captures/maquettes_agents/` (ignoré par git) ; A retenue (D32), fils gardés
+  (D33).
+- **Backend** : `interfaces/desktop/agents.py` (service de la page, fils), `api_agents.py`
+  (routes), `events.py` (événements `agents.*`), `lifecycle.py` (service créé au premier usage,
+  fil arrêté à la fermeture), `api_files.py` (vignettes des pièces jointes de la zone de tâche),
+  `shell_api.py` (dialogue d'ouverture d'un workflow, filtre JSON), `core/chat_service.py`
+  (`folder_attachment_files`, règle D24 commune), `.gitignore` (`data/agent_runs.json`).
+  `relay/agent_relay.py` et `core/chat_orchestrator.py` inchangés.
+- **Front** : `features/agents/` (page, grille, dialogue d'un agent personnalisé, zone de tâche,
+  canvas, fils, diff), `stores/agents.ts` et `agentsReducer.ts`, `lib/events.ts`, `lib/api.ts`,
+  `lib/shell.ts`, `lib/sync.ts`, `App.tsx` (page chargée à la demande, Échap), `tokens.css`
+  (`--canvas-dot`, couleur de la grille de Tk).
+- **Outils** : `capture_agents.mjs`, `window_agents.mjs`, agents scénarisés du serveur de
+  démonstration (vrai `AgentRelayService`, orchestrateur et modèle simulés), `win()` des scripts
+  en UTF-8.
+- **Tests** : `python -m pytest tests/` : **1149 réussis** (dont 27 nouveaux,
+  `test_desktop_agents.py`, sur le vrai `AgentRelayService` avec un orchestrateur simulé), aucun
+  échec (2 min 42). Front : **130 tests Vitest** (94 + 36), TypeScript, ESLint et Prettier
+  propres, `npm audit` sans avis.
+- **Contrôles et captures** (Chromium, serveur de démonstration) : `capture_agents.mjs`,
+  **43 contrôles sur 43**, aucune erreur de console ; captures relues : grille, canvas en DAG,
+  exécution en cours (liens animés vers les agents en cours), fil terminé, arrêt (agent suivant
+  « Non exécuté »), erreur, diff d'un fichier joint, fil rouvert, agent personnalisé, workflow de
+  Tk chargé.
+- **Vraie fenêtre WebView2** (serveur de démonstration, `--window`, PC inactif depuis 9 minutes) :
+  `window_agents.mjs`, **8 contrôles sur 8** : page chargée à la demande, nœuds, lien, **une carte
+  glissée sur le canvas à la vraie souris** (glisser-déposer de Windows et de WebView2), nœud centré
+  sur le point de dépôt, workflow exécuté, statut final, Échap. Fenêtre refermée par WM_CLOSE.
+- **Vrai Ollama, sans fenêtre** (`launch_unified.py --headless`, client REST et WebSocket hors
+  dépôt) : prêt en 96 s, le lanceur ayant remesuré le placement (contexte en 8 bits retenu :
+  61,3 tok/s en écriture contre 42,2 en 16 bits) ;
+  - CodeAgent seul : premier texte en 8,0 s (chargement de `qwen3.5:4b`, section 10), fin en
+    13,6 s, 79 suites, « ✅ Tâche terminée avec CodeAgent » ;
+  - PlannerAgent → CodeAgent : premier texte en 0,8 s, fin en 9,4 s, 116 suites, nœuds
+    « Terminé » ;
+  - arrêt pendant un workflow : fil interrompu aussitôt, agent suivant non lancé ;
+  - agent personnalisé rédigé par le vrai modèle en 3,8 s, puis supprimé ;
+  - les textes recomposés à partir des suites sont identiques à ceux des fils enregistrés ;
+  - ensuite : `data/agent_runs.json` retiré, `data/custom_agents.json` remis à l'identique ;
+    seuls `.desktop_state.json` (même contenu), `.ollama_placement.json` (nouvelle mesure) et
+    `web_cache/cache.db` ont changé, comme à chaque lancement.
+- **Bogues trouvés et corrigés en route** : scénario de démonstration déclenché par le contexte
+  d'un agent précédent (le plan simulé disait « cas d'erreur ») ; durées d'agent à « 0 ms »
+  (horodatages à la seconde) ; « ✅ Workflow terminé (50% succès) » affiché en rouge ; texte de fin
+  d'un agent seul ; `win()` des scripts qui échouait après le geste (sortie en cp1252) ; mes
+  retouches de fichiers par script réécrivaient le front en CRLF (corrigé avant tout commit).
+- **Incident** : un script de capture a créé `C:\Users\nicol\ynov\Projets%20Perso` (chemin d'URL
+  non décodé) ; supprimé aussitôt, il ne contenait que ses trois captures. Rien sur les données de
+  Nicolas.
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -1769,7 +1977,7 @@ Risques :
 
 ---
 
-## 17. Plan de la phase 4 (proposé le 2026-10-14, en attente du feu vert)
+## 17. Plan de la phase 4 (feu vert le 2026-10-14 ; 4a réalisée le 2026-10-14, 4b à venir)
 
 But (prompt, §9) : tous les éléments de la section « Agents » du §7, avec le design de la page
 Agents du §8 (inspirée de Codex). Le backend existe (`relay/agent_relay.py`, `core/scheduler.py`,
@@ -1821,3 +2029,45 @@ Risques :
 - « Exécuter même l'appli fermée » (Planificateur de tâches de Windows) : vérifier les droits et
   ne rien laisser derrière les essais.
 - Canvas avec beaucoup de nœuds ; liens animés sans coût continu.
+
+Écarts au plan, à la fin de la phase 4a :
+
+- Le bouton « Débat » est affiché, désactivé, avec son infobulle, jusqu'à la phase 4b (comme les
+  boutons de la phase 3, D20).
+- Sorties d'agents : le rendu Markdown du chat (code coloré, tableaux, formules : D9), au lieu du
+  rendu ligne à ligne de Tk.
+- Mesures (canvas chargé, longue sortie en streaming) : reportées à l'étape 7, pour toute la phase.
+
+### Plan détaillé de la phase 4b (proposé le 2026-10-14, en attente du feu vert)
+
+Fichiers créés ou complétés :
+
+- Backend (`interfaces/desktop/agents.py`, `api_agents.py`, et un module du scheduler) : débat
+  (`run_debate` d'`AgentRelayService`, fil « Débat · A vs B », un tour par section, contrôles de
+  Tk) ; statistiques (tâches exécutées, agents actifs, taux de succès, depuis les fils) ; moniteur
+  de ressources (`interfaces/resource_monitor.py`, une mesure toutes les 3 s en événements
+  `resources.sample` tant qu'une fenêtre est ouverte, les 60 dernières relues à l'ouverture) ;
+  temps d'inférence et tokens/s de chaque agent depuis le relevé de `LocalLLM` (D17 : `eval_count`,
+  `eval_duration`, aucune requête en plus ; Tk affichait 0) ; tâches planifiées (routes sur
+  `core/scheduler.py` : liste, création, édition, suppression, activation, exécution immédiate,
+  historique ; « Exécuter même l'appli fermée » : Planificateur de tâches de Windows) ;
+  notification du système en fin de fil long (plus de 8 s, fenêtre sans focus, comme Tk ; la
+  page signale son focus au serveur), par `utils/desktop_notify.py`.
+- Front : dialogue du débat (Agent A — Proposant, Agent B — Opposant, sujet, 1 à 10 tours) ;
+  section « Statistiques et ressources » (3 chiffres et 6 lignes : barre colorée par seuil comme
+  le code de Tk, vert sous 50 %, jaune sous 80 %, rouge au-delà ; valeur ; mini-graphique SVG de
+  60 mesures) ; vue « Tâches planifiées » (planning, prochaine exécution, dernier résultat et son
+  rapport, actions ; dialogue de création et d'édition avec la source : agent seul, workflow du
+  canvas courant, débat).
+- Tests : pytest (débat, statistiques, moniteur simulé, routes du scheduler sur un fichier
+  temporaire, Planificateur de Windows simulé) ; Vitest (dialogues, barres, mini-graphiques) ;
+  captures Playwright ; vrai débat sur Ollama ; une vraie tâche planifiée menée jusqu'à sa
+  notification (essai resté ouvert depuis la phase 3a, section 2).
+
+Étapes : (4) Débat ; (5) statistiques et moniteur ; (6) tâches planifiées et notification de fin ;
+(7) captures, mesures (canvas de 50 nœuds, longue sortie en streaming, défilement de la page),
+recette et compte rendu de toute la phase 4.
+
+Risques : Planificateur de tâches de Windows (droits, ne rien laisser derrière les essais) ; GPU
+et VRAM sur le PC Arc (sans NVML : affichage dégradé) ; coût d'un moniteur qui mesure sans
+fenêtre ouverte ; demandes simultanées (page, mobile, scheduler) sur l'exécuteur partagé.
