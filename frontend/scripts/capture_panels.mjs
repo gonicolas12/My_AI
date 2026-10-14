@@ -2,10 +2,10 @@
 // premier lancement (serveur lancé avec --premier-lancement), Réglages, Mémoire, Prompts, Relay,
 // Aide, palette Ctrl+K. Usage (depuis frontend/) :
 //   node scripts/capture_panels.mjs URL_AVEC_JETON [DOSSIER] [étapes séparées par des virgules]
-// Étapes : assistant, reglages, aide
+// Étapes : assistant, reglages, memoire, aide
 import { mkdirSync } from 'node:fs';
 
-import { openDemo, usage, waitReady } from './lib.mjs';
+import { openDemo, openSidebar, usage, waitReady } from './lib.mjs';
 
 const [, , url, out = 'captures/panneaux', only = ''] = process.argv;
 if (!url) usage('node scripts/capture_panels.mjs URL_AVEC_JETON [DOSSIER] [étapes]');
@@ -112,6 +112,154 @@ if (wanted('reglages')) {
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'detached', timeout: 3000 });
   check('réglages : Échap ferme le panneau', true);
+}
+
+if (wanted('memoire')) {
+  await openSidebar(page);
+  await page.getByRole('button', { name: 'Mémoire', exact: true }).click();
+  const panel = dialog('Mémoire locale');
+  await panel.waitFor({ timeout: 5000 });
+  const rows = panel.locator('li');
+  const pager = panel.getByText(/^Page \d+ \/ \d+/);
+  await rows.first().waitFor({ timeout: 10000 });
+  await page.waitForTimeout(300);
+  await shot('memoire_faits');
+  const stats = await panel.getByText(/fait\(s\) ·/).innerText();
+  check(
+    'mémoire : compteurs',
+    /^\d+ fait\(s\) · \d+ chunk\(s\) document · \d+ entrée/.test(stats),
+    stats,
+  );
+  check('mémoire : pages de 20', (await rows.count()) === 20, await pager.innerText());
+
+  // Catégorie, puis recherche
+  await panel.getByLabel('Catégorie').selectOption('person');
+  await page.waitForFunction(() => document.querySelectorAll('[role=dialog] li').length === 3);
+  check('mémoire : filtre par catégorie', (await rows.count()) === 3);
+  await panel.getByLabel('Catégorie').selectOption('Toutes');
+  const search = panel.getByLabel('Rechercher dans la mémoire');
+  await search.fill('rtx');
+  await search.press('Enter');
+  await page.waitForFunction(() => document.querySelectorAll('[role=dialog] li').length === 1);
+  check('mémoire : recherche', (await rows.first().innerText()).includes('RTX 3060'));
+  await search.fill('');
+  await search.press('Enter');
+  await page.waitForFunction(() => document.querySelectorAll('[role=dialog] li').length === 20);
+
+  // Ajout d'un fait
+  await button('Ajouter').click();
+  const add = dialog('Nouveau fait');
+  await add.waitFor({ timeout: 3000 });
+  await add.getByLabel('Catégorie').selectOption('decision');
+  await add.getByLabel('Contenu').fill('La palette de commandes s’ouvre avec Ctrl+K');
+  await page.waitForTimeout(400);
+  await shot('memoire_ajout');
+  await add.getByRole('button', { name: 'Ajouter' }).click();
+  await page.getByText('Fait ajouté', { exact: true }).waitFor({ timeout: 5000 });
+  // Toast au-dessus du panneau ; le fermer ne ferme pas le panneau
+  const toastOnTop = await page.evaluate(() => {
+    const toast = document.querySelector('[data-toast-region] [role=status]');
+    if (!toast) return false;
+    const box = toast.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + 8, box.top + box.height / 2);
+    return Boolean(hit?.closest('[data-toast-region]'));
+  });
+  check('mémoire : toast au-dessus du panneau', toastOnTop);
+  await page.locator('[data-toast-region] button[aria-label="Fermer"]').first().click();
+  await page.waitForTimeout(200);
+  check('mémoire : fermer un toast laisse le panneau ouvert', await panel.isVisible());
+  await add.waitFor({ state: 'detached', timeout: 3000 });
+  await page.waitForTimeout(300);
+  check('mémoire : fait ajouté en tête', (await rows.first().innerText()).includes('Ctrl+K'));
+
+  // Modification d'un fait
+  await rows.first().getByRole('button', { name: 'Modifier' }).click();
+  const editor = panel.getByRole('textbox', { name: 'Modifier le contenu' });
+  await editor.fill('La palette de commandes s’ouvre avec Ctrl+K, ou depuis l’en-tête');
+  await panel.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByText('Modifié', { exact: true }).waitFor({ timeout: 5000 });
+  await page.waitForTimeout(300);
+  check('mémoire : fait modifié', (await rows.first().innerText()).includes('depuis l’en-tête'));
+
+  // Pagination
+  await button('Suivant').click();
+  await page.getByText(/^Page 2 \/ 2/).waitFor({ timeout: 5000 });
+  const paged = await pager.innerText();
+  check(
+    'mémoire : page suivante',
+    (await rows.count()) === Number(/\((\d+)\)/.exec(paged)[1]) - 20,
+    paged,
+  );
+  await button('Précédent').click();
+  await page.getByText(/^Page 1 \/ 2/).waitFor({ timeout: 5000 });
+
+  // Conversations : modification à la source, Échap annule la modification
+  await page.getByRole('tab', { name: 'Conversations' }).click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('[role=dialog] li')].some((li) =>
+      li.textContent.includes('vous'),
+    ),
+  );
+  await page.waitForTimeout(300);
+  await shot('memoire_conversations');
+  const first = rows.first();
+  const session = (await first.locator('p').last().innerText()).split('·')[0].trim();
+  await first.getByRole('button', { name: 'Modifier' }).click();
+  await panel.getByText('La modification réécrit le message d').waitFor({ timeout: 3000 });
+  await shot('memoire_modification_conversation');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check(
+    'mémoire : Échap annule la modification sans fermer',
+    (await panel.isVisible()) &&
+      (await panel.getByRole('textbox', { name: 'Modifier le contenu' }).count()) === 0,
+  );
+  await rows.first().getByRole('button', { name: 'Modifier' }).click();
+  await panel
+    .getByRole('textbox', { name: 'Modifier le contenu' })
+    .fill('Message réécrit depuis la Mémoire');
+  await panel.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('[role=dialog] li')].some((li) =>
+      li.textContent.includes('Message réécrit depuis la Mémoire'),
+    ),
+  );
+  check('mémoire : message réécrit à la source', true, session);
+
+  // Suppression : confirmation, case « message d'origine » pour une conversation
+  await rows.first().getByRole('button', { name: 'Supprimer' }).click();
+  const confirm = dialog('Confirmation de suppression');
+  await confirm.waitFor({ timeout: 3000 });
+  check(
+    'mémoire : case « message d’origine » cochée',
+    await confirm.getByRole('checkbox').isChecked(),
+  );
+  await page.waitForTimeout(400);
+  await shot('memoire_suppression');
+  await confirm.getByRole('button', { name: 'Non, annuler' }).click();
+  await confirm.waitFor({ state: 'detached', timeout: 3000 });
+
+  await page.getByRole('tab', { name: 'Documents' }).click();
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('[role=dialog] li')].some((li) =>
+      li.textContent.includes('document'),
+    ),
+  );
+  const before = await rows.count();
+  await rows.first().getByRole('button', { name: 'Supprimer' }).click();
+  await dialog('Confirmation de suppression')
+    .getByRole('button', { name: 'Oui, supprimer' })
+    .click();
+  await page.getByText('Supprimé', { exact: true }).waitFor({ timeout: 5000 });
+  await page.waitForTimeout(300);
+  check(
+    'mémoire : document supprimé',
+    (await rows.count()) === before - 1,
+    `${before} → ${await rows.count()}`,
+  );
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached', timeout: 3000 });
+  check('mémoire : Échap ferme le panneau', true);
 }
 
 if (wanted('aide')) {

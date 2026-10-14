@@ -42,7 +42,8 @@ data/command_history.db, la recherche globale lit les sessions copiées (mots
 exacts, sans embeddings) et l'indexation des dossiers projet est simulée. Les
 Réglages et l'assistant travaillent sur un Ollama simulé (modèles, téléchargement,
 création de my_ai) et des réglages en mémoire : ni config.yaml ni Modelfile ne
-changent.
+changent. La Mémoire montre des faits et des documents fictifs, en mémoire, et les
+messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
 """
 
 import argparse
@@ -61,6 +62,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 from core.chat_service import ChatService  # noqa: E402
+from core.memory_store import MemoryStore  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
@@ -294,6 +296,176 @@ class DemoIndexer:
         return self.manifest.get(workspace_id, {}).pop(folder_path, None) is not None
 
 
+DEMO_FACTS = [
+    ("preference", "Préfère des réponses concises, en français"),
+    ("preference", "Aime les exemples de code commentés, en Python de préférence"),
+    ("preference", "Thème sombre partout, police de code Cascadia Code"),
+    ("decision", "Interface de bureau : React et FastAPI dans une fenêtre WebView2"),
+    ("decision", "Les prompts ne sont jamais commités dans le dépôt"),
+    ("decision", "Revue de code obligatoire avant toute fusion sur main"),
+    ("person", "Camille : responsable produit, relit les comptes rendus du vendredi"),
+    ("person", "Hugo : développeur backend, référent pour la base SQLite"),
+    ("person", "Léa : designer, prépare les maquettes du tableau de bord"),
+    ("procedure", "Pour publier : tests, build du frontend, puis commit de dist/"),
+    ("procedure", "Sauvegarde hebdomadaire du dossier data/ sur le disque externe"),
+    ("procedure", "Nouveau modèle : ollama pull, puis Réglages > Appliquer"),
+    ("technical", "Carte graphique : RTX 3060, 12 Go de mémoire vidéo"),
+    ("technical", "Python 3.11, Node 22, Windows 11"),
+    ("technical", "Le serveur local écoute sur 127.0.0.1, port choisi au lancement"),
+    ("technical", "ChromaDB stocke les embeddings dans data/vector_store"),
+    ("general", "Le projet My_AI tourne en local avec Ollama"),
+    ("general", "Réunion d'équipe le lundi à 10 h"),
+    ("general", "Le rapport trimestriel est attendu pour le 15 du mois"),
+    ("general", "Objectif du trimestre : une version web de l'interface"),
+    ("general", "Le dossier temp/ ne contient que des fichiers jetables"),
+    ("preference", "Notifications discrètes, sans son"),
+    ("technical", "Les tests se lancent avec pytest depuis la racine du dépôt\n"
+                  "Les tests du frontend avec npm run test"),
+]
+
+DEMO_DOCUMENTS = [
+    ("rapport_trimestriel.pdf", "Rapport trimestriel. Le chiffre d'affaires progresse de 12 % "
+                                "sur le trimestre, porté par les abonnements."),
+    ("rapport_trimestriel.pdf", "La marge brute atteint 31 %, contre 28 % au trimestre "
+                                "précédent. Les coûts d'hébergement baissent de 8 %."),
+    ("rapport_trimestriel.pdf", "Perspectives : lancement de la version web au prochain "
+                                "trimestre, recrutement de deux développeurs."),
+    ("note_projet.docx", "Note de projet. L'interface Tk est remplacée par une interface "
+                         "web servie localement, dans une fenêtre native."),
+    ("note_projet.docx", "Calendrier : maquettes en juin, chat et barre latérale en "
+                         "juillet, panneaux en septembre."),
+]
+
+
+class DemoVectors:  # pylint: disable=too-few-public-methods
+    """VectorMemory de la démonstration : entrées lues par leur identifiant."""
+
+    def __init__(self, store):
+        self.store = store
+
+    def get_entry(self, entry_id, collection_type="document"):
+        """Entrée d'une collection, ou None."""
+        return next((entry for entry in self.store.entries(collection_type)
+                     if entry["id"] == entry_id), None)
+
+
+class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
+    """MemoryStore en mémoire : faits et documents fictifs, messages des sessions copiées."""
+
+    describe_provenance = staticmethod(MemoryStore.describe_provenance)
+
+    def __init__(self, sessions, search):
+        self.sessions = sessions
+        self.conversation_search = search
+        self.vector_memory = DemoVectors(self)
+        self.lock = threading.Lock()
+        self.facts = []
+        self.next_id = 1
+        for minutes, (category, value) in enumerate(DEMO_FACTS):
+            self._add({"category": category, "key": value.split("\n", 1)[0][:80],
+                       "value": value, "source": "conversation" if minutes % 3 else "manual",
+                       "updated_at": f"2026-10-{10 + minutes // 8:02d}T09:{minutes:02d}:00"})
+        self.documents = [
+            {"id": f"doc_{name}_{index}", "content": content,
+             "metadata": {"document_name": name, "chunk_index": index % 3,
+                          "created": "2026-10-08T14:30:00"}}
+            for index, (name, content) in enumerate(DEMO_DOCUMENTS)]
+        # Messages retirés de l'index seul (« sinon réapparaît au prochain réindex »)
+        self.hidden = set()
+
+    def _add(self, fact):
+        fact.update(kind="fact", id=self.next_id, created_at=fact["updated_at"],
+                    confidence=1.0 if fact["source"] == "manual" else 0.8)
+        self.next_id += 1
+        self.facts.insert(0, fact)
+        return fact["id"]
+
+    def entries(self, collection_type):
+        """Documents, ou messages des sessions (relus à chaque appel, comme un index à jour)."""
+        if collection_type == "document":
+            return list(self.documents)
+        entries = []
+        for workspace in self.sessions.list_workspaces():
+            state = self.sessions.load_workspace(workspace["id"]) or {}
+            for index, message in enumerate(state.get("conversation_history", [])):
+                entry_id = f"conv_{workspace['id']}_{index}"
+                text = (message.get("text") or "").strip()
+                if text and entry_id not in self.hidden:
+                    entries.append({"id": entry_id, "content": text, "metadata": {
+                        "workspace_id": workspace["id"],
+                        "workspace_name": workspace.get("name") or workspace["id"],
+                        "message_index": index,
+                        "role": "user" if message.get("is_user") else "assistant",
+                        "timestamp": str(message.get("timestamp", ""))}})
+        return entries
+
+    def list_facts(self, query="", category=None, limit=25, offset=0):
+        """Faits filtrés, les plus récents d'abord."""
+        query = (query or "").strip().lower()
+        with self.lock:
+            rows = [dict(fact) for fact in self.facts
+                    if (not category or fact["category"] == category)
+                    and (not query or query in fact["value"].lower()
+                         or query in fact["key"].lower())]
+        return rows[offset:offset + limit], len(rows)
+
+    def list_vectors(self, collection_type="document", query="", limit=25, offset=0):
+        """Entrées d'une collection, filtrées par sous-chaîne."""
+        query = (query or "").strip().lower()
+        rows = [{"kind": "vector", "collection": collection_type, **entry}
+                for entry in self.entries(collection_type)
+                if not query or query in entry["content"].lower()]
+        return rows[offset:offset + limit], len(rows)
+
+    def add_fact(self, category, key, value, source="manual"):
+        """Fait ajouté à la main."""
+        with self.lock:
+            return self._add({"category": category, "key": key, "value": value,
+                              "source": source,
+                              "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+
+    def update_fact(self, fact_id, value):
+        """Nouveau contenu d'un fait."""
+        with self.lock:
+            for fact in self.facts:
+                if fact["id"] == fact_id:
+                    fact["value"] = value
+                    fact["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+                    return True
+        return False
+
+    def delete_fact(self, fact_id):
+        """Supprime un fait."""
+        with self.lock:
+            before = len(self.facts)
+            self.facts = [fact for fact in self.facts if fact["id"] != fact_id]
+            return len(self.facts) < before
+
+    def update_vector(self, entry_id, new_text, collection_type="document", **_source):
+        """Nouveau texte d'un document (index seul)."""
+        if collection_type != "document":
+            return False
+        for entry in self.documents:
+            if entry["id"] == entry_id:
+                entry["content"] = new_text
+                return True
+        return False
+
+    def delete_vector(self, entry_id, collection_type="document", **_source):
+        """Retire une entrée de l'index."""
+        if collection_type == "document":
+            before = len(self.documents)
+            self.documents = [entry for entry in self.documents if entry["id"] != entry_id]
+            return len(self.documents) < before
+        self.hidden.add(entry_id)
+        return True
+
+    def stats(self):
+        """Compteurs, comme MemoryStore.stats."""
+        return {"facts": len(self.facts), "documents": len(self.documents),
+                "conversations": len(self.entries("conversation"))}
+
+
 class DemoEngine(FakeEngine):
     """Moteur scénarisé, à vitesse réaliste."""
 
@@ -309,6 +481,11 @@ class DemoEngine(FakeEngine):
         self.command_history = CommandHistory(db_path=str(history_db))
         self.search_engine = DemoSearch(self.session_manager)
         self.indexer = DemoIndexer()
+        self.memory_store = DemoMemoryStore(self.session_manager, self.search_engine)
+
+    def get_memory_store(self):
+        """Mémoire de la démonstration."""
+        return self.memory_store
 
     def get_conversation_search(self):
         """Recherche globale de la démonstration."""
