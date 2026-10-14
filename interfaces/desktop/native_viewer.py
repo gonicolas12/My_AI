@@ -19,10 +19,21 @@ Fils : la fenêtre hôte appartient au fil de l'interface WinForms (Invoke) ; la
 visionneuse, objet COM, à son fil « appartement monothread »
 (AsyncNativePreview) ; show() attend le résultat sur le fil de l'appel
 (pywebview appelle le pont dans un fil à part).
+
+Word ne se ferme pas de lui-même après un aperçu : la visionneuse tourne dans
+un Word caché (« WINWORD.EXE -Embedding »), qui rend l'aperçu suivant plus
+rapide. Tant que l'appli tourne, il reste lancé ; à sa fermeture, l'appli ferme
+le Word, l'Excel ou le PowerPoint caché qu'elle a lancé pour ses aperçus, et
+lui seul (D30).
 """
 
+import ctypes
+import os
 import threading
-from typing import Any, Callable, Dict, Optional, Tuple
+from ctypes import wintypes
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
+
+import psutil
 
 from interfaces.desktop.dpi_host import DpiAwareHost, client_origin, is_dpi_virtualized
 from interfaces.desktop.preview_handler import (COMTYPES_AVAILABLE, IS_WINDOWS,
@@ -35,7 +46,13 @@ logger = setup_logger("NativeViewer")
 OPEN_TIMEOUT = 45.0
 # Fermeture de l'appli : ne pas laisser Office orphelin, sans bloquer trop longtemps
 SHUTDOWN_WAIT = 2.0
+OFFICE_EXIT_WAIT = 3.0
 _MAX_SIDE = 32_000
+
+# Programmes d'Office qui portent les visionneuses, et la classe de leur fenêtre principale
+OFFICE_PROGRAMS = {"winword.exe": "OpusApp", "excel.exe": "XLMAIN",
+                   "powerpnt.exe": "PPTFrameClass"}
+_WM_CLOSE = 0x0010
 
 Rect = Tuple[int, int, int, int]
 
@@ -52,6 +69,130 @@ def parse_rect(rect: Any) -> Optional[Rect]:
         return None
     x, y = (max(-_MAX_SIDE, min(_MAX_SIDE, value)) for value in (x, y))
     return x, y, min(width, _MAX_SIDE), min(height, _MAX_SIDE)
+
+
+# ── Office lancé pour les aperçus (D30) ─────────────────────────────────────
+
+if IS_WINDOWS:
+    _ENUM_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+else:  # pragma: no cover
+    _ENUM_PROC = None
+
+
+def _user32():
+    """Instance privée de user32, signatures typées (handles 64 bits)."""
+    user32 = ctypes.WinDLL("user32")
+    user32.EnumChildWindows.argtypes = [wintypes.HWND, _ENUM_PROC, wintypes.LPARAM]
+    user32.EnumWindows.argtypes = [_ENUM_PROC, wintypes.LPARAM]
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM,
+                                    wintypes.LPARAM]
+    return user32
+
+
+def _window_pid(user32, hwnd) -> int:
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
+def hosted_processes(hwnd: int) -> Set[int]:
+    """Processus des fenêtres d'autres programmes posées dans l'hôte : la visionneuse."""
+    if not IS_WINDOWS or not hwnd:
+        return set()
+    user32 = _user32()
+    own = os.getpid()
+    found: Set[int] = set()
+
+    @_ENUM_PROC
+    def collect(child, _param):
+        pid = _window_pid(user32, child)
+        if pid and pid != own:
+            found.add(pid)
+        return True
+
+    user32.EnumChildWindows(hwnd, collect, 0)
+    return found
+
+
+def top_windows(pid: int) -> List[Tuple[int, bool, str]]:
+    """Fenêtres de premier niveau d'un processus : (hwnd, visible, classe)."""
+    if not IS_WINDOWS:
+        return []
+    user32 = _user32()
+    windows: List[Tuple[int, bool, str]] = []
+
+    @_ENUM_PROC
+    def collect(hwnd, _param):
+        if _window_pid(user32, hwnd) == pid:
+            name = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(hwnd, name, 64)
+            windows.append((hwnd, bool(user32.IsWindowVisible(hwnd)), name.value))
+        return True
+
+    user32.EnumWindows(collect, 0)
+    return windows
+
+
+def launched_office(pids: Iterable[int], since: float,
+                    process: Callable[[int], Any] = psutil.Process,
+                    windows: Callable[[int], List[Tuple[int, bool, str]]] = top_windows
+                    ) -> List[Any]:
+    """
+    Office à fermer avec l'appli, parmi les processus des visionneuses : Word, Excel
+    ou PowerPoint lancé par COM (« -Embedding »), après le lancement de l'appli
+    (`since`, horodatage), sans fenêtre visible. Un Office ouvert par l'utilisateur,
+    ou déjà là avant l'appli, n'en fait jamais partie.
+    """
+    selected = []
+    for pid in sorted(set(pids)):
+        try:
+            proc = process(pid)
+            if proc.name().lower() not in OFFICE_PROGRAMS or proc.create_time() < since:
+                continue
+            if not any("embedding" in part.lower() for part in proc.cmdline()):
+                continue
+        except psutil.Error:
+            continue
+        if any(visible for _hwnd, visible, _class in windows(pid)):
+            continue  # un document ouvert à l'écran : celui de l'utilisateur
+        selected.append(proc)
+    return selected
+
+
+def close_office(processes: List[Any], wait: float = OFFICE_EXIT_WAIT) -> List[int]:
+    """Ferme ces Office cachés : WM_CLOSE à leur fenêtre principale, sinon arrêt. Rend leurs pid."""
+    if not processes:
+        return []
+    user32 = _user32() if IS_WINDOWS else None
+    for proc in processes:
+        try:
+            main = OFFICE_PROGRAMS.get(proc.name().lower())
+        except psutil.Error:
+            continue
+        for hwnd, _visible, name in top_windows(proc.pid):
+            if name == main and user32 is not None:
+                user32.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
+    _gone, alive = psutil.wait_procs(processes, timeout=wait)
+    for proc in alive:
+        try:
+            proc.terminate()
+        except psutil.Error:
+            pass
+    psutil.wait_procs(alive, timeout=wait)
+    logger.info("Office caché des aperçus fermé avec l'appli : %s",
+                ", ".join(str(proc.pid) for proc in processes))
+    return [proc.pid for proc in processes]
+
+
+def _app_started() -> float:
+    try:
+        return psutil.Process().create_time()
+    except psutil.Error:  # pragma: no cover
+        return 0.0
 
 
 class FormWindow:
@@ -238,6 +379,10 @@ class NativeViewer:  # pylint: disable=too-many-instance-attributes
         self._seq = 0
         self._loaded = False
         self._rect: Optional[Rect] = None
+        self._hwnd = 0
+        # Processus qui ont porté une visionneuse, fermés avec l'appli s'il le faut (D30)
+        self._hosts: Set[int] = set()
+        self._since = _app_started()
 
     @staticmethod
     def available() -> bool:
@@ -267,6 +412,7 @@ class NativeViewer:  # pylint: disable=too-many-instance-attributes
                 return False
             host.place(rect, False)
             hwnd = host.handle()
+            self._hwnd = hwnd
         done = threading.Event()
         outcome = {"ok": False}
 
@@ -286,6 +432,7 @@ class NativeViewer:  # pylint: disable=too-many-instance-attributes
             if self._loaded:
                 # L'hôte a pu bouger pendant le chargement : la visionneuse suit
                 self._preview.resize()
+                self._hosts |= hosted_processes(hwnd)
             return self._loaded
 
     def place(self, rect: Rect, visible: bool) -> bool:
@@ -306,6 +453,7 @@ class NativeViewer:  # pylint: disable=too-many-instance-attributes
             self._seq += 1
             self._loaded = False
             host, preview = self._host, self._preview
+            self._hosts |= hosted_processes(self._hwnd)
             if host is not None:
                 try:
                     host.hide()
@@ -315,10 +463,18 @@ class NativeViewer:  # pylint: disable=too-many-instance-attributes
             preview.close(wait=wait)
 
     def shutdown(self) -> None:
-        """Fermeture de l'appli (fenêtre déjà fermée) : Office déchargé, attente bornée."""
+        """
+        Fermeture de l'appli (fenêtre déjà fermée) : visionneuse déchargée, attente
+        bornée, puis Word, Excel ou PowerPoint caché lancé pour les aperçus fermé (D30).
+        """
         with self._lock:
             self._seq += 1
             self._loaded = False
             preview = self._preview
+            hosts = set(self._hosts)
         if preview is not None:
             preview.close(wait=SHUTDOWN_WAIT)
+        try:
+            close_office(launched_office(hosts, self._since))
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Office caché des aperçus non fermé : %s", exc)

@@ -31,7 +31,15 @@ from interfaces.desktop.preview_handler import (  # noqa: E402
 )
 from interfaces.gui._dpi_host import DpiAwareHost, is_dpi_virtualized  # noqa: E402
 from interfaces.desktop.dpi_host import client_origin, screen_rect  # noqa: E402
-from interfaces.desktop.native_viewer import PopupHost  # noqa: E402
+from interfaces.desktop.native_viewer import (  # noqa: E402
+    PopupHost,
+    close_office,
+    hosted_processes,
+    launched_office,
+)
+
+# Début de ce module : un Word caché lancé par ses tests « l'a été par l'appli »
+_MODULE_STARTED = time.time()
 
 _PER_MONITOR = 2
 
@@ -285,3 +293,29 @@ def test_comtypes_absence_disables_native_preview(monkeypatch, tmp_path):
     path.write_bytes(b"x")
     assert supports_native_preview(str(path)) is False
     assert NativePreview().open(str(path), 1) is False
+
+
+def test_hidden_word_launched_for_a_preview_closes_with_the_app(frame, tmp_path):
+    """D30 : à la fermeture de l'appli, le Word caché lancé pour ses aperçus est fermé.
+
+    Ferme aussi celui des tests de ce module : ils n'en laissent plus derrière eux.
+    """
+    import psutil  # pylint: disable=import-outside-toplevel
+
+    document = _office_document(tmp_path, "docx")
+    if not supports_native_preview(document):
+        pytest.skip("visionneuse docx indisponible")
+    host = DpiAwareHost(frame)
+    preview = NativePreview()
+    try:
+        host.place_over(frame)
+        assert preview.open(document, host.hwnd) is True
+        hosts = hosted_processes(host.hwnd)
+    finally:
+        preview.close()
+        host.destroy()
+    word = launched_office(hosts, _MODULE_STARTED)
+    if not word:
+        pytest.skip("Word déjà lancé avant ces tests : laissé tel quel")
+    closed = close_office(word)
+    assert closed and not any(psutil.pid_exists(pid) for pid in closed)

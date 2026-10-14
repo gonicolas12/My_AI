@@ -19,6 +19,17 @@ from interfaces.desktop.shell_api import ShellApi
 RECT = {"x": 900, "y": 60, "width": 700, "height": 800}
 
 
+@pytest.fixture(autouse=True, name="office")
+def office_fixture(monkeypatch):
+    """Aucun vrai processus : la visionneuse simulée « tourne » dans le processus 9001."""
+    closed = []
+    monkeypatch.setattr(native_viewer, "hosted_processes", lambda hwnd: {9001} if hwnd else set())
+    monkeypatch.setattr(native_viewer, "launched_office",
+                        lambda pids, since: [("office", pid) for pid in sorted(pids)])
+    monkeypatch.setattr(native_viewer, "close_office", closed.append)
+    return closed
+
+
 class FakeHost:
     """Hôte WinForms : positions et visibilité notées."""
 
@@ -130,11 +141,55 @@ def test_a_slow_viewer_falls_back(monkeypatch):
     assert ("close", 0.0) in preview.calls
 
 
-def test_shutdown_waits_for_office():
+def test_shutdown_waits_for_office_then_closes_the_one_it_launched(office):
     _host, preview, viewer = make()
     viewer.show("C:/docs/rapport.docx", parse_rect(RECT))
+    viewer.close()  # aperçu fermé : Word caché laissé lancé, l'appli tourne encore
+    assert office == []
     viewer.shutdown()
     assert preview.calls[-1] == ("close", native_viewer.SHUTDOWN_WAIT)
+    assert office == [[("office", 9001)]]
+
+
+class FakeProcess:
+    """psutil.Process simulé."""
+
+    def __init__(self, pid, name, started, cmdline):
+        self.pid = pid
+        self._name, self._started, self._cmdline = name, started, cmdline
+
+    def name(self):
+        return self._name
+
+    def create_time(self):
+        return self._started
+
+    def cmdline(self):
+        return self._cmdline
+
+
+def test_only_hidden_office_launched_for_previews_is_closed(monkeypatch):
+    monkeypatch.undo()  # la vraie sélection, sur des processus simulés
+    processes = {
+        1: FakeProcess(1, "WINWORD.EXE", 200, ["WINWORD.EXE", "-Embedding"]),
+        2: FakeProcess(2, "WINWORD.EXE", 50, ["WINWORD.EXE", "-Embedding"]),   # avant l'appli
+        3: FakeProcess(3, "WINWORD.EXE", 300, ["WINWORD.EXE", "/n", "C:/a.docx"]),  # ouvert par toi
+        4: FakeProcess(4, "WINWORD.EXE", 300, ["WINWORD.EXE", "/Embedding"]),  # document visible
+        5: FakeProcess(5, "EXCEL.EXE", 250, ["EXCEL.EXE", "/automation", "-Embedding"]),
+        6: FakeProcess(6, "chrome.exe", 300, ["chrome.exe", "--embedding"]),
+    }
+
+    def process(pid):
+        if pid not in processes:
+            raise native_viewer.psutil.NoSuchProcess(pid)
+        return processes[pid]
+
+    def windows(pid):
+        return [(40, pid == 4, "OpusApp")]
+
+    selected = native_viewer.launched_office([1, 2, 3, 4, 5, 6, 7], since=100,
+                                             process=process, windows=windows)
+    assert [proc.pid for proc in selected] == [1, 5]
 
 
 def test_the_bridge_opens_only_what_the_server_accepted(monkeypatch):
