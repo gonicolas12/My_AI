@@ -60,7 +60,8 @@ async def _run(func, *args):
 
 def register(api: FastAPI, app: "DesktopApp") -> None:
     """Ajoute les routes des Réglages et de l'assistant à l'application."""
-    # pylint: disable=unused-variable  (routes enregistrées par leurs décorateurs)
+    # Routes enregistrées par leurs décorateurs
+    # pylint: disable=unused-variable
 
     @api.get("/api/settings")
     async def settings():

@@ -66,7 +66,8 @@ _NOT_GENERATED = "Seuls les documents produits par My_AI s'ouvrent ici."
 
 def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
     """Ajoute les routes des fichiers et des aperçus à l'application."""
-    # pylint: disable=unused-variable  (routes enregistrées par leurs décorateurs)
+    # Routes enregistrées par leurs décorateurs
+    # pylint: disable=unused-variable
 
     def roots() -> List[str]:
         return local_files.generated_roots(getattr(app, "config", None))

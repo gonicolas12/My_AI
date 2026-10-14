@@ -34,7 +34,8 @@ class AutoreadBody(BaseModel):
 
 def register(api: FastAPI, app: "DesktopApp") -> None:
     """Ajoute les routes de la voix à l'application."""
-    # pylint: disable=unused-variable  (routes enregistrées par leurs décorateurs)
+    # Routes enregistrées par leurs décorateurs
+    # pylint: disable=unused-variable
 
     @api.get("/api/voice")
     async def voice_status():

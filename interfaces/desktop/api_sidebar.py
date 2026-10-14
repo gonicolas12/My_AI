@@ -72,7 +72,8 @@ def _history_view(entry: Dict[str, Any]) -> Dict[str, Any]:
 
 def register(api: FastAPI, app: "DesktopApp") -> None:
     """Ajoute les routes de la barre latérale à l'application."""
-    # pylint: disable=unused-variable  (routes enregistrées par leurs décorateurs)
+    # Routes enregistrées par leurs décorateurs
+    # pylint: disable=unused-variable
     folders = FolderService(app)
 
     def conversation_search():
