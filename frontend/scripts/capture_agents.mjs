@@ -219,16 +219,25 @@ if (wanted('execution')) {
     .first()
     .waitFor({ timeout: 15000 });
   check('exécution : un nœud passe « En cours »', true);
-  // Étape 2 : CodeAgent et SecurityAgent en parallèle, leurs liens entrants s'animent
-  await nodeById('1').filter({ hasText: 'En cours' }).waitFor({ timeout: 20000 });
+  // Étape 2 : CodeAgent et SecurityAgent partent ensemble, mais le modèle n'en sert qu'un
+  // à la fois (Ollama avec qwen3.5, imité par le serveur de démonstration) : l'autre attend
+  // son tour, et seul le lien de celui qui écrit s'anime
+  await page
+    .locator('.react-flow__node', { hasText: 'Attend son tour' })
+    .first()
+    .waitFor({ timeout: 20000 });
   const animated = await page.locator('.agent-edge-running').count();
+  const queued = await page
+    .getByText(/Le modèle répond d’abord à (CodeAgent|SecurityAgent) : cet agent écrira ensuite/)
+    .count();
+  check('exécution : en parallèle, l’agent pas encore servi attend son tour', queued === 1);
+  check('exécution : seul le lien de l’agent qui écrit s’anime', animated === 1, `${animated}`);
   await page.waitForTimeout(600);
   await scroller().evaluate((el) => (el.scrollTop = el.scrollHeight));
   await page.waitForTimeout(400);
   await shot('execution_en_cours');
   await page.locator('.react-flow__node', { hasText: 'En cours' }).first().scrollIntoViewIfNeeded();
   await shot('execution_canvas');
-  check('exécution : liens animés vers les agents en cours', animated >= 2, `${animated} lien(s)`);
   await waitRunEnd();
   const done = await page.locator('.react-flow__node', { hasText: 'Terminé' }).count();
   check('exécution : les 4 nœuds finissent « Terminé »', done === 4, `${done}`);
@@ -319,10 +328,13 @@ if (wanted('diff')) {
   );
   const removed = await page.getByText('print("debug", mot)').count();
   check('diff : la ligne retirée est montrée', removed > 0);
+  const explanation = () => page.getByText('Voici la version revue du code fourni').count();
+  check('diff : l’onglet Diff ne montre que le code', (await explanation()) === 0);
   await page.locator('table').last().scrollIntoViewIfNeeded();
   await shot('diff');
   await page.getByRole('button', { name: 'Sortie', exact: true }).click();
   await page.waitForTimeout(200);
+  check('diff : l’explication de l’agent est dans Sortie', (await explanation()) > 0);
   await shot('diff_sortie');
 }
 

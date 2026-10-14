@@ -967,11 +967,14 @@ def demo_agent_answer(agent_type: str, task: str) -> str:
 
 
 class DemoOrchestrator:
-    """Orchestrateur scénarisé : chaque agent écrit sa réponse au rythme du streaming."""
+    """Orchestrateur scénarisé : chaque agent écrit sa réponse au rythme du streaming,
+    un seul à la fois, comme Ollama avec qwen3.5 (n_slots = 1) : dans une étape
+    parallèle, les autres agents attendent leur tour."""
 
     def __init__(self, rate):
         self.agents = {}
         self.rate = rate
+        self._model = threading.Lock()
 
     def execute_single_task_stream(self, agent_type, task, context=None, on_token=None):
         """Comme AgentOrchestrator.execute_single_task_stream, sans modèle."""
@@ -985,10 +988,11 @@ class DemoOrchestrator:
             text = text[:120]
         slow = "lent" in wanted
         delay = 0.4 if slow else 1 / max(self.rate, 1)
-        for piece in chunks(text):
-            if on_token is not None and on_token(piece) is False:
-                return {"success": False, "error": "interrompu", "result": ""}
-            time.sleep(delay)
+        with self._model:
+            for piece in chunks(text):
+                if on_token is not None and on_token(piece) is False:
+                    return {"success": False, "error": "interrompu", "result": ""}
+                time.sleep(delay)
         if failing:
             return {"success": False, "error": "erreur simulée", "result": ""}
         return {"success": True, "result": text, "agent": agent_type}
