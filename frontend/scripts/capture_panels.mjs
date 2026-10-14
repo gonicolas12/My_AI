@@ -2,7 +2,7 @@
 // premier lancement (serveur lancé avec --premier-lancement), Réglages, Mémoire, Prompts, Relay,
 // Aide, palette Ctrl+K. Usage (depuis frontend/) :
 //   node scripts/capture_panels.mjs URL_AVEC_JETON [DOSSIER] [étapes séparées par des virgules]
-// Étapes : assistant, reglages, memoire, prompts, aide
+// Étapes : assistant, reglages, memoire, prompts, relay, aide
 import { mkdirSync } from 'node:fs';
 
 import { composer, openDemo, openSidebar, usage, waitReady } from './lib.mjs';
@@ -67,6 +67,8 @@ if (wanted('assistant')) {
 }
 
 await waitReady(page, 60000);
+// Chromium sans fenêtre : animations ralenties la première seconde après le lancement
+await page.waitForTimeout(1500);
 
 if (wanted('reglages')) {
   await page.keyboard.press('Control+,');
@@ -352,6 +354,58 @@ if (wanted('prompts')) {
   );
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'detached', timeout: 3000 });
+}
+
+if (wanted('relay')) {
+  // Relay simulé du serveur de démonstration : tunnels à 1,5 s et 4 s, un téléphone à 8 s
+  const origin = new URL(url).origin;
+  const token = new URL(url).hash.replace('#token=', '');
+  const relayState = async () =>
+    (
+      await page.request.get(`${origin}/api/relay`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).json();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+
+  await page.keyboard.press('Control+r');
+  const panel = dialog('My_AI Relay');
+  await panel.waitFor({ timeout: 5000 });
+  await panel.getByText('Tunnels en cours de connexion…').waitFor({ timeout: 5000 });
+  check('relay : Ctrl+R ouvre le panneau et démarre le Relay', (await relayState()).running);
+  await page.waitForTimeout(300);
+  await shot('relay_connexion');
+  await panel.getByRole('button', { name: 'Copier pour l’extension VS Code' }).click();
+  check(
+    'relay : extension VS Code, tunnel non prêt',
+    await panel.getByText('Tunnel non prêt').isVisible(),
+  );
+
+  await panel.getByText('Tunnels actifs : cloudflare, localhost.run').waitFor({ timeout: 15000 });
+  const qr = panel.getByRole('img', { name: 'QR code du Relay' });
+  await qr.waitFor({ timeout: 10000 });
+  // Le QR code encode l'adresse de la page de routage, celle copiée par « Copier »
+  await panel.getByRole('button', { name: 'Copier', exact: true }).click();
+  await panel.getByText('Copié !').waitFor({ timeout: 3000 });
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const state = await relayState();
+  check('relay : « Copier » copie la page de routage', copied === state.url, copied.slice(0, 60));
+  check('relay : jeton affiché', await panel.getByText(`Token : ${state.token}`).isVisible());
+  await panel.getByText('1 appareil(s) connecté(s)').waitFor({ timeout: 10000 });
+  check('relay : appareil connecté', true);
+  await page.waitForTimeout(300);
+  await shot('relay');
+
+  // Fermer le panneau ne l'arrête pas ; Ctrl+R le rouvre tel quel
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached', timeout: 3000 });
+  check('relay : Échap ferme sans arrêter', (await relayState()).running);
+  await page.keyboard.press('Control+r');
+  await panel.getByRole('img', { name: 'QR code du Relay' }).waitFor({ timeout: 5000 });
+  await panel.getByRole('button', { name: 'Arrêter le Relay' }).click();
+  await panel.waitFor({ state: 'detached', timeout: 3000 });
+  await page.waitForTimeout(300);
+  check('relay : « Arrêter le Relay » l’arrête', !(await relayState()).running);
 }
 
 if (wanted('aide')) {

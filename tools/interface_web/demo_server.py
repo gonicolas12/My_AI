@@ -42,13 +42,17 @@ data/command_history.db, la recherche globale lit les sessions copiées (mots
 exacts, sans embeddings) et l'indexation des dossiers projet est simulée. Les
 Réglages et l'assistant travaillent sur un Ollama simulé (modèles, téléchargement,
 création de my_ai) et des réglages en mémoire : ni config.yaml ni Modelfile ne
-changent. La Mémoire montre des faits et des documents fictifs, en mémoire, et les
+changent. Le Relay est simulé : ni serveur ni tunnel, deux tunnels fictifs arrivent
+en quelques secondes, puis un appareil. La Mémoire montre des faits et des documents
+fictifs, en mémoire, et les
 messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
 Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
 temp/demo_server/PORT/prompt_templates.json.
 """
 
 import argparse
+import base64
+import json
 import os
 import secrets
 import shutil
@@ -66,6 +70,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 from core.chat_service import ChatService  # noqa: E402
 from core.memory_store import MemoryStore  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
+from relay.relay_server import _ROUTER_PAGE_URL  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
@@ -469,7 +474,7 @@ class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
                 "conversations": len(self.entries("conversation"))}
 
 
-class DemoEngine(FakeEngine):
+class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
     """Moteur scénarisé, à vitesse réaliste."""
 
     def __init__(self, workspaces_dir, rate, outputs: Path):
@@ -782,6 +787,62 @@ class DemoOllamaSetup(OllamaSetup):
         self.done = False
 
 
+def _b64u(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+class DemoRelay:
+    """Relay simulé : aucun port ouvert, aucun tunnel réel ; mêmes adresses que RelayServer."""
+
+    # (fournisseur, adresse, secondes avant son arrivée)
+    TUNNELS = (("cloudflare", "https://demo-relais.trycloudflare.com", 1.5),
+               ("localhost.run", "https://demo-relais.lhr.life", 4.0))
+    PHONE_AFTER = 8.0
+
+    def __init__(self, tunnels=True):
+        self.started = time.monotonic()
+        self.tunnels = tunnels
+        self.running = True
+        self.port = 8765
+        self.auth_token = secrets.token_hex(8)
+        self.key = secrets.token_bytes(32)
+
+    def is_running(self):
+        """Toujours en marche jusqu'à stop()."""
+        return self.running
+
+    def stop(self):
+        """Arrêt."""
+        self.running = False
+
+    @property
+    def bridge(self):
+        """Un téléphone se connecte au bout de quelques secondes."""
+        elapsed = time.monotonic() - self.started
+        return SimpleNamespace(connected_clients=1 if elapsed >= self.PHONE_AFTER else 0)
+
+    @property
+    def tunnel_urls(self):
+        """Tunnels arrivés."""
+        elapsed = time.monotonic() - self.started
+        return {name: url for name, url, delay in self.TUNNELS
+                if self.tunnels and elapsed >= delay}
+
+    @property
+    def relay_url(self):
+        """Page de routage, comme RelayServer.relay_url."""
+        urls = list(self.tunnel_urls.values())
+        if not urls:
+            return None
+        payload = json.dumps({"urls": urls, "token": self.auth_token, "key": _b64u(self.key)})
+        return f"{_ROUTER_PAGE_URL}#d={_b64u(payload.encode('utf-8'))}"
+
+    @property
+    def local_url(self):
+        """Adresse sur ce PC, comme RelayServer.local_url."""
+        return f"http://127.0.0.1:{self.port}/?token={self.auth_token}#k={_b64u(self.key)}"
+
+
 class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
     """DesktopApp sans Ollama : étapes du lancement simulées, moteur scénarisé."""
 
@@ -796,6 +857,13 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         if not real_voice:
             # Lecture automatique gardée en mémoire : rien n'est écrit dans config.yaml
             self._voice = DemoVoiceService(self.bus.publish)
+
+    def start_relay(self, tunnel=None):
+        """Relay simulé (DemoRelay) : ni serveur ni tunnel réels."""
+        if self.relay is None or not self.relay.is_running():
+            self.relay = DemoRelay(tunnels=tunnel is not False)
+        self._watch_relay_status()
+        return self.relay_status()
 
     def _launch(self):
         # engine et chat : posés au lancement, comme DesktopApp._launch
