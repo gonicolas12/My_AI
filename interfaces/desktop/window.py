@@ -365,7 +365,8 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
     def title_bar(background: str, text: str) -> bool:
         return apply_title_bar(handle["hwnd"], background, text)
 
-    shell = ShellApi(title_bar=title_bar)
+    shell = ShellApi(title_bar=title_bar, native_source=app.server.previews.native_source,
+                     background=BACKGROUND)
     main_window = webview.create_window(
         WINDOW_TITLE,
         url,
@@ -421,4 +422,7 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
         # WebView2 absent, pythonnet incompatible… : repli sur le navigateur
         logger.error("Fenêtre pywebview en échec : %s", exc)
         return False
+    finally:
+        # Fenêtre fermée (l'hôte avec elle) : Office déchargé, attente bornée
+        shell._shutdown()  # pylint: disable=protected-access
     return True

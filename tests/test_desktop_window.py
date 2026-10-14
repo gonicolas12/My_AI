@@ -154,8 +154,9 @@ def test_colorref_is_windows_byte_order():
 def test_shell_api_exposes_only_its_functions():
     # pywebview parcourt aussi les attributs publics : rien d'autre ne doit l'être
     public = [name for name in dir(ShellApi()) if not name.startswith("_")]
-    assert public == ["open_external", "pick_files", "pick_folder", "platform", "save_file",
-                      "set_title_bar_colors"]
+    assert public == ["native_preview_available", "native_preview_close", "native_preview_place",
+                      "native_preview_show", "open_external", "pick_files", "pick_folder",
+                      "platform", "save_file", "set_title_bar_colors"]
 
 
 def test_title_bar_colors_go_to_the_window():

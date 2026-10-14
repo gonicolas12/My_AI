@@ -13,9 +13,10 @@ isolées, sans accès à ce pont.
 
 import sys
 import webbrowser
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 from urllib.parse import urlsplit
 
+from interfaces.desktop.native_viewer import NativeViewer, WinFormsHost, parse_rect
 from utils.logger import setup_logger
 
 logger = setup_logger("ShellApi")
@@ -86,13 +87,29 @@ def open_external(url: str, opener: Callable[[str], bool] = webbrowser.open) -> 
 class ShellApi:
     """Pont entre l'interface et la fenêtre."""
 
-    def __init__(self, title_bar: Optional[Callable[[str, str], bool]] = None):
+    def __init__(self, title_bar: Optional[Callable[[str, str], bool]] = None,
+                 native_source: Optional[Callable[[str], Optional[str]]] = None,
+                 background: str = "#0f0f0f"):
         """
         Args:
             title_bar: pose les couleurs de la barre de titre (fond, texte « #rrggbb »)
+            native_source: document d'un aperçu « native » accepté par le serveur
+                (PreviewStore.native_source), None sinon
+            background: fond de la visionneuse le temps du chargement
         """
         self._title_bar = title_bar
         self._window = None
+        self._native_source = native_source
+        self._native = NativeViewer(self._native_host)
+        self._background = background
+
+    def _native_host(self) -> Optional[WinFormsHost]:
+        form = getattr(self._window, "native", None)
+        return WinFormsHost(form, self._background) if form is not None else None
+
+    def _shutdown(self) -> None:
+        """Fenêtre fermée : visionneuse déchargée (Office jamais orphelin)."""
+        self._native.shutdown()
 
     def _attach_window(self, window) -> None:
         """Fenêtre pywebview des dialogues (privé : pas exposé au JavaScript)."""
@@ -141,6 +158,44 @@ class ShellApi:
     def platform(self) -> str:
         """Système : win32, darwin, linux."""
         return sys.platform
+
+    # ── Visionneuses Office (native_viewer.py) ──────────────────────────────
+
+    def native_preview_available(self) -> bool:
+        """Visionneuses de Windows possibles dans cette fenêtre."""
+        return self._native_source is not None and NativeViewer.available()
+
+    def native_preview_show(self, preview_id: str, rect: Any) -> bool:
+        """Charge un aperçu « native » à la place réservée, masqué ; True s'il est prêt."""
+        source = self._native_source(str(preview_id)) if self._native_source else None
+        area = parse_rect(rect)
+        if not source or area is None or not NativeViewer.available():
+            return False
+        try:
+            return self._native.show(source, area)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Visionneuse native indisponible : %s", exc)
+            return False
+
+    def native_preview_place(self, rect: Any, visible: bool) -> bool:
+        """Recale la visionneuse ; la masque sous un dialogue, un menu, un toast."""
+        area = parse_rect(rect)
+        if area is None:
+            return False
+        try:
+            return self._native.place(area, bool(visible))
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Visionneuse native non placée : %s", exc)
+            return False
+
+    def native_preview_close(self) -> bool:
+        """Masque et décharge la visionneuse (volet fermé, autre aperçu)."""
+        try:
+            self._native.close()
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Visionneuse native non fermée : %s", exc)
+            return False
+        return True
 
     def set_title_bar_colors(self, background: str, text: str) -> bool:
         """Barre de titre aux couleurs de la page (jetons de tokens.css), Windows 11."""

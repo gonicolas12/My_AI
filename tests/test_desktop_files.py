@@ -242,6 +242,43 @@ def test_unknown_or_unsupported_documents_have_no_preview(desk):
                             headers=AUTH).status_code == 422
 
 
+def test_office_documents_go_to_the_window_viewer_on_request(desk, monkeypatch):
+    # pylint: disable-next=import-outside-toplevel
+    from interfaces import document_preview
+    from interfaces.desktop import preview_handler  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(preview_handler, "supports_native_preview",
+                        lambda path: path.endswith(".docx"))
+    built = []
+    monkeypatch.setattr(document_preview, "build_document_preview",
+                        lambda path: built.append(path) or "<p>Rapport</p>")
+    report = write(desk.outputs / "documents" / "rapport.docx", "docx")
+    native = desk.client.post("/api/previews/document", headers=AUTH,
+                              json={"path": report, "native": True}).json()
+    # Visionneuse de la fenêtre : aucune page HTML produite d'avance
+    assert native["kind"] == "native" and native["url"] == "" and built == []
+    assert desk.server.previews.native_source(native["id"]) == report
+
+    # Repli de la page (visionneuse en échec) : la page HTML, comme Tk
+    html = desk.client.post("/api/previews/document", headers=AUTH,
+                            json={"path": report}).json()
+    assert html["kind"] == "document" and built == [report]
+    assert desk.server.previews.native_source(html["id"]) is None
+    assert desk.server.previews.native_source("inconnu") is None
+
+    # Le navigateur du système reçoit la page HTML, sous la politique des documents
+    monkeypatch.setattr(desktop_previews.webbrowser, "open", lambda _uri: True)
+    written = desk.client.post(f"/api/previews/{native['id']}/browser", headers=AUTH).json()
+    assert "Rapport" in open(written["path"], encoding="utf-8").read()
+    preview = desk.server.previews.get(native["id"])
+    assert preview.csp == desktop_previews.DOCUMENT_CSP
+
+    # Format sans visionneuse : la page HTML même sur demande de la fenêtre
+    note = write(desk.outputs / "documents" / "note.md", "# Note")
+    assert desk.client.post("/api/previews/document", headers=AUTH,
+                            json={"path": note, "native": True}).json()["kind"] == "document"
+
+
 def test_preview_opens_in_the_system_browser(desk, monkeypatch):
     opened = []
     monkeypatch.setattr(desktop_previews.webbrowser, "open", opened.append)

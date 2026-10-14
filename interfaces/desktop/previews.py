@@ -89,9 +89,9 @@ class Preview:
     """Aperçu affichable dans le volet."""
 
     id: str
-    kind: str  # html, svg (artefacts), document, pdf
+    kind: str  # html, svg (artefacts), document, pdf, native (visionneuse Office)
     title: str
-    html: Optional[str] = None  # page servie ; None pour un PDF
+    html: Optional[str] = None  # page servie ; None pour un PDF ou une visionneuse
     source_path: Optional[str] = None  # document d'origine
     language: str = ""
     index: int = 0
@@ -99,7 +99,7 @@ class Preview:
     @property
     def csp(self) -> str:
         """Politique de sécurité de la page servie."""
-        return DOCUMENT_CSP if self.kind == "document" else ARTIFACT_CSP
+        return DOCUMENT_CSP if self.kind in ("document", "native") else ARTIFACT_CSP
 
 
 class PreviewStore:
@@ -123,6 +123,13 @@ class PreviewStore:
         with self._lock:
             return self._items.get(preview_id)
 
+    def native_source(self, preview_id: str) -> Optional[str]:
+        """Document d'un aperçu « native » : seul ce que le serveur a accepté s'ouvre."""
+        preview = self.get(preview_id)
+        if preview is None or preview.kind != "native":
+            return None
+        return preview.source_path
+
     def add_artifact(self, code: str, kind: str, title: str = "",
                      language: str = "", index: int = 0) -> Preview:
         """Page d'un bloc HTML ou SVG d'une réponse (build_preview_document)."""
@@ -136,17 +143,26 @@ class PreviewStore:
             index=index,
         ))
 
-    def add_document(self, path: str) -> Preview:
+    def add_document(self, path: str, native: bool = False) -> Preview:
         """Aperçu d'un document : page HTML, ou le PDF lui-même.
+
+        Args:
+            native: la fenêtre affiche les visionneuses de Windows (Word, Excel,
+                PowerPoint) : aperçu « native », sans page ; la page HTML ne
+                sera produite qu'au repli, par un nouvel appel sans native
 
         Raises:
             ValueError: format sans aperçu
         """
         # pylint: disable=import-outside-toplevel
+        from interfaces.desktop.preview_handler import supports_native_preview
         from interfaces.document_preview import (build_document_preview, is_previewable,
                                                  needs_native_viewer)
 
         name = Path(path).name
+        if native and supports_native_preview(path):
+            return self._add(Preview(id=uuid.uuid4().hex, kind="native", title=name,
+                                     source_path=path))
         if needs_native_viewer(path):
             return self._add(Preview(id=uuid.uuid4().hex, kind="pdf", title=name,
                                      source_path=path))
@@ -162,6 +178,11 @@ class PreviewStore:
         """
         if preview.kind == "pdf" and preview.source_path:
             return Path(preview.source_path)
+        if preview.kind == "native" and preview.html is None and preview.source_path:
+            # Visionneuse dans la fenêtre ; le navigateur reçoit la page HTML de Tk
+            # pylint: disable-next=import-outside-toplevel
+            from interfaces.document_preview import build_document_preview
+            preview.html = build_document_preview(preview.source_path)
         self._directory.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d_%H%M%S")
         target = self._directory / f"artifact_{stamp}_{preview.index}.html"

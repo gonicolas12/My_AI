@@ -1,6 +1,6 @@
 """
 Tests de l'hôte DPI (interfaces/gui/_dpi_host.py) et des visionneuses natives
-(interfaces/gui/_preview_handler.py).
+(interfaces/desktop/preview_handler.py).
 
 Régression d'un bug observé sur un écran à 125 % : l'appli ne gère pas le DPI
 (racine TkinterDnD), et une fenêtre étrangère ré-parentée dans l'un de ses
@@ -22,14 +22,14 @@ import pytest
 
 pytestmark = pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows uniquement")
 
-from interfaces.gui import _preview_handler  # noqa: E402
-from interfaces.gui._dpi_host import DpiAwareHost, is_dpi_virtualized  # noqa: E402
-from interfaces.gui._preview_handler import (  # noqa: E402
+from interfaces.desktop import preview_handler as _preview_handler  # noqa: E402
+from interfaces.desktop.preview_handler import (  # noqa: E402
     AsyncNativePreview,
     NativePreview,
     handler_clsid,
     supports_native_preview,
 )
+from interfaces.gui._dpi_host import DpiAwareHost, is_dpi_virtualized  # noqa: E402
 
 _PER_MONITOR = 2
 

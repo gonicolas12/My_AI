@@ -45,6 +45,12 @@ class PathBody(BaseModel):
     path: str
 
 
+class DocumentBody(PathBody):
+    """POST /api/previews/document."""
+
+    native: bool = False  # la fenêtre affiche les visionneuses de Windows
+
+
 class ArtifactBody(BaseModel):
     """POST /api/previews/artifact : bloc HTML ou SVG d'une réponse."""
 
@@ -142,6 +148,8 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
     def preview_view(preview):
         if preview.kind == "pdf":
             url = server.links.url(preview.source_path)
+        elif preview.kind == "native":
+            url = ""  # visionneuse de la fenêtre (shell_api.native_preview_show)
         else:
             url = f"/preview/{preview.id}"
         return {"id": preview.id, "kind": preview.kind, "title": preview.title,
@@ -157,11 +165,12 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
         return preview_view(preview)
 
     @api.post("/api/previews/document")
-    async def document_preview(body: PathBody):
+    async def document_preview(body: DocumentBody):
         if not showable(body.path):
             raise HTTPException(status_code=404, detail=_NOT_FOUND)
         try:
-            preview = await run_in_threadpool(server.previews.add_document, body.path)
+            preview = await run_in_threadpool(server.previews.add_document, body.path,
+                                              body.native)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:  # pylint: disable=broad-except
