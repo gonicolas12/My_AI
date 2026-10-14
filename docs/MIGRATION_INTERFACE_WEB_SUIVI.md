@@ -53,6 +53,8 @@ phase 2).
   appliquées : téléphone (Relay, QR code, badge « Mobile »), vraie dictée et raccourcis au vrai
   clavier essayés avec Nicolas dans la vraie appli ; le Word caché des aperçus se ferme avec
   l'appli (D30) ; adresse locale avec la clé gardée (D31). Détails dans le journal.
+- **Phase 4 (page Agents)** : plan en section 17, découpage en 4a puis 4b proposé ; feu vert
+  attendu au début de la prochaine conversation.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -574,8 +576,10 @@ quand plusieurs runtimes OpenMP cohabitent (le plantage qu'il évite est propre 
 ### Prises le 2026-10-14 (réponses de Nicolas aux questions de la phase 3b)
 
 - **D27. Essai avec le téléphone** : fait ensemble dans la vraie appli, tunnels publics compris
-  (journal, après la phase 3b). Le QR code garde les couleurs de Tk : le téléphone l'a lu.
-- **D28. Vraie dictée** : faite par Nicolas, dans la vraie appli.
+  (journal, après la phase 3b). Le QR code garde les couleurs de Tk : le téléphone l'a lu, et la
+  réponse s'y est affichée (confirmé par Nicolas).
+- **D28. Vraie dictée** : faite par Nicolas, dans la vraie appli ; transcription exacte
+  (« Bonjour, ça va ? », confirmé par Nicolas).
 - **D29. Raccourcis au vrai clavier** : essayés par Nicolas, dans la vraie appli.
 - **D30. Word caché des aperçus** : il reste lancé tant que l'appli est ouverte (l'aperçu suivant
   s'ouvre plus vite) et se ferme avec l'appli. Seul l'Office lancé par l'appli pour ses aperçus
@@ -901,7 +905,9 @@ fichiers, comme sur claude.ai (décisions D21 à D25, section 8), et question 26
 
 Réponses de Nicolas le 2026-10-14 : oui à la 27, faite ensemble le jour même, comme la 28 et la
 29 (un seul essai, dans la vraie appli) ; pour la 30, fermer le Word caché avec l'appli, le
-laisser tant qu'elle est ouverte ; oui à la 31 (décisions D27 à D31, section 8).
+laisser tant qu'elle est ouverte ; oui à la 31 (décisions D27 à D31, section 8). Après l'essai,
+Nicolas confirme que la dictée est exacte et que la réponse s'est affichée sur le téléphone ; il
+garde les deux messages de l'essai dans sa conversation et les supprimera lui-même.
 
 27. **Essai avec ton téléphone** (Relay, badge « Mobile ») : il faut la vraie appli, avec ses
     tunnels publics, et ton téléphone. Quand tu es devant le PC : lance My_AI, Ctrl+R, scanne le
@@ -1520,7 +1526,10 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
     répondu) ; le téléphone s'est connecté par le QR code 23 s après l'ouverture du panneau ;
     son message est arrivé avec le badge « Mobile », réponse en 3 s (premier jeton en 1,65 s),
     envoyée au téléphone ; « Arrêter le Relay » a fermé les tunnels et le client. Comme dans
-    Tk, le message du téléphone s'ajoute à la conversation ouverte.
+    Tk, le message du téléphone s'ajoute à la conversation ouverte ;
+  - Nicolas confirme : la dictée est exacte, la réponse s'est affichée sur le téléphone. Les deux
+    messages de l'essai restent dans sa conversation « Explique en détail, avec un exemple de
+    code… » : il les supprimera lui-même, ne pas y toucher.
 - **D30 appliquée** (`native_viewer.py`) : les processus qui portent une visionneuse sont notés
   quand elle se charge et quand elle se ferme ; à la fermeture de l'appli, après le déchargement de
   la visionneuse, Word, Excel ou PowerPoint caché lancé pour les aperçus reçoit `WM_CLOSE`, puis
@@ -1787,6 +1796,12 @@ Fichiers créés ou complétés :
 exécution d'un agent seul, fils, Stop ; (3) canvas, workflows séquentiel, parallèle et DAG,
 Save / Load / Export ; (4) Débat ; (5) statistiques et moniteur ; (6) tâches planifiées et
 notification de fin ; (7) captures, mesures, recette et compte rendu.
+
+Découpage proposé, comme la phase 3 : **4a** = étapes 1 à 3 (grille et agents personnalisés,
+zone de tâche, exécution d'un agent seul et des workflows avec leurs fils et Stop, canvas), avec
+captures, tests et un arrêt pour compte rendu ; **4b** = étapes 4 à 6 (Débat, statistiques et
+moniteur, tâches planifiées et notification de fin), puis l'étape 7 pour toute la phase. À
+confirmer par Nicolas avec le feu vert.
 
 Risques :
 
