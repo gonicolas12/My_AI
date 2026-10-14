@@ -1108,6 +1108,41 @@ def test_known_paths_cover_attachments_and_produced_files(chat):
     assert os.path.normcase(os.path.abspath(str(chat.tmp_path / "outputs" / "doc.docx"))) in known
 
 
+def test_memory_changes_the_open_conversation_at_its_source(chat):
+    ask(chat, "Question A")
+    ask(chat, "Question B")
+    session = chat.service.session_id
+    texts = [m["text"] for m in chat.service.snapshot()["messages"]]
+    answer_a = texts[1]
+
+    # Index noté par la recherche, puis vieilli : le texte fait foi
+    chat.service.change_saved_message(session, 0, "Question A", None)
+    chat.service.change_saved_message(session, 2, "Question B", "Question B, précisée")
+
+    shown = [m["text"] for m in chat.service.snapshot()["messages"]]
+    assert shown == [answer_a, "Question B, précisée", texts[3]]
+    saved = chat.engine.session_manager.load_workspace(session)["conversation_history"]
+    assert [m["text"] for m in saved] == shown
+    assert wait_for(chat.events, "conversation.loaded")[-1]["payload"]["reason"] == "edited"
+
+    with pytest.raises(ChatError, match="introuvable"):
+        chat.service.change_saved_message(session, 0, "Jamais dit", None)
+
+
+def test_memory_changes_another_conversation_without_touching_the_open_one(chat):
+    ask(chat, "Ancienne question")
+    old = chat.service.session_id
+    chat.service.new_conversation()
+    ask(chat, "Nouvelle question")
+
+    chat.service.change_saved_message(old, 0, "Ancienne question", "Question reformulée")
+    saved = chat.engine.session_manager.load_workspace(old)["conversation_history"]
+    assert saved[0]["text"] == "Question reformulée"
+    assert chat.service.snapshot()["messages"][0]["text"] == "Nouvelle question"
+    with pytest.raises(ChatError, match="introuvable"):
+        chat.service.change_saved_message("session-inconnue", 0, "x", None)
+
+
 def test_project_folder_attaches_to_the_current_session_or_a_new_one(chat):
     session_id = chat.service.ensure_session("mon-projet")
     assert session_id and chat.service.session_id == session_id

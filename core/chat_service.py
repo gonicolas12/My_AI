@@ -104,6 +104,10 @@ FOLDER_ATTACHMENT_LIMIT = 20
 # Nom d'une session : début de son premier message
 _SESSION_NAME_MAX = 48
 
+# Message de la Mémoire introuvable dans sa session (index de recherche vieilli)
+MESSAGE_GONE = ("Message d'origine introuvable : la conversation a changé depuis "
+                "l'indexation. Réindexez la recherche, puis réessayez.")
+
 # Résultat d'outil en échec (début du texte renvoyé par l'outil)
 _FAILED_TOOL_STARTS = ("❌", "⚠️", "Erreur", "[Erreur", "[Suppression annulée", "[Interrompu")
 _URL_RE = re.compile(r"https?://[^\s)\]]+")
@@ -141,6 +145,38 @@ def file_type_for(path: str) -> Optional[str]:
     if ext in _IMAGE_EXTENSIONS:
         return "Image"
     return None
+
+
+def _message_text(message: Any) -> str:
+    """Texte d'un message enregistré, tel que la recherche globale l'indexe."""
+    if not isinstance(message, dict):
+        return ""
+    return (message.get("text") or message.get("content") or "").strip()
+
+
+def find_saved_message(history: List[Any], index: int, text: str) -> Optional[int]:
+    """Position du message dont le texte est `text`, au plus près de `index`.
+
+    L'index noté par la recherche globale peut avoir vieilli (messages
+    supprimés depuis) : le texte fait foi, comme pour un humain qui relit.
+    """
+    if 0 <= index < len(history) and _message_text(history[index]) == text:
+        return index
+    matches = [position for position, message in enumerate(history)
+               if _message_text(message) == text]
+    return min(matches, key=lambda position: abs(position - index)) if matches else None
+
+
+def change_saved_message(history: List[Any], position: int, new_text: Optional[str]) -> None:
+    """Réécrit le message (son champ texte d'origine) ou le supprime (None)."""
+    if new_text is None:
+        del history[position]
+        return
+    message = history[position]
+    if "content" in message and "text" not in message:
+        message["content"] = new_text
+    else:
+        message["text"] = new_text
 
 
 def display_name(path: str) -> str:
@@ -2047,12 +2083,55 @@ class ChatService:
                 state = sessions.load_workspace(session_id) or {}
                 mutate(state)
                 saved = bool(sessions.save_workspace(session_id, state))
+            except ChatError:
+                raise
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Session %s non mise à jour : %s", session_id, exc)
                 return False
             if saved:
                 self._emit("sessions.changed")
             return saved
+
+    def change_saved_message(self, session_id: str, index: int, text: str,
+                             new_text: Optional[str]) -> None:
+        """Réécrit (new_text) ou supprime (None) un message enregistré, depuis la Mémoire.
+
+        Le message est retrouvé par son texte, celui de l'index de recherche, au
+        plus près de son index (find_saved_message). Pour la conversation
+        ouverte, le fil affiché change aussi et la session est enregistrée :
+        une sauvegarde suivante ne fait pas réapparaître le message, risque
+        que le panneau Tk laissait. Le moteur garde son contexte jusqu'au
+        prochain rechargement de la session, comme dans Tk.
+
+        Raises:
+            ChatError: réponse en cours, session ou message introuvable
+        """
+        text = (text or "").strip()
+        with self._lock:
+            current = bool(session_id) and session_id == self._session_id
+        if current:
+            with self._exclusive():
+                position = find_saved_message(self._history, int(index), text)
+                if position is None:
+                    raise ChatError(MESSAGE_GONE)
+                change_saved_message(self._history, position, new_text)
+                self._save_current()
+                self._emit("conversation.loaded", {"reason": "edited",
+                                                   "snapshot": self.snapshot()})
+            return
+
+        def mutate(state: Dict[str, Any]) -> None:
+            key = "conversation_history" if "conversation_history" in state else (
+                "history" if "history" in state else "conversation_history")
+            history = state.get(key) or []
+            position = find_saved_message(history, int(index), text)
+            if position is None:
+                raise ChatError(MESSAGE_GONE)
+            change_saved_message(history, position, new_text)
+            state[key] = history
+
+        if not self.update_session(session_id, mutate):
+            raise ChatError("Conversation introuvable.")
 
     def export_messages(self) -> List[Dict[str, Any]]:
         """Conversation affichée au format de l'export (_export_conversation de Tk)."""

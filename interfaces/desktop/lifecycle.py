@@ -26,6 +26,7 @@ from typing import Any, Dict, Optional
 
 from core.chat_service import ChatError, ChatService
 from interfaces.desktop.events import EventBus
+from interfaces.desktop.memory import MemoryService
 from interfaces.desktop.model_setup import FirstLaunch, ModelJobs, OllamaSetup
 from interfaces.desktop.server import DesktopServer
 from interfaces.desktop.settings import SettingsService
@@ -131,6 +132,7 @@ class DesktopApp:
         self._model_jobs: Optional[ModelJobs] = None
         self._first_launch: Optional[FirstLaunch] = None
         self._settings: Optional[SettingsService] = None
+        self._memory: Optional[MemoryService] = None
         self._services_lock = threading.RLock()
 
         self._lock = threading.Lock()
@@ -342,6 +344,14 @@ class DesktopApp:
             if self._settings is None:
                 self._settings = SettingsService(self.ollama_setup, lambda: self.engine)
             return self._settings
+
+    @property
+    def memory(self) -> MemoryService:
+        """Mémoire du panneau (faits, documents, conversations)."""
+        with self._services_lock:
+            if self._memory is None:
+                self._memory = MemoryService(lambda: self.engine, lambda: self.chat)
+            return self._memory
 
     def notify(self, level: str, message: str) -> None:
         """Notification brève dans la fenêtre (show_notification de Tk)."""
