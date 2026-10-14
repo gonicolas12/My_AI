@@ -44,4 +44,25 @@ for (const key of KEYS) {
   await page.waitForTimeout(600);
   console.log(`${key.padEnd(14)} page conservée : ${await kept()}`);
 }
+
+// Raccourcis de l'appli au vrai clavier : palette, Réglages, Aide (Échap referme)
+const opened = (name) =>
+  page.evaluate((title) => {
+    const dialog = document.querySelector('[role="dialog"]');
+    return dialog?.getAttribute('aria-label') === title || dialog?.textContent?.includes(title);
+  }, name);
+for (const [key, name] of [
+  ['ctrl+k', 'Palette de commandes'],
+  ['ctrl+,', 'Réglages'],
+  ['f1', 'Aide — My_AI'],
+]) {
+  win('keys', key);
+  await page.waitForTimeout(700);
+  const shown = await opened(name);
+  win('keys', 'esc');
+  await page.waitForTimeout(500);
+  console.log(
+    `${key.padEnd(14)} ouvre « ${name} » : ${shown} ; Échap la ferme : ${!(await opened(name))}`,
+  );
+}
 await browser.close();
