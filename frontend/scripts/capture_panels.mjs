@@ -2,10 +2,10 @@
 // premier lancement (serveur lancé avec --premier-lancement), Réglages, Mémoire, Prompts, Relay,
 // Aide, palette Ctrl+K. Usage (depuis frontend/) :
 //   node scripts/capture_panels.mjs URL_AVEC_JETON [DOSSIER] [étapes séparées par des virgules]
-// Étapes : assistant, reglages, memoire, aide
+// Étapes : assistant, reglages, memoire, prompts, aide
 import { mkdirSync } from 'node:fs';
 
-import { openDemo, openSidebar, usage, waitReady } from './lib.mjs';
+import { composer, openDemo, openSidebar, usage, waitReady } from './lib.mjs';
 
 const [, , url, out = 'captures/panneaux', only = ''] = process.argv;
 if (!url) usage('node scripts/capture_panels.mjs URL_AVEC_JETON [DOSSIER] [étapes]');
@@ -16,6 +16,8 @@ const wanted = (name) => !steps.size || steps.has(name);
 const { browser, page } = await openDemo(url);
 const logs = [];
 page.on('console', (m) => {
+  // 409 : refus attendus, contrôlés par les étapes (commande de prompt déjà prise…)
+  if (m.text().includes('status of 409')) return;
   if (m.type() === 'error' || m.type() === 'warning') logs.push(`[${m.type()}] ${m.text()}`);
 });
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
@@ -260,6 +262,96 @@ if (wanted('memoire')) {
   await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'detached', timeout: 3000 });
   check('mémoire : Échap ferme le panneau', true);
+}
+
+if (wanted('prompts')) {
+  await openSidebar(page);
+  const openPrompts = async () => {
+    await page.getByRole('button', { name: 'Prompts', exact: true }).click();
+    const opened = dialog('Bibliothèque de prompts');
+    await opened.locator('li').first().waitFor({ timeout: 10000 });
+    return opened;
+  };
+  let panel = await openPrompts();
+  await page.waitForTimeout(300);
+  await shot('prompts');
+  const firstRow = await panel.locator('li').first().innerText();
+  check('prompts : défauts listés', firstRow.includes('/code'), firstRow.split('\n')[0]);
+
+  // Formulaire : contrôles de Tk, création
+  await button('Nouveau prompt').click();
+  const form = dialog('Nouveau prompt');
+  await form.waitFor({ timeout: 3000 });
+  await form.getByRole('button', { name: 'Enregistrer' }).click();
+  check(
+    'prompts : nom ou commande exigé',
+    (await form.getByRole('alert').innerText()) === 'Renseignez au moins un nom ou une commande.',
+  );
+  await form.getByLabel('Nom').fill('Plan de tests');
+  await form.getByLabel('Commande (slash, optionnel)').fill('plantest');
+  await form.getByLabel('Description (optionnel)').fill('Plan de tests d’une fonctionnalité');
+  await form
+    .getByLabel(/Contenu envoyé/)
+    .fill('Écris un plan de tests détaillé pour : {arguments}\n\nCas nominaux, cas limites.');
+  await page.waitForTimeout(300);
+  await shot('prompts_nouveau');
+  await form.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByText('Prompt créé', { exact: true }).waitFor({ timeout: 5000 });
+  await form.waitFor({ state: 'detached', timeout: 3000 });
+  const created = panel.locator('li').filter({ hasText: '/plantest' });
+  check('prompts : prompt créé dans la liste', (await created.count()) === 1);
+
+  // Commande déjà prise : message de la bibliothèque, dans le formulaire
+  await created.getByRole('button', { name: 'Modifier' }).click();
+  const edit = dialog('Modifier le prompt');
+  await edit.getByLabel('Commande (slash, optionnel)').fill('code');
+  await edit.getByRole('button', { name: 'Enregistrer' }).click();
+  await edit.getByRole('alert').waitFor({ timeout: 3000 });
+  check(
+    'prompts : commande déjà prise',
+    (await edit.getByRole('alert').innerText()) === 'La commande /code existe déjà.',
+  );
+  await page.waitForTimeout(300);
+  await shot('prompts_commande_prise');
+  await edit.getByRole('button', { name: 'Annuler' }).click();
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached', timeout: 3000 });
+
+  // Autocomplétion de la zone de saisie
+  await composer(page).fill('');
+  await composer(page).pressSequentially('/plan');
+  const commands = page.getByRole('listbox', { name: 'Commandes' });
+  await commands.waitFor({ timeout: 5000 });
+  check(
+    'prompts : commande proposée à la saisie',
+    (await commands.innerText()).includes('plantest'),
+  );
+  await composer(page).fill('');
+
+  // Suppression confirmée
+  panel = await openPrompts();
+  await panel
+    .locator('li')
+    .filter({ hasText: '/plantest' })
+    .getByRole('button', { name: 'Supprimer' })
+    .click();
+  const confirm = dialog('Supprimer le prompt');
+  await confirm.waitFor({ timeout: 3000 });
+  check(
+    'prompts : confirmation nommée',
+    (await confirm.innerText()).includes('Voulez-vous vraiment supprimer « /plantest » ?'),
+  );
+  await page.waitForTimeout(300);
+  await shot('prompts_suppression');
+  await confirm.getByRole('button', { name: 'Supprimer' }).click();
+  await page.getByText('Prompt supprimé', { exact: true }).waitFor({ timeout: 5000 });
+  await page.waitForTimeout(300);
+  check(
+    'prompts : prompt supprimé',
+    (await panel.locator('li').filter({ hasText: '/plantest' }).count()) === 0,
+  );
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached', timeout: 3000 });
 }
 
 if (wanted('aide')) {

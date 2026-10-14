@@ -44,6 +44,8 @@ Réglages et l'assistant travaillent sur un Ollama simulé (modèles, téléchar
 création de my_ai) et des réglages en mémoire : ni config.yaml ni Modelfile ne
 changent. La Mémoire montre des faits et des documents fictifs, en mémoire, et les
 messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
+Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
+temp/demo_server/PORT/prompt_templates.json.
 """
 
 import argparse
@@ -63,6 +65,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 from core.chat_service import ChatService  # noqa: E402
 from core.memory_store import MemoryStore  # noqa: E402
+from core.prompt_library import PromptLibrary  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
@@ -482,6 +485,9 @@ class DemoEngine(FakeEngine):
         self.search_engine = DemoSearch(self.session_manager)
         self.indexer = DemoIndexer()
         self.memory_store = DemoMemoryStore(self.session_manager, self.search_engine)
+        # Prompts par défaut, jamais data/prompt_templates.json
+        self.prompt_library = PromptLibrary(
+            path=str(Path(workspaces_dir).parent / "prompt_templates.json"))
 
     def get_memory_store(self):
         """Mémoire de la démonstration."""
