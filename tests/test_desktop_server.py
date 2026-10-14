@@ -255,6 +255,16 @@ def test_relay_and_shutdown_routes(desktop):
     desktop.client.post("/api/relay/stop", headers=AUTH)
     assert desktop.app.relay_calls == [("start", False), ("stop",)]
 
+    # QR code : seulement avec la page de routage (tunnels prêts)
+    assert desktop.client.get("/api/relay/qr", headers=AUTH).status_code == 409
+    url = "https://exemple.github.io/relay/#d=" + "a" * 300
+    desktop.app.relay_status = lambda: {"running": True, "url": url}
+    qr = desktop.client.get("/api/relay/qr", headers=AUTH).json()
+    rows = qr["rows"]
+    assert qr["url"] == url and len(rows) == len(rows[0]) and set("".join(rows)) == {"0", "1"}
+    # Marge de 4 modules clairs, puis le repère de coin (7 modules foncés)
+    assert rows[0] == "0" * len(rows) and rows[4][4:11] == "1" * 7
+
     assert desktop.client.post("/api/shutdown", headers=AUTH).json() == {"ok": True}
     deadline = time.time() + 2
     while not desktop.app.shutdowns and time.time() < deadline:

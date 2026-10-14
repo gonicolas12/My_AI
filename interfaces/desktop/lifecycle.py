@@ -143,6 +143,8 @@ class DesktopApp:
             "error": None, "ollama": True, "placement": None,
         }
         self._relay_snapshot: Optional[Dict[str, Any]] = None
+        # Deux démarrages à la fois (Ctrl+R répété) : un seul RelayServer
+        self._relay_lock = threading.Lock()
         self._relay_watch: Optional[threading.Thread] = None
         self._closing = False
         self._closed = threading.Event()
@@ -409,26 +411,31 @@ class DesktopApp:
         """Démarre le Relay (Ctrl+R), avec ses tunnels sauf `tunnel=False`."""
         from relay.relay_server import RelayServer  # pylint: disable=import-outside-toplevel
 
-        if self.relay is not None and self.relay.is_running():
-            return self.relay_status()
-        relay_cfg = self.config.get_section("relay") or {}
-        if tunnel is None:
-            tunnel = relay_cfg.get("tunnel", True)
-        try:
-            self.relay = RelayServer(ai_engine=self.engine, config=relay_cfg,
-                                     agent_service=self.agent_service)
-            self.relay.start(start_tunnel=bool(tunnel))
-            print(f"📡 My_AI Relay démarré sur le port {relay_cfg.get('port', 8765)}")
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Relay non démarré : %s", exc)
-            self.bus.publish("notification", {
-                "level": "error", "message": "Impossible de démarrer My_AI Relay."})
+        with self._relay_lock:
+            if self.relay is not None and self.relay.is_running():
+                return self.relay_status()
+            relay_cfg = self.config.get_section("relay") or {}
+            if tunnel is None:
+                tunnel = relay_cfg.get("tunnel", True)
+            try:
+                self.relay = RelayServer(ai_engine=self.engine, config=relay_cfg,
+                                         agent_service=self.agent_service)
+                self.relay.start(start_tunnel=bool(tunnel))
+                print(f"📡 My_AI Relay démarré sur le port {relay_cfg.get('port', 8765)}")
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error("Relay non démarré : %s", exc)
+                self.bus.publish("notification", {
+                    "level": "error", "message": "Impossible de démarrer My_AI Relay."})
+        self._watch_relay_status()
+        return self.relay_status()
+
+    def _watch_relay_status(self) -> None:
+        """État publié, puis relevé toutes les 2 s tant que le Relay tourne."""
         self._publish_relay_status()
         if self._relay_watch is None or not self._relay_watch.is_alive():
             self._relay_watch = threading.Thread(
                 target=self._watch_relay, name="relay-status", daemon=True)
             self._relay_watch.start()
-        return self.relay_status()
 
     def stop_relay(self) -> Dict[str, Any]:
         """Arrête le Relay et ses tunnels."""
@@ -445,7 +452,7 @@ class DesktopApp:
         relay = self.relay
         if relay is None or not relay.is_running():
             return {"running": False, "port": None, "clients": 0, "tunnels": {},
-                    "url": None, "local_url": None}
+                    "url": None, "local_url": None, "token": None}
         try:
             tunnels = dict(relay.tunnel_urls)
         except Exception:  # pylint: disable=broad-except
@@ -457,6 +464,7 @@ class DesktopApp:
             "tunnels": tunnels,
             "url": relay.relay_url,
             "local_url": relay.local_url,
+            "token": relay.auth_token,
         }
 
     def _publish_relay_status(self) -> None:

@@ -64,6 +64,7 @@ class RelayStatus(_Payload):
     tunnels: Dict[str, str] = Field(default_factory=dict)
     url: Optional[str] = None  # page de routage (QR code), None sans tunnel
     local_url: Optional[str] = None  # adresse sur ce PC, clé de chiffrement comprise
+    token: Optional[str] = None  # jeton d'accès, affiché dans le panneau
 
 
 class SchedulerResult(_Payload):
