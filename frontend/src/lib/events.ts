@@ -165,6 +165,22 @@ export interface SchedulerResult {
   os_toast_shown: boolean;
 }
 
+/** Mesure du moniteur de ressources (ResourceMonitor de Tk) ; CPU et RAM d'Ollama seul */
+export interface ResourceMetrics {
+  cpu_percent: number;
+  ram_used_mb: number;
+  ram_total_mb: number;
+  ram_percent: number;
+  gpu_available: boolean;
+  gpu_percent: number;
+  gpu_mem_used_mb: number;
+  gpu_mem_total_mb: number;
+  /** Durée du dernier agent */
+  inference_ms: number;
+  /** Tokens/s du dernier agent */
+  tokens_per_sec: number;
+}
+
 // ── Charges utiles des événements ─────────────────────────────────────────
 
 export interface EventPayloads {
@@ -172,6 +188,10 @@ export interface EventPayloads {
   notification: NotificationPayload;
   'relay.status': RelayStatus;
   'scheduler.result': SchedulerResult;
+  /** La liste des tâches planifiées a changé : la page la relit */
+  'scheduler.changed': Record<string, never>;
+  /** Mesure du moniteur ; inferences : fins d'agents relevées (un point de tokens/s chacune) */
+  'resources.sample': { metrics: ResourceMetrics; inferences: number };
   'sessions.changed': Record<string, never>;
   'files.dropped': { paths: string[] };
   'folders.progress': { path: string; name: string; verb: string; done: number; total: number };
@@ -275,11 +295,15 @@ export type RunStatus = 'running' | 'done' | 'error' | 'interrupted';
 
 export type RunKind = 'agent' | 'workflow' | 'debate';
 
+/** Origine d'un fil : la page, le téléphone (Relay) ou une tâche planifiée (D37) */
+export type RunOrigin = 'desktop' | 'mobile' | 'scheduled';
+
 /** Section d'un nœud, ou « deb_N » pour un tour de débat */
 export type SectionId = number | string;
 
+/** Nœud du workflow d'un fil ; identifiant entier (canvas), ou texte (téléphone, tâche planifiée) */
 export interface RunNode {
-  id: number;
+  id: SectionId;
   agent_type: string;
   name: string;
   color: string;
@@ -297,6 +321,23 @@ export interface RunSection {
   status: 'running' | 'done' | 'error';
   started_at: string | null;
   finished_at: string | null;
+  /** Durée de l'agent (ms) et ses tokens/s (relevé de fin de flux d'Ollama) */
+  inference_ms?: number | null;
+  tokens_per_sec?: number | null;
+}
+
+/** Débat : proposant, opposant, nombre de tours */
+export interface RunDebate {
+  agent_a: string;
+  agent_b: string;
+  rounds: number;
+}
+
+/** Tâche planifiée d'un fil, et son rapport une fois écrit */
+export interface RunSchedule {
+  task_id: string | null;
+  name: string | null;
+  output_file: string | null;
 }
 
 export interface RunPlan {
@@ -316,14 +357,17 @@ export interface RunAttachment {
 export interface RunView {
   id: string;
   kind: RunKind;
+  origin: RunOrigin;
   title: string;
   task: string;
   attachments: RunAttachment[];
   /** Code joint à la tâche, gardé pour le diff des sorties qui le modifient */
   sources: { name: string; text: string }[];
   nodes: RunNode[];
-  connections: { from: number; to: number }[];
+  connections: { from: SectionId; to: SectionId }[];
   plan: RunPlan;
+  debate: RunDebate | null;
+  schedule: RunSchedule | null;
   mode: string | null;
   status: RunStatus;
   status_text: string;
@@ -339,6 +383,7 @@ export interface RunView {
 export interface RunSummary {
   id: string;
   kind: RunKind;
+  origin: RunOrigin;
   title: string;
   task: string;
   status: RunStatus;
@@ -349,6 +394,8 @@ export interface RunSummary {
   agent_type: string | null;
   color: string | null;
   agents: number;
+  /** Tâche planifiée dont le fil est une exécution */
+  schedule_task_id: string | null;
 }
 
 export interface AgentEventPayloads {
@@ -370,7 +417,13 @@ export interface AgentEventPayloads {
   };
   /** Texte entier d'une section, quand il ne prolonge pas le précédent */
   'agents.agent_section_text': { exec_id: string; section_id: SectionId; text: string };
-  'agents.agent_section_end': { exec_id: string; section_id: SectionId; success: boolean };
+  'agents.agent_section_end': {
+    exec_id: string;
+    section_id: SectionId;
+    success: boolean;
+    inference_ms?: number | null;
+    tokens_per_sec?: number | null;
+  };
   'agents.agent_node_status': { exec_id: string; node_id: SectionId; status: NodeStatus };
   'agents.agent_exec_end': {
     exec_id: string;

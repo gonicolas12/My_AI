@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import type { NodeStatus, RunStatus } from '../../lib/events';
+import type { NodeStatus, RunOrigin, RunStatus } from '../../lib/events';
 
 const BUILTIN_ICONS: Record<string, LucideIcon> = {
   code: Code,
@@ -83,6 +83,12 @@ export const NODE_STATUS: Record<NodeStatus, { label: string; color: string }> =
 
 /** Agent en cours qui attend que le modèle ait fini de répondre à un autre (queuedBehind) */
 export const QUEUED = { label: 'Attend son tour', color: 'var(--text-muted)' };
+
+/** Origine d'un fil venu d'ailleurs que la page (D37) */
+export const ORIGIN_LABEL: Record<Exclude<RunOrigin, 'desktop'>, string> = {
+  mobile: 'Lancé du téléphone',
+  scheduled: 'Tâche planifiée',
+};
 
 /** Statut affiché d'un fil ; partial : workflow terminé avec des agents en échec */
 export type RunTone = RunStatus | 'partial';

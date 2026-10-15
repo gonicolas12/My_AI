@@ -18,11 +18,12 @@ import {
   toggleSidebar,
 } from './lib/actions';
 import { api, getToken } from './lib/api';
+import { installFocusReport } from './lib/focus';
 import { installNavigationGuard, shell } from './lib/shell';
 import { installShortcuts, overlayOpen, ownsEscape, type ShortcutHandlers } from './lib/shortcuts';
 import { startSync } from './lib/sync';
 import { useApp } from './stores/app';
-import { stopAgentsRun, useAgents } from './stores/agents';
+import { activeOrigin, stopAgentsRun } from './stores/agents';
 import { useChat } from './stores/chat';
 import { isGenerating } from './stores/chatReducer';
 import { togglePalette, usePalette } from './stores/palette';
@@ -48,6 +49,7 @@ function useAppEffects() {
   useEffect(() => startSync(), []);
   useAutoRead();
   useEffect(() => installNavigationGuard(), []);
+  useEffect(() => installFocusReport(), []);
   useEffect(() => shell.syncTitleBar(), []);
   useEffect(
     () =>
@@ -68,10 +70,11 @@ function useAppEffects() {
         Escape: (event) => {
           // D6 : Échap arrête la réponse quand aucun dialogue ni menu n'est ouvert,
           // ni un champ qui s'en sert lui-même (recherche à effacer) ; sur la page
-          // Agents, il arrête l'exécution en cours
+          // Agents, il arrête l'exécution lancée d'ici (celle du téléphone ou d'une
+          // tâche planifiée s'arrête par le bouton de son fil)
           if (overlayOpen() || ownsEscape(event)) return;
           if (useApp.getState().tab === 'agents') {
-            if (!useAgents.getState().active) return;
+            if (activeOrigin() !== 'desktop') return;
             event.preventDefault();
             void stopAgentsRun();
             return;

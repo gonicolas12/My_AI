@@ -7,6 +7,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
   return {
     id: 'exec_1',
     kind: 'workflow',
+    origin: 'desktop',
     title: 'Workflow · 2 agents',
     task: 'Une API\nREST',
     attachments: [],
@@ -17,6 +18,8 @@ function run(overrides: Partial<RunView> = {}): RunView {
     ],
     connections: [{ from: 0, to: 1 }],
     plan: { mode: 'sequential', steps: [[0], [1]], isolated: [] },
+    debate: null,
+    schedule: null,
     mode: null,
     status: 'running',
     status_text: '',
@@ -51,6 +54,43 @@ describe('fils d’exécution', () => {
     expect(state.active).toBe('exec_1');
     expect(state.busy).toBe(true);
     expect(state.runs[0]).toMatchObject({ id: 'exec_1', task: 'Une API REST', agents: 2 });
+  });
+
+  it('un fil du téléphone ou d’une tâche planifiée ne remplace pas le fil ouvert', () => {
+    const opened = apply(EMPTY_RUNS, event('agents.run_created', { run: run({ status: 'done' }) }));
+    const phone = run({ id: 'exec_phone', origin: 'mobile' });
+    const state = apply(opened, event('agents.run_created', { run: phone }));
+    expect(state.openRunId).toBe('exec_1');
+    expect(state.active).toBe('exec_phone');
+    expect(state.runs[0]).toMatchObject({ id: 'exec_phone', origin: 'mobile' });
+    // Aucun fil ouvert : celui-ci s'ouvre
+    const alone = apply(EMPTY_RUNS, event('agents.run_created', { run: phone }));
+    expect(alone.openRunId).toBe('exec_phone');
+  });
+
+  it('la fin d’un agent garde sa durée et ses tokens/s', () => {
+    const state = apply(
+      EMPTY_RUNS,
+      event('agents.run_created', { run: run() }),
+      event('agents.agent_section_start', {
+        exec_id: 'exec_1',
+        section_id: 0,
+        title: 'CodeAgent',
+        color: '#3b82f6',
+      }),
+      event('agents.agent_section_end', {
+        exec_id: 'exec_1',
+        section_id: 0,
+        success: true,
+        inference_ms: 1840,
+        tokens_per_sec: 41.5,
+      }),
+    );
+    expect(state.details.exec_1!.sections[0]).toMatchObject({
+      status: 'done',
+      inference_ms: 1840,
+      tokens_per_sec: 41.5,
+    });
   });
 
   it('recompose le texte d’une section à partir de ses suites', () => {

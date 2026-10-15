@@ -2,8 +2,8 @@
  * Page Agents (interfaces/agents/ de Tk), dans l'ordre de Tk (D32) : la
  * grille des agents, la zone de tâche et ses boutons, le canvas du workflow,
  * puis « Exécutions » à la place de « Résultats » : la liste des fils à
- * gauche, le fil ouvert à droite. Statistiques et tâches planifiées viennent
- * en phase 4b.
+ * gauche, le fil ouvert à droite. Suivent les statistiques et le moniteur de
+ * ressources, puis les tâches planifiées.
  *
  * Chargée à la première ouverture de l'onglet (React Flow compris).
  */
@@ -14,10 +14,14 @@ import { useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useApp } from '../../stores/app';
 import { clearRuns, refreshAgentsPage, useAgents } from '../../stores/agents';
+import { loadResources } from '../../stores/resources';
+import { loadSchedule } from '../../stores/schedule';
 import { AgentGrid } from './AgentGrid';
 import { WorkflowCanvas } from './canvas/WorkflowCanvas';
 import { RunList } from './runs/RunList';
 import { ThreadView } from './runs/ThreadView';
+import { ScheduleSection } from './schedule/ScheduleSection';
+import { StatsPanel } from './stats/StatsPanel';
 import { TaskZone } from './TaskZone';
 import { executeWorkflow } from './workflowActions';
 
@@ -29,9 +33,12 @@ function Welcome() {
       <ol className="list-decimal space-y-0.5 pl-5">
         <li>Décrivez votre tâche</li>
         <li>Configurez votre workflow : glissez des agents sur le canvas, reliez leurs ports</li>
-        <li>Cliquez sur « Exécuter »</li>
+        <li>Cliquez sur « Exécuter », ou sur « Débat » pour opposer deux agents</li>
       </ol>
-      <p className="mt-2">Les résultats apparaîtront ici en temps réel, un fil par exécution.</p>
+      <p className="mt-2">
+        Les résultats apparaîtront ici en temps réel, un fil par exécution, y compris celles lancées
+        du téléphone ou par une tâche planifiée.
+      </p>
     </div>
   );
 }
@@ -95,20 +102,27 @@ export default function AgentsPage() {
   const ready = useApp((state) => state.status?.state === 'ready');
 
   useEffect(() => {
-    if (ready) refreshAgentsPage();
+    if (!ready) return;
+    refreshAgentsPage();
+    void loadSchedule();
+    // Le moniteur de ressources démarre à la première lecture
+    void loadResources();
   }, [ready]);
+
+  /** Fait voir `target` si les fils d'exécution sont hors de vue */
+  const reveal = (target: HTMLElement | null) => {
+    const box = executions.current?.getBoundingClientRect();
+    const view = scroller.current?.getBoundingClientRect();
+    if (!box || !view || (box.top <= view.bottom - 120 && box.bottom >= view.top + 120)) return;
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+  };
 
   const execute = () => {
     void executeWorkflow().then((runId) => {
-      if (!runId) return;
-      // Les sorties s'écrivent sous le canvas : si elles sont hors de vue, la page
-      // descend jusqu'au canvas, qui garde ses statuts visibles au-dessus
-      const box = executions.current?.getBoundingClientRect();
-      const view = scroller.current?.getBoundingClientRect();
-      if (box && view && box.top > view.bottom - 120) {
-        const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        canvas.current?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
-      }
+      // Les sorties s'écrivent sous le canvas : la page descend jusqu'au canvas,
+      // qui garde ses statuts visibles au-dessus
+      if (runId) reveal(canvas.current);
     });
   };
 
@@ -123,13 +137,16 @@ export default function AgentsPage() {
           </p>
         </div>
         <AgentGrid />
-        <TaskZone onExecute={execute} />
+        {/* Un débat n'a pas de canvas : la page descend jusqu'à son fil */}
+        <TaskZone onExecute={execute} onDebateStarted={() => reveal(executions.current)} />
         <div ref={canvas} className="scroll-mt-4">
           <WorkflowCanvas />
         </div>
-        <div ref={executions}>
+        <div ref={executions} className="scroll-mt-4">
           <Executions />
         </div>
+        <StatsPanel />
+        <ScheduleSection onOpenThread={() => reveal(executions.current)} />
       </div>
     </div>
   );

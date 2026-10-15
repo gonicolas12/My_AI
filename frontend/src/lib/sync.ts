@@ -11,6 +11,8 @@ import { applyAgentEvents, refreshAgentsPage, useAgents } from '../stores/agents
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
 import { applyModelDone, applyModelLog, applyModelProgress } from '../stores/models';
 import { notify, showScheduledResult, useApp } from '../stores/app';
+import { applyResourceSample, loadResources, useResources } from '../stores/resources';
+import { loadSchedule, scheduleChanged, useSchedule } from '../stores/schedule';
 import {
   applyFolderProgress,
   applyFoldersChanged,
@@ -101,8 +103,11 @@ export function startSync(): () => void {
       if (status.status.state === 'ready' || status.chat) {
         await loadConversation();
         refreshSessions(0);
-        // Page Agents déjà ouverte : ses fils ont pu avancer pendant la coupure
+        // Page Agents déjà ouverte : ses fils, ses tâches et ses mesures ont pu
+        // avancer pendant la coupure
         if (useAgents.getState().loaded) refreshAgentsPage();
+        if (useSchedule.getState().loaded) void loadSchedule();
+        if (useResources.getState().loaded) void loadResources();
       }
       void loadVoiceStatus();
     } catch {
@@ -192,6 +197,12 @@ export function startSync(): () => void {
       }
       case 'scheduler.result':
         showScheduledResult((event as ServerEvent<'scheduler.result'>).payload);
+        return;
+      case 'scheduler.changed':
+        scheduleChanged();
+        return;
+      case 'resources.sample':
+        applyResourceSample((event as ServerEvent<'resources.sample'>).payload);
         return;
       default:
         return;

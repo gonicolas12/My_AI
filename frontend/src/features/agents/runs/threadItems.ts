@@ -86,6 +86,18 @@ export function queuedBehind(run: RunView | undefined): Record<string, string> {
   return queued;
 }
 
+/** Débat en une ligne : « Proposant : A · Opposant : B · 3 tours » */
+export function debateSummary(run: RunView): string {
+  if (run.kind !== 'debate') return '';
+  const [first, second] = run.nodes;
+  const rounds = run.debate?.rounds ?? 0;
+  const parts = [];
+  if (first) parts.push(`Proposant : ${first.name}`);
+  if (second) parts.push(`Opposant : ${second.name}`);
+  if (rounds) parts.push(`${rounds} tour${rounds > 1 ? 's' : ''}`);
+  return parts.join(' · ');
+}
+
 /** Plan en une ligne : « Étape 1 : A · Étape 2, en parallèle : B, C · Agents isolés : D » */
 export function planSummary(run: RunView): string {
   if (run.kind !== 'workflow') return '';

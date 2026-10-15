@@ -5,7 +5,8 @@
  * d'une image avec Ctrl+V, fichiers déposés), micro. À droite, un seul bouton
  * primaire, Exécuter, qui devient Arrêter pendant l'exécution ; Créer un
  * agent, Débat et Vider sont des boutons secondaires (§8). Ctrl+Entrée lance
- * aussi l'exécution.
+ * aussi l'exécution. Pendant une exécution venue du téléphone ou d'une tâche
+ * planifiée, Exécuter attend : son fil a son propre bouton Arrêter.
  */
 
 import { Eraser, Play, Plus, Square, Swords, X } from 'lucide-react';
@@ -16,8 +17,10 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Me
 import { Tooltip } from '../../components/ui/Tooltip';
 import { cn } from '../../lib/cn';
 import { hasFiles, noteDrop, onDroppedPaths } from '../../lib/drops';
+import type { RunOrigin } from '../../lib/events';
 import { useFileUrl } from '../../lib/files';
 import { type AttachKind, shell } from '../../lib/shell';
+import { notify } from '../../stores/app';
 import {
   addTaskPaths,
   removeTaskAttachment,
@@ -32,6 +35,13 @@ import { ATTACH_ENTRIES, attachmentIcon } from '../chat/attachKinds';
 import { MicButton } from '../chat/MessageControls';
 import { AgentDialog } from './AgentDialog';
 import { clearWorkflow } from './canvas/workflowStore';
+import { DebateDialog } from './DebateDialog';
+
+/** Exécution d'ailleurs en cours : ce qu'en dit le bouton Exécuter */
+const BUSY_ELSEWHERE: Record<Exclude<RunOrigin, 'desktop'>, string> = {
+  mobile: 'Une exécution lancée du téléphone est en cours',
+  scheduled: 'Une tâche planifiée est en cours d’exécution',
+};
 
 const PLACEHOLDER = 'Décrivez la tâche à confier aux agents sélectionnés…';
 
@@ -113,16 +123,39 @@ function AttachButton() {
 
 interface TaskZoneProps {
   onExecute: () => void;
+  /** Débat lancé : son fil est ouvert */
+  onDebateStarted: (runId: string) => void;
 }
 
-export function TaskZone({ onExecute }: TaskZoneProps) {
+export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
   const task = useAgents((state) => state.task);
   const attachments = useAgents((state) => state.attachments);
-  const active = useAgents((state) => state.active);
+  const origin = useAgents((state): RunOrigin | null =>
+    state.active
+      ? (state.details[state.active]?.origin ??
+        state.runs.find((run) => run.id === state.active)?.origin ??
+        'desktop')
+      : null,
+  );
   const starting = useAgents((state) => state.starting);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const [dropping, setDropping] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [debating, setDebating] = useState(false);
+
+  /** Débat : refusé pendant une exécution, ou avec moins de deux agents (messages de Tk) */
+  const openDebate = () => {
+    const state = useAgents.getState();
+    if (state.active || state.busy) {
+      notify('warning', '⏳ Une tâche est déjà en cours');
+      return;
+    }
+    if (state.builtin.length + state.custom.length < 2) {
+      notify('error', '❌ Il faut au moins 2 agents disponibles');
+      return;
+    }
+    setDebating(true);
+  };
 
   // Fichiers déposés dans la fenêtre de l'appli : leurs chemins arrivent par le serveur
   useEffect(() => onDroppedPaths('agents', (paths) => void addTaskPaths(paths)), []);
@@ -154,7 +187,6 @@ export function TaskZone({ onExecute }: TaskZoneProps) {
     }
   };
 
-  const running = active !== null;
   return (
     <div className="flex gap-3">
       <div
@@ -212,7 +244,7 @@ export function TaskZone({ onExecute }: TaskZoneProps) {
       </div>
 
       <div className="flex w-48 shrink-0 flex-col gap-2">
-        {running ? (
+        {origin === 'desktop' ? (
           <Tooltip label="Arrêter l’exécution" shortcut="Échap" side="left">
             <button
               type="button"
@@ -224,29 +256,33 @@ export function TaskZone({ onExecute }: TaskZoneProps) {
             </button>
           </Tooltip>
         ) : (
-          <Tooltip label="Exécuter la tâche" shortcut="Ctrl+Entrée" side="left">
-            <button
-              type="button"
-              disabled={starting}
-              onClick={onExecute}
-              className="flex h-10 items-center justify-center gap-2 rounded-md bg-accent text-sm font-semibold text-on-accent transition-colors duration-150 hover:bg-accent-hover disabled:opacity-70"
-            >
-              <Play size={14} fill="currentColor" />
-              Exécuter
-            </button>
+          <Tooltip
+            label={origin ? BUSY_ELSEWHERE[origin] : 'Exécuter la tâche'}
+            shortcut={origin ? undefined : 'Ctrl+Entrée'}
+            side="left"
+          >
+            <span className="flex">
+              <button
+                type="button"
+                disabled={starting || origin !== null}
+                onClick={onExecute}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-accent text-sm font-semibold text-on-accent transition-colors duration-150 hover:bg-accent-hover disabled:opacity-70 disabled:hover:bg-accent"
+              >
+                <Play size={14} fill="currentColor" />
+                Exécuter
+              </button>
+            </span>
           </Tooltip>
         )}
         <Button variant="secondary" onClick={() => setCreating(true)}>
           <Plus size={15} className="text-fg-2" />
           Créer un agent
         </Button>
-        <Tooltip label="Arrive avec la phase 4b de la migration" side="left">
-          <span className="flex">
-            <Button variant="secondary" disabled className="w-full">
-              <Swords size={15} />
-              Débat
-            </Button>
-          </span>
+        <Tooltip label="Débat entre deux agents" side="left">
+          <Button variant="secondary" onClick={openDebate}>
+            <Swords size={15} className="text-fg-2" />
+            Débat
+          </Button>
         </Tooltip>
         <Tooltip label="Vider le workflow et le canvas" side="left">
           <Button variant="secondary" onClick={clearWorkflow}>
@@ -256,6 +292,9 @@ export function TaskZone({ onExecute }: TaskZoneProps) {
         </Tooltip>
       </div>
       {creating ? <AgentDialog agent={null} onClose={() => setCreating(false)} /> : null}
+      {debating ? (
+        <DebateDialog onClose={() => setDebating(false)} onStarted={onDebateStarted} />
+      ) : null}
     </div>
   );
 }

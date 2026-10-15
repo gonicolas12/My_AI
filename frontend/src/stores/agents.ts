@@ -10,8 +10,8 @@
 
 import { create } from 'zustand';
 
-import { api } from '../lib/api';
-import type { AgentInfo, AnyAgentEvent, RunAttachment } from '../lib/events';
+import { type AgentStats, api } from '../lib/api';
+import type { AgentInfo, AnyAgentEvent, RunAttachment, RunOrigin } from '../lib/events';
 import { notify } from './app';
 import { applyAgentEvent, EMPTY_RUNS, type RunsState, withLoadedRun } from './agentsReducer';
 
@@ -32,6 +32,8 @@ interface AgentsState extends RunsState {
   attachments: TaskAttachment[];
   /** Exécution demandée, réponse du serveur attendue */
   starting: boolean;
+  /** Statistiques sur les fils gardés (relues avec la liste des fils) */
+  stats: AgentStats;
 }
 
 const initialState: AgentsState = {
@@ -43,6 +45,7 @@ const initialState: AgentsState = {
   task: '',
   attachments: [],
   starting: false,
+  stats: { tasks: 0, agents: 0, success_rate: null },
 };
 
 export const useAgents = create<AgentsState>()(() => initialState);
@@ -75,12 +78,12 @@ export async function loadRun(id: string): Promise<void> {
 /** Liste des fils ; le fil ouvert (sinon le plus récent) est relu en entier */
 export async function loadRuns(): Promise<void> {
   try {
-    const { runs, active, busy } = await api.agentRuns();
+    const { runs, active, busy, stats } = await api.agentRuns();
     const state = useAgents.getState();
     const known = new Set(runs.map((run) => run.id));
     const openRunId =
       state.openRunId && known.has(state.openRunId) ? state.openRunId : (runs[0]?.id ?? null);
-    useAgents.setState({ runs, active, busy, openRunId, runsLoaded: true });
+    useAgents.setState({ runs, active, busy, stats, openRunId, runsLoaded: true });
     if (openRunId) await loadRun(openRunId);
     if (active && active !== openRunId) await loadRun(active);
   } catch {
@@ -135,6 +138,24 @@ export async function stopAgentsRun(): Promise<void> {
   } catch (error) {
     notify('error', errorText(error));
   }
+}
+
+/** Origine du fil en cours : la page, le téléphone ou une tâche planifiée */
+export function activeOrigin(): RunOrigin | null {
+  const { active, details, runs } = useAgents.getState();
+  if (!active) return null;
+  return details[active]?.origin ?? runs.find((run) => run.id === active)?.origin ?? 'desktop';
+}
+
+/** Lance un débat (dialogue « Mode Débat ») ; l'erreur du serveur remonte au dialogue */
+export async function startDebate(
+  agentA: string,
+  agentB: string,
+  topic: string,
+  rounds: number,
+): Promise<string> {
+  const { run_id: runId } = await api.startDebate(agentA, agentB, topic, rounds);
+  return runId;
 }
 
 export async function deleteRun(id: string): Promise<void> {

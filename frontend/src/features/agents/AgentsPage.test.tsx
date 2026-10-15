@@ -5,12 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '../../components/ui/Tooltip';
 import type { AgentInfo, RunView } from '../../lib/events';
 import { resetAgents, useAgents } from '../../stores/agents';
+import { useApp } from '../../stores/app';
 import { summaryOf } from '../../stores/agentsReducer';
+import { resetResources, useResources } from '../../stores/resources';
 import { AgentDialog } from './AgentDialog';
 import { AgentGrid } from './AgentGrid';
 import { resetWorkflow, useWorkflow } from './canvas/workflowStore';
+import { DebateDialog } from './DebateDialog';
 import { RunList } from './runs/RunList';
 import { ThreadView } from './runs/ThreadView';
+import { StatsPanel } from './stats/StatsPanel';
 import { TaskZone } from './TaskZone';
 
 const api = vi.hoisted(() => ({
@@ -20,6 +24,7 @@ const api = vi.hoisted(() => ({
   deleteAgent: vi.fn(),
   agentRun: vi.fn(),
   stopRun: vi.fn(),
+  startDebate: vi.fn(),
   fileLinks: vi.fn(() => Promise.resolve({ links: {} })),
 }));
 vi.mock('../../lib/api', () => ({ api }));
@@ -52,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetAgents();
   resetWorkflow();
+  resetResources();
   useAgents.setState({ builtin: BUILTIN, custom: [CUSTOM], loaded: true });
   api.agents.mockResolvedValue({ builtin: BUILTIN, custom: [CUSTOM], default_model: 'my_ai' });
   globalThis.ResizeObserver ??= class {
@@ -119,7 +125,7 @@ describe('dialogue d’un agent personnalisé', () => {
 });
 
 describe('zone de tâche', () => {
-  it('Ctrl+Entrée exécute, Débat attend la phase 4b, Vider vide le canvas', async () => {
+  it('Ctrl+Entrée exécute, Débat ouvre son dialogue, Vider vide le canvas', async () => {
     const onExecute = vi.fn();
     useWorkflow.setState({
       nodes: [
@@ -132,13 +138,15 @@ describe('zone de tâche', () => {
       ],
       nextId: 1,
     });
-    wrap(<TaskZone onExecute={onExecute} />);
+    wrap(<TaskZone onExecute={onExecute} onDebateStarted={vi.fn()} />);
     const task = screen.getByRole('textbox', { name: 'Tâche' });
     await userEvent.type(task, 'Écris un tri');
     fireEvent.keyDown(task, { key: 'Enter', ctrlKey: true });
     expect(onExecute).toHaveBeenCalledTimes(1);
     expect(useAgents.getState().task).toBe('Écris un tri');
-    expect(screen.getByRole('button', { name: 'Débat' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Débat' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Mode Débat entre deux agents' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler' }));
     await userEvent.click(screen.getByRole('button', { name: 'Vider' }));
     expect(useWorkflow.getState().nodes).toHaveLength(0);
   });
@@ -146,10 +154,26 @@ describe('zone de tâche', () => {
   it('pendant une exécution, Exécuter devient Arrêter', async () => {
     api.stopRun.mockResolvedValue({ stopped: true });
     useAgents.setState({ active: 'exec_1' });
-    wrap(<TaskZone onExecute={vi.fn()} />);
+    wrap(<TaskZone onExecute={vi.fn()} onDebateStarted={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Exécuter' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Arrêter' }));
     expect(api.stopRun).toHaveBeenCalledWith('exec_1');
+  });
+
+  it('pendant une exécution venue du téléphone, Exécuter attend et Débat refuse', async () => {
+    const phone = finishedRun({ id: 'exec_phone', origin: 'mobile', status: 'running' });
+    useAgents.setState({
+      active: 'exec_phone',
+      busy: true,
+      runs: [summaryOf(phone)],
+      details: { exec_phone: phone },
+    });
+    wrap(<TaskZone onExecute={vi.fn()} onDebateStarted={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Arrêter' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Exécuter' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Débat' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useApp.getState().toasts.at(-1)?.message).toBe('⏳ Une tâche est déjà en cours');
   });
 });
 
@@ -157,6 +181,7 @@ function finishedRun(overrides: Partial<RunView> = {}): RunView {
   return {
     id: 'exec_1',
     kind: 'agent',
+    origin: 'desktop',
     title: 'OptimizerAgent',
     task: 'Optimise ce code',
     attachments: [{ path: 'C:/p/utils.py', name: 'utils.py', type: 'Code' }],
@@ -164,6 +189,8 @@ function finishedRun(overrides: Partial<RunView> = {}): RunView {
     nodes: [{ id: 0, agent_type: 'optimizer', name: 'OptimizerAgent', color: '#14b8a6' }],
     connections: [],
     plan: { mode: 'single', steps: [[0]], isolated: [] },
+    debate: null,
+    schedule: null,
     mode: 'single',
     status: 'done',
     status_text: '✅ Tâche terminée avec OptimizerAgent',
@@ -261,5 +288,127 @@ describe('fils d’exécution', () => {
     expect(useAgents.getState().openRunId).toBe('exec_0');
     expect(api.agentRun).toHaveBeenCalledWith('exec_0');
     await waitFor(() => expect(useAgents.getState().details.exec_0).toEqual(older));
+  });
+
+  it('dit l’origine d’un fil, mène à son rapport et donne la vitesse de chaque agent', () => {
+    const base = finishedRun().sections[0]!;
+    const run = finishedRun({
+      origin: 'scheduled',
+      title: 'Veille du matin',
+      schedule: { task_id: 'sched_1', name: 'Veille du matin', output_file: 'C:/out/rapport.md' },
+      sections: [{ ...base, tokens_per_sec: 41.5 }],
+    });
+    useAgents.setState({ runs: [summaryOf(run)], details: { exec_1: run }, openRunId: 'exec_1' });
+    wrap(<ThreadView />);
+    expect(screen.getByText('Tâche planifiée')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rapport' })).toHaveAttribute(
+      'title',
+      'C:/out/rapport.md',
+    );
+    expect(screen.getByText(/41,5 tok\/s/)).toBeInTheDocument();
+  });
+
+  it('résume un débat : proposant, opposant, tours', () => {
+    const run = finishedRun({
+      kind: 'debate',
+      title: 'Débat · CodeAgent vs DebugAgent',
+      task: 'Tabs ou espaces ?',
+      sources: [],
+      nodes: [
+        { id: 'a', agent_type: 'code', name: 'CodeAgent', color: '#3b82f6' },
+        { id: 'b', agent_type: 'debug', name: 'DebugAgent', color: '#ef4444' },
+      ],
+      plan: { mode: 'debate', steps: [], isolated: [] },
+      debate: { agent_a: 'code', agent_b: 'debug', rounds: 2 },
+      sections: [
+        { ...finishedRun().sections[0]!, id: 'deb_1', title: 'Tour 1 — CodeAgent (Proposant)' },
+      ],
+      status_text: '✅ Débat terminé (2 tours)',
+    });
+    useAgents.setState({ runs: [summaryOf(run)], details: { exec_1: run }, openRunId: 'exec_1' });
+    wrap(<ThreadView />);
+    expect(
+      screen.getByText('Proposant : CodeAgent · Opposant : DebugAgent · 2 tours'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Tour 1 — CodeAgent (Proposant)')).toBeInTheDocument();
+  });
+});
+
+describe('dialogue du débat', () => {
+  it('reprend les contrôles de Tk, puis lance le débat', async () => {
+    api.startDebate.mockResolvedValue({ run_id: 'exec_9' });
+    const onClose = vi.fn();
+    const onStarted = vi.fn();
+    wrap(<DebateDialog onClose={onClose} onStarted={onStarted} />);
+    const start = screen.getByRole('button', { name: 'Démarrer le débat' });
+    await userEvent.selectOptions(screen.getByLabelText('Agent B — Opposant'), 'code');
+    await userEvent.click(start);
+    expect(screen.getByText('❌ Choisis deux agents différents')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Agent B — Opposant'), 'debug');
+    await userEvent.click(start);
+    expect(screen.getByText('❌ Sujet requis')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Sujet du débat'), 'Tabs ou espaces ?');
+    const rounds = screen.getByLabelText('Nombre de tours :');
+    await userEvent.clear(rounds);
+    await userEvent.type(rounds, '12');
+    await userEvent.click(start);
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith('exec_9'));
+    // Tours ramenés entre 1 et 10, comme Tk
+    expect(api.startDebate).toHaveBeenCalledWith('code', 'debug', 'Tabs ou espaces ?', 10);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('montre le refus du serveur et reste ouvert', async () => {
+    api.startDebate.mockRejectedValue(new Error('⏳ Une tâche est déjà en cours'));
+    const onClose = vi.fn();
+    wrap(<DebateDialog onClose={onClose} onStarted={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText('Sujet du débat'), 'Sujet');
+    await userEvent.click(screen.getByRole('button', { name: 'Démarrer le débat' }));
+    expect(await screen.findByText('⏳ Une tâche est déjà en cours')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('statistiques et ressources', () => {
+  it('montre les trois chiffres et les six barres de Tk', () => {
+    useAgents.setState({ stats: { tasks: 7, agents: 3, success_rate: 86 } });
+    useResources.setState({
+      metrics: {
+        cpu_percent: 12.3,
+        ram_used_mb: 2900,
+        ram_total_mb: 16000,
+        ram_percent: 18.1,
+        gpu_available: true,
+        gpu_percent: 86,
+        gpu_mem_used_mb: 3700,
+        gpu_mem_total_mb: 6144,
+        inference_ms: 1840,
+        tokens_per_sec: 41.5,
+      },
+      history: { cpu: [4, 12.3], ram: [2900, 2900], gpu: [30, 86], tps: [38, 41.5] },
+      inferences: 2,
+      loaded: true,
+    });
+    wrap(<StatsPanel />);
+    expect(screen.getByText('Tâches exécutées').nextSibling).toHaveTextContent('7');
+    expect(screen.getByText('Agents actifs').nextSibling).toHaveTextContent('3');
+    expect(screen.getByText('Taux de succès').nextSibling).toHaveTextContent('86 %');
+    const meters = screen.getAllByRole('meter');
+    expect(meters.map((meter) => meter.getAttribute('aria-label'))).toEqual([
+      'CPU',
+      'RAM',
+      'GPU',
+      'VRAM',
+      'Temps inférence',
+      'Tokens/sec',
+    ]);
+    expect(meters[2]).toHaveAttribute('aria-valuenow', '86');
+    expect(meters[5]).toHaveAttribute('aria-valuetext', '41,5 tok/s');
+  });
+
+  it('attend la première mesure, et sans fil terminé n’invente pas de taux', () => {
+    wrap(<StatsPanel />);
+    expect(screen.getByText('Première mesure…')).toBeInTheDocument();
+    expect(screen.getByText('Taux de succès').nextSibling).toHaveTextContent('—');
   });
 });

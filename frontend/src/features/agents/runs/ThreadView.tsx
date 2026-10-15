@@ -4,24 +4,41 @@
  * l'agent, statut, sortie en Markdown qui s'écrit en direct ; une sortie qui
  * modifie un code fourni se relit en diff (§8). Un agent d'une étape parallèle
  * que le modèle n'a pas encore servi « attend son tour » (queuedBehind).
+ * Chaque agent terminé affiche sa durée et ses tokens/s ; un fil lancé du
+ * téléphone ou par une tâche planifiée le dit, et le second mène à son rapport.
  */
 
-import { ChevronDown, ChevronRight, Paperclip, Square } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Paperclip, Square } from 'lucide-react';
 import { createElement, memo, useEffect, useMemo, useRef, useState } from 'react';
 
+import { openFile } from '../../../lib/actions';
 import { cn } from '../../../lib/cn';
 import type { RunSummary, RunView } from '../../../lib/events';
-import { formatDuration } from '../../../lib/format';
+import { formatDecimal, formatDuration } from '../../../lib/format';
 import { stopAgentsRun, useAgents } from '../../../stores/agents';
 import { summaryOf } from '../../../stores/agentsReducer';
 import { CopyButton } from '../../chat/MessageActions';
 import { Markdown } from '../../chat/markdown/Markdown';
-import { agentColor, agentIcon, NODE_STATUS, QUEUED, RUN_TONE, runTone } from '../agentMeta';
+import {
+  agentColor,
+  agentIcon,
+  NODE_STATUS,
+  ORIGIN_LABEL,
+  QUEUED,
+  RUN_TONE,
+  runTone,
+} from '../agentMeta';
 import { DiffView } from './DiffView';
 import { type CodeChange, findCodeChange, providedCode } from './diff';
 import { clock, useElapsed } from './elapsed';
-import { RunKindIcon } from './RunList';
-import { planSummary, queuedBehind, type ThreadItem, threadItems } from './threadItems';
+import { OriginIcon, RunKindIcon } from './RunList';
+import {
+  debateSummary,
+  planSummary,
+  queuedBehind,
+  type ThreadItem,
+  threadItems,
+} from './threadItems';
 
 /** Hauteur maximale d'une sortie avant défilement (Tk : 20 lignes) */
 const SECTION_MAX = 560;
@@ -49,6 +66,7 @@ function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) 
     status !== 'running' && started && finished
       ? formatDuration(Date.parse(finished) - Date.parse(started))
       : '';
+  const speed = item.section.tokens_per_sec;
   return (
     <span className="flex items-center gap-1.5 text-xs" style={{ color: meta.color }}>
       {status === 'running' ? (
@@ -58,6 +76,9 @@ function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) 
       )}
       {meta.label}
       {duration ? <span className="text-fg-3"> · {duration}</span> : null}
+      {speed ? (
+        <span className="text-fg-3 tabular-nums"> · {formatDecimal(speed)} tok/s</span>
+      ) : null}
     </span>
   );
 }
@@ -185,7 +206,26 @@ const Section = memo(function Section({
       ) : null}
     </div>
   );
-});
+}, sameSectionProps);
+
+/** Une suite de texte ne re-rend que sa section : les autres gardent leur objet section */
+function sameSectionProps(
+  prev: { item: ThreadItem; provided: unknown; behind?: string },
+  next: { item: ThreadItem; provided: unknown; behind?: string },
+): boolean {
+  const a = prev.item;
+  const b = next.item;
+  return (
+    a.section === b.section &&
+    a.title === b.title &&
+    a.step === b.step &&
+    a.pending === b.pending &&
+    a.color === b.color &&
+    a.agentType === b.agentType &&
+    prev.provided === next.provided &&
+    prev.behind === next.behind
+  );
+}
 
 function RunStatusChip({ run }: { run: RunView }) {
   const running = run.status === 'running';
@@ -233,9 +273,10 @@ function Thread({ run }: { run: RunView }) {
   const items = useMemo(() => threadItems(run), [run]);
   const queued = useMemo(() => queuedBehind(run), [run]);
   const provided = useMemo(() => providedCode(run.sources, run.task), [run.sources, run.task]);
-  const plan = planSummary(run);
+  const plan = run.kind === 'debate' ? debateSummary(run) : planSummary(run);
   const running = run.status === 'running';
   const preparing = running && !run.sections.length;
+  const report = run.schedule?.output_file;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
@@ -244,6 +285,23 @@ function Thread({ run }: { run: RunView }) {
             <RunKindIcon run={summary} size={16} />
             <h3 className="text-[15px] font-semibold text-fg">{run.title}</h3>
             <RunStatusChip run={run} />
+            {run.origin !== 'desktop' ? (
+              <span className="flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-fg-2">
+                <OriginIcon origin={run.origin} size={12} />
+                {ORIGIN_LABEL[run.origin]}
+              </span>
+            ) : null}
+            {report ? (
+              <button
+                type="button"
+                onClick={() => void openFile(report)}
+                title={report}
+                className="flex items-center gap-1 text-xs text-link hover:underline"
+              >
+                <FileText size={12} />
+                Rapport
+              </button>
+            ) : null}
           </div>
           <TaskText text={run.task} />
           {run.attachments.length ? (
@@ -271,7 +329,11 @@ function Thread({ run }: { run: RunView }) {
       </div>
       {preparing ? (
         <p className="shimmer text-sm">
-          {run.attachments.length ? 'Lecture des pièces jointes…' : 'Démarrage des agents…'}
+          {run.attachments.length
+            ? 'Lecture des pièces jointes…'
+            : run.kind === 'debate'
+              ? 'Démarrage du débat…'
+              : 'Démarrage des agents…'}
         </p>
       ) : null}
       {items.map((item) => (

@@ -29,6 +29,7 @@ function dag(overrides: Partial<RunView> = {}): RunView {
   return {
     id: 'exec_1',
     kind: 'workflow',
+    origin: 'desktop',
     title: 'Workflow · 5 agents',
     task: 'Tâche',
     attachments: [],
@@ -36,6 +37,8 @@ function dag(overrides: Partial<RunView> = {}): RunView {
     nodes: NODES,
     connections: [],
     plan: { mode: 'dag', steps: [[0], [1, 2], [3]], isolated: [4] },
+    debate: null,
+    schedule: null,
     mode: 'dag',
     status: 'running',
     status_text: '',

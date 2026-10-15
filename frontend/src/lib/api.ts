@@ -13,6 +13,7 @@ import type {
   ConversationSnapshot,
   EngineStatus,
   RelayStatus,
+  ResourceMetrics,
   RunAttachment,
   RunSummary,
   RunView,
@@ -287,14 +288,98 @@ export interface PromptFields {
   content: string;
 }
 
+/** Statistiques de la page Agents (stats_section.py de Tk), sur les fils gardés */
+export interface AgentStats {
+  /** Agents qui ont répondu */
+  tasks: number;
+  /** Types d'agents différents employés */
+  agents: number;
+  /** Part des fils terminés qui ont réussi (%), null tant qu'aucun n'est terminé */
+  success_rate: number | null;
+}
+
 /** Liste des fils d'exécution de la page Agents, et le seq de sa lecture */
 export interface RunsResponse {
   runs: RunSummary[];
-  /** Fil en cours sur la page Agents */
+  /** Fil en cours, d'où qu'il vienne (page, téléphone, tâche planifiée) */
   active: string | null;
   /** L'exécuteur partagé est occupé (page Agents, mobile ou tâche planifiée) */
   busy: boolean;
+  stats: AgentStats;
   seq: number;
+}
+
+/** Moniteur de ressources : dernière mesure, et les 60 dernières pour les mini-graphiques */
+export interface ResourcesSnapshot {
+  metrics: ResourceMetrics;
+  history: { cpu: number[]; ram: number[]; gpu: number[]; tps: number[] };
+  inferences: number;
+  interval: number;
+}
+
+/** Planning d'une tâche (core/scheduler.py) */
+export type TaskSchedule =
+  | { type: 'daily'; at: string }
+  | { type: 'weekly'; days: number[]; at: string }
+  | { type: 'interval'; seconds: number }
+  | { type: 'cron'; expr: string };
+
+/** Statut de la dernière exécution d'une tâche planifiée */
+export type ScheduledStatus = 'success' | 'partial' | 'interrupted' | 'deferred' | 'error';
+
+/** Tâche planifiée (data/scheduled_tasks.json), avec son planning et sa source en clair */
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  enabled: boolean;
+  kind: 'single' | 'workflow' | 'debate';
+  task: string;
+  nodes: { id: string; agent_type: string; name: string; color: string; icon: string }[];
+  connections: { from: string; to: string }[];
+  debate: { agent_a: string; agent_b: string; rounds: number } | null;
+  schedule: TaskSchedule;
+  run_if_missed: boolean;
+  created_at: string;
+  next_run: string | null;
+  last_run: string | null;
+  last_status: ScheduledStatus | null;
+  last_output_file: string | null;
+  /** « tous les jours à 08:00 », « chaque Lun, Jeu à 09:00 »… */
+  description: string;
+  /** « Agent : WebAgent », « Workflow : 2 agents », « Débat : A vs B » */
+  source: string;
+}
+
+export interface ScheduleList {
+  tasks: ScheduledTask[];
+  /** croniter installé : les plannings « cron » sont possibles */
+  croniter: boolean;
+  /** « Exécuter même l'appli fermée » (Planificateur de tâches de Windows) */
+  background: { available: boolean; registered: boolean };
+}
+
+/** Champs du dialogue d'une tâche ; la source ne compte qu'à la création */
+export interface TaskFields {
+  name: string;
+  task: string;
+  schedule: {
+    type: TaskSchedule['type'];
+    at?: string;
+    days?: number[];
+    every?: string;
+    unit?: 'minutes' | 'heures';
+    expr?: string;
+  };
+  run_if_missed: boolean;
+  source?: {
+    kind: 'single' | 'workflow' | 'debate';
+    agent?: string;
+    agent_a?: string;
+    agent_b?: string;
+    rounds?: number;
+    nodes?: { id: string; agent_type: string; name: string; color: string; icon: string }[];
+    connections?: { from: string; to: string }[];
+  };
 }
 
 /** Nœud ou lien envoyé à l'exécution (identifiants entiers, comme Tk) */
@@ -526,6 +611,29 @@ export const api = {
     post<{ workflow: unknown }>('/api/agents/workflow/read', { path }),
   exportWorkflow: (path: string | null, workflow: WorkflowFile, runId: string | null) =>
     post<{ path: string }>('/api/agents/workflow/export', { path, workflow, run_id: runId }),
+  startDebate: (agentA: string, agentB: string, topic: string, rounds: number) =>
+    post<{ run_id: string }>('/api/agents/debates', {
+      agent_a: agentA,
+      agent_b: agentB,
+      topic,
+      rounds,
+    }),
+  resources: () => request<ResourcesSnapshot>('GET', '/api/resources'),
+  windowFocus: (focused: boolean) => post<{ ok: boolean }>('/api/window/focus', { focused }),
+  schedule: () => request<ScheduleList>('GET', '/api/schedule'),
+  createScheduledTask: (fields: TaskFields) =>
+    post<{ task: ScheduledTask }>('/api/schedule/tasks', fields),
+  updateScheduledTask: (id: string, fields: TaskFields) =>
+    request<{ task: ScheduledTask }>('PUT', `/api/schedule/tasks/${enc(id)}`, fields),
+  deleteScheduledTask: (id: string) =>
+    request<{ ok: boolean }>('DELETE', `/api/schedule/tasks/${enc(id)}`),
+  enableScheduledTask: (id: string, enabled: boolean) =>
+    post<{ task: ScheduledTask }>(`/api/schedule/tasks/${enc(id)}/enabled`, { enabled }),
+  runScheduledTask: (id: string) => post<{ ok: boolean }>(`/api/schedule/tasks/${enc(id)}/run`),
+  setScheduleBackground: (enabled: boolean) =>
+    post<{ registered: boolean; ok: boolean; message: string }>('/api/schedule/background', {
+      enabled,
+    }),
 
   onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
   installModel: (name: string) =>

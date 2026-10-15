@@ -45,6 +45,7 @@ export function summaryOf(run: RunView): RunSummary {
   return {
     id: run.id,
     kind: run.kind,
+    origin: run.origin,
     title: run.title,
     task: oneLine.length <= 160 ? oneLine : `${oneLine.slice(0, 159).trimEnd()}…`,
     status: run.status,
@@ -55,6 +56,7 @@ export function summaryOf(run: RunView): RunSummary {
     agent_type: first?.agent_type ?? null,
     color: first?.color ?? null,
     agents: run.nodes.length,
+    schedule_task_id: run.schedule?.task_id ?? null,
   };
 }
 
@@ -109,10 +111,21 @@ function finished(run: RunView, status: RunView['status'], statusText: string): 
   };
 }
 
+function sameSummary(a: RunSummary, b: RunSummary): boolean {
+  return (Object.keys(a) as (keyof RunSummary)[]).every((key) => a[key] === b[key]);
+}
+
 function withRun(state: RunsState, run: RunView): RunsState {
   const details = { ...state.details, [run.id]: run };
   const ended = run.status !== 'running';
-  const runs = state.runs.map((item) => (item.id === run.id ? summaryOf(run) : item));
+  // Une suite de texte ne change pas la ligne du fil : la liste reste la même
+  const index = state.runs.findIndex((item) => item.id === run.id);
+  const next = summaryOf(run);
+  const current = state.runs[index];
+  const runs =
+    index < 0 || (current && sameSummary(current, next))
+      ? state.runs
+      : state.runs.map((item, position) => (position === index ? next : item));
   return {
     ...state,
     details,
@@ -136,7 +149,8 @@ export function applyAgentEvent(state: RunsState, event: AnyAgentEvent): RunsSta
       runs: [summaryOf(run), ...state.runs.filter((item) => item.id !== run.id)],
       active: run.status === 'running' ? run.id : state.active,
       busy: run.status === 'running' ? true : state.busy,
-      openRunId: run.id,
+      // Un fil venu du téléphone ou d'une tâche planifiée ne remplace pas le fil ouvert
+      openRunId: run.origin === 'desktop' || !state.openRunId ? run.id : state.openRunId,
     };
   }
   if (event.type === 'agents.runs_changed' || event.type === 'agents.list_changed') return state;
@@ -187,6 +201,8 @@ export function applyAgentEvent(state: RunsState, event: AnyAgentEvent): RunsSta
           ...section,
           status: success ? 'done' : 'error',
           finished_at: new Date().toISOString(),
+          inference_ms: event.payload.inference_ms ?? null,
+          tokens_per_sec: event.payload.tokens_per_sec ?? null,
         })),
       );
     }
