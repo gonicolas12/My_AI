@@ -63,8 +63,7 @@ export function Tooltip({ label, shortcut, side = 'bottom', children }: TooltipP
         <RadixTooltip.Content
           side={side}
           sideOffset={6}
-          className="z-50 flex items-center gap-2 rounded-sm border border-line bg-bg-3 px-2 py-1 text-xs text-fg shadow-md"
-          style={{ animation: 'fade-in var(--motion-fast) var(--motion-ease)' }}
+          className="fade-in-fast z-50 flex items-center gap-2 rounded-sm border border-line bg-bg-3 px-2 py-1 text-xs text-fg shadow-md"
         >
           {label}
           {shortcut ? <kbd className="font-sans text-2xs text-fg-2">{shortcut}</kbd> : null}

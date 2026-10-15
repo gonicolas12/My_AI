@@ -27,8 +27,7 @@ export function MenuContent({
         align={align}
         sideOffset={6}
         aria-label={label}
-        className="z-50 min-w-48 rounded-md border border-line bg-bg-2 p-1 text-sm text-fg shadow-lg"
-        style={{ animation: 'fade-in var(--motion-fast) var(--motion-ease)' }}
+        className="fade-in-fast z-50 min-w-48 rounded-md border border-line bg-bg-2 p-1 text-sm text-fg shadow-lg"
       >
         {children}
       </RadixMenu.Content>

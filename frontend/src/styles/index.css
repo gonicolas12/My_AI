@@ -175,6 +175,22 @@
       animation: none;
     }
   }
+
+  /*
+   * Fondu des infobulles et des menus, que Radix place après leur apparition. En classe,
+   * et non en style en ligne comme ailleurs, pour le couper en mouvement réduit : Radix
+   * attend alors la fin d'un fondu de 0 ms, dont Chromium ne signale rien, et le contenu
+   * fermé restait affiché (écart 26).
+   */
+  .fade-in-fast {
+    animation: fade-in var(--motion-fast) var(--motion-ease);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fade-in-fast {
+      animation: none;
+    }
+  }
 }
 
 /* Recherche globale : mots trouvés, ou message entier (lib/highlight.ts) */

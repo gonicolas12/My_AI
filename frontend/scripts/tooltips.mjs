@@ -1,7 +1,10 @@
 // Infobulles : elles apparaissent au survol et disparaissent dès que la souris s'en va
 // Usage (depuis frontend/) : node scripts/tooltips.mjs URL_AVEC_JETON   (Chromium sans fenêtre)
+//                            node scripts/tooltips.mjs URL_AVEC_JETON --mouvement-reduit
 //                            node scripts/tooltips.mjs --window          (vraie fenêtre, par CDP)
 // Souris de Playwright dans les deux cas : le vrai curseur ne bouge pas (window_tooltips.mjs)
+// --mouvement-reduit : comme quand les animations de Windows sont coupées (écart 26, les
+// infobulles restaient affichées) ; la vraie fenêtre suit, elle, le réglage de Windows
 import {
   connectWindow,
   openDemo,
@@ -12,11 +15,16 @@ import {
   waitReady,
 } from './lib.mjs';
 
-const [, , target] = process.argv;
-if (!target) usage('node scripts/tooltips.mjs URL_AVEC_JETON | --window');
+const [, , target, option] = process.argv;
+if (!target) usage('node scripts/tooltips.mjs URL_AVEC_JETON [--mouvement-reduit] | --window');
 const { browser, page } = target === '--window' ? await connectWindow() : await openDemo(target);
+if (target !== '--window' && option === '--mouvement-reduit') {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+}
 await waitReady(page);
 await openSidebar(page);
+const reduced = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+console.log(`mouvement réduit : ${reduced ? 'oui' : 'non'}`);
 
 const { width, height } = await page.evaluate(() => ({
   width: innerWidth,
