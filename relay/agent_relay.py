@@ -1,8 +1,9 @@
 """
 Agent Relay Service - Exécution serveur des agents IA pour l'interface mobile.
 
-Ce module porte les fonctionnalités de la page « Agents » du GUI desktop
-(``interfaces/agents/``) côté serveur Relay afin que le mobile puisse :
+Ce module exécute côté serveur, sans interface, les fonctionnalités de la
+page « Agents ». La fenêtre de l'appli (``interfaces/desktop/agents.py``) et le
+scheduler s'en servent, et le mobile peut ainsi :
 
   - lister les agents (built-in + personnalisés)
   - créer / modifier / supprimer des agents personnalisés
@@ -13,9 +14,9 @@ Tout tourne sur le PC hôte (modèle local via Ollama) et le contenu ne quitte
 jamais le tunnel chiffré : le serveur Relay encapsule chaque message émis par
 ce service dans l'enveloppe E2EE AES-256-GCM avant de l'envoyer au mobile.
 
-Contrairement au chat mobile (qui délègue au GUI desktop via le RelayBridge),
-les agents s'exécutent intégralement ici — comme le mode agentique VS Code —
-parce qu'ils n'ont pas besoin du GUI Tkinter pour fonctionner.
+Contrairement au chat mobile (qui passe par le RelayBridge jusqu'au service de
+chat de l'appli, core/chat_service.py), les agents s'exécutent intégralement
+ici — comme le mode agentique VS Code.
 """
 
 import json

@@ -280,15 +280,3 @@ def test_desktop_state_survives_a_broken_file(tmp_path):
     assert state.get("current_session") is None
     state.set("current_session", "abc")
     assert DesktopState(path).get("current_session") == "abc"
-
-
-def test_lifecycle_module_never_imports_tkinter():
-    import sys  # pylint: disable=import-outside-toplevel
-
-    assert lifecycle.__name__ in sys.modules
-    for name in ("interfaces.desktop.lifecycle", "interfaces.desktop.server",
-                 "interfaces.desktop.events", "core.chat_service"):
-        source = sys.modules[name].__file__
-        with open(source, encoding="utf-8") as fh:
-            text = fh.read()
-        assert "tkinter" not in text and "customtkinter" not in text

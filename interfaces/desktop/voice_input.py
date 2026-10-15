@@ -3,11 +3,8 @@ Saisie vocale (parole → texte) : faster-whisper et sounddevice, 100 % locale
 
 Le modèle Whisper n'est chargé qu'au premier usage : le lancement de l'appli
 reste rapide. L'enregistrement et la transcription tournent dans des fils de
-travail ; les rappels (texte dicté, état) partent de ces fils, ou passent par
-l'interface Tk quand elle est donnée (`ui`, sa méthode .after).
-
-Déplacé de interfaces/gui/voice_input.py, qui n'y garde que le bouton micro de
-l'interface Tk (supprimée en phase 5 de la migration web).
+travail ; les rappels (texte dicté, état) partent de ces fils, et voice.py les
+relaie à la fenêtre.
 """
 
 from __future__ import annotations
@@ -189,8 +186,8 @@ class VoiceInput:
 
     on_result(texte) -> texte dicté
     on_state(état)   -> changement d'état : idle, recording, transcribing, error
-    ui               -> interface Tk (rappels passés par ui.after(0, …)) ;
-                        None : rappels appelés depuis le fil de travail
+
+    Les rappels sont appelés depuis le fil de travail.
     """
 
     _model: Optional["WhisperModel"] = None
@@ -200,11 +197,9 @@ class VoiceInput:
 
     def __init__(
         self,
-        ui=None,
         on_result: Optional[Callable[[str], None]] = None,
         on_state: Optional[Callable[[str], None]] = None,
     ):
-        self.ui = ui
         self.on_result = on_result or (lambda _t: None)
         self.on_state = on_state or (lambda _s: None)
         self._recording = False
@@ -235,16 +230,11 @@ class VoiceInput:
             return f"faster-whisper indisponible : {_WHISPER_ERR}"
         return ""
 
-    # ── Rappels (dans le fil de l'interface s'il y en a une) ─────────────
-    def _call(self, callback: Callable[[], None]) -> None:
-        if self.ui is None:
-            try:
-                callback()
-            except Exception:  # pylint: disable=broad-except
-                pass
-            return
+    # ── Rappels (depuis le fil de travail) ──────────────────────────────
+    @staticmethod
+    def _call(callback: Callable[[], None]) -> None:
         try:
-            self.ui.after(0, callback)
+            callback()
         except Exception:  # pylint: disable=broad-except
             pass
 
@@ -352,10 +342,10 @@ class VoiceInput:
                 self._set_state("idle")
 
     @classmethod
-    def get_shared(cls, ui=None) -> "VoiceInput":
+    def get_shared(cls) -> "VoiceInput":
         """Instance partagée de l'appli : un seul enregistrement à la fois."""
         if cls._shared_instance is None:
-            cls._shared_instance = cls(ui=ui)
+            cls._shared_instance = cls()
         return cls._shared_instance
 
     def _transcribe_here(self, audio, single_thread: bool = False) -> tuple:

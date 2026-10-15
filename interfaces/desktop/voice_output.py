@@ -7,11 +7,7 @@ télécharger, la voix ne quitte jamais la machine.
 
 Un fil de travail unique possède le moteur et vide une file : pyttsx3 ne
 supporte pas d'être piloté depuis plusieurs fils. Les changements d'état
-partent de ce fil, ou passent par l'interface Tk quand elle est donnée
-(`ui`, sa méthode .after), comme pour la saisie vocale.
-
-Déplacé de interfaces/gui/voice_output.py, qui n'est plus qu'un relais pour
-l'interface Tk (supprimée en phase 5 de la migration web).
+partent de ce fil, comme pour la saisie vocale.
 """
 
 from __future__ import annotations
@@ -121,13 +117,12 @@ class VoiceOutput:
     toggle(texte, …)       -> arrête si une lecture est en cours, sinon lit
 
     on_state(état) est appelé à chaque changement d'état (speaking, idle,
-    error) : depuis le fil de lecture, ou par ui.after(0, …) avec l'interface Tk.
+    error), depuis le fil de lecture.
     """
 
     _shared: Optional["VoiceOutput"] = None
 
-    def __init__(self, ui=None):
-        self.ui = ui
+    def __init__(self):
         self._queue: "queue.Queue[tuple[int, Optional[str]]]" = queue.Queue()
         self._worker: Optional[threading.Thread] = None
         self._engine = None
@@ -143,12 +138,10 @@ class VoiceOutput:
 
     # ── Singleton applicatif ────────────────────────────────────────────
     @classmethod
-    def get_shared(cls, ui=None) -> "VoiceOutput":
+    def get_shared(cls) -> "VoiceOutput":
         """Instance partagée de l'appli."""
         if cls._shared is None:
-            cls._shared = cls(ui=ui)
-        elif ui is not None and cls._shared.ui is None:
-            cls._shared.ui = ui
+            cls._shared = cls()
         return cls._shared
 
     # ── Disponibilité ───────────────────────────────────────────────────
@@ -314,15 +307,7 @@ class VoiceOutput:
             return None
 
     def _emit(self, state: str) -> None:
-        cb = self._on_state
-        root = self.ui
-        if root is not None:
-            try:
-                root.after(0, lambda s=state: cb(s))
-                return
-            except Exception:  # pylint: disable=broad-except
-                pass
         try:
-            cb(state)
+            self._on_state(state)
         except Exception:
             pass

@@ -1,8 +1,8 @@
 """Fenêtre hôte « DPI par écran » sans bordure, possédée par une fenêtre (Windows uniquement).
 
-Une fenêtre qui ne gère pas le DPI par écran (la racine Tk de l'interface Tk,
-ou une fenêtre pywebview dont le processus n'a pas pu passer en « DPI par
-écran v2 ») est agrandie en bitmap par Windows sur un écran à 125 %.
+Une fenêtre qui ne gère pas le DPI par écran (une fenêtre pywebview dont le
+processus n'a pas pu passer en « DPI par écran v2 ») est agrandie en bitmap
+par Windows sur un écran à 125 %.
 Ré-parenter dans cette fenêtre celle d'un autre processus qui, elle, gère le
 DPI par écran (Edge, visionneuses Office) ne fonctionne pas : Windows aligne
 l'enfant sur le régime du parent, mais le processus propriétaire continue de
@@ -17,9 +17,7 @@ Cette classe contourne le problème : elle crée une fenêtre Win32 sans bordure
 posée au pixel près sur un rectangle de l'écran. La fenêtre étrangère est
 ré-parentée dans CET hôte, au même régime qu'elle : son rendu redevient exact
 et net. L'appelant la recale à chaque déplacement ou redimensionnement
-(``place``). Tk la pose sur un widget par son relais
-(interfaces/gui/_dpi_host.py) ; l'interface web s'en sert en repli
-(native_viewer.py).
+(``place``). La fenêtre s'en sert en repli (native_viewer.py).
 """
 
 from __future__ import annotations
@@ -245,11 +243,6 @@ class DpiAwareHost:
         finally:
             if previous:
                 self._user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(previous))
-
-    # ── Interface « widget » attendue par EdgeEmbed.start() (Tk) ───────────
-
-    def winfo_id(self) -> int:
-        return self.hwnd or 0
 
     @property
     def alive(self) -> bool:

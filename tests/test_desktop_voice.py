@@ -173,15 +173,3 @@ def test_voice_routes(voice, tmp_path):
     assert client.put("/api/voice/autoread", headers=AUTH,
                       json={"enabled": True}).json() == {"autoread": True}
     assert client.post("/api/voice/stop").status_code == 401
-
-
-def test_tk_keeps_its_voice_modules_through_relays():
-    """L'interface Tk, gardée pour comparer jusqu'à la phase 5, importe toujours sa voix."""
-    import interfaces.gui_modern  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
-    from interfaces.desktop import voice_output  # pylint: disable=import-outside-toplevel
-    from interfaces.gui import voice_input as tk_voice_input  # pylint: disable=import-outside-toplevel
-    from interfaces.gui.voice_output import VoiceOutput  # pylint: disable=import-outside-toplevel
-
-    assert VoiceOutput is voice_output.VoiceOutput
-    assert callable(tk_voice_input.attach_mic_button)
-    assert tk_voice_input.VoiceInput.get_shared.__self__ is tk_voice_input.VoiceInput

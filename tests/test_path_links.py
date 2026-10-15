@@ -1,6 +1,6 @@
 """
-Tests des chemins cliquables du chat (utils/path_links.py et
-MarkdownFormattingMixin._linkify_file_paths).
+Tests des chemins cliquables du chat (utils/path_links.py). Leur rendu dans la
+fenêtre est vérifié par Vitest (features/chat/markdown/links.test.tsx).
 
 Les chemins sont créés dans un dossier temporaire, avec des espaces comme
 « OneDrive - Pierre Fabre SA » : c'est le cas réel qui rend la détection
@@ -107,63 +107,3 @@ def test_reveal_selects_a_file_and_opens_a_folder(tree, monkeypatch):
         assert calls[0] == ["open", "-R", tree["document"]]
         assert calls[1] == ["open", tree["folder"]]
 
-
-# ── Intégration dans un widget Text ────────────────────────────────────────
-
-
-@pytest.fixture(name="tk_root", scope="module")
-def _tk_root():
-    """Une seule racine Tk pour le module : en enchaîner plusieurs dans un même
-    processus échoue par intermittence sous Windows."""
-    tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("pas d'affichage disponible")
-    root.withdraw()
-    yield root
-    root.destroy()
-
-
-@pytest.fixture(name="text_widget")
-def _text_widget(tk_root):
-    import tkinter as tk
-
-    widget = tk.Text(tk_root)
-    yield widget
-    widget.destroy()
-
-
-def _linkify(widget):
-    from interfaces.gui.markdown_formatting import MarkdownFormattingMixin
-
-    MarkdownFormattingMixin._linkify_file_paths(object(), widget)
-
-
-def test_widget_path_becomes_a_bold_blue_underlined_link(tree, text_widget):
-    text_widget.insert("1.0", f"Le fichier est ici : {tree['document']}. Voilà.")
-    _linkify(text_widget)
-
-    tags = [t for t in text_widget.tag_names() if t.startswith("file_path_link_")]
-    assert len(tags) == 1
-    start, end = text_widget.tag_ranges(tags[0])
-    assert text_widget.get(start, end) == tree["document"]
-    assert text_widget.tag_cget(tags[0], "foreground") == "#3b82f6"
-    assert text_widget.tag_cget(tags[0], "underline") in ("1", 1, True)
-    assert "bold" in str(text_widget.tag_cget(tags[0], "font"))
-    # Tkinter ne sait que poser une liaison ; on la lit via Tcl.
-    binding = text_widget.tk.call(str(text_widget), "tag", "bind", tags[0], "<Button-1>")
-    assert binding, "le chemin doit être cliquable"
-
-
-def test_widget_path_in_code_block_is_left_alone(tree, text_widget):
-    text_widget.insert("1.0", f"{tree['document']}\n", "code_block")
-    _linkify(text_widget)
-    assert not [t for t in text_widget.tag_names() if t.startswith("file_path_link_")]
-
-
-def test_widget_state_is_restored(tree, text_widget):
-    text_widget.insert("1.0", tree["document"])
-    text_widget.configure(state="disabled")
-    _linkify(text_widget)
-    assert text_widget.cget("state") == "disabled"
