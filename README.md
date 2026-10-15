@@ -73,13 +73,14 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 | Fonctionnalité | Détail |
 |---|---|
-| 🧠 **Mode Thinking** | Widget de raisonnement animé pour les requêtes complexes |
-| 🧭 **Barre latérale** | Relay, réglages, recherche globale, sessions, historique, exports, mémoire |
-| 🎓 **Feedback RLHF** | Notation 1-5 étoiles, feedback enregistré automatiquement |
-| 🎙️ **Saisie vocale** | Bouton micro dans la zone de saisie, transcription locale au curseur |
+| 🧠 **Mode Thinking** | Bloc « Réflexion » repliable : texte animé pendant la génération, puis sa durée |
+| 🧭 **Barre latérale** | Conversations, recherche globale, dossiers du projet, historique ; Relay, Réglages, Mémoire, Prompts et export en bas |
+| 🎓 **Feedback RLHF** | Notation 1-5 étoiles sous chaque réponse, feedback enregistré automatiquement |
+| 🎙️ **Saisie vocale** | Bouton micro dans chaque zone de saisie, transcription locale |
 | 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
-| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG et des documents générés |
+| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG (onglets Aperçu et Code) et des documents générés |
 | ⚡ **Slash commands** | Tapez `/` : autocomplétion de prompts réutilisables |
+| 🎹 **Palette de commandes** | Ctrl+K : toutes les actions de l'appli au clavier |
 
 ### Agents — Interface dédiée
 
@@ -88,15 +89,22 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 | Fonctionnalité | Détail |
 |---|---|
-| 🤖 **Vue d'ensemble** | Liste claire de tous les agents avec descriptions |
-| 🧩 **Création d'agents personnalisés** | Interface de création d'agents sur mesure |
-| 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap |
+| 🤖 **Vue d'ensemble** | Grille de tous les agents avec descriptions |
+| 🧩 **Création d'agents personnalisés** | Prompt système rédigé par le modèle local |
+| 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap, liens animés pendant l'exécution |
+| 🧵 **Fils d'exécution** | Chaque exécution (agent, workflow, débat) devient un fil rouvrable, au statut en direct ; un code joint modifié se relit en diff |
 | 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 | 📅 **Tâches planifiées** | Agents en récurrence, même l'appli fermée |
-| 🔔 **Notifications desktop** | Notification système à la fin d'une tâche longue
+| 🔔 **Notifications desktop** | Notification système à la fin d'une tâche longue |
 
 </div>
+
+> L'interface est une application web (React + TypeScript) affichée dans une fenêtre native
+> (pywebview : WebView2, le Chromium d'Edge, sous Windows). Un serveur local, sur 127.0.0.1
+> uniquement et protégé par un jeton tiré à chaque lancement, la relie au moteur Python : la
+> fenêtre reste fluide pendant que l'IA calcule. Sans pywebview, l'interface s'ouvre dans le
+> navigateur par défaut.
 
 ---
 
@@ -153,12 +161,12 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Attachez un dossier entier** (codebase ou dossier de docs) à un workspace : l'IA garde ce contexte **disponible en permanence** pour toutes les questions — plus besoin de re-glisser les fichiers.
 - **Indexation incrémentale 100% local** : réutilise la mémoire vectorielle (collection `codebase`) et les processeurs existants ; **respecte `.gitignore`** et exclut `node_modules`, `.git`, `.venv`, `dist`… Seuls les fichiers modifiés sont retraités au réindex.
 - **Récupération au moment de la question** (RAG) + **court-circuit déterministe** pour les questions *sur* le dossier (chemin, liste de fichiers).
-- **GUI** : section sidebar. **VS Code** : menu **`@`** pour attacher fichiers/dossiers, un seul contexte `@codebase` par projet.
+- **Fenêtre** : section « Dossiers du projet » de la barre latérale. **VS Code** : menu **`@`** pour attacher fichiers/dossiers, un seul contexte `@codebase` par projet.
 
 ### 🎙️ Saisie Vocale (Voice Mode)
 
-- **Bouton micro** en haut-droite de chaque zone de saisie (chat accueil, chat conversation, onglet Agents)
-- **Toggle** : 1er clic démarre l'écoute (icône rouge pulsante), 2ème clic stoppe et lance la transcription
+- **Bouton micro** dans chaque zone de saisie (accueil, conversation, onglet Agents)
+- **Toggle** : 1er clic démarre l'écoute, 2ème clic stoppe et lance la transcription
 - **100% local** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — modèle `small` (~150 Mo) chargé à la demande
 - **Langue auto-détectée** (99+ langues supportées par Whisper)
 - **Insertion au curseur** de la zone active — pratique pour dicter des prompts longs sans interrompre sa frappe
@@ -172,7 +180,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 ### 🧠 Contrôle total de la mémoire (confidentialité)
 
-- Une fenêtre **mémoire** pour **voir, éditer et supprimer** ce que l'IA sait de vous — **vraies** opérations CRUD, 100% local, **sans mock**.
+- Un panneau **Mémoire** pour **voir, éditer et supprimer** ce que l'IA sait de vous — **vraies** opérations CRUD, 100% local, **sans mock**.
 - **3 onglets** : **Faits** (SQLite), **Documents** et **Conversations** (vecteurs ChromaDB), avec **recherche, filtre par catégorie, pagination et provenance** (quelle session / quel document).
 - **Édition inline** et **suppression confirmée** (dialogue cohérent avec la confirmation MCP). Pour les conversations, option **« supprimer à la source »** = suppression **durable** (le message d'origine est retiré du workspace puis réindexé, il ne réapparaît pas).
 - La suppression d'une entrée vectorielle est une **vraie suppression dans ChromaDB** (`collection.delete`).
@@ -207,6 +215,7 @@ my_ai/
 │   ├── ai_engine.py                     # Moteur principal IA
 │   ├── api_server.py                    # Serveur API REST (FastAPI)
 │   ├── chat_orchestrator.py             # Orchestrateur de chat (ReAct + Plan & Execute)
+│   ├── chat_service.py                  # Service de chat sans interface (fenêtre et mobile)
 │   ├── command_history.py               # Historique des commandes utilisateur
 │   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
 │   ├── config.py                        # Gestion de la configuration
@@ -250,62 +259,49 @@ my_ai/
 │   ├── document_editor.py               # Modification de documents joints (toujours sur une copie)
 │   ├── document_generator.py            # Documents Word/PDF/PowerPoint/Excel rédigés par le LLM
 │   └── markdown_document.py             # Parseur Markdown → blocs, socle des backends de rendu
+├── frontend/                            # Interface web (React + TypeScript, Vite)
+│   ├── src/
+│   │   ├── features/                    # Pages Chat et Agents, panneaux, aperçu, palette, assistant
+│   │   ├── lib/                         # Client REST, WebSocket, pont vers la fenêtre (shell)
+│   │   ├── stores/                      # État de l'interface (Zustand)
+│   │   └── styles/tokens.css            # Couleurs, typographie, rayons (jetons de l'interface)
+│   ├── scripts/                         # Vérifications Playwright (développement)
+│   └── dist/                            # Build versionné : Node n'est pas requis pour lancer l'appli
 ├── interfaces/                          # Interfaces utilisateur
-│   ├── agents/                          # Modules Agents IA
+│   ├── desktop/                         # Fenêtre de l'appli et son serveur local
 │   │   ├── __init__.py
-│   │   ├── _common.py                   # Fonctions communes aux agents
-│   │   ├── agent_selection.py           # Interface de sélection d'agents
-│   │   ├── base.py                      # Interface de base pour les agents
-│   │   ├── custom_agents.py             # Gestion des agents personnalisés
-│   │   ├── debate.py                    # Interface de débat entre agents
-│   │   ├── drag_drop.py                 # Interface de glisser-déposer
-│   │   ├── execution.py                 # Gestion de l'exécution des agents
-│   │   ├── file_handling.py             # Gestion des fichiers pour les agents
-│   │   ├── output_area.py               # Zone de sortie pour les agents
-│   │   ├── output_rendering.py          # Rendu de la sortie pour les agents
-│   │   ├── scheduler_ui.py              # UI des tâches planifiées (scheduler proactif)
-│   │   ├── stats_section.py             # Section de statistiques pour les agents
-│   │   ├── syntax_helper.py             # Aide syntaxique
-│   │   ├── task_input.py                # Interface de saisie des tâches pour les agents
-│   │   └── workflow.py                  # Gestion du workflow des agents
-│   ├── gui/                             # Modules GUI (mixins)
-│   │   ├── __init__.py
-│   │   ├── animations.py                # Animations et transitions modernes
-│   │   ├── artifacts_panel.py           # Volet aperçu artifacts et documents (Visionneuses natives)
-│   │   ├── _dpi_host.py                 # Fenêtre hôte DPI par écran pour l'aperçu embarqué (Windows)
-│   │   ├── _edge_embed.py               # Embarquement Edge dans le volet (Win32 SetParent)
-│   │   ├── _preview_handler.py          # Visionneuses natives Word/PowerPoint/Excel (IPreviewHandler)
-│   │   ├── _wheel.py                    # Normalisation molette souris (Windows/macOS/Linux)
 │   │   ├── _whisper_worker.py           # Transcription isolée (contournement OpenMP macOS)
-│   │   ├── base.py                      # Base GUI + écran d'accueil + confirmation MCP
-│   │   ├── chat_area.py                 # Zone de chat
-│   │   ├── command_palette.py           # Command palette (Ctrl+K) + raccourcis clavier globaux
-│   │   ├── file_handling.py             # Gestion fichiers (drag & drop, attachments)
-│   │   ├── layout.py                    # Layout avec onglets (Chat + Agents)
-│   │   ├── loading_spinner.py           # Cercle de chargement des pièces jointes (suit l'échelle d'écran)
-│   │   ├── markdown_formatting.py       # Rendu Markdown avancé (code, tableaux, etc.)
-│   │   ├── memory_panel.py              # Fenêtre Mémoire (faits/documents/conversations)
-│   │   ├── message_bubbles.py           # Bulles de messages avec RLHF + bouton TTS
-│   │   ├── message_editing.py           # Édition + regénération de message avec branchement
-│   │   ├── prompts_panel.py             # Fenêtre Prompts (CRUD bibliothèque de prompts)
-│   │   ├── settings_panel.py            # Panneau Réglages (modèles, paramètres, toggles)
-│   │   ├── sidebar.py                   # Sidebar latérale
-│   │   ├── slash_commands.py            # Autocomplétion « / » des slash commands dans la saisie
-│   │   ├── streaming.py                 # Gestion du streaming de réponses
-│   │   ├── syntax_highlighting.py       # Highlighting de code dans les réponses
+│   │   ├── agents.py                    # Page Agents : fils d'exécution, workflows, débat, statistiques
+│   │   ├── api_*.py                     # Routes REST (agents, fichiers, mémoire, prompts, tâches, réglages…)
+│   │   ├── devserver.py                 # Serveur Vite du mode développement (--dev)
+│   │   ├── dpi_host.py                  # Fenêtre hôte DPI par écran, repli des visionneuses (Windows)
+│   │   ├── events.py                    # Protocole d'événements du WebSocket (Pydantic)
+│   │   ├── files.py                     # Fichiers locaux : liens signés, ouverture, Explorateur
+│   │   ├── folders.py                   # Dossiers du projet de la session
+│   │   ├── lifecycle.py                 # Étapes du lancement, moteur, Relay, scheduler, arrêt propre
+│   │   ├── memory.py                    # Panneau Mémoire (faits/documents/conversations)
+│   │   ├── model_setup.py               # Modèles Ollama et assistant de premier lancement
+│   │   ├── native_viewer.py             # Visionneuses Office dans le volet d'aperçu
+│   │   ├── preview_handler.py           # Visionneuses natives Word/PowerPoint/Excel (IPreviewHandler)
+│   │   ├── previews.py                  # Pages d'aperçu : artifacts HTML/SVG et documents
+│   │   ├── prompts.py                   # Bibliothèque de prompts
+│   │   ├── qr.py                        # QR code du Relay
+│   │   ├── resources.py                 # Moniteur de ressources (CPU/RAM/GPU) de la page Agents
+│   │   ├── routing.py                   # Aides communes aux routes
+│   │   ├── schedule.py                  # Tâches planifiées de la page Agents
+│   │   ├── server.py                    # Serveur FastAPI local (127.0.0.1, jeton) : REST + WebSocket
+│   │   ├── settings.py                  # Réglages (config.yaml, commentaires préservés)
+│   │   ├── shell_api.py                 # Fonctions de la fenêtre exposées à la page (dialogues…)
+│   │   ├── voice.py                     # Voix : saisie (Whisper) et lecture (pyttsx3)
 │   │   ├── voice_input.py               # Saisie vocale (faster-whisper + sounddevice)
 │   │   ├── voice_output.py              # Sortie vocale / TTS (pyttsx3, voix par langue)
-│   │   └── widgets.py                   # Widgets personnalisés
+│   │   └── window.py                    # Fenêtre native (pywebview), repli sur le navigateur
 │   ├── __init__.py
-│   ├── agents_interface.py              # Interface Agents IA
 │   ├── artifacts.py                     # Détection/préparation des artifacts (HTML, SVG, documents)
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── document_preview.py              # Rendu HTML des documents (aperçu de repli, mobile)
-│   ├── gui_modern.py                    # Interface moderne (assemblage)
-│   ├── onboarding.py                    # Assistant de premier lancement + my_ai recréé si le Modelfile change
-│   ├── modern_styles.py                 # Styles et thèmes modernes
-│   ├── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
-│   └── workflow_canvas.py               # Canvas visuel de workflow style n8n
+│   ├── onboarding.py                    # Fonctions de l'assistant de premier lancement + my_ai recréé si le Modelfile change
+│   └── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
 ├── vscode_extension/                    # Extension VS Code (client Relay distant)
 │   ├── package.json                     # Manifest extension + commandes
 │   ├── src/                             # Code TypeScript (extension Node.js host)
@@ -341,7 +337,7 @@ my_ai/
 │   └── exports/                         # Conversations exportées (MD/HTML/PDF)
 ├── processors/                          # Processeurs de fichiers
 │   ├── __init__.py
-│   ├── attachments.py                   # Lecture des pièces jointes des agents (GUI + mobile)
+│   ├── attachments.py                   # Lecture des pièces jointes des agents (fenêtre + mobile)
 │   ├── code_processor.py                # Traitement de code avec analyse sémantique
 │   ├── docx_processor.py                # Traitement DOCX avec compression
 │   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
@@ -351,7 +347,7 @@ my_ai/
 │   └── pptx_processor.py                # Lecture PowerPoint (titres, puces, tableaux, notes)
 ├── relay/                               # My_AI Relay (accès mobile)
 │   ├── __init__.py
-│   ├── relay_bridge.py                  # Pont de synchronisation GUI ↔ Mobile
+│   ├── relay_bridge.py                  # Pont de synchronisation appli ↔ mobile
 │   ├── relay_server.py                  # Serveur FastAPI + WebSocket + tunnel
 │   ├── agent_relay.py                   # Service Agents serveur (workflow/débat/CRUD)
 │   └── static/
@@ -361,6 +357,7 @@ my_ai/
 │       └── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils (cloudflared pour le Relay)
+│   ├── interface_web/                   # Serveur de démonstration de la fenêtre, sans Ollama (développement)
 │   └── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
@@ -372,8 +369,8 @@ my_ai/
 │   ├── logger.py                        # Gestion des logs
 │   ├── path_links.py                    # Chemins de fichiers cliquables dans les réponses
 │   └── requirements_sync.py             # Installe au lancement les dépendances ajoutées (git pull)
-├── main.py                              # Point d'entrée principal (CLI)
-├── launch_unified.py                    # Point d'entrée GUI (lancé par launch.bat / launch.sh)
+├── main.py                              # Point d'entrée principal (CLI ; fenêtre avec --mode gui)
+├── launch_unified.py                    # Point d'entrée de la fenêtre (lancé par launch.bat / launch.sh)
 ├── Modelfile                            # Configuration modèle Ollama
 ├── requirements.txt                     # Dépendances
 ├── launch.bat                           # Script pour lancer le programme (Windows)
@@ -468,7 +465,7 @@ ollama pull llava            # Alternative (4.7 GB)
 
 > 🔄 **`Modelfile` modifié ?** (à la main, par un `git pull` ou par ⚙️ Réglages) : `my_ai` est **recréé automatiquement au lancement suivant**, inutile de relancer `create_custom_model.bat`. Le lancement ne fait rien de plus tant que le `Modelfile` ne change pas.
 
-> **Changer de modèle** : le plus simple est le **panneau ⚙️ Réglages** (sidebar) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez My_AI : `my_ai` est recréé au lancement.
+> **Changer de modèle** : le plus simple est le **panneau Réglages** (en bas de la barre latérale, ou Ctrl+virgule) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez My_AI : `my_ai` est recréé au lancement.
 
 ### 4 · Lancer l'application
 
@@ -484,11 +481,13 @@ ollama pull llava            # Alternative (4.7 GB)
 ./launch.sh
 ```
 
-Sélectionnez **l'option 1 (Interface Graphique)**, puis patientez.
+Sélectionnez **l'option 1 (Interface Graphique)** : la fenêtre s'ouvre tout de suite sur un
+écran de chargement qui nomme chaque étape (Ollama, modèle, moteur), puis passe au Chat.
 
-> 💡 Sans passer par un lanceur, `python launch_unified.py` (GUI + configuration
-> d'Ollama) et `python main.py --mode gui` (GUI seule) fonctionnent sur les
-> trois systèmes.
+> 💡 Sans passer par un lanceur, `python launch_unified.py` (fenêtre + configuration
+> d'Ollama) et `python main.py --mode gui` (fenêtre seule, avec l'Ollama déjà lancé)
+> fonctionnent sur les trois systèmes. Sous Linux, la fenêtre demande GTK ou Qt
+> (`pip install "pywebview[qt]"`) ; sans eux, l'interface s'ouvre dans le navigateur.
 
 ### 🧹 Nettoyage en cas de problème
 
@@ -506,7 +505,7 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 
 ### Fonctionnement
 
-1. Cliquez sur le bouton **📡 Relay** dans la barre latérale gauche
+1. Cliquez sur **Relay** en bas de la barre latérale (ou Ctrl+R)
 2. My_AI Relay démarre un serveur WebSocket et ouvre un tunnel sécurisé (cloudflared)
 3. Scannez le QR code ou copiez l'URL sur votre téléphone
 4. L'interface mobile propose deux onglets en haut, **💬 Chat** et **🤖 Agents** (comme le GUI PC) :
@@ -551,7 +550,7 @@ relay:
 
 ### Fonctionnement
 
-1. Sur le PC hôte : démarrez le Relay (bouton 📡 dans la sidebar) → cliquez sur **🧩 Copier pour l'extension VS Code** dans la popup
+1. Sur le PC hôte : démarrez le Relay (**Relay** en bas de la barre latérale, ou Ctrl+R) → cliquez sur **Copier pour l'extension VS Code** dans le panneau
 2. Dans VS Code : installez l'extension **My_AI Relay** depuis le Marketplace → ouvrez la vue dans la sidebar → **Coller la chaîne de connexion**
 3. À la connexion, l'extension s'identifie comme client `vscode` auprès du Relay et active le mode agentique. Demandez par exemple *« scaffold un projet Vite + React avec un router et un composant Header »* : vous verrez chaque `write_file` / `run_command` apparaître comme une carte dépliable dans le chat, avec demande d'approbation pour les opérations destructives.
 
@@ -630,6 +629,7 @@ code --install-extension gonicolas12.my-ai
 | 🔁 **Pipeline d'entraînement** | Fine-tuning moderne avec monitoring temps réel |
 | 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
 | 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
+| 🖥️ **Interface web native** | React + TypeScript dans une fenêtre pywebview, fluide pendant les calculs |
 | 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
 | 🔎 **Recherche globale** | Recherche sémantique cross-conversations |
 | ⚡ **Slash commands** | Bibliothèque de prompts |
