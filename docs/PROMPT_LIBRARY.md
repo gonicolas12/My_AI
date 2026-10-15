@@ -7,7 +7,7 @@ My_AI intègre une **bibliothèque de prompts réutilisables**, accessibles via 
 ## 📍 Où la trouver
 
 - **Autocomplétion** : tapez **`/`** en **tout début** d'une zone de saisie (chat principal, écran d'accueil, mobile, extension VS Code) → un menu déroulant liste les commandes disponibles.
-- **Gestion** : barre latérale (**☰**) → bouton **📚 Prompts** → fenêtre de création/édition/suppression de vos templates.
+- **Gestion** : bouton **Prompts** en bas de la barre latérale → panneau de création/édition/suppression de vos templates.
 
 ---
 
@@ -53,13 +53,13 @@ Seedées au **premier lancement** (vous pouvez les éditer ou les supprimer ensu
 
 ---
 
-## 🖥️ Utilisation (GUI desktop)
+## 🖥️ Utilisation (fenêtre desktop)
 
 1. Dans la zone de saisie, tapez **`/`** : le menu d'autocomplétion s'ouvre.
 2. Naviguez au **clavier** (↑/↓), validez avec **Entrée** ou **Tab** (ou cliquez). La saisie devient `/commande `.
 3. Tapez votre texte après la commande, puis envoyez normalement.
 
-La gestion des templates (**📚 Prompts**) propose un **CRUD complet** : créer une commande, lui donner un titre/une description, écrire son `content` (avec `{arguments}` où vous voulez injecter le texte de l'utilisateur), et supprimer.
+Le panneau **Prompts** (bouton en bas de la barre latérale) propose un **CRUD complet** : créer une commande, lui donner un titre/une description, écrire son `content` (avec `{arguments}` où vous voulez injecter le texte de l'utilisateur), et supprimer. Une commande créée apparaît aussitôt dans l'autocomplétion.
 
 ---
 
@@ -83,9 +83,11 @@ core/prompt_library.py  ── PromptLibrary
    ├─ find_by_command / search       # lookup + autocomplétion
    └─ _sync_builtins()               # migre le contenu des commandes builtin
 
-interfaces/gui/slash_commands.py  ── SlashCommandsMixin   # autocomplétion « / »
-interfaces/gui/prompts_panel.py   ── PromptsPanelMixin    # fenêtre « 📚 Prompts »
-relay/relay_server.py             ── GET /api/prompts      # mobile + VS Code (E2EE)
+frontend/src/features/chat/SlashMenu.tsx   # autocomplétion « / » de la fenêtre
+frontend/src/features/panels/prompts/      # panneau « Prompts »
+interfaces/desktop/prompts.py              # service du panneau (routes : api_prompts.py)
+core/chat_service.py                       # expansion à l'envoi (la bulle garde la commande)
+relay/relay_server.py   ── GET /api/prompts  # mobile + VS Code (E2EE)
 ```
 
 - **`expand()`** renvoie `None` si le texte n'est pas une slash command connue → l'appelant envoie le texte tel quel (aucune interférence avec un message normal qui commencerait par `/`).
@@ -100,7 +102,7 @@ relay/relay_server.py             ── GET /api/prompts      # mobile + VS Cod
 Non. Ils vivent dans `data/prompt_templates.json` sur votre machine (fichier **gitignored**). Le mobile et VS Code les lisent via le tunnel **chiffré** du Relay.
 
 **Puis-je créer mes propres commandes ?**
-Oui, dans la fenêtre **📚 Prompts**. Donnez une commande `/maCommande`, écrivez le `content` avec `{arguments}`, et elle apparaîtra dans l'autocomplétion partout.
+Oui, dans le panneau **Prompts**. Donnez une commande `/maCommande`, écrivez le `content` avec `{arguments}`, et elle apparaîtra dans l'autocomplétion partout.
 
 **Une commande supprimée revient-elle après une mise à jour ?**
 Non. La migration interne (`_sync_builtins`) ne ré-insère jamais une commande builtin que vous avez supprimée, et ne modifie pas vos templates personnalisés.

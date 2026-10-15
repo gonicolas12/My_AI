@@ -9,7 +9,7 @@ Exemples :
 - « Tous les lundis à 9h, **audit de sécurité** du dossier X. »
 - « Toutes les heures, surveille … »
 
-100% local. La boucle in-process tourne **tant que le GUI ou le Relay est lancé** ;
+100% local. La boucle in-process tourne **tant que l'appli ou le Relay est lancé** ;
 pour exécuter les tâches **même l'appli fermée**, une intégration optionnelle au
 **Planificateur de tâches Windows** est disponible (voir
 [Exécution en arrière-plan](#exécution-en-arrière-plan-appli-fermée)).
@@ -38,30 +38,35 @@ de la fenêtre, elle est simplement reprogrammée sans s'exécuter.
 
 ### Défer-on-busy
 
-Si l'exécuteur d'agents est déjà occupé (vous lancez un workflow depuis le GUI ou
-le mobile), l'exécution planifiée est **différée** au prochain tick — on évite de
+Si l'exécuteur d'agents est déjà occupé (vous lancez un workflow depuis la fenêtre
+ou le mobile), l'exécution planifiée est **différée** au prochain tick — on évite de
 lancer deux charges LLM concurrentes sur Ollama. La tâche apparaît alors en statut
 `deferred` et réessaie automatiquement.
 
-> Le partage du gate d'exécution unique est garanti **entre les exécutions
-> planifiées et le mobile** (quand le Relay tourne, il partage son
-> `AgentRelayService` avec le scheduler). Une exécution lancée depuis la page
-> Agents du **GUI desktop** utilise un orchestrateur distinct et n'est pas prise
-> en compte par le défer.
+> Le gate d'exécution unique est **partagé par la page Agents de la fenêtre, le
+> mobile et le scheduler** : l'appli n'a qu'un `AgentRelayService`, que le Relay
+> et le scheduler reçoivent à travers la page (`interfaces/desktop/agents.py`).
+> Une exécution de la page, même en préparation (lecture des pièces jointes),
+> diffère donc la tâche planifiée.
 
 ---
 
-## Utilisation (GUI)
+## Utilisation (fenêtre)
 
-Page **🤖 Agents** → section **📅 Tâches planifiées** (en bas) :
+Page **Agents** → vue **Tâches planifiées** (en bas) :
 
-- **➕ Nouvelle tâche** : nom, **source** (agent seul / workflow du canvas / débat),
-  prompt (ou sujet pour un débat), **planning**, et option *rattraper si manquée*.
-- Chaque tâche affiche son planning, sa prochaine et sa dernière exécution + le
-  statut. Boutons : **activer/désactiver**, **▶ exécuter maintenant**,
-  **📝 éditer**, **✕ supprimer**.
-- À la fin d'une tâche : **notification** (toast OS si disponible, sinon toast
-  in-app) + entrée dans la page. Cliquer le toast ouvre le rapport `.md`.
+- **Nouvelle tâche** : nom, **source** (agent seul / workflow du canvas / débat),
+  tâche (ou sujet pour un débat), **planning**, et option *Rattraper au prochain
+  démarrage si manquée*.
+- Chaque tâche affiche son planning, sa prochaine exécution et son dernier
+  résultat (réussie, partielle, interrompue, différée, en erreur), avec son fil et
+  son rapport. Boutons : **activer/désactiver**, **▶ Exécuter maintenant**,
+  **Modifier**, **Supprimer**.
+- Chaque exécution devient un **fil** de la page Agents, au nom de la tâche
+  (« Tâche planifiée »), suivi en direct, avec son rapport.
+- À la fin d'une tâche : **notification** du système (en texte brut, sans le
+  Markdown du résumé), sinon un toast dans la fenêtre ; cliquer le toast ouvre le
+  rapport `.md`.
 
 > Pour un **workflow**, composez-le d'abord sur le canvas n8n de la page Agents,
 > puis créez la tâche avec la source « Workflow (canvas) » : les nœuds et
@@ -87,13 +92,13 @@ Page **🤖 Agents** → section **📅 Tâches planifiées** (en bas) :
 
 ## Exécution en arrière-plan (appli fermée)
 
-Par défaut, les tâches ne s'exécutent **que** si le GUI ou le Relay est ouvert
+Par défaut, les tâches ne s'exécutent **que** si l'appli ou le Relay est ouvert
 (sinon elles sont rattrapées au prochain démarrage). Pour qu'elles s'exécutent
 **même l'application fermée**, activez l'intégration au **Planificateur de tâches
 Windows** :
 
-- **Depuis l'UI** : page Agents → section 📅 Tâches planifiées → coche
-  **« 🖥️ Exécuter même l'appli fermée »**.
+- **Depuis la fenêtre** : page Agents → vue Tâches planifiées → coche
+  **« Exécuter même l'appli fermée »**.
 - **En ligne de commande** :
   ```bash
   python core/scheduler_runner.py --register      # toutes les 5 min (défaut)
@@ -112,12 +117,12 @@ de planification (`SchedulerService.run_once()`) puis s'arrête.
   (limite physique de toute solution locale). Les tâches manquées pendant ce
   temps sont rattrapées au retour (selon `run_if_missed` / `catch_up_window_hours`).
 - 🔒 **Pas de double exécution** : un **verrou** `data/scheduler.lock` (avec
-  heartbeat) coordonne le scheduler in-process (GUI/Relay) et le runner Windows.
+  heartbeat) coordonne le scheduler in-process (appli/Relay) et le runner Windows.
   Quand l'appli est ouverte, le runner détecte qu'un scheduler est actif et ne
   fait rien.
 - 🔔 **Notifications appli fermée** : seul le **toast OS** est possible ; le rapport `.md` est toujours écrit dans
-  `outputs/scheduled/`. Les toasts in-app et messages mobiles ne s'affichent
-  qu'avec le GUI / Relay ouvert.
+  `outputs/scheduled/`. Les toasts de la fenêtre et messages mobiles ne s'affichent
+  qu'avec l'appli / le Relay ouvert.
 
 > La granularité de déclenchement est l'intervalle de sondage
 > (`background_interval_minutes`, 5 min par défaut) : une tâche « 8h » part entre
@@ -129,7 +134,7 @@ de planification (`SchedulerService.run_once()`) puis s'arrête.
 
 ```yaml
 scheduler:
-  enabled: true                 # démarre la boucle avec le GUI / Relay
+  enabled: true                 # démarre la boucle avec l'appli / le Relay
   check_interval: 30            # secondes entre deux vérifications (min 5)
   run_missed_on_startup: true   # rattraper les tâches manquées au démarrage
   catch_up_window_hours: 24     # fenêtre de rattrapage
@@ -200,7 +205,8 @@ n'est pas transmis.
 |----------------------------------------|-------------------------------------------------|
 | `core/scheduler.py`                    | `SchedulerService` + `get_scheduler()`          |
 | `core/scheduler_runner.py`             | Runner headless + intégration Planificateur Windows |
-| `interfaces/agents/scheduler_ui.py`    | UI de gestion (mixin de `AgentsInterface`)      |
+| `interfaces/desktop/schedule.py`       | Service de la vue de la fenêtre (routes : `api_schedule.py`) |
+| `frontend/src/features/agents/schedule/` | Vue « Tâches planifiées » de la page Agents   |
 | `data/scheduled_tasks.json`            | Définitions + historique des tâches             |
 | `outputs/scheduled/*.md`               | Rapports de résultats                           |
 | `tests/test_scheduler.py`              | Tests (exécuteur factice, sans LLM)             |

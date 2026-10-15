@@ -779,8 +779,9 @@ orchestrator.reset_all_agents()
 
 - **Code source agents:** `models/ai_agents.py`
 - **Orchestrateur:** `core/agent_orchestrator.py`
-- **Interface agents:** `interfaces/agents_interface.py` (façade) + package `interfaces/agents/` (mixins)
-- **Canvas visuel:** `interfaces/workflow_canvas.py`
+- **Interface agents:** page Agents de la fenêtre, `frontend/src/features/agents/` ; son service `interfaces/desktop/agents.py`
+- **Exécuteur partagé (fenêtre, mobile, scheduler):** `relay/agent_relay.py` (`AgentRelayService`)
+- **Canvas visuel:** `frontend/src/features/agents/canvas/` (React Flow)
 - **Monitoring ressources:** `interfaces/resource_monitor.py`
 - **Documentation Ollama:** https://ollama.com/
 

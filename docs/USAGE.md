@@ -6,10 +6,10 @@
 
 **Interface Graphique (Recommandée):**
 ```bash
-# Lancement direct GUI
+# Lancement direct de la fenêtre
 python launch_unified.py
 
-# OU via main.py
+# OU via main.py (fenêtre seule, avec l'Ollama déjà lancé)
 python main.py --mode gui
 ```
 
@@ -41,29 +41,34 @@ python main.py status
 
 ## 💬 Utilisation Interface Graphique
 
-### Vue d'Ensemble GUI Modern
+### Vue d'Ensemble de la fenêtre
 
-L'interface graphique moderne (inspirée de Claude.ai) offre:
+L'interface (inspirée de Claude Desktop) s'affiche dans une fenêtre native ; elle reste fluide
+pendant que le moteur calcule.
 
 **Éléments Interface:**
-- **Chat Area** : Zone de conversation avec scroll
-- **Input Box** : Zone de saisie (supporte multilignes avec Shift+Enter)
-- **Send Button** : Bouton d'envoi (ou Enter)
-- **Mic Button (🎙)** : Saisie vocale toggle — clic pour démarrer, reclic pour transcrire au curseur
-- **Speaker Button (🔊)** : Sous chaque réponse de l'IA — lecture vocale (clic = lire, reclic = stop)
-- **Image Button (🖼️)** : Charger une image pour analyse
-- **Clear Chat Button** : Réinitialiser conversation
-- **Drag & Drop Zone** : Glisser-déposer fichiers (PDF/DOCX/PowerPoint/Excel/CSV/Images/Code)
-- **Volet Aperçu** : À droite du chat — pages HTML générées et documents produits, ouvert automatiquement en fin de réponse
+- **Onglets Chat et Agents** en haut de la fenêtre
+- **Barre latérale** (Ctrl+B) : nouvelle conversation, recherche globale, conversations, dossiers
+  du projet, historique ; en bas, Relay, lecture automatique, Réglages, Mémoire, Prompts et export
+- **Fil de messages** : colonne de lecture centrée ; vos messages en bulle, les réponses de l'IA
+  directement sur le fond
+- **Zone de saisie** en forme de carte : pièces jointes en puces au-dessus du texte, menu
+  **« + »**, micro, bouton d'envoi rond qui devient un carré **Stop** pendant la génération
+  (Entrée envoie, Maj+Entrée va à la ligne, Échap arrête la réponse)
+- **Actions au survol** sous chaque message : copier, lire à voix haute, régénérer, modifier,
+  noter (toujours visibles sous le dernier)
+- **Volet Aperçu** : à droite du chat — pages HTML générées et documents produits, ouvert
+  automatiquement en fin de réponse, à largeur réglable
 
 **Fonctionnalités:**
 - 🎨 **Thème sombre** moderne style Claude
-- 💬 **Bulles messages** utilisateur (droite) et IA (gauche)
-- 🕒 **Timestamps** sur chaque message
-- 🎨 **Syntax highlighting** pour code (via Pygments)
-- 📁 **Drag-and-drop** fichiers PDF/DOCX/PowerPoint/Excel/CSV/Images/Code
-- ⏳ **Lecture des pièces jointes** — un cercle orange tourne dans l'aperçu tant que le fichier est lu (OCR d'un PDF scanné : 4 à 20 s par page selon la densité du texte) ; l'envoi attend la fin de la lecture, le message reste dans la zone de saisie
-- ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à un autre aperçu, ou déjà chargé avant cette pièce jointe
+- 🕒 **Heure** de chaque message, durée et vitesse (tokens/s) de chaque réponse
+- 🎨 **Coloration du code** (Shiki) avec bouton **Copier** sur chaque bloc ; formules LaTeX (KaTeX)
+- 📁 **Glisser-déposer** de fichiers PDF/DOCX/PowerPoint/Excel/CSV/Images/Code ; un **dossier**
+  déposé joint ses fichiers (20 au plus)
+- ⏳ **Lecture des pièces jointes** — un indicateur tourne dans la puce tant que le fichier est lu (OCR d'un PDF scanné : 4 à 20 s par page selon la densité du texte) ; l'envoi attend la fin de la lecture, le message reste dans la zone de saisie
+- ⏭️ **File d'attente** : un message envoyé pendant une réponse attend son tour, visible au-dessus de la saisie (retirable)
+- ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à une autre pièce jointe, ou déjà chargé avant cette pièce jointe
 - 📝 **Génération de documents** Word/PDF/PowerPoint/Excel, avec aperçu au format natif — voir *Génération de Documents* plus bas
 - 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur
 - 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)
@@ -71,36 +76,33 @@ L'interface graphique moderne (inspirée de Claude.ai) offre:
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
 - 🔊 **Sortie vocale locale** (pyttsx3) — lecture des réponses, voix par langue, lecture auto
 - ⚙️ **Panneau Réglages** — gestion des modèles Ollama et paramètres, sans éditer de fichiers
-- 🔎 **Recherche globale** — recherche sémantique sur *toutes* vos conversations (sidebar → 🔎) ; un clic ouvre la conversation et surligne le passage — voir [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md)
-- 🧠 **Mémoire** — voir / éditer / supprimer ce que l'IA sait de vous : faits + entrées vectorielles (sidebar → 🧠) — voir [MEMORY.md](MEMORY.md)
+- 🔎 **Recherche globale** — recherche sémantique sur *toutes* vos conversations (barre latérale) ; un clic ouvre la conversation et surligne le passage — voir [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md)
+- 🧠 **Mémoire** — voir / éditer / supprimer ce que l'IA sait de vous : faits + entrées vectorielles (bouton **Mémoire** en bas de la barre latérale) — voir [MEMORY.md](MEMORY.md)
+- 💾 **Sessions** — chaque conversation est enregistrée après chaque réponse et se rouvre au lancement suivant
 
-### Utilisation Typique GUI
+### Utilisation Typique
 
 ```bash
-# 1. Lancer GUI
+# 1. Lancer l'appli
 python launch_unified.py
 
-# 2. Interface s'ouvre
-#    - Zone chat en haut
-#    - Zone saisie en bas
-#    - Bouton Send et Clear
+# 2. La fenêtre s'ouvre sur l'écran de chargement, puis sur l'accueil :
+#    logo, titre « My_AI », zone de saisie centrée
 
 # 3. Interactions
-# Type de message et Enter OU clic Send
+# Tapez votre message et Entrée (ou le bouton d'envoi)
 Vous: "Bonjour, comment ça va?"
 IA: "Salut ! Je vais bien, merci. Comment puis-je t'aider ?"
 
-# 4. Glisser-déposer fichier
-# Drag PDF/DOCX/Excel/CSV dans fenêtre
-IA: "Fichier 'rapport.pdf' chargé avec succès. 15 pages traitées."
+# 4. Glisser-déposer un fichier dans la saisie (ou menu « + »)
+# Le fichier devient une puce ; l'envoi attend la fin de sa lecture
 
 # 5. Questions sur document
 Vous: "Résume ce document"
 IA: [Résumé basé sur rapport.pdf]
 
-# 6. Effacer conversation
-# Clic button "Clear Chat"
-# Conversation réinitialisée
+# 6. Nouvelle conversation
+# Ctrl+N (ou Ctrl+L) : l'ancienne reste enregistrée dans la barre latérale
 ```
 
 ### 🖼️ Analyse d'Images
@@ -109,19 +111,22 @@ L'IA peut analyser des images avec les modèles vision Ollama:
 
 **Méthodes de chargement:**
 ```bash
-# 1. Bouton Image (🖼️)
-# Clic sur bouton → Sélectionner PNG/JPG/JPEG/GIF/BMP
+# 1. Menu « + » de la saisie → Image
+# Sélectionner PNG/JPG/JPEG/GIF/BMP
 # Image encodée et prête pour analyse
 
 # 2. Copier-Coller (Ctrl+V)
 # Prendre une capture d'écran (Win+Shift+S)
-# Dans le chat : Ctrl+V
+# Dans la zone de saisie : Ctrl+V
 # Image collée depuis presse-papiers
 
 # 3. Glisser-Déposer
-# Drag une image dans la fenêtre
+# Glisser une image sur la zone de saisie
 # Image chargée automatiquement
 ```
+
+Le modèle ne reçoit **qu'une image par message** : une nouvelle image remplace celle qui
+attendait (une notification le dit).
 
 **Questions exemple:**
 ```
@@ -148,8 +153,8 @@ Vous: "génère une illustration d'une forêt enchantée la nuit"
 ```
 
 Ce qu'il se passe :
-1. Une bulle **« 🎨 Génération de l'image en cours… »** s'affiche (avec % de progression). Le bouton **STOP** reste actif — un clic annule à la fois le message et la génération.
-2. L'image générée s'affiche **dans la même bulle** (clic = ouverture en taille réelle) et est sauvegardée dans `outputs/`.
+1. La réponse affiche **« 🎨 Génération de l'image en cours… »** (avec % de progression). Le bouton **Stop** reste actif — un clic annule à la fois le message et la génération.
+2. L'image générée s'affiche **dans la même réponse** (clic = ouverture en grand) et est sauvegardée dans `outputs/` ; elle se réaffiche quand la conversation se rouvre.
 3. La génération entre dans le **contexte** : « de quoi on a parlé ? » → l'IA se souvient de l'image créée.
 
 > **Premier lancement :** si aucun backend Stable Diffusion n'est détecté, My_AI **installe automatiquement ComfyUI portable** (Windows/NVIDIA) + un modèle par défaut — rien à configurer. Sur les autres systèmes, ou pour choisir un autre backend (AUTOMATIC1111/Forge), voir [IMAGE_GENERATION.md](IMAGE_GENERATION.md). Désactivable via `config.yaml` → `image_generation.auto_setup: false`.
@@ -158,24 +163,27 @@ Ce qu'il se passe :
 
 ### 🎙️ Saisie Vocale (Voice Mode)
 
-Un bouton micro (🎙) est présent en haut-droite de chaque zone de saisie :
+Un bouton micro est présent dans chaque zone de saisie :
 - **Écran d'accueil** du chat (avant le premier message)
 - **Mode conversation** du chat (pendant une discussion)
-- **Onglet Agents** (zone "Décrivez la tâche...")
+- **Onglet Agents** (zone de tâche)
 
 **Utilisation :**
 
 ```
-1. Clic sur l'icône micro (🎙)
-   → L'icône passe en rouge avec une pulsation = enregistrement en cours.
+1. Clic sur le micro
+   → Un point rouge pulse = enregistrement en cours.
 
 2. Parlez (sans limite de durée raisonnable).
 
-3. Clic sur l'icône (●) à nouveau pour arrêter
-   → L'icône devient ⏳ pendant la transcription (~1-3 s selon la durée).
+3. Clic à nouveau pour arrêter
+   → Un indicateur tourne pendant la transcription (~1-3 s selon la durée).
 
-4. Le texte transcrit s'insère automatiquement au curseur de la zone active.
+4. Le texte transcrit s'insère automatiquement au curseur de la zone de saisie.
 ```
+
+La capture du micro et la transcription restent côté Python : la fenêtre ne fait que
+démarrer, arrêter et afficher l'état.
 
 **Caractéristiques :**
 
@@ -209,8 +217,8 @@ pip install faster-whisper sounddevice
 
 L'IA peut **lire ses réponses à voix haute** :
 
-- **Bouton 🔊** sous chaque réponse (clic = lecture, reclic = stop ; icône ⏹ pendant la lecture)
-- **Toggle « Lecture auto »** dans la sidebar : lit automatiquement chaque nouvelle réponse de l'IA
+- **Bouton « Lire à voix haute »** sous chaque réponse (clic = lecture, reclic = stop ; carré ■ pendant la lecture)
+- **Bouton « Lecture automatique »** en bas de la barre latérale : lit automatiquement chaque nouvelle réponse de l'IA
 
 | Caractéristique | Valeur |
 |---|---|
@@ -233,7 +241,7 @@ Vous> /code un jeu de morpion en Python
 - Naviguez au clavier (↑/↓), validez (Entrée/Tab) ou cliquez ; la saisie devient `/commande `, puis vous tapez votre texte.
 - À l'**envoi**, la commande courte est **expansée** en un prompt détaillé pour le modèle — la bulle de chat garde la commande courte.
 - **Commandes par défaut** : `/code`, `/résume`, `/traduis`, `/explique`, `/corrige`, `/reformule`.
-- **Gérez votre bibliothèque** : sidebar → **📚 Prompts** (créer/éditer/supprimer des templates, avec placeholder `{arguments}`).
+- **Gérez votre bibliothèque** : bouton **Prompts** en bas de la barre latérale (créer/éditer/supprimer des templates, avec placeholder `{arguments}`).
 
 > Disponible aussi sur **mobile** (Relay) et dans l'**extension VS Code**. Détails : [PROMPT_LIBRARY.md](PROMPT_LIBRARY.md).
 
@@ -241,7 +249,7 @@ Vous> /code un jeu de morpion en Python
 
 Attachez un **dossier entier** à votre workspace pour que l'IA le garde en contexte sur **toutes** vos questions :
 
-- **Sidebar → 📁 Dossiers du projet → Attacher un dossier** (ou menu **« + » → 📁 Dossier (codebase)**).
+- **Barre latérale → Dossiers du projet → Attacher un dossier** (ou menu **« + » → Dossier (codebase)**).
 - L'indexation est **incrémentale** et **100% locale** (respecte `.gitignore`, exclut `node_modules`, `.git`, `.venv`…).
 - Posez ensuite vos questions normalement : les passages pertinents sont injectés automatiquement (RAG), et les questions *sur* le dossier (chemin, liste de fichiers) reçoivent une réponse directe.
 - **Réindexer** après modification (seuls les fichiers changés sont retraités) ou **Détacher** pour retirer le contexte.
@@ -251,32 +259,22 @@ Attachez un **dossier entier** à votre workspace pour que l'IA le garde en cont
 ### 🎹 Command palette (Ctrl+K) & raccourcis clavier
 
 - **`Ctrl+K`** ouvre une palette de commandes avec recherche filtrante (nouveau chat, export, Relay, Réglages, Mémoire, Prompts, Aide…).
-- **Raccourcis globaux** : `Ctrl+N` (nouveau chat), `Ctrl+L` (effacer), `Ctrl+S` (sauver), `Ctrl+B` (sidebar), `Ctrl+R` (Relay), `Ctrl+,` (Réglages), `F1` (Aide).
+- **Raccourcis globaux** : `Ctrl+N` (nouvelle conversation), `Ctrl+L` (nouvelle conversation ; l'ancienne reste enregistrée), `Ctrl+S` (enregistrer la session), `Ctrl+B` (barre latérale), `Ctrl+R` (Relay), `Ctrl+,` (Réglages), `F1` (Aide), `Échap` (arrêter la réponse, ou fermer un dialogue ou un menu).
+- Les raccourcis du navigateur (Ctrl+R qui recharge la page, Ctrl+P, F5…) sont neutralisés dans la fenêtre.
 
 ### ✏️ Éditer & regénérer un message
 
-- Sous chaque **message envoyé**, le bouton **« Modifier »** permet de réécrire votre demande puis de **regénérer** la réponse.
-- L'ancienne version est **conservée** : naviguez entre les variantes d'un même tour avec **‹ k/n ›**.
-- Éditer un message en milieu de conversation **remplace l'aval** (branchement façon ChatGPT) — vous êtes prévenu avant.
+- Au survol d'un **message envoyé**, le bouton **« Modifier »** permet de réécrire votre demande puis de **regénérer** la réponse ; au survol d'une **réponse**, **« Régénérer »** en produit une nouvelle variante sans rien modifier.
+- L'ancienne version est **conservée** (réponse, réflexion et documents compris) : naviguez entre les variantes d'un même tour avec **‹ k/n ›**.
+- Éditer un message en milieu de conversation **remplace l'aval** (branchement façon ChatGPT) — vous êtes prévenu avant ; l'aval reste attaché à l'ancienne variante.
 
 ### 🔗 Citations web cliquables
 
 Après une **recherche internet**, les sources sont **numérotées** et l'IA place des marqueurs **`[n]`** dans sa réponse. Cliquez sur un `[n]` (dans le corps ou la liste des sources) pour **ouvrir l'URL d'origine** — sur desktop **et** mobile.
 
-### Commandes Spéciales GUI
-
-Dans la zone de saisie, vous pouvez taper:
-
-```
-aide       # Afficher commandes disponibles
-help       # (English version)
-
-statut     # Afficher état système
-status     # (English version)
-
-quitter    # Fermer application
-exit       # (Alternative)
-```
+> Les commandes `aide`, `statut` et `quitter` n'existent que dans la **CLI** (voir plus bas).
+> Dans la fenêtre : **F1** pour l'aide, l'écran de chargement et les Réglages pour l'état
+> d'Ollama et du modèle.
 
 ---
 
@@ -623,25 +621,25 @@ IA> La version modifiée est enregistrée dans outputs/documents/rapport_modifie
 
 ### Méthodes de Chargement
 
-#### 1. Drag-and-Drop (GUI)
+#### 1. Glisser-déposer (fenêtre)
 ```bash
-# Dans interface GUI:
-# 1. Ouvrir explorateur fichiers
-# 2. Sélectionner fichier (PDF, DOCX, PowerPoint, Excel, CSV, code...)
-# 3. Glisser dans fenêtre GUI
-# 4. Attendre confirmation: "Fichier chargé"
+# Dans la fenêtre :
+# 1. Ouvrir l'explorateur de fichiers
+# 2. Sélectionner un fichier (PDF, DOCX, PowerPoint, Excel, CSV, code...) ou un dossier
+# 3. Le glisser sur la zone de saisie
+# 4. La puce du fichier tourne pendant sa lecture, puis la notification « ✅ … prêt »
 ```
 
-#### 1b. Via le Menu Fichier (GUI)
+#### 1b. Via le menu « + » (fenêtre)
 ```bash
-# Page d'accueil ou page de conversation :
-# Menu déroulant → choisir le type de fichier :
-#   📄  PDF        → sélection .pdf
-#   📝  DOCX       → sélection .docx
-#   📽  PowerPoint → sélection .pptx / .potx
-#   📊  Excel/CSV  → sélection .xlsx / .xls / .csv
-#   💻  Code       → sélection fichier source
-#   🖼️   Image      → sélection .png / .jpg
+# Écran d'accueil ou conversation : menu « + » de la saisie → type de fichier :
+#   PDF               → sélection .pdf
+#   DOCX              → sélection .docx
+#   Excel / CSV       → sélection .xlsx / .xls / .csv
+#   PowerPoint        → sélection .pptx / .potx
+#   Code              → sélection fichier source
+#   Image             → sélection .png / .jpg
+#   Dossier (codebase) → dossier du projet, indexé (voir « Contexte projet »)
 ```
 
 #### 2. Commande CLI
@@ -995,7 +993,7 @@ python main.py --version
 My Personal AI v8.1.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
-- Interfaces: GUI (CustomTkinter), CLI
+- Interfaces: fenêtre (React + pywebview), CLI
 - Python: 3.10+
 ```
 
@@ -1179,7 +1177,7 @@ LOG_LEVEL=INFO
 Vous> statut
 # Voir utilisation contexte
 
-# Clear chat (GUI) OU redémarrer
+# Nouvelle conversation dans la fenêtre (Ctrl+N) OU redémarrer
 python launch_unified.py
 ```
 
@@ -1244,7 +1242,7 @@ context_manager:
 ### Pour Performance
 
 **✅ Faire:**
-- Clear chat régulièrement si mémoire limitée
+- Ouvrir une nouvelle conversation (Ctrl+N) régulièrement si mémoire limitée
 - Utiliser CLI pour machines peu puissantes
 - Activer cache pour requêtes répétées
 
@@ -1313,7 +1311,7 @@ Les fichiers sont sauvegardés dans `outputs/exports/` avec horodatage automatiq
 
 ### 🧠 Base de Connaissances Structurée
 
-Demandez à l'IA de retenir une information : elle l'enregistre comme fait (fenêtre 🧠 Mémoire, onglet Faits) et s'en sert dans les conversations suivantes :
+Demandez à l'IA de retenir une information : elle l'enregistre comme fait (panneau Mémoire, onglet Faits) et s'en sert dans les conversations suivantes :
 
 ```
 Vous : "Retiens que je préfère Python pour les scripts d'automatisation"
@@ -1323,7 +1321,7 @@ Vous : "N'oublie pas que mon manager s'appelle Thomas Dupont"
 → Fait enregistré : [general] mon manager s'appelle Thomas Dupont
 ```
 
-Vous pouvez aussi ajouter, modifier ou supprimer des faits dans la fenêtre 🧠 Mémoire. À chaque réponse, les faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Détails : [MEMORY.md](MEMORY.md).
+Vous pouvez aussi ajouter, modifier ou supprimer des faits dans le panneau Mémoire. À chaque réponse, les faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Détails : [MEMORY.md](MEMORY.md).
 
 ### 💼 Workspaces / Sessions
 
@@ -1365,31 +1363,31 @@ My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS o
 
 #### Démarrage
 
-1. Cliquez sur le bouton **📡 Relay** dans la **barre latérale gauche** de l'interface (visible en permanence, y compris sur l'écran d'accueil)
-2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared, serveo, localhost.run) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics
-3. Un **QR code** s'affiche dans le panneau Relay — scannez-le avec votre téléphone. Le QR pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui ping tous les tunnels et redirige automatiquement vers le premier joignable
+1. Cliquez sur **Relay** en bas de la **barre latérale** (ou **Ctrl+R**, ou la palette Ctrl+K) : le panneau Relay s'ouvre et démarre le Relay s'il ne tourne pas
+2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared, serveo, localhost.run) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics. Le PC vérifie chaque tunnel annoncé : le panneau montre l'état de chacun (« Vérification des tunnels… », « ne répond pas »)
+3. Un **QR code** s'affiche dans le panneau Relay dès qu'un tunnel répond — scannez-le avec votre téléphone. Le QR ne contient que les tunnels joignables et pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui les ping et redirige automatiquement vers le premier joignable
 4. Si un **mot de passe** est configuré (section `relay.password` dans `config.yaml`), entrez-le sur la page de login mobile ; sinon l'accès est direct via le QR code
-5. L'interface mobile s'ouvre sur deux onglets en haut — **💬 Chat** et **🤖 Agents** — qui reprennent la navigation du GUI PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents.
+5. L'interface mobile s'ouvre sur deux onglets en haut — **💬 Chat** et **🤖 Agents** — qui reprennent la navigation de la fenêtre du PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents.
 
 #### Onglet 💬 Chat
 
 ```
-Téléphone                         PC (GUI desktop)
+Téléphone                         PC (service de chat de l'appli)
    │                                     │
    │─── Message via WebSocket ──────────>│
-   │                                     │── Affiché dans le chat GUI
+   │                                     │── Affiché dans la fenêtre (badge « Mobile »), si elle est ouverte
    │                                     │── L'IA répond (streaming)
    │<── Streaming + réponse finale ──────│
 ```
 
-- Le GUI traite le message **exactement comme un message local** (avec streaming, thinking, agents, etc.)
+- L'appli traite le message **exactement comme un message local** (avec streaming, thinking, outils, etc.), **fenêtre ouverte ou non** ; il prend sa place dans la même file d'attente que les messages du PC
 - La réponse est streamée en direct au mobile (token par token), puis finalisée
-- **Bouton Stop** : pendant la génération, le bouton d'envoi se transforme en bouton Stop (carré noir sur fond blanc). Le toucher interrompt la génération en cours — la demande remonte au GUI desktop qui appelle `interrupt_ai()` et renvoie la réponse partielle marquée « interrompue »
-- **Liens cliquables** : la syntaxe Markdown `[titre](url)` ainsi que les URLs nues s'affichent en **bleu souligné cliquable** (ouverture dans un nouvel onglet), comme sur le GUI PC
+- **Bouton Stop** : pendant la génération, le bouton d'envoi se transforme en bouton Stop (carré noir sur fond blanc). Le toucher interrompt la réponse du téléphone (ou retire son message de la file d'attente) et renvoie la réponse partielle marquée « interrompue »
+- **Liens cliquables** : la syntaxe Markdown `[titre](url)` ainsi que les URLs nues s'affichent en **bleu souligné cliquable** (ouverture dans un nouvel onglet), comme sur le PC
 
 #### Onglet 🤖 Agents
 
-L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du GUI desktop**, en version tactile. Tout s'exécute **côté PC** (orchestrateur d'agents + modèle Ollama local) et est streamé au mobile via le même tunnel chiffré — le contenu ne quitte jamais l'enveloppe E2EE.
+L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du PC**, en version tactile. Une exécution lancée du téléphone devient aussi un fil de la page Agents du PC (« Lancé du téléphone »). Tout s'exécute **côté PC** (orchestrateur d'agents + modèle Ollama local) et est streamé au mobile via le même tunnel chiffré — le contenu ne quitte jamais l'enveloppe E2EE.
 
 - **Grille d'agents** — les 9 agents spécialisés (CodeAgent, WebAgent, AnalystAgent, CreativeAgent, DebugAgent, PlannerAgent, SecurityAgent, OptimizerAgent, DataScienceAgent) plus vos agents personnalisés. Touchez une carte pour l'ajouter au workflow.
 - **Agents personnalisés** — bouton **➕ Créer Agent** : saisissez un nom + un rôle, le LLM local génère le *system prompt* (et la température). Modification ✏️ et suppression ✕ depuis la carte. Les agents sont stockés dans le **même `data/custom_agents.json` que le PC** → synchronisés dans les deux sens.
@@ -1399,7 +1397,7 @@ L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du GUI d
 - **Clear Workflow** — vide le canvas.
 - **Pièces jointes** — bouton **+** de la barre d'action (voir ci-dessous) : le contenu des fichiers (ou la description de l'image) est injecté dans la tâche des agents.
 
-> Les workflows/débats s'exécutent **un à la fois** (comme sur le PC). Le mode débat ne prend pas de pièces jointes, conformément au GUI desktop.
+> Les workflows/débats s'exécutent **un à la fois** (comme sur le PC). Le mode débat ne prend pas de pièces jointes, comme sur le PC.
 
 #### 📎 Pièces jointes depuis le mobile
 
@@ -1414,7 +1412,7 @@ Un document **généré** depuis le mobile (« *génère un pdf sur…* ») arri
 Détails techniques :
 
 - L'upload est **streamé** vers un répertoire temporaire (`{tempdir}/my_ai_relay_uploads/`) avec validation d'extension et plafond de **25 Mo** par fichier — l'upload chiffré (`POST /api/upload`) est partagé par le Chat et la page Agents
-- **Sur l'onglet Agents**, le contenu des documents (et la description vision des images) est injecté en fin de tâche sous forme de sections `--- Fichier joint : … ---` avant le lancement du workflow (même logique que `execute_agent_task` du GUI desktop)
+- **Sur l'onglet Agents**, le contenu des documents (et la description vision des images) est injecté en fin de tâche sous forme de sections `--- Fichier joint : … ---` avant le lancement du workflow (même logique que la page Agents du PC, `processors/attachments.py`)
 - Un fichier envoyé sans message (Chat) déclenche une requête par défaut (`"Décris cette image en détail."` ou `"Analyse ce fichier et résume-le."`)
 - Image + documents peuvent être combinés dans un même message ; le premier fichier image est envoyé au modèle vision, les autres rejoignent le contexte
 - Le contexte est garanti **prêt avant** le démarrage de l'inférence (le pipeline document est exécuté de façon synchrone avant l'appel au modèle)
@@ -1424,7 +1422,7 @@ Détails techniques :
 
 ```yaml
 relay:
-  auto_start: false       # true = Relay démarre automatiquement au lancement du GUI
+  auto_start: false       # true = Relay démarre automatiquement au lancement de l'appli
   port: 8765              # Port du serveur local
   response_timeout: 500   # Délai max de réponse IA (secondes)
   password: ""            # Mot de passe (vide = token aléatoire, change à chaque redémarrage)
@@ -1466,11 +1464,11 @@ L'URL et le token sont affichés dans le panneau Relay de l'interface.
 
 ### 🧩 Extension VS Code — Mode agentique
 
-L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code**. Depuis sa **v1.1.0**, elle expose un **mode agentique** : l'extension s'identifie auprès du Relay comme client `vscode`, et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM reste sur le PC hôte ; l'**exécution des outils est déléguée à l'extension**, qui les exécute dans le workspace VS Code de l'utilisateur, sandboxé par défaut. Le mobile et le GUI desktop continuent à utiliser le pipeline classique (avec MCP locaux complets) — strictement inchangés.
+L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code**. Depuis sa **v1.1.0**, elle expose un **mode agentique** : l'extension s'identifie auprès du Relay comme client `vscode`, et le Relay aiguille la conversation vers une boucle de raisonnement dédiée qui appelle Ollama directement avec un prompt système outillé. Le LLM reste sur le PC hôte ; l'**exécution des outils est déléguée à l'extension**, qui les exécute dans le workspace VS Code de l'utilisateur, sandboxé par défaut. Le mobile et la fenêtre desktop continuent à utiliser le pipeline classique (avec MCP locaux complets) — strictement inchangés.
 
 #### Démarrage en 3 étapes
 
-1. **Sur le PC hôte** : démarrez le Relay (bouton 📡 dans la sidebar) → attendez qu'au moins un tunnel soit vert → cliquez sur **🧩 Copier pour l'extension VS Code** dans la popup.
+1. **Sur le PC hôte** : démarrez le Relay (**Relay** en bas de la barre latérale, ou Ctrl+R) → attendez qu'au moins un tunnel réponde → cliquez sur **Copier pour l'extension VS Code** dans le panneau.
 2. **Dans VS Code** : installez l'extension `gonicolas12.my-ai` depuis le Marketplace (Extensions → recherche "My_AI Relay" → Install).
 3. **Connexion** : ouvrez la vue *My_AI Relay* dans la sidebar → cliquez sur **Coller la chaîne de connexion…** → collez la chaîne de l'étape 1.
 
@@ -1497,7 +1495,7 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 #### Sandbox & isolation
 
 - **Limité au workspace par défaut.** Tous les chemins sont résolus relativement au premier dossier workspace ouvert. Toute tentative de sortie déclenche un modal d'approbation par chemin (jamais auto-approuvable).
-- **Aucun accès aux MCP du PC hôte** depuis l'extension. Le mode agentique est **isolé** du pipeline GUI/mobile : l'utilisateur côté VS Code ne voit que son workspace.
+- **Aucun accès aux MCP du PC hôte** depuis l'extension. Le mode agentique est **isolé** du pipeline de la fenêtre et du mobile : l'utilisateur côté VS Code ne voit que son workspace.
 - **Mémoire de session.** Le contexte agentique est conservé pour toute la session WebSocket — *« édite le fichier que tu viens de lire »* fonctionne. Une reconnexion redémarre une session vierge.
 
 #### Exemples typiques
@@ -1525,7 +1523,7 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 
 - La chaîne de connexion contient la clé AES — **traitez-la comme un mot de passe**.
 - Tout transite via le **même tunnel E2EE AES-256-GCM** que le mobile : Cloudflare/serveo/localhost.run ne voient que du ciphertext.
-- Les outils côté extension sont sandboxés au workspace par construction. Le LLM ne peut **pas** atteindre les MCP locaux du PC hôte (auxquels la GUI desktop et le mobile ont accès).
+- Les outils côté extension sont sandboxés au workspace par construction. Le LLM ne peut **pas** atteindre les MCP locaux du PC hôte (auxquels la fenêtre desktop et le mobile ont accès).
 - L'extension est **open source** — code dans [`vscode_extension/`](../vscode_extension/), aucune télémétrie.
 
 > Doc complète : [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) (français) ou [`vscode_extension/README.md`](../vscode_extension/README.md) (anglais). Détails techniques de la boucle agentique côté hôte : [`core/agentic_executor.py`](../core/agentic_executor.py).
@@ -1533,13 +1531,13 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 ### ⚠️ Confirmation de Suppression MCP
 
 Quand l'IA utilise l'outil MCP `delete_local_file` pour supprimer un fichier :
-- Une **fenêtre de confirmation** s'affiche avec le chemin complet du fichier
-- Boutons **"Oui, supprimer"** et **"Non, annuler"** avec thème cohérent
-- La suppression est **bloquée** tant que l'utilisateur n'a pas confirmé
+- Un **dialogue de confirmation** s'affiche dans la fenêtre avec le chemin complet du fichier
+- Boutons **"Oui, supprimer"** et **"Non, annuler"** ; Échap ou fermer le dialogue vaut refus
+- La suppression est **bloquée** tant que l'utilisateur n'a pas confirmé ; sans fenêtre ouverte (message du téléphone), elle est refusée
 
 ### ⭐ Feedback RLHF — Notation 1-5 Étoiles
 
-Après chaque réponse de l'IA dans le chat, une rangée d'étoiles apparaît (☆☆☆☆☆) :
+Sous chaque réponse de l'IA, une rangée d'étoiles (☆☆☆☆☆) apparaît avec les autres actions, au survol (toujours visible sous la dernière réponse) :
 - **Survolez** les étoiles pour un aperçu interactif (remplissage progressif)
 - **Cliquez** sur une étoile pour valider votre note (1 à 5)
 - La note est **automatiquement enregistrée** dans `data/rlhf_feedback.db`
@@ -1550,29 +1548,32 @@ Après chaque réponse de l'IA dans le chat, une rangée d'étoiles apparaît (�
 Dans l'onglet Agents, le canvas visuel propose trois boutons de gestion :
 
 ```
-💾 Sauvegarder → exporte le workflow (nœuds + connexions) dans un fichier .json
-📂 Charger     → importe un workflow depuis un fichier .json
-📤 Export      → exporte les résultats d'exécution en Markdown ou .txt
+Enregistrer → enregistre le workflow (nœuds + liens) dans un fichier .json
+Charger     → restaure un workflow depuis un fichier .json
+Exporter    → fichier Markdown : la tâche, les agents (nom, type, statut), puis la
+              réponse de chacun à la dernière exécution
 ```
 
 **Exemple d'utilisation :**
 ```
 1. Construire un workflow PlannerAgent → CodeAgent → SecurityAgent
-2. Cliquer 💾 Sauvegarder → choisir "mon_workflow.json"
-3. Prochaine session : 📂 Charger → sélectionner "mon_workflow.json"
+2. Cliquer Enregistrer → choisir "mon_workflow.json"
+3. Prochaine session : Charger → sélectionner "mon_workflow.json"
    Le workflow est restauré identiquement, prêt à être exécuté
 ```
 
+Les workflows enregistrés avec l'ancienne interface se rechargent tels quels (même format).
+
 ### 🎭 Mode Débat entre deux agents
 
-Dans l'onglet Agents, le bouton **🎭 Mode Débat** (violet) permet de lancer une **confrontation argumentée** entre deux agents au choix :
+Dans l'onglet Agents, le bouton **Débat** permet de lancer une **confrontation argumentée** entre deux agents au choix :
 
 ```
-1. Cliquer 🎭 Mode Débat
+1. Cliquer Débat
 2. Choisir l'Agent A (proposant) et l'Agent B (opposant) — doivent être différents
 3. Saisir le sujet du débat (ex. "Microservices vs monolithe pour une startup")
 4. Régler le nombre de tours (1 à 10)
-5. Cliquer ▶ Démarrer le débat
+5. Cliquer Démarrer le débat : le débat devient un fil, un tour par section
 ```
 
 Chaque tour s'affiche dans une section colorée distincte de la zone de résultats (`Tour N — NomAgent (rôle)`), avec streaming token par token. Le bouton **■ Stop** interrompt le débat entre deux prises de parole.
@@ -1582,7 +1583,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 ---
 
 **Version:** 8.1.0
-**Interfaces:** GUI (CustomTkinter), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
+**Interfaces:** fenêtre desktop (React + TypeScript, pywebview), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale
 

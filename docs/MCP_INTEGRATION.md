@@ -25,7 +25,7 @@ L'IA a un accès direct encadré à votre PC pour travailler selon ses plans :
 - `search_local_files` : Explore la racine de votre PC par glob pattern (ex: `*.py`).
 - `read_local_file` : Analyse et relit le contenu de n'importe quel de vos fichiers locaux.
 - `delete_local_file` : Supprime un fichier **avec confirmation utilisateur**.
-- `remember_fact` / `search_memory` : enregistre ce que l'utilisateur demande de retenir (onglet Faits de la fenêtre 🧠 Mémoire) et y recherche, avec les documents indexés.
+- `remember_fact` / `search_memory` : enregistre ce que l'utilisateur demande de retenir (onglet Faits du panneau Mémoire) et y recherche, avec les documents indexés.
 - Et bien d'autres outils (recherche web via DuckDuckGo, génération de documents, etc.).
 
 ### 2. Serveurs MCP Externes (MCPServers)

@@ -263,10 +263,11 @@ pas touché). Ils ne sont en revanche pas modifiables par `edit_document`.
 ## 🔗 Chemins cliquables dans le chat
 
 Un chemin de fichier ou de dossier affiché dans une réponse (« Le fichier a
-été créé dans C:\Users\…\rapport.docx ») est rendu **en gras, en bleu,
-souligné et cliquable** ; un clic ouvre son emplacement dans l'explorateur —
-le fichier sélectionné, ou le dossier ouvert. Le bouton 📂 du volet d'aperçu
-ouvre, lui, le document dans son application.
+été créé dans C:\Users\…\rapport.docx ») est rendu **cliquable** (seulement
+s'il existe) ; un clic ouvre son emplacement dans l'explorateur — le fichier
+sélectionné, ou le dossier ouvert —, jamais le fichier lui-même. Le bouton
+**Ouvrir dans son application** du volet d'aperçu ouvre, lui, le document
+produit par l'appli.
 
 La difficulté est de savoir où un chemin s'arrête : ceux de Windows
 contiennent des espaces (« OneDrive - Pierre Fabre SA ») et se fondent dans la
@@ -313,7 +314,7 @@ python -m pytest tests/test_markdown_document.py \
                  tests/test_document_preview.py \
                  tests/test_path_links.py \
                  tests/test_native_preview.py \
-                 tests/test_edge_embed.py -v
+                 tests/test_desktop_native_viewer.py -v
 ```
 
 Génération et lecture **réelles** (pas de mock) : chaque document est écrit puis

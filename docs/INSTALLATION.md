@@ -48,14 +48,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # 4. Vérifier l'installation
-python -c "import customtkinter; print('Installation réussie!')"
+python -c "import webview, fastapi; print('Installation réussie!')"
 ```
 
 ### 3. Installation Ollama (Optionnel mais Recommandé)
 
 Ollama permet d'avoir des réponses générées par un vrai LLM local.
 
-> 💡 **Le plus simple : laissez l'assistant de configuration faire.** Après avoir installé Ollama (Étape 1 ci-dessous), lancez My_AI : au **tout premier démarrage**, un assistant détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande, télécharge et configure** le modèle automatiquement (création de `my_ai` incluse). Les Étapes 2 et 3 ci-dessous ne servent que pour une installation manuelle. Vous pourrez changer de modèle à tout moment via le **panneau ⚙️ Réglages** (sidebar).
+> 💡 **Le plus simple : laissez l'assistant de configuration faire.** Après avoir installé Ollama (Étape 1 ci-dessous), lancez My_AI : au **tout premier démarrage**, un assistant détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande, télécharge et configure** le modèle automatiquement (création de `my_ai` incluse). Les Étapes 2 et 3 ci-dessous ne servent que pour une installation manuelle. Vous pourrez changer de modèle à tout moment via le **panneau Réglages** (en bas de la barre latérale, ou Ctrl+virgule).
 
 **Étape 1 : Installer Ollama**
 ```bash
@@ -118,15 +118,18 @@ ollama run qwen3.5:4b "Bonjour"  # Tester
 .\launch.bat            # Windows
 ./launch.sh             # macOS / Linux
 
-# Lancement GUI direct (recommandé)
+# Lancement direct de la fenêtre (recommandé)
 python launch_unified.py
 
-# OU via main.py
+# OU via main.py (fenêtre seule, avec l'Ollama déjà lancé)
 python main.py --mode gui
 
 # Lancement CLI
 python main.py
 ```
+
+La fenêtre s'ouvre tout de suite sur un écran de chargement qui nomme chaque étape
+(Ollama, modèle `my_ai`, placement, moteur), puis passe au Chat.
 
 ### 5. Mises à jour (`git pull`)
 
@@ -192,13 +195,25 @@ reportlab>=4.0.0         # PDF generation
 > latéral passe par `comtypes`, installé sous Windows avec `pyttsx3` (lecture
 > vocale). Sans lui, ou hors Windows, l'aperçu retombe sur un rendu HTML.
 
-### GUI Interface (Requis pour GUI)
+### Interface graphique (Requis pour la fenêtre)
 ```
-customtkinter>=5.2.0     # Modern UI framework
-tkinterdnd2>=0.3.0       # Drag-and-drop support
+pywebview>=6.2           # Fenêtre native (WebView2 sous Windows, GTK ou Qt ailleurs)
+pythonnet>=3.1           # Pont .NET de pywebview, Windows (3.1 ou plus pour Python 3.14)
+fastapi>=0.100.0         # Serveur local de la fenêtre (127.0.0.1)
+uvicorn>=0.23.0          # Serveur ASGI
 pillow>=10.0.0           # Image processing
-pygments                 # Code syntax highlighting
 ```
+
+> L'interface (React + TypeScript) est livrée **déjà construite** dans `frontend/dist/` :
+> Node n'est pas nécessaire pour lancer l'appli, seulement pour la modifier
+> (`npm install` puis `npm run dev` dans `frontend/`).
+>
+> - **Windows** : la fenêtre utilise WebView2, fourni avec Windows 10 et 11.
+> - **macOS** : WebKit du système, piloté par pyobjc (installé avec pywebview).
+> - **Linux** : GTK (PyGObject et WebKit2GTK) ou Qt (`pip install "pywebview[qt]"`).
+>
+> Sans fenêtre possible (pywebview ou WebView2 absents), l'interface s'ouvre dans le
+> navigateur par défaut.
 
 ### Machine Learning (Requis)
 ```
@@ -249,7 +264,7 @@ pyttsx3>=2.90            # Synthèse vocale locale via le moteur de l'OS
 > pip install -r /tmp/req-sans-tts.txt
 > ```
 >
-> La voix est **choisie selon la langue détectée** de la réponse (via `langdetect`). Utilisation : bouton 🔊 sous chaque message, ou toggle **« Lecture auto »** dans la sidebar.
+> La voix est **choisie selon la langue détectée** de la réponse (via `langdetect`). Utilisation : bouton de lecture sous chaque réponse, ou bouton **« Lecture automatique »** en bas de la barre latérale.
 
 ### Monitoring GPU (Optionnel)
 
@@ -268,7 +283,7 @@ pip install wmi
 
 **Ordre de détection automatique :** NVIDIA (pynvml) → NVIDIA (GPUtil) → AMD (pyamdgpuinfo) → AMD (rocm-smi CLI) → Windows WMI
 
-> **Sans ces packages**, l'application fonctionne normalement. Les métriques GPU et VRAM affichent "N/A" dans l'onglet Statistiques.
+> **Sans ces packages**, l'application fonctionne normalement. GPU et VRAM ne sont simplement pas mesurés dans la page Agents.
 
 ### Modules v7.0.0 (Optionnel — dégradation gracieuse si absents)
 ```
@@ -290,7 +305,7 @@ python-multipart>=0.0.9  # Parsing multipart pour POST /api/upload (pièces join
 
 > **cloudflared** (tunnel HTTPS) est téléchargé automatiquement par My_AI au premier démarrage du Relay. Vous pouvez aussi le placer manuellement dans `tools/cloudflared.exe` (Windows) ou `tools/cloudflared` (Linux/macOS).
 >
-> **Sans ces packages**, le bouton Relay dans le GUI est présent mais désactivé. L'application fonctionne normalement par ailleurs.
+> `fastapi` et `uvicorn` sont aussi requis par la fenêtre de l'appli (son serveur local).
 
 ### Extension VS Code (Optionnel — assistant agentique pour développeurs)
 
@@ -304,7 +319,7 @@ L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'i
 code --install-extension gonicolas12.my-ai
 ```
 
-Puis : démarrez le Relay sur votre PC hôte → cliquez sur **🧩 Copier pour l'extension VS Code** dans la popup → collez la chaîne dans VS Code via la commande *My_AI Relay : Se connecter*. À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay, qui bascule la session en mode agentique.
+Puis : démarrez le Relay sur votre PC hôte (**Relay** en bas de la barre latérale, ou Ctrl+R) → cliquez sur **Copier pour l'extension VS Code** dans le panneau → collez la chaîne dans VS Code via la commande *My_AI Relay : Se connecter*. À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay, qui bascule la session en mode agentique.
 
 > 💡 **Recommandation modèle.** Le mode agentique fonctionne avec n'importe quel modèle Ollama (le format `<tool_use>{...}</tool_use>` est parsé côté hôte sans dépendre de l'API tools native). Pour des refactors multi-fichiers ou du scaffolding de projets, un modèle 4B ou plus (`qwen3.5:4b`, `qwen3.5:7b`...) est recommandé ; les 2B suffisent pour des éditions ponctuelles.
 
@@ -505,28 +520,32 @@ Réponds toujours en français par défaut.
 """
 ```
 
-**Fenêtre de contexte (`num_ctx`)** : 32 768 tokens par défaut, la même valeur dans `config.yaml` (`llm.local.num_ctx`) et dans le `Modelfile` ; le panneau ⚙️ Réglages écrit les deux. Elle coûte peu de mémoire aux modèles qwen3.5 (≈ 0,4 Go pour le 2b, 1 Go pour le 4b et le 9b), deux fois moins quand le lanceur passe le contexte en 8 bits sur une carte graphique trop petite pour tout le modèle. Une fenêtre plus petite (8k, 16k) oblige à résumer la conversation plus tôt ; 64k ne vaut la peine qu'avec une carte graphique confortable et de longs documents.
+**Fenêtre de contexte (`num_ctx`)** : 32 768 tokens par défaut, la même valeur dans `config.yaml` (`llm.local.num_ctx`) et dans le `Modelfile` ; le panneau Réglages écrit les deux. Elle coûte peu de mémoire aux modèles qwen3.5 (≈ 0,4 Go pour le 2b, 1 Go pour le 4b et le 9b), deux fois moins quand le lanceur passe le contexte en 8 bits sur une carte graphique trop petite pour tout le modèle. Une fenêtre plus petite (8k, 16k) oblige à résumer la conversation plus tôt ; 64k ne vaut la peine qu'avec une carte graphique confortable et de longs documents.
 
 ## 🚀 Options de Lancement
 
-### 1. GUI Modern (Recommandé)
+### 1. Fenêtre de l'appli (Recommandé)
 
-Interface graphique moderne avec thème sombre style Claude:
+Interface web (React + TypeScript) dans une fenêtre native, thème sombre inspiré de Claude
+Desktop pour le Chat et de l'app Codex pour les Agents :
 
 ```bash
-# Lancement direct
+# Lancement direct (redémarre Ollama avec le placement retenu)
 python launch_unified.py
 
-# OU via main.py
+# OU via main.py (fenêtre seule, avec l'Ollama déjà lancé)
 python main.py --mode gui
+
+# Développement : interface servie par Vite, rechargement à chaud (Node requis)
+python launch_unified.py --dev
 ```
 
 **Features:**
-- Interface chat moderne
-- Code syntax highlighting
-- Drag-and-drop fichiers
-- Timestamps
-- Commandes help/status intégrées
+- Chat en streaming fluide, réflexion repliable, appels d'outils
+- Markdown complet, code coloré avec bouton Copier, formules
+- Glisser-déposer de fichiers et de dossiers, collage d'images
+- Page Agents : canvas de workflow, fils d'exécution, débat, tâches planifiées
+- Palette de commandes (Ctrl+K), aide (F1), panneaux Réglages, Mémoire, Prompts, Relay
 
 ### 2. CLI Enhanced
 
@@ -613,7 +632,7 @@ ai:
 # Test imports
 python -c "from core.ai_engine import AIEngine; print('Core OK')"
 python -c "from models.custom_ai_model import CustomAIModel; print('Models OK')"
-python -c "from interfaces.gui_modern import ModernAIGUI; print('GUI OK')"
+python -c "from interfaces.desktop.lifecycle import run_desktop; print('Fenêtre OK')"
 
 # Test complet
 python tests/test_imports.py
@@ -653,7 +672,7 @@ python tests/demo_1m_tokens.py
 
 ### Problème: ModuleNotFoundError
 
-**Erreur:** `ModuleNotFoundError: No module named 'customtkinter'`
+**Erreur:** `ModuleNotFoundError: No module named 'webview'`
 
 **Solutions:**
 ```bash
@@ -667,7 +686,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Installer module spécifique
-pip install customtkinter
+pip install pywebview
 ```
 
 ### Problème: Installation interrompue (environnement à moitié vidé)
@@ -705,15 +724,17 @@ rm -rf venv && python3 -m venv venv
 . venv/bin/activate && pip install -r requirements.txt
 ```
 
-### Problème: Tkinter non disponible
+### Problème: l'interface s'ouvre dans le navigateur au lieu de sa fenêtre
 
-**Erreur:** `No module named 'tkinter'` ou `_tkinter`
+**Cause:** pywebview n'a pas pu créer la fenêtre ; la console l'indique
+(« Fenêtre indisponible (pywebview) : interface ouverte dans le navigateur »).
 
 **Solutions:**
-- **Windows:** Réinstaller Python avec option "tcl/tk" cochée
-- **Ubuntu/Debian:** `sudo apt-get install python3-tk`
-- **macOS:** `brew install python-tk`
-- **Fallback:** Utiliser CLI mode → `python main.py --mode cli`
+- **Windows:** vérifier que le runtime WebView2 est installé (il l'est avec Windows 10 et 11 ;
+  sinon, installer « WebView2 Runtime » de Microsoft) ; sous Python 3.14, il faut
+  `pythonnet` 3.1 ou plus (`pip install -U pythonnet`)
+- **Ubuntu/Debian:** `pip install "pywebview[qt]"`, ou `sudo apt install python3-gi gir1.2-webkit2-4.1`
+- **Fallback:** l'interface reste utilisable dans le navigateur ; sinon, mode CLI → `python main.py --mode cli`
 
 ### Problème: PyMuPDF installation failed
 
@@ -864,7 +885,7 @@ python test_installation.py
 pip install -r requirements.txt
 
 # Mettre à jour un package spécifique
-pip install --upgrade customtkinter
+pip install --upgrade pywebview
 ```
 
 > ⚠️ **Évitez `--upgrade` sur tout le fichier.** Sans ce drapeau, pip laisse
@@ -964,27 +985,13 @@ network:
 
 **Note:** La recherche internet est optionnelle. L'IA fonctionne 100% localement sans connexion. Voir [INTERNET_SEARCH.md](INTERNET_SEARCH.md).
 
-## 📱 Interface Web (Future/Expérimental)
-
-Pour l'interface web Streamlit (en développement):
-
-```bash
-# Installer Streamlit
-pip install streamlit>=1.25.0
-
-# Lancer interface web
-streamlit run interfaces/web_interface.py
-```
-
-**Note:** Interface web en cours de développement, CLI et GUI sont recommandées.
-
 ## 🎉 Installation Terminée!
 
 Une fois l'installation complète, vous pouvez:
 
 1. **Lancer l'IA:**
    ```bash
-   python launch_unified.py  # GUI
+   python launch_unified.py  # Fenêtre
    python main.py            # CLI
    ```
 
