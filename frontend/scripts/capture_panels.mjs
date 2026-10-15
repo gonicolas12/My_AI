@@ -357,7 +357,8 @@ if (wanted('prompts')) {
 }
 
 if (wanted('relay')) {
-  // Relay simulé du serveur de démonstration : tunnels à 1,5 s et 4 s, un téléphone à 8 s
+  // Relay simulé du serveur de démonstration : localhost.run annoncé à 1,5 s mais muet
+  // (verdict à 3 s), cloudflared annoncé à 4 s et joignable à 5 s, un téléphone à 8 s
   const origin = new URL(url).origin;
   const token = new URL(url).hash.replace('#token=', '');
   const relayState = async () =>
@@ -381,8 +382,18 @@ if (wanted('relay')) {
     await panel.getByText('Tunnel non prêt').isVisible(),
   );
 
-  await panel.getByText('Tunnels actifs : cloudflare, localhost.run').waitFor({ timeout: 15000 });
+  // Tunnel annoncé mais muet : nommé, et pas de QR code tant qu'aucun ne répond
   const qr = panel.getByRole('img', { name: 'QR code du Relay' });
+  await panel.getByText('localhost.run : ne répond pas').waitFor({ timeout: 10000 });
+  check(
+    'relay : tunnel muet signalé, sans QR code',
+    (await panel.getByText('Vérification des tunnels…').isVisible()) && (await qr.count()) === 0,
+  );
+  await shot('relay_tunnel_muet');
+
+  await panel
+    .getByText('Tunnels actifs : cloudflared', { exact: true })
+    .waitFor({ timeout: 15000 });
   await qr.waitFor({ timeout: 10000 });
   // Le QR code encode l'adresse de la page de routage, celle copiée par « Copier »
   await panel.getByRole('button', { name: 'Copier', exact: true }).click();
@@ -390,6 +401,19 @@ if (wanted('relay')) {
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   const state = await relayState();
   check('relay : « Copier » copie la page de routage', copied === state.url, copied.slice(0, 60));
+  // Seul le tunnel joignable entre dans la page de routage
+  const routed = JSON.parse(
+    Buffer.from(copied.split('#d=')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(),
+  );
+  check(
+    'relay : le QR code ne garde que le tunnel joignable',
+    routed.urls.length === 1 && routed.urls[0].includes('trycloudflare.com'),
+    routed.urls.join(', '),
+  );
+  check(
+    'relay : le tunnel muet reste signalé',
+    await panel.getByText('localhost.run : ne répond pas').isVisible(),
+  );
   check('relay : jeton affiché', await panel.getByText(`Token : ${state.token}`).isVisible());
   await panel.getByText('1 appareil(s) connecté(s)').waitFor({ timeout: 10000 });
   check('relay : appareil connecté', true);

@@ -43,7 +43,8 @@ exacts, sans embeddings) et l'indexation des dossiers projet est simulée. Les
 Réglages et l'assistant travaillent sur un Ollama simulé (modèles, téléchargement,
 création de my_ai) et des réglages en mémoire : ni config.yaml ni Modelfile ne
 changent. Le Relay est simulé : ni serveur ni tunnel, deux tunnels fictifs arrivent
-en quelques secondes, puis un appareil. La Mémoire montre des faits et des documents
+en quelques secondes (le premier ne répond pas, seul le second entre dans le QR
+code), puis un appareil. La Mémoire montre des faits et des documents
 fictifs, en mémoire, et les
 messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
 Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
@@ -823,11 +824,18 @@ def _b64u(data: bytes) -> str:
 
 
 class DemoRelay:
-    """Relay simulé : aucun port ouvert, aucun tunnel réel ; mêmes adresses que RelayServer."""
+    """Relay simulé : aucun port ouvert, aucun tunnel réel ; mêmes adresses que RelayServer.
 
-    # (fournisseur, adresse, secondes avant son arrivée)
-    TUNNELS = (("cloudflare", "https://demo-relais.trycloudflare.com", 1.5),
-               ("localhost.run", "https://demo-relais.lhr.life", 4.0))
+    Comme chez Nicolas le 2026-10-15 : localhost.run s'annonce d'abord mais ne
+    répond pas, cloudflared s'annonce ensuite et répond. Seul ce dernier entre
+    dans le QR code, comme avec la vérification des tunnels de RelayServer
+    (temps raccourcis : le vrai Relay attend 30 s avant de déclarer un tunnel
+    muet, et cloudflared répond une dizaine de secondes après son annonce).
+    """
+
+    # (fournisseur, adresse, secondes avant l'annonce, puis avant le verdict, joignable)
+    TUNNELS = (("localhost.run", "https://demo-relais.lhr.life", 1.5, 3.0, False),
+               ("cloudflared", "https://demo-relais.trycloudflare.com", 4.0, 5.0, True))
     PHONE_AFTER = 8.0
 
     def __init__(self, tunnels=True):
@@ -854,15 +862,24 @@ class DemoRelay:
 
     @property
     def tunnel_urls(self):
-        """Tunnels arrivés."""
+        """Tunnels annoncés."""
         elapsed = time.monotonic() - self.started
-        return {name: url for name, url, delay in self.TUNNELS
-                if self.tunnels and elapsed >= delay}
+        return {name: url for name, url, announced, _verdict, _ok in self.TUNNELS
+                if self.tunnels and elapsed >= announced}
+
+    @property
+    def tunnel_states(self):
+        """Vérification de chaque tunnel annoncé, comme RelayServer.tunnel_states."""
+        elapsed = time.monotonic() - self.started
+        return {name: "checking" if elapsed < verdict else "ok" if ok else "dead"
+                for name, _url, announced, verdict, ok in self.TUNNELS
+                if self.tunnels and elapsed >= announced}
 
     @property
     def relay_url(self):
-        """Page de routage, comme RelayServer.relay_url."""
-        urls = list(self.tunnel_urls.values())
+        """Page de routage, comme RelayServer.relay_url : tunnels joignables seulement."""
+        states = self.tunnel_states
+        urls = [url for name, url in self.tunnel_urls.items() if states.get(name) == "ok"]
         if not urls:
             return None
         payload = json.dumps({"urls": urls, "token": self.auth_token, "key": _b64u(self.key)})
