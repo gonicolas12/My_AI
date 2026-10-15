@@ -19,3 +19,11 @@ export function setChatSnapshot(snapshot: ConversationSnapshot): void {
 export function resetChat(): void {
   useChat.setState(initialChatState, true);
 }
+
+/** Demandes de retour en bas du fil : un message envoyé, modifié ou régénéré d'ici */
+export const useFollow = create<{ requests: number }>()(() => ({ requests: 0 }));
+
+/** Le fil revient en bas et suit la réponse à venir (_scroll_to_bottom_for_new_turn de Tk) */
+export function followNewTurn(): void {
+  useFollow.setState((state) => ({ requests: state.requests + 1 }));
+}

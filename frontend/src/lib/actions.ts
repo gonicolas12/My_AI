@@ -5,6 +5,7 @@
  */
 
 import { notify, useApp } from '../stores/app';
+import { followNewTurn } from '../stores/chat';
 import { api, type ExportFormat } from './api';
 import { baseName } from './artifacts';
 import type { ClientMessage } from './events';
@@ -45,29 +46,37 @@ async function attempt<T>(action: () => Promise<T>, level: 'warning' | 'error' =
   }
 }
 
+/** Un nouveau tour part d'ici : le fil revient en bas et suit sa réponse (Tk) */
+function sent(result: unknown): boolean {
+  if (result === undefined) return false;
+  followNewTurn();
+  return true;
+}
+
 export async function sendMessage(text: string): Promise<boolean> {
-  const result = await attempt(() =>
-    viaSocket({ type: 'chat.send', text }, () => api.send({ text })),
+  return sent(
+    await attempt(() => viaSocket({ type: 'chat.send', text }, () => api.send({ text }))),
   );
-  return result !== undefined;
 }
 
 /** Nouvelle variante d'un tour : le message modifié, puis une nouvelle réponse */
 export async function editMessage(mid: string, text: string): Promise<boolean> {
-  const result = await attempt(() =>
-    viaSocket({ type: 'chat.send', text, edit_mid: mid }, () => api.editMessage(mid, text)),
+  return sent(
+    await attempt(() =>
+      viaSocket({ type: 'chat.send', text, edit_mid: mid }, () => api.editMessage(mid, text)),
+    ),
   );
-  return result !== undefined;
 }
 
 /** Régénère la réponse d'un tour (D5) : nouvelle variante ‹ k/n › du même message */
 export async function regenerateAnswer(userMid: string): Promise<boolean> {
-  const result = await attempt(() =>
-    viaSocket({ type: 'chat.send', text: '', edit_mid: userMid, regenerate: true }, () =>
-      api.regenerate(userMid),
+  return sent(
+    await attempt(() =>
+      viaSocket({ type: 'chat.send', text: '', edit_mid: userMid, regenerate: true }, () =>
+        api.regenerate(userMid),
+      ),
     ),
   );
-  return result !== undefined;
 }
 
 export async function stopGeneration(): Promise<void> {

@@ -1,7 +1,9 @@
 /*
  * Fil de messages : liste virtualisée (react-virtuoso), colonne de lecture
  * centrée. Le défilement reste collé en bas pendant une réponse, sauf si
- * l'utilisateur est remonté : le bouton « ↓ » le ramène alors en bas.
+ * l'utilisateur est remonté : le bouton « ↓ » le ramène alors en bas. Un
+ * message envoyé d'ici (ou modifié, ou régénéré) ramène aussi en bas, comme
+ * dans Tk ; un message du téléphone ne déplace pas un lecteur remonté.
  */
 
 import { ArrowDown } from 'lucide-react';
@@ -10,7 +12,7 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 import type { MessageView } from '../../lib/events';
 import { clearHighlight, findResultMessage, highlightElement } from '../../lib/highlight';
-import { useChat } from '../../stores/chat';
+import { useChat, useFollow } from '../../stores/chat';
 import { clearHighlightTarget, type HighlightTarget, useHighlight } from '../../stores/highlight';
 import { isGenerating, type LiveTurn, type PendingTurn } from '../../stores/chatReducer';
 import { AssistantMessage } from './AssistantMessage';
@@ -112,6 +114,16 @@ export function Thread() {
     stick.current = true;
     virtuoso.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'smooth' });
   };
+
+  // Nouveau tour parti d'ici : retour en bas, et suivi de la réponse à venir
+  const followRequests = useFollow((state) => state.requests);
+  const seenRequests = useRef(followRequests);
+  useEffect(() => {
+    if (followRequests === seenRequests.current) return;
+    seenRequests.current = followRequests;
+    stick.current = true;
+    virtuoso.current?.scrollToIndex({ index: 'LAST', align: 'end' });
+  }, [followRequests]);
 
   return (
     // Comme une sélection à la souris : le surlignage disparaît au clic
