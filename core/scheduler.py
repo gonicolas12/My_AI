@@ -10,7 +10,7 @@ Principes de conception :
 
   - **Ne réimplémente PAS l'exécution.** Le scheduler délègue à
     ``relay.agent_relay.AgentRelayService`` — déjà un exécuteur *headless*
-    (sans GUI Tkinter) qui sait lancer ``run_workflow`` / ``run_debate`` et
+    (sans interface graphique) qui sait lancer ``run_workflow`` / ``run_debate`` et
     streame ses résultats via un callback ``emit(event)``. Le scheduler se
     contente de **collecter** ces events en un résultat final.
 
@@ -802,7 +802,8 @@ class SchedulerService:
         if self.notify_desktop:
             icon = "✅" if status == "success" else "⚠️"
             title = f"{icon} Tâche planifiée : {name}"
-            os_shown = self._notify_desktop(title, (summary or status_text)[:220])
+            # Texte brut, coupé sur un mot : notify_desktop s'en charge
+            os_shown = self._notify_desktop(title, summary or status_text)
 
         result = {
             "type": "scheduled_task_result",

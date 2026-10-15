@@ -34,6 +34,7 @@ from interfaces.desktop.resources import ResourcesService
 from interfaces.desktop.schedule import ScheduleService
 from interfaces.desktop.server import DesktopServer
 from interfaces.desktop.settings import SettingsService
+from utils.desktop_notify import plain_text
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopApp")
@@ -52,6 +53,9 @@ DEV_BACKEND_PORT = 5180
 # État de l'interface retenu d'un lancement à l'autre, avec sa valeur par défaut
 # (volet d'aperçu : 560 px, comme dans Tk)
 UI_DEFAULTS: Dict[str, Any] = {"sidebar_open": False, "preview_width": 560}
+
+# Résumé du toast de fin de tâche planifiée : 160 caractères (_show_scheduled_toast de Tk)
+TOAST_SUMMARY_LIMIT = 160
 
 
 class DesktopState:
@@ -478,13 +482,16 @@ class DesktopApp:
         self.bus.publish("files.dropped", {"paths": [str(path) for path in paths]})
 
     def _on_scheduled_result(self, result: Dict[str, Any]) -> None:
-        """Fin d'une tâche planifiée (fil du scheduler) : toast, fil et liste des tâches."""
+        """Fin d'une tâche planifiée (fil du scheduler) : toast, fil et liste des tâches.
+
+        Le toast montre le résumé en texte brut (D47), comme la notification du système.
+        """
         self.bus.publish("scheduler.result", {
             "task_id": result.get("task_id"),
             "name": result.get("name") or "",
             "status": result.get("status") or "",
             "status_text": result.get("status_text") or "",
-            "summary": result.get("summary") or "",
+            "summary": plain_text(result.get("summary") or "", TOAST_SUMMARY_LIMIT),
             "output_file": result.get("output_file"),
             "finished_at": result.get("finished_at"),
             "os_toast_shown": bool(result.get("os_toast_shown")),

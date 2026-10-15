@@ -246,6 +246,23 @@ def test_shutdown_stops_the_server(started):
     app.shutdown()  # sans effet la seconde fois
 
 
+def test_scheduled_toast_shows_the_summary_as_plain_text(tmp_path):
+    """Comme la notification du système (D47) : texte brut, 160 caractères (Tk)."""
+    app = DesktopApp(None, headless=True, state=DesktopState(tmp_path / "state.json"))
+    events = []
+    app.bus.subscribe(events.append)
+    summary = "# Veille du matin\n\n**Trois articles** retenus : " + "un article utile, " * 20
+    app._on_scheduled_result({  # pylint: disable=protected-access
+        "task_id": "sched_1", "name": "Veille", "status": "success",
+        "status_text": "✅ Workflow terminé", "summary": summary,
+        "output_file": None, "finished_at": "2026-10-15T08:00:00", "os_toast_shown": False,
+    })
+    payload = next(e["payload"] for e in events if e["type"] == "scheduler.result")
+    assert payload["summary"].startswith("Veille du matin\nTrois articles retenus : un article")
+    assert len(payload["summary"]) <= lifecycle.TOAST_SUMMARY_LIMIT
+    assert payload["summary"].endswith("…") and "#" not in payload["summary"]
+
+
 def test_desktop_state_survives_a_broken_file(tmp_path):
     path = tmp_path / ".desktop_state.json"
     path.write_text("{pas du json", encoding="utf-8")

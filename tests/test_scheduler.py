@@ -21,9 +21,10 @@ from core.scheduler import SchedulerService, _CRONITER_AVAILABLE
 class FakeExecutor:
     """Imite AgentRelayService : run_workflow / run_debate + propriété busy."""
 
-    def __init__(self, busy=False, fail=False):
+    def __init__(self, busy=False, fail=False, text="Résultat de la tâche planifiée."):
         self.busy = busy
         self.fail = fail
+        self.text = text
         self.calls = []
         self.interrupted = []
 
@@ -34,7 +35,7 @@ class FakeExecutor:
         emit({"type": "agent_section_start", "exec_id": exec_id,
               "section_id": "n1", "title": "WebAgent", "color": "#10b981"})
         emit({"type": "agent_section_chunk", "exec_id": exec_id,
-              "section_id": "n1", "text": "Résultat de la tâche planifiée."})
+              "section_id": "n1", "text": self.text})
         emit({"type": "agent_section_end", "exec_id": exec_id,
               "section_id": "n1", "success": not self.fail})
         emit({"type": "agent_exec_end", "exec_id": exec_id,
@@ -229,6 +230,28 @@ class TestFire:
         svc._fire(svc.get_task(task["id"]))
         assert executor.calls[0][0] == "debate"
         assert svc.get_task(task["id"])["last_status"] == "success"
+
+    def test_desktop_notification_gets_the_whole_summary(self, tmp_path, monkeypatch):
+        """Le résumé part entier : notify_desktop le réduit au texte brut, coupé sur un mot (D47)."""
+        sent = []
+        monkeypatch.setattr(SchedulerService, "_notify_desktop",
+                            staticmethod(lambda title, message: bool(sent.append((title, message)))))
+        report = "# Analyse\n\n" + "Une phrase de résultat assez longue. " * 12
+        svc = _make_service(tmp_path, executor=FakeExecutor(text=report), notify_desktop=True)
+        results = []
+        svc.add_listener(results.append)
+        task = svc.create_task(
+            name="Veille", kind="workflow", task="Résume",
+            schedule={"type": "interval", "seconds": 3600}, nodes=_WF_NODE,
+        )
+        svc._fire(svc.get_task(task["id"]))
+
+        (title, message), = sent
+        assert title == "✅ Tâche planifiée : Veille"
+        # Plus de coupe brute à 220 caractères avant notify_desktop
+        assert message == results[0]["summary"] and len(message) > 220
+        assert message.startswith("# Analyse")
+        assert results[0]["os_toast_shown"] is False
 
     def test_fire_failure_status(self, tmp_path):
         svc = _make_service(tmp_path, executor=FakeExecutor(fail=True))
