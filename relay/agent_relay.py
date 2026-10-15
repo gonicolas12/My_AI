@@ -798,6 +798,10 @@ class AgentRelayService:
             def finish_current(success=True):
                 nonlocal cur_sid, cur_text, cur_last
                 if cur_sid is not None:
+                    # Texte final du tour : la cadence (60 ms) a pu retenir ses
+                    # derniers fragments, comme pour un agent d'un workflow
+                    emit({"type": "agent_section_chunk", "exec_id": exec_id,
+                          "section_id": cur_sid, "text": cur_text})
                     emit({"type": "agent_section_end", "exec_id": exec_id,
                           "section_id": cur_sid, "success": success})
                     cur_sid = None
@@ -838,10 +842,7 @@ class AgentRelayService:
                 on_should_stop=lambda: self._interrupted(exec_id),
             )
 
-            # Flush + clôture de la dernière section.
-            if cur_sid is not None:
-                emit({"type": "agent_section_chunk", "exec_id": exec_id,
-                      "section_id": cur_sid, "text": cur_text})
+            # Clôture de la dernière section (texte final compris)
             finish_current(not self._interrupted(exec_id))
 
             interrupted = self._interrupted(exec_id)
