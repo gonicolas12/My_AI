@@ -2476,6 +2476,12 @@ propre exécuteur, dans son processus.
 - Tests : pytest 1137 (`my_ai` déchargé après), Vitest 168.
 - `frontend/package-lock.json` : 66 lignes ajoutées par npm (dépendances embarquées de
   `@tailwindcss/oxide-wasm32-wasi`), sans rapport avec la version : non commitées.
+- README relu ensuite, à la demande de Nicolas : la fenêtre y était décrite (phase 5), pas
+  tout ce qui précède. Ajoutés : placement automatique et fenêtre de contexte unique,
+  « Retiens que… », PDF scannés, dépendances d'un `git pull`, tunnels vérifiés du Relay.
+  Corrigés : le résumé glissant (« dès 24k tokens », c'est la moitié de la fenêtre),
+  l'arborescence (`utils/ollama_placement.py` et trois fichiers de `tools/` manquaient). Les
+  captures restent celles de Tk (D52).
 
 ---
 
