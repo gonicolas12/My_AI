@@ -111,8 +111,9 @@ phase 2).
   par Nicolas. **Recette faite avec Nicolas le 2026-10-15** (D51) : étapes 1 à 4 réussies
   (défilement à l'envoi, voix, aperçu Word, notification d'une tâche planifiée) ; les étapes
   5 à 7 (« Exécuter même l'appli fermée », `main.py --mode gui`, `launch.bat`), il les fera
-  plus tard. Sa remarque, des infobulles qui restaient affichées, est corrigée (écart 26 ;
-  Vitest 168). **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
+  plus tard. Sa remarque, des infobulles qui restaient affichées, est corrigée en deux
+  temps (écart 26 : la vraie cause était le mouvement réduit, les animations de Windows étant
+  coupées sur ce PC) ; à revoir dans la vraie fenêtre. **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
   accord (texte proposé pour le CHANGELOG en section 18). Rien n'est fusionné.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
@@ -673,14 +674,24 @@ de ce PC, 125 %, 150 %, deux écrans, le PC Arc, macOS et Linux.
     (« Interface web (optionnel) »), qu'aucun module n'importe, et `docs/INSTALLATION.md`
     décrivait une interface Streamlit, `interfaces/web_interface.py`, absente du dépôt. La
     section de la documentation est retirée, puis le paquet (D48).
-26. **Infobulles restées affichées** (constaté à la recette de la phase 5, remarque de
-    Nicolas) : sur Relay, Mémoire, Lire à voix haute… l'infobulle restait affichée, souris
-    partie. Radix ouvre une infobulle quand son bouton reçoit le focus et ne la ferme alors
-    qu'à la perte du focus ; or la fenêtre, quand elle redevient active, rend le focus au
-    dernier bouton cliqué, sans survol (elle a perdu puis repris le focus 16 fois pendant
-    l'essai). Corrigé dans `Tooltip.tsx` : le focus n'ouvre plus l'infobulle qu'en
-    navigation au clavier (Tab), et une infobulle ouverte se ferme quand la fenêtre perd le
-    focus. Le survol ne change pas.
+26. **Infobulles restées affichées** (constaté à la recette de la phase 5 ; remarque de
+    Nicolas, puis ses captures après un premier correctif) : l'infobulle restait affichée,
+    souris partie, et plusieurs s'accumulaient (« Copier » et « Lire à voix haute » ;
+    « Mémoire », « Prompts » et « Exporter la conversation »). Cause : les animations de
+    Windows sont coupées sur ce PC ; la fenêtre est donc en mouvement réduit, où
+    `--motion-fast` vaut 0 ms. Radix pose le fondu de l'infobulle une fois celle-ci placée,
+    et un fondu de 0 ms posé ainsi ne déclenche aucun événement d'animation dans Chromium ;
+    or Radix (`Presence`) attend la fin de cette animation pour retirer l'infobulle fermée.
+    Elle restait donc affichée, fermée (`data-state="closed"`), et ni le départ de la souris
+    ni une autre infobulle ne la retiraient. Corrigé : le fondu des infobulles et des menus
+    passe par la classe `.fade-in-fast` de `index.css`, coupée en mouvement réduit ;
+    `tooltips.mjs --mouvement-reduit` le vérifie (ancien code : jusqu'à 4 infobulles
+    restantes ; aucune désormais). Le menu Exporter se fermait bien, même en mouvement
+    réduit : les menus prennent la même classe par précaution. Le premier correctif ne
+    visait qu'une cause secondaire, gardée : la fenêtre, quand elle redevient active, rend
+    le focus au dernier bouton cliqué, et Radix ouvrait son infobulle sans survol (16 retours
+    du focus pendant l'essai) ; le focus ne l'ouvre plus qu'en navigation au clavier (Tab),
+    et une infobulle ouverte se ferme quand la fenêtre perd le focus.
 
 ## 8. Décisions
 
@@ -2424,6 +2435,18 @@ propre exécuteur, dans son processus.
   cas, aucune infobulle restante). Vitest 168, TypeScript, ESLint et Prettier sans erreur ;
   Playwright 76/76, 46/46 et 27/27 sur un serveur de démonstration neuf.
 - Streamlit retiré (D48, `27e9602`).
+- **Infobulles, suite** (même jour, après le suivi `5ec00ad`) : Nicolas en voit encore
+  plusieurs restées affichées (captures : « Copier » et « Lire à voix haute » ; « Mémoire »,
+  « Prompts » et « Exporter la conversation ») ; le premier correctif ne visait qu'une cause
+  secondaire. Animations de Windows coupées sur ce PC (`SPI_GETCLIENTAREAANIMATION` faux),
+  donc mouvement réduit dans la fenêtre. Reproduit dans Chromium, en mouvement réduit
+  seulement : les infobulles quittées restent dans la page, fermées, avec leur fondu de 0 ms
+  et sans aucun événement d'animation (écart 26). Corrigé (`f64d2d3`, build `256edc6`) :
+  classe `.fade-in-fast`, coupée en mouvement réduit, pour les infobulles et les menus ;
+  option `--mouvement-reduit` de `tooltips.mjs` (ancien code : les infobulles restantes
+  s'accumulent d'un cas à l'autre, jusqu'à 4 ; nouveau code : aucune, avec ou sans mouvement
+  réduit, et le fondu gardé sans). Vitest 168, ESLint et Prettier sans erreur ; Playwright 27/27, 46/46 et 76/76. Pas
+  encore vu dans la vraie fenêtre.
 
 ---
 
@@ -2823,7 +2846,7 @@ aussi) ; scripts et raccourcis de Nicolas qui lancent encore `gui_modern` ; espa
   Streamlit d'INSTALLATION.md retirée (écart 25).
 - Étape 7 : recette manuelle faite avec Nicolas le 2026-10-15 (D51), sauf « Exécuter même
   l'appli fermée », `main.py --mode gui` et `launch.bat`, qu'il fera plus tard ; sa remarque
-  sur les infobulles est corrigée (écart 26).
+  sur les infobulles est corrigée (écart 26), à revoir dans la vraie fenêtre.
 
 Captures de `docs/images/` à refaire (elles montrent l'interface Tk ; Nicolas les refait, D52) :
 
