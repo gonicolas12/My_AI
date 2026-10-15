@@ -139,11 +139,16 @@ export interface NotificationPayload {
   message: string;
 }
 
+/** Tunnel vu de ce PC : pas encore vérifié, joignable (dans le QR code) ou muet */
+export type TunnelState = 'checking' | 'ok' | 'dead';
+
 export interface RelayStatus {
   running: boolean;
   port: number | null;
   clients: number;
   tunnels: Record<string, string>;
+  tunnel_states?: Record<string, TunnelState>;
+  /** Page de routage (QR code) : tunnels joignables seulement ; null tant qu'aucun ne répond */
   url: string | null;
   local_url: string | null;
   /** Jeton d'accès (affiché dans le panneau) */

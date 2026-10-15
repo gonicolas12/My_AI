@@ -1,10 +1,10 @@
 /*
  * My_AI Relay (_show_relay_info_popup de Tk) : accès depuis le téléphone.
  * L'ouverture démarre le Relay s'il ne tourne pas (_toggle_relay, qui ne
- * l'arrête jamais). Le panneau montre l'état des tunnels, le QR code de la
- * page de routage (dessiné une fois la liste des tunnels stable), l'adresse à
- * copier, le jeton et les appareils connectés ; « Arrêter le Relay » l'arrête
- * et ferme le panneau.
+ * l'arrête jamais). Le panneau montre l'état des tunnels (vérifiés depuis ce
+ * PC : tunnels.ts), le QR code de la page de routage (tunnels joignables,
+ * dessiné une fois la liste stable), l'adresse à copier, le jeton et les
+ * appareils connectés ; « Arrêter le Relay » l'arrête et ferme le panneau.
  */
 
 import {
@@ -17,6 +17,7 @@ import {
   Puzzle,
   Radio,
   Smartphone,
+  TriangleAlert,
 } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 
@@ -26,6 +27,7 @@ import type { RelayStatus } from '../../../lib/events';
 import { notify, useApp } from '../../../stores/app';
 import { closePanel } from '../../../stores/panels';
 import { PanelDialog } from '../PanelDialog';
+import { tunnelView } from './tunnels';
 
 /**
  * Liste des tunnels stable pendant ce délai avant de dessiner le QR code (Tk :
@@ -98,8 +100,8 @@ function useFlash(): [string, (label: string, ms: number) => void] {
 }
 
 function Running({ relay }: { relay: RelayStatus }) {
-  const tunnels = Object.keys(relay.tunnels).sort();
-  const ready = Boolean(relay.url) && tunnels.length > 0;
+  const view = tunnelView(relay);
+  const { ready } = view;
   const target = ready ? relay.url : null;
   const current = (ready ? relay.url : relay.local_url) ?? '';
   const [qr, setQr] = useState<{ url: string; rows: string[] } | null>(null);
@@ -136,17 +138,35 @@ function Running({ relay }: { relay: RelayStatus }) {
     copy(relay.url, () => flashVscode('Copié — collez dans VS Code', 2500));
   };
 
+  const statusIcon = view.busy ? (
+    <LoaderCircle size={15} className="spin shrink-0" />
+  ) : view.tone === 'success' ? (
+    <CircleCheck size={15} className="shrink-0" />
+  ) : (
+    <TriangleAlert size={15} className="shrink-0" />
+  );
+
   return (
     <div className="flex flex-col items-center gap-4">
-      {ready ? (
-        <p className="flex items-center gap-2 text-sm text-success" role="status">
-          <CircleCheck size={15} /> Tunnels actifs : {tunnels.join(', ')}
+      <div className="flex flex-col items-center gap-1">
+        <p
+          className={`flex items-center gap-2 text-center text-sm ${
+            view.tone === 'success' ? 'text-success' : 'text-warning'
+          }`}
+          role="status"
+        >
+          {statusIcon} {view.status}
         </p>
-      ) : (
-        <p className="flex items-center gap-2 text-sm text-warning" role="status">
-          <LoaderCircle size={15} className="spin" /> Tunnels en cours de connexion…
-        </p>
-      )}
+        {view.others.length ? (
+          <ul className="flex flex-wrap justify-center gap-x-3 text-xs text-fg-3">
+            {view.others.map((tunnel) => (
+              <li key={tunnel.name}>
+                {tunnel.name} : {tunnel.label}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
       <div
         className="flex items-center justify-center rounded-lg border border-line bg-bg"
         style={{ width: QR_SIZE + 24, height: QR_SIZE + 24 }}

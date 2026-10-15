@@ -62,7 +62,9 @@ class RelayStatus(_Payload):
     port: Optional[int] = None
     clients: int = 0
     tunnels: Dict[str, str] = Field(default_factory=dict)
-    url: Optional[str] = None  # page de routage (QR code), None sans tunnel
+    # Tunnel vu de ce PC : « checking », « ok » (dans le QR code) ou « dead »
+    tunnel_states: Dict[str, str] = Field(default_factory=dict)
+    url: Optional[str] = None  # page de routage (QR code), None sans tunnel joignable
     local_url: Optional[str] = None  # adresse sur ce PC, clé de chiffrement comprise
     token: Optional[str] = None  # jeton d'accès, affiché dans le panneau
 

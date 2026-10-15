@@ -543,16 +543,19 @@ class DesktopApp:
         relay = self.relay
         if relay is None or not relay.is_running():
             return {"running": False, "port": None, "clients": 0, "tunnels": {},
-                    "url": None, "local_url": None, "token": None}
+                    "tunnel_states": {}, "url": None, "local_url": None, "token": None}
         try:
             tunnels = dict(relay.tunnel_urls)
+            # Vérifiés depuis ce PC : seuls les joignables entrent dans le QR code
+            states = dict(relay.tunnel_states)
         except Exception:  # pylint: disable=broad-except
-            tunnels = {}
+            tunnels, states = {}, {}
         return {
             "running": True,
             "port": relay.port,
             "clients": relay.bridge.connected_clients,
             "tunnels": tunnels,
+            "tunnel_states": states,
             "url": relay.relay_url,
             "local_url": relay.local_url,
             "token": relay.auth_token,
