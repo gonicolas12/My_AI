@@ -85,6 +85,14 @@ phase 2).
   final des tours d'un débat, moniteur aveugle au « llama-server » d'Ollama 0.40. Agents en
   parallèle : D39. Questions de la phase 4b en section 9, dont les essais avec Nicolas ; plan de
   la phase 5 en section 18, en attente du feu vert.
+- Questions de la phase 4b tranchées le 2026-10-15 (décisions D40 à D46, section 8) et
+  appliquées : essai de Nicolas dans la vraie appli réussi (débat, moniteur, notification de fin,
+  tâche planifiée lancée par ▶ avec son fil et son rapport, exécution lancée du téléphone). Ses
+  deux remarques : aucun bandeau de notification de Windows (« Ne pas déranger » était actif ; les
+  notifications sont arrivées dans le centre de notifications) ; le premier QR code du Relay ne
+  menait nulle part (tunnel localhost.run annoncé mais muet). Le Relay ne met plus dans le QR code
+  que les tunnels qui répondent au PC, et le panneau montre l'état de chacun (D45, écart 22).
+  **Phase 5 : feu vert**, à démarrer dans une nouvelle conversation (D46, plan en section 18).
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -217,8 +225,9 @@ Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre p
 `frontend/scripts/window_system.mjs`, journal). Restent :
 
 - une vraie dictée à la voix : faite par Nicolas le 2026-10-14 (D28) ;
-- la fin d'une vraie tâche planifiée (notification du système ou toast) : possible depuis la
-  phase 4b (▶ d'une tâche planifiée), à essayer avec Nicolas (question 45) ;
+- la fin d'une vraie tâche planifiée (notification du système ou toast) : faite avec Nicolas le
+  2026-10-15 (▶ d'une tâche planifiée) ; la notification est arrivée à Windows, rangée sans
+  bandeau (« Ne pas déranger » actif sur ce PC, D44) ;
 - un message du téléphone (badge « Mobile ») et le QR code scanné par un vrai téléphone : faits
   avec Nicolas le 2026-10-14 (D27) ;
 - les raccourcis de la phase 3b au vrai clavier (Ctrl+K, Ctrl+virgule, F1, Ctrl+R) : `win.py keys`
@@ -234,18 +243,20 @@ journal) :
 - le micro, une capture collée (Ctrl+V) et un fichier déposé depuis l'Explorateur dans la zone de
   tâche.
 
-Essais de la phase 4b à faire avec Nicolas (question 45) ; le débat, le moniteur et les tokens/s
-ont été vérifiés sur le vrai Ollama, sans fenêtre (journal) :
+Essais de la phase 4b avec Nicolas (question 45) : faits le 2026-10-15 dans la vraie appli (D44,
+journal, après la phase 4b) :
 
 - un débat dans la vraie fenêtre ;
-- une tâche planifiée lancée par ▶ : son fil, son rapport, la notification de Windows (le
-  scheduler la montre lui-même, comme dans Tk) ;
-- la fin d'un fil de plus de 8 s, fenêtre en arrière-plan : la notification de Windows, et
-  aucune quand la fenêtre est au premier plan ;
-- « Exécuter même l'appli fermée » : crée une vraie tâche dans le Planificateur de tâches de
-  Windows (`My_AI Scheduler`), à désactiver ensuite ;
-- le moniteur de ressources sur la vraie carte, pendant une exécution ;
-- une exécution lancée du téléphone : son fil « Lancé du téléphone » dans la page.
+- une tâche planifiée lancée par ▶ : son fil, son rapport, sa notification (reçue par Windows) ;
+- la fin d'un fil de plus de 8 s, fenêtre en arrière-plan : notification reçue par Windows ; aucune
+  pour le débat, fini fenêtre au premier plan ;
+- le moniteur de ressources sur la vraie carte, pendant le débat ;
+- une exécution lancée du téléphone : son fil « (mobile) », arrêtée du téléphone.
+
+Restent : le bandeau des notifications (« Ne pas déranger » était actif ; elles sont arrivées dans
+le centre de notifications) ; « Exécuter même l'appli fermée » décoché puis recoché (la case
+s'affichait cochée : la tâche Windows `My_AI Scheduler` existait déjà) ; le bouton Arrêter du fil
+d'une exécution du téléphone (arrêtée du téléphone pendant l'essai).
 
 ## 3. Tests de référence (phase 0)
 
@@ -502,9 +513,10 @@ phase 4a (D38). Restent à voir :
 
 - **Visionneuses Office** : vérifiées à 100 % sur un écran ; 125 %, 150 % et deux écrans restent
   à voir (section 2).
-- **Phase 4b dans la vraie appli** : débat, tâches planifiées et leur notification du système,
-  notification de fin d'un fil long, « Exécuter même l'appli fermée », moniteur sur la vraie
-  carte, exécution lancée du téléphone (section 2, question 45).
+- **Phase 4b dans la vraie appli** : essayée avec Nicolas le 2026-10-15 (D44). Restent le
+  bandeau des notifications (« Ne pas déranger » actif pendant l'essai), « Exécuter même l'appli
+  fermée » décoché puis recoché, et le bouton Arrêter du fil d'une exécution du téléphone
+  (section 2).
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -583,6 +595,25 @@ phase 4a (D38). Restent à voir :
     llama-server », lancé par Ollama : CPU et RAM du modèle échappaient au moniteur, dans Tk comme
     dans la fenêtre (58 Mo au lieu de 1,76 Go). Corrigé dans `interfaces/resource_monitor.py` :
     les processus lancés par Ollama comptent aussi.
+22. **Tunnels du Relay** (constaté le 2026-10-15, à l'essai avec Nicolas) : le Relay mettait dans
+    le QR code toute adresse annoncée par un tunnel, sans vérifier qu'elle répondait, et gardait
+    la première adresse de chaque tunnel jusqu'à l'arrêt. Or localhost.run annonce son adresse
+    puis répond « 502 no tunnel » (jamais joignable en 2 min d'essai), et cloudflared ne répond
+    qu'une dizaine de secondes après son annonce : le premier QR code (localhost.run seul)
+    menait le téléphone à l'échec de la page de routage, dans Tk comme dans la fenêtre. Corrigé
+    dans `relay/relay_server.py` (D45) : chaque tunnel annoncé est vérifié depuis le PC (le test
+    de la page de routage, `GET /api/health`, 5 s au plus) ; seuls les joignables entrent dans le
+    QR code. Format de la page de routage, `/api/tunnels` et protocole inchangés. Au passage :
+    les tunnels ssh (serveo, localhost.run) recevaient `UserKnownHostsFile=nul` (`os.devnull`),
+    qu'OpenSSH pour Windows écrit dans un vrai fichier « nul » du dossier courant : la racine du
+    dépôt quand l'appli y est lancée (fichier créé à l'essai, que l'Explorateur ne sait pas
+    supprimer ; supprimé). Ils reçoivent un fichier du dossier temporaire, vidé à chaque
+    démarrage (aucune clé gardée, comme avant).
+23. **Notifications du système** : `notify_desktop` (winotify) répond « affichée » dès que
+    PowerShell est lancé, même quand Windows range la notification sans bandeau (« Ne pas
+    déranger ») ; le scheduler ne montre alors pas son toast de secours dans la fenêtre (comme
+    dans Tk). Le texte de la notification d'une tâche planifiée commence par le Markdown de son
+    résumé (« # Analyse : … »). Non corrigés (question en suspens, section 18).
 
 ## 8. Décisions
 
@@ -739,6 +770,26 @@ ignoré par git).
   d'autre modèle ni de build d'Ollama modifié. Le jour où Ollama sert qwen3.5 à plusieurs (PR
   ollama#17144), revoir le placement : l'`OLLAMA_NUM_PARALLEL=4` du lanceur ferait réserver à
   `my_ai` quatre contextes (section 10).
+
+### Prises le 2026-10-15 (réponses de Nicolas aux questions de la phase 4b)
+
+- **D40. Statistiques** : calculées sur les fils gardés (les 50 derniers, D33), remises à zéro
+  par « Effacer l'historique » ; mises à jour à la fin de chaque fil, comme Tk.
+- **D41. Fin d'un débat** : notifiée comme celle d'un agent seul ou d'un workflow.
+- **D42. Barre des tokens/s** : bleue, sans seuil.
+- **D43. Exécutions du téléphone et des tâches planifiées** : leur fil ne remplace pas le fil
+  ouvert ; pendant qu'elles tournent, Exécuter attend, Échap ne les arrête pas, le bouton Arrêter
+  de leur fil oui. À l'essai, le fil du téléphone ouvert l'a été par Nicolas.
+- **D44. Correction de `run_debate` gardée** ; essais dans la vraie appli faits le 2026-10-15
+  (journal, après la phase 4b). Notifications reçues par Windows mais sans bandeau : « Ne pas
+  déranger » actif sur ce PC, rien à corriger dans l'appli.
+- **D45. QR code du Relay** : vérification des tunnels dans le Relay (`relay/relay_server.py`,
+  écart 22), et état de chacun dans le panneau (« Vérification des tunnels… », « localhost.run :
+  ne répond pas »). Un tunnel neuf reste à vérifier 30 s (essai toutes les 3 s) avant d'être
+  déclaré muet ; si aucun n'a jamais répondu au PC au bout de 30 s (réseau du PC filtré), le QR
+  code les reprend tous, et le panneau le dit.
+- **D46. Phase 5** : feu vert ; elle démarre dans une nouvelle conversation, avec un texte de
+  reprise, pour ne pas surcharger celle de la phase 4.
 
 ### Constats techniques qui orientent la phase 1
 
@@ -1212,6 +1263,10 @@ Réponses de Nicolas le 2026-10-14 : 34 oui (D34), 35 d'accord (D35), 36 diff pa
 
 ### Questions de la phase 4b (posées le 2026-10-15)
 
+Réponses de Nicolas le 2026-10-15 : 39 d'accord (D40), 40 oui (D41), 41 d'accord (D42), 42 oui
+(D43), 43 oui (D44), 44 feu vert après l'essai (D46), 45 essais faits avec lui (D44) ; le QR
+code du Relay corrigé (D45).
+
 39. **Statistiques sur les fils gardés** : Tk comptait depuis le lancement (orchestrateur de la
     page, historique de la session) et repartait de zéro à chaque fois. La page compte sur les
     fils gardés (les 50 derniers, D33) : tâches exécutées, agents employés, part des fils
@@ -1327,7 +1382,17 @@ Réponses de Nicolas le 2026-10-14 : 34 oui (D34), 35 d'accord (D35), 36 diff pa
   engagés par `llama-server`) et la suite de tests, il est passé à 31,6 Go et le disque à 0,2 Go
   libre ; `my_ai` déchargé, il est revenu à 28,6 Go et le disque à 3,1 Go. MySQL (`mysqld`, hors
   du projet) engage à lui seul 13,7 Go. Un essai dans la vraie appli (modèle chargé) refera
-  donc grossir le fichier : libérer de la place avant.
+  donc grossir le fichier : libérer de la place avant. Avant l'essai de la phase 4b, Nicolas a
+  libéré de la place : 12,9 Go libres.
+- **Tunnels du Relay** (2026-10-15) : sur ce PC, localhost.run ne mène nulle part (adresse
+  annoncée, « 502 no tunnel ») et serveo ne s'ouvre pas ; seul cloudflared mène au téléphone. Le
+  QR code n'apparaît qu'une fois un tunnel joignable, une quinzaine de secondes après le
+  démarrage du Relay (cloudflared répond une dizaine de secondes après son annonce). Si le réseau
+  du PC filtre `*.trycloudflare.com`, le QR code reprend tous les tunnels au bout de 30 s, sans
+  garantie (D45).
+- **« Ne pas déranger »** : actif sur ce PC pendant l'essai de la phase 4b (prioritaires
+  seulement) ; les notifications de My_AI arrivent alors dans le centre de notifications, sans
+  bandeau, et ni l'appli ni le scheduler ne le savent (écart 23).
 - **Moniteur sur le PC Arc** : sans NVML, il se rabat sur WMI, qui ne donne que la mémoire de la
   carte (GPU affiché à 0 %). À voir sur place ; Windows fournit l'occupation de tout GPU par
   ses compteurs de performance, si besoin.
@@ -2062,6 +2127,61 @@ propre exécuteur, dans son processus.
 - **Disque** : 2,4 à 3,5 Go libres ; un passage de `test_ocr.py` a échoué faute de place, puis
   réussi (section 10).
 
+### Après la phase 4b — 2026-10-15 (réponses aux questions, essai, PC à RTX 3060)
+
+- **Essai avec Nicolas** (D44) dans la vraie appli (`launch_unified.py`, port de débogage), suivi
+  en lecture par `window_watch.mjs`, des lectures CDP (moniteur, fils) et le journal de l'appli,
+  sans saisie de ma part ; `data/agent_runs.json` et `data/scheduled_tasks.json` copiés avant
+  (dossier temporaire). Prête en 2 min 50 (moteur), Ollama sur le GPU, contexte en 8 bits.
+  - Débat CodeAgent / SecurityAgent, 3 tours, « Quel est le meilleur langage de code » : 2 min
+    29 s, « ✅ Débat terminé (3 tours) », six tours de 3 377 à 8 127 caractères, 62 à 73 tok/s.
+    Statistiques à la fin du fil : 10 tâches, 3 agents, 67 % (la page les relit à la fin de
+    chaque fil, D40). Moniteur pendant le débat : GPU 87 %, VRAM 4 573 / 6 144 Mo, RAM d'Ollama
+    1,6 à 2,2 Go (« llama-server » compté, écart 21), CPU jusqu'à 100 %.
+  - Notification de fin : CreativeAgent seul, 9 s, fenêtre en arrière-plan : notification remise
+    à Windows à 11 h 08 min 19 s ; aucune pour le débat, fini fenêtre au premier plan. Le focus
+    remonte au serveur à chaque passage d'une fenêtre à l'autre.
+  - Tâche planifiée « Analyse du meilleur langage de code » (AnalystAgent, tous les jours à 8 h) :
+    une première création refusée (409, champ manquant), puis créée ; ▶ : fil à son nom (origine
+    « tâche planifiée »), 30 s, 7 195 caractères, 61,4 tok/s, rapport
+    `outputs/scheduled/sched_a6042b37_20261015_110959.md` rattaché au fil ; notification remise à
+    Windows à 11 h 10 min 31 s. Désactivée ensuite par Nicolas.
+  - « Exécuter même l'appli fermée » : case cochée, la tâche Windows `My_AI Scheduler` étant déjà
+    enregistrée (elle se lance chaque minute et s'efface devant le scheduler de l'appli : « verrou
+    détenu ») ; pas décochée pendant l'essai.
+  - Relay (Ctrl+R) : localhost.run puis cloudflared, téléphone connecté ; CodeAgent lancé du
+    téléphone (« Code un tic tac toe en python ») : fil « (mobile) », arrêté du téléphone
+    (« ⛔ Génération interrompue ») ; ouvert dans la page par Nicolas (D43).
+  - Fermeture de l'appli : Relay et tunnels arrêtés, aucun processus cloudflared ni ssh restant.
+- **Remarque 1 de Nicolas : aucune notification de Windows vue.** L'historique des notifications
+  de Windows (entrées de My_AI seulement, lues sur une copie supprimée ensuite) contient les deux,
+  à 11 h 08 min 19 s et 11 h 10 min 31 s. « Ne pas déranger » était actif (prioritaires
+  seulement) : Windows les a rangées sans bandeau. Rien à corriger dans l'appli (D44, écart 23).
+- **Remarque 2 de Nicolas : deux QR codes, le premier en échec** (page de routage : « Échec de
+  la connexion »). Le panneau redessine le QR code quand la liste des tunnels est stable 2 s,
+  comme Tk ; localhost.run est arrivé 4 s avant cloudflared. L'adresse de localhost.run répondait
+  « 502 no tunnel », alors que son processus tournait et que le Relay la donnait active (écart
+  22). Essai de 2 min d'un tunnel localhost.run vers un serveur d'essai : adresse annoncée en
+  1,7 s, « 502 no tunnel » de bout en bout, des connexions ouvertes vers le serveur sans aucune
+  requête. Corrigé (D45) : vérification des tunnels dans `relay/relay_server.py`, état de chacun
+  dans le panneau (`tunnels.ts`), statut du Relay complété (`tunnel_states`).
+  - Vrai Relay seul (port 8799, sans moteur ni scheduler, rien dans `data/`), vrais tunnels :
+    localhost.run annoncé à 3,5 s, à vérifier puis muet à 36 s ; cloudflared annoncé à 7 s,
+    joignable à 16,5 s ; QR code avec cloudflared seul dès 16,5 s ; arrêt : aucun processus de
+    tunnel restant. Au premier passage (règle d'avant : muet au premier échec), cloudflared était
+    « muet » pendant 10 s : un tunnel neuf reste désormais à vérifier 30 s.
+  - Fichier `nul` trouvé à la racine du dépôt après l'essai (clé de localhost.run, écrite par
+    ssh, écart 22) : supprimé ; le Relay lancé depuis la racine n'en crée plus (vrai Relay seul,
+    cloudflared joignable 5 s après son annonce, QR code avec lui seul).
+- **Tests** : `python -m pytest tests/` : **1186 réussis** (10 nouveaux, dans
+  `test_relay_tunnels.py` ; `test_relay_shutdown.py` adapté) ; front, **161 tests Vitest**
+  (157 + 4) ; TypeScript, ESLint et Prettier sans erreur. `capture_panels.mjs`, étape « relay »
+  : **10 contrôles sur 10** (3 nouveaux : tunnel muet signalé sans QR code, QR code limité au
+  tunnel joignable, tunnel muet toujours signalé), aucune erreur de console ; captures relues. Le
+  Relay simulé du serveur de démonstration reprend le scénario de l'essai (localhost.run muet,
+  cloudflared joignable).
+- **Disque** : 12,9 Go libres avant l'essai (Nicolas a fait de la place), 38,4 Go après.
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -2390,7 +2510,10 @@ fenêtre ouverte ; demandes simultanées (page, mobile, scheduler) sur l'exécut
 - Le serveur de démonstration a pris une route à lui (`POST /api/demo/mobile-run`), pour
   vérifier les fils venus du téléphone sans téléphone.
 
-## 18. Plan de la phase 5 (proposé le 2026-10-15, en attente du feu vert)
+## 18. Plan de la phase 5 (proposé le 2026-10-15, feu vert le 2026-10-15, D46)
+
+La phase 5 démarre dans une nouvelle conversation (D46), à partir de ce fichier (« État actuel »,
+décisions, ce plan) et du prompt complet à la racine du dépôt.
 
 But (prompt, §9) : l'interface web par défaut partout, puis Tk retiré du dépôt ; checklist de §7
 entièrement cochée (c'est fait), suite de tests verte, recette manuelle faite ; puis le texte de
@@ -2434,6 +2557,8 @@ l'entrée du CHANGELOG, et la fusion dans `main` avec l'accord de Nicolas.
   `models/mixins/document_analysis.py` citent « tkinter » comme bibliothèque Python que l'IA
   reconnaît dans le code analysé (chaînes, pas d'interface). Je propose de les garder : le
   critère « aucune occurrence » vise l'interface.
+- Notifications du système (écart 23, sans réponse le 2026-10-15) : retirer le Markdown du texte
+  de la notification d'une tâche planifiée (« # Analyse : … ») ?
 - Restent hors de ce PC (section 2) : échelles 125 et 150 %, deux écrans, PC Arc, macOS et Linux.
 
 Risques : un import de Tk caché dans un module gardé (les tests le diront, `python -X importtime`
