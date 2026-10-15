@@ -1321,7 +1321,13 @@ Réponses de Nicolas le 2026-10-14 : 34 oui (D34), 35 d'accord (D35), 36 diff pa
 - **Espace disque** (constaté le 2026-10-15) : 2,4 à 3,5 Go libres sur C:, selon le moment ; un
   passage de pytest a échoué une fois faute de place (`test_ocr.py` : « No space left on
   device »), puis réussi. Les essais de la migration n'occupent que quelques Mo (captures,
-  dossiers temporaires) ; un disque plein ferait échouer builds, commits et rapports.
+  dossiers temporaires) ; un disque plein ferait échouer builds, commits et rapports. Ce qui
+  fait varier la place : le fichier d'échange, de taille gérée par Windows, grossit quand la
+  mémoire engagée approche de sa limite. Le 2026-10-15 à 10 h 16, avec `my_ai` chargé (6,8 Go
+  engagés par `llama-server`) et la suite de tests, il est passé à 31,6 Go et le disque à 0,2 Go
+  libre ; `my_ai` déchargé, il est revenu à 28,6 Go et le disque à 3,1 Go. MySQL (`mysqld`, hors
+  du projet) engage à lui seul 13,7 Go. Un essai dans la vraie appli (modèle chargé) refera
+  donc grossir le fichier : libérer de la place avant.
 - **Moniteur sur le PC Arc** : sans NVML, il se rabat sur WMI, qui ne donne que la mémoire de la
   carte (GPU affiché à 0 %). À voir sur place ; Windows fournit l'occupation de tout GPU par
   ses compteurs de performance, si besoin.
