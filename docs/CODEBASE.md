@@ -8,7 +8,7 @@ Attachez un **dossier complet** (codebase ou dossier de documentation) à un wor
 
 | Surface | Comment |
 |---|---|
-| **GUI desktop** | Sidebar (**☰**) → section **📁 Dossiers du projet** → **Attacher un dossier**. Ou menu **« + »** → **📁 Dossier (codebase)**. |
+| **Fenêtre desktop** | Barre latérale (**Ctrl+B**) → section **Dossiers du projet** → **Attacher un dossier**. Ou menu **« + »** de la saisie → **Dossier (codebase)**. Un dossier **glissé dans la saisie** joint plutôt ses fichiers au message (20 au plus). |
 | **Extension VS Code** | Tapez **`@`** dans le chat → choisissez un dossier (ou un fichier). Ou *Command Palette* → **Attach Folder as @codebase** / clic droit sur un dossier de l'Explorateur. |
 | **Mobile (Relay)** | Le contexte attaché côté PC s'applique aux questions envoyées depuis le mobile pour le même workspace. |
 
@@ -63,8 +63,8 @@ core/ai_engine.py
    ├─ _codebase_context()               # RAG injecté dans le system prompt
    └─ _try_codebase_direct_answer()     # court-circuit déterministe (chemin, liste de fichiers…)
 
-interfaces/gui/sidebar.py   ── section « 📁 Dossiers du projet » (attacher/réindexer/détacher)
-relay/relay_server.py       ── handle_codebase_message() + _resolve_vscode_workspace()
+interfaces/desktop/folders.py ── section « Dossiers du projet » de la fenêtre (attacher/réindexer/détacher)
+relay/relay_server.py         ── handle_codebase_message() + _resolve_vscode_workspace()
 ```
 
 ### Deux voies de récupération
@@ -90,10 +90,10 @@ La recherche filtre par `workspace_id` côté ChromaDB et réutilise le **rerank
 Oui. L'indexation réutilise votre `VectorMemory` (ChromaDB local) et les processeurs de fichiers existants. Aucun appel réseau, aucun nouveau pipeline d'embedding.
 
 **Faut-il réindexer manuellement après avoir modifié des fichiers ?**
-Lancez **Réindexer** (sidebar ou commande VS Code) : seuls les fichiers modifiés sont retraités. C'est rapide et sûr.
+Lancez **Réindexer** (barre latérale ou commande VS Code) : seuls les fichiers modifiés sont retraités. C'est rapide et sûr.
 
 **Comment retirer un dossier du contexte ?**
-**Détacher** depuis la section *📁 Dossiers du projet* (ou la commande VS Code) : les chunks du dossier sont purgés et il est retiré du manifeste.
+**Détacher** depuis la section *Dossiers du projet* (ou la commande VS Code) : les chunks du dossier sont purgés et il est retiré du manifeste.
 
 **`pathspec` est-il obligatoire ?**
 Non. S'il est installé, il donne la sémantique `.gitignore` exacte ; sinon, un matcher `.gitignore` intégré couvre les motifs courants.

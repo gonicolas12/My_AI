@@ -2,19 +2,21 @@
 
 ## Présentation
 
-L'interface GUI intègre un **système de notation 1-5 étoiles** sous chaque réponse de l'IA.
+La fenêtre de l'appli intègre un **système de notation 1-5 étoiles** sous chaque réponse de l'IA.
 Ce système remplace les anciens boutons 👍/👎 et permet un feedback plus précis.
 
 ## Utilisation
 
 ### Interface visuelle
 
-Après chaque réponse de l'IA, vous verrez :
+Sous chaque réponse de l'IA, les actions apparaissent au survol (et restent visibles sous la
+dernière réponse) : copier, lire à voix haute, régénérer, puis les étoiles, suivies de l'heure,
+de la durée et de la vitesse de la réponse :
 
 ```
 [Réponse de l'IA ici...]
 
-☆ ☆ ☆ ☆ ☆   14:32
+⧉  🔊  ↻  ☆ ☆ ☆ ☆ ☆   14:32 · 6 s · 58 tokens/s
 ```
 
 Survolez les étoiles pour un aperçu interactif, puis cliquez pour valider votre note :
@@ -30,6 +32,7 @@ Survolez les étoiles pour un aperçu interactif, puis cliquez pour valider votr
 ### Comportement après notation
 
 - Les étoiles se remplissent et se **désactivent** (plus possible de noter deux fois)
+- La note est gardée avec la conversation : elle reste affichée, et figée, quand la session se rouvre
 - Un feedback 4-5 ⭐ est enregistré comme **positif**
 - Un feedback 1-2 ⭐ est enregistré comme **négatif**
 - Un feedback 3 ⭐ est enregistré comme **neutre**
@@ -101,15 +104,6 @@ for p in patterns:
     print(f"{p['pattern_type']} – Confiance : {p['confidence']:.2f}")
 ```
 
-### Via la console
-
-Pendant l'utilisation, les feedbacks s'affichent dans la console :
-
-```
-🔔 Rating: 4/5 étoiles
-✅ Feedback positive (4/5) enregistré
-```
-
 ## Workflow recommandé
 
 ### Phase 1 : Utilisation quotidienne (1-2 semaines)
@@ -142,17 +136,22 @@ Voir [ADVANCED_FEATURES.md](ADVANCED_FEATURES.md) pour créer un modèle amélio
 
 ### Fichiers concernés
 
-- [`interfaces/gui/message_bubbles.py`](../interfaces/gui/message_bubbles.py)
-  - `_show_timestamp_for_current_message()` : crée la ligne d'étoiles interactives
-  - `_on_star_rating()` : callback de notation (1-5), appelle le RLHF Manager
-  - Hover interactif : remplissage progressif au survol
+- [`frontend/src/features/chat/MessageControls.tsx`](../frontend/src/features/chat/MessageControls.tsx)
+  - `StarRating` : ligne d'étoiles, remplissage progressif au survol, figée une fois notée
+- [`core/chat_service.py`](../core/chat_service.py)
+  - `rate()` : appelle le RLHF Manager (question du tour, texte de la réponse, score)
+    et garde la note dans la session (clé facultative `rating` du message)
+- [`interfaces/desktop/server.py`](../interfaces/desktop/server.py)
+  - `POST /api/conversation/messages/{mid}/rating` : route appelée par la fenêtre
 
 ### Flux de données
 
 ```
-Interface GUI (message_bubbles.py)
+Fenêtre (StarRating, MessageControls.tsx)
         ↓
-  Étoiles ☆☆☆☆☆ (clic)
+  Étoiles ☆☆☆☆☆ (clic) → POST /api/conversation/messages/{mid}/rating
+        ↓
+   ChatService.rate (core/chat_service.py)
         ↓
    RLHF Manager (rlhf_manager.py)
         ↓  ↓
