@@ -132,7 +132,7 @@ class WorkflowFile(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    version: str = Field(default="8.1.0", max_length=20)
+    version: str = Field(default="9.0.0", max_length=20)
     nodes: Dict[str, WorkflowNodeFile] = Field(default_factory=dict, max_length=200)
     connections: List[ConnectionBody] = Field(default_factory=list, max_length=2000)
     zoom: float = 1.0

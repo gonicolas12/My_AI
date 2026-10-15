@@ -220,7 +220,7 @@ function bigWorkflow(count) {
   }
   const connections = [];
   for (let i = 1; i < count; i += 1) connections.push({ from: i - 1, to: i });
-  return { version: '8.1.0', nodes, connections, zoom: 1, pan_x: 0, pan_y: 0 };
+  return { version: '9.0.0', nodes, connections, zoom: 1, pan_x: 0, pan_y: 0 };
 }
 
 if (wanted.has('canvas')) {

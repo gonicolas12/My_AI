@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v8.1.0
+🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v9.0.0
 Lance l'interface avec CustomAI unifié (support 10M tokens intégré)
 
 Portable Windows / macOS / Linux : les appels propres à un OS (registre,
@@ -284,7 +284,7 @@ def _parse_args(argv=None) -> argparse.Namespace:
 def main():
     """Point d'entrée principal"""
     args = _parse_args()
-    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v8.1.0\n")
+    print("\n🚀 MY PERSONAL AI LAUNCHER UNIFIÉ v9.0.0\n")
     print("=" * 50)
     print()
 
