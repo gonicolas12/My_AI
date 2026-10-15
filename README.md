@@ -46,7 +46,7 @@ Planifiez vos agents et workflows en récurrence, exécution même l'application
 Informations en temps réel via DuckDuckGo (Yahoo et Wikipédia en secours).
 
 **📄 Génération et traitement de Documents**  
-PDF, DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.
+PDF (même scannés, lus par OCR), DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.
 
 **📡 Accès Mobile**  
 Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
@@ -130,6 +130,8 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 - **Fallback intelligent** : sans Ollama, l'IA bascule automatiquement en mode patterns/règles
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
 - **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
+- **Placement automatique** : au lancement, My_AI regarde où Ollama place le modèle. Resté sur le processeur, il mesure si le GPU intégré va plus vite et garde le plus rapide ; quand le modèle déborde de la carte graphique (ou du GPU intégré), son contexte passe en 8 bits s'il va plus vite. Le choix est gardé, et remesuré après une mise à jour d'Ollama ou un changement de matériel.
+- **Une seule fenêtre de contexte** (32 768 tokens, 65 536 en option) pour tous les appels : Ollama ne recharge plus le modèle d'une étape à l'autre et reprend la conversation déjà lue.
 
 ### 🎨 Génération d'images locale (texte → image)
 
@@ -180,6 +182,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 ### 🧠 Contrôle total de la mémoire (confidentialité)
 
+- **« Retiens que… »** dans le chat : le fait est vraiment enregistré (onglet Faits du panneau Mémoire), et les faits utiles accompagnent ensuite chaque réponse.
 - Un panneau **Mémoire** pour **voir, éditer et supprimer** ce que l'IA sait de vous — **vraies** opérations CRUD, 100% local, **sans mock**.
 - **3 onglets** : **Faits** (SQLite), **Documents** et **Conversations** (vecteurs ChromaDB), avec **recherche, filtre par catégorie, pagination et provenance** (quelle session / quel document).
 - **Édition inline** et **suppression confirmée** (dialogue cohérent avec la confirmation MCP). Pour les conversations, option **« supprimer à la source »** = suppression **durable** (le message d'origine est retiré du workspace puis réindexé, il ne réapparaît pas).
@@ -193,7 +196,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 | Capacité | Valeur |
 |---|---|
 | **💾 Mémoire vectorielle interne** | jusqu'à **10 485 760 tokens** |
-| **📝 Résumé glissant** | automatique dès 24k tokens |
+| **📝 Résumé glissant** | automatique à la moitié de la fenêtre de contexte (16k tokens sur 32k) |
 | **🔍 Recherche sémantique** | sentence-transformers + HNSW cosinus |
 | **🗃️ Base vectorielle** | ChromaDB (local) |
 
@@ -358,7 +361,10 @@ my_ai/
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils (cloudflared pour le Relay)
 │   ├── interface_web/                   # Serveur de démonstration de la fenêtre, sans Ollama (développement)
-│   └── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
+│   ├── __init__.py
+│   ├── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
+│   ├── local_tools.py                   # Outils locaux (raisonnement, calcul, recherche, extraction d'infos)
+│   └── measure_energy.py                # Empreinte énergétique et carbone d'une session (codecarbon)
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
 │   ├── citations.py                     # Citations web numérotées cliquables ([n] → url)
@@ -367,6 +373,7 @@ my_ai/
 │   ├── file_processor.py                # Gestion traitement fichiers
 │   ├── intelligent_calculator.py        # Calculateur intelligent
 │   ├── logger.py                        # Gestion des logs
+│   ├── ollama_placement.py              # Placement du modèle (carte, GPU intégré, processeur), contexte en 8 bits
 │   ├── path_links.py                    # Chemins de fichiers cliquables dans les réponses
 │   └── requirements_sync.py             # Installe au lancement les dépendances ajoutées (git pull)
 ├── main.py                              # Point d'entrée principal (CLI ; fenêtre avec --mode gui)
@@ -396,6 +403,9 @@ cd My_AI
 ```bash
 pip install -r requirements.txt
 ```
+
+> 🔄 Après un `git pull`, les dépendances ajoutées s'installent toutes seules au lancement suivant
+> (`MY_AI_SKIP_DEPS_SYNC=1` pour s'en passer).
 
 > ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de
 > build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à
@@ -482,7 +492,7 @@ ollama pull llava            # Alternative (4.7 GB)
 ```
 
 Sélectionnez **l'option 1 (Interface Graphique)** : la fenêtre s'ouvre tout de suite sur un
-écran de chargement qui nomme chaque étape (Ollama, modèle, moteur), puis passe au Chat.
+écran de chargement qui nomme chaque étape (Ollama, modèle, placement, moteur), puis passe au Chat.
 
 > 💡 Sans passer par un lanceur, `python launch_unified.py` (fenêtre + configuration
 > d'Ollama) et `python main.py --mode gui` (fenêtre seule, avec l'Ollama déjà lancé)
@@ -522,7 +532,7 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 | 🤖 **Page Agents** | 9 agents spécialisés + agents personnalisés, workflow visuel (séquentiel / parallèle / DAG), Mode Débat — exécutés côté PC (Ollama local), streamés au mobile |
 | 🔒 **Authentification** | Token unique par session ou mot de passe configurable |
 | 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni Cloudflare/serveo/localhost.run, ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
-| 🌐 **Multi-tunnel** | cloudflared + serveo + localhost.run en parallèle, failover client-side |
+| 🌐 **Multi-tunnel** | cloudflared + serveo + localhost.run en parallèle, chacun vérifié depuis le PC : seuls les joignables entrent dans le QR code ; failover côté client |
 | 🔄 **Synchronisation** | Messages du chat visibles en temps réel sur PC et mobile |
 | ⚡ **WebSocket** | Communication instantanée, streaming, indicateur de frappe, bouton Stop |
 | 📎 **Pièces jointes** | Chat + Agents : images + documents (PDF, DOCX, PPTX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
@@ -616,7 +626,7 @@ code --install-extension gonicolas12.my-ai
 | [📅 Tâches planifiées](docs/SCHEDULER.md) | Scheduler proactif : agents/workflows récurrents (cron) |
 | [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
 | [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
-| [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Boutons de feedback dans l'interface graphique |
+| [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Notation 1-5 étoiles des réponses dans la fenêtre |
 | [🧩 Extension VS Code](vscode_extension/README.md) | Doc complète de l'extension VS Code (EN) — [version FR](vscode_extension/README.fr.md) |
 
 
@@ -650,6 +660,7 @@ code --install-extension gonicolas12.my-ai
 | 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
+| 🦙 **Placement automatique** | GPU intégré essayé quand le modèle reste sur le processeur ; contexte en 8 bits quand il déborde de la carte |
 | 📡 **Relay** | Accès mobile (Chat + Agents) via tunnel sécurisé |
 | 🧩 **Extension VS Code** | Mode agentique sur LLM local |
 | 🔩 **Extensible** | Architecture modulaire |
