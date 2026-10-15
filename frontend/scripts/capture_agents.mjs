@@ -1,10 +1,13 @@
-// Captures et contrôles de la page Agents (phase 4a), sur le serveur de démonstration : grille,
+// Captures et contrôles de la page Agents (phase 4), sur le serveur de démonstration : grille,
 // canvas (clic, liens de port à port, refus d'un cycle, glisser-déposer, suppression, zoom,
 // grille), exécution d'un workflow en DAG avec ses fils, arrêt, erreur, diff d'un code joint,
-// fils rouverts et supprimés, agents personnalisés, fichiers de workflow (format de Tk).
+// fils rouverts et supprimés, agents personnalisés, fichiers de workflow (format de Tk) ;
+// débat, statistiques et moniteur, tâches planifiées (création, exécution, fil, rapport,
+// modification, suppression), exécution venue du téléphone, notification de fin.
 // Usage (depuis frontend/) :
 //   node scripts/capture_agents.mjs URL_AVEC_JETON [DOSSIER] [étapes séparées par des virgules]
-// Étapes : grille, canvas, execution, arret, erreur, diff, fils, perso, fichiers
+// Étapes : grille, canvas, execution, arret, erreur, diff, fils, perso, fichiers, debat, stats,
+// planif, mobile, notif
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -479,6 +482,205 @@ if (wanted('fichiers')) {
   await button('Exporter').click();
   await toast('Workflow exporté').waitFor({ timeout: 5000 });
   check('fichiers : exporté en Markdown', true);
+}
+
+/** Requête au serveur avec le jeton de la page (routes de démonstration, focus) */
+async function serverPost(path, body) {
+  return page.evaluate(
+    async ([url, data]) => {
+      const token = sessionStorage.getItem('my_ai.token');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return response.json();
+    },
+    [path, body],
+  );
+}
+
+const runRows = () => page.getByRole('list', { name: "Fils d'exécution" }).getByRole('listitem');
+
+if (wanted('debat')) {
+  await button('Débat').click();
+  const dialog = page.getByRole('dialog', { name: 'Mode Débat entre deux agents' });
+  await dialog.waitFor({ timeout: 5000 });
+  await dialog.getByLabel('Agent B — Opposant').selectOption('code');
+  await button('Démarrer le débat').click();
+  check(
+    'débat : deux agents différents requis',
+    (await dialog.getByText('❌ Choisis deux agents différents').count()) === 1,
+  );
+  await dialog.getByLabel('Agent B — Opposant').selectOption('creative');
+  await dialog.getByLabel('Sujet du débat').fill('Faut-il imposer une convention de nommage ?');
+  await dialog.getByLabel('Nombre de tours :').fill('2');
+  await shot('debat_dialogue');
+  await button('Démarrer le débat').click();
+  await dialog.waitFor({ state: 'detached', timeout: 5000 });
+  await page.getByText('Tour 1 — CodeAgent (Proposant)').waitFor({ timeout: 10000 });
+  check('débat : son fil s’ouvre, un tour par section', true);
+  await page.waitForTimeout(600);
+  await shot('debat_en_cours');
+  await waitRunEnd(60000);
+  const turns = await page.getByText(/^Tour \d — /).count();
+  check('débat : le proposant puis l’opposant, à chaque tour', turns === 4, `${turns}`);
+  check('débat : statut final', (await page.getByText('✅ Débat terminé (2 tours)').count()) > 0);
+  check(
+    'débat : proposant, opposant et tours en tête du fil',
+    (await page.getByText('Proposant : CodeAgent · Opposant : CreativeAgent · 2 tours').count()) ===
+      1,
+  );
+  check(
+    'débat : tokens/s de chaque tour',
+    (await page.getByText(/ tok\/s$/).count()) >= 4,
+    `${await page.getByText(/ tok\/s$/).count()}`,
+  );
+  await shot('debat_termine');
+}
+
+if (wanted('stats')) {
+  const panel = page.locator('section[aria-labelledby="agents-stats"]');
+  await panel.scrollIntoViewIfNeeded();
+  await panel.getByRole('meter').first().waitFor({ timeout: 10000 });
+  check('ressources : six barres', (await panel.getByRole('meter').count()) === 6);
+  const tps = await panel.getByRole('meter', { name: 'Tokens/sec' }).getAttribute('aria-valuetext');
+  check('ressources : tokens/s du dernier agent', /tok\/s$/.test(tps ?? ''), tps ?? '');
+  const sparks = await panel.locator('svg polyline').count();
+  check('ressources : mini-graphiques', sparks >= 4, `${sparks}`);
+  const cpu = () => panel.getByRole('meter', { name: 'CPU' }).getAttribute('aria-valuetext');
+  const before = await cpu();
+  await page.waitForTimeout(3600);
+  check(
+    'ressources : une mesure toutes les 3 s',
+    (await cpu()) !== before,
+    `${before} → ${await cpu()}`,
+  );
+  const tasks = await panel.getByText('Tâches exécutées').locator('xpath=..').innerText();
+  check('statistiques : tâches exécutées', /\d+/.test(tasks), tasks.replace(/\s+/g, ' '));
+  await shot('stats');
+}
+
+if (wanted('planif')) {
+  const section = page.locator('section[aria-labelledby="agents-schedule"]');
+  await section.scrollIntoViewIfNeeded();
+  const rows = section.getByRole('list', { name: 'Tâches planifiées' }).getByRole('listitem');
+  await rows.first().waitFor({ timeout: 10000 });
+  check('planif : tâches de la copie listées', (await rows.count()) >= 4, `${await rows.count()}`);
+  await shot('planif_liste');
+  await section.getByRole('button', { name: 'Nouvelle tâche' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nouvelle tâche planifiée' });
+  await dialog.waitFor({ timeout: 5000 });
+  await dialog.getByRole('button', { name: 'Enregistrer' }).click();
+  await dialog.getByText('❌ Nom requis.').waitFor({ timeout: 5000 });
+  check('planif : nom requis (message de Tk)', true);
+  await dialog.getByLabel('Nom').fill('Veille de démonstration');
+  await dialog.getByLabel('Tâche / Sujet (débat)').fill('Résume les nouveautés de FastAPI');
+  await dialog.getByRole('radio', { name: 'Intervalle' }).click();
+  await dialog.getByLabel('Toutes les').fill('30');
+  await dialog.getByLabel('Unité').selectOption('minutes');
+  await shot('planif_dialogue');
+  await dialog.getByRole('button', { name: 'Enregistrer' }).click();
+  await dialog.waitFor({ state: 'detached', timeout: 5000 });
+  await toast('Tâche planifiée enregistrée').waitFor({ timeout: 5000 });
+  const row = rows.filter({ hasText: 'Veille de démonstration' });
+  check('planif : tâche créée', (await row.count()) === 1);
+  check('planif : planning en clair', (await row.getByText('toutes les 30 min').count()) === 1);
+  await row.getByRole('button', { name: 'Exécuter maintenant' }).click();
+  await toast('Exécution lancée').waitFor({ timeout: 5000 });
+  const scheduled = runRows().filter({ hasText: 'Veille de démonstration' });
+  await scheduled.waitFor({ timeout: 10000 });
+  check(
+    'planif : son fil apparaît, marqué « Tâche planifiée » (D37)',
+    (await scheduled.getByRole('img', { name: 'Tâche planifiée' }).count()) === 1,
+  );
+  await waitRunEnd(30000);
+  await page
+    .locator('[data-toast-region]')
+    .getByText('Veille de démonstration')
+    .waitFor({ timeout: 10000 });
+  check('planif : toast de fin (sans notification du système en démo)', true);
+  await row.getByText(/réussie/).waitFor({ timeout: 10000 });
+  check('planif : dernier résultat', true);
+  check('planif : rapport', (await row.getByRole('button', { name: 'Rapport' }).count()) === 1);
+  await row.getByRole('button', { name: 'Voir le fil' }).click();
+  await page.waitForTimeout(500);
+  const thread = page.locator('h3', { hasText: 'Veille de démonstration' });
+  check('planif : « Voir le fil » ouvre son fil', (await thread.count()) === 1);
+  await shot('planif_fil');
+  await section.scrollIntoViewIfNeeded();
+  await row.getByRole('button', { name: 'Modifier' }).click();
+  const edit = page.getByRole('dialog', { name: 'Modifier la tâche' });
+  await edit.waitFor({ timeout: 5000 });
+  check(
+    'planif : la source reste figée',
+    (await edit.getByRole('radiogroup', { name: 'Source' }).count()) === 0,
+  );
+  await edit.getByLabel('Nom').fill('Veille du soir');
+  await edit.getByRole('button', { name: 'Enregistrer' }).click();
+  await edit.waitFor({ state: 'detached', timeout: 5000 });
+  const renamed = rows.filter({ hasText: 'Veille du soir' });
+  await renamed.waitFor({ timeout: 5000 });
+  check('planif : modifiée', true);
+  await renamed.getByRole('switch').click();
+  await renamed.getByText('prochaine : désactivée').waitFor({ timeout: 5000 });
+  check('planif : désactivée', true);
+  await section.getByRole('switch', { name: "Exécuter même l'appli fermée" }).click();
+  await toast('aucune tâche Windows créée').waitFor({ timeout: 5000 });
+  check('planif : exécution appli fermée (simulée en démo)', true);
+  await section.getByRole('switch', { name: "Exécuter même l'appli fermée" }).click();
+  await renamed.getByRole('button', { name: 'Supprimer' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Supprimer la tâche' });
+  await confirm.getByRole('button', { name: 'Supprimer' }).click();
+  await renamed.waitFor({ state: 'detached', timeout: 5000 });
+  check('planif : supprimée après confirmation', true);
+  await shot('planif_fin');
+}
+
+if (wanted('mobile')) {
+  await page.locator(RUNS).scrollIntoViewIfNeeded();
+  const openedRow = page.locator(`${RUNS} [aria-current="true"]`);
+  const opened = await openedRow.innerText();
+  const { exec_id: execId } = await serverPost('/api/demo/mobile-run', {
+    task: 'Tâche lente envoyée du téléphone',
+    agent: 'web',
+  });
+  const phone = runRows().filter({ has: page.getByRole('img', { name: 'Lancé du téléphone' }) });
+  await phone.first().waitFor({ timeout: 10000 });
+  check('téléphone : son fil apparaît, marqué (D37)', Boolean(execId));
+  check('téléphone : Exécuter attend', await button('Exécuter').isDisabled());
+  check(
+    'téléphone : le fil ouvert ne change pas',
+    (await openedRow.innerText()) === opened,
+    opened.split('\n')[0],
+  );
+  await shot('mobile_en_cours');
+  await phone.first().getByRole('button').first().click();
+  await page.getByText('Lancé du téléphone', { exact: true }).waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: 'Arrêter', exact: true }).last().click();
+  await waitRunEnd(20000);
+  check(
+    'téléphone : arrêté depuis la fenêtre',
+    (await page.getByText('⛔ Génération interrompue').count()) > 0,
+  );
+  await shot('mobile_arrete');
+}
+
+if (wanted('notif')) {
+  // Fenêtre sans focus : la fin d'un fil de plus de 8 s est notifiée (démo : dans la fenêtre)
+  await serverPost('/api/window/focus', { focused: false });
+  await clearCanvas();
+  await card('CreativeAgent').click();
+  await setTask('Tâche lente, pour la notification de fin');
+  await execute();
+  await waitRunEnd(60000);
+  await toast('Notification du système (démo)').waitFor({ timeout: 5000 });
+  check(
+    'notification : fin d’un fil long, fenêtre sans focus',
+    (await page.getByText('CreativeAgent — tâche terminée').count()) > 0,
+  );
+  await shot('notification');
+  await serverPost('/api/window/focus', { focused: true });
 }
 
 console.log(logs.length ? logs.join('\n') : 'aucune erreur de console');

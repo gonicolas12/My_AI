@@ -50,20 +50,33 @@ Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
 temp/demo_server/PORT/prompt_templates.json.
 
 Page Agents : le vrai AgentRelayService (plan d'exécution, événements, une
-exécution à la fois), avec un orchestrateur et un modèle scénarisés ; les agents
+exécution à la fois), avec un orchestrateur et un modèle scénarisés, qui ne
+servent qu'un agent à la fois, comme Ollama avec qwen3.5 ; les agents
 personnalisés sont une copie de data/custom_agents.json, les fils d'exécution
 sont dans temp/demo_server/PORT/agent_runs.json. Scénarios (mot dans la tâche) :
   « erreur »     chaque agent échoue après quelques lignes
-  « lent »       agents lents (10 caractères par seconde), pour Arrêter
+  « lent »       agents lents (2,5 fragments par seconde), pour Arrêter et la
+                 notification de fin (plus de 8 s)
+  « long »       réponse Markdown d'environ 5 000 jetons (mesures de perf.mjs)
   code fourni    un fichier de code joint, ou un bloc de code dans la tâche :
                  CodeAgent, DebugAgent, OptimizerAgent et SecurityAgent en rendent
                  une version modifiée (diff dans le fil)
   autre          réponse propre à chaque agent, au rythme du streaming
+Les débats sont scénarisés de la même façon (un argument par tour). Le moniteur
+de ressources est simulé (valeurs plausibles qui varient). Les tâches planifiées
+sont une copie de data/scheduled_tasks.json, sur le vrai SchedulerService (sans
+notification du système, rapports dans temp/demo_server/PORT/outputs/scheduled/) ;
+« Exécuter même l'appli fermée » ne touche pas au Planificateur de Windows. La
+notification du système de fin d'un fil long devient une notification de la
+fenêtre (« Notification du système (démo) : … »). Une exécution « venue du
+téléphone » se lance par POST /api/demo/mobile-run {task, agent | agent_a,
+agent_b, rounds}, jeton compris.
 """
 
 import argparse
 import base64
 import json
+import math
 import os
 import re
 import secrets
@@ -79,15 +92,19 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
+from fastapi import Request  # noqa: E402
 from core.chat_service import ChatService  # noqa: E402
 from core.memory_store import MemoryStore  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
+from core.scheduler import SchedulerService  # noqa: E402
 from relay.agent_relay import AgentRelayService  # noqa: E402
 from relay.relay_server import _ROUTER_PAGE_URL  # noqa: E402
 from interfaces.desktop.agents import AgentsService  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
+from interfaces.desktop.resources import ResourcesService  # noqa: E402
+from interfaces.desktop.schedule import ScheduleService  # noqa: E402
 from interfaces.desktop.voice import VoiceService  # noqa: E402
 from core.command_history import CommandHistory  # noqa: E402
 from test_chat_service import FakeEngine, FakeFileProcessor, FakeRLHF  # noqa: E402
@@ -916,6 +933,27 @@ Python moderne [1], devant Flask [2].
 }
 
 
+def demo_debate_answer(role: str, round_num: int, topic: str) -> str:
+    """Argument scénarisé d'un tour de débat."""
+    subject = topic.strip().rstrip("?").strip() or "le sujet"
+    if role == "proposant":
+        if round_num == 1:
+            return (f"**Position du proposant** sur « {subject} » : oui, sans hésiter.\n\n"
+                    "1. **Lisibilité** : une convention unique rend le code prévisible.\n"
+                    "2. **Outillage** : les formateurs automatiques l'appliquent seuls.\n\n"
+                    "Le coût du changement est faible, le gain dure.")
+        return (f"L'opposant surestime le coût (tour {round_num}). Une règle simple, vérifiée "
+                "par l'intégration continue, s'adopte en une journée ; les exceptions restent "
+                "possibles, documentées.")
+    if round_num == 1:
+        return ("**Position de l'opposant** : la question mérite d'être nuancée.\n\n"
+                "- Chaque équipe a déjà ses habitudes ; imposer un changement crée des conflits.\n"
+                "- Le gain réel dépend de la taille du projet.\n\n"
+                "Mieux vaut décider au cas par cas.")
+    return (f"Au tour {round_num}, je maintiens : une règle sans exceptions coûte plus qu'elle "
+            "ne rapporte sur un petit projet. Mesurons avant d'imposer.")
+
+
 def _user_task(task: str) -> str:
     """Tâche saisie, sans le contexte des agents précédents ni les pièces jointes."""
     if "\n\nTâche: " in task:
@@ -954,6 +992,8 @@ def _reviewed(code: str, agent_type: str) -> str:
 
 def demo_agent_answer(agent_type: str, task: str) -> str:
     """Réponse scénarisée d'un agent, selon la tâche."""
+    if "long" in _user_task(task).lower():
+        return long_answer()  # ~5 000 jetons, comme la réponse « long » du chat
     code = _provided_code(task)
     if code and agent_type in ("code", "debug", "optimizer", "security"):
         return (f"Voici la version revue du code fourni :\n\n```python\n{_reviewed(code, agent_type)}"
@@ -987,15 +1027,51 @@ class DemoOrchestrator:
         if failing:
             text = text[:120]
         slow = "lent" in wanted
-        delay = 0.4 if slow else 1 / max(self.rate, 1)
-        with self._model:
-            for piece in chunks(text):
-                if on_token is not None and on_token(piece) is False:
-                    return {"success": False, "error": "interrompu", "result": ""}
-                time.sleep(delay)
+        if not self._stream(agent_type, text, 0.4 if slow else 1 / max(self.rate, 1), on_token):
+            return {"success": False, "error": "interrompu", "result": ""}
         if failing:
             return {"success": False, "error": "erreur simulée", "result": ""}
         return {"success": True, "result": text, "agent": agent_type}
+
+    def _stream(self, agent_type, text, delay, on_token):
+        """Écrit le texte fragment par fragment, un agent à la fois ; faux si arrêté.
+
+        Comme LocalLLM (D17), le modèle de l'agent garde le relevé de fin de
+        flux (un fragment = un jeton) : tokens/s du fil et du moniteur.
+        """
+        with self._model:
+            started = time.perf_counter()
+            pieces = chunks(text)
+            for piece in pieces:
+                if on_token is not None and on_token(piece) is False:
+                    return False
+                time.sleep(delay)
+            elapsed = time.perf_counter() - started
+        stats = {"eval_count": len(pieces), "eval_duration": int(elapsed * 1e9),
+                 "at": time.perf_counter()}
+        self.agents[agent_type] = SimpleNamespace(llm=SimpleNamespace(last_stream_stats=stats))
+        return True
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def execute_debate(self, agent_type_a, agent_type_b, topic, rounds=3, on_token=None,
+                       on_round_start=None, on_should_stop=None):
+        """Comme AgentOrchestrator.execute_debate : proposant puis opposant, à chaque tour."""
+        delay = 0.4 if "lent" in topic.lower() else 1 / max(self.rate, 1)
+        turns = 0
+        for round_num in range(1, rounds + 1):
+            if on_should_stop and on_should_stop():
+                break
+            for agent_type, role in ((agent_type_a, "proposant"), (agent_type_b, "opposant")):
+                if role == "opposant" and on_should_stop and on_should_stop():
+                    break
+                if on_round_start:
+                    on_round_start(round_num, agent_type)
+                if not self._stream(agent_type, demo_debate_answer(role, round_num, topic),
+                                    delay, on_token):
+                    break
+                turns += 1
+        return {"success": True, "mode": "debate", "topic": topic,
+                "rounds_completed": turns // 2}
 
 
 class DemoAgentLLM:
@@ -1036,6 +1112,96 @@ class DemoAgentService(AgentRelayService):
         super()._load_and_register_custom()
 
 
+class DemoMonitor:
+    """Moniteur de ressources simulé (interface de ResourceMonitor) : valeurs plausibles
+    qui varient, sans mesurer le PC."""
+
+    def __init__(self, interval=3.0):
+        self.interval = interval
+        self._lock = threading.Lock()
+        self._callbacks = []
+        self._running = False
+        self._tick = 0
+        self._metrics = {"cpu_percent": 0.0, "ram_used_mb": 0.0, "ram_total_mb": 16_204.0,
+                         "ram_percent": 0.0, "gpu_available": True, "gpu_percent": 0.0,
+                         "gpu_mem_used_mb": 0.0, "gpu_mem_total_mb": 6_144.0,
+                         "inference_ms": 0.0, "tokens_per_sec": 0.0}
+        self.history = {"cpu": [], "ram": [], "gpu": [], "tps": []}
+        # Trois minutes d'historique, comme au retour sur la page
+        for _ in range(60):
+            self._collect()
+
+    def _collect(self):
+        self._tick += 1
+        wave = (1 + math.sin(self._tick / 6)) / 2
+        cpu, gpu = 3 + 9 * wave, 12 + 70 * wave
+        ram = 2_870 + 40 * wave
+        with self._lock:
+            self._metrics.update(cpu_percent=cpu, ram_used_mb=ram,
+                                 ram_percent=ram / self._metrics["ram_total_mb"] * 100,
+                                 gpu_percent=gpu, gpu_mem_used_mb=3_710 + 30 * wave)
+            for key, value in (("cpu", cpu), ("ram", ram), ("gpu", gpu)):
+                self.history[key] = (self.history[key] + [value])[-60:]
+
+    def add_callback(self, callback):
+        """Comme ResourceMonitor.add_callback."""
+        self._callbacks.append(callback)
+
+    def start(self):
+        """Mesures simulées toutes les `interval` secondes."""
+        if self._running:
+            return
+        self._running = True
+
+        def loop():
+            while self._running:
+                time.sleep(self.interval)
+                self._collect()
+                for callback in list(self._callbacks):
+                    callback(self.get_metrics())
+
+        threading.Thread(target=loop, name="demo-monitor", daemon=True).start()
+
+    def stop(self):
+        """Comme ResourceMonitor.stop."""
+        self._running = False
+
+    def get_metrics(self):
+        """Comme ResourceMonitor.get_metrics."""
+        with self._lock:
+            return dict(self._metrics)
+
+    def update_inference(self, inference_ms, tokens_per_sec):
+        """Comme ResourceMonitor.update_inference."""
+        with self._lock:
+            self._metrics.update(inference_ms=inference_ms, tokens_per_sec=tokens_per_sec)
+            self.history["tps"] = (self.history["tps"] + [tokens_per_sec])[-60:]
+
+
+class DemoWindowsTask:
+    """« Exécuter même l'appli fermée » simulé : jamais le Planificateur de Windows."""
+
+    available = True
+
+    def __init__(self):
+        self._registered = False
+
+    def registered(self):
+        """Comme WindowsTask.registered."""
+        return self._registered
+
+    def register(self, interval_minutes):
+        """Comme WindowsTask.register (démonstration)."""
+        self._registered = True
+        return True, (f"Exécution en arrière-plan activée (toutes les {interval_minutes} min)"
+                      " — démo, aucune tâche Windows créée.")
+
+    def unregister(self):
+        """Comme WindowsTask.unregister (démonstration)."""
+        self._registered = False
+        return True, "Exécution en arrière-plan désactivée."
+
+
 class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
     """DesktopApp sans Ollama : étapes du lancement simulées, moteur scénarisé."""
 
@@ -1050,6 +1216,38 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         if not real_voice:
             # Lecture automatique gardée en mémoire : rien n'est écrit dans config.yaml
             self._voice = DemoVoiceService(self.bus.publish)
+        self._demo_routes()
+
+    def _demo_routes(self):
+        """POST /api/demo/mobile-run : une exécution « venue du téléphone » (D37)."""
+        api = self.server.fastapi
+
+        @api.post("/api/demo/mobile-run")
+        async def mobile_run(request: Request):  # pylint: disable=unused-variable
+            data = await request.json()
+            stamp = f"{int(time.time() * 1000)}_{secrets.randbelow(10**6)}"
+            tap = self.agents.executor_tap()
+            task = str(data.get("task") or "Tâche envoyée du téléphone")
+            if data.get("agent_a"):
+                exec_id = f"deb_{stamp}"
+                args = (exec_id, data["agent_a"], data.get("agent_b") or "creative", task,
+                        int(data.get("rounds") or 2), lambda _event: None)
+                target = tap.run_debate
+            else:
+                exec_id = f"exec_{stamp}"
+                key = data.get("agent") or "code"
+                known = {a["key"]: a for a in tap.list_agents()["builtin"]}
+                agent = known.get(key, {"name": key, "color": "#3b82f6", "icon": "🤖"})
+                nodes = [{"id": "n1", "agent_type": key, "name": agent["name"],
+                          "color": agent["color"], "icon": agent["icon"]}]
+                args = (exec_id, task, nodes, [], lambda _event: None, None, [])
+                target = tap.run_workflow
+            threading.Thread(target=target, args=args, name="demo-mobile", daemon=True).start()
+            return {"exec_id": exec_id}
+
+    def _demo_os_notify(self, title, message):
+        """Notification du système, montrée dans la fenêtre (démonstration)."""
+        self.notify("info", f"Notification du système (démo) : {title} — {message}")
 
     @property
     def agent_service(self):
@@ -1065,13 +1263,61 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
     @property
     def agents(self):
         """Page Agents : fils d'exécution dans le dossier temporaire, jamais dans data/."""
+        # Lambdas voulues : le moniteur n'est créé qu'à la fin du premier agent
+        # pylint: disable=unnecessary-lambda
         with self._services_lock:
             if self._agents is None:
                 self._agents = AgentsService(
                     lambda: self.agent_service, self.bus.publish,
                     runs_file=self._workspaces.parent / "agent_runs.json",
-                    notify=self.notify, last_seq=lambda: self.bus.last_seq)
+                    notify=self.notify, last_seq=lambda: self.bus.last_seq,
+                    window_focused=lambda: self.window_focused,
+                    os_notify=self._demo_os_notify,
+                    on_inference=lambda ms, tps: self.resources.update_inference(ms, tps),
+                    find_scheduled=self._find_scheduled_task)
             return self._agents
+
+    @property
+    def resources(self):
+        """Moniteur de ressources simulé."""
+        with self._services_lock:
+            if self._resources is None:
+                self._resources = ResourcesService(self.bus.publish,
+                                                   lambda: self.bus.subscriber_count > 0,
+                                                   monitor=DemoMonitor())
+            return self._resources
+
+    @property
+    def schedule(self):
+        """Tâches planifiées de la copie, Planificateur de Windows simulé."""
+        # pylint: disable=unnecessary-lambda
+        with self._services_lock:
+            if self._schedule is None:
+                self._schedule = ScheduleService(
+                    self._scheduler_service, self.bus.publish,
+                    agents=lambda: self.agent_service.list_agents(), notify=self.notify,
+                    windows=DemoWindowsTask(), background_interval=lambda: 1)
+            return self._schedule
+
+    def _scheduler_service(self):
+        """Scheduler de la démonstration (créé au lancement)."""
+        return self.scheduler
+
+    def _start_demo_scheduler(self):
+        """Le vrai SchedulerService sur une copie des tâches : rien dans data/ ni outputs/."""
+        folder = self._workspaces.parent
+        tasks = folder / "scheduled_tasks.json"
+        if (ROOT / "data" / "scheduled_tasks.json").is_file():
+            shutil.copy2(ROOT / "data" / "scheduled_tasks.json", tasks)
+        self.scheduler = SchedulerService(executor=self.agents.executor_tap(), config={
+            "enabled": True, "check_interval": 5, "run_missed_on_startup": False,
+            "catch_up_window_hours": 24, "max_history": 50,
+            "tasks_file": str(tasks), "output_directory": str(folder / "outputs" / "scheduled"),
+            "lock_file": str(folder / "scheduler.lock"),
+            "notify_desktop": False, "notify_mobile": False,
+        })
+        self.scheduler.add_listener(self._on_scheduled_result)
+        self.scheduler.start()
 
     def start_relay(self, tunnel=None):
         """Relay simulé (DemoRelay) : ni serveur ni tunnel réels."""
@@ -1121,6 +1367,7 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         self.chat.start()
         time.sleep(pause)
         self._step("services", "Démarrage des services…")
+        self._start_demo_scheduler()
         time.sleep(pause)
         self._restore_session()
         self.preload_voice()

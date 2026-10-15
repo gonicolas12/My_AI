@@ -4,9 +4,11 @@
 // (Ctrl, Alt, F1 à F12, Échap ; jamais la frappe ordinaire), état du micro, texte de la zone de
 // saisie, état du Relay (tunnels, appareils ; ni adresse ni jeton), messages de la conversation
 // (source « mobile » comprise), réponse en cours, toasts. Page Agents : onglet, nœuds du canvas et
-// leur statut, liens, tâche et pièces jointes, fils d'exécution et leur statut, et les requêtes de
-// la page vers /api/agents (enregistrer, charger, exporter, pièces jointes), relevées au passage
-// sans en envoyer. S'arrête quand la fenêtre se ferme, ou après MINUTES minutes.
+// leur statut, liens, tâche et pièces jointes, fils d'exécution (origine comprise) et leur
+// statut, tâches planifiées (activée, dernier résultat), focus de la fenêtre, et les requêtes de
+// la page vers /api/agents, /api/schedule et /api/window/focus (enregistrer, charger, exporter,
+// débat, tâches planifiées…), relevées au passage sans en envoyer. S'arrête quand la fenêtre se
+// ferme, ou après MINUTES minutes.
 // Usage (depuis frontend/) : node scripts/window_watch.mjs [MINUTES]
 import { connectWindow } from './lib.mjs';
 
@@ -28,11 +30,20 @@ const listen = () =>
         const response = await original(input, init);
         const url = new URL(typeof input === 'string' ? input : input.url, location.href);
         const method = init?.method ?? 'GET';
-        if (url.pathname.startsWith('/api/agents') && method !== 'GET') {
+        const watched = ['/api/agents', '/api/schedule', '/api/window/focus'].some((prefix) =>
+          url.pathname.startsWith(prefix),
+        );
+        if (watched && method !== 'GET') {
           let detail = '';
           try {
             const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
-            detail = body?.path ?? (body?.paths ?? []).join(', ') ?? '';
+            detail =
+              body?.path ??
+              ((body?.paths ?? []).join(', ') ||
+                (body?.topic ? `${body.agent_a} vs ${body.agent_b}, ${body.rounds} tours` : '') ||
+                (body?.name ?? '') ||
+                ('focused' in (body ?? {}) ? `focus ${body.focused}` : '') ||
+                ('enabled' in (body ?? {}) ? `activée ${body.enabled}` : ''));
           } catch {
             detail = '';
           }
@@ -73,10 +84,11 @@ function snapshot() {
       fetch(path, { headers: { Authorization: `Bearer ${token}` } })
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null);
-    const [relay, conversation, agentRuns] = await Promise.all([
+    const [relay, conversation, agentRuns, schedule] = await Promise.all([
       get('/api/relay'),
       get('/api/conversation'),
       get('/api/agents/runs'),
+      get('/api/schedule'),
     ]);
     const titles = [...document.querySelectorAll('[role="dialog"]')].map(
       (dialog) =>
@@ -112,8 +124,16 @@ function snapshot() {
       task: document.querySelector('textarea[aria-label="Tâche"]')?.value ?? '',
       attachments: attachments.join(', '),
       runs: (agentRuns?.runs ?? []).map(
-        (run) => `${run.title} [${run.status}]${run.status_text ? ` ${run.status_text}` : ''}`,
+        (run) =>
+          `${run.title} [${run.status}]${run.origin && run.origin !== 'desktop' ? ` (${run.origin})` : ''}${run.status_text ? ` ${run.status_text}` : ''}`,
       ),
+      schedule: (schedule?.tasks ?? [])
+        .map(
+          (task) =>
+            `${task.name} [${task.enabled ? 'activée' : 'désactivée'}${task.last_status ? `, ${task.last_status}` : ''}]`,
+        )
+        .join(' | '),
+      focus: document.hasFocus() ? 'oui' : 'non',
       dialogs: titles.join(' + '),
       mic: mic?.getAttribute('aria-label') ?? '',
       draft: document.querySelector('textarea[aria-label="Message"]')?.value ?? '',
@@ -150,9 +170,11 @@ while (Date.now() < deadline) {
   for (const call of state.calls) say(`requête de la page : ${call}`);
   for (const [field, label] of [
     ['tab', 'onglet'],
+    ['focus', 'focus de la fenêtre'],
     ['canvas', 'canvas'],
     ['task', 'tâche'],
     ['attachments', 'pièces jointes de la tâche'],
+    ['schedule', 'tâches planifiées'],
     ['dialogs', 'panneau'],
     ['mic', 'micro'],
     ['draft', 'zone de saisie'],
