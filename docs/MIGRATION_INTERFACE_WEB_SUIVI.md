@@ -113,8 +113,10 @@ phase 2).
   5 à 7 (« Exécuter même l'appli fermée », `main.py --mode gui`, `launch.bat`), il les fera
   plus tard. Sa remarque, des infobulles qui restaient affichées, est corrigée en deux
   temps (écart 26 : la vraie cause était le mouvement réduit, les animations de Windows étant
-  coupées sur ce PC) ; à revoir dans la vraie fenêtre. **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
-  accord (texte proposé pour le CHANGELOG en section 18). Rien n'est fusionné.
+  coupées sur ce PC), vu corrigé par Nicolas dans la vraie fenêtre. **Version 9.0.0**
+  préparée le même jour (D53) : numéros de version, entrée de `docs/CHANGELOG.md`, docs
+  relues. **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
+  accord. Rien n'est fusionné.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -893,6 +895,16 @@ ignoré par git).
   plus tard « Exécuter même l'appli fermée », `main.py --mode gui` et `launch.bat`
   (question 50).
 - **D52. Captures de `docs/images/`** : Nicolas les refait (question 51).
+
+### Prise le 2026-10-15 (préparation de la 9.0.0)
+
+- **D53. Version 9.0.0 et CHANGELOG**, à la demande de Nicolas : la migration sort en 9.0.0,
+  avec tous les changements poussés depuis « My_AI 8.1.0 is HERE ! » (`fc79683`). Nicolas a
+  passé les « 8.1.0 » du projet en « 9.0.0 » ; l'entrée est écrite dans `docs/CHANGELOG.md`
+  (texte de la section 18, complété : Ollama, boucle d'outils, recherche, mémoire, documents,
+  lancement, extension 1.3.7). Un fichier de workflow enregistré porte la version de l'appli
+  (`WORKFLOW_VERSION`, comme Tk écrivait la sienne) ; les données de test qui imitent un
+  fichier de Tk gardent « 8.1.0 ».
 
 ### Constats techniques qui orientent la phase 1
 
@@ -2446,7 +2458,24 @@ propre exécuteur, dans son processus.
   option `--mouvement-reduit` de `tooltips.mjs` (ancien code : les infobulles restantes
   s'accumulent d'un cas à l'autre, jusqu'à 4 ; nouveau code : aucune, avec ou sans mouvement
   réduit, et le fondu gardé sans). Vitest 168, ESLint et Prettier sans erreur ; Playwright 27/27, 46/46 et 76/76. Pas
-  encore vu dans la vraie fenêtre.
+  encore vu dans la vraie fenêtre. Nicolas l'a ensuite vu corrigé dans la vraie fenêtre.
+
+### Version 9.0.0 — 2026-10-15 (D53)
+
+- Numéros : Nicolas a remplacé les « 8.1.0 » du projet. Restent, à raison : l'historique du
+  CHANGELOG et de celui de l'extension, `jsdom ^28.1.0`. Sa modification à la main de
+  `frontend/dist/assets/AgentsPage-*.js` (`WORKFLOW_VERSION`, juste) est remplacée par un vrai
+  build ; les données de test qui imitent un fichier de Tk (`TK_FILE`, `TK_WORKFLOW`,
+  `workflow_tk.json`) reprennent « 8.1.0 », la version que Tk écrivait.
+- Docs relues pour la 9.0.0 : plus aucune trace de Tk hors CHANGELOG et suivi ; quatre
+  passages corrigés (rendu des citations et User-Agent dans INTERNET_SEARCH, retour RLHF
+  dans ADVANCED_FEATURES, progression de l'image dans IMAGE_GENERATION, date
+  d'OPTIMIZATION). Les nouveautés d'avant la migration y étaient déjà.
+- CHANGELOG : entrée 9.0.0 tirée des messages des commits depuis `fc79683` (159 commits),
+  datée du 15 octobre 2026.
+- Tests : pytest 1137 (`my_ai` déchargé après), Vitest 168.
+- `frontend/package-lock.json` : 66 lignes ajoutées par npm (dépendances embarquées de
+  `@tailwindcss/oxide-wasm32-wasi`), sans rapport avec la version : non commitées.
 
 ---
 
@@ -2856,7 +2885,8 @@ Captures de `docs/images/` à refaire (elles montrent l'interface Tk ; Nicolas l
   barre d'outils et la minimap.
 
 Texte proposé pour l'entrée du CHANGELOG (à la fusion ; ni `docs/CHANGELOG.md` ni les numéros
-de version ne sont touchés ; le numéro de version est à choisir) :
+de version ne sont touchés ; le numéro de version est à choisir). Écrit dans `docs/CHANGELOG.md`
+le 2026-10-15 (D53), complété des changements d'avant la migration ; texte d'origine :
 
 ```markdown
 # 🚀 Version 9.0.0 — Nouvelle interface desktop : React dans une fenêtre native (date à fixer)
