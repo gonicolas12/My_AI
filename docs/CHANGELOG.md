@@ -1,5 +1,119 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🚀 Version 9.0.0 — Nouvelle interface desktop & Ollama plus rapide (15 Octobre 2026)
+
+### Une interface web locale dans une fenêtre native, un modèle placé au mieux sur la machine, une boucle d'outils qui ne fait plus tout relire à Ollama
+
+Version **majeure**. L'interface Tkinter tournait dans le même processus Python que le moteur : dès que celui-ci calculait (torch, embeddings, ChromaDB), l'affichage gelait. Son moteur de rendu fait main (≈ 10 000 lignes) recalculait le Markdown pendant le streaming, l'appli ne gérait pas le DPI (texte flou à 125 %) et ≈ 1 100 lignes de contournements Win32 incrustaient Edge et les visionneuses Office. Elle est remplacée par une interface **React + TypeScript** affichée dans une **fenêtre native pywebview** (WebView2 sous Windows), reliée au moteur par un **serveur local** sur 127.0.0.1. Mêmes pages (Chat, Agents), mêmes couleurs, toutes les fonctionnalités conservées ; le **mobile Relay** et l'**extension VS Code** sont inchangés. Côté moteur : le lanceur **place le modèle** sur le GPU intégré quand il y va plus vite et passe son contexte **en 8 bits** quand il déborde de la carte, tous les appels partagent **une seule fenêtre de contexte**, la **boucle d'outils** ne fait plus relire toute la conversation à Ollama, la **recherche internet** est réécrite, « Retiens que… » **retient vraiment** et les **PDF scannés** se lisent par OCR.
+
+## 🖥️ Fenêtre et serveur local — `frontend/` (nouveau), `interfaces/desktop/` (nouveau)
+
+- La fenêtre s'ouvre tout de suite sur un **écran de chargement** qui nomme chaque étape (Ollama, assistant, `my_ai`, placement, moteur). Elle retient sa taille, sa position, la barre latérale et la largeur du volet. Sans pywebview, l'interface s'ouvre dans le navigateur.
+- Serveur **FastAPI** sur 127.0.0.1, port libre, **jeton tiré à chaque lancement**, en-têtes `Origin` et `Host` vérifiés : REST + un WebSocket d'événements (`interfaces/desktop/events.py` ↔ `frontend/src/lib/events.ts`).
+- Sécurité : liens externes ouverts dans le navigateur du système, Markdown sans HTML brut, artifacts dans une `<iframe sandbox>` sans `allow-same-origin`, fichiers locaux servis par liens signés seulement.
+- Le processus gère le DPI par écran : Windows ne l'agrandit plus comme une image à 125 %. Barre de titre sombre, polices Inter et JetBrains Mono livrées avec l'appli.
+- `frontend/dist/` est versionné : **Node n'est pas nécessaire** pour lancer l'appli. Pour développer : `launch_unified.py --dev` (Vite, rechargement à chaud) et `--headless`.
+
+## 💬 Chat — `core/chat_service.py` (nouveau)
+
+- Le pipeline du chat sort de l'interface, avec **les mêmes appels au moteur, dans le même ordre** : Ollama reprend le prompt déjà lu (vérifié sur le vrai Ollama).
+- **File d'attente** commune au PC et au mobile : un message envoyé pendant une réponse attend son tour, et peut être retiré ; Stop et **Échap** arrêtent la réponse en cours.
+- **Sessions** enregistrées après chaque tour et rouvertes au lancement ; historique du modèle reconstruit à la réouverture ; plus de troncature à 100 messages ; réflexion, appels d'outils, documents, image générée, source mobile et note gardés avec chaque message (format rétrocompatible) ; **Ctrl+L** ouvre une nouvelle conversation sans perdre l'ancienne.
+- Streaming fluide : jetons regroupés par image affichée, blocs Markdown terminés figés, code coloré par Shiki avec bouton Copier, formules **KaTeX**, fil virtualisé ; tokens/s tirés des statistiques d'Ollama.
+- **Régénérer** au survol d'une réponse (nouvelle variante ‹ k/n ›) ; revenir à une variante la rend entière (réflexion, outils, documents, image, note), là où Tk ne rendait que le texte. Actions au survol (copier, lire, modifier, noter) ; un dossier glissé dans la saisie joint ses fichiers ; un message envoyé ramène en bas du fil.
+- **Pièces jointes** lues en arrière-plan, avec leur état ; l'envoi attend la fin de leur lecture. Retirée avant l'envoi, une pièce jointe arrête sa lecture, et son document est oublié partout (mémoire de la session, mémoire vectorielle, analyseur de documents), sauf s'il sert déjà à un message.
+- Volet d'aperçu : artifacts (onglets Aperçu et Code), PDF dans la page, **visionneuses Word, Excel et PowerPoint de Windows posées dans la fenêtre** ; le Word caché des aperçus se ferme avec l'appli.
+- Panneaux dans la fenêtre : Réglages, Mémoire, Prompts, Relay (QR code et état de chaque tunnel), Aide (F1), palette **Ctrl+K**, assistant de premier lancement.
+
+## 🤖 Page Agents
+
+- Chaque exécution (agent, workflow, débat) devient un **fil** rouvrable, au statut en direct ; les 50 derniers sont gardés (`data/agent_runs.json`).
+- Une sortie qui modifie un code joint s'ouvre en **diff**.
+- Canvas **React Flow** : mêmes gestes, liens animés pendant l'exécution, tout cycle refusé ; fichiers de workflow au format de l'ancien canvas. **Exporter** écrit un Markdown : la tâche, les agents, puis la réponse de chacun.
+- Un seul exécuteur, partagé par la page, le mobile et le scheduler : les exécutions du **téléphone** et des **tâches planifiées** deviennent aussi des fils.
+- Statistiques sur les fils gardés ; moniteur de ressources avec les **tokens/s** de chaque agent ; vue des tâches planifiées (prochaine exécution, dernier résultat, rapport) ; notification de fin d'un fil long, débats compris.
+
+## ⚡ Ollama : placement, contexte, connexion — `utils/ollama_placement.py` (nouveau), `launch_unified.py`
+
+- **Modèle placé selon la machine** : au lancement, le calibrage regarde où Ollama place le modèle. Resté sur le processeur, il est mesuré, puis Ollama est relancé avec le GPU intégré autorisé (`OLLAMA_IGPU_ENABLE`, `OLLAMA_VULKAN`), et le plus rapide est gardé. Sur un Core Ultra 7 255H (Arc 140T), le GPU intégré lit le prompt 4 fois plus vite ; requête type 1,9 fois plus rapide. Avec une carte dédiée, le GPU intégré n'est pas essayé.
+- **Contexte en 8 bits** (`OLLAMA_KV_CACHE_TYPE=q8_0`) quand le modèle déborde du GPU, gardé seulement s'il va au moins 15 % plus vite : sur une RTX 3060 Laptop (6 Go), `my_ai` tient alors entier sur la carte et écrit à 78 tok/s au lieu de 45. Mêmes réponses qu'en 16 bits sur 25 questions de contrôle.
+- Choix retenu dans `data/.ollama_placement.json`, remesuré après une mise à jour d'Ollama, un changement de modèle, de carte, de pilote ou de fenêtre de contexte ; les variables posées par l'utilisateur gardent la main. L'écran de chargement et la ligne « Ollama prêt » indiquent le placement.
+- **Une seule fenêtre de contexte** (32 768 tokens, `llm.local.num_ctx`) pour tous les appels à `my_ai` : chaque étape demandait la sienne, et Ollama rechargeait le modèle à chaque changement (≈ 3,5 s sur un GPU intégré), en perdant la conversation déjà lue. Option 65 536 dans ⚙️ Réglages ; résumé glissant déclenché à la moitié de la fenêtre.
+- **Ollama joint via 127.0.0.1** : sous Windows, « localhost » essayait d'abord l'IPv6, où Ollama n'écoute pas (≈ 2 s perdues par requête). Le reranker et le modèle d'embeddings se chargent depuis le cache, sans requête réseau.
+- **Relance d'Ollama fiable** : le lanceur ferme aussi l'application bureau d'Ollama, qui relançait son propre serveur sans les variables du lanceur, et attend que le port soit rendu avant de lancer `ollama serve`.
+
+## 🧭 Boucle d'outils — `core/chat_orchestrator.py`
+
+- **Ollama ne relit plus toute la conversation à chaque tour** : l'état de la tâche (scratchpad) n'est plus réécrit dans le message système, chaque tour prolonge exactement le précédent, et l'objectif est abrégé à 300 caractères. Sur une vraie mission à deux outils (long ticket XML), les tours 2 et 3 relisaient tout le prompt (115 s et 138 s de lecture) ; ils n'en lisent plus que l'ajout (33 s et 14 s).
+- **Synthèse dans la foulée** : la réponse finale prolonge le dernier tour (même message système, mêmes outils) au lieu de repartir d'un autre prompt : 73,6 s au lieu de 185,2 s sur une mission de 15 000 tokens, 41,4 s au lieu de 135,7 s pour une recherche web. Après une recherche suffisante, la synthèse suit directement l'outil, sans tour de rédaction jamais affiché (221 s au lieu de 375 s).
+- **La boucle suit la demande** : une étape dont l'outil n'a rien donné est marquée ✗ et peut être retentée ; chaque bloc d'avancement rappelle l'objectif ; l'outil de document reste offert tant que le document demandé n'existe pas.
+- **Document créé même sans résultats** : après deux recherches vides, le document demandé est rédigé avec les connaissances du modèle au lieu de reformuler sans fin ; un appel à Ollama en échec est refait une fois. Sur le banc de la boucle : document créé 61 fois sur 61 (27 sur 28 avant), en 14,5 s au lieu de 23 s.
+
+## 🔍 Recherche internet — `models/internet_search.py` (réécrit)
+
+- La recherche ne marchait presque plus (moteurs bloqués, instances SearXNG injoignables, articles Wikipédia sans rapport). Réécrite sans aucun appel au modèle (4 189 → 1 234 lignes) : **DuckDuckGo** (HTML), puis **Yahoo**, puis **Wikipédia** ; les 4 premières pages lues en parallèle, texte principal seulement ; sources numérotées et liens `[n]` cliquables.
+- **Météo** par Open-Meteo, 7 jours, sans clé ; « aujourd'hui » et « demain » repérés d'après la date du lieu.
+- **Trafic d'un client ordinaire** : HTTPS vérifié avec le magasin de certificats du système (`truststore`, utile derrière un proxy d'entreprise), User-Agent du projet, plus de contournement anti-robot (`cloudscraper` retiré) ; un moteur bloqué est mis en pause 15 min ; cache de 30 min.
+- La requête écrite par le modèle est gardée, sans les années qu'il ajoute faute de connaître la date.
+- **WebAgent** aligné sur la recherche du chat : il respecte la forme demandée (tableau, liste), cite ses sources, et son historique ne garde que la question et la réponse.
+
+## 🧠 Mémoire
+
+- **« Retiens que… » retient vraiment** : le modèle répondait « c'est noté » sans rien écrire. Un filet sûr à l'entrée du chat, du CLI et de l'API, plus l'outil `remember_fact` pour les autres formulations ; confirmation exacte (« C'est noté : tu t'appelles Sophie »), sans doublon ; une question n'est pas un fait.
+- **Faits mémorisés dans toutes les réponses** : les plus proches du message, puis les plus récents, y compris après des outils et avec un document ou une image joints ; faits sur l'utilisateur distingués des consignes pour l'IA ; consigne de langue prioritaire.
+- Fichiers et documents générés : les faits sur l'utilisateur seulement quand la demande parle de lui (« mon CV »).
+- **Mémoire vectorielle** : un document ajouté deux fois est reconnu à coup sûr (identifiant tiré du contenu), et ses morceaux ne sont plus recopiés dans ChromaDB.
+
+## 📄 Documents joints — `processors/ocr.py`, `processors/attachments.py`, `core/document_passages.py`, `core/passage_embeddings.py` (nouveaux)
+
+- **PDF scannés lus par OCR** (RapidOCR, modèles ONNX fournis, hors ligne) : un scan n'est plus « vide ou illisible ».
+- **Longs documents** : le texte n'est plus coupé à 8 000 caractères. Les documents joints disposent d'un quart de la fenêtre de contexte (≈ 8 000 tokens) ; au-delà, le modèle reçoit le début puis les passages les plus proches de la question (BM25 insensible aux accents, plus un score de sens multilingue, Granite Embedding 107M, téléchargé une fois en arrière-plan), et la sélection lui est signalée.
+- **Réponse qui réclame le fichier** alors qu'il est dans le prompt (≈ 1 fois sur 30 avec qwen3.5:4b) : coupée avant affichage et redemandée une fois.
+- **Pièces jointes des agents** (page Agents et Relay) : PDF, Word et Excel passent par le processeur de leur format ; un document illisible est signalé à l'agent au lieu de lui être envoyé en octets bruts.
+
+## 🚀 Lancement — `utils/requirements_sync.py` (nouveau)
+
+- **Dépendances d'un `git pull` installées au lancement** : les lignes de `requirements.txt` non satisfaites sont installées par pip, sans toucher au reste ; vérification refaite seulement quand le fichier change (`MY_AI_SKIP_DEPS_SYNC=1` la désactive).
+- **`my_ai` recréé quand le Modelfile change** (à la main, par un `git pull` ou par ⚙️ Réglages) ; un modèle de base absent est d'abord téléchargé, avec une ligne de progression.
+
+## 📱 Mobile Relay
+
+- Le chat mobile **ne dépend plus de la fenêtre** : il passe par le service de chat, appli ouverte ou non, et s'affiche en direct dans la fenêtre avec un badge « Mobile ». Protocole et interface mobile inchangés.
+- **QR code fiable** : chaque tunnel annoncé est vérifié depuis le PC, et seuls les joignables entrent dans le QR code (localhost.run annonçait une adresse muette).
+- Les tunnels ssh n'écrivent plus de fichier `nul` dans le dossier de lancement.
+
+## 🔔 Notifications
+
+- La notification du système et le toast d'une tâche planifiée montrent son résumé en **texte brut**, sans le Markdown de la sortie de l'agent.
+
+## 🧩 Extension VS Code 1.3.7
+
+- Le mode agentique se présente comme My_AI seulement, sans comparaison à un autre outil, dans son prompt comme dans les docs. Rien ne change dans le fonctionnement ; détails dans `vscode_extension/CHANGELOG.md`.
+
+## 🐛 Corrections
+
+- **Deux réponses dans la même bulle** quand une synthèse était rejetée : le début de la synthèse est maintenant validé avant d'être affiché.
+- **Identité et format de My_AI perdus** : plusieurs appels envoyaient leur propre prompt système, qui remplaçait le `SYSTEM` du Modelfile au lieu de le compléter (`core/modelfile.py`).
+- **Tâches planifiées** : deux schedulers (fenêtre ou Relay, et runner Windows) pouvaient exécuter la même tâche ; le verrou n'est plus recréé après sa libération (`core/scheduler.py`).
+- **Débat** : la fin de chaque tour, sauf le dernier, n'était jamais envoyée, téléphone compris (`relay/agent_relay.py`).
+- **Moniteur de ressources** : depuis Ollama 0.40, le modèle tourne dans `llama-server`, dont le CPU et la RAM échappaient au moniteur (`interfaces/resource_monitor.py`).
+
+## 🗑️ Retiré
+
+- L'interface Tk : `interfaces/gui/`, `interfaces/agents/`, `gui_modern.py`, `agents_interface.py`, `workflow_canvas.py`, `modern_styles.py` et l'assistant Tk (≈ 30 700 lignes). Les fonctions de `interfaces/onboarding.py` restent.
+- `launch_unified.py --ui tk` (`--ui web` reste accepté).
+
+#### Autres changements
+
+- Version du projet → **9.0.0** (`config.yaml`, lanceurs `launch.bat` / `launch.sh` / `launch_unified.py`, `clean_project.bat`, API REST, exports de conversation, scheduler, workflows, `CustomAIModel`, en-têtes de docs).
+- Dépendances : ajoutées `pywebview`, `pythonnet` (Windows), `truststore` et `rapidocr` ; retirées `customtkinter`, `tkinterdnd2`, `tkinterweb`, `pygments`, `cloudscraper` et `streamlit`, que rien n'importait ; `PyMuPDF` 1.24.3 au moins. Les nouvelles s'installent au lancement suivant.
+- `main.py --mode gui` ouvre la fenêtre web, sans configurer Ollama, comme avant ; `launch.sh` n'exige plus tkinter.
+- Tests : `test_advanced_features.py`, qui ne pouvait pas échouer et écrivait dans les vraies données de l'appli, est remplacé par `test_rlhf_manager.py` et `test_compression_monitor.py` (`test_features.bat` supprimé). Nouveaux : chat (`test_chat_service.py`, `test_chat_synthesis.py`, `test_scratchpad.py`, `test_context_window.py`, `test_stream_stats.py`), Ollama (`test_ollama_placement.py`, `test_ollama_restart.py`, `test_modelfile_sync.py`, `test_modelfile_prompt.py`), documents (`test_ocr.py`, `test_pdf_processor.py`, `test_document_passages.py`, `test_passage_embeddings.py`, `test_document_context.py`, `test_attachment_refusal.py`, `test_document_forgetting.py`, `test_agent_attachments.py`), mémoire (`test_memory_chat.py`, `test_knowledge_base_facts.py`, `test_generation_memory.py`), recherche (`test_internet_search.py`, `test_web_agent.py`), fenêtre (`test_desktop_*.py`, `test_main_gui.py`), `test_relay_tunnels.py`, `test_requirements_sync.py` ; Vitest pour l'interface. Les tests de Tk sont retirés, ce qu'ils vérifiaient d'utile est porté.
+- Documentation : README, ARCHITECTURE, AGENTS_GUI, ARTIFACTS_PREVIEW, INSTALLATION, USAGE, FAQ, CODEBASE, GUI_RLHF_FEEDBACK, INTERNET_SEARCH, OPTIMIZATION, AGENTS, MEMORY et les autres guides ; suivi de la migration dans `docs/MIGRATION_INTERFACE_WEB_SUIVI.md`.
+- Outils de développement : `frontend/scripts/` (Playwright) et `tools/interface_web/` (serveur de démonstration sans Ollama).
+
+---
+
 # 🚀 Version 8.1.0 — Génération de documents & aperçu natif (25 Septembre 2026)
 
 ### Des documents Word, PDF, PowerPoint et Excel produits en local, modifiables, et affichés à côté du chat
