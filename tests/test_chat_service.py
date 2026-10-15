@@ -227,10 +227,15 @@ class FakeFileProcessor:
 
     def __init__(self):
         self.gate = None
+        self.gates = []  # une barrière par lecture, prises dans l'ordre des lectures
+        self.error = None  # erreur d'un fichier illisible
 
     def process_file(self, path):
-        if self.gate is not None:
-            self.gate.wait(5)
+        gate = self.gates.pop(0) if self.gates else self.gate
+        if gate is not None:
+            gate.wait(5)
+        if self.error:
+            return {"error": self.error}
         return {"content": f"Contenu de {path}"}
 
 
@@ -728,6 +733,126 @@ def test_removed_attachment_is_forgotten_unless_still_used(chat):
     assert chat.engine.local_ai.removed == ["notes.txt"]
 
 
+def test_removing_an_attachment_being_read_frees_sending_and_forgets_it(chat):
+    document = chat.tmp_path / "fiche.pdf"
+    document.write_bytes(b"%PDF-1.4")
+    chat.processor.gate = threading.Event()
+    attachment = chat.service.add_attachment(str(document))
+    chat.service.remove_attachment(attachment["id"])
+
+    ask(chat, "Question sans pièce jointe")  # plus rien n'attend la lecture
+    chat.processor.gate.set()
+    deadline = time.time() + 5
+    while not chat.engine.local_ai.removed and time.time() < deadline:
+        time.sleep(0.01)
+    # Lecture interrompue : rien de gardé, aucune erreur signalée
+    assert chat.engine.local_ai.removed == ["fiche.pdf"]
+    assert "fiche.pdf" not in chat.engine.local_ai.conversation_memory.stored_documents
+    assert not [e for e in chat.events if e["type"] in ("attachment.ready", "attachment.failed")]
+    assert not [e for e in chat.events
+                if e["type"] == "notification" and e["payload"]["level"] == "error"]
+
+
+def test_the_same_file_attached_twice_waits_for_both_reads(chat):
+    document = chat.tmp_path / "rapport.pdf"
+    document.write_bytes(b"%PDF-1.4")
+    first, second = threading.Event(), threading.Event()
+    chat.processor.gates = [first, second]
+    chat.service.add_attachment(str(document))
+    chat.service.add_attachment(str(document))
+
+    first.set()
+    wait_for(chat.events, "attachment.ready")
+    with pytest.raises(ChatError, match="en cours de chargement"):
+        chat.service.send("Résume ce document")
+    second.set()
+    wait_for(chat.events, "attachment.ready", 2)
+    ask(chat, "Résume ce document")
+
+
+def test_an_unreadable_file_does_not_block_sending(chat):
+    document = chat.tmp_path / "scan.pdf"
+    document.write_bytes(b"%PDF-1.4")
+    chat.processor.error = "PDF illisible"
+    chat.service.add_attachment(str(document))
+
+    assert wait_for(chat.events, "attachment.failed")[0]["payload"]["message"] == "PDF illisible"
+    assert "❌ Erreur : scan.pdf" in [e["payload"]["message"] for e in chat.events
+                                     if e["type"] == "notification"]
+    ask(chat, "Que dit ce document ?")
+    # Toujours cité dans le message, comme dans Tk
+    assert chat.service.snapshot()["messages"][0]["text"] == "Que dit ce document ?\n📎 scan.pdf"
+
+
+def test_a_document_already_in_memory_is_kept(chat):
+    """Déjà lu plus tôt dans la session : retirer la pièce jointe ne l'oublie pas."""
+    chat.engine.local_ai.conversation_memory.stored_documents["notes.txt"] = "notes"
+    document = chat.tmp_path / "notes.txt"
+    document.write_text("notes", encoding="utf-8")
+    attachment = chat.service.add_attachment(str(document))
+    wait_for(chat.events, "attachment.ready")
+
+    chat.service.remove_attachment(attachment["id"])
+    assert chat.engine.local_ai.removed == []
+
+
+def test_a_document_still_used_elsewhere_is_kept(chat):
+    """Encore joint à une autre pièce en attente, ou à une variante d'un tour modifié."""
+    document = chat.tmp_path / "notes.txt"
+    document.write_text("notes", encoding="utf-8")
+    first = chat.service.add_attachment(str(document))
+    second = chat.service.add_attachment(str(document))
+    wait_for(chat.events, "attachment.ready", 2)
+    chat.service.remove_attachment(first["id"])
+    assert chat.engine.local_ai.removed == []
+
+    # Variante d'avant d'un tour modifié, avec ce fichier ; la version affichée, sans
+    chat.service._branches["m1"] = {"current": 1, "versions": [  # pylint: disable=protected-access
+        {"user": "version d'avant", "attachments": [[str(document), "Code"]], "tail": []},
+        {"user": "version affichée", "attachments": [], "tail": []},
+    ]}
+    chat.service.remove_attachment(second["id"])
+    assert chat.engine.local_ai.removed == []
+
+
+def test_removal_during_ocr_skips_the_remaining_pages(chat, monkeypatch):
+    """Bout en bout : PDF de 3 pages scannées, pièce jointe retirée pendant la première."""
+    pymupdf = pytest.importorskip("pymupdf")
+    from processors import ocr  # pylint: disable=import-outside-toplevel
+    from utils.file_processor import FileProcessor  # pylint: disable=import-outside-toplevel
+
+    pages = []
+    attached = threading.Event()
+    attachment = {}
+
+    def engine(_image):
+        pages.append(1)
+        attached.wait(5)
+        chat.service.remove_attachment(attachment["id"])  # ✕ pendant l'OCR
+        return SimpleNamespace(txts=("texte reconnu",))
+
+    monkeypatch.setattr(ocr, "_get_engine", lambda: engine)
+    monkeypatch.setattr(ocr, "RapidOCR", object)
+    path = chat.tmp_path / "scan.pdf"
+    pdf = pymupdf.open()
+    for _ in range(3):
+        pdf.new_page()  # pages sans couche texte : OCR
+    pdf.save(str(path))
+    pdf.close()
+    chat.service._file_processor = FileProcessor()  # pylint: disable=protected-access
+
+    attachment.update(chat.service.add_attachment(str(path)))
+    attached.set()
+    deadline = time.time() + 10
+    while not chat.engine.local_ai.removed and time.time() < deadline:
+        time.sleep(0.02)
+    assert pages == [1]  # pages 2 et 3 jamais reconnues
+    assert chat.engine.local_ai.removed == ["scan.pdf"]
+    assert "scan.pdf" not in chat.engine.local_ai.conversation_memory.stored_documents
+    assert not [e for e in chat.events
+                if e["type"] == "notification" and e["payload"]["level"] == "error"]
+
+
 def test_unknown_formats_are_refused(chat):
     unknown = chat.tmp_path / "archive.xyz"
     unknown.write_bytes(b"?")
@@ -942,6 +1067,9 @@ def test_mobile_file_without_text_gets_the_default_request(chat):
     assert ("process_query_stream", "Analyse ce fichier et résume-le.") in chat.engine.calls
     assert chat.engine.local_ai.added == [str(document)]
     assert texts(chat.service.snapshot())[0] == "📎 budget.xlsx"
+    # Lu pour le téléphone : jamais oublié ensuite (aucune pièce jointe à retirer)
+    assert "budget.xlsx" in chat.engine.local_ai.conversation_memory.stored_documents
+    assert chat.engine.local_ai.removed == []
 
 
 def test_desktop_answers_are_not_sent_to_the_mobile(chat):
