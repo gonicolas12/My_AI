@@ -50,8 +50,8 @@ logger = setup_logger("AgentRelay")
 # Cadence max d'envoi des chunks de streaming par section (anti-flood WS+tunnel).
 _CHUNK_THROTTLE_SEC = 0.06
 
-# Métadonnées des 9 agents built-in (identiques à la grille du GUI desktop,
-# cf. interfaces/agents/agent_selection.py).
+# Métadonnées des 9 agents built-in : la grille de la fenêtre et celle du
+# mobile les reçoivent de list_agents.
 _BUILTIN_AGENTS: List[Dict[str, str]] = [
     {"key": "code", "icon": "🐍", "name": "CodeAgent",
      "desc": "Génération et debug de code", "color": "#3b82f6"},

@@ -2,12 +2,12 @@
 Rendu HTML des documents pour le volet « Aperçu ».
 
 Module 100% local, sans dépendance réseau, partagé par :
-- le GUI desktop (volet de preview, cf. ``interfaces/gui/artifacts_panel.py``),
+- la fenêtre de l'appli (volet d'aperçu, cf. ``interfaces/desktop/previews.py``),
 - le serveur Relay (HTML poussé chiffré vers la modale mobile).
 
 Un document bureautique n'a pas de « code source » affichable : on en produit
 une page HTML, mise en page comme une feuille de papier posée sur le fond
-sombre du volet, cohérente avec le thème du GUI.
+sombre du volet, cohérente avec le thème de la fenêtre.
 
 Le PDF fait exception : Edge et les navigateurs ont un lecteur PDF natif, donc
 ``needs_native_viewer()`` renvoie True et l'appelant sert le fichier tel quel.
