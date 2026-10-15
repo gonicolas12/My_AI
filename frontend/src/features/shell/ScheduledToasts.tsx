@@ -62,7 +62,10 @@ export function ScheduledToasts() {
                 <span className="block truncate font-semibold text-fg">
                   {toast.name || 'Tâche planifiée'}
                 </span>
-                {text ? <span className="mt-0.5 block text-xs text-fg-2">{text}</span> : null}
+                {text ? (
+                  // Texte brut du résumé (D47) : ses lignes restent des lignes
+                  <span className="mt-0.5 block text-xs whitespace-pre-line text-fg-2">{text}</span>
+                ) : null}
               </span>
             </button>
             <button
