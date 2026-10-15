@@ -97,7 +97,7 @@ phase 2).
   conversation, selon le plan de la section 18. Question 46 tranchée au début (D47 :
   notifications en texte brut) ; les trois fichiers de `models/` qui citent « tkinter » sont
   gardés.
-- **Phase 5 faite le 2026-10-15, sauf la recette manuelle avec Nicolas** : interface web par
+- **Phase 5 faite le 2026-10-15** (recette au point suivant) : interface web par
   défaut partout (`launch_unified.py` sans `--ui tk`, `main.py --mode gui`, `launch.sh`) ;
   interface Tk supprimée (`interfaces/gui/`, `interfaces/agents/`, `gui_modern.py`,
   `agents_interface.py`, `workflow_canvas.py`, `modern_styles.py`, `OnboardingWizard`) ; ce que
@@ -105,10 +105,15 @@ phase 2).
   customtkinter, tkinterdnd2, tkinterweb ni pygments ; documentation à jour. Plus aucune
   occurrence de « tkinter » dans le code ni les tests (hors les trois fichiers de `models/`).
   Suites vertes : 1137 tests pytest, 165 Vitest ; contrôles Playwright 27/27, 46/46, 76/76.
-  Deux défauts trouvés en route et corrigés (journal, section 12). **Reste** : la recette
-  manuelle avec Nicolas dans la vraie appli, ses réponses aux questions 47 à 50 (section 9),
-  les captures de `docs/images/` à refaire, puis la fusion dans `main` avec son accord (texte
-  proposé pour le CHANGELOG en section 18). Rien n'est fusionné.
+  Deux défauts trouvés en route et corrigés (journal, section 12).
+- Questions 47 à 51 tranchées le 2026-10-15 (D48 à D52, section 8) : streamlit retiré,
+  assistant gardé dans `main.py --mode gui`, défilement à l'envoi validé, captures refaites
+  par Nicolas. **Recette faite avec Nicolas le 2026-10-15** (D51) : étapes 1 à 4 réussies
+  (défilement à l'envoi, voix, aperçu Word, notification d'une tâche planifiée) ; les étapes
+  5 à 7 (« Exécuter même l'appli fermée », `main.py --mode gui`, `launch.bat`), il les fera
+  plus tard. Sa remarque, des infobulles qui restaient affichées, est corrigée (écart 26 ;
+  Vitest 168). **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
+  accord (texte proposé pour le CHANGELOG en section 18). Rien n'est fusionné.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -274,8 +279,11 @@ le centre de notifications) ; « Exécuter même l'appli fermée » décoché pu
 s'affichait cochée : la tâche Windows `My_AI Scheduler` existait déjà) ; le bouton Arrêter du fil
 d'une exécution du téléphone (arrêtée du téléphone pendant l'essai).
 
-Recette manuelle de la phase 5, à faire avec Nicolas dans la vraie appli (lancée avec
-`MY_AI_WEBVIEW_CDP_PORT`, suivie par `window_watch.mjs`, sans saisie de ma part) :
+Recette manuelle de la phase 5 avec Nicolas dans la vraie appli (lancée avec
+`MY_AI_WEBVIEW_CDP_PORT`, suivie par `window_watch.mjs`, sans saisie de ma part), faite le
+2026-10-15 (D51) : la conversation, la notification d'une tâche planifiée, la voix et l'aperçu
+Word réussis ; `launch.bat`, `main.py --mode gui` et les restes des phases précédentes, à faire
+par Nicolas plus tard.
 
 - `launch.bat`, option 1 : la fenêtre web, l'écran de chargement et ses étapes, puis « Prêt » ;
 - `python main.py --mode gui` : la fenêtre seule (Ollama tel qu'il tourne, sans placement) ;
@@ -553,8 +561,9 @@ L'interface Tk n'existe plus : les fichiers d'origine cités plus haut ne sont p
 (git les garde dans l'historique, et `main` jusqu'à la fusion). La checklist reste entièrement
 cochée. En portant les tests de Tk, un point du défilement « suivi » (section 6) manquait :
 envoyer un message en étant remonté ramène désormais en bas, comme Tk (section 7, écart 24).
-Restent la recette manuelle avec Nicolas (section 2) et, hors de ce PC, 125 %, 150 %, deux
-écrans, le PC Arc, macOS et Linux.
+Recette manuelle faite avec Nicolas le 2026-10-15 (D51). Restent les essais qu'il fera plus
+tard (`launch.bat`, `main.py --mode gui`, « Exécuter même l'appli fermée », section 2) et, hors
+de ce PC, 125 %, 150 %, deux écrans, le PC Arc, macOS et Linux.
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -660,10 +669,18 @@ Restent la recette manuelle avec Nicolas (section 2) et, hors de ce PC, 125 %, 1
     ramène en bas et la réponse est suivie ; un message du téléphone, lui, ne déplace pas un
     lecteur remonté (le bouton « ↓ » apparaît), parce qu'avec la file d'attente (D1) un tour
     peut commencer longtemps après son envoi (question 49).
-25. **Streamlit** (constaté en phase 5) : `requirements.txt` porte `streamlit>=1.42.0`
+25. **Streamlit** (constaté en phase 5) : `requirements.txt` portait `streamlit>=1.42.0`
     (« Interface web (optionnel) »), qu'aucun module n'importe, et `docs/INSTALLATION.md`
     décrivait une interface Streamlit, `interfaces/web_interface.py`, absente du dépôt. La
-    section de la documentation est retirée ; le paquet reste (question 47).
+    section de la documentation est retirée, puis le paquet (D48).
+26. **Infobulles restées affichées** (constaté à la recette de la phase 5, remarque de
+    Nicolas) : sur Relay, Mémoire, Lire à voix haute… l'infobulle restait affichée, souris
+    partie. Radix ouvre une infobulle quand son bouton reçoit le focus et ne la ferme alors
+    qu'à la perte du focus ; or la fenêtre, quand elle redevient active, rend le focus au
+    dernier bouton cliqué, sans survol (elle a perdu puis repris le focus 16 fois pendant
+    l'essai). Corrigé dans `Tooltip.tsx` : le focus n'ouvre plus l'infobulle qu'en
+    navigation au clavier (Tab), et une infobulle ouverte se ferme quand la fenêtre perd le
+    focus. Le survol ne change pas.
 
 ## 8. Décisions
 
@@ -853,6 +870,18 @@ ignoré par git).
   les notifications du système passent par là (`notify_desktop`), celles du runner « appli
   fermée » et de la fin d'un fil d'agents comprises. Le rapport `.md`, l'historique du
   scheduler et le résumé envoyé par le Relay ne changent pas.
+
+### Prises le 2026-10-15 (réponses de Nicolas aux questions de la phase 5)
+
+- **D48. Streamlit retiré** de `requirements.txt` (question 47, écart 25).
+- **D49. `main.py --mode gui`** : la fenêtre web sans configurer Ollama, et l'assistant de
+  premier lancement s'il le faut (question 48).
+- **D50. Défilement à l'envoi** : un message envoyé, modifié ou régénéré d'ici ramène en bas ; un
+  message du téléphone ne déplace pas un lecteur remonté (question 49, écart 24).
+- **D51. Recette** faite ensemble le 2026-10-15 dans la vraie appli (journal) ; Nicolas fera
+  plus tard « Exécuter même l'appli fermée », `main.py --mode gui` et `launch.bat`
+  (question 50).
+- **D52. Captures de `docs/images/`** : Nicolas les refait (question 51).
 
 ### Constats techniques qui orientent la phase 1
 
@@ -1390,7 +1419,9 @@ Réponse de Nicolas le 2026-10-15 : 46, oui, notification et toast (D47).
     tâche planifiée commence par le Markdown brut du résumé (« # Analyse : … »). Le retirer de
     la notification et du toast de la fenêtre, de la notification seulement, ou rien ?
 
-Posées à la fin de la phase 5 (2026-10-15), sans réponse encore :
+Posées à la fin de la phase 5 (2026-10-15). Réponses de Nicolas le même jour : 47 oui (D48),
+48 oui (D49), 49 oui (D50), 50 recette faite ensemble aussitôt (D51), 51 il refait les
+captures (D52).
 
 47. **Streamlit** (écart 25) : `streamlit>=1.42.0` reste dans `requirements.txt` alors qu'aucun
     module ne l'importe ; `utils/requirements_sync.py` l'installe sur toute machine qui ne l'a
@@ -1524,7 +1555,8 @@ Posées à la fin de la phase 5 (2026-10-15), sans réponse encore :
   ou `launch_unified.py --ui tk` échoue désormais (`--ui web` reste accepté).
 - **Paquets désinstallés ? Non** : retirer customtkinter, tkinterdnd2, tkinterweb et pygments
   de `requirements.txt` ne les désinstalle pas des PC où ils sont ; rien ne les importe plus.
-- **Captures de `docs/images/`** : elles montrent encore l'interface Tk (question 51).
+- **Captures de `docs/images/`** : elles montrent encore l'interface Tk ; Nicolas les refait
+  (D52).
 
 ---
 
@@ -2358,6 +2390,41 @@ propre exécuteur, dans son processus.
 - `data/` intact (fils de Nicolas compris) ; seul `web_cache/cache.db` a changé, par la suite
   pytest. Rien n'est poussé sur `main`, rien n'est fusionné.
 
+### Recette de la phase 5 — 2026-10-15 (avec Nicolas, PC à RTX 3060)
+
+- Réponses de Nicolas aux questions 47 à 51 (D48 à D52), puis la recette aussitôt (D51) :
+  `launch_unified.py` lancé par moi avec `MY_AI_WEBVIEW_CDP_PORT=9333`, suivi par
+  `window_watch.mjs` et des lectures CDP, sans aucune saisie de ma part ; `data/agent_runs.json`,
+  `data/scheduled_tasks.json` et `.desktop_state.json` copiés avant (scratchpad). 37 Go libres.
+  Lancement : Ollama redémarré avec le placement (GPU, contexte en 8 bits), moteur prêt en
+  3 min 15 (imports à froid).
+- Étapes faites par Nicolas, toutes réussies d'après lui (les journaux de la fenêtre et de l'appli
+  confirment ce qu'ils relèvent ; le défilement, la dictée et la notification de Windows n'y
+  figurent pas) :
+  1. « Conversation longue » rouverte (200 messages), remontée, message envoyé : retour en bas,
+     réponse en 8 s ;
+  2. lecture vocale et dictée ;
+  3. Ctrl+N, `note_projet.docx` joint, résumé en 2 s, visionneuse Word dans le volet, palette
+     Ctrl+K par-dessus ;
+  4. une tâche planifiée « test » (CodeAgent) créée puis lancée par ▶ : son fil, fini en 33 s,
+     et la notification de Windows.
+  Les étapes 5 à 7 (« Exécuter même l'appli fermée », `main.py --mode gui`, `launch.bat`) :
+  pas faites, Nicolas les fera plus tard.
+- Fermeture : le Word caché des aperçus fermé avec l'appli (D30) ; aucun processus de l'appli,
+  de tunnel ni d'Office restant (le Relay n'avait pas été démarré) ; `my_ai`, seul modèle encore
+  chargé dans Ollama, déchargé ensuite. Restent dans `data/`, venus de l'essai : la tâche
+  « test » et son fil, la conversation « Résume ce document en deux phrases », un tour de plus
+  dans « Conversation longue » (session de test).
+- **Remarque de Nicolas : les infobulles ne disparaissaient pas** (Relay, Mémoire, Lire à voix
+  haute). Aucune infobulle ouverte au moment de la lecture CDP ; reproduit dans Chromium : un
+  focus rendu au bouton sans survol (ce que fait la fenêtre quand elle redevient active) ouvre
+  l'infobulle, qui reste, faute de départ de la souris (écart 26). Corrigé (`f880bbd`, build
+  `d92c664`) : 3 tests Vitest (deux échouaient sur l'ancien composant) ; dans Chromium, focus
+  rendu sans infobulle, Tab affiche toujours la sienne, survol inchangé (`tooltips.mjs`, 10
+  cas, aucune infobulle restante). Vitest 168, TypeScript, ESLint et Prettier sans erreur ;
+  Playwright 76/76, 46/46 et 27/27 sur un serveur de démonstration neuf.
+- Streamlit retiré (D48, `27e9602`).
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -2686,7 +2753,7 @@ fenêtre ouverte ; demandes simultanées (page, mobile, scheduler) sur l'exécut
 - Le serveur de démonstration a pris une route à lui (`POST /api/demo/mobile-run`), pour
   vérifier les fils venus du téléphone sans téléphone.
 
-## 18. Plan de la phase 5 (proposé le 2026-10-15, feu vert le 2026-10-15, D46 ; réalisé le 2026-10-15, sauf la recette manuelle)
+## 18. Plan de la phase 5 (proposé le 2026-10-15, feu vert le 2026-10-15, D46 ; réalisé le 2026-10-15, recette comprise, sauf trois essais que Nicolas fera plus tard)
 
 La phase 5 démarre dans une nouvelle conversation (D46), à partir de ce fichier (« État actuel »,
 décisions, ce plan) et du prompt complet à la racine du dépôt.
@@ -2751,12 +2818,14 @@ aussi) ; scripts et raccourcis de Nicolas qui lancent encore `gui_modern` ; espa
 - Étape 4 : le port de `test_chat_scroll.py` a montré un manque (écart 24), corrigé ;
   `test_lifecycle_module_never_imports_tkinter` retiré (il contenait le mot), remplacé par une
   vérification à la main dans un interpréteur neuf (journal).
-- Étape 5 : `streamlit` signalé, pas retiré (question 47).
+- Étape 5 : `streamlit` signalé, puis retiré avec l'accord de Nicolas (D48).
 - Étape 6 : au-delà des neuf documents du plan, les renvois de huit autres guides ; la section
   Streamlit d'INSTALLATION.md retirée (écart 25).
-- Étape 7 : la recette manuelle reste à faire avec Nicolas (section 2, question 50).
+- Étape 7 : recette manuelle faite avec Nicolas le 2026-10-15 (D51), sauf « Exécuter même
+  l'appli fermée », `main.py --mode gui` et `launch.bat`, qu'il fera plus tard ; sa remarque
+  sur les infobulles est corrigée (écart 26).
 
-Captures de `docs/images/` à refaire (elles montrent l'interface Tk, question 51) :
+Captures de `docs/images/` à refaire (elles montrent l'interface Tk ; Nicolas les refait, D52) :
 
 - `chatScreen.png` : l'accueil du Chat (logo, « My_AI », saisie centrée), fenêtre agrandie ;
 - `agentsScreen1.png` : la page Agents, grille des agents et zone de tâche avec ses boutons ;
@@ -2817,7 +2886,7 @@ L'interface desktop tournait dans le même processus Python que le moteur : dès
 ## 🗑️ Retiré
 
 - L'interface Tk : `interfaces/gui/`, `interfaces/agents/`, `gui_modern.py`, `agents_interface.py`, `workflow_canvas.py`, `modern_styles.py` et l'assistant Tk (≈ 30 700 lignes). Les fonctions de `interfaces/onboarding.py` restent.
-- Dépendances : `customtkinter`, `tkinterdnd2`, `tkinterweb`, `pygments`. Ajoutées : `pywebview`, `pythonnet` (Windows).
+- Dépendances : `customtkinter`, `tkinterdnd2`, `tkinterweb`, `pygments`, et `streamlit`, que rien n'importait. Ajoutées : `pywebview`, `pythonnet` (Windows).
 - `launch_unified.py --ui tk` (`--ui web` reste accepté).
 
 #### Autres changements
