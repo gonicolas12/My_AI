@@ -93,6 +93,22 @@ phase 2).
   menait nulle part (tunnel localhost.run annoncé mais muet). Le Relay ne met plus dans le QR code
   que les tunnels qui répondent au PC, et le panneau montre l'état de chacun (D45, écart 22).
   **Phase 5 : feu vert**, à démarrer dans une nouvelle conversation (D46, plan en section 18).
+- **Phase 5 (bascule et suppression de Tk) : démarrée le 2026-10-15**, dans une nouvelle
+  conversation, selon le plan de la section 18. Question 46 tranchée au début (D47 :
+  notifications en texte brut) ; les trois fichiers de `models/` qui citent « tkinter » sont
+  gardés.
+- **Phase 5 faite le 2026-10-15, sauf la recette manuelle avec Nicolas** : interface web par
+  défaut partout (`launch_unified.py` sans `--ui tk`, `main.py --mode gui`, `launch.sh`) ;
+  interface Tk supprimée (`interfaces/gui/`, `interfaces/agents/`, `gui_modern.py`,
+  `agents_interface.py`, `workflow_canvas.py`, `modern_styles.py`, `OnboardingWizard`) ; ce que
+  vérifiaient ses tests, porté en pytest et en Vitest ; `requirements.txt` sans
+  customtkinter, tkinterdnd2, tkinterweb ni pygments ; documentation à jour. Plus aucune
+  occurrence de « tkinter » dans le code ni les tests (hors les trois fichiers de `models/`).
+  Suites vertes : 1137 tests pytest, 165 Vitest ; contrôles Playwright 27/27, 46/46, 76/76.
+  Deux défauts trouvés en route et corrigés (journal, section 12). **Reste** : la recette
+  manuelle avec Nicolas dans la vraie appli, ses réponses aux questions 47 à 50 (section 9),
+  les captures de `docs/images/` à refaire, puis la fusion dans `main` avec son accord (texte
+  proposé pour le CHANGELOG en section 18). Rien n'est fusionné.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -257,6 +273,19 @@ Restent : le bandeau des notifications (« Ne pas déranger » était actif ; el
 le centre de notifications) ; « Exécuter même l'appli fermée » décoché puis recoché (la case
 s'affichait cochée : la tâche Windows `My_AI Scheduler` existait déjà) ; le bouton Arrêter du fil
 d'une exécution du téléphone (arrêtée du téléphone pendant l'essai).
+
+Recette manuelle de la phase 5, à faire avec Nicolas dans la vraie appli (lancée avec
+`MY_AI_WEBVIEW_CDP_PORT`, suivie par `window_watch.mjs`, sans saisie de ma part) :
+
+- `launch.bat`, option 1 : la fenêtre web, l'écran de chargement et ses étapes, puis « Prêt » ;
+- `python main.py --mode gui` : la fenêtre seule (Ollama tel qu'il tourne, sans placement) ;
+- une vraie conversation : remonté dans le fil, un message envoyé ramène en bas ;
+- ▶ d'une tâche planifiée : le texte de la notification de Windows, sans Markdown (D47) ;
+- la dictée et la lecture vocale (paramètre `ui` retiré de la voix) ;
+- un aperçu Word ou Excel dans le volet (code inchangé, tests déplacés) ;
+- restes des phases précédentes : bandeau des notifications sans « Ne pas déranger »,
+  « Exécuter même l'appli fermée » décoché puis recoché, bouton Arrêter du fil d'une exécution
+  lancée du téléphone.
 
 ## 3. Tests de référence (phase 0)
 
@@ -518,6 +547,15 @@ phase 4a (D38). Restent à voir :
   fermée » décoché puis recoché, et le bouton Arrêter du fil d'une exécution du téléphone
   (section 2).
 
+### Après la phase 5
+
+L'interface Tk n'existe plus : les fichiers d'origine cités plus haut ne sont plus dans le dépôt
+(git les garde dans l'historique, et `main` jusqu'à la fusion). La checklist reste entièrement
+cochée. En portant les tests de Tk, un point du défilement « suivi » (section 6) manquait :
+envoyer un message en étant remonté ramène désormais en bas, comme Tk (section 7, écart 24).
+Restent la recette manuelle avec Nicolas (section 2) et, hors de ce PC, 125 %, 150 %, deux
+écrans, le PC Arc, macOS et Linux.
+
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
 - Notifications internes (`show_notification` : coin haut droit, couleurs info / succès / avertissement
@@ -612,8 +650,20 @@ phase 4a (D38). Restent à voir :
 23. **Notifications du système** : `notify_desktop` (winotify) répond « affichée » dès que
     PowerShell est lancé, même quand Windows range la notification sans bandeau (« Ne pas
     déranger ») ; le scheduler ne montre alors pas son toast de secours dans la fenêtre (comme
-    dans Tk). Le texte de la notification d'une tâche planifiée commence par le Markdown de son
-    résumé (« # Analyse : … »). Non corrigés (question en suspens, section 18).
+    dans Tk). Le texte de la notification d'une tâche planifiée commençait par le Markdown de son
+    résumé (« # Analyse : … ») : réglé en phase 5 (D47), texte brut dans la notification et le
+    toast. Le reste n'est pas corrigé (D44 : rien à faire dans l'appli).
+24. **Défilement à l'envoi** (constaté en phase 5, en portant `test_chat_scroll.py`) : Tk
+    revenait en bas à chaque nouveau tour (`_scroll_to_bottom_for_new_turn` : message envoyé,
+    message du téléphone, modification) ; la fenêtre web laissait en place un utilisateur
+    remonté qui envoyait un message. Corrigé : un message envoyé, modifié ou régénéré d'ici
+    ramène en bas et la réponse est suivie ; un message du téléphone, lui, ne déplace pas un
+    lecteur remonté (le bouton « ↓ » apparaît), parce qu'avec la file d'attente (D1) un tour
+    peut commencer longtemps après son envoi (question 49).
+25. **Streamlit** (constaté en phase 5) : `requirements.txt` porte `streamlit>=1.42.0`
+    (« Interface web (optionnel) »), qu'aucun module n'importe, et `docs/INSTALLATION.md`
+    décrivait une interface Streamlit, `interfaces/web_interface.py`, absente du dépôt. La
+    section de la documentation est retirée ; le paquet reste (question 47).
 
 ## 8. Décisions
 
@@ -790,6 +840,19 @@ ignoré par git).
   code les reprend tous, et le panneau le dit.
 - **D46. Phase 5** : feu vert ; elle démarre dans une nouvelle conversation, avec un texte de
   reprise, pour ne pas surcharger celle de la phase 4.
+
+### Prises le 2026-10-15 (début de la phase 5)
+
+- **Fichiers de `models/`** : `models/knowledge_base.py`, `models/intelligent_code_orchestrator.py`
+  et `models/mixins/document_analysis.py` gardent « tkinter » (chaînes reconnues dans le code
+  analysé, pas d'interface) ; décidé par Nicolas dans le texte de reprise.
+- **D47. Notifications en texte brut** (question 46, écart 23) : la notification du système et
+  le toast de la fenêtre montrent le résumé d'une tâche planifiée sans son Markdown (titres,
+  gras, liens, code, tableaux réduits à leur texte ; puces « • » ; lignes vides retirées),
+  coupé sur un mot avec « … » (220 caractères pour la notification, 160 pour le toast). Toutes
+  les notifications du système passent par là (`notify_desktop`), celles du runner « appli
+  fermée » et de la fin d'un fil d'agents comprises. Le rapport `.md`, l'historique du
+  scheduler et le résumé envoyé par le Relay ne changent pas.
 
 ### Constats techniques qui orientent la phase 1
 
@@ -1077,6 +1140,35 @@ ignoré par git).
 - **Rendus pendant l'écriture d'un agent** (mesuré, journal) : une suite de texte ne change pas la
   ligne du fil (la liste des fils reste la même), et seule la section qui écrit se redessine.
 
+### Choix techniques de la phase 5 (dans le cadre fixé, pour mémoire)
+
+- **Lanceur** : `launch_unified.py` ouvre toujours la fenêtre ; `--ui web` reste accepté, caché
+  de l'aide, pour les commandes déjà tapées ; `--ui tk` est refusé par argparse.
+- **`main.py --mode gui`** : même sens qu'avant, « GUI seule » : la fenêtre web, sans redémarrer
+  Ollama ni placer le modèle (lanceur réduit `without_ollama_setup` de `lifecycle.py`) ; la
+  fenêtre fait le modèle des longs documents et la vérification de `my_ai` sur son écran de
+  chargement (main.py ne les fait plus avant). L'assistant de premier lancement s'y affiche s'il
+  le faut, ce que le chemin Tk de main.py ne faisait pas (question 48).
+- **`launch.sh`** : plus de contrôle de tkinter ; sonde `webview`, `fastapi`, `uvicorn` ; sous
+  Linux, signale l'absence de GTK et de Qt (repli sur le navigateur), sans bloquer.
+- **`interfaces/onboarding.py`** gardé à sa place, sans `OnboardingWizard` : ses fonctions
+  servent à l'assistant de la fenêtre, aux Réglages, au lanceur et au placement, et une
+  correction faite sur `main` s'y fusionnera sans peine.
+- **Voix** : `VoiceInput` et `VoiceOutput` perdent le paramètre `ui` (D23) ; `get_shared` reste,
+  sans lui. **Hôte DPI** : `winfo_id` (incrustation d'Edge dans Tk) retiré.
+- **Tests** : `test_native_preview.py` pose l'hôte sur une fenêtre Win32 ordinaire au DPI du
+  système, affichée sans prendre le premier plan ; les cas utiles des tests Tk passent dans
+  `test_chat_service.py` (pièces jointes), `AgentsPage.test.tsx` (liens des sorties d'agents) et
+  `Thread.test.tsx` (défilement) ; `test_lifecycle_module_never_imports_tkinter` est retiré (il
+  contenait le mot) ; un interpréteur neuf qui importe le lanceur, main.py, la fenêtre, le
+  serveur, le moteur, le Relay et le scheduler ne charge aucun module de Tk.
+- **Notifications (D47)** : `plain_text` dans `utils/desktop_notify.py`, appliqué par
+  `notify_desktop` à tout message (220 caractères) et par `lifecycle.py` au résumé du toast
+  (160) ; le scheduler passe le résumé entier ; le toast garde les lignes du texte.
+- **Défilement (écart 24)** : petit store `useFollow` ; l'envoi, la modification et la
+  régénération acceptés par le serveur demandent le retour en bas ; le fil s'y place et suit la
+  réponse.
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -1290,6 +1382,33 @@ code du Relay corrigé (D45).
     de tâches de Windows, à désactiver ensuite) ; le moniteur sur la vraie carte ; une exécution
     lancée du téléphone (fil « Lancé du téléphone »).
 
+### Questions de la phase 5 (posées à partir du 2026-10-15)
+
+Réponse de Nicolas le 2026-10-15 : 46, oui, notification et toast (D47).
+
+46. **Markdown du texte des notifications** (écart 23) : la notification de Windows d'une
+    tâche planifiée commence par le Markdown brut du résumé (« # Analyse : … »). Le retirer de
+    la notification et du toast de la fenêtre, de la notification seulement, ou rien ?
+
+Posées à la fin de la phase 5 (2026-10-15), sans réponse encore :
+
+47. **Streamlit** (écart 25) : `streamlit>=1.42.0` reste dans `requirements.txt` alors qu'aucun
+    module ne l'importe ; `utils/requirements_sync.py` l'installe sur toute machine qui ne l'a
+    pas (paquet lourd). Je propose de le retirer (hors de la liste du §9 du prompt, d'où la
+    question).
+48. **`main.py --mode gui`** : la fenêtre web, sans redémarrer Ollama ni placer le modèle, comme
+    avant ; l'assistant de premier lancement s'y affiche s'il le faut, ce que le chemin Tk de
+    main.py ne faisait pas. D'accord ?
+49. **Défilement à l'envoi** (écart 24) : un message envoyé, modifié ou régénéré d'ici ramène en
+    bas ; un message du téléphone ne déplace pas un lecteur remonté (Tk le faisait, mais sans
+    file d'attente). D'accord ?
+50. **Recette manuelle** (section 2) : à faire ensemble dans la vraie appli, quand tu as le PC
+    devant toi ; puis la fusion dans `main`, seulement avec ton accord (texte du CHANGELOG
+    proposé en section 18).
+51. **Captures de `docs/images/`** (`chatScreen.png`, `agentsScreen1.png`, `agentsScreen2.png`) :
+    tu les refais, ou je les prends pendant la recette dans la vraie fenêtre, par CDP (sans
+    saisie), avec les mêmes cadrages ?
+
 ## 10. Risques repérés
 
 - **Reprise du prompt par Ollama** : `_rewind_engine_history` (édition, rechargement) réécrit tout
@@ -1396,6 +1515,16 @@ code du Relay corrigé (D45).
 - **Moniteur sur le PC Arc** : sans NVML, il se rabat sur WMI, qui ne donne que la mémoire de la
   carte (GPU affiché à 0 %). À voir sur place ; Windows fournit l'occupation de tout GPU par
   ses compteurs de performance, si besoin.
+
+- **Fusion de `main` après la phase 5** : un correctif fait sur `main` dans un fichier de Tk
+  (`interfaces/gui/…`, `interfaces/agents/…`) donnera un conflit « modifié / supprimé » : le
+  reporter dans le nouveau code (`core/chat_service.py`, `interfaces/desktop/`, `frontend/`),
+  et le noter ici (§10 du prompt). `main` n'a pas bougé depuis `543f083`.
+- **Lanceurs et raccourcis personnels** : un raccourci qui lancerait `interfaces.gui_modern`
+  ou `launch_unified.py --ui tk` échoue désormais (`--ui web` reste accepté).
+- **Paquets désinstallés ? Non** : retirer customtkinter, tkinterdnd2, tkinterweb et pygments
+  de `requirements.txt` ne les désinstalle pas des PC où ils sont ; rien ne les importe plus.
+- **Captures de `docs/images/`** : elles montrent encore l'interface Tk (question 51).
 
 ---
 
@@ -2182,6 +2311,53 @@ propre exécuteur, dans son processus.
   cloudflared joignable).
 - **Disque** : 12,9 Go libres avant l'essai (Nicolas a fait de la place), 38,4 Go après.
 
+### Phase 5 — 2026-10-15 (PC à RTX 3060)
+
+- Nouvelle conversation (D46), branche à `baaab57`, `main` toujours à `543f083` (rien à
+  fusionner). Question 46 posée au début, tranchée (D47). 42 Go libres sur C:.
+- **D47** (`37a37a2`) : `plain_text` dans `utils/desktop_notify.py` ; le texte de la vraie
+  notification de l'essai de la phase 4b devient « Analyse : Le Meilleur Langage de Code en 2024
+  / En tant qu'AnalystAgent, j'ai examiné […] sondages Stack… » (213 caractères) ; le toast de la
+  fenêtre montre le même texte, ses lignes gardées (`0835889`).
+- **Interface web par défaut partout** (`e465d6f`) : `launch_unified.py` sans branche Tk ;
+  `main.py --mode gui` ouvre la fenêtre sans configuration d'Ollama (`without_ollama_setup`) ;
+  `launch.sh` sans contrôle de tkinter. Les menus de `launch.bat` et `launch.sh` lançaient déjà
+  `launch_unified.py` : libellés inchangés.
+- **Déplacements** : déjà faits en phase 3 (visionneuses, voix, worker Whisper) ;
+  `test_native_preview.py` n'avait plus besoin que d'une fenêtre hôte sans Tk (`0360752`) :
+  19 tests, vrais Word et Excel compris, aucun Office laissé lancé.
+- **Tests de Tk portés** : pièces jointes (6 cas, dont l'OCR arrêté de bout en bout) dans
+  `test_chat_service.py` (`426d00f`) ; liens des sorties d'agents en Vitest (`e33a259`) ;
+  défilement en Vitest (`f03d97f`). Supprimés : `test_attachment_loading.py`,
+  `test_chat_scroll.py`, `test_edge_embed.py`, `test_agent_output_links.py`, et les parties Tk
+  de quatre autres fichiers.
+- **Suppression** (`b614458`) : 50 fichiers, environ 30 700 lignes (`interfaces/gui/`,
+  `interfaces/agents/`, `gui_modern.py`, `agents_interface.py`, `workflow_canvas.py`,
+  `modern_styles.py`, `OnboardingWizard`). `requirements.txt` (`9587816`).
+- **Documentation** (`f68504b`, `1055fd7`, `6a4a184`, `966dcf5`) : README, ARCHITECTURE,
+  CODEBASE, AGENTS_GUI (export aligné sur D11), GUI_RLHF_FEEDBACK, ARTIFACTS_PREVIEW,
+  INSTALLATION, USAGE, FAQ, et les renvois d'AGENTS, CONVERSATION_SEARCH, MEMORY,
+  PROMPT_LIBRARY, SCHEDULER, ULTRA_10M_TOKENS, DOCUMENT_GENERATION et MCP_INTEGRATION.
+- **Défauts trouvés en route et corrigés** : retour en bas à l'envoi d'un message (écart 24,
+  en portant `test_chat_scroll.py`) ; lignes du résumé fusionnées dans le toast (capture).
+  Constaté : streamlit inutilisé (écart 25, question 47).
+- **Critère « aucune occurrence »** : `git grep -i tkinter` hors `docs/` ne trouve plus que
+  les trois fichiers de `models/` ; un interpréteur neuf qui importe `launch_unified`,
+  `main`, la fenêtre, le serveur, le moteur, le Relay et le scheduler ne charge aucun module de
+  Tk.
+- **Tests** : `python -m pytest tests/` : **1137 réussis**, aucun échec, 3 min 48 (1186 avant :
+  les tests de Tk partent, les cas portés et ceux de la phase arrivent) ; la suite a chargé
+  `my_ai` (préchauffage d'un vrai moteur), déchargé ensuite. Front : **165 tests Vitest** (161 + 4), TypeScript, ESLint et
+  Prettier sans erreur. `requirements_sync` : rien de manquant sur ce PC ; une ligne absente
+  (pywebview, par exemple) serait installée au lancement.
+- **Contrôles Playwright** (Chromium, serveur de démonstration, build de la phase) :
+  `capture_chat.mjs` 27/27, `capture_panels.mjs` 46/46 (sans l'étape de l'assistant, qui
+  demande `--premier-lancement`), `capture_agents.mjs` 76/76, `follow_bottom.mjs` (39 px au
+  plus du bas), aucune erreur de console ; envoi depuis 6 000 px au-dessus du bas : retour en
+  bas et suivi (script du scratchpad, hors dépôt). Captures dans `frontend/captures/phase5/`.
+- `data/` intact (fils de Nicolas compris) ; seul `web_cache/cache.db` a changé, par la suite
+  pytest. Rien n'est poussé sur `main`, rien n'est fusionné.
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -2510,7 +2686,7 @@ fenêtre ouverte ; demandes simultanées (page, mobile, scheduler) sur l'exécut
 - Le serveur de démonstration a pris une route à lui (`POST /api/demo/mobile-run`), pour
   vérifier les fils venus du téléphone sans téléphone.
 
-## 18. Plan de la phase 5 (proposé le 2026-10-15, feu vert le 2026-10-15, D46)
+## 18. Plan de la phase 5 (proposé le 2026-10-15, feu vert le 2026-10-15, D46 ; réalisé le 2026-10-15, sauf la recette manuelle)
 
 La phase 5 démarre dans une nouvelle conversation (D46), à partir de ce fichier (« État actuel »,
 décisions, ce plan) et du prompt complet à la racine du dépôt.
@@ -2551,16 +2727,103 @@ l'entrée du CHANGELOG, et la fusion dans `main` avec l'accord de Nicolas.
    le code ni les tests ; suite complète verte ; recette manuelle avec Nicolas ; texte de
    l'entrée du CHANGELOG proposé.
 
-À trancher avant de commencer :
+À trancher avant de commencer (tranché le 2026-10-15, section 8) :
 
 - `models/knowledge_base.py`, `models/intelligent_code_orchestrator.py` et
   `models/mixins/document_analysis.py` citent « tkinter » comme bibliothèque Python que l'IA
   reconnaît dans le code analysé (chaînes, pas d'interface). Je propose de les garder : le
-  critère « aucune occurrence » vise l'interface.
+  critère « aucune occurrence » vise l'interface. Gardés (décision de Nicolas).
 - Notifications du système (écart 23, sans réponse le 2026-10-15) : retirer le Markdown du texte
-  de la notification d'une tâche planifiée (« # Analyse : … ») ?
+  de la notification d'une tâche planifiée (« # Analyse : … ») ? Oui, notification et toast
+  (question 46, D47).
 - Restent hors de ce PC (section 2) : échelles 125 et 150 %, deux écrans, PC Arc, macOS et Linux.
 
 Risques : un import de Tk caché dans un module gardé (les tests le diront, `python -X importtime`
 aussi) ; scripts et raccourcis de Nicolas qui lancent encore `gui_modern` ; espace disque
 (section 10).
+
+Écarts au plan, à la fin de la phase 5 :
+
+- Étape 1 : les menus de `launch.bat` et `launch.sh` lançaient déjà `launch_unified.py`, web par
+  défaut : seuls les contrôles de `launch.sh` changent. `--ui web` reste accepté (caché).
+- Étape 2 : rien à déplacer (fait en phase 3) ; `test_native_preview.py` a reçu une fenêtre hôte
+  Win32 à la place de la racine Tk.
+- Étape 4 : le port de `test_chat_scroll.py` a montré un manque (écart 24), corrigé ;
+  `test_lifecycle_module_never_imports_tkinter` retiré (il contenait le mot), remplacé par une
+  vérification à la main dans un interpréteur neuf (journal).
+- Étape 5 : `streamlit` signalé, pas retiré (question 47).
+- Étape 6 : au-delà des neuf documents du plan, les renvois de huit autres guides ; la section
+  Streamlit d'INSTALLATION.md retirée (écart 25).
+- Étape 7 : la recette manuelle reste à faire avec Nicolas (section 2, question 50).
+
+Captures de `docs/images/` à refaire (elles montrent l'interface Tk, question 51) :
+
+- `chatScreen.png` : l'accueil du Chat (logo, « My_AI », saisie centrée), fenêtre agrandie ;
+- `agentsScreen1.png` : la page Agents, grille des agents et zone de tâche avec ses boutons ;
+- `agentsScreen2.png` : le canvas avec un workflow CodeAgent → DebugAgent → OptimizerAgent, sa
+  barre d'outils et la minimap.
+
+Texte proposé pour l'entrée du CHANGELOG (à la fusion ; ni `docs/CHANGELOG.md` ni les numéros
+de version ne sont touchés ; le numéro de version est à choisir) :
+
+```markdown
+# 🚀 Version 9.0.0 — Nouvelle interface desktop : React dans une fenêtre native (date à fixer)
+
+### L'interface Tkinter laisse place à une interface web locale, fluide même quand l'IA calcule
+
+L'interface desktop tournait dans le même processus Python que le moteur : dès que celui-ci calculait (torch, embeddings, ChromaDB), l'affichage gelait. Son moteur de rendu fait main (≈ 10 000 lignes) recalculait le Markdown pendant le streaming, l'appli ne gérait pas le DPI (texte flou à 125 %) et ≈ 1 100 lignes de contournements Win32 incrustaient Edge et les visionneuses Office. Elle est remplacée par une interface **React + TypeScript** affichée dans une **fenêtre native pywebview** (WebView2 sous Windows), reliée au moteur par un **serveur local** sur 127.0.0.1. Mêmes pages (Chat, Agents), mêmes couleurs, toutes les fonctionnalités conservées ; le **mobile Relay** et l'**extension VS Code** sont inchangés.
+
+## 🖥️ Fenêtre et serveur local — `frontend/` (nouveau), `interfaces/desktop/` (nouveau)
+
+- La fenêtre s'ouvre tout de suite sur un **écran de chargement** qui nomme chaque étape (Ollama, assistant, `my_ai`, placement, moteur). Elle retient sa taille, sa position, la barre latérale et la largeur du volet. Sans pywebview, l'interface s'ouvre dans le navigateur.
+- Serveur **FastAPI** sur 127.0.0.1, port libre, **jeton tiré à chaque lancement**, en-têtes `Origin` et `Host` vérifiés : REST + un WebSocket d'événements (`interfaces/desktop/events.py` ↔ `frontend/src/lib/events.ts`).
+- Sécurité : liens externes ouverts dans le navigateur du système, Markdown sans HTML brut, artifacts dans une `<iframe sandbox>` sans `allow-same-origin`, fichiers locaux servis par liens signés seulement.
+- Le processus gère le DPI par écran : Windows ne l'agrandit plus comme une image à 125 %. Barre de titre sombre, polices Inter et JetBrains Mono livrées avec l'appli.
+- `frontend/dist/` est versionné : **Node n'est pas nécessaire** pour lancer l'appli. Pour développer : `launch_unified.py --dev` (Vite, rechargement à chaud) et `--headless`.
+
+## 💬 Chat — `core/chat_service.py` (nouveau)
+
+- Le pipeline du chat sort de l'interface, avec **les mêmes appels au moteur, dans le même ordre** : Ollama reprend le prompt déjà lu (vérifié sur le vrai Ollama).
+- **File d'attente** commune au PC et au mobile : un message envoyé pendant une réponse attend son tour, et peut être retiré ; Stop et **Échap** arrêtent la réponse en cours.
+- **Sessions** enregistrées après chaque tour et rouvertes au lancement ; historique du modèle reconstruit à la réouverture ; plus de troncature à 100 messages ; réflexion, appels d'outils, documents, image générée, source mobile et note gardés avec chaque message (format rétrocompatible) ; **Ctrl+L** ouvre une nouvelle conversation sans perdre l'ancienne.
+- Streaming fluide : jetons regroupés par image affichée, blocs Markdown terminés figés, code coloré par Shiki avec bouton Copier, formules **KaTeX**, fil virtualisé ; tokens/s tirés des statistiques d'Ollama.
+- **Régénérer** au survol d'une réponse (nouvelle variante ‹ k/n ›) ; actions au survol (copier, lire, modifier, noter) ; un dossier glissé dans la saisie joint ses fichiers ; un message envoyé ramène en bas du fil.
+- Volet d'aperçu : artifacts (onglets Aperçu et Code), PDF dans la page, **visionneuses Word, Excel et PowerPoint de Windows posées dans la fenêtre** ; le Word caché des aperçus se ferme avec l'appli.
+- Panneaux dans la fenêtre : Réglages, Mémoire, Prompts, Relay (QR code et état de chaque tunnel), Aide (F1), palette **Ctrl+K**, assistant de premier lancement.
+
+## 🤖 Page Agents
+
+- Chaque exécution (agent, workflow, débat) devient un **fil** rouvrable, au statut en direct ; les 50 derniers sont gardés (`data/agent_runs.json`).
+- Une sortie qui modifie un code joint s'ouvre en **diff**.
+- Canvas **React Flow** : mêmes gestes, liens animés pendant l'exécution, tout cycle refusé ; fichiers de workflow au format de l'ancien canvas. **Exporter** écrit un Markdown : la tâche, les agents, puis la réponse de chacun.
+- Un seul exécuteur, partagé par la page, le mobile et le scheduler : les exécutions du **téléphone** et des **tâches planifiées** deviennent aussi des fils.
+- Statistiques sur les fils gardés ; moniteur de ressources avec les **tokens/s** de chaque agent ; vue des tâches planifiées (prochaine exécution, dernier résultat, rapport) ; notification de fin d'un fil long, débats compris.
+
+## 📱 Mobile Relay
+
+- Le chat mobile **ne dépend plus de la fenêtre** : il passe par le service de chat, appli ouverte ou non, et s'affiche en direct dans la fenêtre avec un badge « Mobile ». Protocole et interface mobile inchangés.
+- **QR code fiable** : chaque tunnel annoncé est vérifié depuis le PC, et seuls les joignables entrent dans le QR code (localhost.run annonçait une adresse muette).
+- Les tunnels ssh n'écrivent plus de fichier `nul` dans le dossier de lancement.
+
+## 🔔 Notifications
+
+- La notification du système et le toast d'une tâche planifiée montrent son résumé en **texte brut**, sans le Markdown de la sortie de l'agent.
+
+## 🐛 Corrections
+
+- **Débat** : la fin de chaque tour, sauf le dernier, n'était jamais envoyée, téléphone compris (`relay/agent_relay.py`).
+- **Moniteur de ressources** : depuis Ollama 0.40, le modèle tourne dans `llama-server`, dont le CPU et la RAM échappaient au moniteur (`interfaces/resource_monitor.py`).
+
+## 🗑️ Retiré
+
+- L'interface Tk : `interfaces/gui/`, `interfaces/agents/`, `gui_modern.py`, `agents_interface.py`, `workflow_canvas.py`, `modern_styles.py` et l'assistant Tk (≈ 30 700 lignes). Les fonctions de `interfaces/onboarding.py` restent.
+- Dépendances : `customtkinter`, `tkinterdnd2`, `tkinterweb`, `pygments`. Ajoutées : `pywebview`, `pythonnet` (Windows).
+- `launch_unified.py --ui tk` (`--ui web` reste accepté).
+
+#### Autres changements
+
+- `main.py --mode gui` ouvre la fenêtre web, sans configurer Ollama, comme avant ; `launch.sh` n'exige plus tkinter.
+- Nouveaux tests : `test_chat_service.py`, `test_desktop_*.py` (serveur, cycle de vie, fenêtre, fichiers, mémoire, prompts, réglages, barre latérale, voix, agents, tâches planifiées, ressources, visionneuses), `test_relay_tunnels.py`, `test_desktop_notify.py`, `test_main_gui.py` ; Vitest pour l'interface. Les tests de Tk sont retirés, ce qu'ils vérifiaient d'utile est porté.
+- Documentation : README, ARCHITECTURE, AGENTS_GUI, ARTIFACTS_PREVIEW, INSTALLATION, USAGE, FAQ, CODEBASE, GUI_RLHF_FEEDBACK et les autres guides ; suivi de la migration dans `docs/MIGRATION_INTERFACE_WEB_SUIVI.md`.
+- Outils de développement : `frontend/scripts/` (Playwright) et `tools/interface_web/` (serveur de démonstration sans Ollama).
+```
