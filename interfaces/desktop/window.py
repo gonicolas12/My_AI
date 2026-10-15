@@ -1,7 +1,7 @@
 """
 Fenêtre native de l'appli : pywebview (WebView2, le Chromium d'Edge, sous Windows)
 
-launch_unified.py --ui web l'ouvre sur le serveur local (server.py), qui
+launch_unified.py l'ouvre sur le serveur local (server.py), qui
 répond tout de suite : la fenêtre affiche l'écran de chargement pendant que
 les étapes du lancement tournent dans leur fil (lifecycle.py). pywebview doit
 tourner sur le fil principal.

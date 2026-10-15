@@ -247,12 +247,13 @@ try:
 except Exception:
     pass
 
-# L'interface (Tk ou web) s'importe dans main() : core.shared y charge le
-# modèle d'embeddings
+# Étapes du lancement que interfaces/desktop/lifecycle.py appelle à travers ce
+# module, comme _ensure_ollama_parallel et ensure_best_placement. L'interface,
+# elle, s'importe dans main() : core.shared y charge le modèle d'embeddings
 from interfaces.onboarding import \
-    sync_custom_model  # pylint: disable=wrong-import-position
+    sync_custom_model  # pylint: disable=wrong-import-position,unused-import
 from core.passage_embeddings import \
-    prefetch_in_background  # pylint: disable=wrong-import-position
+    prefetch_in_background  # pylint: disable=wrong-import-position,unused-import
 
 # Ajouter le répertoire parent au chemin
 sys.path.insert(0, str(Path(__file__).parent))
@@ -261,11 +262,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 def _parse_args(argv=None) -> argparse.Namespace:
     """Options du lanceur."""
     parser = argparse.ArgumentParser(description="Lanceur de My_AI")
-    parser.add_argument(
-        "--ui", choices=("web", "tk"), default="web",
-        help="interface : web (fenêtre pywebview, par défaut) ou tk (ancienne interface, "
-             "gardée pour comparer jusqu'à la fin de la migration)",
-    )
+    # Ancienne option (--ui web|tk) : « web » reste accepté pour les commandes
+    # existantes ; l'interface Tk n'existe plus
+    parser.add_argument("--ui", choices=("web",), default="web", help=argparse.SUPPRESS)
     parser.add_argument(
         "--dev", action="store_true",
         help="interface web servie par Vite, avec rechargement à chaud "
@@ -291,68 +290,22 @@ def main():
 
     if args.headless:
         # Interface web sans fenêtre : le serveur local répond tout de suite, puis
-        # interfaces/desktop/lifecycle.py enchaîne les étapes ci-dessous (Ollama,
+        # interfaces/desktop/lifecycle.py enchaîne les étapes du lancement (Ollama,
         # assistant, my_ai, placement) avant le moteur
         from interfaces.desktop.lifecycle import \
             run_headless  # pylint: disable=import-outside-toplevel
         run_headless(sys.modules[__name__], port=args.port)
-        # Comme à la fermeture de l'interface Tk : rien ne retient le processus
+        # Rien ne retient le processus (fils du serveur, des tunnels…)
         os._exit(0)
 
-    if args.ui == "web":
-        # La fenêtre s'ouvre tout de suite sur l'écran de chargement, qui nomme
-        # les étapes ci-dessous, enchaînées par interfaces/desktop/lifecycle.py
+    # La fenêtre s'ouvre tout de suite sur l'écran de chargement, qui nomme les
+    # étapes du lancement, enchaînées par interfaces/desktop/lifecycle.py dans
+    # cet ordre : modèle des longs documents en arrière-plan, redémarrage
+    # d'Ollama, assistant de premier lancement, recréation de 'my_ai' si le
+    # Modelfile a changé, placement du modèle, puis moteur et services
+    try:
         from interfaces.desktop.lifecycle import \
             run_desktop  # pylint: disable=import-outside-toplevel
-        run_desktop(sys.modules[__name__], dev=args.dev, port=args.port)
-        os._exit(0)
-
-    # Modèle multilingue des longs documents : téléchargé en arrière-plan s'il
-    # manque (premier lancement, ou mise à jour qui l'introduit)
-    prefetch_in_background()
-
-    # S'assurer qu'Ollama tourne avec le bon parallélisme
-    _ensure_ollama_parallel()
-
-    # Assistant de premier lancement (détection RAM → pull modèle → modèle custom).
-    # Ne s'affiche qu'une fois (marqueur data/.onboarding_done) et jamais si le
-    # modèle 'my_ai' existe déjà. Échec non bloquant : l'app démarre quand même.
-    try:
-        from interfaces.onboarding import OnboardingWizard, should_run
-        if should_run():
-            print("🧭 Premier lancement détecté — assistant de configuration…")
-            OnboardingWizard().run()
-    except Exception as exc:
-        print(f"⚠️ Assistant d'onboarding ignoré : {exc}")
-
-    # Modèle 'my_ai' recréé si le Modelfile a changé depuis sa création
-    # (modifié à la main, par un git pull ou par ⚙️ Réglages)
-    sync_custom_model()
-
-    # Modèle placé sur le matériel le plus rapide (carte graphique, GPU intégré
-    # ou processeur) : mesuré au premier lancement, puis après une mise à jour
-    # d'Ollama ou un changement de modèle ou de matériel
-    ensure_best_placement(_restart_ollama)
-
-    print("   🧠 CustomAI avec support 10M tokens intégré")
-    print("   🔧 Processeurs PDF, DOCX, Code avancés")
-    print("   🎨 Interface moderne CustomTkinter")
-    print("   📊 Mémoire conversationnelle intelligente")
-    print("   🌐 Recherche internet intégrée")
-    print("   ⚡ Architecture 100% locale")
-    print()
-
-    try:
-        print("✅ Modules chargés avec succès")
-        print("🚀 Lancement de l'interface...")
-        print()
-
-        # Lancer l'interface
-        from interfaces.gui_modern import \
-            ModernAIGUI  # pylint: disable=import-outside-toplevel
-        app = ModernAIGUI()
-        app.run()
-
     except ImportError as e:
         print(f"❌ Erreur d'import: {e}")
         print()
@@ -361,15 +314,8 @@ def main():
         print("   2. Vérifiez que tous les modules sont présents")
         print("   3. Utilisez: python main.py en fallback")
         sys.exit(1)
-
-    except (RuntimeError, OSError, AttributeError) as e:
-        print(f"❌ Erreur lors du lancement: {e}")
-        print()
-        print("🔧 Essayez le mode debug:")
-        print(
-            '   python -c "from interfaces.gui_modern import ModernAIGUI; ModernAIGUI().run()"'
-        )
-        sys.exit(1)
+    run_desktop(sys.modules[__name__], dev=args.dev, port=args.port)
+    os._exit(0)
 
 
 if __name__ == "__main__":

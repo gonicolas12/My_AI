@@ -22,6 +22,7 @@ import secrets
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
 from core.chat_service import ChatError, ChatService
@@ -629,6 +630,27 @@ class DesktopApp:
             pass
 
 
+def without_ollama_setup(launcher) -> SimpleNamespace:
+    """Lanceur de « python main.py --mode gui » : la fenêtre seule.
+
+    Les étapes de launch_unified.py, sans redémarrage d'Ollama ni placement du
+    modèle : l'Ollama déjà lancé (application bureau, « ollama serve ») sert
+    tel quel, comme le faisait main.py avec l'interface Tk.
+    """
+    # pylint: disable=protected-access
+    return SimpleNamespace(
+        prefetch_in_background=launcher.prefetch_in_background,
+        _ensure_ollama_parallel=lambda: None,
+        _ollama_is_running=launcher._ollama_is_running,
+        _port_is_free=launcher._port_is_free,
+        sync_custom_model=launcher.sync_custom_model,
+        ensure_best_placement=lambda _restart, on_progress=None: None,
+        _restart_ollama=launcher._restart_ollama,
+        # Placement inconnu : l'Ollama en place n'a pas forcément ses variables
+        placement_label=lambda: None,
+    )
+
+
 def run_headless(launcher, port: int = 0) -> None:
     """launch_unified.py --headless : le serveur et le moteur, sans fenêtre."""
     app = DesktopApp(launcher, headless=True, port=port)
@@ -643,7 +665,7 @@ def run_headless(launcher, port: int = 0) -> None:
 
 
 def run_desktop(launcher, *, dev: bool = False, port: int = 0) -> None:
-    """launch_unified.py --ui web : la fenêtre pywebview, ou le navigateur à défaut.
+    """launch_unified.py : la fenêtre pywebview, ou le navigateur à défaut.
 
     La fenêtre s'ouvre tout de suite sur l'écran de chargement ; les étapes du
     lancement tournent dans leur fil. La fermer arrête l'appli proprement.

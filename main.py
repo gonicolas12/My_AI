@@ -265,15 +265,17 @@ async def handle_generate_command(
 
 def handle_gui_command():
     """
-    Lance l'interface graphique moderne.
+    Lance l'interface graphique : la fenêtre de l'interface web.
 
     Chemin portable (Windows / macOS / Linux) équivalent à launch_unified.py,
-    sans la configuration Ollama que ce dernier effectue.
+    sans la configuration Ollama que ce dernier effectue : ni redémarrage
+    d'Ollama, ni placement du modèle. La fenêtre fait les autres étapes du
+    lancement sur son écran de chargement.
     """
     try:
-        from interfaces.gui_modern import (  # pylint: disable=import-outside-toplevel
-            ModernAIGUI,
-        )
+        # pylint: disable=import-outside-toplevel
+        import launch_unified
+        from interfaces.desktop.lifecycle import run_desktop, without_ollama_setup
     except ImportError as e:
         print(f"❌ Interface graphique indisponible: {e}")
         print()
@@ -283,11 +285,13 @@ def handle_gui_command():
         sys.exit(1)
 
     try:
-        ModernAIGUI().run()
+        run_desktop(without_ollama_setup(launch_unified))
     except (RuntimeError, OSError, AttributeError) as e:
         print(f"❌ Erreur lors du lancement de l'interface: {e}")
         print("💡 Repli possible: python main.py --mode cli")
         sys.exit(1)
+    # Comme launch_unified.py : rien ne retient le processus (fils du serveur, des tunnels…)
+    os._exit(0)
 
 
 def setup_logging(verbose: bool = False, quiet: bool = False):
@@ -352,15 +356,16 @@ async def main():
             await handle_generate_command(args.type, args.description, args.output)
 
         else:
-            # Mode interactif : modèle multilingue des longs documents téléchargé
-            # en arrière-plan s'il manque
-            prefetch_in_background()
-            # Modèle 'my_ai' recréé si le Modelfile a changé depuis sa création
-            sync_custom_model()
             if args.mode == "cli":
+                # Mode interactif : modèle multilingue des longs documents téléchargé
+                # en arrière-plan s'il manque
+                prefetch_in_background()
+                # Modèle 'my_ai' recréé si le Modelfile a changé depuis sa création
+                sync_custom_model()
                 cli = CLIInterface()
                 await cli.run()
             elif args.mode == "gui":
+                # La fenêtre fait ces deux étapes sur son écran de chargement
                 handle_gui_command()
             else:
                 print(f"❌ Mode inconnu: {args.mode}")

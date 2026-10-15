@@ -158,6 +158,16 @@ def test_first_launch_waits_for_the_wizard(tmp_path, monkeypatch):
         app.shutdown()
 
 
+def test_main_gui_mode_leaves_ollama_as_it_is(started):
+    """main.py --mode gui : la fenêtre seule, ni redémarrage d'Ollama ni placement."""
+    fake = FakeLauncher()
+    launcher = lifecycle.without_ollama_setup(fake)
+    launcher.calls = fake.calls  # notes de TestApp (moteur, voix)
+    status = started(launcher).status
+    assert status["state"] == "ready" and status["placement"] is None
+    assert fake.calls[:3] == ["prefetch", "model", "engine"]
+
+
 def test_wizard_is_skipped_without_a_window(started, monkeypatch):
     monkeypatch.setattr(onboarding, "should_run", lambda: True)
     assert started().status["state"] == "ready"

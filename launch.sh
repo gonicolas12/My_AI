@@ -78,16 +78,14 @@ if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "x86_64" ]; then
     fi
 fi
 
-# tkinter n'est pas systematiquement fourni avec Python sur macOS/Linux :
-# sans lui, la GUI ne peut pas demarrer et l'erreur est peu explicite.
-if ! "$PYTHON" -c "import tkinter" >/dev/null 2>&1; then
-    echo "[ERROR] Le module tkinter est absent de cette installation Python."
-    case "$(uname -s)" in
-        Darwin) echo "[AIDE]  Installez Python depuis python.org (tkinter inclus),"
-                echo "        ou via Homebrew : brew install python-tk" ;;
-        *)      echo "[AIDE]  Debian/Ubuntu : sudo apt install python3-tk" ;;
-    esac
-    exit 1
+# Linux : la fenetre de l'interface (pywebview) a besoin de GTK (PyGObject) ou
+# de Qt. Sans eux, l'interface s'ouvre dans le navigateur par defaut.
+if [ "$(uname -s)" = "Linux" ] \
+        && ! "$PYTHON" -c "import gi" >/dev/null 2>&1 \
+        && ! "$PYTHON" -c "import qtpy" >/dev/null 2>&1; then
+    echo "[INFO] Ni GTK (PyGObject) ni Qt : l'interface s'ouvrira dans le navigateur."
+    echo "[AIDE] Pour sa fenetre : $PYTHON -m pip install \"pywebview[qt]\""
+    echo "       ou, Debian/Ubuntu : sudo apt install python3-gi gir1.2-webkit2-4.1"
 fi
 
 # Verifier/installer dependances critiques
@@ -105,7 +103,7 @@ fi
 # puis echoue bien plus loin sur un ModuleNotFoundError illisible. On teste donc
 # un echantillon representatif des couches reellement necessaires.
 missing=""
-for mod in customtkinter PIL numpy requests; do
+for mod in webview fastapi uvicorn PIL numpy requests; do
     if ! "$PYTHON" -c "import $mod" >/dev/null 2>&1; then
         missing="$missing $mod"
     fi

@@ -1,5 +1,5 @@
 """
-Serveur Vite du mode développement (launch_unified.py --ui web --dev)
+Serveur Vite du mode développement (launch_unified.py --dev)
 
 La fenêtre affiche alors l'interface servie par Vite, avec rechargement à
 chaud : une couleur ou une marge modifiée s'affiche aussitôt, sans relancer
