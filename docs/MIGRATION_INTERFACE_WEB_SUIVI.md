@@ -75,6 +75,16 @@ phase 2).
   remarques sont réglées : l'onglet Diff ne montre plus que le code ; dans une étape parallèle,
   l'agent que le modèle n'a pas encore servi « attend son tour » (Ollama n'en sert qu'un à la
   fois). Phase 4b en attente du feu vert (plan en section 17, avec D37).
+- **Phase 4b (Débat, statistiques et moniteur, tâches planifiées, notification de fin) : feu vert
+  le 2026-10-15, terminée le jour même** : débat entre deux agents ; fils des exécutions du
+  téléphone et des tâches planifiées (D37) ; statistiques et moniteur de ressources, tokens/s de
+  chaque agent (D17) ; vue des tâches planifiées (prochaine exécution, dernier résultat, son fil
+  et son rapport, « Exécuter même l'appli fermée ») ; notification du système à la fin d'un fil
+  long. Toute la checklist de §7 est cochée. Vérifiée dans Chromium (serveur de démonstration)
+  et sur le vrai Ollama, sans fenêtre. Deux bogues du code existant corrigés en route : texte
+  final des tours d'un débat, moniteur aveugle au « llama-server » d'Ollama 0.40. Agents en
+  parallèle : D39. Questions de la phase 4b en section 9, dont les essais avec Nicolas ; plan de
+  la phase 5 en section 18, en attente du feu vert.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
 
@@ -183,6 +193,12 @@ tailwindcss 4.3.3, @fontsource/inter 5.3.0, @fontsource/jetbrains-mono 5.3.0, vi
   225 Ko, 73 Ko compressés). Rien côté Python. `npm audit` ne trouve rien. `frontend/dist/` :
   5,1 Mo, 101 fichiers.
 
+### Installé en phase 4b (2026-10-15)
+
+- Rien : ni paquet npm ni paquet Python (le moniteur de Tk se sert de psutil et pynvml, déjà
+  là). Morceau de la page Agents : 250 Ko, 79 Ko compressés. `npm audit` ne trouve rien.
+  `frontend/dist/` : 5,2 Mo, 102 fichiers.
+
 ## 2. Ce que ce PC ne permet pas de vérifier
 
 À faire sur le PC de travail, ou par Nicolas dans la vraie fenêtre :
@@ -201,8 +217,8 @@ Essais au vrai système de la phase 3a : faits le 2026-10-13, PC laissé libre p
 `frontend/scripts/window_system.mjs`, journal). Restent :
 
 - une vraie dictée à la voix : faite par Nicolas le 2026-10-14 (D28) ;
-- la fin d'une vraie tâche planifiée (notification du système ou toast) : sans page Agents
-  (phase 4), aucune tâche ne se lance depuis l'interface web ;
+- la fin d'une vraie tâche planifiée (notification du système ou toast) : possible depuis la
+  phase 4b (▶ d'une tâche planifiée), à essayer avec Nicolas (question 45) ;
 - un message du téléphone (badge « Mobile ») et le QR code scanné par un vrai téléphone : faits
   avec Nicolas le 2026-10-14 (D27) ;
 - les raccourcis de la phase 3b au vrai clavier (Ctrl+K, Ctrl+virgule, F1, Ctrl+R) : `win.py keys`
@@ -217,6 +233,19 @@ journal) :
 - un vrai workflow sur le vrai Ollama dans la vraie fenêtre, et son arrêt par Échap ;
 - le micro, une capture collée (Ctrl+V) et un fichier déposé depuis l'Explorateur dans la zone de
   tâche.
+
+Essais de la phase 4b à faire avec Nicolas (question 45) ; le débat, le moniteur et les tokens/s
+ont été vérifiés sur le vrai Ollama, sans fenêtre (journal) :
+
+- un débat dans la vraie fenêtre ;
+- une tâche planifiée lancée par ▶ : son fil, son rapport, la notification de Windows (le
+  scheduler la montre lui-même, comme dans Tk) ;
+- la fin d'un fil de plus de 8 s, fenêtre en arrière-plan : la notification de Windows, et
+  aucune quand la fenêtre est au premier plan ;
+- « Exécuter même l'appli fermée » : crée une vraie tâche dans le Planificateur de tâches de
+  Windows (`My_AI Scheduler`), à désactiver ensuite ;
+- le moniteur de ressources sur la vraie carte, pendant une exécution ;
+- une exécution lancée du téléphone : son fil « Lancé du téléphone » dans la page.
 
 ## 3. Tests de référence (phase 0)
 
@@ -446,29 +475,36 @@ code, la documentation et §7.
   multi-sélection (Maj+clic, rectangle), Suppr, clic droit sur un lien pour le supprimer, liens de la
   couleur du nœud source. Statuts : gris `#6b7280`, jaune `#f59e0b`, vert `#10b981`, rouge `#ef4444`.
   Interface web : React Flow, mêmes gestes ; tout cycle refusé (D35).
-- [ ] **Mode Débat** — `debate.py`, `relay/agent_relay.py` (`run_debate`),
+- [x] **Mode Débat** — `debate.py`, `relay/agent_relay.py` (`run_debate`),
   `core/agent_orchestrator.py` (`execute_debate`). Proposant / Opposant, sujet, 1 à 10 tours.
-- [ ] **Statistiques et moniteur de ressources** — `stats_section.py`, `interfaces/resource_monitor.py`.
+  Interface web : le débat devient un fil, un tour par section (proposant puis opposant), messages
+  de Tk ; la fin de chaque tour n'est plus perdue (section 7, écart 18).
+- [x] **Statistiques et moniteur de ressources** — `stats_section.py`, `interfaces/resource_monitor.py`.
   Tâches exécutées, agents actifs, taux de succès ; CPU, RAM, GPU, VRAM, inférence, tokens/s, barres
   colorées et mini-graphiques (60 mesures). Écart : **tokens/s toujours à 0** (Tk passe 0 à
-  `update_inference`).
-- [ ] **Tâches planifiées** — `scheduler_ui.py`, `core/scheduler.py`, `core/scheduler_runner.py`.
+  `update_inference`). Interface web : le moniteur de Tk inchangé, tokens/s de chaque agent
+  relevés en fin de flux (D17), statistiques sur les fils gardés (question 39).
+- [x] **Tâches planifiées** — `scheduler_ui.py`, `core/scheduler.py`, `core/scheduler_runner.py`.
   Plannings quotidien, hebdomadaire (0 = lundi), intervalle, cron (croniter) ; « ▶ exécuter
   maintenant » ; source figée à l'édition ; « 🖥️ Exécuter même l'appli fermée » (Planificateur de tâches
-  Windows).
-- [ ] **Notification système à la fin d'une tâche longue** — `execution.py` (`_notify_task_complete` :
-  plus de 8 s et fenêtre sans focus), `utils/desktop_notify.py`.
+  Windows). Interface web : vue « Tâches planifiées » (prochaine exécution, dernier résultat, son
+  fil et son rapport), chaque exécution devient un fil (D37).
+- [x] **Notification système à la fin d'une tâche longue** — `execution.py` (`_notify_task_complete` :
+  plus de 8 s et fenêtre sans focus), `utils/desktop_notify.py`. Interface web : la page signale
+  son focus au serveur ; la fin d'un débat est notifiée aussi (question 40).
 
-### Où en est la checklist après la phase 4a
+### Où en est la checklist après la phase 4b
 
-Cochés ci-dessus : terminés dans l'interface web (phases 2, 3a, 3b et 4a). Le téléphone (Relay, QR
-code, badge « Mobile »), la dictée et les raccourcis au vrai clavier ont été essayés avec Nicolas
-dans la vraie appli le 2026-10-14 (D27 à D29), puis la page Agents (D38). Restent :
+Tous les éléments de §7 sont cochés : terminés dans l'interface web (phases 2, 3a, 3b, 4a et 4b).
+Le téléphone (Relay, QR code, badge « Mobile »), la dictée et les raccourcis au vrai clavier ont
+été essayés avec Nicolas dans la vraie appli le 2026-10-14 (D27 à D29), puis la page Agents de la
+phase 4a (D38). Restent à voir :
 
 - **Visionneuses Office** : vérifiées à 100 % sur un écran ; 125 %, 150 % et deux écrans restent
   à voir (section 2).
-- **Agents, phase 4b** : Mode Débat, statistiques et moniteur de ressources, tâches planifiées,
-  notification du système en fin de tâche longue (section 17).
+- **Phase 4b dans la vraie appli** : débat, tâches planifiées et leur notification du système,
+  notification de fin d'un fil long, « Exécuter même l'appli fermée », moniteur sur la vraie
+  carte, exécution lancée du téléphone (section 2, question 45).
 
 ## 6. Inventaire complété (absent de §7, présent dans Tk)
 
@@ -531,6 +567,22 @@ dans la vraie appli le 2026-10-14 (D27 à D29), puis la page Agents (D38). Reste
 17. **Une exécution d'agents à la fois, partout** : la page Agents de Tk avait son propre
     orchestrateur ; avec l'exécuteur partagé, une exécution du mobile ou une tâche planifiée occupe
     aussi la page Agents (et le scheduler attend la fin d'une exécution de la page).
+18. **Débat d'`AgentRelayService`** (constaté en phase 4b) : la fin de chaque tour, sauf le
+    dernier, n'était jamais envoyée. La cadence de 60 ms retenait les derniers fragments, et
+    `finish_current` fermait la section sans le texte final ; le téléphone les perdait aussi (Tk,
+    avec son propre orchestrateur, non). Corrigé dans `relay/agent_relay.py` : le texte final de
+    chaque tour part avant sa fin, protocole inchangé (question 43).
+19. **Statistiques de Tk** : « Tâches exécutées » et « Agents actifs » venaient de l'orchestrateur
+    de la page (appels d'agents et agents chargés depuis le lancement), le taux de succès de
+    l'historique de la session ; tout repartait de zéro à chaque lancement, et les tokens/s
+    restaient à 0 (§5).
+20. **Notifications de Tk** : la fin d'un débat n'était pas notifiée, ni celle d'une exécution
+    du téléphone (le scheduler notifie lui-même la fin de ses tâches).
+21. **Moniteur de ressources** (constaté en phase 4b, sur le vrai Ollama) : il ne comptait que
+    les processus dont le nom contient « ollama ». Depuis Ollama 0.40, le modèle tourne dans «
+    llama-server », lancé par Ollama : CPU et RAM du modèle échappaient au moniteur, dans Tk comme
+    dans la fenêtre (58 Mo au lieu de 1,76 Go). Corrigé dans `interfaces/resource_monitor.py` :
+    les processus lancés par Ollama comptent aussi.
 
 ## 8. Décisions
 
@@ -680,6 +732,13 @@ ignoré par git).
   4a). Ses deux remarques : les agents d'une étape parallèle écrivaient l'un après l'autre
   (Ollama n'en sert qu'un à la fois avec qwen3.5 : la page montre désormais « Attend son tour »),
   et l'onglet Diff montrait aussi l'explication de l'agent (D36).
+
+### Prises le 2026-10-15 (avec le feu vert de la phase 4b)
+
+- **D39. Agents en parallèle** : on garde qwen3.5 pour les agents, et « Attend son tour » ; pas
+  d'autre modèle ni de build d'Ollama modifié. Le jour où Ollama sert qwen3.5 à plusieurs (PR
+  ollama#17144), revoir le placement : l'`OLLAMA_NUM_PARALLEL=4` du lanceur ferait réserver à
+  `my_ai` quatre contextes (section 10).
 
 ### Constats techniques qui orientent la phase 1
 
@@ -921,6 +980,52 @@ ignoré par git).
   qui garde ses statuts visibles au-dessus d'elles. Une sortie suit la fin de son texte (560 px
   au plus, puis défilement), sauf si l'utilisateur est remonté.
 
+### Choix techniques de la phase 4b (dans le cadre fixé, pour mémoire)
+
+- **Débat** : `run_debate` d'`AgentRelayService` ; le fil « Débat · A vs B » garde les deux agents
+  comme nœuds (type, nom, couleur) et un tour par section (« deb_N »), dont l'agent se déduit de
+  l'ordre des tours (proposant, puis opposant). Dialogue de Tk : contrôles et messages (« ❌
+  Choisis deux agents différents », « ❌ Sujet requis », « ⏳ Une tâche est déjà en cours »), 1 à
+  10 tours, 3 par défaut. Un débat lancé, la page descend jusqu'à son fil.
+- **Exécutions du téléphone et des tâches planifiées (D37)** : le Relay et le scheduler reçoivent
+  l'exécuteur à travers `SharedExecutor` (agents.py), qui leur délègue tout le reste ; leurs
+  `run_workflow` et `run_debate` deviennent des fils marqués de leur origine (« mobile », «
+  scheduled » : préfixe `schedexec_` des exécutions du scheduler), puis chaque événement leur
+  revient tel quel. Aucun fichier du Relay ni du scheduler changé. Un fil de tâche planifiée
+  prend le nom de la tâche (même texte et mêmes nœuds, ou même débat), puis son rapport (listener
+  du scheduler). « busy » compte aussi une exécution de la page qui se prépare : le scheduler la
+  diffère, le téléphone reçoit le refus de l'exécuteur. Un tel fil ne remplace pas le fil ouvert ;
+  pendant qu'il tourne, Exécuter attend (infobulle), Échap ne l'arrête pas, le bouton Arrêter de
+  son fil oui (question 42).
+- **Statistiques** : sur les fils gardés (D33) — tâches exécutées : agents qui ont répondu ;
+  agents actifs : types d'agents employés ; taux de succès : fils terminés réussis (« — » tant
+  qu'aucun n'est terminé). Relues avec la liste des fils.
+- **Moniteur** : `interfaces/resource_monitor.py` de Tk (CPU et RAM d'Ollama et de son
+  « llama-server », section 7, écart 21 ; GPU par NVML, GPUtil, AMD ou WMI), une mesure toutes
+  les 3 s en événement `resources.sample`, seulement si une fenêtre est connectée (sinon rien
+  n'est mesuré) ; il démarre à la première ouverture de la page Agents. Temps d'inférence et
+  tokens/s : à la fin de chaque
+  agent, le relevé de fin de flux le plus récent des modèles des agents (D17 : `eval_count`,
+  `eval_duration`), sans requête en plus ; ils s'affichent aussi dans la section de l'agent.
+  Barres colorées par seuil comme Tk (vert sous 50 %, orange sous 80 %, rouge au-delà), sauf les
+  tokens/s, en bleu (question 41) ; mini-graphiques SVG de 60 mesures (CPU, RAM, GPU, tokens/s).
+- **Tâches planifiées** : `interfaces/desktop/schedule.py` sur le `SchedulerService` de l'appli
+  (le même singleton si sa boucle est désactivée). Règles et messages du dialogue de Tk (« ❌ Nom
+  requis. », « ❌ Sélectionnez au moins un jour. »…) ; agent seul = workflow d'un nœud « n1 », et
+  workflow du canvas figé avec des identifiants en texte, comme Tk ; heure saisie en HH:MM
+  (vérifiée, Tk prenait n'importe quel texte). Dernier résultat en clair (réussie, partielle,
+  interrompue, différée, en erreur) avec son fil et son rapport. « Exécuter même l'appli fermée »
+  : `core/scheduler_runner.py`, lu une fois (schtasks est lent), simulé en démonstration.
+  Événement `scheduler.changed` : la liste se relit après chaque action et à la fin de chaque
+  tâche.
+- **Notification de fin** : la page signale le focus de la fenêtre (`POST /api/window/focus`,
+  événements focus, blur et visibilitychange) ; un fil de la page de plus de 8 s, ni arrêté ni en
+  échec avant de commencer, est notifié par `utils/desktop_notify.py` si la fenêtre n'a pas le
+  focus. Textes de Tk ; la fin d'un débat aussi (question 40). Ni le téléphone ni le scheduler, qui
+  notifie lui-même.
+- **Rendus pendant l'écriture d'un agent** (mesuré, journal) : une suite de texte ne change pas la
+  ligne du fil (la liste des fils reste la même), et seule la section qui écrit se redessine.
+
 ## 9. Questions de la phase 0
 
 Réponses de Nicolas le 2026-10-12 : oui aux questions 1 à 8, 10 et 12, consigne pour la 13 ;
@@ -1105,6 +1210,31 @@ Réponses de Nicolas le 2026-10-14 : 34 oui (D34), 35 d'accord (D35), 36 diff pa
     workflow (dialogues de Windows) ; un vrai workflow sur Ollama ; le micro, une capture collée
     (Ctrl+V) et un fichier déposé depuis l'Explorateur dans la zone de tâche.
 
+### Questions de la phase 4b (posées le 2026-10-15)
+
+39. **Statistiques sur les fils gardés** : Tk comptait depuis le lancement (orchestrateur de la
+    page, historique de la session) et repartait de zéro à chaque fois. La page compte sur les
+    fils gardés (les 50 derniers, D33) : tâches exécutées, agents employés, part des fils
+    réussis ; « Effacer l'historique » les remet à zéro. D'accord ?
+40. **Notification de fin d'un débat** : Tk ne notifiait que l'agent seul et le workflow. La page
+    notifie aussi un débat de plus de 8 s, fenêtre sans focus (« ✅ Débat terminé (3 tours) » et
+    le sujet). Je la garde ?
+41. **Barre des tokens/s** : Tk la colorait par seuil, comme les autres, donc rouge quand le
+    modèle va vite. Elle est bleue, sans seuil. D'accord ?
+42. **Exécutions du téléphone et des tâches planifiées** (D37) : leur fil ne remplace pas le fil
+    ouvert ; pendant qu'elles tournent, Exécuter attend (infobulle « Une exécution lancée du
+    téléphone est en cours »), Échap ne les arrête pas, le bouton Arrêter de leur fil oui.
+    D'accord ?
+43. **Correction de `run_debate`** (`relay/agent_relay.py`, section 7, écart 18) : le texte final
+    de chaque tour d'un débat se perdait (le téléphone aussi le perdait). Deux lignes, protocole
+    inchangé. Je la garde ?
+44. **Phase 5** (bascule et suppression de Tk) : plan en section 18 ; feu vert ?
+45. **Essais avec toi** dans la vraie appli (section 2) : un débat ; une tâche planifiée lancée
+    par ▶ (fil, rapport, notification de Windows) ; la notification de fin d'un fil long, fenêtre
+    en arrière-plan ; « Exécuter même l'appli fermée » (crée une vraie tâche dans le Planificateur
+    de tâches de Windows, à désactiver ensuite) ; le moniteur sur la vraie carte ; une exécution
+    lancée du téléphone (fil « Lancé du téléphone »).
+
 ## 10. Risques repérés
 
 - **Reprise du prompt par Ollama** : `_rewind_engine_history` (édition, rechargement) réécrit tout
@@ -1187,7 +1317,14 @@ Réponses de Nicolas le 2026-10-14 : 34 oui (D34), 35 d'accord (D35), 36 diff pa
   agents. La page le montre (« Attend son tour »).
   Pour un vrai parallélisme, il faudrait donner aux agents un modèle qu'Ollama sait servir à
   plusieurs, avec la mémoire de contexte en conséquence : c'est un réglage hors du périmètre de la
-  migration.
+  migration. Cause et suite : D39 (blocage dans l'ordonnanceur d'Ollama, PR ollama#17144).
+- **Espace disque** (constaté le 2026-10-15) : 2,4 à 3,5 Go libres sur C:, selon le moment ; un
+  passage de pytest a échoué une fois faute de place (`test_ocr.py` : « No space left on
+  device »), puis réussi. Les essais de la migration n'occupent que quelques Mo (captures,
+  dossiers temporaires) ; un disque plein ferait échouer builds, commits et rapports.
+- **Moniteur sur le PC Arc** : sans NVML, il se rabat sur WMI, qui ne donne que la mémoire de la
+  carte (GPU affiché à 0 %). À voir sur place ; Windows fournit l'occupation de tout GPU par
+  ses compteurs de performance, si besoin.
 
 ---
 
@@ -1254,6 +1391,12 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
 `color`), `agent_section_chunk` (texte cumulé, 60 ms au plus), `agent_section_end` (`success`),
 `agent_node_status` (`idle` / `running` / `done` / `error`), `agent_exec_end` (`success`,
 `interrupted`, `status_text`), `agent_exec_error`.
+
+Depuis la phase 4b, un seul `AgentRelayService` par appli desktop : la page Agents l'appelle
+directement ; le Relay et le scheduler le reçoivent à travers `SharedExecutor`
+(`interfaces/desktop/agents.py`), qui fait de leurs exécutions des fils (D37) et leur rend chaque
+événement tel quel. Le runner du Planificateur de tâches de Windows (appli fermée) garde son
+propre exécuteur, dans son processus.
 
 ---
 
@@ -1838,6 +1981,81 @@ Fin : `submit_ai_response(texte brut)` ; interruption : texte partiel + « ⚠�
   s'anime » ; s'y ajoutent « l'onglet Diff ne montre que le code » et « l'explication est dans
   Sortie ». Captures relues.
 
+### Phase 4b — 2026-10-15 (PC à RTX 3060)
+
+- `main` n'a pas bougé (`543f083`). Paquets : aucun (section 1). Feu vert de Nicolas avec sa
+  réponse sur les agents en parallèle (D39).
+- **Backend** :
+  - `interfaces/desktop/agents.py` : débats (`start_debate`), fils des exécutions du téléphone
+    et des tâches planifiées (`SharedExecutor`, `run_external`, `scheduled_result`, D37),
+    statistiques, temps d'inférence et tokens/s de chaque agent, notification du système en fin
+    de fil long ;
+  - `resources.py` (moniteur), `schedule.py` et `api_schedule.py` (tâches planifiées),
+    `api_agents.py` (débat, moniteur, focus de la fenêtre), `events.py` (`scheduler.changed`,
+    `resources.sample`, durée et tokens/s en fin d'agent), `lifecycle.py` (exécuteur vu à travers
+    la page pour le Relay et le scheduler, moniteur, tâches, focus), `server.py` ;
+  - deux corrections hors de `interfaces/desktop/` : `relay/agent_relay.py` (texte final de
+    chaque tour d'un débat, section 7, écart 18) et `interfaces/resource_monitor.py` (processus
+    « llama-server » d'Ollama 0.40, écart 21). `core/scheduler.py`, `relay/relay_server.py` et
+    `core/chat_orchestrator.py` inchangés.
+- **Front** : `DebateDialog.tsx` ; `stats/` (statistiques, barres, mini-graphiques) ;
+  `schedule/` (vue et dialogue des tâches planifiées) ; `stores/resources.ts` et `schedule.ts` ;
+  `lib/focus.ts` (focus de la fenêtre) ; origine des fils (liste et fil ouvert, rapport d'une
+  tâche planifiée) ; tokens/s de chaque agent ; Exécuter et Échap pendant une exécution venue
+  d'ailleurs ; `TaskZone.tsx` (Débat) ; `AgentsPage.tsx` (sections) ; `sync.ts`, `events.ts`,
+  `api.ts`.
+- **Outils** :
+  - serveur de démonstration : débat scénarisé, agents qui écrivent un par un avec leur relevé de
+    fin de flux, moniteur simulé, vrai `SchedulerService` sur une copie des tâches, « Exécuter
+    même l'appli fermée » simulé, notification du système montrée dans la fenêtre, exécution
+    « venue du téléphone » (`POST /api/demo/mobile-run`), scénario « long » ;
+  - `capture_agents.mjs` (30 contrôles de plus), `perf.mjs` (canvas, sortie d'agent, défilement
+    de la page), `window_watch.mjs` (débat, tâches planifiées, focus, origine des fils).
+- **Tests** : `python -m pytest tests/` : **1176 réussis** (27 nouveaux : `test_desktop_agents.py`,
+  `test_desktop_schedule.py` sur le vrai `SchedulerService`, `test_desktop_resources.py`), aucun
+  échec ; front, **157 tests Vitest** (133 + 24) ; TypeScript, ESLint et Prettier sans erreur ;
+  `npm audit` sans avis.
+- **Contrôles et captures** (Chromium, serveur de démonstration) : `capture_agents.mjs`, **76
+  contrôles sur 76** en un passage (46 de la phase 4a et 30 nouveaux), aucune erreur de console.
+  Captures relues : dialogue et fil du débat, statistiques et moniteur, liste et dialogue des
+  tâches planifiées, fil d'une tâche planifiée et son rapport, fil « Lancé du téléphone »,
+  notification de fin.
+- **Mesures** (build normal, Chromium sans GPU, serveur de démonstration ; PC en usage) :
+  - canvas de 50 nœuds, zoom et déplacement de la vue : 5 images au-delà de 33 ms sur 240, deux
+    tâches longues (117 ms) ; déplacement d'un nœud : 4 sur 162, mais une image de 267 ms au
+    départ du geste (83 ms au passage précédent) ;
+  - sortie d'agent de 5 000 jetons, avec saisie et défilement : 174 images au-delà de 33 ms sur
+    4 008, 17 tâches longues (1 s), saisie au pire à 80 ms ; au même moment, côté chat (build de
+    profilage) : 220 sur 4 071, 22 tâches longues ;
+  - défilement de la page Agents : 3 et 7 images au-delà de 33 ms, sur 379 et 583.
+- **Rendus trouvés par les mesures** : à chaque suite de texte d'un agent, la liste des fils
+  était reconstruite (une infobulle Radix par ligne) et toutes les sections du fil redessinées :
+  rendus React à 4,6 ms en médiane (0,6 ms côté chat), 86 tâches longues. Corrigé : la liste
+  reste la même tant que la ligne du fil ne change pas, et seule la section qui écrit se
+  redessine (3,6 ms, 21 tâches longues).
+- **Vrai Ollama, sans fenêtre** (`launch_unified.py --headless`, client REST et WebSocket hors
+  dépôt ; prêt en 216 s, PC chargé) :
+  - débat CodeAgent / CreativeAgent en deux tours : premier texte en 2,1 s, fin en 13,8 s,
+    « ✅ Débat terminé (2 tours) », quatre sections de 469 à 729 caractères ; tokens/s de chaque
+    tour, relevés en fin de flux : 42,7, 60,1, 52,3 et 53,8 ; textes recomposés identiques aux
+    fils enregistrés ;
+  - moniteur : 8 mesures pendant le débat ; GPU par NVML de 57 à 79 %, VRAM 4 573 / 6 144 Mo,
+    tokens/s du dernier agent ; mais CPU de 1 à 3 % et RAM de 58 Mo pour Ollama, le modèle
+    tournant dans « llama-server » (écart 21) : corrigé ensuite, 1 763 Mo comptés ;
+  - arrêt pendant un débat : fin 0,1 s après la demande, « ⛔ Débat interrompu », le tour en cours
+    marqué en erreur ;
+  - statistiques relues : 9 tâches, 5 agents, 50 % ;
+  - `data/agent_runs.json` (les fils de Nicolas) sauvegardé, puis remis à l'identique ; seuls
+    `.desktop_state.json` et `web_cache/cache.db` ont changé, comme à chaque lancement ;
+  - ni tâche planifiée ni notification du système dans cet essai : elles font paraître une
+    notification de Windows (essai avec Nicolas, question 45).
+- **Bogues trouvés et corrigés en route** : texte final des tours d'un débat perdu (écart 18) ;
+  moniteur aveugle au « llama-server » d'Ollama 0.40 (écart 21) ; rendus de la page pendant
+  l'écriture d'un agent (ci-dessus) ; valeur de la RAM coupée sur deux lignes, carte des
+  statistiques étirée, barre des tokens/s orange comme une alerte (captures).
+- **Disque** : 2,4 à 3,5 Go libres ; un passage de `test_ocr.py` a échoué faute de place, puis
+  réussi (section 10).
+
 ---
 
 ## 13. Plan de la phase 1 (approuvé le 2026-10-12, réalisé)
@@ -2053,7 +2271,7 @@ Risques :
 
 ---
 
-## 17. Plan de la phase 4 (feu vert le 2026-10-14 ; 4a réalisée le 2026-10-14, 4b à venir)
+## 17. Plan de la phase 4 (feu vert le 2026-10-14 ; 4a réalisée le 2026-10-14, 4b le 2026-10-15)
 
 But (prompt, §9) : tous les éléments de la section « Agents » du §7, avec le design de la page
 Agents du §8 (inspirée de Codex). Le backend existe (`relay/agent_relay.py`, `core/scheduler.py`,
@@ -2114,7 +2332,7 @@ Risques :
   rendu ligne à ligne de Tk.
 - Mesures (canvas chargé, longue sortie en streaming) : reportées à l'étape 7, pour toute la phase.
 
-### Plan détaillé de la phase 4b (proposé le 2026-10-14, complété de D37, en attente du feu vert)
+### Plan détaillé de la phase 4b (proposé le 2026-10-14, complété de D37 ; feu vert le 2026-10-15, réalisé le jour même)
 
 Fichiers créés ou complétés :
 
@@ -2152,3 +2370,66 @@ recette et compte rendu de toute la phase 4.
 Risques : Planificateur de tâches de Windows (droits, ne rien laisser derrière les essais) ; GPU
 et VRAM sur le PC Arc (sans NVML : affichage dégradé) ; coût d'un moniteur qui mesure sans
 fenêtre ouverte ; demandes simultanées (page, mobile, scheduler) sur l'exécuteur partagé.
+
+Écarts au plan, à la fin de la phase 4b :
+
+- Une vraie tâche planifiée menée jusqu'à sa notification, et la notification de fin d'un fil
+  long : laissées à l'essai avec Nicolas (question 45), parce qu'elles font paraître une
+  notification de Windows ; leur chemin est vérifié par les tests et le serveur de démonstration
+  (vrai `SchedulerService`, vrai `AgentRelayService`).
+- « Exécuter même l'appli fermée » : simulé dans les tests et en démonstration ; pas de vraie
+  tâche du Planificateur créée par mes essais (question 45).
+- Deux fichiers hors de `interfaces/desktop/` retouchés pour des bogues trouvés en route :
+  `relay/agent_relay.py` (écart 18) et `interfaces/resource_monitor.py` (écart 21).
+- Le serveur de démonstration a pris une route à lui (`POST /api/demo/mobile-run`), pour
+  vérifier les fils venus du téléphone sans téléphone.
+
+## 18. Plan de la phase 5 (proposé le 2026-10-15, en attente du feu vert)
+
+But (prompt, §9) : l'interface web par défaut partout, puis Tk retiré du dépôt ; checklist de §7
+entièrement cochée (c'est fait), suite de tests verte, recette manuelle faite ; puis le texte de
+l'entrée du CHANGELOG, et la fusion dans `main` avec l'accord de Nicolas.
+
+Étapes :
+
+1. **Interface web par défaut partout** : `launch_unified.py` (déjà par défaut sur la branche ;
+   `--ui tk` retiré), `main.py --mode gui` (aujourd'hui `interfaces.gui_modern`), menus de
+   `launch.bat` et `launch.sh`.
+2. **Déplacements avant suppression** : `interfaces/gui/_preview_handler.py` vers
+   `interfaces/desktop/` (visionneuses Office ; `dpi_host.py` y est déjà), en mettant à jour
+   `test_native_preview.py` ; `_whisper_worker.py`, `voice_input.py` et `voice_output.py` sont
+   déjà dans `interfaces/desktop/` (phase 3) : ne restent dans `interfaces/gui/` que leurs
+   boutons Tk. Fonctions utilitaires d'`interfaces/onboarding.py` (`sync_custom_model`,
+   `detect_vram_gb`, `pull_model`, `apply_model_choice`, `set_config_flag`…) gardées, sans
+   `OnboardingWizard`, imports et stubs de `tests/test_ollama_restart.py` mis à jour.
+3. **Suppression** : `interfaces/gui/`, `interfaces/agents/`, `interfaces/gui_modern.py`,
+   `interfaces/agents_interface.py`, `interfaces/workflow_canvas.py`,
+   `interfaces/modern_styles.py`, la classe `OnboardingWizard`. Gardés :
+   `interfaces/artifacts.py`, `interfaces/document_preview.py`, `interfaces/resource_monitor.py`,
+   `interfaces/cli.py`.
+4. **Tests liés à Tk** (`test_attachment_loading.py`, `test_chat_scroll.py`, `test_path_links.py`,
+   `test_edge_embed.py`, `test_agent_attachments.py`, `test_agent_output_links.py`) : ce qu'ils
+   vérifient d'utile porté en pytest ou en Vitest (liens de chemins, rendu des sorties d'agents,
+   pièces jointes), le reste supprimé ; `test_native_preview.py` adapté.
+5. **`requirements.txt`** : retirer `customtkinter`, `tkinterdnd2` et `tkinterweb` (et `pygments`
+   s'il ne sert plus), garder `pywebview` ; vérifier que `utils/requirements_sync.py` installe
+   les nouveaux paquets au lancement.
+6. **Documentation** : `README.md`, `docs/ARCHITECTURE.md`, `docs/CODEBASE.md`,
+   `docs/AGENTS_GUI.md` (export d'un workflow aligné sur D11), `docs/GUI_RLHF_FEEDBACK.md`,
+   `docs/ARTIFACTS_PREVIEW.md`, `docs/INSTALLATION.md`, `docs/USAGE.md`, `docs/FAQ.md` ; liste des
+   captures `docs/images/*.png` à refaire, pour Nicolas.
+7. **Critères de fin et recette** : plus aucune occurrence de `tkinter` ni de `customtkinter` dans
+   le code ni les tests ; suite complète verte ; recette manuelle avec Nicolas ; texte de
+   l'entrée du CHANGELOG proposé.
+
+À trancher avant de commencer :
+
+- `models/knowledge_base.py`, `models/intelligent_code_orchestrator.py` et
+  `models/mixins/document_analysis.py` citent « tkinter » comme bibliothèque Python que l'IA
+  reconnaît dans le code analysé (chaînes, pas d'interface). Je propose de les garder : le
+  critère « aucune occurrence » vise l'interface.
+- Restent hors de ce PC (section 2) : échelles 125 et 150 %, deux écrans, PC Arc, macOS et Linux.
+
+Risques : un import de Tk caché dans un module gardé (les tests le diront, `python -X importtime`
+aussi) ; scripts et raccourcis de Nicolas qui lancent encore `gui_modern` ; espace disque
+(section 10).
