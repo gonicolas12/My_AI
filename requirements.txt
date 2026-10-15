@@ -54,18 +54,11 @@ markdown2>=2.4.0
 # ====================================
 # INTERFACE GRAPHIQUE
 # ====================================
-customtkinter>=5.2.0
-tkinterdnd2>=0.3.0
 pillow>=10.0.0
-pygments
 # Fenêtre de l'interface web (WebView2 sous Windows, GTK ou Qt ailleurs ; sans
 # elle, l'interface s'ouvre dans le navigateur). pythonnet 3.1 ou plus pour Python 3.14
 pywebview>=6.2
 pythonnet>=3.1; sys_platform == "win32"
-# Optionnel : moteur de REPLI du volet « Artifacts ». Le rendu exact utilise
-# Edge --app embarqué (Windows, aucune dépendance) ; tkinterweb ne sert que si
-# Edge est indisponible (rendu approximatif). Voir docs/ARTIFACTS_PREVIEW.md.
-tkinterweb>=3.23.0
 
 # Interface web (optionnel)
 streamlit>=1.42.0
