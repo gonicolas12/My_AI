@@ -3,13 +3,21 @@ Page Agents de la fenêtre (interfaces/agents/ de Tk)
 
 Expose l'exécuteur d'agents partagé, AgentRelayService (relay/agent_relay.py),
 sans le réécrire : liste des agents, agents personnalisés, exécution d'un
-agent seul ou d'un workflow (séquentiel, parallèle, DAG) et arrêt. Une seule
-exécution à la fois, partout : la page Agents, le mobile et le scheduler
-partagent le même exécuteur (cf. lifecycle.py, agent_service).
+agent seul, d'un workflow (séquentiel, parallèle, DAG) ou d'un débat, et
+arrêt. Une seule exécution à la fois, partout : la page Agents, le mobile et
+le scheduler partagent le même exécuteur (cf. lifecycle.py, agent_service).
 
 Chaque exécution devient un fil (D32) : sa tâche, son workflow, la sortie de
 chaque agent et son statut, gardés pour être rouverts, y compris après un
-redémarrage (D33 : les 50 derniers, dans data/agent_runs.json).
+redémarrage (D33 : les 50 derniers, dans data/agent_runs.json). Les
+exécutions lancées par le téléphone (Relay) et par les tâches planifiées
+deviennent aussi des fils (D37) : le Relay et le scheduler reçoivent
+l'exécuteur à travers SharedExecutor, qui les relaie et en garde une copie.
+
+Autour des fils : statistiques (tâches, agents, taux de succès, sur les fils
+gardés), temps d'inférence et tokens/s de chaque agent (relevé de fin de flux
+d'Ollama gardé par LocalLLM, D17 : aucune requête en plus), et notification du
+système à la fin d'un fil long de la page, fenêtre sans focus (comme Tk).
 
 Événements publiés (préfixe « agents. ») : ceux d'AgentRelayService, repris
 tels quels (agent_exec_start, agent_section_start, agent_section_end,
@@ -31,7 +39,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from core.chat_service import ChatError, file_type_for, folder_attachment_files
 from interfaces.desktop import files as local_files
@@ -48,11 +56,26 @@ MAX_RUNS = 50
 # montrer en diff le code qu'il modifie (§8 du prompt), dans cette limite
 MAX_CODE_SOURCE = 200_000
 
-# Messages de Tk (execution.py), repris par la fenêtre
+# Messages de Tk (execution.py, debate.py), repris par la fenêtre
 NO_AGENT = "Glissez-déposez un ou plusieurs agents pour commencer."
 EMPTY_TASK = "Veuillez décrire la tâche à effectuer."
 BUSY = "Un agent est déjà en train de traiter une tâche."
 INTERRUPTED = "⛔ Génération interrompue"
+DEBATE_BUSY = "⏳ Une tâche est déjà en cours"
+DEBATE_SAME_AGENT = "❌ Choisis deux agents différents"
+DEBATE_NO_TOPIC = "❌ Sujet requis"
+DEBATE_INTERRUPTED = "⛔ Débat interrompu"
+
+# Refus d'AgentRelayService quand une exécution est en cours (run_workflow, run_debate)
+EXECUTOR_BUSY = "Une exécution est déjà en cours."
+
+# Origine d'un fil : la page, le téléphone (Relay) ou une tâche planifiée (D37)
+ORIGINS = ("desktop", "mobile", "scheduled")
+# Identifiant des exécutions du scheduler (core/scheduler.py, _fire)
+SCHEDULED_PREFIX = "schedexec_"
+
+# Notification du système : fil de plus de 8 s, fenêtre sans focus (Tk, execution.py)
+NOTIFY_MIN_SECONDS = 8
 
 # Statuts d'un nœud du canvas (WorkflowCanvas.STATUS_META de Tk)
 NODE_STATUSES = ("idle", "running", "done", "error")
@@ -94,6 +117,20 @@ def _plan_view(plan: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _debate_node(node_id: str, agent: Dict[str, Any]) -> Dict[str, Any]:
+    """Agent d'un débat, rangé comme un nœud du fil (type, nom, couleur)."""
+    return {"id": node_id, "agent_type": agent["key"], "name": agent.get("name") or agent["key"],
+            "color": agent.get("color") or "#8b5cf6", "icon": agent.get("icon") or "🤖"}
+
+
+def _clamp_rounds(rounds: Any) -> int:
+    """Nombre de tours d'un débat : de 1 à 10, 3 par défaut (debate.py de Tk)."""
+    try:
+        return max(1, min(10, int(rounds or 3)))
+    except (TypeError, ValueError):
+        return 3
+
+
 class Run:
     """Un fil : une exécution de la page Agents, avec la sortie de chaque agent."""
 
@@ -118,17 +155,25 @@ class Run:
         self.duration_ms: Optional[int] = data.get("duration_ms")
         self.sections: List[Dict[str, Any]] = [dict(s) for s in data.get("sections") or []]
         self.node_status: Dict[str, str] = dict(data.get("node_status") or {})
+        origin = data.get("origin")
+        self.origin: str = origin if origin in ORIGINS else "desktop"
+        # Débat : {agent_a, agent_b, rounds}
+        self.debate: Optional[Dict[str, Any]] = data.get("debate")
+        # Tâche planifiée : {task_id, name, output_file}
+        self.schedule: Optional[Dict[str, Any]] = data.get("schedule")
         # État du fil vivant, jamais enregistré
         self.stop_requested = False
         self.forwarded = False  # au moins un événement reçu de l'exécuteur
         self.started_clock = time.perf_counter()
+        self.section_clocks: Dict[str, float] = {}
 
     def view(self) -> Dict[str, Any]:
         """Fil complet, pour la fenêtre et le fichier des fils."""
         return {
-            "id": self.id, "kind": self.kind, "title": self.title, "task": self.task,
-            "attachments": self.attachments, "sources": self.sources,
+            "id": self.id, "kind": self.kind, "origin": self.origin, "title": self.title,
+            "task": self.task, "attachments": self.attachments, "sources": self.sources,
             "nodes": self.nodes, "connections": self.connections, "plan": self.plan,
+            "debate": self.debate, "schedule": self.schedule,
             "mode": self.mode, "status": self.status, "status_text": self.status_text,
             "error": self.error, "started_at": self.started_at,
             "finished_at": self.finished_at, "duration_ms": self.duration_ms,
@@ -139,12 +184,13 @@ class Run:
         """Ligne de la liste des fils."""
         first = self.nodes[0] if self.nodes else {}
         return {
-            "id": self.id, "kind": self.kind, "title": self.title,
+            "id": self.id, "kind": self.kind, "origin": self.origin, "title": self.title,
             "task": _excerpt(self.task), "status": self.status,
             "status_text": self.status_text, "started_at": self.started_at,
             "finished_at": self.finished_at, "duration_ms": self.duration_ms,
             "agent_type": first.get("agent_type"), "color": first.get("color"),
             "agents": len(self.nodes),
+            "schedule_task_id": (self.schedule or {}).get("task_id"),
         }
 
     def section(self, section_id: Any) -> Optional[Dict[str, Any]]:
@@ -170,15 +216,42 @@ class Run:
                 self.node_status[key] = "error"
 
 
+def _interrupted_text(run: Run) -> str:
+    """Texte d'un fil arrêté : celui d'AgentRelayService pour un débat, celui de Tk sinon."""
+    return DEBATE_INTERRUPTED if run.kind == "debate" else INTERRUPTED
+
+
+def notification_text(run: Run) -> Tuple[str, str]:
+    """Titre et message de la notification de fin d'un fil (_notify_task_complete de Tk).
+
+    Tk ne notifiait pas la fin d'un débat ; la fenêtre le fait, avec son texte
+    de fin (« ✅ Débat terminé (3 tours) ») et le sujet.
+    """
+    if run.kind == "agent":
+        name = run.nodes[0].get("name", "") if run.nodes else ""
+        icon = "✅" if run.status == "done" else "❌"
+        return f"{icon} {name} — tâche terminée", run.task[:120]
+    if run.kind == "debate":
+        return run.status_text or "🎭 Débat terminé", run.task[:120]
+    answered = [s for s in run.sections if s.get("status") in ("done", "error")]
+    rate = sum(s.get("status") == "done" for s in answered) / max(len(answered), 1)
+    return "✅ Workflow visuel terminé", f"{rate:.0%} de succès — {run.task[:90]}"
+
+
 class AgentsService:
     """Agents de la fenêtre : liste, agents personnalisés, fils d'exécution, workflows."""
 
     # pylint: disable=too-many-instance-attributes,too-many-public-methods
 
+    # pylint: disable-next=too-many-arguments
     def __init__(self, executor: Callable[[], Any], publish: Callable[..., Any], *,
                  runs_file: Path = RUNS_FILE,
                  notify: Optional[Callable[[str, str], None]] = None,
-                 last_seq: Optional[Callable[[], int]] = None):
+                 last_seq: Optional[Callable[[], int]] = None,
+                 window_focused: Optional[Callable[[], bool]] = None,
+                 os_notify: Optional[Callable[[str, str], Any]] = None,
+                 on_inference: Optional[Callable[[float, float], None]] = None,
+                 find_scheduled: Optional[Callable[..., Optional[Dict[str, Any]]]] = None):
         """
         Args:
             executor: exécuteur d'agents partagé (AgentRelayService), créé au premier usage
@@ -186,11 +259,20 @@ class AgentsService:
             runs_file: fichier des fils (data/agent_runs.json)
             notify: notification brève de la fenêtre (niveau, message)
             last_seq: numéro du dernier événement publié (lectures de l'état)
+            window_focused: la fenêtre a le focus (signalé par la page)
+            os_notify: notification du système (titre, message) ; None : aucune
+            on_inference: fin d'un agent (durée en ms, tokens/s), pour le moniteur
+            find_scheduled: tâche planifiée d'une exécution du scheduler
+                (texte, nœuds, débat), pour titrer son fil
         """
         self._executor = executor
         self._publish = publish
         self._notify = notify or (lambda _level, _message: None)
         self._last_seq = last_seq or (lambda: 0)
+        self._window_focused = window_focused or (lambda: True)
+        self._os_notify = os_notify
+        self._on_inference = on_inference
+        self._find_scheduled = find_scheduled or (lambda *_args: None)
         self._runs_file = Path(runs_file)
         # Verrou réentrant : un événement de l'exécuteur peut suivre un arrêt
         # demandé dans le même fil
@@ -200,6 +282,8 @@ class AgentsService:
         self._active: Optional[Run] = None
         # Pièces jointes de la zone de tâche : la fenêtre peut en montrer la vignette
         self._known: Set[str] = set()
+        # Exécuteur vu du Relay et du scheduler (D37)
+        self._tap: Optional["SharedExecutor"] = None
 
     # ── Agents ──────────────────────────────────────────────────────────────
 
@@ -243,8 +327,29 @@ class AgentsService:
                 "runs": [run.summary() for run in self._runs],
                 "active": self._active.id if self._active else None,
                 "busy": self._busy(),
+                "stats": self._stats(),
                 "seq": seq,
             }
+
+    def _stats(self) -> Dict[str, Any]:
+        """Statistiques de Tk (stats_section.py), calculées sur les fils gardés (D33).
+
+        Tâches exécutées : agents qui ont répondu (une section close) ; agents
+        actifs : types d'agents différents employés ; taux de succès : part des
+        fils terminés qui ont réussi (None tant qu'aucun n'est terminé).
+        """
+        tasks = 0
+        kinds: Set[str] = set()
+        for run in self._runs:
+            for section in run.sections:
+                if section.get("status") in ("done", "error"):
+                    tasks += 1
+                if section.get("agent_type"):
+                    kinds.add(str(section["agent_type"]))
+        ended = [run for run in self._runs if run.status != "running"]
+        rate = (round(100 * sum(run.status == "done" for run in ended) / len(ended))
+                if ended else None)
+        return {"tasks": tasks, "agents": len(kinds), "success_rate": rate}
 
     def run(self, run_id: str) -> Dict[str, Any]:
         """Fil complet (sorties comprises), et le seq de cette lecture."""
@@ -262,6 +367,11 @@ class AgentsService:
             return bool(self._executor().busy)
         except Exception:  # pylint: disable=broad-except
             return False
+
+    def busy(self) -> bool:
+        """Une exécution est en cours ou se prépare (lecture des pièces jointes comprise)."""
+        with self._lock:
+            return self._active is not None or self._busy()
 
     def _find(self, run_id: str) -> Run:
         run = next((r for r in self._runs if r.id == run_id), None)
@@ -293,7 +403,8 @@ class AgentsService:
             raise AgentsError(NO_AGENT)
         if not task:
             raise AgentsError(EMPTY_TASK)
-        files = [self._attachment(item.get("path", ""), item.get("type")) for item in attachments or []]
+        files = [self._attachment(item.get("path", ""), item.get("type"))
+                 for item in attachments or []]
         executor = self._executor()
         plan = executor.compute_execution_plan(nodes, connections)
         single = len(nodes) == 1
@@ -310,16 +421,66 @@ class AgentsService:
             "plan": _plan_view(plan),
             "node_status": {str(node["id"]): "idle" for node in nodes},
         })
+        self._begin(run, BUSY)
+        threading.Thread(target=self._execute, args=(run,), name="agents-run", daemon=True).start()
+        return run.id
+
+    def start_debate(self, agent_a: str, agent_b: str, topic: str, rounds: int = 3) -> str:
+        """
+        Lance un débat entre deux agents (debate.py de Tk), dans un fil dédié.
+
+        Args:
+            agent_a: agent proposant (clé d'un agent intégré ou personnalisé)
+            agent_b: agent opposant
+            topic: sujet du débat
+            rounds: nombre de tours, de 1 à 10
+
+        Returns:
+            Identifiant du fil
+
+        Raises:
+            AgentsError: agents identiques ou inconnus, sujet vide, exécution en cours
+        """
+        topic = (topic or "").strip()
+        if not agent_a or not agent_b or agent_a == agent_b:
+            raise AgentsError(DEBATE_SAME_AGENT)
+        if not topic:
+            raise AgentsError(DEBATE_NO_TOPIC)
+        rounds = _clamp_rounds(rounds)
+        known = self._agents_by_key()
+        first, second = known.get(agent_a), known.get(agent_b)
+        if first is None or second is None:
+            raise AgentsError(f"❌ Agent introuvable : {agent_a if first is None else agent_b}")
+        run = Run({
+            "id": f"exec_{uuid.uuid4().hex}",
+            "kind": "debate",
+            "title": f"Débat · {first['name']} vs {second['name']}",
+            "task": topic,
+            "nodes": [_debate_node("a", first), _debate_node("b", second)],
+            "debate": {"agent_a": agent_a, "agent_b": agent_b, "rounds": rounds},
+            "plan": {"mode": "debate", "steps": [], "isolated": []},
+        })
+        self._begin(run, DEBATE_BUSY)
+        threading.Thread(target=self._execute, args=(run,), name="agents-debate",
+                         daemon=True).start()
+        return run.id
+
+    def _agents_by_key(self) -> Dict[str, Dict[str, Any]]:
+        """Agents intégrés et personnalisés, par clé."""
+        listing = self._executor().list_agents()
+        return {agent["key"]: agent
+                for agent in listing.get("builtin", []) + listing.get("custom", [])}
+
+    def _begin(self, run: Run, busy_message: str) -> None:
+        """Fil en cours : refusé si une exécution est déjà en cours, sinon publié et enregistré."""
         with self._lock:
             if self._active is not None or self._busy():
-                raise AgentsError(BUSY)
+                raise AgentsError(busy_message)
             self._active = run
             self._runs.insert(0, run)
             self._trim()
             self._publish("agents.run_created", {"run": run.view()})
         self._save()
-        threading.Thread(target=self._execute, args=(run,), name="agents-run", daemon=True).start()
-        return run.id
 
     def stop(self, run_id: Optional[str] = None) -> bool:
         """Arrête le fil en cours (Arrêter, Échap) ; faux s'il n'y en a pas."""
@@ -359,7 +520,7 @@ class AgentsService:
             run = self._active
             if run is not None and run.status == "running":
                 run.stop_requested = True
-                run.finish("interrupted", INTERRUPTED)
+                run.finish("interrupted", _interrupted_text(run))
         if run is not None:
             try:
                 self._executor().interrupt(run.id)
@@ -370,9 +531,15 @@ class AgentsService:
     # ── Exécution ───────────────────────────────────────────────────────────
 
     def _execute(self, run: Run) -> None:
-        """Fil d'exécution : images décrites, puis run_workflow d'AgentRelayService."""
+        """Fil de la page : images décrites, puis run_workflow ou run_debate de l'exécuteur."""
         executor = self._executor()
         try:
+            if run.kind == "debate":
+                debate = run.debate or {}
+                executor.run_debate(run.id, debate.get("agent_a"), debate.get("agent_b"),
+                                    run.task, debate.get("rounds", 3),
+                                    lambda event: self._on_event(run, event))
+                return
             task = self._with_images(executor, run)
             if run.stop_requested:
                 # Arrêté pendant la lecture des pièces jointes : l'exécuteur n'a rien lancé
@@ -385,19 +552,47 @@ class AgentsService:
                                   None, documents or None)
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("Exécution d'agents en échec (%s)", run.id)
+            label = "Erreur débat" if run.kind == "debate" else "Erreur workflow"
             self._on_event(run, {"type": "agent_exec_error", "exec_id": run.id,
-                                 "message": f"Erreur workflow : {exc}"})
+                                 "message": f"{label} : {exc}"})
         finally:
-            with self._lock:
-                if run.status == "running":
-                    if run.stop_requested:
-                        run.finish("interrupted", INTERRUPTED)
-                    else:
-                        run.finish("error", "❌ Exécution terminée sans résultat")
-                if self._active is run:
-                    self._active = None
-                self._publish("agents.runs_changed", {})
-            self._save()
+            self._finish_run(run)
+
+    def _finish_run(self, run: Run) -> None:
+        """Fin du fil (fil de l'exécuteur) : statut s'il en manque, enregistrement, notification."""
+        with self._lock:
+            if run.status == "running":
+                if run.stop_requested:
+                    run.finish("interrupted", _interrupted_text(run))
+                else:
+                    run.finish("error", "❌ Exécution terminée sans résultat")
+            if self._active is run:
+                self._active = None
+            self._publish("agents.runs_changed", {})
+        self._save()
+        self._maybe_notify(run)
+
+    def _maybe_notify(self, run: Run) -> None:
+        """Notification du système à la fin d'un fil long de la page, fenêtre sans focus.
+
+        Comme _notify_task_complete de Tk : plus de 8 s, ni interrompu ni en
+        échec avant de commencer. Le téléphone et le scheduler (qui notifie
+        lui-même) n'en déclenchent pas.
+        """
+        if self._os_notify is None or run.origin != "desktop":
+            return
+        if run.status == "interrupted" or run.error:
+            return
+        if (run.duration_ms or 0) < NOTIFY_MIN_SECONDS * 1000:
+            return
+        try:
+            if self._window_focused():
+                return
+        except Exception:  # pylint: disable=broad-except
+            pass
+        title, message = notification_text(run)
+        threading.Thread(target=self._os_notify, args=(title, message),
+                         name="agents-notify", daemon=True).start()
 
     def _with_images(self, executor: Any, run: Run) -> str:
         """Tâche complétée par la description de chaque image jointe (modèle de vision).
@@ -442,6 +637,10 @@ class AgentsService:
                 if kind == "agent_exec_end":
                     # Texte final du fil (celui de Tk pour un agent seul)
                     payload["status_text"] = run.status_text
+                elif kind == "agent_section_end":
+                    section = run.section(payload.get("section_id")) or {}
+                    payload["inference_ms"] = section.get("inference_ms")
+                    payload["tokens_per_sec"] = section.get("tokens_per_sec")
                 self._publish(f"agents.{kind}", payload)
         if interrupt:
             self._executor().interrupt(run.id)
@@ -470,13 +669,54 @@ class AgentsService:
     @staticmethod
     def _new_section(run: Run, section_id: Any, title: str, color: str) -> Dict[str, Any]:
         node = run.node(section_id)
+        if not node and run.kind == "debate" and run.nodes:
+            # Tours d'un débat (« deb_N ») : le proposant, puis l'opposant, à chaque tour
+            node = run.nodes[len(run.sections) % len(run.nodes)]
         section = {
             "id": section_id, "title": title or node.get("name", ""),
             "color": color or node.get("color", ""), "agent_type": node.get("agent_type"),
             "text": "", "status": "running", "started_at": _now(), "finished_at": None,
         }
         run.sections.append(section)
+        run.section_clocks[str(section_id)] = time.perf_counter()
         return section
+
+    def _measure(self, run: Run, section: Dict[str, Any]) -> None:
+        """Temps d'inférence et tokens/s de l'agent qui vient de finir.
+
+        Tokens/s : eval_count et eval_duration de la fin du flux, gardés par
+        le LocalLLM de l'agent (D17), sans requête en plus ; le temps
+        d'inférence est celui de l'agent, comme le mesurait Tk.
+        """
+        started = run.section_clocks.pop(str(section["id"]), None)
+        if started is None:
+            return
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        stats = self._last_stream_stats(started) or {}
+        count, duration = stats.get("eval_count"), stats.get("eval_duration")
+        tps = count / (duration / 1e9) if count and duration else 0.0
+        section["inference_ms"] = round(elapsed_ms)
+        section["tokens_per_sec"] = round(tps, 1) if tps else None
+        if tps and self._on_inference is not None:
+            try:
+                self._on_inference(elapsed_ms, tps)
+            except Exception:  # pylint: disable=broad-except
+                logger.debug("Moniteur non mis à jour", exc_info=True)
+
+    def _last_stream_stats(self, since: float) -> Optional[Dict[str, Any]]:
+        """Relevé de fin de flux le plus récent des agents de l'exécuteur, pris depuis `since`."""
+        try:
+            agents = dict(self._executor()._orchestrator.agents)  # pylint: disable=protected-access
+        except Exception:  # pylint: disable=broad-except
+            return None
+        best: Optional[Dict[str, Any]] = None
+        best_at = since
+        for agent in agents.values():
+            stats = getattr(getattr(agent, "llm", None), "last_stream_stats", None)
+            at = (stats.get("at") or 0) if isinstance(stats, dict) else 0
+            if at >= best_at:
+                best, best_at = stats, at
+        return best
 
     def _apply(self, run: Run, kind: str, payload: Dict[str, Any]) -> None:
         """État du fil après un événement de l'exécuteur."""
@@ -494,6 +734,7 @@ class AgentsService:
             if section is not None:
                 section["status"] = "done" if payload.get("success") else "error"
                 section["finished_at"] = _now()
+                self._measure(run, section)
         elif kind == "agent_node_status":
             status = payload.get("status")
             if status in NODE_STATUSES:
@@ -514,6 +755,148 @@ class AgentsService:
         elif kind == "agent_exec_error":
             message = str(payload.get("message") or "Erreur")
             run.finish("error", f"❌ {message}", error=message)
+
+    # ── Exécutions du téléphone et des tâches planifiées (D37) ──────────────
+
+    def executor(self) -> Any:
+        """Exécuteur d'agents partagé (AgentRelayService)."""
+        return self._executor()
+
+    def executor_tap(self) -> "SharedExecutor":
+        """L'exécuteur à donner au Relay et au scheduler : leurs exécutions deviennent des fils."""
+        with self._lock:
+            if self._tap is None:
+                self._tap = SharedExecutor(self)
+            return self._tap
+
+    def run_external(self, exec_id: str, emit: Callable[[Dict[str, Any]], None],
+                     request: Dict[str, Any]) -> None:
+        """
+        Exécution demandée par le téléphone ou par le scheduler (bloquant).
+
+        Elle devient un fil, puis passe à l'exécuteur ; chaque événement va
+        d'abord à l'appelant, tel quel, puis au fil. Si la page a une
+        exécution en cours ou en préparation, l'appelant reçoit le refus de
+        l'exécuteur (« Une exécution est déjà en cours. »).
+
+        Args:
+            exec_id: identifiant de l'exécution (celui de l'appelant)
+            emit: événements de l'exécuteur, pour l'appelant
+            request: {task, nodes, connections, image_path, file_paths} pour un
+                workflow, {task, debate: {agent_a, agent_b, rounds}} pour un débat
+        """
+        executor = self._executor()
+        run = self._adopt(executor, exec_id, request)
+        if run is None:
+            emit({"type": "agent_exec_error", "exec_id": exec_id, "message": EXECUTOR_BUSY})
+            return
+
+        def relay(event: Dict[str, Any]) -> None:
+            try:
+                emit(event)
+            except Exception:  # pylint: disable=broad-except
+                logger.debug("Événement non relayé (%s)", exec_id, exc_info=True)
+            try:
+                self._on_event(run, event)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Fil %s non mis à jour", exec_id)
+
+        debate = request.get("debate")
+        try:
+            if debate is not None:
+                executor.run_debate(exec_id, debate.get("agent_a"), debate.get("agent_b"),
+                                    request.get("task", ""), debate.get("rounds", 3), relay)
+            else:
+                executor.run_workflow(exec_id, request.get("task", ""), run.nodes,
+                                      list(request.get("connections") or []), relay,
+                                      request.get("image_path"), request.get("file_paths"))
+        finally:
+            self._finish_run(run)
+
+    @staticmethod
+    def _external_files(request: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Pièces jointes d'une exécution du téléphone (déjà enregistrées par le Relay)."""
+        files: List[Dict[str, str]] = []
+        image = request.get("image_path")
+        if image:
+            files.append({"path": image, "name": os.path.basename(image), "type": "Image"})
+        for path in request.get("file_paths") or []:
+            files.append({"path": path, "name": os.path.basename(path),
+                          "type": file_type_for(path) or "Fichier"})
+        return files
+
+    def _external_plan(self, executor: Any, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Genre, titre, nœuds et plan du fil d'une exécution venue d'ailleurs."""
+        debate = request.get("debate")
+        if debate is not None:
+            known = self._agents_by_key()
+            nodes = [_debate_node(node_id, known.get(key) or {"key": key or "?"})
+                     for node_id, key in (("a", debate.get("agent_a")),
+                                          ("b", debate.get("agent_b")))]
+            return {"kind": "debate", "title": f"Débat · {nodes[0]['name']} vs {nodes[1]['name']}",
+                    "nodes": nodes, "plan": {"mode": "debate", "steps": [], "isolated": []},
+                    "debate": {"agent_a": debate.get("agent_a"), "agent_b": debate.get("agent_b"),
+                               "rounds": _clamp_rounds(debate.get("rounds"))}}
+        nodes = list(request.get("nodes") or [])
+        plan = executor.compute_execution_plan(nodes, list(request.get("connections") or []))
+        single = len(nodes) == 1
+        title = nodes[0].get("name", "Agent") if single else f"Workflow · {len(nodes)} agents"
+        return {"kind": "agent" if single else "workflow", "title": title,
+                "nodes": nodes, "connections": plan.get("connections", []),
+                "plan": _plan_view(plan),
+                "node_status": {str(node.get("id")): "idle" for node in nodes}}
+
+    def _scheduled_task(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Tâche planifiée qu'exécute le scheduler : son nom titre le fil, son rapport suivra."""
+        scheduled = None
+        try:
+            scheduled = self._find_scheduled(request.get("task", ""),
+                                             list(request.get("nodes") or []),
+                                             request.get("debate"))
+        except Exception:  # pylint: disable=broad-except
+            logger.debug("Tâche planifiée introuvable", exc_info=True)
+        scheduled = scheduled or {}
+        return {"task_id": scheduled.get("id"), "name": scheduled.get("name"),
+                "output_file": None}
+
+    def _adopt(self, executor: Any, exec_id: str, request: Dict[str, Any]) -> Optional[Run]:
+        """Fil d'une exécution venue d'ailleurs ; None si une exécution est déjà en cours."""
+        origin = "scheduled" if str(exec_id).startswith(SCHEDULED_PREFIX) else "mobile"
+        files = self._external_files(request)
+        data: Dict[str, Any] = {
+            "id": str(exec_id), "origin": origin, "task": request.get("task") or "",
+            "attachments": files, "sources": self._code_sources(files),
+            **self._external_plan(executor, request),
+        }
+        if origin == "scheduled":
+            data["schedule"] = self._scheduled_task(request)
+            data["title"] = data["schedule"]["name"] or data["title"]
+        run = Run(data)
+        with self._lock:
+            if self._active is not None or self._busy():
+                return None
+            self._active = run
+            self._runs.insert(0, run)
+            self._trim()
+            self._publish("agents.run_created", {"run": run.view()})
+        self._save()
+        return run
+
+    def scheduled_result(self, result: Dict[str, Any]) -> None:
+        """Fin d'une tâche planifiée (listener du scheduler) : son rapport rattaché à son fil."""
+        task_id = result.get("task_id")
+        with self._lock:
+            run = next((r for r in self._runs
+                        if r.origin == "scheduled" and r.status != "running"
+                        and not (r.schedule or {}).get("output_file")
+                        and (r.schedule or {}).get("task_id") in (task_id, None)), None)
+            if run is None:
+                return
+            run.schedule = {"task_id": task_id,
+                            "name": result.get("name") or (run.schedule or {}).get("name"),
+                            "output_file": result.get("output_file")}
+            self._publish("agents.runs_changed", {})
+        self._save()
 
     # ── Pièces jointes de la zone de tâche ──────────────────────────────────
 
@@ -598,7 +981,7 @@ class AgentsService:
             run = Run(item)
             if run.status == "running":
                 run.status = "interrupted"
-                run.status_text = INTERRUPTED
+                run.status_text = _interrupted_text(run)
                 for section in run.sections:
                     if section.get("status") == "running":
                         section["status"] = "error"
@@ -667,6 +1050,48 @@ class AgentsService:
         except OSError as exc:
             raise AgentsError(f"❌ Erreur export : {exc}") from exc
         return str(target.resolve())
+
+
+class SharedExecutor:
+    """L'exécuteur partagé, vu du Relay et du scheduler (D37).
+
+    Même interface qu'AgentRelayService, à qui tout le reste est délégué :
+    run_workflow et run_debate passent par la page Agents, qui en fait des
+    fils marqués de leur origine, puis rendent chaque événement tel quel à
+    l'appelant (téléphone, collecteur du scheduler). busy compte aussi une
+    exécution de la page qui se prépare (lecture des pièces jointes) : le
+    scheduler la diffère, comme quand l'exécuteur est occupé.
+    """
+
+    def __init__(self, service: AgentsService):
+        self._service = service
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return getattr(self._service.executor(), name)
+
+    @property
+    def busy(self) -> bool:
+        """Une exécution est en cours ou se prépare, d'où qu'elle vienne."""
+        return self._service.busy()
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def run_workflow(self, exec_id: str, task: str, nodes: List[Dict[str, Any]],
+                     connections: List[Dict[str, Any]], emit: Callable[[Dict[str, Any]], None],
+                     image_path: Optional[str] = None,
+                     file_paths: Optional[List[str]] = None) -> None:
+        """AgentRelayService.run_workflow, avec son fil."""
+        self._service.run_external(exec_id, emit, {
+            "task": task, "nodes": nodes, "connections": connections,
+            "image_path": image_path, "file_paths": file_paths})
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def run_debate(self, exec_id: str, agent_a: str, agent_b: str, topic: str, rounds: int,
+                   emit: Callable[[Dict[str, Any]], None]) -> None:
+        """AgentRelayService.run_debate, avec son fil."""
+        self._service.run_external(exec_id, emit, {
+            "task": topic, "debate": {"agent_a": agent_a, "agent_b": agent_b, "rounds": rounds}})
 
 
 def _node_key(node_id: Any) -> str:

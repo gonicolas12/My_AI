@@ -80,6 +80,34 @@ class SchedulerResult(_Payload):
     os_toast_shown: bool = False
 
 
+class SchedulerChanged(_Payload):
+    """La liste des tâches planifiées a changé : la fenêtre la relit."""
+
+
+class ResourceMetrics(BaseModel):
+    """Mesure du moniteur de ressources (ResourceMonitor de Tk), Ollama seul pour CPU et RAM."""
+
+    model_config = ConfigDict(extra="allow")
+
+    cpu_percent: float = 0.0
+    ram_used_mb: float = 0.0
+    ram_total_mb: float = 0.0
+    ram_percent: float = 0.0
+    gpu_available: bool = False
+    gpu_percent: float = 0.0
+    gpu_mem_used_mb: float = 0.0
+    gpu_mem_total_mb: float = 0.0
+    inference_ms: float = 0.0  # durée du dernier agent
+    tokens_per_sec: float = 0.0  # tokens/s du dernier agent
+
+
+class ResourcesSample(_Payload):
+    """Mesure du moniteur (toutes les 3 s, et à la fin de chaque agent)."""
+
+    metrics: ResourceMetrics
+    inferences: int = 0  # fins d'agents relevées : un point de plus aux tokens/s
+
+
 class SessionsChanged(_Payload):
     """La liste des sessions a changé : la fenêtre la relit."""
 
@@ -422,11 +450,13 @@ class AgentsSectionText(_Payload):
 
 
 class AgentsSectionEnd(_Payload):
-    """Un agent a fini."""
+    """Un agent a fini : durée et tokens/s (relevé de fin de flux d'Ollama, D17)."""
 
     exec_id: str
     section_id: Union[int, str]
     success: bool
+    inference_ms: Optional[int] = None
+    tokens_per_sec: Optional[float] = None
 
 
 class AgentsNodeStatus(_Payload):
@@ -483,6 +513,8 @@ EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "notification": Notification,
     "relay.status": RelayStatus,
     "scheduler.result": SchedulerResult,
+    "scheduler.changed": SchedulerChanged,
+    "resources.sample": ResourcesSample,
     "sessions.changed": SessionsChanged,
     "files.dropped": FilesDropped,
     "folders.progress": FoldersProgress,

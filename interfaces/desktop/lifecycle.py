@@ -30,6 +30,8 @@ from interfaces.desktop.events import EventBus
 from interfaces.desktop.memory import MemoryService
 from interfaces.desktop.model_setup import FirstLaunch, ModelJobs, OllamaSetup
 from interfaces.desktop.prompts import PromptsService
+from interfaces.desktop.resources import ResourcesService
+from interfaces.desktop.schedule import ScheduleService
 from interfaces.desktop.server import DesktopServer
 from interfaces.desktop.settings import SettingsService
 from utils.logger import setup_logger
@@ -102,6 +104,12 @@ def _save_autoread(enabled: bool) -> None:
     set_config_flag("ui.tts_autoread", bool(enabled))
 
 
+def _notify_desktop(title: str, message: str) -> bool:
+    """Notification du système (utils/desktop_notify.py : winotify, osascript, plyer)."""
+    from utils.desktop_notify import notify_desktop  # pylint: disable=import-outside-toplevel
+    return notify_desktop(title, message)
+
+
 class DesktopApp:
     """Appli desktop : serveur local, étapes de lancement, moteur et services."""
 
@@ -129,6 +137,10 @@ class DesktopApp:
         self.scheduler = None
         self._agent_service = None
         self._agents: Optional[AgentsService] = None
+        self._resources: Optional[ResourcesService] = None
+        self._schedule: Optional[ScheduleService] = None
+        # Focus de la fenêtre, signalé par la page : notification de fin d'un fil long
+        self.window_focused = True
         self._voice = None
         # Fonctions d'Ollama et de config.yaml (remplacées par la démonstration)
         self.ollama_setup = OllamaSetup()
@@ -305,7 +317,9 @@ class DesktopApp:
             try:
                 from core.scheduler import get_scheduler  # pylint: disable=import-outside-toplevel
                 self.scheduler = get_scheduler()
-                self.scheduler.set_executor(self.agent_service)
+                # Exécuteur partagé, vu à travers la page Agents : chaque tâche y
+                # devient un fil (D37)
+                self.scheduler.set_executor(self.agents.executor_tap())
                 self.scheduler.add_listener(self._on_scheduled_result)
                 self.scheduler.start()
             except Exception as exc:  # pylint: disable=broad-except
@@ -393,12 +407,67 @@ class DesktopApp:
     @property
     def agents(self) -> AgentsService:
         """Page Agents : agents, fils d'exécution, workflows (sur l'exécuteur partagé)."""
+        # Lambdas voulues : le moniteur n'est créé qu'à la fin du premier agent
+        # pylint: disable=unnecessary-lambda
         with self._services_lock:
             if self._agents is None:
-                self._agents = AgentsService(lambda: self.agent_service, self.bus.publish,
-                                             notify=self.notify,
-                                             last_seq=lambda: self.bus.last_seq)
+                self._agents = AgentsService(
+                    lambda: self.agent_service, self.bus.publish,
+                    notify=self.notify,
+                    last_seq=lambda: self.bus.last_seq,
+                    window_focused=lambda: self.window_focused,
+                    os_notify=_notify_desktop,
+                    on_inference=lambda ms, tps: self.resources.update_inference(ms, tps),
+                    find_scheduled=self._find_scheduled_task)
             return self._agents
+
+    @property
+    def resources(self) -> ResourcesService:
+        """Moniteur de ressources de la page Agents (démarré à sa première ouverture)."""
+        with self._services_lock:
+            if self._resources is None:
+                self._resources = ResourcesService(self.bus.publish,
+                                                   lambda: self.bus.subscriber_count > 0)
+            return self._resources
+
+    @property
+    def schedule(self) -> ScheduleService:
+        """Tâches planifiées de la page Agents, sur le scheduler de l'appli."""
+        # Lambda voulue : l'exécuteur n'est créé qu'à la lecture de la liste
+        # pylint: disable=unnecessary-lambda
+        with self._services_lock:
+            if self._schedule is None:
+                self._schedule = ScheduleService(
+                    self._scheduler_service, self.bus.publish,
+                    agents=lambda: self.agent_service.list_agents(),
+                    notify=self.notify,
+                    background_interval=lambda: _config_flag(
+                        "scheduler.background_interval_minutes", 1))
+            return self._schedule
+
+    def _scheduler_service(self):
+        """Scheduler de l'appli ; sans sa boucle (scheduler.enabled = false), le même singleton."""
+        if self.scheduler is not None:
+            return self.scheduler
+        from core.scheduler import get_scheduler  # pylint: disable=import-outside-toplevel
+        return get_scheduler()
+
+    def _find_scheduled_task(self, task: str, nodes, debate) -> Optional[Dict[str, Any]]:
+        """Tâche planifiée qu'exécute le scheduler (même texte, mêmes nœuds ou même débat)."""
+        if self.scheduler is None:
+            return None
+        for item in self.scheduler.list_tasks():
+            if (item.get("task") or "") != (task or ""):
+                continue
+            if debate is not None:
+                planned = item.get("debate") or {}
+                if (item.get("kind") == "debate"
+                        and planned.get("agent_a") == debate.get("agent_a")
+                        and planned.get("agent_b") == debate.get("agent_b")):
+                    return item
+            elif item.get("kind") != "debate" and (item.get("nodes") or []) == list(nodes or []):
+                return item
+        return None
 
     def agent_attachments(self) -> set:
         """Pièces jointes de la zone de tâche des agents (vignettes), sans créer le service."""
@@ -409,7 +478,7 @@ class DesktopApp:
         self.bus.publish("files.dropped", {"paths": [str(path) for path in paths]})
 
     def _on_scheduled_result(self, result: Dict[str, Any]) -> None:
-        """Fin d'une tâche planifiée (fil du scheduler)."""
+        """Fin d'une tâche planifiée (fil du scheduler) : toast, fil et liste des tâches."""
         self.bus.publish("scheduler.result", {
             "task_id": result.get("task_id"),
             "name": result.get("name") or "",
@@ -420,6 +489,10 @@ class DesktopApp:
             "finished_at": result.get("finished_at"),
             "os_toast_shown": bool(result.get("os_toast_shown")),
         })
+        if self._agents is not None:
+            self._agents.scheduled_result(result)
+        # Dernier résultat et prochaine échéance de la tâche ont changé
+        self.bus.publish("scheduler.changed", {})
 
     # ── Relay ───────────────────────────────────────────────────────────────
 
@@ -434,8 +507,10 @@ class DesktopApp:
             if tunnel is None:
                 tunnel = relay_cfg.get("tunnel", True)
             try:
+                # Exécuteur partagé, vu à travers la page Agents : les exécutions du
+                # téléphone y deviennent des fils (D37), protocole du Relay inchangé
                 self.relay = RelayServer(ai_engine=self.engine, config=relay_cfg,
-                                         agent_service=self.agent_service)
+                                         agent_service=self.agents.executor_tap())
                 self.relay.start(start_tunnel=bool(tunnel))
                 print(f"📡 My_AI Relay démarré sur le port {relay_cfg.get('port', 8765)}")
             except Exception as exc:  # pylint: disable=broad-except
@@ -526,6 +601,8 @@ class DesktopApp:
                 self._agents.shutdown()
             except Exception:  # pylint: disable=broad-except
                 pass
+        if self._resources is not None:
+            self._resources.stop()
         if self._voice is not None:
             try:
                 self._voice.shutdown()

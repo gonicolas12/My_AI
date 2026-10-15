@@ -8,6 +8,7 @@ Routes de la page Agents (agents.py)
   GET    /api/agents/runs                fils d'exécution (résumés)
   GET    /api/agents/runs/{id}           un fil, sorties comprises
   POST   /api/agents/runs                exécute un agent seul ou un workflow
+  POST   /api/agents/debates             lance un débat entre deux agents
   POST   /api/agents/runs/{id}/stop      arrête le fil en cours
   DELETE /api/agents/runs/{id}           supprime un fil
   DELETE /api/agents/runs                efface l'historique (sauf le fil en cours)
@@ -16,9 +17,12 @@ Routes de la page Agents (agents.py)
   POST   /api/agents/workflow/save       enregistre le workflow (JSON de WorkflowCanvas.to_dict)
   POST   /api/agents/workflow/read       lit un workflow enregistré
   POST   /api/agents/workflow/export     exporte le workflow et ses réponses en Markdown (D11)
+  GET    /api/resources                  moniteur de ressources : dernière mesure et historique
+  POST   /api/window/focus               la fenêtre a pris ou perdu le focus
 
-Rien n'appelle Ollama avant la fin du placement : ces routes répondent 503
-tant que le moteur démarre.
+Rien n'appelle Ollama avant la fin du placement : les routes des agents
+répondent 503 tant que le moteur démarre (le moniteur et le focus n'en ont pas
+besoin).
 """
 
 import uuid
@@ -88,6 +92,21 @@ class RunBody(BaseModel):
     attachments: List[AttachmentBody] = Field(default_factory=list, max_length=50)
 
 
+class DebateBody(BaseModel):
+    """POST /api/agents/debates (dialogue « Mode Débat »)."""
+
+    agent_a: str = Field(default="", max_length=200)
+    agent_b: str = Field(default="", max_length=200)
+    topic: str = Field(default="", max_length=100_000)
+    rounds: int = Field(default=3, ge=1, le=10)
+
+
+class FocusBody(BaseModel):
+    """POST /api/window/focus."""
+
+    focused: bool
+
+
 class PathsBody(BaseModel):
     """POST /api/agents/attachments."""
 
@@ -155,7 +174,7 @@ async def _run(func, *args):
 def register(api: FastAPI, app: "DesktopApp") -> None:
     """Ajoute les routes de la page Agents à l'application."""
     # Routes enregistrées par leurs décorateurs
-    # pylint: disable=unused-variable
+    # pylint: disable=unused-variable,too-many-locals
 
     def agents() -> AgentsService:
         if getattr(app, "engine", None) is None:
@@ -197,6 +216,12 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
         connections = [conn.model_dump(by_alias=True) for conn in body.connections]
         attachments = [item.model_dump() for item in body.attachments]
         run_id = await _run(agents().start, body.task, nodes, connections, attachments)
+        return {"run_id": run_id}
+
+    @api.post("/api/agents/debates")
+    async def start_debate(body: DebateBody):
+        run_id = await _run(agents().start_debate, body.agent_a, body.agent_b, body.topic,
+                            body.rounds)
         return {"run_id": run_id}
 
     @api.post("/api/agents/runs/{run_id}/stop")
@@ -252,3 +277,18 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
         path = await _run(agents().export_workflow, body.path, workflow, body.run_id)
         app.notify("success", "📤 Workflow exporté")
         return {"path": path}
+
+    # ── Moniteur de ressources, focus de la fenêtre ─────────────────────────
+
+    @api.get("/api/resources")
+    async def resources():
+        """Dernière mesure et historique ; le moniteur démarre à la première lecture."""
+        # Lambda voulue : app.resources crée le service (import de psutil, NVML…)
+        # dans le pool, pas sur la boucle du serveur
+        return await run_in_threadpool(lambda: app.resources.snapshot())  # pylint: disable=unnecessary-lambda
+
+    @api.post("/api/window/focus")
+    async def window_focus(body: FocusBody):
+        """Focus de la fenêtre : la fin d'un fil long n'est notifiée que fenêtre sans focus."""
+        app.window_focused = body.focused
+        return {"ok": True}

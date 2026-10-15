@@ -5,7 +5,9 @@ Le vrai AgentRelayService (relay/agent_relay.py), avec un orchestrateur et un
 modèle simulés : mêmes événements que pour le mobile, repris sur le bus de la
 fenêtre (texte des sections en suites), fils d'exécution gardés dans un
 fichier (D33), arrêt avant et pendant l'exécution, images décrites une à une,
-fichiers de workflow au format de Tk et export Markdown (D11), routes.
+fichiers de workflow au format de Tk et export Markdown (D11), débats,
+exécutions du téléphone et des tâches planifiées devenues des fils (D37),
+statistiques, tokens/s de chaque agent, notification de fin, routes.
 """
 
 import json
@@ -18,8 +20,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from interfaces.desktop import agents as agents_module
-from interfaces.desktop.agents import (BUSY, EMPTY_TASK, INTERRUPTED, NO_AGENT, AgentsError,
-                                       AgentsService, RunNotFound, workflow_markdown)
+from interfaces.desktop.agents import (BUSY, DEBATE_BUSY, DEBATE_INTERRUPTED, DEBATE_NO_TOPIC,
+                                       DEBATE_SAME_AGENT, EMPTY_TASK, EXECUTOR_BUSY, INTERRUPTED,
+                                       NO_AGENT, AgentsError, AgentsService, RunNotFound,
+                                       workflow_markdown)
 from interfaces.desktop.events import EventBus, validate_event
 from interfaces.desktop.server import DesktopServer
 from relay.agent_relay import AgentRelayService
@@ -41,7 +45,11 @@ SUMMARY: traduction multilingue"""
 
 
 class FakeOrchestrator:
-    """Orchestrateur simulé : chaque agent écrit sa réponse en petits morceaux."""
+    """Orchestrateur simulé : chaque agent écrit sa réponse en petits morceaux.
+
+    Comme LocalLLM (D17), le modèle de chaque agent garde le relevé de fin de
+    flux (eval_count, eval_duration) quand la réponse va jusqu'au bout.
+    """
 
     def __init__(self, delay=0.0, fail=()):
         self.agents = {}
@@ -60,9 +68,33 @@ class FakeOrchestrator:
                 return {"success": False, "error": "interrompu", "result": ""}
             if self.delay:
                 time.sleep(self.delay)
+        # 50 jetons en 2 s : 25 tokens/s
+        llm = SimpleNamespace(last_stream_stats={"eval_count": 50, "eval_duration": 2_000_000_000,
+                                                 "at": time.perf_counter()})
+        self.agents[agent_type] = SimpleNamespace(llm=llm)
         if agent_type in self.fail:
             return {"success": False, "error": "échec simulé", "result": ""}
         return {"success": True, "result": text, "agent": agent_type}
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def execute_debate(self, agent_type_a, agent_type_b, topic, rounds=3, on_token=None,
+                       on_round_start=None, on_should_stop=None):
+        """Comme AgentOrchestrator.execute_debate : le proposant, puis l'opposant, à chaque tour."""
+        turns = 0
+        for round_num in range(1, rounds + 1):
+            if on_should_stop():
+                break
+            on_round_start(round_num, agent_type_a)
+            self.execute_single_task_stream(agent_type_a, f"Proposant, tour {round_num} : {topic}",
+                                            None, on_token)
+            turns += 1
+            if on_should_stop():
+                break
+            on_round_start(round_num, agent_type_b)
+            self.execute_single_task_stream(agent_type_b, f"Opposant, tour {round_num} : {topic}",
+                                            None, on_token)
+            turns += 1
+        return {"success": True, "rounds_completed": turns // 2}
 
 
 class FakeLLM:
@@ -615,3 +647,259 @@ def test_workflow_file_routes(client, agents, tmp_path, monkeypatch):
     assert Path(fallback).parent == (tmp_path / "outputs" / "workflows").resolve()
     messages = [e["payload"]["message"] for e in agents.events if e["type"] == "notification"]
     assert messages == ["💾 Workflow sauvegardé", "📤 Workflow exporté", "💾 Workflow sauvegardé"]
+
+
+def test_debate_resources_and_focus_routes(client, agents):
+    started = client.client.post("/api/agents/debates", headers=AUTH, json={
+        "agent_a": "code", "agent_b": "debug", "topic": "Tabs ou espaces ?", "rounds": 1})
+    run = wait_run_end(agents, started.json()["run_id"])
+    assert run["kind"] == "debate" and len(run["sections"]) == 2
+    same = client.client.post("/api/agents/debates", headers=AUTH,
+                              json={"agent_a": "code", "agent_b": "code", "topic": "Sujet"})
+    assert same.status_code == 409 and same.json()["detail"] == DEBATE_SAME_AGENT
+    too_long = client.client.post("/api/agents/debates", headers=AUTH, json={
+        "agent_a": "code", "agent_b": "debug", "topic": "Sujet", "rounds": 11})
+    assert too_long.status_code == 422
+
+    client.app.window_focused = True
+    focus = client.client.post("/api/window/focus", headers=AUTH, json={"focused": False})
+    assert focus.json() == {"ok": True} and client.app.window_focused is False
+
+    snapshot = {"metrics": {"cpu_percent": 12.5}, "history": {"cpu": [12.5]}, "inferences": 0,
+                "interval": 3.0}
+    client.app.resources = SimpleNamespace(snapshot=lambda: snapshot)
+    assert client.client.get("/api/resources", headers=AUTH).json() == snapshot
+
+
+# ── Débat ───────────────────────────────────────────────────────────────────
+
+
+def until(predicate, timeout=5.0):
+    """Attend qu'une condition soit vraie (fil de l'exécuteur, notification)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return
+        time.sleep(0.01)
+    raise AssertionError("condition jamais remplie")
+
+
+def test_a_debate_alternates_its_two_agents(agents):
+    run_id = agents.service.start_debate("code", "debug", "Tabs ou espaces ?", 2)
+    run = wait_run_end(agents, run_id)
+    assert run["kind"] == "debate" and run["origin"] == "desktop" and run["mode"] == "debate"
+    assert run["title"] == "Débat · CodeAgent vs DebugAgent" and run["task"] == "Tabs ou espaces ?"
+    assert run["debate"] == {"agent_a": "code", "agent_b": "debug", "rounds": 2}
+    # Un tour par section : le proposant, puis l'opposant (titres d'AgentRelayService)
+    assert [s["id"] for s in run["sections"]] == ["deb_1", "deb_2", "deb_3", "deb_4"]
+    assert [s["title"] for s in run["sections"]] == [
+        "Tour 1 — CodeAgent (Proposant)", "Tour 1 — DebugAgent (Opposant)",
+        "Tour 2 — CodeAgent (Proposant)", "Tour 2 — DebugAgent (Opposant)"]
+    assert [s["agent_type"] for s in run["sections"]] == ["code", "debug", "code", "debug"]
+    assert run["sections"][1]["text"] == OUTPUTS["debug"]
+    assert run["status"] == "done" and run["status_text"] == "✅ Débat terminé (2 tours)"
+    assert [call[1] for call in agents.orchestrator.calls][:2] == [
+        "Proposant, tour 1 : Tabs ou espaces ?", "Opposant, tour 1 : Tabs ou espaces ?"]
+    for event in agents.events:
+        validate_event(event)
+
+
+def test_a_debate_refuses_like_tk(agents):
+    with pytest.raises(AgentsError, match=DEBATE_SAME_AGENT):
+        agents.service.start_debate("code", "code", "Sujet", 3)
+    with pytest.raises(AgentsError, match=DEBATE_NO_TOPIC):
+        agents.service.start_debate("code", "debug", "   ", 3)
+    with pytest.raises(AgentsError, match="Agent introuvable : absent"):
+        agents.service.start_debate("code", "absent", "Sujet", 3)
+    agents.relay._busy = True  # pylint: disable=protected-access
+    with pytest.raises(AgentsError, match=DEBATE_BUSY):
+        agents.service.start_debate("code", "debug", "Sujet", 3)
+    agents.relay._busy = False  # pylint: disable=protected-access
+    assert agents.service.runs()["runs"] == []
+    # Nombre de tours ramené entre 1 et 10, comme le dialogue de Tk
+    run = wait_run_end(agents, agents.service.start_debate("code", "debug", "Sujet", 0))
+    assert run["debate"]["rounds"] == 3
+
+
+def test_a_stopped_debate_says_so(agents):
+    agents.orchestrator.delay = 0.05
+    run_id = agents.service.start_debate("code", "debug", "Sujet", 10)
+    assert agents.orchestrator.started.wait(5)
+    assert agents.service.stop(run_id)
+    run = wait_run_end(agents, run_id)
+    assert run["status"] == "interrupted" and run["status_text"] == DEBATE_INTERRUPTED
+    assert len(run["sections"]) == 1 and run["sections"][0]["status"] == "error"
+
+
+# ── Exécutions du téléphone et des tâches planifiées (D37) ──────────────────
+
+
+PHONE_NODE = {"id": "n1", "agent_type": "code", "name": "CodeAgent", "color": "#3b82f6",
+              "icon": "🐍"}
+
+
+def test_a_phone_run_becomes_a_thread_and_reaches_the_phone_unchanged(agents):
+    tap = agents.service.executor_tap()
+    assert tap is agents.service.executor_tap()
+    phone = []
+    tap.run_workflow("exec_1760000000000_42", "Une API", [PHONE_NODE], [], phone.append, None, [])
+    run = agents.service.run("exec_1760000000000_42")["run"]
+    assert run["origin"] == "mobile" and run["kind"] == "agent" and run["title"] == "CodeAgent"
+    assert run["status"] == "done" and run["sections"][0]["text"] == OUTPUTS["code"]
+    assert run["node_status"] == {"n1": "done"}
+    # Le téléphone reçoit les événements de l'exécuteur tels quels (texte cumulé)
+    assert phone[0]["type"] == "agent_exec_start" and phone[-1]["type"] == "agent_exec_end"
+    chunks = [e["text"] for e in phone if e["type"] == "agent_section_chunk"]
+    assert chunks[-1] == OUTPUTS["code"]
+    end = next(e for e in phone if e["type"] == "agent_section_end")
+    assert set(end) == {"type", "exec_id", "section_id", "success"}
+    assert agents.service.runs()["runs"][0]["origin"] == "mobile"
+    # Le reste de l'exécuteur est délégué
+    assert tap.list_agents()["builtin"][0]["key"] == "code" and tap.busy is False
+
+
+def test_a_phone_run_is_refused_while_the_page_prepares_one(agents, tmp_path):
+    image = tmp_path / "photo.png"
+    image.write_bytes(b"png")
+    entered, release = threading.Event(), threading.Event()
+
+    def slow_describe(_path):
+        entered.set()
+        release.wait(5)
+        return "une photo"
+
+    agents.relay._describe_image = slow_describe  # pylint: disable=protected-access
+    run_id = agents.service.start("Décris", [node(0, "code")], [],
+                                  [{"path": str(image), "type": "Image"}])
+    assert entered.wait(5)
+    tap = agents.service.executor_tap()
+    assert tap.busy  # le scheduler la diffère
+    phone = []
+    tap.run_workflow("exec_phone", "Autre", [PHONE_NODE], [], phone.append)
+    assert phone == [{"type": "agent_exec_error", "exec_id": "exec_phone",
+                      "message": EXECUTOR_BUSY}]
+    release.set()
+    wait_run_end(agents, run_id)
+    assert [run["id"] for run in agents.service.runs()["runs"]] == [run_id]
+
+
+def test_a_phone_debate_can_be_stopped_from_the_window(agents):
+    agents.orchestrator.delay = 0.05
+    tap = agents.service.executor_tap()
+    phone = []
+    worker = threading.Thread(target=tap.run_debate,
+                              args=("deb_1760000000000_7", "code", "creative", "Sujet", 3,
+                                    phone.append))
+    worker.start()
+    assert agents.orchestrator.started.wait(5)
+    assert agents.service.runs()["active"] == "deb_1760000000000_7"
+    assert agents.service.stop("deb_1760000000000_7")
+    worker.join(10)
+    run = agents.service.run("deb_1760000000000_7")["run"]
+    assert run["origin"] == "mobile" and run["kind"] == "debate"
+    assert run["title"] == "Débat · CodeAgent vs CreativeAgent"
+    assert run["status"] == "interrupted"
+    assert phone[-1]["type"] == "agent_exec_end" and phone[-1]["interrupted"] is True
+
+
+def test_a_scheduled_run_is_titled_and_gets_its_report(agents):
+    asked = []
+
+    def find_scheduled(task, nodes, debate):
+        asked.append((task, nodes, debate))
+        return {"id": "sched_1", "name": "Veille du matin"}
+
+    agents.service._find_scheduled = find_scheduled  # pylint: disable=protected-access
+    collected = []
+    agents.service.executor_tap().run_workflow("schedexec_0123456789ab", "Résume l'actualité",
+                                               [PHONE_NODE], [], collected.append)
+    assert asked == [("Résume l'actualité", [PHONE_NODE], None)]
+    run = agents.service.run("schedexec_0123456789ab")["run"]
+    assert run["origin"] == "scheduled" and run["title"] == "Veille du matin"
+    assert run["schedule"] == {"task_id": "sched_1", "name": "Veille du matin",
+                               "output_file": None}
+    assert collected[-1]["type"] == "agent_exec_end"  # le collecteur du scheduler a tout reçu
+    agents.service.scheduled_result({"task_id": "sched_1", "name": "Veille du matin",
+                                     "output_file": "outputs/scheduled/sched_1.md"})
+    run = agents.service.run("schedexec_0123456789ab")["run"]
+    assert run["schedule"]["output_file"] == "outputs/scheduled/sched_1.md"
+    assert agents.service.runs()["runs"][0]["schedule_task_id"] == "sched_1"
+
+
+# ── Statistiques, temps d'inférence, notification ───────────────────────────
+
+
+def test_stats_are_computed_on_the_kept_threads(agents):
+    assert agents.service.runs()["stats"] == {"tasks": 0, "agents": 0, "success_rate": None}
+    agents.orchestrator.fail = {"debug"}
+    wait_run_end(agents, agents.service.start("Somme", [node(0, "code")], []))
+    wait_run_end(agents, agents.service.start("Tâche", [node(0, "planner"), node(1, "debug")],
+                                              [{"from": 0, "to": 1}]))
+    assert agents.service.runs()["stats"] == {"tasks": 3, "agents": 3, "success_rate": 50}
+
+
+def test_each_agent_reports_its_inference_time_and_tokens_per_second(agents):
+    seen = []
+    agents.service._on_inference = lambda ms, tps: seen.append((ms, tps))  # pylint: disable=protected-access
+    run = wait_run_end(agents, agents.service.start("Somme", [node(0, "code")], []))
+    section = run["sections"][0]
+    assert section["tokens_per_sec"] == 25.0 and section["inference_ms"] >= 0
+    assert len(seen) == 1 and seen[0][1] == 25.0
+    end = next(e for e in agents.events if e["type"] == "agents.agent_section_end")
+    assert end["payload"]["tokens_per_sec"] == 25.0
+    validate_event(end)
+
+
+def test_an_interrupted_agent_has_no_tokens_per_second(agents):
+    seen = []
+    agents.service._on_inference = lambda ms, tps: seen.append((ms, tps))  # pylint: disable=protected-access
+    agents.orchestrator.delay = 0.05
+    run_id = agents.service.start("Somme", [node(0, "code")], [])
+    assert agents.orchestrator.started.wait(5)
+    agents.service.stop(run_id)
+    run = wait_run_end(agents, run_id)
+    assert run["sections"][0]["tokens_per_sec"] is None and seen == []
+
+
+def test_a_long_run_is_notified_when_the_window_has_no_focus(agents, monkeypatch):
+    monkeypatch.setattr(agents_module, "NOTIFY_MIN_SECONDS", 0)
+    notified = []
+    focused = {"value": False}
+    agents.service._os_notify = lambda title, message: notified.append((title, message))  # pylint: disable=protected-access
+    agents.service._window_focused = lambda: focused["value"]  # pylint: disable=protected-access
+
+    wait_run_end(agents, agents.service.start("Écris une fonction somme", [node(0, "code")], []))
+    until(lambda: len(notified) == 1)
+    assert notified[0] == ("✅ CodeAgent — tâche terminée", "Écris une fonction somme")
+
+    wait_run_end(agents, agents.service.start("Une API", [node(0, "planner"), node(1, "code")],
+                                              [{"from": 0, "to": 1}]))
+    until(lambda: len(notified) == 2)
+    assert notified[1] == ("✅ Workflow visuel terminé", "100% de succès — Une API")
+
+    wait_run_end(agents, agents.service.start_debate("code", "debug", "Tabs ?", 1))
+    until(lambda: len(notified) == 3)
+    assert notified[2] == ("✅ Débat terminé (1 tour)", "Tabs ?")
+
+    # Ni fenêtre au premier plan, ni exécution du téléphone, ni fil arrêté
+    focused["value"] = True
+    wait_run_end(agents, agents.service.start("Somme", [node(0, "code")], []))
+    focused["value"] = False
+    agents.service.executor_tap().run_workflow("exec_phone_2", "Somme", [PHONE_NODE], [],
+                                               lambda _event: None)
+    agents.orchestrator.delay = 0.05
+    stopped = agents.service.start("Somme", [node(0, "code")], [])
+    assert agents.orchestrator.started.wait(5)
+    agents.service.stop(stopped)
+    wait_run_end(agents, stopped)
+    time.sleep(0.2)
+    assert len(notified) == 3
+
+
+def test_a_short_run_is_not_notified(agents):
+    notified = []
+    agents.service._os_notify = lambda title, message: notified.append((title, message))  # pylint: disable=protected-access
+    agents.service._window_focused = lambda: False  # pylint: disable=protected-access
+    wait_run_end(agents, agents.service.start("Somme", [node(0, "code")], []))
+    time.sleep(0.2)
+    assert notified == []  # moins de 8 s
