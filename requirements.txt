@@ -60,9 +60,6 @@ pillow>=10.0.0
 pywebview>=6.2
 pythonnet>=3.1; sys_platform == "win32"
 
-# Interface web (optionnel)
-streamlit>=1.42.0
-
 # ====================================
 # MACHINE LEARNING & NLP
 # ====================================
