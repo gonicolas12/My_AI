@@ -11,12 +11,16 @@ une page de routage statique hébergée sur GitHub Pages.
 import asyncio
 import base64
 import hashlib
+import http.client
 import json
 import os
 import platform
 import re
 import secrets
 import shutil
+import socket
+import ssl
+import struct
 import subprocess
 import sys
 import tarfile
@@ -27,6 +31,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 import requests
 
@@ -47,8 +52,8 @@ _ROUTER_PAGE_URL = "https://gonicolas12.github.io/My_AI/router.html"
 # Vérification des tunnels depuis ce PC (_watch_tunnels) : un tunnel annoncé
 # n'entre dans le QR code qu'une fois joignable. Une adresse annoncée peut ne
 # mener nulle part (localhost.run répond « 502 no tunnel » dès l'annonce), ou
-# pas tout de suite (cloudflared : une dizaine de secondes, le temps que son
-# nom soit connu).
+# pas tout de suite (cloudflared : son nom n'existe que quelques secondes après
+# l'annonce, voir _DNS_AUTHORITIES).
 _TUNNEL_PROBE_TIMEOUT = 5.0  # délai de la page de routage pour chaque tunnel
 _TUNNEL_RETRY = 3.0  # nouvel essai : tunnel pas encore joignable, ou en échec
 _TUNNEL_RECHECK = 30.0  # contrôle d'un tunnel joignable, ou muet depuis 1 min
@@ -58,6 +63,28 @@ _TUNNEL_FAST_WINDOW = 60.0  # durée des essais rapprochés après l'annonce
 # reprend tous : le PC peut être sur un réseau qui filtre ces domaines, pas le
 # téléphone (4G), et la page de routage les teste de toute façon.
 _TUNNEL_VERIFY_GRACE = 30.0
+# cloudflared annonce son adresse avant que son nom existe : le nom entre dans
+# le DNS de trycloudflare.com 1 à 12 s plus tard (mesuré le 2026-10-16), et ce
+# domaine n'a pas de joker. Demandé trop tôt, le nom revient « inexistant »
+# (NXDOMAIN), réponse que la box et Windows gardent 60 s (minimum du SOA de
+# trycloudflare.com) : le tunnel restait injoignable 60 à 90 s, depuis ce PC
+# comme depuis un téléphone sur le même Wi-Fi. Attendre que les serveurs
+# faisant autorité connaissent le nom ne suffit pas (le DNS du PC répondait
+# encore « inexistant » 2,4 s après eux) : le Relay ne demande jamais ce nom
+# au DNS du PC. Il prend l'adresse du tunnel aux serveurs faisant autorité,
+# interrogés en direct (ils ne gardent rien en cache), et y envoie le test
+# (_probe_tunnel_at). lhr.life et serveo.net répondent pour tout nom (joker
+# DNS) : testés par le DNS du PC. Si Cloudflare change ces serveurs, ils
+# refusent la question, et le DNS du PC prend le relais passé
+# _TUNNEL_DNS_FALLBACK.
+_DNS_AUTHORITIES: Dict[str, Tuple[str, ...]] = {
+    "trycloudflare.com": ("kevin.ns.cloudflare.com", "marjory.ns.cloudflare.com"),
+}
+_DNS_QUERY_TIMEOUT = 2.0  # par serveur faisant autorité
+# Serveurs faisant autorité muets (réseau qui filtre le DNS direct) : le tunnel
+# est testé par le DNS du PC ce délai après son annonce, son nom presque
+# toujours publié
+_TUNNEL_DNS_FALLBACK = 15.0
 
 # Extensions acceptées pour l'upload mobile (doivent correspondre
 # aux processeurs supportés côté GUI dans file_handling.py)
@@ -99,6 +126,28 @@ logger = setup_logger("RelayServer")
 # ---------------------------------------------------------------------------
 
 _STATIC_DIR = Path(__file__).parent / "static"
+
+
+class _AddressedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS vers une adresse IP choisie, au nom d'un hôte.
+
+    Le nom sert au TLS (SNI, vérification du certificat) et à l'en-tête
+    Host : seule sa résolution est sautée (RelayServer._probe_tunnel_at).
+    """
+
+    def __init__(self, host: str, address: Tuple[str, int], timeout: float,
+                 context: ssl.SSLContext) -> None:
+        super().__init__(host, address[1], timeout=timeout, context=context)
+        self._address = address
+        self._tls_context = context
+
+    def connect(self) -> None:
+        sock = socket.create_connection(self._address, self.timeout)
+        try:
+            self.sock = self._tls_context.wrap_socket(sock, server_hostname=self.host)
+        except BaseException:
+            sock.close()
+            raise
 
 
 class RelayServer:
@@ -181,6 +230,10 @@ class RelayServer:
         self._tunnel_ever_ok = False
         self._tunnel_watch_stop: Optional[threading.Event] = None
         self._tunnel_probe: Callable[[str], bool] = self._probe_tunnel_url
+        # Domaines sans joker (_probe_announced_tunnel) : adresses données par
+        # les serveurs faisant autorité, et test envoyé à l'une d'elles
+        self._tunnel_dns: Callable[[str], Optional[List[str]]] = self._dns_addresses
+        self._tunnel_probe_at: Callable[[str, str], bool] = self._probe_tunnel_at
         # Liste des providers à activer. Personnalisable via config.yaml :
         #   relay.tunnel_providers: ["cloudflared", "serveo", "localhost.run"]
         raw_providers = config.get(
@@ -1860,7 +1913,10 @@ class RelayServer:
     # La page de routage teste chaque tunnel du QR code (GET /api/health,
     # 5 s au plus) et part vers le premier qui répond. Le PC fait le même
     # test : un tunnel n'entre dans le QR code qu'une fois joignable, pour
-    # qu'un QR code affiché mène toujours quelque part.
+    # qu'un QR code affiché mène toujours quelque part. Le nom d'un tunnel
+    # cloudflared ne passe jamais par le DNS du PC (_probe_announced_tunnel) :
+    # demandé trop tôt, il resterait « inexistant » une minute dans les caches
+    # DNS de la box et de Windows.
     # ------------------------------------------------------------------
 
     def _start_tunnel_watch(self) -> None:
@@ -1915,12 +1971,39 @@ class RelayServer:
         return due
 
     def _check_tunnel(self, provider: str, url: str) -> None:
-        """Vérifie un tunnel (fil dédié) et note le résultat."""
+        """Vérifie un tunnel (fil dédié) et note le résultat.
+
+        Tant que son nom n'existe pas (_probe_announced_tunnel), pas de test :
+        la vérification échoue, nouvel essai 3 s plus tard.
+        """
         try:
-            ok = self._tunnel_probe(url)
+            ok = self._probe_announced_tunnel(provider, url)
         except Exception:  # pylint: disable=broad-except
             ok = False
         self._record_tunnel_check(provider, url, ok, time.monotonic())
+
+    def _probe_announced_tunnel(self, provider: str, url: str) -> bool:
+        """Le test d'un tunnel, sans jamais demander trop tôt son nom au DNS du PC.
+
+        Domaine à joker (absent de _DNS_AUTHORITIES) : test par le DNS du PC.
+        Sinon, l'adresse vient des serveurs faisant autorité et le test y va
+        directement ; tant que le nom n'existe pas, pas de test. S'ils ne
+        répondent pas, test par le DNS du PC passé _TUNNEL_DNS_FALLBACK après
+        l'annonce.
+        """
+        host = urlsplit(url).hostname or ""
+        if host.partition(".")[2] not in _DNS_AUTHORITIES:
+            return self._tunnel_probe(url)
+        addresses = self._tunnel_dns(host)
+        if addresses:
+            return self._tunnel_probe_at(url, addresses[0])
+        if addresses is None:
+            with self._tunnel_urls_lock:
+                health = self._tunnel_health.get(provider)
+                since = health["since"] if health is not None else None
+            if since is not None and time.monotonic() - since >= _TUNNEL_DNS_FALLBACK:
+                return self._tunnel_probe(url)
+        return False
 
     def _record_tunnel_check(self, provider: str, url: str, ok: bool, now: float) -> None:
         """Résultat d'une vérification : état du tunnel et prochaine vérification.
@@ -1973,6 +2056,120 @@ class RelayServer:
         except (requests.RequestException, ValueError):
             return False
         return isinstance(data, dict) and data.get("status") == "ok"
+
+    @staticmethod
+    def _probe_tunnel_at(url: str, address: str) -> bool:
+        """Le test de la page de routage, envoyé à `address` sans passer par le DNS du PC."""
+        parts = urlsplit(url)
+        connection = _AddressedHTTPSConnection(
+            parts.hostname or "",
+            (address, parts.port or 443),
+            _TUNNEL_PROBE_TIMEOUT,
+            # Autorités de certification de requests, comme _probe_tunnel_url
+            ssl.create_default_context(cafile=requests.certs.where()),
+        )
+        try:
+            connection.request(
+                "GET",
+                f"{parts.path}/api/health",
+                headers={"Cache-Control": "no-store", "User-Agent": "My_AI-Relay"},
+            )
+            response = connection.getresponse()
+            if response.status != 200:
+                return False
+            data = json.loads(response.read())
+        except (OSError, http.client.HTTPException, ValueError):
+            return False
+        finally:
+            connection.close()
+        return isinstance(data, dict) and data.get("status") == "ok"
+
+    @staticmethod
+    def _dns_addresses(host: str) -> Optional[List[str]]:
+        """Adresses IPv4 du nom, selon les serveurs faisant autorité de sa zone.
+
+        [] : le nom n'existe pas (encore) ; None : on ne sait pas (serveurs
+        introuvables, muets, ou réponse sans adresse). Rien n'est gardé en
+        cache, ni sur ce PC ni dans la box.
+        """
+        servers = []
+        for name in _DNS_AUTHORITIES.get(host.partition(".")[2], ()):
+            try:
+                servers.append(
+                    socket.getaddrinfo(name, 53, socket.AF_INET, socket.SOCK_DGRAM)[0][4]
+                )
+            except (OSError, IndexError):
+                continue
+        return RelayServer._ask_dns_authority(host, servers)
+
+    @staticmethod
+    def _ask_dns_authority(
+        host: str,
+        servers: List[Tuple[str, int]],
+        timeout: float = _DNS_QUERY_TIMEOUT,
+    ) -> Optional[List[str]]:
+        """Question DNS directe, sans récursion (enregistrement A), serveur après serveur.
+
+        Le premier serveur qui répond nettement tranche : les adresses du nom,
+        ou [] s'il n'existe pas (NXDOMAIN dit par un serveur faisant autorité).
+        Muet, refus, ou réponse sans adresse : serveur suivant, puis None.
+        """
+        try:
+            labels = host.encode("ascii").split(b".")
+        except UnicodeEncodeError:
+            return None
+        question = b"".join(bytes([len(label)]) + label for label in labels) + b"\0"
+        question += struct.pack(">2H", 1, 1)  # type A, classe IN
+        for server in servers:
+            query_id = secrets.randbits(16)
+            # En-tête : identifiant, aucun drapeau (pas de récursion), une question
+            query = struct.pack(">6H", query_id, 0, 1, 0, 0, 0) + question
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    sock.settimeout(timeout)
+                    sock.connect(server)
+                    sock.send(query)
+                    reply = sock.recv(512)
+                reply_id, flags = struct.unpack_from(">2H", reply)
+                if reply_id != query_id or not flags & 0x8000:
+                    continue
+                rcode = flags & 0x000F
+                if rcode == 3 and flags & 0x0400:  # NXDOMAIN, réponse faisant autorité
+                    return []
+                addresses = RelayServer._dns_reply_addresses(reply) if rcode == 0 else []
+            except (OSError, struct.error, IndexError):
+                continue  # muet, ou réponse illisible
+            if addresses:
+                return addresses
+        return None
+
+    @staticmethod
+    def _dns_reply_addresses(reply: bytes) -> List[str]:
+        """Adresses IPv4 (enregistrements A) de la section réponse d'un message DNS."""
+        questions, answers = struct.unpack_from(">2H", reply, 4)
+        offset = 12
+        for _ in range(questions):
+            offset = RelayServer._dns_skip_name(reply, offset) + 4  # type et classe
+        addresses = []
+        for _ in range(answers):
+            offset = RelayServer._dns_skip_name(reply, offset)
+            rtype, _, _, length = struct.unpack_from(">2HIH", reply, offset)
+            offset += 10
+            if rtype == 1 and length == 4:
+                addresses.append(socket.inet_ntoa(reply[offset:offset + 4]))
+            offset += length
+        return addresses
+
+    @staticmethod
+    def _dns_skip_name(packet: bytes, offset: int) -> int:
+        """Position qui suit un nom DNS : étiquettes jusqu'à la vide, ou renvoi compressé."""
+        while True:
+            length = packet[offset]
+            if length >= 0xC0:
+                return offset + 2
+            offset += 1 + length
+            if length == 0:
+                return offset
 
     def _spawn_tunnel(
         self,

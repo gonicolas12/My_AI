@@ -2,7 +2,7 @@
  * État des tunnels du Relay, tel que le panneau l'affiche. Le Relay vérifie
  * chaque tunnel annoncé depuis ce PC (la requête de la page de routage) : seuls
  * les joignables entrent dans le QR code. Si aucun ne répond au PC au bout de
- * 20 s, le QR code les reprend tous (le téléphone peut les joindre quand le PC
+ * 30 s, le QR code les reprend tous (le téléphone peut les joindre quand le PC
  * ne le peut pas), et le panneau le signale.
  */
 
