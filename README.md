@@ -354,10 +354,10 @@ my_ai/
 │       └── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils (cloudflared pour le Relay)
-│   ├── interface_web/                   # Serveur de démonstration de la fenêtre, sans Ollama (développement)
+│   ├── interface_web/                   # Serveur de démonstration de la fenêtre, sans Ollama
 │   ├── __init__.py
 │   ├── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
-│   ├── local_tools.py                   # Outils locaux (raisonnement, calcul, recherche, extraction d'infos)
+│   ├── local_tools.py                   # Outils locaux
 │   └── measure_energy.py                # Empreinte énergétique et carbone d'une session (codecarbon)
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
@@ -367,11 +367,11 @@ my_ai/
 │   ├── file_processor.py                # Gestion traitement fichiers
 │   ├── intelligent_calculator.py        # Calculateur intelligent
 │   ├── logger.py                        # Gestion des logs
-│   ├── ollama_placement.py              # Placement du modèle (carte, GPU intégré, processeur), contexte en 8 bits
+│   ├── ollama_placement.py              # Placement du modèle (carte, GPU intégré, processeur)
 │   ├── path_links.py                    # Chemins de fichiers cliquables dans les réponses
 │   └── requirements_sync.py             # Installe au lancement les dépendances ajoutées (git pull)
 ├── main.py                              # Point d'entrée principal (CLI ; fenêtre avec --mode gui)
-├── launch_unified.py                    # Point d'entrée de la fenêtre (lancé par launch.bat / launch.sh)
+├── launch_unified.py                    # Point d'entrée de la fenêtre
 ├── Modelfile                            # Configuration modèle Ollama
 ├── requirements.txt                     # Dépendances
 ├── launch.bat                           # Script pour lancer le programme (Windows)
