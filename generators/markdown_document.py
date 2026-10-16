@@ -10,7 +10,8 @@ gras/italique) en une structure que python-docx, reportlab, python-pptx et
 openpyxl savent chacun rendre à leur façon.
 
 La convention de fences est la même que le reste du projet
-(cf. ``interfaces/artifacts.py`` et ``interfaces/gui/syntax_highlighting.py``).
+(cf. ``interfaces/artifacts.py`` et le rendu Markdown de la fenêtre,
+``frontend/src/features/chat/markdown/``).
 """
 
 from __future__ import annotations

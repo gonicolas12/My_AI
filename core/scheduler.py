@@ -10,7 +10,7 @@ Principes de conception :
 
   - **Ne réimplémente PAS l'exécution.** Le scheduler délègue à
     ``relay.agent_relay.AgentRelayService`` — déjà un exécuteur *headless*
-    (sans GUI Tkinter) qui sait lancer ``run_workflow`` / ``run_debate`` et
+    (sans interface graphique) qui sait lancer ``run_workflow`` / ``run_debate`` et
     streame ses résultats via un callback ``emit(event)``. Le scheduler se
     contente de **collecter** ces events en un résultat final.
 
@@ -244,7 +244,7 @@ class SchedulerService:
         self._hb_thread: Optional[threading.Thread] = None
         self._hb_stop = threading.Event()
 
-        self._data: Dict[str, Any] = {"version": "8.1.0", "tasks": [], "history": []}
+        self._data: Dict[str, Any] = {"version": "9.0.0", "tasks": [], "history": []}
         self._load()
 
         logger.info(
@@ -296,7 +296,7 @@ class SchedulerService:
                     with open(self._tasks_file, "r", encoding="utf-8") as fh:
                         data = json.load(fh) or {}
                     self._data = {
-                        "version": data.get("version", "8.1.0"),
+                        "version": data.get("version", "9.0.0"),
                         "tasks": list(data.get("tasks", [])),
                         "history": list(data.get("history", [])),
                     }
@@ -802,7 +802,8 @@ class SchedulerService:
         if self.notify_desktop:
             icon = "✅" if status == "success" else "⚠️"
             title = f"{icon} Tâche planifiée : {name}"
-            os_shown = self._notify_desktop(title, (summary or status_text)[:220])
+            # Texte brut, coupé sur un mot : notify_desktop s'en charge
+            os_shown = self._notify_desktop(title, summary or status_text)
 
         result = {
             "type": "scheduled_task_result",

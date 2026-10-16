@@ -1,14 +1,18 @@
-"""Assistant de premier lancement (onboarding wizard).
+"""Assistant de premier lancement (onboarding) : fonctions sans interface.
 
-Au tout premier démarrage, guide l'utilisateur en 1 fenêtre :
+Au tout premier démarrage, l'assistant de la fenêtre (FirstLaunch de
+interfaces/desktop/model_setup.py) guide l'utilisateur avec ces fonctions :
   1. Vérifie qu'Ollama est joignable
   2. Détecte la RAM → recommande un modèle de base (qwen3.5:2b/4b/9b)
   3. Pull le modèle choisi (progression streamée depuis /api/pull)
   4. Met à jour Modelfile (FROM) + config.yaml (llm.local.default_model)
   5. Crée le modèle personnalisé 'my_ai' (ollama create -f Modelfile)
 
-100% local. Tout passe par Ollama sur la machine. Si pyttsx3/CTk indisponible
-ou Ollama absent, l'assistant se dégrade proprement et l'app démarre quand même.
+Les Réglages de la fenêtre s'en servent aussi (modèles, paramètres de
+génération, réglages simples de config.yaml, commentaires préservés).
+
+100% local. Tout passe par Ollama sur la machine. Si Ollama est absent,
+l'assistant se dégrade proprement et l'app démarre quand même.
 
 Le wizard ne s'affiche qu'une fois : un marqueur `data/.onboarding_done` est
 écrit après installation ou si l'utilisateur passe l'étape. Il est aussi
@@ -26,7 +30,6 @@ import json
 import platform
 import re
 import subprocess
-import threading
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -494,201 +497,3 @@ def _remember_modelfile(digest: Optional[str]) -> None:
         _MODELFILE_SYNC.write_text(digest + "\n", encoding="utf-8")
     except OSError:
         pass
-
-
-# ── Interface graphique du wizard ────────────────────────────────────────
-class OnboardingWizard:
-    """Fenêtre CustomTkinter d'onboarding (mainloop propre, autonome)."""
-
-    def __init__(self):
-        import customtkinter as ctk  # import différé : pas requis si jamais affiché
-        self.ctk = ctk
-        self._busy = False
-        ctk.set_appearance_mode("dark")
-        self.win = ctk.CTk()
-        self.win.title("My_AI — Configuration initiale")
-        self.win.geometry("660x600")
-        self.win.resizable(False, False)
-        self._build_ui()
-
-    # --- Construction de l'UI ---
-    def _build_ui(self):
-        ctk = self.ctk
-        accent = "#ff6b47"
-
-        ctk.CTkLabel(
-            self.win, text="🤖 Bienvenue dans My_AI",
-            font=("Segoe UI", 22, "bold"),
-        ).pack(pady=(22, 4))
-        ctk.CTkLabel(
-            self.win,
-            text="Configurons votre modèle IA local en quelques clics.",
-            font=("Segoe UI", 13), text_color="#b3b3b3",
-        ).pack(pady=(0, 14))
-
-        # Statut Ollama
-        self.ollama_lbl = ctk.CTkLabel(self.win, text="Vérification d'Ollama…",
-                                       font=("Segoe UI", 12))
-        self.ollama_lbl.pack(pady=(0, 2))
-
-        # Matériel (RAM + GPU/VRAM + cœurs CPU) + recommandation
-        ram = detect_ram_gb()
-        vram = detect_vram_gb()
-        cores = detect_cpu_cores()
-        rec = recommend_model(ram, vram, cores)
-        ram_txt = f"{ram} Go" if ram is not None else "inconnue"
-        if vram is not None:
-            hw_txt = f"💾 RAM : {ram_txt}   ·   🎮 VRAM GPU : {vram} Go   →   recommandé : {rec}"
-        else:
-            cores_txt = f"{cores} cœurs" if cores else "CPU"
-            hw_txt = f"💾 RAM : {ram_txt}   ·   🖥️ {cores_txt}, pas de GPU dédié (inférence CPU)   →   recommandé : {rec}"
-        ctk.CTkLabel(
-            self.win, text=hw_txt,
-            font=("Segoe UI", 12), text_color="#b3b3b3",
-        ).pack(pady=(2, 10))
-
-        # Choix du modèle
-        row = ctk.CTkFrame(self.win, fg_color="transparent")
-        row.pack(pady=(0, 8))
-        ctk.CTkLabel(row, text="Modèle de base :", font=("Segoe UI", 12)).pack(side="left", padx=(0, 8))
-        self.model_var = ctk.StringVar(value=rec)
-        self.model_menu = ctk.CTkOptionMenu(
-            row, values=MODEL_CHOICES, variable=self.model_var,
-            fg_color="#2f2f2f", button_color=accent, button_hover_color="#e85a3a",
-            width=160,
-        )
-        self.model_menu.pack(side="left")
-
-        # Barre de progression
-        self.progress = ctk.CTkProgressBar(self.win, width=560, progress_color=accent)
-        self.progress.set(0)
-        self.progress.pack(pady=(14, 4))
-        self.progress_lbl = ctk.CTkLabel(self.win, text="", font=("Segoe UI", 11),
-                                         text_color="#b3b3b3")
-        self.progress_lbl.pack(pady=(0, 6))
-
-        # Zone de log
-        self.log = ctk.CTkTextbox(self.win, width=580, height=210, font=("Consolas", 11))
-        self.log.pack(pady=(0, 10))
-        self.log.configure(state="disabled")
-
-        # Boutons
-        btns = ctk.CTkFrame(self.win, fg_color="transparent")
-        btns.pack(pady=(0, 14))
-        self.install_btn = ctk.CTkButton(
-            btns, text="🚀 Installer", command=self._on_install,
-            fg_color=accent, hover_color="#e85a3a", width=180, height=38,
-            font=("Segoe UI", 13, "bold"),
-        )
-        self.install_btn.pack(side="left", padx=8)
-        self.skip_btn = ctk.CTkButton(
-            btns, text="Passer", command=self._on_skip,
-            fg_color="#3a3a3a", hover_color="#4a4a4a", width=120, height=38,
-        )
-        self.skip_btn.pack(side="left", padx=8)
-
-        self.win.after(200, self._refresh_ollama_status)
-
-    # --- Logique UI ---
-    def _refresh_ollama_status(self):
-        if ollama_reachable():
-            self.ollama_lbl.configure(text="✅ Ollama détecté et actif", text_color="#10b981")
-        else:
-            self.ollama_lbl.configure(
-                text="⚠️ Ollama non détecté — installez-le depuis ollama.com puis Réessayez",
-                text_color="#f59e0b",
-            )
-            self.install_btn.configure(text="🔄 Réessayer", command=self._retry)
-
-    def _retry(self):
-        self.install_btn.configure(text="🚀 Installer", command=self._on_install)
-        self._refresh_ollama_status()
-
-    def _log(self, msg: str):
-        def _append():
-            self.log.configure(state="normal")
-            self.log.insert("end", msg.rstrip() + "\n")
-            self.log.see("end")
-            self.log.configure(state="disabled")
-        try:
-            self.win.after(0, _append)
-        except Exception:
-            pass
-
-    def _set_progress(self, frac: float, status: str):
-        def _upd():
-            self.progress.set(max(0.0, min(1.0, frac)))
-            self.progress_lbl.configure(text=f"{status} — {int(frac * 100)}%")
-        try:
-            self.win.after(0, _upd)
-        except Exception:
-            pass
-
-    def _on_install(self):
-        if self._busy:
-            return
-        if not ollama_reachable():
-            self._refresh_ollama_status()
-            return
-        self._busy = True
-        self.install_btn.configure(state="disabled")
-        self.skip_btn.configure(state="disabled")
-        self.model_menu.configure(state="disabled")
-        model = self.model_var.get()
-        threading.Thread(target=self._worker, args=(model,), daemon=True).start()
-
-    def _worker(self, model: str):
-        try:
-            self._log(f"📥 Téléchargement de {model}…")
-            pull_model(model, self._set_progress, self._log)
-            self._log(f"✅ {model} téléchargé.")
-
-            self._log("🔧 Mise à jour de Modelfile et config.yaml…")
-            apply_model_choice(model)
-
-            self._log("🏗️  Création du modèle personnalisé 'my_ai'…")
-            create_custom_model(self._log)
-            self._log("✅ Modèle 'my_ai' créé.")
-
-            mark_done()
-            self._log("🎉 Configuration terminée ! Vous pouvez lancer My_AI.")
-            self.win.after(0, self._finish_success)
-        except Exception as exc:
-            self._log(f"❌ Erreur : {exc}")
-            self.win.after(0, self._finish_error)
-
-    def _finish_success(self):
-        self.progress.set(1.0)
-        self.progress_lbl.configure(text="Terminé — 100%")
-        self.install_btn.configure(text="✅ Démarrer My_AI", state="normal",
-                                   command=self._close)
-        self.skip_btn.configure(state="disabled")
-        self._busy = False
-
-    def _finish_error(self):
-        self.install_btn.configure(text="🔄 Réessayer", state="normal",
-                                   command=self._reset_after_error)
-        self.skip_btn.configure(state="normal", text="Continuer quand même")
-        self.model_menu.configure(state="normal")
-        self._busy = False
-
-    def _reset_after_error(self):
-        self.progress.set(0)
-        self.progress_lbl.configure(text="")
-        self.install_btn.configure(text="🚀 Installer", command=self._on_install)
-
-    def _on_skip(self):
-        # L'utilisateur passe : on marque fait pour ne plus afficher au démarrage
-        mark_done()
-        self._close()
-
-    def _close(self):
-        try:
-            self.win.destroy()
-        except Exception:
-            pass
-
-    def run(self):
-        """Affiche le wizard (bloquant jusqu'à fermeture)."""
-        self.win.protocol("WM_DELETE_WINDOW", self._on_skip)
-        self.win.mainloop()

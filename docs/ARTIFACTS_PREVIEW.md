@@ -2,59 +2,60 @@
 
 Affiche un rendu en direct du HTML/CSS/SVG généré par l'IA — ainsi que des
 **documents produits** (docx, pdf, pptx, xlsx…) — à côté du chat, façon
-*Claude Artifacts*. Disponible sur le **GUI desktop** (CustomTkinter) et sur
-l'**interface mobile Relay**.
+*Claude Artifacts*. Disponible dans la **fenêtre desktop** (volet d'aperçu à
+droite du chat) et sur l'**interface mobile Relay**.
 
-> 100% local — aucun appel réseau. Cohérent avec la promesse de confidentialité
-> du projet.
+> 100% local — aucun appel réseau de l'appli. Cohérent avec la promesse de
+> confidentialité du projet.
 
 ## Vue d'ensemble
 
 | Élément | Rôle |
 |---|---|
-| [`interfaces/artifacts.py`](../interfaces/artifacts.py) | Détection + préparation du document, **partagé** desktop/serveur |
-| [`interfaces/document_preview.py`](../interfaces/document_preview.py) | Rendu HTML des documents bureautiques, **partagé** desktop/serveur |
-| [`interfaces/gui/artifacts_panel.py`](../interfaces/gui/artifacts_panel.py) | Volet de preview desktop (`ArtifactsPanelMixin`) |
-| [`interfaces/gui/message_bubbles.py`](../interfaces/gui/message_bubbles.py) | Bouton « 🔍 Aperçu » + ouverture automatique sous les réponses IA |
+| [`interfaces/artifacts.py`](../interfaces/artifacts.py) | Détection + préparation du document, **partagé** fenêtre/serveur Relay |
+| [`interfaces/document_preview.py`](../interfaces/document_preview.py) | Rendu HTML des documents bureautiques, **partagé** fenêtre/serveur Relay |
+| [`interfaces/desktop/previews.py`](../interfaces/desktop/previews.py) | Pages d'aperçu de la fenêtre : artifacts HTML/SVG et documents |
+| [`interfaces/desktop/native_viewer.py`](../interfaces/desktop/native_viewer.py) | Visionneuses Office posées dans le volet d'aperçu |
+| [`interfaces/desktop/preview_handler.py`](../interfaces/desktop/preview_handler.py) | Visionneuses natives Word/PowerPoint/Excel (`IPreviewHandler`) |
+| [`frontend/src/features/preview/`](../frontend/src/features/preview/) | Volet d'aperçu (onglets Aperçu et Code, place réservée aux visionneuses, ouverture automatique) |
+| [`frontend/src/lib/artifacts.ts`](../frontend/src/lib/artifacts.ts) | Détection côté fenêtre (bouton « Aperçu » sous les réponses) |
 | [`relay/static/app.js`](../relay/static/app.js) | Détection + modale `<iframe sandbox>` côté mobile |
 | [`relay/static/style.css`](../relay/static/style.css) | Styles du bouton et de la modale mobile |
 
 ## Détection des artifacts
 
 La détection réutilise la convention de blocs de code Markdown du projet
-(fences ` ``` ` avec langage optionnel), comme
-`syntax_highlighting._preanalyze_code_blocks`. Un bloc est considéré
-« rendable » si :
+(fences ` ``` ` avec langage optionnel). Un bloc est considéré « rendable » si :
 
 - son langage est `html` / `htm` / `xhtml`, **ou** `svg` ;
 - ou bien (langage absent / `xml`) son contenu **ressemble** à du HTML/SVG
   (`<!doctype html>`, `<html>`, `<body>`, `<div>`, `<table>`, `<svg>`…).
 
 Cela évite de proposer un aperçu pour du JSON, du Python, etc. Les fragments
-sont enveloppés dans un document complet au thème sombre (cohérent avec le
-GUI) ; un document déjà complet (`<!doctype>` / `<html>`) est rendu tel quel.
+sont enveloppés dans un document complet au thème sombre (cohérent avec la
+fenêtre) ; un document déjà complet (`<!doctype>` / `<html>`) est rendu tel quel.
 
-La logique JS de `app.js` est un miroir exact du module Python (mêmes règles,
-mêmes titres déduits via `<title>` puis `<h1>`).
+La logique de `frontend/src/lib/artifacts.ts` et de `app.js` est un miroir du
+module Python (mêmes règles, mêmes titres déduits via `<title>` puis `<h1>`).
 
 ## Artifacts « document »
 
 Un document produit par `generate_document` / `edit_document` (cf.
-[DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md)) devient un `Artifact` de
-`kind="document"`, porteur d'un `file_path` au lieu d'un `code`. Il rejoint la
-même file que les blocs HTML : même bouton « 🔍 Aperçu », même volet, même
-compteur quand il y en a plusieurs.
+[DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md)) devient un artifact de type
+document, porteur d'un chemin de fichier au lieu d'un code. Il rejoint la même
+file que les blocs HTML : même bouton « Aperçu », même volet, même compteur
+quand il y en a plusieurs.
 
-Le chemin remonte du moteur jusqu'à la bulle par le callback `on_document`
+Le chemin remonte du moteur jusqu'à la réponse par le callback `on_document`
 de `AIEngine.process_query_stream()` — décalque exact de `on_image`, déjà en
 place pour les images générées :
 
 ```
 outil MCP → AIEngine._register_document()
           → tool_executor observe la liste → on_document(path)
-          → GUI : _pending_document_paths
-          → fin de streaming : container.document_paths
-          → _collect_artifacts() → bouton + ouverture automatique
+          → ChatService (core/chat_service.py) : événement document.created,
+            puis clé « documents » du message enregistré
+          → fenêtre : bouton « Aperçu » + ouverture automatique
 ```
 
 Chaque document est affiché **dans son propre format** :
@@ -62,166 +63,127 @@ Chaque document est affiché **dans son propre format** :
 | Format | Rendu dans le volet |
 |---|---|
 | **docx, pptx, xlsx** (et doc, ppt, xls, xlsm) | **Visionneuse native de Windows** : Word, PowerPoint ou Excel affichent le document eux-mêmes |
-| **pdf** | Lecteur PDF d'Edge (`needs_native_viewer()` : le fichier est servi tel quel) |
+| **pdf** | Lecteur PDF de WebView2 (`needs_native_viewer()` : le fichier est servi tel quel, dans la page) |
 | md, txt, csv, potx (modèle PowerPoint) | Page HTML produite par `interfaces/document_preview.py` |
 
 Les visionneuses sont celles du **volet d'aperçu de l'Explorateur Windows**
 (interface COM `IPreviewHandler`), qu'Office enregistre pour ses formats :
 un .docx s'affiche comme dans Word, un .pptx avec ses diapositives, un .xlsx
 avec sa grille et ses onglets. Voir
-[`_preview_handler.py`](../interfaces/gui/_preview_handler.py).
+[`preview_handler.py`](../interfaces/desktop/preview_handler.py).
 
 - **Non bloquant** : démarrer Office à froid prend quelques secondes (Excel et
   Word ~2 à 5 s mesurées, PowerPoint ~2,5 s). Le pilotage passe par un thread
-  COM dédié (`AsyncNativePreview`) : le volet affiche « ⏳ Ouverture de
-  l'aperçu Word… » et le chat reste utilisable.
+  COM dédié (`AsyncNativePreview`) : le volet affiche « Ouverture de l'aperçu
+  Word… » et le chat reste utilisable. Au-delà de 45 s, le volet passe au rendu
+  HTML.
 - **Repli** : si aucune visionneuse n'est enregistrée (Office absent) ou
   qu'elle échoue, le document est rendu en HTML — une **feuille de papier**
   posée sur le fond sombre du volet. C'est aussi ce rendu HTML que reçoit le
   mobile Relay.
-- **Word reste chargé** : après le premier aperçu d'un .docx, le serveur de
+- **Word caché** : après le premier aperçu d'un .docx, le serveur de
   visionneuse de Word (`WINWORD.EXE -Embedding`, ~100 Mo de RAM privée
   mesurés) reste en mémoire pour être réutilisé (aperçus suivants en ~1 s).
-  C'est le comportement de Word, identique avec le volet d'aperçu de
-  l'Explorateur ; il n'est pas tué à la fermeture, car Word peut réutiliser ce
-  processus pour des documents ouverts par l'utilisateur. Excel et PowerPoint
-  se ferment d'eux-mêmes.
+  Il se ferme avec l'appli. Seul l'Office lancé par l'appli pour ses aperçus
+  est fermé, jamais un Office ouvert par l'utilisateur ni un Office déjà
+  lancé avant l'appli.
 
-Le volet gagne un bouton **📂** (visible pour les seuls artifacts document) qui
-ouvre le vrai fichier dans son application système.
+Le volet porte, pour les documents, les boutons **Ouvrir dans son
+application** et **Afficher dans l'Explorateur**.
 
 ## Ouverture automatique
 
 À la fin de la génération d'un message, le volet s'ouvre **tout seul** sur le
 premier artifact — HTML comme document —, comme sur Claude web. Le bouton
-« 🔍 Aperçu » reste en place pour rouvrir le volet après fermeture.
-
-Le point d'étranglement est unique :
-`_show_timestamp_for_current_message()`, appelé par les quatre chemins de fin
-de message (streaming, animation, mode instantané, génération de fichier).
+« Aperçu » sous la réponse (« Aperçu (n) » s'il y en a plusieurs) rouvre le
+volet après fermeture. Logique : [`useAutoOpen.ts`](../frontend/src/features/preview/useAutoOpen.ts).
 
 Trois garde-fous :
 
-- **une seule ouverture par message** (`container.artifact_autoopened`) ;
-- **jamais pendant la restauration d'une session** : le mode `instant=True`
-  pose `container.autoopen_allowed = False`, sinon recharger une conversation
-  ferait surgir le volet pour chaque ancien message ;
-- **délai de 120 ms** avant l'ouverture, pour laisser la bulle finir son
-  layout — le volet provoque un reflow de la colonne chat, qui recalculerait
-  sinon la hauteur d'une bulle à mi-course.
+- **une seule ouverture par message** ;
+- **jamais à la réouverture d'une conversation**, ni pour une réponse
+  interrompue ou en erreur ; changer de conversation ferme le volet ;
+- **délai de 120 ms** avant l'ouverture, pour laisser la réponse finir sa mise
+  en page.
 
 Côté mobile, `attachArtifactButton()` prend un paramètre `autoOpen`, vrai
 uniquement pour une réponse fraîche et faux au rechargement de l'historique.
 
-## Rendu desktop — choix du moteur
+## Rendu dans la fenêtre desktop
 
-**Décision : Edge `--app` embarqué (rendu Chromium EXACT), avec repli
-tkinterweb puis code source.**
+### Artifacts HTML/SVG : une iframe isolée
 
-Le moteur est sélectionné dans cet ordre par
-[`artifacts_panel.py`](../interfaces/gui/artifacts_panel.py) :
+La fenêtre étant un Chromium (WebView2 sous Windows), l'artifact s'affiche
+**exactement** comme dans un navigateur, sans moteur de rendu à part :
 
-| Priorité | Moteur | Rendu | Notes |
-|---|---|---|---|
-| 0 | **Visionneuse native** (documents Office) | **Exact** (Word, PowerPoint, Excel) | Windows + Office ; `comtypes` (installé avec `pyttsx3`) |
-| 1 | **Edge `--app` embarqué** | **Exact** (Chromium) | Windows ; **aucune dépendance Python** (réutilise Edge + WebView2 déjà présents) |
-| 2 | tkinterweb | Approximatif | Pur Python, CSS limité (pas de flexbox/grid/JS) — bandeau d'avertissement affiché |
-| 3 | Code source + bouton 🌐 | — | Dernier recours |
+- page `/preview/<id>` du serveur local, avec sa propre politique de sécurité
+  (CSP), chargée dans une **`<iframe sandbox>`** (`allow-scripts allow-forms
+  allow-modals allow-popups`) **sans** `allow-same-origin` : origine opaque, ni
+  l'API du serveur local ni la page de l'appli ne sont accessibles à l'artifact ;
+- `localStorage` et `sessionStorage`, refusés à une origine opaque, sont
+  remplacés dans l'aperçu par un stockage en mémoire qui vit le temps de
+  l'aperçu (les artifacts produits par le modèle s'en servent souvent) ;
+- onglets **Aperçu** et **Code** ; **Ouvrir dans le navigateur** écrit la page
+  dans `outputs/artifacts/` et l'ouvre dans le navigateur du système ;
+- volet à largeur réglable (320 à 1200 px), retenue d'un lancement à l'autre.
 
-### Comment fonctionne l'embarquement Edge
+Comme dans un navigateur, un artifact qui référence une ressource externe
+(CDN, police) la **charge** : c'est le prix du rendu exact. L'IA, elle, reste
+100% locale.
 
-[`_edge_embed.py`](../interfaces/gui/_edge_embed.py) lance
-`msedge.exe --app=file://…/outputs/artifacts/artifact_*.html` avec un profil
-temporaire dédié, repère la **nouvelle** fenêtre Chromium (classe
-`Chrome_WidgetWin_1`) par diff avant/après lancement, puis la **ré-parente**
-dans le widget du volet via l'API Win32 `SetParent` (en retirant bordure et
-barre de titre). La fenêtre est redimensionnée avec le volet (`<Configure>`)
-et recalée quelques instants après l'attachement, Chromium pouvant réappliquer
-ses propres dimensions (fin de chargement, changement de DPI en multi-écran).
+### Visionneuses Office : une fenêtre enfant posée sur le volet
 
-#### Le piège du lanceur
+Aucun élément HTML ne peut accueillir une fenêtre native : la page **réserve
+la place** de la visionneuse (un élément vide du volet) et envoie à Python, par
+le pont de la fenêtre (`shell_api.py`), sa position et sa taille en pixels
+physiques (`getBoundingClientRect` × `devicePixelRatio`), à chaque changement.
+[`native_viewer.py`](../interfaces/desktop/native_viewer.py) pose la
+visionneuse exactement dessus, dans une **fenêtre enfant** (`WS_CHILD`) de la
+fenêtre de l'appli, placée au-dessus du contrôle WebView2 : elle suit la
+fenêtre quand on la déplace, la réduit ou l'agrandit, sans barre de titre, ni
+entrée dans la barre des tâches ou Alt+Tab.
 
-Le `msedge.exe` lancé n'est **qu'un lanceur** : il démarre le vrai processus
-navigateur puis se termine en moins d'une seconde. Deux conséquences, qui
-étaient deux bugs :
+- **Superpositions** : rien de HTML ne peut s'afficher par-dessus une fenêtre
+  native. La visionneuse est masquée (le volet montre alors son fond) sous la
+  palette Ctrl+K, les dialogues, les menus, les infobulles et les notifications
+  qui touchent sa place, et pendant le redimensionnement du volet ; elle
+  revient une fois tout immobile.
+- **DPI** : le processus de l'appli passe en « DPI par écran » (v2) avant que
+  pywebview crée sa fenêtre, et la visionneuse garde ainsi un rendu net à 125 %
+  ou 150 %.
 
-| Symptôme | Cause | Parade |
-|---|---|---|
-| Fenêtres empilées dans le volet ; ~15 processus Edge qui survivaient à chaque fermeture | `close()` terminait le lanceur, déjà mort | L'instance est retrouvée par son **profil temporaire** (`--user-data-dir`, présent dans la ligne de commande de tous ses processus) et terminée en entier via `psutil` |
-| Une fenêtre étrangère (VS Code, Teams, navigateur) avalée dans le volet ; la nôtre flottante, barre de titre visible | Toute nouvelle fenêtre `Chrome_WidgetWin_1` était éligible — c'est la classe de **toutes** les applis Chromium/Electron | Seules les fenêtres dont le processus porte **notre** profil sont retenues |
-| Rectangle blanc dans le volet | Le profil était supprimé sous un Edge encore vivant | Le profil n'est supprimé qu'une fois les processus morts ; les profils abandonnés de plus d'une heure sont balayés au démarrage |
+#### Le piège du DPI : l'hôte « popup » de repli
 
-Rouvrir l'aperçu déjà affiché (clic sur « 🔍 Aperçu » juste après
-l'ouverture automatique) ne relance plus Edge : le volet est simplement
-ré-affiché. Un jeton de rendu neutralise les sondes d'attachement d'un rendu
-remplacé entre-temps.
-
-Ces comportements sont couverts par
-[`tests/test_edge_embed.py`](../tests/test_edge_embed.py), qui lance un vrai
-Edge (Windows uniquement).
-
-#### Le piège du DPI : la fenêtre hôte
-
-L'appli **ne gère pas le DPI** : sa racine est un `TkinterDnD.Tk` (pour le
-glisser-déposer), or CustomTkinter n'active la prise en charge du DPI qu'à la
-création d'une fenêtre `ctk.CTk`. Sur un écran à 125 %, Windows agrandit donc
-toute la fenêtre en bitmap.
-
-Ré-parenter Edge (qui gère le DPI par écran) dans un widget de cette fenêtre
-ne fonctionne pas : Windows aligne la fenêtre enfant sur le régime de son
-parent, **mais Chromium continue de se croire en pixels physiques**. Son
-contenu est alors mis à l'échelle deux fois : décalé vers la droite, rogné,
-barre de titre visible, et une zone blanche à gauche quand Edge tourne en
-rendu logiciel. Sur un écran à 100 %, les deux repères coïncident et rien
-n'apparaît. Diagnostic mené par mesures, pas par hypothèses :
+Une fenêtre étrangère (visionneuse Office, d'un autre processus) ré-parentée
+dans une fenêtre qui **ne** gère **pas** le DPI par écran est mal rendue sur un
+écran mis à l'échelle : Windows aligne l'enfant sur le régime de son parent,
+mais le processus propriétaire continue de dessiner en pixels physiques. Le
+contenu est alors mis à l'échelle deux fois : décalé, rogné, parfois une zone
+blanche. Sur un écran à 100 %, les deux repères coïncident et rien
+n'apparaît. Diagnostic mené par mesures, pas par hypothèses (à l'époque de
+l'interface Tk, qui ne gérait pas le DPI) :
 
 | Piste | Résultat |
 |---|---|
 | Hébergement DPI « mixte » (`SetThreadDpiHostingBehavior`) | Sans effet : ne vaut pas entre processus |
-| Forcer Edge sans DPI (`__COMPAT_LAYER`, `--high-dpi-support=0`) | Ignoré par Chromium |
-| `--disable-direct-composition` | Corrige la position, pas l'échelle |
-| `--force-device-scale-factor` | Ignoré par Edge |
 | **Fenêtre hôte DPI par écran** | **Rendu exact et net** |
 
-[`_dpi_host.py`](../interfaces/gui/_dpi_host.py) crée une fenêtre Win32 sans
-bordure, **elle-même DPI par écran**, possédée par la fenêtre principale (elle
-la suit à la réduction et reste au-dessus d'elle), et posée au pixel près sur
-le volet. Edge — et les visionneuses Office — y sont ré-parentés : même
-régime DPI, plus de double mise à l'échelle. Le volet la recale à chaque
-déplacement ou redimensionnement (`_sync_embedded_geometry`). Si la fenêtre
-principale devient un jour DPI-aware, l'hôte n'est plus utilisé et Edge
-retourne directement dans le volet (`is_dpi_virtualized`).
+Si la fenêtre de l'appli n'a pas pu passer en DPI par écran, la visionneuse est
+donc posée dans [`dpi_host.py`](../interfaces/desktop/dpi_host.py) : une fenêtre
+Win32 sans bordure, **elle-même DPI par écran**, possédée par la fenêtre de
+l'appli (elle la suit à la réduction et reste au-dessus d'elle, sans barre des
+tâches ni Alt+Tab), posée au pixel près sur la place réservée et recalée quand
+la fenêtre se déplace (`is_dpi_virtualized` décide).
 
-Couvert par [`tests/test_native_preview.py`](../tests/test_native_preview.py).
+Couvert par [`tests/test_native_preview.py`](../tests/test_native_preview.py)
+(vrais Word et Excel) et
+[`tests/test_desktop_native_viewer.py`](../tests/test_desktop_native_viewer.py).
 
-### Compromis assumé
+### Hors Windows
 
-- **Windows uniquement** : le ré-parentage `SetParent` est spécifique à Win32.
-  Sur les autres OS, on retombe automatiquement sur tkinterweb puis le code
-  source + bouton navigateur.
-- **Hack natif** : juggling de `HWND` entre processus — robuste mais peut
-  présenter de légers artefacts (z-order/redimensionnement) dans des cas
-  limites ; tout échec est silencieux et déclenche le repli.
-- **Ressources externes** : comme c'est un vrai Chromium, un artifact qui
-  référence un CDN (police Google, etc.) **chargera** cette ressource — c'est
-  le prix du « rendu exact ». L'IA, elle, reste 100% locale.
-
-### Pourquoi pas pywebview / PySide6 (QtWebEngine) ?
-
-Tous deux donnent un rendu Chromium exact, mais :
-- **pywebview** ouvre une fenêtre séparée (boucle d'événements bloquante sur le
-  thread principal, difficile à embarquer dans Tk) ;
-- **PySide6 + QtWebEngine** embarquerait, mais ajoute une dépendance lourde
-  (plusieurs centaines de Mo), en tension avec la promesse « léger ».
-
-Edge `--app` embarqué donne le **rendu exact sans aucune dépendance Python
-supplémentaire**.
-
-### Repli léger optionnel
-
-```bash
-pip install tkinterweb   # moteur de repli si Edge indisponible (rendu approximatif)
-```
+Les documents Office sont rendus en HTML par `interfaces/document_preview.py`,
+comme sans visionneuse installée ; les PDF et les artifacts HTML/SVG
+s'affichent comme sous Windows, dans le Chromium (ou WebKit) de la fenêtre.
 
 ## Rendu mobile
 
@@ -255,16 +217,13 @@ et le rattache à la bulle au moment où elle est rendue.
 
 ## Limitations connues
 
-- **Edge embarqué** : Windows uniquement ; ré-parentage natif (`SetParent`)
-  pouvant présenter de légers artefacts dans des cas limites.
-- **Fenêtre hôte** : comme elle flotte au-dessus du volet, un glisser rapide
-  de la fenêtre principale peut la montrer brièvement en retard d'une image ;
-  cliquer dans l'aperçu active l'hôte (la barre de titre de My_AI passe alors
-  en inactif, comme avec toute fenêtre).
-- **Visionneuses natives** : desktop Windows avec Office installé ; ailleurs,
-  et sur le mobile Relay, le document est rendu en HTML.
-- **tkinterweb** (repli) : pas de flexbox/grid/JS → utiliser le bouton 🌐.
-- Côté **desktop**, le rendu exact (Edge) charge les ressources externes
-  référencées par l'artifact (CDN, polices). Côté **mobile**, l'iframe
-  `srcdoc` ne charge rien d'extérieur par défaut au-delà de ce que le HTML
-  demande explicitement.
+- **Visionneuses natives** : fenêtre desktop sous Windows avec Office installé ;
+  ailleurs, et sur le mobile Relay, le document est rendu en HTML.
+- **Superpositions** : une visionneuse native est masquée tant qu'un élément
+  HTML (menu, dialogue, notification) touche sa place.
+- **Hôte popup** (repli DPI) : comme il flotte au-dessus du volet, un glisser
+  rapide de la fenêtre peut le montrer brièvement en retard d'une image.
+- **Échelles 125 % et 150 %, deux écrans** : vérifiés sur la vraie fenêtre à
+  100 % seulement à ce jour.
+- Côté **desktop** comme côté **mobile**, un artifact charge les ressources
+  externes qu'il référence explicitement (CDN, polices).

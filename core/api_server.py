@@ -1,9 +1,9 @@
 """
-Serveur API REST local pour My_AI v8.1.0
+Serveur API REST local pour My_AI v9.0.0
 
 Expose les capacités de l'assistant IA via des endpoints HTTP sur localhost.
 Utilise FastAPI avec uvicorn en thread daemon pour un fonctionnement
-non-bloquant vis-à-vis de l'interface Tkinter principale.
+non-bloquant vis-à-vis de l'interface principale.
 """
 
 import asyncio
@@ -76,11 +76,11 @@ class APIServer:
     Serveur API REST local exposant les fonctionnalités de My_AI.
 
     Le serveur tourne dans un thread daemon afin de ne pas bloquer
-    l'application principale (CLI / GUI Tkinter). Il partage l'instance
+    l'application principale (CLI ou fenêtre). Il partage l'instance
     du moteur IA (ai_engine) avec le reste de l'application.
     """
 
-    _APP_VERSION = "8.1.0"
+    _APP_VERSION = "9.0.0"
 
     def __init__(
         self,

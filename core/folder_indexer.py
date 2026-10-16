@@ -73,6 +73,11 @@ _DEFAULT_EXCLUDE_DIRS = {
     ".gradle", ".terraform", "vendor",
 }
 
+def is_excluded_dir(name: str) -> bool:
+    """Dossier toujours ignore (caches, dependances, builds), comme a l'indexation."""
+    return name in _DEFAULT_EXCLUDE_DIRS
+
+
 # Taille maximale d'un fichier indexe (octets). Au-dela, on saute : un tres gros
 # fichier est en general un binaire/asset ou un dump, pas du contexte utile.
 _MAX_FILE_BYTES = 2 * 1024 * 1024  # 2 Mo

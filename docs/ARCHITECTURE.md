@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v8.1.0
+# 🏗️ Architecture - My Personal AI v9.0.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
+My Personal AI v9.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -21,8 +21,9 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Intégration MCP (Model Context Protocol)** : Connexion standardisée aux outils locaux et serveurs externes
 - **Multi-sources d'information** : Code (StackOverflow, GitHub), web (DuckDuckGo, puis Yahoo et Wikipédia en secours)
 - **RLHF intégré** : Pipeline complet d'amélioration continue
-- **Scheduler proactif** : Exécution récurrente d'agents/workflows (type cron) via `core/scheduler.py` — tourne tant que le GUI/Relay est lancé, ou **même appli fermée** via le Planificateur de tâches Windows (`core/scheduler_runner.py`). Réutilise `AgentRelayService` (aucune réimplémentation de l'exécution), persistance JSON, verrou inter-processus.
-- **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — Edge `--app` embarqué (rendu Chromium exact) et visionneuses natives Word/PowerPoint/Excel côté desktop, dans une fenêtre hôte DPI par écran ; `<iframe sandbox>` côté mobile. Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
+- **Scheduler proactif** : Exécution récurrente d'agents/workflows (type cron) via `core/scheduler.py` — tourne tant que l'appli ou le Relay est lancé, ou **même appli fermée** via le Planificateur de tâches Windows (`core/scheduler_runner.py`). Réutilise `AgentRelayService` (aucune réimplémentation de l'exécution), persistance JSON, verrou inter-processus.
+- **Interface desktop web** : React + TypeScript (`frontend/`) dans une fenêtre native pywebview (WebView2 sous Windows), reliée au moteur par un serveur FastAPI local (`interfaces/desktop/`, 127.0.0.1, jeton par lancement : REST + WebSocket). Le chat passe par `core/chat_service.py`, sans interface, partagé avec le mobile ; la fenêtre reste fluide pendant que le moteur calcule.
+- **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — `<iframe sandbox>` sans `allow-same-origin` dans la fenêtre comme sur le mobile, lecteur PDF de WebView2, visionneuses natives Word/PowerPoint/Excel posées dans le volet d'aperçu (fenêtre enfant DPI par écran). Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
 - **Génération de documents** : outils MCP `generate_document` / `edit_document` — le LLM rédige en Markdown, `generators/markdown_document.py` le découpe en blocs, un backend par format produit le docx, pdf, pptx ou xlsx dans `outputs/documents/`. Les pièces jointes sont modifiées sur une copie, jamais en place.
 - **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
@@ -31,28 +32,29 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        INTERFACES UTILISATEUR                          │
+│                         INTERFACES UTILISATEUR                         │
 ├────────────────────────────────────────────────────────────────────────┤
-│  GUI Modern (CustomTkinter) │  CLI Enhanced    │  VSCode Extension     │
-│  • Dark theme Claude-style  │  • Commandes     │  • Mode agentique     │
-│  • Code highlighting        │  • Historique    │  • 9 outils workspace │
-│  • Drag-and-drop files      │  • Stats         │  • Sandbox + approval │
+│  Fenêtre desktop (web)      │  CLI Enhanced    │  VSCode Extension     │
+│  • React + TypeScript       │  • Commandes     │  • Mode agentique     │
+│  • Fenêtre pywebview        │  • Historique    │  • 9 outils workspace │
+│  • Serveur local FastAPI    │  • Stats         │  • Sandbox + approval │
 ├─────────────────────────────┴──────────────────┴───────────────────────┤
-│  Agents Interface                                                      │
-│  • Canvas visuel workflow n8n (WorkflowCanvas)                         │
+│  Page Agents (même fenêtre)                                            │
+│  • Canvas de workflow (React Flow), liens animés pendant l'exécution   │
+│  • Fils d'exécution rouvrables, diff du code modifié                   │
 │  • Monitoring ressources temps réel (ResourceMonitor)                  │
-│  • Exécution DAG / parallèle / séquentielle                            │
-│  • Drag-and-drop agents + connexions Bézier                            │
+│  • Exécution DAG / parallèle / séquentielle (AgentRelayService)        │
 ├────────────────────────────────────────────────────────────────────────┤
 │  My_AI Relay (relay/)                                                  │
 │  • Interface mobile PWA (iOS/Android) via WebSocket — onglets          │
-│    Chat / Agents (comme le GUI PC)                                     │
+│    Chat / Agents (comme la fenêtre du PC)                              │
 │  • Tunnel cloudflared HTTPS → accès depuis n'importe où                │
 │  • Authentification token/mot de passe + QR code                       │
-│  • RelayBridge (singleton) : synchronisation GUI ↔ Mobile (chat)       │
-│  • AgentRelayService : page Agents exécutée côté serveur               │
-│    (orchestrateur + Ollama local) — workflow/débat/CRUD streamés       │
-│  • Routage par client_kind : "mobile" → bridge GUI, "vscode" →         │
+│  • RelayBridge (singleton) : chat mobile → ChatService, fenêtre        │
+│    ouverte ou non                                                      │
+│  • AgentRelayService : exécuteur partagé (fenêtre, mobile, scheduler)  │
+│    — workflow/débat/CRUD streamés                                      │
+│  • Routage par client_kind : "mobile" → ChatService, "vscode" →        │
 │    AgenticExecutor (boucle LLM ↔ outils, exécution côté extension)     │
 └────────────────────────────────────────────────────────────────────────┘
                                    │
@@ -71,6 +73,11 @@ My Personal AI v8.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Plan & Execute avec scratchpad XML persistant                       │
 │  • Limite de tours (MAX_TOURS=15), LoopDetector, élagage contexte      │
 │  • Utilisé par AIEngine pour tout tool-calling de la page Chat         │
+├────────────────────────────────────────────────────────────────────────┤
+│ ChatService (core/chat_service.py)                                     │
+│  • Pipeline du chat sans interface, pour la fenêtre et le mobile       │
+│  • File d'attente commune, sessions, branches d'édition                │
+│  • Mêmes appels au moteur que l'ancienne interface (reprise du prompt) │
 ├────────────────────────────────────────────────────────────────────────┤
 │ Modules (initialisés par AIEngine._init_v7_modules())                  │
 │  • APIServer         — Serveur REST FastAPI (localhost:8000)           │
@@ -303,7 +310,7 @@ Architecture:
 **`core/agentic_executor.py`** - Boucle agentique pour clients VS Code
 ```python
 Activé exclusivement quand un client Relay s'identifie comme
-client_kind: "vscode" (cf. relay/relay_server.py). Le mobile et le GUI
+client_kind: "vscode" (cf. relay/relay_server.py). Le mobile et la fenêtre
 desktop n'utilisent jamais ce module.
 
 Architecture:
@@ -602,7 +609,7 @@ Architecture:
 └─ Interface login HTML embarquée (servie si token absent)
 ```
 
-**`relay/relay_bridge.py`** - Pont GUI ↔ Mobile (Singleton)
+**`relay/relay_bridge.py`** - Pont appli ↔ mobile (Singleton)
 ```python
 Architecture:
 ├─ Singleton thread-safe (threading.Lock sur __new__)
@@ -610,10 +617,10 @@ Architecture:
 ├─ Callbacks : on_gui_message() / on_ws_message() (enregistrables)
 ├─ Réponse asynchrone :
 │   ├─ wait_for_ai_response(timeout=relay.response_timeout) — asyncio + run_in_executor
-│   └─ submit_ai_response(text)          — appelé par le GUI Tkinter
+│   └─ submit_ai_response(text)          — appelé par le ChatService
 ├─ Interruption (bouton Stop du chat mobile) :
 │   ├─ request_interrupt()               — posé par le handler WS
-│   └─ consume_interrupt_request()       — lu par le polling GUI → interrupt_ai()
+│   └─ consume_interrupt_request()       — sondé par le ChatService (core/chat_service.py)
 ├─ Historique session : List[RelayMessage] avec to_dict()
 └─ Propriétés : active, connected_clients, history
 
@@ -660,12 +667,13 @@ RelayMessage (dataclass):
 **`relay/agent_relay.py`** - Service Agents serveur (AgentRelayService)
 ```python
 Architecture:
-├─ Porte la page Agents du GUI desktop côté serveur (sans Tkinter), comme
-│   le mode VS Code : orchestrateur d'agents + Ollama local, jamais le bridge
+├─ Exécuteur partagé de la page Agents (fenêtre, mobile, scheduler), sans
+│   interface, comme le mode VS Code : orchestrateur d'agents + Ollama local,
+│   jamais le bridge
 ├─ list_agents()            — 9 built-in + custom (rechargés depuis
-│                             data/custom_agents.json, partagé avec le GUI)
+│                             data/custom_agents.json, partagé avec la fenêtre)
 ├─ create/edit/delete_agent — CRUD ; génération du system prompt via le LLM
-│                             local (même prompt que custom_agents.py)
+│                             local (prompt repris de l'ancienne page Agents)
 ├─ compute_execution_plan() — port de WorkflowCanvas.get_execution_plan
 │                             (tri topologique → single/sequential/parallel/dag)
 ├─ run_workflow()           — exécute le plan, streame chaque section via un
@@ -676,20 +684,17 @@ Architecture:
 └─ Émission : callback thread-safe → file asyncio → drainer → WS chiffré
 ```
 
-**Pipeline pièces jointes (GUI)** — `interfaces/gui/base.py`
+**Pipeline du chat mobile** — `core/chat_service.py`
 ```python
-_display_relay_message(msg):
-├─ Construit bulle avec préfixes 🖼️ / 📎
+Message du mobile (RelayBridge.on_gui_message → ChatService), fenêtre ouverte ou non :
+├─ Entre dans la file d'attente commune au PC et au mobile (un message à la fois)
 ├─ Requête par défaut si pas de texte + fichier présent
-└─ Thread worker → _process_relay_attachments_then_ai(...)
-
-_process_relay_attachments_then_ai(text, req_id, image, files):
-├─ Pour chaque document : process_file_background (synchrone)
-│   └─ Même logique que le drag & drop PC (custom_ai.add_file_to_context)
-├─ Si image : _process_image_file (base64 → _pending_image_base64)
-├─ Relance show_thinking_animation sur le thread Tk
-│   (compense is_thinking=False positionné par process_file_background)
-└─ quel_handle_message_with_id(text, req_id) → streaming IA
+│   (« Décris cette image en détail. » / « Analyse ce fichier et résume-le. »)
+├─ Chaque document est lu comme une pièce jointe du PC
+│   (custom_ai.add_file_to_context), puis jamais oublié
+├─ Image : encodée pour le modèle vision
+└─ Même pipeline que le PC → jetons et réponse renvoyés par submit_ai_* ;
+   la fenêtre, si elle est ouverte, montre l'échange en direct (badge « Mobile »)
 ```
 
 ### 🤖 Models - Intelligence Artificielle
@@ -987,7 +992,7 @@ Output:
 
 **`processors/attachments.py`**
 ```python
-Pièces jointes des agents (page Agents du GUI + Relay mobile):
+Pièces jointes des agents (page Agents de la fenêtre + Relay mobile):
 ├─ read_attachment_text(file_path, file_type="") → texte
 ├─ PDF → PDFProcessor, DOCX → DOCXProcessor, PPTX/POTX → PPTXProcessor
 ├─ XLSX/XLS/CSV → ExcelProcessor
@@ -1070,78 +1075,129 @@ des backends de rendu et de l'aperçu HTML des documents. Détails :
 
 ### 🖥️ Interfaces - UI
 
-**`interfaces/gui_modern.py`** - Interface graphique moderne
-```python
-Framework: CustomTkinter (fallback tkinter)
-Design: Dark theme inspiré Claude.ai
-
-Features:
-├─ Chat interface responsive
-├─ Bulles messages utilisateur (droite)
-├─ Réponses IA (gauche, sans bulle)
-├─ Code highlighting (Pygments)
-├─ Drag-and-drop fichiers (tkinterdnd2)
-├─ Timestamps
-├─ Bouton clear chat
-└─ Commandes help/status
-
+**Fenêtre desktop** — interface web (`frontend/`) servie par un serveur local (`interfaces/desktop/`)
+```
 Architecture:
-├─ Gestion async messages
-├─ Threading opérations longues
-├─ Updates UI temps réel
-└─ Affichage messages memory-efficient
+├─ frontend/ : React 19 + TypeScript strict (Vite), Tailwind CSS v4 branché sur
+│  les jetons de src/styles/tokens.css, état Zustand ; build versionné dans
+│  frontend/dist/ (les utilisateurs n'ont pas besoin de Node)
+├─ window.py : fenêtre pywebview (WebView2, le Chromium d'Edge, sous Windows ;
+│  GTK ou Qt ailleurs) ; sans pywebview, l'interface s'ouvre dans le navigateur
+├─ server.py : FastAPI sur 127.0.0.1 seulement, port libre, REST + un WebSocket ;
+│  jeton tiré à chaque lancement (passé dans le fragment de l'URL), Origin et
+│  Host vérifiés ; distinct du serveur Relay, jamais exposé par les tunnels
+├─ lifecycle.py : la fenêtre s'ouvre tout de suite sur l'écran de chargement ;
+│  un fil enchaîne les étapes du lanceur (modèle des longs documents, Ollama,
+│  assistant de premier lancement, my_ai, placement), puis moteur, chat,
+│  Relay et scheduler. Rien n'appelle Ollama avant la fin du placement
+└─ shell_api.py : seul pont entre la page et la fenêtre (dialogues de fichiers,
+   ouvrir un fichier ou un lien, visionneuses Office) ; lib/shell.ts côté page
+
+Sécurité:
+├─ Liens externes ouverts dans le navigateur du système : la fenêtre ne quitte
+│  jamais l'appli (navigation annulée, nouvelles fenêtres refusées)
+├─ Markdown des réponses rendu sans HTML brut ; URL non web neutralisées
+├─ Artifacts HTML/SVG dans une <iframe sandbox> sans allow-same-origin : ni
+│  l'API ni la page de l'appli ne leur sont accessibles
+└─ Fichiers locaux servis par liens signés (HMAC), seulement pour les chemins
+   que le serveur connaît ; un chemin cité dans une réponse se montre dans
+   l'Explorateur, jamais exécuté (utils/path_links.py)
 ```
 
-**`interfaces/gui/memory_panel.py`** - Fenêtre Mémoire
+**Protocole** — `interfaces/desktop/events.py` (Pydantic) ↔ `frontend/src/lib/events.ts`
+```
+Chaque événement : type, conversation_id, message_id, seq (croissant), payload
+├─ Chat : message.user (source desktop ou mobile), assistant.start / token /
+│  thinking / thinking_done / done / error / interrupted
+├─ Outils et fichiers : tool.call, tool.result, confirm.request,
+│  document.created, image.progress, image.created
+├─ Appli : engine.status, relay.status, scheduler.result, resources.sample,
+│  voice.*, notification
+├─ Agents : agents.* (événements d'AgentRelayService, texte des sections en suite)
+└─ Client → serveur (WebSocket) : chat.send, chat.stop, chat.cancel,
+   confirm.response ; agents, voix et panneaux passent par l'API REST
+Reconnexion : la page relit l'état complet (REST), puis reprend le flux (seq).
+```
+
+**`core/chat_service.py`** - Service de chat sans interface
 ```python
-Rôle: Voir / éditer / supprimer ce que l'IA sait (via core/memory_store.py)
-├─ 3 onglets : Faits (SQLite) · Documents · Conversations (ChromaDB)
-├─ Recherche, filtre catégorie, pagination, provenance par entrée
-├─ Édition inline + suppression confirmée (dialogue style MCP)
-└─ Conversations : option « supprimer à la source » (durable après réindex)
+Rôle: Pipeline du chat, pour la fenêtre et pour le mobile (fenêtre ouverte ou non)
+├─ Mêmes appels au moteur que l'ancienne interface, dans le même ordre : slash
+│  commands, documents visibles, génération de fichier ou d'image, puis
+│  process_query_stream. Ollama reprend ainsi le prompt déjà lu (OPTIMIZATION.md)
+├─ File d'attente commune desktop / mobile : un message à la fois, Stop arrête
+│  le message en cours
+├─ Pièces jointes lues en arrière-plan ; envoi refusé tant qu'une lecture dure
+├─ Sessions au format data/workspaces/ (conversation_history, turn_branches),
+│  sauvegardées après chaque tour, rouvertes au lancement
+└─ Branches d'édition ‹ k/n › : modifier et régénérer gardent les variantes
 ```
 
-**`interfaces/gui/sidebar.py`** - Barre latérale
-```python
-├─ Boutons : Relay, lecture auto (TTS), ⚙️ Réglages, 🧠 Mémoire, 📚 Prompts
-├─ 🔎 Recherche globale : champ + réindex + résultats (ouverture/surlignage)
-├─ 📁 Dossiers du projet : attacher/réindexer/détacher un dossier @codebase
-├─ Sections : Sessions, Historique, Export
-└─ (La section « Connaissances » est remplacée par la fenêtre 🧠 Mémoire)
+**Rendu du chat** (`frontend/src/features/chat/`)
+```
+├─ Liste virtualisée (react-virtuoso) ; défilement collé en bas, sauf si
+│  l'utilisateur est remonté (bouton « ↓ ») ; un message envoyé ramène en bas
+├─ Jetons regroupés à chaque image affichée ; seul le dernier bloc Markdown
+│  est re-rendu (react-markdown + remark-gfm, blocs terminés mémoïsés)
+├─ Coloration du code par Shiki dans un Web Worker ; formules KaTeX chargées à
+│  la demande
+└─ Réflexion repliable, appels d'outils en lignes compactes, citations [n] et
+   chemins de fichiers cliquables
 ```
 
-**`interfaces/gui/command_palette.py`** - Command palette (Ctrl+K)
-```python
-Rôle: Palette de commandes + raccourcis clavier globaux (mixin)
-├─ Ctrl+K : recherche filtrante des actions (chat, export, Relay, Réglages…)
-├─ Raccourcis : Ctrl+N/L/S/B/R, Ctrl+, , F1…
-└─ Actions résolues via getattr : une action absente est masquée, jamais d'erreur
+**Panneaux** — dialogues internes à la fenêtre
+```
+├─ Réglages (settings.py, model_setup.py) : modèles Ollama (téléchargement,
+│  application qui recrée my_ai), température, num_ctx, timeout, langue,
+│  lecture automatique, Relay au lancement ; config.yaml garde ses commentaires
+├─ Mémoire (memory.py, via core/memory_store.py) : Faits (SQLite), Documents et
+│  Conversations (ChromaDB), recherche, filtre, pagination, provenance,
+│  édition et suppression confirmée (« supprimer aussi le message d'origine »)
+├─ Prompts (prompts.py, via core/prompt_library.py) : templates et commandes /xxx
+├─ Relay : démarrage (Ctrl+R), état de chaque tunnel, QR code (qr.py), URL et
+│  chaîne de connexion VS Code
+├─ Aide (F1) et palette de commandes (Ctrl+K, cmdk)
+└─ Assistant de premier lancement (model_setup.py, fonctions de
+   interfaces/onboarding.py), affiché à son étape du lancement
 ```
 
-**`interfaces/gui/slash_commands.py`** - Autocomplétion slash
-```python
-Rôle: Menu « / » d'autocomplétion des slash commands dans la saisie (mixin)
-├─ Déclenché par « / » en début de saisie (chat principal + écran d'accueil)
-├─ Toplevel(overrideredirect) non focusable ; navigation ↑/↓, Entrée/Tab, Échap
-└─ Insère « /commande » ; l'expansion en prompt détaillé se fait à l'envoi
+**Volet d'aperçu** — `previews.py`, `native_viewer.py`, `preview_handler.py`, `dpi_host.py`
+```
+├─ Artifacts HTML/SVG : page /preview/<id> dans l'iframe sandbox, onglets
+│  Aperçu et Code, ouverture dans le navigateur, ouverture automatique
+├─ PDF : lecteur natif de WebView2, dans la page
+├─ Word, Excel, PowerPoint : visionneuses de Windows (IPreviewHandler, COM,
+│  thread STA dédié) dans une fenêtre enfant posée au-dessus de WebView2 sur la
+│  place que la page réserve (position et taille en pixels physiques) ; masquée
+│  sous les menus, dialogues et notifications ; hôte « popup » DPI par écran
+│  (dpi_host.py) en repli si la fenêtre n'est pas DPI par écran
+└─ Ailleurs, ou sans visionneuse : aperçu HTML (interfaces/document_preview.py)
 ```
 
-**`interfaces/gui/prompts_panel.py`** - Fenêtre « 📚 Prompts »
-```python
-Rôle: CRUD de la bibliothèque de prompts (via core/prompt_library.py)
-├─ Créer / nommer / éditer / supprimer des templates (commande, titre, content)
-└─ Même pattern Toplevel+CTk éprouvé que memory_panel / settings_panel
+**Page Agents** — `agents.py`, `schedule.py`, `resources.py` ; `frontend/src/features/agents/`
+```
+├─ Un seul exécuteur partagé (relay/agent_relay.py, AgentRelayService) : page
+│  Agents, mobile et scheduler (ces deux derniers à travers SharedExecutor)
+├─ Chaque exécution (agent, workflow, débat) devient un fil, gardé dans
+│  data/agent_runs.json (les 50 derniers), statut en direct, Arrêter ;
+│  une sortie qui modifie un code joint s'ouvre en diff
+├─ Canvas de workflow React Flow (@xyflow/react) : glisser un agent, relier les
+│  ports, zoom, grille, minimap, liens animés pendant l'exécution ; fichiers au
+│  format JSON de l'ancien canvas ({"nodes": {...}, "connections": [...]})
+├─ Débat entre deux agents, statistiques, moniteur de ressources
+│  (interfaces/resource_monitor.py, une mesure toutes les 3 s)
+└─ Tâches planifiées (core/scheduler.py) et notification de fin d'un fil long
 ```
 
-**`interfaces/gui/message_editing.py`** - Édition + branchement
-```python
-Rôle: Éditer un message envoyé puis regénérer, en conservant les variantes
-├─ Modèle _turn_branches : versions par tour utilisateur + index courant
-├─ Navigation ‹ k/n › entre variantes ; branchement façon ChatGPT (avale l'aval)
-└─ Rendu reconstruit via add_message_bubble(instant=True)
+**Voix** — `voice.py`, `voice_input.py`, `voice_output.py`
+```
+├─ Saisie : faster-whisper (modèle small, int8, CPU) et sounddevice, capture et
+│  transcription côté Python ; la page ne fait que démarrer, arrêter, afficher
+└─ Lecture : pyttsx3 (SAPI5, NSSpeechSynthesizer, espeak), voix par langue,
+   lecture automatique (ui.tts_autoread)
 ```
 
-**`interfaces/gui/_whisper_worker.py`** - Transcription isolée (process séparé)
+**`interfaces/desktop/_whisper_worker.py`** - Transcription isolée (process séparé)
 ```python
 Rôle: Exécuter faster-whisper hors du process applicatif sur macOS
 ├─ Problème : ctranslate2, torch et scikit-learn embarquent chacun un runtime
@@ -1152,8 +1208,8 @@ Rôle: Exécuter faster-whisper hors du process applicatif sur macOS
 │  scikit-learn, qui apporte le troisième runtime (libomp, LLVM)
 ├─ Process persistant : modèle chargé une fois, protocole JSON + float32 brut
 │  sur stdin/stdout
-└─ ⚠️ Lancé PAR CHEMIN, jamais par « -m » : le __init__.py du package
-   importerait toute la pile applicative dans le worker
+└─ ⚠️ Lancé PAR CHEMIN, jamais par « -m » : le __init__.py d'un package
+   pourrait importer toute la pile applicative dans le worker
 
 Déclenchement (voice_input.py) :
 ├─ _openmp_runtimes() : inventaire via _dyld_image_count (macOS seulement)
@@ -1162,54 +1218,19 @@ Déclenchement (voice_input.py) :
 └─ Repli si le worker échoue : en interne avec cpu_threads=1 (~1.8x plus lent)
 ```
 
-**`interfaces/gui/_wheel.py`** - Normalisation molette souris
-```python
-Rôle: Ramener les événements de molette à une unité commune, le « cran »
-├─ Windows : event.delta en multiples de 120 (un cran = 120)
-├─ macOS   : event.delta en petits entiers (un cran = ±1), PAS de facteur 120
-├─ Linux   : aucun delta, mais les boutons 4 (haut) et 5 (bas)
-└─ wheel_notches(event) -> float, positif vers le haut ; chaque appelant
-   applique ensuite son propre facteur d'amplification
+**Développement**
 ```
-
-> ⚠️ **Pour tout nouveau gestionnaire de molette, passez par `wheel_notches`.**
-> Diviser `event.delta` par 120 (ou 6, ou 2) donne **0 sur macOS** pour un cran
-> standard : la molette reste inerte alors que la scrollbar fonctionne.
->
-> Pour faire défiler la **conversation** depuis un widget (bulle, marge de
-> bulle), liez directement `ChatAreaMixin._scroll_chat_with_wheel` : 20 unités
-> par cran, la vitesse native de `CTkScrollableFrame` sous Windows. Un facteur
-> propre à chaque widget donnait des vitesses différentes selon l'endroit
-> survolé (×1 sur les bulles IA après un recalcul de hauteur, ×1200 sur leurs
-> marges).
->
-> Ce point unique sert aussi au **suivi de la réponse en cours** : un
-> défilement manuel (molette ou barre de défilement) qui quitte le bas de la
-> conversation l'interrompt (`_note_manual_scroll`), y revenir le reprend, et
-> chaque nouveau message le relance (`_scroll_to_bottom_for_new_turn`). Les
-> défilements automatiques d'un tour d'IA passent par
-> `_scroll_to_bottom_if_following`.
-
-**`interfaces/gui/artifacts_panel.py`** - Volet d'aperçu (artifacts + documents)
-```python
-Rôle: Afficher à droite du chat les pages HTML/SVG et les documents produits
-├─ Moteurs, par priorité : visionneuse native Office → Edge embarqué
-│  → tkinterweb → source
-├─ _preview_handler.py : IPreviewHandler COM (Word, PowerPoint, Excel),
-│  thread STA dédié pour ne pas figer Tk
-├─ _edge_embed.py      : Edge --app ré-parenté (SetParent) ; l'instance est
-│  identifiée par son profil (--user-data-dir), le msedge.exe lancé n'étant
-│  qu'un lanceur
-├─ _dpi_host.py        : fenêtre hôte DPI par écran — la racine Tk ne l'est pas,
-│  et Windows forcerait sinon la fenêtre embarquée en DPI virtualisé
-├─ Ouverture automatique en fin de réponse (jamais au rechargement de session)
-└─ Bouton 📂 : ouvre le fichier dans son application
+├─ launch_unified.py --dev : fenêtre sur le serveur Vite (rechargement à chaud,
+│  devserver.py) ; « npm run dev » dans frontend/
+├─ launch_unified.py --headless : serveur et moteur sans fenêtre (tests)
+├─ tools/interface_web/demo_server.py : serveur de démonstration sans Ollama
+└─ frontend/scripts/ : vérifications Playwright (captures, mesures, vraie fenêtre)
 ```
 
 **`interfaces/document_preview.py`** - Rendu HTML des documents
 ```python
 build_document_preview(path) -> str : docx, xlsx, pptx, md, csv, txt, pdf (texte)
-├─ Rendu de repli du volet (sans Office ni Edge) et contenu de la modale mobile
+├─ Rendu de repli du volet (sans visionneuse native) et contenu de la modale mobile
 └─ Réutilise les processeurs de lecture (DOCX, Excel, PPTX, PDF)
 ```
 
@@ -1232,14 +1253,6 @@ Features:
 ├─ Processing async
 ├─ Récupération erreurs
 └─ Système aide détaillé
-```
-
-**`interfaces/modern_styles.py`**
-```python
-├─ Palette couleurs (dark theme)
-├─ Configurations fonts
-├─ Breakpoints responsive
-└─ Adaptations plateforme
 ```
 
 **`vscode_extension/`** - Extension VS Code (client Relay distant + agent codant)
@@ -1279,78 +1292,8 @@ et envoie chaque outil au client via WebSocket (`tool_use` chiffré). Le
 client exécute l'outil dans son `ToolDispatcher` (avec sandbox + approbation)
 puis renvoie le résultat via `tool_result`. Le LLM continue ses itérations
 jusqu'à produire une réponse finale. Le mobile n'envoie pas de
-`client_hello` → il reste sur le pipeline historique (bridge → GUI desktop
-avec MCP locaux complets).
-```
-
-**`interfaces/agents_interface.py`** - Façade Interface Agents IA
-```python
-Architecture: façade (~40 lignes) assemblant des mixins via héritage multiple.
-Importe from interfaces.agents.* et ré-exporte AgentsInterface pour compat.
-
-class AgentsInterface(
-    BaseMixin,              # __init__, header, construction racine
-    AgentSelectionMixin,    # grille cartes agents + icônes
-    DragDropMixin,          # drag & drop sur canvas / task entry
-    WorkflowMixin,          # add/clear/save/load/export workflow
-    FileHandlingMixin,      # PDF/DOCX/Excel/Code/Images attachés
-    TaskInputMixin,         # zone saisie + boutons Exécuter/Créer/Débat
-    OutputAreaMixin,        # zone scrollable des résultats
-    StatsSectionMixin,      # statistiques + moniteur ressources
-    ExecutionMixin,         # threads d'exécution (pipeline/DAG/canvas)
-    OutputRenderingMixin,   # sections dépliantes + markdown + syntax
-    CustomAgentsMixin,      # CRUD agents personnalisés + dialogues
-    DebateMixin,            # mode débat entre deux agents
-): ...
-```
-
-**`interfaces/agents/`** - Package des mixins (découpage de l'ancien 4000+ lignes)
-```python
-├─ _common.py            # imports partagés (tk/ctk + fallback)
-├─ syntax_helper.py      # SyntaxColorHelper + singletons SYNTAX_ANALYZER/AVAILABLE
-├─ base.py               # BaseMixin : init, header, paths, orchestrator
-├─ agent_selection.py    # AgentSelectionMixin : 9 agents intégrés + icônes
-├─ drag_drop.py          # DragDropMixin : motion, drop zones
-├─ workflow.py           # WorkflowMixin : pipeline + canvas (save/load/export)
-├─ file_handling.py      # FileHandlingMixin : lecture documents + vision image
-├─ task_input.py         # TaskInputMixin : textbox + boutons + canvas
-├─ output_area.py        # OutputAreaMixin : scrollable frame + isolation scroll
-├─ stats_section.py      # StatsSectionMixin : stats + barres + sparklines
-├─ execution.py          # ExecutionMixin : threads d'exécution tâches
-├─ output_rendering.py   # OutputRenderingMixin : sections + markdown + tables
-├─ custom_agents.py      # CustomAgentsMixin : agents perso (JSON persistance)
-└─ debate.py             # DebateMixin : popup + thread débat 2 agents
-
-Features préservées:
-├─ Grille 3x3+ de cartes agents (drag & drop)
-├─ Pipeline classique (liste séquentielle)
-├─ Canvas visuel n8n (WorkflowCanvas) avec DAG/parallèle/séquentiel
-├─ Monitoring ressources (ResourceMonitor) CPU/RAM/GPU/VRAM + sparklines
-├─ Création/édition/suppression agents personnalisés
-├─ Streaming résultats token par token
-├─ Mode Débat entre deux agents (tours configurables)
-└─ Bouton Stop avec interruption immédiate
-```
-
-**`interfaces/workflow_canvas.py`** - Canvas visuel style n8n
-```python
-Architecture: tkinter Canvas pur (pas de dépendance externe)
-
-Features:
-├─ Nœuds: rectangle arrondi, bandeau couleur, ports E/S, status dot
-├─ Connexions: Bézier cubique, flèches, clic droit suppression
-├─ Zoom/Pan: molette (0.3x-3x), clic milieu/droit, zoom vers curseur
-├─ Grille: points de repère, snap automatique, toggle
-├─ Minimap: vue orthographique, viewport rectangle
-├─ Toolbar: zoom ⊕/⊖, reset ⊙, grid ⊞
-├─ Sélection: clic, shift+clic, rectangle de sélection
-├─ Exécution: get_execution_plan() → tri topologique DAG
-│   ├─ Mode empty: rien à exécuter
-│   ├─ Mode single: un seul nœud
-│   ├─ Mode sequential: chaîne linéaire
-│   ├─ Mode parallel: nœuds indépendants simultanés
-│   └─ Mode dag: étapes avec parallélisation intra-étape
-└─ API: add_node(), remove_node(), add_connection(), set_node_status(), clear()
+`client_hello` → il reste sur le pipeline historique (bridge → service de chat
+de l'appli, avec MCP locaux complets).
 ```
 
 **`interfaces/resource_monitor.py`** - Monitoring ressources système
@@ -1358,7 +1301,7 @@ Features:
 Architecture: thread daemon avec collecte périodique (3s)
 
 Sources:
-├─ psutil: CPU% et RAM des processus Ollama
+├─ psutil: CPU% et RAM d'Ollama et des processus qu'il lance (llama-server)
 ├─ pynvml (optionnel): GPU% et VRAM NVIDIA
 ├─ GPUtil (optionnel): fallback GPU
 └─ Chronomètre interne: inference_ms et tokens_per_sec
@@ -1632,16 +1575,18 @@ memory/
 ### `launch_unified.py` - Launcher recommandé
 ```python
 # Entry: main()
-# Lance directement ModernAIGUI
-# Initialisation minimale
-# Fallback vers main.py si erreurs
+# Ouvre la fenêtre (pywebview) tout de suite, sur l'écran de chargement
+# Étapes (interfaces/desktop/lifecycle.py) : modèle des longs documents,
+#   redémarrage d'Ollama, assistant, my_ai, placement, puis moteur et services
+# --dev : interface servie par Vite ; --headless : serveur et moteur sans fenêtre
+# Sans pywebview : interface ouverte dans le navigateur
 ```
 
 ### `main.py` - Launcher complet CLI
 ```python
 # Modes supportés:
 python main.py                        # CLI interactif
-python main.py --mode gui             # GUI mode
+python main.py --mode gui             # Fenêtre seule (Ollama tel qu'il tourne)
 python main.py chat "query"           # Requête directe
 python main.py status                 # État système
 python main.py file analyze path      # Analyse fichier
@@ -1658,7 +1603,7 @@ python main.py generate code "desc"   # Génération code
 ### `launch.sh` - Script macOS / Linux
 ```bash
 # Équivalent POSIX de launch.bat (même menu)
-# Vérifie tkinter, souvent absent des installations Python macOS/Linux
+# Sous Linux, signale l'absence de GTK ou de Qt (fenêtre) : repli sur le navigateur
 # Bloque Python 3.13+ sur Mac Intel (torch x86_64 plafonne à 2.2.2)
 ```
 
@@ -1763,7 +1708,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 8.1.0
+**Version**: 9.0.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens avec recherche sémantique
-**Interfaces**: GUI (CustomTkinter), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
+**Interfaces**: fenêtre desktop (React + TypeScript, pywebview), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

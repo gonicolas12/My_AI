@@ -2,33 +2,43 @@
 
 ## Accès à l'onglet Agents
 
-1. Lancez l'interface graphique : `python launch_unified.py` ou `python main.py`
-2. Cliquez sur l'onglet **🤖 Agents** en haut de l'interface
+1. Lancez l'appli : `launch.bat` / `launch.sh` (option 1), `python launch_unified.py` ou
+   `python main.py --mode gui`
+2. Cliquez sur l'onglet **Agents** en haut de la fenêtre
 
 ## 📋 Interface Agents
 
 ### Vue d'ensemble
 
-L'interface agents est divisée en plusieurs sections :
+La page Agents se lit de haut en bas :
 
-#### 1️⃣ **Sélection d'Agents (Grille 3x3+)**
-9 cartes représentant chaque agent spécialisé (+ agents personnalisés) :
-- **💻 CodeAgent** - Génération et debug de code
-- **🔍 WebAgent** - Recherche Internet & Fact-Checking
-- **📊 AnalystAgent** - Analyse de données
-- **✨ CreativeAgent** - Contenu créatif
-- **🐛 DebugAgent** - Debug et correction
-- **📋 PlannerAgent** - Planification
-- **🛡️ SecurityAgent** - Cybersécurité et audit
-- **⚡ OptimizerAgent** - Optimisation et performance
-- **🧬 DataScienceAgent** - Data science et ML
+1. la **grille des agents** ;
+2. la **zone de tâche** et ses boutons ;
+3. le **canvas du workflow** ;
+4. les **exécutions** : la liste des fils à gauche, le fil ouvert à droite ;
+5. les **statistiques et ressources** ;
+6. les **tâches planifiées**.
+
+#### 1️⃣ **Grille des agents**
+9 cartes représentant chaque agent spécialisé (+ agents personnalisés), chacune avec
+son icône teintée de la couleur de l'agent :
+- **CodeAgent** - Génération et debug de code
+- **WebAgent** - Recherche Internet & Fact-Checking
+- **AnalystAgent** - Analyse de données
+- **CreativeAgent** - Contenu créatif
+- **DebugAgent** - Debug et correction
+- **PlannerAgent** - Planification
+- **SecurityAgent** - Cybersécurité et audit
+- **OptimizerAgent** - Optimisation et performance
+- **DataScienceAgent** - Data science et ML
 
 **Comment utiliser :**
-- **Drag & Drop** : Glissez un agent depuis sa carte et déposez-le sur le **canvas visuel** ou dans la **zone de workflow pipeline**
-- Vous pouvez ajouter **plusieurs agents** pour créer un workflow personnalisé
-- Chaque carte affiche une description détaillée de l'expertise de l'agent
+- **Glisser-déposer** : glissez une carte sur le **canvas** ; le nœud apparaît à l'endroit du dépôt
+- **Clic** (ou Entrée sur une carte) : ajoute l'agent au canvas, en cascade à côté du précédent
+- Ajoutez **plusieurs agents**, ou le même plusieurs fois, pour composer un workflow
+- Le survol d'une carte montre la description complète de l'expertise de l'agent
 
-#### 2️⃣ **Zone de Tâche et Workflow**
+#### 2️⃣ **Zone de tâche**
 
 **Zone de texte** — Décrivez votre tâche :
 ```
@@ -37,83 +47,96 @@ L'interface agents est divisée en plusieurs sections :
 "Audite ce code pour les vulnérabilités de sécurité"
 ```
 
-**Canvas visuel (style n8n)** —
-- Glissez-déposez des agents directement sur le canvas pour créer des **nœuds visuels**
-- Connectez les nœuds entre eux par des **courbes de Bézier** (drag du port de sortie → port d'entrée)
-- Organisez librement vos workflows avec **zoom, pan, grille et minimap**
-- Les connexions définissent les **dépendances d'exécution** et le **passage de contexte** automatique
-- Le canvas prend priorité sur le pipeline classique quand il contient des nœuds
-
-> 🔔 **Notification desktop** : à la fin d'une tâche d'agent **longue**, une notification **système native** (100% locale, backend natif selon l'OS) vous prévient même si vous avez basculé sur une autre fenêtre.
+- **Ctrl+Entrée** exécute la tâche
+- **« + »** (Joindre) : PDF, DOCX, Excel / CSV, PowerPoint, Code, Image ; **Ctrl+V** colle une
+  capture ; on peut aussi **déposer** des fichiers ou un dossier sur la zone (voir
+  [Pièces jointes](#-pièces-jointes-aux-agents))
+- **Micro** : dictée locale (faster-whisper), insérée dans la tâche
 
 **Boutons :**
-- **► Exécuter** (orange) : Lance la tâche. Se transforme en **■ Stop** (blanc) pendant la génération
-- **➕ Créer Agent** (bleu) : Ouvre l'interface de création d'agents personnalisés
-- **🎭 Mode Débat** (violet) : Ouvre la boîte de dialogue de configuration d'un débat entre deux agents (voir [section dédiée](#-mode-débat))
-- **❌ Clear Workflow** (rouge) : Vide le workflow et la sélection en cours
-- **💾 Sauvegarder** : Exporte le workflow actuel dans un fichier `.json` (boîte de dialogue)
-- **📂 Charger** : Importe un workflow depuis un fichier `.json` (restaure nœuds et connexions)
-- **📤 Export** : Exporte les résultats d'exécution en fichier `.md` ou `.txt`
+- **▶ Exécuter** (le seul bouton orange) : lance la tâche ; devient **■ Arrêter** pendant
+  l'exécution (ou **Échap**)
+- **Créer un agent** : ouvre le dialogue de création d'agents personnalisés
+- **Débat** : ouvre le dialogue d'un débat entre deux agents (voir [section dédiée](#-mode-débat))
+- **Vider** : vide le workflow et le canvas
+
+> 🔔 **Notification desktop** : à la fin d'une exécution de plus de 8 s, si la fenêtre n'a
+> pas le focus, une notification **système native** (100% locale) vous prévient — débats
+> compris.
 
 #### 3️⃣ **Canvas de Workflow Visuel (style n8n)**
 
-Le canvas est un espace interactif de type éditeur de flux :
+Le canvas (React Flow) est un espace interactif de type éditeur de flux :
 
 | Fonctionnalité | Description |
 |---|---|
-| **Nœuds** | Rectangle arrondi avec bandeau couleur, nom de l'agent, indicateur de statut (idle/running/done/error), ports d'entrée/sortie |
-| **Connexions** | Courbes de Bézier horizontales avec flèches, couleur héritée du nœud source |
-| **Zoom** | Molette (0.3x à 3x), boutons ⊕/⊖ dans la toolbar |
-| **Pan** | Clic milieu ou clic droit + drag pour naviguer |
-| **Grille** | Points de repère visuels, snap automatique des nœuds, toggle via bouton ⊞ |
+| **Nœuds** | Carte de l'agent (icône, nom, liseré de sa couleur), point de statut, ports d'entrée et de sortie |
+| **Liens** | Courbes de Bézier avec flèche, de la couleur du nœud source ; pointillés animés vers un agent en cours |
+| **Zoom** | Molette (0.3x à 3x), boutons **Zoom avant** / **Zoom arrière** / **Réinitialiser la vue** |
+| **Déplacement** | Clic milieu ou clic droit + glisser |
+| **Grille** | Points de repère et aimantation des nœuds (25 px), **Afficher / Masquer la grille** |
 | **Minimap** | Vue miniature du graphe entier en bas à droite |
-| **Sélection** | Clic, Shift+clic multi-sélection, rectangle de sélection par drag dans le vide |
-| **Suppression** | Touche Suppr ou ✕ sur le nœud ; clic droit sur une connexion |
-| **Exécution DAG** | Tri topologique automatique — nœuds indépendants exécutés en parallèle |
-| **Sauvegarde JSON** | Bouton 💾 — enregistre l'intégralité du workflow (nœuds + connexions) dans un `.json` |
-| **Chargement JSON** | Bouton 📂 — restaure un workflow sauvegardé depuis un fichier `.json` |
-| **Export résultats** | Bouton 📤 — exporte les résultats d'exécution en Markdown ou texte |
+| **Sélection** | Clic, Maj+clic multi-sélection, rectangle de sélection par glisser dans le vide |
+| **Suppression** | Touche Suppr (ou Retour arrière) sur la sélection ; clic droit sur un lien |
+| **Liens refusés** | Lien d'un nœud vers lui-même, doublon, et tout cycle (A→B→C→A compris) |
+| **Exécution DAG** | Tri topologique automatique — nœuds indépendants lancés ensemble |
+| **Enregistrer** | Enregistre la structure du workflow (nœuds + liens) dans un `.json` |
+| **Charger** | Restaure un workflow enregistré (ou un workflow de l'interface mobile) |
+| **Exporter** | Écrit un fichier Markdown : la tâche, la liste des agents (nom, type, statut), puis la réponse de chacun à la dernière exécution |
+
+Les fichiers `.json` gardent le format de l'ancien canvas
+(`{"nodes": {...}, "connections": [...], "zoom": …, "pan_x": …, "pan_y": …}`) : les workflows
+enregistrés avant la fenêtre web se rechargent tels quels. Enregistrer, Charger et Exporter
+ouvrent les dialogues de fichiers du système.
 
 **Statuts des nœuds pendant l'exécution :**
-- ⚪ **Idle** (gris) — En attente
-- 🟡 **Running** (jaune) — En cours d'exécution
-- 🟢 **Done** (vert) — Terminé avec succès
-- 🔴 **Error** (rouge) — Erreur
+- ⚪ **En attente** (gris) — pas encore exécuté
+- 🟡 **En cours** (jaune) — en train de traiter la tâche
+- 🟢 **Terminé** (vert) — terminé avec succès
+- 🔴 **Erreur** (rouge) — erreur
 
-#### 4️⃣ **Zone de Résultats**
-Grande zone avec scrollbar affichant :
-- Les résultats de chaque agent en temps réel (streaming token par token)
-- Le code généré
-- Les analyses et explications
-- Les transitions entre étapes du workflow
+Le canvas survit au passage par l'onglet Chat, pas au redémarrage de l'appli : enregistrez
+vos workflows.
 
-**Fonctionnalités :**
-- Lecture seule (copier-coller possible)
-- Scroll automatique vers le bas
-- Historique de toutes les exécutions
+#### 4️⃣ **Exécutions (fils)**
 
-#### 5️⃣ **Statistiques et Monitoring**
-En bas de l'écran :
-- **Tâches Exécutées** : Nombre total de tâches
-- **Agents Actifs** : Nombre d'agents utilisés
-- **Taux de Succès** : Pourcentage de réussite
+Chaque exécution — agent seul, workflow ou débat — devient un **fil** : la liste à gauche,
+le fil ouvert à droite, comme dans l'app Codex.
 
-**⚡ Consommation de ressources (Ollama)** — 6 lignes de monitoring en temps réel :
+- **Statut en direct** dans la liste : en attente, en cours, terminé, terminé en partie
+  (des agents ont échoué), erreur, interrompu
+- **Une section par agent**, remplie au fil de l'écriture (Markdown, code coloré, tableaux,
+  formules), avec sa durée et sa vitesse (tokens/s) ; **Copier la sortie**
+- **En parallèle**, Ollama ne sert qu'un agent à la fois : celui qui attend affiche
+  « Attend son tour » et écrira ensuite
+- **Diff** : quand un agent modifie un code fourni (fichier joint ou bloc de la tâche), sa
+  sortie s'ouvre en **Diff** (lignes ajoutées et retirées), **Sortie** montrant la réponse entière
+- **Rouvrables** : les 50 derniers fils sont gardés d'un lancement à l'autre
+  (`data/agent_runs.json`) ; **Effacer l'historique** les supprime
+- Les exécutions lancées **du téléphone** (« Lancé du téléphone ») et les **tâches planifiées**
+  (« Tâche planifiée », avec leur **Rapport**) deviennent aussi des fils
+
+#### 5️⃣ **Statistiques et ressources**
+
+- **Tâches exécutées**, **Agents actifs**, **Taux de succès** : calculés sur les fils gardés,
+  mis à jour à la fin de chaque fil, remis à zéro par « Effacer l'historique »
+
+**Consommation de ressources (Ollama)** — 6 lignes de monitoring en temps réel :
 
 | Métrique | Description | Barre |
 |---|---|---|
-| **🔲 CPU** | Utilisation CPU par les processus Ollama | Vert → Jaune → Rouge |
-| **💾 RAM** | Mémoire utilisée par Ollama (en Mo) | Vert → Jaune → Rouge |
-| **🎮 GPU** | Utilisation GPU (NVIDIA, AMD ou WMI) | Vert → Jaune → Rouge |
-| **📦 VRAM** | Mémoire GPU utilisée (en Mo) | Vert → Jaune → Rouge |
-| **⏱ Inférence** | Temps de la dernière inférence (ms) | Barre dynamique |
-| **⚡ Tokens/s** | Vitesse de génération | Barre dynamique |
+| **CPU** | Utilisation CPU par Ollama et son `llama-server` | Vert → Orange → Rouge |
+| **RAM** | Mémoire utilisée par Ollama (en Mo) | Vert → Orange → Rouge |
+| **GPU** | Utilisation GPU (NVIDIA, AMD ou WMI) | Vert → Orange → Rouge |
+| **VRAM** | Mémoire GPU utilisée (en Mo) | Vert → Orange → Rouge |
+| **Inférence** | Durée de génération du dernier agent | Barre dynamique |
+| **Tokens/s** | Vitesse d'écriture du dernier agent (statistiques de fin de flux d'Ollama) | Bleue, sans seuil |
 
 Chaque ligne comporte :
-- Un **label** décrivant la métrique
-- Une **barre de progression colorée** (couleur selon le pourcentage)
-- La **valeur numérique** 
-- Un **sparkline** (mini-graphique des 60 dernières mesures)
+- un **libellé** ;
+- une **barre de progression colorée** (vert sous 50 %, orange sous 80 %, rouge au-delà) ;
+- la **valeur numérique** ;
+- un **mini-graphique** des 60 dernières mesures (une toutes les 3 s, fenêtre ouverte).
 
 > **Note :** Le monitoring GPU est **multi-vendor** et détecte automatiquement votre carte graphique :
 >
@@ -125,109 +148,109 @@ Chaque ligne comporte :
 > | **Tout GPU (Windows)** | `wmi` | `pip install wmi` (infos basiques) |
 >
 > **Ordre de détection :** NVIDIA pynvml → NVIDIA GPUtil → AMD pyamdgpuinfo → AMD rocm-smi → Windows WMI.
-> Sans aucun de ces packages, GPU et VRAM affichent "N/A".
+> Sans aucun de ces packages, GPU et VRAM ne sont pas mesurés.
 
 #### 6️⃣ **Tâches Planifiées (Scheduler proactif)**
 
-En bas de la page, la section **📅 Tâches planifiées** permet de transformer l'assistant
-réactif en assistant **proactif** : exécuter un agent, un workflow ou un débat **automatiquement
-et de façon récurrente** (type cron).
+En bas de la page, la vue **Tâches planifiées** transforme l'assistant réactif en assistant
+**proactif** : exécuter un agent, un workflow ou un débat **automatiquement et de façon
+récurrente** (type cron).
 
-- **➕ Nouvelle tâche** : nom · **source** (*agent seul* / *workflow du canvas courant* / *débat*) ·
-  prompt · **planning** (quotidien `HH:MM` / hebdomadaire / intervalle / **cron**) · option
-  *rattraper si manquée*.
-- Chaque tâche affiche son **planning**, sa **prochaine** et sa **dernière exécution** + statut
-  coloré. Boutons : **activer/désactiver**, **▶ exécuter maintenant**, **📝 éditer**, **✕ supprimer**.
-- **🖥️ Exécuter même l'appli fermée** (Windows) : enregistre une tâche du Planificateur de tâches
+- **Nouvelle tâche** : nom · **source** (*Agent seul* / *Workflow du canvas* courant, figé dans
+  la tâche / *Débat*) · tâche ou sujet · **planning** (*Quotidien* `HH:MM` / *Hebdomadaire* /
+  *Intervalle* / *Cron*) · option *Rattraper au prochain démarrage si manquée*.
+- Chaque tâche affiche son **planning**, sa **prochaine exécution** et son **dernier résultat**
+  (réussie, partielle, interrompue, différée, en erreur), avec son fil et son rapport. Boutons :
+  **activer/désactiver**, **▶ Exécuter maintenant**, **Modifier**, **Supprimer**.
+- **Exécuter même l'appli fermée** (Windows) : enregistre une tâche du Planificateur de tâches
   Windows qui lance les tâches dues même quand l'application est fermée (session ouverte).
-- À la fin d'une exécution : **notification** (toast OS / in-app), entrée dans la liste, et rapport
-  `.md` dans `outputs/scheduled/`.
+- À la fin d'une exécution : **notification** du système (sinon un toast dans la fenêtre), fil à
+  son nom dans les exécutions, et rapport `.md` dans `outputs/scheduled/`.
 
 > Détails complets (plannings, rattrapage, exécution en arrière-plan, notifications) :
 > [docs/SCHEDULER.md](SCHEDULER.md).
 
-## ⏹️ Bouton Stop
+## ⏹️ Bouton Arrêter
 
-Pendant la génération, le bouton **▶ Exécuter** se transforme en bouton **■ Stop** :
-- Apparence : Carré noir (■) sur fond blanc
-- Cliquez dessus pour **interrompre immédiatement** la génération
+Pendant une exécution lancée de la page, le bouton **▶ Exécuter** devient **■ Arrêter** :
+- Cliquez dessus, ou appuyez sur **Échap**, pour **interrompre** l'exécution
 - Dans un workflow multi-agents, **toutes les étapes restantes sont annulées**
-- Le bouton revient automatiquement à son apparence normale après l'arrêt
-- Le message "⛔ Génération interrompue" s'affiche dans les résultats
+- Le fil se termine sur « ⛔ Génération interrompue »
+
+Pendant une exécution lancée du **téléphone** ou par une **tâche planifiée**, **Exécuter**
+attend (son infobulle dit pourquoi) et Échap ne l'arrête pas : le bouton **Arrêter** de son
+fil, oui.
 
 ## 🎯 Scénarios d'Usage
 
 ### Scénario 1 : Agent unique
-1. **Glisser** CodeAgent 💻 vers la zone de workflow
+1. **Cliquer** sur CodeAgent (il rejoint le canvas)
 2. Écrire : "Crée une calculatrice simple en Python"
 3. Cliquer **▶ Exécuter**
-4. Résultat : Code complet avec commentaires
+4. Résultat : un fil avec le code complet et ses commentaires
 
-### Scénario 2 : Workflow pipeline classique (Développement)
-1. **Glisser** PlannerAgent 📋, puis CodeAgent 💻, puis DebugAgent 🐛 dans la **zone de drop pipeline**
-2. Le pipeline affiche : `PlannerAgent → CodeAgent → DebugAgent`
+### Scénario 2 : Workflow séquentiel (Développement)
+1. **Ajouter** PlannerAgent, CodeAgent et DebugAgent au canvas
+2. **Relier** PlannerAgent → CodeAgent → DebugAgent (port de sortie → port d'entrée)
 3. Écrire : "Une API REST pour gérer une bibliothèque de livres"
 4. Cliquer **▶ Exécuter**
 5. Voir les 3 agents travailler en séquence, chacun enrichissant le résultat du précédent
 
-### Scénario 3 : Workflow canvas visuel (DAG)
-1. **Glisser** PlannerAgent 📋 sur le **canvas visuel**
-2. **Glisser** CodeAgent 💻 et SecurityAgent 🛡️ sur le canvas
-3. **Connecter** PlannerAgent → CodeAgent (drag port sortie → port entrée)
-4. **Connecter** PlannerAgent → SecurityAgent (même geste)
-5. CodeAgent et SecurityAgent sont au même niveau → exécution **parallèle**
-6. Écrire : "Développer une API REST sécurisée"
-7. Cliquer **▶ Exécuter**
-8. Voir PlannerAgent s'exécuter d'abord (nœud jaune → vert), puis CodeAgent et SecurityAgent simultanément
+### Scénario 3 : Workflow en DAG
+1. **Glisser** PlannerAgent, CodeAgent et SecurityAgent sur le canvas
+2. **Relier** PlannerAgent → CodeAgent et PlannerAgent → SecurityAgent
+3. CodeAgent et SecurityAgent sont au même niveau → étape **parallèle**
+4. Écrire : "Développer une API REST sécurisée"
+5. Cliquer **▶ Exécuter**
+6. PlannerAgent s'exécute d'abord (nœud jaune → vert), puis CodeAgent et SecurityAgent ; Ollama
+   n'en servant qu'un à la fois, le second « attend son tour »
 
 ### Scénario 4 : Audit de sécurité
-1. **Glisser** SecurityAgent 🛡️, puis CodeAgent 💻
-2. Pipeline : `SecurityAgent → CodeAgent`
-3. Coller votre code et écrire : "Audite et corrige les failles"
-4. SecurityAgent identifie les vulnérabilités, CodeAgent les corrige
+1. Relier SecurityAgent → CodeAgent
+2. Joindre votre code (ou le coller) et écrire : "Audite et corrige les failles"
+3. SecurityAgent identifie les vulnérabilités, CodeAgent les corrige : sa sortie s'ouvre en **Diff**
 
-### Scénario 4 : Data Science
-1. **Glisser** DataScienceAgent 🧬, puis AnalystAgent 📊
-2. Pipeline : `DataScienceAgent → AnalystAgent`
-3. Écrire : "Analyse ce dataset et propose un modèle prédictif"
+### Scénario 5 : Data Science
+1. Relier DataScienceAgent → AnalystAgent
+2. Écrire : "Analyse ce dataset et propose un modèle prédictif"
 
-### Scénario 5 : Optimisation de code
-1. **Glisser** OptimizerAgent ⚡
-2. Coller votre code et écrire : "Optimise les performances"
-3. Résultat : Code refactorisé avec explications
+### Scénario 6 : Optimisation de code
+1. Ajouter OptimizerAgent
+2. Joindre votre code et écrire : "Optimise les performances"
+3. Résultat : le code revu, en Diff, et les explications dans **Sortie**
 
-### Scénario 6 : Interruption d'un workflow
+### Scénario 7 : Interruption d'un workflow
 1. Lancer un workflow multi-agents
-2. Pendant l'exécution, cliquer sur **■ Stop**
-3. La génération s'arrête immédiatement
-4. Le bouton revient à **▶ Exécuter**
+2. Pendant l'exécution, cliquer sur **■ Arrêter** (ou Échap)
+3. L'exécution s'arrête ; le fil le signale
+4. Le bouton redevient **▶ Exécuter**
 
-### Scénario 7 : Mode Débat entre deux agents
-1. Cliquer sur **🎭 Mode Débat** (violet)
-2. Choisir l'**Agent A — Proposant** (ex : SecurityAgent 🛡️)
-3. Choisir l'**Agent B — Opposant** (ex : OptimizerAgent ⚡)
+### Scénario 8 : Mode Débat entre deux agents
+1. Cliquer sur **Débat**
+2. Choisir l'**Agent A — Proposant** (ex : SecurityAgent)
+3. Choisir l'**Agent B — Opposant** (ex : OptimizerAgent)
 4. Saisir le **sujet** : *"Faut-il sacrifier la performance pour renforcer la sécurité ?"*
 5. Régler le **nombre de tours** (1 à 10)
-6. Cliquer **▶ Démarrer le débat**
-7. Chaque tour s'affiche dans une section dédiée de la zone de résultats (Tour N — NomAgent (rôle))
-8. Le bouton **■ Stop** permet d'interrompre le débat entre deux tours
+6. Cliquer **Démarrer le débat**
+7. Le débat devient un fil « Débat · SecurityAgent vs OptimizerAgent », un tour par section
+8. **■ Arrêter** (ou le bouton de son fil) interrompt le débat
 
 ## 🎭 Mode Débat
 
 ### Ouverture
 
-Le bouton **🎭 Mode Débat** (violet, sous "➕ Créer Agent") ouvre une boîte de dialogue centrée pour configurer un face-à-face entre deux agents.
+Le bouton **Débat** de la zone de tâche ouvre le dialogue « Mode Débat entre deux agents ».
 
 ### Champs de configuration
 
 | Champ | Détail |
 |---|---|
-| **Agent A — Proposant** | Liste déroulante de tous les agents disponibles (par défaut + personnalisés). Joue le rôle de défenseur de la position |
-| **Agent B — Opposant** | Liste déroulante de tous les agents disponibles. Doit être différent de l'Agent A — contre-argumente à chaque tour |
-| **Sujet du débat** | Zone de texte multiligne (~80 px). Injecté dans les prompts des deux agents |
-| **Nombre de tours** | Spinbox de 1 à 10. Un tour = une prise de parole par chaque agent (donc 2 réponses) |
-| **▶ Démarrer le débat** | Bouton violet — lance l'exécution dans un thread dédié, avec streaming |
-| **Annuler** | Ferme la boîte sans rien lancer |
+| **Agent A — Proposant** | Liste de tous les agents disponibles (par défaut + personnalisés). Défend la position |
+| **Agent B — Opposant** | Liste de tous les agents disponibles. Doit être différent de l'Agent A — contre-argumente à chaque tour |
+| **Sujet du débat** | Texte injecté dans les prompts des deux agents |
+| **Nombre de tours** | De 1 à 10 (3 par défaut). Un tour = une prise de parole de chaque agent (donc 2 réponses) |
+| **Démarrer le débat** | Lance le débat dans un fil, avec streaming |
+| **Annuler** | Ferme le dialogue sans rien lancer |
 
 ### Déroulement
 
@@ -236,88 +259,75 @@ Le bouton **🎭 Mode Débat** (violet, sous "➕ Créer Agent") ouvre une boît
 3. **Tour 2** — l'Agent A répond aux contre-arguments et renforce sa position
 4. *…et ainsi de suite jusqu'au nombre de tours configuré*
 
-Chaque prise de parole est affichée dans une **section colorée** (couleur héritée de l'agent), avec le titre `Tour N — NomAgent (rôle)`. Le streaming token par token est conservé.
+Chaque prise de parole est une **section** du fil (liseré de la couleur de l'agent), écrite
+en direct.
 
-### Statuts pendant le débat
+### Statuts du débat
 
-- **🎭 Débat: agent_a vs agent_b (N tours)** (violet) — pendant l'exécution
-- **✅ Débat terminé (N tours)** (vert) — succès
-- **⛔ Débat interrompu** (rouge) — Stop pressé entre deux tours
-- **❌ Débat: erreur** (rouge) — si un agent invalide ou une erreur d'inférence
+- **En cours** — pendant l'exécution
+- **✅ Débat terminé (N tours)** — succès
+- **⛔ Débat interrompu** — arrêté
+- **❌ …** (le message d'erreur) — agent invalide ou erreur d'inférence
 
 ### Contraintes
 
-- **2 agents minimum** disponibles dans la grille (sinon notification "❌ Il faut au moins 2 agents disponibles")
-- **Agents différents** : si A == B, notification "❌ Choisis deux agents différents"
-- **Sujet requis** : le champ ne peut pas être vide
-- **Pas de cumul** : impossible de lancer un débat si une autre tâche est déjà en cours (notification "⏳ Une tâche est déjà en cours")
-- **Interruption** : le bouton **■ Stop** stoppe le débat **entre deux prises de parole** (pas en plein milieu d'un token stream)
+- **Agents différents** : si A == B, « ❌ Choisis deux agents différents »
+- **Sujet requis** : « ❌ Sujet requis »
+- **Pas de cumul** : impossible de lancer un débat pendant une autre exécution
+  (« ⏳ Une tâche est déjà en cours »)
 
 ### Historique
 
-Chaque débat est enregistré dans `execution_history` avec :
-```python
-{
-    "mode": "debate",
-    "agents": [agent_a, agent_b],
-    "topic": "...",
-    "rounds": N,
-    "result": {...},  # debate_history complet
-    "timestamp": "..."
-}
-```
+Chaque débat reste dans la liste des fils (les 50 derniers sont gardés) : on le rouvre pour
+relire tous ses tours.
 
 ## 💡 Conseils & Astuces
 
 ### Pour de meilleurs résultats :
 - **Soyez spécifique** : Plus votre description est précise, meilleur sera le résultat
 - **Incluez le contexte** : Mentionnez le langage, le framework, les contraintes
-- **Créez des workflows** : Pour des tâches complexes, combinez plusieurs agents par drag & drop
+- **Créez des workflows** : Pour des tâches complexes, combinez plusieurs agents sur le canvas
 - **Lisez les résultats** : Les agents fournissent souvent des explications utiles
 
-### Drag & Drop :
-- Glissez depuis n'importe quelle partie de la carte agent
-- Un indicateur flottant suit votre curseur pendant le drag
-- Déposez sur le **canvas visuel** (prioritaire) OU dans la zone de **pipeline classique**
-- Sur le canvas, le nœud apparaît à l'endroit du drop
+### Glisser-déposer :
+- Glissez depuis n'importe quelle partie de la carte d'un agent, ou cliquez sur la carte
+- Sur le canvas, le nœud apparaît à l'endroit du dépôt
 - Ajoutez le même agent plusieurs fois si nécessaire
-- Cliquez sur un badge dans le pipeline pour le retirer, ou ✕ sur un nœud du canvas
 
 ### Canvas Visuel :
-- **Connecter** : Drag du port ● de sortie (droite) vers le port ● d'entrée (gauche)
-- **Zoom** : Molette de la souris, ou boutons ⊕ Zoom+ / ⊖ Zoom− dans la toolbar
-- **Naviguer** : Clic milieu ou clic droit + drag pour le pan
-- **Grille** : Bouton ⊞ Grid pour afficher/masquer les points de repère
-- **Minimap** : Vue miniature en bas à droite — montre le rectangle de viewport
-- **Multi-sélection** : Shift+clic ou rectangle de sélection dans le vide
-- **Supprimer** : Touche Suppr sur les nœuds sélectionnés, ou clic droit sur une connexion
+- **Relier** : glisser du port de sortie (droite) vers le port d'entrée (gauche)
+- **Zoom** : molette, ou boutons Zoom avant / Zoom arrière
+- **Naviguer** : clic milieu ou clic droit + glisser
+- **Grille** : bouton Afficher / Masquer la grille
+- **Minimap** : vue miniature en bas à droite
+- **Multi-sélection** : Maj+clic ou rectangle de sélection dans le vide
+- **Supprimer** : touche Suppr sur la sélection, ou clic droit sur un lien
 
 ### Optimisation :
-- Les agents gardent une mémoire des tâches précédentes
-- Vous pouvez enchaîner plusieurs tâches avec le même agent
-- Les stats vous permettent de suivre votre utilisation
-- Utilisez **✕ Clear Workflow** pour recommencer un workflow depuis zéro
+- Vous pouvez enchaîner plusieurs tâches avec le même workflow
+- Les statistiques vous permettent de suivre votre utilisation
+- Utilisez **Vider** pour recommencer un workflow depuis zéro
 
 ### Dépannage :
-- **Aucun résultat** : Vérifiez qu'Ollama est lancé (`ollama serve`)
-- **Erreur d'agent** : Au moins un agent doit être dans le workflow
-- **Timeout** : Tâches très complexes peuvent prendre du temps
-- **Workflow bloqué** : Utilisez le bouton Stop (■) pour interrompre
+- **Aucun résultat** : vérifiez qu'Ollama est lancé (`ollama serve`)
+- **Erreur d'agent** : au moins un agent doit être sur le canvas
+- **Timeout** : les tâches très complexes peuvent prendre du temps
+- **Workflow bloqué** : utilisez **■ Arrêter** (ou Échap)
 
 ## 🎨 Création d'Agents Personnalisés
 
-### Bouton "➕ Créer Agent"
+### Bouton « Créer un agent »
 
-Le bouton bleu **"➕ Créer Agent"** (entre Exécuter et Clear Workflow) permet de créer vos propres agents spécialisés.
+Le bouton **Créer un agent** de la zone de tâche permet de créer vos propres agents spécialisés.
 
-### Interface de Création
+### Dialogue de création
 
-1. **Cliquez sur "➕ Créer Agent"**
-2. Une **fenêtre modale** s'ouvre au centre avec :
-   - **Champ Nom** : Nom court de l'agent (ex: "TranslatorAgent")
-   - **Champ Rôle/Description** : Description détaillée de l'expertise
-   - **Bouton "Créer"** (vert) : Lance la génération
-   - **Bouton "Annuler"** (gris) : Ferme la fenêtre
+1. **Cliquez sur « Créer un agent »**
+2. Le dialogue « Créer un agent personnalisé » s'ouvre avec :
+   - **Nom de l'agent** : nom court (ex: "TranslatorAgent")
+   - **Rôle / Description** : description détaillée de l'expertise
+   - **Créer** : lance la génération
+   - **Annuler** : ferme le dialogue
 
 3. **Remplissez les champs** :
    ```
@@ -325,14 +335,13 @@ Le bouton bleu **"➕ Créer Agent"** (entre Exécuter et Clear Workflow) permet
    Rôle : Expert en traduction multilingue avec adaptation culturelle et nuances linguistiques
    ```
 
-4. **Cliquez sur "Créer"** :
-   - Un **spinner animé** apparaît (⠋⠙⠹⠸...)
-   - **Ollama** génère automatiquement :
-     - Le **system prompt** optimisé
-     - La **température** idéale (0.2-0.8)
-     - Une **description courte** (3-4 mots)
-   - **Notification verte** "✅ Agent créé !" en haut à droite
-   - **Votre agent apparaît** dans la grille après les 9 agents par défaut
+4. **Cliquez sur « Créer »** :
+   - le dialogue attend la réponse du modèle local, qui génère :
+     - le **system prompt** optimisé
+     - la **température** idéale (0.2-0.8)
+     - une **description courte** (3-4 mots)
+   - **votre agent apparaît** dans la grille après les 9 agents par défaut
+   - une erreur (Ollama injoignable…) s'affiche dans le dialogue, qui reste ouvert
 
 ### Génération Automatique
 
@@ -354,49 +363,36 @@ Description : "Expert en cybersécurité spécialisé dans les audits et la dét
 
 Les agents personnalisés apparaissent dans la grille **après les 9 agents par défaut** :
 
-- **Icône** : 🤖 (pour tous les agents personnalisés)
-- **Nom** : Votre nom d'agent
+- **Icône** : un robot, teinté de la couleur de l'agent
+- **Nom** : votre nom d'agent
 - **Description courte** : 3-4 mots générés automatiquement
-- **Couleur** : Couleur vibrante aléatoire (#3b82f6, #10b981, #f59e0b, etc.)
-- **Boutons d'action** (visibles au hover) :
-  - **📝 Éditer** : Modifier le nom et la description
-  - **✖ Supprimer** : Supprimer l'agent (avec confirmation)
+- **Couleur** : couleur vive tirée au hasard
+- **Boutons** sur la carte : **Modifier** et **Supprimer**
 
 ### Édition d'un Agent Personnalisé
 
-1. **Survolez la carte** de votre agent
-2. **Cliquez sur 📝** (icône crayon en bas de la carte)
-3. La **même fenêtre modale** s'ouvre avec les champs pré-remplis
-4. **Modifiez** le nom et/ou la description
-5. **Cliquez sur "Sauvegarder"** :
-   - Si vous changez la **description** : Le system prompt est **régénéré** par Ollama
-   - Si vous changez seulement le **nom** : Modification **instantanée**
+1. Cliquez sur **Modifier** sur la carte de votre agent
+2. Le **même dialogue** s'ouvre avec les champs pré-remplis
+3. **Modifiez** le nom et/ou la description
+4. **Cliquez sur « Sauvegarder »** :
+   - si vous changez la **description** : le system prompt est **régénéré** par le modèle
+   - si vous changez seulement le **nom** : modification **instantanée**
 
 ### Suppression d'un Agent Personnalisé
 
-1. **Cliquez sur ✖** (croix rouge en haut à droite de la carte)
-2. Une **boîte de dialogue** demande confirmation
-3. **Confirmez** : 
-   - **Notification rouge** "❌ Agent supprimé" en haut à droite
-   - L'agent disparaît de la grille
-   - Suppression permanente du fichier `data/custom_agents.json`
+1. Cliquez sur **Supprimer** sur la carte
+2. Un **dialogue** demande confirmation
+3. **Confirmez** : l'agent disparaît de la grille, et ses nœuds du canvas avec lui ;
+   il est retiré de `data/custom_agents.json`
 
 ### Utilisation dans les Workflows
 
-Les agents personnalisés fonctionnent **exactement comme les agents par défaut** :
-
-**Drag & Drop** :
-- Glissez depuis la carte de l'agent personnalisé
-- Déposez dans la zone de workflow
-- Combinez avec d'autres agents (par défaut ou personnalisés)
+Les agents personnalisés fonctionnent **exactement comme les agents par défaut** : glissez ou
+cliquez leur carte, reliez-les à d'autres agents (par défaut ou personnalisés).
 
 **Exemple de workflow** :
 ```
-1. Glisser TranslatorAgent 🤖
-2. Glisser CreativeAgent ✨
-3. Glisser CodeAgent 💻
-
-Pipeline : TranslatorAgent → CreativeAgent → CodeAgent
+TranslatorAgent → CreativeAgent → CodeAgent
 ```
 
 ### Conseils pour la Création
@@ -429,7 +425,8 @@ Tous vos agents personnalisés sont **sauvegardés automatiquement** dans :
 data/custom_agents.json
 ```
 
-Ils sont **rechargés au démarrage** de l'application.
+Ils sont **rechargés au démarrage** de l'application, et partagés avec la page Agents du
+téléphone (Relay).
 
 ### Exemples d'Agents Personnalisés
 
@@ -459,22 +456,22 @@ Description courte : DevOps & CI/CD
 
 ### Limitations
 
-- **Ollama requis** : La génération nécessite Ollama avec qwen3.5:4b
-- **Nom unique** : Chaque agent doit avoir un nom différent
-- **Pas de modification directe du prompt** : Pour garantir la cohérence
-- **Suppression définitive** : Pas de récupération possible après suppression
+- **Ollama requis** : la génération demande le modèle local
+- **Nom unique** : chaque agent doit avoir un nom différent
+- **Pas de modification directe du prompt** : pour garantir la cohérence
+- **Suppression définitive** : pas de récupération possible après suppression
 
 ## 🔄 Comparaison Chat vs Agents
 
-| Aspect | Onglet Chat 💬 | Onglet Agents 🤖 |
-|--------|----------------|------------------|
+| Aspect | Onglet Chat | Onglet Agents |
+|--------|-------------|---------------|
 | **Usage** | Conversation générale | Tâches spécifiques |
-| **Mémoire** | Conversation continue | Par agent |
+| **Mémoire** | Conversation continue | Par exécution (fils rouvrables) |
 | **Spécialisation** | Généraliste | 9+ agents experts |
-| **Workflows** | Non | Canvas visuel n8n + pipeline drag & drop |
-| **Exécution** | Séquentielle | Séquentielle, parallèle, DAG ou débat 2 agents |
+| **Workflows** | Non | Canvas visuel (séquentiel, parallèle, DAG) |
+| **Exécution** | Un message à la fois (file d'attente) | Séquentielle, parallèle, DAG ou débat 2 agents |
 | **Monitoring** | Non | CPU, RAM, GPU, VRAM, inférence, tokens/s |
-| **Stop** | ■ pendant la génération | ■ pendant la génération |
+| **Stop** | ■ ou Échap pendant la génération | ■ Arrêter ou Échap pendant l'exécution |
 | **Idéal pour** | Questions, discussions | Projets, analyses, workflows complexes |
 
 ## 🚀 Exemples Rapides par Agent
@@ -544,15 +541,17 @@ Description courte : DevOps & CI/CD
 
 ## 📎 Pièces Jointes aux Agents
 
-Vous pouvez désormais attacher des fichiers aux tâches envoyées aux agents :
+Vous pouvez attacher des fichiers aux tâches envoyées aux agents.
 
 ### Comment attacher un fichier
 
-1. Cliquez sur le bouton **"+"** dans la zone de saisie des agents
-2. Sélectionnez un ou plusieurs fichiers dans l'explorateur
-3. Les fichiers apparaissent en **preview** au-dessus de la zone de texte
-4. Cliquez sur **"×"** pour retirer un fichier de la sélection
-5. La zone de texte s'adapte automatiquement (réduit sa hauteur pour laisser place aux previews)
+1. Cliquez sur **« + »** dans la zone de tâche, puis choisissez le type (PDF, DOCX, Excel / CSV,
+   PowerPoint, Code, Image) ; ou **déposez** des fichiers sur la zone ; ou **collez** une image
+   (Ctrl+V)
+2. Les fichiers apparaissent en **puces** au-dessus du texte
+3. Cliquez sur **✕** pour retirer un fichier
+4. Un **dossier** déposé joint ses fichiers (sous-dossiers compris, sauf les cachés et
+   `.git`, `node_modules`… ; 20 fichiers lisibles au plus)
 
 ### Formats supportés
 
@@ -564,6 +563,7 @@ Vous pouvez désormais attacher des fichiers aux tâches envoyées aux agents :
 | **XLSX, XLS, CSV** | ExcelProcessor (feuilles en tableau texte, 200 lignes max par feuille) |
 | **TXT, MD, JSON** | Lecture directe (200 000 caractères max) |
 | **Code** (.py, .js, .ts, .java...) | Lecture directe |
+| **Images** | Décrites par le modèle de vision, chacune |
 
 La lecture est commune à la page Agents et aux agents lancés depuis le mobile (`processors/attachments.py`).
 
@@ -578,11 +578,11 @@ Dans un workflow séquentiel (A → B → C) avec des fichiers joints :
 
 ### Notes importantes
 
-- La hauteur du rectangle de saisie et des boutons reste **fixe** — seule la zone de texte réduit sa taille
 - Le contenu des fichiers est **injecté dans le prompt** sous forme de blocs textuels formatés
 - Les fichiers texte et de code sont tronqués à 200 000 caractères
 - Les PDF scannés (pages sans couche texte) sont lus par OCR : environ 4 s par page au premier envoi, puis instantané grâce au cache
 - Un document illisible (fichier corrompu, PDF dont aucun texte n'est reconnu) est signalé à l'agent par « [Erreur de lecture : …] », jamais injecté sous forme d'octets bruts
+- Un code joint est gardé dans le fil : c'est lui que l'onglet **Diff** compare à la sortie
 
 ---
 
@@ -593,25 +593,24 @@ Chaque nœud sur le canvas de workflow affiche un indicateur de statut en temps 
 | Statut | Couleur | Signification |
 |--------|---------|---------------|
 | **En attente** | Gris `#6b7280` | L'agent n'a pas encore été exécuté |
-| **En cours** | Jaune `#f59e0b` | L'agent est en train de traiter la tâche |
+| **En cours** | Jaune `#f59e0b` | L'agent est en train de traiter la tâche (ou attend son tour auprès d'Ollama) |
 | **Terminé** | Vert `#10b981` | L'agent a terminé avec succès |
 | **Erreur** | Rouge `#ef4444` | L'agent a rencontré une erreur |
 
-Ce statut se met à jour correctement dans **tous les cas** :
+Ce statut se met à jour dans **tous les cas** :
 - Agent unique sur le canvas
 - Workflow séquentiel multi-agents
 - Workflow parallèle (DAG)
-- Agents isolés (sans connexion)
+- Agents isolés (sans lien)
 
 ---
 
 ## 🎨 Personnalisation
 
-L'interface suit automatiquement le thème de votre interface principale :
-- **Couleurs** : Adaptées au mode sombre
-- **Polices** : Consistantes avec le reste de l'app
-- **Layout** : Responsive et moderne
+Toutes les couleurs de l'interface viennent des jetons de `frontend/src/styles/tokens.css`
+(couleurs des agents comprises) : changer la couleur d'accent ne demande de modifier que ce
+fichier.
 
 ---
 
-**Prêt à utiliser les agents ?** Lancez l'interface et cliquez sur l'onglet 🤖 Agents ! 🚀
+**Prêt à utiliser les agents ?** Lancez l'appli et cliquez sur l'onglet **Agents** ! 🚀

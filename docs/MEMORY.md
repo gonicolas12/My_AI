@@ -1,14 +1,14 @@
 # 🧠 Mémoire — voir, éditer et supprimer ce que l'IA sait
 
-My_AI mémorise des informations sur vous pour des réponses plus pertinentes. Comme **tout est local**, vous devez pouvoir **inspecter et reprendre le contrôle** de cette mémoire. La fenêtre **🧠 Mémoire** (sidebar) offre des opérations CRUD **réelles** sur les deux stores de mémoire — aucune donnée ne quitte votre machine, aucune suppression simulée.
+My_AI mémorise des informations sur vous pour des réponses plus pertinentes. Comme **tout est local**, vous devez pouvoir **inspecter et reprendre le contrôle** de cette mémoire. Le panneau **Mémoire** (bouton en bas de la barre latérale) offre des opérations CRUD **réelles** sur les deux stores de mémoire — aucune donnée ne quitte votre machine, aucune suppression simulée.
 
 ---
 
 ## 📍 Où la trouver
 
-Ouvrez la barre latérale (bouton **☰**) → bouton **🧠 Mémoire**.
+Cliquez sur **Mémoire** en bas de la barre latérale (ou cherchez « Mémoire » dans la palette Ctrl+K) : le panneau s'ouvre dans la fenêtre.
 
-> La fenêtre Mémoire **remplace** l'ancienne mini-section « Connaissances » de la sidebar : un seul endroit, plus complet (faits **et** mémoire vectorielle).
+> Le panneau Mémoire **remplace** l'ancienne mini-section « Connaissances » de la barre latérale : un seul endroit, plus complet (faits **et** mémoire vectorielle).
 
 ---
 
@@ -48,7 +48,7 @@ Le fait est enregistré aussitôt dans l'onglet **Faits** (source : `conversatio
 |---|---|
 | **Faits** | Automatiquement, dans le prompt système de chaque réponse, y compris avec un fichier ou une image joints : d'abord les faits qui partagent des mots avec votre message (casse, accents et pluriels ignorés), puis les plus récents, jusqu'à 12 faits ou 2 500 caractères. Ils restent dans la réponse rédigée après un appel d'outil. |
 | **Documents** | Quand le modèle appelle l'outil `search_memory`, qui cherche aussi dans les faits. |
-| **Conversations** | Jamais : c'est l'index de la recherche globale de la sidebar. |
+| **Conversations** | Jamais : c'est l'index de la recherche globale de la barre latérale. |
 
 **Fichiers et documents générés** (« génère un fichier… », Word, PDF, PowerPoint, Excel) : leur contenu est rédigé à part, et il reçoit les faits **sur vous** seulement quand la demande parle de vous. C'est le cas avec « mon prénom », « mon entreprise », « mon équipe », « mon chat »…, ou pour un CV, une lettre ou une carte de visite. « Génère un fichier qui affiche mon prénom » écrit donc votre prénom, alors qu'un script de tri ou un rapport sur les baleines restent neutres : avec les faits sous les yeux, le modèle les glissait partout. Les consignes pour l'IA (« termine tes réponses par… ») ne s'appliquent qu'au chat.
 
@@ -88,10 +88,11 @@ L'édition d'une entrée de conversation propage de même la modification au **m
 ## 🏗️ Sous le capot
 
 ```
-interfaces/gui/memory_panel.py     # Fenêtre « Mémoire » (mixin GUI)
-        │  appelle
+frontend/src/features/panels/memory/   # Panneau « Mémoire » de la fenêtre
+interfaces/desktop/memory.py          # Service du panneau (routes : api_memory.py) ;
+        │  appelle                     # message d'origine modifié via le ChatService
         ▼
-core/memory_store.py  ── MemoryStore  # Façade CRUD unifiée (testable sans GUI)
+core/memory_store.py  ── MemoryStore  # Façade CRUD unifiée (testable sans interface)
         │                  exposé par AIEngine.get_memory_store()
         ├─ core/knowledge_base_manager.py   # Faits (SQLite) — CRUD
         └─ memory/vector_memory.py          # Vecteurs (ChromaDB) — CRUD par entrée

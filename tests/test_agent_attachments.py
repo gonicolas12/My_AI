@@ -1,12 +1,13 @@
 """
 Tests de lecture des pièces jointes des agents (processors/attachments.py).
 
-Les deux lecteurs — page Agents du GUI et Relay mobile — appelaient
-`process_file`, une méthode qui n'existe ni sur PDFProcessor ni sur
-DOCXProcessor : l'agent recevait un message d'erreur (GUI) ou les octets
-bruts du fichier (Relay), et un .xlsx joint depuis le GUI était lu comme du
-texte. On lit ici de vrais fichiers construits à la volée, par la fonction
-commune puis par chacun des deux lecteurs.
+Les deux lecteurs — page Agents de l'ancienne interface et Relay mobile —
+appelaient `process_file`, une méthode qui n'existe ni sur PDFProcessor ni
+sur DOCXProcessor : l'agent recevait un message d'erreur ou les octets bruts
+du fichier, et un .xlsx joint était lu comme du texte. On lit ici de vrais
+fichiers construits à la volée, par la fonction commune puis par l'exécuteur
+partagé (AgentRelayService : page Agents de la fenêtre, téléphone, tâches
+planifiées).
 """
 
 import pymupdf
@@ -112,18 +113,3 @@ def test_relay_reports_unreadable_document(tmp_path, monkeypatch):
     text = agent_relay.AgentRelayService._read_attached_file(str(path))
     assert text.startswith("[Erreur de lecture :")
     assert "Type/Catalog" not in text
-
-
-# ── Page Agents du GUI ────────────────────────────────────────────────────
-
-
-def test_gui_reader_reads_each_document_type(documents):
-    """Type du bouton choisi dans la page Agents + fichier sélectionné."""
-    pytest.importorskip("tkinter")
-    from interfaces.agents.file_handling import FileHandlingMixin
-
-    read = FileHandlingMixin._read_attached_file
-    assert EXPECTED["pdf"] in read(str(documents["pdf"]), "PDF")
-    assert EXPECTED["docx"] in read(str(documents["docx"]), "DOCX")
-    assert EXPECTED["xlsx"] in read(str(documents["xlsx"]), "Excel")
-    assert EXPECTED["pptx"] in read(str(documents["pptx"]), "PowerPoint")

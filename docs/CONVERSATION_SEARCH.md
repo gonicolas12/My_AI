@@ -6,10 +6,10 @@ Retrouvez **n'importe quel échange passé** par recherche **sémantique** — s
 
 ## 📍 Où la trouver
 
-Barre latérale (**☰**) → section **🔎 Recherche globale** : un champ de recherche, un bouton **🔄** (réindexer), et la liste des résultats.
+Barre latérale (**Ctrl+B**) → **Recherche globale** : un champ de recherche, un bouton **Réindexer les conversations**, et la liste des résultats.
 
-- Tapez votre requête, **Entrée** (ou **🔍**).
-- Chaque résultat affiche l'**icône du rôle** (🧑 vous / 🤖 assistant), le **nom de la session** et un **extrait**.
+- Tapez votre requête, puis **Entrée**.
+- Chaque résultat affiche le **rôle** (vous / assistant), le **nom de la session** et un **extrait**.
 - **Un clic sur un résultat** ouvre la conversation source **et surligne le passage** trouvé (défilement automatique). Le surlignage **disparaît au clic**, comme une vraie sélection.
 
 ---
@@ -46,7 +46,8 @@ L'index est **rafraîchi automatiquement** avant chaque recherche (incrémental,
 ## 🏗️ Sous le capot
 
 ```
-interfaces/gui/sidebar.py            # Section « 🔎 Recherche globale » (UI, thread)
+frontend/src/features/shell/sidebar/SearchPanel.tsx   # « Recherche globale » de la barre latérale
+interfaces/desktop/api_sidebar.py                      # routes de la recherche et de la réindexation
         │  via AIEngine.get_conversation_search()
         ▼
 core/conversation_search.py  ── ConversationSearch
@@ -88,7 +89,7 @@ cs.search(
 
 - La **première** recherche après un long ajout de conversations peut déclencher une réindexation un peu plus longue (réembeddings) ; les suivantes sont incrémentales.
 - La qualité du reranking dépend du CrossEncoder (`ms-marco-MiniLM-L-6-v2`) ; le **filet lexical** compense pour les correspondances exactes quel que soit la langue.
-- L'index de conversations est aussi visible et **gérable** depuis la fenêtre **🧠 Mémoire** (onglet *Conversations*) — voir [MEMORY.md](MEMORY.md).
+- L'index de conversations est aussi visible et **gérable** depuis le panneau **Mémoire** (onglet *Conversations*) — voir [MEMORY.md](MEMORY.md).
 
 ---
 

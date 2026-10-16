@@ -2,11 +2,11 @@
 Détection et préparation des « artifacts » (HTML / SVG rendables).
 
 Module 100% local, sans dépendance réseau, partagé par :
-- le GUI desktop (volet de preview + bouton « Aperçu »),
+- la fenêtre de l'appli (volet d'aperçu, cf. ``interfaces/desktop/previews.py``),
 - le serveur Relay (génération du fichier servi à l'iframe mobile).
 
 La détection réutilise la même convention de blocs de code Markdown que le
-reste du projet (cf. ``interfaces/gui/syntax_highlighting.py``) : des fences
+reste du projet (cf. ``generators/markdown_document.py``) : des fences
 ``` avec un langage optionnel.
 """
 
@@ -191,7 +191,7 @@ def artifacts_from_documents(paths, start_index: int = 0) -> List[Artifact]:
 
 # ── Préparation du document HTML rendable ──────────────────────────────────
 
-# Thème sombre cohérent avec le GUI (cf. interfaces/modern_styles.py).
+# Thème sombre cohérent avec la fenêtre (jetons de frontend/src/styles/tokens.css).
 _PREVIEW_WRAPPER = """<!DOCTYPE html>
 <html lang="fr">
 <head>

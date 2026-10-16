@@ -103,22 +103,16 @@ CREATE INDEX idx_type_tokens ON context_chunks(chunk_type, tokens);
 ## 🎨 Interface Ultra Moderne
 
 ### Fonctionnalités Avancées
-- **Coloration Syntaxique Python** : Pygments intégré
-- **Formatage Markdown** : Gras, italique, liens cliquables
-- **Blocs de Code** : Support natif ```python```
-- **Animation de Frappe** : Optimisée pour réponses longues
-- **Hauteur Adaptative** : Auto-ajustement selon le contenu
-- **Stats en Temps Réel** : Monitoring du contexte utilisé
+- **Coloration Syntaxique** : Shiki, tous langages, chargés à la demande
+- **Formatage Markdown** : Gras, italique, tableaux, liens cliquables, formules
+- **Blocs de Code** : Support natif ```python```, bouton Copier
+- **Streaming fluide** : jetons affichés dès leur arrivée, même sur de longues réponses
+- **Fil virtualisé** : défilement fluide sur des conversations de centaines de messages
 
 ### Interface Graphique Moderne
-```python
-# Lancement de l'interface Ultra
-from interfaces.gui_modern import ModernAIInterface
-
-# Configuration Ultra automatique
-interface = ModernAIInterface()
-interface.configure_ultra_mode(max_tokens=10485760)
-interface.run()
+```bash
+# Lancement de la fenêtre (la capacité de la mémoire se règle dans config.yaml, ci-dessous)
+python launch_unified.py
 ```
 
 ## 🔧 Configuration et Personnalisation
@@ -129,7 +123,7 @@ Toute la configuration du projet et de la limite des tokens se gère via votre f
 ```yaml
 ai:
   name: "My Personal AI"
-  version: "8.1.0"
+  version: "9.0.0"
   
   # Paramètres généraux
   max_tokens: 10485760

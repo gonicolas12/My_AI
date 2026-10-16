@@ -48,8 +48,9 @@ et lance automatiquement **ComfyUI portable** (Windows/NVIDIA) :
    à 6 Go de VRAM) ;
 4. lancement de ComfyUI en arrière-plan et bascule automatique du backend.
 
-Toute la progression (téléchargement %, extraction, démarrage) s'affiche dans
-l'**animation « Génération en cours »**, et le bouton **STOP** annule l'opération.
+Toute la progression (téléchargement %, extraction, démarrage) s'affiche sous la
+réponse en cours, avec une **barre de progression**, et le bouton **Arrêter la
+réponse** (ou **Échap**) annule l'opération.
 ComfyUI reste lancé en tâche de fond et est réutilisé aux usages suivants.
 
 > **Non-Windows / non-NVIDIA** : l'auto-installation du portable n'est pas

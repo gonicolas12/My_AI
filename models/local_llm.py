@@ -7,7 +7,7 @@ import json
 import re
 import threading as _threading
 import time as _time
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
@@ -58,6 +58,12 @@ class LocalLLM:
     # résumé glissant : l'autre moitié reste au prompt système, aux outils,
     # aux documents et à la réponse
     _SUMMARY_CONTEXT_SHARE = 0.5
+
+    # Fin du dernier flux de réponse lu : eval_count et eval_duration (ns)
+    # renvoyés par Ollama, et le moment du relevé (time.perf_counter). Lecture
+    # seule pour le service de chat (tokens/s des réponses sans outils, comme
+    # ChatOrchestrator.last_stream_stats) : les requêtes n'en dépendent pas.
+    last_stream_stats: Optional[Dict[str, Any]] = None
 
     def __init__(
         self,
@@ -392,6 +398,7 @@ class LocalLLM:
                             if result is False:
                                 break
                     if chunk.get("done"):
+                        self._record_stream_stats(chunk)
                         break
         except Exception as exc:
             print(f"⚠️ [LocalLLM] generate_stream exception: {exc}")
@@ -400,6 +407,14 @@ class LocalLLM:
             self.add_to_history("user", prompt)
             self.add_to_history("assistant", full_response)
         return full_response
+
+    def _record_stream_stats(self, chunk: Dict[str, Any]) -> None:
+        """Garde les statistiques du dernier fragment (done) d'un flux."""
+        self.last_stream_stats = {
+            "eval_count": chunk.get("eval_count"),
+            "eval_duration": chunk.get("eval_duration"),
+            "at": _time.perf_counter(),
+        }
 
     def generate_thinking_stream(
         self,
@@ -818,6 +833,7 @@ class LocalLLM:
                                     if result is False:
                                         break
                             if chunk_data.get("done"):
+                                self._record_stream_stats(chunk_data)
                                 break
                 except Exception as exc:
                     print(f"⚠️ [LocalLLM] synthesis stream error: {exc}")

@@ -26,7 +26,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -43,6 +43,21 @@ from .agent_relay import AgentRelayService
 # et redirige vers le premier vivant. Évite que le téléphone soit bloqué
 # si l'un des providers est filtré par l'opérateur mobile.
 _ROUTER_PAGE_URL = "https://gonicolas12.github.io/My_AI/router.html"
+
+# Vérification des tunnels depuis ce PC (_watch_tunnels) : un tunnel annoncé
+# n'entre dans le QR code qu'une fois joignable. Une adresse annoncée peut ne
+# mener nulle part (localhost.run répond « 502 no tunnel » dès l'annonce), ou
+# pas tout de suite (cloudflared : une dizaine de secondes, le temps que son
+# nom soit connu).
+_TUNNEL_PROBE_TIMEOUT = 5.0  # délai de la page de routage pour chaque tunnel
+_TUNNEL_RETRY = 3.0  # nouvel essai : tunnel pas encore joignable, ou en échec
+_TUNNEL_RECHECK = 30.0  # contrôle d'un tunnel joignable, ou muet depuis 1 min
+_TUNNEL_FAST_WINDOW = 60.0  # durée des essais rapprochés après l'annonce
+# Un tunnel qui n'a jamais répondu reste « à vérifier » pendant ce délai, puis
+# passe muet. Si aucun tunnel n'a répondu à ce PC dans ce délai, le QR code les
+# reprend tous : le PC peut être sur un réseau qui filtre ces domaines, pas le
+# téléphone (4G), et la page de routage les teste de toute façon.
+_TUNNEL_VERIFY_GRACE = 30.0
 
 # Extensions acceptées pour l'upload mobile (doivent correspondre
 # aux processeurs supportés côté GUI dans file_handling.py)
@@ -101,6 +116,7 @@ class RelayServer:
         self,
         ai_engine: Optional[Any] = None,
         config: Optional[Dict[str, Any]] = None,
+        agent_service: Optional[Any] = None,
     ) -> None:
         # Configuration
         if config is None:
@@ -140,8 +156,9 @@ class RelayServer:
         # Service d'agents (page « Agents » mobile). Instancié paresseusement
         # au premier message agent reçu pour ne pas créer un orchestrateur +
         # charger les agents personnalisés si la fonctionnalité n'est pas
-        # utilisée. Voir relay/agent_relay.py.
-        self._agent_service: Optional[Any] = None
+        # utilisée. Voir relay/agent_relay.py. L'appli desktop passe le sien :
+        # une seule exécution d'agents à la fois, desktop, mobile et scheduler.
+        self._agent_service: Optional[Any] = agent_service
 
         # État du serveur
         self._server_thread: Optional[threading.Thread] = None
@@ -156,6 +173,14 @@ class RelayServer:
         self._tunnel_processes: Dict[str, subprocess.Popen] = {}
         self._tunnel_urls: Dict[str, str] = {}
         self._tunnel_urls_lock = threading.Lock()
+        # Vérification des tunnels (_watch_tunnels), sous le même verrou :
+        # état de chaque tunnel annoncé, heure de la première annonce, et si
+        # l'un d'eux a déjà répondu depuis le démarrage des tunnels
+        self._tunnel_health: Dict[str, Dict[str, Any]] = {}
+        self._tunnel_first_seen: Optional[float] = None
+        self._tunnel_ever_ok = False
+        self._tunnel_watch_stop: Optional[threading.Event] = None
+        self._tunnel_probe: Callable[[str], bool] = self._probe_tunnel_url
         # Liste des providers à activer. Personnalisable via config.yaml :
         #   relay.tunnel_providers: ["cloudflared", "serveo", "localhost.run"]
         raw_providers = config.get(
@@ -240,6 +265,20 @@ class RelayServer:
             return dict(self._tunnel_urls)
 
     @property
+    def tunnel_states(self) -> Dict[str, str]:
+        """État de chaque tunnel annoncé, vu de ce PC.
+
+        « checking » : pas encore vérifié ; « ok » : joignable (dans le QR
+        code) ; « dead » : ne répond pas, ou son processus s'est arrêté.
+        """
+        with self._tunnel_urls_lock:
+            return {
+                provider: self._tunnel_health.get(provider, {}).get("state", "checking")
+                for provider, url in self._tunnel_urls.items()
+                if url
+            }
+
+    @property
     def auth_token(self) -> str:
         """Retourne le token d'authentification actuel pour accéder au Relay."""
         return self._auth_token
@@ -303,9 +342,11 @@ class RelayServer:
         les tunnels publiés et redirige vers le premier joignable. Cette
         URL est ce qui est encodé dans le QR code : un seul scan, failover
         automatique côté client.
+
+        N'y entrent que les tunnels joignables depuis ce PC (_router_urls) :
+        None tant qu'aucun n'a répondu.
         """
-        with self._tunnel_urls_lock:
-            urls = [u for u in self._tunnel_urls.values() if u]
+        urls = self._router_urls()
         if not urls:
             return None
         # La clé E2EE est intégrée au QR. Elle voyage par le fragment
@@ -319,6 +360,41 @@ class RelayServer:
         })
         encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
         return f"{_ROUTER_PAGE_URL}#d={encoded}"
+
+    def _router_urls(self) -> List[str]:
+        """Tunnels de la page de routage : ceux qui ont répondu à ce PC.
+
+        Si aucun n'a jamais répondu, passé _TUNNEL_VERIFY_GRACE après la
+        première annonce, tous les tunnels annoncés : le PC ne peut peut-être
+        pas les joindre (réseau filtré) alors que le téléphone le peut.
+        Si l'un a déjà répondu, les muets n'y reviennent pas.
+        """
+        with self._tunnel_urls_lock:
+            urls = {provider: url for provider, url in self._tunnel_urls.items() if url}
+            reachable = [
+                url for provider, url in urls.items()
+                if self._tunnel_health.get(provider, {}).get("state") == "ok"
+            ]
+            if reachable:
+                return reachable
+            first = self._tunnel_first_seen
+            if (urls and not self._tunnel_ever_ok and first is not None
+                    and time.monotonic() - first >= _TUNNEL_VERIFY_GRACE):
+                return list(urls.values())
+            return []
+
+    @property
+    def local_url(self) -> str:
+        """Adresse du Relay sur ce PC, jeton et clé E2EE compris.
+
+        Même forme que l'adresse vers laquelle la page de routage redirige le
+        téléphone (`?token=…#k=…`) : sert à ouvrir l'interface mobile dans un
+        navigateur du PC, ou à un client de test, sans tunnel.
+        """
+        return (
+            f"http://127.0.0.1:{self._port}/?token={self._auth_token}"
+            f"#k={self._b64u_encode(self._e2e_key)}"
+        )
 
     @property
     def port(self) -> int:
@@ -1764,12 +1840,139 @@ class RelayServer:
                 starter()
             except Exception as e:
                 logger.error("Démarrage tunnel %s impossible : %s", name, e)
+        self._start_tunnel_watch()
 
     def _set_tunnel_url(self, provider: str, url: str) -> None:
-        """Enregistre l'URL publique d'un provider et la log."""
+        """Enregistre l'URL publique d'un provider, vérifiée aussitôt (_watch_tunnels)."""
+        now = time.monotonic()
         with self._tunnel_urls_lock:
             self._tunnel_urls[provider] = url
-        logger.info("Tunnel %s actif : %s", provider, url)
+            self._tunnel_health[provider] = {
+                "state": "checking", "since": now, "next": now, "fails": 0, "probing": False,
+            }
+            if self._tunnel_first_seen is None:
+                self._tunnel_first_seen = now
+        logger.info("Tunnel %s annoncé : %s (vérification…)", provider, url)
+
+    # ------------------------------------------------------------------
+    # Vérification des tunnels depuis ce PC
+    #
+    # La page de routage teste chaque tunnel du QR code (GET /api/health,
+    # 5 s au plus) et part vers le premier qui répond. Le PC fait le même
+    # test : un tunnel n'entre dans le QR code qu'une fois joignable, pour
+    # qu'un QR code affiché mène toujours quelque part.
+    # ------------------------------------------------------------------
+
+    def _start_tunnel_watch(self) -> None:
+        """Lance la vérification des tunnels (arrêtée par _stop_tunnel)."""
+        stop = threading.Event()
+        self._tunnel_watch_stop = stop
+        threading.Thread(
+            target=self._watch_tunnels,
+            args=(stop,),
+            name="tunnel-watch",
+            daemon=True,
+        ).start()
+
+    def _watch_tunnels(self, stop: threading.Event) -> None:
+        """Une passe par seconde : chaque tunnel dû est vérifié dans son fil.
+
+        Un fil par vérification : un tunnel muet (5 s d'attente) ne retarde
+        pas les autres.
+        """
+        while not stop.wait(1.0):
+            for provider, url in self._due_tunnel_checks(time.monotonic()):
+                threading.Thread(
+                    target=self._check_tunnel,
+                    args=(provider, url),
+                    name=f"tunnel-check-{provider}",
+                    daemon=True,
+                ).start()
+
+    def _due_tunnel_checks(self, now: float) -> List[Tuple[str, str]]:
+        """Tunnels à vérifier maintenant (fournisseur, adresse), marqués en cours.
+
+        Un tunnel dont le processus s'est arrêté passe « dead » sans test :
+        son adresse ne mène plus nulle part.
+        """
+        due = []
+        ended = []
+        with self._tunnel_urls_lock:
+            for provider, url in self._tunnel_urls.items():
+                health = self._tunnel_health.get(provider)
+                if not url or health is None or health["probing"] or now < health["next"]:
+                    continue
+                proc = self._tunnel_processes.get(provider)
+                if proc is not None and proc.poll() is not None:
+                    if health["state"] != "dead":
+                        ended.append(provider)
+                    health.update(state="dead", next=float("inf"))
+                    continue
+                health["probing"] = True
+                due.append((provider, url))
+        for provider in ended:
+            logger.warning("Tunnel %s arrêté : écarté du QR code", provider)
+        return due
+
+    def _check_tunnel(self, provider: str, url: str) -> None:
+        """Vérifie un tunnel (fil dédié) et note le résultat."""
+        try:
+            ok = self._tunnel_probe(url)
+        except Exception:  # pylint: disable=broad-except
+            ok = False
+        self._record_tunnel_check(provider, url, ok, time.monotonic())
+
+    def _record_tunnel_check(self, provider: str, url: str, ok: bool, now: float) -> None:
+        """Résultat d'une vérification : état du tunnel et prochaine vérification.
+
+        Un tunnel neuf reste « à vérifier » jusqu'à sa première réponse, ou
+        _TUNNEL_VERIFY_GRACE sans réponse (muet). Un tunnel joignable ne sort
+        du QR code qu'après deux échecs de suite (une coupure passagère ne
+        change pas le code affiché).
+        """
+        with self._tunnel_urls_lock:
+            health = self._tunnel_health.get(provider)
+            if health is None or self._tunnel_urls.get(provider) != url:
+                return  # tunnels arrêtés, ou adresse remplacée, pendant le test
+            health["probing"] = False
+            previous = health["state"]
+            if ok:
+                health.update(state="ok", fails=0, next=now + _TUNNEL_RECHECK)
+                self._tunnel_ever_ok = True
+            else:
+                health["fails"] += 1
+                age = now - health["since"]
+                if previous == "ok":
+                    if health["fails"] >= 2:
+                        health["state"] = "dead"
+                elif age >= _TUNNEL_VERIFY_GRACE:
+                    health["state"] = "dead"
+                retry = previous == "ok" or age < _TUNNEL_FAST_WINDOW
+                health["next"] = now + (_TUNNEL_RETRY if retry else _TUNNEL_RECHECK)
+            state = health["state"]
+        if state == previous:
+            return
+        if state == "ok":
+            logger.info("Tunnel %s joignable : %s", provider, url)
+        elif state == "dead":
+            logger.warning("Tunnel %s injoignable depuis ce PC : écarté du QR code (%s)",
+                           provider, url)
+
+    @staticmethod
+    def _probe_tunnel_url(url: str) -> bool:
+        """Même test que la page de routage : GET /api/health, réponse « ok »."""
+        try:
+            response = requests.get(
+                f"{url}/api/health",
+                timeout=_TUNNEL_PROBE_TIMEOUT,
+                headers={"Cache-Control": "no-store"},
+            )
+            if response.status_code != 200:
+                return False
+            data = response.json()
+        except (requests.RequestException, ValueError):
+            return False
+        return isinstance(data, dict) and data.get("status") == "ok"
 
     def _spawn_tunnel(
         self,
@@ -1863,6 +2066,25 @@ class RelayServer:
         )
         logger.info("Tunnel cloudflared en cours de démarrage...")
 
+    @staticmethod
+    def _ssh_known_hosts(provider: str) -> str:
+        """known_hosts jetable d'un tunnel ssh (aucune clé gardée d'un démarrage à l'autre).
+
+        Sous Windows, OpenSSH prend « nul » (os.devnull) pour un vrai fichier
+        et l'écrit dans le dossier courant : un fichier « nul » à la racine du
+        dépôt, que l'Explorateur ne sait pas supprimer. Il est remplacé par un
+        fichier du dossier temporaire, vidé à chaque démarrage. Ailleurs,
+        /dev/null.
+        """
+        if sys.platform != "win32":
+            return os.devnull
+        path = Path(tempfile.gettempdir()) / f"my_ai_relay_{provider}_known_hosts"
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return str(path)
+
     def _start_serveo(self) -> None:
         """Démarre un tunnel serveo.net via SSH (port forwarding distant).
 
@@ -1880,7 +2102,7 @@ class RelayServer:
         cmd = [
             ssh,
             "-o", "StrictHostKeyChecking=no",
-            "-o", f"UserKnownHostsFile={os.devnull}",
+            "-o", f"UserKnownHostsFile={self._ssh_known_hosts('serveo')}",
             "-o", "ServerAliveInterval=30",
             "-o", "ExitOnForwardFailure=yes",
             "-T",  # pas de tty
@@ -1908,7 +2130,7 @@ class RelayServer:
         cmd = [
             ssh,
             "-o", "StrictHostKeyChecking=no",
-            "-o", f"UserKnownHostsFile={os.devnull}",
+            "-o", f"UserKnownHostsFile={self._ssh_known_hosts('localhost.run')}",
             "-o", "ServerAliveInterval=30",
             "-o", "ExitOnForwardFailure=yes",
             "-T",
@@ -1934,6 +2156,9 @@ class RelayServer:
         brièvement chacun : l'arrêt total reste borné (~quelques secondes) même
         avec plusieurs providers, pour ne pas ralentir la fermeture du GUI.
         """
+        if self._tunnel_watch_stop is not None:
+            self._tunnel_watch_stop.set()
+            self._tunnel_watch_stop = None
         procs = list(self._tunnel_processes.values())
         for proc in procs:
             try:
@@ -1951,6 +2176,9 @@ class RelayServer:
         self._tunnel_processes.clear()
         with self._tunnel_urls_lock:
             self._tunnel_urls.clear()
+            self._tunnel_health.clear()
+            self._tunnel_first_seen = None
+            self._tunnel_ever_ok = False
 
     # ------------------------------------------------------------------
     # Téléchargement automatique de cloudflared

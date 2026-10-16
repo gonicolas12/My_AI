@@ -23,9 +23,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Imports lourds du lanceur (interface, modèles d'embeddings) : inutiles ici
+# Imports lourds du lanceur (modèles d'embeddings, Ollama) : inutiles ici
 _STUBS = {
-    "interfaces.gui_modern": {"ModernAIGUI": None},
     "interfaces.onboarding": {"sync_custom_model": None},
     "core.passage_embeddings": {"prefetch_in_background": None},
     "core.network": {"configure_network_environment": lambda: None},
@@ -220,3 +219,36 @@ def test_port_is_free_sees_a_listening_server(launcher, monkeypatch):
         server.listen()
         assert launcher._port_is_free() is False
     assert launcher._port_is_free() is True
+
+
+# ── Options du lanceur ──────────────────────────────────────────────────────
+
+
+def test_web_interface_is_the_default(launcher):
+    args = launcher._parse_args([])
+    assert (args.ui, args.dev, args.headless, args.port) == ("web", False, False, 0)
+
+
+def test_old_ui_option_accepts_only_the_web_interface(launcher):
+    # « --ui web » des commandes existantes ; l'interface Tk n'existe plus
+    assert launcher._parse_args(["--ui", "web", "--dev"]).dev is True
+    assert launcher._parse_args(["--dev", "--port", "5190"]).port == 5190
+    for retired in ("tk", "qt"):
+        with pytest.raises(SystemExit):
+            launcher._parse_args(["--ui", retired])
+
+
+def test_the_launcher_opens_the_web_window(launcher, monkeypatch):
+    """main() : la fenêtre web, avec ce module comme lanceur (étapes de lifecycle.py)."""
+    opened = []
+    lifecycle = types.ModuleType("interfaces.desktop.lifecycle")
+    lifecycle.run_desktop = lambda module, dev, port: opened.append((module, dev, port))
+    monkeypatch.setitem(sys.modules, "interfaces.desktop.lifecycle", lifecycle)
+    monkeypatch.setitem(sys.modules, "launch_unified", launcher)
+    monkeypatch.setattr(sys, "argv", ["launch_unified.py", "--dev"])
+    monkeypatch.setattr(launcher.os, "_exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+
+    with pytest.raises(SystemExit) as stopped:
+        launcher.main()
+    assert stopped.value.code == 0
+    assert opened == [(launcher, True, 0)]

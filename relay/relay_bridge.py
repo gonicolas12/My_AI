@@ -1,8 +1,9 @@
 """
-Relay Bridge - Pont de communication entre le serveur Relay et le GUI desktop.
+Relay Bridge - Pont de communication entre le serveur Relay et l'appli desktop.
 
 Fournit un système d'événements thread-safe pour synchroniser les messages
-entre l'interface mobile (via WebSocket) et l'interface Tkinter locale.
+entre l'interface mobile (via WebSocket) et le service de chat de l'appli
+(core/chat_service.py), fenêtre ouverte ou non.
 """
 
 import asyncio
@@ -377,8 +378,8 @@ class RelayBridge:
 
     def submit_ai_response(self, text: str, message_id: Optional[str] = None) -> None:
         """
-        Soumet la réponse IA au bridge. Appelé depuis le thread GUI
-        (Tkinter) quand le streaming est terminé.
+        Soumet la réponse IA au bridge. Appelé par le service de chat
+        (core/chat_service.py) quand le streaming est terminé.
 
         La réponse est également mise en cache par message_id pour permettre
         à un mobile reconnecté de la récupérer si son WebSocket d'origine

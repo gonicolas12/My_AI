@@ -129,7 +129,9 @@ def placement_label(state_file: Path = STATE_FILE) -> Optional[str]:
 
 
 def ensure_best_placement(
-    restart: Callable[[Dict[str, str]], bool], state_file: Path = STATE_FILE
+    restart: Callable[[Dict[str, str]], bool],
+    state_file: Path = STATE_FILE,
+    on_progress: Optional[Callable[[str], None]] = None,
 ) -> Optional[str]:
     """
     Place le modèle de l'appli sur le matériel le plus rapide, si ce n'est déjà fait
@@ -138,6 +140,8 @@ def ensure_best_placement(
         restart: Relance le serveur Ollama avec ces variables de placement, en
             plus de l'environnement de l'utilisateur ; True s'il répond
         state_file: Mémoire du dernier calibrage
+        on_progress: Reçoit chaque ligne du calibrage affichée sur la console
+            (écran de chargement de la fenêtre)
 
     Returns:
         Placement retenu : "gpu" (choix d'Ollama), "gpu-integre" ou "cpu" ;
@@ -157,17 +161,24 @@ def ensure_best_placement(
     if state.get("signature") == signature and state.get("placement") in _PLACEMENTS:
         return state["placement"]
 
-    print(
+    def report(line: str) -> None:
+        print(line, flush=True)
+        if on_progress is not None:
+            try:
+                on_progress(line.strip())
+            except Exception:  # pylint: disable=broad-except
+                pass  # l'affichage ne doit jamais bloquer le calibrage
+
+    report(
         f"🔍 Recherche du meilleur emplacement pour le modèle '{model}' "
-        "(une seule fois, jusqu'à une minute)…",
-        flush=True,
+        "(une seule fois, jusqu'à une minute)…"
     )
     previous_env = saved_env(state_file)
     try:
-        result = _calibrate(base_url, model, restart, previous_env)
+        result = _calibrate(base_url, model, restart, previous_env, report)
     except Exception as exc:  # jamais bloquant : l'appli démarre quand même
-        print(f"⚠️ Placement du modèle non mesuré : {exc}")
-        print("   Nouvel essai au prochain lancement")
+        report(f"⚠️ Placement du modèle non mesuré : {exc}")
+        report("   Nouvel essai au prochain lancement")
         try:
             restart(previous_env)  # serveur laissé tel que le lanceur l'avait démarré
         except Exception:
@@ -176,11 +187,16 @@ def ensure_best_placement(
     finally:
         _unload(base_url, model)
 
-    print(_conclusion(result))
+    report(_conclusion(result))
     _write_state(
         state_file, {"signature": signature, "date": date.today().isoformat(), **result}
     )
     return result["placement"]
+
+
+def _console(line: str) -> None:
+    """Ligne du calibrage sur la console."""
+    print(line, flush=True)
 
 
 def _calibrate(
@@ -188,14 +204,15 @@ def _calibrate(
     model: str,
     restart: Callable[[Dict[str, str]], bool],
     previous_env: Dict[str, str],
+    report: Callable[[str], None] = _console,
 ) -> dict:
     """Compare les placements possibles du modèle et laisse Ollama sur le meilleur."""
-    result = _best_device(base_url, model, restart, previous_env)
+    result = _best_device(base_url, model, restart, previous_env, report)
     # Modèle à l'étroit sur le GPU retenu : contexte en 8 bits, sauf variable
     # que l'utilisateur a fixée lui-même
     share = result.get("gpu_share") or 0.0
     if 0 < share < 99.5 and not any(key in os.environ for key in COMPACT_CONTEXT_ENV):
-        result = _try_compact_context(base_url, model, restart, result)
+        result = _try_compact_context(base_url, model, restart, result, report)
     return result
 
 
@@ -204,6 +221,7 @@ def _best_device(
     model: str,
     restart: Callable[[Dict[str, str]], bool],
     previous_env: Dict[str, str],
+    report: Callable[[str], None] = _console,
 ) -> dict:
     """Processeur, GPU intégré ou choix d'Ollama : le plus rapide pour ce modèle."""
     # 1. Choix par défaut d'Ollama, avec l'environnement de l'utilisateur seul
@@ -216,16 +234,16 @@ def _best_device(
         # Carte dédiée pleine à cet instant : y ajouter le GPU intégré risquerait
         # qu'Ollama lui donne le modèle même une fois la carte libérée
         return {"placement": "gpu", "env": {}, "reason": "dedicated"}
-    print("   • Choix par défaut d'Ollama : processeur", flush=True)
+    report("   • Choix par défaut d'Ollama : processeur")
     cpu = _measure(base_url, model)
-    print(f"   • Processeur : {_speeds(cpu)}", flush=True)
+    report(f"   • Processeur : {_speeds(cpu)}")
 
     # 2. GPU intégré autorisé, sauf variable que l'utilisateur a fixée lui-même
     extra = {key: value for key, value in EXTRA_GPU_ENV.items() if key not in os.environ}
     result = {"placement": "cpu", "env": {}, "gpu_share": 0.0, "measures": {"cpu": cpu}}
     if not extra:
         return {**result, "reason": "no-gpu"}
-    result.update(_try_integrated_gpu(base_url, model, restart, extra, cpu))
+    result.update(_try_integrated_gpu(base_url, model, restart, extra, cpu, report))
     if result["placement"] == "cpu":
         _restart(restart, {})  # serveur rendu au choix par défaut d'Ollama
     return result
@@ -237,6 +255,7 @@ def _try_integrated_gpu(
     restart: Callable[[Dict[str, str]], bool],
     extra: Dict[str, str],
     cpu: Dict[str, float],
+    report: Callable[[str], None] = _console,
 ) -> dict:
     """Relance Ollama avec le GPU intégré autorisé et le compare au processeur."""
     try:
@@ -245,13 +264,13 @@ def _try_integrated_gpu(
         gpu = _measure(base_url, model) if share > 0 else None
     except PlacementError as exc:
         # Pilote ou GPU sur lequel le modèle échoue : le processeur reste le bon choix
-        print(f"   • GPU intégré : échec ({exc})", flush=True)
+        report(f"   • GPU intégré : échec ({exc})")
         return {"reason": "failed"}
     if gpu is None:
         return {"reason": "no-gpu"}
 
     where = "GPU intégré" if share >= 99.5 else f"GPU intégré ({share:.0f} % du modèle)"
-    print(f"   • {where} : {_speeds(gpu)}", flush=True)
+    report(f"   • {where} : {_speeds(gpu)}")
     speedup = _typical_time(cpu) / _typical_time(gpu)
     measured = {"measures": {"cpu": cpu, "gpu": gpu}, "speedup": round(speedup, 2)}
     if speedup < _MIN_SPEEDUP:
@@ -264,14 +283,15 @@ def _try_compact_context(
     model: str,
     restart: Callable[[Dict[str, str]], bool],
     result: dict,
+    report: Callable[[str], None] = _console,
 ) -> dict:
     """Relance Ollama avec le contexte du modèle en 8 bits et le garde s'il va plus vite."""
     where = "GPU intégré" if result["placement"] == "gpu-integre" else "GPU"
     measures = dict(result.get("measures") or {})
     if "gpu" not in measures:  # GPU choisi par Ollama : pas encore mesuré
         measures["gpu"] = _measure(base_url, model)
-        print(f"   • Contexte en 16 bits ({_share_text(result['gpu_share'], where)}) : "
-              f"{_speeds(measures['gpu'])}", flush=True)
+        report(f"   • Contexte en 16 bits ({_share_text(result['gpu_share'], where)}) : "
+               f"{_speeds(measures['gpu'])}")
     before = measures["gpu"]
     compact_env = {**result["env"], **COMPACT_CONTEXT_ENV}
     try:
@@ -279,10 +299,10 @@ def _try_compact_context(
         share = _load(base_url, model)
         after = _measure(base_url, model)
     except PlacementError as exc:
-        print(f"   • Contexte en 8 bits : échec ({exc})", flush=True)
+        report(f"   • Contexte en 8 bits : échec ({exc})")
         _restart(restart, result["env"])
         return {**result, "measures": measures}
-    print(f"   • Contexte en 8 bits ({_share_text(share, where)}) : {_speeds(after)}", flush=True)
+    report(f"   • Contexte en 8 bits ({_share_text(share, where)}) : {_speeds(after)}")
     measures["gpu-8bits"] = after
     speedup = _typical_time(before) / _typical_time(after)
     if speedup < _MIN_SPEEDUP:

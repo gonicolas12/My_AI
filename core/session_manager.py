@@ -1,5 +1,5 @@
 """
-Gestionnaire de workspaces et sessions pour My_AI v8.1.0
+Gestionnaire de workspaces et sessions pour My_AI v9.0.0
 Regroupe conversation, documents, agents et parametres dans une unite nommee et sauvegardable.
 """
 
@@ -383,6 +383,12 @@ class SessionManager:
 
         self._current_workspace_id = workspace_id
         logger.info("Workspace actif defini: '%s'", workspace_id)
+
+    def clear_current_workspace(self) -> None:
+        """
+        Plus aucun workspace actif (nouvelle conversation pas encore enregistree).
+        """
+        self._current_workspace_id = None
 
     def auto_save(self, workspace_id: str, state: dict) -> bool:
         """

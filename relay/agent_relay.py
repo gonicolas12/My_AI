@@ -1,8 +1,9 @@
 """
 Agent Relay Service - Exécution serveur des agents IA pour l'interface mobile.
 
-Ce module porte les fonctionnalités de la page « Agents » du GUI desktop
-(``interfaces/agents/``) côté serveur Relay afin que le mobile puisse :
+Ce module exécute côté serveur, sans interface, les fonctionnalités de la
+page « Agents ». La fenêtre de l'appli (``interfaces/desktop/agents.py``) et le
+scheduler s'en servent, et le mobile peut ainsi :
 
   - lister les agents (built-in + personnalisés)
   - créer / modifier / supprimer des agents personnalisés
@@ -13,9 +14,9 @@ Tout tourne sur le PC hôte (modèle local via Ollama) et le contenu ne quitte
 jamais le tunnel chiffré : le serveur Relay encapsule chaque message émis par
 ce service dans l'enveloppe E2EE AES-256-GCM avant de l'envoyer au mobile.
 
-Contrairement au chat mobile (qui délègue au GUI desktop via le RelayBridge),
-les agents s'exécutent intégralement ici — comme le mode agentique VS Code —
-parce qu'ils n'ont pas besoin du GUI Tkinter pour fonctionner.
+Contrairement au chat mobile (qui passe par le RelayBridge jusqu'au service de
+chat de l'appli, core/chat_service.py), les agents s'exécutent intégralement
+ici — comme le mode agentique VS Code.
 """
 
 import json
@@ -49,8 +50,8 @@ logger = setup_logger("AgentRelay")
 # Cadence max d'envoi des chunks de streaming par section (anti-flood WS+tunnel).
 _CHUNK_THROTTLE_SEC = 0.06
 
-# Métadonnées des 9 agents built-in (identiques à la grille du GUI desktop,
-# cf. interfaces/agents/agent_selection.py).
+# Métadonnées des 9 agents built-in : la grille de la fenêtre et celle du
+# mobile les reçoivent de list_agents.
 _BUILTIN_AGENTS: List[Dict[str, str]] = [
     {"key": "code", "icon": "🐍", "name": "CodeAgent",
      "desc": "Génération et debug de code", "color": "#3b82f6"},
@@ -798,6 +799,10 @@ class AgentRelayService:
             def finish_current(success=True):
                 nonlocal cur_sid, cur_text, cur_last
                 if cur_sid is not None:
+                    # Texte final du tour : la cadence (60 ms) a pu retenir ses
+                    # derniers fragments, comme pour un agent d'un workflow
+                    emit({"type": "agent_section_chunk", "exec_id": exec_id,
+                          "section_id": cur_sid, "text": cur_text})
                     emit({"type": "agent_section_end", "exec_id": exec_id,
                           "section_id": cur_sid, "success": success})
                     cur_sid = None
@@ -838,10 +843,7 @@ class AgentRelayService:
                 on_should_stop=lambda: self._interrupted(exec_id),
             )
 
-            # Flush + clôture de la dernière section.
-            if cur_sid is not None:
-                emit({"type": "agent_section_chunk", "exec_id": exec_id,
-                      "section_id": cur_sid, "text": cur_text})
+            # Clôture de la dernière section (texte final compris)
             finish_current(not self._interrupted(exec_id))
 
             interrupted = self._interrupted(exec_id)

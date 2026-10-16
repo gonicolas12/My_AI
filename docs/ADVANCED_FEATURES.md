@@ -542,26 +542,10 @@ class AIEngine:
         return response
 ```
 
-### Dans l'Interface GUI
+### Dans la fenêtre desktop
 
-```python
-# Ajouter un bouton "Bon ✓" / "Mauvais ✗"
-def on_good_feedback():
-    rlhf.record_interaction(
-        user_query=last_query,
-        ai_response=last_response,
-        feedback_type="positive",
-        feedback_score=5
-    )
-
-def on_bad_feedback():
-    rlhf.record_interaction(
-        user_query=last_query,
-        ai_response=last_response,
-        feedback_type="negative",
-        feedback_score=1
-    )
-```
+Rien à ajouter : la note de 1 à 5 étoiles sous chaque réponse appelle déjà
+`rlhf.record_interaction` (voir [⭐ Feedback RLHF](GUI_RLHF_FEEDBACK.md)).
 
 ---
 

@@ -1,0 +1,148 @@
+/*
+ * Jetons de design de l'interface desktop.
+ *
+ * Toutes les couleurs de l'interface passent par ces variables : changer la
+ * couleur d'accent, ou ajouter un thème clair, ne demande de modifier que ce
+ * fichier. Valeurs reprises de interfaces/modern_styles.py, relay/static/style.css
+ * et vscode_extension/media/chat.css.
+ */
+
+:root {
+  /* ── Couleurs de base ─────────────────────────────────────────────────── */
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #2d2d2d;
+  --bg-user: #2d5aa0;
+
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  --accent: #ff6b47;
+  --accent-hover: #ff5730;
+  --accent-light: #ff8a6b;
+
+  --border: #374151;
+  --border-light: #4b5563;
+
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  /* Étoiles de la note d'une réponse (message_bubbles.py) */
+  --rating: #fbbf24;
+
+  /* Passage trouvé par la recherche globale (_highlight_in_chat, sidebar.py) */
+  --search-hit: #2563eb;
+
+  /* ── Agents (interfaces/agents/agent_selection.py) ────────────────────── */
+  --agent-code: #3b82f6;
+  --agent-web: #10b981;
+  --agent-analyst: #8b5cf6;
+  --agent-creative: #f59e0b;
+  --agent-debug: #ef4444;
+  --agent-planner: #06b6d4;
+  --agent-security: #ec4899;
+  --agent-optimizer: #14b8a6;
+  --agent-datascience: #f97316;
+
+  /* Canvas du workflow (workflow_canvas.py) : points de la grille */
+  --canvas-dot: #2a2a2a;
+
+  /* Catégories des faits de la Mémoire (memory_panel.py) */
+  --memory-preference: var(--agent-analyst);
+  --memory-decision: var(--warning);
+  --memory-person: var(--success);
+  --memory-procedure: var(--info);
+  --memory-technical: var(--error);
+  --memory-general: var(--text-secondary);
+
+  /* ── Teintes dérivées (mêmes couleurs, en transparence) ───────────────── */
+  --surface-hover: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  --surface-active: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --surface-raised: color-mix(in srgb, var(--bg-secondary) 92%, var(--text-primary));
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --error-soft: color-mix(in srgb, var(--error) 14%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 14%, transparent);
+  --success-soft: color-mix(in srgb, var(--success) 14%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+  --scrim: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  --focus-ring: var(--accent-light);
+  --selection: color-mix(in srgb, var(--accent) 35%, transparent);
+  --on-accent: var(--text-primary);
+  --on-user: var(--text-primary);
+  --link: var(--info);
+  --scrollbar: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --scrollbar-hover: color-mix(in srgb, var(--text-primary) 24%, transparent);
+  --search-hit-soft: color-mix(in srgb, var(--search-hit) 22%, transparent);
+  --on-search-hit: var(--text-primary);
+
+  /* ── Coloration du code (palette Dark+ de l'interface Tk) ─────────────── */
+  --code-bg: var(--bg-secondary);
+  --code-header-bg: color-mix(in srgb, var(--bg-tertiary) 55%, var(--bg-secondary));
+  --code-inline-bg: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  --shiki-foreground: #d4d4d4;
+  --shiki-background: transparent;
+  --shiki-token-keyword: #569cd6;
+  --shiki-token-constant: #4ec9b0;
+  --shiki-token-string: #ce9178;
+  --shiki-token-string-expression: #ce9178;
+  --shiki-token-comment: #6a9955;
+  --shiki-token-function: #dcdcaa;
+  --shiki-token-parameter: #9cdcfe;
+  --shiki-token-punctuation: #d4d4d4;
+  --shiki-token-link: #569cd6;
+  --shiki-token-inserted: #6a9955;
+  --shiki-token-deleted: #f48771;
+  --shiki-token-changed: #569cd6;
+
+  /* ── Typographie ──────────────────────────────────────────────────────── */
+  --font-ui:
+    'Inter Variable', 'Segoe UI', system-ui, sans-serif, 'Segoe UI Emoji', 'Apple Color Emoji',
+    'Noto Color Emoji';
+  --font-code:
+    'JetBrains Mono Variable', Consolas, 'Courier New', monospace, 'Segoe UI Emoji',
+    'Apple Color Emoji';
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-chat: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --fs-display: 44px;
+  --line-chat: 1.7;
+
+  /* ── Formes ───────────────────────────────────────────────────────────── */
+  --round-xs: 4px;
+  --round-sm: 6px;
+  --round-md: 10px;
+  --round-lg: 14px;
+  --round-xl: 20px;
+  --round-full: 9999px;
+
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --elevation-md: 0 6px 20px rgb(0 0 0 / 0.35);
+  --elevation-lg: 0 16px 48px rgb(0 0 0 / 0.55);
+
+  /* ── Mouvement ────────────────────────────────────────────────────────── */
+  --motion-fast: 150ms;
+  --motion: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ── Mise en page ─────────────────────────────────────────────────────── */
+  --chat-column: 720px;
+  --sidebar-width: 264px;
+  --header-height: 60px;
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion: 0ms;
+  }
+}

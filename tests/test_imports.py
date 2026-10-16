@@ -26,7 +26,8 @@ def test_imports():
         ("models.custom_ai_model", "CustomAIModel"),
         ("models.conversation_memory", "ConversationMemory"),
         ("models.advanced_code_generator", "AdvancedCodeGenerator"),
-        ("interfaces.gui_modern", "ModernAIGUI"),
+        ("interfaces.desktop.lifecycle", "run_desktop"),
+        ("interfaces.desktop.window", "open_window"),
         ("generators.document_generator", "DocumentGenerator"),
         ("generators.document_editor", "DocumentEditor"),
         ("generators.markdown_document", "parse_markdown"),
@@ -64,14 +65,14 @@ def test_imports():
     # Un échec doit faire échouer pytest (un return False n'y produisait qu'un avertissement)
     assert not results['failed'], f"{len(results['failed'])} import(s) en échec"
 
-def test_agents_package_imports_on_its_own():
-    """interfaces.agents importé en premier, sans interfaces.gui : pas d'import circulaire.
+def test_desktop_app_imports_on_its_own():
+    """La fenêtre et son serveur importés en premier : pas d'import circulaire.
 
-    Interpréteur neuf : dans ce processus, interfaces.gui est souvent déjà
-    chargé par d'autres tests, ce qui masquerait le cycle.
+    Interpréteur neuf : dans ce processus, leurs modules sont souvent déjà
+    chargés par d'autres tests, ce qui masquerait un cycle.
     """
     run = subprocess.run(
-        [sys.executable, "-c", "import interfaces.agents"],
+        [sys.executable, "-c", "import interfaces.desktop.window, interfaces.desktop.lifecycle"],
         cwd=project_root,
         capture_output=True,
         encoding="utf-8",

@@ -67,6 +67,14 @@ data/.requirements_sync.json
 # Placement du modèle mesuré au lancement, GPU ou processeur (utils/ollama_placement.py)
 data/.ollama_placement.json
 
+# État local de l'interface web : session courante, fenêtre (interfaces/desktop/lifecycle.py)
+data/.desktop_state.json
+data/.desktop_state.json.tmp
+
+# Fils d'exécution de la page Agents, gardés d'un lancement à l'autre (interfaces/desktop/agents.py)
+data/agent_runs.json
+data/agent_runs.json.tmp
+
 # Fichiers de cache locaux
 data/knowledge_base/
 data/web_cache/
@@ -84,3 +92,13 @@ tools/7zr.exe
 
 # Fichiers de couverture de test
 .coverage
+
+# Suivi de la migration de l'interface vers le web : document de travail, gardé en local
+docs/MIGRATION_INTERFACE_WEB_SUIVI.md
+
+# Interface web : dépendances de développement, rapports et captures d'écran
+frontend/node_modules/
+frontend/.vite/
+frontend/coverage/
+frontend/test-results/
+frontend/captures/

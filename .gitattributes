@@ -5,3 +5,16 @@
 # Les scripts batch restent en CRLF (cmd.exe).
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Interface web : Prettier et ESLint attendent du LF, sous Windows comme ailleurs.
+# text=auto et non text : les polices et images de dist/ restent des binaires,
+# jamais touchés par la conversion des fins de ligne
+frontend/** text=auto eol=lf
+frontend/**/*.woff2 binary
+frontend/**/*.woff binary
+frontend/**/*.ttf binary
+frontend/**/*.png binary
+frontend/**/*.jpg binary
+frontend/**/*.ico binary
+# Interface construite (versionnée pour les utilisateurs sans Node) : pas de diff
+frontend/dist/** -diff linguist-generated

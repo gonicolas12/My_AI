@@ -40,6 +40,11 @@ def _make_server_with_procs(procs):
     server._tunnel_processes = dict(procs)
     server._tunnel_urls = {name: f"https://{name}.example" for name in procs}
     server._tunnel_urls_lock = threading.Lock()
+    # Vérification des tunnels (test_relay_tunnels.py), arrêtée avec eux
+    server._tunnel_health = {name: {"state": "ok"} for name in procs}
+    server._tunnel_first_seen = 0.0
+    server._tunnel_ever_ok = True
+    server._tunnel_watch_stop = threading.Event()
     return server
 
 
@@ -48,11 +53,15 @@ def test_stop_tunnel_terminates_all_and_clears():
              "localhost.run": _FakeProc()}
     server = _make_server_with_procs(procs)
 
+    watch = server._tunnel_watch_stop
     server._stop_tunnel()
 
     assert all(p.terminated for p in procs.values())
     assert server._tunnel_processes == {}
     assert server._tunnel_urls == {}
+    # La vérification des tunnels s'arrête et repart de zéro
+    assert watch.is_set() and server._tunnel_watch_stop is None
+    assert server._tunnel_health == {} and server._tunnel_ever_ok is False
 
 
 def test_stop_tunnel_kills_straggler_on_timeout():

@@ -132,16 +132,18 @@ class ResourceMonitor:
         try:
             ollama_cpu = 0.0
             ollama_ram = 0.0
-            for proc in psutil.process_iter(["name", "cpu_percent", "memory_info"]):
-                try:
-                    pname = (proc.info["name"] or "").lower()
-                    if "ollama" in pname:
-                        ollama_cpu += proc.info["cpu_percent"] or 0.0
-                        mi = proc.info["memory_info"]
-                        if mi:
-                            ollama_ram += mi.rss
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+            infos = [proc.info for proc in psutil.process_iter(
+                ["pid", "ppid", "name", "cpu_percent", "memory_info"])]
+            # Ollama et les processus qu'il lance : depuis Ollama 0.40, le modèle
+            # tourne dans « llama-server », qui ne porte plus son nom
+            ollama = {info["pid"] for info in infos
+                      if "ollama" in (info.get("name") or "").lower()}
+            for info in infos:
+                if info["pid"] in ollama or info.get("ppid") in ollama:
+                    ollama_cpu += info.get("cpu_percent") or 0.0
+                    mi = info.get("memory_info")
+                    if mi:
+                        ollama_ram += mi.rss
 
             total = psutil.virtual_memory().total
             with self._lock:
