@@ -4,7 +4,7 @@
 
 ### Une interface web locale dans une fenêtre native, un modèle placé au mieux sur la machine, une boucle d'outils qui ne fait plus tout relire à Ollama
 
-Version **majeure**. L'interface Tkinter tournait dans le même processus Python que le moteur : dès que celui-ci calculait (torch, embeddings, ChromaDB), l'affichage gelait. Son moteur de rendu fait main (≈ 10 000 lignes) recalculait le Markdown pendant le streaming, l'appli ne gérait pas le DPI (texte flou à 125 %) et ≈ 1 100 lignes de contournements Win32 incrustaient Edge et les visionneuses Office. Elle est remplacée par une interface **React + TypeScript** affichée dans une **fenêtre native pywebview** (WebView2 sous Windows), reliée au moteur par un **serveur local** sur 127.0.0.1. Mêmes pages (Chat, Agents), mêmes couleurs, toutes les fonctionnalités conservées ; le **mobile Relay** et l'**extension VS Code** sont inchangés. Côté moteur : le lanceur **place le modèle** sur le GPU intégré quand il y va plus vite et passe son contexte **en 8 bits** quand il déborde de la carte, tous les appels partagent **une seule fenêtre de contexte**, la **boucle d'outils** ne fait plus relire toute la conversation à Ollama, la **recherche internet** est réécrite, « Retiens que… » **retient vraiment** et les **PDF scannés** se lisent par OCR.
+Version **majeure**. L'interface Tkinter tournait dans le même processus Python que le moteur : dès que celui-ci calculait (torch, embeddings, ChromaDB), l'affichage gelait. Son moteur de rendu fait main (≈ 10 000 lignes) recalculait le Markdown pendant le streaming, l'appli ne gérait pas le DPI (texte flou à 125 %) et ≈ 1 100 lignes de contournements Win32 incrustaient Edge et les visionneuses Office. Elle est remplacée par une interface **React + TypeScript** affichée dans une **fenêtre native pywebview** (WebView2 sous Windows), reliée au moteur par un **serveur local** sur 127.0.0.1. Mêmes pages (Chat, Agents), mêmes couleurs, toutes les fonctionnalités conservées ; le **mobile Relay** et l'**extension VS Code** ne changent que de logo. Côté moteur : le lanceur **place le modèle** sur le GPU intégré quand il y va plus vite et passe son contexte **en 8 bits** quand il déborde de la carte, tous les appels partagent **une seule fenêtre de contexte**, la **boucle d'outils** ne fait plus relire toute la conversation à Ollama, la **recherche internet** est réécrite, « Retiens que… » **retient vraiment** et les **PDF scannés** se lisent par OCR.
 
 ## 🖥️ Fenêtre et serveur local — `frontend/` (nouveau), `interfaces/desktop/` (nouveau)
 
@@ -81,14 +81,17 @@ Version **majeure**. L'interface Tkinter tournait dans le même processus Python
 - Le chat mobile **ne dépend plus de la fenêtre** : il passe par le service de chat, appli ouverte ou non, et s'affiche en direct dans la fenêtre avec un badge « Mobile ». Protocole et interface mobile inchangés.
 - **QR code fiable** : chaque tunnel annoncé est vérifié depuis le PC, et seuls les joignables entrent dans le QR code (localhost.run annonçait une adresse muette).
 - Les tunnels ssh n'écrivent plus de fichier `nul` dans le dossier de lancement.
+- **Logo de l'appli** : le robot orange de la fenêtre remplace l'emoji 🤖 en haut à gauche, sur l'écran d'accueil et devant chaque réponse.
 
 ## 🔔 Notifications
 
 - La notification du système et le toast d'une tâche planifiée montrent son résumé en **texte brut**, sans le Markdown de la sortie de l'agent.
 
-## 🧩 Extension VS Code 1.3.7
+## 🧩 Extension VS Code 1.3.8
 
-- Le mode agentique se présente comme My_AI seulement, sans comparaison à un autre outil, dans son prompt comme dans les docs. Rien ne change dans le fonctionnement ; détails dans `vscode_extension/CHANGELOG.md`.
+- **Logo de l'appli** : le robot orange de la fenêtre remplace l'emoji 🤖 en haut à gauche du panneau, sur l'écran d'accueil et devant chaque réponse, et devient l'icône du Marketplace (1.3.8).
+- Le mode agentique se présente comme My_AI seulement, sans comparaison à un autre outil, dans son prompt comme dans les docs (1.3.7).
+- Rien ne change dans le fonctionnement ; détails dans `vscode_extension/CHANGELOG.md`.
 
 ## 🐛 Corrections
 

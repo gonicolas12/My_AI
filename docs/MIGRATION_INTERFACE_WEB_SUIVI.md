@@ -115,7 +115,7 @@ phase 2).
   temps (écart 26 : la vraie cause était le mouvement réduit, les animations de Windows étant
   coupées sur ce PC), vu corrigé par Nicolas dans la vraie fenêtre. **Version 9.0.0**
   préparée le même jour (D53) : numéros de version, entrée de `docs/CHANGELOG.md`, docs
-  relues. **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
+  relues ; le 2026-10-16, un seul logo partout et extension 1.3.8 (D54). **Reste** : ces trois essais, ses captures, puis la fusion dans `main` avec son
   accord. Rien n'est fusionné.
 - Outils de vérification : `frontend/scripts/` (scripts Playwright ; mode d'emploi dans son README)
   et `tools/interface_web/` (serveur de démonstration, pilotage Win32 de la fenêtre, icône).
@@ -905,6 +905,16 @@ ignoré par git).
   lancement, extension 1.3.7). Un fichier de workflow enregistré porte la version de l'appli
   (`WORKFLOW_VERSION`, comme Tk écrivait la sienne) ; les données de test qui imitent un
   fichier de Tk gardent « 8.1.0 ».
+
+### Prise le 2026-10-16
+
+- **D54. Un seul logo partout**, à la demande de Nicolas : le robot de la fenêtre
+  (`RobotLogo`, tracé de `vscode_extension/media/icon-activitybar.svg`) remplace l'emoji 🤖
+  dans le panneau de l'extension VS Code et dans l'interface mobile (en haut à gauche,
+  écran d'accueil, avatar des réponses), et devient l'icône du Marketplace
+  (`extension_logo.png`). `vscode_extension/` et `relay/static/` sont touchés avec son
+  accord, pour l'affichage seulement (protocoles inchangés) ; extension en 1.3.8, `.vsix`
+  construit, publié par Nicolas.
 
 ### Constats techniques qui orientent la phase 1
 
@@ -2482,6 +2492,22 @@ propre exécuteur, dans son processus.
   Corrigés : le résumé glissant (« dès 24k tokens », c'est la moitié de la fenêtre),
   l'arborescence (`utils/ollama_placement.py` et trois fichiers de `tools/` manquaient). Les
   captures restent celles de Tk (D52).
+
+### Logo partout et extension 1.3.8 — 2026-10-16 (D54)
+
+- Emoji 🤖 remplacé par le SVG du robot : `chat.html`, `chat.css` et `chat.js` de
+  l'extension ; `index.html`, `style.css` et `app.js` du mobile (la version de ses fichiers
+  suit leur date : les téléphones rechargent seuls). Restent des emojis, à dessein : l'onglet
+  Agents et deux titres du mobile, qui désignent les agents et non l'appli.
+- Icône du Marketplace refaite avec le dessin de `tools/interface_web/make_icon.py` (215 px
+  sur 256, fond transparent), vue sur fond clair et sur fond sombre.
+- Rendus dans Chromium (HTML et feuilles de style, sans script) : logo de l'en-tête à 22 px
+  (extension) et 28 px (mobile), accueil à 56 et 64 px, avatar à 14 et 16 px, tous en
+  `#ff6b47`.
+- Extension 1.3.8 (`package.json`, `package-lock.json`, CHANGELOG de l'extension) ;
+  `my-ai-1.3.8.vsix` construit par `npm run package` (17 fichiers, 82 Ko), ignoré par git.
+  L'ancien `my-ai-1.3.5.vsix`, ignoré lui aussi, n'était plus dans le dossier au moment du
+  build (ni le build ni `vsce` ne suppriment de `.vsix`).
 
 ---
 
