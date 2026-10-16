@@ -8,6 +8,16 @@
   'use strict';
   const vscode = acquireVsCodeApi();
 
+  // Logo de My_AI (le robot de l'appli, de la barre d'activité et du Marketplace)
+  const ROBOT_SVG =
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+    '<circle cx="7" cy="1.5" r="1"/><rect x="6.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>' +
+    '<circle cx="17" cy="1.5" r="1"/><rect x="16.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>' +
+    '<path fill-rule="evenodd" d="M5 4.5H19A4 4 0 0 1 23 8.5V18A4 4 0 0 1 19 22H5A4 4 0 0 1 1 18V8.5A4 4 0 0 1 5 4.5Z' +
+    'M6.25 9.25H8.75A1.25 1.25 0 0 1 10 10.5V12A1.25 1.25 0 0 1 8.75 13.25H6.25A1.25 1.25 0 0 1 5 12V10.5A1.25 1.25 0 0 1 6.25 9.25Z' +
+    'M15.25 9.25H17.75A1.25 1.25 0 0 1 19 10.5V12A1.25 1.25 0 0 1 17.75 13.25H15.25A1.25 1.25 0 0 1 14 12V10.5A1.25 1.25 0 0 1 15.25 9.25Z' +
+    'M9 15.75H15A1 1 0 0 1 15 17.75H9A1 1 0 0 1 9 15.75Z"/></svg>';
+
   // ── DOM ──────────────────────────────────────────────
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
@@ -873,7 +883,7 @@
         '<span class="time">' + time + '</span></div>';
     } else {
       msg.innerHTML =
-        '<div class="ai-icon">&#x1F916;</div>' +
+        '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
         '<div class="bubble">' + renderMarkdown(text) +
         '<span class="time">' + time + '</span></div>';
     }
@@ -906,7 +916,7 @@
     msg.className = 'message ai streaming';
     msg.dataset.segment = String(segmentIndex);
     msg.innerHTML =
-      '<div class="ai-icon">&#x1F916;</div>' +
+      '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
       '<div class="bubble">' +
         '<div class="stream-content"></div>' +
         '<span class="stream-cursor"></span>' +
@@ -1022,7 +1032,7 @@
     typingEl.className = 'message ai';
     typingEl.id = 'typingIndicator';
     typingEl.innerHTML =
-      '<div class="ai-icon">&#x1F916;</div>' +
+      '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
       '<div class="bubble">' +
         '<div class="typing-indicator">' +
           '<div class="typing-dot"></div>' +

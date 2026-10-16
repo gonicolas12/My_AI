@@ -5,6 +5,15 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.8] — 2026-10-16
+
+New logo, shared with the My_AI desktop app: no change to how the extension works.
+
+### Changed
+- **Logo.** The orange robot of the My_AI desktop window replaces the robot
+  emoji at the top left of the chat view, on the welcome screen and next to
+  each reply. The Marketplace icon uses it too; the activity bar already did.
+
 ## [1.3.7] — 2026-10-06
 
 Documentation release: no change to how the extension works.
