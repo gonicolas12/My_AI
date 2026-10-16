@@ -46,7 +46,7 @@ Planifiez vos agents et workflows en récurrence, exécution même l'application
 Informations en temps réel via DuckDuckGo (Yahoo et Wikipédia en secours).
 
 **📄 Génération et traitement de Documents**  
-PDF (même scannés, lus par OCR), DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.
+PDF, DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.
 
 **📡 Accès Mobile**  
 Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
@@ -73,12 +73,12 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 | Fonctionnalité | Détail |
 |---|---|
-| 🧠 **Mode Thinking** | Bloc « Réflexion » repliable : texte animé pendant la génération, puis sa durée |
-| 🧭 **Barre latérale** | Conversations, recherche globale, dossiers du projet, historique ; Relay, Réglages, Mémoire, Prompts et export en bas |
-| 🎓 **Feedback RLHF** | Notation 1-5 étoiles sous chaque réponse, feedback enregistré automatiquement |
+| 🧠 **Mode Thinking** | Bloc « Réflexion » repliable : texte animé pendant la génération |
+| 🧭 **Barre latérale** | Conversations, recherche globale, dossiers du projet, historique... |
+| 🎓 **Feedback RLHF** | Notation 1-5 étoiles sous chaque réponse |
 | 🎙️ **Saisie vocale** | Bouton micro dans chaque zone de saisie, transcription locale |
-| 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto (langue auto-détectée) |
-| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG (onglets Aperçu et Code) et des documents générés |
+| 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto |
+| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG et des documents générés |
 | ⚡ **Slash commands** | Tapez `/` : autocomplétion de prompts réutilisables |
 | 🎹 **Palette de commandes** | Ctrl+K : toutes les actions de l'appli au clavier |
 
@@ -91,20 +91,14 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 |---|---|
 | 🤖 **Vue d'ensemble** | Grille de tous les agents avec descriptions |
 | 🧩 **Création d'agents personnalisés** | Prompt système rédigé par le modèle local |
-| 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap, liens animés pendant l'exécution |
-| 🧵 **Fils d'exécution** | Chaque exécution (agent, workflow, débat) devient un fil rouvrable, au statut en direct ; un code joint modifié se relit en diff |
+| 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap |
+| 🧵 **Fils d'exécution** | Chaque exécution est un fil rouvrable |
 | 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
 | 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
 | 📅 **Tâches planifiées** | Agents en récurrence, même l'appli fermée |
 | 🔔 **Notifications desktop** | Notification système à la fin d'une tâche longue |
 
 </div>
-
-> L'interface est une application web (React + TypeScript) affichée dans une fenêtre native
-> (pywebview : WebView2, le Chromium d'Edge, sous Windows). Un serveur local, sur 127.0.0.1
-> uniquement et protégé par un jeton tiré à chaque lancement, la relie au moteur Python : la
-> fenêtre reste fluide pendant que l'IA calcule. Sans pywebview, l'interface s'ouvre dans le
-> navigateur par défaut.
 
 ---
 
@@ -303,7 +297,7 @@ my_ai/
 │   ├── artifacts.py                     # Détection/préparation des artifacts (HTML, SVG, documents)
 │   ├── cli.py                           # Interface ligne de commande
 │   ├── document_preview.py              # Rendu HTML des documents (aperçu de repli, mobile)
-│   ├── onboarding.py                    # Fonctions de l'assistant de premier lancement + my_ai recréé si le Modelfile change
+│   ├── onboarding.py                    # Fonctions de l'assistant de premier lancement
 │   └── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
 ├── vscode_extension/                    # Extension VS Code (client Relay distant)
 │   ├── package.json                     # Manifest extension + commandes
@@ -403,9 +397,6 @@ cd My_AI
 ```bash
 pip install -r requirements.txt
 ```
-
-> 🔄 Après un `git pull`, les dépendances ajoutées s'installent toutes seules au lancement suivant
-> (`MY_AI_SKIP_DEPS_SYNC=1` pour s'en passer).
 
 > ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de
 > build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à
@@ -639,7 +630,7 @@ code --install-extension gonicolas12.my-ai
 | 🔁 **Pipeline d'entraînement** | Fine-tuning moderne avec monitoring temps réel |
 | 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
 | 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
-| 🖥️ **Interface web native** | React + TypeScript dans une fenêtre pywebview, fluide pendant les calculs |
+| 🖥️ **Interface web native** | React + TypeScript dans une fenêtre pywebview |
 | 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
 | 🔎 **Recherche globale** | Recherche sémantique cross-conversations |
 | ⚡ **Slash commands** | Bibliothèque de prompts |
@@ -660,7 +651,7 @@ code --install-extension gonicolas12.my-ai
 | 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |
 | 💻 **Multiplateforme** | Windows · macOS · Linux |
 | 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
-| 🦙 **Placement automatique** | GPU intégré essayé quand le modèle reste sur le processeur ; contexte en 8 bits quand il déborde de la carte |
+| 🦙 **Placement automatique** | GPU intégré essayé quand le modèle reste sur le processeur |
 | 📡 **Relay** | Accès mobile (Chat + Agents) via tunnel sécurisé |
 | 🧩 **Extension VS Code** | Mode agentique sur LLM local |
 | 🔩 **Extensible** | Architecture modulaire |
