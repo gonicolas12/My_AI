@@ -30,7 +30,7 @@ const repoPath = (relative) =>
     '$1',
   );
 
-/** Fichier des données de test du suivi (section 4) */
+/** Fichier des données de test (temp/migration_test_data, ignoré par git) */
 const fixture = (name) =>
   decodeURIComponent(
     new URL(`../../temp/migration_test_data/fichiers/${name}`, import.meta.url).pathname,

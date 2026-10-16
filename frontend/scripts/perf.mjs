@@ -133,7 +133,7 @@ await waitReady(page);
 await page.waitForTimeout(800);
 
 if (wanted.has('scroll')) {
-  // Défilement d'une conversation de 200 messages (données de test du suivi, section 4)
+  // Défilement d'une conversation de 200 messages (données de test de seed_test_data.py)
   await openSidebar(page);
   const session = page.getByRole('button', { name: /^Conversation longue/ });
   if (await session.count()) {

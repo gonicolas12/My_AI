@@ -1,8 +1,7 @@
 # Outils de vérification de l'interface web
 
 Scripts Playwright (dans ce dossier) et outils Python (`tools/interface_web/`) qui ont servi à
-vérifier les phases 2 et 3 de la migration (`docs/MIGRATION_INTERFACE_WEB_SUIVI.md`). Ils ne font pas partie
-de l'appli. Les scripts se lancent depuis `frontend/`, après `npm ci` et
+vérifier la migration de l'interface vers le web. Ils ne font pas partie de l'appli. Les scripts se lancent depuis `frontend/`, après `npm ci` et
 `npx playwright install chromium`. Les captures vont par défaut dans `frontend/captures/`, ignoré
 par git.
 
@@ -14,8 +13,9 @@ agents scénarisés (« long », « outils »,
 copie de `data/workspaces` dans `temp/demo_server/PORT/` (ignoré par git, vidé à chaque lancement),
 et n'écrit ni dans `data/` ni dans le `outputs/` du dépôt : notes en mémoire, copie de l'historique
 des requêtes, voix simulée (sauf `--vraie-voix`). Les sessions « Projet API REST » et « Conversation
-longue » de `capture.mjs` et `perf.mjs` viennent des données de test du suivi (section 4) : sans
-elles, ces étapes sont sautées.
+longue » de `capture.mjs` et `perf.mjs` viennent des données de test créées par
+`temp/migration_test_data/seed_test_data.py` (dossier ignoré par git) : sans elles, ces étapes
+sont sautées.
 
 ```powershell
 python tools/interface_web/demo_server.py 8765   # depuis la racine du dépôt

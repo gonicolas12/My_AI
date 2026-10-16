@@ -93,6 +93,9 @@ tools/7zr.exe
 # Fichiers de couverture de test
 .coverage
 
+# Suivi de la migration de l'interface vers le web : document de travail, gardé en local
+docs/MIGRATION_INTERFACE_WEB_SUIVI.md
+
 # Interface web : dépendances de développement, rapports et captures d'écran
 frontend/node_modules/
 frontend/.vite/
