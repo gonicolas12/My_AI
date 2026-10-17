@@ -29,7 +29,7 @@ L'IA a un accès direct encadré à votre PC pour travailler selon ses plans :
 - Et bien d'autres outils (recherche web via DuckDuckGo, génération de documents, etc.).
 
 ### 2. Serveurs MCP Externes (MCPServers)
-My AI peut se connecter à des serveurs MCP externes via le transport `stdio`. Cela permet d'étendre les capacités de l'IA de manière infinie en utilisant l'écosystème grandissant des serveurs MCP (ex: serveurs pour GitHub, Slack, bases de données d'entreprise, etc.).
+My AI peut se connecter à des serveurs MCP externes via `stdio` ou `streamable-http`. Cela permet d'ajouter des outils à Ollama (ex: fichiers, Git, recherche web et lecture de pages).
 
 ## 🚀 Comment ça marche ?
 
@@ -90,7 +90,29 @@ mcp:
       args: ["@modelcontextprotocol/server-fetch"]
 ```
 
-Pour activer un serveur, passer `enabled: true`. Les serveurs externes nécessitent Node.js (via `npx`).
+Pour activer un serveur, passer `enabled: true`, puis redémarrer My AI. Les serveurs `stdio` ci-dessus nécessitent Node.js (via `npx`). Le transport `streamable-http` utilise directement le SDK Python, sans Node.js.
+
+### Recherche et lecture de pages avec Parallel
+
+Le préréglage `mcp.servers.parallel_search` du fichier `config.yaml` ajoute les outils de [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) au chat desktop et mobile :
+
+```yaml
+mcp:
+  servers:
+    parallel_search:
+      enabled: true
+      transport: "streamable-http"
+      url: "https://search.parallel.ai/mcp"
+      timeout: 30
+```
+
+Conservez les autres entrées de votre configuration. Après redémarrage, Ollama peut choisir `parallel_search__web_search` pour chercher des informations récentes et `parallel_search__web_fetch` pour lire des URL. Par exemple : « Recherche la documentation Python sur asyncio, puis lis la page pertinente et cite son URL. » Un modèle Ollama compatible avec les appels d'outils doit être disponible.
+
+La recherche utilise le mode **Fast**, gratuitement et sans compte ni clé API. L'accès anonyme est soumis aux limites du service. Cette option est **désactivée par défaut** : une fois activée, les requêtes, URL et arguments choisis par le modèle sont transmis à Parallel. Évitez d'y envoyer des données privées. Pour la désactiver, remettez `enabled: false` et redémarrez. Le choix de DuckDuckGo pour l'outil local `web_search` et les autres serveurs configurés restent inchangés. L'extension VS Code utilise ses propres outils et ne reçoit pas ce préréglage.
+
+`timeout` fixe le délai maximal en secondes pour chaque découverte ou appel, connexion comprise (30 par défaut). Une erreur ou un dépassement du délai est renvoyé au modèle, sans basculer automatiquement vers un autre fournisseur. Chaque opération ouvre puis ferme sa propre session HTTP ; la découverte au démarrage ne conserve aucune session liée à son thread.
+
+Pour un serveur HTTP personnalisé, `url` et `headers` sont explicites. Aucune clé n'est lue automatiquement depuis l'environnement. Un compte Parallel peut fournir un en-tête `Authorization: Bearer …` pour des limites supérieures ; ne commitez jamais de clé dans `config.yaml`. Les connexions HTTP s'identifient par défaut avec le User-Agent du projet.
 
 ## 🛠️ Dépendances
 
@@ -99,7 +121,7 @@ Si le SDK n'est pas installé, My AI gère la situation de manière gracieuse (d
 
 Pour installer le SDK MCP :
 ```bash
-pip install mcp
+pip install "mcp>=1.10.0"
 ```
 
 ## ⚠️ Confirmation de Suppression

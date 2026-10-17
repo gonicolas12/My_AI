@@ -4,15 +4,19 @@ Permet à Ollama d'appeler des outils locaux et des serveurs MCP externes.
 
 Architecture :
 - LocalTool   : fonctions Python in-process (wrapping des capacités existantes)
-- MCPServer   : processus externes via transport stdio (filesystem, git, sqlite, etc.)
+- MCPServer   : serveurs externes via stdio ou Streamable HTTP
 
 Ollama reçoit la liste unifiée des outils et décide lui-même lequel appeler.
 """
 
 import asyncio
 import concurrent.futures
+import json
+import math
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import urlsplit
 
 # MCP SDK (pip install mcp) — optionnel, dégradation gracieuse si absent
 try:
@@ -23,6 +27,13 @@ try:
     MCP_SDK_AVAILABLE = True
 except ImportError:
     MCP_SDK_AVAILABLE = False
+
+try:
+    from mcp.client.streamable_http import streamablehttp_client
+except ImportError:
+    streamablehttp_client = None
+
+HTTP_USER_AGENT = "My_AI/9.0 (+https://github.com/gonicolas12/My_AI)"
 
 
 # ---------------------------------------------------------------------------
@@ -59,10 +70,32 @@ class LocalTool:
 class MCPServerConfig:
     """Configuration d'un serveur MCP externe."""
     name: str
-    command: str
+    command: str = ""
     args: List[str] = field(default_factory=list)
     env: Optional[Dict[str, str]] = None
     enabled: bool = True
+    transport: str = "stdio"
+    url: str = ""
+    headers: Optional[Dict[str, str]] = None
+    timeout: float = 30.0
+
+    def __post_init__(self):
+        if self.transport not in ("stdio", "streamable-http"):
+            raise ValueError("Transport MCP inconnu")
+        if self.transport == "streamable-http":
+            parsed = urlsplit(self.url)
+            if (parsed.scheme not in ("http", "https") or not parsed.hostname
+                    or parsed.username or parsed.password or parsed.fragment):
+                raise ValueError("URL MCP HTTP invalide")
+            if (isinstance(self.timeout, bool) or not isinstance(self.timeout, (int, float))
+                    or not math.isfinite(self.timeout) or self.timeout <= 0):
+                raise ValueError("Le délai MCP doit être un nombre positif fini")
+            if self.headers is not None and (
+                not isinstance(self.headers, dict)
+                or any(not isinstance(k, str) or not isinstance(v, str)
+                       for k, v in self.headers.items())
+            ):
+                raise ValueError("Les en-têtes MCP doivent être des chaînes")
 
 
 # ---------------------------------------------------------------------------
@@ -146,8 +179,88 @@ class _MCPServerConnection:
 
 
 # ---------------------------------------------------------------------------
-# MCPManager — gestionnaire central
+# Connexion MCP Streamable HTTP
 # ---------------------------------------------------------------------------
+
+class _HTTPMCPServerConnection:
+    """Sessions courtes : découverte et appels peuvent utiliser des boucles différentes.
+
+    Le démarrage passe par asyncio.run() dans un thread, puis l'exécution par
+    execute_tool_sync(). Une session persistante serait liée à une boucle fermée.
+    Chaque session HTTP est donc ouverte et fermée dans la même tâche.
+    """
+
+    def __init__(self, config: MCPServerConfig):
+        self.config = config
+        self.tools: List[ToolSchema] = []
+
+    @asynccontextmanager
+    async def _session(self):
+        if not MCP_SDK_AVAILABLE or streamablehttp_client is None:
+            raise RuntimeError("Streamable HTTP nécessite mcp>=1.10.0")
+        # Aucun secret n'est lu implicitement depuis l'environnement.
+        headers = {k.lower(): v for k, v in (self.config.headers or {}).items()}
+        headers.setdefault("user-agent", HTTP_USER_AGENT)
+        async with streamablehttp_client(
+            self.config.url, headers=headers, timeout=self.config.timeout,
+            sse_read_timeout=self.config.timeout,
+        ) as transport:
+            async with ClientSession(transport[0], transport[1]) as session:
+                await session.initialize()
+                yield session
+
+    async def _discover(self):
+        async with self._session() as session:
+            tools = []
+            cursor = None
+            while True:
+                response = await session.list_tools(cursor=cursor)
+                tools.extend(
+                    ToolSchema(
+                        name=f"{self.config.name}__{tool.name}",
+                        description=tool.description or "",
+                        parameters=tool.inputSchema or {"type": "object", "properties": {}},
+                    )
+                    for tool in response.tools
+                )
+                cursor = response.nextCursor
+                if not cursor:
+                    return tools
+
+    async def connect(self) -> bool:
+        try:
+            self.tools = await asyncio.wait_for(self._discover(), self.config.timeout)
+            print(f"✅ [MCP] Serveur HTTP '{self.config.name}' : {len(self.tools)} outils")
+            return True
+        except Exception as exc:
+            self.tools = []
+            print(f"⚠️ [MCP] Connexion HTTP échouée '{self.config.name}': {type(exc).__name__}")
+            return False
+
+    async def _call(self, name: str, arguments: Dict):
+        async with self._session() as session:
+            return await session.call_tool(name, arguments)
+
+    async def call_tool(self, original_tool_name: str, arguments: Dict) -> str:
+        try:
+            result = await asyncio.wait_for(
+                self._call(original_tool_name, arguments), self.config.timeout
+            )
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(f"Délai MCP dépassé ({self.config.timeout:g} s)") from exc
+        text = "\n".join(
+            c.text if hasattr(c, "text") else str(c) for c in result.content
+        )
+        if not text and result.structuredContent is not None:
+            text = json.dumps(result.structuredContent, ensure_ascii=False)
+        if result.isError:
+            return f"[Erreur serveur MCP '{self.config.name}'] {text}"
+        return text
+
+    async def disconnect(self):
+        # Les contextes HTTP sont déjà fermés à la fin de chaque opération.
+        self.tools = []
+
 
 class MCPManager:
     """
@@ -155,7 +268,7 @@ class MCPManager:
 
     Deux couches :
     1. Outils locaux (in-process) — toujours disponibles, 0 dépendance
-    2. Serveurs MCP externes (stdio) — optionnels, enrichissement progressif
+    2. Serveurs MCP externes (stdio / HTTP) — optionnels, enrichissement progressif
 
     Usage dans AIEngine :
         manager = MCPManager()
@@ -168,7 +281,7 @@ class MCPManager:
     def __init__(self):
         self._local_tools: Dict[str, LocalTool] = {}
         self._server_configs: Dict[str, MCPServerConfig] = {}
-        self._server_connections: Dict[str, _MCPServerConnection] = {}
+        self._server_connections: Dict[str, Any] = {}
         self._external_tools: Dict[str, tuple] = {}  # name → (server_name, original_name)
         self._connected = False
 
@@ -208,12 +321,18 @@ class MCPManager:
 
     def register_mcp_server_from_dict(self, name: str, server_dict: Dict):
         """Enregistre depuis un dictionnaire de config (depuis config.yaml)."""
+        if not server_dict.get("enabled", True):
+            return
         config = MCPServerConfig(
             name=name,
             command=server_dict.get("command", ""),
             args=server_dict.get("args", []),
             env=server_dict.get("env"),
             enabled=server_dict.get("enabled", True),
+            transport=server_dict.get("transport", "stdio"),
+            url=server_dict.get("url", ""),
+            headers=server_dict.get("headers"),
+            timeout=server_dict.get("timeout", 30.0),
         )
         self.register_mcp_server(config)
 
@@ -240,7 +359,9 @@ class MCPManager:
 
         tasks = []
         for name, config in self._server_configs.items():
-            conn = _MCPServerConnection(config)
+            conn = (_HTTPMCPServerConnection(config)
+                    if config.transport == "streamable-http"
+                    else _MCPServerConnection(config))
             self._server_connections[name] = conn
             tasks.append(conn.connect())
 

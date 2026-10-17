@@ -348,9 +348,18 @@ mcp:
     generate_code: true
     calculate: true
 
-  # Serveurs MCP externes (optionnels, nécessitent Node.js via npx ou Python via uvx)
+  # Serveurs MCP externes (optionnels ; stdio via npx/uvx, ou HTTP via le SDK Python)
   # Mettre enabled: true pour activer, false pour ignorer
   servers:
+
+    # Recherche web et lecture de pages via Parallel Search MCP (mode Fast).
+    # Gratuit sans compte ni clé API. Envoie les requêtes/URL à un service externe.
+    # Activer puis redémarrer ; DuckDuckGo et les autres serveurs restent disponibles.
+    parallel_search:
+      enabled: false
+      transport: "streamable-http"
+      url: "https://search.parallel.ai/mcp"
+      timeout: 30
 
     # Accès au système de fichiers local
     # Requiert: Node.js — npx @modelcontextprotocol/server-filesystem
