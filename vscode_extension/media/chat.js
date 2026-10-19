@@ -42,6 +42,15 @@
   let typingEl = null;
   let lastSentMessageId = null;
   const renderedMessageIds = new Set();
+  // Réponses closes (reçues en entier, ou arrêtées par Stop) : leurs chunks
+  // tardifs sont ignorés. Clear garde cet ensemble, contrairement à
+  // renderedMessageIds : l'hôte peut encore envoyer quelques chunks après un
+  // Stop, et ils ne doivent pas s'écrire dans le chat vidé.
+  const closedMessageIds = new Set();
+  // Stop demandé pour la réponse attendue (son id peut n'arriver qu'avec l'ack).
+  let stopRequested = false;
+  // Clear pendant une génération : la fin de cette réponse n'affiche plus rien.
+  let discardingReply = false;
   let pendingAttachments = [];
   let attachmentCounter = 0;
   let streamingMessageId = null;
@@ -243,10 +252,13 @@
 
   // ── TOOL CARDS (agentic mode) ────────────────────────
   function applyToolEvent(event) {
-    if (!event || !event.callId) return;
-    if (welcomeEl) welcomeEl.style.display = 'none';
+    if (!event || !event.callId || discardingReply) return;
     let card = toolCardEls.get(event.callId);
     if (!card) {
+      // Une carte naît de l'événement « requested » de son appel : un outil
+      // encore en cours au moment d'un Clear ne la recrée pas dans le chat vidé.
+      if (event.kind !== 'requested') return;
+      if (welcomeEl) welcomeEl.style.display = 'none';
       card = createToolCard(event);
       // Append at the bottom : la carte arrive APRÈS le segment de texte
       // qui l'a déclenchée (segment N), et AVANT le segment de texte qui
@@ -454,6 +466,18 @@
 
     if (data.type === 'response') {
       const mid = data.message_id || '';
+      if (mid) closedMessageIds.add(mid);
+      if (discardingReply) {
+        // Fin de la réponse arrêtée par Clear : on rend le bouton d'envoi
+        // sans rien afficher dans le chat vidé.
+        if (mid) renderedMessageIds.add('ai:' + mid);
+        discardingReply = false;
+        stopRequested = false;
+        isWaiting = false;
+        lastSentMessageId = null;
+        updateSendButton();
+        return;
+      }
       if (mid && renderedMessageIds.has('ai:' + mid)) {
         if (streamingMessageId === mid) finalizeStreaming(mid, null, null);
         return;
@@ -461,12 +485,13 @@
       if (mid) renderedMessageIds.add('ai:' + mid);
       removeTyping();
       isWaiting = false;
+      stopRequested = false;
       if (mid && mid === lastSentMessageId) lastSentMessageId = null;
       finalizeStreaming(mid, data.message, data.timestamp);
       updateSendButton();
     } else if (data.type === 'chunk') {
       const cmid = data.message_id || '';
-      if (!cmid) return;
+      if (!cmid || discardingReply || closedMessageIds.has(cmid)) return;
       if (renderedMessageIds.has('ai:' + cmid)) return;
       removeTyping();
       // segment_index : optionnel (ancien protocole = pas de segments).
@@ -477,6 +502,8 @@
       if (data.message_id) {
         lastSentMessageId = data.message_id;
         renderedMessageIds.add('user:' + data.message_id);
+        // Stop cliqué avant cet ack : la réponse est déjà arrêtée.
+        if (stopRequested) closedMessageIds.add(data.message_id);
       }
     }
   }
@@ -544,9 +571,12 @@
 
   // Demande au host d'arrêter la génération en cours (LLM + appels d'outils).
   // Le host annule la tâche agentique et renvoie une réponse « interrompue »,
-  // ce qui repasse isWaiting à false (via applyRelayMessage).
+  // ce qui repasse isWaiting à false (via applyRelayMessage). D'ici là, les
+  // chunks encore en route sont ignorés : le texte s'arrête tout de suite.
   function stopGeneration() {
     if (!isWaiting) return;
+    stopRequested = true;
+    if (lastSentMessageId) closedMessageIds.add(lastSentMessageId);
     vscode.postMessage({ type: 'stop-generation', messageId: lastSentMessageId || '' });
   }
 
@@ -1052,6 +1082,14 @@
   }
 
   function clearChat() {
+    // Vider le chat pendant une génération l'arrête, sinon la réponse
+    // continuerait de s'écrire dans le chat vidé. Le bouton reste en mode
+    // stop jusqu'à la réponse « interrompue » de l'hôte.
+    if (isWaiting) {
+      stopGeneration();
+      discardingReply = true;
+    }
+    removeTyping();
     Array.from(messagesEl.children).forEach((c) => {
       if (c !== welcomeEl) c.remove();
     });

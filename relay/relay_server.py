@@ -1088,21 +1088,21 @@ class RelayServer:
                             # génération du LLM ET les appels d'outils en cours
                             # (l'await des tool_result tombe avec la tâche).
                             stopped_mid = msg_data.get("message_id", "") or ""
-                            cancelled_any = False
                             for task in list(agentic_tasks):
                                 if not task.done():
                                     task.cancel()
-                                    cancelled_any = True
                             # Débloquer le bouton STOP du client : réponse finale
                             # « interrompue » (dédupliquée par message_id côté client
-                            # si la vraie réponse était déjà partie).
-                            if cancelled_any:
-                                await _send_encrypted({
-                                    "type": "response",
-                                    "message": "⏹️ Génération interrompue.",
-                                    "message_id": stopped_mid,
-                                    "timestamp": datetime.now().isoformat(),
-                                })
+                            # si la vraie réponse était déjà partie). Envoyée même
+                            # sans tâche à annuler : si la réponse a été perdue (WS
+                            # reconnecté pendant la génération), le client l'attend
+                            # encore et resterait bloqué en mode STOP.
+                            await _send_encrypted({
+                                "type": "response",
+                                "message": "⏹️ Génération interrompue.",
+                                "message_id": stopped_mid,
+                                "timestamp": datetime.now().isoformat(),
+                            })
                         else:
                             # Chat mobile : la réponse vient du GUI desktop via le
                             # bridge ; on lui transmet la demande d'interruption.

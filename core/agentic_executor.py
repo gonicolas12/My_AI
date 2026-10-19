@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import threading
 import time
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -615,21 +616,35 @@ class AgenticExecutor:
         segment_index: int,
         on_chunk: Callable[..., None],
     ) -> str:
-        """Appelle Ollama /api/chat en streaming, retourne le texte complet."""
+        """Appelle Ollama /api/chat en streaming, retourne le texte complet.
+
+        Le streaming tourne dans un thread, que l'annulation de la tâche
+        (bouton STOP, WS fermé) n'arrête pas : on le prévient via ``stop``.
+        Sinon il continuerait de pousser des chunks au client, et Ollama de
+        générer jusqu'au bout en bloquant la requête suivante (un seul slot
+        par modèle).
+        """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self._sync_call_llm_streaming,
-            messages,
-            segment_index,
-            on_chunk,
-        )
+        stop = threading.Event()
+        try:
+            return await loop.run_in_executor(
+                None,
+                self._sync_call_llm_streaming,
+                messages,
+                segment_index,
+                on_chunk,
+                stop,
+            )
+        except asyncio.CancelledError:
+            stop.set()
+            raise
 
     def _sync_call_llm_streaming(
         self,
         messages: List[Dict[str, str]],
         segment_index: int,
         on_chunk: Callable[..., None],
+        stop: threading.Event,
     ) -> str:
         data = {
             "model": self._model,
@@ -659,6 +674,14 @@ class AgenticExecutor:
                     logger.error("Ollama HTTP %d: %s", resp.status_code, resp.text[:200])
                     return err
                 for raw_line in resp.iter_lines():
+                    # Tâche annulée : sortir du `with` ferme la connexion, et
+                    # Ollama abandonne la génération.
+                    if stop.is_set():
+                        logger.info(
+                            "Flux LLM coupé (tâche annulée) après %d chars",
+                            len(full_response),
+                        )
+                        break
                     if not raw_line:
                         continue
                     try:
