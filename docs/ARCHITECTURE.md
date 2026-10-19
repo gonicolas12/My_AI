@@ -48,7 +48,7 @@ My Personal AI v9.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  My_AI Relay (relay/)                                                  │
 │  • Interface mobile PWA (iOS/Android) via WebSocket — onglets          │
 │    Chat / Agents (comme la fenêtre du PC)                              │
-│  • Tunnel cloudflared HTTPS → accès depuis n'importe où                │
+│  • Tunnels HTTPS (cloudflared, localhost.run), vérifiés depuis le PC   │
 │  • Authentification token/mot de passe + QR code                       │
 │  • RelayBridge (singleton) : chat mobile → ChatService, fenêtre        │
 │    ouverte ou non                                                      │
@@ -333,6 +333,11 @@ Architecture:
                             #   5. réinjecte les résultats au LLM
                             #   6. répète jusqu'à plus de tool_use
                             #      (max 25 itérations) ou réponse finale
+                            # Garde-fou anti-boucle : la même action (même
+                            #   outil, même chemin) est recadrée à 3, coupée à 5
+                            # STOP : la tâche est annulée et le thread de
+                            #   streaming coupe la connexion Ollama (la
+                            #   génération est abandonnée, le slot libéré)
 
 L'historique de conversation est passé par référence (mutation in-place)
 pour permettre la continuité entre messages d'une même session WS.
@@ -583,14 +588,15 @@ Architecture:
 │   ├─ Protocole : {"e": "<base64url>"} encapsulant {type, ...}
 │   ├─ chat (mobile) : armé via bridge, attente DÉTACHÉE en tâche pour
 │   │   garder la boucle libre de lire stop_generation pendant la génération
-│   ├─ stop_generation : bridge.request_interrupt() → interrupt_ai() côté GUI
+│   ├─ stop_generation : mobile → bridge.request_interrupt() → interrupt_ai()
+│   │   côté GUI ; vscode → annule la tâche agentique (flux Ollama coupé), et
+│   │   renvoie toujours la réponse « interrompue » qui libère le bouton
 │   └─ Messages page Agents (agents_list, agent_create/edit/delete,
 │       agent_execute, agent_debate, agent_stop) → AgentRelayService,
 │       streamés via une file unique drainée par une seule coroutine
 │       (évite l'entrelacement des envois pendant les étapes parallèles)
 ├─ REST :
 │   ├─ GET /, POST /auth, GET /api/health (clair)
-│   ├─ GET /api/tunnels (clair, URLs déjà publiques)
 │   ├─ GET /api/history, GET /api/pending (réponse E2EE)
 │   └─ POST /api/upload : multipart binaire chiffré → fichier temp + file_id
 │       ├─ Wire body : nonce(12) || aes_gcm_ct(N+16)
@@ -602,7 +608,16 @@ Architecture:
 ├─ Chiffrement E2EE : AES-256-GCM, clé éphémère 32 octets régénérée à
 │   chaque démarrage. Diffusion de la clé : exclusivement via le
 │   fragment du QR code (jamais émis sur le réseau).
-├─ Multi-tunnel parallèle : cloudflared + serveo + localhost.run
+├─ Multi-tunnel parallèle : cloudflared + localhost.run (serveo en option,
+│   son nom de tunnel contient l'IP publique du réseau)
+│   ├─ Tunnels → 127.0.0.1 (le Relay n'écoute qu'en IPv4 ; « localhost »
+│   │   donnait ::1, que l'OpenSSH de Windows ne sait pas abandonner)
+│   ├─ Vérification depuis le PC (_watch_tunnels, même test que la page de
+│   │   routage : GET /api/health) : seuls les joignables entrent dans le
+│   │   QR code ; si aucun ne répond en 30 s, ils y entrent tous
+│   ├─ cloudflared testé via les serveurs DNS faisant autorité de
+│   │   trycloudflare.com (pas de « nom inexistant » gardé en cache)
+│   ├─ Liste des tunnels jamais servie sans token
 │   └─ Téléchargement auto cloudflared si absent (GitHub releases)
 ├─ QR Code SVG via qrcode.image.svg, encode {urls, token, key}
 │   en base64url dans le fragment d'une URL GitHub Pages
