@@ -2754,7 +2754,7 @@ def _get_login_page() -> str:
     padding: 40px 32px; width: 90%; max-width: 380px;
     text-align: center; border: 1px solid #2d2d2d;
   }
-  .logo { font-size: 48px; margin-bottom: 8px; }
+  .logo { display: block; width: 48px; height: 48px; margin: 0 auto 8px; }
   h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
   .subtitle { color: #9ca3af; font-size: 14px; margin-bottom: 32px; }
   input {
@@ -2775,7 +2775,14 @@ def _get_login_page() -> str:
 </head>
 <body>
 <div class="login-card">
-  <div class="logo">&#x1F916;</div>
+  <!-- Logo de My_AI (frontend/public/favicon.svg) -->
+  <svg class="logo" viewBox="0 0 24 24" fill="#ff6b47" aria-hidden="true">
+    <circle cx="7" cy="1.5" r="1"/>
+    <rect x="6.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>
+    <circle cx="17" cy="1.5" r="1"/>
+    <rect x="16.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M 5 4.5 H 19 A 4 4 0 0 1 23 8.5 V 18 A 4 4 0 0 1 19 22 H 5 A 4 4 0 0 1 1 18 V 8.5 A 4 4 0 0 1 5 4.5 Z M 6.25 9.25 H 8.75 A 1.25 1.25 0 0 1 10 10.5 V 12 A 1.25 1.25 0 0 1 8.75 13.25 H 6.25 A 1.25 1.25 0 0 1 5 12 V 10.5 A 1.25 1.25 0 0 1 6.25 9.25 Z M 15.25 9.25 H 17.75 A 1.25 1.25 0 0 1 19 10.5 V 12 A 1.25 1.25 0 0 1 17.75 13.25 H 15.25 A 1.25 1.25 0 0 1 14 12 V 10.5 A 1.25 1.25 0 0 1 15.25 9.25 Z M 9 15.75 H 15 A 1 1 0 0 1 15 17.75 H 9 A 1 1 0 0 1 9 15.75 Z"/>
+  </svg>
   <h1>My_AI Relay</h1>
   <p class="subtitle">Entrez le mot de passe pour accéder à votre IA</p>
   <div class="error" id="error">Mot de passe incorrect</div>
