@@ -31,12 +31,16 @@ exactement comme avant.
   silencieusement ; `write_file`, `edit_file` et `run_command` demandent
   confirmation, avec des options pour autoriser une fois, autoriser le
   même fichier, ou autoriser l'outil pour le reste de la session.
+- ⏹️ **Stop et Effacer** — pendant la génération, le bouton d'envoi devient
+  Stop : il arrête le modèle et les appels d'outils en attente, et le texte
+  se fige aussitôt. **Effacer** vide la vue (le contexte de la session reste
+  côté hôte) et arrête une réponse en cours.
 - 🔐 **Chiffrement bout-en-bout** — AES-256-GCM par-dessus le tunnel
-  public. Le serveur Cloudflare/serveo/localhost.run ne voit que du
+  public. Le serveur de tunnel (Cloudflare, localhost.run) ne voit que du
   ciphertext.
-- 🌐 **Failover multi-tunnel** — cloudflared, serveo et localhost.run
-  tournent en parallèle côté hôte ; l'extension choisit le premier
-  joignable et bascule automatiquement si l'un tombe.
+- 🌐 **Failover multi-tunnel** — cloudflared et localhost.run (plus serveo,
+  s'il est activé) tournent en parallèle côté hôte ; l'extension choisit le
+  premier joignable et bascule automatiquement si l'un tombe.
 - 💾 **Connexion persistante** — les identifiants restent chiffrés dans le
   SecretStorage de VS Code. L'extension se reconnecte automatiquement
   quand le Relay hôte revient en ligne, et se déconnecte quand il
@@ -61,7 +65,7 @@ exactement comme avant.
   capable de lancer My_AI). Le bouton Relay est en haut à gauche de la
   barre latérale du GUI.
 - Une **connexion Internet** des deux côtés (le tunnel chiffré passe par
-  Cloudflare / serveo / localhost.run).
+  Cloudflare ou localhost.run).
 
 ## Démarrage rapide
 
@@ -232,8 +236,10 @@ démarre une nouvelle conversation agentique.
   [`SecretStorage`](https://code.visualstudio.com/api/references/vscode-api#SecretStorage)
   de VS Code — chiffrés par le keychain de l'OS, scopés par machine et
   utilisateur.
-- Le serveur de tunnel (Cloudflare / serveo / localhost.run) ne voit que
-  du ciphertext. L'IP de votre PC hôte est masquée derrière le tunnel.
+- Le serveur de tunnel (Cloudflare / localhost.run) ne voit que du
+  ciphertext, et le nom des tunnels ne révèle pas l'adresse IP de votre PC
+  hôte. serveo, désactivé par défaut, met l'adresse IP publique de votre
+  réseau dans le nom de ses tunnels.
 - Arrêter le Relay sur le PC hôte invalide la clé de chiffrement et les
   tunnels. L'extension le détecte sous ~30 s et passe en « hors ligne ».
 - **Isolation du workspace.** Le mode agentique exécute tous les outils
@@ -247,8 +253,8 @@ démarre une nouvelle conversation agentique.
 ## Dépannage
 
 - **« Aucun tunnel joignable »** — le PC hôte est hors ligne, le Relay a
-  été arrêté, ou votre réseau local bloque les trois providers. Essayez
-  de relancer le Relay.
+  été arrêté, ou votre réseau local bloque tous les providers. Essayez de
+  relancer le Relay.
 - **« Échec du déchiffrement E2EE »** — la chaîne de connexion vient
   d'une session Relay précédente (la clé AES est régénérée à chaque
   démarrage du Relay). Copiez une nouvelle chaîne et reconnectez-vous.
