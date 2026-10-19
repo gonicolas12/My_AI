@@ -3,7 +3,9 @@ Vérification des tunnels du Relay depuis ce PC (relay_server._watch_tunnels).
 
 Une adresse de tunnel annoncée peut ne mener nulle part : le 2026-10-15,
 localhost.run répondait « 502 no tunnel » dès son annonce, et le premier QR
-code (localhost.run seul) menait le téléphone à un échec. Un tunnel n'entre
+code (localhost.run seul) menait le téléphone à un échec (cause trouvée le
+2026-10-19 : le tunnel renvoyait vers « localhost », soit ::1 où le Relay
+n'écoute pas, voir test_tunnels_forward_to_127_0_0_1). Un tunnel n'entre
 plus dans la page de routage qu'une fois joignable (GET /api/health, le test
 de la page de routage). Un tunnel neuf reste « à vérifier » 30 s, puis passe
 muet ; si aucun n'a jamais répondu au PC, ils entrent tous dans la page de
@@ -386,6 +388,50 @@ def test_ssh_tunnels_write_no_nul_file(server, monkeypatch):
             assert target == os.devnull
     # Vidé à chaque démarrage : aucune clé gardée d'une fois à l'autre, comme avec /dev/null
     assert not known.exists()
+
+
+def test_tunnels_forward_to_127_0_0_1(server, monkeypatch):
+    # « localhost » donne d'abord ::1, où le Relay n'écoute pas : l'OpenSSH de Windows
+    # perdait la connexion sans essayer 127.0.0.1, et serveo comme localhost.run
+    # répondaient « 502 » à tout (2026-10-19)
+    commands = {}
+    monkeypatch.setattr(relay_server.shutil, "which", lambda name: name)
+    monkeypatch.setattr(server, "_spawn_tunnel",
+                        lambda provider, cmd, **kwargs: commands.__setitem__(provider, cmd))
+
+    server._start_cloudflared()
+    server._start_serveo()
+    server._start_localhost_run()
+
+    target = f"127.0.0.1:{server.port}"
+    assert commands["cloudflared"][-1] == f"http://{target}"
+    for provider in ("serveo", "localhost.run"):
+        cmd = commands[provider]
+        assert cmd[cmd.index("-R") + 1] == f"80:{target}"
+
+
+def test_serveo_address_is_read_on_its_new_domain(server, monkeypatch):
+    # serveo annonce maintenant *.serveousercontent.com : l'ancien motif (*.serveo.net)
+    # ne le voyait pas, et serveo n'entrait jamais dans le QR code (2026-10-19)
+    reading = {}
+    monkeypatch.setattr(relay_server.shutil, "which", lambda name: name)
+    monkeypatch.setattr(server, "_spawn_tunnel",
+                        lambda provider, cmd, **kwargs: reading.update(kwargs))
+    server._start_serveo()
+
+    url = "https://2806d784fd3ec9bb-203-0-113-7.serveousercontent.com"
+    output = [
+        # Bannière : une adresse serveo qui n'est pas celle du tunnel
+        "Tip (5): Add your SSH key to reserve names: https://console.serveo.net/settings?n=5",
+        chr(27) + "[32mForwarding HTTP traffic from " + url,
+    ]
+    echo = [sys.executable, "-c", "import sys; [print(line) for line in sys.argv[1:]]"]
+    RelayServer._spawn_tunnel(server, "serveo", echo + output, **reading)
+
+    deadline = time.monotonic() + 10
+    while "serveo" not in server.tunnel_urls and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert server.tunnel_urls.get("serveo") == url
 
 
 class _Health(http.server.BaseHTTPRequestHandler):

@@ -51,9 +51,9 @@ _ROUTER_PAGE_URL = "https://gonicolas12.github.io/My_AI/router.html"
 
 # Vérification des tunnels depuis ce PC (_watch_tunnels) : un tunnel annoncé
 # n'entre dans le QR code qu'une fois joignable. Une adresse annoncée peut ne
-# mener nulle part (localhost.run répond « 502 no tunnel » dès l'annonce), ou
-# pas tout de suite (cloudflared : son nom n'existe que quelques secondes après
-# l'annonce, voir _DNS_AUTHORITIES).
+# mener nulle part (« 502 » d'un tunnel qui ne joint pas le Relay, voir
+# _tunnel_target), ou pas tout de suite (cloudflared : son nom n'existe que
+# quelques secondes après l'annonce, voir _DNS_AUTHORITIES).
 _TUNNEL_PROBE_TIMEOUT = 5.0  # délai de la page de routage pour chaque tunnel
 _TUNNEL_RETRY = 3.0  # nouvel essai : tunnel pas encore joignable, ou en échec
 _TUNNEL_RECHECK = 30.0  # contrôle d'un tunnel joignable, ou muet depuis 1 min
@@ -73,9 +73,9 @@ _TUNNEL_VERIFY_GRACE = 30.0
 # encore « inexistant » 2,4 s après eux) : le Relay ne demande jamais ce nom
 # au DNS du PC. Il prend l'adresse du tunnel aux serveurs faisant autorité,
 # interrogés en direct (ils ne gardent rien en cache), et y envoie le test
-# (_probe_tunnel_at). lhr.life et serveo.net répondent pour tout nom (joker
-# DNS) : testés par le DNS du PC. Si Cloudflare change ces serveurs, ils
-# refusent la question, et le DNS du PC prend le relais passé
+# (_probe_tunnel_at). lhr.life et serveousercontent.com (serveo) répondent pour
+# tout nom (joker DNS) : testés par le DNS du PC. Si Cloudflare change ces
+# serveurs, ils refusent la question, et le DNS du PC prend le relais passé
 # _TUNNEL_DNS_FALLBACK.
 _DNS_AUTHORITIES: Dict[str, Tuple[str, ...]] = {
     "trycloudflare.com": ("kevin.ns.cloudflare.com", "marjory.ns.cloudflare.com"),
@@ -448,6 +448,17 @@ class RelayServer:
             f"http://127.0.0.1:{self._port}/?token={self._auth_token}"
             f"#k={self._b64u_encode(self._e2e_key)}"
         )
+
+    @property
+    def _tunnel_target(self) -> str:
+        """Adresse locale vers laquelle les tunnels renvoient le trafic.
+
+        127.0.0.1, pas « localhost » : le Relay n'écoute qu'en IPv4, et
+        « localhost » donne d'abord ::1. L'OpenSSH de Windows croit alors sa
+        connexion établie, la perd aussitôt et n'essaie pas 127.0.0.1 : serveo
+        et localhost.run répondaient « 502 » à tout (vu le 2026-10-19).
+        """
+        return f"127.0.0.1:{self._port}"
 
     @property
     def port(self) -> int:
@@ -2258,7 +2269,7 @@ class RelayServer:
 
         self._spawn_tunnel(
             provider="cloudflared",
-            cmd=[cf_path, "tunnel", "--url", f"http://localhost:{self._port}"],
+            cmd=[cf_path, "tunnel", "--url", f"http://{self._tunnel_target}"],
             url_pattern=r"https://[a-z0-9-]+\.trycloudflare\.com",
         )
         logger.info("Tunnel cloudflared en cours de démarrage...")
@@ -2303,16 +2314,19 @@ class RelayServer:
             "-o", "ServerAliveInterval=30",
             "-o", "ExitOnForwardFailure=yes",
             "-T",  # pas de tty
-            "-R", f"80:localhost:{self._port}",
+            "-R", f"80:{self._tunnel_target}",
             "serveo.net",
         ]
         self._spawn_tunnel(
             provider="serveo",
             cmd=cmd,
-            url_pattern=r"https://[a-z0-9-]+\.serveo\.net",
+            # serveo donne maintenant des noms en *.serveousercontent.com, IP
+            # publique du PC comprise (vu le 2026-10-19) ; l'ancien domaine
+            # reste accepté
+            url_pattern=r"https://[a-z0-9-]+\.(?:serveousercontent\.com|serveo\.net)",
             # Évite de capturer "console.serveo.net" présent dans la
             # bannière MOTD : on attend la ligne "Forwarding HTTP traffic
-            # from https://...serveo.net" qui annonce la vraie URL.
+            # from https://...serveousercontent.com" qui annonce la vraie URL.
             line_must_contain="forwarding",
         )
         logger.info("Tunnel serveo en cours de démarrage...")
@@ -2331,7 +2345,7 @@ class RelayServer:
             "-o", "ServerAliveInterval=30",
             "-o", "ExitOnForwardFailure=yes",
             "-T",
-            "-R", f"80:localhost:{self._port}",
+            "-R", f"80:{self._tunnel_target}",
             "nokey@localhost.run",
         ]
         self._spawn_tunnel(

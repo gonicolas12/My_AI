@@ -115,10 +115,13 @@
   var settled = false;
   var perUrlEl = {};
 
+  function hostOf(url) {
+    try { return new URL(url).hostname; } catch (e) { return url; }
+  }
+
   function appendTry(url) {
     var li = document.createElement('li');
-    var host = '';
-    try { host = new URL(url).hostname; } catch (e) { host = url; }
+    var host = hostOf(url);
     li.innerHTML = '<span>Test du tunnel</span><span class="host">' + host + '</span>';
     triesEl.appendChild(li);
     perUrlEl[url] = li;
@@ -142,11 +145,17 @@
     abortAll();
     statusEl.textContent = 'Redirection…';
     var sep = url.indexOf('?') >= 0 ? '&' : '?';
+    // serveo affiche une page d'avertissement à la première visite d'un
+    // tunnel gratuit, et son bouton « Continue » recharge la page sans le
+    // token ni la clé. Ce paramètre la saute : serveo pose son cookie et
+    // redirige (302) vers la même adresse sans lui, le fragment #k suit.
+    var skip = /\.serveo(usercontent\.com|\.net)$/.test(hostOf(url))
+      ? '&serveo-skip-browser-warning=true' : '';
     // Le token reste en query (le serveur l'utilise pour authentifier),
     // mais la clé E2EE va dans le fragment (#k=...) pour ne PAS être
     // transmise au serveur de tunnel public. Seul le navigateur la lit.
     location.replace(
-      url + sep + 'token=' + encodeURIComponent(payload.token) +
+      url + sep + 'token=' + encodeURIComponent(payload.token) + skip +
       '#k=' + encodeURIComponent(payload.key)
     );
   }

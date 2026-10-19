@@ -1429,7 +1429,7 @@ relay:
   tunnel: true            # false = réseau local uniquement (sans accès externe)
   tunnel_providers:       # Providers de tunnel à démarrer en parallèle
     - "cloudflared"       #   *.trycloudflare.com (auto-téléchargé)
-    - "serveo"            #   *.serveo.net (via SSH, anonyme)
+    - "serveo"            #   *.serveousercontent.com (via SSH, anonyme)
     - "localhost.run"     #   *.lhr.life (via SSH, anonyme)
   host: "0.0.0.0"         # Écoute sur toutes les interfaces réseau
 ```
