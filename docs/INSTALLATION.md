@@ -305,6 +305,8 @@ python-multipart>=0.0.9  # Parsing multipart pour POST /api/upload (pièces join
 
 > **cloudflared** (tunnel HTTPS) est téléchargé automatiquement par My_AI au premier démarrage du Relay. Vous pouvez aussi le placer manuellement dans `tools/cloudflared.exe` (Windows) ou `tools/cloudflared` (Linux/macOS).
 >
+> Le tunnel **localhost.run** (et serveo, s'il est activé) passe par le client `ssh`, intégré à Windows 10+, macOS et Linux : sans lui, le Relay ne lance que cloudflared.
+>
 > `fastapi` et `uvicorn` sont aussi requis par la fenêtre de l'appli (son serveur local).
 
 ### Extension VS Code (Optionnel — assistant agentique pour développeurs)

@@ -5,6 +5,25 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-10-19
+
+Documentation update, released with host-side fixes to the tunnels: no
+change to how the extension works.
+
+### Changed
+- **README.** Describes the **Stop** and **Clear** buttons, lists the tunnels
+  the host starts by default (cloudflared and localhost.run), and no longer
+  claims that your host's IP address is always hidden: serveo, now off by
+  default, puts your network's public IP address in its tunnel names.
+
+### Notes
+- On the host, the SSH tunnels now forward to `127.0.0.1`. localhost.run
+  used to answer "502 no tunnel" to every request: Windows' OpenSSH tried
+  `::1`, where the Relay doesn't listen. With localhost.run working again,
+  the QR code is ready in a few seconds. serveo is no longer started by
+  default, and the Relay no longer lists its tunnels to callers without a
+  token. These changes ship with My_AI and apply to every extension version.
+
 ## [1.3.9] — 2026-10-19
 
 Fixes **Stop** and **Clear** while a reply is being written.

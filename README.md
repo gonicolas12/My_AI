@@ -507,7 +507,7 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 ### Fonctionnement
 
 1. Cliquez sur **Relay** en bas de la barre latérale (ou Ctrl+R)
-2. My_AI Relay démarre un serveur WebSocket et ouvre un tunnel sécurisé (cloudflared)
+2. My_AI Relay démarre un serveur WebSocket et ouvre des tunnels sécurisés en parallèle (cloudflared et localhost.run)
 3. Scannez le QR code ou copiez l'URL sur votre téléphone
 4. L'interface mobile propose deux onglets en haut, **💬 Chat** et **🤖 Agents** (comme le GUI PC) :
    - **Chat** — discutez en temps réel ; les messages apparaissent aussi sur le PC. Le bouton d'envoi devient un **bouton Stop** pendant la génération, et les liens `[titre](url)` s'affichent en bleu cliquable.
@@ -522,8 +522,8 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 | 📱 **Interface mobile** | PWA responsive, thème sombre, onglets Chat / Agents |
 | 🤖 **Page Agents** | 9 agents spécialisés + agents personnalisés, workflow visuel (séquentiel / parallèle / DAG), Mode Débat — exécutés côté PC (Ollama local), streamés au mobile |
 | 🔒 **Authentification** | Token unique par session ou mot de passe configurable |
-| 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni Cloudflare/serveo/localhost.run, ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
-| 🌐 **Multi-tunnel** | cloudflared + serveo + localhost.run en parallèle, chacun vérifié depuis le PC : seuls les joignables entrent dans le QR code ; failover côté client |
+| 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni les services de tunnel (Cloudflare, localhost.run), ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
+| 🌐 **Multi-tunnel** | cloudflared + localhost.run en parallèle (serveo en option), chacun vérifié depuis le PC : seuls les joignables entrent dans le QR code ; failover côté client |
 | 🔄 **Synchronisation** | Messages du chat visibles en temps réel sur PC et mobile |
 | ⚡ **WebSocket** | Communication instantanée, streaming, indicateur de frappe, bouton Stop |
 | 📎 **Pièces jointes** | Chat + Agents : images + documents (PDF, DOCX, PPTX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
@@ -537,11 +537,12 @@ relay:
   port: 8765             # Port du serveur Relay
   response_timeout: 500  # Délai max de réponse IA (secondes)
   password: ""           # Mot de passe (vide = token aléatoire)
-  tunnel: true           # Activer le tunnel cloudflared
+  tunnel: true           # Activer les tunnels (tunnel_providers)
+  tunnel_providers: ["cloudflared", "localhost.run"]  # "serveo" en option, voir docs/USAGE.md
   host: "0.0.0.0"        # Adresse d'écoute
 ```
 
-> **Sans cloudflared**, le Relay reste accessible sur le réseau local uniquement.
+> **Sans tunnel** (`tunnel: false`, ou aucun fournisseur joignable), le Relay reste accessible sur le réseau local uniquement.
 
 ---
 
@@ -564,7 +565,7 @@ relay:
 | 🤖 **Mode agentique** | 9 outils exposés au LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) avec boucle de raisonnement multi-étapes |
 | 📎 **Menu `@`** | Taper `@` attache un fichier au message, ou un **dossier** comme contexte **@codebase** persistant (indexé côté hôte, un seul contexte par projet) |
 | ⚡ **Slash commands** | Autocomplétion `/` des prompts My_AI, expansés en prompt détaillé à l'envoi (la bulle garde la commande courte) |
-| ⏹️ **Bouton STOP** | Interrompt en un clic toute la génération du tour : LLM **et** boucle d'outils agentique (appels en attente compris) |
+| ⏹️ **Bouton STOP** | Interrompt en un clic toute la génération du tour : LLM **et** boucle d'outils agentique (appels en attente compris). **Clear** (« Effacer ») pendant une génération l'arrête aussi |
 | 🛟 **Garde-fou anti-boucle** | Détection des réécritures répétées du même fichier pour éviter qu'un agent ne tourne en rond |
 | 🛡️ **Sandbox workspace** | Tous les chemins sont résolus à partir du workspace VS Code ouvert. Toute sortie hors workspace nécessite une approbation modale par chemin |
 | ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* |
@@ -572,7 +573,7 @@ relay:
 | 🧠 **Mémoire de session** | Le contexte agentique est conservé pour toute la session WS (« édite le fichier que tu viens de lire » fonctionne) |
 | 🔧 **Marche avec n'importe quel modèle Ollama** | Format `<tool_use>{...}</tool_use>` parsé côté hôte — pas besoin de l'API tools native d'Ollama |
 | 🔐 **Chiffrement E2EE** | AES-256-GCM identique au mobile — le tunnel ne voit que du ciphertext |
-| 🌐 **Failover multi-tunnel** | cloudflared / serveo / localhost.run pingés côté client, bascule auto |
+| 🌐 **Failover multi-tunnel** | cloudflared / localhost.run (serveo en option) pingés côté client, bascule auto |
 | 💾 **Persistance** | Identifiants chiffrés dans le SecretStorage de VS Code (keychain OS) |
 | 🔄 **Auto-reconnexion** | Détection arrêt du Relay hôte, reconnexion auto au redémarrage |
 | 🌍 **Bilingue** | UI, prompts d'approbation et doc en français quand VS Code est en FR, en anglais sinon |

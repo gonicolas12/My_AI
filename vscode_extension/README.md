@@ -29,11 +29,15 @@ exactly as before.
   `edit_file`, and `run_command` ask for confirmation, with options to allow
   once, allow for the same file, or allow the tool for the rest of the
   session.
+- ⏹️ **Stop & Clear** — while a reply is being written, the send button
+  turns into Stop: it stops the model and any pending tool call, and the
+  text freezes at once. **Clear** empties the view (the session context
+  stays on the host) and stops a reply in progress.
 - 🔐 **End-to-end encryption** — AES-256-GCM over the public tunnel. The
-  Cloudflare/serveo/localhost.run server only ever sees ciphertext.
-- 🌐 **Multi-tunnel failover** — cloudflared, serveo, and localhost.run run in
-  parallel on the host; the extension picks the first reachable one and falls
-  over automatically when one drops.
+  tunnel server (Cloudflare, localhost.run) only ever sees ciphertext.
+- 🌐 **Multi-tunnel failover** — cloudflared and localhost.run (plus serveo,
+  if enabled) run in parallel on the host; the extension picks the first
+  reachable one and falls over automatically when one drops.
 - 💾 **Persistent connection** — credentials stay encrypted in VS Code
   SecretStorage. The extension reconnects automatically when the host Relay
   comes back online, and disconnects when it shuts down.
@@ -53,7 +57,7 @@ exactly as before.
 - A **My_AI host PC** running the Relay (any machine where you can launch
   My_AI). The Relay button is in the GUI's left sidebar.
 - An **Internet connection** on both ends (the encrypted tunnel goes
-  through Cloudflare / serveo / localhost.run).
+  through Cloudflare or localhost.run).
 
 ## Quick start
 
@@ -212,8 +216,9 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
 - Credentials are persisted in VS Code's
   [`SecretStorage`](https://code.visualstudio.com/api/references/vscode-api#SecretStorage)
   — encrypted by the OS keychain, scoped per machine + user.
-- The tunnel server (Cloudflare / serveo / localhost.run) sees ciphertext
-  only. The IP of your host PC is hidden behind the tunnel.
+- The tunnel server (Cloudflare / localhost.run) sees ciphertext only, and
+  the tunnel names don't reveal your host's IP address. serveo, off by
+  default, puts your network's public IP address in its tunnel names.
 - Stopping the Relay on the host PC invalidates the encryption key and the
   tunnels. The extension detects this within ~30 s and shows "offline".
 - **Workspace isolation.** The agentic mode runs all tools client-side
@@ -226,7 +231,8 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
 ## Troubleshooting
 
 - **"No tunnel reachable"** — the host PC is offline, the Relay was stopped,
-  or your local network blocks all three providers. Try restarting the Relay.
+  or your local network blocks every tunnel provider. Try restarting the
+  Relay.
 - **"E2EE decrypt failed"** — the connection string is from a previous Relay
   session (the AES key is regenerated on every Relay start). Copy a fresh
   string and reconnect.

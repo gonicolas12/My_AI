@@ -134,7 +134,7 @@ Réseau d'entreprise dont le certificat racine n'est pas dans le magasin du syst
 ### Alerte de sécurité réseau (« script Python », « reverse SSH »)
 L'ancienne recherche (avant octobre 2026) en déclenchait : contournement anti-robot avec `cloudscraper`, User-Agent de navigateur changé à chaque requête par un script Python, vérification des certificats coupée, requêtes en rafale vers des instances SearXNG aux domaines inconnus. La recherche actuelle n'a plus aucun de ces comportements : des requêtes HTTPS vérifiées vers des moteurs courants et les pages de leurs résultats, avec un User-Agent qui dit qui les fait. Si une alerte revient, notez le domaine ou l'adresse IP qu'elle cite.
 
-À savoir aussi : le **Relay mobile**, quand il démarre avec son tunnel, ouvre des tunnels SSH (`ssh -R`) vers `serveo.net` et `localhost.run` ; `relay.tunnel_providers: ["cloudflared"]` les évite.
+À savoir aussi : le **Relay mobile**, quand il démarre avec son tunnel, ouvre un tunnel SSH (`ssh -R`) vers `localhost.run` (et vers `serveo.net` si vous l'activez) ; `relay.tunnel_providers: ["cloudflared"]` les évite.
 
 ### Météo absente
 Si le lieu est inconnu d'Open-Meteo ou si le service ne répond pas, la recherche web répond à la place (sites météo). Nommez la ville : « météo Toulouse » plutôt que « météo ».
