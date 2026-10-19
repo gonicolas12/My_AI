@@ -30,6 +30,8 @@ export class ConnectionManager extends EventEmitter {
   private healthFailures = 0;
   private lastCreds: RelayCredentials | null = null;
   private dispatcher: ToolDispatcher;
+  // Réponses arrêtées par l'utilisateur (Stop, ou Clear pendant la génération).
+  private stoppedMessageIds = new Set<string>();
 
   constructor(context: vscode.ExtensionContext) {
     super();
@@ -104,6 +106,9 @@ export class ConnectionManager extends EventEmitter {
   }
 
   async stopGeneration(messageId: string): Promise<void> {
+    if (messageId) {
+      this.stoppedMessageIds.add(messageId);
+    }
     if (!this.client) {
       return;
     }
@@ -293,6 +298,11 @@ export class ConnectionManager extends EventEmitter {
     if (!callId || !name) {
       // eslint-disable-next-line no-console
       console.warn('[my-ai-relay] tool_use ignored: missing call_id/name');
+      return;
+    }
+    // Appel parti avant le Stop : l'hôte n'attend plus son résultat (et une
+    // écriture demanderait une approbation après coup).
+    if (messageId && this.stoppedMessageIds.has(messageId)) {
       return;
     }
 

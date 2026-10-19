@@ -5,6 +5,32 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.9] — 2026-10-19
+
+Fixes **Stop** and **Clear** while a reply is being written.
+
+### Fixed
+- **A stopped reply no longer writes into a cleared chat.** After **Stop**
+  then **Clear**, the rest of the stopped reply kept appearing in the
+  emptied chat, and the send button could not stop it. Text that arrives
+  after a reply has ended or been stopped is now ignored, even after
+  **Clear**, and the reply freezes as soon as you click **Stop**.
+- **Clear now stops a reply in progress.** The reply used to keep writing
+  into the emptied chat. The send button stays in stop mode until the host
+  confirms, and nothing more of that reply is shown.
+- **No tool runs after Stop.** A tool call that left the host just before
+  you clicked **Stop** is no longer run, so no approval prompt for a file
+  write pops up afterwards. A tool still running when you click **Clear**
+  no longer brings its card back into the emptied chat.
+
+### Notes
+- On the host, **Stop** now really stops the model: the stream from Ollama
+  is cut instead of running to the end in the background, which also
+  delayed the next message. **Stop** also always gets an answer, so the
+  button no longer stays stuck in stop mode when a reconnect lost the
+  reply. These changes ship with My_AI and apply to every extension
+  version.
+
 ## [1.3.8] — 2026-10-16
 
 New logo, shared with the My_AI desktop app: no change to how the extension works.
