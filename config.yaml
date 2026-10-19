@@ -432,7 +432,7 @@ relay:
   # opérateur mobile filtre certains domaines (ex. *.trycloudflare.com
   # bloqué chez certains MVNO 5G en France).
   #   - "cloudflared"    : *.trycloudflare.com (auto-téléchargé dans tools/)
-  #   - "serveo"         : *.serveo.net (via SSH, anonyme)
+  #   - "serveo"         : *.serveousercontent.com (via SSH, anonyme)
   #   - "localhost.run"  : *.lhr.life (via SSH, anonyme)
   # Pour ne garder qu'un seul provider : tunnel_providers: ["cloudflared"]
   tunnel_providers:
