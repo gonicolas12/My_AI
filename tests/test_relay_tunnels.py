@@ -101,7 +101,7 @@ def test_tunnel_enters_qr_code_only_once_reachable(server):
     run_checks(server, since + relay_server._TUNNEL_VERIFY_GRACE, {"localhost.run": False})
     assert server.tunnel_states == {"localhost.run": "dead", "cloudflared": "ok"}
     assert routed(server) == [CF]
-    # Les tunnels annoncés restent listés (Tk, /api/tunnels), vérifiés ou non
+    # Les tunnels annoncés restent listés (panneau Relay), vérifiés ou non
     assert server.tunnel_urls == {"localhost.run": LHR, "cloudflared": CF}
 
 
@@ -432,6 +432,25 @@ def test_serveo_address_is_read_on_its_new_domain(server, monkeypatch):
     while "serveo" not in server.tunnel_urls and time.monotonic() < deadline:
         time.sleep(0.05)
     assert server.tunnel_urls.get("serveo") == url
+
+
+def test_serveo_is_off_by_default():
+    # Le nom d'un tunnel serveo contient l'adresse IP publique du réseau du PC
+    # lancé seulement si on le demande
+    assert RelayServer(config={})._tunnel_provider_names == ["cloudflared", "localhost.run"]
+    asked = RelayServer(config={"tunnel_providers": ["cloudflared", "serveo"]})
+    assert asked._tunnel_provider_names == ["cloudflared", "serveo"]
+
+
+def test_tunnel_addresses_are_not_listed_without_token(server):
+    # Qui connaît une adresse de tunnel ne doit pas obtenir les autres (dont celle
+    # de serveo, IP publique comprise) : GET /api/tunnels, sans jeton, n'existe plus
+    testclient = pytest.importorskip("fastapi.testclient")
+    server._set_tunnel_url("localhost.run", LHR)
+    client = testclient.TestClient(server._app)
+    assert client.get("/api/tunnels").status_code == 404
+    health = client.get("/api/health")
+    assert health.status_code == 200 and LHR not in health.text
 
 
 class _Health(http.server.BaseHTTPRequestHandler):

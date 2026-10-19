@@ -4,7 +4,7 @@ Relay Server - Serveur FastAPI avec WebSocket pour l'accès mobile.
 Expose une interface web mobile-friendly et un endpoint WebSocket
 pour la communication en temps réel avec My_AI depuis un téléphone.
 Gère l'authentification par token et plusieurs tunnels en parallèle
-(cloudflared + serveo + localhost.run) avec failover client-side via
+(cloudflared + localhost.run, serveo en option) avec failover client-side via
 une page de routage statique hébergée sur GitHub Pages.
 """
 
@@ -235,10 +235,13 @@ class RelayServer:
         self._tunnel_dns: Callable[[str], Optional[List[str]]] = self._dns_addresses
         self._tunnel_probe_at: Callable[[str, str], bool] = self._probe_tunnel_at
         # Liste des providers à activer. Personnalisable via config.yaml :
-        #   relay.tunnel_providers: ["cloudflared", "serveo", "localhost.run"]
+        #   relay.tunnel_providers: ["cloudflared", "localhost.run"]
+        # serveo reste disponible mais n'est pas lancé par défaut : le nom de
+        # ses tunnels contient l'adresse IP publique du réseau du PC, visible de
+        # quiconque voit ce nom (QR code, DNS, réseau du téléphone)
         raw_providers = config.get(
             "tunnel_providers",
-            ["cloudflared", "serveo", "localhost.run"],
+            ["cloudflared", "localhost.run"],
         )
         if isinstance(raw_providers, str):
             raw_providers = [raw_providers]
@@ -654,17 +657,6 @@ class RelayServer:
                 "engine_ready": server.ai_engine is not None,
                 "connected_clients": len(server.ws_clients),
             }
-
-        # =================================================================
-        # GET /api/tunnels — Liste des tunnels publics actuellement actifs
-        # (utilisé par la page de routage GitHub Pages pour faire le ping
-        # côté client et choisir un endpoint vivant). Pas authentifié : la
-        # liste contient juste des URLs déjà publiques.
-        # =================================================================
-
-        @app.get("/api/tunnels")
-        async def tunnels():
-            return {"tunnels": server.tunnel_urls}
 
         # =================================================================
         # GET /api/history — Historique de la conversation
