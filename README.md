@@ -275,7 +275,7 @@ my_ai/
 │   │   ├── events.py                    # Protocole d'événements du WebSocket (Pydantic)
 │   │   ├── files.py                     # Fichiers locaux : liens signés, ouverture, Explorateur
 │   │   ├── folders.py                   # Dossiers du projet de la session
-│   │   ├── lifecycle.py                 # Étapes du lancement, moteur, Relay, scheduler, arrêt propre
+│   │   ├── lifecycle.py                 # Étapes du lancement, moteur, Relay, scheduler
 │   │   ├── memory.py                    # Panneau Mémoire (faits/documents/conversations)
 │   │   ├── model_setup.py               # Modèles Ollama et assistant de premier lancement
 │   │   ├── native_viewer.py             # Visionneuses Office dans le volet d'aperçu
@@ -286,7 +286,7 @@ my_ai/
 │   │   ├── resources.py                 # Moniteur de ressources (CPU/RAM/GPU) de la page Agents
 │   │   ├── routing.py                   # Aides communes aux routes
 │   │   ├── schedule.py                  # Tâches planifiées de la page Agents
-│   │   ├── server.py                    # Serveur FastAPI local (127.0.0.1, jeton) : REST + WebSocket
+│   │   ├── server.py                    # Serveur FastAPI local (127.0.0.1, jeton)
 │   │   ├── settings.py                  # Réglages (config.yaml, commentaires préservés)
 │   │   ├── shell_api.py                 # Fonctions de la fenêtre exposées à la page (dialogues…)
 │   │   ├── voice.py                     # Voix : saisie (Whisper) et lecture (pyttsx3)
