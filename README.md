@@ -269,9 +269,9 @@ my_ai/
 │   │   ├── __init__.py
 │   │   ├── _whisper_worker.py           # Transcription isolée (contournement OpenMP macOS)
 │   │   ├── agents.py                    # Page Agents : fils d'exécution, workflows, débat...
-│   │   ├── api_*.py                     # Routes REST (agents, fichiers, mémoire, prompts, tâches...)
+│   │   ├── api_*.py                     # Routes REST
 │   │   ├── devserver.py                 # Serveur Vite du mode développement (--dev)
-│   │   ├── dpi_host.py                  # Fenêtre hôte DPI par écran, repli des visionneuses (Windows)
+│   │   ├── dpi_host.py                  # Fenêtre hôte DPI par écran, repli des visionneuses
 │   │   ├── events.py                    # Protocole d'événements du WebSocket (Pydantic)
 │   │   ├── files.py                     # Fichiers locaux : liens signés, ouverture, Explorateur
 │   │   ├── folders.py                   # Dossiers du projet de la session
@@ -279,7 +279,7 @@ my_ai/
 │   │   ├── memory.py                    # Panneau Mémoire (faits/documents/conversations)
 │   │   ├── model_setup.py               # Modèles Ollama et assistant de premier lancement
 │   │   ├── native_viewer.py             # Visionneuses Office dans le volet d'aperçu
-│   │   ├── preview_handler.py           # Visionneuses natives Word/PowerPoint/Excel (IPreviewHandler)
+│   │   ├── preview_handler.py           # Visionneuses natives Word/PowerPoint/Excel
 │   │   ├── previews.py                  # Pages d'aperçu : artifacts HTML/SVG et documents
 │   │   ├── prompts.py                   # Bibliothèque de prompts
 │   │   ├── qr.py                        # QR code du Relay
@@ -358,7 +358,7 @@ my_ai/
 │   ├── __init__.py
 │   ├── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
 │   ├── local_tools.py                   # Outils locaux
-│   └── measure_energy.py                # Empreinte énergétique et carbone d'une session (codecarbon)
+│   └── measure_energy.py                # Empreinte énergétique et carbone d'une session
 ├── utils/                               # Utilitaires
 │   ├── __init__.py
 │   ├── citations.py                     # Citations web numérotées cliquables ([n] → url)
