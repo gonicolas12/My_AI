@@ -268,8 +268,8 @@ my_ai/
 │   ├── desktop/                         # Fenêtre de l'appli et son serveur local
 │   │   ├── __init__.py
 │   │   ├── _whisper_worker.py           # Transcription isolée (contournement OpenMP macOS)
-│   │   ├── agents.py                    # Page Agents : fils d'exécution, workflows, débat, statistiques
-│   │   ├── api_*.py                     # Routes REST (agents, fichiers, mémoire, prompts, tâches, réglages…)
+│   │   ├── agents.py                    # Page Agents : fils d'exécution, workflows, débat...
+│   │   ├── api_*.py                     # Routes REST (agents, fichiers, mémoire, prompts, tâches...)
 │   │   ├── devserver.py                 # Serveur Vite du mode développement (--dev)
 │   │   ├── dpi_host.py                  # Fenêtre hôte DPI par écran, repli des visionneuses (Windows)
 │   │   ├── events.py                    # Protocole d'événements du WebSocket (Pydantic)
