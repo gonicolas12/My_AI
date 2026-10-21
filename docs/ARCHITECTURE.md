@@ -869,11 +869,16 @@ Routage : core/ai_engine.is_image_generation_request() / extract_image_prompt()
 **`models/comfyui_manager.py`** - Auto-installation ComfyUI portable
 ```python
 ComfyUIManager (zéro config, déclenché au 1er usage si auto_setup) :
-├─ Télécharge ComfyUI portable (Windows/NVIDIA, Python+CUDA embarqués)
-│   dans tools/ — n'altère pas l'environnement Python de My_AI
+├─ Détecte le GPU (Win32_VideoController) et télécharge le build ComfyUI
+│   portable qui va avec : nvidia, amd ou intel (Arc) ; sans GPU reconnu,
+│   nvidia sur le CPU. Python+torch embarqués dans tools/ — n'altère pas
+│   l'environnement Python de My_AI. Un build qui ne correspond pas au GPU
+│   est remplacé, modèles gardés
 ├─ Extraction .7z via 7-Zip (7zr.exe auto-téléchargé, gère le filtre BCJ2)
 ├─ Télécharge un modèle par défaut (SD-Turbo) si aucun checkpoint
-├─ Lance ComfyUI en sous-processus + health-check (localhost:8188)
+├─ Lance ComfyUI en sous-processus + health-check (localhost:8188) ; arrêt
+│   au démarrage sur le GPU → relance sur le CPU ; sortie dans logs/comfyui.log
+├─ Arrêté avec l'appli (ChatService.close)
 └─ Progression + interruption propagées à l'UI (même esprit que cloudflared)
 ```
 

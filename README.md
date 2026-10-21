@@ -130,7 +130,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 ### 🎨 Génération d'images locale (texte → image)
 
 - **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
-- **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows/NVIDIA, Python+CUDA embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
+- **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows : build NVIDIA, AMD ou Intel Arc selon le GPU, sinon sur le CPU ; Python+torch embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
 - **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:`.
 
 ### 📝 Génération & modification de documents
