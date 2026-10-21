@@ -487,6 +487,8 @@ class ChatService:
         self._worker: Optional[threading.Thread] = None
         self._bridge = None
         self._bridge_watch: Optional[threading.Thread] = None
+        # ComfyUI lancé pour la génération d'image (installation automatique)
+        self._comfyui = None
         self._fallback_prompt_library = None
         # Dernier état enregistré : (session, empreinte du contenu)
         self._saved: Optional[Tuple[str, str]] = None
@@ -501,13 +503,16 @@ class ChatService:
         self._worker.start()
 
     def close(self) -> None:
-        """Arrête la réponse en cours et le fil de la file d'attente."""
+        """Arrête la réponse en cours, le fil de la file d'attente et ComfyUI."""
         with self._cond:
             self._closed = True
             self._interrupted = True
             self._resolve_confirm(False)
             self._cond.notify_all()
         self.detach_bridge()
+        # Lancé sans fenêtre, il garderait son modèle en mémoire après l'appli
+        if self._comfyui is not None:
+            self._comfyui.stop()
 
     # ── Émission ────────────────────────────────────────────────────────────
 
@@ -1263,18 +1268,23 @@ class ChatService:
 
         try:
             gen = getattr(self._engine, "image_generator", None)
-            # Aucun backend : installation automatique de ComfyUI (1ʳᵉ fois)
+            setup_error = None
+            # Aucun backend : installation (1ʳᵉ fois) ou démarrage de ComfyUI
             if gen is not None and not gen.is_available():
-                if not self._auto_setup_image_backend(gen, on_progress, is_interrupted):
-                    if is_interrupted():
-                        turn.text = interrupted_text
-                        self._finish_turn(turn, entry_type="image_generation")
-                        return
+                setup_error = self._auto_setup_image_backend(gen, on_progress, is_interrupted)
+                if is_interrupted():
+                    turn.text = interrupted_text
+                    self._finish_turn(turn, entry_type="image_generation")
+                    return
             if gen is None or not gen.is_available():
                 turn.text = (
                     gen.unavailable_message() if gen is not None
                     else "🎨 Génération d'image indisponible."
                 )
+                if setup_error:
+                    turn.text += (
+                        f"\n\n⚠️ L'installation automatique de ComfyUI a échoué : {setup_error}"
+                    )
                 self._finish_turn(turn, entry_type="image_generation")
                 return
 
@@ -1304,44 +1314,48 @@ class ChatService:
             turn.text = f"⚠️ Erreur génération d'image : {exc}"
         self._finish_turn(turn, entry_type="image_generation")
 
-    def _auto_setup_image_backend(self, gen, on_progress, is_interrupted) -> bool:
-        """Installe et lance ComfyUI portable au premier usage, si activé."""
+    def _auto_setup_image_backend(self, gen, on_progress, is_interrupted) -> Optional[str]:
+        """Installe et lance ComfyUI portable au premier usage, si activé.
+
+        Returns:
+            la raison de l'échec, pour la réponse ; None sinon (ou si non tenté)
+        """
         try:
             auto = bool(self._config.get("image_generation.auto_setup", True)) \
                 if self._config is not None else True
         except Exception:  # pylint: disable=broad-except
             auto = True
         if not auto:
-            return False
+            return None
         try:
             from models.comfyui_manager import (  # pylint: disable=import-outside-toplevel
                 ComfyUISetupError, get_comfyui_manager)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("comfyui_manager indisponible : %s", exc)
-            return False
+            return None
         manager = get_comfyui_manager()
         if not manager.is_supported():
-            return False
-        on_progress(None, "Installation de la génération d'image (1ʳᵉ fois)…")
+            return None
+        self._comfyui = manager
+        # Installation la 1ʳᵉ fois, puis un démarrage par session (arrêté à la fermeture)
+        on_progress(None, "Préparation de la génération d'image…")
         try:
-            ok = manager.ensure_running(on_progress=on_progress, is_interrupted=is_interrupted)
+            manager.ensure_running(on_progress=on_progress, is_interrupted=is_interrupted)
         except ComfyUISetupError as exc:
             if str(exc) == "__interrupted__" or is_interrupted():
-                return False
+                return None
             logger.warning("Auto-setup ComfyUI échoué : %s", exc)
-            on_progress(None, f"Échec installation ComfyUI : {exc}")
-            return False
+            return str(exc)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Auto-setup ComfyUI exception : %s", exc)
-            return False
-        if ok:
-            # Le générateur passe sur l'instance ComfyUI gérée pour cette session
-            try:
-                gen.config.backend = "comfyui"
-                gen.resolve_backend(force=True)
-            except Exception:  # pylint: disable=broad-except
-                pass
-        return ok and gen.is_available()
+            return str(exc)
+        # Le générateur passe sur l'instance ComfyUI gérée pour cette session
+        try:
+            gen.config.backend = "comfyui"
+            gen.resolve_backend(force=True)
+        except Exception:  # pylint: disable=broad-except
+            pass
+        return None
 
     def _remember_image_generation(self, user_text: str, prompt: str, image_path: str) -> None:
         """Inscrit la génération d'image dans l'historique du modèle (Tk)."""

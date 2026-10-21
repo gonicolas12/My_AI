@@ -169,13 +169,16 @@ image_generation:
   automatic1111_url: "http://127.0.0.1:7860"
   comfyui_url: "http://127.0.0.1:8188"
   # Auto-installation au 1er usage : si aucun backend n'est détecté, My_AI
-  # télécharge et lance automatiquement ComfyUI portable (Windows/NVIDIA,
-  # Python+CUDA embarqués — n'altère pas l'environnement de My_AI) dans tools/.
-  # Téléchargement ~2-2.5 Go + 1 modèle ~2.5 Go la 1ʳᵉ fois, avec progression.
+  # télécharge et lance automatiquement ComfyUI portable (Windows) dans tools/,
+  # le build du GPU : NVIDIA, AMD ou Intel Arc ; sans GPU reconnu, il tourne sur
+  # le CPU. Python+torch embarqués : n'altère pas l'environnement de My_AI.
+  # Téléchargement ~1,5-2 Go + 1 modèle ~5 Go la 1ʳᵉ fois, avec progression.
+  # Sortie de ComfyUI : logs/comfyui.log.
   # Mettre à false pour exiger une installation manuelle (Forge/ComfyUI).
   auto_setup: true
-  # Sources de l'auto-installation (surchargeables si besoin)
-  comfyui_portable_url: "https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z"
+  # Sources de l'auto-installation (surchargeables si besoin) ;
+  # {build} : nvidia, amd ou intel selon le GPU
+  comfyui_portable_url: "https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_{build}.7z"
   comfyui_model_url: "https://huggingface.co/stabilityai/sd-turbo/resolve/main/sd_turbo.safetensors"
   comfyui_model_filename: "sd_turbo.safetensors"
   # Paramètres de génération par défaut (512x512 adapté à 6 Go VRAM)
@@ -184,6 +187,10 @@ image_generation:
   steps: 25
   cfg_scale: 7.0
   sampler: "DPM++ 2M Karras"
+  # Étapes d'un modèle Turbo sous ComfyUI (le sd_turbo de l'auto-installation),
+  # distillé pour 1 à 4 étapes sans CFG : steps et cfg_scale ne s'y appliquent pas
+  # (25 étapes à CFG 7 brûlent l'image). De 1 à 10 ; 1 = le plus rapide
+  turbo_steps: 4
   negative_prompt: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry"
   # Modèle utilisé uniquement si backend: diffusers
   diffusers_model: "stabilityai/sd-turbo"

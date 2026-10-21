@@ -22,6 +22,7 @@ from core.chat_service import (FILE_GENERATION_HISTORY, ChatError, ChatService,
                                session_name_for)
 from core.session_manager import SessionManager
 from interfaces.desktop.events import EventBus, validate_event
+from models import comfyui_manager
 from relay.relay_bridge import RelayBridge, RelayMessage
 
 
@@ -609,6 +610,79 @@ def test_image_generation_reports_progress_and_is_remembered(chat):
     assert llm_calls[1][1] == "assistant" and "« un phare »" in llm_calls[1][2]
     answer = chat.service.snapshot()["messages"][-1]
     assert answer["type"] == "image_generation" and answer["image_path"] == "C:/outputs/phare.png"
+
+
+class FakeComfyUIManager:
+    """Installation automatique de ComfyUI : réussie, ou en échec avec sa raison."""
+
+    def __init__(self, error=None):
+        self.error = error
+        self.stopped = False
+
+    @staticmethod
+    def is_supported():
+        return True
+
+    def ensure_running(self, on_progress, is_interrupted):
+        del is_interrupted
+        on_progress(0.93, "Démarrage de ComfyUI… (3s)")
+        if self.error:
+            raise comfyui_manager.ComfyUISetupError(self.error)
+        return True
+
+    def stop(self):
+        self.stopped = True
+
+
+class ComfyUIGenerator:
+    """Générateur sans backend tant que l'installation automatique n'a pas réussi."""
+
+    def __init__(self):
+        self.config = SimpleNamespace(backend="automatic1111")
+
+    def is_available(self):
+        return self.config.backend == "comfyui"
+
+    def resolve_backend(self, force):
+        del force
+
+    @staticmethod
+    def unavailable_message():
+        return "🎨 **Génération d'image indisponible**"
+
+    @staticmethod
+    def generate(prompt, on_progress, is_interrupted):
+        del prompt, on_progress, is_interrupted
+        return SimpleNamespace(interrupted=False, success=True,
+                               image_path="C:/outputs/dragon.png", message="🎨 Image générée")
+
+
+def test_failed_comfyui_setup_is_explained_in_the_answer(chat, monkeypatch):
+    error = ("ComfyUI s'est arrêté au démarrage (Windows fatal exception: access violation). "
+             "Journal : logs\\comfyui.log")
+    monkeypatch.setattr(comfyui_manager, "get_comfyui_manager", lambda: FakeComfyUIManager(error))
+    chat.engine.image_request = True
+    chat.engine.generator = ComfyUIGenerator()
+
+    done = ask(chat, "Dessine moi un dragon rouge")
+
+    assert done["text"] == (
+        "🎨 **Génération d'image indisponible**\n\n"
+        f"⚠️ L'installation automatique de ComfyUI a échoué : {error}"
+    )
+
+
+def test_closing_the_chat_stops_the_comfyui_it_started(chat, monkeypatch):
+    manager = FakeComfyUIManager()
+    monkeypatch.setattr(comfyui_manager, "get_comfyui_manager", lambda: manager)
+    chat.engine.image_request = True
+    chat.engine.generator = ComfyUIGenerator()
+
+    assert ask(chat, "Dessine moi un dragon rouge")["text"] == "🎨 Image générée"
+    assert not manager.stopped
+
+    chat.service.close()
+    assert manager.stopped
 
 
 # ── Pièces jointes ──────────────────────────────────────────────────────────

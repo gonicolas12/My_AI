@@ -39,22 +39,46 @@ core/ai_engine.py ── process_query_stream ──► ImageGenerator.generate(
 
 Par défaut (`image_generation.auto_setup: true`), **rien à installer** : à la
 **première** demande d'image, si aucun backend n'est détecté, My_AI télécharge
-et lance automatiquement **ComfyUI portable** (Windows/NVIDIA) :
+et lance automatiquement **ComfyUI portable** (Windows) :
 
-1. téléchargement de **ComfyUI portable** (~2–2.5 Go, **Python + CUDA embarqués**
-   — n'altère **pas** l'environnement Python de My_AI) dans `tools/` ;
-2. extraction (l'extracteur `py7zr` est installé automatiquement si absent) ;
-3. téléchargement d'un **modèle par défaut** (SD-Turbo, ~2.5 Go, rapide et adapté
-   à 6 Go de VRAM) ;
-4. lancement de ComfyUI en arrière-plan et bascule automatique du backend.
+1. téléchargement du build **ComfyUI portable** de votre GPU (~1,5–2 Go,
+   **Python + torch embarqués** — n'altère **pas** l'environnement Python de
+   My_AI) dans `tools/` :
+
+   | GPU détecté | Build | Calcul sur |
+   |---|---|---|
+   | NVIDIA (séries 20 et plus) | `nvidia` | GPU (CUDA) |
+   | AMD (RDNA 2 à 4) | `amd` | GPU (ROCm) |
+   | Intel **Arc** (cartes Arc, GPU intégré des Core Ultra) | `intel` | GPU (XPU) |
+   | aucun de ceux-là (Intel UHD / Iris Xe, pas de GPU) | `nvidia` | **CPU** |
+
+2. extraction avec **7-Zip** (téléchargé s'il manque) ;
+3. téléchargement d'un **modèle par défaut** (SD-Turbo, ~5 Go) ;
+4. lancement de ComfyUI en arrière-plan et bascule automatique du backend. S'il
+   s'arrête au démarrage sur le GPU (pilote trop ancien, carte non prise en
+   charge), il est **relancé sur le CPU**.
 
 Toute la progression (téléchargement %, extraction, démarrage) s'affiche sous la
 réponse en cours, avec une **barre de progression**, et le bouton **Arrêter la
 réponse** (ou **Échap**) annule l'opération.
-ComfyUI reste lancé en tâche de fond et est réutilisé aux usages suivants.
+ComfyUI reste lancé tant que My_AI est ouvert (réutilisé d'une image à l'autre)
+et s'arrête avec l'appli. Sa sortie va dans `logs/comfyui.log` : en cas d'échec,
+la réponse cite sa dernière erreur.
 
-> **Non-Windows / non-NVIDIA** : l'auto-installation du portable n'est pas
-> disponible — installez ComfyUI ou Forge manuellement (§3). Pour désactiver
+> **Ordres de grandeur** (SD-Turbo 512×512, 4 étapes) : ~2 s par image sur le
+> GPU intégré Intel Arc 140T, ~30 s sur le CPU (Core Ultra 7 255H). ComfyUI
+> démarre en ~20 s et la première image d'une session attend le chargement du
+> modèle (~40 s). Le premier lancement après l'installation peut prendre
+> quelques minutes (~3 min mesurées) : l'antivirus analyse les DLL de torch à
+> leur premier chargement.
+
+> **Build qui ne correspond pas au GPU** (le build NVIDIA, seul installé
+> jusqu'ici, sur un PC Intel Arc ou AMD) : il est remplacé par le bon à la
+> demande d'image suivante, **modèles gardés**. Si ce remplacement échoue (hors
+> ligne…), l'ancien build tourne sur le CPU.
+
+> **Non-Windows** : l'auto-installation du portable n'est pas disponible —
+> installez ComfyUI ou Forge manuellement (§3). Pour désactiver
 > l'auto-installation : `image_generation.auto_setup: false`.
 
 ## 2. Choix du backend
@@ -99,6 +123,7 @@ image_generation:
   steps: 25
   cfg_scale: 7.0
   sampler: "DPM++ 2M Karras"
+  turbo_steps: 4                  # modèle Turbo sous ComfyUI : 1 à 4 étapes, sans CFG
   negative_prompt: "lowres, bad anatomy, ... blurry"
   diffusers_model: "stabilityai/sd-turbo"   # si backend: diffusers
   timeout: 300
@@ -169,6 +194,7 @@ n'apparaît **jamais en clair** sur le réseau ni dans une URL servie.
 | Symptôme | Cause probable | Solution |
 |----------|----------------|----------|
 | « Génération d'image indisponible » | aucun backend joignable | lancer Forge avec `--api`, vérifier `automatic1111_url` |
+| « L'installation automatique de ComfyUI a échoué : … » | téléchargement, extraction ou démarrage en échec (cause citée) | lire `logs/comfyui.log` ; pour réinstaller, supprimer `tools/ComfyUI_windows_portable` (le modèle sera retéléchargé) |
 | Timeout | image trop lourde / VRAM saturée | réduire `width`/`height`/`steps`, ajouter `--medvram` |
 | « Aucun checkpoint trouvé » (ComfyUI) | pas de modèle chargé | placer un checkpoint dans ComfyUI `models/checkpoints/` |
 | OOM avec `diffusers` | Ollama + diffusers se partagent 6 Go | préférer le backend HTTP (a1111/comfyui) |
