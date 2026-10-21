@@ -76,6 +76,9 @@ class ImageGenConfig:
     steps: int = 25
     cfg_scale: float = 7.0
     sampler: str = "DPM++ 2M Karras"
+    # Étapes d'un checkpoint Turbo sous ComfyUI (le sd_turbo de l'installation
+    # automatique) : distillé pour 1 à 4 étapes sans CFG
+    turbo_steps: int = 4
     negative_prompt: str = (
         "lowres, bad anatomy, bad hands, text, error, missing fingers, "
         "extra digit, fewer digits, cropped, worst quality, low quality, "
@@ -107,6 +110,7 @@ class ImageGenConfig:
             cfg.steps = int(c.get("image_generation.steps", cfg.steps))
             cfg.cfg_scale = float(c.get("image_generation.cfg_scale", cfg.cfg_scale))
             cfg.sampler = str(c.get("image_generation.sampler", cfg.sampler))
+            cfg.turbo_steps = int(c.get("image_generation.turbo_steps", cfg.turbo_steps))
             cfg.negative_prompt = str(
                 c.get("image_generation.negative_prompt", cfg.negative_prompt)
             )
@@ -482,21 +486,7 @@ class ImageGenerator:
 
         seed = int.from_bytes(os.urandom(4), "big")
         workflow = {
-            "3": {
-                "class_type": "KSampler",
-                "inputs": {
-                    "seed": seed,
-                    "steps": params["steps"],
-                    "cfg": self.config.cfg_scale,
-                    "sampler_name": "dpmpp_2m",
-                    "scheduler": "karras",
-                    "denoise": 1.0,
-                    "model": ["4", 0],
-                    "positive": ["6", 0],
-                    "negative": ["7", 0],
-                    "latent_image": ["5", 0],
-                },
-            },
+            **self._comfyui_sampler(ckpt, params["steps"], seed),
             "4": {
                 "class_type": "CheckpointLoaderSimple",
                 "inputs": {"ckpt_name": ckpt},
@@ -570,6 +560,58 @@ class ImageGenerator:
                 on_progress(0.5, "Génération ComfyUI en cours…")
             time.sleep(1.0)
         raise requests.exceptions.Timeout()
+
+    def _comfyui_sampler(self, ckpt: str, steps: int, seed: int) -> Dict[str, Any]:
+        """Nœuds d'échantillonnage du workflow : le nœud "3" sort le latent à décoder."""
+        if "turbo" not in ckpt.lower():
+            return {
+                "3": {
+                    "class_type": "KSampler",
+                    "inputs": {
+                        "seed": seed,
+                        "steps": steps,
+                        "cfg": self.config.cfg_scale,
+                        "sampler_name": "dpmpp_2m",
+                        "scheduler": "karras",
+                        "denoise": 1.0,
+                        "model": ["4", 0],
+                        "positive": ["6", 0],
+                        "negative": ["7", 0],
+                        "latent_image": ["5", 0],
+                    },
+                },
+            }
+        # SD-Turbo / SDXL-Turbo : distillés pour 1 à 4 étapes sans guidage (CFG 1,
+        # le prompt négatif ne compte pas), avec leur ordonnanceur. 25 étapes à
+        # CFG 7 brûlent l'image et durent plus de 5 min sur CPU
+        return {
+            "3": {
+                "class_type": "SamplerCustom",
+                "inputs": {
+                    "add_noise": True,
+                    "noise_seed": seed,
+                    "cfg": 1.0,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "sampler": ["10", 0],
+                    "sigmas": ["11", 0],
+                    "latent_image": ["5", 0],
+                },
+            },
+            "10": {
+                "class_type": "KSamplerSelect",
+                "inputs": {"sampler_name": "euler_ancestral"},
+            },
+            "11": {
+                "class_type": "SDTurboScheduler",
+                "inputs": {
+                    "model": ["4", 0],
+                    "steps": min(steps, self.config.turbo_steps),
+                    "denoise": 1.0,
+                },
+            },
+        }
 
     @staticmethod
     def _comfyui_first_image(outputs: Dict[str, Any]) -> Optional[Dict[str, str]]:

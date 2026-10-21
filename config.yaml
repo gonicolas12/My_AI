@@ -187,6 +187,10 @@ image_generation:
   steps: 25
   cfg_scale: 7.0
   sampler: "DPM++ 2M Karras"
+  # Étapes d'un modèle Turbo sous ComfyUI (le sd_turbo de l'auto-installation),
+  # distillé pour 1 à 4 étapes sans CFG : steps et cfg_scale ne s'y appliquent pas
+  # (25 étapes à CFG 7 brûlent l'image). De 1 à 10 ; 1 = le plus rapide
+  turbo_steps: 4
   negative_prompt: "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry"
   # Modèle utilisé uniquement si backend: diffusers
   diffusers_model: "stabilityai/sd-turbo"
