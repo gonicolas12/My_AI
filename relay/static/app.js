@@ -920,9 +920,48 @@ messagesEl.addEventListener('scroll', function () {
 // MARKDOWN LIGHT RENDERER
 // ═══════════════════════════════════════════════════
 
+// Bloc « 📚 Sources » d'une réponse (utils/citations.py) : « [n] [titre](url) »
+// ou « [n] url », comme parseCitationMap dans la fenêtre du PC (links.ts)
+var CITATION_SOURCE_RE = /\[(\d{1,3})\]\s*(?:\[[^\]]*\]\()?(https?:\/\/[^)\s]+)/g;
+
+/** Table n → url des sources numérotées (texte déjà échappé), ou null */
+function citationMap(html) {
+  var sources = null;
+  html.replace(CITATION_SOURCE_RE, function (match, n, url) {
+    sources = sources || {};
+    if (!(n in sources)) sources[n] = url.replace(/[.,;:) ]+$/, '').replace(/"/g, '%22');
+    return match;
+  });
+  return sources;
+}
+
+/**
+ * Marqueurs [n] → lien bleu souligné vers leur source, comme dans la fenêtre
+ * du PC. Jamais dans le code ni dans un lien déjà posé : seuls les morceaux
+ * de texte entre balises sont touchés.
+ */
+function linkCitations(html, sources) {
+  if (!sources) return html;
+  var parts = html.split(
+    /(<pre>[\s\S]*?<\/pre>|<code>[\s\S]*?<\/code>|<a [^>]*>[\s\S]*?<\/a>|<[^>]+>)/
+  );
+  return parts.map(function (part, index) {
+    if (index % 2) return part;
+    return part.replace(/\[(\d{1,3})\]/g, function (marker, n) {
+      var url = sources[n];
+      return url
+        ? '<a class="cite" href="' + url + '" target="_blank" rel="noopener noreferrer">' +
+          marker + '</a>'
+        : marker;
+    });
+  }).join('');
+}
+
 function renderMarkdown(text) {
   if (!text) return '';
   var html = escapeHtml(text);
+  // Lue avant que les liens du bloc Sources ne deviennent des balises
+  var citations = citationMap(html);
 
   // Code blocks ``` ... ```
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
@@ -952,6 +991,9 @@ function renderMarkdown(text) {
         url + '</a>' + trail;
     }
   );
+
+  // Marqueurs de citation [n] : liens vers leur source
+  html = linkCitations(html, citations);
 
   // Horizontal rule: a line containing only 3+ identical chars among - _ *
   // ("---", "___", "***", with optional surrounding whitespace). Must run
@@ -1009,6 +1051,9 @@ function renderMarkdown(text) {
     var items = block.replace(/<uli>/g, '<li>').replace(/<\/uli>/g, '</li>');
     return '<ul>' + items + '</ul>';
   });
+
+  // Bloc « 📚 Sources » : une ligne vide de plus le sépare de la réponse
+  html = html.replace(/\n(📚 (?:<strong>)?Sources(?:<\/strong>)?)/g, '\n<br>$1');
 
   // Line breaks -> paragraphs
   html = html.replace(/\n\n/g, '</p><p>');
