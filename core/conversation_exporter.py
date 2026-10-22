@@ -186,7 +186,7 @@ class ConversationExporter:
 
     def _build_html_css(self) -> str:
         """
-        Retourne le CSS embarque pour l'export HTML (theme sombre style Claude).
+        Retourne le CSS embarque pour l'export HTML (theme sombre).
 
         Returns:
             Bloc <style> complet
@@ -418,8 +418,8 @@ class ConversationExporter:
         """
         Exporte la conversation au format HTML autonome avec theme sombre.
 
-        Genere un fichier HTML complet avec CSS embarque, theme sombre
-        inspire de l'interface Claude, et gestion des blocs de code.
+        Genere un fichier HTML complet avec CSS embarque, theme sombre,
+        et gestion des blocs de code.
 
         Args:
             messages: Liste de messages {"role", "content", "timestamp"}

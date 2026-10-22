@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 
 class RealWebCodeGenerator:
     """
-    Générateur qui cherche VRAIMENT sur le web comme ChatGPT/Claude
+    Générateur qui cherche VRAIMENT sur le web
     """
 
     def __init__(self):

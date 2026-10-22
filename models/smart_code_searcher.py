@@ -1,6 +1,6 @@
 """
 🚀 Smart Code Searcher - Recherche de code intelligente
-Rivalise avec ChatGPT/Claude en combinant recherche web + analyse sémantique
+Combinant recherche web + analyse sémantique
 100% local, pas d'IA externe
 """
 

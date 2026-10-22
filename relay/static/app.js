@@ -1067,7 +1067,7 @@ function renderMarkdown(text) {
 }
 
 // ═══════════════════════════════════════════════════
-// ARTIFACTS (aperçu live HTML/SVG, façon Claude Artifacts)
+// ARTIFACTS (aperçu live HTML/SVG)
 // Détection client-side miroir de interfaces/artifacts.py. Rendu dans une
 // <iframe sandbox> via srcdoc → 100% local, aucune requête réseau.
 // ═══════════════════════════════════════════════════

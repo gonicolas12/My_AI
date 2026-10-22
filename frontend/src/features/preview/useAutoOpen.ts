@@ -8,7 +8,7 @@ import { closePreview, openPreview } from '../../stores/preview';
 const OPEN_DELAY = 120;
 
 /**
- * Ouverture automatique du volet d'aperçu, comme dans Tk et sur Claude web :
+ * Ouverture automatique du volet d'aperçu, comme dans Tk :
  * à la fin d'une réponse qui contient un artefact, une seule fois par réponse,
  * jamais à la réouverture d'une conversation. Changer de conversation ferme
  * le volet.

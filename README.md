@@ -67,7 +67,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 
 <div align="center">
 
-### Chat — Interface style [Claude](https://claude.ai/new)
+### Chat — Interface moderne
 
 ![Interface Chat](docs/images/chatScreen.png)
 

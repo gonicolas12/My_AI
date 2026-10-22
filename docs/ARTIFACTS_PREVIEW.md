@@ -1,8 +1,7 @@
 # Panneau « Artifacts » — Aperçu live HTML/CSS/SVG et documents
 
 Affiche un rendu en direct du HTML/CSS/SVG généré par l'IA — ainsi que des
-**documents produits** (docx, pdf, pptx, xlsx…) — à côté du chat, façon
-*Claude Artifacts*. Disponible dans la **fenêtre desktop** (volet d'aperçu à
+**documents produits** (docx, pdf, pptx, xlsx…) — à côté du chat. Disponible dans la **fenêtre desktop** (volet d'aperçu à
 droite du chat) et sur l'**interface mobile Relay**.
 
 > 100% local — aucun appel réseau de l'appli. Cohérent avec la promesse de
@@ -94,7 +93,7 @@ application** et **Afficher dans l'Explorateur**.
 ## Ouverture automatique
 
 À la fin de la génération d'un message, le volet s'ouvre **tout seul** sur le
-premier artifact — HTML comme document —, comme sur Claude web. Le bouton
+premier artifact — HTML comme document —. Le bouton
 « Aperçu » sous la réponse (« Aperçu (n) » s'il y en a plusieurs) rouvre le
 volet après fermeture. Logique : [`useAutoOpen.ts`](../frontend/src/features/preview/useAutoOpen.ts).
 

@@ -743,7 +743,7 @@ exporter = ConversationExporter(output_dir="outputs/exports")
 # Markdown (avec header métadonnées)
 exporter.export_markdown(messages, metadata={"model": "qwen3.5:4b"})
 
-# HTML (thème sombre CSS embarqué, style Claude)
+# HTML (thème sombre CSS embarqué)
 exporter.export_html(messages, filename="rapport_analyse")
 
 # PDF (via ReportLab, styles par rôle)

@@ -43,7 +43,7 @@ python main.py status
 
 ### Vue d'Ensemble de la fenêtre
 
-L'interface (inspirée de Claude Desktop) s'affiche dans une fenêtre native ; elle reste fluide
+L'interface s'affiche dans une fenêtre native ; elle reste fluide
 pendant que le moteur calcule.
 
 **Éléments Interface:**
@@ -61,7 +61,7 @@ pendant que le moteur calcule.
   automatiquement en fin de réponse, à largeur réglable
 
 **Fonctionnalités:**
-- 🎨 **Thème sombre** moderne style Claude
+- 🎨 **Thème sombre** moderne
 - 🕒 **Heure** de chaque message, durée et vitesse (tokens/s) de chaque réponse
 - 🎨 **Coloration du code** (Shiki) avec bouton **Copier** sur chaque bloc ; formules LaTeX (KaTeX)
 - 📁 **Glisser-déposer** de fichiers PDF/DOCX/PowerPoint/Excel/CSV/Images/Code ; un **dossier**

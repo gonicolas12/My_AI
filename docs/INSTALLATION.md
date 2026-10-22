@@ -528,8 +528,7 @@ Réponds toujours en français par défaut.
 
 ### 1. Fenêtre de l'appli (Recommandé)
 
-Interface web (React + TypeScript) dans une fenêtre native, thème sombre inspiré de Claude
-Desktop pour le Chat et de l'app Codex pour les Agents :
+Interface web (React + TypeScript) dans une fenêtre native, thème sombre :
 
 ```bash
 # Lancement direct (redémarre Ollama avec le placement retenu)

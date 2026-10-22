@@ -763,7 +763,7 @@ def test_a_dropped_folder_attaches_its_files(chat):
 
     result = chat.service.add_attachment(str(folder))
 
-    # Comme sur claude.ai : chaque fichier lisible devient une pièce jointe
+    # Chaque fichier lisible devient une pièce jointe
     assert [att["name"] for att in chat.service.attachments()] == ["README.md", "main.py"]
     assert [att["name"] for att in result["attachments"]] == ["README.md", "main.py"]
     assert result["images_skipped"] == 1

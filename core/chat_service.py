@@ -97,8 +97,8 @@ _CODE_EXTENSIONS = {
 }
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
 
-# Dossier glissé dans la saisie : ses fichiers deviennent des pièces jointes,
-# comme sur claude.ai. Au-delà, « Dossiers du projet » indexe le dossier entier
+# Dossier glissé dans la saisie : ses fichiers deviennent des pièces jointes.
+# Au-delà, « Dossiers du projet » indexe le dossier entier
 FOLDER_ATTACHMENT_LIMIT = 20
 
 # Nom d'une session : début de son premier message
@@ -1428,7 +1428,7 @@ class ChatService:
         return attachment.view()
 
     def add_folder(self, folder: str) -> Dict[str, Any]:
-        """Joint les fichiers d'un dossier glissé dans la saisie, comme sur claude.ai.
+        """Joint les fichiers d'un dossier glissé dans la saisie.
 
         Sous-dossiers compris, sauf les cachés et ceux que l'indexation ignore
         (.git, node_modules, __pycache__…). Les images restent à part : le
