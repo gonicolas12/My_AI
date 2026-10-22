@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { faviconUrl, setToken } from './api';
 import type { AnyServerEvent } from './events';
 import { formatDay, formatDecimal, formatDuration, formatTime } from './format';
 import { cssColorToHex, externalUrl } from './shell';
@@ -40,6 +41,13 @@ describe('liens et couleurs', () => {
     expect(externalUrl('javascript:alert(1)')).toBeNull();
     expect(externalUrl('file:///C:/a.exe')).toBeNull();
     expect(externalUrl('/api/status')).toBeNull(); // page de l'appli
+  });
+
+  it("sert l'icône d'un site par l'appli, jeton compris (une image n'a pas d'en-tête)", () => {
+    setToken('jeton');
+    expect(faviconUrl('fr.wikipedia.org')).toBe('/api/favicon?host=fr.wikipedia.org&token=jeton');
+    setToken(null);
+    expect(faviconUrl('a.example')).toBe('/api/favicon?host=a.example');
   });
 
   it('convertit une couleur calculée en #rrggbb', () => {

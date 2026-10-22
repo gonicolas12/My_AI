@@ -245,11 +245,13 @@ class LocalLLM:
         content = system_prompt or modelfile_system()
         return [{"role": "system", "content": content}] if content else []
 
-    def generate(self, prompt, system_prompt=None, save_history=True, use_history=True):
+    def generate(self, prompt, system_prompt=None, save_history=True, use_history=True,
+                 stop=None):
         """
         Génère une réponse avec contexte de conversation.
         Utilise l'API /api/chat pour maintenir l'historique.
         Retourne None si Ollama n'est pas disponible (pour déclencher le fallback).
+        ``stop`` : séquences où Ollama arrête la réponse (exclues du texte).
         """
         if not self.is_ollama_available:
             return None
@@ -277,6 +279,8 @@ class LocalLLM:
                 "num_keep": -1,  # [OPTIM] Préserver system prompt lors de troncature contexte
             },
         }
+        if stop:
+            data["options"]["stop"] = list(stop)
 
         try:
             print(
@@ -317,10 +321,15 @@ class LocalLLM:
         is_interrupted_callback: Optional[Callable] = None,
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
+        stop: Optional[List[str]] = None,
     ) -> str:
         """
         Génère une réponse en streaming réel depuis Ollama.
         Appelle on_token(chunk) pour chaque token de réponse.
+        ``stop`` : séquences où Ollama arrête la réponse ; ni elles ni leur
+        début ne sont streamés. Ollama les cherche aussi dans la réflexion
+        native : avec on_thinking_token, une réflexion qui en contient une
+        s'arrête là, sans réponse (cf. _cut_at_stop dans chat_orchestrator).
 
         Si on_thinking_token est fourni, active le thinking natif Qwen3.5 :
           - "think": True dans la requête → Ollama streame les tokens de
@@ -348,6 +357,8 @@ class LocalLLM:
             "keep_alive": "1h",  # [OPTIM] Persistance modèle en VRAM
             "options": {"temperature": self.gen_temperature, "num_ctx": self.gen_num_ctx, "num_predict": 8192, "num_keep": -1},  # [OPTIM] num_keep: préserver system prompt
         }
+        if stop:
+            data["options"]["stop"] = list(stop)
 
         full_response = ""
         _thinking_complete_fired = False  # Garantit un seul appel au callback

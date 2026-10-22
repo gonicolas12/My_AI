@@ -27,6 +27,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
+from utils.citations import SOURCES_STOP, sources_block, sources_tail
+
 from .modelfile import drop_tools_section, with_modelfile
 from .platform_paths import PATH_EXAMPLES as _PATH_EX
 
@@ -323,13 +325,16 @@ _SYNTHESIS_RULES = (
     "en t'appuyant sur le « Plan du document » renvoyé par l'outil. N'invente aucune partie absente de ce plan "
     "et ne recopie pas le contenu du document. Si les recherches web n'ont rien donné, dis-le en une "
     "phrase : le document s'appuie alors sur tes connaissances.\n\n"
+    # Une recherche web donne son bloc 📚 Sources : demander en plus « ta
+    # section Sources/Références » en [Nom du site](URL) faisait écrire au
+    # modèle une seconde liste de liens, sources non citées comprises
     "FORMATAGE DES SOURCES — RÈGLE OBLIGATOIRE :\n"
-    "Si les résultats des outils contiennent des URLs ou des liens au format [Titre](URL), "
-    "tu DOIS les reproduire EXACTEMENT dans ta section Sources/Références.\n"
-    "Format attendu pour chaque source : [Nom du site](URL complète)\n"
-    "Exemple : [Real Python](https://realpython.com/article)\n"
-    "Ne mets JAMAIS un nom de source sans son URL. "
-    "Reprends les URLs telles quelles depuis les résultats des outils."
+    "Résultats de recherche web (sources numérotées [1], [2]…) : cite chaque information "
+    "avec le marqueur [n] de sa source, et termine par le bloc 📚 Sources donné avec les "
+    "résultats. C'est la seule liste de sources de ta réponse : n'écris aucune autre "
+    "liste de liens.\n"
+    "Autres liens renvoyés par les outils : reproduis-les EXACTEMENT, au format "
+    "[Nom du site](URL complète). Ne mets JAMAIS un nom de source sans son URL."
 )
 
 # Dernier message de la synthèse dans la foulée de la boucle : ses consignes
@@ -359,6 +364,31 @@ def _abridged(text: str, limit: int = SCRATCHPAD_GOAL_CHARS) -> str:
         return text
     half = limit // 2
     return f"{text[:half].rstrip()} […] {text[-half:].lstrip()} (demande complète plus haut)"
+
+
+# Séquences d'arrêt de la synthèse (début de ligne, « \n… ») repérées dans sa
+# réponse, et non par Ollama : son option « stop » coupe aussi la réflexion
+# native, et un brouillon du bloc 📚 Sources y arrêtait tout avant la réponse.
+# Le début de la réponse compte comme un début de ligne.
+
+def _cut_at_stop(text: str, stops: Optional[List[str]]) -> Tuple[str, bool]:
+    """Texte avant la première séquence d'arrêt complète, et si elle y est."""
+    lined = "\n" + text
+    cuts = [lined.find(stop) for stop in stops or () if stop in lined]
+    if not cuts:
+        return text, False
+    return text[:max(0, min(cuts) - 1)], True
+
+
+def _stop_prefix(text: str, stops: Optional[List[str]]) -> int:
+    """Longueur de la fin du texte qui peut encore commencer une séquence d'arrêt."""
+    lined = "\n" + text
+    held = max(
+        (size for stop in stops or () for size in range(len(stop) - 1, 0, -1)
+         if lined.endswith(stop[:size])),
+        default=0,
+    )
+    return min(held, len(text))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1987,6 +2017,12 @@ class ChatOrchestrator:
             la section « 💡 Synthèse ».
           - on_thinking_complete est appelé à l'affichage du 1er texte.
         """
+        # Recherche web : la réponse est coupée au début du bloc 📚 Sources que
+        # le modèle recopiait, sources non citées comprises ; le bloc la suit,
+        # réduit aux sources qu'elle cite (comme pour le WebAgent)
+        block = self._sources_block(messages, loop_start)
+        stop = SOURCES_STOP if block else None
+
         # 1. Dans la foulée de la boucle
         request = _FAST_SYNTHESIS_REQUEST.format(
             rules=_SYNTHESIS_RULES, request=_abridged(user_input)
@@ -1995,7 +2031,7 @@ class ChatOrchestrator:
         response, rejected = self._synthesis_pass(
             llm, msgs, user_input, tool_calls_log, on_token,
             is_interrupted_callback, on_thinking_token, on_thinking_complete,
-            screen_head=True, tools=tools, loop_markers=True,
+            screen_head=True, tools=tools, loop_markers=True, stop=stop,
         )
         if rejected and not (is_interrupted_callback and is_interrupted_callback()):
             print(
@@ -2011,10 +2047,15 @@ class ChatOrchestrator:
             response, _ = self._synthesis_pass(
                 llm, msgs, user_input, tool_calls_log, on_token,
                 is_interrupted_callback, None, on_thinking_complete,
-                screen_head=False,
+                screen_head=False, stop=stop,
             )
 
         if response:
+            tail = sources_tail(response, block)
+            if tail and not (is_interrupted_callback and is_interrupted_callback()):
+                if on_token:
+                    on_token(tail)
+                response += tail
             llm.add_to_history("user", user_input)
             llm.add_to_history("assistant", response)
             print(
@@ -2024,6 +2065,23 @@ class ChatOrchestrator:
             return response
 
         return None
+
+    @staticmethod
+    def _sources_block(messages: List[Dict], loop_start: int) -> str:
+        """
+        Bloc 📚 Sources des recherches web de la boucle, s'il n'y en a qu'un.
+
+        Plusieurs recherches numérotent chacune leurs sources à partir de [1] :
+        un [n] de la réponse ne dit plus laquelle il cite, et le modèle garde
+        alors la main sur sa liste.
+        """
+        blocks = {
+            sources_block(str(message.get("content") or ""))
+            for message in messages[loop_start:]
+            if message.get("role") == "tool"
+        }
+        blocks.discard("")
+        return blocks.pop() if len(blocks) == 1 else ""
 
     @staticmethod
     def _synthesis_messages(
@@ -2068,6 +2126,7 @@ class ChatOrchestrator:
         screen_head: bool,
         tools: Optional[List[Dict]] = None,
         loop_markers: bool = False,
+        stop: Optional[List[str]] = None,
     ) -> Tuple[str, Optional[str]]:
         """
         Un passage de synthèse streamé.
@@ -2081,6 +2140,10 @@ class ChatOrchestrator:
                 boucle), le modèle étant prié de ne plus en appeler
             loop_markers: Rejeter aussi une réponse qui cite le vocabulaire
                 de la boucle d'outils (_LOOP_MARKERS)
+            stop: Séquences de début de ligne où la réponse s'arrête
+                (SOURCES_STOP) : le flux est coupé dès qu'elle en contient une,
+                et ce qui peut encore en être le début attend avant d'être
+                affiché. Ni le prompt ni la réflexion n'en dépendent
 
         Returns:
             (réponse, motif de rejet). En cas de rejet, rien n'a été transmis
@@ -2123,6 +2186,8 @@ class ChatOrchestrator:
 
         full_response: str = ""
         shown: bool = not screen_head  # False tant que le début est retenu
+        sent: int = 0  # caractères de full_response transmis à l'UI
+        stopped: bool = False  # séquence d'arrêt atteinte : flux coupé
         rejected: Optional[str] = None
         thinking_header_sent: bool = False
         thinking_complete_fired: bool = False
@@ -2171,18 +2236,26 @@ class ChatOrchestrator:
                     # ── Contenu de la réponse finale ─────────────────────
                     token: str = msg.get("content", "")
                     if token:
-                        full_response += token
+                        full_response, stopped = _cut_at_stop(full_response + token, stop)
+                        # Ce qui peut encore commencer une séquence d'arrêt attend
+                        ready = len(full_response)
+                        if not stopped:
+                            ready -= _stop_prefix(full_response, stop)
                         if shown:
-                            if not show(token):
-                                break
+                            if ready > sent:
+                                chunk, sent = full_response[sent:ready], ready
+                                if not show(chunk):
+                                    break
                         elif len(full_response) >= SYNTHESIS_HEAD_CHARS:
                             valid, reason = validate(full_response)
                             if not valid:
                                 rejected = reason
                                 break  # flux coupé : Ollama cesse de générer
-                            shown = True
-                            if not show(full_response):
+                            shown, sent = True, ready
+                            if not show(full_response[:ready]):
                                 break
+                        if stopped:
+                            break  # flux coupé : Ollama cesse de générer
 
                     if chunk_data.get("done"):
                         completed = True
@@ -2197,6 +2270,14 @@ class ChatOrchestrator:
         except Exception as exc:
             print(f"⚠️  [ChatOrchestrator] synthesis stream error : {exc}")
 
+        if shown and sent < len(full_response):
+            if completed:
+                # Flux terminé : la fin retenue n'était pas une séquence d'arrêt
+                show(full_response[sent:])
+            else:
+                # Flux interrompu : la fin retenue n'est ni affichée ni gardée
+                full_response = full_response[:sent]
+
         # Réponse plus courte que le début retenu : la valider en entier
         if full_response and not shown and not rejected:
             valid, reason = validate(full_response)
@@ -2206,9 +2287,10 @@ class ChatOrchestrator:
                 rejected = reason
 
         # Flux terminé sans aucun texte : la réflexion a consommé tout le
-        # budget. Rejeté, il est refait sans réflexion avec les résultats des
-        # outils ; sinon le moteur retombait sur une génération qui les ignore.
-        if completed and not full_response:
+        # budget (ou la réponse commençait par la séquence d'arrêt). Rejeté, il
+        # est refait sans réflexion avec les résultats des outils ; sinon le
+        # moteur retombait sur une génération qui les ignore.
+        if (completed or stopped) and not full_response:
             rejected = "aucun texte généré"
 
         if rejected:

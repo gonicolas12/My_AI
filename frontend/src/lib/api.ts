@@ -55,6 +55,16 @@ export function getToken(): string | null {
   return token;
 }
 
+/**
+ * Icône d'un site cité (GET /api/favicon), jeton dans l'adresse : une image ne
+ * présente pas d'en-tête, et la page n'en charge aucune hors de ce serveur.
+ */
+export function faviconUrl(host: string): string {
+  const params = new URLSearchParams({ host });
+  if (token) params.set('token', token);
+  return `/api/favicon?${params.toString()}`;
+}
+
 /** Réservé aux tests */
 export function setToken(value: string | null): void {
   token = value;

@@ -16,8 +16,11 @@ de la durée et de la vitesse de la réponse :
 ```
 [Réponse de l'IA ici...]
 
-⧉  🔊  ↻  ☆ ☆ ☆ ☆ ☆   14:32 · 6 s · 58 tokens/s
+⧉  🔊  ↻  ☆ ☆ ☆ ☆ ☆   14:32 · 6 s · 58 tokens/s   ◉◉◉ Sources
 ```
+
+Le bouton **Sources** ne suit que les réponses appuyées sur une recherche web : les icônes des
+trois premières sources, puis, au clic, la liste de toutes, en liens.
 
 Survolez les étoiles pour un aperçu interactif, puis cliquez pour valider votre note :
 

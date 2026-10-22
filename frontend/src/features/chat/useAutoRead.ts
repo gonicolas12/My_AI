@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { useChat } from '../../stores/chat';
 import { toggleSpeak, useVoice } from '../../stores/voice';
+import { splitSources } from './markdown/sources';
 
 /**
  * Lecture automatique (ui.tts_autoread) : chaque réponse qui vient de
@@ -17,7 +18,8 @@ export function useAutoRead(): void {
         const message = state.messages[state.messages.length - 1];
         if (!message || message.mid !== finished.mid || message.role !== 'assistant') return;
         if (message.error || message.interrupted || !message.text.trim()) return;
-        void toggleSpeak(message.text, message.mid);
+        // Sans le bloc « 📚 Sources », que la réponse affichée n'a plus
+        void toggleSpeak(splitSources(message.text).body, message.mid);
       }),
     [],
   );

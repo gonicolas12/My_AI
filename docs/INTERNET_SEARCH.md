@@ -21,8 +21,10 @@ La recherche n'appelle jamais le modèle elle-même : elle collecte, le modèle 
 - Lieu inconnu d'Open-Meteo (un quartier, une adresse) : recherche web à la place, plutôt qu'un homonyme à l'autre bout du monde.
 
 ### 🔗 Sources cliquables
-- Chaque résultat se termine par un bloc `📚 **Sources**` (`[n] [Titre](URL)`) que le modèle reprend en fin de réponse. Les liens sont cliquables, et les marqueurs `[n]` aussi quand le bloc est numéroté — sur **desktop** comme sur **mobile** (Relay). Sur la page **Agents**, les liens (`[Titre](URL)` et adresses nues) sont cliquables aussi, tableaux compris.
-- Construit avec `utils/citations.py` (`parse_citation_map`, `extract_sources`) ; rendu cliquable dans la fenêtre par `frontend/src/features/chat/markdown/links.ts` (`parseCitationMap`).
+- Chaque résultat se termine par un bloc `📚 **Sources**` (`[n] [Titre](URL)`). La réponse cite ses sources avec les marqueurs `[n]`, cliquables, et se termine par ce bloc, réduit aux sources citées (voir le flux plus bas).
+- Dans la fenêtre (chat et page **Agents**), ce bloc n'est pas affiché dans le texte : il devient le bouton **Sources**, à droite de la vitesse de la réponse, précédé des icônes des trois premières sources. Un clic ouvre la liste de toutes, chacune avec l'icône de son site et son titre en lien. Le texte gardé (copie, historique, exports) contient toujours le bloc, et le **mobile** (Relay) l'affiche en fin de réponse ; ses marqueurs `[n]`, dans le texte comme dans le bloc, y sont aussi des liens vers leurs sources (`linkCitations`, `relay/static/app.js`).
+- Construit avec `utils/citations.py` (`parse_citation_map`, `extract_sources`) ; dans la fenêtre, marqueurs `[n]` rendus cliquables par `frontend/src/features/chat/markdown/links.ts` (`parseCitationMap`), bloc lu par `markdown/sources.ts` (`splitSources`) pour `SourcesButton.tsx`.
+- Les icônes passent par le serveur local (`GET /api/favicon`, `favicon()` de `models/internet_search.py`) : la page ne charge aucune image d'ailleurs. Elles viennent du service d'icônes de DuckDuckGo, déjà le moteur de recherche, jamais d'une adresse lue dans une réponse, et sont gardées pour la session ; un site sans icône a un globe.
 - Les renvois de notes recopiés des wikis (`[1]`, `[réf. nécessaire]`) sont retirés du texte des pages : dans la réponse, ils seraient devenus de faux liens vers nos sources.
 
 ## 🛡️ Réseau et sécurité
@@ -73,8 +75,9 @@ Le trafic de la recherche est celui d'un client ordinaire :
 2. `clean_query()` prépare **sa** requête : première ligne seulement, sans « cherche sur internet », sans les années récentes que le modèle ajoute de lui-même (2024, 2025… : il ne connaît pas la date du jour) quand l'utilisateur ne les a pas écrites. Une année ancienne (« construction tour Eiffel 1889 ») ou donnée par l'utilisateur reste.
 3. `search_and_summarize()` : URL → lecture directe ; météo → Open-Meteo ; sinon moteurs puis lecture des pages.
 4. Le résultat revient au modèle. Quand il est assez fourni, l'orchestrateur passe directement à la synthèse streamée.
+5. Le modèle termine par le bloc `📚 **Sources**` qu'on lui demande de recopier : le flux est coupé à son début, et l'orchestrateur écrit lui-même ce bloc sous la réponse, réduit aux sources qu'elle cite, numéros gardés, ou entier si elle n'en cite aucune (`sources_tail`, `utils/citations.py`). Avec plusieurs recherches, chacune numérotée à partir de [1], le modèle garde sa liste. La coupure est faite sur le texte de la réponse (`_cut_at_stop`) et non par l'option `stop` d'Ollama, qui s'applique aussi à la réflexion native : un brouillon du bloc dans la réflexion l'aurait arrêtée avant toute réponse.
 
-Les autres chemins utilisent le même moteur : `CustomAIModel` (`models/mixins/internet_search.py`, qui ajoute lui-même le bloc de sources numérotées sous la réponse) et le **WebAgent** de la page Agents (`models/ai_agents.py`, `WebSearchAgent`). Celui-ci fait d'abord écrire sa requête par le modèle, hors historique et sans les consignes de forme (« tableau », « sources »), puis synthétise en respectant la forme demandée. Son historique garde la question et la réponse, pas les résultats bruts.
+Les autres chemins utilisent le même moteur : `CustomAIModel` (`models/mixins/internet_search.py`, qui ajoute lui-même sous la réponse le bloc des sources qu'elle cite) et le **WebAgent** de la page Agents (`models/ai_agents.py`, `WebSearchAgent`). Celui-ci fait d'abord écrire sa requête par le modèle, hors historique et sans les consignes de forme (« tableau », « sources »), puis synthétise en respectant la forme demandée. Comme dans le chat, il écrit lui-même le bloc des sources citées ; sa synthèse, sans réflexion native, est arrêtée par Ollama au début du bloc (`SOURCES_STOP`). Son historique garde la question et la réponse avec ce bloc, pas les résultats bruts.
 
 ### Module `models/internet_search.py`
 
@@ -102,7 +105,7 @@ Toyota : Icône japonaise d'ingéniosité et de robustesse…
 
 [2] …
 
-Pour répondre : appuie-toi sur ces sources, place le marqueur [n] après chaque information qui en vient, et termine ta réponse par ce bloc, recopié tel quel :
+Pour répondre : appuie-toi uniquement sur ces sources, sans ajouter de chiffre, de note ou de rang qu'elles ne donnent pas, place le marqueur [n] après chaque information qui en vient, et termine ta réponse par ce bloc, recopié tel quel, sans autre liste de sources :
 
 📚 **Sources**
 [1] [Quelle est la meilleure marque de voiture 2026 - autohero.com](https://www.autohero.com/fr/conseil/choisir/meilleure-voiture/meilleure-marque-de-voiture/)

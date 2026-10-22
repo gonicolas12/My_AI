@@ -22,17 +22,23 @@ export function CopyButton({ text, label = 'Copier' }: { text: string; label?: s
   );
 }
 
-/** Actions sous un message : visibles au survol, toujours sous le dernier */
+/**
+ * Actions sous un message : visibles au survol, toujours sous le dernier, et
+ * tant qu'un de leurs menus est ouvert (il est hors du message).
+ */
 export function MessageActions({
   children,
   meta,
   pinned,
   align = 'start',
+  after,
 }: {
   children: ReactNode;
   meta?: string;
   pinned?: boolean;
   align?: 'start' | 'end';
+  /** Après la ligne d'infos (bouton « Sources ») */
+  after?: ReactNode;
 }) {
   return (
     <div
@@ -41,11 +47,12 @@ export function MessageActions({
         align === 'end' && 'flex-row-reverse',
         pinned
           ? 'opacity-100'
-          : 'opacity-0 group-focus-within/msg:opacity-100 group-hover/msg:opacity-100',
+          : 'opacity-0 group-focus-within/msg:opacity-100 group-hover/msg:opacity-100 has-[[data-state=open]]:opacity-100',
       )}
     >
       {children}
       {meta ? <span className="px-1.5 text-xs text-fg-3 tabular-nums">{meta}</span> : null}
+      {after}
     </div>
   );
 }

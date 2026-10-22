@@ -407,6 +407,21 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
         await websocket.accept()
         await _serve_events(app, websocket)
 
+    # ── Sources d'une réponse ───────────────────────────────────────────────
+
+    @api.get("/api/favicon")
+    async def favicon(host: str = ""):
+        """Icône d'un site cité, pour le bouton « Sources » : la page ne charge
+        aucune image hors de ce serveur (img-src 'self')."""
+        # Import tardif : le serveur démarre avant le moteur et ses dépendances
+        from models import internet_search  # pylint: disable=import-outside-toplevel
+        icon = await run_in_threadpool(internet_search.favicon, host)
+        if icon is None:
+            raise HTTPException(status_code=404)
+        content, media_type = icon
+        return Response(content, media_type=media_type,
+                        headers={"Cache-Control": "private, max-age=86400"})
+
     # ── Fichiers locaux et aperçus (api_files.py) ───────────────────────────
 
     api_files.register(api, app, server)

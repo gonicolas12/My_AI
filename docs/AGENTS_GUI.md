@@ -106,7 +106,8 @@ le fil ouvert à droite, comme dans l'app Codex.
 - **Statut en direct** dans la liste : en attente, en cours, terminé, terminé en partie
   (des agents ont échoué), erreur, interrompu
 - **Une section par agent**, remplie au fil de l'écriture (Markdown, code coloré, tableaux,
-  formules), avec sa durée et sa vitesse (tokens/s) ; **Copier la sortie**
+  formules), avec sa durée et sa vitesse (tokens/s) ; **Copier la sortie** ; après une
+  recherche web (WebAgent), le bouton **Sources** liste les sources citées
 - **En parallèle**, Ollama ne sert qu'un agent à la fois : celui qui attend affiche
   « Attend son tour » et écrira ensuite
 - **Diff** : quand un agent modifie un code fourni (fichier joint ou bloc de la tâche), sa

@@ -262,7 +262,9 @@ Erreur technique : {str(e)}"""
                         break
 
             # Construire un bloc de sources numérotées cliquables ([1], [2], …)
-            from utils.citations import build_numbered_sources, extract_sources
+            from utils.citations import (
+                SOURCES_STOP, build_numbered_sources, extract_sources, sources_tail,
+            )
             source_pairs = extract_sources(sources_section or raw_results)
             sources_block = build_numbered_sources(source_pairs)
 
@@ -309,16 +311,18 @@ Génère la réponse finale directement à la question utilisateur, avec uniquem
             self.local_llm.conversation_history = []
 
             try:
-                sources_text = f"\n\n{sources_block}" if sources_block else ""
-
                 ollama_response = self.local_llm.generate_stream(
                     user_prompt,
                     system_prompt=system_prompt,
                     on_token=on_token,
+                    # Liste recopiée malgré la consigne : coupée à son en-tête
+                    stop=SOURCES_STOP,
                 )
 
                 if ollama_response:
                     final_response = ollama_response.strip()
+                    # Seulement les sources que la réponse cite, comme le chat
+                    sources_text = sources_tail(final_response, sources_block)
 
                     if sources_text and on_token:
                         on_token(sources_text)

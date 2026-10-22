@@ -21,6 +21,8 @@ from core.chat_orchestrator import (
     ChatOrchestrator,
 )
 from core.modelfile import with_modelfile
+from models import internet_search as ws
+from utils.citations import sources_block
 
 _QUESTION = "tu vois quoi dans mon dossier téléchargements ?"
 _LISTING = (
@@ -54,10 +56,12 @@ class _OllamaStream:
                 "message": {"content": "", "tool_calls": [{"function": text}]}, "done": False,
             }).encode()]
         else:
-            pieces = [text[i:i + chunk] for i in range(0, len(text), chunk)]
+            # (réflexion, réponse) : la réflexion native arrive d'abord
+            thinking, text = text if isinstance(text, tuple) else ("", text)
             self.lines = [
-                json.dumps({"message": {"content": piece}, "done": False}).encode()
-                for piece in pieces
+                json.dumps({"message": {field: value[i:i + chunk]}, "done": False}).encode()
+                for field, value in (("thinking", thinking), ("content", text))
+                for i in range(0, len(value), chunk)
             ]
         self.lines.append(json.dumps({"message": {"content": ""}, "done": True}).encode())
         self.lines_read = 0
@@ -389,3 +393,133 @@ def test_enough_search_results_go_straight_to_the_synthesis(ollama):
     synthesis = ollama.requests[0]["messages"]
     assert {"role": "tool", "content": "Résultats de recherche web " + "x" * 2000} in synthesis
     assert not any("STOP" in str(m.get("content", "")) for m in synthesis)
+
+
+_POPULATION = "cherche sur internet le nombre d'habitants sur terre"
+
+
+def _search_result(*urls):
+    """Résultat de web_search : sources numérotées, puis le bloc à recopier."""
+    return ws.format_results(ws.SearchResponse(
+        query="population mondiale", engine="DuckDuckGo",
+        results=[ws.SearchResult(title=f"Source {n}", url=url, snippet="Extrait.")
+                 for n, url in enumerate(urls, 1)],
+    ))
+
+
+def _web_search_loop(*results):
+    """Boucle au moment de la synthèse : une recherche web par résultat."""
+    messages = [{"role": "system", "content": "système"}, {"role": "user", "content": _POPULATION}]
+    for result in results:
+        messages += [
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"function": {"name": "web_search", "arguments": {"query": "population"}}}
+            ]},
+            {"role": "tool", "content": result},
+        ]
+    return messages
+
+
+def _synthesize_search(ollama, results, *replies, **options):
+    """Synthèse après une ou plusieurs recherches web."""
+    ollama.replies.extend(replies)
+    llm, shown = _LLM(), []
+    response = ChatOrchestrator()._stream_synthesis(
+        messages=_web_search_loop(*results),
+        user_input=_POPULATION,
+        llm=llm,
+        on_token=shown.append,
+        is_interrupted_callback=None,
+        tool_calls_log=[{"tool": "web_search"} for _ in results],
+        loop_start=2,
+        **options,
+    )
+    return response, shown, llm
+
+
+def test_web_search_lists_only_the_cited_sources(ollama):
+    """Comme le WebAgent : le flux est coupé au début du bloc 📚 Sources que le
+    modèle recopiait, sources non citées comprises, et le bloc suit sa
+    réponse, réduit aux sources qu'elle cite, numéros gardés. Avant, seul le
+    modèle en décidait : prié de recopier le bloc « tel quel », il n'en
+    retirait les sources non citées que s'il le voulait bien."""
+    result = _search_result(*(f"https://example.org/{n}" for n in range(1, 5)))
+    answer = "La population mondiale atteint 8,3 milliards [1], et croît de 0,8 % [3]."
+    ollama.replies.append(f"{answer}\n\n{sources_block(result)}")
+    turns = [{"name": "web_search", "arguments": {"query": "population mondiale"}}]
+
+    def fake_turn(**_kwargs):
+        return {"content": "", "tool_calls": [{"function": turns.pop(0)}], "streamed": False}
+
+    orchestrator = ChatOrchestrator()
+    orchestrator._call_ollama_smart_stream = fake_turn
+    llm, shown = _LLM(), []
+    response = orchestrator.run(
+        user_input=_POPULATION,
+        tools=[{"type": "function", "function": {"name": "web_search"}}],
+        tool_executor=lambda _name, _arguments: result,
+        llm=llm,
+        system_prompt="système",
+        on_token=shown.append,
+    )
+
+    expected = (
+        f"{answer}\n\n📚 **Sources**\n"
+        "[1] [Source 1](https://example.org/1)\n"
+        "[3] [Source 3](https://example.org/3)"
+    )
+    # Rien du bloc recopié n'a paru, pas même son début, en morceaux de 12 caractères
+    assert "".join(shown) == expected
+    assert response == expected
+    assert llm.replies() == [expected]
+    # Flux coupé : le modèle n'a pas fini de recopier les adresses
+    assert ollama.streams[0].lines_read < len(ollama.streams[0].lines)
+
+
+def test_sources_drafted_in_the_thinking_do_not_stop_the_synthesis(ollama):
+    """Essai réel sur my_ai : l'option « stop » d'Ollama vaut aussi pour la
+    réflexion native, et un brouillon du bloc 📚 Sources l'y arrêtait, réponse
+    vide, puis synthèse à part, bien plus lente. L'arrêt ne porte que sur la
+    réponse, et la réflexion arrive entière."""
+    result = _search_result("https://example.org/1", "https://example.org/2")
+    block = sources_block(result)
+    thinking = f"Je cite [1], puis je termine par le bloc :\n{block}\nC'est bon."
+    answer = "La population mondiale atteint 8,3 milliards [1]."
+    thoughts = []
+    response, shown, _llm = _synthesize_search(
+        ollama, [result], (thinking, f"{answer}\n\n{block}"),
+        on_thinking_token=thoughts.append,
+    )
+
+    expected = f"{answer}\n\n📚 **Sources**\n[1] [Source 1](https://example.org/1)"
+    assert response == expected and "".join(shown) == expected
+    assert thinking in "".join(thoughts)
+    assert len(ollama.requests) == 1  # pas de synthèse à part
+    assert "stop" not in ollama.requests[0]["options"]
+
+
+def test_answer_kept_whole_when_it_merely_ends_with_a_newline(ollama):
+    """Une fin de ligne peut commencer le bloc : retenue, elle est rendue à la
+    fin du flux quand rien ne l'a suivie (aucun bloc recopié)."""
+    result = _search_result("https://example.org/1", "https://example.org/2")
+    answer = (
+        "La population mondiale atteint environ 8,3 milliards d'habitants en 2026 [2], "
+        "avec une croissance annuelle qui ralentit nettement depuis plusieurs décennies "
+        "selon les sources.\n"
+    )
+    assert len(answer) > SYNTHESIS_HEAD_CHARS  # affichée au fil du flux
+    response, shown, _llm = _synthesize_search(ollama, [result], answer)
+
+    expected = f"{answer}\n📚 **Sources**\n[2] [Source 2](https://example.org/2)"
+    assert response == expected and "".join(shown) == expected
+
+
+def test_several_web_searches_keep_the_model_list(ollama):
+    """Deux recherches numérotent chacune leurs sources à partir de [1] : un
+    [n] ne dit plus laquelle il cite, et le modèle garde la main sur sa liste."""
+    first, second = _search_result("https://example.org/a"), _search_result("https://example.org/b")
+    reply = f"Réponse tirée des deux recherches [1].\n\n{sources_block(first)}"
+    response, shown, _llm = _synthesize_search(ollama, [first, second], reply)
+
+    assert response == reply and "".join(shown) == reply
+    assert ollama.streams[0].lines_read == len(ollama.streams[0].lines)

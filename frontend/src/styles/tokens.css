@@ -36,6 +36,10 @@
   /* Passage trouvé par la recherche globale (_highlight_in_chat, sidebar.py) */
   --search-hit: #2563eb;
 
+  /* Fond des icônes de sites (bouton « Sources ») : une icône sombre resterait
+     invisible sur le fond de l'appli */
+  --favicon-bg: #ffffff;
+
   /* ── Agents (interfaces/agents/agent_selection.py) ────────────────────── */
   --agent-code: #3b82f6;
   --agent-web: #10b981;

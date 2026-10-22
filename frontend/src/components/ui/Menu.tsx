@@ -11,6 +11,7 @@ interface MenuContentProps {
   side?: 'top' | 'right' | 'bottom' | 'left';
   align?: 'start' | 'center' | 'end';
   label?: string;
+  className?: string;
 }
 
 /** Menu déroulant (clavier, Échap et clic à l'extérieur gérés par Radix) */
@@ -19,6 +20,7 @@ export function MenuContent({
   side = 'bottom',
   align = 'start',
   label,
+  className,
 }: MenuContentProps) {
   return (
     <RadixMenu.Portal>
@@ -27,7 +29,10 @@ export function MenuContent({
         align={align}
         sideOffset={6}
         aria-label={label}
-        className="fade-in-fast z-50 min-w-48 rounded-md border border-line bg-bg-2 p-1 text-sm text-fg shadow-lg"
+        className={cn(
+          'fade-in-fast z-50 min-w-48 rounded-md border border-line bg-bg-2 p-1 text-sm text-fg shadow-lg',
+          className,
+        )}
       >
         {children}
       </RadixMenu.Content>
@@ -57,6 +62,36 @@ export function MenuItem({ icon, children, onSelect, disabled, hint }: MenuItemP
       {icon ? <span className="flex w-4 shrink-0 justify-center text-fg-2">{icon}</span> : null}
       <span className="flex-1">{children}</span>
       {hint ? <span className="text-2xs text-fg-3">{hint}</span> : null}
+    </RadixMenu.Item>
+  );
+}
+
+/**
+ * Lien du menu : un vrai lien, ouvert dans le navigateur du système par le
+ * gardien de navigation (installNavigationGuard), au clic comme à Entrée.
+ */
+export function MenuLink({
+  href,
+  icon,
+  children,
+  title,
+}: {
+  href: string;
+  icon?: ReactNode;
+  children: ReactNode;
+  title?: string;
+}) {
+  return (
+    <RadixMenu.Item
+      asChild
+      className="flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1.5 outline-none select-none data-[highlighted]:bg-hover"
+    >
+      <a href={href} target="_blank" rel="noreferrer noopener" title={title}>
+        {icon ? <span className="flex shrink-0 justify-center">{icon}</span> : null}
+        <span className="min-w-0 flex-1 truncate text-link underline decoration-link/45 underline-offset-2">
+          {children}
+        </span>
+      </a>
     </RadixMenu.Item>
   );
 }

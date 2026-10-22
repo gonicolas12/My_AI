@@ -11,9 +11,17 @@ entier. Aucun réseau ici : les moteurs et les pages sont simulés.
 from datetime import date
 
 import pytest
+import requests
 
 from models import internet_search as ws
-from utils.citations import extract_sources, parse_citation_map
+from utils.citations import (
+    SOURCES_STOP,
+    extract_sources,
+    keep_cited_sources,
+    parse_citation_map,
+    sources_block,
+    sources_tail,
+)
 
 YEAR = date.today().year
 
@@ -422,6 +430,74 @@ def test_resultat_de_l_outil_et_citations(monkeypatch):
     assert len(extract_sources(text)) == 2
 
 
+def test_bloc_sources_reduit_aux_sources_citees():
+    """WebAgent : sous sa réponse, seulement les sources qu'elle cite."""
+    header, first, second, third = [
+        "📚 **Sources**",
+        "[1] [Classement](https://www.autos.example/classement/)",
+        "[2] [Python (langage)](https://fr.wikipedia.org/wiki/Python_%28langage%29)",
+        "[3] [Fiabilité](https://www.autos.example/fiabilite/)",
+    ]
+    block = "\n".join([header, first, second, third])
+    # Numéros gardés : ce sont ceux des marqueurs déjà écrits ; [1, 3] en cite deux
+    answer = "Toyota [1, 3], Honda [3], et une source inventée [9]."
+    assert keep_cited_sources(block, answer) == "\n".join([header, first, third])
+    # Aucune source citée : le bloc entier, ses liens restent utiles
+    assert keep_cited_sources(block, "Toyota arrive en tête.") == block
+
+
+def test_reponse_arretee_au_bloc_sources_puis_completee(monkeypatch):
+    """Réponse arrêtée au début du bloc (SOURCES_STOP) : le bloc du résultat
+    la suit, après une ligne vide, réduit aux sources qu'elle cite."""
+    _session, engine = _engine_with_pages(monkeypatch)
+    block = sources_block(engine.search_and_summarize("marques de voitures fiables"))
+    assert block.startswith("📚 **Sources**\n[1] ") and len(block.splitlines()) == 3
+    # Ollama coupe avant « \n📚 » : la réponse finit par une fin de ligne, ou pas
+    for answer in ("Toyota arrive en tête [1].\n", "Toyota arrive en tête [1]."):
+        complete = answer + sources_tail(answer, block)
+        assert complete.startswith("Toyota arrive en tête [1].\n\n📚 **Sources**\n[1] ")
+        assert parse_citation_map(complete) == {1: "https://www.autos.example/classement/"}
+    # Aucun résultat : pas de bloc, rien à ajouter
+    assert sources_block("Aucun résultat trouvé pour « x » (aucun moteur disponible).") == ""
+    # Ancienne réponse avec son bloc (rendue par la mémoire) : rien à compléter
+    assert sources_block("Toyota arrive en tête [1].\n\n" + block) == ""
+    assert sources_tail("Réponse [1].", "") == "" and sources_tail("", block) == ""
+
+
+def test_icone_d_un_site_par_le_service_de_duckduckgo(monkeypatch):
+    """Bouton « Sources » de l'interface : icône prise chez DuckDuckGo, déjà le
+    moteur, jamais sur une adresse lue dans une réponse ; gardée, absence comprise."""
+    png = b"\x89PNG\r\n\x1a\n" + b"x" * 40
+    session = _use(monkeypatch, {
+        "/ip3/fr.wikipedia.org.ico":
+            lambda url, **kw: _Response(body=png, url=url, content_type="image/png"),
+        "/ip3/inconnu.example.ico":
+            lambda url, **kw: _Response(status=404, body=png, url=url, content_type="image/png"),
+        "/ip3/lourd.example.ico":
+            lambda url, **kw: _Response(body=b"x" * 100_001, url=url, content_type="image/png"),
+    })
+    assert ws.favicon("fr.wikipedia.org") == (png, "image/png")
+    assert ws.favicon("FR.Wikipedia.org.") == (png, "image/png")  # même site : gardée
+    assert ws.favicon("inconnu.example") is None
+    assert ws.favicon("inconnu.example") is None
+    assert ws.favicon("lourd.example") is None
+    assert session.hosts() == ["icons.duckduckgo.com"] * 3
+    # Ni adresse IP, ni hôte local, ni chemin : aucune requête
+    for host in ("127.0.0.1", "localhost", "a.example/../x", "", "a b.example"):
+        assert ws.favicon(host) is None
+    assert len(session.calls) == 3
+
+
+def test_icone_reessayee_apres_une_panne_reseau(monkeypatch):
+    def offline(_url, **_kw):
+        raise requests.ConnectionError("hors ligne")
+
+    session = _use(monkeypatch, {"icons.duckduckgo.com": offline})
+    assert ws.favicon("fr.wikipedia.org") is None
+    assert ws.favicon("fr.wikipedia.org") is None
+    assert len(session.calls) == 2  # pas gardée : le réseau peut revenir
+
+
 def test_cache_evite_une_seconde_requete(monkeypatch):
     session, engine = _engine_with_pages(monkeypatch)
     first = engine.search_and_summarize("marques de voitures fiables")
@@ -439,7 +515,8 @@ def test_url_dans_la_requete_lit_la_page(monkeypatch):
 
 
 def test_chemin_custom_ai_ajoute_les_sources_numerotees():
-    """CustomAIModel : sa liste de sources suit la réponse, sans consigne contraire."""
+    """CustomAIModel : sa liste de sources suit la réponse, sans consigne
+    contraire, réduite aux sources qu'elle cite (comme le chat)."""
     from models.mixins.internet_search import InternetSearchMixin  # pylint: disable=import-outside-toplevel
 
     class _LocalLLM:
@@ -448,10 +525,12 @@ def test_chemin_custom_ai_ajoute_les_sources_numerotees():
         def __init__(self):
             self.conversation_history = []
             self.prompts = []
+            self.stops = []
 
-        def generate_stream(self, prompt, system_prompt=None, on_token=None):
+        def generate_stream(self, prompt, system_prompt=None, on_token=None, stop=None):
             del system_prompt, on_token
             self.prompts.append(prompt)
+            self.stops.append(stop)
             return "Toyota arrive en tête [1]."
 
     class _Host(InternetSearchMixin):
@@ -471,11 +550,11 @@ def test_chemin_custom_ai_ajoute_les_sources_numerotees():
         "marques fiables", ws.format_results(response), "quelles marques sont fiables ?"
     )
     assert ws.SOURCES_NOTE not in host.local_llm.prompts[0]
+    # Une liste recopiée malgré la consigne serait coupée à son en-tête
+    assert host.local_llm.stops == [SOURCES_STOP]
     assert answer.startswith("Toyota arrive en tête [1].")
-    assert parse_citation_map(answer) == {
-        1: "https://www.autos.example/classement/",
-        2: "https://fr.wikipedia.org/wiki/Python_%28langage%29",
-    }
+    assert parse_citation_map(answer) == {1: "https://www.autos.example/classement/"}
+    assert "wikipedia" not in answer
 
 
 def test_moteur_compatible_avec_les_anciens_appelants():

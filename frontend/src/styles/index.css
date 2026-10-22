@@ -45,6 +45,7 @@
   --color-on-accent: var(--on-accent);
   --color-on-user: var(--on-user);
   --color-link: var(--link);
+  --color-favicon: var(--favicon-bg);
   --color-memory-general: var(--memory-general);
   --color-memory-preference: var(--memory-preference);
   --color-memory-decision: var(--memory-decision);

@@ -272,6 +272,20 @@ def test_relay_and_shutdown_routes(desktop):
     assert desktop.app.shutdowns == 1
 
 
+def test_site_icons_for_the_sources_button(desktop, monkeypatch):
+    """La page ne charge aucune image d'ailleurs (img-src 'self') : le serveur
+    sert l'icône des sites cités, avec le jeton dans l'adresse de l'image."""
+    from models import internet_search  # pylint: disable=import-outside-toplevel
+    icons = {"fr.wikipedia.org": (b"\x89PNG icone", "image/png")}
+    monkeypatch.setattr(internet_search, "favicon", icons.get)
+
+    icon = desktop.client.get(f"/api/favicon?host=fr.wikipedia.org&token={TOKEN}")
+    assert icon.status_code == 200 and icon.content == b"\x89PNG icone"
+    assert icon.headers["content-type"] == "image/png"
+    assert desktop.client.get(f"/api/favicon?host=inconnu.example&token={TOKEN}").status_code == 404
+    assert desktop.client.get("/api/favicon?host=fr.wikipedia.org").status_code == 401
+
+
 # ── Interface ───────────────────────────────────────────────────────────────
 
 

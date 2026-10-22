@@ -57,7 +57,7 @@ orchestrator.ask_agent("code", "Crée une fonction qui trie une liste")
 - Trouver des actualités et événements récents (focus 2026)
 - Obtenir des données réelles depuis le web
 
-Même moteur que le chat ([INTERNET_SEARCH.md](INTERNET_SEARCH.md)) : DuckDuckGo, Yahoo et Wikipédia en secours, pages lues, météo Open-Meteo. Les sources s'affichent en liens cliquables à la fin de la réponse.
+Même moteur que le chat ([INTERNET_SEARCH.md](INTERNET_SEARCH.md)) : DuckDuckGo, Yahoo et Wikipédia en secours, pages lues, météo Open-Meteo. Les marqueurs `[n]` de la réponse sont des liens cliquables, et les sources qu'elle cite sont sous le bouton **Sources** de sa section, à droite de sa vitesse.
 
 **Temperature:** 0.5 (équilibré)
 

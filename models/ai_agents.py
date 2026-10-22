@@ -9,6 +9,7 @@ import re
 
 from models.local_llm import LocalLLM
 from models.internet_search import EnhancedInternetSearchEngine, clean_query
+from utils.citations import SOURCES_STOP, sources_block, sources_tail
 
 # ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
 try:
@@ -276,13 +277,12 @@ COMPORTEMENT:
 - Tu DOIS te baser UNIQUEMENT sur ces résultats pour répondre
 - Ne JAMAIS inventer de données ou d'informations
 - Croiser plusieurs sources quand disponibles
-{year_instruction}- Citer les sources utilisées
+{year_instruction}- Citer les sources avec leurs marqueurs [n]
 - Si les résultats sont insuffisants, le dire clairement
 
 FORMAT DE RÉPONSE:
 - Introduction concise
 - Informations factuelles basées sur les sources
-- Sources utilisées
 - Note sur la fiabilité si pertinent
 - Suggestions pour approfondir si nécessaire
 
@@ -388,20 +388,24 @@ INSTRUCTIONS:
 
 Réponds maintenant:"""
 
-    def _keep_task_in_history(self, task: str, synthesis_prompt: str) -> None:
+    def _keep_task_in_history(self, task: str, synthesis_prompt: str, sources: str = "") -> None:
         """
         Remplace, dans l'historique de l'agent, la demande de synthèse par la
         question seule.
 
         La demande porte les résultats bruts (~10 000 caractères) : gardée,
         chaque tâche suivante de l'agent les relisait, et son historique en
-        cumulait à chaque recherche. La réponse, sources comprises, reste.
+        cumulait à chaque recherche. La réponse reste, suivie de ses sources
+        (``sources``, ajoutées sous la réponse du modèle).
         """
         history = self.llm.conversation_history
         for index in range(len(history) - 1, -1, -1):
             message = history[index]
             if message.get("role") == "user" and message.get("content") == synthesis_prompt:
                 history[index] = {"role": "user", "content": task}
+                answer = history[index + 1] if index + 1 < len(history) else None
+                if sources and answer and answer.get("role") == "assistant":
+                    history[index + 1] = {**answer, "content": answer["content"] + sources}
                 return
 
     def execute_task(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
@@ -452,14 +456,19 @@ Réponds maintenant:"""
                 task, filtered_results or search_results
             )
 
-            # ÉTAPE 4: Demander à Ollama de SYNTHÉTISER les vrais résultats
+            # ÉTAPE 4: Demander à Ollama de SYNTHÉTISER les vrais résultats,
+            # arrêtés au bloc 📚 Sources que le modèle recopiait en entier :
+            # il le suit, réduit aux sources citées
             print(f"🧠 Synthèse des résultats avec {self.model}...")
             synthesis = self.llm.generate(
-                prompt=synthesis_prompt, system_prompt=self.system_prompt
+                prompt=synthesis_prompt, system_prompt=self.system_prompt,
+                stop=SOURCES_STOP,
             )
-            self._keep_task_in_history(task, synthesis_prompt)
+            sources = sources_tail(synthesis, sources_block(search_results))
+            self._keep_task_in_history(task, synthesis_prompt, sources)
 
             if synthesis:
+                synthesis += sources
                 # Enregistrer dans l'historique
                 task_record = {
                     "task": task,
@@ -543,9 +552,8 @@ Réponds maintenant:"""
                     "error": "no_search_results",
                 }
 
-            # Notifier l'utilisateur que la recherche est terminée
-            if on_token:
-                on_token("\n🔍 **Recherche terminée** - Synthèse en cours...\n\n")
+            # Pas de « Recherche terminée » dans la sortie : elle y restait une
+            # fois la réponse écrite (la page Agents montre l'attente à part)
 
             # ÉTAPE 2: Filtrer par année (seulement si focus_year défini)
             if self.focus_year:
@@ -558,16 +566,23 @@ Réponds maintenant:"""
                 task, filtered_results or search_results
             )
 
-            # ÉTAPE 4: Streaming de la synthèse
+            # ÉTAPE 4: Streaming de la synthèse, arrêtée au bloc 📚 Sources
+            # que le modèle recopiait en entier : il la suit, réduit aux
+            # sources citées
             print(f"🧠 Synthèse streaming avec {self.model}...")
             synthesis = self.llm.generate_stream(
                 prompt=synthesis_prompt,
                 system_prompt=self.system_prompt,
                 on_token=on_token,
+                stop=SOURCES_STOP,
             )
-            self._keep_task_in_history(task, synthesis_prompt)
+            sources = sources_tail(synthesis, sources_block(search_results))
+            if sources and on_token:
+                on_token(sources)
+            self._keep_task_in_history(task, synthesis_prompt, sources)
 
             if synthesis:
+                synthesis += sources
                 task_record = {
                     "task": task,
                     "search_results": search_results,

@@ -10,10 +10,12 @@ import { openPreview } from '../../stores/preview';
 import { FileCard, GeneratedImage } from './FileCard';
 import { buildChatLinks, citationKey } from './markdown/links';
 import { Markdown } from './markdown/Markdown';
+import { splitSources } from './markdown/sources';
 import { CopyButton, MessageActions } from './MessageActions';
 import { RegenerateButton, SpeakButton, StarRating } from './MessageControls';
 import { buildParts } from './parts';
 import { Reasoning } from './Reasoning';
+import { SourcesButton } from './SourcesButton';
 import { ToolRow } from './ToolRow';
 import { toolText } from './tools';
 
@@ -104,7 +106,9 @@ export const AssistantMessage = memo(function AssistantMessage({
   const tools = live ? live.tools : (message?.tool_calls ?? NO_TOOLS);
   const thinking = live ? live.thinking : (message?.thinking ?? '');
   const documents = live ? live.documents : (message?.documents ?? NO_DOCUMENTS);
-  const parts = useMemo(() => buildParts(text, tools), [text, tools]);
+  // Bloc « 📚 Sources » final : hors du texte affiché, sous le bouton Sources
+  const { body, sources } = useMemo(() => splitSources(text), [text]);
+  const parts = useMemo(() => buildParts(body, tools), [body, tools]);
   const lastText = parts.findLastIndex((part) => part.kind === 'text');
   const activity = streaming ? activityOf(live) : null;
   const thinkingNow = reasoningActive(live);
@@ -213,9 +217,13 @@ export const AssistantMessage = memo(function AssistantMessage({
       ) : null}
 
       {message && !streaming ? (
-        <MessageActions meta={meta} pinned={isLast}>
+        <MessageActions
+          meta={meta}
+          pinned={isLast}
+          after={!error ? <SourcesButton sources={sources} /> : null}
+        >
           <CopyButton text={text} label="Copier la réponse" />
-          {!error ? <SpeakButton text={text} mid={message.mid} /> : null}
+          {!error ? <SpeakButton text={body} mid={message.mid} /> : null}
           {userMid ? (
             <RegenerateButton userMid={userMid} hasFollowing={hasFollowing} busy={busy} />
           ) : null}

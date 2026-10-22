@@ -18,7 +18,10 @@ import { formatDecimal, formatDuration } from '../../../lib/format';
 import { stopAgentsRun, useAgents } from '../../../stores/agents';
 import { summaryOf } from '../../../stores/agentsReducer';
 import { CopyButton } from '../../chat/MessageActions';
+import { buildChatLinks, citationKey } from '../../chat/markdown/links';
 import { Markdown } from '../../chat/markdown/Markdown';
+import { splitSources } from '../../chat/markdown/sources';
+import { SourcesButton } from '../../chat/SourcesButton';
 import {
   agentColor,
   agentIcon,
@@ -97,6 +100,11 @@ const Section = memo(function Section({
   const running = section?.status === 'running';
   const [open, setOpen] = useState(true);
   const text = section?.text ?? '';
+  // Citations « [n] » du bloc Sources (WebAgent) cliquables, comme dans le chat ;
+  // le bloc lui-même passe sous le bouton Sources de l'en-tête
+  const citations = useMemo(() => citationKey(text), [text]);
+  const links = useMemo(() => buildChatLinks(citations, undefined), [citations]);
+  const { body: output, sources } = useMemo(() => splitSources(text), [text]);
   // Diff seulement une fois la sortie terminée : pas de calcul à chaque fragment
   const change = useMemo<CodeChange | null>(
     () => (section && section.status !== 'running' ? findCodeChange(text, provided) : null),
@@ -178,6 +186,7 @@ const Section = memo(function Section({
           <CopyButton text={section.text} label="Copier la sortie" />
         ) : null}
         <SectionStatus item={item} behind={behind} />
+        <SourcesButton sources={sources} />
       </div>
       {section && open ? (
         <div
@@ -191,14 +200,18 @@ const Section = memo(function Section({
         >
           {shown === 'diff' && change ? (
             <DiffView change={change} />
-          ) : text ? (
-            <Markdown text={text} streaming={running} />
+          ) : output ? (
+            <Markdown text={output} streaming={running} links={links} />
           ) : running && behind ? (
             <p className="shimmer text-sm">
               Le modèle répond d’abord à {behind} : cet agent écrira ensuite.
             </p>
           ) : running ? (
-            <p className="shimmer text-sm">L’agent rédige sa réponse…</p>
+            <p className="shimmer text-sm">
+              {item.agentType === 'web'
+                ? 'L’agent cherche sur internet…'
+                : 'L’agent rédige sa réponse…'}
+            </p>
           ) : (
             <p className="text-sm text-fg-3">Aucune sortie.</p>
           )}

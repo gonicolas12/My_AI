@@ -896,7 +896,7 @@ EnhancedInternetSearchEngine :          # aucun appel au modèle
 ├─ Lecture des 4 premières pages en parallèle :
 │   ├─ Texte principal sans menus, bandeaux ni publicités
 │   └─ Début de page + passage le plus proche de la requête
-├─ Sources numérotées [n] + bloc 📚 Sources cliquable
+├─ Sources numérotées [n] + bloc 📚 Sources (bouton « Sources » dans la fenêtre)
 ├─ clean_query() : requête du modèle sans les années qu'il ajoute
 ├─ HTTPS vérifié (truststore / network.ca_bundle), User-Agent du projet
 ├─ Moteur bloqué (page anti-robot) : pause de 15 min
@@ -1526,7 +1526,9 @@ Passages pertinents de chaque page
     ↓
 Sources numérotées + bloc 📚 Sources → le modèle
     ↓
-Synthèse streamée, liens des sources cliquables
+Synthèse streamée, coupée au début du bloc 📚 Sources
+    ↓
+Bloc des seules sources citées → bouton « Sources » sous la réponse
 ```
 
 ## 🎯 Patterns Architecturaux

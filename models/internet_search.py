@@ -39,7 +39,7 @@ import requests
 from bs4 import BeautifulSoup, FeatureNotFound
 from requests.adapters import HTTPAdapter
 
-from utils.citations import DEFAULT_HEADER
+from utils.citations import DEFAULT_HEADER, SOURCES_NOTE
 
 try:  # magasin de certificats du système (certificat racine d'un proxy d'entreprise)
     import truststore
@@ -64,6 +64,8 @@ _BLOCKED_PAUSE = 15 * 60    # Moteur qui a renvoyé sa page anti-robot
 _ERROR_PAUSE = 60           # Moteur injoignable (délai dépassé, DNS…)
 _CACHE_TTL = 30 * 60
 _CACHE_MAX = 64
+_ICONS_MAX = 256            # Icônes de sites gardées (bouton « Sources » de l'interface)
+_MAX_ICON_BYTES = 100_000
 _STALE_YEARS = 5            # Années « de recul » qu'un modèle ajoute de lui-même
 
 # Sites dont la page ne s'affiche qu'en JavaScript ou derrière une connexion :
@@ -218,6 +220,8 @@ class SearchResponse:
 _STATE_LOCK = threading.Lock()
 _PAUSED_UNTIL: Dict[str, float] = {}
 _CACHE: "OrderedDict[str, Tuple[float, str]]" = OrderedDict()
+# Icône d'un site : (octets, type MIME), ou None s'il n'en a pas
+_ICONS: "OrderedDict[str, Optional[Tuple[bytes, str]]]" = OrderedDict()
 # Une session HTTP par thread : voir _session()
 _LOCAL = threading.local()
 
@@ -253,10 +257,11 @@ def _cache_put(key: str, value: str) -> None:
 
 
 def reset_state() -> None:
-    """Oublie les pauses et le cache (tests, ou après un changement de réseau)."""
+    """Oublie les pauses et les caches (tests, ou après un changement de réseau)."""
     with _STATE_LOCK:
         _PAUSED_UNTIL.clear()
         _CACHE.clear()
+        _ICONS.clear()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -947,16 +952,9 @@ def read_pages(results: List[SearchResult], query: str, limit: int = _PAGES_TO_R
 # Mise en forme pour le modèle
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Consigne, puis le bloc que le modèle recopie à la fin de sa réponse : son
-# en-tête est celui de utils/citations.py, et les [n] y deviennent cliquables.
-SOURCES_NOTE = (
-    "Pour répondre : appuie-toi uniquement sur ces sources, sans ajouter de "
-    "chiffre, de note ou de rang qu'elles ne donnent pas, place le marqueur [n] "
-    "après chaque information qui en vient, et termine ta réponse par ce bloc, "
-    "recopié tel quel :"
-)
-
-
+# Consigne, puis le bloc que le modèle recopie à la fin de sa réponse : l'une
+# et l'en-tête de l'autre viennent de utils/citations.py, où le chat et le
+# WebAgent retrouvent ce bloc, et les [n] y deviennent cliquables.
 def _sources_block(results: List[SearchResult]) -> str:
     lines = [SOURCES_NOTE, "", DEFAULT_HEADER]
     for number, result in enumerate(results, 1):
@@ -1138,6 +1136,55 @@ def weather(query: str) -> Optional[str]:
     print(f"🌤️ [WEB] Météo Open-Meteo : {place.get('name')} ({place.get('country', '')})")
     _cache_put(key, report)
     return report
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Icônes des sites cités (bouton « Sources » de l'interface)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Service d'icônes de DuckDuckGo, déjà le moteur de recherche : aucune requête
+# vers une adresse lue dans une réponse, et une icône même sans favicon.ico
+_ICON_URL = "https://icons.duckduckgo.com/ip3/{host}.ico"
+_HOST_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$"
+)
+
+
+def favicon(host: str) -> Optional[Tuple[bytes, str]]:
+    """
+    Icône d'un site, en (octets, type MIME), ou None : nom d'hôte invalide
+    (adresse IP, chemin…), site sans icône, réseau indisponible.
+
+    Gardée pour la session, absence comprise ; une erreur réseau ne l'est pas.
+    """
+    host = (host or "").strip().lower().rstrip(".")
+    if not _HOST_RE.match(host):
+        return None
+    with _STATE_LOCK:
+        if host in _ICONS:
+            _ICONS.move_to_end(host)
+            return _ICONS[host]
+    try:
+        with _session().get(_ICON_URL.format(host=host), timeout=_SEARCH_TIMEOUT,
+                            stream=True) as response:
+            media_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            content = b""
+            if response.status_code == 200 and media_type.startswith("image/"):
+                for chunk in response.iter_content(16384):
+                    content += chunk
+                    if len(content) > _MAX_ICON_BYTES:
+                        content = b""
+                        break
+    except requests.RequestException as exc:
+        print(f"⚠️ [WEB] Icône de {host} indisponible : {type(exc).__name__}")
+        return None
+    icon = (content, media_type) if content else None
+    with _STATE_LOCK:
+        _ICONS[host] = icon
+        _ICONS.move_to_end(host)
+        while len(_ICONS) > _ICONS_MAX:
+            _ICONS.popitem(last=False)
+    return icon
 
 
 # ─────────────────────────────────────────────────────────────────────────────

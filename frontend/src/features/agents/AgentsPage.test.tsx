@@ -27,7 +27,10 @@ const api = vi.hoisted(() => ({
   startDebate: vi.fn(),
   fileLinks: vi.fn(() => Promise.resolve({ links: {} })),
 }));
-vi.mock('../../lib/api', () => ({ api }));
+vi.mock('../../lib/api', () => ({
+  api,
+  faviconUrl: (host: string) => `/api/favicon?host=${host}`,
+}));
 
 const BUILTIN: AgentInfo[] = [
   {
@@ -232,8 +235,9 @@ describe('fils d’exécution', () => {
     expect(screen.getByText('Plus de trace.')).toBeInTheDocument();
   });
 
-  it('rend cliquables les liens d’une sortie : sources du WebAgent, adresses nues, tableaux', () => {
-    // Les sources du WebAgent s'affichaient en texte brut dans Tk (output_rendering.py)
+  it('rend cliquables les liens d’une sortie : citations du WebAgent, adresses nues, tableaux ; ses sources passent sous le bouton Sources', async () => {
+    // Les sources du WebAgent s'affichaient en texte brut dans Tk (output_rendering.py),
+    // et ses marqueurs [n] restaient du texte alors que le chat les rend cliquables
     const base = finishedRun().sections[0]!;
     const run = finishedRun({
       title: 'WebAgent',
@@ -245,11 +249,11 @@ describe('fils d’exécution', () => {
           title: 'WebAgent',
           agent_type: 'web',
           text: [
-            '**Toyota** reste *fiable* : `98/100`, voir https://example.org/b.',
+            '**Toyota** reste *fiable* [1] : `98/100`, voir https://example.org/b.',
             '',
             '| Marque | Source |',
             '|---|---|',
-            '| Toyota | voir [OCU](https://www.autosblog.fr/ocu/) |',
+            '| Toyota [2] | voir [OCU](https://www.autosblog.fr/ocu/) |',
             '',
             '📚 **Sources**',
             '[1] [Marques fiables 2026](https://www.autosblog.fr/marques/)',
@@ -262,11 +266,14 @@ describe('fils d’exécution', () => {
     wrap(<ThreadView />);
     const links = screen.getAllByRole('link');
     expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['[1]', 'https://www.autosblog.fr/marques/'],
       ['https://example.org/b', 'https://example.org/b'],
+      ['[2]', 'https://automedias.fr/voiture-fiable/'],
       ['OCU', 'https://www.autosblog.fr/ocu/'],
-      ['Marques fiables 2026', 'https://www.autosblog.fr/marques/'],
-      ['Fiabilité OCU', 'https://automedias.fr/voiture-fiable/'],
     ]);
+    // Marqueurs [n] : même lien bleu que dans le chat (md-cite)
+    const cites = links.filter((link) => /^\[\d\]$/.test(link.textContent ?? ''));
+    expect(cites.every((link) => link.classList.contains('md-cite'))).toBe(true);
     // Liens ouverts dans le navigateur du système, jamais dans la fenêtre
     expect(links.every((link) => link.getAttribute('target') === '_blank')).toBe(true);
     expect(within(screen.getByRole('table')).getByRole('link', { name: 'OCU' })).toBeVisible();
@@ -274,6 +281,40 @@ describe('fils d’exécution', () => {
     expect(screen.getByText('Toyota', { selector: 'strong' })).toBeInTheDocument();
     expect(screen.getByText('fiable', { selector: 'em' })).toBeInTheDocument();
     expect(screen.getByText('98/100', { selector: 'code' })).toBeInTheDocument();
+
+    // Le bloc 📚 Sources quitte la sortie : bouton Sources, icônes des sites en tête
+    expect(screen.queryByText(/Sources\*\*|📚/)).toBeNull();
+    const button = screen.getByRole('button', { name: 'Sources (2)' });
+    expect([...button.querySelectorAll('img')].map((img) => img.getAttribute('src'))).toEqual([
+      '/api/favicon?host=www.autosblog.fr',
+      '/api/favicon?host=automedias.fr',
+    ]);
+    await userEvent.click(button);
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((item) => [item.textContent, item.getAttribute('href')])).toEqual([
+      ['Marques fiables 2026', 'https://www.autosblog.fr/marques/'],
+      ['Fiabilité OCU', 'https://automedias.fr/voiture-fiable/'],
+    ]);
+    expect(items.every((item) => item.querySelector('img'))).toBe(true);
+  });
+
+  it('montre la recherche du WebAgent hors de sa sortie, le temps qu’il écrive', () => {
+    // « 🔍 Recherche terminée » s'écrivait dans la sortie et y restait
+    const base = finishedRun().sections[0]!;
+    const run = finishedRun({
+      title: 'WebAgent',
+      attachments: [],
+      sources: [],
+      status: 'running',
+      status_text: '',
+      finished_at: null,
+      duration_ms: null,
+      sections: [{ ...base, title: 'WebAgent', agent_type: 'web', text: '', status: 'running' }],
+    });
+    useAgents.setState({ runs: [summaryOf(run)], details: { exec_1: run }, openRunId: 'exec_1' });
+    wrap(<ThreadView />);
+    expect(screen.getByText('L’agent cherche sur internet…')).toBeInTheDocument();
+    expect(screen.queryByText('L’agent rédige sa réponse…')).toBeNull();
   });
 
   it('en parallèle, l’agent que le modèle n’a pas encore servi attend son tour', () => {
