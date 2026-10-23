@@ -38,6 +38,11 @@ exactement comme avant.
 - 🔐 **Chiffrement bout-en-bout** — AES-256-GCM par-dessus le tunnel
   public. Le serveur de tunnel (Cloudflare, localhost.run) ne voit que du
   ciphertext.
+- 🔑 **Code d'accès** — à la connexion, l'extension demande le code à
+  6 chiffres affiché sous le QR code, dans le panneau Relay de l'hôte. Il
+  ne fait pas partie de la chaîne de connexion : une chaîne qui fuite ne
+  suffit pas à se connecter. Cinq codes erronés verrouillent le Relay
+  jusqu'à son redémarrage.
 - 🌐 **Failover multi-tunnel** — cloudflared et localhost.run (plus serveo,
   s'il est activé) tournent en parallèle côté hôte ; l'extension choisit le
   premier joignable et bascule automatiquement si l'un tombe.
@@ -87,6 +92,8 @@ https://gonicolas12.github.io/My_AI/router.html#d=…
 Elle contient la liste des tunnels publics, le token d'authentification
 et la clé AES-256-GCM — le tout dans le fragment d'URL, donc rien ne
 fuite vers le serveur de tunnel. **Traitez-la comme un mot de passe.**
+Seule, elle ne suffit pourtant pas : l'extension demande aussi le code
+d'accès affiché sous le QR code (étape 3).
 
 ### 3. Se connecter depuis VS Code
 
@@ -99,6 +106,8 @@ fuite vers le serveur de tunnel. **Traitez-la comme un mot de passe.**
 3. Cliquez sur **Coller la chaîne de connexion…** (ou lancez la commande
    *My_AI Relay : Se connecter* depuis la palette de commandes) et
    collez la chaîne de l'étape 2.
+4. Saisissez le **code d'accès** affiché sous le QR code, dans le panneau
+   Relay de l'hôte (6 chiffres, nouveau à chaque démarrage du Relay).
 
 Le chat est désormais actif. La même conversation est visible sur le GUI
 hôte et sur tout mobile ayant scanné le QR code.
@@ -232,6 +241,13 @@ démarre une nouvelle conversation agentique.
 - La chaîne de connexion contient la clé AES. Quiconque y a accès peut
   déchiffrer tous les messages de cette session Relay. **Ne la partagez
   pas.**
+- **Code d'accès.** L'hôte ne sert qu'une session ouverte avec le code à
+  6 chiffres affiché sous son QR code, que la chaîne de connexion ne
+  contient pas. Le code voyage dans l'enveloppe AES-GCM. Après cinq codes
+  erronés, le Relay n'en accepte plus aucun jusqu'à son redémarrage ; les
+  sessions déjà ouvertes continuent de fonctionner. La session est
+  enregistrée avec les identifiants : recharger VS Code ne redemande pas le
+  code tant que le Relay tourne.
 - Les identifiants sont persistés dans le
   [`SecretStorage`](https://code.visualstudio.com/api/references/vscode-api#SecretStorage)
   de VS Code — chiffrés par le keychain de l'OS, scopés par machine et
@@ -258,6 +274,15 @@ démarre une nouvelle conversation agentique.
 - **« Échec du déchiffrement E2EE »** — la chaîne de connexion vient
   d'une session Relay précédente (la clé AES est régénérée à chaque
   démarrage du Relay). Copiez une nouvelle chaîne et reconnectez-vous.
+- **« Trop de codes d'accès erronés »** — cinq codes erronés ont verrouillé
+  le Relay. Redémarrez-le sur le PC hôte, copiez la nouvelle chaîne de
+  connexion et saisissez le nouveau code. Si vous n'avez pas tapé ces
+  codes, quelqu'un d'autre a votre chaîne de connexion ou le lien du QR
+  code : le redémarrage les rend inutilisables.
+- **« Code d'accès requis »** — la connexion enregistrée n'a pas de session
+  de code d'accès (enregistrée par une version antérieure à la 1.5.0).
+  Cliquez sur **Nouvelle connexion**, collez la chaîne de connexion et
+  saisissez le code.
 - **Health check trop sensible** — augmentez
   `myaiRelay.healthCheckIntervalSeconds` si votre lien est instable.
 
