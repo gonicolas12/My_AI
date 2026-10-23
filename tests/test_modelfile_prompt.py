@@ -14,6 +14,7 @@ import types
 
 import pytest
 
+import core.ai_engine as ai_engine
 import core.modelfile as modelfile
 import models.local_llm as local_llm
 from core.ai_engine import AIEngine
@@ -243,6 +244,24 @@ def test_orchestrator_retry_without_tools_drops_the_tools_section():
     )
 
     assert llm.system == with_modelfile("CONSIGNE", tools=False)
+
+
+def test_engine_fallback_without_tools_does_not_pretend_to_search(monkeypatch):
+    """La boucle d'outils n'a rien rendu : le moteur répond sans outils, et ne
+    fait plus comme s'il avait cherché (réponse de mémoire, chiffres périmés et
+    « Sources » sans aucun lien, 22 octobre 2026)."""
+    engine = AIEngine()
+    llm = engine.local_ai.local_llm
+    monkeypatch.setattr(llm, "is_ollama_available", True)
+    monkeypatch.setattr(engine._chat_orchestrator, "run", lambda **_kwargs: None)  # pylint: disable=protected-access
+    capturing = _CapturingLLM()
+    monkeypatch.setattr(llm, "generate_stream", capturing.generate_stream)
+
+    engine.process_query_stream("cherche sur internet le nombre d'humains sur terre",
+                                on_token=lambda _token: None)
+
+    assert capturing.system.endswith(ai_engine._NO_TOOLS_NOTE)  # pylint: disable=protected-access
+    assert capturing.system.startswith(with_modelfile(tools=False))
 
 
 def test_custom_model_default_answer_keeps_the_identity():

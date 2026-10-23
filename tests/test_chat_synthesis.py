@@ -514,6 +514,66 @@ def test_answer_kept_whole_when_it_merely_ends_with_a_newline(ollama):
     assert response == expected and "".join(shown) == expected
 
 
+def _run_with_turns(turns, tool_executor):
+    """run() complet, tours du modèle joués d'avance ; garde les appels reçus."""
+    model_turns = []
+
+    def fake_turn(**kwargs):
+        model_turns.append(kwargs)
+        return turns.pop(0)
+
+    orchestrator = ChatOrchestrator()
+    orchestrator._call_ollama_smart_stream = fake_turn
+    response = orchestrator.run(
+        user_input=_POPULATION,
+        tools=[{"type": "function", "function": {"name": "web_search"}}],
+        tool_executor=tool_executor,
+        llm=_LLM(),
+        system_prompt="système",
+        on_token=lambda _token: None,
+    )
+    return response, model_turns
+
+
+_EMPTY_TURN = {"content": "", "tool_calls": [], "streamed": False}
+
+
+def test_empty_first_turn_is_tried_once_more(ollama):
+    """Tour vide : le modèle avait écrit un appel d'outil qu'Ollama n'a pas su
+    lire, et l'a jeté (my_ai, 22 octobre 2026). Rien n'a été affiché : l'appel
+    est refait, et la recherche a lieu, au lieu d'un repli sans outils où le
+    modèle répondait de mémoire, avec des « Sources » inventées."""
+    result = _search_result(*(f"https://example.org/{n}" for n in range(1, 5)))
+    answer = "La population mondiale atteint 8,3 milliards [1]."
+    ollama.replies.append(answer)
+    search = {"name": "web_search", "arguments": {"query": "population mondiale"}}
+    searches = []
+
+    def tool_executor(name, arguments):
+        searches.append((name, arguments))
+        return result
+
+    response, model_turns = _run_with_turns(
+        [dict(_EMPTY_TURN), {"content": "", "tool_calls": [{"function": search}],
+                             "streamed": False}],
+        tool_executor,
+    )
+
+    assert len(model_turns) == 2 and model_turns[1] == model_turns[0]  # le même appel
+    assert searches == [("web_search", {"query": "population mondiale"})]
+    assert response.startswith(answer)
+    assert response.endswith("[1] [Source 1](https://example.org/1)")
+
+
+def test_a_second_empty_turn_hands_back_to_the_engine(ollama):
+    """Un seul nouvel essai : vide encore, la boucle rend la main au moteur."""
+    response, model_turns = _run_with_turns(
+        [dict(_EMPTY_TURN), dict(_EMPTY_TURN)], lambda _name, _arguments: ""
+    )
+    assert response is None and len(model_turns) == 2
+    assert not ollama.requests  # ni synthèse ni autre appel
+
+
 def test_several_web_searches_keep_the_model_list(ollama):
     """Deux recherches numérotent chacune leurs sources à partir de [1] : un
     [n] ne dit plus laquelle il cite, et le modèle garde la main sur sa liste."""

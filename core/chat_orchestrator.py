@@ -676,6 +676,8 @@ class ChatOrchestrator:
         # Appel au modèle déjà refait après un échec d'Ollama, le document
         # demandé n'existant pas encore
         call_retried: bool = False
+        # Appel déjà refait après une réponse vide, avant tout outil
+        empty_retried: bool = False
         # Outils du dernier appel au modèle : la synthèse les renvoie tels quels
         last_call_tools: Optional[List[Dict]] = None
 
@@ -831,6 +833,23 @@ class ChatOrchestrator:
                     f"document pas encore créé → nouvel essai"
                 )
                 response_msg = self._call_ollama_smart_stream(**call)
+            if (
+                response_msg is not None
+                and not response_msg.get("tool_calls")
+                and not response_msg.get("content", "").strip()
+                and not tool_calls_log
+                and not empty_retried
+                and not (is_interrupted_callback and is_interrupted_callback())
+            ):
+                # Réponse vide : le modèle avait écrit un appel d'outil
+                # qu'Ollama n'a pas su lire, et qu'il a jeté (my_ai, 22 octobre
+                # 2026 : 11 premiers tours sur 26 avec une ligne du Modelfile
+                # modifiée, aucun sur 8 avec celle d'origine). Rien n'a été
+                # affiché : l'appel est refait une fois, sur le prompt déjà lu,
+                # plutôt que de laisser le moteur répondre sans outils
+                empty_retried = True
+                print(f"🔁 [ChatOrchestrator] Réponse vide au tour {tour + 1} → nouvel essai")
+                response_msg = self._call_ollama_smart_stream(**call) or response_msg
             if response_msg is None:
                 print(f"⚠️  [ChatOrchestrator] Appel Ollama échoué au tour {tour + 1}")
                 break

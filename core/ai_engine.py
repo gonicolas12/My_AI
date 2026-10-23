@@ -156,6 +156,15 @@ _ATTACHMENT_REMINDER = (
     "réponds à ma question à partir de lui, sans demander le fichier."
 )
 
+# Repli sans outils, quand la boucle d'outils n'a rien rendu : à « cherche sur
+# internet… », le modèle répondait alors de mémoire, chiffres périmés et
+# « Sources » inventées, sans aucun lien
+_NO_TOOLS_NOTE = (
+    "\n\nAucun outil n'a pu servir pour cette réponse. Si la demande portait sur "
+    "une recherche internet, dis en une phrase que la recherche n'a pas pu être "
+    "faite, puis réponds avec tes connaissances, sans citer ni inventer de sources."
+)
+
 
 class _FirstSentenceGuard:
     """Retient le début d'une réponse sur des pièces jointes avant de l'afficher.
@@ -3573,7 +3582,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 )
                 retry = llm.generate_stream(
                     prompt=effective_input,
-                    system_prompt=drop_tools_section(system_prompt),
+                    system_prompt=drop_tools_section(system_prompt) + _NO_TOOLS_NOTE,
                     on_token=on_token,
                     is_interrupted_callback=is_interrupted_callback,
                     on_thinking_token=on_thinking_token,
