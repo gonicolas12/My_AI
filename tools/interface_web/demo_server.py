@@ -837,6 +837,9 @@ class DemoRelay:
     TUNNELS = (("localhost.run", "https://demo-relais.lhr.life", 1.5, 3.0, False),
                ("cloudflared", "https://demo-relais.trycloudflare.com", 4.0, 5.0, True))
     PHONE_AFTER = 8.0
+    # Code d'accès : aucun code erroné saisi dans la démonstration
+    access_failures = 0
+    access_locked = False
 
     def __init__(self, tunnels=True):
         self.started = time.monotonic()
@@ -845,6 +848,8 @@ class DemoRelay:
         self.port = 8765
         self.auth_token = secrets.token_hex(8)
         self.key = secrets.token_bytes(32)
+        # Code d'accès, comme RelayServer (le téléphone simulé n'a pas à le saisir)
+        self.access_code = f"{secrets.randbelow(10 ** 6):06d}"
 
     def is_running(self):
         """Toujours en marche jusqu'à stop()."""

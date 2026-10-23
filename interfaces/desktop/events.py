@@ -66,7 +66,9 @@ class RelayStatus(_Payload):
     tunnel_states: Dict[str, str] = Field(default_factory=dict)
     url: Optional[str] = None  # page de routage (QR code), None sans tunnel joignable
     local_url: Optional[str] = None  # adresse sur ce PC, clé de chiffrement comprise
-    token: Optional[str] = None  # jeton d'accès, affiché dans le panneau
+    access_code: Optional[str] = None  # code d'accès, affiché sous le QR code
+    access_failures: int = 0  # codes d'accès erronés saisis depuis le démarrage
+    access_locked: bool = False  # trop de codes erronés : plus aucun n'est accepté
 
 
 class SchedulerResult(_Payload):

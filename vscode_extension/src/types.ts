@@ -2,6 +2,18 @@ export interface RelayCredentials {
   urls: string[];
   token: string;
   keyB64u: string;
+  // Session opened with the access code shown under the host's QR code
+  // (POST /api/unlock). Never part of the connection string: a leaked string
+  // alone doesn't connect.
+  session?: string;
+}
+
+// Answer of POST /api/unlock (RelayServer.unlock on the host).
+export interface UnlockResult {
+  ok: boolean;
+  session?: string;
+  error?: 'format' | 'wrong' | 'locked';
+  remaining?: number;
 }
 
 export type ConnectionState =

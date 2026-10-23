@@ -49,7 +49,7 @@ My Personal AI v9.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 │  • Interface mobile PWA (iOS/Android) via WebSocket — onglets          │
 │    Chat / Agents (comme la fenêtre du PC)                              │
 │  • Tunnels HTTPS (cloudflared, localhost.run), vérifiés depuis le PC   │
-│  • Authentification token/mot de passe + QR code                       │
+│  • Authentification : lien du QR code (jeton) + code d'accès           │
 │  • RelayBridge (singleton) : chat mobile → ChatService, fenêtre        │
 │    ouverte ou non                                                      │
 │  • AgentRelayService : exécuteur partagé (fenêtre, mobile, scheduler)  │
@@ -585,6 +585,8 @@ core/evaluation.py + error_analysis.py:
 Architecture:
 ├─ FastAPI app en thread daemon (non-bloquant)
 ├─ WebSocket /ws : chat temps réel (auth → messages → réponse)
+│   ├─ Jeton + session du code d'accès exigés (sans session : accepté puis
+│   │   fermé en 4003, le client redemande le code)
 │   ├─ Protocole : {"e": "<base64url>"} encapsulant {type, ...}
 │   ├─ chat (mobile) : armé via bridge, attente DÉTACHÉE en tâche pour
 │   │   garder la boucle libre de lire stop_generation pendant la génération
@@ -596,15 +598,20 @@ Architecture:
 │       streamés via une file unique drainée par une seule coroutine
 │       (évite l'entrelacement des envois pendant les étapes parallèles)
 ├─ REST :
-│   ├─ GET /, POST /auth, GET /api/health (clair)
-│   ├─ GET /api/history, GET /api/pending (réponse E2EE)
+│   ├─ GET / (jeton exigé, sinon page « scannez le QR code »), GET /api/health (clair)
+│   ├─ POST /api/unlock : code d'accès chiffré E2EE → session (réponse E2EE)
+│   ├─ GET /api/history, GET /api/pending (réponse E2EE, session exigée)
 │   └─ POST /api/upload : multipart binaire chiffré → fichier temp + file_id
 │       ├─ Wire body : nonce(12) || aes_gcm_ct(N+16)
 │       ├─ Clair : "MYAI" || u16_be(filename_len) || filename || content
 │       ├─ Allowlist extensions (images + PDF/DOCX/XLSX/CSV/code)
 │       ├─ Plafond 25 Mo de clair (413 + cleanup si dépassement)
 │       └─ Registre Dict[file_id, meta] sous threading.Lock
-├─ Authentification : token SHA-256 (password) ou secrets.token_urlsafe
+├─ Authentification : jeton secrets.token_urlsafe(12), tiré à chaque
+│   démarrage, dans le lien du QR code
+├─ Code d'accès : 6 chiffres tirés à chaque démarrage, affichés sous le QR
+│   code mais absents du lien ; 5 codes erronés → plus aucun accepté
+│   jusqu'au redémarrage (les sessions ouvertes restent valables)
 ├─ Chiffrement E2EE : AES-256-GCM, clé éphémère 32 octets régénérée à
 │   chaque démarrage. Diffusion de la clé : exclusivement via le
 │   fragment du QR code (jamais émis sur le réseau).

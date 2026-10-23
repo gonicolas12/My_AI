@@ -35,6 +35,10 @@ exactly as before.
   stays on the host) and stops a reply in progress.
 - 🔐 **End-to-end encryption** — AES-256-GCM over the public tunnel. The
   tunnel server (Cloudflare, localhost.run) only ever sees ciphertext.
+- 🔑 **Access code** — when you connect, the extension asks for the 6-digit
+  code shown under the QR code in the host's Relay panel. It isn't part of
+  the connection string, so a leaked string alone doesn't connect. Five
+  wrong codes lock the Relay until it restarts.
 - 🌐 **Multi-tunnel failover** — cloudflared and localhost.run (plus serveo,
   if enabled) run in parallel on the host; the extension picks the first
   reachable one and falls over automatically when one drops.
@@ -78,7 +82,8 @@ https://gonicolas12.github.io/My_AI/router.html#d=…
 
 It contains the list of public tunnels, the auth token, and the AES-256-GCM
 key — all in the URL fragment, so nothing leaks to the tunnel server. **Treat
-it like a password.**
+it like a password.** On its own it doesn't connect, though: the extension
+also asks for the access code shown under the QR code (step 3).
 
 ### 3. Connect from VS Code
 
@@ -90,6 +95,8 @@ it like a password.**
    placement.
 3. Click **Paste connection string…** (or run *My_AI Relay: Connect* from the
    Command Palette) and paste the string from step 2.
+4. Enter the **access code** shown under the QR code in the host's Relay
+   panel (6 digits, new at each Relay start).
 
 The chat is now live. The same conversation is visible on the host's GUI and
 on any mobile that has scanned the QR code.
@@ -213,6 +220,12 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
 
 - The connection string contains the AES key. Anyone with it can decrypt
   every message of that Relay session. **Don't share it.**
+- **Access code.** The host only serves a session opened with the 6-digit
+  code shown under its QR code, which the connection string doesn't
+  contain. The code travels inside the AES-GCM envelope. After five wrong
+  codes the Relay accepts none until it restarts; sessions already open
+  keep working. The session is stored with the credentials, so reloading
+  VS Code doesn't ask for the code again while the Relay runs.
 - Credentials are persisted in VS Code's
   [`SecretStorage`](https://code.visualstudio.com/api/references/vscode-api#SecretStorage)
   — encrypted by the OS keychain, scoped per machine + user.
@@ -236,6 +249,13 @@ previous tool calls. Reconnecting starts a fresh agentic conversation.
 - **"E2EE decrypt failed"** — the connection string is from a previous Relay
   session (the AES key is regenerated on every Relay start). Copy a fresh
   string and reconnect.
+- **"Too many wrong access codes"** — five wrong codes locked the Relay.
+  Restart it on the host PC, copy the new connection string and enter the
+  new code. If you didn't type those codes, someone else has your
+  connection string or QR link: the restart makes it useless.
+- **"Access code required"** — the saved connection has no access code
+  session (saved by a version older than 1.5.0). Click **New connection**,
+  paste the connection string and enter the code.
 - **Health check too sensitive** — raise
   `myaiRelay.healthCheckIntervalSeconds` if you have a flaky link.
 

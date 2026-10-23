@@ -410,6 +410,42 @@ html, body {
 }
 .connection-banner.visible { display: block; }
 
+/* ── CODE D'ACCÈS ──────────────────────────────────── */
+/* Au-dessus de tout (aperçus, modales) tant que le code n'est pas saisi */
+.unlock-screen {
+  position: fixed; inset: 0; z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+  padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
+  background: var(--bg-primary);
+}
+.unlock-screen.visible { display: flex; }
+.unlock-card {
+  width: 100%; max-width: 380px; padding: 40px 28px;
+  background: var(--bg-secondary); border: 1px solid var(--bg-tertiary);
+  border-radius: 20px; text-align: center;
+}
+.unlock-logo { display: block; width: 48px; height: 48px; margin: 0 auto 8px; color: var(--accent); }
+.unlock-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+.unlock-sub { color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin-bottom: 24px; }
+.unlock-input {
+  width: 100%; padding: 14px 16px; margin-bottom: 12px;
+  background: var(--bg-primary); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 12px; outline: none;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 24px; letter-spacing: 0.2em; text-align: center;
+  -webkit-appearance: none;
+}
+.unlock-input:focus { border-color: var(--accent); }
+.unlock-input:disabled { opacity: 0.5; }
+.unlock-error { min-height: 18px; margin-bottom: 12px; color: #ef4444; font-size: 13px; line-height: 1.4; }
+.unlock-btn {
+  width: 100%; padding: 14px; border: none; border-radius: 12px;
+  background: var(--accent); color: #fff;
+  font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.unlock-btn:active { background: var(--accent-hover); }
+.unlock-btn:disabled { opacity: 0.5; cursor: default; }
+
 /* ── SCROLLBAR ─────────────────────────────────────── */
 .messages::-webkit-scrollbar { width: 4px; }
 .messages::-webkit-scrollbar-track { background: transparent; }

@@ -321,7 +321,7 @@ L'extension **My_AI Relay** est publiée sur le **Marketplace VS Code** sous l'i
 code --install-extension gonicolas12.my-ai
 ```
 
-Puis : démarrez le Relay sur votre PC hôte (**Relay** en bas de la barre latérale, ou Ctrl+R) → cliquez sur **Copier pour l'extension VS Code** dans le panneau → collez la chaîne dans VS Code via la commande *My_AI Relay : Se connecter*. À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay, qui bascule la session en mode agentique.
+Puis : démarrez le Relay sur votre PC hôte (**Relay** en bas de la barre latérale, ou Ctrl+R) → cliquez sur **Copier pour l'extension VS Code** dans le panneau → collez la chaîne dans VS Code via la commande *My_AI Relay : Se connecter* → saisissez le **code d'accès** affiché sous le QR code (6 chiffres, nouveau à chaque démarrage du Relay). À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay, qui bascule la session en mode agentique.
 
 > 💡 **Recommandation modèle.** Le mode agentique fonctionne avec n'importe quel modèle Ollama (le format `<tool_use>{...}</tool_use>` est parsé côté hôte sans dépendre de l'API tools native). Pour des refactors multi-fichiers ou du scaffolding de projets, un modèle 4B ou plus (`qwen3.5:4b`, `qwen3.5:7b`...) est recommandé ; les 2B suffisent pour des éditions ponctuelles.
 

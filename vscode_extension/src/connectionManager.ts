@@ -11,6 +11,7 @@ import {
   IncomingPayload,
   PromptTemplate,
   ToolCall,
+  UnlockResult,
 } from './types';
 
 const SECRET_KEY = 'myaiRelay.credentials.v1';
@@ -74,7 +75,12 @@ export class ConnectionManager extends EventEmitter {
 
   async connectFromString(rawConnectionString: string): Promise<void> {
     const creds = parseConnectionString(rawConnectionString);
-    await this.connectWith(creds, { persist: true });
+    const session = await this.askAccessCode(creds);
+    if (session === null) {
+      // Cancelled: nothing saved, the current connection (if any) stays.
+      return;
+    }
+    await this.connectWith({ ...creds, session: session || undefined }, { persist: true });
   }
 
   async disconnect(forget: boolean): Promise<void> {
@@ -155,6 +161,61 @@ export class ConnectionManager extends EventEmitter {
 
   // ────────────────────────────────────────────────────────────────────
 
+  /**
+   * Ask for the access code shown under the QR code in the host's Relay
+   * panel until the host accepts one. Returns the session it opens, '' when
+   * the host predates the access code, null when the user cancels. Throws
+   * when no tunnel answers or when too many wrong codes locked the Relay.
+   */
+  private async askAccessCode(creds: RelayCredentials): Promise<string | null> {
+    const cfg = vscode.workspace.getConfiguration('myaiRelay');
+    const client = new RelayClient(creds, cfg.get<number>('requestTimeoutSeconds', 15));
+    const required = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: vscode.l10n.t('My_AI Relay: contacting the host…'),
+      },
+      () => client.accessCodeRequired(),
+    );
+    if (!required) {
+      return '';
+    }
+    let notice = '';
+    for (;;) {
+      const input = await vscode.window.showInputBox({
+        title: vscode.l10n.t('My_AI Relay — Access code'),
+        prompt: notice || vscode.l10n.t(
+          'Enter the access code shown under the QR code in the Relay panel of My_AI',
+        ),
+        placeHolder: '123 456',
+        ignoreFocusOut: true,
+        validateInput: (value) => (/^[\d\s]*$/.test(value) ? null : vscode.l10n.t('Digits only.')),
+      });
+      if (input === undefined) {
+        return null;
+      }
+      const code = input.replace(/\D/g, '');
+      const result: UnlockResult = code.length === 6
+        ? await client.unlock(code)
+        : { ok: false, error: 'format' };
+      if (result.ok && result.session) {
+        return result.session;
+      }
+      if (result.error === 'locked') {
+        throw new Error(vscode.l10n.t(
+          'Too many wrong access codes: the Relay now refuses every connection. Restart it on the host PC to get a new connection string and a new code.',
+        ));
+      }
+      if (result.error === 'format') {
+        notice = vscode.l10n.t('The access code has 6 digits.');
+      } else if (result.remaining === 1) {
+        notice = vscode.l10n.t('Wrong access code: 1 try left.');
+      } else {
+        notice = vscode.l10n.t('Wrong access code: {0} tries left.', result.remaining ?? 0);
+      }
+    }
+  }
+
   private async connectWith(
     creds: RelayCredentials,
     opts: { persist: boolean },
@@ -202,6 +263,17 @@ export class ConnectionManager extends EventEmitter {
         this.stopHealthLoop();
         this.setState({ kind: 'disconnected', reason });
       }
+    });
+    client.on('access-denied', () => {
+      // The host refused the session (none saved by an older version of the
+      // extension): the client stopped, a new connection asks for the code.
+      this.stopHealthLoop();
+      this.setState({
+        kind: 'disconnected',
+        reason: vscode.l10n.t(
+          'Access code required: click "New connection" and paste the connection string again.',
+        ),
+      });
     });
     client.on('error', (err: Error) => {
       // eslint-disable-next-line no-console

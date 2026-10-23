@@ -12,6 +12,23 @@
 </head>
 <body>
 
+<!-- Code d'accès : demandé avant tout accès (affiché sous le QR code, sur le PC) -->
+<div class="unlock-screen" id="unlockScreen">
+  <form class="unlock-card" id="unlockForm" autocomplete="off" novalidate>
+    <svg class="unlock-logo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="7" cy="1.5" r="1"/><rect x="6.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>
+      <circle cx="17" cy="1.5" r="1"/><rect x="16.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>
+      <path fill-rule="evenodd" d="M5 4.5H19A4 4 0 0 1 23 8.5V18A4 4 0 0 1 19 22H5A4 4 0 0 1 1 18V8.5A4 4 0 0 1 5 4.5ZM6.25 9.25H8.75A1.25 1.25 0 0 1 10 10.5V12A1.25 1.25 0 0 1 8.75 13.25H6.25A1.25 1.25 0 0 1 5 12V10.5A1.25 1.25 0 0 1 6.25 9.25ZM15.25 9.25H17.75A1.25 1.25 0 0 1 19 10.5V12A1.25 1.25 0 0 1 17.75 13.25H15.25A1.25 1.25 0 0 1 14 12V10.5A1.25 1.25 0 0 1 15.25 9.25ZM9 15.75H15A1 1 0 0 1 15 17.75H9A1 1 0 0 1 9 15.75Z"/>
+    </svg>
+    <h1 class="unlock-title">Code d'accès</h1>
+    <p class="unlock-sub">Saisissez le code affiché sous le QR code, dans le panneau Relay de votre PC.</p>
+    <input class="unlock-input" id="unlockInput" type="text" inputmode="numeric"
+           autocomplete="one-time-code" maxlength="7" placeholder="123 456" aria-label="Code d'accès">
+    <div class="unlock-error" id="unlockError" role="alert"></div>
+    <button class="unlock-btn" id="unlockBtn" type="submit">Déverrouiller</button>
+  </form>
+</div>
+
 <div id="app">
   <!-- Header -->
   <div class="header">

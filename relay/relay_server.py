@@ -3,14 +3,15 @@ Relay Server - Serveur FastAPI avec WebSocket pour l'accès mobile.
 
 Expose une interface web mobile-friendly et un endpoint WebSocket
 pour la communication en temps réel avec My_AI depuis un téléphone.
-Gère l'authentification par token et plusieurs tunnels en parallèle
+Gère l'authentification (jeton du QR code, puis code d'accès affiché
+sous le QR code) et plusieurs tunnels en parallèle
 (cloudflared + localhost.run, serveo en option) avec failover client-side via
 une page de routage statique hébergée sur GitHub Pages.
 """
 
 import asyncio
 import base64
-import hashlib
+import hmac
 import http.client
 import json
 import os
@@ -86,6 +87,19 @@ _DNS_QUERY_TIMEOUT = 2.0  # par serveur faisant autorité
 # toujours publié
 _TUNNEL_DNS_FALLBACK = 15.0
 
+# Code d'accès, affiché sous le QR code : l'interface mobile et l'extension
+# VS Code le demandent avant tout accès (session ouverte par POST /api/unlock).
+# Le lien du QR code (jeton et clé E2EE) peut fuiter sans que l'écran soit vu :
+# historique du navigateur synchronisé, presse-papiers, appli de lecture de QR
+# code, chaîne de connexion recopiée. Il ne suffit plus. Passé
+# _ACCESS_CODE_MAX_FAILURES codes erronés, plus aucun code n'est accepté, même
+# le bon, jusqu'au redémarrage du Relay (nouveau lien, nouveau code) ; les
+# sessions déjà ouvertes restent valables. Le code voyage chiffré par la clé du
+# lien : sans le lien complet, impossible d'en essayer un, donc de verrouiller
+# le Relay.
+_ACCESS_CODE_DIGITS = 6
+_ACCESS_CODE_MAX_FAILURES = 5
+
 # Extensions acceptées pour l'upload mobile (doivent correspondre
 # aux processeurs supportés côté GUI dans file_handling.py)
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
@@ -150,6 +164,59 @@ class _AddressedHTTPSConnection(http.client.HTTPSConnection):
             raise
 
 
+class _AccessCode:
+    """Code d'accès d'un démarrage du Relay (voir _ACCESS_CODE_DIGITS).
+
+    Tire le code, ouvre une session pour qui le donne et compte les codes
+    erronés.
+    """
+
+    def __init__(self) -> None:
+        self.code = f"{secrets.randbelow(10 ** _ACCESS_CODE_DIGITS):0{_ACCESS_CODE_DIGITS}d}"
+        self.failures = 0
+        self._sessions: set = set()
+        self._lock = threading.Lock()
+
+    @property
+    def locked(self) -> bool:
+        """Trop de codes erronés : plus aucun n'est accepté."""
+        return self.failures >= _ACCESS_CODE_MAX_FAILURES
+
+    def unlock(self, code: Any) -> Dict[str, Any]:
+        """Vérifie un code et ouvre une session si c'est le bon.
+
+        Seuls les chiffres comptent (le panneau affiche « 123 456 »). Un code
+        qui n'a pas 6 chiffres n'est pas compté comme erroné : une faute de
+        frappe visible ne rapproche pas du verrouillage. Réponses :
+        {"ok": True, "session": …} ou
+        {"ok": False, "error": "format" | "wrong" | "locked", "remaining": n}.
+        """
+        digits = re.sub(r"[^0-9]", "", str(code or ""))
+        with self._lock:
+            remaining = _ACCESS_CODE_MAX_FAILURES - self.failures
+            if remaining <= 0:
+                return {"ok": False, "error": "locked", "remaining": 0}
+            if len(digits) != _ACCESS_CODE_DIGITS:
+                return {"ok": False, "error": "format", "remaining": remaining}
+            if hmac.compare_digest(digits, self.code):
+                session = secrets.token_urlsafe(24)
+                self._sessions.add(session)
+                return {"ok": True, "session": session}
+            self.failures += 1
+            remaining -= 1
+        if remaining:
+            logger.warning("Code d'accès du Relay erroné (%d essai(s) restant(s))", remaining)
+            return {"ok": False, "error": "wrong", "remaining": remaining}
+        logger.warning("Relay verrouillé : trop de codes d'accès erronés, "
+                       "redémarrez-le pour un nouveau lien et un nouveau code")
+        return {"ok": False, "error": "locked", "remaining": 0}
+
+    def verify(self, session: Optional[str]) -> bool:
+        """Session ouverte par ce code."""
+        with self._lock:
+            return bool(session) and session in self._sessions
+
+
 class RelayServer:
     """
     Serveur Relay pour l'accès mobile à My_AI.
@@ -157,7 +224,7 @@ class RelayServer:
     Fonctionnalités :
     - Interface web mobile-friendly (PWA)
     - WebSocket temps réel pour le chat
-    - Authentification par token
+    - Authentification par token, puis code d'accès (affiché sous le QR code)
     - Tunnel cloudflared pour l'accès externe
     """
 
@@ -175,7 +242,6 @@ class RelayServer:
         self._ai_engine = ai_engine
         self._host: str = config.get("host", "0.0.0.0")
         self._port: int = int(config.get("port", 8765))
-        self._password: str = config.get("password", "")
         raw_response_timeout = config.get("response_timeout", 500)
         try:
             self._response_timeout: float = float(raw_response_timeout)
@@ -184,20 +250,23 @@ class RelayServer:
         if self._response_timeout <= 0:
             self._response_timeout = 500.0
 
-        # Générer un token d'authentification
-        self._auth_token: str = ""
-        self._generate_auth_token()
+        # Jeton d'authentification du lien du QR code : 12 octets aléatoires,
+        # nouveaux à chaque démarrage. Personne ne le tape.
+        self._auth_token: str = secrets.token_urlsafe(12)
 
         # Clé E2EE applicative (AES-256-GCM). Régénérée à chaque démarrage,
         # **indépendamment** du token d'auth : ce dernier sert à authentifier
-        # la connexion (potentiellement stable si un mot de passe est
-        # configuré), tandis que la clé E2E sert à chiffrer le contenu et
-        # doit rester éphémère pour préserver une forme de forward secrecy
-        # côté QR. La clé n'est jamais transmise au serveur de tunnel : elle
-        # voyage uniquement dans le fragment d'URL du QR (jamais émis sur le
-        # réseau) et reste en mémoire côté navigateur mobile.
+        # la connexion (le serveur de tunnel le voit passer), tandis que la
+        # clé E2E sert à chiffrer le contenu et doit rester éphémère pour
+        # préserver une forme de forward secrecy côté QR. La clé n'est jamais
+        # transmise au serveur de tunnel : elle voyage uniquement dans le
+        # fragment d'URL du QR (jamais émis sur le réseau) et reste en
+        # mémoire côté navigateur mobile.
         self._e2e_key: bytes = secrets.token_bytes(32)
         self._aesgcm = AESGCM(self._e2e_key)
+
+        # Code d'accès, sessions qu'il a ouvertes et codes erronés saisis
+        self._access = _AccessCode()
 
         # Bridge pour la synchronisation GUI
         self._bridge = RelayBridge()
@@ -338,6 +407,21 @@ class RelayServer:
     def auth_token(self) -> str:
         """Retourne le token d'authentification actuel pour accéder au Relay."""
         return self._auth_token
+
+    @property
+    def access_code(self) -> str:
+        """Code d'accès à saisir sur le téléphone ou dans VS Code (sous le QR code)."""
+        return self._access.code
+
+    @property
+    def access_failures(self) -> int:
+        """Codes d'accès erronés saisis depuis le démarrage du Relay."""
+        return self._access.failures
+
+    @property
+    def access_locked(self) -> bool:
+        """Trop de codes erronés : plus aucun n'est accepté jusqu'au redémarrage."""
+        return self._access.locked
 
     # ------------------------------------------------------------------
     # Chiffrement applicatif bout-en-bout (E2EE)
@@ -492,20 +576,17 @@ class RelayServer:
     # Authentification
     # ------------------------------------------------------------------
 
-    def _generate_auth_token(self):
-        """Génère un token d'authentification unique."""
-        if self._password:
-            # Token dérivé du mot de passe (reproductible)
-            self._auth_token = hashlib.sha256(
-                self._password.encode()
-            ).hexdigest()[:16]
-        else:
-            # Token aléatoire (change à chaque démarrage)
-            self._auth_token = secrets.token_urlsafe(12)
-
     def verify_token(self, token: str) -> bool:
         """Vérifie si le token fourni est valide."""
         return token == self._auth_token
+
+    def unlock(self, code: Any) -> Dict[str, Any]:
+        """Code d'accès saisi : session si c'est le bon (voir _AccessCode.unlock)."""
+        return self._access.unlock(code)
+
+    def verify_session(self, session: Optional[str]) -> bool:
+        """Session ouverte par le code d'accès depuis le démarrage du Relay."""
+        return self._access.verify(session)
 
     def get_static_assets_version(self) -> str:
         """Version de cache-busting des assets statiques du Relay.
@@ -593,8 +674,15 @@ class RelayServer:
     def _register_routes(self, app: "FastAPI") -> None:
         server = self  # Capture pour les closures
 
+        def _authorize(token: Optional[str], session: Optional[str]) -> None:
+            """Jeton du lien (QR code), puis session ouverte par le code d'accès."""
+            if not token or not server.verify_token(token):
+                raise HTTPException(status_code=401, detail="Non autorisé")
+            if not server.verify_session(session):
+                raise HTTPException(status_code=403, detail="Code d'accès requis")
+
         # =================================================================
-        # GET / — Page d'authentification + interface mobile
+        # GET / — Interface mobile (lien du QR code)
         # =================================================================
 
         @app.get("/", response_class=HTMLResponse)
@@ -613,34 +701,30 @@ class RelayServer:
                 html = html.replace("%%RELAY_TOKEN%%", token)
                 html = html.replace("%%ASSET_VERSION%%", server.get_static_assets_version())
                 return HTMLResponse(html)
-            else:
-                # Page de login
-                return HTMLResponse(_get_login_page())
+            # Adresse du tunnel sans jeton, ou lien d'un démarrage précédent :
+            # rien à saisir ici, l'accès passe par le lien du QR code
+            return HTMLResponse(_get_link_required_page(), status_code=401)
 
         # =================================================================
-        # POST /auth — Authentification par mot de passe
+        # POST /api/unlock — Code d'accès (affiché sous le QR code)
         # =================================================================
 
-        @app.post("/auth")
-        async def authenticate(data: dict):
-            """Authentifie avec un mot de passe et retourne le token."""
-            password = data.get("password", "")
-            if not password:
-                raise HTTPException(status_code=400, detail="Mot de passe requis")
+        @app.post("/api/unlock")
+        async def unlock(data: dict, token: str = Query(...)):
+            """Échange le code d'accès contre une session (WebSocket et API).
 
-            # Vérifier le mot de passe
-            expected_token = hashlib.sha256(
-                password.encode()
-            ).hexdigest()[:16]
-
-            if expected_token == server.auth_token:
-                return {"token": server.auth_token}
-
-            # Si pas de mot de passe configuré, vérifier directement le token
-            if server.verify_token(password):
-                return {"token": server.auth_token}
-
-            raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+            Le code arrive chiffré (enveloppe E2EE) : l'opérateur du tunnel, qui
+            voit passer le jeton, ne le lit pas, et sans la clé du lien on ne
+            peut pas en essayer un. Réponse chiffrée : voir RelayServer.unlock.
+            """
+            if not server.verify_token(token):
+                raise HTTPException(status_code=401, detail="Non autorisé")
+            try:
+                request = server.decrypt_json(data)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail="Payload chiffré invalide") from exc
+            code = request.get("code") if isinstance(request, dict) else None
+            return server.encrypt_json(server.unlock(code))
 
         # =================================================================
         # GET /api/health — Santé du serveur
@@ -656,6 +740,9 @@ class RelayServer:
                 "uptime_seconds": uptime,
                 "engine_ready": server.ai_engine is not None,
                 "connected_clients": len(server.ws_clients),
+                # L'extension VS Code ne demande le code qu'aux Relay qui l'exigent
+                # (ceux d'avant le code d'accès n'ont pas /api/unlock)
+                "access_code_required": True,
             }
 
         # =================================================================
@@ -663,9 +750,8 @@ class RelayServer:
         # =================================================================
 
         @app.get("/api/history")
-        async def get_history(token: str = Query(...)):
-            if not server.verify_token(token):
-                raise HTTPException(status_code=401, detail="Non autorisé")
+        async def get_history(token: str = Query(...), session: str = Query(default="")):
+            _authorize(token, session)
             # Réponse chiffrée E2EE : le clair {"history": [...]} est
             # encapsulé dans {"e": "<b64u>"} pour ne pas être lisible
             # par le serveur de tunnel public.
@@ -678,9 +764,8 @@ class RelayServer:
         # =================================================================
 
         @app.get("/api/prompts")
-        async def get_prompts(token: str = Query(...)):
-            if not server.verify_token(token):
-                raise HTTPException(status_code=401, detail="Non autorisé")
+        async def get_prompts(token: str = Query(...), session: str = Query(default="")):
+            _authorize(token, session)
             lib = getattr(server.ai_engine, "prompt_library", None)
             prompts = []
             if lib is not None:
@@ -711,9 +796,9 @@ class RelayServer:
         async def get_pending(
             token: str = Query(...),
             message_id: str = Query(...),
+            session: str = Query(default=""),
         ):
-            if not server.verify_token(token):
-                raise HTTPException(status_code=401, detail="Non autorisé")
+            _authorize(token, session)
             # Toutes les branches de cet endpoint contiennent du contenu
             # utilisateur (réponse IA partielle ou finale) : on chiffre
             # systématiquement la réponse, même celle "vide", pour éviter
@@ -747,6 +832,7 @@ class RelayServer:
         async def upload_file(
             token: str = Query(...),
             file: UploadFile = File(...),
+            session: str = Query(default=""),
         ):
             """Reçoit un fichier chiffré (E2EE) depuis le mobile.
 
@@ -763,8 +849,7 @@ class RelayServer:
             lue à `_MAX_UPLOAD_SIZE + 1024` (marge nonce+tag+header) avant
             de déchiffrer, et on revérifie après déchiffrement.
             """
-            if not server.verify_token(token):
-                raise HTTPException(status_code=401, detail="Non autorisé")
+            _authorize(token, session)
 
             # 1. Lire le ciphertext en bornant la taille
             cipher_max = _MAX_UPLOAD_SIZE + 1024
@@ -880,6 +965,14 @@ class RelayServer:
             if not token or not server.verify_token(token):
                 logger.warning("WebSocket rejeté : token invalide")
                 await websocket.close(code=4001, reason="Non autorisé")
+                return
+
+            if not server.verify_session(websocket.query_params.get("session", "")):
+                # Accepté puis fermé : refusé avant accept(), le client ne verrait
+                # qu'un échec HTTP 403 ; le code 4003 lui fait demander le code
+                logger.warning("WebSocket rejeté : code d'accès non saisi")
+                await websocket.accept()
+                await websocket.close(code=4003, reason="Code d'accès requis")
                 return
 
             await websocket.accept()
@@ -2725,13 +2818,14 @@ async def _handle_vscode_chat(
 # ===========================================================================
 
 
-def _get_login_page() -> str:
-    """Retourne la page HTML de login."""
+def _get_link_required_page() -> str:
+    """Page servie sans jeton valide : l'accès passe par le lien du QR code."""
     return """<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex,nofollow">
 <title>My_AI Relay</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2741,32 +2835,18 @@ def _get_login_page() -> str:
     display: flex; align-items: center; justify-content: center;
     min-height: 100dvh;
   }
-  .login-card {
+  .card {
     background: #1a1a1a; border-radius: 20px;
     padding: 40px 32px; width: 90%; max-width: 380px;
     text-align: center; border: 1px solid #2d2d2d;
   }
   .logo { display: block; width: 48px; height: 48px; margin: 0 auto 8px; }
-  h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-  .subtitle { color: #9ca3af; font-size: 14px; margin-bottom: 32px; }
-  input {
-    width: 100%; padding: 14px 16px; background: #0f0f0f;
-    border: 1px solid #374151; border-radius: 12px; color: #fff;
-    font-size: 16px; outline: none; margin-bottom: 16px;
-    -webkit-appearance: none;
-  }
-  input:focus { border-color: #ff6b47; }
-  button {
-    width: 100%; padding: 14px; background: #ff6b47;
-    border: none; border-radius: 12px; color: #fff;
-    font-size: 16px; font-weight: 600; cursor: pointer;
-  }
-  button:active { background: #ff5730; }
-  .error { color: #ef4444; font-size: 13px; margin-bottom: 12px; display: none; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  p { color: #9ca3af; font-size: 14px; line-height: 1.5; }
 </style>
 </head>
 <body>
-<div class="login-card">
+<div class="card">
   <!-- Logo de My_AI (frontend/public/favicon.svg) -->
   <svg class="logo" viewBox="0 0 24 24" fill="#ff6b47" aria-hidden="true">
     <circle cx="7" cy="1.5" r="1"/>
@@ -2776,35 +2856,7 @@ def _get_login_page() -> str:
     <path fill-rule="evenodd" clip-rule="evenodd" d="M 5 4.5 H 19 A 4 4 0 0 1 23 8.5 V 18 A 4 4 0 0 1 19 22 H 5 A 4 4 0 0 1 1 18 V 8.5 A 4 4 0 0 1 5 4.5 Z M 6.25 9.25 H 8.75 A 1.25 1.25 0 0 1 10 10.5 V 12 A 1.25 1.25 0 0 1 8.75 13.25 H 6.25 A 1.25 1.25 0 0 1 5 12 V 10.5 A 1.25 1.25 0 0 1 6.25 9.25 Z M 15.25 9.25 H 17.75 A 1.25 1.25 0 0 1 19 10.5 V 12 A 1.25 1.25 0 0 1 17.75 13.25 H 15.25 A 1.25 1.25 0 0 1 14 12 V 10.5 A 1.25 1.25 0 0 1 15.25 9.25 Z M 9 15.75 H 15 A 1 1 0 0 1 15 17.75 H 9 A 1 1 0 0 1 9 15.75 Z"/>
   </svg>
   <h1>My_AI Relay</h1>
-  <p class="subtitle">Entrez le mot de passe pour accéder à votre IA</p>
-  <div class="error" id="error">Mot de passe incorrect</div>
-  <input type="password" id="pwd" placeholder="Mot de passe ou token" autocomplete="off" autofocus>
-  <button onclick="login()">Se connecter</button>
+  <p>Lien incomplet ou expiré. Scannez le QR code affiché dans le panneau Relay de votre PC.</p>
 </div>
-<script>
-document.getElementById('pwd').addEventListener('keydown', e => {
-  if (e.key === 'Enter') login();
-});
-async function login() {
-  const pwd = document.getElementById('pwd').value.trim();
-  if (!pwd) return;
-  try {
-    const r = await fetch('/auth', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({password: pwd})
-    });
-    if (r.ok) {
-      const d = await r.json();
-      window.location.href = '/?token=' + d.token;
-    } else {
-      document.getElementById('error').style.display = 'block';
-    }
-  } catch(e) {
-    document.getElementById('error').textContent = 'Erreur de connexion';
-    document.getElementById('error').style.display = 'block';
-  }
-}
-</script>
 </body>
 </html>"""

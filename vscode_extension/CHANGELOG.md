@@ -5,6 +5,35 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] — 2026-10-23
+
+Asks for the Relay **access code**: the connection string alone no longer
+connects.
+
+### Added
+- **Access code.** After you paste the connection string, the extension
+  asks for the 6-digit code shown under the QR code in the host's Relay
+  panel. The host only serves the chat, history, uploads and tools to a
+  session opened with that code, and the code isn't in the connection
+  string: a string that leaks (clipboard history, synced notes, a pasted
+  message) is useless on its own. The code travels inside the AES-GCM
+  envelope. Five wrong codes lock the Relay until it restarts (new
+  connection string, new code).
+- The session is saved with the credentials in SecretStorage: reloading
+  VS Code doesn't ask for the code again while the Relay keeps running.
+
+### Fixed
+- **French translations.** The **@codebase** messages (folder picker,
+  indexing progress, result and errors) stayed in English in a French
+  VS Code.
+
+### Notes
+- Needs the access code on the host (My_AI with this change). Hosts that
+  predate it don't ask for a code, and this version still connects to them
+  without one.
+- Older versions of the extension can't connect to an updated host: the
+  host refuses a connection without the code.
+
 ## [1.4.0] — 2026-10-19
 
 Documentation update, released with host-side fixes to the tunnels: no

@@ -6,10 +6,19 @@ import {
   encryptEnvelope,
   importAesGcmKey,
 } from './crypto';
-import { HistoryItem, IncomingPayload, PromptTemplate, RelayCredentials } from './types';
+import {
+  HistoryItem,
+  IncomingPayload,
+  PromptTemplate,
+  RelayCredentials,
+  UnlockResult,
+} from './types';
 
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;
+// WebSocket close code of the host when the access code session is missing
+// or unknown: reconnecting would loop, the code has to be entered again.
+const ACCESS_CODE_REQUIRED = 4003;
 // Keepalive court (15s) car certains tunnels publics (serveo, localhost.run
 // via mobile data) coupent les WebSockets idle bien avant les 25s habituels
 // de cloudflared. Un ping plus fréquent garde la connexion vivante au prix
@@ -45,6 +54,7 @@ export class RelayClient extends EventEmitter {
   private requestTimeoutMs: number;
   private closed = false;
   private clientHello: ClientHelloPayload | null = null;
+  private lastHealth: { access_code_required?: boolean } | null = null;
 
   constructor(creds: RelayCredentials, requestTimeoutSeconds: number) {
     super();
@@ -104,6 +114,7 @@ export class RelayClient extends EventEmitter {
       try {
         const ok = await this.fetchJson(`${base}/api/health`);
         if (ok && typeof ok === 'object' && (ok as { status?: string }).status === 'ok') {
+          this.lastHealth = ok as { access_code_required?: boolean };
           return base;
         }
         errors.push(`${base}: unexpected response`);
@@ -132,11 +143,44 @@ export class RelayClient extends EventEmitter {
     return false;
   }
 
+  /**
+   * Whether the host asks for the access code shown under its QR code.
+   * Hosts that predate it have no POST /api/unlock: no code to ask then.
+   */
+  async accessCodeRequired(): Promise<boolean> {
+    this.currentBaseUrl = await this.probeAliveTunnel();
+    return this.lastHealth?.access_code_required === true;
+  }
+
+  /**
+   * Trade the access code for a session. The code travels inside the E2EE
+   * envelope: the tunnel server, which sees the token, can't read it.
+   */
+  async unlock(code: string): Promise<UnlockResult> {
+    if (!this.cryptoKey) {
+      this.cryptoKey = await importAesGcmKey(this.creds.keyB64u);
+    }
+    if (!this.currentBaseUrl) {
+      this.currentBaseUrl = await this.probeAliveTunnel();
+    }
+    const body = JSON.stringify(await encryptEnvelope(this.cryptoKey, { code }));
+    const url = `${this.currentBaseUrl}/api/unlock?token=${encodeURIComponent(this.creds.token)}`;
+    const res = await this.fetchRaw(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return (await decryptEnvelope(this.cryptoKey, await res.json())) as UnlockResult;
+  }
+
   async loadHistory(): Promise<HistoryItem[]> {
     if (!this.cryptoKey || !this.currentBaseUrl) {
       throw new Error('Relay not connected');
     }
-    const url = `${this.currentBaseUrl}/api/history?token=${encodeURIComponent(this.creds.token)}`;
+    const url = `${this.currentBaseUrl}/api/history?${this.authQuery()}`;
     const wrapper = await this.fetchJson(url);
     const decrypted = (await decryptEnvelope(this.cryptoKey, wrapper)) as { history?: HistoryItem[] };
     return Array.isArray(decrypted?.history) ? decrypted.history : [];
@@ -146,7 +190,7 @@ export class RelayClient extends EventEmitter {
     if (!this.cryptoKey || !this.currentBaseUrl) {
       throw new Error('Relay not connected');
     }
-    const url = `${this.currentBaseUrl}/api/prompts?token=${encodeURIComponent(this.creds.token)}`;
+    const url = `${this.currentBaseUrl}/api/prompts?${this.authQuery()}`;
     const wrapper = await this.fetchJson(url);
     const decrypted = (await decryptEnvelope(this.cryptoKey, wrapper)) as { prompts?: PromptTemplate[] };
     return Array.isArray(decrypted?.prompts) ? decrypted.prompts : [];
@@ -161,7 +205,7 @@ export class RelayClient extends EventEmitter {
     if (!this.cryptoKey || !this.currentBaseUrl) {
       return null;
     }
-    const url = `${this.currentBaseUrl}/api/pending?token=${encodeURIComponent(this.creds.token)}&message_id=${encodeURIComponent(messageId)}`;
+    const url = `${this.currentBaseUrl}/api/pending?${this.authQuery()}&message_id=${encodeURIComponent(messageId)}`;
     try {
       const wrapper = await this.fetchJson(url);
       return (await decryptEnvelope(this.cryptoKey, wrapper)) as {
@@ -205,7 +249,7 @@ export class RelayClient extends EventEmitter {
     const epilogue = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
     const body = Buffer.concat([preamble, Buffer.from(wire), epilogue]);
 
-    const url = `${this.currentBaseUrl}/api/upload?token=${encodeURIComponent(this.creds.token)}`;
+    const url = `${this.currentBaseUrl}/api/upload?${this.authQuery()}`;
     const res = await this.fetchRaw(url, {
       method: 'POST',
       headers: {
@@ -309,7 +353,7 @@ export class RelayClient extends EventEmitter {
   }
 
   private openWebSocket(base: string): void {
-    const wsUrl = base.replace(/^http/i, 'ws') + `/ws?token=${encodeURIComponent(this.creds.token)}`;
+    const wsUrl = base.replace(/^http/i, 'ws') + `/ws?${this.authQuery()}`;
     this.emit('connecting', base);
 
     let ws: WebSocket;
@@ -349,6 +393,10 @@ export class RelayClient extends EventEmitter {
     ws.on('close', (code, reason) => {
       this.stopKeepalive();
       this.ws = null;
+      if (code === ACCESS_CODE_REQUIRED) {
+        this.emit('access-denied');
+        return;
+      }
       this.emit('disconnected', `ws closed (${code}) ${reason?.toString() ?? ''}`.trim());
       this.scheduleReconnect();
     });
@@ -384,6 +432,13 @@ export class RelayClient extends EventEmitter {
       return;
     }
     this.emit('message', payload);
+  }
+
+  // Query string of every host request: the token of the connection string
+  // and the session opened by the access code.
+  private authQuery(): string {
+    return `token=${encodeURIComponent(this.creds.token)}`
+      + `&session=${encodeURIComponent(this.creds.session ?? '')}`;
   }
 
   private async sendEncrypted(obj: unknown): Promise<void> {
