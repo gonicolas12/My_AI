@@ -551,7 +551,8 @@ class DesktopApp:
         relay = self.relay
         if relay is None or not relay.is_running():
             return {"running": False, "port": None, "clients": 0, "tunnels": {},
-                    "tunnel_states": {}, "url": None, "local_url": None, "token": None}
+                    "tunnel_states": {}, "url": None, "local_url": None,
+                    "access_code": None, "access_failures": 0, "access_locked": False}
         try:
             tunnels = dict(relay.tunnel_urls)
             # Vérifiés depuis ce PC : seuls les joignables entrent dans le QR code
@@ -566,14 +567,34 @@ class DesktopApp:
             "tunnel_states": states,
             "url": relay.relay_url,
             "local_url": relay.local_url,
-            "token": relay.auth_token,
+            # Demandé par le téléphone et l'extension VS Code, en plus du lien
+            "access_code": relay.access_code,
+            "access_failures": relay.access_failures,
+            "access_locked": relay.access_locked,
         }
 
     def _publish_relay_status(self) -> None:
         status = self.relay_status()
         if status != self._relay_snapshot:
+            previous = self._relay_snapshot or {}
             self._relay_snapshot = status
             self.bus.publish("relay.status", status)
+            self._warn_access_failures(previous, status)
+
+    def _warn_access_failures(self, previous: Dict[str, Any], status: Dict[str, Any]) -> None:
+        """Code d'accès erroné saisi : toast, panneau du Relay ouvert ou non.
+
+        Seul qui a le lien du QR code peut essayer un code : si ce n'est pas
+        l'utilisateur, le lien a fuité.
+        """
+        if status.get("access_failures", 0) <= previous.get("access_failures", 0):
+            return
+        if status.get("access_locked"):
+            self.notify("error", "Relay verrouillé : trop de codes d'accès erronés. Arrêtez-le "
+                                 "puis redémarrez-le pour un nouveau QR code et un nouveau code.")
+        else:
+            self.notify("warning", "Relay : code d'accès erroné saisi. Si ce n'est pas vous, "
+                                   "arrêtez le Relay : son lien a fuité.")
 
     def _watch_relay(self) -> None:
         """Tunnels et appareils connectés changent sans prévenir : relevés toutes les 2 s."""

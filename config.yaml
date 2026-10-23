@@ -426,9 +426,6 @@ relay:
   # Délai max d'attente de la réponse IA (en secondes)
   # Augmenter si les réponses sont longues ou avec pièces jointes volumineuses
   response_timeout: 500
-  # Mot de passe pour l'authentification mobile
-  # Si vide, un token aléatoire sera généré à chaque démarrage
-  password: ""
   # Activer le tunnel pour l'accès hors réseau local.
   # Si true, démarre tous les providers listés dans tunnel_providers
   # en parallèle. Le QR code redirige le téléphone vers le premier

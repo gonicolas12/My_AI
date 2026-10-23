@@ -3,7 +3,8 @@
  * L'ouverture démarre le Relay s'il ne tourne pas (_toggle_relay, qui ne
  * l'arrête jamais). Le panneau montre l'état des tunnels (vérifiés depuis ce
  * PC : tunnels.ts), le QR code de la page de routage (tunnels joignables,
- * dessiné une fois la liste stable), l'adresse à copier, le jeton et les
+ * dessiné une fois la liste stable), le code d'accès à saisir ensuite sur le
+ * téléphone ou dans VS Code (accessCode.ts), l'adresse à copier et les
  * appareils connectés ; « Arrêter le Relay » l'arrête et ferme le panneau.
  */
 
@@ -27,6 +28,7 @@ import type { RelayStatus } from '../../../lib/events';
 import { notify, useApp } from '../../../stores/app';
 import { closePanel } from '../../../stores/panels';
 import { PanelDialog } from '../PanelDialog';
+import { accessNotice, formatAccessCode } from './accessCode';
 import { tunnelView } from './tunnels';
 
 /**
@@ -86,6 +88,32 @@ function QrCode({ rows }: { rows: string[] }) {
       <rect width={count} height={count} style={{ fill: 'var(--bg-primary)' }} />
       <path d={path} style={{ fill: 'var(--accent)' }} />
     </svg>
+  );
+}
+
+/** Code d'accès sous le QR code : sans lui, le lien seul n'ouvre rien */
+function AccessCode({ relay }: { relay: RelayStatus }) {
+  const notice = accessNotice(relay);
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <p className="text-xs text-fg-3">Code d’accès</p>
+      <p className="font-mono text-2xl font-semibold tracking-widest text-fg tabular-nums select-text">
+        {formatAccessCode(relay.access_code ?? '')}
+      </p>
+      <p className="text-center text-xs text-fg-3">
+        Demandé par le téléphone et l’extension VS Code après le scan
+      </p>
+      {notice ? (
+        <p
+          className={`flex items-start gap-2 text-sm ${
+            notice.tone === 'error' ? 'text-error' : 'text-warning'
+          }`}
+          role="alert"
+        >
+          <TriangleAlert size={15} className="mt-0.5 shrink-0" /> {notice.text}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -181,6 +209,7 @@ function Running({ relay }: { relay: RelayStatus }) {
           </p>
         )}
       </div>
+      {relay.access_code ? <AccessCode relay={relay} /> : null}
       <div className="flex w-full items-center gap-2 rounded-md border border-line bg-bg py-1.5 pr-1.5 pl-3">
         <code className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={current}>
           {shortUrl(current)}
@@ -205,9 +234,6 @@ function Running({ relay }: { relay: RelayStatus }) {
         )}
         {vscodeLabel || 'Copier pour l’extension VS Code'}
       </Button>
-      {relay.token ? (
-        <p className="font-mono text-xs text-fg-3 select-text">Token : {relay.token}</p>
-      ) : null}
       <p className="flex items-center gap-2 text-sm text-fg-2">
         <Smartphone size={15} /> {relay.clients} appareil(s) connecté(s)
       </p>
@@ -289,7 +315,7 @@ export default function RelayPanel() {
       }}
       icon={Radio}
       title="My_AI Relay"
-      description="Scannez le QR code ou copiez l'URL sur votre téléphone"
+      description="Scannez le QR code ou copiez l'URL sur votre téléphone, puis saisissez le code d'accès"
       width={520}
       footer={
         relay?.running ? (

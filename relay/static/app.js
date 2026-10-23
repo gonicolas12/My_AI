@@ -5,6 +5,7 @@
 // ── CONFIGURATION ───────────────────────────────────
 const TOKEN = window.__RELAY_TOKEN__ || '';
 const WS_PROTOCOL = location.protocol === 'https:' ? 'wss:' : 'ws:';
+// La session du code d'accès s'y ajoute à chaque connexion (voir connect)
 const WS_URL = `${WS_PROTOCOL}//${location.host}/ws?token=${TOKEN}`;
 console.log('[Relay] Token:', TOKEN ? TOKEN.substring(0, 6) + '...' : 'EMPTY');
 console.log('[Relay] WS URL:', WS_URL);
@@ -135,6 +136,111 @@ async function wsSendEncrypted(obj) {
   ws.send(JSON.stringify(wrapper));
 }
 
+// ═══════════════════════════════════════════════════
+// CODE D'ACCÈS
+//
+// En plus du lien du QR code, le Relay exige le code affiché sous le QR
+// code sur le PC (POST /api/unlock, code chiffré par la clé E2EE). La
+// session qu'il ouvre n'est gardée que pour cet onglet (sessionStorage) :
+// un rechargement ne redemande pas le code, le lien rouvert depuis
+// l'historique dans un autre onglet, si.
+// ═══════════════════════════════════════════════════
+
+const SESSION_KEY = 'myai.relay.session';
+let accessSession = readSession();
+
+function readSession() {
+  try {
+    var saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+    return saved && saved.token === TOKEN ? saved.session : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function saveSession(session) {
+  accessSession = session || '';
+  try {
+    if (accessSession) {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: TOKEN, session: accessSession }));
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  } catch (e) {
+    // Stockage indisponible (navigation privée) : session gardée en mémoire
+  }
+}
+
+// Paramètres des requêtes à l'API : jeton du lien et session du code d'accès
+function authQuery() {
+  return 'token=' + encodeURIComponent(TOKEN) + '&session=' + encodeURIComponent(accessSession);
+}
+
+const unlockScreen = document.getElementById('unlockScreen');
+const unlockForm = document.getElementById('unlockForm');
+const unlockInput = document.getElementById('unlockInput');
+const unlockError = document.getElementById('unlockError');
+const unlockBtn = document.getElementById('unlockBtn');
+
+function showUnlock() {
+  unlockScreen.classList.add('visible');
+  setTimeout(function () {
+    if (!unlockInput.disabled) unlockInput.focus();
+  }, 50);
+}
+
+function unlockMessage(result) {
+  if (result.error === 'locked') {
+    return 'Trop de codes erronés : le Relay refuse désormais toute connexion. ' +
+      'Redémarrez-le sur votre PC pour obtenir un nouveau QR code et un nouveau code.';
+  }
+  if (result.error === 'format') return 'Le code contient 6 chiffres.';
+  var left = result.remaining;
+  return 'Code incorrect. Il reste ' + left + (left > 1 ? ' essais.' : ' essai.');
+}
+
+async function submitUnlock(event) {
+  event.preventDefault();
+  var code = unlockInput.value.replace(/\D/g, '');
+  if (code.length !== 6) {
+    unlockError.textContent = unlockMessage({ error: 'format' });
+    return;
+  }
+  unlockBtn.disabled = true;
+  unlockError.textContent = '';
+  var locked = false;
+  try {
+    var body = await encryptObject({ code: code });
+    var res = await fetch('/api/unlock?token=' + encodeURIComponent(TOKEN), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var result = (await decryptEnvelope(await res.json())) || {};
+    if (result.ok && result.session) {
+      saveSession(result.session);
+      unlockInput.value = '';
+      unlockScreen.classList.remove('visible');
+      connect();
+      return;
+    }
+    locked = result.error === 'locked';
+    unlockError.textContent = unlockMessage(result);
+    if (!locked) unlockInput.select();
+  } catch (err) {
+    console.error('[Relay] Code d\'accès non vérifié :', err);
+    unlockError.textContent = 'Le Relay ne répond pas. Vérifiez qu\'il tourne sur votre PC, puis réessayez.';
+  } finally {
+    unlockBtn.disabled = locked;
+    unlockInput.disabled = locked;
+  }
+}
+
+unlockForm.addEventListener('submit', submitUnlock);
+// Sans session, l'écran du code s'affiche avant tout le reste
+if (!accessSession) showUnlock();
+
 // ── STATE ───────────────────────────────────────────
 let ws = null;
 let reconnectTimer = null;
@@ -191,12 +297,16 @@ const fileInputEl = document.getElementById('fileInput');
 
 function connect() {
   if (ws && ws.readyState <= 1) return;
+  if (!accessSession) {
+    showUnlock();
+    return;
+  }
 
   console.log('[Relay] Connecting to', WS_URL);
   setStatus('connecting');
 
   try {
-    ws = new WebSocket(WS_URL);
+    ws = new WebSocket(WS_URL + '&session=' + encodeURIComponent(accessSession));
   } catch (e) {
     console.error('[Relay] WebSocket creation failed:', e);
     setStatus('offline');
@@ -328,6 +438,12 @@ function connect() {
   ws.onclose = function (event) {
     console.log('[Relay] Connection closed:', event.code, event.reason);
     setStatus('offline');
+    if (event.code === 4003) {
+      // Session refusée : redemander le code plutôt que de boucler
+      saveSession('');
+      showUnlock();
+      return;
+    }
     connBanner.classList.add('visible');
     scheduleReconnect();
   };
@@ -378,7 +494,7 @@ async function loadHistory() {
   if (historyLoaded) return;
   try {
     await e2eReady;
-    var res = await fetch('/api/history?token=' + encodeURIComponent(TOKEN));
+    var res = await fetch('/api/history?' + authQuery());
     if (!res.ok) {
       console.warn('[Relay] /api/history returned', res.status);
       historyLoaded = true;
@@ -427,7 +543,7 @@ async function loadPrompts() {
   if (slashPromptsLoaded) return;
   try {
     await e2eReady;
-    var res = await fetch('/api/prompts?token=' + encodeURIComponent(TOKEN));
+    var res = await fetch('/api/prompts?' + authQuery());
     if (!res.ok) {
       console.warn('[Relay] /api/prompts returned', res.status);
       return;
@@ -450,7 +566,7 @@ async function checkPendingResponse(messageId) {
   if (!messageId) return;
   try {
     await e2eReady;
-    var url = '/api/pending?token=' + encodeURIComponent(TOKEN) +
+    var url = '/api/pending?' + authQuery() +
               '&message_id=' + encodeURIComponent(messageId);
     var res = await fetch(url);
     if (!res.ok) return;
@@ -577,7 +693,7 @@ async function uploadEncryptedFile(file) {
   var blob = new Blob([wire], { type: 'application/octet-stream' });
   var form = new FormData();
   form.append('file', blob, 'enc.bin');
-  var res = await fetch('/api/upload?token=' + encodeURIComponent(TOKEN), {
+  var res = await fetch('/api/upload?' + authQuery(), {
     method: 'POST',
     body: form,
   });

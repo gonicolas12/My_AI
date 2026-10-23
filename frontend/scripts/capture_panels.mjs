@@ -414,7 +414,14 @@ if (wanted('relay')) {
     'relay : le tunnel muet reste signalé',
     await panel.getByText('localhost.run : ne répond pas').isVisible(),
   );
-  check('relay : jeton affiché', await panel.getByText(`Token : ${state.token}`).isVisible());
+  // Le jeton est dans le lien, personne ne le tape : il n'est plus affiché
+  check('relay : jeton non affiché', (await panel.getByText(/^Token :/).count()) === 0);
+  // Le code d'accès, demandé par le téléphone et VS Code en plus du lien, sous le QR code
+  const code = `${state.access_code.slice(0, 3)} ${state.access_code.slice(3)}`;
+  check(
+    'relay : code d’accès affiché sous le QR code',
+    await panel.getByText(code, { exact: true }).isVisible(),
+  );
   await panel.getByText('1 appareil(s) connecté(s)').waitFor({ timeout: 10000 });
   check('relay : appareil connecté', true);
   await page.waitForTimeout(300);

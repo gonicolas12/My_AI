@@ -16,6 +16,7 @@ import pytest
 import interfaces.onboarding as onboarding
 from core.chat_service import ChatService
 from interfaces.desktop import lifecycle
+from interfaces.desktop.events import validate_event
 from interfaces.desktop.lifecycle import OLLAMA_FAILED, DesktopApp, DesktopState
 from test_chat_service import FakeEngine, FakeFileProcessor  # pylint: disable=import-error
 
@@ -271,6 +272,33 @@ def test_scheduled_toast_shows_the_summary_as_plain_text(tmp_path):
     assert payload["summary"].startswith("Veille du matin\nTrois articles retenus : un article")
     assert len(payload["summary"]) <= lifecycle.TOAST_SUMMARY_LIMIT
     assert payload["summary"].endswith("…") and "#" not in payload["summary"]
+
+
+def test_wrong_relay_access_codes_are_reported(tmp_path):
+    """Code d'accès erroné saisi sur le Relay : toast, puis verrouillage. Seul qui a
+    le lien du QR code peut en essayer un : si ce n'est pas l'utilisateur, il a fuité."""
+    app = DesktopApp(None, headless=True, state=DesktopState(tmp_path / "state.json"))
+    events = []
+    app.bus.subscribe(events.append)
+    relay = SimpleNamespace(
+        is_running=lambda: True, port=8765, bridge=SimpleNamespace(connected_clients=0),
+        tunnel_urls={}, tunnel_states={}, relay_url=None,
+        local_url="http://127.0.0.1:8765/?token=t#k=k",
+        access_code="012345", access_failures=0, access_locked=False)
+    app.relay = relay
+    app._publish_relay_status()  # pylint: disable=protected-access
+    relay.access_failures = 1
+    app._publish_relay_status()  # pylint: disable=protected-access
+    relay.access_failures, relay.access_locked = 5, True
+    app._publish_relay_status()  # pylint: disable=protected-access
+
+    for event in events:
+        validate_event(event)
+    statuses = [e["payload"] for e in events if e["type"] == "relay.status"]
+    assert statuses[0]["access_code"] == "012345" and statuses[-1]["access_locked"]
+    toasts = [e["payload"] for e in events if e["type"] == "notification"]
+    assert [toast["level"] for toast in toasts] == ["warning", "error"]
+    assert "Relay verrouillé" in toasts[1]["message"]
 
 
 def test_desktop_state_survives_a_broken_file(tmp_path):

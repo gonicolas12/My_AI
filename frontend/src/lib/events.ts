@@ -151,8 +151,12 @@ export interface RelayStatus {
   /** Page de routage (QR code) : tunnels joignables seulement ; null tant qu'aucun ne répond */
   url: string | null;
   local_url: string | null;
-  /** Jeton d'accès (affiché dans le panneau) */
-  token?: string | null;
+  /** Code d'accès (sous le QR code) : demandé au téléphone et à VS Code, en plus du lien */
+  access_code?: string | null;
+  /** Codes d'accès erronés saisis depuis le démarrage du Relay */
+  access_failures?: number;
+  /** Trop de codes erronés : plus aucun n'est accepté jusqu'au redémarrage */
+  access_locked?: boolean;
 }
 
 export type VoiceInputState = 'idle' | 'recording' | 'transcribing' | 'error';
