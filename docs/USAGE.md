@@ -1366,7 +1366,7 @@ My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS o
 1. Cliquez sur **Relay** en bas de la **barre latérale** (ou **Ctrl+R**, ou la palette Ctrl+K) : le panneau Relay s'ouvre et démarre le Relay s'il ne tourne pas
 2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared et localhost.run ; serveo en option) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics. Le PC vérifie chaque tunnel annoncé : le panneau montre l'état de chacun (« Vérification des tunnels… », « ne répond pas »). Si aucun ne répond au PC dans les 30 s, le panneau affiche « Aucun tunnel ne répond depuis ce PC » et le QR code les reprend tous, sans garantie : le PC peut être sur un réseau qui filtre ces domaines, pas le téléphone
 3. Un **QR code** s'affiche dans le panneau Relay dès qu'un tunnel répond (en quelques secondes avec localhost.run ; cloudflared le rejoint 15 à 20 s après le démarrage, et le QR code se met alors à jour) — scannez-le avec votre téléphone. Le QR ne contient que les tunnels joignables et pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui les ping et redirige automatiquement vers le premier qui répond, en général le plus rapide
-4. Si un **mot de passe** est configuré (section `relay.password` dans `config.yaml`), entrez-le sur la page de login mobile ; sinon l'accès est direct via le QR code
+4. Le téléphone demande le **code d'accès** affiché sous le QR code dans le panneau Relay (6 chiffres, nouveau à chaque démarrage du Relay). Un rechargement de la page ne le redemande pas ; le lien rouvert dans un autre onglet, si. Après 5 codes erronés, le Relay n'en accepte plus aucun jusqu'à son redémarrage (nouveau QR code, nouveau code), et la fenêtre du PC signale chaque code erroné
 5. L'interface mobile s'ouvre sur deux onglets en haut — **💬 Chat** et **🤖 Agents** — qui reprennent la navigation de la fenêtre du PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents.
 
 #### Onglet 💬 Chat
@@ -1425,7 +1425,6 @@ relay:
   auto_start: false       # true = Relay démarre automatiquement au lancement de l'appli
   port: 8765              # Port du serveur local
   response_timeout: 500   # Délai max de réponse IA (secondes)
-  password: ""            # Mot de passe (vide = token aléatoire, change à chaque redémarrage)
   tunnel: true            # false = réseau local uniquement (sans accès externe)
   tunnel_providers:       # Providers de tunnel à démarrer en parallèle
     - "cloudflared"       #   *.trycloudflare.com (auto-téléchargé)
@@ -1458,18 +1457,18 @@ Si tous les providers sont indisponibles ou si `tunnel: false`, le Relay reste a
 http://<IP_de_votre_PC>:8765/?token=<votre_token>#k=<clé_E2EE>
 ```
 
-Copiez l'adresse locale affichée dans le panneau Relay (elle contient le token et la clé de chiffrement, sans laquelle l'interface mobile refuse de s'ouvrir) et remplacez `127.0.0.1` par l'adresse IP du PC sur votre réseau.
+Copiez l'adresse locale affichée dans le panneau Relay (elle contient le token et la clé de chiffrement, sans laquelle l'interface mobile refuse de s'ouvrir) et remplacez `127.0.0.1` par l'adresse IP du PC sur votre réseau. Le code d'accès est demandé comme avec le QR code.
 
 #### Sécurité
 
 | Mécanisme | Détail |
 |---|---|
-| **Token de session** | Généré aléatoirement à chaque démarrage (si pas de mot de passe) |
-| **Token permanent** | Dérivé du mot de passe via SHA-256 (reproductible entre sessions) |
+| **Jeton (token)** | 12 octets aléatoires (`secrets.token_urlsafe`), tirés à chaque démarrage du Relay et inclus dans le lien du QR code : personne ne le tape. Sans lui, le Relay refuse tout, avant même de regarder un code. Après un redémarrage, l'ancien lien ne sert plus : il faut rescanner |
+| **Code d'accès** | 6 chiffres tirés à chaque démarrage du Relay, affichés sous le QR code mais **absents du lien** : le téléphone et l'extension VS Code le demandent avant tout accès (API et WebSocket refusés sans la session qu'il ouvre). Un lien qui fuite sans que l'écran soit vu (historique du navigateur synchronisé, presse-papiers, appli de lecture de QR code, chaîne de connexion recopiée) ne suffit donc pas. Le code voyage chiffré par la clé E2EE : sans le lien complet, impossible d'en essayer un. Après 5 codes erronés, le Relay n'en accepte plus aucun jusqu'à son redémarrage ; la fenêtre du PC signale chaque code erroné. Ne protège pas d'une personne qui voit votre écran (QR code et code côte à côte) |
 | **Tunnel HTTPS** | Tous les providers (cloudflared/localhost.run/serveo) chiffrent en TLS sur le réseau, **mais terminent le TLS sur leur infrastructure** : sans la couche E2EE ci-dessous, le contenu serait lisible par eux |
 | **Adresse IP du PC** | Le PC n'ouvre aucun port vers Internet : il ne fait que des connexions sortantes vers les tunnels. Les noms des tunnels cloudflared et localhost.run ne révèlent pas votre adresse IP ; celui de serveo la contient, d'où son absence par défaut. La liste des tunnels n'est jamais servie sans token |
 | **Chiffrement bout-en-bout (E2EE)** | **AES-256-GCM applicatif** au-dessus du WebSocket et des uploads. La clé symétrique (32 octets) est générée localement à chaque démarrage du Relay et transmise au mobile **uniquement via le QR code** (canal optique). Ni le serveur de tunnel public (Cloudflare, serveo, localhost.run) ni GitHub Pages ne peuvent déchiffrer le contenu : ils ne voient que des octets opaques. |
-| **Token + clé hors-serveur** | Le token et la clé E2EE voyagent dans le **fragment** de l'URL de routage (`#d=<base64>`) — le fragment n'est jamais émis sur le réseau, seul le navigateur le lit |
+| **Token + clé hors-serveur** | Le token et la clé E2EE voyagent dans le **fragment** de l'URL de routage (`#d=<base64>`) — le fragment n'est jamais émis sur le réseau, seul le navigateur le lit : GitHub Pages ne voit ni l'un ni l'autre. Le token part ensuite vers le Relay avec chaque requête (le service de tunnel le voit passer) ; la clé, jamais |
 | **Strict, pas de downgrade** | Le serveur **rejette** toute connexion WS dont les messages ne sont pas chiffrés (close 4002). Pas de mode dégradé : on ne peut pas forcer du clair via une attaque MITM applicative. |
 | **Aucune donnée cloud** | Les tunnels ne sont que des relais chiffrés — vos données restent sur votre PC, et le contenu transitant par les tunnels publics est illisible pour leurs opérateurs |
 
@@ -1481,7 +1480,7 @@ L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code
 
 1. **Sur le PC hôte** : démarrez le Relay (**Relay** en bas de la barre latérale, ou Ctrl+R) → attendez qu'au moins un tunnel réponde → cliquez sur **Copier pour l'extension VS Code** dans le panneau.
 2. **Dans VS Code** : installez l'extension `gonicolas12.my-ai` depuis le Marketplace (Extensions → recherche "My_AI Relay" → Install).
-3. **Connexion** : ouvrez la vue *My_AI Relay* dans la sidebar → cliquez sur **Coller la chaîne de connexion…** → collez la chaîne de l'étape 1.
+3. **Connexion** : ouvrez la vue *My_AI Relay* dans la sidebar → cliquez sur **Coller la chaîne de connexion…** → collez la chaîne de l'étape 1 → saisissez le **code d'accès** affiché sous le QR code (extension 1.5.0 ou plus récente).
 
 À la première connexion l'extension envoie un `client_hello { client_kind: "vscode" }` chiffré au Relay : la session bascule automatiquement en mode agentique.
 
@@ -1535,6 +1534,7 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 #### Sécurité
 
 - La chaîne de connexion contient la clé AES — **traitez-la comme un mot de passe**.
+- Elle ne suffit pas seule : l'extension demande aussi le **code d'accès** affiché sous le QR code, que la chaîne ne contient pas. La session ouverte par ce code est gardée avec les identifiants (pas de nouvelle saisie au relancement de VS Code tant que le Relay tourne).
 - Tout transite via le **même tunnel E2EE AES-256-GCM** que le mobile : Cloudflare/serveo/localhost.run ne voient que du ciphertext.
 - Les outils côté extension sont sandboxés au workspace par construction. Le LLM ne peut **pas** atteindre les MCP locaux du PC hôte (auxquels la fenêtre desktop et le mobile ont accès).
 - L'extension est **open source** — code dans [`vscode_extension/`](../vscode_extension/), aucune télémétrie.

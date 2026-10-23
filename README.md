@@ -508,7 +508,7 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 
 1. Cliquez sur **Relay** en bas de la barre latérale (ou Ctrl+R)
 2. My_AI Relay démarre un serveur WebSocket et ouvre des tunnels sécurisés en parallèle (cloudflared et localhost.run)
-3. Scannez le QR code ou copiez l'URL sur votre téléphone
+3. Scannez le QR code ou copiez l'URL sur votre téléphone, puis saisissez le **code d'accès** affiché sous le QR code
 4. L'interface mobile propose deux onglets en haut, **💬 Chat** et **🤖 Agents** (comme le GUI PC) :
    - **Chat** — discutez en temps réel ; les messages apparaissent aussi sur le PC. Le bouton d'envoi devient un **bouton Stop** pendant la génération, et les liens `[titre](url)` s'affichent en bleu cliquable.
    - **Agents** — toute la page Agents du PC en version tactile : grille d'agents, **création/édition/suppression d'agents personnalisés**, **workflow visuel n8n** (glisser des nœuds, relier les ports), **Mode Débat** et exécution streamée.
@@ -521,7 +521,7 @@ Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, t
 |---|---|
 | 📱 **Interface mobile** | PWA responsive, thème sombre, onglets Chat / Agents |
 | 🤖 **Page Agents** | 9 agents spécialisés + agents personnalisés, workflow visuel (séquentiel / parallèle / DAG), Mode Débat — exécutés côté PC (Ollama local), streamés au mobile |
-| 🔒 **Authentification** | Token unique par session ou mot de passe configurable |
+| 🔒 **Authentification** | Jeton aléatoire dans le lien du QR code, nouveau à chaque démarrage, plus un **code d'accès** à 6 chiffres affiché sous le QR code mais absent du lien : un lien qui fuite ne suffit pas (5 essais, puis Relay verrouillé jusqu'à son redémarrage) |
 | 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni les services de tunnel (Cloudflare, localhost.run), ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
 | 🌐 **Multi-tunnel** | cloudflared + localhost.run en parallèle (serveo en option), chacun vérifié depuis le PC : seuls les joignables entrent dans le QR code ; failover côté client |
 | 🔄 **Synchronisation** | Messages du chat visibles en temps réel sur PC et mobile |
@@ -536,7 +536,6 @@ relay:
   auto_start: false      # Démarrage auto au lancement du GUI
   port: 8765             # Port du serveur Relay
   response_timeout: 500  # Délai max de réponse IA (secondes)
-  password: ""           # Mot de passe (vide = token aléatoire)
   tunnel: true           # Activer les tunnels (tunnel_providers)
   tunnel_providers: ["cloudflared", "localhost.run"]  # "serveo" en option, voir docs/USAGE.md
   host: "0.0.0.0"        # Adresse d'écoute
@@ -553,7 +552,7 @@ relay:
 ### Fonctionnement
 
 1. Sur le PC hôte : démarrez le Relay (**Relay** en bas de la barre latérale, ou Ctrl+R) → cliquez sur **Copier pour l'extension VS Code** dans le panneau
-2. Dans VS Code : installez l'extension **My_AI Relay** depuis le Marketplace → ouvrez la vue dans la sidebar → **Coller la chaîne de connexion**
+2. Dans VS Code : installez l'extension **My_AI Relay** depuis le Marketplace → ouvrez la vue dans la sidebar → **Coller la chaîne de connexion** → saisissez le **code d'accès** affiché sous le QR code
 3. À la connexion, l'extension s'identifie comme client `vscode` auprès du Relay et active le mode agentique. Demandez par exemple *« scaffold un projet Vite + React avec un router et un composant Header »* : vous verrez chaque `write_file` / `run_command` apparaître comme une carte dépliable dans le chat, avec demande d'approbation pour les opérations destructives.
 
 > Le mobile et le GUI desktop continuent à utiliser le pipeline classique avec les MCP locaux complets — le mode agentique est exclusif aux clients VS Code.

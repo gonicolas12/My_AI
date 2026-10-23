@@ -266,6 +266,9 @@ Absolument ! C'est même recommandé. Vos documents restent 100% sur votre machi
 - Données personnelles sensibles
 - Informations légales ou médicales
 
+### Si quelqu'un récupère le lien du QR code du Relay, peut-il accéder à mon IA ?
+Non, pas avec le lien seul. Le lien peut fuiter sans que personne voie votre écran : historique du navigateur synchronisé, presse-papiers, appli de lecture de QR code, chaîne de connexion recopiée. Le Relay demande donc en plus un **code d'accès** à 6 chiffres, affiché sous le QR code mais absent du lien, avant de servir quoi que ce soit (chat, historique, agents, fichiers), sur le téléphone comme dans l'extension VS Code. Après 5 codes erronés, il n'en accepte plus aucun jusqu'à son redémarrage, et la fenêtre du PC signale chaque code erroné : si ce n'est pas vous, arrêtez le Relay, son lien a fuité. Le redémarrage change le lien et le code. Seule limite : une personne qui voit votre écran voit le QR code et le code côte à côte. Détails : [USAGE.md](USAGE.md#sécurité).
+
 ### L'IA conserve-t-elle mes données après fermeture ?
 Avec les **Workspaces v7.0.0**, oui ! Vos conversations sont sauvegardées automatiquement dans des espaces de travail isolés (`data/workspaces/`). Vous pouvez les charger à tout moment. Sans workspace, la mémoire de session est effacée à la fermeture.
 
