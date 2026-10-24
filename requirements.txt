@@ -156,7 +156,7 @@ memory-profiler>=0.60.0
 # ====================================
 # Client MCP pour connecter des serveurs d'outils externes à Ollama
 # Permet le tool-calling natif : le LLM choisit lui-même les outils à appeler
-mcp>=1.0.0
+mcp>=1.10.0
 
 # ====================================
 # API REST & RELAY
