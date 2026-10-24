@@ -5,6 +5,25 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.1] — 2026-10-24
+
+Wording update, released with a change to the host's Relay panel: no change
+to how the extension works.
+
+### Changed
+- **Where to copy the connection string.** The connect prompt, the welcome
+  text and the README point to the **Copier** button next to the link in
+  the host's Relay panel. My_AI no longer has a separate "Copier pour
+  l'extension VS Code" button: it copied the same link, the QR code's.
+  Before a tunnel answers, that field shows the host's local address,
+  which the extension can't use, and the panel says so.
+- **README.** The Relay button is at the bottom of the host's sidebar (or
+  Ctrl+R), not at the top-left.
+
+### Notes
+- Works with every host: older ones still show both buttons, and their
+  **Copier** copies the same link once a tunnel is active.
+
 ## [1.5.0] — 2026-10-23
 
 Asks for the Relay **access code**: the connection string alone no longer

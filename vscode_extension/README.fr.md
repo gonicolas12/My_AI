@@ -67,8 +67,8 @@ exactement comme avant.
 
 - **VS Code** ≥ 1.85.
 - Un **PC hôte My_AI** où le Relay tourne (n'importe quelle machine
-  capable de lancer My_AI). Le bouton Relay est en haut à gauche de la
-  barre latérale du GUI.
+  capable de lancer My_AI). Le bouton Relay est en bas de la barre
+  latérale du GUI.
 - Une **connexion Internet** des deux côtés (le tunnel chiffré passe par
   Cloudflare ou localhost.run).
 
@@ -77,13 +77,15 @@ exactement comme avant.
 ### 1. Lancer le Relay sur le PC hôte
 
 1. Lancez My_AI sur le PC qui fait tourner le modèle.
-2. Cliquez sur le bouton **Relay** en haut à gauche de la barre latérale.
+2. Cliquez sur **Relay** en bas de la barre latérale (ou Ctrl+R).
 3. Attendez qu'au moins un tunnel soit « actif » (statut vert).
 
 ### 2. Copier la chaîne de connexion
 
-Dans la même popup Relay, cliquez sur **🧩 Copier pour l'extension VS Code**.
-La chaîne copiée ressemble à :
+Dans le même panneau Relay, cliquez sur **Copier**, à côté du lien : la
+chaîne de connexion est le lien du QR code, celui qu'ouvre le téléphone.
+Tant qu'aucun tunnel ne répond, ce champ montre à la place l'adresse locale
+du PC, que l'extension ne sait pas lire. La chaîne copiée ressemble à :
 
 ```
 https://gonicolas12.github.io/My_AI/router.html#d=…

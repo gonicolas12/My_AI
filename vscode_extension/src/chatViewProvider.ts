@@ -412,7 +412,7 @@ function getWebviewStrings(): Record<string, string> {
     'webview.banner.connectionLost': vscode.l10n.t('Connection lost. Trying to reconnect…'),
     'webview.connect.title': vscode.l10n.t('Not connected'),
     'webview.connect.description': vscode.l10n.t(
-      'Start the Relay on your My_AI host PC, click "Copy for the VS Code extension" in the Relay popup, paste the connection string here, then enter the access code shown under the QR code.',
+      'Start the Relay on your My_AI host PC, click "Copier" in the Relay panel once a tunnel is active, paste the link here, then enter the access code shown under the QR code.',
     ),
     'webview.connect.button': vscode.l10n.t('Paste connection string…'),
     'webview.connect.hint': vscode.l10n.t('Your credentials stay encrypted in VS Code SecretStorage.'),

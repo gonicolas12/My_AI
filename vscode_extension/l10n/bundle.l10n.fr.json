@@ -1,6 +1,6 @@
 {
   "My_AI Relay — Connect": "My_AI Relay — Se connecter",
-  "Paste the connection string from My_AI (Relay popup → \"Copy for the VS Code extension\")": "Collez la chaîne de connexion depuis My_AI (popup Relay → « Copier pour l'extension VS Code »)",
+  "Paste the connection string from My_AI (Relay panel → \"Copier\", the QR code link)": "Collez la chaîne de connexion depuis My_AI (panneau Relay → « Copier », le lien du QR code)",
   "My_AI Relay: contacting the host…": "My_AI Relay : contact de l'hôte…",
   "My_AI Relay — Access code": "My_AI Relay — Code d'accès",
   "Enter the access code shown under the QR code in the Relay panel of My_AI": "Saisissez le code d'accès affiché sous le QR code, dans le panneau Relay de My_AI",
@@ -56,7 +56,7 @@
   "Connected": "Connecté",
   "Not connected": "Non connecté",
   "Connection lost. Trying to reconnect…": "Connexion perdue. Tentative de reconnexion…",
-  "Start the Relay on your My_AI host PC, click \"Copy for the VS Code extension\" in the Relay popup, paste the connection string here, then enter the access code shown under the QR code.": "Lance le Relay sur ton PC hôte My_AI, clique sur « Copier pour l'extension VS Code » dans la popup Relay, colle la chaîne de connexion ici, puis saisis le code d'accès affiché sous le QR code.",
+  "Start the Relay on your My_AI host PC, click \"Copier\" in the Relay panel once a tunnel is active, paste the link here, then enter the access code shown under the QR code.": "Lance le Relay sur ton PC hôte My_AI, clique sur « Copier » dans le panneau Relay dès qu'un tunnel est actif, colle le lien ici, puis saisis le code d'accès affiché sous le QR code.",
   "Paste connection string…": "Coller la chaîne de connexion…",
   "Your credentials stay encrypted in VS Code SecretStorage.": "Tes identifiants restent chiffrés dans le SecretStorage de VS Code.",
   "Connected to your self-hosted assistant. Type a message to start.": "Connecté à ton assistant auto-hébergé. Tape un message pour commencer.",
