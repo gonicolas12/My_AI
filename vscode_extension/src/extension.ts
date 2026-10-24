@@ -89,7 +89,7 @@ async function connectCommand(): Promise<void> {
   const value = await vscode.window.showInputBox({
     title: vscode.l10n.t('My_AI Relay — Connect'),
     prompt: vscode.l10n.t(
-      'Paste the connection string from My_AI (Relay popup → "Copy for the VS Code extension")',
+      'Paste the connection string from My_AI (Relay panel → "Copier", the QR code link)',
     ),
     placeHolder: 'https://gonicolas12.github.io/My_AI/router.html#d=…',
     password: true,

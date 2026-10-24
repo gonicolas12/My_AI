@@ -68,13 +68,15 @@ exactly as before.
 ### 1. Start the Relay on the host PC
 
 1. Launch My_AI on the PC where the model runs.
-2. Click the **Relay** button at the top-left of the sidebar.
+2. Click **Relay** at the bottom of the sidebar (or press Ctrl+R).
 3. Wait until at least one tunnel is "active" (status turns green).
 
 ### 2. Copy the connection string
 
-In the same Relay popup, click **🧩 Copier pour l'extension VS Code**.
-The string copied looks like:
+In the same Relay panel, click **Copier** (Copy) next to the link: the
+connection string is the QR code's link, the one the phone opens. Before a
+tunnel answers, that field shows the PC's local address instead, which the
+extension can't use. The string copied looks like:
 
 ```
 https://gonicolas12.github.io/My_AI/router.html#d=…

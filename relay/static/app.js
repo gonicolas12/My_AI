@@ -141,9 +141,11 @@ async function wsSendEncrypted(obj) {
 //
 // En plus du lien du QR code, le Relay exige le code affiché sous le QR
 // code sur le PC (POST /api/unlock, code chiffré par la clé E2EE). La
-// session qu'il ouvre n'est gardée que pour cet onglet (sessionStorage) :
-// un rechargement ne redemande pas le code, le lien rouvert depuis
-// l'historique dans un autre onglet, si.
+// session qu'il ouvre est gardée par ce navigateur avec le jeton du lien
+// (localStorage : Safari quitté sur iOS efface sessionStorage, pas lui) :
+// pas de nouvelle saisie tant que le Relay tourne. Son redémarrage change
+// le jeton et oublie les sessions (WebSocket fermé en 4003) : le code est
+// redemandé. Un autre navigateur ou appareil n'a pas la session.
 // ═══════════════════════════════════════════════════
 
 const SESSION_KEY = 'myai.relay.session';
@@ -151,7 +153,7 @@ let accessSession = readSession();
 
 function readSession() {
   try {
-    var saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+    var saved = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     return saved && saved.token === TOKEN ? saved.session : '';
   } catch (e) {
     return '';
@@ -162,12 +164,12 @@ function saveSession(session) {
   accessSession = session || '';
   try {
     if (accessSession) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: TOKEN, session: accessSession }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ token: TOKEN, session: accessSession }));
     } else {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
     }
   } catch (e) {
-    // Stockage indisponible (navigation privée) : session gardée en mémoire
+    // Stockage indisponible : session gardée en mémoire pour cette page
   }
 }
 

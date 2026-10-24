@@ -4,8 +4,9 @@
  * l'arrête jamais). Le panneau montre l'état des tunnels (vérifiés depuis ce
  * PC : tunnels.ts), le QR code de la page de routage (tunnels joignables,
  * dessiné une fois la liste stable), le code d'accès à saisir ensuite sur le
- * téléphone ou dans VS Code (accessCode.ts), l'adresse à copier et les
- * appareils connectés ; « Arrêter le Relay » l'arrête et ferme le panneau.
+ * téléphone ou dans VS Code (accessCode.ts), l'adresse à copier (le même lien
+ * sert au téléphone et à l'extension VS Code) et les appareils connectés ;
+ * « Arrêter le Relay » l'arrête et ferme le panneau.
  */
 
 import {
@@ -134,7 +135,6 @@ function Running({ relay }: { relay: RelayStatus }) {
   const current = (ready ? relay.url : relay.local_url) ?? '';
   const [qr, setQr] = useState<{ url: string; rows: string[] } | null>(null);
   const [copyLabel, flashCopy] = useFlash();
-  const [vscodeLabel, flashVscode] = useFlash();
 
   useEffect(() => {
     if (!target || qr?.url === target) return;
@@ -155,15 +155,6 @@ function Running({ relay }: { relay: RelayStatus }) {
 
   const copy = (text: string, done: () => void) => {
     navigator.clipboard.writeText(text).then(done, () => notify('error', 'Copie impossible.'));
-  };
-
-  const copyVscode = () => {
-    // La même adresse que le QR code : l'extension lit tunnels, jeton et clé dans le fragment
-    if (!ready || !relay.url) {
-      flashVscode('Tunnel non prêt', 2000);
-      return;
-    }
-    copy(relay.url, () => flashVscode('Copié — collez dans VS Code', 2500));
   };
 
   const statusIcon = view.busy ? (
@@ -210,30 +201,34 @@ function Running({ relay }: { relay: RelayStatus }) {
         )}
       </div>
       {relay.access_code ? <AccessCode relay={relay} /> : null}
-      <div className="flex w-full items-center gap-2 rounded-md border border-line bg-bg py-1.5 pr-1.5 pl-3">
-        <code className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={current}>
-          {shortUrl(current)}
-        </code>
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={() => copy(current, () => flashCopy('Copié !', 2000))}
-          disabled={!current}
-        >
-          {copyLabel ? <Check size={14} /> : <Copy size={14} />}
-          {copyLabel || 'Copier'}
-        </Button>
+      <div className="flex w-full flex-col gap-1.5">
+        <div className="flex w-full items-center gap-2 rounded-md border border-line bg-bg py-1.5 pr-1.5 pl-3">
+          <code className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={current}>
+            {shortUrl(current)}
+          </code>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => copy(current, () => flashCopy('Copié !', 2000))}
+            disabled={!current}
+          >
+            {copyLabel ? <Check size={14} /> : <Copy size={14} />}
+            {copyLabel || 'Copier'}
+          </Button>
+        </div>
+        {/* L'extension lit tunnels, jeton et clé dans le fragment du lien du QR code ;
+            l'adresse locale n'a pas ce fragment */}
+        <p className="flex items-center gap-1.5 pl-3 text-xs text-fg-3">
+          {ready ? (
+            <Puzzle size={13} className="shrink-0" />
+          ) : (
+            <Hourglass size={13} className="shrink-0" />
+          )}
+          {ready
+            ? 'Ce lien sert aussi à l’extension VS Code'
+            : 'Adresse de ce PC : le lien du téléphone et de VS Code attend le tunnel'}
+        </p>
       </div>
-      <Button className="w-full" onClick={copyVscode}>
-        {vscodeLabel === 'Tunnel non prêt' ? (
-          <Hourglass size={15} />
-        ) : vscodeLabel ? (
-          <Check size={15} className="text-success" />
-        ) : (
-          <Puzzle size={15} />
-        )}
-        {vscodeLabel || 'Copier pour l’extension VS Code'}
-      </Button>
       <p className="flex items-center gap-2 text-sm text-fg-2">
         <Smartphone size={15} /> {relay.clients} appareil(s) connecté(s)
       </p>
