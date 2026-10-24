@@ -376,10 +376,12 @@ if (wanted('relay')) {
   check('relay : Ctrl+R ouvre le panneau et démarre le Relay', (await relayState()).running);
   await page.waitForTimeout(300);
   await shot('relay_connexion');
-  await panel.getByRole('button', { name: 'Copier pour l’extension VS Code' }).click();
+  // Avant le tunnel, « Copier » copie l'adresse de ce PC, que l'extension VS Code ne lit pas
   check(
-    'relay : extension VS Code, tunnel non prêt',
-    await panel.getByText('Tunnel non prêt').isVisible(),
+    'relay : adresse locale signalée, pas encore de lien pour VS Code',
+    await panel
+      .getByText('Adresse de ce PC : le lien du téléphone et de VS Code attend le tunnel')
+      .isVisible(),
   );
 
   // Tunnel annoncé mais muet : nommé, et pas de QR code tant qu'aucun ne répond
@@ -401,6 +403,12 @@ if (wanted('relay')) {
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   const state = await relayState();
   check('relay : « Copier » copie la page de routage', copied === state.url, copied.slice(0, 60));
+  // Un seul bouton : le lien du QR code sert aussi à l'extension VS Code
+  check(
+    'relay : lien signalé pour l’extension VS Code, sans second bouton',
+    (await panel.getByText('Ce lien sert aussi à l’extension VS Code').isVisible()) &&
+      (await panel.getByRole('button', { name: /VS Code/ }).count()) === 0,
+  );
   // Seul le tunnel joignable entre dans la page de routage
   const routed = JSON.parse(
     Buffer.from(copied.split('#d=')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(),

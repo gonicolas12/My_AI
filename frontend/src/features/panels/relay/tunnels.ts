@@ -9,7 +9,7 @@
 import type { RelayStatus, TunnelState } from '../../../lib/events';
 
 export interface TunnelView {
-  /** La page de routage existe : QR code et « Copier pour l’extension VS Code » */
+  /** La page de routage existe : QR code, et son lien à copier (téléphone, extension VS Code) */
   ready: boolean;
   /** Ligne d'état et sa couleur ; `busy` : tunnels pas encore prêts */
   status: string;
