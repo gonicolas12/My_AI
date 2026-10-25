@@ -296,6 +296,20 @@ def test_link_required_page_speaks_the_language_of_my_ai():
     assert '<html lang="en" dir="ltr">' in _get_link_required_page()
 
 
+def test_router_page_speaks_every_language():
+    """Page de routage du QR code (docs/router.html, servie par GitHub Pages) : ses
+    textes dans les 12 langues, mêmes clés, toutes lues par la page."""
+    page = (ROOT / "docs" / "router.html").read_text(encoding="utf-8")
+    block = re.search(r'<script type="application/json" id="messages">(.*?)</script>', page, re.S)
+    messages = json.loads(block.group(1))
+    assert sorted(messages) == sorted(i18n.SUPPORTED_LANGUAGES)
+    keys = list(messages["fr"])
+    for code, texts in messages.items():
+        assert list(texts) == keys, code
+        assert all(isinstance(text, str) and text.strip() for text in texts.values()), code
+    assert set(re.findall(r"\bT\.(\w+)", page)) == set(keys)
+
+
 # ── Prompts par défaut ───────────────────────────────────────────────────────
 
 _BUILTIN_IDS = [template["id"] for template in _DEFAULT_TEMPLATES]

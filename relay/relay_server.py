@@ -488,7 +488,9 @@ class RelayServer:
         automatique côté client.
 
         N'y entrent que les tunnels joignables depuis ce PC (_router_urls) :
-        None tant qu'aucun n'a répondu.
+        None tant qu'aucun n'a répondu. La langue de My_AI l'accompagne : la
+        page de routage la parle, comme la page mobile vers laquelle elle
+        redirige.
         """
         urls = self._router_urls()
         if not urls:
@@ -501,6 +503,7 @@ class RelayServer:
             "urls": urls,
             "token": self._auth_token,
             "key": self._b64u_encode(self._e2e_key),
+            "lang": i18n.current_language(),
         })
         encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
         return f"{_ROUTER_PAGE_URL}#d={encoded}"

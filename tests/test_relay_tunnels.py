@@ -40,6 +40,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
+from core import i18n
 from relay import relay_server
 from relay.relay_server import RelayServer
 
@@ -63,14 +64,19 @@ def server_fixture():
     server._stop_tunnel()
 
 
-def routed(server):
-    """Adresses de tunnels de la page de routage (fragment du QR code), None sans QR code."""
+def qr_payload(server):
+    """Données du lien du QR code (fragment #d= de la page de routage), None sans QR code."""
     url = server.relay_url
     if url is None:
         return None
     data = url.split("#d=")[1]
-    payload = json.loads(base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)))
-    return payload["urls"]
+    return json.loads(base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)))
+
+
+def routed(server):
+    """Adresses de tunnels de la page de routage (fragment du QR code), None sans QR code."""
+    payload = qr_payload(server)
+    return None if payload is None else payload["urls"]
 
 
 def run_checks(server, now, results):
@@ -103,6 +109,20 @@ def test_tunnel_enters_qr_code_only_once_reachable(server):
     assert routed(server) == [CF]
     # Les tunnels annoncés restent listés (panneau Relay), vérifiés ou non
     assert server.tunnel_urls == {"localhost.run": LHR, "cloudflared": CF}
+
+
+def test_qr_code_link_carries_the_language_of_my_ai(server):
+    """La page de routage parle la langue de My_AI, comme la page mobile qui suit ;
+    l'extension VS Code, qui lit le même lien, ignore ce champ."""
+    server._set_tunnel_url("cloudflared", CF)
+    run_checks(server, time.monotonic(), {"cloudflared": True})
+    try:
+        i18n.set_language("ar")
+        assert qr_payload(server)["lang"] == "ar"
+        i18n.set_language("ja")
+        assert qr_payload(server)["lang"] == "ja"
+    finally:
+        i18n.reset_for_tests()
 
 
 def test_checks_are_close_after_the_announce_then_spaced(server):
