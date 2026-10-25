@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+from core.i18n import current_language, is_rtl, tr
+from core.language_detector import reply_language
 from generators.markdown_document import (
     Block,
     CodeBlock,
@@ -28,6 +30,19 @@ from generators.markdown_document import (
     parse_inlines,
     parse_markdown,
     strip_leading_title,
+)
+from utils.pdf_text import (
+    Run,
+    aligned,
+    code_font,
+    has_rtl,
+    paragraph_markup,
+    pdf_fonts,
+    rtl_paragraph,
+    rtl_style,
+    runs_markup,
+    visual,
+    word_wrap,
 )
 
 # Import du LLM local (Ollama)
@@ -80,6 +95,16 @@ _CODE_BG = "F2F2F2"       # fond des blocs de code
 _TOC_MIN_HEADINGS = 3
 # Nombre maximal de puces par diapositive avant découpe automatique.
 _PPTX_MAX_BULLETS = 9
+# Lettres à partir desquelles la langue d'un texte en alphabet latin est reconnue.
+_LANGUAGE_MIN_LETTERS = 200
+# Écritures propres à une seule des langues de My_AI : la langue d'un texte court s'y lit.
+_SCRIPTS = (
+    ("ar", re.compile(r"[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]")),
+    ("ru", re.compile(r"[\u0400-\u04FF]")),
+    ("ko", re.compile(r"[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]")),
+    ("ja", re.compile(r"[\u3040-\u30FF\u31F0-\u31FF]")),
+    ("zh", re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]")),
+)
 
 
 class DocumentGenerator:
@@ -211,6 +236,8 @@ class DocumentGenerator:
             Le chemin du fichier écrit
         """
         filepath.parent.mkdir(parents=True, exist_ok=True)
+        # Mentions fixes (« Généré le », « Sommaire », « Page ») dans la langue du document
+        lang = _document_language(blocks, title)
 
         builders = {
             "docx": self._build_docx,
@@ -225,7 +252,7 @@ class DocumentGenerator:
         builder = builders.get(fmt)
         if builder is None:
             raise ValueError(f"Format non supporté : {fmt}")
-        builder(blocks, title, filepath)
+        builder(blocks, title, filepath, lang)
         return filepath
 
     @staticmethod
@@ -339,7 +366,7 @@ class DocumentGenerator:
 
     # ── Backend DOCX ───────────────────────────────────────────────────────
 
-    def _build_docx(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_docx(self, blocks: List[Block], title: str, filepath: Path, lang: str) -> None:
         """Rend les blocs en document Word avec styles, sommaire et pied de page."""
         import docx
         from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -352,17 +379,16 @@ class DocumentGenerator:
         if title:
             heading = document.add_heading(title, level=0)
             heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            subtitle = document.add_paragraph(
-                f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
-            )
+            subtitle = document.add_paragraph(_generated_on(lang))
             subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for run in subtitle.runs:
                 run.font.size = Pt(9)
                 run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
 
         if sum(1 for b in blocks if isinstance(b, Heading)) >= _TOC_MIN_HEADINGS:
-            _docx_add_toc(document)
+            _docx_add_toc(document, lang)
 
+        code_paragraphs = []  # toujours de gauche à droite
         for block in blocks:
             if isinstance(block, Heading):
                 para = document.add_heading("", level=min(block.level, 4))
@@ -382,7 +408,7 @@ class DocumentGenerator:
             elif isinstance(block, Table):
                 _docx_add_table(document, block)
             elif isinstance(block, CodeBlock):
-                _docx_add_code(document, block)
+                code_paragraphs.append(_docx_add_code(document, block))
             elif isinstance(block, Quote):
                 try:
                     para = document.add_paragraph(style="Intense Quote")
@@ -393,108 +419,78 @@ class DocumentGenerator:
                 rule = document.add_paragraph("─" * 40)
                 rule.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        _docx_add_page_number_footer(document)
+        _docx_add_page_number_footer(document, lang)
+        _docx_right_to_left(document, code_paragraphs)
         document.save(str(filepath))
 
     # ── Backend PDF ────────────────────────────────────────────────────────
 
-    def _build_pdf(self, blocks: List[Block], title: str, filepath: Path) -> None:
-        """Rend les blocs en PDF paginé via reportlab platypus."""
+    def _build_pdf(self, blocks: List[Block], title: str, filepath: Path, lang: str) -> None:
+        """Rend les blocs en PDF paginé via reportlab platypus.
+
+        Polices et sens d'écriture par utils/pdf_text.py : une police Unicode
+        quand le texte sort de l'alphabet latin, et l'arabe ou l'hébreu aux
+        lettres liées, de droite à gauche (paragraphes, puces et tableaux).
+        """
         from reportlab.lib import colors
-        from reportlab.lib.enums import TA_CENTER
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
         from reportlab.platypus import (
             HRFlowable,
-            ListFlowable,
-            ListItem as PdfListItem,
             Paragraph as PdfParagraph,
-            Preformatted,
             SimpleDocTemplate,
             Spacer,
         )
 
-        styles = getSampleStyleSheet()
-        accent = colors.HexColor(f"#{_ACCENT}")
-        body_style = ParagraphStyle(
-            "MyAiBody", parent=styles["BodyText"],
-            fontSize=10.5, leading=15, spaceAfter=7,
+        subtitle = _generated_on(lang)
+        empty = tr("document.empty", _lang=lang)
+        # Police qui écrit tout le texte, mentions fixes comprises
+        font, bold = pdf_fonts("\n".join(
+            [_document_text(blocks, title), subtitle, empty, tr("document.page", _lang=lang, n=1)]
+        ))
+        styles = _pdf_styles(font, bold)
+
+        document = SimpleDocTemplate(
+            str(filepath), pagesize=A4, title=title or filepath.stem, author="My_AI",
+            leftMargin=20 * mm, rightMargin=20 * mm,
+            topMargin=18 * mm, bottomMargin=18 * mm,
         )
-        quote_style = ParagraphStyle(
-            "MyAiQuote", parent=body_style,
-            leftIndent=14, textColor=colors.HexColor("#555555"),
-            borderPadding=4, spaceBefore=6, spaceAfter=8,
-        )
-        code_style = ParagraphStyle(
-            "MyAiCode", parent=styles["Code"],
-            fontName="Courier", fontSize=8.5, leading=11,
-            backColor=colors.HexColor(f"#{_CODE_BG}"),
-            borderPadding=6, spaceBefore=6, spaceAfter=8,
-        )
-        heading_styles = {
-            level: ParagraphStyle(
-                f"MyAiH{level}", parent=styles["Heading1"],
-                fontSize=max(18 - 2 * level, 10.5),
-                leading=max(22 - 2 * level, 13),
-                textColor=accent,
-                spaceBefore=16 if level == 1 else 12,
-                spaceAfter=6,
-            )
-            for level in range(1, 7)
-        }
-        title_style = ParagraphStyle(
-            "MyAiTitle", parent=styles["Title"],
-            fontSize=22, leading=26, textColor=accent, spaceAfter=4,
-        )
-        subtitle_style = ParagraphStyle(
-            "MyAiSubtitle", parent=styles["Normal"],
-            fontSize=9, alignment=TA_CENTER,
-            textColor=colors.HexColor("#808080"), spaceAfter=18,
-        )
+        # Largeur des lignes : celle du cadre, moins ses marges intérieures (6 pt de chaque côté)
+        width = document.width - 12
+
+        def paragraph(inlines: List[Inline], style, rtl: Optional[bool] = None,
+                      room: float = width) -> PdfParagraph:
+            """Paragraphe de fragments stylés, large de `room` ; l'arabe et l'hébreu de
+            droite à gauche, sens imposé par `rtl` (liste, tableau) ou donné par le texte."""
+            markup = runs_markup(_pdf_runs(inlines, font), style, room, rtl=rtl, font=bold)
+            if rtl is None:
+                style = aligned(style, inlines_to_text(inlines))
+            elif rtl:
+                style = rtl_style(style)
+            return PdfParagraph(markup or " ", style)
+
+        def plain(text: str, style) -> PdfParagraph:
+            """Paragraphe d'un texte brut : titre, mentions fixes."""
+            return PdfParagraph(paragraph_markup(text, style, width), aligned(style, text))
 
         story = []
         if title:
-            story.append(PdfParagraph(_pdf_escape(title), title_style))
-            story.append(
-                PdfParagraph(
-                    f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}",
-                    subtitle_style,
-                )
-            )
+            story += [plain(title, styles["title"]), plain(subtitle, styles["subtitle"])]
 
         for block in blocks:
             if isinstance(block, Heading):
-                story.append(
-                    PdfParagraph(_pdf_inlines(block.inlines), heading_styles[min(block.level, 6)])
-                )
+                story.append(paragraph(block.inlines, styles[f"h{min(block.level, 6)}"]))
             elif isinstance(block, Paragraph):
-                story.append(PdfParagraph(_pdf_inlines(block.inlines), body_style))
+                story.append(paragraph(block.inlines, styles["body"]))
             elif isinstance(block, ListBlock):
-                items = [
-                    PdfListItem(
-                        PdfParagraph(_pdf_inlines(item.inlines), body_style),
-                        leftIndent=12 * (item.level + 1),
-                    )
-                    for item in block.items
-                ]
-                if items:
-                    story.append(
-                        ListFlowable(
-                            items,
-                            bulletType="1" if block.ordered else "bullet",
-                            bulletFontSize=9,
-                            leftIndent=14,
-                        )
-                    )
-                    story.append(Spacer(1, 6))
+                story += _pdf_list(block, styles["body"], paragraph, width)
             elif isinstance(block, Table):
-                story.append(_pdf_table(block, body_style, PdfParagraph, colors))
+                story.append(_pdf_table(block, styles["body"], paragraph, colors, width))
                 story.append(Spacer(1, 10))
             elif isinstance(block, CodeBlock):
-                story.append(Preformatted(block.code, code_style))
+                story.append(_pdf_code(block.code, styles["code"], font))
             elif isinstance(block, Quote):
-                story.append(PdfParagraph(_pdf_inlines(block.inlines), quote_style))
+                story.append(paragraph(block.inlines, styles["quote"]))
             elif isinstance(block, Rule):
                 story.append(
                     HRFlowable(width="100%", color=colors.HexColor("#CCCCCC"),
@@ -502,18 +498,14 @@ class DocumentGenerator:
                 )
 
         if not story:
-            story.append(PdfParagraph("(document vide)", body_style))
+            story.append(plain(empty, styles["body"]))
 
-        document = SimpleDocTemplate(
-            str(filepath), pagesize=A4, title=title or filepath.stem, author="My_AI",
-            leftMargin=20 * mm, rightMargin=20 * mm,
-            topMargin=18 * mm, bottomMargin=18 * mm,
-        )
-        document.build(story, onFirstPage=_pdf_page_number, onLaterPages=_pdf_page_number)
+        page_number = _pdf_page_number(font, lang)
+        document.build(story, onFirstPage=page_number, onLaterPages=page_number)
 
     # ── Backend PPTX ───────────────────────────────────────────────────────
 
-    def _build_pptx(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_pptx(self, blocks: List[Block], title: str, filepath: Path, lang: str) -> None:
         """Rend les blocs en présentation PowerPoint, une diapo par `##`."""
         from pptx import Presentation
         from pptx.util import Pt
@@ -522,12 +514,7 @@ class DocumentGenerator:
         layouts = presentation.slide_layouts
         content_layout = layouts[1]
         title_only_layout = layouts[5] if len(layouts) > 5 else layouts[1]
-
-        # Diapositive de couverture
-        cover = presentation.slides.add_slide(layouts[0])
-        cover.shapes.title.text = title or filepath.stem
-        if len(cover.placeholders) > 1:
-            cover.placeholders[1].text = datetime.now().strftime("%d/%m/%Y")
+        _pptx_add_cover(presentation, title or filepath.stem, lang)
 
         # « emitted » compte les diapos déjà produites pour le titre courant :
         # un tableau coupe l'accumulation, et la suite doit être numérotée
@@ -574,7 +561,7 @@ class DocumentGenerator:
             elif isinstance(block, Paragraph):
                 state["bullets"].append((block.text, 0))
             elif isinstance(block, Quote):
-                state["bullets"].append((f"« {block.text} »", 0))
+                state["bullets"].append((tr("document.quote", _lang=lang, text=block.text), 0))
             elif isinstance(block, ListBlock):
                 state["bullets"].extend((item.text, item.level) for item in block.items)
             elif isinstance(block, CodeBlock):
@@ -588,11 +575,12 @@ class DocumentGenerator:
                 )
 
         flush_slide()
+        _pptx_right_to_left(presentation)
         presentation.save(str(filepath))
 
     # ── Backend XLSX ───────────────────────────────────────────────────────
 
-    def _build_xlsx(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_xlsx(self, blocks: List[Block], title: str, filepath: Path, lang: str) -> None:
         """Rend les tableaux en feuilles Excel et la prose en feuille « Notes »."""
         from openpyxl import Workbook
 
@@ -600,7 +588,8 @@ class DocumentGenerator:
         workbook.remove(workbook.active)
 
         used_names: List[str] = []
-        section = title or "Données"
+        section = title or tr("document.sheet.data", _lang=lang)
+        fallback = tr("document.sheet.default", _lang=lang)
         notes: List[tuple] = []  # (niveau de titre, texte) ; niveau 0 = prose
 
         for block in blocks:
@@ -608,12 +597,12 @@ class DocumentGenerator:
                 section = block.text or section
                 notes.append((block.level, block.text))
             elif isinstance(block, Table):
-                sheet = workbook.create_sheet(_unique_sheet_name(section, used_names))
+                sheet = workbook.create_sheet(_unique_sheet_name(section, used_names, fallback))
                 _xlsx_write_table(sheet, block)
             elif isinstance(block, Paragraph):
                 notes.append((0, block.text))
             elif isinstance(block, Quote):
-                notes.append((0, f"« {block.text} »"))
+                notes.append((0, tr("document.quote", _lang=lang, text=block.text)))
             elif isinstance(block, ListBlock):
                 notes.extend(
                     (0, f"{'    ' * item.level}• {item.text}") for item in block.items
@@ -622,21 +611,30 @@ class DocumentGenerator:
                 notes.extend((0, line) for line in block.code.splitlines())
 
         if notes:
-            sheet = workbook.create_sheet(_unique_sheet_name("Notes", used_names), 0)
+            notes_name = tr("document.sheet.notes", _lang=lang)
+            sheet = workbook.create_sheet(_unique_sheet_name(notes_name, used_names, fallback), 0)
             _xlsx_write_notes(sheet, title, notes)
 
         if not workbook.sheetnames:
-            workbook.create_sheet("Document")["A1"] = title or "Document vide"
+            name = _unique_sheet_name(tr("document.defaultTitle", _lang=lang), used_names, fallback)
+            workbook.create_sheet(name)["A1"] = title or tr("document.emptyTitle", _lang=lang)
+
+        if is_rtl(lang):
+            # Feuilles de droite à gauche, colonne A à droite, comme Excel en arabe
+            for sheet in workbook.worksheets:
+                sheet.sheet_view.rightToLeft = True
 
         workbook.save(str(filepath))
 
     # ── Backends texte ─────────────────────────────────────────────────────
 
-    def _build_markdown(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_markdown(self, blocks: List[Block], title: str, filepath: Path,
+                        _lang: str = "") -> None:
         """Réécrit les blocs en Markdown canonique."""
         filepath.write_text(_blocks_to_markdown(blocks, title), encoding="utf-8")
 
-    def _build_txt(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_txt(self, blocks: List[Block], title: str, filepath: Path,
+                   _lang: str = "") -> None:
         """Rend les blocs en texte brut indenté."""
         lines: List[str] = []
         if title:
@@ -667,7 +665,8 @@ class DocumentGenerator:
                 lines += ["-" * 60, ""]
         filepath.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
-    def _build_html(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_html(self, blocks: List[Block], title: str, filepath: Path,
+                    _lang: str = "") -> None:
         """Rend les blocs en page HTML autonome (même rendu que l'aperçu)."""
         from interfaces.document_preview import render_blocks_html, wrap_preview_page
 
@@ -675,7 +674,7 @@ class DocumentGenerator:
             wrap_preview_page(title, render_blocks_html(blocks, title)), encoding="utf-8"
         )
 
-    def _build_csv(self, blocks: List[Block], title: str, filepath: Path) -> None:
+    def _build_csv(self, blocks: List[Block], title: str, filepath: Path, lang: str) -> None:
         """Écrit le premier tableau rencontré en CSV (séparateur « ; »)."""
         import csv
 
@@ -688,7 +687,7 @@ class DocumentGenerator:
                     [_cell_text(value) for value in row] for row in tables[0].rows
                 )
             else:
-                writer.writerow([title or "Contenu"])
+                writer.writerow([title or tr("document.csvContent", _lang=lang)])
                 for block in blocks:
                     text = getattr(block, "text", "")
                     if text:
@@ -792,8 +791,8 @@ def _docx_shade_cell(cell, hex_color: str) -> None:
     cell._tc.get_or_add_tcPr().append(shading)  # noqa: SLF001 - pas d'API publique
 
 
-def _docx_add_code(document, block: CodeBlock) -> None:
-    """Ajoute un bloc de code en monospace sur fond tramé."""
+def _docx_add_code(document, block: CodeBlock):
+    """Ajoute un bloc de code en monospace sur fond tramé ; renvoie son paragraphe."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     from docx.shared import Pt
@@ -807,9 +806,10 @@ def _docx_add_code(document, block: CodeBlock) -> None:
     run = paragraph.add_run(block.code)
     run.font.name = "Consolas"
     run.font.size = Pt(9)
+    return paragraph
 
 
-def _docx_add_toc(document) -> None:
+def _docx_add_toc(document, lang: str) -> None:
     """
     Insère un champ TOC (sommaire Word).
 
@@ -819,7 +819,7 @@ def _docx_add_toc(document) -> None:
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
 
-    document.add_heading("Sommaire", level=1)
+    document.add_heading(tr("document.toc", _lang=lang), level=1)
     run = document.add_paragraph().add_run()
 
     begin = OxmlElement("w:fldChar")
@@ -830,7 +830,7 @@ def _docx_add_toc(document) -> None:
     separate = OxmlElement("w:fldChar")
     separate.set(qn("w:fldCharType"), "separate")
     placeholder = OxmlElement("w:t")
-    placeholder.text = "Ouvrez le document dans Word puis F9 pour calculer le sommaire."
+    placeholder.text = tr("document.tocHint", _lang=lang)
     end = OxmlElement("w:fldChar")
     end.set(qn("w:fldCharType"), "end")
 
@@ -839,18 +839,22 @@ def _docx_add_toc(document) -> None:
     document.add_page_break()
 
 
-def _docx_add_page_number_footer(document) -> None:
-    """Ajoute « Page N » centré dans le pied de page de toutes les sections."""
+def _docx_add_page_number_footer(document, lang: str) -> None:
+    """Ajoute « Page N » centré dans le pied de page de toutes les sections, dans la
+    langue du document : le texte avant et après le numéro (« 第 », « 页 »…) encadre
+    le champ PAGE."""
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     from docx.shared import Pt
 
+    # (texte avant le numéro, « {n} », texte après)
+    label = tr("document.page", _lang=lang).partition("{n}")
     for section in document.sections:
         paragraph = section.footer.paragraphs[0]
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        label = paragraph.add_run("Page ")
-        label.font.size = Pt(8)
+        if label[0]:
+            paragraph.add_run(label[0]).font.size = Pt(8)
 
         field_run = paragraph.add_run()
         field_run.font.size = Pt(8)
@@ -863,6 +867,65 @@ def _docx_add_page_number_footer(document) -> None:
         end.set(qn("w:fldCharType"), "end")
         for element in (begin, instruction, end):
             field_run._r.append(element)  # noqa: SLF001 - pas d'API publique
+        if label[2]:
+            paragraph.add_run(label[2]).font.size = Pt(8)
+
+
+# Éléments de w:pPr qui suivent w:bidi, dans l'ordre du schéma OOXML
+_PPR_AFTER_BIDI = (
+    "w:adjustRightInd", "w:snapToGrid", "w:spacing", "w:ind", "w:contextualSpacing",
+    "w:mirrorIndents", "w:suppressOverlap", "w:jc", "w:textDirection", "w:textAlignment",
+    "w:textboxTightWrap", "w:outlineLvl", "w:divId", "w:cnfStyle", "w:rPr", "w:sectPr",
+    "w:pPrChange",
+)
+
+
+def _docx_right_to_left(document, code_paragraphs) -> None:
+    """
+    Met de droite à gauche les paragraphes en arabe ou en hébreu, et les
+    tableaux dont l'en-tête l'est : colonnes et cellules, nombres compris. Le
+    code (`code_paragraphs`) reste de gauche à droite.
+    """
+    skipped = [paragraph._p for paragraph in code_paragraphs]  # noqa: SLF001
+    # (paragraphe, de droite à gauche quel que soit son texte)
+    paragraphs = [(paragraph, False) for paragraph in document.paragraphs]
+    for table in document.tables:
+        rtl = bool(table.rows) and rtl_paragraph(
+            " ".join(cell.text for cell in table.rows[0].cells)
+        )
+        if rtl:
+            table._tbl.tblPr.get_or_add_bidiVisual()  # noqa: SLF001 - pas d'API publique
+        paragraphs.extend(
+            (paragraph, rtl) for row in table.rows for cell in row.cells
+            for paragraph in cell.paragraphs
+        )
+    for section in document.sections:
+        paragraphs.extend((paragraph, False) for paragraph in section.footer.paragraphs)
+
+    for paragraph, forced in paragraphs:
+        code = paragraph._p in skipped  # noqa: SLF001 - pas d'API publique
+        if not code and (forced or rtl_paragraph(paragraph.text)):
+            _docx_paragraph_right_to_left(paragraph)
+
+
+def _docx_paragraph_right_to_left(paragraph) -> None:
+    """
+    Un paragraphe de droite à gauche (``w:bidi``), ses fragments aussi (``w:rtl``).
+
+    Word lie les lettres lui-même, mais sans ``w:bidi`` il alignait le
+    paragraphe à gauche, la ponctuation au mauvais bout ; et il ne met l'arabe
+    en gras ou en italique que par ``w:bCs`` et ``w:iCs``.
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    properties = paragraph._p.get_or_add_pPr()  # noqa: SLF001 - pas d'API publique
+    if properties.find(qn("w:bidi")) is None:
+        properties.insert_element_before(OxmlElement("w:bidi"), *_PPR_AFTER_BIDI)
+    for run in paragraph.runs:
+        run.font.rtl = True
+        run.font.cs_bold = run.bold
+        run.font.cs_italic = run.italic
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -875,25 +938,139 @@ def _pdf_escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _pdf_inlines(inlines: List[Inline]) -> str:
-    """Convertit des fragments stylés en balisage reportlab."""
-    parts = []
+def _pdf_styles(font: str, bold: str) -> Dict[str, Any]:
+    """Styles reportlab du document dans sa police (`font`, `bold`) : corps
+    (body), citation (quote), code, titre (title), mention sous le titre
+    (subtitle) et titres de section (h1 à h6)."""
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+
+    sample = getSampleStyleSheet()
+    accent = colors.HexColor(f"#{_ACCENT}")
+    wrap = word_wrap(font)
+    body = ParagraphStyle(
+        "MyAiBody", parent=sample["BodyText"],
+        fontName=font, fontSize=10.5, leading=15, spaceAfter=7, wordWrap=wrap,
+    )
+    styles = {
+        "body": body,
+        "quote": ParagraphStyle(
+            "MyAiQuote", parent=body,
+            leftIndent=14, textColor=colors.HexColor("#555555"),
+            borderPadding=4, spaceBefore=6, spaceAfter=8,
+        ),
+        "code": ParagraphStyle(
+            "MyAiCode", parent=sample["Code"],
+            fontName="Courier", fontSize=8.5, leading=11,
+            backColor=colors.HexColor(f"#{_CODE_BG}"),
+            borderPadding=6, spaceBefore=6, spaceAfter=8,
+        ),
+        "title": ParagraphStyle(
+            "MyAiTitle", parent=sample["Title"],
+            fontName=bold, fontSize=22, leading=26, textColor=accent, spaceAfter=4,
+            wordWrap=wrap,
+        ),
+        "subtitle": ParagraphStyle(
+            "MyAiSubtitle", parent=sample["Normal"],
+            fontName=font, fontSize=9, alignment=TA_CENTER, wordWrap=wrap,
+            textColor=colors.HexColor("#808080"), spaceAfter=18,
+        ),
+    }
+    for level in range(1, 7):
+        styles[f"h{level}"] = ParagraphStyle(
+            f"MyAiH{level}", parent=sample["Heading1"],
+            fontName=bold, wordWrap=wrap,
+            fontSize=max(18 - 2 * level, 10.5),
+            leading=max(22 - 2 * level, 13),
+            textColor=accent,
+            spaceBefore=16 if level == 1 else 12,
+            spaceAfter=6,
+        )
+    return styles
+
+
+def _pdf_list(block: ListBlock, body_style, paragraph, width: float) -> list:
+    """
+    Flowables d'une liste ; `paragraph(inlines, style, rtl, room)` écrit un élément.
+
+    ListFlowable met puces et numéros à gauche : en arabe ou en hébreu, chaque
+    élément devient un paragraphe que sa puce ou son numéro ouvre, à droite.
+    """
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import ListFlowable, ListItem as PdfListItem, Spacer
+
+    if not block.items:
+        return []
+    if rtl_paragraph(" ".join(item.text for item in block.items)):
+        flowables = []
+        for number, item in enumerate(block.items, start=1):
+            marker = f"{number}. " if block.ordered else "• "
+            style = ParagraphStyle(
+                f"MyAiItem{item.level}", parent=body_style,
+                leftIndent=14 + 12 * item.level, spaceAfter=3,
+            )
+            inlines = [(marker, frozenset(), None), *item.inlines]
+            flowables.append(paragraph(inlines, style, rtl=True))
+        return [*flowables, Spacer(1, 6)]
+    items = [
+        PdfListItem(
+            # Retrait de la liste (14) et de l'élément
+            paragraph(item.inlines, body_style, room=width - 14 - 12 * (item.level + 1)),
+            leftIndent=12 * (item.level + 1),
+        )
+        for item in block.items
+    ]
+    return [
+        ListFlowable(items, bulletType="1" if block.ordered else "bullet",
+                     bulletFontSize=9, leftIndent=14),
+        Spacer(1, 6),
+    ]
+
+
+def _pdf_code(code: str, code_style, font: str):
+    """Bloc de code, de gauche à droite : en Courier s'il est en alphabet latin,
+    sinon dans la police du document (`font`), qui l'écrit."""
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Preformatted
+
+    style = code_style
+    if code_font(code, font) != "Courier":
+        style = ParagraphStyle("MyAiCodeText", parent=code_style, fontName=font)
+    return Preformatted("\n".join(visual(line, rtl=False) for line in code.split("\n")), style)
+
+
+def _pdf_runs(inlines: List[Inline], font: str = "Helvetica") -> List[Run]:
+    """Fragments stylés en (texte, balises ouvrantes, balises fermantes) reportlab.
+
+    Le code en ligne passe en Courier s'il est en alphabet latin, sinon dans la
+    police du document (`font`), qui l'écrit.
+    """
+    runs: List[Run] = []
     for text, styles, url in inlines:
-        rendered = _pdf_escape(text)
+        opening = closing = ""
         if "code" in styles:
-            rendered = f'<font face="Courier" size="9">{rendered}</font>'
+            opening, closing = f'<font face="{code_font(text, font)}" size="9">', "</font>"
         if "bold" in styles:
-            rendered = f"<b>{rendered}</b>"
+            opening, closing = f"<b>{opening}", f"{closing}</b>"
         if "italic" in styles:
-            rendered = f"<i>{rendered}</i>"
+            opening, closing = f"<i>{opening}", f"{closing}</i>"
         if url:
-            rendered = f'<link href="{_pdf_escape(url)}" color="#1F4E79">{rendered}</link>'
-        parts.append(rendered)
-    return "".join(parts) or " "
+            opening = f'<link href="{_pdf_escape(url)}" color="#1F4E79">{opening}'
+            closing = f"{closing}</link>"
+        runs.append((text, opening, closing))
+    return runs
 
 
-def _pdf_table(block: Table, body_style, PdfParagraph, colors):
-    """Construit un Table reportlab dont les cellules savent passer à la ligne."""
+def _pdf_table(block: Table, body_style, paragraph, colors, width: float):
+    """Construit un Table reportlab dont les cellules savent passer à la ligne.
+
+    `paragraph(inlines, style, rtl, room)` écrit une cellule. Un tableau dont
+    l'en-tête est en arabe ou en hébreu se lit de droite à gauche : première
+    colonne à droite, cellules alignées à droite. Dès qu'une cellule contient
+    de l'arabe ou de l'hébreu, les colonnes ont une largeur égale, celle où
+    les lignes de ses cellules sont coupées.
+    """
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import Table as PdfTable, TableStyle
 
@@ -902,16 +1079,22 @@ def _pdf_table(block: Table, body_style, PdfParagraph, colors):
     )
     header_style = ParagraphStyle("MyAiCellHead", parent=cell_style, textColor=colors.white)
 
-    data = [[
-        PdfParagraph(_pdf_inlines(_cell_inlines(label, force={"bold"})), header_style)
-        for label in block.header
-    ]]
-    data += [
-        [PdfParagraph(_pdf_inlines(_cell_inlines(cell)), cell_style) for cell in row]
-        for row in block.rows
-    ]
+    rtl = rtl_paragraph(" ".join(_cell_text(label) for label in block.header))
+    column = width / max(len(block.header), 1)
 
-    table = PdfTable(data, repeatRows=1, hAlign="LEFT")
+    def cells(values: List[str], style, force=frozenset()) -> list:
+        # Largeur d'une colonne, moins les marges intérieures des cellules (5 pt de chaque côté)
+        row = [paragraph(_cell_inlines(value, force=force), style, rtl=rtl or None,
+                         room=column - 10) for value in values]
+        return row[::-1] if rtl else row
+
+    data = [cells(block.header, header_style, force={"bold"})]
+    data += [cells(row, cell_style) for row in block.rows]
+
+    table = PdfTable(
+        data, repeatRows=1, hAlign="RIGHT" if rtl else "LEFT",
+        colWidths=[column] * len(block.header) if has_rtl(_document_text([block], "")) else None,
+    )
     table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(f"#{_ACCENT}")),
@@ -927,18 +1110,60 @@ def _pdf_table(block: Table, body_style, PdfParagraph, colors):
     return table
 
 
-def _pdf_page_number(canvas, document) -> None:
-    """Callback de page reportlab : numéro centré en pied de page."""
-    canvas.saveState()
-    canvas.setFont("Helvetica", 8)
-    canvas.setFillGray(0.5)
-    canvas.drawCentredString(document.pagesize[0] / 2.0, 12, f"Page {canvas.getPageNumber()}")
-    canvas.restoreState()
+def _pdf_page_number(font: str, lang: str):
+    """Callback de page reportlab : « Page N » centré en pied de page, dans la
+    police et la langue du document."""
+
+    def draw(canvas, document) -> None:
+        canvas.saveState()
+        canvas.setFont(font, 8)
+        canvas.setFillGray(0.5)
+        label = visual(tr("document.page", _lang=lang, n=canvas.getPageNumber()))
+        canvas.drawCentredString(document.pagesize[0] / 2.0, 12, label)
+        canvas.restoreState()
+
+    return draw
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  Aides PPTX
 # ══════════════════════════════════════════════════════════════════════════
+
+
+def _pptx_add_cover(presentation, title: str, lang: str) -> None:
+    """Diapositive de couverture : le titre, et la date dans la langue du document."""
+    cover = presentation.slides.add_slide(presentation.slide_layouts[0])
+    cover.shapes.title.text = title
+    if len(cover.placeholders) > 1:
+        cover.placeholders[1].text = _date(lang, datetime.now())
+
+
+def _pptx_text_frames(presentation):
+    """(cadre de texte, aligné à droite, de droite à gauche quel que soit son
+    texte) de chaque forme : titres, corps des diapositives, et cellules des
+    tableaux, toutes de droite à gauche quand l'en-tête l'est."""
+    for slide in presentation.slides:
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                yield shape.text_frame, shape != slide.shapes.title, False
+            if getattr(shape, "has_table", False):
+                table = shape.table
+                rtl = rtl_paragraph(" ".join(cell.text for cell in table.rows[0].cells))
+                yield from ((cell.text_frame, True, rtl) for cell in table.iter_cells())
+
+
+def _pptx_right_to_left(presentation) -> None:
+    """Met de droite à gauche (rtl) les paragraphes en arabe ou en hébreu : à
+    droite dans le corps des diapositives et les tableaux, centrés comme avant
+    dans les titres."""
+    from pptx.enum.text import PP_ALIGN
+
+    for frame, to_right, forced in _pptx_text_frames(presentation):
+        for paragraph in frame.paragraphs:
+            if forced or rtl_paragraph(paragraph.text):
+                paragraph._p.get_or_add_pPr().set("rtl", "1")  # noqa: SLF001
+                if to_right:
+                    paragraph.alignment = PP_ALIGN.RIGHT
 
 
 def _pptx_body_placeholder(slide):
@@ -963,6 +1188,9 @@ def _pptx_add_table(presentation, layout, heading: str, block: Table) -> None:
     table = slide.shapes.add_table(
         rows, columns, Inches(0.6), Inches(1.8), Inches(8.8), Inches(0.4 * rows)
     ).table
+    if rtl_paragraph(" ".join(_cell_text(label) for label in block.header)):
+        # En-tête en arabe ou en hébreu : colonnes de droite à gauche, la première à droite
+        table._tbl.get_or_add_tblPr().set("rtl", "1")  # noqa: SLF001 - pas d'API publique
 
     for index, label in enumerate(block.header):
         _pptx_write_cell(table.cell(0, index), _cell_inlines(label, force={"bold"}), Pt(12))
@@ -995,9 +1223,10 @@ _SHEET_FORBIDDEN_RE = re.compile(r"[\[\]:*?/\\]")
 _SHEET_NAME_MAX = 31
 
 
-def _unique_sheet_name(raw: str, used: List[str]) -> str:
-    """Normalise un nom de feuille Excel et garantit son unicité."""
-    name = (_SHEET_FORBIDDEN_RE.sub(" ", raw or "Feuille").strip() or "Feuille")[:_SHEET_NAME_MAX]
+def _unique_sheet_name(raw: str, used: List[str], fallback: str = "Feuille") -> str:
+    """Normalise un nom de feuille Excel et garantit son unicité (`fallback` : nom
+    d'une feuille sans titre, dans la langue du document)."""
+    name = (_SHEET_FORBIDDEN_RE.sub(" ", raw or fallback).strip() or fallback)[:_SHEET_NAME_MAX]
     candidate = name
     counter = 2
     taken = {existing.lower() for existing in used}
@@ -1150,8 +1379,59 @@ def _first_sentence(text: str, limit: int = 70) -> str:
     """Extrait un titre de repli depuis la demande de l'utilisateur."""
     cleaned = " ".join((text or "").split())
     if not cleaned:
-        return "Document"
-    return (re.split(r"[.!?\n]", cleaned)[0][:limit] or "Document").strip()
+        return tr("document.defaultTitle")
+    return (re.split(r"[.!?\n]", cleaned)[0][:limit] or tr("document.defaultTitle")).strip()
+
+
+def _document_text(blocks: List[Block], title: str, code: bool = True) -> str:
+    """Tout le texte du document, sans le Markdown : ses polices, et sans le
+    code (`code=False`), sa langue."""
+    parts = [title or ""]
+    for block in blocks:
+        if isinstance(block, ListBlock):
+            parts.extend(item.text for item in block.items)
+        elif isinstance(block, Table):
+            parts.extend(_cell_text(value) for row in [block.header, *block.rows] for value in row)
+        elif isinstance(block, CodeBlock):
+            parts.append(block.code if code else "")
+        else:
+            parts.append(getattr(block, "text", ""))
+    return "\n".join(part for part in parts if part)
+
+
+def _document_language(blocks: List[Block], title: str) -> str:
+    """
+    Langue du document, pour ses mentions fixes.
+
+    Une écriture propre à une seule langue de My_AI la donne dès qu'elle écrit
+    la majorité des lettres (arabe, cyrillique, hangul, kana, idéogrammes). En
+    alphabet latin, la détection sur le texte, quand il y en a assez pour la
+    reconnaître (deux tableaux de chiffres passaient pour de l'allemand), sinon
+    la langue de l'interface.
+    """
+    text = _document_text(blocks, title, code=False)
+    letters = [char for char in text if char.isalpha()]
+    counts = {lang: sum(1 for char in letters if script.match(char)) for lang, script in _SCRIPTS}
+    if counts["ja"]:
+        counts["ja"] += counts.pop("zh")  # les kanji d'un texte japonais
+    lang, count = max(counts.items(), key=lambda item: item[1])
+    if count * 2 > len(letters):
+        return lang
+    if len(letters) < _LANGUAGE_MIN_LETTERS:
+        return current_language()
+    return reply_language(text[:2000])
+
+
+def _date(lang: str, moment: datetime) -> str:
+    """Date dans l'écriture de la langue du document : 25/10/2026, 2026-10-25, 2026年10月25日…"""
+    return tr("document.date", _lang=lang, day=f"{moment.day:02d}",
+              month=f"{moment.month:02d}", year=moment.year)
+
+
+def _generated_on(lang: str) -> str:
+    """Mention « Généré le … à … » sous le titre, dans la langue du document."""
+    now = datetime.now()
+    return tr("document.generatedOn", _lang=lang, date=_date(lang, now), time=now.strftime("%H:%M"))
 
 
 def _table_column_widths(block: Table) -> List[int]:

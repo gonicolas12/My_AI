@@ -48,6 +48,9 @@ python-pptx>=0.6.21
 # GÉNÉRATION DE DOCUMENTS
 # ====================================
 reportlab>=4.0.0
+# Arabe des PDF : lettres liées (ReportLab ne les lie pas) et ordre de droite à gauche
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
 markdown>=3.4.0
 markdown2>=2.4.0
 

@@ -94,8 +94,8 @@ def test_preview_is_a_standalone_page(documents, fmt):
 def test_docx_preview_keeps_structure(documents):
     html = build_document_preview(str(documents["docx"]))
     assert "Espèces" in html
-    assert "<ul>" in html and "Baleine bleue" in html
-    assert "<table>" in html and "<th>Espèce</th>" in html
+    assert "<ul" in html and "Baleine bleue" in html
+    assert "<table" in html and "<th>Espèce</th>" in html
 
 
 def test_pptx_preview_shows_one_card_per_slide(documents):
@@ -108,7 +108,7 @@ def test_pptx_preview_shows_one_card_per_slide(documents):
 def test_xlsx_preview_shows_each_sheet(documents):
     html = build_document_preview(str(documents["xlsx"]))
     assert "sheet-title" in html
-    assert "<table>" in html
+    assert "<table" in html
     assert "Espèces" in html
 
 
@@ -120,7 +120,7 @@ def test_pdf_preview_renders_extracted_text(documents):
 
 def test_markdown_preview_is_rendered_not_escaped_wholesale(documents):
     html = build_document_preview(str(documents["md"]))
-    assert "<h2>" in html or "<h1>" in html
+    assert "<h2" in html or "<h1" in html
     assert "<strong>" in html
 
 
