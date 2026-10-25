@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.i18n import tr
+
 try:
     from utils.logger import setup_logger
     logger = setup_logger("memory_store")
@@ -360,15 +362,16 @@ class MemoryStore:
     def describe_provenance(item: Dict[str, Any]) -> str:
         """Construit une ligne de provenance lisible pour un item de mémoire."""
         if item.get("kind") == "fact":
-            src = item.get("source") or "manuel"
+            src = item.get("source") or tr("memory.provenance.manual")
             try:
                 conf_pct = int(float(item.get("confidence", 1.0)) * 100)
             except (TypeError, ValueError):
                 conf_pct = 100
-            parts = [f"source : {src}", f"confiance : {conf_pct}%"]
+            parts = [tr("memory.provenance.source", source=src),
+                     tr("memory.provenance.confidence", percent=conf_pct)]
             updated = str(item.get("updated_at", ""))
             if updated:
-                parts.append(f"maj : {updated[:19].replace('T', ' ')}")
+                parts.append(tr("memory.provenance.updated", date=updated[:19].replace("T", " ")))
             return "  ·  ".join(parts)
 
         meta = item.get("metadata", {}) or {}
@@ -377,7 +380,8 @@ class MemoryStore:
             parts = [f"💼 {name}"]
             role = meta.get("role", "")
             if role:
-                parts.append("🧑 vous" if role == "user" else "🤖 assistant")
+                parts.append(tr("memory.provenance.you" if role == "user"
+                                else "memory.provenance.assistant"))
             ts = str(meta.get("timestamp", ""))
             if ts:
                 parts.append(ts[:19].replace("T", " "))
@@ -388,7 +392,7 @@ class MemoryStore:
         parts = [f"📄 {name}"]
         chunk = meta.get("chunk_index")
         if chunk is not None:
-            parts.append(f"chunk {chunk}")
+            parts.append(tr("memory.provenance.chunk", n=chunk))
         created = str(meta.get("created", ""))
         if created:
             parts.append(created[:19].replace("T", " "))

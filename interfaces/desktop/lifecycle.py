@@ -25,7 +25,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
+from core import i18n
 from core.chat_service import ChatError, ChatService
+from core.i18n import tr
 from interfaces.desktop.agents import AgentsService
 from interfaces.desktop.events import EventBus
 from interfaces.desktop.memory import MemoryService
@@ -43,8 +45,6 @@ logger = setup_logger("DesktopApp")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # État local de l'interface (session courante, fenêtre, barre latérale), ignoré par git
 STATE_FILE = PROJECT_ROOT / "data" / ".desktop_state.json"
-
-OLLAMA_FAILED = "Ollama n'a pas pu démarrer — lancez l'application Ollama ou « ollama serve »"
 
 # Port du serveur local en mode --dev : celui que vise le proxy de Vite
 # (frontend/vite.config.ts, MY_AI_DESKTOP_PORT), pour lancer Vite et l'appli
@@ -65,6 +65,10 @@ class DesktopState:
     def __init__(self, path: Path = STATE_FILE):
         self._path = path
         self._lock = threading.Lock()
+
+    def exists(self) -> bool:
+        """Le fichier existe : la fenêtre a déjà été lancée sur ce poste."""
+        return self._path.exists()
 
     def read(self) -> Dict[str, Any]:
         """Contenu du fichier ({} s'il manque ou s'il est illisible)."""
@@ -158,7 +162,7 @@ class DesktopApp:
 
         self._lock = threading.Lock()
         self._status: Dict[str, Any] = {
-            "state": "starting", "step": "", "label": "Démarrage…", "detail": "",
+            "state": "starting", "step": "", "label": "", "detail": "",
             "error": None, "ollama": True, "placement": None,
         }
         self._relay_snapshot: Optional[Dict[str, Any]] = None
@@ -174,6 +178,10 @@ class DesktopApp:
 
     def start(self) -> str:
         """Démarre le serveur puis les étapes de lancement ; renvoie l'URL de la fenêtre."""
+        self._init_language()
+        # Libellé d'attente dans la langue choisie, avant la première étape
+        with self._lock:
+            self._status["label"] = tr("launch.starting")
         self.server.start()
         threading.Thread(target=self._launch, name="desktop-launch", daemon=True).start()
         return self.url
@@ -208,7 +216,8 @@ class DesktopApp:
             status = dict(self._status)
         self.bus.publish("engine.status", status)
 
-    def _step(self, step: str, label: str) -> None:
+    def _step(self, step: str) -> None:
+        label = tr(f"launch.{step}")
         logger.info("Lancement : %s", label)
         self._set_status(step=step, label=label, detail="")
 
@@ -216,41 +225,92 @@ class DesktopApp:
         """Étapes du lanceur, puis moteur et services (fil dédié)."""
         launcher = self._launcher
         try:
-            self._step("prefetch", "Préparation du modèle des longs documents…")
+            self._step("prefetch")
             launcher.prefetch_in_background()
 
-            self._step("ollama", "Démarrage d'Ollama…")
+            self._step("ollama")
             launcher._ensure_ollama_parallel()  # pylint: disable=protected-access
             ollama_ok = launcher._ollama_is_running()  # pylint: disable=protected-access
             # Arrêté sans repartir (et non « pas encore prêt ») : la fenêtre l'affiche
             if not ollama_ok and launcher._port_is_free():  # pylint: disable=protected-access
-                self._set_status(error=OLLAMA_FAILED, ollama=False)
+                self._set_status(error=tr("launch.ollamaFailed"), ollama=False)
 
-            self._step("onboarding", "Vérification de la configuration…")
+            self._step("onboarding")
             if not self._onboarding():
                 return  # appli fermée pendant l'assistant
 
-            self._step("model", "Vérification du modèle my_ai…")
+            self._step("model")
             launcher.sync_custom_model()
 
-            self._step("placement", "Placement du modèle…")
+            self._step("placement")
             launcher.ensure_best_placement(
                 launcher._restart_ollama,  # pylint: disable=protected-access
                 on_progress=lambda line: self._set_status(detail=line),
             )
             self._set_status(placement=launcher.placement_label())
 
-            self._step("engine", "Chargement du moteur…")
+            self._step("engine")
             self._start_engine()
 
-            self._step("services", "Démarrage des services…")
+            self._step("services")
             self._start_services()
             self._restore_session()
             self.preload_voice()
-            self._set_status(state="ready", step="ready", label="Prêt", detail="")
+            self._set_status(state="ready", step="ready", label=tr("launch.ready"), detail="")
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("Lancement en échec")
-            self._set_status(state="error", error=f"Lancement en échec : {exc}")
+            self._set_status(state="error", error=tr("launch.failed", error=exc))
+
+    # ── Langue ──────────────────────────────────────────────────────────────
+
+    def _init_language(self) -> None:
+        """Langue du réglage, ou celle du système au tout premier lancement.
+
+        Fenêtre jamais lancée sur ce poste (pas d'état local) : My_AI parle
+        d'emblée la langue du système s'il la connaît, l'anglais sinon ; le
+        choix reste modifiable dans l'assistant et les Réglages. Sans fenêtre
+        (--headless, tests), le réglage n'est jamais réécrit.
+        """
+        language = i18n.normalize(self.ollama_setup.values().get("language"))
+        if not self.headless and not self.state.exists():
+            detected = i18n.system_language()
+            if detected != language:
+                try:
+                    self.ollama_setup.set_flag("language.default", detected)
+                    language = detected
+                except Exception as exc:  # pylint: disable=broad-except
+                    logger.warning("Langue du système non enregistrée : %s", exc)
+            self.state.set("language_set", True)
+        i18n.set_language(language or i18n.SOURCE_LANGUAGE)
+
+    def language_view(self) -> Dict[str, Any]:
+        """Langue de l'interface et langues proposées (GET /api/i18n)."""
+        supported = [code for code in self.ollama_setup.values().get("languages", [])
+                     if i18n.normalize(code) == code]
+        return {"language": i18n.current_language(),
+                "languages": supported or list(i18n.SUPPORTED_LANGUAGES)}
+
+    def set_language(self, code: str) -> Dict[str, Any]:
+        """Langue de l'interface et langue par défaut du modèle, à chaud.
+
+        config.yaml, le moteur en cours, les messages du serveur ; la fenêtre
+        et les téléphones du Relay suivent (événement, message du Relay).
+        """
+        language = self.settings.set_language(code)
+        i18n.set_language(language)
+        self.state.set("language_set", True)
+        with self._lock:
+            ready = self._status.get("state") == "ready"
+        if ready:
+            self._set_status(label=tr("launch.ready"))
+        self.bus.publish("i18n.language", {"language": language})
+        relay = self.relay
+        if relay is not None:
+            try:
+                relay.broadcast_language(language)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.debug("Langue non envoyée au Relay : %s", exc)
+        return self.language_view()
 
     def _onboarding(self) -> bool:
         """Assistant de premier lancement (étape 3 du lanceur), dans la fenêtre.
@@ -274,7 +334,7 @@ class DesktopApp:
                   "est passé")
             return True
         print("🧭 Premier lancement détecté — assistant de configuration…")
-        self._set_status(state="onboarding", label="Configuration initiale")
+        self._set_status(state="onboarding", label=tr("launch.firstSetup"))
         if not self.first_launch.wait(lambda: self._closing):
             return False
         self._set_status(state="starting")
@@ -524,7 +584,7 @@ class DesktopApp:
             except Exception as exc:  # pylint: disable=broad-except
                 logger.error("Relay non démarré : %s", exc)
                 self.bus.publish("notification", {
-                    "level": "error", "message": "Impossible de démarrer My_AI Relay."})
+                    "level": "error", "message": tr("relay.startFailed")})
         self._watch_relay_status()
         return self.relay_status()
 
@@ -590,11 +650,9 @@ class DesktopApp:
         if status.get("access_failures", 0) <= previous.get("access_failures", 0):
             return
         if status.get("access_locked"):
-            self.notify("error", "Relay verrouillé : trop de codes d'accès erronés. Arrêtez-le "
-                                 "puis redémarrez-le pour un nouveau QR code et un nouveau code.")
+            self.notify("error", tr("relay.accessLocked"))
         else:
-            self.notify("warning", "Relay : code d'accès erroné saisi. Si ce n'est pas vous, "
-                                   "arrêtez le Relay : son lien a fuité.")
+            self.notify("warning", tr("relay.accessFailure"))
 
     def _watch_relay(self) -> None:
         """Tunnels et appareils connectés changent sans prévenir : relevés toutes les 2 s."""

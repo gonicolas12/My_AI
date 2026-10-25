@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, Optional
 import requests
 
 from core.config import get_config
+from core.i18n import tr
 
 # NB : torch / diffusers / torch_directml sont des dépendances OPTIONNELLES
 # (backend "diffusers" uniquement). Elles sont importées PARESSEUSEMENT dans les
@@ -230,20 +231,8 @@ class ImageGenerator:
 
     def unavailable_message(self) -> str:
         """Message clair de dégradation propre (style fallback Ollama)."""
-        return (
-            "🎨 **Génération d'image indisponible**\n\n"
-            "Aucun backend de génération d'image local n'a été détecté. "
-            "Pour activer cette fonctionnalité 100 % hors-ligne, lance l'un de ces "
-            "services en local :\n\n"
-            "- **Stable Diffusion WebUI (AUTOMATIC1111 / Forge)** — recommandé — "
-            "démarré avec l'option `--api` (écoute sur "
-            f"`{self.config.automatic1111_url}`). Forge est conseillé sur une petite "
-            "VRAM (ajoute `--medvram`).\n"
-            "- **ComfyUI** sur "
-            f"`{self.config.comfyui_url}`.\n\n"
-            "Le backend est configurable dans `config.yaml` → section "
-            "`image_generation:`."
-        )
+        return tr("image.unavailable", a1111=self.config.automatic1111_url,
+                  comfyui=self.config.comfyui_url)
 
     # ------------------------------------------------------------------
     # Génération
@@ -284,13 +273,13 @@ class ImageGenerator:
         if not prompt:
             return ImageGenResult(
                 success=False,
-                message="🎨 Précise ce que tu veux que je dessine.",
+                message=tr("image.emptyPrompt"),
                 error="empty_prompt",
             )
 
         if on_progress:
             try:
-                on_progress(0.02, f"Initialisation ({backend})…")
+                on_progress(0.02, tr("image.initializing", backend=backend))
             except Exception:
                 pass
 
@@ -323,24 +312,21 @@ class ImageGenerator:
                 backend=backend,
                 interrupted=True,
                 error="interrupted",
-                message="⏹️ Génération de l'image interrompue.",
+                message=tr("image.interrupted"),
             )
         except requests.exceptions.Timeout:
             return ImageGenResult(
                 success=False,
                 backend=backend,
                 error="timeout",
-                message=(
-                    f"⚠️ La génération a dépassé le délai de {self.config.timeout}s. "
-                    "Réduis la taille/le nombre d'étapes, ou vérifie le backend."
-                ),
+                message=tr("image.timeout", seconds=self.config.timeout),
             )
         except Exception as exc:
             return ImageGenResult(
                 success=False,
                 backend=backend,
                 error=str(exc),
-                message=f"⚠️ Échec de la génération d'image : {exc}",
+                message=tr("image.failed", error=exc),
             )
 
         # L'utilisateur a pu annuler pendant que le backend finissait sa requête.
@@ -350,7 +336,7 @@ class ImageGenerator:
                 backend=backend,
                 interrupted=True,
                 error="interrupted",
-                message="⏹️ Génération de l'image interrompue.",
+                message=tr("image.interrupted"),
             )
 
         if not png_bytes:
@@ -358,13 +344,13 @@ class ImageGenerator:
                 success=False,
                 backend=backend,
                 error="empty_result",
-                message="⚠️ Le backend n'a renvoyé aucune image.",
+                message=tr("image.noImage"),
             )
 
         path = self._save_png(png_bytes, prompt)
         if on_progress:
             try:
-                on_progress(1.0, "Terminé")
+                on_progress(1.0, tr("image.done"))
             except Exception:
                 pass
 
@@ -372,7 +358,7 @@ class ImageGenerator:
             success=True,
             image_path=path,
             backend=backend,
-            message=f"Voici l'image générée pour : **{prompt}**",
+            message=tr("image.result", prompt=prompt),
             info={"prompt": prompt, **params},
         )
 
@@ -428,10 +414,8 @@ class ImageGenerator:
                         eta = data.get("eta_relative", 0.0) or 0.0
                         # Mapper 0..1 → 0.05..0.95 (réserver le début/fin)
                         mapped = 0.05 + min(max(frac, 0.0), 1.0) * 0.9
-                        msg = (
-                            f"Génération… {int(frac * 100)}%"
-                            + (f" (≈{eta:.0f}s)" if eta else "")
-                        )
+                        msg = (tr("image.progressEta", percent=int(frac * 100), eta=f"{eta:.0f}")
+                               if eta else tr("image.progress", percent=int(frac * 100)))
                         try:
                             on_progress(mapped, msg)
                         except Exception:
@@ -518,7 +502,7 @@ class ImageGenerator:
         }
 
         if on_progress:
-            on_progress(0.1, "Soumission du workflow ComfyUI…")
+            on_progress(0.1, tr("image.comfyuiSubmit"))
 
         resp = self._post(
             f"{base}/prompt",
@@ -548,7 +532,7 @@ class ImageGenerator:
                         img_info = self._comfyui_first_image(hist["outputs"])
                         if img_info:
                             if on_progress:
-                                on_progress(0.95, "Récupération de l'image…")
+                                on_progress(0.95, tr("image.fetching"))
                             img = requests.get(
                                 f"{base}/view", params=img_info, timeout=30
                             )
@@ -557,7 +541,7 @@ class ImageGenerator:
             except Exception:
                 pass
             if on_progress:
-                on_progress(0.5, "Génération ComfyUI en cours…")
+                on_progress(0.5, tr("image.comfyuiRunning"))
             time.sleep(1.0)
         raise requests.exceptions.Timeout()
 
@@ -663,7 +647,7 @@ class ImageGenerator:
 
         if self._diffusers_pipe is None:
             if on_progress:
-                on_progress(0.05, "Chargement du modèle diffusers…")
+                on_progress(0.05, tr("image.loadingDiffusers"))
 
             device, dtype, label = self._detect_diffusers_device(torch)
             print(f"🎨 [ImageGen] Backend diffusers sur {label} (dtype={dtype})")
@@ -706,7 +690,7 @@ class ImageGenerator:
                 raise _GenerationInterrupted()
             if on_progress:
                 frac = 0.1 + (step / max(params["steps"], 1)) * 0.85
-                on_progress(min(frac, 0.95), f"Diffusion… étape {step}")
+                on_progress(min(frac, 0.95), tr("image.diffusionStep", step=step))
             return _kw
 
         kwargs: Dict[str, Any] = {

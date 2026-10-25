@@ -20,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from interfaces.desktop import agents as agents_module
+from core.i18n import tr
 from interfaces.desktop.agents import (BUSY, DEBATE_BUSY, DEBATE_INTERRUPTED, DEBATE_NO_TOPIC,
                                        DEBATE_SAME_AGENT, EMPTY_TASK, EXECUTOR_BUSY, INTERRUPTED,
                                        NO_AGENT, AgentsError, AgentsService, RunNotFound,
@@ -265,15 +266,15 @@ def test_a_failed_agent_marks_its_node_and_the_run(agents):
 
 
 def test_start_refuses_like_tk(agents, tmp_path):
-    with pytest.raises(AgentsError, match=NO_AGENT):
+    with pytest.raises(AgentsError, match=tr(NO_AGENT)):
         agents.service.start("Tâche", [], [])
-    with pytest.raises(AgentsError, match=EMPTY_TASK):
+    with pytest.raises(AgentsError, match=tr(EMPTY_TASK)):
         agents.service.start("   ", [node(0, "code")], [])
     with pytest.raises(AgentsError, match="Fichier introuvable"):
         agents.service.start("Tâche", [node(0, "code")], [],
                              [{"path": str(tmp_path / "absent.pdf")}])
     agents.relay._busy = True  # pylint: disable=protected-access
-    with pytest.raises(AgentsError, match=BUSY):
+    with pytest.raises(AgentsError, match=tr(BUSY)):
         agents.service.start("Tâche", [node(0, "code")], [])
     agents.relay._busy = False  # pylint: disable=protected-access
     assert agents.service.runs()["runs"] == []
@@ -282,7 +283,7 @@ def test_start_refuses_like_tk(agents, tmp_path):
 def test_one_run_at_a_time(agents):
     agents.orchestrator.delay = 0.05
     run_id = agents.service.start("Tâche", [node(0, "code")], [])
-    with pytest.raises(AgentsError, match=BUSY):
+    with pytest.raises(AgentsError, match=tr(BUSY)):
         agents.service.start("Autre", [node(0, "debug")], [])
     assert agents.service.stop(run_id)
     wait_run_end(agents, run_id)
@@ -295,7 +296,7 @@ def test_stop_interrupts_the_run(agents):
     assert agents.orchestrator.started.wait(5)
     assert agents.service.stop(run_id)
     run = wait_run_end(agents, run_id)
-    assert run["status"] == "interrupted" and run["status_text"] == INTERRUPTED
+    assert run["status"] == "interrupted" and run["status_text"] == tr(INTERRUPTED)
     assert [call[0] for call in agents.orchestrator.calls] == ["code"]  # étape suivante annulée
     assert run["node_status"]["1"] == "idle"
     assert not agents.service.stop(run_id)  # déjà fini
@@ -420,7 +421,7 @@ def test_a_run_left_running_is_reloaded_as_interrupted(tmp_path):
     service = AgentsService(lambda: None, lambda *a, **k: None, runs_file=runs_file)
     listed = service.runs()["runs"]
     assert len(listed) == agents_module.MAX_RUNS
-    assert listed[0]["status"] == "interrupted" and listed[0]["status_text"] == INTERRUPTED
+    assert listed[0]["status"] == "interrupted" and listed[0]["status_text"] == tr(INTERRUPTED)
     assert service.run("exec_0")["run"]["sections"][0]["status"] == "error"
     with pytest.raises(RunNotFound):
         service.run("../evil")
@@ -565,7 +566,7 @@ def test_run_routes(client, agents):
                              json={"task": "x", "nodes": [{"id": "a", "agent_type": "code"}]})
     assert bad.status_code == 422
     empty = client.client.post("/api/agents/runs", headers=AUTH, json={"task": "x", "nodes": []})
-    assert empty.status_code == 409 and empty.json()["detail"] == NO_AGENT
+    assert empty.status_code == 409 and empty.json()["detail"] == tr(NO_AGENT)
     started = client.client.post("/api/agents/runs", headers=AUTH, json={
         "task": "Somme", "nodes": [node(0, "code"), node(1, "debug")],
         "connections": [{"from": 0, "to": 1}]})
@@ -656,7 +657,7 @@ def test_debate_resources_and_focus_routes(client, agents):
     assert run["kind"] == "debate" and len(run["sections"]) == 2
     same = client.client.post("/api/agents/debates", headers=AUTH,
                               json={"agent_a": "code", "agent_b": "code", "topic": "Sujet"})
-    assert same.status_code == 409 and same.json()["detail"] == DEBATE_SAME_AGENT
+    assert same.status_code == 409 and same.json()["detail"] == tr(DEBATE_SAME_AGENT)
     too_long = client.client.post("/api/agents/debates", headers=AUTH, json={
         "agent_a": "code", "agent_b": "debug", "topic": "Sujet", "rounds": 11})
     assert too_long.status_code == 422
@@ -705,14 +706,14 @@ def test_a_debate_alternates_its_two_agents(agents):
 
 
 def test_a_debate_refuses_like_tk(agents):
-    with pytest.raises(AgentsError, match=DEBATE_SAME_AGENT):
+    with pytest.raises(AgentsError, match=tr(DEBATE_SAME_AGENT)):
         agents.service.start_debate("code", "code", "Sujet", 3)
-    with pytest.raises(AgentsError, match=DEBATE_NO_TOPIC):
+    with pytest.raises(AgentsError, match=tr(DEBATE_NO_TOPIC)):
         agents.service.start_debate("code", "debug", "   ", 3)
     with pytest.raises(AgentsError, match="Agent introuvable : absent"):
         agents.service.start_debate("code", "absent", "Sujet", 3)
     agents.relay._busy = True  # pylint: disable=protected-access
-    with pytest.raises(AgentsError, match=DEBATE_BUSY):
+    with pytest.raises(AgentsError, match=tr(DEBATE_BUSY)):
         agents.service.start_debate("code", "debug", "Sujet", 3)
     agents.relay._busy = False  # pylint: disable=protected-access
     assert agents.service.runs()["runs"] == []
@@ -727,7 +728,7 @@ def test_a_stopped_debate_says_so(agents):
     assert agents.orchestrator.started.wait(5)
     assert agents.service.stop(run_id)
     run = wait_run_end(agents, run_id)
-    assert run["status"] == "interrupted" and run["status_text"] == DEBATE_INTERRUPTED
+    assert run["status"] == "interrupted" and run["status_text"] == tr(DEBATE_INTERRUPTED)
     assert len(run["sections"]) == 1 and run["sections"][0]["status"] == "error"
 
 
@@ -777,7 +778,7 @@ def test_a_phone_run_is_refused_while_the_page_prepares_one(agents, tmp_path):
     phone = []
     tap.run_workflow("exec_phone", "Autre", [PHONE_NODE], [], phone.append)
     assert phone == [{"type": "agent_exec_error", "exec_id": "exec_phone",
-                      "message": EXECUTOR_BUSY}]
+                      "message": tr(EXECUTOR_BUSY)}]
     release.set()
     wait_run_end(agents, run_id)
     assert [run["id"] for run in agents.service.runs()["runs"]] == [run_id]

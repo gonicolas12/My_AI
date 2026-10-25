@@ -39,6 +39,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from core.i18n import tr
 from utils.logger import setup_logger
 from utils.path_links import IS_WINDOWS, find_existing_paths
 
@@ -48,7 +49,8 @@ logger = setup_logger("ChatService")
 # → événement publié (dict portant son seq), cf. interfaces/desktop/events.py
 EmitFn = Callable[..., Optional[Dict[str, Any]]]
 
-BUSY_MESSAGE = "⏳ Attendez la fin de la réponse en cours."
+# Messages : clés du catalogue (core/locales), traduites à l'envoi
+BUSY_MESSAGE = "chat.busy"
 
 # Génération de fichier : mêmes mots-clés que l'interface Tk et AIEngine
 FILE_GENERATION_KEYWORDS = (
@@ -60,25 +62,13 @@ FILE_GENERATION_KEYWORDS = (
 _FILENAME_RE = re.compile(r"fichier\s+([a-zA-Z0-9_\-]+\.\w+)", re.IGNORECASE)
 
 # Messages variés de fin de génération de fichier (interface Tk)
-FILE_GENERATION_MESSAGES = [
-    "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement sur son nom. 👇\n\nEst-ce que vous souhaitez autre chose ? ",
-    "🎉 Fichier généré avec succès ! Cliquez sur le nom pour le télécharger. 👇\n\nBesoin d'autre chose ? ",
-    "✨ Et voilà ! Votre fichier est créé. Un simple clic sur le nom pour le récupérer. 👇\n\nQue puis-je faire d'autre pour vous ? ",
-    "🚀 Génération terminée ! Le fichier est prêt au téléchargement (cliquez sur le nom). 👇\n\nUne autre demande ? ",
-    "💾 Fichier créé ! Téléchargez-le en cliquant sur son nom ci-dessous. 👇\n\nJe peux vous aider pour autre chose ? ",
-    "✅ Mission accomplie ! Votre fichier vous attend. Cliquez pour télécharger. 👇\n\nAutre chose à générer ? ",
-    "🎯 Fichier prêt à être téléchargé ! Un clic sur le nom et c'est bon. 👇\n\nQu'est-ce qu'on fait ensuite ? ",
-    "⚡ C'est fait ! Votre fichier est disponible. Cliquez dessus pour le récupérer. 👇\n\nUne autre création ? ",
-]
+FILE_GENERATION_MESSAGES = [f"chat.fileReady.{index}" for index in range(1, 9)]
 # Réponse retenue dans l'historique du modèle, sans le nom du fichier
-FILE_GENERATION_HISTORY = (
-    "✅ Votre fichier est prêt ! Vous pouvez le télécharger en cliquant simplement "
-    "sur son nom. 👇\n\n🚀 Est-ce que vous souhaitez autre chose ?"
-)
+FILE_GENERATION_HISTORY = "chat.fileReadyHistory"
 
 # Réponse interrompue, renvoyée au mobile
-INTERRUPTED_SUFFIX = "\n\n⚠️ *Réponse interrompue.*"
-INTERRUPTED_EMPTY = "⚠️ Réponse interrompue."
+INTERRUPTED_SUFFIX = "chat.interruptedSuffix"
+INTERRUPTED_EMPTY = "chat.interrupted"
 
 # Ligne de pièce jointe ajoutée au texte d'un message (cf. _bubble_text)
 ATTACH_LINE_RE = re.compile(r"^(?:📎|🖼️|🖼)\s+\S")
@@ -105,8 +95,7 @@ FOLDER_ATTACHMENT_LIMIT = 20
 _SESSION_NAME_MAX = 48
 
 # Message de la Mémoire introuvable dans sa session (index de recherche vieilli)
-MESSAGE_GONE = ("Message d'origine introuvable : la conversation a changé depuis "
-                "l'indexation. Réindexez la recherche, puis réessayez.")
+MESSAGE_GONE = "chat.messageGone"
 
 # Résultat d'outil en échec (début du texte renvoyé par l'outil)
 _FAILED_TOOL_STARTS = ("❌", "⚠️", "Erreur", "[Erreur", "[Suppression annulée", "[Interrompu")
@@ -172,12 +161,9 @@ def folder_attachment_files(folder: str) -> Tuple[List[str], int]:
                 continue
             files.append(os.path.join(root, file_name))
         if len(files) > FOLDER_ATTACHMENT_LIMIT:
-            raise ChatError(
-                f"📁 « {name} » contient plus de {FOLDER_ATTACHMENT_LIMIT} fichiers lisibles : "
-                "trop pour des pièces jointes. Attachez-le plutôt dans « Dossiers du projet »."
-            )
+            raise ChatError(tr("chat.folderTooBig", name=name, limit=FOLDER_ATTACHMENT_LIMIT))
     if not files:
-        raise ChatError(f"📁 Aucun fichier lisible dans « {name} »")
+        raise ChatError(tr("chat.folderEmpty", name=name))
     return files, images
 
 
@@ -245,7 +231,7 @@ def session_name_for(text: str) -> str:
     if len(body) > _SESSION_NAME_MAX:
         cut = body[:_SESSION_NAME_MAX].rsplit(" ", 1)[0] or body[:_SESSION_NAME_MAX]
         body = cut.rstrip(" ,;:.!?") + "…"
-    return body or "Conversation"
+    return body or tr("chat.defaultSessionName")
 
 
 def tool_label(tool_name: str, args: Dict[str, Any]) -> str:
@@ -253,24 +239,27 @@ def tool_label(tool_name: str, args: Dict[str, Any]) -> str:
     def base(key):
         return os.path.basename(args.get(key, "")) if key in args else ""
 
-    labels = {
-        "web_search": f"🔍 Recherche sur internet : « {args.get('query', '')} »",
-        "search_memory": "🧠 Consultation de la mémoire",
-        "remember_fact": f"🧠 Mémorisé : « {args.get('fact', '')} »",
-        "read_local_file": f"📄 Lecture du fichier : {args.get('path', '')}",
-        "list_directory": f"📁 Exploration du répertoire : {args.get('path', '.')}",
-        "generate_code": f"💻 Génération de code {args.get('language', '')}",
-        "generate_document": f"📄 Rédaction du document {args.get('format', '')}",
-        "edit_document": f"✏️ Modification de : {base('path')}",
-        "calculate": f"🔢 Calcul : {args.get('expression', '')}",
-        "search_local_files": f"🔎 Recherche de fichiers : « {args.get('query', '')} »",
-        "write_local_file": f"💾 Modification du fichier : {base('path')}",
-        "move_local_file": f"🚚 Déplacement : {base('source')}",
-        "delete_local_file": f"🗑️ Suppression : {base('path')}",
-        "create_directory": f"📂 Création du dossier : {base('path')}",
-        "synthesis": "🧠 Analyse du résultat et synthèse en cours",
+    params = {
+        "web_search": {"query": args.get("query", "")},
+        "search_memory": {},
+        "remember_fact": {"fact": args.get("fact", "")},
+        "read_local_file": {"path": args.get("path", "")},
+        "list_directory": {"path": args.get("path", ".")},
+        "generate_code": {"language": args.get("language", "")},
+        "generate_document": {"format": args.get("format", "")},
+        "edit_document": {"path": base("path")},
+        "calculate": {"expression": args.get("expression", "")},
+        "search_local_files": {"query": args.get("query", "")},
+        "write_local_file": {"path": base("path")},
+        "move_local_file": {"path": base("source")},
+        "delete_local_file": {"path": base("path")},
+        "create_directory": {"path": base("path")},
+        "synthesis": {},
     }
-    return labels.get(tool_name, f"🔧 Outil en cours : {tool_name}…")
+    if tool_name not in params:
+        return tr("tool.other", name=tool_name)
+    # Libellé sans espace final (« Génération de code » sans langage)
+    return tr(f"tool.{tool_name}", **params[tool_name]).rstrip()
 
 
 def _short_args(args: Dict[str, Any], limit: int = 400) -> Dict[str, Any]:
@@ -574,13 +563,13 @@ class ChatService:
         """
         with self._lock:
             if self._busy():
-                raise ChatError(BUSY_MESSAGE)
+                raise ChatError(tr(BUSY_MESSAGE))
         if not self._op_lock.acquire(timeout=5):
-            raise ChatError(BUSY_MESSAGE)
+            raise ChatError(tr(BUSY_MESSAGE))
         try:
             with self._lock:
                 if self._busy():
-                    raise ChatError(BUSY_MESSAGE)
+                    raise ChatError(tr(BUSY_MESSAGE))
                 yield
         finally:
             self._op_lock.release()
@@ -708,19 +697,15 @@ class ChatService:
             return self._edit(edit_mid, text, regenerate)
         message = (text or "").strip()
         if not message:
-            raise ChatError("Message vide.")
+            raise ChatError(tr("chat.emptyMessage"))
         with self._cond:
             if self._closed:
-                raise ChatError("Le chat est arrêté.")
+                raise ChatError(tr("chat.stopped"))
             selected = self._select_attachments(attachment_ids)
             loading = [att for att in selected if att.status == "loading"]
             if loading:
                 # Sinon la question part sans le contenu du fichier
-                raise ChatError(
-                    "⏳ Pièce jointe en cours de chargement : envoi possible dès qu'elle est prête"
-                    if len(loading) == 1 else
-                    "⏳ Pièces jointes en cours de chargement : envoi possible dès qu'elles sont prêtes"
-                )
+                raise ChatError(tr("chat.attachmentLoading", count=len(loading)))
             # Une pièce jointe illisible reste citée dans le message, comme dans Tk
             files = [(att.path, att.type) for att in selected]
             images = [att for att in selected if att.type == "Image" and att.image_b64]
@@ -752,7 +737,7 @@ class ChatService:
                 if request.id == request_id:
                     self._queue.remove(request)
                     self._emit("queue.updated", {"items": self._queue_view()})
-                    self._relay_submit_response(request, INTERRUPTED_EMPTY)
+                    self._relay_submit_response(request, tr(INTERRUPTED_EMPTY))
                     return True
         return False
 
@@ -966,7 +951,7 @@ class ChatService:
                 self._on_token(turn, response)
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Réponse en échec :\n%s", traceback.format_exc())
-            error = f"❌ Erreur IA : {exc}"
+            error = tr("chat.aiError", error=exc)
             if turn is None:
                 turn = self._begin_turn(request, "chat")
         self._finish_turn(turn, error=error)
@@ -1165,10 +1150,10 @@ class ChatService:
         if request.source == "mobile":
             if interrupted and turn.kind == "chat":
                 self._relay_submit_response(
-                    request, (text + INTERRUPTED_SUFFIX) if text else INTERRUPTED_EMPTY
+                    request, (text + "\n\n" + tr(INTERRUPTED_SUFFIX)) if text else tr(INTERRUPTED_EMPTY)
                 )
             else:
-                self._relay_submit_response(request, text or INTERRUPTED_EMPTY)
+                self._relay_submit_response(request, text or tr(INTERRUPTED_EMPTY))
 
     def _ollama_tokens_per_s(self, turn: _Turn) -> Optional[float]:
         """Vitesse d'écriture relevée par Ollama sur le dernier flux de la réponse (D15).
@@ -1200,13 +1185,13 @@ class ChatService:
         match = _FILENAME_RE.search(user_text)
         filename = match.group(1) if match else "fichier.py"
         turn = self._begin_turn(request, "file", filename=filename,
-                                status=f"Création du fichier '{filename}' en cours...")
+                                status=tr("chat.fileCreating", name=filename))
 
         def check_interrupted():
             return self._is_stale(request)
 
         if check_interrupted():
-            turn.text = "⚠️ Création du fichier interrompue."
+            turn.text = tr("chat.fileInterrupted")
             self._finish_turn(turn, entry_type="file_generation")
             return
         try:
@@ -1221,15 +1206,15 @@ class ChatService:
             finally:
                 loop.close()
         except (OSError, ValueError) as exc:
-            turn.text = f"❌ Erreur: {exc}"
+            turn.text = tr("chat.error", error=exc)
             self._finish_turn(turn, entry_type="file_generation")
             return
 
         if result.get("interrupted"):
-            turn.text = "⚠️ Création du fichier interrompue."
+            turn.text = tr("chat.fileInterrupted")
         elif result.get("type") == "file_generation" and result.get("success"):
             shown = result.get("filename") or filename
-            turn.text = random.choice(FILE_GENERATION_MESSAGES) + shown
+            turn.text = tr(random.choice(FILE_GENERATION_MESSAGES)) + shown
             turn.file_path = result.get("file_path")
             with self._lock:
                 self._emit("file.created", {"path": turn.file_path or "", "name": shown},
@@ -1239,19 +1224,19 @@ class ChatService:
             if llm is not None and hasattr(llm, "add_to_history"):
                 try:
                     llm.add_to_history("user", user_text)
-                    llm.add_to_history("assistant", FILE_GENERATION_HISTORY)
+                    llm.add_to_history("assistant", tr(FILE_GENERATION_HISTORY))
                 except (AttributeError, TypeError) as exc:
                     logger.warning("Ajout à l'historique du modèle échoué : %s", exc)
         else:
-            turn.text = "❌ Erreur lors de la génération du fichier."
+            turn.text = tr("chat.fileError")
         self._finish_turn(turn, entry_type="file_generation")
 
     # ── Génération d'image ──────────────────────────────────────────────────
 
     def _generate_image(self, request: _Request, user_text: str) -> None:
         """_handle_image_generation_ui sans interface : progression, arrêt, image."""
-        turn = self._begin_turn(request, "image", status="Génération de l'image en cours")
-        interrupted_text = "⏹️ Génération de l'image interrompue."
+        turn = self._begin_turn(request, "image", status=tr("chat.imageGenerating"))
+        interrupted_text = tr("chat.imageInterrupted")
 
         def is_interrupted():
             return self._is_stale(request)
@@ -1279,12 +1264,10 @@ class ChatService:
             if gen is None or not gen.is_available():
                 turn.text = (
                     gen.unavailable_message() if gen is not None
-                    else "🎨 Génération d'image indisponible."
+                    else tr("chat.imageUnavailable")
                 )
                 if setup_error:
-                    turn.text += (
-                        f"\n\n⚠️ L'installation automatique de ComfyUI a échoué : {setup_error}"
-                    )
+                    turn.text += "\n\n" + tr("chat.comfyuiSetupFailed", error=setup_error)
                 self._finish_turn(turn, entry_type="image_generation")
                 return
 
@@ -1311,7 +1294,7 @@ class ChatService:
                 turn.text = result.message
         except Exception as exc:  # pylint: disable=broad-except
             logger.error("Génération d'image en échec :\n%s", traceback.format_exc())
-            turn.text = f"⚠️ Erreur génération d'image : {exc}"
+            turn.text = tr("chat.imageError", error=exc)
         self._finish_turn(turn, entry_type="image_generation")
 
     def _auto_setup_image_backend(self, gen, on_progress, is_interrupted) -> Optional[str]:
@@ -1338,7 +1321,7 @@ class ChatService:
             return None
         self._comfyui = manager
         # Installation la 1ʳᵉ fois, puis un démarrage par session (arrêté à la fermeture)
-        on_progress(None, "Préparation de la génération d'image…")
+        on_progress(None, tr("chat.imagePreparing"))
         try:
             manager.ensure_running(on_progress=on_progress, is_interrupted=is_interrupted)
         except ComfyUISetupError as exc:
@@ -1365,11 +1348,7 @@ class ChatService:
         try:
             filename = os.path.basename(image_path)
             llm.add_to_history("user", user_text)
-            llm.add_to_history(
-                "assistant",
-                f"🎨 J'ai généré une image à partir de la description « {prompt} » "
-                f"et je l'ai affichée dans le chat (fichier : {filename}).",
-            )
+            llm.add_to_history("assistant", tr("chat.imageHistory", prompt=prompt, name=filename))
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Ajout de l'image au contexte du modèle échoué : %s", exc)
 
@@ -1388,11 +1367,11 @@ class ChatService:
         if os.path.isdir(path):
             return self.add_folder(path)
         if not os.path.isfile(path):
-            raise ChatError(f"❌ Chemin invalide : {path}")
+            raise ChatError(tr("chat.invalidPath", path=path))
         file_type = file_type or file_type_for(path)
         if file_type is None:
             ext = os.path.splitext(path)[1].lower() or "?"
-            raise ChatError(f"❌ Format non supporté : {ext}")
+            raise ChatError(tr("chat.unsupportedFormat", ext=ext))
         name = os.path.basename(path)
         attachment = _Attachment(id=uuid4().hex, path=path, name=name, type=file_type)
 
@@ -1400,7 +1379,7 @@ class ChatService:
             try:
                 attachment.image_b64, width, height = encode_image(path)
             except Exception as exc:
-                raise ChatError(f"❌ Erreur lors du traitement de l'image : {exc}") from exc
+                raise ChatError(tr("chat.imageProcessingError", error=exc)) from exc
             with self._lock:
                 # Une seule image par message : le modèle ne reçoit que la
                 # dernière (comme Tk), la nouvelle remplace donc la précédente
@@ -1410,8 +1389,9 @@ class ChatService:
                     self._emit("attachment.removed", {"id": old.id})
                 self._attachments.append(attachment)
                 self._emit("attachment.added", attachment.view())
-                note = f", à la place de {replaced[-1].name} (une image par message)" if replaced else ""
-                self._notify("success", f"✅ {name} prête ({width}x{height}){note}")
+                note = tr("chat.imageReplaced", name=replaced[-1].name) if replaced else ""
+                self._notify("success", tr("chat.imageReady", name=name, width=width,
+                                           height=height, note=note))
             return attachment.view()
 
         attachment.status = "loading"
@@ -1442,10 +1422,9 @@ class ChatService:
         name = os.path.basename(os.path.normpath(folder)) or folder
         files, images = folder_attachment_files(folder)
         attachments = [self.add_attachment(path) for path in files]
-        skipped = (f", {images} image{'s' if images > 1 else ''} laissée{'s' if images > 1 else ''} "
-                   "de côté (une seule par message)") if images else ""
-        self._notify("info", f"📁 {len(attachments)} fichier{'s' if len(attachments) > 1 else ''} "
-                             f"de « {name} » joint{'s' if len(attachments) > 1 else ''}{skipped}")
+        skipped = tr("chat.folderImagesSkipped", count=images) if images else ""
+        self._notify("info", tr("chat.folderAttached", count=len(attachments), name=name,
+                                skipped=skipped))
         return {"folder": folder, "attachments": attachments, "images_skipped": images}
 
     def remove_attachment(self, attachment_id: str) -> bool:
@@ -1495,12 +1474,12 @@ class ChatService:
                 attachment.status = "ready"
                 if attachment in self._attachments:
                     self._emit("attachment.ready", {"id": attachment.id})
-                self._notify("success", f"✅ {attachment.name} prêt")
+                self._notify("success", tr("chat.attachmentReady", name=attachment.name))
             else:
                 attachment.status = "error"
                 if attachment in self._attachments:
                     self._emit("attachment.failed", {"id": attachment.id, "message": error})
-                self._notify("error", f"❌ Erreur : {attachment.name}")
+                self._notify("error", tr("chat.attachmentError", name=attachment.name))
         if cancelled:
             # Retirée pendant sa lecture : ce qui est déjà en mémoire est oublié
             self._forget_if_unused(attachment.path)
@@ -1526,7 +1505,7 @@ class ChatService:
                 raise ValueError(result["error"])
             content = result.get("content", "")
             if not content or not content.strip():
-                raise ValueError(f"Le fichier {filename} semble vide ou illisible")
+                raise ValueError(tr("chat.fileEmpty", name=filename))
 
             custom_ai = self._local_ai()
             if custom_ai is not None:
@@ -1640,16 +1619,16 @@ class ChatService:
         with self._exclusive():
             start = self._turn_start_index(turn_key)
             if start is None:
-                raise ChatError("Message introuvable.")
+                raise ChatError(tr("chat.messageNotFound"))
             if start + 1 >= len(self._history):
-                raise ChatError("Ce message n'a pas encore de réponse à regénérer.")
+                raise ChatError(tr("chat.noAnswerToRegenerate"))
             old_entry = self._history[start]
             original, attach_lines = split_attachments(old_entry.get("text", ""))
             body = original if regenerate else (new_text or "").strip()
             if not body:
-                raise ChatError("Message vide.")
+                raise ChatError(tr("chat.emptyMessage"))
             if not regenerate and body == original.strip():
-                raise ChatError("Le message n'a pas changé.")
+                raise ChatError(tr("chat.unchanged"))
             attachments = [tuple(item) for item in old_entry.get("attachments") or []
                            if isinstance(item, (list, tuple)) and item]
             image_path = old_entry.get("image_path")
@@ -1907,7 +1886,7 @@ class ChatService:
         """Ctrl+S : enregistre la session courante."""
         saved = self._save_current()
         if saved:
-            self._notify("success", "💾 Session sauvegardée")
+            self._notify("success", tr("chat.sessionSaved"))
         return saved
 
     def list_sessions(self) -> List[Dict[str, Any]]:
@@ -2037,15 +2016,15 @@ class ChatService:
             ChatError: note hors de 1 à 5, réponse introuvable ou déjà notée
         """
         if not isinstance(score, int) or score not in _RATING_RANGE:
-            raise ChatError("La note va de 1 à 5 étoiles.")
+            raise ChatError(tr("chat.ratingRange"))
         with self._lock:
             index = next((i for i, entry in enumerate(self._history)
                           if entry.get("mid") == mid and not entry.get("is_user")), None)
             if index is None:
-                raise ChatError("Réponse introuvable.")
+                raise ChatError(tr("chat.answerNotFound"))
             entry = self._history[index]
             if entry.get("rating"):
-                raise ChatError("Cette réponse est déjà notée.")
+                raise ChatError(tr("chat.alreadyRated"))
             query = next((self._history[i].get("text", "") for i in range(index - 1, -1, -1)
                           if self._history[i].get("is_user")), "")
             response = entry.get("text", "")
@@ -2067,7 +2046,7 @@ class ChatService:
             )
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Note non enregistrée : %s", exc)
-            raise ChatError("❌ Note non enregistrée.") from exc
+            raise ChatError(tr("chat.ratingFailed")) from exc
         with self._lock:
             entry["rating"] = score
             self._emit("message.rated", {"mid": mid, "rating": score}, message_id=mid)
@@ -2142,7 +2121,7 @@ class ChatService:
             with self._exclusive():
                 position = find_saved_message(self._history, int(index), text)
                 if position is None:
-                    raise ChatError(MESSAGE_GONE)
+                    raise ChatError(tr(MESSAGE_GONE))
                 change_saved_message(self._history, position, new_text)
                 self._save_current()
                 self._emit("conversation.loaded", {"reason": "edited",
@@ -2155,7 +2134,7 @@ class ChatService:
             history = state.get(key) or []
             position = find_saved_message(history, int(index), text)
             if position is None:
-                raise ChatError(MESSAGE_GONE)
+                raise ChatError(tr(MESSAGE_GONE))
             change_saved_message(history, position, new_text)
             state[key] = history
 
@@ -2231,9 +2210,9 @@ class ChatService:
         ai_text = text
         if not ai_text.strip():
             if image_path:
-                ai_text = "Décris cette image en détail."
+                ai_text = tr("chat.describeImage")
             elif file_paths:
-                ai_text = "Analyse ce fichier et résume-le."
+                ai_text = tr("chat.summarizeFile")
         request = _Request(
             id=uuid4().hex,
             source="mobile",

@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from interfaces.desktop import files as local_files
 from interfaces.desktop.agents import AgentsError, AgentsService, RunNotFound
+from core.i18n import tr
 from interfaces.desktop.routing import ENGINE_STARTING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -178,7 +179,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
 
     def agents() -> AgentsService:
         if getattr(app, "engine", None) is None:
-            raise HTTPException(status_code=503, detail=ENGINE_STARTING)
+            raise HTTPException(status_code=503, detail=tr(ENGINE_STARTING))
         return app.agents
 
     # ── Agents ──────────────────────────────────────────────────────────────
@@ -249,7 +250,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
         service = agents()
         data = await file.read(_MAX_UPLOAD + 1)
         if len(data) > _MAX_UPLOAD:
-            raise HTTPException(status_code=413, detail="Fichier trop volumineux")
+            raise HTTPException(status_code=413, detail=tr("files.tooBig"))
         name = Path(file.filename or "fichier").name or "fichier"
         # Un sous-dossier par envoi : le fichier garde son nom, sans collision
         folder = local_files.UPLOAD_DIR / uuid.uuid4().hex[:12]
@@ -264,7 +265,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     async def save_workflow(body: WorkflowSaveBody):
         workflow = body.workflow.model_dump(by_alias=True)
         path = await _run(agents().save_workflow, body.path, workflow)
-        app.notify("success", "💾 Workflow sauvegardé")
+        app.notify("success", tr("agents.workflowSaved"))
         return {"path": path}
 
     @api.post("/api/agents/workflow/read")
@@ -275,7 +276,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     async def export_workflow(body: WorkflowExportBody):
         workflow = body.workflow.model_dump(by_alias=True)
         path = await _run(agents().export_workflow, body.path, workflow, body.run_id)
-        app.notify("success", "📤 Workflow exporté")
+        app.notify("success", tr("agents.workflowExported"))
         return {"path": path}
 
     # ── Moniteur de ressources, focus de la fenêtre ─────────────────────────

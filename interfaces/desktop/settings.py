@@ -19,6 +19,8 @@ placement du modèle compris.
 
 from typing import Any, Callable, Dict, Optional
 
+from core import i18n
+from core.i18n import tr
 from interfaces.desktop.model_setup import NUM_CTX_CHOICES, TIMEOUT_RANGE, OllamaSetup
 from utils.logger import setup_logger
 
@@ -81,7 +83,7 @@ class SettingsService:
         temperature = round(min(1.0, max(0.0, float(temperature))), 2)
         num_ctx = int(num_ctx)
         if num_ctx < 512:
-            raise SettingsError("Fenêtre de contexte trop petite.")
+            raise SettingsError(tr("settings.contextTooSmall"))
         low, high = TIMEOUT_RANGE
         timeout = max(low, min(high, int(float(timeout))))
         self._setup.save_generation(temperature, num_ctx, timeout)
@@ -95,13 +97,28 @@ class SettingsService:
     def set_flag(self, name: str, value: Any) -> None:
         """Langue par défaut ou Relay au lancement (pris en compte au prochain démarrage)."""
         if name not in FLAGS:
-            raise SettingsError(f"Réglage inconnu : {name}")
+            raise SettingsError(tr("settings.unknownSetting", name=name))
         if name == "language.default":
             if value not in self._setup.values()["languages"]:
-                raise SettingsError(f"Langue non prise en charge : {value}")
+                raise SettingsError(tr("settings.languageUnsupported", language=value))
         else:
             value = bool(value)
         self._setup.set_flag(name, value)
+
+    def set_language(self, code: Any) -> str:
+        """Langue de l'interface et des réponses par défaut : config.yaml, puis le moteur.
+
+        Le détecteur de langue du moteur prend la nouvelle langue par défaut
+        tout de suite (message trop court ou ambigu) : sans redémarrage.
+        """
+        language = i18n.normalize(code)
+        if language is None or language != code:
+            raise SettingsError(tr("settings.languageUnsupported", language=code))
+        self.set_flag("language.default", language)
+        detector = getattr(self._engine(), "language_detector", None)
+        if detector is not None:
+            detector.set_default_language(language)
+        return language
 
     def restart_onboarding(self) -> None:
         """L'assistant de configuration s'affichera au prochain démarrage.

@@ -41,6 +41,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 # croniter est optionnel : seules les planifications de type "cron" en ont besoin.
@@ -55,7 +56,8 @@ except Exception:  # pragma: no cover - dépend de l'environnement
 logger = setup_logger("Scheduler")
 
 # 0 = Lundi … 6 = Dimanche (datetime.weekday()).
-_WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+# Jours de la semaine, 0 = lundi : clés du catalogue (core/locales)
+_WEEKDAY_LABELS = [f"schedule.weekday.{day}" for day in range(7)]
 
 _VALID_KINDS = ("single", "workflow", "debate")
 _VALID_SCHEDULE_TYPES = ("daily", "weekly", "interval", "cron")
@@ -170,12 +172,12 @@ class _ResultCollector:
         with self._lock:
             sections = list(self.sections)
             topic, error, status_text = self.topic, self.error, self.status_text
-        lines = [f"# {name}", "", f"_Exécuté le {started:%Y-%m-%d %H:%M:%S}_"]
+        lines = [f"# {name}", "", tr("schedule.report.executed", date=f"{started:%Y-%m-%d %H:%M:%S}")]
         if status_text:
             lines.append(f"_{status_text}_")
         lines.append("")
         if topic:
-            lines += [f"**Sujet :** {topic}", ""]
+            lines += [tr("schedule.report.topic", topic=topic), ""]
         for sec in sections:
             lines += [f"## {sec['title']}", "", sec["text"].strip(), ""]
         if error:
@@ -346,22 +348,19 @@ class SchedulerService:
 
     def _validate(self, kind: str, schedule: Dict[str, Any]) -> None:
         if kind not in _VALID_KINDS:
-            raise ValueError(f"kind invalide : {kind}")
+            raise ValueError(tr("schedule.invalidKind", kind=kind))
         stype = (schedule or {}).get("type")
         if stype not in _VALID_SCHEDULE_TYPES:
-            raise ValueError(f"type de planning invalide : {stype}")
+            raise ValueError(tr("schedule.invalidScheduleType", type=stype))
         if stype == "cron" and not _CRONITER_AVAILABLE:
-            raise ValueError(
-                "Les plannings 'cron' nécessitent le paquet croniter "
-                "(pip install croniter). Utilisez daily/weekly/interval sinon."
-            )
+            raise ValueError(tr("schedule.cronNeedsCroniter"))
         if stype == "cron":
             try:
                 _croniter(schedule.get("expr", ""), datetime.now())
             except Exception as exc:
-                raise ValueError(f"Expression cron invalide : {exc}") from exc
+                raise ValueError(tr("schedule.invalidCron", error=exc)) from exc
         if stype == "weekly" and not schedule.get("days"):
-            raise ValueError("Le planning hebdomadaire requiert au moins un jour.")
+            raise ValueError(tr("schedule.weeklyNeedsDay"))
 
     def create_task(
         self,
@@ -379,14 +378,14 @@ class SchedulerService:
         name = (name or "").strip()
         task = (task or "").strip()
         if not name:
-            raise ValueError("Nom requis")
+            raise ValueError(tr("schedule.nameRequiredPlain"))
         self._validate(kind, schedule)
         if kind == "debate":
             debate = debate or {}
             if not debate.get("agent_a") or not debate.get("agent_b"):
-                raise ValueError("Un débat requiert deux agents.")
+                raise ValueError(tr("schedule.debateNeedsAgents"))
         elif not (nodes or []):
-            raise ValueError("Au moins un agent est requis.")
+            raise ValueError(tr("schedule.needAgent"))
 
         now = datetime.now()
         nxt = self._compute_next_run(schedule, now)
@@ -472,10 +471,10 @@ class SchedulerService:
         """
         task = self.get_task(task_id)
         if task is None:
-            return {"success": False, "error": "Tâche introuvable"}
+            return {"success": False, "error": tr("schedule.notFoundPlain")}
         try:
             if self.executor.busy:
-                return {"success": False, "error": "Exécuteur occupé, réessayez."}
+                return {"success": False, "error": tr("schedule.executorBusy")}
         except Exception:
             pass
         threading.Thread(
@@ -531,18 +530,18 @@ class SchedulerService:
         if stype == "interval":
             secs = int(schedule.get("seconds", 3600))
             if secs % 3600 == 0:
-                return f"toutes les {secs // 3600} h"
+                return tr("schedule.every.hours", n=secs // 3600)
             if secs % 60 == 0:
-                return f"toutes les {secs // 60} min"
-            return f"toutes les {secs} s"
+                return tr("schedule.every.minutes", n=secs // 60)
+            return tr("schedule.every.seconds", n=secs)
         if stype == "daily":
-            return f"tous les jours à {schedule.get('at', '08:00')}"
+            return tr("schedule.daily", at=schedule.get("at", "08:00"))
         if stype == "weekly":
             days = sorted({int(d) for d in schedule.get("days", [])})
-            labels = ", ".join(_WEEKDAY_LABELS[d] for d in days if 0 <= d <= 6)
-            return f"chaque {labels} à {schedule.get('at', '08:00')}"
+            labels = tr("list.separator").join(tr(_WEEKDAY_LABELS[d]) for d in days if 0 <= d <= 6)
+            return tr("schedule.weekly", days=labels, at=schedule.get("at", "08:00"))
         if stype == "cron":
-            return f"cron : {schedule.get('expr', '')}"
+            return tr("schedule.cron", expr=schedule.get("expr", ""))
         return "—"
 
     # ------------------------------------------------------------------
@@ -737,7 +736,7 @@ class SchedulerService:
             logger.exception("Scheduler : échec d'exécution de '%s'", name)
             collector.error = str(exc)
             collector.status = "error"
-            collector.status_text = f"Erreur : {exc}"
+            collector.status_text = tr("schedule.errorStatus", error=exc)
         finally:
             self._current_exec_id = None
 
@@ -801,7 +800,7 @@ class SchedulerService:
         os_shown = False
         if self.notify_desktop:
             icon = "✅" if status == "success" else "⚠️"
-            title = f"{icon} Tâche planifiée : {name}"
+            title = tr("schedule.notifyTitle", icon=icon, name=name)
             # Texte brut, coupé sur un mot : notify_desktop s'en charge
             os_shown = self._notify_desktop(title, summary or status_text)
 

@@ -37,6 +37,7 @@ from interfaces.desktop import files as local_files
 from interfaces.desktop.events import parse_client_message
 from interfaces.desktop.previews import PreviewStore
 from interfaces.desktop.qr import qr_rows
+from core.i18n import tr
 from interfaces.desktop.routing import ENGINE_STARTING as _ENGINE_STARTING
 from interfaces.desktop.routing import call, chat_service
 from utils.logger import setup_logger
@@ -374,7 +375,7 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
     @api.post("/api/relay/start")
     async def relay_start(body: RelayStartBody):
         if app.engine is None:
-            raise HTTPException(status_code=503, detail=_ENGINE_STARTING)
+            raise HTTPException(status_code=503, detail=tr(_ENGINE_STARTING))
         return await run_in_threadpool(app.start_relay, body.tunnel)
 
     @api.post("/api/relay/stop")
@@ -386,7 +387,7 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
         """QR code de la page de routage (adresse des tunnels, jeton et clé)."""
         url = app.relay_status().get("url")
         if not url:
-            raise HTTPException(status_code=409, detail="Tunnel non prêt")
+            raise HTTPException(status_code=409, detail=tr("server.tunnelNotReady"))
         rows = await run_in_threadpool(qr_rows, url)
         if rows is None:
             raise HTTPException(status_code=409, detail="pip install qrcode pour le QR code")
@@ -506,7 +507,7 @@ async def _handle_client_message(app: "DesktopApp", raw: str) -> Optional[Dict[s
         return {"type": "reply", "ref": ref, "ok": True, "data": {"pong": True}}
     service = app.chat
     if service is None:
-        return {"type": "reply", "ref": ref, "ok": False, "error": _ENGINE_STARTING}
+        return {"type": "reply", "ref": ref, "ok": False, "error": tr(_ENGINE_STARTING)}
     try:
         if message.type == "chat.send":
             request_id = await run_in_threadpool(

@@ -15,11 +15,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from core import i18n
 from interfaces.desktop import window as desktop_window
 from interfaces.desktop.devserver import ViteServer
 from interfaces.desktop.lifecycle import UI_DEFAULTS, DesktopApp, DesktopState
-from interfaces.desktop.shell_api import (ATTACH_FILTERS, EXPORT_FILTERS, WORKFLOW_FILTERS,
-                                          ShellApi, external_url, open_external)
+from interfaces.desktop.shell_api import (ATTACH_KINDS, ShellApi, attach_filters,
+                                          export_filters, external_url, open_external,
+                                          workflow_filters)
 from interfaces.desktop.window import (WindowGeometry, app_origins, colorref,
                                        dropped_paths, is_app_url, watch_drops)
 
@@ -173,12 +175,15 @@ def test_title_bar_colors_go_to_the_window():
 def test_dialog_filters_follow_the_pywebview_format():
     """pywebview refuse tout le dialogue si un seul filtre est mal formé."""
     util = pytest.importorskip("webview.util")
-    filters = [f for types, _multiple in ATTACH_FILTERS.values() for f in types]
-    filters += [f for types in EXPORT_FILTERS.values() for f in types]
-    filters += list(WORKFLOW_FILTERS)
-    for file_type in filters:
-        util.parse_file_type(file_type)
-    assert set(ATTACH_FILTERS) == {"PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image"}
+    for language in i18n.SUPPORTED_LANGUAGES:
+        i18n.set_language(language)
+        filters = [f for kind in ATTACH_KINDS for f in attach_filters(kind)[0]]
+        filters += [f for fmt in ("markdown", "html", "pdf", "json") for f in export_filters(fmt)]
+        filters += list(workflow_filters())
+        for file_type in filters:
+            util.parse_file_type(file_type)
+    i18n.reset_for_tests()
+    assert set(ATTACH_KINDS) == {"PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image"}
 
 
 class FakeDialogWindow:
@@ -202,7 +207,7 @@ def test_file_dialogs_go_through_the_window(monkeypatch):
     api._attach_window(window)
     assert api.pick_files("PDF") == ["C:/a.pdf", "C:/b.pdf"]
     assert window.calls[-1] == (10, {"allow_multiple": True,
-                                     "file_types": ATTACH_FILTERS["PDF"][0]})
+                                     "file_types": attach_filters("PDF")[0]})
     api.pick_files("Image")
     assert window.calls[-1][1]["allow_multiple"] is False  # une seule image, comme Tk
     window.result = "C:/Projet"
@@ -210,11 +215,12 @@ def test_file_dialogs_go_through_the_window(monkeypatch):
     window.result = None
     assert api.save_file("conversation", "pdf") is None
     assert window.calls[-1] == (30, {"save_filename": "conversation",
-                                     "file_types": EXPORT_FILTERS["pdf"]})
+                                     "file_types": export_filters("pdf")})
     # Page Agents : un workflow à charger, un seul fichier JSON
     window.result = ("C:/flux/workflow.json",)
     assert api.pick_workflow() == "C:/flux/workflow.json"
-    assert window.calls[-1] == (10, {"allow_multiple": False, "file_types": WORKFLOW_FILTERS})
+    assert window.calls[-1] == (10, {"allow_multiple": False,
+                                     "file_types": workflow_filters()})
     window.result = None
     assert api.pick_workflow() is None
 

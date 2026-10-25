@@ -3,6 +3,8 @@
 /* ═══════════════════════════════════════════════════ */
 
 // ── CONFIGURATION ───────────────────────────────────
+// Textes dans la langue du PC (i18n.js, catalogue injecté par le Relay)
+const T = window.RelayI18n ? window.RelayI18n.t : function (key) { return key; };
 const TOKEN = window.__RELAY_TOKEN__ || '';
 const WS_PROTOCOL = location.protocol === 'https:' ? 'wss:' : 'ws:';
 // La session du code d'accès s'y ajoute à chaque connexion (voir connect)
@@ -58,17 +60,16 @@ function importE2EKey() {
     params[pair.slice(0, idx)] = pair.slice(idx + 1);
   });
   if (!params.k) {
-    return Promise.reject(new Error('Clé E2EE absente du fragment URL — ' +
-      'rescannez le QR code depuis l\'application My_AI sur le PC.'));
+    return Promise.reject(new Error(T('e2e.missingKey')));
   }
   var rawKey;
   try {
     rawKey = b64uDecode(decodeURIComponent(params.k));
   } catch (e) {
-    return Promise.reject(new Error('Clé E2EE malformée dans l\'URL.'));
+    return Promise.reject(new Error(T('e2e.badKey')));
   }
   if (rawKey.length !== 32) {
-    return Promise.reject(new Error('Clé E2EE de taille invalide (' + rawKey.length + ' octets).'));
+    return Promise.reject(new Error(T('e2e.badKeySize', { size: rawKey.length })));
   }
   return crypto.subtle.importKey(
     'raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
@@ -84,9 +85,9 @@ e2eReady = importE2EKey().then(function (k) {
   // Bloquer l'application : sans clé, tout est inutilisable.
   document.body.innerHTML =
     '<div style="padding:32px;color:#fff;background:#0f0f0f;font-family:sans-serif;min-height:100vh">' +
-    '<h2 style="color:#ef4444">⚠️ Connexion impossible</h2>' +
-    '<p>' + (err && err.message ? err.message : 'Clé de chiffrement manquante.') + '</p>' +
-    '<p style="color:#9ca3af;font-size:14px;margin-top:16px">Rescannez le QR code depuis le panneau My_AI Relay sur votre PC.</p>' +
+    '<h2 style="color:#ef4444">' + escapeHtml(T('e2e.failTitle')) + '</h2>' +
+    '<p>' + escapeHtml(err && err.message ? err.message : T('e2e.noKey')) + '</p>' +
+    '<p style="color:#9ca3af;font-size:14px;margin-top:16px">' + escapeHtml(T('e2e.rescan')) + '</p>' +
     '</div>';
   throw err;
 });
@@ -192,13 +193,9 @@ function showUnlock() {
 }
 
 function unlockMessage(result) {
-  if (result.error === 'locked') {
-    return 'Trop de codes erronés : le Relay refuse désormais toute connexion. ' +
-      'Redémarrez-le sur votre PC pour obtenir un nouveau QR code et un nouveau code.';
-  }
-  if (result.error === 'format') return 'Le code contient 6 chiffres.';
-  var left = result.remaining;
-  return 'Code incorrect. Il reste ' + left + (left > 1 ? ' essais.' : ' essai.');
+  if (result.error === 'locked') return T('unlock.locked');
+  if (result.error === 'format') return T('unlock.format');
+  return T('unlock.wrong', { count: result.remaining });
 }
 
 async function submitUnlock(event) {
@@ -232,7 +229,7 @@ async function submitUnlock(event) {
     if (!locked) unlockInput.select();
   } catch (err) {
     console.error('[Relay] Code d\'accès non vérifié :', err);
-    unlockError.textContent = 'Le Relay ne répond pas. Vérifiez qu\'il tourne sur votre PC, puis réessayez.';
+    unlockError.textContent = T('unlock.noAnswer');
   } finally {
     unlockBtn.disabled = locked;
     unlockInput.disabled = locked;
@@ -415,9 +412,9 @@ function connect() {
       // On le met en attente : il sera rattaché à la bulle de réponse.
       pendingDocuments.push({
         kind: 'document',
-        title: data.title || data.filename || 'Document',
+        title: data.title || data.filename || T('doc.default'),
         filename: data.filename || 'document',
-        label: data.label || 'Document',
+        label: data.label || T('doc.default'),
         format: data.format || '',
         html: data.html || '',
         data: data.data || ''
@@ -427,6 +424,12 @@ function connect() {
       // Soit la réponse est déjà arrivée, soit elle n'a pas encore fini
       // de se générer — on continue simplement d'attendre le broadcast.
       console.log('[Relay] Resume: aucune réponse en attente côté serveur');
+    } else if (data.type === 'language') {
+      // Langue de My_AI changée sur le PC : la page se recharge dans la nouvelle
+      // (la session du code d'accès et la clé du lien restent)
+      if (data.language && data.language !== (window.RelayI18n && window.RelayI18n.lang)) {
+        location.reload();
+      }
     } else if (typeof data.type === 'string' && data.type.indexOf('agent') === 0) {
       // Messages de la page « Agents » (agents_list_result, agent_section_*,
       // agent_exec_*, agent_create_result, ...). Délégués au module agents.js.
@@ -473,9 +476,9 @@ function setStatus(state) {
     state === 'connecting' ? 'connecting' : 'offline'
   );
   const labels = {
-    connected: 'Connecté',
-    connecting: 'Connexion...',
-    offline: 'Hors ligne',
+    connected: T('status.connected'),
+    connecting: T('status.connecting'),
+    offline: T('status.offline'),
   };
   statusText.textContent = labels[state] || state;
 }
@@ -678,7 +681,7 @@ async function uploadEncryptedFile(file) {
   // 1. Construire le clair : "MYAI" || u16_be(filename_len) || filename || content
   var fileBytes = new Uint8Array(await file.arrayBuffer());
   var fnameBytes = new TextEncoder().encode(file.name || 'fichier');
-  if (fnameBytes.length > 256) throw new Error('nom de fichier trop long');
+  if (fnameBytes.length > 256) throw new Error(T('upload.nameTooLong'));
   var header = new Uint8Array(4 + 2 + fnameBytes.length);
   header[0] = 0x4D; header[1] = 0x59; header[2] = 0x41; header[3] = 0x49; // "MYAI"
   header[4] = (fnameBytes.length >> 8) & 0xff;
@@ -738,7 +741,7 @@ async function uploadAttachment(file) {
   } catch (err) {
     console.error('[Relay] Upload chiffré échoué :', err);
     entry.status = 'error';
-    entry.error = (err && err.message) ? err.message : 'Erreur upload';
+    entry.error = (err && err.message) ? err.message : T('upload.error');
   }
   renderAttachments();
   updateSendButton();
@@ -768,14 +771,14 @@ function renderAttachments() {
 
     var name = document.createElement('span');
     name.className = 'chip-name';
-    name.textContent = a.status === 'error' ? (a.name + ' · ' + (a.error || 'erreur')) : a.name;
+    name.textContent = a.status === 'error' ? (a.name + ' · ' + (a.error || T('attach.error'))) : a.name;
     chip.appendChild(name);
 
     var rm = document.createElement('button');
     rm.className = 'chip-remove';
     rm.type = 'button';
     rm.textContent = '×';
-    rm.setAttribute('aria-label', 'Retirer');
+    rm.setAttribute('aria-label', T('attach.remove'));
     rm.onclick = function () { removeAttachment(a.localId); };
     chip.appendChild(rm);
 
@@ -799,7 +802,7 @@ function setSendBtnMode(mode) {
     sendBtn.classList.add('stopmode');
     sendBtn.innerHTML = STOP_ICON_HTML;
     sendBtn.onclick = stopGeneration;
-    sendBtn.title = 'Arrêter la génération';
+    sendBtn.title = T('send.stop');
   } else {
     sendBtn.classList.remove('stopmode');
     sendBtn.innerHTML = SEND_ICON_HTML;
@@ -845,12 +848,12 @@ function addMessage(text, isUser, timestamp, autoOpen) {
 
   if (isUser) {
     msg.innerHTML =
-      '<div class="bubble">' + escapeHtml(text) +
+      '<div class="bubble" dir="auto">' + escapeHtml(text) +
       '<span class="time">' + time + '</span></div>';
   } else {
     msg.innerHTML =
       '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble">' + renderMarkdown(text) +
+      '<div class="bubble" dir="auto">' + renderMarkdown(text) +
       '<span class="time">' + time + '</span></div>';
     attachArtifactButton(msg.querySelector('.bubble'), text, autoOpen);
   }
@@ -878,7 +881,7 @@ function addImageMessage(b64, mime, filename, timestamp) {
   var img = document.createElement('img');
   img.className = 'generated-image';
   img.src = src;
-  img.alt = filename || 'Image générée';
+  img.alt = filename || T('image.generated');
   img.loading = 'lazy';
   img.addEventListener('click', function () { window.open(src, '_blank'); });
 
@@ -923,7 +926,7 @@ function ensureStreamingBubble(mid) {
   msg.className = 'message ai streaming';
   msg.innerHTML =
     '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-    '<div class="bubble">' +
+    '<div class="bubble" dir="auto">' +
       '<div class="stream-content"></div>' +
       '<span class="stream-cursor"></span>' +
     '</div>';
@@ -961,7 +964,7 @@ function finalizeStreaming(mid, finalText, timestamp) {
     streamingMessageEl.classList.remove('streaming');
     streamingMessageEl.innerHTML =
       '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble">' + renderMarkdown(finalText) +
+      '<div class="bubble" dir="auto">' + renderMarkdown(finalText) +
       '<span class="time">' + time + '</span></div>';
     attachArtifactButton(streamingMessageEl.querySelector('.bubble'), finalText, true);
   }
@@ -1270,7 +1273,7 @@ function deriveArtifactTitle(code, kind, index) {
     var txt = h[1].replace(/<[^>]+>/g, '').trim();
     if (txt) return txt.slice(0, 80);
   }
-  return (kind === 'svg' ? 'SVG #' : 'Page HTML #') + (index + 1);
+  return T(kind === 'svg' ? 'artifact.svg' : 'artifact.html', { n: index + 1 });
 }
 
 function buildArtifactDoc(art) {
@@ -1304,7 +1307,9 @@ function attachArtifactButton(bubbleEl, text, autoOpen) {
   var btn = document.createElement('button');
   btn.className = 'artifact-btn';
   btn.type = 'button';
-  btn.innerHTML = '&#x1F50D; Aperçu' + (artifacts.length > 1 ? ' (' + artifacts.length + ')' : '');
+  btn.innerHTML = '&#x1F50D; ' + escapeHtml(artifacts.length > 1
+    ? T('preview.buttonCount', { count: artifacts.length })
+    : T('preview.button'));
   btn.onclick = function () { openArtifactPreview(first); };
   bubbleEl.appendChild(btn);
   if (autoOpen) openArtifactPreview(first);
@@ -1319,11 +1324,11 @@ function ensureArtifactOverlay() {
   overlay.innerHTML =
     '<div class="artifact-modal">' +
       '<div class="artifact-head">' +
-        '<span class="artifact-title" id="artifactTitle">Aperçu</span>' +
+        '<span class="artifact-title" id="artifactTitle">' + escapeHtml(T('preview.button')) + '</span>' +
         '<div class="artifact-tools">' +
-          '<button class="artifact-tool" id="artifactDownloadBtn" title="Télécharger le document">&#x1F4BE;</button>' +
-          '<button class="artifact-tool" id="artifactOpenBtn" title="Ouvrir dans le navigateur">&#x1F310;</button>' +
-          '<button class="artifact-tool" id="artifactCloseBtn" title="Fermer">&#x2716;</button>' +
+          '<button class="artifact-tool" id="artifactDownloadBtn" title="' + escapeHtml(T('preview.download')) + '">&#x1F4BE;</button>' +
+          '<button class="artifact-tool" id="artifactOpenBtn" title="' + escapeHtml(T('preview.openBrowser')) + '">&#x1F310;</button>' +
+          '<button class="artifact-tool" id="artifactCloseBtn" title="' + escapeHtml(T('preview.close')) + '">&#x2716;</button>' +
         '</div>' +
       '</div>' +
       '<iframe class="artifact-frame" id="artifactFrame" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>' +
@@ -1342,7 +1347,7 @@ function openArtifactPreview(art) {
   // Un document arrive déjà rendu en HTML par l'hôte (document_preview.py) ;
   // un bloc de code est enveloppé ici.
   var doc = isDoc ? (art.html || '') : buildArtifactDoc(art);
-  overlay.querySelector('#artifactTitle').textContent = art.title || 'Aperçu';
+  overlay.querySelector('#artifactTitle').textContent = art.title || T('preview.button');
   var frame = overlay.querySelector('#artifactFrame');
   frame.srcdoc = doc;
   // Fallback « Ouvrir dans le navigateur » : Blob local, nouvel onglet.
@@ -1405,7 +1410,8 @@ function escapeHtml(text) {
 }
 
 function formatTime(date) {
-  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  var locale = window.RelayI18n ? window.RelayI18n.locale : 'fr-FR';
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 // ═══════════════════════════════════════════════════

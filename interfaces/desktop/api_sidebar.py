@@ -21,6 +21,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from core.i18n import tr
 from interfaces.desktop.folders import FolderError, FolderService
 from interfaces.desktop.routing import chat_service, engine_of
 from utils.logger import setup_logger
@@ -89,7 +90,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     def command_history():
         history = getattr(engine_of(app), "command_history", None)
         if history is None:
-            raise HTTPException(status_code=503, detail="Historique indisponible")
+            raise HTTPException(status_code=503, detail=tr("sidebar.historyUnavailable"))
         return history
 
     # ── Recherche globale ───────────────────────────────────────────────────
@@ -125,7 +126,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
         try:
             return await run_in_threadpool(run)
         except Exception as exc:  # pylint: disable=broad-except
-            raise HTTPException(status_code=409, detail=f"Erreur : {exc}") from exc
+            raise HTTPException(status_code=409, detail=tr("sidebar.error", error=exc)) from exc
 
     # ── Dossiers projet ─────────────────────────────────────────────────────
 
@@ -187,10 +188,10 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     @api.post("/api/export")
     async def export(body: ExportBody):
         if body.format not in EXPORT_FORMATS:
-            raise HTTPException(status_code=422, detail=f"Format inconnu : {body.format}")
+            raise HTTPException(status_code=422, detail=tr("export.unknownFormat", format=body.format))
         messages = chat_service(app).export_messages()
         if not messages:
-            raise HTTPException(status_code=409, detail="⚠️ Aucune conversation à exporter")
+            raise HTTPException(status_code=409, detail=tr("export.empty"))
 
         def run() -> str:
             # pylint: disable=import-outside-toplevel
@@ -208,5 +209,5 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
             path = await run_in_threadpool(run)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Export en échec : %s", exc)
-            raise HTTPException(status_code=409, detail=f"❌ Erreur export : {exc}") from exc
+            raise HTTPException(status_code=409, detail=tr("export.failed", error=exc)) from exc
         return {"path": os.path.abspath(str(path))}

@@ -9,6 +9,11 @@ depuis l'UI (créer / nommer / éditer / supprimer).
 Persistance 100 % locale en JSON (cohérent avec data/custom_agents.json).
 Thread-safe : le serveur Relay lit la bibliothèque depuis un autre thread que
 le GUI.
+
+Les templates par défaut sont gardés en français dans le fichier, et montrés
+dans la langue de l'interface (core/locales, clés prompts.builtin.*) : titre,
+description, prompt envoyé au modèle et commande. Leur commande française
+reste acceptée (« /résume » comme « /summarize »).
 """
 
 from __future__ import annotations
@@ -21,9 +26,26 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 logger = setup_logger("prompt_library")
+
+# Champs d'un template par défaut traduits dans la langue de l'interface
+_LOCALIZED_FIELDS = ("command", "title", "description", "content")
+
+
+def _localized(tpl: Dict[str, Any]) -> Dict[str, Any]:
+    """Copie d'un template, dans la langue de l'interface s'il est fourni par défaut."""
+    view = dict(tpl)
+    if not tpl.get("builtin"):
+        return view
+    for field in _LOCALIZED_FIELDS:
+        key = f"prompts.builtin.{tpl['id']}.{field}"
+        text = tr(key)
+        if text != key:
+            view[field] = text
+    return view
 
 # Placeholders de la forme {nom} — on capture le nom sans les accolades.
 _PLACEHOLDER_RE = re.compile(r"\{([^{}]+)\}")
@@ -297,13 +319,18 @@ class PromptLibrary:
         return None
 
     def _find_by_command_unlocked(self, command: str) -> Optional[Dict[str, Any]]:
+        """Template d'une commande : la sienne, ou, par défaut, celle de la langue en cours.
+
+        Les commandes enregistrées passent d'abord : un prompt personnalisé
+        « /summarize » créé en français reste le sien une fois l'interface en anglais.
+        """
         if not command:
             return None
         target = self._normalize(command)
-        for tpl in self._templates:
-            cmd = tpl.get("command")
-            if cmd and self._normalize(cmd) == target:
-                return tpl
+        for view in (dict, _localized):
+            for tpl in self._templates:
+                if self._normalize(view(tpl).get("command") or "") == target:
+                    return tpl
         return None
 
     def _unique_id(self, seed: str) -> str:
@@ -323,19 +350,19 @@ class PromptLibrary:
     def list(self) -> List[Dict[str, Any]]:
         """Retourne tous les templates (copies), dans l'ordre d'insertion."""
         with self._lock:
-            return [dict(t) for t in self._templates]
+            return [_localized(t) for t in self._templates]
 
     def get(self, template_id: str) -> Optional[Dict[str, Any]]:
         """Retourne un template par identifiant (copie) ou ``None``."""
         with self._lock:
             tpl = self._get_unlocked(template_id)
-            return dict(tpl) if tpl else None
+            return _localized(tpl) if tpl else None
 
     def find_by_command(self, command: str) -> Optional[Dict[str, Any]]:
         """Retourne le template correspondant à une commande (accent-insensible)."""
         with self._lock:
             tpl = self._find_by_command_unlocked(self._clean_command(command))
-            return dict(tpl) if tpl else None
+            return _localized(tpl) if tpl else None
 
     def search(self, prefix: str) -> List[Dict[str, Any]]:
         """Templates dont la commande commence par ``prefix`` (pour l'autocomplétion).
@@ -346,9 +373,9 @@ class PromptLibrary:
         norm = self._normalize(self._clean_command(prefix)) if prefix else ""
         with self._lock:
             matches = [
-                dict(t)
-                for t in self._templates
-                if t.get("command") and self._normalize(t["command"]).startswith(norm)
+                view
+                for view in (_localized(t) for t in self._templates)
+                if view.get("command") and self._normalize(view["command"]).startswith(norm)
             ]
         matches.sort(key=lambda t: self._normalize(t["command"]))
         return matches
@@ -429,12 +456,12 @@ class PromptLibrary:
         with self._lock:
             cmd = self._clean_command(command)
             if cmd and self._find_by_command_unlocked(cmd):
-                raise ValueError(f"La commande /{cmd} existe déjà.")
+                raise ValueError(tr("prompts.commandExists", command=cmd))
             now = datetime.now().isoformat()
             tpl = {
                 "id": self._unique_id(cmd or title),
                 "command": cmd or None,
-                "title": (title or cmd or "Sans titre").strip(),
+                "title": (title or cmd or tr("prompts.untitled")).strip(),
                 "description": (description or "").strip(),
                 "content": content or "",
                 "builtin": bool(builtin),
@@ -465,7 +492,7 @@ class PromptLibrary:
                 cmd = self._clean_command(fields["command"])
                 clash = self._find_by_command_unlocked(cmd) if cmd else None
                 if clash and clash["id"] != template_id:
-                    raise ValueError(f"La commande /{cmd} existe déjà.")
+                    raise ValueError(tr("prompts.commandExists", command=cmd))
                 tpl["command"] = cmd or None
             if fields.get("title") is not None:
                 tpl["title"] = str(fields["title"]).strip() or tpl["title"]

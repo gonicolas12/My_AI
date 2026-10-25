@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 import core.chat_service as chat_service_module
+from core.i18n import tr
 from core.chat_service import (FILE_GENERATION_HISTORY, ChatError, ChatService,
                                session_name_for)
 from core.session_manager import SessionManager
@@ -576,7 +577,7 @@ def test_file_generation_takes_the_tk_path(chat):
     assert wait_for(chat.events, "file.created")[0]["payload"]["path"] == "C:/out/calc.py"
     assert chat.engine.local_ai.local_llm.calls == [
         ("add", "user", "Génère moi un fichier calc.py"),
-        ("add", "assistant", FILE_GENERATION_HISTORY),
+        ("add", "assistant", tr(FILE_GENERATION_HISTORY)),
     ]
     answer = chat.service.snapshot()["messages"][-1]
     assert answer["type"] == "file_generation" and answer["file_path"] == "C:/out/calc.py"

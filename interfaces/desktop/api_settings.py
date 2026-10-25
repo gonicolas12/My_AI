@@ -8,6 +8,8 @@ Routes des Réglages et de l'assistant de premier lancement
   POST /api/settings/models/apply        régénère my_ai à partir d'un modèle de base
   PUT  /api/settings/generation          température, fenêtre de contexte, délai
   PUT  /api/settings/flags               langue par défaut, Relay au lancement
+  GET  /api/i18n                         langue de l'interface, langues proposées
+  PUT  /api/i18n                         langue de l'interface et du modèle, à chaud
   POST /api/settings/onboarding/restart  l'assistant reviendra au prochain démarrage
 
   GET  /api/onboarding                   assistant : Ollama, matériel, recommandation
@@ -22,6 +24,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from core.i18n import tr
 from interfaces.desktop.model_setup import ModelJobError
 from interfaces.desktop.settings import SettingsError
 
@@ -48,6 +51,12 @@ class FlagBody(BaseModel):
 
     name: str
     value: Any
+
+
+class LanguageBody(BaseModel):
+    """PUT /api/i18n."""
+
+    language: str = Field(max_length=16)
 
 
 async def _run(func, *args):
@@ -89,18 +98,30 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     async def generation(body: GenerationBody):
         saved = await _run(app.settings.save_generation, body.temperature, body.num_ctx,
                            body.timeout)
-        app.notify("success", "💾 Paramètres enregistrés")
+        app.notify("success", tr("settings.saved"))
         return saved
 
     @api.put("/api/settings/flags")
     async def flags(body: FlagBody):
-        await _run(app.settings.set_flag, body.name, body.value)
+        # La langue s'applique à chaud partout (fenêtre, moteur, Relay)
+        if body.name == "language.default":
+            await _run(app.set_language, body.value)
+        else:
+            await _run(app.settings.set_flag, body.name, body.value)
         return await _run(app.settings.snapshot)
+
+    @api.get("/api/i18n")
+    async def language():
+        return app.language_view()
+
+    @api.put("/api/i18n")
+    async def set_language(body: LanguageBody):
+        return await _run(app.set_language, body.language)
 
     @api.post("/api/settings/onboarding/restart")
     async def restart_onboarding():
         await _run(app.settings.restart_onboarding)
-        app.notify("success", "🔄 L'assistant s'affichera au prochain démarrage")
+        app.notify("success", tr("settings.wizardRestart"))
         return {"ok": True}
 
     @api.get("/api/onboarding")

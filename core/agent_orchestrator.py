@@ -8,6 +8,8 @@ from datetime import datetime
 import json
 
 from models.ai_agents import AIAgent, create_agent, AVAILABLE_AGENTS
+from core.i18n import tr
+from core.language_detector import reply_language
 
 # ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
 try:
@@ -400,10 +402,12 @@ class AgentOrchestrator:
                 missing.append(agent_type_b)
             return {
                 "success": False,
-                "error": f"Agent(s) invalide(s): {', '.join(missing)}",
+                "error": tr("agents.invalidAgents", agents=", ".join(missing)),
                 "available_agents": list(AVAILABLE_AGENTS.keys()),
             }
 
+        # Les deux agents débattent dans la langue du sujet (sinon celle des Réglages)
+        language = reply_language(topic)
         debate_history = []
         last_argument = ""
 
@@ -428,7 +432,8 @@ class AgentOrchestrator:
                     f"Réponds à ses arguments et renforce ta position."
                 )
 
-            context_a = {"debate_role": "proposant", "round": round_num, "topic": topic}
+            context_a = {"debate_role": "proposant", "round": round_num, "topic": topic,
+                         "language": language}
             result_a = self.execute_single_task_stream(agent_type_a, prompt_a, context_a, on_token)
             argument_a = result_a.get("result", "")
             debate_history.append({
@@ -451,7 +456,8 @@ class AgentOrchestrator:
                 f"Contre-argumente et défends ta position opposée."
             )
 
-            context_b = {"debate_role": "opposant", "round": round_num, "topic": topic}
+            context_b = {"debate_role": "opposant", "round": round_num, "topic": topic,
+                         "language": language}
             result_b = self.execute_single_task_stream(agent_type_b, prompt_b, context_b, on_token)
             argument_b = result_b.get("result", "")
             last_argument = argument_b

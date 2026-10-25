@@ -17,6 +17,7 @@ vrai config.yaml ni dans le Modelfile.
 import threading
 from typing import Any, Callable, Dict, List, Optional
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopModels")
@@ -134,14 +135,14 @@ class ModelJobs:
         """Télécharge un modèle (bouton « Pull » des Réglages)."""
         name = (name or "").strip()
         if not name:
-            raise ModelJobError("Entrez un nom de modèle (ex : qwen3.5:4b).")
+            raise ModelJobError(tr("models.enterName"))
         self._start("pull", name, self._run_pull)
 
     def apply(self, base: str) -> None:
         """Régénère my_ai à partir d'un modèle de base (bouton « Appliquer »)."""
         base = (base or "").strip()
         if not base:
-            raise ModelJobError("Choisissez un modèle de base.")
+            raise ModelJobError(tr("models.chooseBase"))
         self._start("apply", base, self._run_apply)
 
     def install(self, model: str) -> None:
@@ -151,12 +152,12 @@ class ModelJobs:
     def _start(self, action: str, name: str, target: Callable[[str], str]) -> None:
         with self._lock:
             if self._job is not None and self._job["running"]:
-                raise ModelJobError("Un téléchargement ou une création de modèle est déjà en cours.")
+                raise ModelJobError(tr("models.busy"))
         if not self._setup.ollama_reachable():
-            raise ModelJobError("Ollama n'est pas joignable.")
+            raise ModelJobError(tr("models.ollamaUnreachable"))
         with self._lock:
             if self._job is not None and self._job["running"]:
-                raise ModelJobError("Un téléchargement ou une création de modèle est déjà en cours.")
+                raise ModelJobError(tr("models.busy"))
             self._job = {"action": action, "name": name, "running": True, "ok": None,
                          "fraction": 0.0, "status": "", "message": "", "log": []}
         threading.Thread(target=self._run, args=(action, name, target), name=f"models-{action}",
@@ -168,7 +169,7 @@ class ModelJobs:
             ok = True
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Modèle %s (%s) en échec : %s", name, action, exc)
-            self.log(f"❌ Erreur pull : {exc}" if action == "pull" else f"❌ Erreur : {exc}")
+            self.log(tr("models.pullError" if action == "pull" else "models.error", error=exc))
             ok, message = False, str(exc)
         with self._lock:
             if self._job is not None:
@@ -179,11 +180,11 @@ class ModelJobs:
         if action == "pull":
             self._publish("notification", {
                 "level": "success" if ok else "error",
-                "message": f"✅ {name} téléchargé" if ok else "❌ Échec du téléchargement"})
+                "message": tr("models.pulled", name=name) if ok else tr("models.pullFailed")})
         elif action == "apply":
             self._publish("notification", {
                 "level": "success" if ok else "error",
-                "message": "✅ Modèle 'my_ai' régénéré" if ok else "❌ Échec de la régénération"})
+                "message": tr("models.regenerated") if ok else tr("models.regenerateFailed")})
 
     def progress(self, fraction: float, status: str) -> None:
         """Avancée du téléchargement (par couche, comme Ollama la donne)."""
@@ -204,32 +205,32 @@ class ModelJobs:
         self._publish("models.log", {"line": line})
 
     def _run_pull(self, name: str) -> str:
-        self.log(f"📥 Téléchargement de {name}…")
+        self.log(tr("models.log.downloading", name=name))
         self._setup.pull(name, self.progress, self.log)
-        self.log(f"✅ {name} téléchargé.")
-        return f"✅ {name} téléchargé"
+        self.log(tr("models.log.downloaded", name=name))
+        return tr("models.pulled", name=name)
 
     def _run_apply(self, base: str) -> str:
         self.log(f"🔧 Modelfile FROM → {base}")
         self._setup.apply_base(base)
-        self.log("🏗️  Création du modèle 'my_ai'…")
+        self.log(tr("models.log.creating"))
         self._setup.create_custom_model(self.log)
-        self.log("✅ Modèle 'my_ai' régénéré.")
-        return "✅ Modèle 'my_ai' régénéré"
+        self.log(tr("models.log.regenerated"))
+        return tr("models.regenerated")
 
     def _run_install(self, model: str) -> str:
-        self.log(f"📥 Téléchargement de {model}…")
+        self.log(tr("models.log.downloading", name=model))
         self._setup.pull(model, self.progress, self.log)
-        self.log(f"✅ {model} téléchargé.")
-        self.log("🔧 Mise à jour de Modelfile et config.yaml…")
+        self.log(tr("models.log.downloaded", name=model))
+        self.log(tr("models.log.updatingFiles"))
         self._setup.apply_base(model)
-        self.log("🏗️  Création du modèle personnalisé 'my_ai'…")
+        self.log(tr("models.log.creatingCustom"))
         self._setup.create_custom_model(self.log)
-        self.log("✅ Modèle 'my_ai' créé.")
+        self.log(tr("models.log.created"))
         self._setup.mark_done()
-        self.progress(1.0, "Terminé")
-        self.log("🎉 Configuration terminée ! Vous pouvez lancer My_AI.")
-        return "🎉 Configuration terminée"
+        self.progress(1.0, tr("models.done"))
+        self.log(tr("models.log.configured"))
+        return tr("models.configured")
 
 
 class FirstLaunch:
@@ -259,7 +260,7 @@ class FirstLaunch:
     def install(self, model: str) -> None:
         """« Installer » : télécharge le modèle choisi et crée my_ai."""
         if model not in self._setup.model_choices():
-            raise ModelJobError(f"Modèle inconnu : {model}")
+            raise ModelJobError(tr("models.unknown", name=model))
         self._jobs.install(model)
 
     def skip(self) -> None:
