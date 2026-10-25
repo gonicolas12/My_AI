@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from core.chat_service import ChatError, file_type_for, folder_attachment_files
+from core.i18n import tr
 from interfaces.desktop import files as local_files
 from utils.logger import setup_logger
 
@@ -56,18 +57,19 @@ MAX_RUNS = 50
 # montrer en diff le code qu'il modifie (§8 du prompt), dans cette limite
 MAX_CODE_SOURCE = 200_000
 
-# Messages de Tk (execution.py, debate.py), repris par la fenêtre
-NO_AGENT = "Glissez-déposez un ou plusieurs agents pour commencer."
-EMPTY_TASK = "Veuillez décrire la tâche à effectuer."
-BUSY = "Un agent est déjà en train de traiter une tâche."
-INTERRUPTED = "⛔ Génération interrompue"
-DEBATE_BUSY = "⏳ Une tâche est déjà en cours"
-DEBATE_SAME_AGENT = "❌ Choisis deux agents différents"
-DEBATE_NO_TOPIC = "❌ Sujet requis"
-DEBATE_INTERRUPTED = "⛔ Débat interrompu"
+# Messages de Tk (execution.py, debate.py), repris par la fenêtre : clés du
+# catalogue (core/locales), traduites à l'envoi
+NO_AGENT = "agents.workflow.noAgent"
+EMPTY_TASK = "agents.workflow.emptyTask"
+BUSY = "agents.workflow.busy"
+INTERRUPTED = "agents.interrupted"
+DEBATE_BUSY = "agents.debate.busy"
+DEBATE_SAME_AGENT = "agents.debate.sameAgent"
+DEBATE_NO_TOPIC = "agents.debate.noTopic"
+DEBATE_INTERRUPTED = "agents.debateInterrupted"
 
 # Refus d'AgentRelayService quand une exécution est en cours (run_workflow, run_debate)
-EXECUTOR_BUSY = "Une exécution est déjà en cours."
+EXECUTOR_BUSY = "agents.busy"
 
 # Origine d'un fil : la page, le téléphone (Relay) ou une tâche planifiée (D37)
 ORIGINS = ("desktop", "mobile", "scheduled")
@@ -80,8 +82,8 @@ NOTIFY_MIN_SECONDS = 8
 # Statuts d'un nœud du canvas (WorkflowCanvas.STATUS_META de Tk)
 NODE_STATUSES = ("idle", "running", "done", "error")
 
-# Libellés des statuts de nœud, pour l'export Markdown
-_STATUS_LABELS = {"idle": "En attente", "running": "En cours", "done": "Terminé", "error": "Erreur"}
+# Libellés des statuts de nœud, pour l'export Markdown (clés du catalogue)
+_STATUS_LABELS = {status: f"agents.status.{status}" for status in NODE_STATUSES}
 
 # Types de pièces jointes du menu « + » (types de l'interface Tk)
 ATTACH_TYPES = ("PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image")
@@ -218,7 +220,7 @@ class Run:
 
 def _interrupted_text(run: Run) -> str:
     """Texte d'un fil arrêté : celui d'AgentRelayService pour un débat, celui de Tk sinon."""
-    return DEBATE_INTERRUPTED if run.kind == "debate" else INTERRUPTED
+    return tr(DEBATE_INTERRUPTED if run.kind == "debate" else INTERRUPTED)
 
 
 def notification_text(run: Run) -> Tuple[str, str]:
@@ -230,12 +232,13 @@ def notification_text(run: Run) -> Tuple[str, str]:
     if run.kind == "agent":
         name = run.nodes[0].get("name", "") if run.nodes else ""
         icon = "✅" if run.status == "done" else "❌"
-        return f"{icon} {name} — tâche terminée", run.task[:120]
+        return tr("agents.notify.agentDone", icon=icon, name=name), run.task[:120]
     if run.kind == "debate":
-        return run.status_text or "🎭 Débat terminé", run.task[:120]
+        return run.status_text or tr("agents.notify.debateDone"), run.task[:120]
     answered = [s for s in run.sections if s.get("status") in ("done", "error")]
     rate = sum(s.get("status") == "done" for s in answered) / max(len(answered), 1)
-    return "✅ Workflow visuel terminé", f"{rate:.0%} de succès — {run.task[:90]}"
+    return tr("agents.notify.workflowDone"), tr("agents.notify.workflowRate",
+                                                 rate=f"{rate:.0%}", task=run.task[:90])
 
 
 class AgentsService:
@@ -294,25 +297,26 @@ class AgentsService:
     def create(self, name: str, role: str) -> Dict[str, Any]:
         """Crée un agent personnalisé : son prompt système est rédigé par le modèle."""
         result = self._executor().create_agent(name, role)
-        return self._agent_changed(result, "✅ Agent créé !")
+        return self._agent_changed(result, tr("agents.created"))
 
     def edit(self, key: str, name: str, role: str) -> Dict[str, Any]:
         """Modifie un agent personnalisé ; un nouveau rôle fait réécrire son prompt."""
         result = self._executor().edit_agent(key, name, role)
-        return self._agent_changed(result, "✅ Agent modifié !")
+        return self._agent_changed(result, tr("agents.edited"))
 
     def delete(self, key: str) -> None:
         """Supprime un agent personnalisé."""
         result = self._executor().delete_agent(key)
         if not result.get("success"):
-            raise AgentsError(f"❌ {result.get('error') or 'Suppression impossible'}")
+            raise AgentsError(f"❌ {result.get('error') or tr('agents.deleteFailed')}")
         self._publish("agents.list_changed", {})
         # Message et couleur de Tk (_delete_custom_agent)
-        self._notify("error", "❌ Agent supprimé")
+        self._notify("error", tr("agents.deleted"))
 
     def _agent_changed(self, result: Dict[str, Any], message: str) -> Dict[str, Any]:
         if not result.get("success"):
-            raise AgentsError(f"❌ Erreur : {result.get('error') or 'opération impossible'}")
+            raise AgentsError(tr("agents.operationFailed",
+                                 error=result.get("error") or tr("agents.operationImpossible")))
         self._publish("agents.list_changed", {})
         self._notify("success", message)
         return result.get("agent") or {}
@@ -376,7 +380,7 @@ class AgentsService:
     def _find(self, run_id: str) -> Run:
         run = next((r for r in self._runs if r.id == run_id), None)
         if run is None:
-            raise RunNotFound("Exécution introuvable.")
+            raise RunNotFound(tr("agents.runNotFound"))
         return run
 
     def start(self, task: str, nodes: List[Dict[str, Any]],
@@ -400,9 +404,9 @@ class AgentsService:
         """
         task = (task or "").strip()
         if not nodes:
-            raise AgentsError(NO_AGENT)
+            raise AgentsError(tr(NO_AGENT))
         if not task:
-            raise AgentsError(EMPTY_TASK)
+            raise AgentsError(tr(EMPTY_TASK))
         files = [self._attachment(item.get("path", ""), item.get("type"))
                  for item in attachments or []]
         executor = self._executor()
@@ -411,7 +415,8 @@ class AgentsService:
         run = Run({
             "id": f"exec_{uuid.uuid4().hex}",
             "kind": "agent" if single else "workflow",
-            "title": nodes[0].get("name", "Agent") if single else f"Workflow · {len(nodes)} agents",
+            "title": (nodes[0].get("name", "Agent") if single
+                      else tr("agents.title.workflow", count=len(nodes))),
             "task": task,
             "attachments": files,
             "sources": self._code_sources(files),
@@ -421,7 +426,7 @@ class AgentsService:
             "plan": _plan_view(plan),
             "node_status": {str(node["id"]): "idle" for node in nodes},
         })
-        self._begin(run, BUSY)
+        self._begin(run, tr(BUSY))
         threading.Thread(target=self._execute, args=(run,), name="agents-run", daemon=True).start()
         return run.id
 
@@ -443,24 +448,25 @@ class AgentsService:
         """
         topic = (topic or "").strip()
         if not agent_a or not agent_b or agent_a == agent_b:
-            raise AgentsError(DEBATE_SAME_AGENT)
+            raise AgentsError(tr(DEBATE_SAME_AGENT))
         if not topic:
-            raise AgentsError(DEBATE_NO_TOPIC)
+            raise AgentsError(tr(DEBATE_NO_TOPIC))
         rounds = _clamp_rounds(rounds)
         known = self._agents_by_key()
         first, second = known.get(agent_a), known.get(agent_b)
         if first is None or second is None:
-            raise AgentsError(f"❌ Agent introuvable : {agent_a if first is None else agent_b}")
+            raise AgentsError(tr("agents.agentNotFound",
+                                 key=agent_a if first is None else agent_b))
         run = Run({
             "id": f"exec_{uuid.uuid4().hex}",
             "kind": "debate",
-            "title": f"Débat · {first['name']} vs {second['name']}",
+            "title": tr("agents.title.debate", a=first["name"], b=second["name"]),
             "task": topic,
             "nodes": [_debate_node("a", first), _debate_node("b", second)],
             "debate": {"agent_a": agent_a, "agent_b": agent_b, "rounds": rounds},
             "plan": {"mode": "debate", "steps": [], "isolated": []},
         })
-        self._begin(run, DEBATE_BUSY)
+        self._begin(run, tr(DEBATE_BUSY))
         threading.Thread(target=self._execute, args=(run,), name="agents-debate",
                          daemon=True).start()
         return run.id
@@ -499,7 +505,7 @@ class AgentsService:
         with self._lock:
             run = self._find(run_id)
             if run is self._active:
-                raise AgentsError("Exécution en cours : arrêtez-la d'abord.")
+                raise AgentsError(tr("agents.stopFirst"))
             self._runs.remove(run)
             self._publish("agents.runs_changed", {})
         self._save()
@@ -544,7 +550,7 @@ class AgentsService:
             if run.stop_requested:
                 # Arrêté pendant la lecture des pièces jointes : l'exécuteur n'a rien lancé
                 self._on_event(run, {"type": "agent_exec_end", "exec_id": run.id, "success": False,
-                                     "interrupted": True, "status_text": INTERRUPTED})
+                                     "interrupted": True, "status_text": tr(INTERRUPTED)})
                 return
             documents = [item["path"] for item in run.attachments if item["type"] != "Image"]
             executor.run_workflow(run.id, task, run.nodes, run.connections,
@@ -552,9 +558,9 @@ class AgentsService:
                                   None, documents or None)
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("Exécution d'agents en échec (%s)", run.id)
-            label = "Erreur débat" if run.kind == "debate" else "Erreur workflow"
+            key = "agents.debateError" if run.kind == "debate" else "agents.workflowError"
             self._on_event(run, {"type": "agent_exec_error", "exec_id": run.id,
-                                 "message": f"{label} : {exc}"})
+                                 "message": tr(key, error=exc)})
         finally:
             self._finish_run(run)
 
@@ -565,7 +571,7 @@ class AgentsService:
                 if run.stop_requested:
                     run.finish("interrupted", _interrupted_text(run))
                 else:
-                    run.finish("error", "❌ Exécution terminée sans résultat")
+                    run.finish("error", tr("agents.noResult"))
             if self._active is run:
                 self._active = None
             self._publish("agents.runs_changed", {})
@@ -749,11 +755,11 @@ class AgentsService:
                 # Agent seul : messages de Tk (_execute_task_thread), et non
                 # « Workflow terminé (0% succès) » d'AgentRelayService
                 name = run.nodes[0].get("name", "") if run.nodes else ""
-                text = (f"✅ Tâche terminée avec {name}" if status == "done"
-                        else "❌ Erreur lors de l'exécution")
+                text = (tr("agents.agentTaskDone", name=name) if status == "done"
+                        else tr("agents.agentTaskError"))
             run.finish(status, text)
         elif kind == "agent_exec_error":
-            message = str(payload.get("message") or "Erreur")
+            message = str(payload.get("message") or tr("agents.errorDefault"))
             run.finish("error", f"❌ {message}", error=message)
 
     # ── Exécutions du téléphone et des tâches planifiées (D37) ──────────────
@@ -788,7 +794,7 @@ class AgentsService:
         executor = self._executor()
         run = self._adopt(executor, exec_id, request)
         if run is None:
-            emit({"type": "agent_exec_error", "exec_id": exec_id, "message": EXECUTOR_BUSY})
+            emit({"type": "agent_exec_error", "exec_id": exec_id, "message": tr(EXECUTOR_BUSY)})
             return
 
         def relay(event: Dict[str, Any]) -> None:
@@ -833,14 +839,16 @@ class AgentsService:
             nodes = [_debate_node(node_id, known.get(key) or {"key": key or "?"})
                      for node_id, key in (("a", debate.get("agent_a")),
                                           ("b", debate.get("agent_b")))]
-            return {"kind": "debate", "title": f"Débat · {nodes[0]['name']} vs {nodes[1]['name']}",
+            return {"kind": "debate",
+                    "title": tr("agents.title.debate", a=nodes[0]["name"], b=nodes[1]["name"]),
                     "nodes": nodes, "plan": {"mode": "debate", "steps": [], "isolated": []},
                     "debate": {"agent_a": debate.get("agent_a"), "agent_b": debate.get("agent_b"),
                                "rounds": _clamp_rounds(debate.get("rounds"))}}
         nodes = list(request.get("nodes") or [])
         plan = executor.compute_execution_plan(nodes, list(request.get("connections") or []))
         single = len(nodes) == 1
-        title = nodes[0].get("name", "Agent") if single else f"Workflow · {len(nodes)} agents"
+        title = (nodes[0].get("name", "Agent") if single
+                 else tr("agents.title.workflow", count=len(nodes)))
         return {"kind": "agent" if single else "workflow", "title": title,
                 "nodes": nodes, "connections": plan.get("connections", []),
                 "plan": _plan_view(plan),
@@ -904,12 +912,12 @@ class AgentsService:
         """Pièce jointe vérifiée : fichier existant, d'un type que les agents savent lire."""
         path = os.path.abspath(path or "")
         if not os.path.isfile(path):
-            raise AgentsError(f"❌ Fichier introuvable : {os.path.basename(path) or path}")
+            raise AgentsError(tr("agents.fileNotFound", name=os.path.basename(path) or path))
         if file_type not in ATTACH_TYPES:
             file_type = file_type_for(path)
         if file_type is None:
             ext = os.path.splitext(path)[1].lower() or "?"
-            raise AgentsError(f"❌ Format non supporté : {ext}")
+            raise AgentsError(tr("agents.unsupportedFormat", ext=ext))
         with self._lock:
             self._known.add(local_files.normalize(path))
         return {"path": path, "name": os.path.basename(path), "type": file_type}
@@ -1018,7 +1026,7 @@ class AgentsService:
             with open(target, "w", encoding="utf-8") as fh:
                 json.dump(workflow, fh, ensure_ascii=False, indent=2)
         except OSError as exc:
-            raise AgentsError(f"❌ Workflow non enregistré : {exc}") from exc
+            raise AgentsError(tr("agents.workflowNotSaved", error=exc)) from exc
         return str(target.resolve())
 
     @staticmethod
@@ -1026,13 +1034,13 @@ class AgentsService:
         """Workflow enregistré (Tk ou fenêtre) : la fenêtre en vérifie le contenu."""
         try:
             if os.path.getsize(path) > 5_000_000:
-                raise AgentsError("❌ Erreur chargement workflow : fichier trop gros")
+                raise AgentsError(tr("agents.workflowTooBig"))
             with open(path, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
         except (OSError, ValueError) as exc:
-            raise AgentsError(f"❌ Erreur chargement workflow : {exc}") from exc
+            raise AgentsError(tr("agents.workflowReadError", error=exc)) from exc
         if not isinstance(data, dict):
-            raise AgentsError("❌ Erreur chargement workflow : format inconnu")
+            raise AgentsError(tr("agents.workflowUnknownFormat"))
         return data
 
     def export_workflow(self, path: Optional[str], workflow: Dict[str, Any],
@@ -1111,17 +1119,19 @@ def workflow_markdown(workflow: Dict[str, Any], run: Optional[Dict[str, Any]] = 
              f"**Version**: {workflow.get('version', '9.0.0')}",
              f"**Nodes**: {len(nodes)}",
              f"**Connections**: {len(connections)}", ""]
-    lines += ["## Tâche", "", (run or {}).get("task") or "_Aucune exécution._", ""]
-    lines += ["## Agents", ""]
+    lines += [f"## {tr('export.workflow.task')}", "",
+              (run or {}).get("task") or tr("export.workflow.noRun"), ""]
+    lines += [f"## {tr('export.workflow.agents')}", ""]
     for node in nodes.values():
-        status = _STATUS_LABELS.get(node.get("status", "idle"), node.get("status", ""))
-        lines.append(f"- {node.get('icon', '🤖')} **{node.get('name', '')}** — "
-                     f"type : `{node.get('agent_type', '')}` — statut : {status}")
+        raw = node.get("status", "idle")
+        status = tr(_STATUS_LABELS[raw]) if raw in _STATUS_LABELS else raw
+        line = tr("export.workflow.agentLine", type=node.get("agent_type", ""), status=status)
+        lines.append(f"- {node.get('icon', '🤖')} **{node.get('name', '')}** — {line}")
     lines.append("")
     if run is None:
         return "\n".join(lines)
     started = (run.get("started_at") or "").replace("T", " ")[:16]
-    lines += [f"## Réponses de la dernière exécution ({started})", ""]
+    lines += [f"## {tr('export.workflow.answers', started=started)}", ""]
     sections = {_node_key(s.get("id")): s for s in run.get("sections") or []}
     run_nodes = {_node_key(n.get("id")): n for n in run.get("nodes") or []}
     for key, node in nodes.items():
@@ -1129,9 +1139,9 @@ def workflow_markdown(workflow: Dict[str, Any], run: Optional[Dict[str, Any]] = 
         section = sections.get(_node_key(key))
         same_agent = run_nodes.get(_node_key(key), {}).get("agent_type") == node.get("agent_type")
         if section is None or not same_agent:
-            lines += ["_Pas de réponse à la dernière exécution._", ""]
+            lines += [tr("export.workflow.noAnswer"), ""]
             continue
-        lines += [section.get("text") or "_Réponse vide._", ""]
+        lines += [section.get("text") or tr("export.workflow.emptyAnswer"), ""]
     if run.get("status_text"):
         lines += ["---", "", run["status_text"], ""]
     return "\n".join(lines)

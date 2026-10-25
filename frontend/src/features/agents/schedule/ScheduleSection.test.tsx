@@ -189,7 +189,7 @@ describe('tâches planifiées', () => {
   it('exécution appli fermée : l’interrupteur enregistre la tâche de Windows', async () => {
     api.setScheduleBackground.mockResolvedValue({ registered: true, ok: true, message: 'ok' });
     wrap();
-    await userEvent.click(screen.getByRole('switch', { name: "Exécuter même l'appli fermée" }));
+    await userEvent.click(screen.getByRole('switch', { name: 'Exécuter même l’appli fermée' }));
     expect(api.setScheduleBackground).toHaveBeenCalledWith(true);
   });
 });

@@ -40,6 +40,8 @@ from typing import Callable, Optional, Set
 
 import requests
 
+from core.i18n import tr
+
 ProgressCallback = Callable[[float, str], None]
 InterruptCallback = Callable[[], bool]
 
@@ -287,15 +289,11 @@ class ComfyUIManager:
             return True
 
         if not self.is_supported():
-            raise ComfyUISetupError(
-                "L'auto-installation de ComfyUI portable est réservée à Windows. "
-                "Installe ComfyUI ou AUTOMATIC1111/Forge manuellement "
-                "(voir docs/IMAGE_GENERATION.md)."
-            )
+            raise ComfyUISetupError(tr("comfyui.windowsOnly"))
 
         # 1. Installation du portable, ou du build qui sait utiliser le GPU
         if not self.is_installed():
-            _prog(0.02, "Préparation de l'installation de ComfyUI…")
+            _prog(0.02, tr("comfyui.preparing"))
             self._install(_prog, _check_interrupt)
         elif not self.is_running() and self._needs_other_build():
             self._switch_build(_prog, _check_interrupt)
@@ -308,7 +306,7 @@ class ComfyUIManager:
         # 3. Lancement + attente
         _check_interrupt()
         if not self.is_running():
-            _prog(0.9, "Démarrage de ComfyUI…")
+            _prog(0.9, tr("comfyui.starting"))
             self.start(cpu=self._force_cpu or not self._gpu_usable())
         ok = self.wait_until_ready(on_progress=_prog, check=_check_interrupt)
         if not ok and self._exited() and not self._on_cpu:
@@ -322,7 +320,7 @@ class ComfyUIManager:
             ok = self.wait_until_ready(on_progress=_prog, check=_check_interrupt)
         if not ok:
             raise ComfyUISetupError(self._startup_failure())
-        _prog(1.0, "ComfyUI prêt")
+        _prog(1.0, tr("comfyui.ready"))
         return True
 
     # ------------------------------------------------------------------
@@ -356,7 +354,7 @@ class ComfyUIManager:
                 archive,
                 prog,
                 check,
-                label=f"Téléchargement de ComfyUI ({build})",
+                label=tr("comfyui.downloading", build=build),
                 frac_start=0.03,
                 frac_end=0.6,
             )
@@ -364,14 +362,12 @@ class ComfyUIManager:
         # Extraire (.7z) à côté, puis mettre en place d'un seul renommage
         staging = self._tools_dir / "ComfyUI_extract"
         _rmtree(staging)
-        prog(0.62, "Extraction de ComfyUI…")
+        prog(0.62, tr("comfyui.extracting"))
         self._extract_7z(archive, staging, prog, check)
         extracted = staging / self._portable_dir.name
         if not (extracted / "python_embeded" / "python.exe").exists():
-            raise ComfyUISetupError(
-                f"Extraction terminée mais ComfyUI introuvable (attendu : {extracted})."
-            )
-        prog(0.66, "Mise en place de ComfyUI…")
+            raise ComfyUISetupError(tr("comfyui.extractedMissing", path=extracted))
+        prog(0.66, tr("comfyui.installing"))
         self._replace_install(extracted)
         _rmtree(staging)
 
@@ -425,7 +421,7 @@ class ComfyUIManager:
         check()
         exe = self._ensure_7zip(prog, check)
         if exe is not None:
-            prog(0.62, "Extraction de ComfyUI…")
+            prog(0.62, tr("comfyui.extracting"))
             # 7-Zip : x = extract avec arborescence, -o<dir> = sortie, -y = oui à tout
             proc = subprocess.run(
                 [exe, "x", str(archive), f"-o{dest}", "-y"],
@@ -435,14 +431,14 @@ class ComfyUIManager:
             )
             if proc.returncode != 0:
                 err = (proc.stderr or b"").decode("utf-8", "ignore")[:300]
-                raise ComfyUISetupError(f"Extraction 7-Zip échouée : {err}")
+                raise ComfyUISetupError(tr("comfyui.extractFailed", error=err))
             return
 
         # Dernier recours : py7zr (échouera sur BCJ2, mais utile pour d'autres .7z)
         try:
             import py7zr  # type: ignore
         except ImportError:
-            prog(0.62, "Installation de l'extracteur (py7zr)…")
+            prog(0.62, tr("comfyui.installingExtractor"))
             self._pip_install("py7zr")
             import py7zr  # type: ignore
         check()
@@ -469,7 +465,7 @@ class ComfyUIManager:
             return None
         self._tools_dir.mkdir(exist_ok=True)
         dest = self._tools_dir / "7zr.exe"
-        prog(0.61, "Préparation de l'extracteur 7-Zip…")
+        prog(0.61, tr("comfyui.preparingExtractor"))
         try:
             url = "https://www.7-zip.org/a/7zr.exe"
             with requests.get(url, stream=True, timeout=60) as r:
@@ -501,7 +497,7 @@ class ComfyUIManager:
             dest,
             prog,
             check,
-            label="Téléchargement du modèle",
+            label=tr("comfyui.downloadingModel"),
             frac_start=0.6,
             frac_end=0.88,
         )
@@ -515,7 +511,7 @@ class ComfyUIManager:
         if self.is_running():
             return
         if not self.is_installed():
-            raise ComfyUISetupError("ComfyUI n'est pas installé.")
+            raise ComfyUISetupError(tr("comfyui.notInstalled"))
 
         cmd = [
             str(self._python_exe),
@@ -558,23 +554,16 @@ class ComfyUIManager:
             if self.is_responding():
                 return True
             if on_progress:
-                mode = " sur le CPU" if self._on_cpu else ""
-                on_progress(0.93, f"Démarrage de ComfyUI{mode}… ({int(time.time() - start)}s)")
+                key = "comfyui.startingCpu" if self._on_cpu else "comfyui.startingGpu"
+                on_progress(0.93, tr(key, seconds=int(time.time() - start)))
             time.sleep(1.5)
         return False
 
     def _startup_failure(self) -> str:
         """Message d'échec du démarrage : la dernière erreur de ComfyUI et son journal."""
         if self._exited():
-            return (
-                f"ComfyUI s'est arrêté au démarrage ({self._log_excerpt()}). "
-                f"Journal : {self.log_path}"
-            )
-        return (
-            f"ComfyUI ne répond pas après {_STARTUP_TIMEOUT // 60} min. Réessaie, ou "
-            "lance-le manuellement via tools/ComfyUI_windows_portable. "
-            f"Journal : {self.log_path}"
-        )
+            return tr("comfyui.stoppedAtStart", error=self._log_excerpt(), log=self.log_path)
+        return tr("comfyui.noAnswer", minutes=_STARTUP_TIMEOUT // 60, log=self.log_path)
 
     def _log_excerpt(self) -> str:
         """Dernière ligne d'erreur du journal de ComfyUI, sinon sa dernière ligne."""
@@ -631,7 +620,9 @@ class ComfyUIManager:
                             frac = frac_start + ratio * (frac_end - frac_start)
                             mb = done / (1024 * 1024)
                             tot_mb = total / (1024 * 1024)
-                            prog(frac, f"{label}… {int(ratio * 100)}% ({mb:.0f}/{tot_mb:.0f} Mo)")
+                            prog(frac, tr("comfyui.downloadProgress", label=label,
+                                          percent=int(ratio * 100), done=f"{mb:.0f}",
+                                          total=f"{tot_mb:.0f}"))
             tmp.replace(dest)
         except ComfyUISetupError:
             # Interruption : nettoyer le partiel
@@ -641,7 +632,7 @@ class ComfyUIManager:
         except Exception as exc:
             if tmp.exists():
                 tmp.unlink()
-            raise ComfyUISetupError(f"{label} échoué : {exc}")
+            raise ComfyUISetupError(tr("comfyui.downloadFailed", label=label, error=exc))
 
     @staticmethod
     def _pip_install(package: str) -> None:

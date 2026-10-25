@@ -13,9 +13,19 @@ import {
   type HistoryEntry,
   type SearchResult,
 } from '../lib/api';
+import { type MessageKey, type Params, t, type Translate } from '../i18n';
 import { notify } from './app';
 
 export type SidebarSection = 'folders' | 'history';
+
+/** Ligne d'état de la recherche : traduite à l'affichage (la langue peut changer) */
+export type SearchStatus =
+  { key: MessageKey; params?: Params; text?: never } | { key?: never; text: string };
+
+export function searchStatusText(status: SearchStatus | null, translate: Translate = t): string {
+  if (!status) return '';
+  return status.key ? translate(status.key, status.params) : status.text;
+}
 
 interface SidebarState {
   sections: Record<SidebarSection, boolean>;
@@ -24,7 +34,7 @@ interface SidebarState {
   /** Requête des résultats affichés (null : pas de recherche) */
   searched: string | null;
   results: SearchResult[];
-  searchStatus: string;
+  searchStatus: SearchStatus | null;
   searching: boolean;
   // Dossiers projet
   folders: FoldersStatus | null;
@@ -40,7 +50,7 @@ export const useSidebar = create<SidebarState>()(() => ({
   query: '',
   searched: null,
   results: [],
-  searchStatus: '',
+  searchStatus: null,
   searching: false,
   folders: null,
   jobs: {},
@@ -71,35 +81,47 @@ export function setQuery(query: string): void {
 }
 
 export function clearSearch(): void {
-  useSidebar.setState({ query: '', searched: null, results: [], searchStatus: '' });
+  useSidebar.setState({ query: '', searched: null, results: [], searchStatus: null });
 }
 
 export async function runSearch(): Promise<void> {
   const query = useSidebar.getState().query.trim();
   if (!query) return;
-  useSidebar.setState({ searching: true, searchStatus: 'Recherche en cours…', searched: query });
+  useSidebar.setState({
+    searching: true,
+    searchStatus: { key: 'sidebar.search.running' },
+    searched: query,
+  });
   try {
     const { available, results } = await api.search(query);
     if (useSidebar.getState().searched !== query) return; // autre recherche entre-temps
-    let status = 'Recherche sémantique indisponible';
-    if (available) status = results.length ? `${results.length} résultat(s)` : 'Aucun résultat';
+    let status: SearchStatus = { key: 'sidebar.search.unavailable' };
+    if (available) {
+      status = results.length
+        ? { key: 'sidebar.search.count', params: { count: results.length } }
+        : { key: 'common.noResult' };
+    }
     useSidebar.setState({ results, searchStatus: status });
   } catch (error) {
-    useSidebar.setState({ results: [], searchStatus: errorText(error) });
+    useSidebar.setState({ results: [], searchStatus: { text: errorText(error) } });
   } finally {
     useSidebar.setState({ searching: false });
   }
 }
 
 export async function reindexSearch(): Promise<void> {
-  useSidebar.setState({ searchStatus: 'Réindexation…' });
+  useSidebar.setState({ searchStatus: { key: 'sidebar.search.reindexing' } });
   try {
     const { available, messages } = await api.reindexSearch();
     useSidebar.setState({
-      searchStatus: available ? `Indexé : ${messages} message(s)` : 'Indexation indisponible',
+      searchStatus: available
+        ? { key: 'sidebar.search.indexed', params: { count: messages } }
+        : { key: 'sidebar.search.indexUnavailable' },
     });
   } catch (error) {
-    useSidebar.setState({ searchStatus: `Erreur : ${errorText(error)}` });
+    useSidebar.setState({
+      searchStatus: { key: 'common.errorPlain', params: { error: errorText(error) } },
+    });
   }
 }
 
@@ -199,7 +221,7 @@ export async function deleteHistoryEntry(id: number): Promise<void> {
   try {
     await api.deleteHistory(id);
   } catch (error) {
-    notify('error', `❌ Erreur : ${errorText(error)}`);
+    notify('error', t('common.errorWith', { error: errorText(error) }));
   }
   void refreshHistory();
 }

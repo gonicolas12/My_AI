@@ -95,6 +95,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 # pylint: disable=wrong-import-position,wrong-import-order,import-error
 from fastapi import Request  # noqa: E402
 from core.chat_service import ChatService  # noqa: E402
+from core.i18n import tr  # noqa: E402
 from core.memory_store import MemoryStore  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
 from core.scheduler import SchedulerService  # noqa: E402
@@ -764,7 +765,8 @@ class DemoOllamaSetup(OllamaSetup):
         self.installed = ["qwen3.5:4b", "qwen3.5:2b", "my_ai:latest", "llava:latest"]
         self.base = "qwen3.5:4b"
         self.config = {"temperature": 0.7, "num_ctx": 32768, "timeout": 1200, "language": "fr",
-                       "languages": ["fr", "en", "es", "de", "it", "pt"],
+                       "languages": ["fr", "en", "es", "de", "it", "pt", "nl", "ru", "zh", "ja",
+                                     "ko", "ar"],
                        "relay_auto_start": False}
         self.done = False
 
@@ -1352,18 +1354,12 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         # engine et chat : posés au lancement, comme DesktopApp._launch
         # pylint: disable=attribute-defined-outside-init
         pause = 0.05 if self._fast else 0.7
-        steps = [
-            ("prefetch", "Préparation du modèle des longs documents…"),
-            ("ollama", "Démarrage d'Ollama…"),
-            ("onboarding", "Vérification de la configuration…"),
-            ("model", "Vérification du modèle my_ai…"),
-            ("placement", "Placement du modèle…"),
-        ]
-        for step, label in steps:
-            self._step(step, label)
+        steps = ["prefetch", "ollama", "onboarding", "model", "placement"]
+        for step in steps:
+            self._step(step)
             time.sleep(pause)
             if step == "onboarding" and self._first_launch_demo:
-                self._set_status(state="onboarding", label="Configuration initiale")
+                self._set_status(state="onboarding", label=tr("launch.firstSetup"))
                 if not self.first_launch.wait(lambda: self._closing):
                     return
                 self._set_status(state="starting")
@@ -1371,8 +1367,8 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
             for line in ("Essai : choix d'Ollama — 61 tok/s", "Essai : contexte en 8 bits — 78 tok/s"):
                 self._set_status(detail=line)
                 time.sleep(pause)
-        self._set_status(placement="modèle sur le GPU (100 %)")
-        self._step("engine", "Chargement du moteur…")
+        self._set_status(placement=tr("placement.label.full", where=tr("placement.where.gpu")))
+        self._step("engine")
         outputs = self._workspaces.parent / "outputs"
         outputs.mkdir(parents=True, exist_ok=True)
         # Dossier des fichiers « produits par l'appli » (files.generated_roots)
@@ -1388,12 +1384,12 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
                                 rlhf=FakeRLHF())
         self.chat.start()
         time.sleep(pause)
-        self._step("services", "Démarrage des services…")
+        self._step("services")
         self._start_demo_scheduler()
         time.sleep(pause)
         self._restore_session()
         self.preload_voice()
-        self._set_status(state="ready", step="ready", label="Prêt", detail="")
+        self._set_status(state="ready", step="ready", label=tr("launch.ready"), detail="")
 
 
 def main():

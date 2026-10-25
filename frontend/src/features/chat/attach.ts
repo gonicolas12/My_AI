@@ -8,6 +8,7 @@
  * au serveur, qui le range dans un dossier temporaire.
  */
 
+import { t } from '../../i18n';
 import { api } from '../../lib/api';
 import type { AttachKind } from '../../lib/shell';
 import { notify } from '../../stores/app';
@@ -63,7 +64,7 @@ export function droppedFiles(transfer: DataTransfer): File[] {
   const items = Array.from(transfer.items).filter((item) => item.kind === 'file');
   const isFolder = (item: DataTransferItem) => Boolean(item.webkitGetAsEntry()?.isDirectory);
   if (items.some(isFolder)) {
-    notify('info', '📁 Un dossier se joint en le glissant dans la fenêtre de l’appli');
+    notify('info', t('chat.attach.folderInWindow'));
   }
   return items
     .filter((item) => !isFolder(item))

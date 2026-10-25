@@ -1,6 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { FolderOpen, SquareArrowOutUpRight, X } from 'lucide-react';
 
+import { useT } from '../../i18n';
 import { openFile, revealPath } from '../../lib/actions';
 import { IconButton } from './Button';
 
@@ -17,6 +18,7 @@ interface LightboxProps {
 
 /** Image en grand, dans la fenêtre de l'appli (clic sur une image générée ou jointe) */
 export function Lightbox({ open, onOpenChange, url, path, name, generated }: LightboxProps) {
+  const t = useT();
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -36,17 +38,19 @@ export function Lightbox({ open, onOpenChange, url, path, name, generated }: Lig
             <RadixDialog.Title className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
               {name}
             </RadixDialog.Title>
-            <RadixDialog.Description className="sr-only">Image en grand</RadixDialog.Description>
+            <RadixDialog.Description className="sr-only">
+              {t('lightbox.description')}
+            </RadixDialog.Description>
             {generated ? (
-              <IconButton label="Ouvrir dans son application" onClick={() => void openFile(path)}>
+              <IconButton label={t('preview.openInApp')} onClick={() => void openFile(path)}>
                 <SquareArrowOutUpRight size={16} />
               </IconButton>
             ) : null}
-            <IconButton label="Afficher dans l’Explorateur" onClick={() => void revealPath(path)}>
+            <IconButton label={t('chat.file.reveal')} onClick={() => void revealPath(path)}>
               <FolderOpen size={16} />
             </IconButton>
             <RadixDialog.Close asChild>
-              <IconButton label="Fermer" shortcut="Échap">
+              <IconButton label={t('common.close')} shortcut="Escape">
                 <X size={18} />
               </IconButton>
             </RadixDialog.Close>

@@ -10,9 +10,11 @@ Le LLM n'est jamais sollicité : tous les tests fournissent `content`.
 """
 
 import asyncio
+import re
 
 import pytest
 
+from core import i18n
 from generators.document_generator import DocumentGenerator
 from generators.markdown_document import parse_markdown
 
@@ -42,6 +44,15 @@ Texte de la seconde section.
 print("ok")
 ```
 """
+
+
+@pytest.fixture(autouse=True)
+def _french_interface():
+    """Les mentions fixes d'un document court suivent l'interface : le français ici."""
+    i18n.reset_for_tests()
+    i18n.set_language("fr")
+    yield
+    i18n.reset_for_tests()
 
 
 @pytest.fixture(name="generator")
@@ -326,7 +337,7 @@ def test_html_is_a_standalone_page(generator, tmp_path):
     path = _build(generator, "html", tmp_path)
     text = path.read_text(encoding="utf-8")
     assert text.lstrip().startswith("<!DOCTYPE html>")
-    assert "<table>" in text and "<strong>" in text
+    assert "<table" in text and "<strong>" in text
 
 
 def test_csv_exports_the_first_table(generator, tmp_path):
@@ -411,3 +422,114 @@ def test_generate_document_derives_title_from_content(generator, tmp_path):
     text = Path(result["file_path"]).read_text(encoding="utf-8")
     assert text.count("Titre déduit") == 1
     Path(result["file_path"]).unlink()
+
+
+# ── Langue du document : mentions fixes, polices, sens d'écriture ─────────
+
+ARABIC = """## مقدمة
+
+باريس هي **عاصمة فرنسا** وأكبر مدنها، ويبلغ عدد سكانها حوالي مليوني نسمة.
+
+## المعالم
+
+- برج إيفل
+- متحف اللوفر
+
+## الخلاصة
+
+| المعلم | السنة |
+|---|---|
+| برج إيفل | 1889 |
+
+```python
+print("سلام")
+```
+"""
+
+
+def _arabic(generator, fmt, tmp_path):
+    return _build(generator, fmt, tmp_path, title="باريس", content=ARABIC)
+
+
+def test_fixed_mentions_follow_the_language_of_the_document(generator, tmp_path):
+    """Document arabe sous une interface française : sommaire, date et pied en arabe."""
+    import docx
+
+    document = docx.Document(str(_arabic(generator, "docx", tmp_path)))
+    texts = [p.text for p in document.paragraphs]
+    assert "المحتويات" in texts
+    assert any(text.startswith("أنشئ في") for text in texts)
+    assert document.sections[0].footer.paragraphs[0].text == "صفحة "
+
+
+def test_short_document_in_cyrillic_is_still_recognized(generator, tmp_path):
+    """L'écriture suffit à reconnaître une langue qui est seule à l'utiliser."""
+    import docx
+
+    path = _build(generator, "docx", tmp_path, title="Париж", content="Столица Франции.")
+    assert docx.Document(str(path)).paragraphs[1].text.startswith("Создано")
+
+
+def test_short_latin_document_takes_the_language_of_the_interface(generator, tmp_path):
+    i18n.set_language("de")
+    path = _build(generator, "csv", tmp_path, title="", content="OK")
+    assert path.read_text(encoding="utf-8-sig").splitlines()[0] == "Inhalt"
+
+
+def test_chinese_pdf_uses_a_chinese_font(generator, tmp_path):
+    content = "## 简介\n\n巴黎是法国的首都，人口约两百万。"
+    data = _build(generator, "pdf", tmp_path, title="巴黎", content=content).read_bytes()
+    assert b"STSong-Light" in data
+
+
+def test_arabic_pdf_is_joined_and_right_to_left(generator, tmp_path):
+    from utils.pdf_text import shaping_available, system_font
+
+    fitz = pytest.importorskip("fitz")
+    if not shaping_available() or not system_font("sans"):
+        pytest.skip("façonnage de l'arabe ou police Unicode indisponible")
+    data = _arabic(generator, "pdf", tmp_path).read_bytes()
+    assert b"+Arial" in data or b"+DejaVuSans" in data
+    with fitz.open(stream=data, filetype="pdf") as document:
+        page = document[0]
+        text = page.get_text()
+        middle = page.rect.width / 2
+        bullets = page.search_for("•")
+        code = page.search_for("print")
+    assert re.search(r"[\uFE70-\uFEFC]", text)  # lettres liées
+    assert not re.search(r"[\u0621-\u064A]", text)  # plus une lettre isolée
+    # Puces à droite ; le code, de gauche à droite, part de la marge gauche
+    assert len(bullets) == 2 and all(rect.x0 > middle for rect in bullets)
+    assert code and code[0].x0 < middle
+
+
+def test_arabic_docx_reads_right_to_left(generator, tmp_path):
+    import docx
+    from docx.oxml.ns import qn
+
+    document = docx.Document(str(_arabic(generator, "docx", tmp_path)))
+    paragraph = next(p for p in document.paragraphs if "عاصمة فرنسا" in p.text)
+    assert paragraph._p.pPr.find(qn("w:bidi")) is not None
+    bold = next(run for run in paragraph.runs if run.bold)
+    assert bold.font.rtl and bold.font.cs_bold  # Word met l'arabe en gras par w:bCs
+    code = next(p for p in document.paragraphs if "print" in p.text)
+    assert code._p.pPr.find(qn("w:bidi")) is None
+    assert document.tables[0]._tbl.tblPr.bidiVisual is not None
+
+
+def test_arabic_xlsx_and_pptx_read_right_to_left(generator, tmp_path):
+    from openpyxl import load_workbook
+    from pptx import Presentation
+
+    workbook = load_workbook(str(_arabic(generator, "xlsx", tmp_path)))
+    assert "ملاحظات" in workbook.sheetnames
+    assert all(sheet.sheet_view.rightToLeft for sheet in workbook.worksheets)
+
+    presentation = Presentation(str(_arabic(generator, "pptx", tmp_path)))
+    paragraphs = [
+        paragraph
+        for slide in presentation.slides
+        for shape in slide.shapes if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs if "برج إيفل" in paragraph.text
+    ]
+    assert paragraphs and all(p._p.pPr.get("rtl") == "1" for p in paragraphs)

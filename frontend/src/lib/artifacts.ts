@@ -6,6 +6,8 @@
  * tirés de <title> puis de <h1>), comme relay/static/app.js côté mobile.
  */
 
+import { type MessageKey, t } from '../i18n';
+
 export interface CodeArtifact {
   kind: 'html' | 'svg';
   code: string;
@@ -71,7 +73,7 @@ function deriveTitle(code: string, kind: 'html' | 'svg', index: number): string 
     const text = heading[1].replace(/<[^>]+>/g, '').trim();
     if (text) return text.slice(0, 80);
   }
-  return `${kind === 'svg' ? 'SVG' : 'Page HTML'} #${index + 1}`;
+  return t(kind === 'svg' ? 'artifact.svg' : 'artifact.htmlPage', { n: index + 1 });
 }
 
 /** Blocs HTML et SVG rendables d'une réponse, dans l'ordre (detect_artifacts) */
@@ -112,33 +114,41 @@ export function isPreviewable(path: string): boolean {
 }
 
 /** Libellé du format d'un fichier (_FORMAT_LABELS de interfaces/document_preview.py) */
-const FORMAT_LABELS: Record<string, string> = {
-  '.docx': 'Document Word',
-  '.doc': 'Document Word',
-  '.pdf': 'Document PDF',
-  '.pptx': 'Présentation PowerPoint',
-  '.potx': 'Modèle PowerPoint',
-  '.xlsx': 'Classeur Excel',
-  '.xlsm': 'Classeur Excel',
-  '.xls': 'Classeur Excel',
-  '.csv': 'Données CSV',
-  '.md': 'Markdown',
-  '.markdown': 'Markdown',
-  '.txt': 'Texte',
-  '.log': 'Journal',
-  '.rst': 'reStructuredText',
-  '.html': 'Page HTML',
-  '.htm': 'Page HTML',
-  '.png': 'Image PNG',
-  '.jpg': 'Image JPEG',
-  '.jpeg': 'Image JPEG',
-  '.webp': 'Image WebP',
-  '.gif': 'Image GIF',
+const FORMAT_LABELS: Record<string, MessageKey> = {
+  '.docx': 'file.format.word',
+  '.doc': 'file.format.word',
+  '.pdf': 'file.format.pdf',
+  '.pptx': 'file.format.pptx',
+  '.potx': 'file.format.potx',
+  '.xlsx': 'file.format.excel',
+  '.xlsm': 'file.format.excel',
+  '.xls': 'file.format.excel',
+  '.csv': 'file.format.csv',
+  '.md': 'file.format.markdown',
+  '.markdown': 'file.format.markdown',
+  '.txt': 'file.format.text',
+  '.log': 'file.format.log',
+  '.rst': 'file.format.rst',
+  '.html': 'file.format.html',
+  '.htm': 'file.format.html',
+};
+
+/** Images : « Image PNG », le nom du format ne se traduit pas */
+const IMAGE_FORMATS: Record<string, string> = {
+  '.png': 'PNG',
+  '.jpg': 'JPEG',
+  '.jpeg': 'JPEG',
+  '.webp': 'WebP',
+  '.gif': 'GIF',
 };
 
 export function formatLabel(path: string): string {
   const extension = extensionOf(path);
-  return FORMAT_LABELS[extension] ?? (extension ? `Fichier ${extension.slice(1)}` : 'Fichier');
+  const key = FORMAT_LABELS[extension];
+  if (key) return t(key);
+  const image = IMAGE_FORMATS[extension];
+  if (image) return t('file.format.image', { format: image });
+  return extension ? t('file.format.other', { ext: extension.slice(1) }) : t('file.format.unknown');
 }
 
 /** Documents affichables, sans doublon (artifacts_from_documents) */

@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { setSidebarOpen } from '../../../lib/actions';
 import { shell } from '../../../lib/shell';
 import { notify } from '../../../stores/app';
@@ -10,7 +11,7 @@ import { attachFolder } from '../../../stores/sidebar';
  */
 export async function attachProjectFolder(): Promise<void> {
   if (!shell.canPickFiles()) {
-    notify('info', 'Le choix d’un dossier se fait dans la fenêtre de l’appli.');
+    notify('info', t('sidebar.folders.pickInWindow'));
     return;
   }
   const path = await shell.pickFolder();

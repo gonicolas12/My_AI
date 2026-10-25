@@ -51,7 +51,7 @@ PARAMETER num_ctx 32768
 
 SYSTEM """
 Tu es My_AI, un assistant IA personnel expert.
-Réponds en français par défaut.
+Réponds dans la langue de l'utilisateur (français par défaut).
 """
 ```
 
@@ -995,7 +995,7 @@ Le `KnowledgeBaseManager` stocke dans SQLite les faits que vous demandez de rete
 
 Le `LanguageDetector` utilise un cache LRU de 128 entrées pour éviter de re-détecter la langue à chaque message dans une conversation.
 
-**Optimisation recommandée :** activer `auto_detect: true` uniquement si vous conversez dans plusieurs langues. Si vous utilisez uniquement le français, désactivez pour éviter le surcoût.
+**Coût négligeable :** quelques millisecondes par message, rien à désactiver. Un message court ou ambigu (« ok ») prend la langue choisie dans ⚙️ Réglages → Langue (`language.default`).
 
 ---
 

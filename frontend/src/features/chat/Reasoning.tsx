@@ -1,6 +1,7 @@
 import { Brain, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { formatDuration } from '../../lib/format';
 
@@ -20,6 +21,7 @@ interface ReasoningProps {
  * commencée, sauf si l'utilisateur l'a ouvert ou fermé lui-même.
  */
 export function Reasoning({ text, active, durationMs, live }: ReasoningProps) {
+  const t = useT();
   const [manual, setManual] = useState<boolean | null>(null);
   // Rien à déplier tant qu'aucun texte de réflexion n'est arrivé
   const hasText = text.trim().length > 0;
@@ -42,22 +44,25 @@ export function Reasoning({ text, active, durationMs, live }: ReasoningProps) {
         onClick={() => setManual(!open)}
         disabled={!hasText}
         aria-expanded={hasText ? open : undefined}
-        className="group inline-flex items-center gap-1.5 rounded-sm py-1 pr-2 text-sm text-fg-2 transition-colors hover:text-fg"
+        className="group inline-flex items-center gap-1.5 rounded-sm py-1 pe-2 text-sm text-fg-2 transition-colors hover:text-fg"
       >
         <Brain size={15} className={cn('shrink-0', waiting && 'text-accent pulse-soft')} />
-        <span className={cn(waiting && 'shimmer')}>Réflexion</span>
+        <span className={cn(waiting && 'shimmer')}>{t('chat.reasoning.title')}</span>
         {duration ? <span className="text-fg-3">· {duration}</span> : null}
         {hasText ? (
           <ChevronRight
             size={14}
-            className={cn('shrink-0 transition-transform duration-150', open && 'rotate-90')}
+            className={cn(
+              'shrink-0 transition-transform duration-150 rtl:-scale-x-100',
+              open && 'rotate-90 rtl:-rotate-90',
+            )}
           />
         ) : null}
       </button>
       {open && text ? (
         <div
           ref={body}
-          className="mt-1 max-h-80 overflow-y-auto border-l-2 border-line pl-3 text-sm leading-relaxed whitespace-pre-wrap text-fg-2"
+          className="mt-1 max-h-80 overflow-y-auto border-s-2 border-line ps-3 text-sm leading-relaxed whitespace-pre-wrap text-fg-2"
           style={{ animation: 'fade-in var(--motion) var(--motion-ease)' }}
         >
           {text.trim()}

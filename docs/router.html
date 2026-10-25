@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="robots" content="noindex,nofollow">
-<title>My_AI Relay — Connexion</title>
+<title>My_AI Relay</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -28,11 +28,12 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .status { font-size: 13px; color: #9ca3af; min-height: 18px; margin-top: 8px; }
+  /* « start » : à gauche, à droite en arabe */
   .err {
     color: #ef4444; font-size: 13px; margin-top: 12px;
-    text-align: left; word-break: break-all;
+    text-align: start; overflow-wrap: anywhere;
   }
-  ul.tries { list-style: none; padding: 0; margin: 16px 0 0; text-align: left; font-size: 12px; }
+  ul.tries { list-style: none; padding: 0; margin: 16px 0 0; text-align: start; font-size: 12px; }
   ul.tries li { padding: 6px 0; color: #6b7280; border-bottom: 1px solid #1f1f1f; }
   ul.tries li.ok { color: #10b981; }
   ul.tries li.fail { color: #f87171; }
@@ -55,16 +56,240 @@
     <path fill-rule="evenodd" clip-rule="evenodd" d="M 5 4.5 H 19 A 4 4 0 0 1 23 8.5 V 18 A 4 4 0 0 1 19 22 H 5 A 4 4 0 0 1 1 18 V 8.5 A 4 4 0 0 1 5 4.5 Z M 6.25 9.25 H 8.75 A 1.25 1.25 0 0 1 10 10.5 V 12 A 1.25 1.25 0 0 1 8.75 13.25 H 6.25 A 1.25 1.25 0 0 1 5 12 V 10.5 A 1.25 1.25 0 0 1 6.25 9.25 Z M 15.25 9.25 H 17.75 A 1.25 1.25 0 0 1 19 10.5 V 12 A 1.25 1.25 0 0 1 17.75 13.25 H 15.25 A 1.25 1.25 0 0 1 14 12 V 10.5 A 1.25 1.25 0 0 1 15.25 9.25 Z M 9 15.75 H 15 A 1 1 0 0 1 15 17.75 H 9 A 1 1 0 0 1 9 15.75 Z"/>
   </svg>
   <h1>My_AI Relay</h1>
-  <p class="sub" id="sub">Connexion en cours…</p>
+  <p class="sub" id="sub"></p>
   <div class="spinner" id="spinner"></div>
-  <div class="status" id="status">Recherche d'un tunnel disponible</div>
+  <div class="status" id="status"></div>
   <ul class="tries" id="tries"></ul>
   <div class="err" id="err" style="display:none"></div>
 </div>
+<!-- Textes de la page dans les 12 langues de My_AI. Servie par GitHub Pages
+     avant toute connexion au PC, la page ne peut pas lire les catalogues de
+     la page mobile (relay/static/locales) : ils sont ici, vérifiés par
+     tests/test_i18n.py (mêmes langues, mêmes clés). -->
+<script type="application/json" id="messages">
+{
+  "fr": {
+    "title": "Connexion",
+    "connecting": "Connexion en cours…",
+    "searching": "Recherche d'un tunnel disponible",
+    "testing": "Test du tunnel",
+    "reachable": "Joignable",
+    "unavailable": "Indisponible",
+    "unexpected": "réponse inattendue",
+    "timeout": "délai dépassé",
+    "networkError": "erreur réseau",
+    "redirecting": "Redirection…",
+    "failed": "Échec de la connexion",
+    "checkPc": "Vérifiez que My_AI Relay est bien démarré sur votre PC, puis rescannez le QR code.",
+    "invalidLink": "Lien invalide ou expiré.",
+    "missingKey": "Clé de chiffrement absente. Mettez à jour My_AI Relay sur le PC, puis rescannez le QR code.",
+    "noTunnel": "Aucun tunnel n'a répondu. Votre opérateur peut filtrer les domaines des tunnels publics.",
+    "allTimedOut": "Délai dépassé sur tous les tunnels."
+  },
+  "en": {
+    "title": "Connection",
+    "connecting": "Connecting…",
+    "searching": "Looking for an available tunnel",
+    "testing": "Testing tunnel",
+    "reachable": "Reachable",
+    "unavailable": "Unavailable",
+    "unexpected": "unexpected response",
+    "timeout": "timed out",
+    "networkError": "network error",
+    "redirecting": "Redirecting…",
+    "failed": "Connection failed",
+    "checkPc": "Check that My_AI Relay is running on your PC, then scan the QR code again.",
+    "invalidLink": "Invalid or expired link.",
+    "missingKey": "Encryption key missing. Update My_AI Relay on the PC, then scan the QR code again.",
+    "noTunnel": "No tunnel responded. Your carrier may be filtering public tunnel domains.",
+    "allTimedOut": "All tunnels timed out."
+  },
+  "es": {
+    "title": "Conexión",
+    "connecting": "Conectando…",
+    "searching": "Buscando un túnel disponible",
+    "testing": "Probando el túnel",
+    "reachable": "Accesible",
+    "unavailable": "No disponible",
+    "unexpected": "respuesta inesperada",
+    "timeout": "tiempo agotado",
+    "networkError": "error de red",
+    "redirecting": "Redirigiendo…",
+    "failed": "Error de conexión",
+    "checkPc": "Comprueba que My_AI Relay está en marcha en tu PC y vuelve a escanear el código QR.",
+    "invalidLink": "Enlace no válido o caducado.",
+    "missingKey": "Falta la clave de cifrado. Actualiza My_AI Relay en el PC y vuelve a escanear el código QR.",
+    "noTunnel": "Ningún túnel ha respondido. Tu operador puede estar filtrando los dominios de los túneles públicos.",
+    "allTimedOut": "Tiempo agotado en todos los túneles."
+  },
+  "de": {
+    "title": "Verbindung",
+    "connecting": "Verbindung wird hergestellt…",
+    "searching": "Suche nach einem verfügbaren Tunnel",
+    "testing": "Tunnel wird getestet",
+    "reachable": "Erreichbar",
+    "unavailable": "Nicht verfügbar",
+    "unexpected": "unerwartete Antwort",
+    "timeout": "Zeitüberschreitung",
+    "networkError": "Netzwerkfehler",
+    "redirecting": "Weiterleitung…",
+    "failed": "Verbindung fehlgeschlagen",
+    "checkPc": "Prüfen Sie, ob My_AI Relay auf Ihrem PC läuft, und scannen Sie den QR-Code erneut.",
+    "invalidLink": "Ungültiger oder abgelaufener Link.",
+    "missingKey": "Verschlüsselungsschlüssel fehlt. Aktualisieren Sie My_AI Relay auf dem PC und scannen Sie den QR-Code erneut.",
+    "noTunnel": "Kein Tunnel hat geantwortet. Ihr Mobilfunkanbieter filtert möglicherweise die Domains öffentlicher Tunnel.",
+    "allTimedOut": "Zeitüberschreitung bei allen Tunneln."
+  },
+  "it": {
+    "title": "Connessione",
+    "connecting": "Connessione in corso…",
+    "searching": "Ricerca di un tunnel disponibile",
+    "testing": "Test del tunnel",
+    "reachable": "Raggiungibile",
+    "unavailable": "Non disponibile",
+    "unexpected": "risposta inattesa",
+    "timeout": "tempo scaduto",
+    "networkError": "errore di rete",
+    "redirecting": "Reindirizzamento…",
+    "failed": "Connessione non riuscita",
+    "checkPc": "Verifica che My_AI Relay sia avviato sul tuo PC, poi scansiona di nuovo il codice QR.",
+    "invalidLink": "Link non valido o scaduto.",
+    "missingKey": "Chiave di crittografia assente. Aggiorna My_AI Relay sul PC, poi scansiona di nuovo il codice QR.",
+    "noTunnel": "Nessun tunnel ha risposto. Il tuo operatore potrebbe filtrare i domini dei tunnel pubblici.",
+    "allTimedOut": "Tempo scaduto su tutti i tunnel."
+  },
+  "pt": {
+    "title": "Conexão",
+    "connecting": "Conectando…",
+    "searching": "Procurando um túnel disponível",
+    "testing": "Testando o túnel",
+    "reachable": "Acessível",
+    "unavailable": "Indisponível",
+    "unexpected": "resposta inesperada",
+    "timeout": "tempo esgotado",
+    "networkError": "erro de rede",
+    "redirecting": "Redirecionando…",
+    "failed": "Falha na conexão",
+    "checkPc": "Verifique se o My_AI Relay está em execução no seu PC e leia o QR code novamente.",
+    "invalidLink": "Link inválido ou expirado.",
+    "missingKey": "Chave de criptografia ausente. Atualize o My_AI Relay no PC e leia o QR code novamente.",
+    "noTunnel": "Nenhum túnel respondeu. Sua operadora pode estar filtrando os domínios dos túneis públicos.",
+    "allTimedOut": "Tempo esgotado em todos os túneis."
+  },
+  "nl": {
+    "title": "Verbinding",
+    "connecting": "Verbinden…",
+    "searching": "Zoeken naar een beschikbare tunnel",
+    "testing": "Tunnel testen",
+    "reachable": "Bereikbaar",
+    "unavailable": "Niet beschikbaar",
+    "unexpected": "onverwacht antwoord",
+    "timeout": "time-out",
+    "networkError": "netwerkfout",
+    "redirecting": "Doorsturen…",
+    "failed": "Verbinding mislukt",
+    "checkPc": "Controleer of My_AI Relay op je pc draait en scan de QR-code opnieuw.",
+    "invalidLink": "Ongeldige of verlopen link.",
+    "missingKey": "Versleutelingssleutel ontbreekt. Werk My_AI Relay op de pc bij en scan de QR-code opnieuw.",
+    "noTunnel": "Geen enkele tunnel reageerde. Je provider filtert mogelijk de domeinen van openbare tunnels.",
+    "allTimedOut": "Time-out bij alle tunnels."
+  },
+  "ru": {
+    "title": "Подключение",
+    "connecting": "Подключение…",
+    "searching": "Поиск доступного туннеля",
+    "testing": "Проверка туннеля",
+    "reachable": "Доступен",
+    "unavailable": "Недоступен",
+    "unexpected": "неожиданный ответ",
+    "timeout": "время ожидания истекло",
+    "networkError": "ошибка сети",
+    "redirecting": "Перенаправление…",
+    "failed": "Не удалось подключиться",
+    "checkPc": "Проверьте, что My_AI Relay запущен на вашем ПК, и снова отсканируйте QR-код.",
+    "invalidLink": "Ссылка недействительна или устарела.",
+    "missingKey": "Нет ключа шифрования. Обновите My_AI Relay на ПК и снова отсканируйте QR-код.",
+    "noTunnel": "Ни один туннель не ответил. Возможно, ваш оператор фильтрует домены публичных туннелей.",
+    "allTimedOut": "Время ожидания истекло для всех туннелей."
+  },
+  "zh": {
+    "title": "连接",
+    "connecting": "正在连接…",
+    "searching": "正在寻找可用的隧道",
+    "testing": "正在测试隧道",
+    "reachable": "可访问",
+    "unavailable": "不可用",
+    "unexpected": "响应异常",
+    "timeout": "超时",
+    "networkError": "网络错误",
+    "redirecting": "正在跳转…",
+    "failed": "连接失败",
+    "checkPc": "请检查电脑上的 My_AI Relay 是否已启动，然后重新扫描二维码。",
+    "invalidLink": "链接无效或已过期。",
+    "missingKey": "缺少加密密钥。请在电脑上更新 My_AI Relay，然后重新扫描二维码。",
+    "noTunnel": "没有隧道响应。你的运营商可能屏蔽了公共隧道的域名。",
+    "allTimedOut": "所有隧道均已超时。"
+  },
+  "ja": {
+    "title": "接続",
+    "connecting": "接続しています…",
+    "searching": "利用できるトンネルを探しています",
+    "testing": "トンネルをテスト中",
+    "reachable": "接続可能",
+    "unavailable": "利用不可",
+    "unexpected": "予期しない応答",
+    "timeout": "タイムアウト",
+    "networkError": "ネットワークエラー",
+    "redirecting": "移動しています…",
+    "failed": "接続できませんでした",
+    "checkPc": "PC で My_AI Relay が起動していることを確認してから、QR コードをもう一度読み取ってください。",
+    "invalidLink": "リンクが無効か、期限切れです。",
+    "missingKey": "暗号化キーがありません。PC の My_AI Relay を更新してから、QR コードをもう一度読み取ってください。",
+    "noTunnel": "どのトンネルからも応答がありません。通信事業者が公開トンネルのドメインを制限している可能性があります。",
+    "allTimedOut": "すべてのトンネルがタイムアウトしました。"
+  },
+  "ko": {
+    "title": "연결",
+    "connecting": "연결하는 중…",
+    "searching": "사용 가능한 터널을 찾는 중",
+    "testing": "터널 확인 중",
+    "reachable": "연결 가능",
+    "unavailable": "사용 불가",
+    "unexpected": "예상치 못한 응답",
+    "timeout": "시간 초과",
+    "networkError": "네트워크 오류",
+    "redirecting": "이동하는 중…",
+    "failed": "연결 실패",
+    "checkPc": "PC에서 My_AI Relay가 실행 중인지 확인한 다음 QR 코드를 다시 스캔하세요.",
+    "invalidLink": "링크가 잘못되었거나 만료되었습니다.",
+    "missingKey": "암호화 키가 없습니다. PC에서 My_AI Relay를 업데이트한 다음 QR 코드를 다시 스캔하세요.",
+    "noTunnel": "응답한 터널이 없습니다. 통신사가 공개 터널 도메인을 차단하고 있을 수 있습니다.",
+    "allTimedOut": "모든 터널의 시간이 초과되었습니다."
+  },
+  "ar": {
+    "title": "الاتصال",
+    "connecting": "جارٍ الاتصال…",
+    "searching": "جارٍ البحث عن نفق متاح",
+    "testing": "اختبار النفق",
+    "reachable": "متاح",
+    "unavailable": "غير متاح",
+    "unexpected": "استجابة غير متوقعة",
+    "timeout": "انتهت المهلة",
+    "networkError": "خطأ في الشبكة",
+    "redirecting": "جارٍ التحويل…",
+    "failed": "فشل الاتصال",
+    "checkPc": "تحقّق من أن My_AI Relay يعمل على حاسوبك، ثم امسح رمز QR مجددًا.",
+    "invalidLink": "الرابط غير صالح أو منتهي الصلاحية.",
+    "missingKey": "مفتاح التشفير مفقود. حدّث My_AI Relay على الحاسوب، ثم امسح رمز QR مجددًا.",
+    "noTunnel": "لم يستجب أي نفق. قد يحجب مزوّد الخدمة نطاقات الأنفاق العامة.",
+    "allTimedOut": "انتهت المهلة في جميع الأنفاق."
+  }
+}
+</script>
 <script>
 (function () {
   // ── Décodage du payload encodé dans le fragment d'URL ──────────────
-  // Format : #d=<base64url(JSON{urls,token})>
+  // Format : #d=<base64url(JSON{urls,token,key,lang})>
   // On utilise le fragment (et pas la query string) parce qu'il n'est
   // jamais envoyé au serveur GitHub Pages — confidentialité du token.
   function b64urlDecode(s) {
@@ -87,30 +312,56 @@
     try { return JSON.parse(raw); } catch (e) { return null; }
   }
 
+  // ── Langue de la page ──────────────────────────────────────────────
+  // Celle de My_AI sur le PC (« lang » du payload), que parle aussi la page
+  // mobile qui suit. Sinon (lien d'une version plus ancienne, lien
+  // invalide) celle du téléphone, sinon l'anglais.
+  var MESSAGES = JSON.parse(document.getElementById('messages').textContent);
+
+  function pickLanguage(fromPc) {
+    var wanted = [fromPc].concat(navigator.languages || [navigator.language]);
+    for (var i = 0; i < wanted.length; i++) {
+      var code = String(wanted[i] || '').toLowerCase().split('-')[0];
+      if (Object.prototype.hasOwnProperty.call(MESSAGES, code)) return code;
+    }
+    return 'en';
+  }
+
   var payload = parsePayload();
+  var lang = pickLanguage(payload && payload.lang);
+  var T = MESSAGES[lang];
   var triesEl = document.getElementById('tries');
   var statusEl = document.getElementById('status');
   var errEl = document.getElementById('err');
   var subEl = document.getElementById('sub');
   var spinnerEl = document.getElementById('spinner');
 
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  document.title = 'My_AI Relay — ' + T.title;
+  subEl.textContent = T.connecting;
+  statusEl.textContent = T.searching;
+
   function fail(msg) {
     spinnerEl.style.display = 'none';
-    subEl.textContent = 'Échec de la connexion';
+    subEl.textContent = T.failed;
     statusEl.textContent = '';
     errEl.style.display = 'block';
-    errEl.innerHTML = msg + '<br><br>Vérifiez que My_AI Relay est bien démarré sur votre PC, puis rescannez le QR code.';
+    errEl.textContent = msg;
+    errEl.appendChild(document.createElement('br'));
+    errEl.appendChild(document.createElement('br'));
+    errEl.appendChild(document.createTextNode(T.checkPc));
   }
 
   if (!payload || !Array.isArray(payload.urls) || payload.urls.length === 0 || !payload.token) {
-    fail('Lien invalide ou expiré.');
+    fail(T.invalidLink);
     return;
   }
   // La clé E2EE est obligatoire depuis l'introduction du chiffrement
   // applicatif (AES-256-GCM). Sans elle, l'app mobile ne pourra ni
   // émettre ni déchiffrer aucun message.
   if (!payload.key) {
-    fail('Clé de chiffrement absente. Mettez à jour My_AI Relay sur le PC, puis rescannez le QR code.');
+    fail(T.missingKey);
     return;
   }
 
@@ -127,9 +378,15 @@
   }
 
   function appendTry(url) {
+    // Textes posés par textContent : le lien vient du QR code, rien n'y est interprété
     var li = document.createElement('li');
-    var host = hostOf(url);
-    li.innerHTML = '<span>Test du tunnel</span><span class="host">' + host + '</span>';
+    var label = document.createElement('span');
+    var host = document.createElement('span');
+    label.textContent = T.testing;
+    host.className = 'host';
+    host.textContent = hostOf(url);
+    li.appendChild(label);
+    li.appendChild(host);
     triesEl.appendChild(li);
     perUrlEl[url] = li;
   }
@@ -138,7 +395,7 @@
     var li = perUrlEl[url];
     if (!li) return;
     li.className = ok ? 'ok' : 'fail';
-    var label = ok ? '✓ Joignable' : '✗ ' + (reason || 'Indisponible');
+    var label = ok ? '✓ ' + T.reachable : '✗ ' + (reason || T.unavailable);
     li.querySelector('span').textContent = label;
   }
 
@@ -150,7 +407,7 @@
     if (settled) return;
     settled = true;
     abortAll();
-    statusEl.textContent = 'Redirection…';
+    statusEl.textContent = T.redirecting;
     var sep = url.indexOf('?') >= 0 ? '&' : '?';
     // serveo affiche une page d'avertissement à la première visite d'un
     // tunnel gratuit, et son bouton « Continue » recharge la page sans le
@@ -190,16 +447,16 @@
         markResult(url, true);
         redirect(url);
       } else {
-        markResult(url, false, 'réponse inattendue');
+        markResult(url, false, T.unexpected);
       }
     }).catch(function (e) {
       clearTimeout(timer);
-      var msg = (e && e.name === 'AbortError') ? 'délai dépassé' : 'erreur réseau';
+      var msg = (e && e.name === 'AbortError') ? T.timeout : T.networkError;
       markResult(url, false, msg);
     }).finally(function () {
       pending -= 1;
       if (pending === 0 && !settled) {
-        fail('Aucun tunnel n\'a répondu. Votre opérateur peut filtrer les domaines des tunnels publics.');
+        fail(T.noTunnel);
       }
     });
   });
@@ -208,7 +465,7 @@
   // silencieusement), on affiche quand même un échec après 8 s.
   setTimeout(function () {
     if (!settled && pending > 0) {
-      fail('Délai dépassé sur tous les tunnels.');
+      fail(T.allTimedOut);
     }
   }, 8000);
 })();

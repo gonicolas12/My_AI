@@ -19,6 +19,7 @@ import math
 from typing import Any, Callable, Dict, Optional
 
 from core.chat_service import ChatError
+from core.i18n import tr
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopMemory")
@@ -51,14 +52,14 @@ class MemoryService:
         getter = getattr(engine, "get_memory_store", None)
         store = getter() if callable(getter) else None
         if store is None:
-            raise MemoryPanelError("Mémoire indisponible (base non initialisée).")
+            raise MemoryPanelError(tr("memory.unavailable"))
         return store
 
     def page(self, tab: str, query: str = "", category: Optional[str] = None,
              page: int = 0) -> Dict[str, Any]:
         """Une page d'un onglet : éléments, total filtré, nombre de pages, compteurs."""
         if tab not in TABS:
-            raise MemoryPanelError(f"Onglet inconnu : {tab}")
+            raise MemoryPanelError(tr("memory.unknownTab", tab=tab))
         store = self._store()
         query = (query or "").strip()
         page = max(0, int(page))
@@ -93,20 +94,20 @@ class MemoryService:
         """« Ajouter » : un fait saisi à la main (source « manual », confiance 1)."""
         text = (text or "").strip()
         if not text:
-            raise MemoryPanelError("⚠️ Le contenu ne peut pas être vide")
+            raise MemoryPanelError(tr("memory.emptyContent"))
         if category not in FACT_CATEGORIES:
             category = "general"
         key = text.splitlines()[0].strip()[:_KEY_MAX] or "fait manuel"
         fact_id = self._store().add_fact(category, key, text, source="manual")
         if fact_id is None:
-            raise MemoryPanelError("❌ Échec de l'ajout")
+            raise MemoryPanelError(tr("memory.addFailed"))
         return fact_id
 
     def update(self, tab: str, entry_id: Any, text: str) -> None:
         """Nouveau contenu d'un élément ; un message de conversation change à la source."""
         text = (text or "").strip()
         if not text:
-            raise MemoryPanelError("⚠️ Le contenu ne peut pas être vide")
+            raise MemoryPanelError(tr("memory.emptyContent"))
         store = self._store()
         if tab == "facts":
             ok = store.update_fact(int(entry_id), text)
@@ -116,9 +117,9 @@ class MemoryService:
         elif tab == "document":
             ok = store.update_vector(str(entry_id), text, "document", at_source=False)
         else:
-            raise MemoryPanelError(f"Onglet inconnu : {tab}")
+            raise MemoryPanelError(tr("memory.unknownTab", tab=tab))
         if not ok:
-            raise MemoryPanelError("❌ Échec de la modification")
+            raise MemoryPanelError(tr("memory.editFailed"))
 
     def delete(self, tab: str, entry_id: Any, at_source: bool = True) -> None:
         """Suppression ; un message de conversation peut l'être aussi à la source."""
@@ -136,9 +137,9 @@ class MemoryService:
         elif tab in ("document", "conversation"):
             ok = store.delete_vector(str(entry_id), tab, at_source=False)
         else:
-            raise MemoryPanelError(f"Onglet inconnu : {tab}")
+            raise MemoryPanelError(tr("memory.unknownTab", tab=tab))
         if not ok:
-            raise MemoryPanelError("❌ Échec de la suppression")
+            raise MemoryPanelError(tr("memory.deleteFailed"))
 
     def _change_conversation(self, store, entry_id: str, new_text: Optional[str]) -> None:
         """Message d'origine réécrit ou supprimé, puis session réindexée."""
@@ -149,7 +150,7 @@ class MemoryService:
         index = meta.get("message_index")
         chat = self._chat()
         if not entry or not session_id or index is None or chat is None:
-            raise MemoryPanelError("Message d'origine introuvable.")
+            raise MemoryPanelError(tr("memory.sourceGone"))
         try:
             chat.change_saved_message(session_id, int(index), entry.get("content") or "", new_text)
         except ChatError as exc:

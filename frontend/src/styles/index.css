@@ -251,11 +251,15 @@
   }
 }
 
-/* Volet d'aperçu : il glisse depuis la droite */
+/* Volet d'aperçu : il glisse depuis la droite (depuis la gauche en arabe) */
+[dir='rtl'] {
+  --slide-in-from: -32px;
+}
+
 @keyframes slide-in-right {
   from {
     opacity: 0;
-    transform: translateX(32px);
+    transform: translateX(var(--slide-in-from, 32px));
   }
   to {
     opacity: 1;

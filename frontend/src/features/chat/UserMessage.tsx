@@ -3,6 +3,7 @@ import { createElement, memo, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { Lightbox } from '../../components/ui/Lightbox';
+import { useT } from '../../i18n';
 import { revealPath } from '../../lib/actions';
 import { api } from '../../lib/api';
 import { documentArtifacts } from '../../lib/artifacts';
@@ -50,7 +51,7 @@ function SentAttachment({ attachment, mid }: { attachment: AttachmentRef; mid: s
         type="button"
         onClick={open}
         title={attachment.path}
-        className="inline-flex h-9 max-w-64 items-center gap-2 rounded-md border border-line bg-bg-2 pr-2.5 pl-1 text-xs text-fg-2 transition-colors duration-150 hover:border-line-2 hover:text-fg"
+        className="inline-flex h-9 max-w-64 items-center gap-2 rounded-md border border-line bg-bg-2 ps-1 pe-2.5 text-xs text-fg-2 transition-colors duration-150 hover:border-line-2 hover:text-fg"
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-3">
           {image && url ? (
@@ -87,6 +88,7 @@ export const UserMessage = memo(function UserMessage({
   busy,
   hasFollowing = false,
 }: UserMessageProps) {
+  const t = useT();
   const { body } = splitAttachmentLines(message.text);
   const attachments = message.attachments;
   const [editing, setEditing] = useState(false);
@@ -96,11 +98,11 @@ export const UserMessage = memo(function UserMessage({
       {message.source === 'mobile' ? (
         <span className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-2xs font-medium text-fg-2">
           <Smartphone size={11} />
-          Mobile
+          {t('chat.queue.mobile')}
         </span>
       ) : null}
       {body ? (
-        <div className="max-w-[85%] rounded-xl rounded-br-sm bg-user px-4 py-2.5 text-chat leading-relaxed break-words whitespace-pre-wrap text-on-user">
+        <div className="max-w-[85%] rounded-xl rounded-ee-sm bg-user px-4 py-2.5 text-chat leading-relaxed break-words whitespace-pre-wrap text-on-user">
           {body}
         </div>
       ) : null}
@@ -112,28 +114,28 @@ export const UserMessage = memo(function UserMessage({
         </div>
       ) : null}
       <MessageActions align="end" meta={formatTime(message.timestamp)}>
-        <CopyButton text={body} label="Copier le message" />
+        <CopyButton text={body} label={t('chat.message.copyUser')} />
         {body ? <EditButton busy={busy} onClick={() => setEditing(true)} /> : null}
         {branch && branch.count > 1 ? (
           <div className="flex items-center text-xs text-fg-2 tabular-nums">
             <IconButton
-              label="Version précédente"
+              label={t('chat.message.previousVersion')}
               size="sm"
               disabled={busy || branch.current <= 0}
               onClick={() => navigate(message.mid, branch.current - 1)}
             >
-              <ChevronLeft size={15} />
+              <ChevronLeft size={15} className="rtl:-scale-x-100" />
             </IconButton>
             <span className="px-0.5">
               {branch.current + 1}/{branch.count}
             </span>
             <IconButton
-              label="Version suivante"
+              label={t('chat.message.nextVersion')}
               size="sm"
               disabled={busy || branch.current >= branch.count - 1}
               onClick={() => navigate(message.mid, branch.current + 1)}
             >
-              <ChevronRight size={15} />
+              <ChevronRight size={15} className="rtl:-scale-x-100" />
             </IconButton>
           </div>
         ) : null}

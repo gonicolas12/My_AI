@@ -19,6 +19,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.i18n import tr
 from interfaces.desktop.routing import ENGINE_STARTING
 from interfaces.desktop.schedule import ScheduleError, ScheduleNotFound, ScheduleService
 
@@ -112,7 +113,7 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
 
     def schedule() -> ScheduleService:
         if getattr(app, "engine", None) is None:
-            raise HTTPException(status_code=503, detail=ENGINE_STARTING)
+            raise HTTPException(status_code=503, detail=tr(ENGINE_STARTING))
         return app.schedule
 
     @api.get("/api/schedule")

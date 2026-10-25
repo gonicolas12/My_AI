@@ -35,6 +35,8 @@ from typing import Callable, Optional
 
 import requests
 
+from core.i18n import tr
+
 # CREATE_NO_WINDOW seulement sur Windows (évite une console qui flashe)
 _NO_WINDOW = 0x08000000 if platform.system() == "Windows" else 0
 
@@ -400,11 +402,11 @@ def create_custom_model(on_log: Callable[[str], None]) -> None:
             creationflags=_NO_WINDOW,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError("Commande 'ollama' introuvable dans le PATH.") from exc
+        raise RuntimeError(tr("models.ollamaNotFound")) from exc
     if proc.stdout:
         on_log(proc.stdout.strip())
     if proc.returncode != 0:
-        raise RuntimeError(_ollama_error(proc.stderr) or "ollama create a échoué.")
+        raise RuntimeError(_ollama_error(proc.stderr) or tr("models.createFailed"))
     _remember_modelfile(digest)
 
 

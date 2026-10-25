@@ -80,6 +80,11 @@ avec sa grille et ses onglets. Voir
   qu'elle échoue, le document est rendu en HTML — une **feuille de papier**
   posée sur le fond sombre du volet. C'est aussi ce rendu HTML que reçoit le
   mobile Relay.
+- **Sens d'écriture** : la page prend le sens de l'interface (de droite à
+  gauche en arabe), et chaque titre, paragraphe, liste ou tableau celui de son
+  propre texte (`dir="auto"`) : un document arabe se lit de droite à gauche
+  sous une interface française, un document français de gauche à droite sous
+  une interface arabe. Le code reste de gauche à droite.
 - **Word caché** : après le premier aperçu d'un .docx, le serveur de
   visionneuse de Word (`WINWORD.EXE -Embedding`, ~100 Mo de RAM privée
   mesurés) reste en mémoire pour être réutilisé (aperçus suivants en ~1 s).

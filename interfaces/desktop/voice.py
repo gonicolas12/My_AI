@@ -16,13 +16,15 @@ import importlib.util
 import threading
 from typing import Any, Callable, Dict, Optional
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopVoice")
 
 # Messages de l'interface Tk quand une dépendance manque
-INPUT_UNAVAILABLE = "Saisie vocale indisponible : installe 'faster-whisper' et 'sounddevice'."
-OUTPUT_UNAVAILABLE = "Lecture vocale indisponible : installe 'pyttsx3'."
+# Clés du catalogue (core/locales), traduites à l'envoi
+INPUT_UNAVAILABLE = "voice.inputUnavailable"
+OUTPUT_UNAVAILABLE = "voice.outputUnavailable"
 
 
 def _installed(module: str) -> bool:
@@ -111,7 +113,7 @@ class VoiceService:
         voice = self._voice_input()
         if not voice.available:
             logger.info("[VOICE] %s", voice.unavailable_reason())
-            self._on_input_state("error", INPUT_UNAVAILABLE)
+            self._on_input_state("error", tr(INPUT_UNAVAILABLE))
             return "error"
         voice.toggle()
         return voice.state
@@ -154,7 +156,7 @@ class VoiceService:
         """Lit un texte à voix haute (Markdown, code et liens retirés) ; renvoie l'état."""
         voice = self._voice_output()
         if not voice.available:
-            self._on_output_state("error", key, OUTPUT_UNAVAILABLE)
+            self._on_output_state("error", key, tr(OUTPUT_UNAVAILABLE))
             return "error"
         if voice.is_speaking:
             voice.stop()
@@ -187,7 +189,7 @@ class VoiceService:
             if state != "speaking":
                 self._speaking_key = None
         if state == "error" and not message:
-            message = OUTPUT_UNAVAILABLE  # comme le bouton 🔇 de Tk
+            message = tr(OUTPUT_UNAVAILABLE)  # comme le bouton 🔇 de Tk
         self._publish("voice.output", {"state": state, "key": key, "message": message})
 
     # ── Arrêt ───────────────────────────────────────────────────────────────

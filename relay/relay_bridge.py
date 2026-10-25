@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 logger = setup_logger("RelayBridge")
@@ -285,7 +286,7 @@ class RelayBridge:
             None, self._response_event.wait, timeout
         )
         if not got:
-            return ("⏱️ Délai d'attente dépassé pour la réponse.", self._latest_message_id)
+            return (tr("relay.timeout"), self._latest_message_id)
         return (self._latest_response, self._latest_message_id)
 
     def submit_ai_chunk(self, partial_text: str, message_id: Optional[str] = None) -> None:

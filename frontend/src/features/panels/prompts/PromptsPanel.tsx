@@ -11,6 +11,7 @@ import { type ChangeEvent, type ReactNode, useEffect, useId, useState } from 're
 import { Button, IconButton } from '../../../components/ui/Button';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Dialog } from '../../../components/ui/Dialog';
+import { type Translate, useT } from '../../../i18n';
 import { ApiError, api, type PromptFields, type PromptTemplate } from '../../../lib/api';
 import { notify } from '../../../stores/app';
 import { closePanel } from '../../../stores/panels';
@@ -28,8 +29,8 @@ function preview(content: string) {
 }
 
 /** Nom dans la confirmation : la commande, sinon le titre (Tk) */
-const nameOf = (prompt: PromptTemplate) =>
-  prompt.command ? `/${prompt.command}` : prompt.title || 'ce prompt';
+const nameOf = (prompt: PromptTemplate, t: Translate) =>
+  prompt.command ? `/${prompt.command}` : prompt.title || t('prompts.thisPrompt');
 
 function Row({
   prompt,
@@ -40,6 +41,7 @@ function Row({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const text = preview(prompt.content);
   return (
     <li className="flex items-start gap-2 rounded-md border border-line bg-bg px-3.5 py-3">
@@ -53,17 +55,22 @@ function Row({
               </span>
             </>
           ) : null}
-          <span className="truncate">{prompt.title || '(sans titre)'}</span>
+          <span className="truncate">{prompt.title || t('prompts.untitled')}</span>
         </p>
         {prompt.description ? (
           <p className="mt-0.5 text-sm text-fg-2">{prompt.description}</p>
         ) : null}
         {text ? <p className="mt-1 truncate text-xs text-fg-3">{text}</p> : null}
       </div>
-      <IconButton label="Modifier" size="sm" onClick={onEdit}>
+      <IconButton label={t('common.edit')} size="sm" onClick={onEdit}>
         <Pencil size={14} />
       </IconButton>
-      <IconButton label="Supprimer" size="sm" onClick={onDelete} className="hover:text-error!">
+      <IconButton
+        label={t('common.delete')}
+        size="sm"
+        onClick={onDelete}
+        className="hover:text-error!"
+      >
         <Trash2 size={14} />
       </IconButton>
     </li>
@@ -99,6 +106,7 @@ function PromptForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [fields, setFields] = useState<PromptFields>(() => ({
     title: prompt?.title ?? '',
     command: prompt?.command ?? '',
@@ -119,11 +127,11 @@ function PromptForm({
   const save = async () => {
     // Contrôles du formulaire Tk, refaits par le serveur
     if (!fields.title.trim() && !fields.command.trim()) {
-      setError('Renseignez au moins un nom ou une commande.');
+      setError(t('prompts.error.nameOrCommand'));
       return;
     }
     if (!fields.content.trim()) {
-      setError('Le contenu ne peut pas être vide.');
+      setError(t('prompts.error.emptyContent'));
       return;
     }
     setBusy(true);
@@ -143,62 +151,60 @@ function PromptForm({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title={prompt ? 'Modifier le prompt' : 'Nouveau prompt'}
+      title={prompt ? t('prompts.edit') : t('prompts.new')}
       width={560}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" onClick={() => void save()} disabled={busy}>
             {busy ? <LoaderCircle size={15} className="spin" /> : null}
-            Enregistrer
+            {t('common.save')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Nom" htmlFor={titleId}>
+        <Field label={t('prompts.field.name')} htmlFor={titleId}>
           <input
             id={titleId}
             value={fields.title}
             onChange={change('title')}
-            placeholder="Ex : Résumé"
+            placeholder={t('prompts.field.namePlaceholder')}
             autoFocus
             className={inputClass}
           />
         </Field>
-        <Field label="Commande (slash, optionnel)" htmlFor={commandId}>
+        <Field label={t('prompts.field.command')} htmlFor={commandId}>
           <div className="flex h-9 items-center rounded-md border border-line bg-bg-3 focus-within:border-accent">
-            <span aria-hidden="true" className="pl-2.5 font-mono text-sm text-fg-3">
+            <span aria-hidden="true" className="ps-2.5 font-mono text-sm text-fg-3">
               /
             </span>
             <input
               id={commandId}
               value={fields.command}
               onChange={change('command')}
-              placeholder="Ex : résume"
+              placeholder={t('prompts.field.commandPlaceholder')}
               spellCheck={false}
-              className="h-full min-w-0 flex-1 bg-transparent pr-2.5 pl-1 font-mono text-sm text-fg outline-none placeholder:font-sans placeholder:text-fg-3"
+              className="h-full min-w-0 flex-1 bg-transparent ps-1 pe-2.5 font-mono text-sm text-fg outline-none placeholder:font-sans placeholder:text-fg-3"
             />
           </div>
         </Field>
-        <Field label="Description (optionnel)" htmlFor={descriptionId}>
+        <Field label={t('prompts.field.description')} htmlFor={descriptionId}>
           <input
             id={descriptionId}
             value={fields.description}
             onChange={change('description')}
-            placeholder="À quoi sert ce prompt ?"
+            placeholder={t('prompts.field.descriptionPlaceholder')}
             className={inputClass}
           />
         </Field>
         <Field
           label={
             <>
-              Contenu envoyé à l'IA{' '}
-              <span className="font-normal text-fg-3">
-                ({'{arguments}'} = le texte saisi après la commande)
-              </span>
+              {t('prompts.field.content')}{' '}
+              <span className="font-normal text-fg-3">{t('prompts.field.contentHint')}</span>
             </>
           }
           htmlFor={contentId}
@@ -233,6 +239,7 @@ const Notice = ({ children }: { children: ReactNode }) => (
 );
 
 export default function PromptsPanel() {
+  const t = useT();
   const [prompts, setPrompts] = useState<PromptTemplate[] | null>(null);
   const [failed, setFailed] = useState('');
   const [tick, setTick] = useState(0);
@@ -263,7 +270,7 @@ export default function PromptsPanel() {
       await api.deletePrompt(prompt.id);
       reload();
     } catch (error) {
-      notify('error', `❌ Erreur : ${errorText(error)}`);
+      notify('error', t('common.errorWith', { error: errorText(error) }));
     }
   };
 
@@ -273,11 +280,11 @@ export default function PromptsPanel() {
   } else if (!prompts) {
     body = (
       <Notice>
-        <LoaderCircle size={14} className="spin text-accent" /> Chargement…
+        <LoaderCircle size={14} className="spin text-accent" /> {t('common.loading')}
       </Notice>
     );
   } else if (!prompts.length) {
-    body = <Notice>Aucun prompt pour l'instant. Cliquez « Nouveau prompt ».</Notice>;
+    body = <Notice>{t('prompts.empty')}</Notice>;
   } else {
     body = (
       <ul className="space-y-2">
@@ -300,18 +307,18 @@ export default function PromptsPanel() {
         if (!open) closePanel();
       }}
       icon={BookText}
-      title="Bibliothèque de prompts"
-      description="Créez des prompts réutilisables. Tapez « /commande » dans le chat puis votre texte (ex. « /code un jeu de morpion ») : l'IA reçoit le prompt détaillé ci-dessous, avec {arguments} remplacé par votre texte."
+      title={t('prompts.title')}
+      description={t('prompts.description')}
       width={760}
       flush
     >
       <div className="flex h-full flex-col">
         <div className="flex shrink-0 items-center gap-2 border-b border-line px-5 py-3">
           <Button variant="primary" onClick={() => setEditing('new')} disabled={Boolean(failed)}>
-            <Plus size={15} /> Nouveau prompt
+            <Plus size={15} /> {t('prompts.new')}
           </Button>
           <span className="flex-1" />
-          <IconButton label="Rafraîchir" size="lg" onClick={reload}>
+          <IconButton label={t('common.refresh')} size="lg" onClick={reload}>
             <RefreshCw size={16} />
           </IconButton>
         </div>
@@ -332,9 +339,9 @@ export default function PromptsPanel() {
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-        title="Supprimer le prompt"
-        message={deleting ? `Voulez-vous vraiment supprimer « ${nameOf(deleting)} » ?` : ''}
-        confirmLabel="Supprimer"
+        title={t('prompts.delete.title')}
+        message={deleting ? t('prompts.delete.message', { name: nameOf(deleting, t) }) : ''}
+        confirmLabel={t('common.delete')}
         danger
         onConfirm={() => {
           if (deleting) void remove(deleting);

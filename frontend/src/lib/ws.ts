@@ -7,6 +7,7 @@
  * demande de relire l'état complet s'il ne les garde plus (resumed=false).
  */
 
+import { t } from '../i18n';
 import type { AnyServerEvent, ClientMessage, HelloMessage, ReplyMessage } from './events';
 
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting';
@@ -80,20 +81,20 @@ export class EventSocket {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.ws?.close();
     this.ws = null;
-    this.failPending('Connexion fermée.');
+    this.failPending(t('connection.closed'));
   }
 
   /** Envoie un message ; la promesse rend les données de la réponse du serveur. */
   send(message: ClientMessage): Promise<Record<string, unknown>> {
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new SocketError('Connexion au serveur local en cours…', false));
+      return Promise.reject(new SocketError(t('connection.pending'), false));
     }
     const id = String(this.nextId++);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new SocketError('Le serveur local ne répond pas.', true));
+        reject(new SocketError(t('connection.noResponse'), true));
       }, REPLY_TIMEOUT);
       this.pending.set(id, { resolve, reject, timer });
       ws.send(JSON.stringify({ ...message, id }));
@@ -119,7 +120,7 @@ export class EventSocket {
     ws.onmessage = (message: MessageEvent<string>) => this.receive(message.data);
     ws.onclose = () => {
       if (this.ws === ws) this.ws = null;
-      this.failPending('Connexion au serveur local perdue.');
+      this.failPending(t('connection.lost'));
       if (!this.stopped) this.scheduleRetry();
     };
   }
@@ -155,7 +156,7 @@ export class EventSocket {
       this.pending.delete(reply.ref);
       clearTimeout(waiting.timer);
       if (reply.ok) waiting.resolve(reply.data ?? {});
-      else waiting.reject(new ReplyError(reply.error ?? 'Action refusée.'));
+      else waiting.reject(new ReplyError(reply.error ?? t('connection.refused')));
       return;
     }
     const event = data;

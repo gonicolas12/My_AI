@@ -9,6 +9,7 @@
  * relire le fil.
  */
 
+import { t } from '../i18n';
 import type { AnyAgentEvent, RunSection, RunSummary, RunView, SectionId } from '../lib/events';
 
 export interface RunsState {
@@ -219,7 +220,7 @@ export function applyAgentEvent(state: RunsState, event: AnyAgentEvent): RunsSta
       return withRun(state, finished(run, status, statusText));
     }
     case 'agents.agent_exec_error': {
-      const message = event.payload.message || 'Erreur';
+      const message = event.payload.message || t('agents.run.errorDefault');
       return withRun(state, { ...finished(run, 'error', `❌ ${message}`), error: message });
     }
     default:

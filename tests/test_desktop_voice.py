@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+from core.i18n import tr
 from interfaces.desktop.events import EventBus, validate_event
 from interfaces.desktop.server import DesktopServer
 from interfaces.desktop.voice import INPUT_UNAVAILABLE, OUTPUT_UNAVAILABLE, VoiceService
@@ -122,7 +123,7 @@ def test_missing_dictation_dependencies_show_the_tk_message(voice, monkeypatch):
     monkeypatch.setattr(FakeVoiceInput, "available", False)
     assert voice.service.toggle_input() == "error"
     assert payloads(voice.events, "voice.input")[-1] == {"state": "error",
-                                                         "message": INPUT_UNAVAILABLE}
+                                                         "message": tr(INPUT_UNAVAILABLE)}
 
 
 def test_reading_an_answer_toggles_and_follows_its_key(voice):
@@ -143,7 +144,7 @@ def test_reading_an_answer_toggles_and_follows_its_key(voice):
 def test_missing_speech_engine_shows_the_tk_message(voice):
     voice.output.available = False
     assert voice.service.speak("Bonjour", "a1") == "error"
-    assert payloads(voice.events, "voice.output")[-1]["message"] == OUTPUT_UNAVAILABLE
+    assert payloads(voice.events, "voice.output")[-1]["message"] == tr(OUTPUT_UNAVAILABLE)
 
 
 def test_autoread_is_saved_and_switching_it_off_stops_reading(voice):

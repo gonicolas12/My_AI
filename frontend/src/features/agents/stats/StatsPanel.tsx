@@ -10,6 +10,7 @@
 import { Activity, ChartColumn } from 'lucide-react';
 import { memo } from 'react';
 
+import { useT } from '../../../i18n';
 import type { ResourceMetrics } from '../../../lib/events';
 import { useAgents } from '../../../stores/agents';
 import { type ResourcesHistory, useResources } from '../../../stores/resources';
@@ -54,22 +55,25 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function Statistics() {
+  const t = useT();
   const stats = useAgents((state) => state.stats);
   return (
     <div className="rounded-xl border border-line bg-bg-2 p-4">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
         <ChartColumn size={15} className="text-fg-2" />
-        Statistiques
+        {t('stats.title')}
       </h3>
       <div className="grid grid-cols-3 gap-4">
-        <Stat label="Tâches exécutées" value={String(stats.tasks)} />
-        <Stat label="Agents actifs" value={String(stats.agents)} />
+        <Stat label={t('stats.tasks')} value={String(stats.tasks)} />
+        <Stat label={t('stats.agents')} value={String(stats.agents)} />
         <Stat
-          label="Taux de succès"
-          value={stats.success_rate === null ? '—' : `${stats.success_rate} %`}
+          label={t('stats.successRate')}
+          value={
+            stats.success_rate === null ? '—' : t('stats.percent', { value: stats.success_rate })
+          }
         />
       </div>
-      <p className="mt-3 text-xs text-fg-3">Sur les fils d’exécution gardés.</p>
+      <p className="mt-3 text-xs text-fg-3">{t('stats.note')}</p>
     </div>
   );
 }
@@ -105,7 +109,7 @@ function MeterRow({
           style={{ width: `${value}%`, background: color }}
         />
       </div>
-      <span className="w-60 shrink-0 text-right text-sm font-medium whitespace-nowrap text-fg tabular-nums">
+      <span className="w-60 shrink-0 text-end text-sm font-medium whitespace-nowrap text-fg tabular-nums">
         {text}
       </span>
       {history ? <Sparkline values={history} /> : <span style={{ width: SPARK_W }} />}
@@ -120,11 +124,12 @@ function Resources({
   metrics: ResourceMetrics | null;
   history: ResourcesHistory;
 }) {
+  const t = useT();
   return (
     <div className="rounded-xl border border-line bg-bg-2 p-4">
       <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-fg">
         <Activity size={15} className="text-fg-2" />
-        Consommation de ressources (Ollama)
+        {t('stats.resources')}
       </h3>
       {metrics ? (
         resourceRows(metrics).map((row) => (
@@ -138,23 +143,21 @@ function Resources({
           />
         ))
       ) : (
-        <p className="shimmer py-2 text-sm">Première mesure…</p>
+        <p className="shimmer py-2 text-sm">{t('stats.firstMeasure')}</p>
       )}
-      <p className="mt-2 text-xs text-fg-3">
-        CPU et RAM des processus d’Ollama, une mesure toutes les 3 s ; temps d’inférence et tokens/s
-        du dernier agent.
-      </p>
+      <p className="mt-2 text-xs text-fg-3">{t('stats.resourcesNote')}</p>
     </div>
   );
 }
 
 export function StatsPanel() {
+  const t = useT();
   const metrics = useResources((state) => state.metrics);
   const history = useResources((state) => state.history);
   return (
     <section aria-labelledby="agents-stats" className="flex flex-col gap-3">
       <h2 id="agents-stats" className="text-lg font-semibold text-fg">
-        Statistiques et ressources
+        {t('stats.sectionTitle')}
       </h2>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(280px,1fr)_2fr]">
         <Statistics />

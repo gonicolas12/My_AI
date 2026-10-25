@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { Button, IconButton } from '../../../components/ui/Button';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Switch } from '../../../components/ui/Switch';
+import { useT } from '../../../i18n';
 import { openFile } from '../../../lib/actions';
 import type { ScheduledTask } from '../../../lib/api';
 import { cn } from '../../../lib/cn';
@@ -43,6 +44,7 @@ function LastResult({
   task: ScheduledTask;
   onOpenThread: (id: string) => void;
 }) {
+  const t = useT();
   // Fil de la dernière exécution (les plus récents d'abord)
   const runId = useAgents(
     (state) => state.runs.find((run) => run.schedule_task_id === task.id)?.id ?? null,
@@ -52,8 +54,8 @@ function LastResult({
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
       <span>
-        dernière : {shortDate(task.last_run)}
-        {status ? <span style={{ color: status.color }}> · {status.label}</span> : null}
+        {t('schedule.last', { date: shortDate(task.last_run) })}
+        {status ? <span style={{ color: status.color }}> · {t(status.label)}</span> : null}
       </span>
       {runId ? (
         <button
@@ -62,7 +64,7 @@ function LastResult({
           className="inline-flex items-center gap-1 text-link hover:underline"
         >
           <ListTree size={12} />
-          Voir le fil
+          {t('schedule.viewThread')}
         </button>
       ) : null}
       {task.last_output_file ? (
@@ -73,7 +75,7 @@ function LastResult({
           className="inline-flex items-center gap-1 text-link hover:underline"
         >
           <FileText size={12} />
-          Rapport
+          {t('agents.thread.report')}
         </button>
       ) : null}
     </span>
@@ -91,6 +93,7 @@ function TaskRow({
   onDelete: () => void;
   onOpenThread: (id: string) => void;
 }) {
+  const t = useT();
   return (
     <li className="flex items-center gap-3 rounded-lg border border-line/70 bg-bg px-4 py-3">
       {task.enabled ? (
@@ -112,7 +115,11 @@ function TaskRow({
           <span className="text-fg-3">·</span>
           <span>{task.source}</span>
           <span className="text-fg-3">·</span>
-          <span>prochaine : {task.enabled ? shortDate(task.next_run) : 'désactivée'}</span>
+          <span>
+            {t('schedule.next', {
+              date: task.enabled ? shortDate(task.next_run) : t('schedule.disabled'),
+            })}
+          </span>
         </div>
         <div className="mt-0.5 text-xs text-fg-2">
           <LastResult task={task} onOpenThread={onOpenThread} />
@@ -122,16 +129,20 @@ function TaskRow({
         <Switch
           checked={task.enabled}
           onCheckedChange={(enabled) => void setTaskEnabled(task.id, enabled)}
-          label={task.enabled ? `Désactiver ${task.name}` : `Activer ${task.name}`}
+          label={
+            task.enabled
+              ? t('schedule.disable', { name: task.name })
+              : t('schedule.enable', { name: task.name })
+          }
         />
-        <span className="ml-1.5 flex items-center">
-          <IconButton label="Exécuter maintenant" onClick={() => void runScheduledTask(task.id)}>
+        <span className="ms-1.5 flex items-center">
+          <IconButton label={t('schedule.runNow')} onClick={() => void runScheduledTask(task.id)}>
             <Play size={15} className="text-success" />
           </IconButton>
-          <IconButton label="Modifier" onClick={onEdit}>
+          <IconButton label={t('common.edit')} onClick={onEdit}>
             <Pencil size={15} />
           </IconButton>
-          <IconButton label="Supprimer" onClick={onDelete} className="hover:text-error">
+          <IconButton label={t('common.delete')} onClick={onDelete} className="hover:text-error">
             <Trash2 size={15} />
           </IconButton>
         </span>
@@ -141,6 +152,7 @@ function TaskRow({
 }
 
 export function ScheduleSection({ onOpenThread }: { onOpenThread: (runId: string) => void }) {
+  const t = useT();
   const tasks = useSchedule((state) => state.tasks);
   const loaded = useSchedule((state) => state.loaded);
   const background = useSchedule((state) => state.background);
@@ -158,16 +170,13 @@ export function ScheduleSection({ onOpenThread }: { onOpenThread: (runId: string
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <h2 id="agents-schedule" className="text-lg font-semibold text-fg">
-            Tâches planifiées
+            {t('schedule.title')}
           </h2>
-          <p className="text-sm text-fg-2">
-            Exécutez automatiquement un agent, un workflow ou un débat de façon récurrente (ex.
-            veille quotidienne, audit hebdomadaire).
-          </p>
+          <p className="text-sm text-fg-2">{t('schedule.description')}</p>
         </div>
         <Button variant="secondary" onClick={() => setEditing(null)}>
           <CalendarPlus size={15} className="text-fg-2" />
-          Nouvelle tâche
+          {t('schedule.new')}
         </Button>
       </div>
       {background.available ? (
@@ -175,14 +184,14 @@ export function ScheduleSection({ onOpenThread }: { onOpenThread: (runId: string
           <Switch
             checked={background.registered}
             onCheckedChange={(enabled) => void setScheduleBackground(enabled)}
-            label="Exécuter même l'appli fermée"
+            label={t('schedule.background')}
           />
-          Exécuter même l’appli fermée
-          <span className="text-fg-3">(session Windows ouverte)</span>
+          {t('schedule.background')}
+          <span className="text-fg-3">{t('schedule.backgroundNote')}</span>
         </label>
       ) : null}
       {tasks.length ? (
-        <ul className="flex flex-col gap-2" aria-label="Tâches planifiées">
+        <ul className="flex flex-col gap-2" aria-label={t('schedule.title')}>
           {tasks.map((task) => (
             <TaskRow
               key={task.id}
@@ -195,7 +204,7 @@ export function ScheduleSection({ onOpenThread }: { onOpenThread: (runId: string
         </ul>
       ) : loaded ? (
         <p className="rounded-xl border border-dashed border-line px-5 py-4 text-sm text-fg-2">
-          Aucune tâche planifiée. Cliquez sur « Nouvelle tâche ».
+          {t('schedule.empty')}
         </p>
       ) : null}
       {editing !== undefined ? (
@@ -206,9 +215,9 @@ export function ScheduleSection({ onOpenThread }: { onOpenThread: (runId: string
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-        title="Supprimer la tâche"
-        message={`Supprimer la tâche planifiée « ${deleting?.name ?? ''} » ?`}
-        confirmLabel="Supprimer"
+        title={t('schedule.delete.title')}
+        message={t('schedule.delete.message', { name: deleting?.name ?? '' })}
+        confirmLabel={t('common.delete')}
         danger
         onConfirm={() => {
           if (deleting) void deleteScheduledTask(deleting.id);

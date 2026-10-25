@@ -11,10 +11,10 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Dialog } from '../../components/ui/Dialog';
+import { useT } from '../../i18n';
 import { editMessage } from '../../lib/actions';
 import type { MessageView } from '../../lib/events';
 import { splitAttachmentLines } from './attachments';
-import { BRANCH_WARNING } from './MessageControls';
 
 interface EditDialogProps {
   message: MessageView;
@@ -24,6 +24,7 @@ interface EditDialogProps {
 }
 
 export function EditDialog({ message, hasFollowing, onClose }: EditDialogProps) {
+  const t = useT();
   const { body } = splitAttachmentLines(message.text);
   const [text, setText] = useState(body);
   const [confirming, setConfirming] = useState(false);
@@ -50,17 +51,17 @@ export function EditDialog({ message, hasFollowing, onClose }: EditDialogProps) 
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
-        title="Modifier le message"
-        description="Modifier votre message puis regénérer la réponse :"
+        title={t('chat.edit.title')}
+        description={t('chat.edit.description')}
         width={560}
         footer={
           <>
             <Button variant="secondary" onClick={onClose}>
-              Annuler
+              {t('common.cancel')}
             </Button>
             <Button variant="primary" onClick={submit}>
               <RotateCcw size={15} />
-              Regénérer
+              {t('chat.edit.regenerate')}
             </Button>
           </>
         }
@@ -74,13 +75,15 @@ export function EditDialog({ message, hasFollowing, onClose }: EditDialogProps) 
               submit();
             }
           }}
-          aria-label="Message modifié"
+          aria-label={t('chat.edit.textLabel')}
           autoFocus
           rows={6}
           className="block max-h-[50vh] w-full resize-y rounded-md border border-line bg-bg px-3 py-2.5 text-chat leading-relaxed text-fg outline-none focus:border-line-2"
         />
         {names.length ? (
-          <p className="mt-2 text-xs text-fg-2">Pièces jointes conservées : {names.join(', ')}</p>
+          <p className="mt-2 text-xs text-fg-2">
+            {t('chat.edit.keptAttachments', { names: names.join(', ') })}
+          </p>
         ) : null}
       </Dialog>
       <ConfirmDialog
@@ -88,9 +91,9 @@ export function EditDialog({ message, hasFollowing, onClose }: EditDialogProps) 
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
-        title="Modifier le message"
-        message={BRANCH_WARNING}
-        confirmLabel="Continuer"
+        title={t('chat.edit.title')}
+        message={t('chat.branchWarning')}
+        confirmLabel={t('common.continue')}
         onConfirm={apply}
       />
     </>

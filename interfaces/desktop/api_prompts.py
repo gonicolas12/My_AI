@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from core.i18n import tr
 from interfaces.desktop.prompts import PromptsError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -50,17 +51,17 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     @api.post("/api/prompts")
     async def create_prompt(body: PromptBody):
         prompt = await _run(app.prompts.save, None, body.model_dump())
-        app.notify("success", "✅ Prompt créé")
+        app.notify("success", tr("prompts.created"))
         return prompt
 
     @api.put("/api/prompts/{template_id}")
     async def update_prompt(template_id: str, body: PromptBody):
         prompt = await _run(app.prompts.save, template_id, body.model_dump())
-        app.notify("success", "✅ Prompt enregistré")
+        app.notify("success", tr("prompts.saved"))
         return prompt
 
     @api.delete("/api/prompts/{template_id}")
     async def delete_prompt(template_id: str):
         await _run(app.prompts.delete, template_id)
-        app.notify("success", "🗑️ Prompt supprimé")
+        app.notify("success", tr("prompts.deleted"))
         return {"ok": True}

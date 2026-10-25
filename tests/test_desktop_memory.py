@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from core.chat_service import MESSAGE_GONE, ChatError
+from core.i18n import tr
 from core.memory_store import MemoryStore
 from interfaces.desktop.events import EventBus
 from interfaces.desktop.memory import PAGE_SIZE, MemoryPanelError, MemoryService
@@ -107,7 +108,7 @@ class FakeChat:
 
     def change_saved_message(self, session_id, index, text, new_text):
         if self.refuse:
-            raise ChatError(MESSAGE_GONE)
+            raise ChatError(tr(MESSAGE_GONE))
         self.changes.append((session_id, index, text, new_text))
 
 

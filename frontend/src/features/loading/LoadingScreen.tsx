@@ -9,20 +9,21 @@
 import { Check, CircleAlert, LoaderCircle } from 'lucide-react';
 
 import { RobotLogo } from '../../components/ui/RobotLogo';
+import { type MessageKey, useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import type { EngineStatus } from '../../lib/events';
 import type { ConnectionState } from '../../lib/ws';
 import { OnboardingWizard } from '../onboarding/OnboardingWizard';
 
 /** Étapes du lanceur, dans l'ordre de lifecycle.py */
-const LAUNCH_STEPS: { id: string; label: string }[] = [
-  { id: 'prefetch', label: 'Modèle des longs documents' },
-  { id: 'ollama', label: "Démarrage d'Ollama" },
-  { id: 'onboarding', label: 'Vérification de la configuration' },
-  { id: 'model', label: 'Modèle my_ai' },
-  { id: 'placement', label: 'Placement du modèle' },
-  { id: 'engine', label: 'Chargement du moteur' },
-  { id: 'services', label: 'Démarrage des services' },
+const LAUNCH_STEPS: { id: string; label: MessageKey }[] = [
+  { id: 'prefetch', label: 'loading.step.prefetch' },
+  { id: 'ollama', label: 'loading.step.ollama' },
+  { id: 'onboarding', label: 'loading.step.onboarding' },
+  { id: 'model', label: 'loading.step.model' },
+  { id: 'placement', label: 'loading.step.placement' },
+  { id: 'engine', label: 'loading.step.engine' },
+  { id: 'services', label: 'loading.step.services' },
 ];
 
 interface LoadingScreenProps {
@@ -31,6 +32,7 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({ status, connection }: LoadingScreenProps) {
+  const t = useT();
   const currentIndex = status ? LAUNCH_STEPS.findIndex((step) => step.id === status.step) : -1;
   const failed = status?.state === 'error';
   const ollamaDown = status?.ollama === false && Boolean(status.error);
@@ -48,7 +50,7 @@ export function LoadingScreen({ status, connection }: LoadingScreenProps) {
       <RobotLogo size={64} className={cn('text-accent', !failed && 'pulse-soft')} />
       <h1 className="mt-4 text-2xl font-bold">My_AI</h1>
       <p className="mt-2 h-5 text-sm text-fg-2">
-        {connecting ? 'Connexion au serveur local…' : (status?.label ?? '')}
+        {connecting ? t('loading.connecting') : (status?.label ?? '')}
       </p>
 
       <ol className="mt-8 w-full max-w-sm space-y-2.5">
@@ -70,7 +72,9 @@ export function LoadingScreen({ status, connection }: LoadingScreenProps) {
                 )}
               </span>
               <span className="min-w-0 flex-1">
-                <span className={cn(done || current ? 'text-fg' : 'text-fg-3')}>{step.label}</span>
+                <span className={cn(done || current ? 'text-fg' : 'text-fg-3')}>
+                  {t(step.label)}
+                </span>
                 {current && status?.detail ? (
                   <span className="mt-0.5 block truncate text-xs text-fg-2" title={status.detail}>
                     {status.detail}

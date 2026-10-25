@@ -8,6 +8,7 @@ import { Download, FileCode2, FileText, FileType } from 'lucide-react';
 
 import { IconButton } from '../../../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../../components/ui/Menu';
+import { useT } from '../../../i18n';
 import { exportConversation } from '../../../lib/actions';
 import type { ExportFormat } from '../../../lib/api';
 
@@ -18,14 +19,15 @@ const FORMATS: { format: ExportFormat; label: string; icon: typeof FileText }[] 
 ];
 
 export function ExportMenu() {
+  const t = useT();
   return (
     <Menu>
       <MenuTrigger asChild>
-        <IconButton label="Exporter la conversation" tooltipSide="top">
+        <IconButton label={t('sidebar.export.label')} tooltipSide="top">
           <Download size={17} />
         </IconButton>
       </MenuTrigger>
-      <MenuContent side="top" align="end" label="Exporter">
+      <MenuContent side="top" align="end" label={t('sidebar.export.menu')}>
         {FORMATS.map(({ format, label, icon: Icon }) => (
           <MenuItem
             key={format}

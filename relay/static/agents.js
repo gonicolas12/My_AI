@@ -12,6 +12,9 @@
 (function () {
   'use strict';
 
+  // Textes dans la langue du PC (i18n.js, catalogue injecté par le Relay)
+  var T = window.RelayI18n ? window.RelayI18n.t : function (key) { return key; };
+
   // ── Constantes géométriques du nœud workflow ──────────
   var NODE_W = 190;
   var NODE_H = 64;
@@ -115,7 +118,7 @@
   // ════════════════════════════════════════════════════
   function send(obj) {
     if (!window.RelayCore || !window.RelayCore.isConnected()) {
-      toast('Hors ligne — connexion en cours...', true);
+      toast(T('toast.offline'), true);
       return Promise.resolve();
     }
     return window.RelayCore.send(obj).catch(function (e) {
@@ -149,7 +152,7 @@
         onExecStart(data);
         break;
       case 'agent_debate_topic':
-        addOutputHeader('🎭 Sujet : ' + (data.topic || ''));
+        addOutputHeader(T('debate.topicHeader', { topic: data.topic || '' }));
         break;
       case 'agent_section_start':
         onSectionStart(data);
@@ -190,8 +193,8 @@
     if (a.custom) {
       actions =
         '<div class="ac-actions">' +
-        '<button class="ac-act edit" title="Modifier">📝</button>' +
-        '<button class="ac-act del" title="Supprimer">✕</button>' +
+        '<button class="ac-act edit" title="' + esc(T('card.edit')) + '">📝</button>' +
+        '<button class="ac-act del" title="' + esc(T('card.delete')) + '">✕</button>' +
         '</div>';
     }
     card.innerHTML =
@@ -207,7 +210,7 @@
     card.addEventListener('click', function (e) {
       if (e.target.closest('.ac-act')) return;
       addNode(a);
-      toast('Ajouté : ' + a.name);
+      toast(T('toast.added', { name: a.name }));
     });
 
     if (a.custom) {
@@ -217,7 +220,7 @@
       });
       card.querySelector('.ac-act.del').addEventListener('click', function (e) {
         e.stopPropagation();
-        if (window.confirm("Supprimer l'agent « " + a.name + " » ?")) {
+        if (window.confirm(T('confirm.deleteAgent', { name: a.name }))) {
           send({ type: 'agent_delete', key: a.key });
         }
       });
@@ -262,11 +265,12 @@
       '<div class="wn-icon" style="background:' + node.color + '">' + node.icon + '</div>' +
       '<div class="wn-body">' +
       '<div class="wn-name">' + esc(node.name) + '</div>' +
-      '<div class="wn-status"><span class="wn-dot"></span><span class="wn-stxt">En attente</span></div>' +
+      '<div class="wn-status"><span class="wn-dot"></span><span class="wn-stxt">' +
+      esc(T('node.idle')) + '</span></div>' +
       '</div>' +
       '<div class="wn-del">✕</div>' +
-      '<div class="wf-port in" title="Entrée"></div>' +
-      '<div class="wf-port out" title="Sortie"></div>';
+      '<div class="wf-port in" title="' + esc(T('port.in')) + '"></div>' +
+      '<div class="wf-port out" title="' + esc(T('port.out')) + '"></div>';
 
     // Drag (pointer events — tactile + souris)
     var drag = null;
@@ -326,7 +330,7 @@
           connections = connections.filter(function (c) { return c.to !== node.id; });
           redrawLinks();
           persistWorkflow();
-          toast('Connexion retirée');
+          toast(T('toast.linkRemoved'));
         }
       }
     });
@@ -343,7 +347,7 @@
       var p = node.el.querySelector('.wf-port.out');
       if (p) p.classList.add('armed');
     }
-    setStatus('Touchez le port d\'entrée (gauche) d\'un autre nœud pour relier.', '#f59e0b');
+    setStatus(T('status.connectHint'), '#f59e0b');
   }
 
   function disarmConnection() {
@@ -362,7 +366,7 @@
     if (connections.some(function (c) { return c.from === fromId && c.to === toId; })) return;
     // Pas de cycle simple (A→B et B→A)
     if (connections.some(function (c) { return c.from === toId && c.to === fromId; })) {
-      toast('Connexion inverse déjà présente', true);
+      toast(T('toast.reverseLink'), true);
       return;
     }
     connections.push({ from: fromId, to: toId });
@@ -418,10 +422,10 @@
     if (!node || !node.el) return;
     node.status = status;
     var meta = {
-      idle: ['#6b7280', 'En attente'],
-      running: ['#f59e0b', 'En cours'],
-      done: ['#10b981', 'Terminé'],
-      error: ['#ef4444', 'Erreur'],
+      idle: ['#6b7280', T('node.idle')],
+      running: ['#f59e0b', T('node.running')],
+      done: ['#10b981', T('node.done')],
+      error: ['#ef4444', T('node.error')],
     }[status] || ['#6b7280', status];
     var dot = node.el.querySelector('.wn-dot');
     var txt = node.el.querySelector('.wn-stxt');
@@ -437,7 +441,7 @@
     el.empty.style.display = '';
     redrawLinks();
     persistWorkflow();
-    setStatus('Glissez-déposez des agents pour créer votre workflow', '');
+    setStatus(T('agents.statusIdle'), '');
   }
 
   // ── Persistance (localStorage + export/import) ────────
@@ -498,7 +502,7 @@
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    toast('Workflow exporté');
+    toast(T('toast.exported'));
   }
 
   function importWorkflowFile() {
@@ -509,8 +513,8 @@
       if (!f) return;
       var r = new FileReader();
       r.onload = function () {
-        try { loadWorkflowData(JSON.parse(r.result)); toast('Workflow chargé'); }
-        catch (_) { toast('Fichier invalide', true); }
+        try { loadWorkflowData(JSON.parse(r.result)); toast(T('toast.loaded')); }
+        catch (_) { toast(T('toast.invalidFile'), true); }
       };
       r.readAsText(f);
     });
@@ -538,7 +542,7 @@
     attachments.push(entry);
     renderChips();
     if (!window.RelayCore || !window.RelayCore.uploadEncryptedFile) {
-      entry.status = 'error'; entry.error = 'indisponible'; renderChips(); return;
+      entry.status = 'error'; entry.error = T('upload.unavailable'); renderChips(); return;
     }
     window.RelayCore.uploadEncryptedFile(file).then(function (resp) {
       entry.fileId = resp.file_id;
@@ -548,7 +552,7 @@
       renderChips();
     }).catch(function (err) {
       entry.status = 'error';
-      entry.error = (err && err.message) ? err.message : 'Erreur upload';
+      entry.error = (err && err.message) ? err.message : T('upload.error');
       renderChips();
     });
   }
@@ -574,11 +578,11 @@
       var name = document.createElement('span');
       name.className = 'chip-name';
       name.textContent = a.status === 'error'
-        ? (a.name + ' · ' + (a.error || 'erreur')) : a.name;
+        ? (a.name + ' · ' + (a.error || T('attach.error'))) : a.name;
       chip.appendChild(name);
       var rm = document.createElement('button');
       rm.className = 'chip-remove'; rm.type = 'button'; rm.textContent = '×';
-      rm.setAttribute('aria-label', 'Retirer');
+      rm.setAttribute('aria-label', T('attach.remove'));
       rm.onclick = function () { removeAttachment(a.localId); };
       chip.appendChild(rm);
       el.attachments.appendChild(chip);
@@ -596,13 +600,13 @@
   function execute() {
     if (isExecuting) { stopExecution(); return; }
     if (nodes.length === 0) {
-      toast("Ajoutez au moins un agent au workflow", true);
+      toast(T('toast.addAgent'), true);
       return;
     }
     var task = el.task.value.trim();
-    if (!task) { toast('Décrivez la tâche à effectuer', true); return; }
+    if (!task) { toast(T('toast.describeTask'), true); return; }
     if (attachments.some(function (a) { return a.status === 'uploading'; })) {
-      toast('Upload en cours, patientez…', true);
+      toast(T('toast.uploading'), true);
       return;
     }
     var fileIds = attachments
@@ -612,7 +616,7 @@
     currentExecId = 'exec_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
     clearOutput();
     setExecuting(true);
-    setStatus('⏳ Workflow en cours...', '#f59e0b');
+    setStatus(T('status.workflowRunning'), '#f59e0b');
     send({
       type: 'agent_execute',
       exec_id: currentExecId,
@@ -629,20 +633,20 @@
 
   function stopExecution() {
     if (currentExecId) send({ type: 'agent_stop', exec_id: currentExecId });
-    setStatus('⛔ Interruption en cours...', '#ef4444');
+    setStatus(T('status.interrupting'), '#ef4444');
   }
 
   function setExecuting(on) {
     isExecuting = on;
     if (on) {
-      el.execBtn.innerHTML = '■ Stop';
+      el.execBtn.textContent = '■ ' + T('agents.stop');
       el.execBtn.classList.add('stopmode');
       el.createBtn.disabled = true;
       el.debateBtn.disabled = true;
       el.clearBtn.disabled = true;
       if (el.attachBtn) el.attachBtn.disabled = true;
     } else {
-      el.execBtn.innerHTML = '▶ Exécuter';
+      el.execBtn.textContent = '▶ ' + T('agents.execute');
       el.execBtn.classList.remove('stopmode');
       el.createBtn.disabled = false;
       el.debateBtn.disabled = false;
@@ -656,7 +660,7 @@
     currentExecId = 'deb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
     clearOutput();
     setExecuting(true);
-    setStatus('🎭 Débat en cours...', '#8b5cf6');
+    setStatus(T('status.debateRunning'), '#8b5cf6');
     send({
       type: 'agent_debate', exec_id: currentExecId,
       agent_a: agentA, agent_b: agentB, topic: topic, rounds: rounds,
@@ -688,12 +692,12 @@
     var sec = document.createElement('div');
     sec.className = 'ag-sec';
     sec.innerHTML =
-      '<div class="ag-sec-head" style="border-left-color:' + (data.color || '#ff6b47') + '">' +
+      '<div class="ag-sec-head" style="border-inline-start-color:' + (data.color || '#ff6b47') + '">' +
       '<span class="ag-sec-arrow">▾</span>' +
-      '<span class="ag-sec-name">' + esc(data.title || 'Agent') + '</span>' +
-      '<span class="ag-sec-state">⏳ En cours...</span>' +
+      '<span class="ag-sec-name">' + esc(data.title || T('section.default')) + '</span>' +
+      '<span class="ag-sec-state">' + esc(T('section.running')) + '</span>' +
       '</div>' +
-      '<div class="ag-sec-body"></div>';
+      '<div class="ag-sec-body" dir="auto"></div>';
     var head = sec.querySelector('.ag-sec-head');
     head.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
     el.output.appendChild(sec);
@@ -721,19 +725,19 @@
     var s = sections[String(data.section_id)];
     if (!s) return;
     s.body.innerHTML = window.RelayCore.renderMarkdown(s.text);
-    s.stateEl.textContent = data.success ? '✅ Terminé' : '❌ Erreur';
+    s.stateEl.textContent = data.success ? T('section.done') : T('section.error');
   }
 
   function onExecEnd(data) {
     setExecuting(false);
-    setStatus(data.status_text || '✅ Terminé',
+    setStatus(data.status_text || T('status.done'),
       data.success ? '#10b981' : (data.interrupted ? '#ef4444' : '#f59e0b'));
   }
 
   function onExecError(data) {
     setExecuting(false);
-    setStatus('❌ ' + (data.message || 'Erreur'), '#ef4444');
-    toast(data.message || 'Erreur', true);
+    setStatus('❌ ' + (data.message || T('error.default')), '#ef4444');
+    toast(data.message || T('error.default'), true);
   }
 
   function scrollOutput() {
@@ -747,13 +751,14 @@
   // ════════════════════════════════════════════════════
   function openAgentModal(agent) {
     editingKey = agent ? agent.key : null;
-    el.modalTitle.innerHTML = agent ? '📝 Modifier ' + esc(agent.name)
-      : '🤖 Créer un Agent Personnalisé';
+    el.modalTitle.textContent = agent
+      ? '📝 ' + T('modal.agent.editTitle', { name: agent.name })
+      : '🤖 ' + T('modal.agent.createTitle');
     el.modalName.value = agent ? agent.name : '';
     el.modalRole.value = agent ? (agent.full_desc || agent.desc || '') : '';
     el.modalMsg.textContent = '';
     el.modalMsg.className = 'modal-msg';
-    el.modalOk.textContent = agent ? 'Sauvegarder' : 'Créer';
+    el.modalOk.textContent = agent ? T('modal.agent.save') : T('modal.agent.create');
     setModalBusy(false);
     el.modal.classList.add('visible');
   }
@@ -767,10 +772,10 @@
     if (modalBusy) return;
     var name = el.modalName.value.trim();
     var role = el.modalRole.value.trim();
-    if (!name) { showModalMsg('Veuillez entrer un nom.', 'err'); return; }
-    if (!role) { showModalMsg('Veuillez décrire le rôle.', 'err'); return; }
+    if (!name) { showModalMsg(T('modal.agent.nameRequired'), 'err'); return; }
+    if (!role) { showModalMsg(T('modal.agent.roleRequired'), 'err'); return; }
     setModalBusy(true);
-    showModalMsg('⏳ Génération du system prompt en cours...', 'load');
+    showModalMsg(T('modal.agent.generating'), 'load');
     if (editingKey) {
       send({ type: 'agent_edit', key: editingKey, name: name, role: role });
     } else {
@@ -784,9 +789,9 @@
       agents.custom.push(data.agent);
       renderGrid();
       closeAgentModal();
-      toast('✅ Agent créé !');
+      toast(T('toast.agentCreated'));
     } else {
-      showModalMsg('❌ ' + (data.error || 'Erreur'), 'err');
+      showModalMsg('❌ ' + (data.error || T('error.default')), 'err');
     }
   }
 
@@ -801,9 +806,9 @@
       else agents.custom.push(data.agent);
       renderGrid();
       closeAgentModal();
-      toast('✅ Agent modifié !');
+      toast(T('toast.agentEdited'));
     } else {
-      showModalMsg('❌ ' + (data.error || 'Erreur'), 'err');
+      showModalMsg('❌ ' + (data.error || T('error.default')), 'err');
     }
   }
 
@@ -814,9 +819,9 @@
       nodes.filter(function (n) { return n.agent_type === data.key; })
         .forEach(function (n) { removeNode(n.id); });
       renderGrid();
-      toast('Agent supprimé');
+      toast(T('toast.agentDeleted'));
     } else {
-      toast(data.error || 'Suppression impossible', true);
+      toast(data.error || T('toast.deleteFailed'), true);
     }
   }
 
@@ -836,7 +841,7 @@
   // ════════════════════════════════════════════════════
   function openDebateModal() {
     var all = agents.builtin.concat(agents.custom);
-    if (all.length < 2) { toast('Il faut au moins 2 agents', true); return; }
+    if (all.length < 2) { toast(T('toast.needTwoAgents'), true); return; }
     var opts = all.map(function (a) {
       return '<option value="' + a.key + '">' + esc(a.icon + ' ' + a.name) + '</option>';
     }).join('');
@@ -858,8 +863,8 @@
     var topic = el.debateTopic.value.trim();
     var rounds = parseInt(el.debateRounds.value, 10) || 3;
     rounds = clamp(rounds, 1, 10);
-    if (a === b) { showDebateMsg('Choisis deux agents différents'); return; }
-    if (!topic) { showDebateMsg('Sujet requis'); return; }
+    if (a === b) { showDebateMsg(T('modal.debate.differentAgents')); return; }
+    if (!topic) { showDebateMsg(T('modal.debate.topicRequired')); return; }
     closeDebateModal();
     startDebate(a, b, topic, rounds);
   }
@@ -887,7 +892,7 @@
     }
 
     $('wfSaveBtn').addEventListener('click', function () {
-      persistWorkflow(); toast('Workflow sauvegardé');
+      persistWorkflow(); toast(T('toast.saved'));
     });
     $('wfLoadBtn').addEventListener('click', importWorkflowFile);
     $('wfExportBtn').addEventListener('click', exportWorkflow);

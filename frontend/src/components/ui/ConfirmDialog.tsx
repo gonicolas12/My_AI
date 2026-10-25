@@ -1,3 +1,4 @@
+import { useT } from '../../i18n';
 import { Button } from './Button';
 import { Dialog } from './Dialog';
 
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   onConfirm,
   danger = false,
 }: ConfirmDialogProps) {
+  const t = useT();
   return (
     <Dialog
       open={open}
@@ -30,7 +32,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)} autoFocus>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button
             variant={danger ? 'danger' : 'primary'}

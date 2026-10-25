@@ -9,7 +9,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from core.i18n import current_language, is_rtl, tr
 from utils.logger import setup_logger
+from utils.pdf_text import aligned, code_font, paragraph_markup, pdf_fonts, visual, word_wrap
+
+# Version de My_AI écrite au pied des exports
+_APP_VERSION = "9.0.0"
+
+
+def _footer() -> str:
+    """Pied d'un export : date et version, dans la langue de l'interface."""
+    return tr("export.footer", date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+              version=_APP_VERSION)
 
 
 class ConversationExporter:
@@ -69,8 +80,8 @@ class ConversationExporter:
         """
         defaults = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "model": "Non specifie",
-            "session_name": "Session de conversation",
+            "model": tr("export.unspecified"),
+            "session_name": tr("export.defaultSession"),
             "total_messages": 0,
         }
         if metadata:
@@ -85,14 +96,11 @@ class ConversationExporter:
             role: Identifiant du role (user, assistant)
 
         Returns:
-            Libelle en francais
+            Libelle dans la langue de l'interface
         """
-        labels = {
-            "user": "Utilisateur",
-            "assistant": "Assistant",
-            "system": "Systeme",
-        }
-        return labels.get(role, role.capitalize())
+        if role in ("user", "assistant", "system"):
+            return tr(f"export.role.{role}")
+        return role.capitalize()
 
     def _format_timestamp(self, timestamp: Optional[str]) -> str:
         """
@@ -145,9 +153,9 @@ class ConversationExporter:
         # En-tete
         lines.append(f"# {meta['session_name']}")
         lines.append("")
-        lines.append(f"- **Date** : {meta['date']}")
-        lines.append(f"- **Modele** : {meta['model']}")
-        lines.append(f"- **Messages** : {meta['total_messages']}")
+        lines.append(f"- **{tr('export.date')}** : {meta['date']}")
+        lines.append(f"- **{tr('export.model')}** : {meta['model']}")
+        lines.append(f"- **{tr('export.messages')}** : {meta['total_messages']}")
         lines.append("")
         lines.append("---")
         lines.append("")
@@ -171,10 +179,7 @@ class ConversationExporter:
             lines.append("")
 
         # Pied de page
-        lines.append(
-            f"*Exporte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
-            f"par My_AI v9.0.0*"
-        )
+        lines.append(f"*{_footer()}*")
 
         filepath.write_text("\n".join(lines), encoding="utf-8")
         self.logger.info("Export Markdown genere : %s", filepath)
@@ -267,17 +272,17 @@ class ConversationExporter:
 
     .message-user {
         background-color: var(--bg-user);
-        border-left: 4px solid var(--accent);
+        border-inline-start: 4px solid var(--accent);
     }
 
     .message-assistant {
         background-color: var(--bg-assistant);
-        border-left: 4px solid var(--accent-soft);
+        border-inline-start: 4px solid var(--accent-soft);
     }
 
     .message-system {
         background-color: var(--bg-secondary);
-        border-left: 4px solid var(--text-secondary);
+        border-inline-start: 4px solid var(--text-secondary);
         font-style: italic;
     }
 
@@ -456,14 +461,14 @@ class ConversationExporter:
                 <span class="message-role">{html.escape(label)}</span>
                 {time_html}
             </div>
-            <div class="message-content">{html_content}</div>
+            <div class="message-content" dir="auto">{html_content}</div>
         </div>"""
             message_blocks.append(block)
 
         messages_html = "\n\n".join(message_blocks)
 
         document = f"""<!DOCTYPE html>
-<html lang="fr">
+<html lang="{current_language()}" dir="{'rtl' if is_rtl() else 'ltr'}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -475,17 +480,16 @@ class ConversationExporter:
         <div class="header">
             <h1>{html.escape(meta['session_name'])}</h1>
             <div class="metadata">
-                <span>Date : {html.escape(meta['date'])}</span>
-                <span>Modele : {html.escape(str(meta['model']))}</span>
-                <span>Messages : {meta['total_messages']}</span>
+                <span>{html.escape(tr('export.date'))} : {html.escape(meta['date'])}</span>
+                <span>{html.escape(tr('export.model'))} : {html.escape(str(meta['model']))}</span>
+                <span>{html.escape(tr('export.messages'))} : {meta['total_messages']}</span>
             </div>
         </div>
 
 {messages_html}
 
         <div class="footer">
-            Exporte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            par My_AI v9.0.0
+            {html.escape(_footer())}
         </div>
     </div>
 </body>
@@ -539,14 +543,18 @@ class ConversationExporter:
             self.logger.error(
                 "reportlab n'est pas installe. Installez-le avec : pip install reportlab"
             )
-            raise ImportError(  # noqa: B904
-                "Le module reportlab est requis pour l'export PDF. "
-                "Installez-le avec : pip install reportlab"
-            ) from None
+            raise ImportError(tr("export.reportlabMissing")) from None  # noqa: B904
 
         meta = self._build_metadata_block(metadata)
         meta["total_messages"] = meta.get("total_messages") or len(messages)
         filepath = self._generate_filename("pdf", filename)
+
+        # Police qui écrit tout le texte, libellés traduits compris
+        font, bold = pdf_fonts(" ".join(
+            [str(meta["session_name"]), str(meta["model"]), _footer(), tr("export.date"),
+             tr("export.model"), tr("export.messages")]
+            + [self._format_role_label(msg.get("role", "unknown")) for msg in messages]
+            + [str(msg.get("content", "")) for msg in messages]))
 
         # Configuration du document
         doc = SimpleDocTemplate(
@@ -557,6 +565,16 @@ class ConversationExporter:
             topMargin=2 * cm,
             bottomMargin=2 * cm,
         )
+        # Largeur des lignes : celle du cadre, moins ses marges intérieures (6 pt de chaque côté)
+        width = doc.width - 12
+
+        def paragraph(text: str, style: ParagraphStyle, code: bool = False) -> Paragraph:
+            """Paragraphe d'un texte brut ; l'arabe et l'hébreu se lisent de droite à gauche,
+            sauf dans le code, écrit de gauche à droite (en Courier s'il est en alphabet latin)."""
+            if code:
+                style = ParagraphStyle("ConvCodeText", parent=style, fontName=code_font(text, font))
+                return Paragraph(paragraph_markup(text, style, width, rtl=False), style)
+            return Paragraph(paragraph_markup(text, style, width), aligned(style, text))
 
         styles = getSampleStyleSheet()
 
@@ -565,16 +583,18 @@ class ConversationExporter:
             "ConvTitle",
             parent=styles["Title"],
             fontSize=18,
+            fontName=bold,
             textColor=colors.HexColor("#e94560"),
             spaceAfter=12,
             alignment=1,  # Centre
+            wordWrap=word_wrap(font),
         )
 
         style_user_label = ParagraphStyle(
             "UserLabel",
             parent=styles["Normal"],
             fontSize=10,
-            fontName="Helvetica-Bold",
+            fontName=bold,
             textColor=colors.HexColor("#e94560"),
             spaceBefore=12,
             spaceAfter=4,
@@ -584,7 +604,7 @@ class ConversationExporter:
             "AssistantLabel",
             parent=styles["Normal"],
             fontSize=10,
-            fontName="Helvetica-Bold",
+            fontName=bold,
             textColor=colors.HexColor("#6d28d9"),
             spaceBefore=12,
             spaceAfter=4,
@@ -594,7 +614,7 @@ class ConversationExporter:
             "SystemLabel",
             parent=styles["Normal"],
             fontSize=10,
-            fontName="Helvetica-Bold",
+            fontName=bold,
             textColor=colors.HexColor("#999999"),
             spaceBefore=12,
             spaceAfter=4,
@@ -604,9 +624,12 @@ class ConversationExporter:
             "ConvContent",
             parent=styles["Normal"],
             fontSize=10,
+            fontName=font,
             leading=14,
             textColor=colors.HexColor("#333333"),
             spaceAfter=8,
+            # Chinois et japonais, écrits sans espaces : lignes coupées n'importe où
+            wordWrap=word_wrap(font),
         )
 
         style_code = ParagraphStyle(
@@ -620,15 +643,18 @@ class ConversationExporter:
             borderPadding=6,
             leftIndent=12,
             spaceAfter=8,
+            wordWrap=word_wrap(font),
         )
 
         style_footer = ParagraphStyle(
             "ConvFooter",
             parent=styles["Normal"],
             fontSize=8,
+            fontName=font,
             textColor=colors.HexColor("#999999"),
             alignment=1,
             spaceBefore=20,
+            wordWrap=word_wrap(font),
         )
 
         label_styles = {
@@ -641,29 +667,11 @@ class ConversationExporter:
         story: list = []
 
         # Titre
-        story.append(Paragraph(self._escape_xml(meta["session_name"]), style_title))
+        story.append(paragraph(meta["session_name"], style_title))
         story.append(Spacer(1, 4 * mm))
 
         # Metadonnees en tableau
-        meta_data = [
-            [
-                f"Date : {meta['date']}",
-                f"Modele : {meta['model']}",
-                f"Messages : {meta['total_messages']}",
-            ]
-        ]
-        meta_table = Table(meta_data, colWidths=[6 * cm, 6 * cm, 5 * cm])
-        meta_table.setStyle(
-            TableStyle(
-                [
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#666666")),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ]
-            )
-        )
-        story.append(meta_table)
+        story.append(self._pdf_meta_table(meta, font))
         story.append(Spacer(1, 8 * mm))
 
         # Ligne de separation
@@ -691,49 +699,61 @@ class ConversationExporter:
             header_text = label
             if timestamp:
                 header_text += f"  [{timestamp}]"
-            story.append(Paragraph(self._escape_xml(header_text), label_style))
+            story.append(paragraph(header_text, label_style))
 
             # Contenu : separer code et texte
             segments = self._split_code_segments(content)
             for seg_type, seg_text in segments:
+                # Bloc de code ou texte, retours a la ligne preserves
                 if seg_type == "code":
-                    # Bloc de code
-                    escaped = self._escape_xml(seg_text)
-                    story.append(Paragraph(escaped, style_code))
+                    story.append(paragraph(seg_text, style_code, code=True))
                 else:
-                    # Texte normal avec retours a la ligne preserves
-                    escaped = self._escape_xml(seg_text)
-                    escaped = escaped.replace("\n", "<br/>")
-                    story.append(Paragraph(escaped, style_content))
+                    story.append(paragraph(seg_text, style_content))
 
             story.append(Spacer(1, 2 * mm))
 
         # Pied de page
-        footer_text = (
-            f"Exporte le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
-            f"par My_AI v9.0.0"
-        )
-        story.append(Paragraph(self._escape_xml(footer_text), style_footer))
+        story.append(paragraph(_footer(), style_footer))
 
         # Generation du PDF
         doc.build(story)
         self.logger.info("Export PDF genere : %s", filepath)
         return str(filepath.resolve())
 
-    def _escape_xml(self, text: str) -> str:
+    def _pdf_meta_table(self, meta: Dict, font: str):
         """
-        Echappe les caracteres speciaux XML/HTML pour ReportLab Paragraph.
+        Tableau des metadonnees (date, modele, nombre de messages) sous le titre.
 
-        Args:
-            text: Texte brut a echapper
-
-        Returns:
-            Texte echappe compatible ReportLab
+        Chaque cellule est ecrite dans l'ordre d'affichage : arabe lie, de droite
+        a gauche. Interface en arabe, la premiere cellule passe a droite.
         """
-        text = text.replace("&", "&amp;")
-        text = text.replace("<", "&lt;")
-        text = text.replace(">", "&gt;")
-        return text
+        # pylint: disable=import-outside-toplevel
+        from reportlab.lib import colors
+        from reportlab.lib.units import cm
+        from reportlab.platypus import Table, TableStyle
+
+        cells = [
+            visual(f"{tr('export.date')} : {meta['date']}"),
+            visual(f"{tr('export.model')} : {meta['model']}"),
+            visual(f"{tr('export.messages')} : {meta['total_messages']}"),
+        ]
+        widths = [6 * cm, 6 * cm, 5 * cm]
+        if is_rtl():
+            cells.reverse()
+            widths.reverse()
+        table = Table([cells], colWidths=widths)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, -1), font),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#666666")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        return table
 
     def _split_code_segments(self, content: str) -> List[tuple]:
         """

@@ -16,6 +16,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -104,22 +105,22 @@ class FolderService:
             FolderError: indexeur indisponible, dossier introuvable, pas de session
         """
         if self._indexer() is None:
-            raise FolderError("❌ Indexeur indisponible")
+            raise FolderError(tr("folders.indexerUnavailable"))
         if not folder or not os.path.isdir(folder):
-            raise FolderError("❌ Dossier introuvable")
+            raise FolderError(tr("folders.notFound"))
         chat = self._app.chat
         session_id = chat.ensure_session(folder_name(folder)) if chat is not None else None
         if not session_id:
-            raise FolderError("❌ Aucune session active")
+            raise FolderError(tr("folders.noSession"))
         return self._start(session_id, folder, reindex=False)
 
     def reindex(self, folder: str) -> Dict[str, Any]:
         """Réindexe un dossier de la session courante (tous ses fichiers)."""
         if self._indexer() is None:
-            raise FolderError("❌ Indexeur indisponible")
+            raise FolderError(tr("folders.indexerUnavailable"))
         session_id = self._session_id()
         if not session_id:
-            raise FolderError("❌ Aucune session active")
+            raise FolderError(tr("folders.noSession"))
         return self._start(session_id, folder, reindex=True)
 
     def detach(self, folder: str) -> bool:
@@ -127,27 +128,27 @@ class FolderService:
         indexer = self._indexer()
         session_id = self._session_id()
         if indexer is None or not session_id:
-            raise FolderError("❌ Aucune session active")
+            raise FolderError(tr("folders.noSession"))
         try:
             indexer.remove_folder(session_id, folder)
         except Exception as exc:  # pylint: disable=broad-except
-            raise FolderError(f"❌ Erreur : {exc}") from exc
+            raise FolderError(tr("folders.error", error=exc)) from exc
         self._update_folders(session_id, remove=folder)
-        self._notify("success", "✅ Dossier détaché")
+        self._notify("success", tr("folders.detached"))
         self._publish("folders.changed", {"path": folder, "ok": True})
         return True
 
     # ── Indexation en arrière-plan ──────────────────────────────────────────
 
     def _start(self, session_id: str, folder: str, reindex: bool) -> Dict[str, Any]:
-        verb = "Ré-indexation" if reindex else "Indexation"
+        verb = tr("folders.verb.reindex" if reindex else "folders.verb.index")
         name = folder_name(folder)
         with self._lock:
             if folder in self._running:
-                raise FolderError(f"⏳ {verb} de '{name}' déjà en cours")
+                raise FolderError(tr("folders.alreadyRunning", verb=verb, name=name))
             job = {"path": folder, "name": name, "verb": verb, "done": 0, "total": 0}
             self._running[folder] = job
-        self._notify("info", f"⏳ {verb} de '{name}'…")
+        self._notify("info", tr("folders.started", verb=verb, name=name))
         self._publish("folders.progress", dict(job))
         threading.Thread(target=self._run, args=(session_id, folder, reindex, job),
                          name="folder-index", daemon=True).start()
@@ -166,18 +167,18 @@ class FolderService:
                                                   progress_cb=progress)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Indexation de %s en échec : %s", folder, exc)
-            result = {"status": "error", "error": f"Indexation échouée : {exc}"}
+            result = {"status": "error", "error": tr("folders.failed", error=exc)}
         finally:
             with self._lock:
                 self._running.pop(folder, None)
 
         if result.get("status") != "success":
-            self._notify("error", f"❌ {result.get('error', 'Indexation impossible')}")
+            self._notify("error", f"❌ {result.get('error') or tr('folders.impossible')}")
             self._publish("folders.changed", {"path": folder, "ok": False})
             return
         self._update_folders(session_id, add=result.get("folder", folder))
-        self._notify("success", f"✅ '{name}' indexé : {result.get('total_files', 0)} fichiers, "
-                                f"{result.get('chunks', 0)} extraits")
+        self._notify("success", tr("folders.indexed", name=name, files=result.get("total_files", 0),
+                                   chunks=result.get("chunks", 0)))
         self._publish("folders.changed", {"path": folder, "ok": True})
 
     def _update_folders(self, session_id: str, add: Optional[str] = None,

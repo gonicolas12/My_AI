@@ -197,6 +197,7 @@ def test_project_answer_keeps_the_identity():
         _CODEBASE_SIGNALS=AIEngine._CODEBASE_SIGNALS,
         _LANG_SUFFIXES=AIEngine._LANG_SUFFIXES,
         _current_lang_instruction="Réponds toujours en français.",
+        _default_lang_instruction=lambda: "Réponds toujours en français.",
         get_folder_indexer=lambda: _Indexer(),
         session_manager=types.SimpleNamespace(get_current_workspace=lambda: "ws"),
         logger=logging.getLogger(__name__),

@@ -13,6 +13,7 @@ import { useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { Lightbox } from '../../components/ui/Lightbox';
+import { useT } from '../../i18n';
 import { openFile, revealPath, saveToDownloads } from '../../lib/actions';
 import { baseName, formatLabel } from '../../lib/artifacts';
 import { useFileUrl } from '../../lib/files';
@@ -27,11 +28,12 @@ interface FileCardProps {
 }
 
 export function FileCard({ path, name, kind, onPreview }: FileCardProps) {
+  const t = useT();
   const shown = name || baseName(path);
   const Icon = kind === 'file' ? FileCode2 : FileText;
   const ready = Boolean(path);
   return (
-    <div className="my-2 flex w-full max-w-md items-center gap-3 rounded-lg border border-line bg-bg-2 py-2 pr-1.5 pl-2.5">
+    <div className="my-2 flex w-full max-w-md items-center gap-3 rounded-lg border border-line bg-bg-2 py-2 ps-2.5 pe-1.5">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
         {ready ? <Icon size={18} /> : <LoaderCircle size={17} className="spin" />}
       </span>
@@ -39,9 +41,9 @@ export function FileCard({ path, name, kind, onPreview }: FileCardProps) {
         type="button"
         disabled={!ready}
         onClick={() => void openFile(path)}
-        aria-label={`Ouvrir ${shown}`}
-        title={ready ? `Ouvrir ${shown}` : undefined}
-        className="group min-w-0 flex-1 text-left"
+        aria-label={t('chat.file.open', { name: shown })}
+        title={ready ? t('chat.file.open', { name: shown }) : undefined}
+        className="group min-w-0 flex-1 text-start"
       >
         <span className="block truncate text-sm font-medium text-fg group-enabled:group-hover:underline">
           {shown}
@@ -51,22 +53,18 @@ export function FileCard({ path, name, kind, onPreview }: FileCardProps) {
       {ready ? (
         <div className="flex shrink-0 items-center">
           {onPreview ? (
-            <IconButton label="Aperçu" size="sm" onClick={onPreview}>
+            <IconButton label={t('common.preview')} size="sm" onClick={onPreview}>
               <Eye size={15} />
             </IconButton>
           ) : null}
           <IconButton
-            label="Télécharger (dossier Téléchargements)"
+            label={t('chat.file.download')}
             size="sm"
             onClick={() => void saveToDownloads(path)}
           >
             <Download size={15} />
           </IconButton>
-          <IconButton
-            label="Afficher dans l’Explorateur"
-            size="sm"
-            onClick={() => void revealPath(path)}
-          >
+          <IconButton label={t('chat.file.reveal')} size="sm" onClick={() => void revealPath(path)}>
             <FolderOpen size={15} />
           </IconButton>
         </div>
@@ -77,6 +75,7 @@ export function FileCard({ path, name, kind, onPreview }: FileCardProps) {
 
 /** Image générée : aperçu (420 px de large au plus, comme Tk), clic pour l'agrandir */
 export function GeneratedImage({ path }: { path: string }) {
+  const t = useT();
   const url = useFileUrl(path);
   const [open, setOpen] = useState(false);
   const name = baseName(path);
@@ -85,7 +84,7 @@ export function GeneratedImage({ path }: { path: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`Agrandir ${name}`}
+        aria-label={t('chat.image.enlarge', { name })}
         className="block w-fit overflow-hidden rounded-lg border border-line bg-bg-2 transition-opacity duration-150 hover:opacity-90"
       >
         {url ? (
@@ -99,7 +98,9 @@ export function GeneratedImage({ path }: { path: string }) {
           <span className="block h-48 w-72 animate-pulse bg-bg-3" />
         )}
       </button>
-      <figcaption className="mt-1 text-xs text-fg-3">{name} — clic pour agrandir</figcaption>
+      <figcaption className="mt-1 text-xs text-fg-3">
+        {t('chat.image.caption', { name })}
+      </figcaption>
       <Lightbox open={open} onOpenChange={setOpen} url={url} path={path} name={name} generated />
     </figure>
   );

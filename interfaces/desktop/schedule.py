@@ -17,6 +17,7 @@ import re
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from core.i18n import tr
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopSchedule")
@@ -74,14 +75,14 @@ def build_schedule(schedule: Dict[str, Any]) -> Dict[str, Any]:
         at = str(schedule.get("at") or "").strip() or "08:00"
         match = _TIME_RE.match(at)
         if not match or int(match.group(1)) > 23 or int(match.group(2)) > 59:
-            raise ScheduleError("❌ Heure invalide (HH:MM).")
+            raise ScheduleError(tr("schedule.invalidTime"))
         at = f"{int(match.group(1)):02d}:{match.group(2)}"
         if stype == "daily":
             return {"type": "daily", "at": at}
         days = sorted({int(day) for day in schedule.get("days") or [] if str(day).isdigit()
                        and 0 <= int(day) <= 6})
         if not days:
-            raise ScheduleError("❌ Sélectionnez au moins un jour.")
+            raise ScheduleError(tr("schedule.noDay"))
         return {"type": "weekly", "days": days, "at": at}
     if stype == "interval":
         try:
@@ -89,15 +90,15 @@ def build_schedule(schedule: Dict[str, Any]) -> Dict[str, Any]:
         except ValueError:
             every = 0
         if every < 1:
-            raise ScheduleError("❌ Intervalle invalide.")
+            raise ScheduleError(tr("schedule.invalidInterval"))
         seconds = every * 3600 if schedule.get("unit") == "heures" else every * 60
         return {"type": "interval", "seconds": max(60, seconds)}
     if stype == "cron":
         expr = str(schedule.get("expr") or "").strip()
         if not expr:
-            raise ScheduleError("❌ Expression cron requise.")
+            raise ScheduleError(tr("schedule.cronRequired"))
         return {"type": "cron", "expr": expr}
-    raise ScheduleError("❌ Type de planning inconnu.")
+    raise ScheduleError(tr("schedule.unknownType"))
 
 
 class ScheduleService:
@@ -177,11 +178,11 @@ class ScheduleService:
             debate = task.get("debate") or {}
             first = names.get(debate.get("agent_a"), {}).get("name", debate.get("agent_a"))
             second = names.get(debate.get("agent_b"), {}).get("name", debate.get("agent_b"))
-            return f"Débat : {first} vs {second}"
+            return tr("schedule.source.debate", a=first, b=second)
         nodes = task.get("nodes") or []
         if len(nodes) == 1:
-            return f"Agent : {nodes[0].get('name', nodes[0].get('agent_type'))}"
-        return f"Workflow : {len(nodes)} agents"
+            return tr("schedule.source.agent", name=nodes[0].get("name", nodes[0].get("agent_type")))
+        return tr("schedule.source.workflow", count=len(nodes))
 
     # ── Création et modification ────────────────────────────────────────────
 
@@ -206,7 +207,7 @@ class ScheduleService:
                 run_if_missed=bool(fields.get("run_if_missed", True)))
         except ValueError as exc:
             raise ScheduleError(f"❌ {exc}") from exc
-        self._changed("✅ Tâche planifiée enregistrée")
+        self._changed(tr("schedule.saved"))
         return task
 
     def update(self, task_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
@@ -219,8 +220,8 @@ class ScheduleService:
         except ValueError as exc:
             raise ScheduleError(f"❌ {exc}") from exc
         if task is None:
-            raise ScheduleNotFound("❌ Tâche introuvable")
-        self._changed("✅ Tâche planifiée enregistrée")
+            raise ScheduleNotFound(tr("schedule.notFound"))
+        self._changed(tr("schedule.saved"))
         return task
 
     @staticmethod
@@ -228,10 +229,10 @@ class ScheduleService:
         """Nom, tâche et planning, vérifiés dans l'ordre du dialogue de Tk."""
         name = str(fields.get("name") or "").strip()
         if not name:
-            raise ScheduleError("❌ Nom requis.")
+            raise ScheduleError(tr("schedule.nameRequired"))
         text = str(fields.get("task") or "").strip()
         if not text:
-            raise ScheduleError("❌ Tâche / sujet requis.")
+            raise ScheduleError(tr("schedule.taskRequired"))
         return name, text, build_schedule(fields.get("schedule") or {})
 
     def _resolve_source(self, source: Dict[str, Any]
@@ -242,9 +243,9 @@ class ScheduleService:
         if kind == "debate":
             first, second = source.get("agent_a"), source.get("agent_b")
             if not first or not second:
-                raise ScheduleError("❌ Choisissez deux agents.")
+                raise ScheduleError(tr("schedule.twoAgents"))
             if first == second:
-                raise ScheduleError("❌ Choisissez deux agents différents.")
+                raise ScheduleError(tr("schedule.differentAgents"))
             try:
                 rounds = max(1, min(10, int(source.get("rounds") or 3)))
             except (TypeError, ValueError):
@@ -253,16 +254,16 @@ class ScheduleService:
         if kind == "workflow":
             nodes = [self._node(item) for item in source.get("nodes") or []]
             if not nodes:
-                raise ScheduleError("❌ Le canvas est vide.")
+                raise ScheduleError(tr("schedule.emptyCanvas"))
             connections = [{"from": str(item.get("from")), "to": str(item.get("to"))}
                            for item in source.get("connections") or []]
             return "workflow", nodes, connections, None
         key = source.get("agent")
         if not key:
-            raise ScheduleError("❌ Choisissez un agent.")
+            raise ScheduleError(tr("schedule.chooseAgent"))
         agent = self._agent_names().get(key)
         if agent is None:
-            raise ScheduleError(f"❌ Agent introuvable : {key}")
+            raise ScheduleError(tr("schedule.agentNotFound", key=key))
         # Agent seul : un workflow d'un nœud, comme Tk
         return "workflow", [{"id": "n1", "agent_type": key, "name": agent.get("name", key),
                              "color": agent.get("color", "#3b82f6"),
@@ -280,14 +281,14 @@ class ScheduleService:
     def delete(self, task_id: str) -> None:
         """Supprime une tâche (après confirmation dans la fenêtre)."""
         if not self._scheduler().delete_task(task_id):
-            raise ScheduleNotFound("❌ Tâche introuvable")
-        self._changed("✕ Tâche supprimée", level="error")
+            raise ScheduleNotFound(tr("schedule.notFound"))
+        self._changed(tr("schedule.deleted"), level="error")
 
     def set_enabled(self, task_id: str, enabled: bool) -> Dict[str, Any]:
         """Active ou désactive une tâche (prochaine échéance recalculée à l'activation)."""
         task = self._scheduler().set_enabled(task_id, bool(enabled))
         if task is None:
-            raise ScheduleNotFound("❌ Tâche introuvable")
+            raise ScheduleNotFound(tr("schedule.notFound"))
         self._changed()
         return task
 
@@ -295,13 +296,13 @@ class ScheduleService:
         """Exécute une tâche tout de suite (▶), sans toucher à sa programmation."""
         result = self._scheduler().run_now(task_id)
         if not result.get("success"):
-            raise ScheduleError(f"❌ {result.get('error') or 'Échec'}")
-        self._notify("success", "▶ Exécution lancée…")
+            raise ScheduleError(f"❌ {result.get('error') or tr('schedule.failed')}")
+        self._notify("success", tr("schedule.started"))
 
     def set_background(self, enabled: bool) -> Dict[str, Any]:
         """« Exécuter même l'appli fermée » : tâche du Planificateur de Windows créée ou ôtée."""
         if not self._windows.available:
-            raise ScheduleError("❌ Disponible uniquement sous Windows.")
+            raise ScheduleError(tr("schedule.windowsOnly"))
         try:
             if enabled:
                 ok, message = self._windows.register(max(1, int(self._background_interval())))

@@ -12,6 +12,7 @@ import { useId, useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
+import { useT } from '../../i18n';
 import type { AgentInfo } from '../../lib/events';
 import { createAgent, editAgent, errorText } from '../../stores/agents';
 
@@ -23,6 +24,7 @@ interface AgentDialogProps {
 
 /** Monté le temps de l'édition : ses champs partent de l'agent à modifier */
 export function AgentDialog({ agent, onClose }: AgentDialogProps) {
+  const t = useT();
   const [name, setName] = useState(agent?.name ?? '');
   const [role, setRole] = useState(agent?.full_desc ?? agent?.desc ?? '');
   const [busy, setBusy] = useState(false);
@@ -35,11 +37,11 @@ export function AgentDialog({ agent, onClose }: AgentDialogProps) {
     const cleanRole = role.trim();
     // Contrôles de Tk (messagebox « Nom requis », « Rôle requis »)
     if (!cleanName) {
-      setError("Veuillez entrer un nom pour l'agent.");
+      setError(t('agents.dialog.nameRequired'));
       return;
     }
     if (!cleanRole) {
-      setError("Veuillez décrire le rôle de l'agent.");
+      setError(t('agents.dialog.roleRequired'));
       return;
     }
     if (agent && cleanName === agent.name && cleanRole === (agent.full_desc ?? agent.desc)) {
@@ -65,21 +67,21 @@ export function AgentDialog({ agent, onClose }: AgentDialogProps) {
       onOpenChange={(next) => {
         if (!next && !busy) onClose();
       }}
-      title={agent ? `Modifier ${agent.name}` : 'Créer un agent personnalisé'}
+      title={
+        agent ? t('agents.dialog.editTitle', { name: agent.name }) : t('agents.dialog.createTitle')
+      }
       description={
-        agent
-          ? 'Un nouveau rôle fait réécrire son prompt système par le modèle ; un nouveau nom seul est immédiat.'
-          : 'Le modèle rédige son prompt système, sa température et une description courte.'
+        agent ? t('agents.dialog.editDescription') : t('agents.dialog.createDescription')
       }
       width={500}
       dismissible={!busy}
       footer={
         <>
           <Button variant="secondary" disabled={busy} onClick={onClose}>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" disabled={busy} onClick={() => void submit()}>
-            {agent ? 'Sauvegarder' : 'Créer'}
+            {agent ? t('agents.dialog.save') : t('agents.dialog.create')}
           </Button>
         </>
       }
@@ -92,7 +94,7 @@ export function AgentDialog({ agent, onClose }: AgentDialogProps) {
         }}
       >
         <label htmlFor={nameId} className="text-sm font-semibold text-fg">
-          Nom de l&apos;agent
+          {t('agents.dialog.name')}
         </label>
         <input
           id={nameId}
@@ -100,12 +102,12 @@ export function AgentDialog({ agent, onClose }: AgentDialogProps) {
           disabled={busy}
           autoFocus
           maxLength={200}
-          placeholder="Ex : TranslatorAgent"
+          placeholder={t('agents.dialog.namePlaceholder')}
           onChange={(event) => setName(event.target.value)}
           className="h-9 rounded-md border border-line bg-bg px-3 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-line-2"
         />
         <label htmlFor={roleId} className="mt-1 text-sm font-semibold text-fg">
-          Rôle / Description
+          {t('agents.dialog.role')}
         </label>
         <textarea
           id={roleId}
@@ -113,7 +115,7 @@ export function AgentDialog({ agent, onClose }: AgentDialogProps) {
           disabled={busy}
           rows={4}
           maxLength={5000}
-          placeholder="Ex : Expert en traduction multilingue avec adaptation culturelle"
+          placeholder={t('agents.dialog.rolePlaceholder')}
           onChange={(event) => setRole(event.target.value)}
           className="resize-none rounded-md border border-line bg-bg px-3 py-2 text-sm leading-relaxed text-fg outline-none placeholder:text-fg-3 focus:border-line-2"
         />
@@ -121,7 +123,7 @@ export function AgentDialog({ agent, onClose }: AgentDialogProps) {
           {busy ? (
             <span className="flex items-center gap-2 text-warning">
               <LoaderCircle size={14} className="spin" />
-              {renaming ? 'Enregistrement…' : 'Génération du system prompt en cours…'}
+              {renaming ? t('agents.dialog.saving') : t('agents.dialog.generating')}
             </span>
           ) : error ? (
             <span className="text-error">{error}</span>

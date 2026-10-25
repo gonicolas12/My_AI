@@ -11,11 +11,13 @@ d'autre page (cf. window.py), et les artefacts s'affichent dans des iframes
 isolées, sans accès à ce pont.
 """
 
+import re
 import sys
 import webbrowser
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 from urllib.parse import urlsplit
 
+from core.i18n import tr
 from interfaces.desktop.native_viewer import NativeViewer, parse_rect, window_host
 from utils.logger import setup_logger
 
@@ -24,39 +26,63 @@ logger = setup_logger("ShellApi")
 # Schémas qu'un lien peut ouvrir hors de l'appli (navigateur, messagerie)
 EXTERNAL_SCHEMES = ("http", "https", "mailto")
 
-_ALL_FILES = "Tous les fichiers (*.*)"
+# Nom d'un filtre de dialogue : pywebview n'y admet que lettres, chiffres et espaces
+_FILTER_NAME_NOISE = re.compile(r"[^\w ]+")
+
+
+def _filter(key: str, patterns: str) -> str:
+    """Filtre d'un dialogue de fichiers : « Fichiers PDF (*.pdf) », nom traduit.
+
+    Un trait d'union ou une apostrophe ferait refuser tout le dialogue :
+    « PDF-Dateien » y devient « PDF Dateien ».
+    """
+    name = " ".join(_FILTER_NAME_NOISE.sub(" ", tr(key)).split())
+    return f"{name} ({patterns})"
+
+
 _CODE_EXTENSIONS = (
     "*.py;*.pyw;*.js;*.mjs;*.cjs;*.ts;*.tsx;*.jsx;*.html;*.htm;*.css;*.scss;*.json;*.xml;"
     "*.yaml;*.yml;*.toml;*.ini;*.cfg;*.md;*.rst;*.txt;*.log;*.sh;*.bat;*.ps1;*.c;*.h;*.cpp;"
     "*.hpp;*.cs;*.java;*.kt;*.go;*.rs;*.rb;*.php;*.lua;*.sql;*.vue;*.svelte;*.dart;*.swift"
 )
 
-# Filtres des dialogues de pièces jointes, par entrée du menu « + » (comme Tk) ;
-# le multiple est refusé pour l'image : une seule part au modèle de vision
-ATTACH_FILTERS = {
-    "PDF": (("Fichiers PDF (*.pdf)",), True),
-    "DOCX": (("Fichiers Word (*.docx;*.doc)",), True),
-    "Excel": (("Fichiers Excel et CSV (*.xlsx;*.xls;*.csv)", "Excel (*.xlsx)",
-               "Excel ancien (*.xls)", "CSV (*.csv)", _ALL_FILES), True),
-    "PowerPoint": (("Présentations PowerPoint (*.pptx;*.potx)", "PowerPoint (*.pptx)",
-                    "Modèle PowerPoint (*.potx)"), True),
-    "Code": ((f"Fichiers de code ({_CODE_EXTENSIONS})", "Fichiers Python (*.py)",
-              "Fichiers JavaScript (*.js)", "Fichiers HTML (*.html)", _ALL_FILES), True),
-    "Image": (("Images (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tiff;*.tif)", "PNG (*.png)",
-               "JPEG (*.jpg;*.jpeg)", "GIF (*.gif)", "BMP (*.bmp)", "WebP (*.webp)",
-               _ALL_FILES), False),
-}
+# Entrées du menu « + » (types de l'interface Tk)
+ATTACH_KINDS = ("PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image")
 
-# Filtres du dialogue d'export, par format ; json : workflow de la page Agents
-EXPORT_FILTERS = {
-    "markdown": ("Markdown (*.md)", "Tous (*.*)"),
-    "html": ("HTML (*.html)", "Tous (*.*)"),
-    "pdf": ("PDF (*.pdf)", "Tous (*.*)"),
-    "json": ("Fichiers JSON (*.json)", "Tous (*.*)"),
-}
 
-# Workflow enregistré à charger sur le canvas (WorkflowCanvas.to_dict de Tk)
-WORKFLOW_FILTERS = ("Fichiers JSON (*.json)", _ALL_FILES)
+def attach_filters(kind: str) -> Tuple[Tuple[str, ...], bool]:
+    """Filtres du dialogue d'une entrée du menu « + » (comme Tk), et le choix multiple.
+
+    Le multiple est refusé pour l'image : une seule part au modèle de vision.
+    """
+    every = _filter("dialog.allFiles", "*.*")
+    filters = {
+        "PDF": ((_filter("dialog.pdf", "*.pdf"),), True),
+        "DOCX": ((_filter("dialog.word", "*.docx;*.doc"),), True),
+        "Excel": ((_filter("dialog.excelCsv", "*.xlsx;*.xls;*.csv"), "Excel (*.xlsx)",
+                   _filter("dialog.excelOld", "*.xls"), "CSV (*.csv)", every), True),
+        "PowerPoint": ((_filter("dialog.pptx", "*.pptx;*.potx"), "PowerPoint (*.pptx)",
+                        _filter("dialog.potx", "*.potx")), True),
+        "Code": ((_filter("dialog.code", _CODE_EXTENSIONS), _filter("dialog.python", "*.py"),
+                  _filter("dialog.javascript", "*.js"), _filter("dialog.html", "*.html"),
+                  every), True),
+        "Image": ((_filter("dialog.images", "*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tiff;*.tif"),
+                   "PNG (*.png)", "JPEG (*.jpg;*.jpeg)", "GIF (*.gif)", "BMP (*.bmp)",
+                   "WebP (*.webp)", every), False),
+    }
+    return filters.get(kind, ((every,), True))
+
+
+def export_filters(fmt: str) -> Tuple[str, ...]:
+    """Filtres du dialogue d'export, par format ; json : workflow de la page Agents."""
+    first = {"markdown": "Markdown (*.md)", "html": "HTML (*.html)", "pdf": "PDF (*.pdf)",
+             "json": _filter("dialog.json", "*.json")}.get(fmt)
+    return (first, _filter("dialog.all", "*.*")) if first else (_filter("dialog.all", "*.*"),)
+
+
+def workflow_filters() -> Tuple[str, ...]:
+    """Workflow enregistré à charger sur le canvas (WorkflowCanvas.to_dict de Tk)."""
+    return (_filter("dialog.json", "*.json"), _filter("dialog.allFiles", "*.*"))
 
 
 def external_url(url: str) -> Optional[str]:
@@ -140,7 +166,7 @@ class ShellApi:
 
     def pick_files(self, kind: str) -> List[str]:
         """Fichiers à joindre, par entrée du menu « + » (PDF, DOCX, Excel…)."""
-        file_types, multiple = ATTACH_FILTERS.get(kind, ((_ALL_FILES,), True))
+        file_types, multiple = attach_filters(kind)
         return self._dialog("OPEN", allow_multiple=multiple, file_types=file_types)
 
     def pick_folder(self) -> Optional[str]:
@@ -150,12 +176,12 @@ class ShellApi:
 
     def pick_workflow(self) -> Optional[str]:
         """Workflow à charger sur le canvas de la page Agents."""
-        paths = self._dialog("OPEN", allow_multiple=False, file_types=WORKFLOW_FILTERS)
+        paths = self._dialog("OPEN", allow_multiple=False, file_types=workflow_filters())
         return paths[0] if paths else None
 
     def save_file(self, name: str, fmt: str) -> Optional[str]:
         """Chemin d'enregistrement d'un export (Markdown, HTML, PDF) ou d'un workflow (JSON)."""
-        file_types = EXPORT_FILTERS.get(fmt, (_ALL_FILES,))
+        file_types = export_filters(fmt)
         paths = self._dialog("SAVE", save_filename=str(name or "conversation"),
                              file_types=file_types)
         return paths[0] if paths else None

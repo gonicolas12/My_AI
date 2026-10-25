@@ -106,11 +106,11 @@ html, body {
 }
 .message.user .bubble {
   background: var(--bg-user); color: #fff;
-  border-bottom-right-radius: 4px;
+  border-end-end-radius: 4px;
 }
 .message.ai .bubble {
   background: var(--bg-secondary); color: var(--text-primary);
-  border-bottom-left-radius: 4px; border: 1px solid #2d2d2d;
+  border-end-start-radius: 4px; border: 1px solid #2d2d2d;
 }
 
 .bubble .time {
@@ -130,7 +130,7 @@ html, body {
   width: 28px; height: 28px; border-radius: 50%;
   background: var(--bg-secondary); border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  color: var(--accent); flex-shrink: 0; margin-right: 8px; margin-top: 2px;
+  color: var(--accent); flex-shrink: 0; margin-inline-end: 8px; margin-top: 2px;
 }
 .ai-icon svg { width: 16px; height: 16px; }
 
@@ -159,7 +159,7 @@ html, body {
 .stream-cursor {
   display: inline-block;
   width: 8px; height: 14px;
-  margin-left: 2px;
+  margin-inline-start: 2px;
   vertical-align: text-bottom;
   background: var(--accent);
   border-radius: 1px;
@@ -170,6 +170,8 @@ html, body {
 }
 
 /* ── MARKDOWN IN BUBBLES ──────────────────────────── */
+/* Le code se lit de gauche à droite, même dans une page en arabe */
+.bubble pre, .ag-sec-body pre { direction: ltr; text-align: left; }
 .bubble pre {
   background: #0f0f0f; border-radius: 8px; padding: 10px 12px;
   overflow-x: auto; margin: 8px 0; font-size: 13px;
@@ -187,14 +189,14 @@ html, body {
 .bubble p:last-child { margin-bottom: 0; }
 .bubble ul, .bubble ol {
   margin: 6px 0;
-  padding-left: 0;
+  padding-inline-start: 0;
   list-style-position: inside;
 }
 .bubble ul { list-style-type: disc; }
 .bubble ol { list-style-type: decimal; }
 .bubble li {
   margin: 0 0 4px 0;
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 .bubble li:last-child { margin-bottom: 0; }
 .bubble strong { font-weight: 600; }
@@ -286,7 +288,7 @@ html, body {
 }
 .bubble th, .bubble td {
   border: 1px solid var(--border);
-  padding: 5px 10px; text-align: left;
+  padding: 5px 10px; text-align: start;
   white-space: nowrap;
 }
 .bubble th {
@@ -514,6 +516,8 @@ html, body {
 .agent-card .ac-name {
   font-size: 14px; font-weight: 700; line-height: 1.1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Nom latin sur une page en arabe : coupé par sa fin (« OptimizerAg… »), pas par son début */
+  unicode-bidi: plaintext;
 }
 .agent-card .ac-desc {
   font-size: 12px; font-weight: 600; color: var(--text-primary);
@@ -523,7 +527,7 @@ html, body {
   -webkit-box-orient: vertical; overflow: hidden;
 }
 .agent-card .ac-actions {
-  position: absolute; top: 6px; right: 6px; display: flex; gap: 2px;
+  position: absolute; top: 6px; inset-inline-end: 6px; display: flex; gap: 2px;
 }
 .agent-card .ac-act {
   background: none; border: none; cursor: pointer; font-size: 14px;
@@ -605,7 +609,7 @@ html, body {
 .ag-sec-head {
   display: flex; align-items: center; gap: 8px; cursor: pointer;
   background: var(--bg-secondary); padding: 9px 12px;
-  border-left: 4px solid var(--accent);
+  border-inline-start: 4px solid var(--accent);
 }
 .ag-sec-arrow { font-size: 13px; color: var(--text-secondary); transition: transform 0.15s; }
 .ag-sec.collapsed .ag-sec-arrow { transform: rotate(-90deg); }
@@ -626,10 +630,10 @@ html, body {
 .ag-sec-body p code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
 .ag-sec-body p { margin-bottom: 6px; }
 .ag-sec-body p:last-child { margin-bottom: 0; }
-.ag-sec-body ul, .ag-sec-body ol { margin: 6px 0; padding-left: 20px; }
+.ag-sec-body ul, .ag-sec-body ol { margin: 6px 0; padding-inline-start: 20px; }
 .ag-sec-body strong { font-weight: 600; }
 .ag-sec-body table { border-collapse: collapse; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }
-.ag-sec-body th, .ag-sec-body td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; white-space: nowrap; }
+.ag-sec-body th, .ag-sec-body td { border: 1px solid var(--border); padding: 5px 10px; text-align: start; white-space: nowrap; }
 .ag-sec-body th { background: var(--bg-tertiary); font-weight: 600; }
 
 /* ── AGENTS ACTION BAR ─────────────────────────────── */

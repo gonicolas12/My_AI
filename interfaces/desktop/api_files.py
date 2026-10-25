@@ -23,6 +23,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
+from core.i18n import tr
 from interfaces.desktop import files as local_files
 from utils.logger import setup_logger
 
@@ -66,8 +67,9 @@ class ArtifactBody(BaseModel):
 _FILE_CSP = ("sandbox; default-src 'none'; img-src 'self' data:; "
              "media-src 'self'; style-src 'unsafe-inline'")
 
-_NOT_FOUND = "Fichier introuvable."
-_NOT_GENERATED = "Seuls les documents produits par My_AI s'ouvrent ici."
+# Refus : clés du catalogue (core/locales), traduites à l'envoi
+_NOT_FOUND = "files.notFound"
+_NOT_GENERATED = "files.notGenerated"
 
 
 def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
@@ -97,7 +99,7 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
 
     def generated(path: str) -> str:
         if not local_files.is_generated(path, roots()):
-            raise HTTPException(status_code=403, detail=_NOT_GENERATED)
+            raise HTTPException(status_code=403, detail=tr(_NOT_GENERATED))
         return path
 
     # ── Fichiers ────────────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
         try:
             await run_in_threadpool(local_files.open_with_default_app, path)
         except OSError as exc:
-            raise HTTPException(status_code=409, detail=f"Ouverture impossible : {exc}") from exc
+            raise HTTPException(status_code=409, detail=tr("files.openFailed", error=exc)) from exc
         return {"ok": True}
 
     @api.post("/api/files/reveal")
@@ -136,7 +138,7 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
         except local_files.FileAccessError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except OSError as exc:
-            raise HTTPException(status_code=409, detail=f"Ouverture impossible : {exc}") from exc
+            raise HTTPException(status_code=409, detail=tr("files.openFailed", error=exc)) from exc
         return {"ok": True}
 
     @api.post("/api/files/download")
@@ -146,7 +148,7 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
             target = await run_in_threadpool(local_files.copy_to_downloads, path)
         except OSError as exc:
             raise HTTPException(status_code=409,
-                                detail=f"❌ Erreur de téléchargement : {exc}") from exc
+                                detail=tr("files.downloadFailed", error=exc)) from exc
         return {"path": target}
 
     # ── Aperçus ─────────────────────────────────────────────────────────────
@@ -173,7 +175,7 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
     @api.post("/api/previews/document")
     async def document_preview(body: DocumentBody):
         if not showable(body.path):
-            raise HTTPException(status_code=404, detail=_NOT_FOUND)
+            raise HTTPException(status_code=404, detail=tr(_NOT_FOUND))
         try:
             preview = await run_in_threadpool(server.previews.add_document, body.path,
                                               body.native)
@@ -181,7 +183,7 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Aperçu de %s impossible : %s", body.path, exc)
-            raise HTTPException(status_code=409, detail=f"Aperçu impossible : {exc}") from exc
+            raise HTTPException(status_code=409, detail=tr("files.previewFailed", error=exc)) from exc
         return preview_view(preview)
 
     @api.post("/api/previews/{preview_id}/browser")
@@ -189,10 +191,10 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
         try:
             target = await run_in_threadpool(server.previews.open_in_browser, preview_id)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Aperçu introuvable.") from exc
+            raise HTTPException(status_code=404, detail=tr("files.previewNotFound")) from exc
         except OSError as exc:
             raise HTTPException(status_code=409,
-                                detail=f"Impossible d'ouvrir le navigateur : {exc}") from exc
+                                detail=tr("files.browserFailed", error=exc)) from exc
         return {"path": target}
 
     @api.get("/preview/{preview_id}")

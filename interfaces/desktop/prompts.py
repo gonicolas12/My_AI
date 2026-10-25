@@ -9,6 +9,8 @@ liste, création, modification, suppression. Les prompts dotés d'une commande
 
 from typing import Any, Callable, Dict, List, Optional
 
+from core.i18n import tr
+
 
 class PromptsError(Exception):
     """Action refusée ou en échec : message affiché."""
@@ -39,7 +41,7 @@ class PromptsService:
     def _library(self):
         library = getattr(self._engine(), "prompt_library", None)
         if library is None:
-            raise PromptsError("Bibliothèque de prompts indisponible.")
+            raise PromptsError(tr("prompts.unavailable"))
         return library
 
     def list(self) -> List[Dict[str, Any]]:
@@ -57,9 +59,9 @@ class PromptsService:
             (fields.get(name) or "").strip()
             for name in ("title", "command", "description", "content"))
         if not title and not command:
-            raise PromptsError("Renseignez au moins un nom ou une commande.")
+            raise PromptsError(tr("prompts.nameOrCommand"))
         if not content:
-            raise PromptsError("Le contenu ne peut pas être vide.")
+            raise PromptsError(tr("prompts.emptyContent"))
         library = self._library()
         try:
             if template_id is None:
@@ -72,10 +74,10 @@ class PromptsService:
             # Commande déjà prise : « La commande /xxx existe déjà. »
             raise PromptsError(str(exc)) from exc
         if template is None:
-            raise PromptsError("Prompt introuvable.")
+            raise PromptsError(tr("prompts.notFound"))
         return _view(template)
 
     def delete(self, template_id: str) -> None:
         """Supprime un prompt."""
         if not self._library().delete(template_id):
-            raise PromptsError("Prompt introuvable.")
+            raise PromptsError(tr("prompts.notFound"))

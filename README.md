@@ -136,6 +136,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 ### 📝 Génération & modification de documents
 
 - **Documents bureautiques** : « *génère moi un docx sur les baleines* », « *fais-moi un PDF de synthèse* », « *crée une présentation PowerPoint…* », « *un tableur Excel comparant…* ». Le modèle local rédige, python-docx, reportlab, python-pptx et openpyxl mettent en forme : titres, listes imbriquées, tableaux stylés, sommaire Word, découpe automatique des diapos, onglets Excel avec filtre.
+- **Dans la langue du document** : mentions « Généré le », sommaire, numéros de page et noms de feuilles suivent la langue du texte. Le PDF prend la police qu'il faut (chinois, japonais, coréen, cyrillique, arabe).
 - **Modification des pièces jointes** (docx, xlsx, pptx, md, pdf…) : remplacer un texte, réécrire une section, ajouter une ligne ou une diapo. **Le fichier d'origine n'est jamais touché** : la copie modifiée est écrite dans `outputs/documents/`.
 - **Aperçu au format natif** dans le volet latéral, ouvert automatiquement : visionneuses Word, PowerPoint et Excel de l'Explorateur Windows, lecteur PDF d'Edge. Rendu HTML de repli ailleurs, et sur le mobile Relay.
 
@@ -206,6 +207,7 @@ Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale de
 ```
 my_ai/
 ├── core/                                # Cœur de l'IA
+│   ├── locales/                         # Textes du serveur traduits (un JSON par langue)
 │   ├── __init__.py
 │   ├── agent_orchestrator.py            # Orchestrateur d'agents
 │   ├── agentic_executor.py              # Exécuteur agentique (outils distants via Relay)
@@ -224,6 +226,8 @@ my_ai/
 │   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
 │   ├── evaluation.py                    # Évaluation des performances
 │   ├── folder_indexer.py                # Indexeur incrémental de dossier rattaché au workspace
+│   ├── i18n.py                          # Langue de l'interface et traductions (12 langues)
+│   ├── image_intent.py                  # Demandes d'image dans les 12 langues
 │   ├── knowledge_base_manager.py        # Base de connaissances structurée
 │   ├── language_detector.py             # Détection automatique de langue
 │   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
@@ -259,6 +263,7 @@ my_ai/
 ├── frontend/                            # Interface web (React + TypeScript, Vite)
 │   ├── src/
 │   │   ├── features/                    # Pages Chat et Agents, panneaux, aperçu, palette, assistant
+│   │   ├── i18n/                        # Traductions de l'interface (12 langues)
 │   │   ├── lib/                         # Client REST, WebSocket, pont vers la fenêtre (shell)
 │   │   ├── stores/                      # État de l'interface (Zustand)
 │   │   └── styles/tokens.css            # Couleurs, typographie, rayons (jetons de l'interface)
@@ -351,7 +356,9 @@ my_ai/
 │       ├── index.html                   # Interface mobile PWA (onglets Chat/Agents)
 │       ├── style.css                    # Styles de l'interface mobile
 │       ├── app.js                       # Logique WebSocket et chat
-│       └── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
+│       ├── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
+│       ├── i18n.js                      # Traductions de la page mobile, langue changée à chaud
+│       └── locales/                     # Textes de la page mobile (un JSON par langue)
 ├── tests/                               # Tests unitaires
 ├── tools/                               # Outils (cloudflared pour le Relay)
 │   ├── interface_web/                   # Serveur de démonstration de la fenêtre, sans Ollama
@@ -369,6 +376,7 @@ my_ai/
 │   ├── logger.py                        # Gestion des logs
 │   ├── ollama_placement.py              # Placement du modèle (carte, GPU intégré, processeur)
 │   ├── path_links.py                    # Chemins de fichiers cliquables dans les réponses
+│   ├── pdf_text.py                      # Texte des PDF : police par écriture
 │   └── requirements_sync.py             # Installe au lancement les dépendances ajoutées (git pull)
 ├── main.py                              # Point d'entrée principal (CLI ; fenêtre avec --mode gui)
 ├── launch_unified.py                    # Point d'entrée de la fenêtre
@@ -462,7 +470,7 @@ ollama pull llava            # Alternative (4.7 GB)
 .\create_custom_model.bat
 ```
 
-> 💡 **Plus simple — l'assistant de configuration s'en charge.** Au **tout premier lancement**, My_AI détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. Les commandes ci-dessus ne servent que pour une installation manuelle.
+> 💡 **Plus simple — l'assistant de configuration s'en charge.** Au **tout premier lancement**, My_AI s'affiche dans la langue de Windows (l'une des 12, l'anglais sinon, changeable dès l'assistant), détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. Les commandes ci-dessus ne servent que pour une installation manuelle.
 
 > 🔄 **`Modelfile` modifié ?** (à la main, par un `git pull` ou par ⚙️ Réglages) : `my_ai` est **recréé automatiquement au lancement suivant**, inutile de relancer `create_custom_model.bat`. Le lancement ne fait rien de plus tant que le `Modelfile` ne change pas.
 
@@ -639,8 +647,8 @@ code --install-extension gonicolas12.my-ai
 | 🔗 **Citations web** | Sources numérotées `[n]` cliquables (desktop + mobile) |
 | 🧠 **Contrôle mémoire** | Voir/éditer/supprimer faits + vecteurs, avec provenance |
 | 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
-| 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées |
-| 🌍 **12 langues** | Détection automatique de la langue de l'utilisateur |
+| 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées, dans toutes les langues |
+| 🌍 **12 langues** | Interface (fenêtre et mobile Relay) dans la langue choisie, réponses dans la langue de chaque message |
 | 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
 | 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
 | 🖼️ **Génération d'images** | Texte → image 100% local, backend SD auto-installé |

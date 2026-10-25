@@ -2,11 +2,12 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { t } from '../../i18n';
 import { useApp } from '../../stores/app';
 import { togglePalette, usePalette } from '../../stores/palette';
 import { usePanels } from '../../stores/panels';
 import { CommandPalette } from './CommandPalette';
-import { filterCommands, PALETTE_COMMANDS } from './commands';
+import { filterCommands, PALETTE_COMMANDS, translateCommands } from './commands';
 
 const api = vi.hoisted(() => ({
   newConversation: vi.fn(() => Promise.resolve({})),
@@ -35,16 +36,18 @@ beforeEach(() => {
   useApp.setState({ tab: 'chat', sidebarOpen: false });
 });
 
+const shown = () => translateCommands(PALETTE_COMMANDS, t);
+
 describe('filterCommands', () => {
-  it('garde les 14 commandes de Tk, dans son ordre', () => {
-    expect(PALETTE_COMMANDS).toHaveLength(14);
-    expect(PALETTE_COMMANDS[0]?.label).toBe('Nouveau chat');
-    expect(PALETTE_COMMANDS.at(-1)?.label).toBe('Aide');
+  it('garde les 14 commandes de Tk, dans son ordre, plus la langue', () => {
+    expect(PALETTE_COMMANDS).toHaveLength(15);
+    expect(shown()[0]?.text).toBe('Nouveau chat');
+    expect(shown()[8]?.text).toBe('Changer de langue');
+    expect(shown().at(-1)?.text).toBe('Aide');
   });
 
   it('cherche une sous-chaîne du libellé ou du raccourci, sans casse', () => {
-    const labels = (query: string) =>
-      filterCommands(PALETTE_COMMANDS, query).map((command) => command.label);
+    const labels = (query: string) => filterCommands(shown(), query).map((command) => command.text);
     expect(labels('  EXPORT ')).toEqual([
       'Exporter la conversation (Markdown)',
       'Exporter la conversation (HTML)',
@@ -52,8 +55,15 @@ describe('filterCommands', () => {
     ]);
     expect(labels('ctrl+r')).toEqual(['Relay (accès mobile)']);
     expect(labels('f1')).toEqual(['Aide']);
-    expect(labels('')).toHaveLength(14);
+    expect(labels('')).toHaveLength(15);
     expect(labels('introuvable')).toEqual([]);
+  });
+
+  it('retrouve la langue dans toutes les langues', () => {
+    const labels = (query: string) => filterCommands(shown(), query).map((command) => command.text);
+    for (const query of ['language', 'idioma', 'English', '日本語']) {
+      expect(labels(query)).toEqual(['Changer de langue']);
+    }
   });
 });
 
@@ -64,7 +74,7 @@ describe('CommandPalette', () => {
     act(() => togglePalette());
 
     const input = await screen.findByRole('combobox');
-    expect(screen.getAllByRole('option')).toHaveLength(14);
+    expect(screen.getAllByRole('option')).toHaveLength(15);
     expect(screen.getByRole('option', { name: /Nouveau chat/ })).toHaveAttribute(
       'aria-selected',
       'true',

@@ -24,6 +24,7 @@ import {
 import { type ReactNode, useEffect, useState } from 'react';
 
 import { Button } from '../../../components/ui/Button';
+import { useT } from '../../../i18n';
 import { api } from '../../../lib/api';
 import type { RelayStatus } from '../../../lib/events';
 import { notify, useApp } from '../../../stores/app';
@@ -61,6 +62,7 @@ const shortUrl = (url: string) => (url.length < 60 ? url : `${url.slice(0, 57)}.
 
 /** Modules foncés en couleur d'accent sur le fond, comme le canevas de Tk */
 function QrCode({ rows }: { rows: string[] }) {
+  const t = useT();
   const count = rows.length;
   const cell = Math.max(1, Math.floor(QR_SIZE / count));
   // Un tracé par suite de modules foncés sur une ligne
@@ -84,7 +86,7 @@ function QrCode({ rows }: { rows: string[] }) {
       viewBox={`0 0 ${count} ${count}`}
       shapeRendering="crispEdges"
       role="img"
-      aria-label="QR code du Relay"
+      aria-label={t('relay.qrLabel')}
     >
       <rect width={count} height={count} style={{ fill: 'var(--bg-primary)' }} />
       <path d={path} style={{ fill: 'var(--accent)' }} />
@@ -94,16 +96,15 @@ function QrCode({ rows }: { rows: string[] }) {
 
 /** Code d'accès sous le QR code : sans lui, le lien seul n'ouvre rien */
 function AccessCode({ relay }: { relay: RelayStatus }) {
-  const notice = accessNotice(relay);
+  const t = useT();
+  const notice = accessNotice(relay, t);
   return (
     <div className="flex flex-col items-center gap-1">
-      <p className="text-xs text-fg-3">Code d’accès</p>
+      <p className="text-xs text-fg-3">{t('relay.access.title')}</p>
       <p className="font-mono text-2xl font-semibold tracking-widest text-fg tabular-nums select-text">
         {formatAccessCode(relay.access_code ?? '')}
       </p>
-      <p className="text-center text-xs text-fg-3">
-        Demandé par le téléphone et l’extension VS Code après le scan
-      </p>
+      <p className="text-center text-xs text-fg-3">{t('relay.access.hint')}</p>
       {notice ? (
         <p
           className={`flex items-start gap-2 text-sm ${
@@ -129,7 +130,8 @@ function useFlash(): [string, (label: string, ms: number) => void] {
 }
 
 function Running({ relay }: { relay: RelayStatus }) {
-  const view = tunnelView(relay);
+  const t = useT();
+  const view = tunnelView(relay, t);
   const { ready } = view;
   const target = ready ? relay.url : null;
   const current = (ready ? relay.url : relay.local_url) ?? '';
@@ -154,7 +156,7 @@ function Running({ relay }: { relay: RelayStatus }) {
   }, [target, qr?.url]);
 
   const copy = (text: string, done: () => void) => {
-    navigator.clipboard.writeText(text).then(done, () => notify('error', 'Copie impossible.'));
+    navigator.clipboard.writeText(text).then(done, () => notify('error', t('relay.copyFailed')));
   };
 
   const statusIcon = view.busy ? (
@@ -180,7 +182,7 @@ function Running({ relay }: { relay: RelayStatus }) {
           <ul className="flex flex-wrap justify-center gap-x-3 text-xs text-fg-3">
             {view.others.map((tunnel) => (
               <li key={tunnel.name}>
-                {tunnel.name} : {tunnel.label}
+                {t('relay.tunnel.line', { name: tunnel.name, label: tunnel.label })}
               </li>
             ))}
           </ul>
@@ -193,44 +195,44 @@ function Running({ relay }: { relay: RelayStatus }) {
         {target && qr ? (
           <QrCode rows={qr.rows} />
         ) : (
-          <p className="text-center text-sm text-fg-3">
-            En attente
-            <br />
-            du tunnel…
+          <p className="text-center text-sm whitespace-pre-line text-fg-3">
+            {t('relay.waitingTunnel')}
           </p>
         )}
       </div>
       {relay.access_code ? <AccessCode relay={relay} /> : null}
       <div className="flex w-full flex-col gap-1.5">
-        <div className="flex w-full items-center gap-2 rounded-md border border-line bg-bg py-1.5 pr-1.5 pl-3">
-          <code className="min-w-0 flex-1 truncate font-mono text-xs text-fg" title={current}>
+        <div className="flex w-full items-center gap-2 rounded-md border border-line bg-bg py-1.5 ps-3 pe-1.5">
+          <code
+            className="min-w-0 flex-1 truncate font-mono text-xs text-fg"
+            title={current}
+            dir="ltr"
+          >
             {shortUrl(current)}
           </code>
           <Button
             size="sm"
             variant="primary"
-            onClick={() => copy(current, () => flashCopy('Copié !', 2000))}
+            onClick={() => copy(current, () => flashCopy(t('relay.copied'), 2000))}
             disabled={!current}
           >
             {copyLabel ? <Check size={14} /> : <Copy size={14} />}
-            {copyLabel || 'Copier'}
+            {copyLabel || t('common.copy')}
           </Button>
         </div>
         {/* L'extension lit tunnels, jeton et clé dans le fragment du lien du QR code ;
             l'adresse locale n'a pas ce fragment */}
-        <p className="flex items-center gap-1.5 pl-3 text-xs text-fg-3">
+        <p className="flex items-center gap-1.5 ps-3 text-xs text-fg-3">
           {ready ? (
             <Puzzle size={13} className="shrink-0" />
           ) : (
             <Hourglass size={13} className="shrink-0" />
           )}
-          {ready
-            ? 'Ce lien sert aussi à l’extension VS Code'
-            : 'Adresse de ce PC : le lien du téléphone et de VS Code attend le tunnel'}
+          {ready ? t('relay.linkForVsCode') : t('relay.localAddress')}
         </p>
       </div>
       <p className="flex items-center gap-2 text-sm text-fg-2">
-        <Smartphone size={15} /> {relay.clients} appareil(s) connecté(s)
+        <Smartphone size={15} /> {t('relay.devices', { count: relay.clients })}
       </p>
     </div>
   );
@@ -243,6 +245,7 @@ const Centered = ({ children }: { children: ReactNode }) => (
 );
 
 export default function RelayPanel() {
+  const t = useT();
   const relay = useApp((state) => state.relay);
   const [attempt, setAttempt] = useState<'starting' | 'failed' | 'done'>(() =>
     useApp.getState().relay?.running ? 'done' : 'starting',
@@ -288,15 +291,15 @@ export default function RelayPanel() {
     body = (
       <Centered>
         <LoaderCircle size={22} className="spin text-accent" />
-        Démarrage du Relay…
+        {t('relay.starting')}
       </Centered>
     );
   } else {
     body = (
       <Centered>
-        {attempt === 'failed' ? 'Impossible de démarrer My_AI Relay.' : 'Le Relay est arrêté.'}
+        {attempt === 'failed' ? t('relay.startFailed') : t('relay.stopped')}
         <Button variant="primary" onClick={start}>
-          <Radio size={15} /> Démarrer le Relay
+          <Radio size={15} /> {t('relay.start')}
         </Button>
       </Centered>
     );
@@ -309,13 +312,13 @@ export default function RelayPanel() {
         if (!open) closePanel();
       }}
       icon={Radio}
-      title="My_AI Relay"
-      description="Scannez le QR code ou copiez l'URL sur votre téléphone, puis saisissez le code d'accès"
+      title={t('relay.title')}
+      description={t('relay.description')}
       width={520}
       footer={
         relay?.running ? (
           <Button onClick={stop}>
-            <Power size={15} /> Arrêter le Relay
+            <Power size={15} /> {t('relay.stop')}
           </Button>
         ) : null
       }

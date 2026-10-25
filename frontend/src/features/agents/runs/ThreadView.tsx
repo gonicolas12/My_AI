@@ -11,6 +11,7 @@
 import { ChevronDown, ChevronRight, FileText, Paperclip, Square } from 'lucide-react';
 import { createElement, memo, useEffect, useMemo, useRef, useState } from 'react';
 
+import { type Translate, useT } from '../../../i18n';
 import { openFile } from '../../../lib/actions';
 import { cn } from '../../../lib/cn';
 import type { RunSummary, RunView } from '../../../lib/events';
@@ -47,11 +48,12 @@ import {
 const SECTION_MAX = 560;
 
 function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) {
+  const t = useT();
   if (!item.section) {
     return (
       <span className="flex items-center gap-1.5 text-xs text-fg-3">
         <span className="h-2 w-2 rounded-full bg-fg-3" />
-        {item.pending === 'skipped' ? 'Non exécuté' : NODE_STATUS.idle.label}
+        {item.pending === 'skipped' ? t('agents.section.notRun') : t(NODE_STATUS.idle.label)}
       </span>
     );
   }
@@ -59,7 +61,7 @@ function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) 
     return (
       <span className="flex items-center gap-1.5 text-xs" style={{ color: QUEUED.color }}>
         <span className="h-2 w-2 rounded-full pulse-soft" style={{ background: QUEUED.color }} />
-        {QUEUED.label}
+        {t(QUEUED.label)}
       </span>
     );
   }
@@ -77,10 +79,13 @@ function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) 
       ) : (
         <span className="h-2 w-2 rounded-full" style={{ background: meta.color }} />
       )}
-      {meta.label}
+      {t(meta.label)}
       {duration ? <span className="text-fg-3"> · {duration}</span> : null}
       {speed ? (
-        <span className="text-fg-3 tabular-nums"> · {formatDecimal(speed)} tok/s</span>
+        <span className="text-fg-3 tabular-nums">
+          {' '}
+          · {t('agents.section.tokensPerSecond', { value: formatDecimal(speed) })}
+        </span>
       ) : null}
     </span>
   );
@@ -96,6 +101,7 @@ const Section = memo(function Section({
   /** Agent que le modèle sert pendant que celui-ci attend son tour */
   behind?: string;
 }) {
+  const t = useT();
   const section = item.section;
   const running = section?.status === 'running';
   const [open, setOpen] = useState(true);
@@ -125,7 +131,7 @@ const Section = memo(function Section({
   return (
     <div
       className="overflow-hidden rounded-md border border-line/60 bg-bg-2/70"
-      style={{ borderLeft: `3px solid ${color}` }}
+      style={{ borderInlineStart: `3px solid ${color}` }}
     >
       <div className="flex min-h-10 items-center gap-2 px-3">
         <button
@@ -133,12 +139,12 @@ const Section = memo(function Section({
           disabled={!expandable}
           aria-expanded={expandable ? open : undefined}
           onClick={() => setOpen(!open)}
-          className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left disabled:cursor-default"
+          className="flex min-w-0 flex-1 items-center gap-2 py-2 text-start disabled:cursor-default"
         >
           {expandable ? (
             createElement(open ? ChevronDown : ChevronRight, {
               size: 15,
-              className: 'shrink-0 text-fg-3',
+              className: 'shrink-0 text-fg-3 rtl:-scale-x-100',
             })
           ) : (
             <span className="w-[15px] shrink-0" />
@@ -155,7 +161,7 @@ const Section = memo(function Section({
           <span
             className="flex items-center rounded-md border border-line p-0.5 text-xs"
             role="group"
-            aria-label="Affichage de la sortie"
+            aria-label={t('agents.section.outputView')}
           >
             <button
               type="button"
@@ -166,7 +172,7 @@ const Section = memo(function Section({
                 shown === 'output' ? 'bg-active text-fg' : 'text-fg-2 hover:text-fg',
               )}
             >
-              Sortie
+              {t('agents.section.output')}
             </button>
             <button
               type="button"
@@ -177,13 +183,13 @@ const Section = memo(function Section({
                 shown === 'diff' ? 'bg-active text-fg' : 'text-fg-2 hover:text-fg',
               )}
             >
-              Diff <span className="text-success">+{change.added}</span>{' '}
+              {t('agents.section.diff')} <span className="text-success">+{change.added}</span>{' '}
               <span className="text-error">−{change.removed}</span>
             </button>
           </span>
         ) : null}
         {section && section.text && !running ? (
-          <CopyButton text={section.text} label="Copier la sortie" />
+          <CopyButton text={section.text} label={t('agents.section.copyOutput')} />
         ) : null}
         <SectionStatus item={item} behind={behind} />
         <SourcesButton sources={sources} />
@@ -203,17 +209,15 @@ const Section = memo(function Section({
           ) : output ? (
             <Markdown text={output} streaming={running} links={links} />
           ) : running && behind ? (
-            <p className="shimmer text-sm">
-              Le modèle répond d’abord à {behind} : cet agent écrira ensuite.
-            </p>
+            <p className="shimmer text-sm">{t('agents.section.queued', { name: behind })}</p>
           ) : running ? (
             <p className="shimmer text-sm">
               {item.agentType === 'web'
-                ? 'L’agent cherche sur internet…'
-                : 'L’agent rédige sa réponse…'}
+                ? t('agents.section.searching')
+                : t('agents.section.writing')}
             </p>
           ) : (
-            <p className="text-sm text-fg-3">Aucune sortie.</p>
+            <p className="text-sm text-fg-3">{t('agents.section.noOutput')}</p>
           )}
         </div>
       ) : null}
@@ -241,13 +245,14 @@ function sameSectionProps(
 }
 
 function RunStatusChip({ run }: { run: RunView }) {
+  const t = useT();
   const running = run.status === 'running';
   const elapsed = useElapsed(run.started_at, running);
   if (running) {
     return (
       <span className="flex items-center gap-1.5 rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning tabular-nums">
         <span className="h-1.5 w-1.5 rounded-full bg-warning pulse-soft" />
-        {RUN_TONE.running.label} · {clock(elapsed)}
+        {t(RUN_TONE.running.label)} · {clock(elapsed)}
       </span>
     );
   }
@@ -255,13 +260,14 @@ function RunStatusChip({ run }: { run: RunView }) {
   const duration = formatDuration(run.duration_ms ?? undefined);
   return (
     <span className={cn('rounded-full px-2 py-0.5 text-xs', tone.chip)}>
-      {tone.label}
+      {t(tone.label)}
       {duration ? ` · ${duration}` : ''}
     </span>
   );
 }
 
 function TaskText({ text }: { text: string }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const long = text.length > 280 || text.split('\n').length > 3;
   return (
@@ -273,7 +279,7 @@ function TaskText({ text }: { text: string }) {
           onClick={() => setExpanded(!expanded)}
           className="mt-0.5 text-xs text-fg-3 hover:text-fg"
         >
-          {expanded ? 'Réduire' : 'Afficher toute la tâche'}
+          {expanded ? t('agents.task.collapse') : t('agents.task.expand')}
         </button>
       ) : null}
     </div>
@@ -282,11 +288,15 @@ function TaskText({ text }: { text: string }) {
 
 /** En-tête du fil, puis ses sections */
 function Thread({ run }: { run: RunView }) {
+  const t: Translate = useT();
   const summary: RunSummary = useMemo(() => summaryOf(run), [run]);
-  const items = useMemo(() => threadItems(run), [run]);
+  const items = useMemo(() => threadItems(run, t), [run, t]);
   const queued = useMemo(() => queuedBehind(run), [run]);
-  const provided = useMemo(() => providedCode(run.sources, run.task), [run.sources, run.task]);
-  const plan = run.kind === 'debate' ? debateSummary(run) : planSummary(run);
+  const provided = useMemo(
+    () => providedCode(run.sources, run.task, t),
+    [run.sources, run.task, t],
+  );
+  const plan = run.kind === 'debate' ? debateSummary(run, t) : planSummary(run, t);
   const running = run.status === 'running';
   const preparing = running && !run.sections.length;
   const report = run.schedule?.output_file;
@@ -301,7 +311,7 @@ function Thread({ run }: { run: RunView }) {
             {run.origin !== 'desktop' ? (
               <span className="flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-fg-2">
                 <OriginIcon origin={run.origin} size={12} />
-                {ORIGIN_LABEL[run.origin]}
+                {t(ORIGIN_LABEL[run.origin])}
               </span>
             ) : null}
             {report ? (
@@ -312,7 +322,7 @@ function Thread({ run }: { run: RunView }) {
                 className="flex items-center gap-1 text-xs text-link hover:underline"
               >
                 <FileText size={12} />
-                Rapport
+                {t('agents.thread.report')}
               </button>
             ) : null}
           </div>
@@ -336,17 +346,17 @@ function Thread({ run }: { run: RunView }) {
             className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line px-2.5 text-sm text-fg hover:bg-hover"
           >
             <Square size={11} fill="currentColor" />
-            Arrêter
+            {t('agents.task.stop')}
           </button>
         ) : null}
       </div>
       {preparing ? (
         <p className="shimmer text-sm">
           {run.attachments.length
-            ? 'Lecture des pièces jointes…'
+            ? t('agents.thread.readingAttachments')
             : run.kind === 'debate'
-              ? 'Démarrage du débat…'
-              : 'Démarrage des agents…'}
+              ? t('agents.thread.startingDebate')
+              : t('agents.thread.startingAgents')}
         </p>
       ) : null}
       {items.map((item) => (
@@ -365,9 +375,10 @@ function Thread({ run }: { run: RunView }) {
 }
 
 export function ThreadView() {
+  const t = useT();
   const openRunId = useAgents((state) => state.openRunId);
   const run = useAgents((state) => (openRunId ? state.details[openRunId] : undefined));
   if (!openRunId) return null;
-  if (!run) return <p className="shimmer text-sm">Chargement du fil…</p>;
+  if (!run) return <p className="shimmer text-sm">{t('agents.thread.loading')}</p>;
   return <Thread key={run.id} run={run} />;
 }

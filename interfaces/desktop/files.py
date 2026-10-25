@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 from urllib.parse import quote
 
+from core.i18n import tr
 from utils.logger import setup_logger
 from utils.path_links import reveal_in_file_manager
 
@@ -145,7 +146,7 @@ def reveal(path: str) -> None:
         FileAccessError: chemin introuvable
     """
     if not path or not os.path.exists(path):
-        raise FileAccessError("Chemin introuvable.")
+        raise FileAccessError(tr("files.pathNotFound"))
     reveal_in_file_manager(path)
 
 

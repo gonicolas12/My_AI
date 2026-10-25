@@ -33,6 +33,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from PIL import Image
 
 from core.agent_orchestrator import AgentOrchestrator
+from core.i18n import tr
+from core.language_detector import reply_instruction, reply_language
 from models.ai_agents import AVAILABLE_AGENTS, AIAgent
 from models.local_llm import LocalLLM
 from utils.logger import setup_logger
@@ -110,12 +112,19 @@ FORMAT DE RÉPONSE:
 
 Réponds UNIQUEMENT avec le system prompt, rien d'autre. Pas d'explication, pas de commentaire.
 Génère aussi à la fin, sur une ligne séparée commençant par "TEMPERATURE:", une valeur de température entre 0.1 et 0.9 adaptée au rôle (précis = bas, créatif = haut).
-Ensuite, sur une dernière ligne séparée commençant par "SUMMARY:", génère un résumé de 3-4 mots maximum du rôle de l'agent, avec la première lettre en majuscule (ex: "Recherche web avancée" ou "Analyse de données")."""
+Ensuite, sur une dernière ligne séparée commençant par "SUMMARY:", génère un résumé de 3-4 mots maximum du rôle de l'agent, avec la première lettre en majuscule (ex: "Recherche web avancée" ou "Analyse de données").
+
+({language})"""
 
 _AGENT_GEN_SYSTEM = (
     "Tu es un assistant qui génère des system prompts pour des agents IA. "
     "Réponds uniquement avec le contenu demandé, sans explications."
 )
+
+
+def _agent_gen_prompt(name: str, role: str) -> str:
+    """Demande du system prompt d'un agent, dans la langue de la description de son rôle."""
+    return _AGENT_GEN_PROMPT.format(name=name, role=role, language=reply_instruction(role))
 
 
 class AgentRelayService:
@@ -218,8 +227,11 @@ class AgentRelayService:
                 "color": data.get("color", "#ff6b47"),
                 "custom": True,
             })
+        # Description des agents intégrés dans la langue de l'interface
+        builtin = [{**agent, "desc": tr(f"agents.builtin.{agent['key']}")}
+                   for agent in _BUILTIN_AGENTS]
         return {
-            "builtin": list(_BUILTIN_AGENTS),
+            "builtin": builtin,
             "custom": custom,
             "default_model": _get_default_model(),
         }
@@ -257,24 +269,21 @@ class AgentRelayService:
         name = (name or "").strip()
         role = (role or "").strip()
         if not name:
-            return {"success": False, "error": "Nom requis"}
+            return {"success": False, "error": tr("agents.nameRequired")}
         if not role:
-            return {"success": False, "error": "Rôle requis"}
+            return {"success": False, "error": tr("agents.roleRequired")}
 
         try:
             response = self._local_llm.generate(
-                prompt=_AGENT_GEN_PROMPT.format(name=name, role=role),
+                prompt=_agent_gen_prompt(name, role),
                 system_prompt=_AGENT_GEN_SYSTEM,
             )
         except Exception as exc:
             logger.warning("Génération agent échouée : %s", exc)
-            return {"success": False, "error": f"Erreur LLM : {exc}"}
+            return {"success": False, "error": tr("agents.llmError", error=exc)}
 
         if not response:
-            return {
-                "success": False,
-                "error": "Ollama n'a pas répondu. Vérifiez qu'Ollama est lancé.",
-            }
+            return {"success": False, "error": tr("agents.ollamaNoAnswer")}
 
         system_prompt, temperature, short_desc = self._parse_generated_prompt(
             response, role
@@ -305,13 +314,13 @@ class AgentRelayService:
     def edit_agent(self, key: str, name: str, role: str) -> Dict[str, Any]:
         """Modifie un agent personnalisé. Régénère le prompt si le rôle change."""
         if key not in self._custom_agents:
-            return {"success": False, "error": "Agent introuvable"}
+            return {"success": False, "error": tr("agents.notFound")}
         name = (name or "").strip()
         role = (role or "").strip()
         if not name:
-            return {"success": False, "error": "Nom requis"}
+            return {"success": False, "error": tr("agents.nameRequired")}
         if not role:
-            return {"success": False, "error": "Rôle requis"}
+            return {"success": False, "error": tr("agents.roleRequired")}
 
         old = self._custom_agents[key]
         name_changed = name != old.get("name")
@@ -322,13 +331,13 @@ class AgentRelayService:
         if role_changed:
             try:
                 response = self._local_llm.generate(
-                    prompt=_AGENT_GEN_PROMPT.format(name=name, role=role),
+                    prompt=_agent_gen_prompt(name, role),
                     system_prompt=_AGENT_GEN_SYSTEM,
                 )
             except Exception as exc:
-                return {"success": False, "error": f"Erreur LLM : {exc}"}
+                return {"success": False, "error": tr("agents.llmError", error=exc)}
             if not response:
-                return {"success": False, "error": "Ollama n'a pas répondu."}
+                return {"success": False, "error": tr("agents.ollamaNoAnswerShort")}
             system_prompt, temperature, short_desc = self._parse_generated_prompt(
                 response, role
             )
@@ -348,7 +357,7 @@ class AgentRelayService:
     def delete_agent(self, key: str) -> Dict[str, Any]:
         """Supprime un agent personnalisé."""
         if key not in self._custom_agents:
-            return {"success": False, "error": "Agent introuvable"}
+            return {"success": False, "error": tr("agents.notFound")}
         del self._custom_agents[key]
         self._save_custom()
         AVAILABLE_AGENTS.pop(key, None)
@@ -584,13 +593,17 @@ class AgentRelayService:
         with self._exec_lock:
             if self._busy:
                 emit({"type": "agent_exec_error", "exec_id": exec_id,
-                      "message": "Une exécution est déjà en cours."})
+                      "message": tr("agents.busy")})
                 return
             self._busy = True
         self._interrupts[exec_id] = False
 
         try:
             self._load_and_register_custom()
+            # Langue des réponses : celle de la tâche de l'utilisateur, avant les
+            # pièces jointes et le contexte des agents précédents (sinon la langue
+            # par défaut des Réglages)
+            language = {"language": reply_language(task)}
             # Injecter le contenu des pièces jointes dans la tâche (lecture
             # de fichiers / analyse d'image — bloquant, donc ici dans le thread).
             if image_path or file_paths:
@@ -598,7 +611,7 @@ class AgentRelayService:
             plan = self.compute_execution_plan(nodes, connections)
             if plan["mode"] == "empty":
                 emit({"type": "agent_exec_error", "exec_id": exec_id,
-                      "message": "Aucun agent dans le workflow."})
+                      "message": tr("agents.emptyWorkflow")})
                 return
 
             emit({"type": "agent_exec_start", "exec_id": exec_id,
@@ -650,6 +663,7 @@ class AgentRelayService:
                         result = self._orchestrator.execute_single_task_stream(
                             agent_type=nd["agent_type"],
                             task=build_task(nid),
+                            context=language,
                             on_token=on_token,
                         )
                         ok = bool(result.get("success")) and not self._interrupted(exec_id)
@@ -686,6 +700,7 @@ class AgentRelayService:
                     result = self._orchestrator.execute_single_task_stream(
                         agent_type=nd["agent_type"],
                         task=build_task(nid),
+                        context=language,
                         on_token=on_token,
                     )
                     ok = bool(result.get("success")) and not self._interrupted(exec_id)
@@ -709,13 +724,14 @@ class AgentRelayService:
                     break
                 nd = node_map[nid]
                 emit({"type": "agent_section_start", "exec_id": exec_id,
-                      "section_id": nid, "title": f"Agent isolé : {nd['name']}",
+                      "section_id": nid, "title": tr("agents.isolatedTitle", name=nd["name"]),
                       "color": nd.get("color", "#ff6b47")})
                 emit({"type": "agent_node_status", "exec_id": exec_id,
                       "node_id": nid, "status": "running"})
                 on_token, state = self._make_token_sink(emit, exec_id, nid)
                 result = self._orchestrator.execute_single_task_stream(
-                    agent_type=nd["agent_type"], task=task, on_token=on_token,
+                    agent_type=nd["agent_type"], task=task, context=language,
+                    on_token=on_token,
                 )
                 ok = bool(result.get("success")) and not self._interrupted(exec_id)
                 text = result.get("result", "") if ok else state["text"]
@@ -731,10 +747,11 @@ class AgentRelayService:
 
             interrupted = self._interrupted(exec_id)
             if interrupted:
-                status_text = "⛔ Génération interrompue"
+                status_text = tr("agents.interrupted")
             else:
                 rate = success_count / max(total_count, 1)
-                status_text = f"✅ Workflow terminé ({rate:.0%} succès)"
+                # « (50% » : la page Agents y lit le taux, quelle que soit la langue
+                status_text = tr("agents.workflowDone", rate=f"{rate:.0%}")
             emit({"type": "agent_exec_end", "exec_id": exec_id,
                   "success": (not interrupted) and success_count == total_count,
                   "interrupted": interrupted, "status_text": status_text})
@@ -742,7 +759,7 @@ class AgentRelayService:
         except Exception as exc:
             logger.exception("Workflow agents échoué (exec_id=%s)", exec_id)
             emit({"type": "agent_exec_error", "exec_id": exec_id,
-                  "message": f"Erreur workflow : {exc}"})
+                  "message": tr("agents.workflowError", error=exc)})
         finally:
             self._interrupts.pop(exec_id, None)
             self._busy = False
@@ -764,7 +781,7 @@ class AgentRelayService:
         with self._exec_lock:
             if self._busy:
                 emit({"type": "agent_exec_error", "exec_id": exec_id,
-                      "message": "Une exécution est déjà en cours."})
+                      "message": tr("agents.busy")})
                 return
             self._busy = True
         self._interrupts[exec_id] = False
@@ -781,7 +798,7 @@ class AgentRelayService:
             topic = (topic or "").strip()
             if not topic:
                 emit({"type": "agent_exec_error", "exec_id": exec_id,
-                      "message": "Sujet requis."})
+                      "message": tr("agents.topicRequired")})
                 return
             rounds = max(1, min(10, int(rounds or 3)))
             emit({"type": "agent_exec_start", "exec_id": exec_id, "mode": "debate"})
@@ -814,8 +831,10 @@ class AgentRelayService:
                 finish_current(True)
                 section_counter["n"] += 1
                 sid = f"deb_{section_counter['n']}"
-                role = "Proposant" if agent_type == agent_a else "Opposant"
-                title = f"Tour {round_num} — {name_lookup.get(agent_type, agent_type)} ({role})"
+                role = tr("agents.role.proposer" if agent_type == agent_a
+                          else "agents.role.opponent")
+                title = tr("agents.debateRound", round=round_num,
+                           name=name_lookup.get(agent_type, agent_type), role=role)
                 emit({"type": "agent_section_start", "exec_id": exec_id,
                       "section_id": sid, "title": title,
                       "color": color_lookup.get(agent_type, "#8b5cf6")})
@@ -848,14 +867,14 @@ class AgentRelayService:
 
             interrupted = self._interrupted(exec_id)
             if interrupted:
-                status_text = "⛔ Débat interrompu"
+                status_text = tr("agents.debateInterrupted")
                 ok = False
             elif result.get("success"):
                 done = result.get("rounds_completed", 0)
-                status_text = f"✅ Débat terminé ({done} tour{'s' if done > 1 else ''})"
+                status_text = tr("agents.debateDone", count=done)
                 ok = True
             else:
-                status_text = f"❌ {result.get('error', 'erreur inconnue')}"
+                status_text = f"❌ {result.get('error') or tr('agents.unknownError')}"
                 ok = False
             emit({"type": "agent_exec_end", "exec_id": exec_id,
                   "success": ok, "interrupted": interrupted,
@@ -864,7 +883,7 @@ class AgentRelayService:
         except Exception as exc:
             logger.exception("Débat agents échoué (exec_id=%s)", exec_id)
             emit({"type": "agent_exec_error", "exec_id": exec_id,
-                  "message": f"Erreur débat : {exc}"})
+                  "message": tr("agents.debateError", error=exc)})
         finally:
             self._interrupts.pop(exec_id, None)
             self._busy = False

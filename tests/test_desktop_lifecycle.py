@@ -17,7 +17,8 @@ import interfaces.onboarding as onboarding
 from core.chat_service import ChatService
 from interfaces.desktop import lifecycle
 from interfaces.desktop.events import validate_event
-from interfaces.desktop.lifecycle import OLLAMA_FAILED, DesktopApp, DesktopState
+from core.i18n import tr
+from interfaces.desktop.lifecycle import DesktopApp, DesktopState
 from test_chat_service import FakeEngine, FakeFileProcessor  # pylint: disable=import-error
 
 
@@ -215,9 +216,9 @@ def test_window_url_carries_the_token_in_its_fragment(started):
 def test_stopped_ollama_is_shown_instead_of_the_loading_screen(started):
     run = started(FakeLauncher(ollama_running=False))
 
-    assert run.status["error"] == OLLAMA_FAILED and run.status["ollama"] is False
+    assert run.status["error"] == tr("launch.ollamaFailed") and run.status["ollama"] is False
     errors = [e for e in run.events
-              if e["type"] == "engine.status" and e["payload"]["error"] == OLLAMA_FAILED]
+              if e["type"] == "engine.status" and e["payload"]["error"] == tr("launch.ollamaFailed")]
     # Signalé dès l'étape d'Ollama, avant le moteur
     assert errors[0]["payload"]["step"] == "ollama"
     # Comme dans Tk, l'appli démarre quand même

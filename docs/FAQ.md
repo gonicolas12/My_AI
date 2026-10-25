@@ -5,6 +5,9 @@
 ### Mon IA est-elle vraiment 100% locale ?
 Oui ! Absolument aucune donnée n'est envoyée à l'extérieur. Votre IA fonctionne entièrement sur votre machine sans connexion internet après installation. Vos conversations, documents et code restent complètement privés.
 
+### My_AI existe-t-il dans une autre langue que le français ?
+Oui, en 12 langues : français, anglais, espagnol, allemand, italien, portugais (Brésil), néerlandais, russe, chinois (simplifié), japonais, coréen et arabe. Choisissez-la dans ⚙️ **Réglages → Langue**, la palette **Ctrl+K** (« Changer de langue ») ou l'assistant de premier lancement, qui part de la langue de Windows. La fenêtre et la page mobile du Relay changent tout de suite, sans redémarrage ; l'arabe s'affiche de droite à gauche. Exports et documents générés suivent aussi : voir [USAGE.md](USAGE.md), section « Langue de l'interface et des réponses ».
+
 ### Comment voir et supprimer ce que l'IA sait de moi ?
 Cliquez sur **Mémoire** en bas de la barre latérale (ou palette Ctrl+K). Vous y trouvez **tout** ce que l'IA a mémorisé, réparti en 3 onglets : **Faits** (base SQLite), **Documents** et **Conversations** (mémoire vectorielle ChromaDB). Vous pouvez **chercher, filtrer, éditer en ligne et supprimer** chaque entrée — ce sont de **vraies** suppressions locales (rien n'est simulé). Pour une entrée de conversation, cochez « supprimer aussi le message d'origine » pour que la suppression soit **définitive**. Détails : [MEMORY.md](MEMORY.md).
 
@@ -184,6 +187,11 @@ Ouvrez une nouvelle conversation (**Ctrl+N** ou **Ctrl+L**) : le modèle repart 
 3. Vérifiez les logs : dossier `logs/`
 4. Essayez en mode debug : `python main.py --debug`
 
+### Un PDF exporté ou généré montre des carrés, ou de l'arabe à l'envers
+
+- **Carrés** (russe, arabe, grec…) : aucune police Unicode n'a été trouvée. Windows a Arial ; sous Linux, installez `fonts-dejavu` (matplotlib en fournit une aussi).
+- **Arabe en lettres détachées ou à l'envers** : `arabic-reshaper` ou `python-bidi` manque. Relancez My_AI (il installe les dépendances ajoutées) ou `pip install -r requirements.txt`.
+
 ### Les fichiers PDF/DOCX ne se chargent pas
 
 - Vérifiez que le fichier n'est pas corrompu
@@ -278,13 +286,13 @@ Avec les **Workspaces v7.0.0**, oui ! Vos conversations sont sauvegardées autom
 Activez `api.enabled: true` dans `config.yaml`, puis accédez à `http://localhost:8000/api/health` pour vérifier que le serveur tourne. Tous les endpoints sont documentés dans [USAGE.md](USAGE.md#-api-rest-locale).
 
 ### Comment exporter une conversation ?
-L'export se fait via le module `ConversationExporter`. Les formats disponibles sont Markdown (.md), HTML (.html, avec thème sombre) et PDF (.pdf). Les fichiers sont sauvegardés dans `outputs/exports/`.
+Bouton d'export en bas de la barre latérale, ou palette Ctrl+K. Les formats disponibles sont Markdown (.md), HTML (.html, avec thème sombre) et PDF (.pdf), produits par le module `ConversationExporter`. Les fichiers sont sauvegardés dans `outputs/exports/`. Les libellés suivent la langue de l'interface, et le PDF écrit toutes les langues : chinois, japonais, coréen, cyrillique, et l'arabe lié, de droite à gauche.
 
 ### Comment fonctionne la base de connaissances ?
 Elle contient les faits que vous demandez à l'IA de retenir (« retiens que… », « n'oublie pas que… ») et ceux ajoutés à la main dans le panneau Mémoire. Ils sont stockés dans SQLite (`data/knowledge_base/facts.db`). À chaque réponse, les faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Détails : [MEMORY.md](MEMORY.md).
 
 ### L'IA peut-elle répondre dans une autre langue ?
-Oui ! Le `LanguageDetector` détecte automatiquement la langue de votre message parmi 12 langues (français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe) et génère un suffix de prompt système pour que l'IA réponde dans la même langue. Pour un message en anglais, la consigne est aussi rappelée à la fin du message : les instructions du modèle sont en français, et il répondait parfois en français. Une consigne de langue mémorisée (« retiens que tu dois toujours me répondre en anglais ») passe avant la langue détectée.
+Oui ! Le `LanguageDetector` détecte automatiquement la langue de votre message parmi 12 langues (français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe) et génère un suffix de prompt système pour que l'IA réponde dans la même langue. Pour un message en anglais, la consigne est aussi rappelée à la fin du message : les instructions du modèle sont en français, et il répondait parfois en français. Une consigne de langue mémorisée (« retiens que tu dois toujours me répondre en anglais ») passe avant la langue détectée. Un message court ou ambigu (« ok ») reçoit une réponse dans la langue choisie dans ⚙️ Réglages → Langue.
 
 ### Comment attacher des fichiers aux agents ?
 Cliquez sur le bouton **"+"** dans la zone de saisie de l'onglet Agents, sélectionnez vos fichiers, et ils seront automatiquement lus et injectés dans le prompt de l'agent. Dans un workflow multi-agents, tous les agents reçoivent les fichiers joints.

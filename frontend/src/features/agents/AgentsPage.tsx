@@ -12,6 +12,7 @@ import { Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useT } from '../../i18n';
 import { useApp } from '../../stores/app';
 import { clearRuns, refreshAgentsPage, useAgents } from '../../stores/agents';
 import { loadResources } from '../../stores/resources';
@@ -27,23 +28,22 @@ import { executeWorkflow } from './workflowActions';
 
 /** Accueil de la zone de résultats de Tk, tant qu'aucun fil n'existe */
 function Welcome() {
+  const t = useT();
   return (
     <div className="rounded-xl border border-dashed border-line px-5 py-6 text-sm leading-relaxed text-fg-2">
-      <p className="mb-2 text-fg">Bienvenue dans le système d’agents spécialisés !</p>
-      <ol className="list-decimal space-y-0.5 pl-5">
-        <li>Décrivez votre tâche</li>
-        <li>Configurez votre workflow : glissez des agents sur le canvas, reliez leurs ports</li>
-        <li>Cliquez sur « Exécuter », ou sur « Débat » pour opposer deux agents</li>
+      <p className="mb-2 text-fg">{t('agents.welcome.title')}</p>
+      <ol className="list-decimal space-y-0.5 ps-5">
+        <li>{t('agents.welcome.1')}</li>
+        <li>{t('agents.welcome.2')}</li>
+        <li>{t('agents.welcome.3')}</li>
       </ol>
-      <p className="mt-2">
-        Les résultats apparaîtront ici en temps réel, un fil par exécution, y compris celles lancées
-        du téléphone ou par une tâche planifiée.
-      </p>
+      <p className="mt-2">{t('agents.welcome.footer')}</p>
     </div>
   );
 }
 
 function Executions() {
+  const t = useT();
   const count = useAgents((state) => state.runs.length);
   const runsLoaded = useAgents((state) => state.runsLoaded);
   const active = useAgents((state) => state.active);
@@ -52,17 +52,17 @@ function Executions() {
     <section aria-labelledby="agents-executions">
       <div className="mb-3 flex items-center gap-2">
         <h2 id="agents-executions" className="text-lg font-semibold text-fg">
-          Exécutions
+          {t('agents.executions.title')}
         </h2>
         {count ? <span className="text-sm text-fg-3 tabular-nums">{count}</span> : null}
         {count > (active ? 1 : 0) ? (
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-fg-2 hover:bg-hover hover:text-fg"
+            className="ms-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-fg-2 hover:bg-hover hover:text-fg"
           >
             <Trash2 size={14} />
-            Effacer l’historique
+            {t('agents.executions.clear')}
           </button>
         ) : null}
       </div>
@@ -81,13 +81,9 @@ function Executions() {
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Effacer l’historique"
-        message={
-          active
-            ? 'Les fils terminés seront supprimés ; le fil en cours reste.'
-            : 'Tous les fils d’exécution seront supprimés.'
-        }
-        confirmLabel="Effacer"
+        title={t('agents.executions.clear')}
+        message={active ? t('agents.executions.clearActive') : t('agents.executions.clearAll')}
+        confirmLabel={t('agents.executions.clearConfirm')}
         danger
         onConfirm={() => void clearRuns()}
       />
@@ -96,6 +92,7 @@ function Executions() {
 }
 
 export default function AgentsPage() {
+  const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
   const executions = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
@@ -130,11 +127,8 @@ export default function AgentsPage() {
     <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-[1760px] flex-col gap-5 px-8 pt-2 pb-10">
         <div>
-          <h1 className="text-xl font-semibold text-fg">Agents IA spécialisés</h1>
-          <p className="text-sm text-fg-2">
-            Choisissez un agent selon la tâche, ou composez un workflow : glissez les agents sur le
-            canvas et reliez-les.
-          </p>
+          <h1 className="text-xl font-semibold text-fg">{t('agents.title')}</h1>
+          <p className="text-sm text-fg-2">{t('agents.subtitle')}</p>
         </div>
         <AgentGrid />
         {/* Un débat n'a pas de canvas : la page descend jusqu'à son fil */}

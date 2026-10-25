@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from core.i18n import tr
 from interfaces.artifacts import ARTIFACTS_DIR, Artifact, build_preview_document
 from utils.logger import setup_logger
 
@@ -134,8 +135,8 @@ class PreviewStore:
                      language: str = "", index: int = 0) -> Preview:
         """Page d'un bloc HTML ou SVG d'une réponse (build_preview_document)."""
         if kind not in ("html", "svg"):
-            raise ValueError(f"Type d'artefact inconnu : {kind}")
-        artifact = Artifact(kind=kind, code=code or "", title=title or "Aperçu",
+            raise ValueError(tr("preview.unknownKind", kind=kind))
+        artifact = Artifact(kind=kind, code=code or "", title=title or tr("preview.defaultTitle"),
                             language=language or kind, index=index)
         return self._add(Preview(
             id=uuid.uuid4().hex, kind=kind, title=artifact.title,
@@ -167,7 +168,7 @@ class PreviewStore:
             return self._add(Preview(id=uuid.uuid4().hex, kind="pdf", title=name,
                                      source_path=path))
         if not is_previewable(path):
-            raise ValueError(f"Pas d'aperçu pour ce format : {Path(path).suffix or name}")
+            raise ValueError(tr("preview.noPreview", format=Path(path).suffix or name))
         return self._add(Preview(id=uuid.uuid4().hex, kind="document", title=name,
                                  html=build_document_preview(path), source_path=path))
 

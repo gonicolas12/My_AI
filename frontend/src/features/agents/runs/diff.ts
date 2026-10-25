@@ -9,6 +9,8 @@
  * l'onglet Sortie.
  */
 
+import { t as translate, type Translate } from '../../../i18n';
+
 export interface CodeBlock {
   lang: string;
   code: string;
@@ -144,9 +146,10 @@ function overlap(lines: DiffLine[], before: string[], after: string[]): number {
 export function providedCode(
   sources: { name: string; text: string }[],
   task: string,
+  t: Translate = translate,
 ): { name: string; text: string }[] {
   const fromTask = codeBlocks(task).map((block) => ({
-    name: 'code de la tâche',
+    name: t('agents.diff.taskCode'),
     text: block.code,
   }));
   return [...sources, ...fromTask].filter((source) => splitLines(source.text).length >= 2);

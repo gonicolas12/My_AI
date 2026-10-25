@@ -40,6 +40,8 @@ from urllib.parse import urlsplit
 
 import requests
 
+from core.i18n import tr
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Dernier calibrage : empreinte de la machine, placement retenu et mesures
 STATE_FILE = PROJECT_ROOT / "data" / ".ollama_placement.json"
@@ -114,17 +116,18 @@ def placement_label(state_file: Path = STATE_FILE) -> Optional[str]:
     state = _read_state(state_file)
     placement = state.get("placement")
     if placement == "cpu":
-        return "modèle sur le processeur"
+        return tr("placement.label.cpu")
     if placement not in ("gpu", "gpu-integre"):
         return None
-    where = "le GPU intégré" if placement == "gpu-integre" else "le GPU"
+    where = tr("placement.where.integrated" if placement == "gpu-integre"
+               else "placement.where.gpu")
     share = state.get("gpu_share")
     if isinstance(share, (int, float)) and 0 < share < 99.5:
-        label = f"modèle à {share:.0f} % sur {where}"
+        label = tr("placement.label.partial", share=f"{share:.0f}", where=where)
     else:
-        label = f"modèle sur {where}"
+        label = tr("placement.label.full", where=where)
     if COMPACT_CONTEXT_ENV.items() <= saved_env(state_file).items():
-        label += ", contexte en 8 bits"
+        label = tr("placement.label.compact", label=label)
     return label
 
 
@@ -169,16 +172,13 @@ def ensure_best_placement(
             except Exception:  # pylint: disable=broad-except
                 pass  # l'affichage ne doit jamais bloquer le calibrage
 
-    report(
-        f"🔍 Recherche du meilleur emplacement pour le modèle '{model}' "
-        "(une seule fois, jusqu'à une minute)…"
-    )
+    report(tr("placement.searching", model=model))
     previous_env = saved_env(state_file)
     try:
         result = _calibrate(base_url, model, restart, previous_env, report)
     except Exception as exc:  # jamais bloquant : l'appli démarre quand même
-        report(f"⚠️ Placement du modèle non mesuré : {exc}")
-        report("   Nouvel essai au prochain lancement")
+        report(tr("placement.notMeasured", error=exc))
+        report("   " + tr("placement.retryNext"))
         try:
             restart(previous_env)  # serveur laissé tel que le lanceur l'avait démarré
         except Exception:
@@ -234,9 +234,9 @@ def _best_device(
         # Carte dédiée pleine à cet instant : y ajouter le GPU intégré risquerait
         # qu'Ollama lui donne le modèle même une fois la carte libérée
         return {"placement": "gpu", "env": {}, "reason": "dedicated"}
-    report("   • Choix par défaut d'Ollama : processeur")
+    report("   • " + tr("placement.ollamaDefaultCpu"))
     cpu = _measure(base_url, model)
-    report(f"   • Processeur : {_speeds(cpu)}")
+    report("   • " + tr("placement.cpuSpeed", speeds=_speeds(cpu)))
 
     # 2. GPU intégré autorisé, sauf variable que l'utilisateur a fixée lui-même
     extra = {key: value for key, value in EXTRA_GPU_ENV.items() if key not in os.environ}
@@ -264,13 +264,14 @@ def _try_integrated_gpu(
         gpu = _measure(base_url, model) if share > 0 else None
     except PlacementError as exc:
         # Pilote ou GPU sur lequel le modèle échoue : le processeur reste le bon choix
-        report(f"   • GPU intégré : échec ({exc})")
+        report("   • " + tr("placement.igpuFailed", error=exc))
         return {"reason": "failed"}
     if gpu is None:
         return {"reason": "no-gpu"}
 
-    where = "GPU intégré" if share >= 99.5 else f"GPU intégré ({share:.0f} % du modèle)"
-    report(f"   • {where} : {_speeds(gpu)}")
+    where = (tr("placement.device.igpu") if share >= 99.5
+             else tr("placement.igpuShare", share=f"{share:.0f}"))
+    report("   • " + tr("placement.deviceSpeed", where=where, speeds=_speeds(gpu)))
     speedup = _typical_time(cpu) / _typical_time(gpu)
     measured = {"measures": {"cpu": cpu, "gpu": gpu}, "speedup": round(speedup, 2)}
     if speedup < _MIN_SPEEDUP:
@@ -286,12 +287,12 @@ def _try_compact_context(
     report: Callable[[str], None] = _console,
 ) -> dict:
     """Relance Ollama avec le contexte du modèle en 8 bits et le garde s'il va plus vite."""
-    where = "GPU intégré" if result["placement"] == "gpu-integre" else "GPU"
+    device = "igpu" if result["placement"] == "gpu-integre" else "gpu"
     measures = dict(result.get("measures") or {})
     if "gpu" not in measures:  # GPU choisi par Ollama : pas encore mesuré
         measures["gpu"] = _measure(base_url, model)
-        report(f"   • Contexte en 16 bits ({_share_text(result['gpu_share'], where)}) : "
-               f"{_speeds(measures['gpu'])}")
+        report("   • " + tr("placement.context16", share=_share_text(result["gpu_share"], device),
+                            speeds=_speeds(measures["gpu"])))
     before = measures["gpu"]
     compact_env = {**result["env"], **COMPACT_CONTEXT_ENV}
     try:
@@ -299,10 +300,11 @@ def _try_compact_context(
         share = _load(base_url, model)
         after = _measure(base_url, model)
     except PlacementError as exc:
-        report(f"   • Contexte en 8 bits : échec ({exc})")
+        report("   • " + tr("placement.context8Failed", error=exc))
         _restart(restart, result["env"])
         return {**result, "measures": measures}
-    report(f"   • Contexte en 8 bits ({_share_text(share, where)}) : {_speeds(after)}")
+    report("   • " + tr("placement.context8", share=_share_text(share, device),
+                        speeds=_speeds(after)))
     measures["gpu-8bits"] = after
     speedup = _typical_time(before) / _typical_time(after)
     if speedup < _MIN_SPEEDUP:
@@ -313,11 +315,11 @@ def _try_compact_context(
             "measures": measures, "context_speedup": round(speedup, 2)}
 
 
-# Conclusion quand le modèle reste sur le processeur, selon la raison
+# Conclusion quand le modèle reste sur le processeur, selon la raison (clés du catalogue)
 _CPU_CONCLUSIONS = {
-    "slower": "✅ Modèle laissé sur le processeur : le GPU intégré ne fait pas mieux ici",
-    "failed": "✅ Modèle laissé sur le processeur : le GPU intégré n'a pas pu le faire tourner",
-    "no-gpu": "✅ Modèle sur le processeur : aucun GPU utilisable par Ollama",
+    "slower": "placement.cpu.slower",
+    "failed": "placement.cpu.failed",
+    "no-gpu": "placement.cpu.noGpu",
 }
 
 
@@ -325,31 +327,20 @@ def _conclusion(result: dict) -> str:
     """Ligne de console qui annonce le placement retenu."""
     placement, reason = result["placement"], result.get("reason")
     if "context_speedup" in result:
-        where = "GPU intégré" if placement == "gpu-integre" else "GPU"
-        share = _share_text(result["gpu_share"], where)
-        return (
-            f"✅ {share[0].upper()}{share[1:]} grâce à son contexte en 8 bits : réponse type "
-            f"{_decimal(result['context_speedup'])}× plus rapide qu'en 16 bits"
-        )
+        device = "igpu" if placement == "gpu-integre" else "gpu"
+        share = _share_text(result["gpu_share"], device)
+        return tr("placement.done.compact", share=share[:1].upper() + share[1:],
+                  speedup=_decimal(result["context_speedup"]))
     if placement == "cpu":
-        return _CPU_CONCLUSIONS.get(reason, _CPU_CONCLUSIONS["no-gpu"])
+        return tr(_CPU_CONCLUSIONS.get(reason, _CPU_CONCLUSIONS["no-gpu"]))
     if placement == "gpu-integre":
-        return (
-            "✅ Modèle placé sur le GPU intégré : réponse type "
-            f"{_decimal(result['speedup'])}× plus rapide qu'avec le processeur"
-        )
+        return tr("placement.done.igpu", speedup=_decimal(result["speedup"]))
     if reason == "dedicated":
-        return (
-            "✅ Modèle confié à la carte graphique dédiée : Ollama l'y place "
-            "dès qu'elle a assez de mémoire libre"
-        )
+        return tr("placement.done.dedicated")
     share = result.get("gpu_share", 100.0)
     if share >= 99.5:
-        return "✅ Modèle sur le GPU : Ollama l'y place déjà tout seul"
-    return (
-        f"✅ Modèle à {share:.0f} % sur le GPU, le reste sur le processeur : "
-        "la mémoire de la carte graphique ne suffit pas pour tout"
-    )
+        return tr("placement.done.gpu")
+    return tr("placement.done.partial", share=f"{share:.0f}")
 
 
 def _restart(restart: Callable[[Dict[str, str]], bool], placement_env: Dict[str, str]) -> None:
@@ -409,20 +400,20 @@ def _typical_time(speeds: Dict[str, float]) -> float:
 
 
 def _speeds(speeds: Dict[str, float]) -> str:
-    return (
-        f"lecture {speeds['prompt_tps']:.0f} tok/s, "
-        f"écriture {_decimal(speeds['gen_tps'])} tok/s"
-    )
+    return tr("placement.speeds", prompt=f"{speeds['prompt_tps']:.0f}",
+              gen=_decimal(speeds["gen_tps"]))
 
 
-def _share_text(share: float, where: str) -> str:
+def _share_text(share: float, device: str) -> str:
+    """Part du modèle sur ``device`` (« igpu » ou « gpu ») : une phrase par appareil,
+    pour que chaque langue accorde le nom à sa guise."""
     if share >= 99.5:
-        return f"modèle entier sur le {where}"
-    return f"{share:.0f} % du modèle sur le {where}"
+        return tr(f"placement.share.full.{device}")
+    return tr(f"placement.share.partial.{device}", share=f"{share:.0f}")
 
 
 def _decimal(value: float) -> str:
-    return f"{value:.1f}".replace(".", ",")
+    return f"{value:.1f}".replace(".", tr("format.decimalSeparator"))
 
 
 def _unload(base_url: str, model: str) -> None:

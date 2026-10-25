@@ -19,6 +19,7 @@ import html
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.i18n import current_language, is_rtl, tr
 from generators.markdown_document import (
     Block,
     CodeBlock,
@@ -39,17 +40,22 @@ _HTML_RENDERED = {".docx", ".xlsx", ".xlsm", ".xls", ".csv", ".pptx", ".potx",
 # Formats affichés par le lecteur natif du moteur de rendu.
 _NATIVE_VIEWER = {".pdf"}
 
-# Libellé affiché dans l'en-tête de la feuille, par extension.
+# Libellé affiché dans l'en-tête de la feuille, par extension (clés du catalogue)
 _FORMAT_LABELS = {
-    ".docx": "Document Word", ".pdf": "Document PDF",
-    ".pptx": "Présentation PowerPoint", ".potx": "Modèle PowerPoint",
-    ".xlsx": "Classeur Excel", ".xlsm": "Classeur Excel", ".xls": "Classeur Excel",
-    ".csv": "Données CSV", ".md": "Markdown", ".markdown": "Markdown",
-    ".txt": "Texte", ".log": "Journal", ".rst": "reStructuredText",
+    ".docx": "file.format.word", ".pdf": "file.format.pdf",
+    ".pptx": "file.format.pptx", ".potx": "file.format.potx",
+    ".xlsx": "file.format.excel", ".xlsm": "file.format.excel", ".xls": "file.format.excel",
+    ".csv": "file.format.csv", ".md": "file.format.markdown", ".markdown": "file.format.markdown",
+    ".txt": "file.format.text", ".log": "file.format.log", ".rst": "file.format.rst",
 }
 
 # Styles de paragraphe Word correspondant à des listes.
 _DOCX_LIST_STYLES = ("list bullet", "list number", "list paragraph")
+
+def _text(key: str, **params: Any) -> str:
+    """Texte traduit à poser entre deux balises (apostrophes laissées telles quelles)."""
+    return html.escape(tr(key, **params), quote=False)
+
 
 # Au-delà, l'aperçu d'une feuille Excel est tronqué (le volet n'est pas un tableur).
 _XLSX_MAX_ROWS = 200
@@ -59,7 +65,7 @@ _XLSX_MAX_COLUMNS = 40
 # ── Page d'enveloppe ───────────────────────────────────────────────────────
 
 _PAGE_TEMPLATE = """<!DOCTYPE html>
-<html lang="fr">
+<html lang="{lang}" dir="{direction}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -112,7 +118,7 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   h3 {{ font-size: 16.5px; margin: 18px 0 8px; }}
   h4, h5, h6 {{ font-size: 15px; margin: 15px 0 7px; }}
   p {{ margin: 0 0 11px; }}
-  ul, ol {{ margin: 0 0 12px; padding-left: 24px; }}
+  ul, ol {{ margin: 0 0 12px; padding-inline-start: 24px; }}
   li {{ margin-bottom: 4px; }}
   a {{ color: var(--accent); }}
   code {{
@@ -120,18 +126,19 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
     font-family: Consolas, "SF Mono", monospace; font-size: 13px;
   }}
   pre {{
-    background: #f7f8fa; border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+    background: #f7f8fa; border: 1px solid var(--rule);
+    border-inline-start: 3px solid var(--accent);
     border-radius: 4px; padding: 12px 14px; overflow-x: auto;
     font-family: Consolas, "SF Mono", monospace; font-size: 12.5px; line-height: 1.5;
   }}
   pre code {{ background: none; padding: 0; font-size: inherit; }}
   blockquote {{
-    margin: 12px 0; padding: 4px 0 4px 15px;
-    border-left: 3px solid var(--accent); color: #4b5563; font-style: italic;
+    margin: 12px 0; padding-block: 4px; padding-inline: 15px 0;
+    border-inline-start: 3px solid var(--accent); color: #4b5563; font-style: italic;
   }}
   hr {{ border: none; border-top: 1px solid var(--rule); margin: 22px 0; }}
   table {{ border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 13.5px; }}
-  th, td {{ border: 1px solid #d8dde3; padding: 7px 10px; text-align: left; vertical-align: top; }}
+  th, td {{ border: 1px solid #d8dde3; padding: 7px 10px; text-align: start; vertical-align: top; }}
   th {{ background: var(--accent); color: #fff; font-weight: 600; }}
   tbody tr:nth-child(even) {{ background: #f7f9fc; }}
   .sheet-title {{
@@ -148,7 +155,7 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   }}
   .slide-body {{ padding: 12px 16px; }}
   .slide-body ul {{ margin: 0; }}
-  .slide-no {{ opacity: .65; font-weight: 400; font-size: 12px; margin-left: 6px; }}
+  .slide-no {{ opacity: .65; font-weight: 400; font-size: 12px; margin-inline-start: 6px; }}
   .slide-notes {{
     border-top: 1px dashed var(--rule); margin-top: 10px; padding-top: 8px;
     color: var(--muted); font-size: 12.5px;
@@ -183,7 +190,9 @@ def wrap_preview_page(title: str, body: str) -> str:
     Returns:
         Un document HTML complet et autonome.
     """
-    return _PAGE_TEMPLATE.format(title=html.escape(title or "Aperçu"), body=body)
+    language = current_language()
+    return _PAGE_TEMPLATE.format(title=html.escape(title or tr("preview.defaultTitle")), body=body,
+                                 lang=language, direction="rtl" if is_rtl(language) else "ltr")
 
 
 # ── Point d'entrée ─────────────────────────────────────────────────────────
@@ -219,15 +228,16 @@ def build_document_preview(path: str) -> str:
     """
     file_path = Path(path)
     suffix = file_path.suffix.lower()
-    label = _FORMAT_LABELS.get(suffix, suffix.lstrip(".").upper() or "Fichier")
+    key = _FORMAT_LABELS.get(suffix)
+    label = tr(key) if key else (suffix.lstrip(".").upper() or tr("file.format.unknown"))
     header = (
         f'<div class="doc-kind">{html.escape(label)}</div>'
-        f'<h1 class="doc-name">{html.escape(file_path.name)}</h1>'
+        f'<h1 class="doc-name" dir="auto">{html.escape(file_path.name)}</h1>'
     )
 
     try:
         if not file_path.exists():
-            body = header + '<p class="empty">Fichier introuvable.</p>'
+            body = header + f'<p class="empty">{_text("docpreview.notFound")}</p>'
         elif suffix == ".docx":
             body = header + _render_docx(str(file_path))
         elif suffix in (".xlsx", ".xlsm", ".xls", ".csv"):
@@ -239,10 +249,10 @@ def build_document_preview(path: str) -> str:
         elif suffix in (".md", ".markdown"):
             body = header + render_blocks_html(parse_markdown(_read_text(file_path)), "")
         else:
-            body = header + f"<pre>{html.escape(_read_text(file_path))}</pre>"
+            body = header + f'<pre dir="auto">{html.escape(_read_text(file_path))}</pre>'
     except Exception as exc:  # noqa: BLE001 - l'aperçu ne doit jamais faire tomber le volet
         body = header + (
-            f'<p class="empty">Aperçu indisponible : {html.escape(str(exc))}</p>'
+            f'<p class="empty">{_text("docpreview.unavailable", error=exc)}</p>'
         )
 
     return wrap_preview_page(file_path.stem, body)
@@ -264,7 +274,7 @@ def render_blocks_html(blocks: List[Block], title: str = "") -> str:
     """
     parts: List[str] = []
     if title:
-        parts.append(f'<h1 class="doc-name">{html.escape(title)}</h1>')
+        parts.append(f'<h1 class="doc-name" dir="auto">{html.escape(title)}</h1>')
 
     index = 0
     while index < len(blocks):
@@ -274,20 +284,21 @@ def render_blocks_html(blocks: List[Block], title: str = "") -> str:
             parts.append(_render_list(block))
         elif isinstance(block, Heading):
             level = min(block.level, 6)
-            parts.append(f"<h{level}>{_render_inlines(block.inlines)}</h{level}>")
+            parts.append(f'<h{level} dir="auto">{_render_inlines(block.inlines)}</h{level}>')
         elif isinstance(block, Paragraph):
-            parts.append(f"<p>{_render_inlines(block.inlines)}</p>")
+            parts.append(f'<p dir="auto">{_render_inlines(block.inlines)}</p>')
         elif isinstance(block, Table):
             parts.append(_render_markdown_table(block))
         elif isinstance(block, CodeBlock):
-            parts.append(f"<pre><code>{html.escape(block.code)}</code></pre>")
+            # Le code se lit de gauche à droite, même dans une page en arabe
+            parts.append(f'<pre dir="ltr"><code>{html.escape(block.code)}</code></pre>')
         elif isinstance(block, Quote):
-            parts.append(f"<blockquote>{_render_inlines(block.inlines)}</blockquote>")
+            parts.append(f'<blockquote dir="auto">{_render_inlines(block.inlines)}</blockquote>')
         elif isinstance(block, Rule):
             parts.append("<hr>")
         index += 1
 
-    return "\n".join(parts) or '<p class="empty">Document vide.</p>'
+    return "\n".join(parts) or f'<p class="empty">{_text("docpreview.emptyDocument")}</p>'
 
 
 def _render_inlines(inlines: List[Inline]) -> str:
@@ -313,11 +324,11 @@ def _render_inlines(inlines: List[Inline]) -> str:
 def _render_list(block: ListBlock) -> str:
     """Rend une liste, en restituant les niveaux d'imbrication."""
     tag = "ol" if block.ordered else "ul"
-    parts = [f"<{tag}>"]
+    parts = [f'<{tag} dir="auto">']
     depth = 0
     for item in block.items:
         while depth < item.level:
-            parts.append(f"<{tag}>")
+            parts.append(f'<{tag} dir="auto">')
             depth += 1
         while depth > item.level:
             parts.append(f"</{tag}>")
@@ -334,7 +345,7 @@ def _render_markdown_table(block: Table) -> str:
     Réservé aux tableaux Markdown : ceux lus dans un vrai fichier passent par
     _render_table, où un « 5 * 3 * 2 » ne doit pas devenir de l'italique.
     """
-    parts = ["<table>"]
+    parts = ['<table dir="auto">']
     if block.header:
         cells = "".join(
             f"<th>{_render_inlines(parse_inlines(value))}</th>" for value in block.header
@@ -350,7 +361,7 @@ def _render_markdown_table(block: Table) -> str:
 
 def _render_table(header: List[str], rows: List[List[str]], note: str = "") -> str:
     """Rend un tableau HTML à partir d'un en-tête et de lignes de texte."""
-    parts = ["<table>"]
+    parts = ['<table dir="auto">']
     if header:
         cells = "".join(f"<th>{html.escape(str(value))}</th>" for value in header)
         parts.append(f"<thead><tr>{cells}</tr></thead>")
@@ -373,7 +384,7 @@ def _render_docx(path: str) -> str:
 
     result = DOCXProcessor().read_docx(path)
     if not result.get("success"):
-        return f'<p class="empty">{html.escape(result.get("error", "Lecture impossible."))}</p>'
+        return _unreadable(result)
 
     content = result.get("content", {})
     parts: List[str] = []
@@ -384,7 +395,7 @@ def _render_docx(path: str) -> str:
         if list_buffer:
             tag = "ol" if list_ordered else "ul"
             items = "".join(f"<li>{html.escape(text)}</li>" for text in list_buffer)
-            parts.append(f"<{tag}>{items}</{tag}>")
+            parts.append(f'<{tag} dir="auto">{items}</{tag}>')
             list_buffer.clear()
 
     for paragraph in content.get("paragraphs", []):
@@ -398,7 +409,7 @@ def _render_docx(path: str) -> str:
         if style.startswith("heading") or style in ("title", "subtitle"):
             flush_list()
             level = _docx_heading_level(style)
-            parts.append(f"<h{level}>{html.escape(text)}</h{level}>")
+            parts.append(f'<h{level} dir="auto">{html.escape(text)}</h{level}>')
         elif style.startswith(_DOCX_LIST_STYLES):
             ordered = style.startswith("list number")
             if list_buffer and ordered != list_ordered:
@@ -407,10 +418,10 @@ def _render_docx(path: str) -> str:
             list_buffer.append(text)
         elif "quote" in style:
             flush_list()
-            parts.append(f"<blockquote>{html.escape(text)}</blockquote>")
+            parts.append(f'<blockquote dir="auto">{html.escape(text)}</blockquote>')
         else:
             flush_list()
-            parts.append(f"<p>{html.escape(text)}</p>")
+            parts.append(f'<p dir="auto">{html.escape(text)}</p>')
 
     flush_list()
 
@@ -419,7 +430,13 @@ def _render_docx(path: str) -> str:
         if rows:
             parts.append(_render_table(rows[0], rows[1:]))
 
-    return "\n".join(parts) or '<p class="empty">Document vide.</p>'
+    return "\n".join(parts) or f'<p class="empty">{_text("docpreview.emptyDocument")}</p>'
+
+
+def _unreadable(result: Dict[str, Any]) -> str:
+    """Paragraphe d'un document illisible : l'erreur du lecteur, sinon un message."""
+    error = result.get("error") or tr("docpreview.unreadable")
+    return f'<p class="empty">{html.escape(error)}</p>'
 
 
 def _docx_heading_level(style: str) -> int:
@@ -441,15 +458,15 @@ def _render_spreadsheet(path: str) -> str:
         sheets = _read_tabular_fallback(path)
 
     if not sheets:
-        return '<p class="empty">Aucune donnée lisible.</p>'
+        return f'<p class="empty">{_text("docpreview.noData")}</p>'
 
     parts: List[str] = []
     for name, rows, truncated in sheets:
-        parts.append(f'<div class="sheet-title">{html.escape(name)}</div>')
+        parts.append(f'<div class="sheet-title" dir="auto">{html.escape(name)}</div>')
         if not rows:
-            parts.append('<p class="empty">Feuille vide.</p>')
+            parts.append(f'<p class="empty">{_text("docpreview.emptySheet")}</p>')
             continue
-        note = "Aperçu tronqué — ouvrez le fichier pour tout voir." if truncated else ""
+        note = tr("docpreview.truncated") if truncated else ""
         parts.append(_render_table(rows[0], rows[1:], note))
     return "\n".join(parts)
 
@@ -510,19 +527,19 @@ def _render_pptx(path: str) -> str:
 
     result = PPTXProcessor().read_pptx(path)
     if not result.get("success"):
-        return f'<p class="empty">{html.escape(result.get("error", "Lecture impossible."))}</p>'
+        return _unreadable(result)
 
     slides = result.get("content", {}).get("slides", [])
     if not slides:
-        return '<p class="empty">Présentation vide.</p>'
+        return f'<p class="empty">{_text("docpreview.emptyPresentation")}</p>'
 
     parts: List[str] = []
     for slide in slides:
         number = slide.get("slide_number", 0)
-        title = slide.get("title") or "(sans titre)"
+        title = slide.get("title") or tr("docpreview.untitled")
         parts.append('<div class="slide">')
         parts.append(
-            f'<div class="slide-head">{html.escape(title)}'
+            f'<div class="slide-head" dir="auto">{html.escape(title)}'
             f'<span class="slide-no">#{number}</span></div>'
         )
         parts.append('<div class="slide-body">')
@@ -532,7 +549,7 @@ def _render_pptx(path: str) -> str:
             items = "".join(
                 f"<li>{html.escape(text.strip())}</li>" for text in bullets if text.strip()
             )
-            parts.append(f"<ul>{items}</ul>")
+            parts.append(f'<ul dir="auto">{items}</ul>')
 
         for table in slide.get("tables", []):
             rows = table.get("rows", [])
@@ -540,11 +557,11 @@ def _render_pptx(path: str) -> str:
                 parts.append(_render_table(rows[0], rows[1:]))
 
         if not bullets and not slide.get("tables"):
-            parts.append('<p class="empty">Diapositive sans texte.</p>')
+            parts.append(f'<p class="empty">{_text("docpreview.slideNoText")}</p>')
 
         if slide.get("notes"):
             parts.append(
-                f'<div class="slide-notes">Notes : {html.escape(slide["notes"])}</div>'
+                f'<div class="slide-notes">{_text("docpreview.notes", notes=slide["notes"])}</div>'
             )
         parts.append("</div></div>")
 
@@ -563,20 +580,14 @@ def _render_pdf(path: str) -> str:
 
     text = PDFProcessor().extract_text(path)
     if not text or not text.strip():
-        return (
-            '<p class="empty">Aucun texte extractible : PDF scanné, protégé '
-            "ou constitué d'images.</p>"
-        )
+        return f'<p class="empty">{_text("docpreview.pdfNoText")}</p>'
 
     parts = []
     for paragraph in text.split("\n\n"):
         cleaned = paragraph.strip()
         if cleaned:
-            parts.append(f"<p>{html.escape(cleaned)}</p>")
-    parts.append(
-        '<p class="truncated">Texte extrait du PDF — la mise en page d\'origine '
-        "n'est pas reproduite.</p>"
-    )
+            parts.append(f'<p dir="auto">{html.escape(cleaned)}</p>')
+    parts.append(f'<p class="truncated">{_text("docpreview.pdfExtracted")}</p>')
     return "\n".join(parts)
 
 
@@ -605,7 +616,8 @@ def document_summary(path: str) -> Dict[str, Any]:
         "name": file_path.name,
         "title": file_path.stem,
         "format": suffix.lstrip("."),
-        "label": _FORMAT_LABELS.get(suffix, suffix.lstrip(".").upper() or "Fichier"),
+        "label": (tr(_FORMAT_LABELS[suffix]) if suffix in _FORMAT_LABELS
+                  else suffix.lstrip(".").upper() or tr("file.format.unknown")),
         "size": size,
         "native_viewer": needs_native_viewer(path),
     }

@@ -10,6 +10,8 @@ import re
 from models.local_llm import LocalLLM
 from models.internet_search import EnhancedInternetSearchEngine, clean_query
 from utils.citations import SOURCES_STOP, sources_block, sources_tail
+from core.i18n import tr
+from core.language_detector import reply_instruction
 
 # ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
 try:
@@ -78,7 +80,7 @@ class AIAgent:
         if not self.llm.is_ollama_available:
             return {
                 "success": False,
-                "result": "❌ Ollama non disponible",
+                "result": tr("agents.ollamaUnavailable"),
                 "agent": self.name,
                 "error": "ollama_unavailable",
             }
@@ -119,7 +121,7 @@ class AIAgent:
             else:
                 return {
                     "success": False,
-                    "result": "❌ Pas de réponse générée",
+                    "result": tr("agents.noResponse"),
                     "agent": self.name,
                     "error": "no_response",
                 }
@@ -128,7 +130,7 @@ class AIAgent:
             print(f"❌ Erreur agent {self.name}: {e}")
             return {
                 "success": False,
-                "result": f"❌ Erreur: {str(e)}",
+                "result": tr("agents.error", error=e),
                 "agent": self.name,
                 "error": str(e),
             }
@@ -150,7 +152,7 @@ class AIAgent:
         if not self.llm.is_ollama_available:
             return {
                 "success": False,
-                "result": "❌ Ollama non disponible",
+                "result": tr("agents.ollamaUnavailable"),
                 "agent": self.name,
                 "error": "ollama_unavailable",
             }
@@ -191,7 +193,7 @@ class AIAgent:
             else:
                 return {
                     "success": False,
-                    "result": "❌ Pas de réponse générée",
+                    "result": tr("agents.noResponse"),
                     "agent": self.name,
                     "error": "no_response",
                 }
@@ -200,13 +202,21 @@ class AIAgent:
             print(f"❌ Erreur agent {self.name}: {e}")
             return {
                 "success": False,
-                "result": f"❌ Erreur: {str(e)}",
+                "result": tr("agents.error", error=e),
                 "agent": self.name,
                 "error": str(e),
             }
 
     def _build_prompt(self, task: str, context: Optional[Dict]) -> str:
-        """Construit le prompt enrichi avec contexte"""
+        """Construit le prompt enrichi avec contexte, puis la consigne de langue
+
+        Langue : celle que l'appelant donne (context["language"] : la tâche de
+        l'utilisateur dans un workflow, le sujet d'un débat), sinon celle de la
+        tâche, sinon la langue par défaut des Réglages. Rappelée en fin de
+        prompt : le prompt système, en français, l'emportait sinon.
+        """
+        context = dict(context or {})
+        language = context.pop("language", None)
         prompt_parts = [f"TÂCHE: {task}"]
 
         if context:
@@ -221,6 +231,7 @@ class AIAgent:
             for i, task_record in enumerate(recent_tasks, 1):
                 prompt_parts.append(f"{i}. {task_record['task'][:100]}...")
 
+        prompt_parts.append(f"\n({reply_instruction(task, language)})")
         return "\n".join(prompt_parts)
 
     def get_stats(self) -> Dict[str, Any]:
@@ -368,8 +379,8 @@ IMPORTANT: Si tu ne trouves pas d'information dans les résultats fournis, DIS-L
         return query
 
     @staticmethod
-    def _synthesis_prompt(task: str, search_results: str) -> str:
-        """Demande de synthèse : la question, les sources trouvées, les consignes."""
+    def _synthesis_prompt(task: str, search_results: str, language: Optional[str] = None) -> str:
+        """Demande de synthèse : la question, les sources trouvées, les consignes, la langue."""
         return f"""QUESTION ORIGINALE: {task}
 
 RÉSULTATS DE RECHERCHE INTERNET (SOURCES RÉELLES):
@@ -386,7 +397,7 @@ INSTRUCTIONS:
 6. NE JAMAIS inventer ou supposer des informations qui ne sont pas dans les résultats
 7. Respecte la forme demandée dans la question (tableau, liste, nombre de points…) : elle passe avant le format de réponse habituel
 
-Réponds maintenant:"""
+Réponds maintenant ({reply_instruction(task, language)}) :"""
 
     def _keep_task_in_history(self, task: str, synthesis_prompt: str, sources: str = "") -> None:
         """
@@ -440,7 +451,7 @@ Réponds maintenant:"""
             if not search_results or len(str(search_results)) < 50:
                 return {
                     "success": False,
-                    "result": f"❌ Aucun résultat de recherche trouvé pour: {optimized_query}",
+                    "result": tr("agents.noSearchResults", query=optimized_query),
                     "agent": self.name,
                     "error": "no_search_results",
                 }
@@ -453,7 +464,7 @@ Réponds maintenant:"""
 
             # ÉTAPE 3: Construire le prompt avec LES VRAIS RÉSULTATS
             synthesis_prompt = self._synthesis_prompt(
-                task, filtered_results or search_results
+                task, filtered_results or search_results, (context or {}).get("language")
             )
 
             # ÉTAPE 4: Demander à Ollama de SYNTHÉTISER les vrais résultats,
@@ -541,7 +552,7 @@ Réponds maintenant:"""
 
             if not search_results or len(str(search_results)) < 50:
                 error_msg = (
-                    f"❌ Aucun résultat de recherche trouvé pour: {optimized_query}"
+                    tr("agents.noSearchResults", query=optimized_query)
                 )
                 if on_token:
                     on_token(error_msg)
@@ -563,7 +574,7 @@ Réponds maintenant:"""
 
             # ÉTAPE 3: Construire le prompt
             synthesis_prompt = self._synthesis_prompt(
-                task, filtered_results or search_results
+                task, filtered_results or search_results, (context or {}).get("language")
             )
 
             # ÉTAPE 4: Streaming de la synthèse, arrêtée au bloc 📚 Sources

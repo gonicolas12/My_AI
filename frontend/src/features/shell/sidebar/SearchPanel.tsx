@@ -7,6 +7,7 @@
 import { Bot, RefreshCw, Search, User, X } from 'lucide-react';
 
 import { IconButton } from '../../../components/ui/Button';
+import { useT } from '../../../i18n';
 import { openSession } from '../../../lib/actions';
 import type { SearchResult } from '../../../lib/api';
 import { useChat } from '../../../stores/chat';
@@ -15,6 +16,7 @@ import {
   clearSearch,
   reindexSearch,
   runSearch,
+  searchStatusText,
   setQuery,
   useSidebar,
 } from '../../../stores/sidebar';
@@ -32,6 +34,7 @@ async function openResult(result: SearchResult): Promise<void> {
 }
 
 export function SearchBox() {
+  const t = useT();
   const query = useSidebar((state) => state.query);
   const status = useSidebar((state) => state.searchStatus);
   const searched = useSidebar((state) => state.searched);
@@ -53,15 +56,15 @@ export function SearchBox() {
                 clearSearch();
               }
             }}
-            placeholder="Rechercher dans tout l’historique…"
-            aria-label="Recherche globale"
+            placeholder={t('sidebar.search.placeholder')}
+            aria-label={t('sidebar.search.label')}
             data-own-escape={query || searched !== null ? 'true' : undefined}
             className="min-w-0 flex-1 bg-transparent text-fg outline-none placeholder:text-fg-3"
           />
           {query || searched !== null ? (
             <button
               type="button"
-              aria-label="Effacer la recherche"
+              aria-label={t('sidebar.search.clear')}
               onClick={clearSearch}
               className="rounded-xs text-fg-3 hover:text-fg"
             >
@@ -69,21 +72,27 @@ export function SearchBox() {
             </button>
           ) : null}
         </label>
-        <IconButton label="Réindexer les conversations" tooltipSide="right" onClick={reindexSearch}>
+        <IconButton label={t('sidebar.search.reindex')} tooltipSide="right" onClick={reindexSearch}>
           <RefreshCw size={15} />
         </IconButton>
       </div>
-      {status ? <p className="mt-1 px-1 text-2xs text-fg-3">{status}</p> : null}
+      {status ? (
+        <p className="mt-1 px-1 text-2xs text-fg-3">{searchStatusText(status, t)}</p>
+      ) : null}
     </div>
   );
 }
 
 export function SearchResults() {
+  const t = useT();
   const results = useSidebar((state) => state.results);
   const searching = useSidebar((state) => state.searching);
   if (searching && !results.length) return null;
   return (
-    <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2" aria-label="Résultats">
+    <ul
+      className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2"
+      aria-label={t('sidebar.search.results')}
+    >
       {results.map((result, index) => {
         const Icon = result.role === 'user' ? User : Bot;
         return (
@@ -92,7 +101,7 @@ export function SearchResults() {
               type="button"
               onClick={() => void openResult(result)}
               title={`[${result.workspace_name}] ${result.excerpt}`}
-              className="flex w-full gap-2 rounded-md px-2.5 py-1.5 text-left text-sm text-fg-2 transition-colors duration-150 hover:bg-hover hover:text-fg"
+              className="flex w-full gap-2 rounded-md px-2.5 py-1.5 text-start text-sm text-fg-2 transition-colors duration-150 hover:bg-hover hover:text-fg"
             >
               <Icon size={14} className="mt-0.5 shrink-0 text-fg-3" />
               <span className="min-w-0 flex-1">

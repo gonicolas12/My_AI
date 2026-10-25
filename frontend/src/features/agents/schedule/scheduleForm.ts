@@ -4,27 +4,40 @@
  * React, pour les tests.
  */
 
+import { intlLocale, type MessageKey } from '../../../i18n';
 import type { ScheduledStatus, ScheduledTask, TaskFields } from '../../../lib/api';
 
 /** Jours de la semaine, 0 = lundi (core/scheduler.py) */
-export const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+export const DAY_LABELS: MessageKey[] = [
+  'schedule.day.0',
+  'schedule.day.1',
+  'schedule.day.2',
+  'schedule.day.3',
+  'schedule.day.4',
+  'schedule.day.5',
+  'schedule.day.6',
+];
 
 /** Dernier résultat : libellé et couleur (couleurs de Tk ; « différée » en bleu) */
-export const STATUS_TEXT: Record<ScheduledStatus, { label: string; color: string }> = {
-  success: { label: 'réussie', color: 'var(--success)' },
-  partial: { label: 'partielle', color: 'var(--warning)' },
-  interrupted: { label: 'interrompue', color: 'var(--warning)' },
-  deferred: { label: 'différée (agent occupé)', color: 'var(--info)' },
-  error: { label: 'en erreur', color: 'var(--error)' },
+export const STATUS_TEXT: Record<ScheduledStatus, { label: MessageKey; color: string }> = {
+  success: { label: 'schedule.status.success', color: 'var(--success)' },
+  partial: { label: 'schedule.status.partial', color: 'var(--warning)' },
+  interrupted: { label: 'schedule.status.interrupted', color: 'var(--warning)' },
+  deferred: { label: 'schedule.status.deferred', color: 'var(--info)' },
+  error: { label: 'schedule.status.error', color: 'var(--error)' },
 };
 
-/** Date ISO → « 15/10 08:00 » (_fmt_dt de Tk), « — » sinon */
+/** Date ISO → « 15/10 08:00 » (_fmt_dt de Tk) dans l'ordre de la langue, « — » sinon */
 export function shortDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return date.toLocaleString(intlLocale(), {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export type SourceKind = 'single' | 'workflow' | 'debate';

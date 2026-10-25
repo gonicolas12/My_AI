@@ -38,8 +38,10 @@ import requests
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from core import i18n
 from core.agentic_executor import AgenticExecutor, RemoteToolExecutor
 from core.config import get_config
+from core.i18n import tr
 from utils.logger import setup_logger
 
 from .relay_bridge import RelayBridge, RelayMessage
@@ -140,6 +142,8 @@ logger = setup_logger("RelayServer")
 # ---------------------------------------------------------------------------
 
 _STATIC_DIR = Path(__file__).parent / "static"
+# Textes de la page mobile, un catalogue par langue (relay/static/i18n.js)
+_LOCALES_DIR = _STATIC_DIR / "locales"
 
 
 class _AddressedHTTPSConnection(http.client.HTTPSConnection):
@@ -484,7 +488,9 @@ class RelayServer:
         automatique côté client.
 
         N'y entrent que les tunnels joignables depuis ce PC (_router_urls) :
-        None tant qu'aucun n'a répondu.
+        None tant qu'aucun n'a répondu. La langue de My_AI l'accompagne : la
+        page de routage la parle, comme la page mobile vers laquelle elle
+        redirige.
         """
         urls = self._router_urls()
         if not urls:
@@ -497,6 +503,7 @@ class RelayServer:
             "urls": urls,
             "token": self._auth_token,
             "key": self._b64u_encode(self._e2e_key),
+            "lang": i18n.current_language(),
         })
         encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
         return f"{_ROUTER_PAGE_URL}#d={encoded}"
@@ -595,9 +602,11 @@ class RelayServer:
         """
         asset_paths = [
             _STATIC_DIR / "index.html",
+            _STATIC_DIR / "i18n.js",
             _STATIC_DIR / "app.js",
             _STATIC_DIR / "agents.js",
             _STATIC_DIR / "style.css",
+            *sorted(_LOCALES_DIR.glob("*.json")),
         ]
         mtimes: List[int] = []
         for path in asset_paths:
@@ -677,9 +686,9 @@ class RelayServer:
         def _authorize(token: Optional[str], session: Optional[str]) -> None:
             """Jeton du lien (QR code), puis session ouverte par le code d'accès."""
             if not token or not server.verify_token(token):
-                raise HTTPException(status_code=401, detail="Non autorisé")
+                raise HTTPException(status_code=401, detail=tr("relay.unauthorized"))
             if not server.verify_session(session):
-                raise HTTPException(status_code=403, detail="Code d'accès requis")
+                raise HTTPException(status_code=403, detail=tr("relay.codeRequired"))
 
         # =================================================================
         # GET / — Interface mobile (lien du QR code)
@@ -691,7 +700,7 @@ class RelayServer:
             index_file = _STATIC_DIR / "index.html"
             if not index_file.exists():
                 return HTMLResponse(
-                    "<h1>My_AI Relay</h1><p>Interface mobile non trouvée.</p>",
+                    f"<h1>My_AI Relay</h1><p>{tr('relay.pageMissing')}</p>",
                     status_code=500,
                 )
 
@@ -700,6 +709,11 @@ class RelayServer:
                 # Injecter le token dans le HTML pour le WebSocket
                 html = html.replace("%%RELAY_TOKEN%%", token)
                 html = html.replace("%%ASSET_VERSION%%", server.get_static_assets_version())
+                # Langue de My_AI sur le PC, et les textes de la page dans cette langue
+                language = i18n.current_language()
+                html = html.replace("%%LANG%%", language)
+                html = html.replace("%%DIR%%", "rtl" if i18n.is_rtl(language) else "ltr")
+                html = html.replace("%%I18N%%", page_catalog_json(language))
                 return HTMLResponse(html)
             # Adresse du tunnel sans jeton, ou lien d'un démarrage précédent :
             # rien à saisir ici, l'accès passe par le lien du QR code
@@ -718,11 +732,11 @@ class RelayServer:
             peut pas en essayer un. Réponse chiffrée : voir RelayServer.unlock.
             """
             if not server.verify_token(token):
-                raise HTTPException(status_code=401, detail="Non autorisé")
+                raise HTTPException(status_code=401, detail=tr("relay.unauthorized"))
             try:
                 request = server.decrypt_json(data)
             except Exception as exc:
-                raise HTTPException(status_code=400, detail="Payload chiffré invalide") from exc
+                raise HTTPException(status_code=400, detail=tr("relay.badPayload")) from exc
             code = request.get("code") if isinstance(request, dict) else None
             return server.encrypt_json(server.unlock(code))
 
@@ -863,44 +877,38 @@ class RelayServer:
                     if len(buf) > cipher_max:
                         raise HTTPException(
                             status_code=413,
-                            detail=(
-                                f"Fichier trop volumineux "
-                                f"(> {_MAX_UPLOAD_SIZE // (1024 * 1024)} Mo)"
-                            ),
+                            detail=tr("relay.fileTooBig", mb=_MAX_UPLOAD_SIZE // (1024 * 1024)),
                         )
             except HTTPException:
                 raise
             except Exception as e:
                 logger.error("Erreur lecture upload Relay : %s", e)
-                raise HTTPException(status_code=500, detail="Erreur réception fichier") from e
+                raise HTTPException(status_code=500, detail=tr("relay.receiveError")) from e
 
             # 2. Déchiffrer
             try:
                 plain = server.decrypt_bytes(bytes(buf))
             except Exception as e:
                 logger.warning("Upload rejeté (E2EE invalide) : %s", e)
-                raise HTTPException(status_code=400, detail="Payload chiffré invalide") from e
+                raise HTTPException(status_code=400, detail=tr("relay.badPayload")) from e
 
             # 3. Parser le clair : "MYAI" || u16_be(filename_len) || filename || content
             if len(plain) < 4 + 2 or plain[:4] != b"MYAI":
-                raise HTTPException(status_code=400, detail="Format upload invalide")
+                raise HTTPException(status_code=400, detail=tr("relay.badUpload"))
             fname_len = int.from_bytes(plain[4:6], "big")
             header_len = 4 + 2 + fname_len
             if fname_len == 0 or fname_len > 256 or len(plain) < header_len:
-                raise HTTPException(status_code=400, detail="En-tête upload invalide")
+                raise HTTPException(status_code=400, detail=tr("relay.badUploadHeader"))
             try:
                 original_name = plain[6:6 + fname_len].decode("utf-8")
             except UnicodeDecodeError as exc:
-                raise HTTPException(status_code=400, detail="Nom de fichier invalide") from exc
+                raise HTTPException(status_code=400, detail=tr("relay.badFileName")) from exc
             content = plain[header_len:]
             size = len(content)
             if size > _MAX_UPLOAD_SIZE:
                 raise HTTPException(
                     status_code=413,
-                    detail=(
-                        f"Fichier trop volumineux "
-                        f"(> {_MAX_UPLOAD_SIZE // (1024 * 1024)} Mo)"
-                    ),
+                    detail=tr("relay.fileTooBig", mb=_MAX_UPLOAD_SIZE // (1024 * 1024)),
                 )
 
             # 4. Validation du nom et de l'extension (mêmes règles qu'avant)
@@ -913,7 +921,7 @@ class RelayServer:
             else:
                 raise HTTPException(
                     status_code=415,
-                    detail=f"Format non supporté : {ext or 'inconnu'}",
+                    detail=tr("relay.unsupportedFormat", ext=ext or tr("relay.unknownExt")),
                 )
 
             # 5. Écrire le clair sur disque
@@ -928,7 +936,7 @@ class RelayServer:
                     dest.unlink(missing_ok=True)
                 except Exception:
                     pass
-                raise HTTPException(status_code=500, detail="Erreur écriture fichier") from e
+                raise HTTPException(status_code=500, detail=tr("relay.writeError")) from e
 
             server.register_upload(
                 file_id=file_id,
@@ -964,7 +972,7 @@ class RelayServer:
 
             if not token or not server.verify_token(token):
                 logger.warning("WebSocket rejeté : token invalide")
-                await websocket.close(code=4001, reason="Non autorisé")
+                await websocket.close(code=4001, reason=tr("relay.unauthorized"))
                 return
 
             if not server.verify_session(websocket.query_params.get("session", "")):
@@ -972,7 +980,7 @@ class RelayServer:
                 # qu'un échec HTTP 403 ; le code 4003 lui fait demander le code
                 logger.warning("WebSocket rejeté : code d'accès non saisi")
                 await websocket.accept()
-                await websocket.close(code=4003, reason="Code d'accès requis")
+                await websocket.close(code=4003, reason=tr("relay.codeRequired"))
                 return
 
             await websocket.accept()
@@ -1195,7 +1203,7 @@ class RelayServer:
                             # encore et resterait bloqué en mode STOP.
                             await _send_encrypted({
                                 "type": "response",
-                                "message": "⏹️ Génération interrompue.",
+                                "message": tr("relay.interrupted"),
                                 "message_id": stopped_mid,
                                 "timestamp": datetime.now().isoformat(),
                             })
@@ -1564,7 +1572,7 @@ class RelayServer:
                 connections = []
             if not task_text:
                 emit_async({"type": "agent_exec_error", "exec_id": exec_id,
-                            "message": "Tâche vide."})
+                            "message": tr("relay.emptyTask")})
                 return
             # Résoudre les pièces jointes (file_ids → chemins locaux). Même
             # mécanisme d'upload chiffré que le chat ; la lecture des fichiers
@@ -1600,7 +1608,7 @@ class RelayServer:
                 rounds = 3
             if not agent_a or not agent_b or agent_a == agent_b:
                 emit_async({"type": "agent_exec_error", "exec_id": exec_id,
-                            "message": "Choisis deux agents différents."})
+                            "message": tr("relay.differentAgents")})
                 return
             active_execs.add(exec_id)
 
@@ -1618,6 +1626,25 @@ class RelayServer:
     # ------------------------------------------------------------------
     # Cycle de vie du serveur
     # ------------------------------------------------------------------
+
+    def broadcast_language(self, language: str) -> None:
+        """Langue de My_AI changée sur le PC : les pages mobiles se rechargent dans la nouvelle."""
+        if not self._loop or not self._ws_clients:
+            return
+        payload = json.dumps(self.encrypt_json({"type": "language", "language": language}),
+                             separators=(",", ":"))
+
+        async def _push():
+            for ws in list(self._ws_clients):
+                try:
+                    await ws.send_text(payload)
+                except Exception:  # pylint: disable=broad-except
+                    pass  # WS mort : retiré par son propre gestionnaire
+
+        try:
+            asyncio.run_coroutine_threadsafe(_push(), self._loop)
+        except Exception as e:  # pylint: disable=broad-except
+            logger.debug("Langue non envoyée aux WS : %s", e)
 
     def _broadcast_chunk(self, message_id: str, text: str) -> None:
         """Callback déclenché par le bridge à chaque chunk de streaming.
@@ -2698,10 +2725,7 @@ async def _handle_vscode_chat(
         )
         await send_encrypted({
             "type": "response",
-            "message": (
-                "❌ Le moteur IA n'est pas encore prêt côté hôte. "
-                "Vérifie que My_AI tourne et qu'Ollama est lancé."
-            ),
+            "message": tr("relay.engineNotReady"),
             "message_id": message_id,
             "timestamp": datetime.now().isoformat(),
         })
@@ -2791,7 +2815,7 @@ async def _handle_vscode_chat(
         return
     except Exception as exc:
         logger.exception("Boucle agentique échouée pour message_id=%s", message_id)
-        final_text = f"❌ Erreur du moteur agentique : {exc}"
+        final_text = tr("relay.agenticError", error=exc)
 
     elapsed = time.time() - started_at
     logger.info(
@@ -2818,10 +2842,35 @@ async def _handle_vscode_chat(
 # ===========================================================================
 
 
+def page_catalog(language: str) -> Dict[str, Any]:
+    """Textes de la page mobile dans une langue, complétés par l'anglais puis le français."""
+    merged: Dict[str, Any] = {}
+    for code in (i18n.SOURCE_LANGUAGE, i18n.FALLBACK_LANGUAGE, language):
+        try:
+            data = json.loads((_LOCALES_DIR / f"{code}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            merged.update(data)
+    return merged
+
+
+def page_catalog_json(language: str) -> str:
+    """Catalogue de la page, à poser dans un <script type="application/json">."""
+    # « </ » fermerait la balise script : échappé, le JSON reste le même
+    return json.dumps(page_catalog(language), ensure_ascii=False).replace("</", "<\\/")
+
+
 def _get_link_required_page() -> str:
     """Page servie sans jeton valide : l'accès passe par le lien du QR code."""
-    return """<!DOCTYPE html>
-<html lang="fr">
+    language = i18n.current_language()
+    direction = "rtl" if i18n.is_rtl(language) else "ltr"
+    return _LINK_REQUIRED_PAGE.replace("%%LANG%%", language).replace(
+        "%%DIR%%", direction).replace("%%TEXT%%", tr("relay.linkRequired"))
+
+
+_LINK_REQUIRED_PAGE = """<!DOCTYPE html>
+<html lang="%%LANG%%" dir="%%DIR%%">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -2856,7 +2905,7 @@ def _get_link_required_page() -> str:
     <path fill-rule="evenodd" clip-rule="evenodd" d="M 5 4.5 H 19 A 4 4 0 0 1 23 8.5 V 18 A 4 4 0 0 1 19 22 H 5 A 4 4 0 0 1 1 18 V 8.5 A 4 4 0 0 1 5 4.5 Z M 6.25 9.25 H 8.75 A 1.25 1.25 0 0 1 10 10.5 V 12 A 1.25 1.25 0 0 1 8.75 13.25 H 6.25 A 1.25 1.25 0 0 1 5 12 V 10.5 A 1.25 1.25 0 0 1 6.25 9.25 Z M 15.25 9.25 H 17.75 A 1.25 1.25 0 0 1 19 10.5 V 12 A 1.25 1.25 0 0 1 17.75 13.25 H 15.25 A 1.25 1.25 0 0 1 14 12 V 10.5 A 1.25 1.25 0 0 1 15.25 9.25 Z M 9 15.75 H 15 A 1 1 0 0 1 15 17.75 H 9 A 1 1 0 0 1 9 15.75 Z"/>
   </svg>
   <h1>My_AI Relay</h1>
-  <p>Lien incomplet ou expiré. Scannez le QR code affiché dans le panneau Relay de votre PC.</p>
+  <p>%%TEXT%%</p>
 </div>
 </body>
 </html>"""

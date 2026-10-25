@@ -85,8 +85,9 @@ def register_windows_task(interval_minutes: int = 1):
     Tourne quand la session est ouverte (aucun mot de passe stocké). Retourne
     ``(ok: bool, message: str)``.
     """
+    from core.i18n import tr as translate  # pylint: disable=import-outside-toplevel
     if os.name != "nt":
-        return False, "Disponible uniquement sous Windows."
+        return False, translate("schedule.windowsOnlyPlain")
     import subprocess
     runner = _ROOT / "core" / "scheduler_runner.py"
     tr = f'"{_pythonw_path()}" "{runner}"'
@@ -97,23 +98,24 @@ def register_windows_task(interval_minutes: int = 1):
     try:
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode == 0:
-            return True, f"Exécution en arrière-plan activée (toutes les {interval_minutes} min)."
-        return False, (res.stderr or res.stdout or "Échec schtasks").strip()
+            return True, translate("schedule.backgroundOn", minutes=interval_minutes)
+        return False, (res.stderr or res.stdout or translate("schedule.schtasksFailed")).strip()
     except Exception as exc:  # pragma: no cover - dépend de l'OS
         return False, str(exc)
 
 
 def unregister_windows_task():
     """Supprime la tâche Planificateur Windows. Retourne (ok, message)."""
+    from core.i18n import tr as translate  # pylint: disable=import-outside-toplevel
     if os.name != "nt":
-        return False, "Disponible uniquement sous Windows."
+        return False, translate("schedule.windowsOnlyPlain")
     import subprocess
     cmd = ["schtasks", "/Delete", "/TN", _task_name(), "/F"]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode == 0:
-            return True, "Exécution en arrière-plan désactivée."
-        return False, (res.stderr or res.stdout or "Échec schtasks").strip()
+            return True, translate("schedule.backgroundOff")
+        return False, (res.stderr or res.stdout or translate("schedule.schtasksFailed")).strip()
     except Exception as exc:  # pragma: no cover
         return False, str(exc)
 

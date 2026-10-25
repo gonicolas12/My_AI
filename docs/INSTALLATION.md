@@ -189,7 +189,12 @@ python-docx>=0.8.11      # DOCX processing + génération
 openpyxl>=3.1.0          # Excel files (lecture + génération)
 python-pptx>=0.6.21      # PowerPoint files (lecture + génération)
 reportlab>=4.0.0         # PDF generation
+arabic-reshaper>=3.0.0   # Arabe des PDF : lettres liées
+python-bidi>=0.4.2       # Arabe des PDF : ordre de droite à gauche
 ```
+
+> Au lancement, `utils/requirements_sync.py` installe les lignes de
+> `requirements.txt` ajoutées depuis la dernière fois (un `git pull` suffit).
 
 > L'aperçu **natif** des documents Word, PowerPoint et Excel dans le volet
 > latéral passe par `comtypes`, installé sous Windows avec `pyttsx3` (lecture
@@ -469,10 +474,10 @@ export:
   default_format: "markdown"   # markdown | html | pdf
   include_metadata: true
 
-# Détection de langue
+# Langue (⚙️ Réglages → Langue)
 language:
   auto_detect: true
-  default: "fr"
+  default: "fr"                # interface, et réponses aux messages courts ou ambigus
   supported: ["fr", "en", "es", "de", "it", "pt", "nl", "ru", "zh", "ja", "ko", "ar"]
 
 # Cache web
@@ -518,9 +523,13 @@ PARAMETER num_ctx 32768   # Fenêtre de contexte (même valeur que config.yaml)
 # System prompt personnalisé
 SYSTEM """
 Tu es My_AI, un assistant IA personnel expert et bienveillant.
-Réponds toujours en français par défaut.
+Réponds dans la langue de l'utilisateur (français par défaut).
 """
 ```
+
+La langue des réponses ne dépend pas que du `Modelfile` : à chaque message,
+My_AI ajoute la consigne de la langue détectée, ou celle de la langue choisie
+dans les Réglages (`language.default`) pour un message court ou ambigu.
 
 **Fenêtre de contexte (`num_ctx`)** : 32 768 tokens par défaut, la même valeur dans `config.yaml` (`llm.local.num_ctx`) et dans le `Modelfile` ; le panneau Réglages écrit les deux. Elle coûte peu de mémoire aux modèles qwen3.5 (≈ 0,4 Go pour le 2b, 1 Go pour le 4b et le 9b), deux fois moins quand le lanceur passe le contexte en 8 bits sur une carte graphique trop petite pour tout le modèle. Une fenêtre plus petite (8k, 16k) oblige à résumer la conversation plus tôt ; 64k ne vaut la peine qu'avec une carte graphique confortable et de longs documents.
 

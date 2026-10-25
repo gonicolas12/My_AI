@@ -42,6 +42,8 @@ from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .document_passages import select_passages
+from .i18n import current_language, tr
+from .image_intent import is_image_request, strip_image_request
 from .mcp_client import MCPManager
 from .passage_embeddings import similarities as passage_similarities
 from .modelfile import drop_tools_section, with_modelfile
@@ -404,7 +406,7 @@ class AIEngine:
             return False
         if self._IMAGE_GEN_EXCLUDE_RE.search(query):
             return False
-        return bool(self._IMAGE_GEN_RE.search(query))
+        return bool(self._IMAGE_GEN_RE.search(query)) or is_image_request(query)
 
     @staticmethod
     def extract_image_prompt(query: str) -> str:
@@ -414,6 +416,9 @@ class AIEngine:
         Best-effort : si rien à retirer, renvoie la requête telle quelle.
         """
         q = (query or "").strip()
+        # Demande dans une autre langue de l'interface : « generate an image of a cat » → « cat »
+        if is_image_request(q) and not AIEngine._IMAGE_GEN_RE.search(q):
+            return strip_image_request(q) or q
         # Retirer l'amorce d'instruction jusqu'au nom (image/dessin/…) + liaison
         cleaned = _re.sub(
             r"^\s*(?:s'il te plaît\s+|stp\s+|peux[- ]tu\s+|pourrais[- ]tu\s+|tu peux\s+)?"
@@ -450,7 +455,7 @@ class AIEngine:
             msg = (
                 gen.unavailable_message()
                 if gen is not None
-                else "🎨 Génération d'image indisponible (module non chargé)."
+                else tr("chat.imageUnavailable")
             )
             if on_token:
                 on_token(msg)
@@ -458,7 +463,7 @@ class AIEngine:
 
         prompt = self.extract_image_prompt(query)
         if on_token:
-            on_token(f"Génération de l'image en cours… *({prompt})*")
+            on_token(f"{tr('chat.imageGenerating')}… *({prompt})*")
 
         result = gen.generate(
             prompt,
@@ -496,9 +501,9 @@ class AIEngine:
         self.language_detector = None
         if _LANG_DETECT_AVAILABLE:
             try:
-                lang_cfg = full_config.get_section("language") or {}
+                # Langue des Réglages (language.default), changée ensuite à chaud
                 self.language_detector = LanguageDetector(
-                    default_language=lang_cfg.get("default", "fr"),
+                    default_language=current_language(),
                 )
                 self.logger.info("✅ LanguageDetector initialisé")
             except Exception as e:
@@ -687,19 +692,31 @@ class AIEngine:
         "ru": "Всегда отвечай на русском языке.",
         "zh": "请始终用中文回答。",
         "ja": "常に日本語で回答してください。",
-        "ko": "항상 한국어로 답변해 주세요。",
+        "ko": "항상 한국어로 답변해 주세요.",
         "ar": "أجب دائمًا باللغة العربية.",
     }
 
+    def _default_language(self) -> str:
+        """Langue par défaut des réponses : celle des Réglages (message court ou ambigu)."""
+        detector = getattr(self, "language_detector", None)
+        code = getattr(detector, "default_language", None) or current_language()
+        return code if code in self._LANG_SUFFIXES else "fr"
+
+    def _default_lang_instruction(self) -> str:
+        """Consigne de langue d'un tour qui n'en a pas encore calculé."""
+        return getattr(self, "_current_lang_instruction", None) or self._LANG_SUFFIXES[
+            self._default_language()]
+
     def _get_lang_instruction(self, text: str) -> str:
         """Retourne l'instruction de langue à injecter dans le system prompt."""
+        default = self._LANG_SUFFIXES[self._default_language()]
         if self.language_detector is not None:
             try:
                 code = self.language_detector.detect(text)
-                return self._LANG_SUFFIXES.get(code, self._LANG_SUFFIXES["fr"])
+                return self._LANG_SUFFIXES.get(code, default)
             except Exception:
                 pass
-        return self._LANG_SUFFIXES["fr"]
+        return default
 
     def _language_instruction(self, text: str) -> str:
         """
@@ -788,11 +805,25 @@ class AIEngine:
         suffisait pas : « Remember that you must always end your answers
         with… » était confirmé par « Noté : je dois toujours terminer mes
         réponses par… ».
+
+        Langue par défaut autre que le français (Réglages) : elle est aussi
+        rappelée pour un message dans cette langue, ou trop court pour en
+        juger. Un message clairement dans une autre langue garde la sienne.
         """
         code = self._memory_reply_language()
         if code:
             return code
-        return "en" if self._message_in_english(text) else None
+        if self._message_in_english(text):
+            return "en"
+        default = self._default_language()
+        if default == "fr":
+            return None
+        detector = getattr(self, "language_detector", None)
+        try:
+            detected = detector.detect(text) if detector is not None else default
+        except Exception:
+            detected = default
+        return default if detected == default else None
 
     def _setup_mcp_tools(self):
         """
@@ -2410,7 +2441,7 @@ Que voulez-vous que je fasse pour vous ?""",
         # d'un message en anglais
         language = self._memory_reply_language()
         english_message = not language and self._message_in_english(query)
-        reply = "en" if english_message else language or "fr"
+        reply = "en" if english_message else language or self._default_language()
         examples = self._MEMORY_RULE_EXAMPLES["en" if reply == "en" else "fr"]
 
         block = ""
@@ -2693,7 +2724,7 @@ Que voulez-vous que je fasse pour vous ?""",
             "et précisément à sa question en te basant UNIQUEMENT sur ces "
             "informations, sans utiliser d'outils et sans explorer le système de "
             "fichiers. Si on te demande la liste des fichiers, énumère-les. "
-            f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])}\n\n"
+            f"{self._default_lang_instruction()}\n\n"
             + project_block,
             tools=False,
         )
@@ -2973,7 +3004,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 "Tu as accès à des outils que tu peux appeler automatiquement pour "
                 "répondre précisément et agir sur les fichiers (chemins absolus possibles). "
                 "Utilise les outils pertinents avant de répondre. "
-                f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
+                f"{self._default_lang_instruction()} "
                 "Si tu utilises un outil, synthétise les résultats dans une réponse claire."
             ) + self._answer_context(query)
 
@@ -3375,7 +3406,7 @@ Que voulez-vous que je fasse pour vous ?""",
                 "que tu vas faire : une réponse sans appel d'outil ne crée aucun fichier. "
                 "Après l'appel, annonce simplement que le document est "
                 "prêt : n'en recopie pas le contenu dans ta réponse.\n\n"
-                f"{getattr(self, '_current_lang_instruction', self._LANG_SUFFIXES['fr'])} "
+                f"{self._default_lang_instruction()} "
                 "Sois direct et précis. Pour les requêtes de code, génère toujours le code complet sans te limiter."
             )
             # Faits mémorisés et dossier projet : aussi transmis à part à la

@@ -3,6 +3,7 @@ Detection automatique de la langue de l'utilisateur et generation
 d'instructions pour que le LLM reponde dans la meme langue.
 """
 
+import threading
 from collections import OrderedDict
 from typing import Dict, Optional
 
@@ -28,12 +29,12 @@ SUPPORTED_LANGUAGES: Dict[str, str] = {
 
 # ── Instructions systeme par langue ──────────────────────────────────
 _SYSTEM_PROMPT_SUFFIXES: Dict[str, str] = {
-    "fr": "Reponds toujours en francais.",
+    "fr": "Réponds toujours en français.",
     "en": "Always respond in English.",
-    "es": "Responde siempre en espanol.",
+    "es": "Responde siempre en español.",
     "de": "Antworte immer auf Deutsch.",
     "it": "Rispondi sempre in italiano.",
-    "pt": "Responda sempre em portugues.",
+    "pt": "Responda sempre em português.",
     "nl": "Antwoord altijd in het Nederlands.",
     "ru": "Всегда отвечай на русском языке.",
     "zh": "请始终用中文回答。",
@@ -185,6 +186,19 @@ class LanguageDetector:
         """Retourne le code de la langue par defaut."""
         return self._default
 
+    def set_default_language(self, code: str) -> None:
+        """
+        Change la langue par defaut (Reglages), sans redemarrage.
+
+        Le cache est vide : un texte dans une langue non prise en charge y
+        gardait l'ancienne langue par defaut.
+        """
+        if code not in SUPPORTED_LANGUAGES or code == self._default:
+            return
+        self._default = code
+        self._cache.clear()
+        logger.info("Langue par defaut : %s", code)
+
     @property
     def supported_languages(self) -> Dict[str, str]:
         """Retourne le dictionnaire des langues supportees."""
@@ -229,3 +243,38 @@ class LanguageDetector:
                 self._default,
             )
             return self._default
+
+
+# ── Langue de reponse hors du moteur (agents) ────────────────────────
+
+_SHARED: Dict[str, LanguageDetector] = {}
+_SHARED_LOCK = threading.Lock()
+
+
+def _shared_detector(default: str) -> LanguageDetector:
+    """Detecteur commun aux agents, a la langue par defaut des Reglages."""
+    with _SHARED_LOCK:
+        detector = _SHARED.get("detector")
+        if detector is None:
+            detector = LanguageDetector(default_language=default)
+            _SHARED["detector"] = detector
+        else:
+            detector.set_default_language(default)
+        return detector
+
+
+def reply_language(text: str, language: Optional[str] = None) -> str:
+    """
+    Langue de la reponse a un texte : `language` si l'appelant la connait,
+    sinon celle du texte, sinon (texte court ou ambigu) la langue par defaut
+    choisie dans les Reglages.
+    """
+    if language in SUPPORTED_LANGUAGES:
+        return language
+    from core.i18n import current_language  # pylint: disable=import-outside-toplevel
+    return _shared_detector(current_language()).detect(text or "")
+
+
+def reply_instruction(text: str, language: Optional[str] = None) -> str:
+    """Consigne « reponds en … » pour le modele (« Always respond in English. »)."""
+    return _SYSTEM_PROMPT_SUFFIXES[reply_language(text, language)]

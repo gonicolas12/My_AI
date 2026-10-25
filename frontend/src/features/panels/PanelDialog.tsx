@@ -9,6 +9,7 @@ import { X, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useRef } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 
 interface PanelDialogProps {
@@ -43,6 +44,7 @@ export function PanelDialog({
   flush = false,
   onEscapeKeyDown,
 }: PanelDialogProps) {
+  const t = useT();
   const contentRef = useRef<HTMLDivElement>(null);
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -85,7 +87,7 @@ export function PanelDialog({
             </div>
             {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
             <RadixDialog.Close asChild>
-              <IconButton label="Fermer" shortcut="Échap" tooltipSide="left">
+              <IconButton label={t('panel.close')} shortcut="Escape" tooltipSide="left">
                 <X size={18} />
               </IconButton>
             </RadixDialog.Close>

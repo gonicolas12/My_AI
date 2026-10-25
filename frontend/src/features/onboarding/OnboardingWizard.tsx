@@ -13,6 +13,7 @@ import {
   CircleAlert,
   CircleCheck,
   Cpu,
+  Globe,
   LoaderCircle,
   MemoryStick,
   MonitorCog,
@@ -23,42 +24,98 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { RobotLogo } from '../../components/ui/RobotLogo';
+import { LOCALES, setLocale, type Translate, useLocale, useT } from '../../i18n';
+import { Trans } from '../../i18n/Trans';
 import { ApiError, api, type OnboardingInfo } from '../../lib/api';
 import { cn } from '../../lib/cn';
+import { formatDecimal } from '../../lib/format';
 import { beginModelJob, failModelJob, progressLabel, useModels } from '../../stores/models';
 
 /** « 15.7 » → « 15,7 Go » ; inconnue sinon (Tk) */
-function gigabytes(value: number | null): string {
-  return value === null ? 'inconnue' : `${String(value).replace('.', ',')} Go`;
+function gigabytes(value: number | null, t: Translate): string {
+  return value === null
+    ? t('onboarding.unknown')
+    : t('onboarding.gigabytes', { value: formatDecimal(value, 2) });
 }
 
 function HardwareLine({ info }: { info: OnboardingInfo }) {
+  const t = useT();
   return (
     <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-fg-2">
       <span className="inline-flex items-center gap-1.5">
-        <MemoryStick size={15} /> RAM : {gigabytes(info.ram_gb)}
+        <MemoryStick size={15} /> {t('onboarding.ram', { value: gigabytes(info.ram_gb, t) })}
       </span>
       <span aria-hidden="true">·</span>
       {info.vram_gb !== null ? (
         <span className="inline-flex items-center gap-1.5">
-          <MonitorCog size={15} /> VRAM GPU : {gigabytes(info.vram_gb)}
+          <MonitorCog size={15} /> {t('onboarding.vram', { value: gigabytes(info.vram_gb, t) })}
         </span>
       ) : (
         <span className="inline-flex items-center gap-1.5">
           <Cpu size={15} />
-          {info.cpu_cores !== null ? `${info.cpu_cores} cœurs` : 'CPU'}, pas de GPU dédié (inférence
-          CPU)
+          {t('onboarding.noGpu', {
+            cpu:
+              info.cpu_cores !== null
+                ? t('onboarding.cores', { count: info.cpu_cores })
+                : t('onboarding.cpu'),
+          })}
         </span>
       )}
-      <span aria-hidden="true">→</span>
+      <span aria-hidden="true" className="inline-block rtl:-scale-x-100">
+        →
+      </span>
       <span>
-        recommandé : <strong className="font-semibold text-fg">{info.recommended}</strong>
+        <Trans
+          k="onboarding.recommended"
+          params={{ model: info.recommended }}
+          components={{ b: (chunk) => <strong className="font-semibold text-fg">{chunk}</strong> }}
+        />
       </span>
     </p>
   );
 }
 
+/**
+ * Langue de l'interface, dès le premier écran : chaque langue porte son
+ * propre nom. Au premier lancement, le serveur a déjà pris celle du système.
+ */
+function LanguagePicker() {
+  const t = useT();
+  const locale = useLocale();
+  const [saving, setSaving] = useState(false);
+  const choose = async (code: string) => {
+    setSaving(true);
+    try {
+      await api.setLanguage(code);
+      await setLocale(code);
+    } catch {
+      // serveur injoignable : la langue reste celle affichée
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <label className="mt-4 inline-flex items-center gap-2 text-sm text-fg-2">
+      <Globe size={15} className="text-accent" />
+      <span className="sr-only">{t('onboarding.language')}</span>
+      <select
+        value={locale}
+        disabled={saving}
+        onChange={(event) => void choose(event.target.value)}
+        className="h-8 rounded-md border border-line bg-bg-3 px-2 text-sm text-fg disabled:text-fg-3"
+      >
+        {LOCALES.map((option) => (
+          <option key={option.code} value={option.code}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function OnboardingWizard() {
+  const t = useT();
   const [info, setInfo] = useState<OnboardingInfo | null>(null);
   const [checking, setChecking] = useState(true);
   const [model, setModel] = useState('');
@@ -145,19 +202,19 @@ export function OnboardingWizard() {
   if (installed) {
     primary = (
       <Button variant="primary" onClick={() => void leave('finish')} disabled={leaving}>
-        <CircleCheck size={16} /> Démarrer My_AI
+        <CircleCheck size={16} /> {t('onboarding.start')}
       </Button>
     );
   } else if (failed) {
     primary = (
       <Button variant="primary" onClick={retry}>
-        <RefreshCw size={16} /> Réessayer
+        <RefreshCw size={16} /> {t('common.retry')}
       </Button>
     );
   } else if (ollamaDown) {
     primary = (
       <Button variant="primary" onClick={() => void refresh()} disabled={checking}>
-        <RefreshCw size={16} className={cn(checking && 'spin')} /> Réessayer
+        <RefreshCw size={16} className={cn(checking && 'spin')} /> {t('common.retry')}
       </Button>
     );
   } else {
@@ -168,7 +225,7 @@ export function OnboardingWizard() {
         disabled={installing || checking || !info}
       >
         {installing ? <LoaderCircle size={16} className="spin" /> : <Rocket size={16} />}
-        {installing ? 'Installation…' : 'Installer'}
+        {installing ? t('onboarding.installing') : t('onboarding.install')}
       </Button>
     );
   }
@@ -183,39 +240,44 @@ export function OnboardingWizard() {
         <div className="flex flex-col items-center text-center">
           <RobotLogo size={52} className="text-accent" />
           <h1 id="onboarding-title" className="mt-3 text-2xl font-bold">
-            Bienvenue dans My_AI
+            {t('onboarding.title')}
           </h1>
-          <p className="mt-1.5 text-sm text-fg-2">
-            Configurons votre modèle IA local en quelques clics.
-          </p>
+          <p className="mt-1.5 text-sm text-fg-2">{t('onboarding.subtitle')}</p>
+          <LanguagePicker />
         </div>
 
         <div className="mt-6 space-y-3 text-center" role="status" aria-live="polite">
           {checking && !info ? (
             <p className="inline-flex items-center gap-2 text-sm text-fg-2">
-              <LoaderCircle size={15} className="spin text-accent" /> Vérification d'Ollama…
+              <LoaderCircle size={15} className="spin text-accent" />{' '}
+              {t('settings.models.checking')}
             </p>
           ) : ollamaDown ? (
             <p className="inline-flex items-start gap-2 text-sm text-warning">
               <CircleAlert size={16} className="mt-0.5 shrink-0" />
               <span>
-                Ollama non détecté — installez-le depuis{' '}
-                <a href="https://ollama.com" className="underline underline-offset-2">
-                  ollama.com
-                </a>{' '}
-                puis Réessayez
+                <Trans
+                  k="onboarding.ollamaMissing"
+                  components={{
+                    link: (chunk) => (
+                      <a href="https://ollama.com" className="underline underline-offset-2">
+                        {chunk}
+                      </a>
+                    ),
+                  }}
+                />
               </span>
             </p>
           ) : info ? (
             <p className="inline-flex items-center gap-2 text-sm text-success">
-              <CircleCheck size={16} /> Ollama détecté et actif
+              <CircleCheck size={16} /> {t('onboarding.ollamaOk')}
             </p>
           ) : null}
           {info ? <HardwareLine info={info} /> : null}
         </div>
 
         <label className="mt-6 flex items-center justify-center gap-3 text-sm">
-          <span className="text-fg-2">Modèle de base :</span>
+          <span className="text-fg-2">{t('settings.models.base')}</span>
           <select
             value={model}
             onChange={(event) => setModel(event.target.value)}
@@ -248,11 +310,11 @@ export function OnboardingWizard() {
               />
             </div>
             <p className="mt-1.5 h-4 truncate text-xs text-fg-2">
-              {installed ? 'Terminé — 100%' : progressLabel(job)}
+              {installed ? t('onboarding.done') : progressLabel(job)}
             </p>
             <pre
               ref={logRef}
-              aria-label="Journal de l'installation"
+              aria-label={t('onboarding.log')}
               className="mt-2 max-h-52 min-h-24 overflow-y-auto rounded-md border border-line bg-bg px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-2"
             >
               {job.log.join('\n')}
@@ -267,7 +329,7 @@ export function OnboardingWizard() {
             onClick={() => void leave('skip')}
             disabled={installing || installed || leaving}
           >
-            {failed ? 'Continuer quand même' : 'Passer'}
+            {failed ? t('onboarding.continueAnyway') : t('onboarding.skip')}
           </Button>
         </div>
       </section>

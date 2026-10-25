@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from core.i18n import tr
 from interfaces.desktop.memory import MemoryPanelError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -53,17 +54,17 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     @api.post("/api/memory/facts")
     async def add_fact(body: FactBody):
         fact_id = await _run(app.memory.add_fact, body.category, body.text)
-        app.notify("success", "✅ Fait ajouté")
+        app.notify("success", tr("memory.factAdded"))
         return {"id": fact_id}
 
     @api.put("/api/memory/{tab}/{entry_id}")
     async def update_entry(tab: str, entry_id: str, body: ContentBody):
         await _run(app.memory.update, tab, entry_id, body.text)
-        app.notify("success", "✅ Modifié")
+        app.notify("success", tr("memory.edited"))
         return {"ok": True}
 
     @api.delete("/api/memory/{tab}/{entry_id}")
     async def delete_entry(tab: str, entry_id: str, at_source: bool = True):
         await _run(app.memory.delete, tab, entry_id, at_source)
-        app.notify("success", "🗑️ Supprimé")
+        app.notify("success", tr("memory.deleted"))
         return {"ok": True}

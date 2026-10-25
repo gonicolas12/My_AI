@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="%%LANG%%" dir="%%DIR%%">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -20,12 +20,13 @@
       <circle cx="17" cy="1.5" r="1"/><rect x="16.6" y="2.4" width="0.8" height="2.8" rx="0.4"/>
       <path fill-rule="evenodd" d="M5 4.5H19A4 4 0 0 1 23 8.5V18A4 4 0 0 1 19 22H5A4 4 0 0 1 1 18V8.5A4 4 0 0 1 5 4.5ZM6.25 9.25H8.75A1.25 1.25 0 0 1 10 10.5V12A1.25 1.25 0 0 1 8.75 13.25H6.25A1.25 1.25 0 0 1 5 12V10.5A1.25 1.25 0 0 1 6.25 9.25ZM15.25 9.25H17.75A1.25 1.25 0 0 1 19 10.5V12A1.25 1.25 0 0 1 17.75 13.25H15.25A1.25 1.25 0 0 1 14 12V10.5A1.25 1.25 0 0 1 15.25 9.25ZM9 15.75H15A1 1 0 0 1 15 17.75H9A1 1 0 0 1 9 15.75Z"/>
     </svg>
-    <h1 class="unlock-title">Code d'accès</h1>
-    <p class="unlock-sub">Saisissez le code affiché sous le QR code, dans le panneau Relay de votre PC.</p>
-    <input class="unlock-input" id="unlockInput" type="text" inputmode="numeric"
-           autocomplete="one-time-code" maxlength="7" placeholder="123 456" aria-label="Code d'accès">
+    <h1 class="unlock-title" data-i18n="unlock.title">Code d'accès</h1>
+    <p class="unlock-sub" data-i18n="unlock.subtitle">Saisissez le code affiché sous le QR code, dans le panneau Relay de votre PC.</p>
+    <input class="unlock-input" id="unlockInput" type="text" inputmode="numeric" dir="ltr"
+           autocomplete="one-time-code" maxlength="7" placeholder="123 456" aria-label="Code d'accès"
+           data-i18n-aria-label="unlock.title">
     <div class="unlock-error" id="unlockError" role="alert"></div>
-    <button class="unlock-btn" id="unlockBtn" type="submit">Déverrouiller</button>
+    <button class="unlock-btn" id="unlockBtn" type="submit" data-i18n="unlock.button">Déverrouiller</button>
   </form>
 </div>
 
@@ -40,27 +41,27 @@
       </svg>
       <div>
         <div class="header-title">My_AI <span style="color: var(--accent); font-weight: 400;">Relay</span></div>
-        <div class="header-subtitle" id="statusText">Connexion...</div>
+        <div class="header-subtitle" id="statusText" data-i18n="status.connecting">Connexion...</div>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
       <div class="status-dot connecting" id="statusDot"></div>
-      <button class="clear-btn" id="clearChatBtn" onclick="clearChat()">Effacer</button>
+      <button class="clear-btn" id="clearChatBtn" onclick="clearChat()" data-i18n="header.clear">Effacer</button>
     </div>
   </div>
 
   <!-- Tab bar : Chat / Agents (façon GUI PC) -->
   <div class="tab-bar">
     <button class="tab-btn active" id="tabChat" onclick="switchTab('chat')">
-      <span class="tab-ico">&#x1F4AC;</span> Chat
+      <span class="tab-ico">&#x1F4AC;</span> <span data-i18n="tab.chat">Chat</span>
     </button>
     <button class="tab-btn" id="tabAgents" onclick="switchTab('agents')">
-      <span class="tab-ico">&#x1F916;</span> Agents
+      <span class="tab-ico">&#x1F916;</span> <span data-i18n="tab.agents">Agents</span>
     </button>
   </div>
 
   <!-- Connection banner -->
-  <div class="connection-banner" id="connBanner">Connexion perdue. Tentative de reconnexion...</div>
+  <div class="connection-banner" id="connBanner" data-i18n="banner.lost">Connexion perdue. Tentative de reconnexion...</div>
 
   <!-- ════════════════ VUE CHAT ════════════════ -->
   <div class="view view-chat active" id="viewChat">
@@ -75,7 +76,7 @@
           </svg>
         </div>
         <div class="welcome-title">My_AI Relay</div>
-        <div class="welcome-text">Votre IA personnelle, accessible depuis votre mobile. Tapez un message pour commencer.</div>
+        <div class="welcome-text" data-i18n="welcome.text">Votre IA personnelle, accessible depuis votre mobile. Tapez un message pour commencer.</div>
       </div>
     </div>
 
@@ -84,7 +85,7 @@
       <!-- Aperçus des pièces jointes (chips) -->
       <div class="attachments" id="attachments"></div>
       <div class="input-row">
-        <button class="attach-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Joindre un fichier ou une image">
+        <button class="attach-btn" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Joindre un fichier ou une image" data-i18n-title="attach.title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -94,7 +95,7 @@
                accept="image/*,.pdf,.docx,.doc,.xlsx,.xls,.csv,.pptx,.py,.js,.html,.css,.json,.xml,.md,.txt"
                onchange="handleFileSelect(event)">
         <div class="input-wrapper">
-          <textarea id="messageInput" rows="1" placeholder="Tapez votre message..." autocomplete="off" autocorrect="on" autocapitalize="sentences"></textarea>
+          <textarea id="messageInput" rows="1" placeholder="Tapez votre message..." data-i18n-placeholder="input.placeholder" dir="auto" autocomplete="off" autocorrect="on" autocapitalize="sentences"></textarea>
         </div>
         <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -112,46 +113,47 @@
 
       <!-- Sélection d'agents -->
       <div class="ag-section">
-        <div class="ag-section-title">&#x1F916; Agents IA Spécialisés</div>
-        <div class="ag-section-sub">Touchez une carte pour l'ajouter au workflow. Choisissez un agent ou enchaînez-en plusieurs.</div>
+        <div class="ag-section-title">&#x1F916; <span data-i18n="agents.title">Agents IA Spécialisés</span></div>
+        <div class="ag-section-sub" data-i18n="agents.subtitle">Touchez une carte pour l'ajouter au workflow. Choisissez un agent ou enchaînez-en plusieurs.</div>
         <div class="agents-grid" id="agentsGrid"></div>
       </div>
 
       <!-- Workflow visuel (n8n-style, tactile) -->
       <div class="ag-section">
         <div class="wf-head">
-          <div class="ag-section-title">&#x1F517; Workflow Visuel</div>
+          <div class="ag-section-title">&#x1F517; <span data-i18n="wf.title">Workflow Visuel</span></div>
           <div class="wf-tools">
-            <button class="wf-tool" id="wfSaveBtn" title="Sauvegarder">&#x1F4BE;</button>
-            <button class="wf-tool" id="wfLoadBtn" title="Charger">&#x1F4C2;</button>
-            <button class="wf-tool" id="wfExportBtn" title="Exporter">&#x1F4E4;</button>
+            <button class="wf-tool" id="wfSaveBtn" title="Sauvegarder" data-i18n-title="wf.save">&#x1F4BE;</button>
+            <button class="wf-tool" id="wfLoadBtn" title="Charger" data-i18n-title="wf.load">&#x1F4C2;</button>
+            <button class="wf-tool" id="wfExportBtn" title="Exporter" data-i18n-title="wf.export">&#x1F4E4;</button>
           </div>
         </div>
-        <div class="wf-hint" id="wfHint">Touchez un agent ci-dessus pour l'ajouter. Touchez le port droit d'un nœud puis le port gauche d'un autre pour les relier.</div>
-        <div class="wf-canvas" id="wfCanvas">
+        <div class="wf-hint" id="wfHint" data-i18n="wf.hint">Touchez un agent ci-dessus pour l'ajouter. Touchez le port droit d'un nœud puis le port gauche d'un autre pour les relier.</div>
+        <!-- Le graphe garde son sens de lecture (ports d'entrée à gauche), même en arabe -->
+        <div class="wf-canvas" id="wfCanvas" dir="ltr">
           <div class="wf-world" id="wfWorld">
             <svg class="wf-links" id="wfLinks" width="1400" height="1000"></svg>
           </div>
-          <div class="wf-empty" id="wfEmpty">Touchez un agent pour l'ajouter</div>
+          <div class="wf-empty" id="wfEmpty" data-i18n="wf.empty">Touchez un agent pour l'ajouter</div>
         </div>
       </div>
 
       <!-- Résultats / sortie -->
       <div class="ag-section">
-        <div class="ag-section-title">&#x1F4DD; Résultats</div>
+        <div class="ag-section-title">&#x1F4DD; <span data-i18n="results.title">Résultats</span></div>
         <div class="agent-output" id="agentOutput">
-          <div class="ag-welcome" id="agentOutputWelcome">Les résultats des agents s'afficheront ici.</div>
+          <div class="ag-welcome" id="agentOutputWelcome" data-i18n="results.welcome">Les résultats des agents s'afficheront ici.</div>
         </div>
       </div>
     </div>
 
     <!-- Barre d'action agents -->
     <div class="agents-actionbar">
-      <div class="ag-status" id="agentStatus">Glissez-déposez des agents pour créer votre workflow</div>
+      <div class="ag-status" id="agentStatus" data-i18n="agents.statusIdle">Glissez-déposez des agents pour créer votre workflow</div>
       <!-- Aperçus des pièces jointes (chips) -->
       <div class="attachments ag-attachments" id="agentAttachments"></div>
       <div class="ag-task-row">
-        <button class="attach-btn" id="agentAttachBtn" title="Joindre un fichier ou une image">
+        <button class="attach-btn" id="agentAttachBtn" title="Joindre un fichier ou une image" data-i18n-title="attach.title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -160,14 +162,14 @@
         <input type="file" id="agentFileInput" style="display:none"
                accept="image/*,.pdf,.docx,.doc,.xlsx,.xls,.csv,.pptx,.py,.js,.html,.css,.json,.xml,.md,.txt">
         <div class="input-wrapper ag-task-wrap">
-          <textarea id="agentTask" rows="1" placeholder="Décrivez la tâche..." autocomplete="off" autocapitalize="sentences"></textarea>
+          <textarea id="agentTask" rows="1" placeholder="Décrivez la tâche..." data-i18n-placeholder="agents.taskPlaceholder" dir="auto" autocomplete="off" autocapitalize="sentences"></textarea>
         </div>
       </div>
       <div class="ag-buttons">
-        <button class="ag-btn ag-btn-exec" id="agentExecBtn">&#x25B6; Exécuter</button>
-        <button class="ag-btn ag-btn-create" id="agentCreateBtn">&#x2795; Créer Agent</button>
-        <button class="ag-btn ag-btn-debate" id="agentDebateBtn">&#x1F3AD; Mode Débat</button>
-        <button class="ag-btn ag-btn-clear" id="agentClearBtn">&#x2716; Clear Workflow</button>
+        <button class="ag-btn ag-btn-exec" id="agentExecBtn">&#x25B6; <span data-i18n="agents.execute">Exécuter</span></button>
+        <button class="ag-btn ag-btn-create" id="agentCreateBtn">&#x2795; <span data-i18n="agents.create">Créer Agent</span></button>
+        <button class="ag-btn ag-btn-debate" id="agentDebateBtn">&#x1F3AD; <span data-i18n="agents.debate">Mode Débat</span></button>
+        <button class="ag-btn ag-btn-clear" id="agentClearBtn">&#x2716; <span data-i18n="agents.clear">Clear Workflow</span></button>
       </div>
     </div>
   </div>
@@ -177,14 +179,14 @@
 <div class="modal-overlay" id="agentModal">
   <div class="modal-card">
     <div class="modal-title" id="agentModalTitle">&#x1F916; Créer un Agent Personnalisé</div>
-    <label class="modal-label">Nom de l'agent</label>
-    <input type="text" class="modal-input" id="agentModalName" placeholder="Ex: MyCustomAgent" autocomplete="off">
-    <label class="modal-label">Rôle / Description</label>
-    <textarea class="modal-textarea" id="agentModalRole" rows="4" placeholder="Décrivez ce que fait cet agent..."></textarea>
+    <label class="modal-label" data-i18n="modal.agent.name">Nom de l'agent</label>
+    <input type="text" class="modal-input" id="agentModalName" placeholder="Ex: MyCustomAgent" data-i18n-placeholder="modal.agent.namePlaceholder" autocomplete="off">
+    <label class="modal-label" data-i18n="modal.agent.role">Rôle / Description</label>
+    <textarea class="modal-textarea" id="agentModalRole" rows="4" placeholder="Décrivez ce que fait cet agent..." data-i18n-placeholder="modal.agent.rolePlaceholder" dir="auto"></textarea>
     <div class="modal-msg" id="agentModalMsg"></div>
     <div class="modal-actions">
-      <button class="modal-btn modal-btn-cancel" id="agentModalCancel">Annuler</button>
-      <button class="modal-btn modal-btn-ok" id="agentModalOk">Créer</button>
+      <button class="modal-btn modal-btn-cancel" id="agentModalCancel" data-i18n="common.cancel">Annuler</button>
+      <button class="modal-btn modal-btn-ok" id="agentModalOk" data-i18n="modal.agent.create">Créer</button>
     </div>
   </div>
 </div>
@@ -192,25 +194,27 @@
 <!-- ════════════════ MODALE : Mode Débat ════════════════ -->
 <div class="modal-overlay" id="debateModal">
   <div class="modal-card">
-    <div class="modal-title">&#x1F3AD; Mode Débat entre deux agents</div>
-    <label class="modal-label">Agent A — Proposant</label>
+    <div class="modal-title">&#x1F3AD; <span data-i18n="modal.debate.title">Mode Débat entre deux agents</span></div>
+    <label class="modal-label" data-i18n="modal.debate.agentA">Agent A — Proposant</label>
     <select class="modal-input" id="debateAgentA"></select>
-    <label class="modal-label">Agent B — Opposant</label>
+    <label class="modal-label" data-i18n="modal.debate.agentB">Agent B — Opposant</label>
     <select class="modal-input" id="debateAgentB"></select>
-    <label class="modal-label">Sujet du débat</label>
-    <textarea class="modal-textarea" id="debateTopic" rows="3" placeholder="Sujet à débattre..."></textarea>
-    <label class="modal-label">Nombre de tours</label>
+    <label class="modal-label" data-i18n="modal.debate.topic">Sujet du débat</label>
+    <textarea class="modal-textarea" id="debateTopic" rows="3" placeholder="Sujet à débattre..." data-i18n-placeholder="modal.debate.topicPlaceholder" dir="auto"></textarea>
+    <label class="modal-label" data-i18n="modal.debate.rounds">Nombre de tours</label>
     <input type="number" class="modal-input" id="debateRounds" value="3" min="1" max="10">
     <div class="modal-msg" id="debateModalMsg"></div>
     <div class="modal-actions">
-      <button class="modal-btn modal-btn-cancel" id="debateModalCancel">Annuler</button>
-      <button class="modal-btn modal-btn-debate" id="debateModalOk">&#x25B6; Démarrer</button>
+      <button class="modal-btn modal-btn-cancel" id="debateModalCancel" data-i18n="common.cancel">Annuler</button>
+      <button class="modal-btn modal-btn-debate" id="debateModalOk">&#x25B6; <span data-i18n="modal.debate.start">Démarrer</span></button>
     </div>
   </div>
 </div>
 
-<!-- Token injecté par le serveur -->
+<!-- Token et textes de la page dans la langue du PC, injectés par le serveur -->
 <script>window.__RELAY_TOKEN__ = "%%RELAY_TOKEN%%";</script>
+<script type="application/json" id="relayI18n">%%I18N%%</script>
+<script src="/static/i18n.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/app.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/agents.js?v=%%ASSET_VERSION%%"></script>
 </body>

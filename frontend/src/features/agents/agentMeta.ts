@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+import type { MessageKey } from '../../i18n';
 import type { NodeStatus, RunOrigin, RunStatus } from '../../lib/events';
 
 const BUILTIN_ICONS: Record<string, LucideIcon> = {
@@ -73,21 +74,24 @@ export function tint(color: string, percent: number): string {
   return `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 }
 
-/** Statuts d'un nœud (WorkflowCanvas.STATUS_META de Tk) */
-export const NODE_STATUS: Record<NodeStatus, { label: string; color: string }> = {
-  idle: { label: 'En attente', color: 'var(--text-muted)' },
-  running: { label: 'En cours', color: 'var(--warning)' },
-  done: { label: 'Terminé', color: 'var(--success)' },
-  error: { label: 'Erreur', color: 'var(--error)' },
+/** Statuts d'un nœud (WorkflowCanvas.STATUS_META de Tk) ; libellés : clés du catalogue */
+export const NODE_STATUS: Record<NodeStatus, { label: MessageKey; color: string }> = {
+  idle: { label: 'agents.node.idle', color: 'var(--text-muted)' },
+  running: { label: 'agents.node.running', color: 'var(--warning)' },
+  done: { label: 'agents.node.done', color: 'var(--success)' },
+  error: { label: 'agents.node.error', color: 'var(--error)' },
 };
 
 /** Agent en cours qui attend que le modèle ait fini de répondre à un autre (queuedBehind) */
-export const QUEUED = { label: 'Attend son tour', color: 'var(--text-muted)' };
+export const QUEUED: { label: MessageKey; color: string } = {
+  label: 'agents.queued',
+  color: 'var(--text-muted)',
+};
 
 /** Origine d'un fil venu d'ailleurs que la page (D37) */
-export const ORIGIN_LABEL: Record<Exclude<RunOrigin, 'desktop'>, string> = {
-  mobile: 'Lancé du téléphone',
-  scheduled: 'Tâche planifiée',
+export const ORIGIN_LABEL: Record<Exclude<RunOrigin, 'desktop'>, MessageKey> = {
+  mobile: 'agents.origin.mobile',
+  scheduled: 'agents.origin.scheduled',
 };
 
 /** Statut affiché d'un fil ; partial : workflow terminé avec des agents en échec */
@@ -96,22 +100,36 @@ export type RunTone = RunStatus | 'partial';
 /**
  * AgentRelayService finit un workflow par « ✅ Workflow terminé (50% succès) »
  * même si des agents ont échoué : c'est un succès partiel, montré en orange,
- * ni un succès ni une erreur. À 0 %, c'est un échec.
+ * ni un succès ni une erreur. À 0 %, c'est un échec. Le taux est le nombre
+ * suivi de « % » entre parenthèses (pleine chasse en chinois et en japonais) :
+ * le texte est dans la langue du serveur.
  */
 export function runTone(status: RunStatus, statusText: string): RunTone {
   if (status !== 'error' || !statusText.startsWith('✅')) return status;
-  const rate = /\((\d+)\s*% succès\)/.exec(statusText);
+  const rate = /[(（]\s*(\d+)\s*%/.exec(statusText);
   return rate && Number(rate[1]) > 0 ? 'partial' : 'error';
 }
 
-export const RUN_TONE: Record<RunTone, { label: string; color: string; chip: string }> = {
-  running: { label: 'En cours', color: 'var(--warning)', chip: 'bg-warning-soft text-warning' },
-  done: { label: 'Terminé', color: 'var(--success)', chip: 'bg-success-soft text-success' },
-  partial: {
-    label: 'Terminé, avec erreurs',
+export const RUN_TONE: Record<RunTone, { label: MessageKey; color: string; chip: string }> = {
+  running: {
+    label: 'agents.node.running',
     color: 'var(--warning)',
     chip: 'bg-warning-soft text-warning',
   },
-  error: { label: 'Erreur', color: 'var(--error)', chip: 'bg-error-soft text-error' },
-  interrupted: { label: 'Interrompu', color: 'var(--text-secondary)', chip: 'bg-active text-fg-2' },
+  done: {
+    label: 'agents.node.done',
+    color: 'var(--success)',
+    chip: 'bg-success-soft text-success',
+  },
+  partial: {
+    label: 'agents.run.partial',
+    color: 'var(--warning)',
+    chip: 'bg-warning-soft text-warning',
+  },
+  error: { label: 'agents.node.error', color: 'var(--error)', chip: 'bg-error-soft text-error' },
+  interrupted: {
+    label: 'agents.run.interrupted',
+    color: 'var(--text-secondary)',
+    chip: 'bg-active text-fg-2',
+  },
 };
