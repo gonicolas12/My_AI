@@ -1,5 +1,6 @@
 import { Button } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
+import { useT } from '../../i18n';
 import { answerConfirm } from '../../lib/actions';
 import { useChat } from '../../stores/chat';
 
@@ -8,6 +9,7 @@ import { useChat } from '../../stores/chat';
  * moteur attend la réponse. Échap ou fermeture valent un refus, comme dans Tk.
  */
 export function ConfirmDeleteDialog() {
+  const t = useT();
   const confirm = useChat((state) => state.confirm);
   if (!confirm) return null;
   const answer = (accepted: boolean) => void answerConfirm(confirm.confirm_id, accepted);
@@ -17,15 +19,15 @@ export function ConfirmDeleteDialog() {
       onOpenChange={(open) => {
         if (!open) answer(false);
       }}
-      title="Confirmation de suppression"
-      description="L'IA souhaite supprimer ce fichier :"
+      title={t('chat.confirmDelete.title')}
+      description={t('chat.confirmDelete.description')}
       footer={
         <>
           <Button variant="secondary" onClick={() => answer(false)} autoFocus>
-            Non, annuler
+            {t('chat.confirmDelete.no')}
           </Button>
           <Button variant="danger" onClick={() => answer(true)}>
-            Oui, supprimer
+            {t('chat.confirmDelete.yes')}
           </Button>
         </>
       }

@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+import { t as translate, type Translate } from '../../i18n';
 import type { ToolCallView } from '../../lib/events';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -54,11 +55,11 @@ export function toolText(label: string): string {
 }
 
 /** Résumé court d'un outil terminé (« 3 sources ») */
-export function toolOutcome(tool: ToolCallView): string | null {
+export function toolOutcome(tool: ToolCallView, t: Translate = translate): string | null {
   if (tool.ok === undefined) return null;
   if (tool.name === 'web_search' && tool.ok) {
     const count = tool.sources ?? 0;
-    return count ? `${count} source${count > 1 ? 's' : ''}` : 'aucune source';
+    return count ? t('chat.tool.sources', { count }) : t('chat.tool.noSource');
   }
   return null;
 }

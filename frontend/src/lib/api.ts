@@ -21,6 +21,7 @@ import type {
   VoiceInputState,
   VoiceOutputState,
 } from './events';
+import { t } from '../i18n';
 
 const TOKEN_KEY = 'my_ai.token';
 
@@ -94,10 +95,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   try {
     response = await fetch(path, { method, headers, body: payload, cache: 'no-store' });
   } catch {
-    throw new ApiError(0, 'Le serveur local ne répond pas.');
+    throw new ApiError(0, t('connection.noResponse'));
   }
   if (!response.ok) {
-    let detail = `Erreur ${response.status}`;
+    let detail = t('connection.httpError', { status: response.status });
     try {
       const data = (await response.json()) as { detail?: unknown };
       if (typeof data.detail === 'string') detail = data.detail;
@@ -215,6 +216,12 @@ export interface ModelJob {
   status: string;
   message: string;
   log: string[];
+}
+
+/** Langue de l'interface et des réponses du modèle (language.default de config.yaml) */
+export interface LanguageView {
+  language: string;
+  languages: string[];
 }
 
 /** Réglages lus dans config.yaml (settings.py) */
@@ -551,6 +558,8 @@ export const api = {
   uiState: () => request<UiState>('GET', '/api/ui'),
   saveUiState: (state: UiState) => request<UiState>('PUT', '/api/ui', state),
 
+  language: () => request<LanguageView>('GET', '/api/i18n'),
+  setLanguage: (language: string) => request<LanguageView>('PUT', '/api/i18n', { language }),
   settings: () => request<SettingsView>('GET', '/api/settings'),
   settingsModels: () => request<ModelsView>('GET', '/api/settings/models'),
   modelJob: () => request<{ job: ModelJob | null }>('GET', '/api/settings/models/job'),
@@ -560,7 +569,7 @@ export const api = {
     post<{ job: ModelJob | null }>('/api/settings/models/apply', { name }),
   saveGeneration: (params: GenerationParams) =>
     request<GenerationParams>('PUT', '/api/settings/generation', params),
-  setSettingFlag: (name: 'language.default' | 'relay.auto_start', value: string | boolean) =>
+  setSettingFlag: (name: 'relay.auto_start', value: boolean) =>
     request<SettingsView>('PUT', '/api/settings/flags', { name, value }),
   restartOnboarding: () => post<{ ok: boolean }>('/api/settings/onboarding/restart'),
 

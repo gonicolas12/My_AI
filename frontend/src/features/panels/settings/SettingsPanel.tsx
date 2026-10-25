@@ -10,6 +10,7 @@ import {
   CircleAlert,
   CircleCheck,
   Download,
+  Globe,
   LoaderCircle,
   RefreshCw,
   Save,
@@ -21,6 +22,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Switch } from '../../../components/ui/Switch';
+import { localeInfo, setLocale, t as translate, useT } from '../../../i18n';
 import { ApiError, api, type ModelsView, type SettingsView } from '../../../lib/api';
 import { cn } from '../../../lib/cn';
 import { notify } from '../../../stores/app';
@@ -51,7 +53,7 @@ function Row({
   htmlFor,
   children,
 }: {
-  label: string;
+  label: ReactNode;
   htmlFor?: string;
   children: ReactNode;
 }) {
@@ -72,7 +74,59 @@ const Caption = ({ children }: { children: ReactNode }) => (
 const inputClass =
   'h-9 rounded-md border border-line bg-bg-3 px-2.5 text-sm text-fg placeholder:text-fg-3 disabled:text-fg-3';
 
+/**
+ * Langue de l'interface (à chaud) et langue par défaut des réponses du modèle :
+ * chaque langue porte son propre nom, lisible quelle que soit celle affichée
+ */
+function LanguageSection({ settings }: { settings: SettingsView }) {
+  const t = useT();
+  const [language, setLanguage] = useState(settings.language);
+  const languageId = useId();
+
+  const saveLanguage = async (value: string) => {
+    const previous = language;
+    setLanguage(value);
+    try {
+      await api.setLanguage(value);
+      await setLocale(value);
+      notify('success', translate('settings.language.saved'));
+    } catch (error) {
+      setLanguage(previous);
+      notify('error', t('common.errorWith', { error: errorText(error) }));
+    }
+  };
+
+  return (
+    <Section title={t('settings.language.title')}>
+      <Row
+        htmlFor={languageId}
+        label={
+          <span className="inline-flex items-center gap-2">
+            <Globe size={15} className="shrink-0 text-accent" />
+            {t('settings.language.label')}
+          </span>
+        }
+      >
+        <select
+          id={languageId}
+          value={language}
+          onChange={(event) => void saveLanguage(event.target.value)}
+          className={cn(inputClass, 'w-48')}
+        >
+          {settings.languages.map((code) => (
+            <option key={code} value={code}>
+              {localeInfo(code).code === code ? localeInfo(code).name : code}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Caption>{t('settings.language.caption')}</Caption>
+    </Section>
+  );
+}
+
 function ModelsSection() {
+  const t = useT();
   const [models, setModels] = useState<ModelsView | null>(null);
   const [base, setBase] = useState('');
   const [pullName, setPullName] = useState('');
@@ -127,30 +181,30 @@ function ModelsSection() {
   const pull = () => {
     const name = pullName.trim();
     if (!name) {
-      notify('info', 'Entrez un nom de modèle (ex : qwen3.5:4b).');
+      notify('info', t('settings.models.enterName'));
       return;
     }
     void run('pull', name);
   };
 
   return (
-    <Section title="Modèles Ollama">
+    <Section title={t('settings.models.title')}>
       <p className="text-sm" role="status">
         {models === null ? (
           <span className="inline-flex items-center gap-2 text-fg-2">
-            <LoaderCircle size={14} className="spin text-accent" /> Vérification d'Ollama…
+            <LoaderCircle size={14} className="spin text-accent" /> {t('settings.models.checking')}
           </span>
         ) : models.ollama ? (
           <span className="inline-flex items-center gap-2 text-success">
-            <CircleCheck size={15} /> Ollama actif
+            <CircleCheck size={15} /> {t('settings.models.active')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-2 text-warning">
-            <CircleAlert size={15} /> Ollama non détecté — démarrez-le pour gérer les modèles
+            <CircleAlert size={15} /> {t('settings.models.missing')}
           </span>
         )}
       </p>
-      <Row label="Modèle de base :" htmlFor={baseId}>
+      <Row label={t('settings.models.base')} htmlFor={baseId}>
         <select
           id={baseId}
           value={base}
@@ -166,9 +220,11 @@ function ModelsSection() {
         </select>
       </Row>
       <p className="text-xs text-fg-2">
-        Modèles installés : {models?.installed.length ? models.installed.join(', ') : '(aucun)'}
+        {t('settings.models.installed', {
+          list: models?.installed.length ? models.installed.join(', ') : t('common.none'),
+        })}
       </p>
-      <Row label="Télécharger :" htmlFor={pullId}>
+      <Row label={t('settings.models.download')} htmlFor={pullId}>
         <input
           id={pullId}
           value={pullName}
@@ -176,13 +232,13 @@ function ModelsSection() {
           onKeyDown={(event) => {
             if (event.key === 'Enter') pull();
           }}
-          placeholder="ex : qwen3.5:4b"
+          placeholder={t('settings.models.downloadPlaceholder')}
           spellCheck={false}
           disabled={busy}
           className={cn(inputClass, 'w-48')}
         />
         <Button size="sm" onClick={pull} disabled={busy || !models?.ollama}>
-          <Download size={15} /> Pull
+          <Download size={15} /> {t('settings.models.pull')}
         </Button>
       </Row>
       {job ? (
@@ -190,7 +246,7 @@ function ModelsSection() {
           <div
             className="h-1.5 overflow-hidden rounded-full bg-bg-3"
             role="progressbar"
-            aria-label="Progression"
+            aria-label={t('settings.models.progress')}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(job.fraction * 100)}
@@ -206,7 +262,7 @@ function ModelsSection() {
           <p className="mt-1.5 h-4 truncate text-xs text-fg-2">{progressLabel(job)}</p>
           <pre
             ref={logRef}
-            aria-label="Journal"
+            aria-label={t('settings.models.log')}
             className="mt-1.5 max-h-28 min-h-16 overflow-y-auto rounded-md border border-line bg-bg px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-2"
           >
             {job.log.join('\n')}
@@ -224,16 +280,16 @@ function ModelsSection() {
           ) : (
             <CircleCheck size={15} />
           )}
-          Appliquer (régénère le modèle 'my_ai')
+          {t('settings.models.apply')}
         </Button>
-        <Caption>Régénère proprement le modèle personnalisé (system prompt préservé).</Caption>
+        <Caption>{t('settings.models.applyCaption')}</Caption>
       </div>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Appliquer"
-        message={`Régénérer le modèle 'my_ai' à partir de « ${base} » ? Le system prompt du Modelfile sera préservé.`}
-        confirmLabel="Régénérer"
+        title={t('settings.models.applyTitle')}
+        message={t('settings.models.applyMessage', { base })}
+        confirmLabel={t('settings.models.applyConfirm')}
         onConfirm={() => void run('apply', base)}
       />
     </Section>
@@ -241,6 +297,7 @@ function ModelsSection() {
 }
 
 function GenerationSection({ settings }: { settings: SettingsView }) {
+  const t = useT();
   const [temperature, setTemperature] = useState(settings.generation.temperature);
   const [numCtx, setNumCtx] = useState(settings.generation.num_ctx);
   const [timeout, setTimeoutValue] = useState(String(settings.generation.timeout));
@@ -262,15 +319,15 @@ function GenerationSection({ settings }: { settings: SettingsView }) {
       setTimeoutValue(String(saved.timeout));
       setTemperature(saved.temperature);
     } catch (error) {
-      notify('error', `❌ Erreur : ${errorText(error)}`);
+      notify('error', t('common.errorWith', { error: errorText(error) }));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Section title="Paramètres généraux">
-      <Row label="Température :" htmlFor={temperatureId}>
+    <Section title={t('settings.generation.title')}>
+      <Row label={t('settings.generation.temperature')} htmlFor={temperatureId}>
         <input
           id={temperatureId}
           type="range"
@@ -281,11 +338,11 @@ function GenerationSection({ settings }: { settings: SettingsView }) {
           onChange={(event) => setTemperature(Number(event.target.value))}
           className="w-56 accent-[var(--accent)]"
         />
-        <span className="w-10 text-right font-mono text-sm tabular-nums">
+        <span className="w-10 text-end font-mono text-sm tabular-nums">
           {temperature.toFixed(2)}
         </span>
       </Row>
-      <Row label="Fenêtre de contexte (num_ctx) :" htmlFor={numCtxId}>
+      <Row label={t('settings.generation.numCtx')} htmlFor={numCtxId}>
         <select
           id={numCtxId}
           value={numCtx}
@@ -299,7 +356,7 @@ function GenerationSection({ settings }: { settings: SettingsView }) {
           ))}
         </select>
       </Row>
-      <Row label="Timeout requête LLM (s) :" htmlFor={timeoutId}>
+      <Row label={t('settings.generation.timeout')} htmlFor={timeoutId}>
         <input
           id={timeoutId}
           type="number"
@@ -312,49 +369,35 @@ function GenerationSection({ settings }: { settings: SettingsView }) {
       </Row>
       <div className="space-y-1">
         <Button onClick={() => void save()} disabled={saving}>
-          <Save size={15} /> Enregistrer les paramètres
+          <Save size={15} /> {t('settings.generation.save')}
         </Button>
-        <Caption>
-          Écrit dans config.yaml + Modelfile (commentaires préservés) et applique immédiatement.
-        </Caption>
+        <Caption>{t('settings.generation.caption')}</Caption>
       </div>
     </Section>
   );
 }
 
 function OtherSection({ settings }: { settings: SettingsView }) {
+  const t = useT();
   const autoread = useVoice((state) => state.autoread);
-  const [language, setLanguage] = useState(settings.language);
   const [relayAuto, setRelayAuto] = useState(settings.relay_auto_start);
   const [confirming, setConfirming] = useState(false);
-  const languageId = useId();
   const autoreadId = useId();
   const relayId = useId();
 
-  const saveLanguage = async (value: string) => {
-    setLanguage(value);
-    try {
-      await api.setSettingFlag('language.default', value);
-      notify('success', '💾 Langue enregistrée');
-    } catch (error) {
-      setLanguage(settings.language);
-      notify('error', `❌ Erreur : ${errorText(error)}`);
-    }
-  };
-
   const saveAutoread = async (value: boolean) => {
     await setAutoread(value);
-    notify('success', '💾 Lecture vocale enregistrée');
+    notify('success', t('settings.autoread.saved'));
   };
 
   const saveRelayAuto = async (value: boolean) => {
     setRelayAuto(value);
     try {
       await api.setSettingFlag('relay.auto_start', value);
-      notify('success', '💾 Relay auto-start enregistré');
+      notify('success', t('settings.relay.saved'));
     } catch (error) {
       setRelayAuto(!value);
-      notify('error', `❌ Erreur : ${errorText(error)}`);
+      notify('error', t('common.errorWith', { error: errorText(error) }));
     }
   };
 
@@ -362,35 +405,21 @@ function OtherSection({ settings }: { settings: SettingsView }) {
     try {
       await api.restartOnboarding();
     } catch (error) {
-      notify('error', `❌ Erreur : ${errorText(error)}`);
+      notify('error', t('common.errorWith', { error: errorText(error) }));
     }
   };
 
   return (
-    <Section title="Autres réglages">
-      <Row label="Langue par défaut :" htmlFor={languageId}>
-        <select
-          id={languageId}
-          value={language}
-          onChange={(event) => void saveLanguage(event.target.value)}
-          className={cn(inputClass, 'w-24')}
-        >
-          {settings.languages.map((code) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
-      </Row>
+    <Section title={t('settings.other.title')}>
       <div className="flex items-center gap-3">
         <Switch
           id={autoreadId}
           checked={autoread}
           onCheckedChange={(value) => void saveAutoread(value)}
-          label="Lecture vocale automatique des réponses"
+          label={t('settings.autoread.label')}
         />
         <label htmlFor={autoreadId} className="text-sm">
-          Lecture vocale automatique des réponses
+          {t('settings.autoread.label')}
         </label>
       </div>
       <div>
@@ -399,30 +428,28 @@ function OtherSection({ settings }: { settings: SettingsView }) {
             id={relayId}
             checked={relayAuto}
             onCheckedChange={(value) => void saveRelayAuto(value)}
-            label="Démarrer le Relay au lancement"
+            label={t('settings.relay.label')}
           />
           <label htmlFor={relayId} className="text-sm">
-            Démarrer le Relay au lancement
+            {t('settings.relay.label')}
           </label>
         </div>
         <Caption>
-          <span className="ml-12 inline-block">
-            (Le Relay auto-start prend effet au prochain démarrage.)
-          </span>
+          <span className="ms-12 inline-block">{t('settings.relay.caption')}</span>
         </Caption>
       </div>
       <div className="space-y-1 border-t border-line pt-4">
         <Button onClick={() => setConfirming(true)}>
-          <RefreshCw size={15} /> Relancer l'assistant de configuration
+          <RefreshCw size={15} /> {t('settings.wizard.restart')}
         </Button>
-        <Caption>Supprime le marqueur ; l'assistant s'affichera au prochain démarrage.</Caption>
+        <Caption>{t('settings.wizard.caption')}</Caption>
       </div>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Relancer l'assistant"
-        message="Relancer l'assistant de configuration au prochain démarrage ?"
-        confirmLabel="Relancer"
+        title={t('settings.wizard.title')}
+        message={t('settings.wizard.message')}
+        confirmLabel={t('settings.wizard.confirm')}
         onConfirm={() => void restartWizard()}
       />
     </Section>
@@ -430,6 +457,7 @@ function OtherSection({ settings }: { settings: SettingsView }) {
 }
 
 export default function SettingsPanel() {
+  const t = useT();
   const [settings, setSettings] = useState<SettingsView | null>(null);
   const [failed, setFailed] = useState('');
 
@@ -447,10 +475,11 @@ export default function SettingsPanel() {
         if (!open) closePanel();
       }}
       icon={Settings}
-      title="Réglages"
-      description="Modèle local, paramètres de génération et préférences de My_AI."
+      title={t('settings.title')}
+      description={t('settings.description')}
       width={760}
     >
+      {settings ? <LanguageSection settings={settings} /> : null}
       <ModelsSection />
       {settings ? (
         <>
@@ -461,7 +490,7 @@ export default function SettingsPanel() {
         <p className="pt-5 text-sm text-error">{failed}</p>
       ) : (
         <p className="inline-flex items-center gap-2 pt-5 text-sm text-fg-2">
-          <Sparkles size={14} className="pulse-soft text-accent" /> Lecture des réglages…
+          <Sparkles size={14} className="pulse-soft text-accent" /> {t('settings.reading')}
         </p>
       )}
     </PanelDialog>

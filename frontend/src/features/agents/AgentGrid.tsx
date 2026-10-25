@@ -12,6 +12,7 @@ import { createElement, useState } from 'react';
 
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { IconButton } from '../../components/ui/Button';
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import type { AgentInfo } from '../../lib/events';
 import { deleteAgent, useAgents } from '../../stores/agents';
@@ -49,6 +50,7 @@ function AgentCard({
   onEdit?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
 }) {
+  const t = useT();
   const color = agentColor(agent.key, agent.color);
   const add = () => addAgentNode(agent);
   return (
@@ -56,8 +58,8 @@ function AgentCard({
       role="button"
       tabIndex={0}
       draggable
-      aria-label={`${agent.name} : ${agent.desc}. Ajouter au workflow`}
-      title="Glissez sur le canvas, ou cliquez pour ajouter au workflow"
+      aria-label={t('agents.card.aria', { name: agent.name, desc: agent.desc })}
+      title={t('agents.card.title')}
       onClick={add}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -95,7 +97,7 @@ function AgentCard({
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
           <IconButton
             size="sm"
-            label={`Modifier ${agent.name}`}
+            label={t('agents.card.edit', { name: agent.name })}
             onClick={(event) => {
               event.stopPropagation();
               onEdit?.();
@@ -105,7 +107,7 @@ function AgentCard({
           </IconButton>
           <IconButton
             size="sm"
-            label={`Supprimer ${agent.name}`}
+            label={t('agents.card.delete', { name: agent.name })}
             onClick={(event) => {
               event.stopPropagation();
               onDelete?.();
@@ -121,13 +123,14 @@ function AgentCard({
 }
 
 export function AgentGrid() {
+  const t = useT();
   const builtin = useAgents((state) => state.builtin);
   const custom = useAgents((state) => state.custom);
   const [editing, setEditing] = useState<AgentInfo | null>(null);
   const [removing, setRemoving] = useState<AgentInfo | null>(null);
   return (
     <>
-      <div className="grid grid-cols-3 gap-3" aria-label="Agents">
+      <div className="grid grid-cols-3 gap-3" aria-label={t('agents.grid.label')}>
         {builtin.map((agent) => (
           <AgentCard key={agent.key} agent={agent} />
         ))}
@@ -146,9 +149,9 @@ export function AgentGrid() {
         onOpenChange={(open) => {
           if (!open) setRemoving(null);
         }}
-        title="Supprimer l'agent"
-        message={`Voulez-vous vraiment supprimer l'agent '${removing?.name ?? ''}' ?`}
-        confirmLabel="Supprimer"
+        title={t('agents.delete.title')}
+        message={t('agents.delete.message', { name: removing?.name ?? '' })}
+        confirmLabel={t('common.delete')}
         danger
         onConfirm={() => {
           const agent = removing;

@@ -7,17 +7,13 @@
  * vont dans outputs/, et un workflow se charge par le sélecteur de la page.
  */
 
+import { t } from '../../i18n';
 import { api } from '../../lib/api';
 import { shell } from '../../lib/shell';
 import { notify } from '../../stores/app';
 import { errorText, useAgents } from '../../stores/agents';
 import { currentWorkflow, loadWorkflow, setCanvasRun, useWorkflow } from './canvas/workflowStore';
 import { fromWorkflowFile, toWorkflowFile } from './canvas/workflowFile';
-
-/** Messages de Tk (execution.py), en notifications plutôt qu'en boîtes du système */
-export const NO_AGENT = 'Glissez-déposez un ou plusieurs agents pour commencer.';
-export const EMPTY_TASK = 'Veuillez décrire la tâche à effectuer.';
-export const BUSY = 'Un agent est déjà en train de traiter une tâche.';
 
 /** Statut de chaque nœud à la dernière exécution lancée d'ici */
 function nodeStatus() {
@@ -36,15 +32,16 @@ export async function executeWorkflow(): Promise<string | null> {
   const workflow = currentWorkflow();
   if (starting) return null;
   if (active) {
-    notify('warning', BUSY);
+    // Messages de Tk (execution.py), en notifications plutôt qu'en boîtes du système
+    notify('warning', t('agents.workflow.busy'));
     return null;
   }
   if (!workflow.nodes.length) {
-    notify('warning', NO_AGENT);
+    notify('warning', t('agents.workflow.noAgent'));
     return null;
   }
   if (!task.trim()) {
-    notify('warning', EMPTY_TASK);
+    notify('warning', t('agents.workflow.emptyTask'));
     return null;
   }
   useAgents.setState({ starting: true });
@@ -84,7 +81,7 @@ export async function saveWorkflowFile(): Promise<void> {
   }
   try {
     const saved = await api.saveWorkflow(path, file);
-    if (!path) notify('info', `Enregistré dans ${saved.path}`);
+    if (!path) notify('info', t('agents.workflow.savedIn', { path: saved.path }));
   } catch (error) {
     notify('error', errorText(error));
   }
@@ -94,11 +91,11 @@ export async function saveWorkflowFile(): Promise<void> {
 export function applyWorkflowData(data: unknown): void {
   const workflow = fromWorkflowFile(data);
   if (!workflow) {
-    notify('error', '❌ Erreur chargement workflow');
+    notify('error', t('agents.workflow.loadError'));
     return;
   }
   loadWorkflow(workflow);
-  notify('success', '📂 Workflow chargé');
+  notify('success', t('agents.workflow.loaded'));
 }
 
 /** « Charger » dans la fenêtre de l'appli ; renvoie faux dans un navigateur (sélecteur de la page) */
@@ -120,7 +117,7 @@ export async function loadWorkflowBlob(file: File): Promise<void> {
   try {
     applyWorkflowData(JSON.parse(await file.text()) as unknown);
   } catch {
-    notify('error', '❌ Erreur chargement workflow');
+    notify('error', t('agents.workflow.loadError'));
   }
 }
 
@@ -139,7 +136,7 @@ export async function exportWorkflowFile(): Promise<void> {
       useAgents.getState().runs.find((run) => run.kind !== 'debate')?.id ??
       null;
     const saved = await api.exportWorkflow(path, file, runId);
-    if (!path) notify('info', `Exporté dans ${saved.path}`);
+    if (!path) notify('info', t('agents.workflow.exportedIn', { path: saved.path }));
   } catch (error) {
     notify('error', errorText(error));
   }

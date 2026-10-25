@@ -18,6 +18,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remend from 'remend';
 
+import { useT } from '../../../i18n';
 import { revealPath } from '../../../lib/actions';
 import { externalUrl } from '../../../lib/shell';
 import { BlockSplitter } from './blocks';
@@ -125,6 +126,7 @@ function Citation({ node, children }: { node?: unknown; children?: React.ReactNo
 
 /** Chemin existant : montré dans l'Explorateur, jamais ouvert ni exécuté */
 function FilePath({ node, children }: { node?: unknown; children?: React.ReactNode }) {
+  const t = useT();
   const path = propertyOf(node, 'path');
   // Élément en ligne, et non un bouton : un bouton forme une boîte insécable,
   // la ponctuation qui le suit passerait seule à la ligne
@@ -133,7 +135,7 @@ function FilePath({ node, children }: { node?: unknown; children?: React.ReactNo
       role="link"
       tabIndex={0}
       className="md-path"
-      title={`Afficher dans l’Explorateur : ${path}`}
+      title={t('chat.path.reveal', { path })}
       onClick={() => void revealPath(path)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {

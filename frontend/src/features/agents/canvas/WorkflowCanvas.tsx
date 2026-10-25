@@ -42,6 +42,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { Button, IconButton } from '../../../components/ui/Button';
+import { useT } from '../../../i18n';
 import { cn } from '../../../lib/cn';
 import { useAgents } from '../../../stores/agents';
 import { agentColor } from '../agentMeta';
@@ -103,30 +104,35 @@ function ConnectionLine({
 }
 
 function CanvasToolbar() {
+  const t = useT();
   const flow = useReactFlow<AgentFlowNode, AgentFlowEdge>();
   const grid = useWorkflow((state) => state.grid);
   return (
     <div className="flex items-center gap-0.5 rounded-md border border-line bg-bg/90 p-0.5 shadow-sm">
-      <IconButton size="sm" label="Zoom avant" onClick={() => void flow.zoomIn({ duration: 150 })}>
+      <IconButton
+        size="sm"
+        label={t('canvas.zoomIn')}
+        onClick={() => void flow.zoomIn({ duration: 150 })}
+      >
         <ZoomIn size={15} />
       </IconButton>
       <IconButton
         size="sm"
-        label="Zoom arrière"
+        label={t('canvas.zoomOut')}
         onClick={() => void flow.zoomOut({ duration: 150 })}
       >
         <ZoomOut size={15} />
       </IconButton>
       <IconButton
         size="sm"
-        label="Réinitialiser la vue"
+        label={t('canvas.resetView')}
         onClick={() => void flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 200 })}
       >
         <Locate size={15} />
       </IconButton>
       <IconButton
         size="sm"
-        label={grid ? 'Masquer la grille' : 'Afficher la grille'}
+        label={grid ? t('canvas.hideGrid') : t('canvas.showGrid')}
         active={grid}
         onClick={toggleGrid}
       >
@@ -137,6 +143,7 @@ function CanvasToolbar() {
 }
 
 function Flow() {
+  const t = useT();
   const { nodes, edges, viewport, grid, runId } = useWorkflow(
     useShallow((state) => ({
       nodes: state.nodes,
@@ -185,6 +192,8 @@ function Flow() {
         over && 'shadow-[inset_0_0_0_2px_var(--accent)]',
       )}
       style={{ height: CANVAS_HEIGHT }}
+      // Le graphe garde son sens de lecture (ports d'entrée à gauche), même en arabe
+      dir="ltr"
       onDragOver={(event) => {
         if (!isAgentDrag(event)) return;
         event.preventDefault();
@@ -212,7 +221,7 @@ function Flow() {
     >
       <ReactFlow<AgentFlowNode, AgentFlowEdge>
         className="agents-flow"
-        aria-label="Canvas du workflow"
+        aria-label={t('canvas.label')}
         nodes={shownNodes}
         edges={shownEdges}
         nodeTypes={NODE_TYPES}
@@ -256,7 +265,7 @@ function Flow() {
           position="bottom-right"
           pannable
           zoomable
-          ariaLabel="Minimap du workflow"
+          ariaLabel={t('canvas.minimap')}
           nodeColor={(node) => agentColor(node.data.agentType, node.data.color)}
           nodeBorderRadius={4}
           style={{ width: 160, height: 100 }}
@@ -267,7 +276,7 @@ function Flow() {
       </ReactFlow>
       {nodes.length ? null : (
         <p className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-sm text-fg-3">
-          Glissez un agent depuis la grille, ou cliquez sur sa carte
+          {t('canvas.empty')}
         </p>
       )}
     </div>
@@ -276,12 +285,13 @@ function Flow() {
 
 /** Enregistrer, Charger, Exporter (workflow.py de Tk) */
 function FileActions() {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   return (
-    <div className="ml-auto flex items-center gap-1">
+    <div className="ms-auto flex items-center gap-1">
       <Button variant="ghost" size="sm" onClick={() => void saveWorkflowFile()}>
         <Save size={15} />
-        Enregistrer
+        {t('common.save')}
       </Button>
       <Button
         variant="ghost"
@@ -293,11 +303,11 @@ function FileActions() {
         }
       >
         <FolderOpen size={15} />
-        Charger
+        {t('canvas.load')}
       </Button>
       <Button variant="ghost" size="sm" onClick={() => void exportWorkflowFile()}>
         <FileDown size={15} />
-        Exporter
+        {t('canvas.export')}
       </Button>
       <input
         ref={input}
@@ -315,16 +325,15 @@ function FileActions() {
 }
 
 export function WorkflowCanvas() {
+  const t = useT();
   return (
     <section
-      aria-label="Workflow visuel"
+      aria-label={t('canvas.section')}
       className="overflow-hidden rounded-xl border border-line bg-bg-2"
     >
       <div className="flex h-11 items-center gap-2 border-b border-line/70 px-4">
         <Workflow size={15} className="text-fg-2" />
-        <h2 className="text-sm font-normal text-fg-2">
-          Workflow visuel — glissez des agents, reliez les ports
-        </h2>
+        <h2 className="text-sm font-normal text-fg-2">{t('canvas.heading')}</h2>
         <FileActions />
       </div>
       <ReactFlowProvider>

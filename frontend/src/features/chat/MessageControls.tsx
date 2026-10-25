@@ -8,23 +8,20 @@ import { useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useT } from '../../i18n';
 import { rateAnswer, regenerateAnswer } from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import { toggleDictation, toggleSpeak, useVoice } from '../../stores/voice';
 
-/** Avertissement de Tk avant une nouvelle variante en milieu de conversation */
-export const BRANCH_WARNING =
-  'Les messages suivants laisseront place à la nouvelle réponse. ' +
-  'Ils restent accessibles en revenant sur l’ancienne version via ‹ ›. Continuer ?';
-
 /** Lecture à voix haute d'une réponse ; le même bouton l'arrête */
 export function SpeakButton({ text, mid }: { text: string; mid: string }) {
+  const t = useT();
   const speaking = useVoice(
     (state) => state.outputState === 'speaking' && state.speakingKey === mid,
   );
   return (
     <IconButton
-      label={speaking ? 'Arrêter la lecture' : 'Lire à voix haute'}
+      label={speaking ? t('chat.speak.stop') : t('chat.speak.start')}
       size="sm"
       tooltipSide="bottom"
       onClick={() => void toggleSpeak(text, mid)}
@@ -37,6 +34,7 @@ export function SpeakButton({ text, mid }: { text: string; mid: string }) {
 
 /** Note de 1 à 5 étoiles (RLHF), figée une fois donnée comme dans Tk */
 export function StarRating({ mid, rating }: { mid: string; rating?: number | undefined }) {
+  const t = useT();
   const [hover, setHover] = useState(0);
   const [saving, setSaving] = useState(false);
   const rated = rating ?? 0;
@@ -44,8 +42,8 @@ export function StarRating({ mid, rating }: { mid: string; rating?: number | und
   return (
     <div
       role="group"
-      aria-label={rated ? `Réponse notée ${rated} sur 5` : 'Noter la réponse'}
-      title={rated ? `Notée ${rated}/5` : undefined}
+      aria-label={rated ? t('chat.rating.rated', { rating: rated }) : t('chat.rating.rate')}
+      title={rated ? t('chat.rating.ratedShort', { rating: rated }) : undefined}
       className="flex items-center"
       onMouseLeave={() => setHover(0)}
     >
@@ -54,7 +52,7 @@ export function StarRating({ mid, rating }: { mid: string; rating?: number | und
           key={score}
           type="button"
           disabled={rated > 0 || saving}
-          aria-label={`${score} étoile${score > 1 ? 's' : ''}`}
+          aria-label={t('chat.rating.stars', { count: score })}
           onMouseEnter={() => setHover(score)}
           onFocus={() => setHover(score)}
           onBlur={() => setHover(0)}
@@ -87,12 +85,13 @@ export function RegenerateButton({
   hasFollowing: boolean;
   busy: boolean;
 }) {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   const run = () => void regenerateAnswer(userMid);
   return (
     <>
       <IconButton
-        label={busy ? 'Régénérer : attendez la fin de la réponse en cours' : 'Régénérer'}
+        label={busy ? t('chat.regenerate.busy') : t('chat.regenerate.label')}
         size="sm"
         tooltipSide="bottom"
         disabled={busy}
@@ -103,9 +102,9 @@ export function RegenerateButton({
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Régénérer la réponse"
-        message={BRANCH_WARNING}
-        confirmLabel="Continuer"
+        title={t('chat.regenerate.title')}
+        message={t('chat.branchWarning')}
+        confirmLabel={t('common.continue')}
         onConfirm={run}
       />
     </>
@@ -114,9 +113,10 @@ export function RegenerateButton({
 
 /** Ouvre l'éditeur d'un message envoyé */
 export function EditButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  const t = useT();
   return (
     <IconButton
-      label={busy ? 'Modifier : attendez la fin de la réponse en cours' : 'Modifier'}
+      label={busy ? t('chat.edit.busy') : t('chat.edit.label')}
       size="sm"
       tooltipSide="bottom"
       disabled={busy}
@@ -129,13 +129,14 @@ export function EditButton({ busy, onClick }: { busy: boolean; onClick: () => vo
 
 /** Micro de la zone de saisie : dictée transcrite par Whisper, insérée au curseur */
 export function MicButton({ onTranscript }: { onTranscript: (text: string) => void }) {
+  const t = useT();
   const state = useVoice((s) => s.inputState);
   const label =
     state === 'recording'
-      ? 'Arrêter la dictée'
+      ? t('chat.mic.stop')
       : state === 'transcribing'
-        ? 'Transcription en cours…'
-        : 'Saisie vocale';
+        ? t('chat.mic.transcribing')
+        : t('chat.mic.start');
   return (
     <IconButton
       label={label}

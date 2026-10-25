@@ -8,6 +8,7 @@
 import { FileText } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { useT } from '../../../i18n';
 import { tint } from '../agentMeta';
 import { type CodeChange, diffRows } from './diff';
 
@@ -15,9 +16,13 @@ const ROW_TINT = { '-': tint('var(--error)', 13), '+': tint('var(--success)', 13
 const SIGN_COLOR = { '-': 'var(--error)', '+': 'var(--success)' };
 
 export function DiffView({ change }: { change: CodeChange }) {
+  const t = useT();
   const rows = useMemo(() => diffRows(change.lines), [change.lines]);
   return (
-    <div className="overflow-hidden rounded-md border border-line/70 bg-bg font-mono text-[12.5px] leading-[1.65]">
+    <div
+      dir="ltr"
+      className="overflow-hidden rounded-md border border-line/70 bg-bg font-mono text-[12.5px] leading-[1.65]"
+    >
       <div className="flex h-8 items-center gap-2 border-b border-line/60 px-3 font-sans text-xs text-fg-2">
         <FileText size={13} />
         {change.name}
@@ -30,8 +35,7 @@ export function DiffView({ change }: { change: CodeChange }) {
               row.kind === 'gap' ? (
                 <tr key={index} className="text-fg-3">
                   <td colSpan={4} className="bg-bg-2/60 px-3 py-0.5 font-sans text-xs">
-                    ⋯ {row.hidden} ligne{row.hidden > 1 ? 's' : ''} identique
-                    {row.hidden > 1 ? 's' : ''}
+                    {t('agents.diff.hidden', { count: row.hidden })}
                   </td>
                 </tr>
               ) : (

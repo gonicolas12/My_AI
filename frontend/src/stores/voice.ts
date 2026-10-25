@@ -8,6 +8,7 @@ import { create } from 'zustand';
 
 import { api } from '../lib/api';
 import type { VoiceInputState, VoiceOutputState } from '../lib/events';
+import { t } from '../i18n';
 import { notify } from './app';
 
 interface VoiceState {
@@ -101,7 +102,7 @@ export async function setAutoread(enabled: boolean): Promise<void> {
     useVoice.setState({ autoread });
     notify(
       autoread ? 'success' : 'info',
-      autoread ? 'Lecture auto activée' : 'Lecture auto désactivée',
+      autoread ? t('voice.autoreadOn') : t('voice.autoreadOff'),
     );
   } catch (error) {
     notify('error', errorText(error));

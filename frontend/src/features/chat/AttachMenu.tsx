@@ -8,6 +8,7 @@ import { useRef } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/Menu';
+import { useT } from '../../i18n';
 import { type AttachKind, shell } from '../../lib/shell';
 import { ACCEPT, attachPaths, uploadFiles } from './attach';
 import { ATTACH_ENTRIES } from './attachKinds';
@@ -18,6 +19,7 @@ interface AttachMenuProps {
 }
 
 export function AttachMenu({ onAttachFolder }: AttachMenuProps) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
 
   const choose = (kind: AttachKind) => {
@@ -37,14 +39,14 @@ export function AttachMenu({ onAttachFolder }: AttachMenuProps) {
     <>
       <Menu>
         <MenuTrigger asChild>
-          <IconButton label="Joindre un fichier" tooltipSide="top">
+          <IconButton label={t('chat.attach.button')} tooltipSide="top">
             <Plus size={18} />
           </IconButton>
         </MenuTrigger>
-        <MenuContent side="top" label="Joindre">
+        <MenuContent side="top" label={t('chat.attach.menu')}>
           {ATTACH_ENTRIES.map(({ kind, label, icon: Icon }) => (
             <MenuItem key={kind} icon={<Icon size={15} />} onSelect={() => choose(kind)}>
-              {label}
+              {t(label)}
             </MenuItem>
           ))}
           <MenuSeparator />
@@ -53,7 +55,7 @@ export function AttachMenu({ onAttachFolder }: AttachMenuProps) {
             disabled={!onAttachFolder}
             onSelect={() => onAttachFolder?.()}
           >
-            Dossier (codebase)
+            {t('chat.attach.folder')}
           </MenuItem>
         </MenuContent>
       </Menu>

@@ -13,6 +13,7 @@ import { ArrowUp, Square } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
+import { useT } from '../../i18n';
 import { sendMessage, stopGeneration } from '../../lib/actions';
 import type { SlashCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -29,8 +30,6 @@ import { QueueList } from './QueueList';
 import { commandText, useSlashCommands } from './slash';
 import { SlashMenu } from './SlashMenu';
 
-const PLACEHOLDER = 'Tapez votre message...';
-
 /** Nom que Chromium donne à une image du presse-papiers (capture d'écran) */
 const CHROMIUM_CLIPBOARD_NAME = 'image.png';
 
@@ -40,6 +39,7 @@ interface ComposerProps {
 }
 
 export function Composer({ variant }: ComposerProps) {
+  const t = useT();
   const draft = useComposer((state) => state.draft);
   const dropping = useComposer((state) => state.dropping);
   const generating = useChat(isGenerating);
@@ -141,8 +141,8 @@ export function Composer({ variant }: ComposerProps) {
 
   const action = showStop ? (
     <IconButton
-      label="Arrêter la réponse"
-      shortcut="Échap"
+      label={t('composer.stop')}
+      shortcut="Escape"
       tooltipSide="top"
       onClick={() => void stopGeneration()}
       className="h-8 w-8 rounded-full bg-fg text-bg hover:bg-fg-2 hover:text-bg"
@@ -151,8 +151,8 @@ export function Composer({ variant }: ComposerProps) {
     </IconButton>
   ) : (
     <IconButton
-      label={generating ? 'Mettre en file d’attente' : 'Envoyer'}
-      shortcut="Entrée"
+      label={generating ? t('composer.queue') : t('composer.send')}
+      shortcut="Enter"
       tooltipSide="top"
       disabled={!hasText || sending || !ready}
       onClick={() => void submit()}
@@ -198,9 +198,10 @@ export function Composer({ variant }: ComposerProps) {
             onPaste={onPaste}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder={PLACEHOLDER}
+            placeholder={t('composer.placeholder')}
             rows={1}
-            aria-label="Message"
+            aria-label={t('composer.label')}
+            data-composer-input
             aria-controls={slashOpen ? listId : undefined}
             aria-autocomplete="list"
             aria-activedescendant={slashOpen ? `${listId}-${activeIndex}` : undefined}

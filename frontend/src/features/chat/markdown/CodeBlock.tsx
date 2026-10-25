@@ -1,6 +1,7 @@
 import { Check, Copy } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 
+import { useT } from '../../../i18n';
 import { type CodeToken, highlightCode, resolveLanguage } from './highlight';
 
 /** Pendant le streaming, la coloration suit le texte au plus toutes les… (ms) */
@@ -41,6 +42,7 @@ interface CodeBlockProps {
 }
 
 export const CodeBlock = memo(function CodeBlock({ code, lang, streaming }: CodeBlockProps) {
+  const t = useT();
   const [highlighted, setHighlighted] = useState<Highlighted | null>(null);
   const [copied, setCopied] = useState(false);
   // Une demande de coloration à la fois ; sa réponse relance la suivante si besoin
@@ -82,7 +84,7 @@ export const CodeBlock = memo(function CodeBlock({ code, lang, streaming }: Code
       .catch(() => undefined);
   };
 
-  const label = (lang ?? '').trim() || 'texte';
+  const label = (lang ?? '').trim() || t('chat.code.plainText');
 
   return (
     <div className="code-block">
@@ -92,10 +94,10 @@ export const CodeBlock = memo(function CodeBlock({ code, lang, streaming }: Code
           type="button"
           className="code-copy"
           onClick={copy}
-          aria-label={copied ? 'Code copié' : 'Copier le code'}
+          aria-label={copied ? t('chat.code.copied') : t('chat.code.copy')}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
-          <span>{copied ? 'Copié' : 'Copier'}</span>
+          <span>{copied ? t('common.copied') : t('common.copy')}</span>
         </button>
       </div>
       <pre className="code-body">

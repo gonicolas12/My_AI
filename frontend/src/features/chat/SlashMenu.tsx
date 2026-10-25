@@ -1,6 +1,7 @@
 import { Slash } from 'lucide-react';
 import { useRef } from 'react';
 
+import { useT } from '../../i18n';
 import type { SlashCommand } from '../../lib/api';
 import { cn } from '../../lib/cn';
 
@@ -14,6 +15,7 @@ interface SlashMenuProps {
 
 /** Liste des slash commands, au-dessus de la zone de saisie (le focus reste dans le texte) */
 export function SlashMenu({ id, commands, active, onHover, onChoose }: SlashMenuProps) {
+  const t = useT();
   // Survol pris en compte quand la souris bouge : une liste qui s'ouvre sous un curseur
   // immobile garde sa première commande choisie (Entrée l'insère)
   const pointer = useRef<{ x: number; y: number } | null>(null);
@@ -21,7 +23,7 @@ export function SlashMenu({ id, commands, active, onHover, onChoose }: SlashMenu
     <div
       id={id}
       role="listbox"
-      aria-label="Commandes"
+      aria-label={t('chat.slash.label')}
       className="absolute right-0 bottom-full left-0 z-30 mb-2 max-h-80 overflow-y-auto rounded-lg border border-line bg-bg-2 p-1 shadow-lg"
       style={{ animation: 'fade-in var(--motion-fast) var(--motion-ease)' }}
     >
@@ -45,7 +47,7 @@ export function SlashMenu({ id, commands, active, onHover, onChoose }: SlashMenu
           )}
         >
           <span className="inline-flex shrink-0 items-center font-mono font-medium">
-            <Slash size={12} className="mr-0.5 opacity-70" />
+            <Slash size={12} className="me-0.5 opacity-70" />
             {command.command}
           </span>
           <span className={cn('truncate', index === active ? 'text-on-accent' : 'text-fg-2')}>

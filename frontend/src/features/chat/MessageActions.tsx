@@ -2,9 +2,11 @@ import { Check, Copy } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 
-export function CopyButton({ text, label = 'Copier' }: { text: string; label?: string }) {
+export function CopyButton({ text, label }: { text: string; label?: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard
@@ -16,7 +18,12 @@ export function CopyButton({ text, label = 'Copier' }: { text: string; label?: s
       .catch(() => undefined);
   };
   return (
-    <IconButton label={copied ? 'Copié' : label} size="sm" onClick={copy} tooltipSide="bottom">
+    <IconButton
+      label={copied ? t('common.copied') : (label ?? t('common.copy'))}
+      size="sm"
+      onClick={copy}
+      tooltipSide="bottom"
+    >
       {copied ? <Check size={15} className="text-success" /> : <Copy size={15} />}
     </IconButton>
   );

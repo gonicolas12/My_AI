@@ -4,6 +4,7 @@
  * s'affiche en notification, avec son texte.
  */
 
+import { t } from '../i18n';
 import { notify, useApp } from '../stores/app';
 import { followNewTurn } from '../stores/chat';
 import { api, type ExportFormat } from './api';
@@ -24,7 +25,7 @@ async function viaSocket(
 ): Promise<Record<string, unknown> | null> {
   const socket = getSocket();
   try {
-    if (!socket) throw new SocketError('Connexion au serveur local en cours…', false);
+    if (!socket) throw new SocketError(t('connection.pending'), false);
     return await socket.send(message);
   } catch (error) {
     // Jamais parti : le passer par l'API REST. Parti puis connexion perdue :
@@ -86,7 +87,7 @@ export async function stopGeneration(): Promise<void> {
 export async function cancelQueued(requestId: string): Promise<void> {
   await attempt(() =>
     viaSocket({ type: 'chat.cancel', request_id: requestId }, () =>
-      Promise.reject(new Error('Connexion au serveur local en cours…')),
+      Promise.reject(new Error(t('connection.pending'))),
     ),
   );
 }
@@ -94,7 +95,7 @@ export async function cancelQueued(requestId: string): Promise<void> {
 export async function answerConfirm(confirmId: string, accepted: boolean): Promise<void> {
   await attempt(() =>
     viaSocket({ type: 'confirm.response', confirm_id: confirmId, accepted }, () =>
-      Promise.reject(new Error('Connexion au serveur local en cours…')),
+      Promise.reject(new Error(t('connection.pending'))),
     ),
   );
 }
@@ -109,7 +110,7 @@ export async function clearConversation(): Promise<void> {
 
 export async function saveConversation(): Promise<void> {
   const result = await attempt(() => api.save());
-  if (result && !result.saved) notify('info', 'Rien à sauvegarder : la conversation est vide.');
+  if (result && !result.saved) notify('info', t('actions.nothingToSave'));
 }
 
 export async function openSession(id: string): Promise<void> {
@@ -140,7 +141,7 @@ export async function revealPath(path: string): Promise<void> {
 export async function saveToDownloads(path: string): Promise<void> {
   const result = await attempt(() => api.downloadFile(path), 'error');
   if (result) {
-    notify('success', `✅ Votre fichier ${baseName(path)} a été téléchargé dans : ${result.path}`);
+    notify('success', t('actions.downloaded', { name: baseName(path), path: result.path }));
   }
 }
 
@@ -162,7 +163,7 @@ export async function exportConversation(format: ExportFormat): Promise<void> {
   }
   try {
     const result = await api.exportConversation(format, path);
-    notify('success', `✅ Exporté en ${format.toUpperCase()} : ${result.path}`);
+    notify('success', t('actions.exported', { format: format.toUpperCase(), path: result.path }));
   } catch (error) {
     notify('error', errorText(error));
   }

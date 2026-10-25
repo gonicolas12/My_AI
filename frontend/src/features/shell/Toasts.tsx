@@ -3,6 +3,7 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react';
 
 import { cn } from '../../lib/cn';
 import type { NotificationLevel } from '../../lib/events';
+import { useT } from '../../i18n';
 import { withoutLeadingEmoji } from '../../lib/format';
 import { dismissToast, useApp } from '../../stores/app';
 
@@ -15,12 +16,13 @@ const STYLES: Record<NotificationLevel, { icon: typeof Info; color: string }> = 
 
 /** Notifications brèves, en haut à droite (show_notification dans Tk) */
 export function Toasts() {
+  const t = useT();
   const toasts = useApp((state) => state.toasts);
   return (
     // Au-dessus des dialogues (z-60) ; pour Radix, une « branche » de chaque dialogue :
     // un clic sur un toast ne ferme pas le dialogue ouvert
     <DismissableLayerBranch
-      className="pointer-events-none fixed top-16 right-4 z-60 flex w-80 flex-col gap-2"
+      className="pointer-events-none fixed end-4 top-16 z-60 flex w-80 flex-col gap-2"
       aria-live="polite"
       data-toast-region
     >
@@ -37,7 +39,7 @@ export function Toasts() {
             <span className="min-w-0 flex-1 break-words">{withoutLeadingEmoji(toast.message)}</span>
             <button
               type="button"
-              aria-label="Fermer"
+              aria-label={t('common.close')}
               onClick={() => dismissToast(toast.id)}
               className="rounded-xs text-fg-3 hover:text-fg"
             >

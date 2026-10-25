@@ -6,6 +6,7 @@
  * avant son redémarrage.
  */
 
+import { t as translate, type Translate } from '../../../i18n';
 import type { RelayStatus } from '../../../lib/events';
 
 /** « 012345 » → « 012 345 », plus facile à lire puis à taper */
@@ -19,18 +20,16 @@ export interface AccessNotice {
 }
 
 /** Codes erronés : signalés (le lien a peut-être fuité), puis le verrouillage */
-export function accessNotice(relay: RelayStatus): AccessNotice | null {
+export function accessNotice(relay: RelayStatus, t: Translate = translate): AccessNotice | null {
   if (relay.access_locked) {
-    return {
-      tone: 'error',
-      text: 'Trop de codes erronés : le Relay refuse toute connexion. Arrêtez-le puis redémarrez-le pour un nouveau QR code et un nouveau code.',
-    };
+    return { tone: 'error', text: t('relay.access.locked') };
   }
   const failures = relay.access_failures ?? 0;
   if (!failures) return null;
-  const count = failures === 1 ? '1 code erroné saisi' : `${failures} codes erronés saisis`;
   return {
     tone: 'warning',
-    text: `${count}. Si ce n’est pas vous, arrêtez le Relay : son lien a fuité.`,
+    text: t('relay.access.warning', {
+      failures: t('relay.access.failures', { count: failures }),
+    }),
   };
 }

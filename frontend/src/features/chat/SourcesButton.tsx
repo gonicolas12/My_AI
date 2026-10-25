@@ -9,6 +9,7 @@ import { Globe } from 'lucide-react';
 import { useState } from 'react';
 
 import { Menu, MenuContent, MenuLink, MenuTrigger } from '../../components/ui/Menu';
+import { useT } from '../../i18n';
 import { faviconUrl } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import type { SourceLink } from './markdown/sources';
@@ -42,13 +43,14 @@ export function SiteIcon({ host, className }: { host: string; className?: string
 }
 
 export function SourcesButton({ sources }: { sources: SourceLink[] }) {
+  const t = useT();
   if (!sources.length) return null;
   return (
     <Menu>
       <MenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Sources (${sources.length})`}
+          aria-label={t('chat.sources.label', { count: sources.length })}
           className="flex h-7 items-center gap-1.5 rounded-md px-1.5 text-xs text-fg-2 transition-colors duration-150 hover:bg-hover hover:text-fg data-[state=open]:bg-hover data-[state=open]:text-fg"
         >
           <span className="flex items-center">
@@ -56,14 +58,14 @@ export function SourcesButton({ sources }: { sources: SourceLink[] }) {
               <SiteIcon
                 key={source.url}
                 host={source.host}
-                className={cn('ring-2 ring-bg', index > 0 && '-ml-1')}
+                className={cn('ring-2 ring-bg', index > 0 && '-ms-1')}
               />
             ))}
           </span>
-          Sources
+          {t('chat.sources.button')}
         </button>
       </MenuTrigger>
-      <MenuContent label="Sources de la réponse" className="max-w-sm">
+      <MenuContent label={t('chat.sources.menu')} className="max-w-sm">
         {sources.map((source) => (
           <MenuLink
             key={source.url}

@@ -17,84 +17,67 @@ import {
 } from 'lucide-react';
 
 import { Button } from '../../../components/ui/Button';
+import { type MessageKey, shortcutLabel, useT } from '../../../i18n';
 import { closePanel } from '../../../stores/panels';
 import { PanelDialog } from '../PanelDialog';
 
-const SECTIONS: { icon: LucideIcon; title: string; lines: string[] }[] = [
+const SECTIONS: { icon: LucideIcon; title: MessageKey; lines: MessageKey[] }[] = [
   {
     icon: MessageSquare,
-    title: 'Chat',
-    lines: [
-      "Tapez votre message et appuyez sur Entrée pour l'envoyer.",
-      'Maj+Entrée insère un saut de ligne sans envoyer.',
-      'Survolez un message pour le copier, le lire à voix haute ou le modifier.',
-      "Notez les réponses de 1 à 5 étoiles pour améliorer l'IA.",
-      'Échap ou le bouton Stop arrête la réponse en cours.',
-    ],
+    title: 'help.chat.title',
+    lines: ['help.chat.1', 'help.chat.2', 'help.chat.3', 'help.chat.4', 'help.chat.5'],
   },
   {
     icon: PenLine,
-    title: 'Éditer & regénérer',
-    lines: [
-      'Sous chaque message envoyé, « Modifier » réécrit la demande et regénère la réponse.',
-      'Sous chaque réponse, « Régénérer » en propose une nouvelle version.',
-      "L'ancienne version est conservée : naviguez entre les variantes avec ‹ k/n ›.",
-    ],
+    title: 'help.edit.title',
+    lines: ['help.edit.1', 'help.edit.2', 'help.edit.3'],
   },
   {
     icon: Paperclip,
-    title: 'Pièces jointes & documents',
-    lines: [
-      'Bouton « + » : joindre un PDF, DOCX, Excel/CSV, PowerPoint, du code, une image ou un dossier (codebase).',
-      'Posez ensuite vos questions sur le contenu attaché (RAG local).',
-      'Glisser-déposer de fichiers également pris en charge ; un dossier glissé joint ses fichiers.',
-      'Ctrl+V colle une image copiée.',
-    ],
+    title: 'help.attach.title',
+    lines: ['help.attach.1', 'help.attach.2', 'help.attach.3', 'help.attach.4'],
   },
   {
     icon: Globe,
-    title: 'Recherche web & citations',
-    lines: [
-      'Ex. « Cherche sur internet les actualités IA ».',
-      'Les sources apparaissent numérotées ; cliquez sur un [n] pour ouvrir le lien.',
-    ],
+    title: 'help.web.title',
+    lines: ['help.web.1', 'help.web.2'],
   },
   {
     icon: Bot,
-    title: 'Agents',
-    lines: [
-      'Onglet « Agents » : composez des workflows (un ou plusieurs agents).',
-      "Une notification système prévient à la fin d'une tâche longue.",
-    ],
+    title: 'help.agents.title',
+    lines: ['help.agents.1', 'help.agents.2'],
   },
   {
     icon: Puzzle,
-    title: 'Autres fonctions',
+    title: 'help.other.title',
     lines: [
-      "Relay : accédez à l'assistant depuis votre téléphone.",
-      'Prompts : modèles réutilisables (commandes /xxx).',
-      'Mémoire : faits et documents mémorisés.',
-      'Lecture vocale et saisie vocale.',
-      "Génération d'image (« génère une image de … »).",
+      'help.other.1',
+      'help.other.2',
+      'help.other.3',
+      'help.other.4',
+      'help.other.5',
+      'help.other.6',
     ],
   },
 ];
 
-const SHORTCUTS: [string, string][] = [
-  ['Ctrl+K', 'Palette de commandes'],
-  ['Entrée', 'Envoyer le message'],
-  ['Maj+Entrée', 'Nouvelle ligne'],
-  ['Échap', 'Arrêter la réponse en cours'],
-  ['Ctrl+N', 'Nouvelle conversation'],
-  ['Ctrl+S', 'Sauvegarder la session'],
-  ['Ctrl+B', 'Afficher / masquer la barre latérale'],
-  ['Ctrl+R', 'Relay (accès mobile)'],
-  ['Ctrl+,', 'Réglages'],
-  ['Ctrl+L', 'Effacer la conversation'],
-  ['F1', 'Cette aide'],
+/** Raccourcis (touches en anglais, affichées dans la langue de l'interface) */
+const SHORTCUTS: [string, MessageKey][] = [
+  ['Ctrl+K', 'help.shortcut.palette'],
+  ['Enter', 'help.shortcut.send'],
+  ['Shift+Enter', 'help.shortcut.newline'],
+  ['Escape', 'help.shortcut.stop'],
+  ['Ctrl+N', 'help.shortcut.newConversation'],
+  ['Ctrl+S', 'help.shortcut.save'],
+  ['Ctrl+B', 'help.shortcut.sidebar'],
+  ['Ctrl+R', 'help.shortcut.relay'],
+  ['Ctrl+,', 'help.shortcut.settings'],
+  ['Ctrl+L', 'help.shortcut.clear'],
+  ['F1', 'help.shortcut.help'],
 ];
 
 export default function HelpPanel() {
+  const t = useT();
   return (
     <PanelDialog
       open
@@ -102,12 +85,12 @@ export default function HelpPanel() {
         if (!open) closePanel();
       }}
       icon={CircleHelp}
-      title="Aide — My_AI"
-      description="Assistant IA personnel, 100 % local"
+      title={t('help.title')}
+      description={t('help.description')}
       width={720}
       footer={
         <Button variant="primary" onClick={closePanel}>
-          Fermer
+          {t('common.close')}
         </Button>
       }
     >
@@ -115,12 +98,12 @@ export default function HelpPanel() {
         {SECTIONS.map(({ icon: Icon, title, lines }) => (
           <section key={title}>
             <h3 className="flex items-center gap-2 text-sm font-semibold text-accent">
-              <Icon size={16} /> {title}
+              <Icon size={16} /> {t(title)}
             </h3>
-            <ul className="mt-2 space-y-1 pl-6 text-sm leading-relaxed text-fg">
+            <ul className="mt-2 space-y-1 ps-6 text-sm leading-relaxed text-fg">
               {lines.map((line) => (
                 <li key={line} className="list-disc marker:text-fg-3">
-                  {line}
+                  {t(line)}
                 </li>
               ))}
             </ul>
@@ -128,17 +111,17 @@ export default function HelpPanel() {
         ))}
         <section>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-accent">
-            <Keyboard size={16} /> Raccourcis clavier
+            <Keyboard size={16} /> {t('help.shortcuts.title')}
           </h3>
-          <dl className="mt-2 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1.5 pl-6 text-sm">
+          <dl className="mt-2 grid grid-cols-[9rem_1fr] gap-x-4 gap-y-1.5 ps-6 text-sm">
             {SHORTCUTS.map(([keys, label]) => (
               <div key={keys} className="contents">
                 <dt>
                   <kbd className="rounded-sm border border-line bg-bg-3 px-1.5 py-0.5 font-mono text-xs font-semibold text-accent">
-                    {keys}
+                    {shortcutLabel(keys, t)}
                   </kbd>
                 </dt>
-                <dd className="text-fg">{label}</dd>
+                <dd className="text-fg">{t(label)}</dd>
               </div>
             ))}
           </dl>

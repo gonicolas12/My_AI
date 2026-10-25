@@ -2,6 +2,7 @@ import { CircleAlert, Eye, OctagonX } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
 import { RobotLogo } from '../../components/ui/RobotLogo';
+import { type Translate, useLocale, useT } from '../../i18n';
 import { baseName, messageArtifacts } from '../../lib/artifacts';
 import type { MessageView, ToolCallView } from '../../lib/events';
 import { formatDecimal, formatDuration, formatTime } from '../../lib/format';
@@ -33,8 +34,8 @@ function reasoningActive(live: LiveTurn | null): boolean {
 }
 
 /** Ce que fait l'IA quand rien d'autre ne le montre (outil, réflexion, texte) */
-function activityOf(live: LiveTurn | null): string | null {
-  if (!live) return "L'IA réfléchit";
+function activityOf(live: LiveTurn | null, t: Translate): string | null {
+  if (!live) return t('chat.activity.thinking');
   if (live.kind !== 'chat') return live.status || null;
   if (reasoningActive(live)) return null; // le bloc Réflexion s'anime
   const last = live.tools[live.tools.length - 1];
@@ -42,8 +43,8 @@ function activityOf(live: LiveTurn | null): string | null {
     return live.text.length <= (last.at ?? 0) ? toolText(last.label) : null;
   }
   if (last && last.ok === undefined) return null; // la ligne de l'outil s'anime
-  if (!live.text) return live.thinking ? 'Rédaction de la réponse' : "L'IA réfléchit";
-  if (last && live.text.length <= (last.at ?? 0)) return "L'IA réfléchit";
+  if (!live.text) return live.thinking ? t('chat.activity.writing') : t('chat.activity.thinking');
+  if (last && live.text.length <= (last.at ?? 0)) return t('chat.activity.thinking');
   return null;
 }
 
@@ -53,7 +54,7 @@ function Activity({ label, progress }: { label: string; progress?: number | null
       <RobotLogo size={16} className="pulse-soft shrink-0 text-accent" />
       <span className="shimmer">{label}…</span>
       {progress !== null && progress !== undefined ? (
-        <span className="ml-1 h-1 w-28 overflow-hidden rounded-full bg-bg-3">
+        <span className="ms-1 h-1 w-28 overflow-hidden rounded-full bg-bg-3">
           <span
             className="block h-full rounded-full bg-accent transition-[width] duration-200"
             style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }}
@@ -100,6 +101,8 @@ export const AssistantMessage = memo(function AssistantMessage({
   hasFollowing = false,
   busy = false,
 }: AssistantMessageProps) {
+  const t = useT();
+  const locale = useLocale();
   const streaming = live !== null || pending;
   const mid = live?.mid ?? message?.mid ?? null;
   const text = live ? live.text : shownText(message);
@@ -110,7 +113,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   const { body, sources } = useMemo(() => splitSources(text), [text]);
   const parts = useMemo(() => buildParts(body, tools), [body, tools]);
   const lastText = parts.findLastIndex((part) => part.kind === 'text');
-  const activity = streaming ? activityOf(live) : null;
+  const activity = streaming ? activityOf(live, t) : null;
   const thinkingNow = reasoningActive(live);
   const error = Boolean(message?.error);
 
@@ -119,10 +122,12 @@ export const AssistantMessage = memo(function AssistantMessage({
   const paths = message?.paths;
   const links = useMemo(() => buildChatLinks(citations, paths), [citations, paths]);
 
-  // Artefacts (blocs HTML/SVG, documents), une fois la réponse écrite
+  // Artefacts (blocs HTML/SVG, documents), une fois la réponse écrite ; leurs
+  // titres par défaut suivent la langue
   const artifacts = useMemo(
     () => (streaming || error ? [] : messageArtifacts(text, documents)),
-    [streaming, error, text, documents],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- titres traduits
+    [streaming, error, text, documents, locale],
   );
 
   // Fichier généré : sa carte paraît une fois le fichier écrit
@@ -134,7 +139,9 @@ export const AssistantMessage = memo(function AssistantMessage({
     ? [
         formatTime(message.timestamp),
         message.duration_ms ? formatDuration(message.duration_ms) : '',
-        message.tokens_per_s ? `${formatDecimal(message.tokens_per_s)} tokens/s` : '',
+        message.tokens_per_s
+          ? t('chat.message.tokensPerSecond', { value: formatDecimal(message.tokens_per_s) })
+          : '',
       ]
         .filter(Boolean)
         .join(' · ')
@@ -205,14 +212,16 @@ export const AssistantMessage = memo(function AssistantMessage({
           className="mt-1 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-semibold text-accent transition-colors duration-150 hover:bg-accent-soft"
         >
           <Eye size={15} />
-          Aperçu{artifacts.length > 1 ? ` (${artifacts.length})` : ''}
+          {artifacts.length > 1
+            ? t('chat.message.previewCount', { count: artifacts.length })
+            : t('common.preview')}
         </button>
       ) : null}
 
       {message?.interrupted ? (
         <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-warning">
           <OctagonX size={13} />
-          Réponse interrompue
+          {t('chat.message.interrupted')}
         </div>
       ) : null}
 
@@ -222,7 +231,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           pinned={isLast}
           after={!error ? <SourcesButton sources={sources} /> : null}
         >
-          <CopyButton text={text} label="Copier la réponse" />
+          <CopyButton text={text} label={t('chat.message.copyAnswer')} />
           {!error ? <SpeakButton text={body} mid={message.mid} /> : null}
           {userMid ? (
             <RegenerateButton userMid={userMid} hasFollowing={hasFollowing} busy={busy} />

@@ -196,6 +196,8 @@ export interface EventPayloads {
   'engine.status': EngineStatus;
   notification: NotificationPayload;
   'relay.status': RelayStatus;
+  /** Langue de l'interface changée (Réglages, assistant) : la fenêtre la suit */
+  'i18n.language': { language: string };
   'scheduler.result': SchedulerResult;
   /** La liste des tâches planifiées a changé : la page la relit */
   'scheduler.changed': Record<string, never>;

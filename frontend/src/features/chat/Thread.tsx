@@ -10,6 +10,7 @@ import { ArrowDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
+import { useT } from '../../i18n';
 import type { MessageView } from '../../lib/events';
 import { clearHighlight, findResultMessage, highlightElement } from '../../lib/highlight';
 import { useChat, useFollow } from '../../stores/chat';
@@ -44,6 +45,7 @@ function followsTurn(messages: MessageView[], index: number): boolean {
 const BOTTOM_THRESHOLD = 96;
 
 export function Thread() {
+  const t = useT();
   const messages = useChat((state) => state.messages);
   const live = useChat((state) => state.live);
   const pending = useChat((state) => state.pending);
@@ -172,7 +174,7 @@ export function Thread() {
         <button
           type="button"
           onClick={scrollToBottom}
-          aria-label="Revenir en bas"
+          aria-label={t('chat.scrollToBottom')}
           className="absolute bottom-3 left-1/2 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-line bg-bg-2 text-fg-2 shadow-md transition-colors hover:bg-bg-3 hover:text-fg"
           style={{ animation: 'fade-in var(--motion) var(--motion-ease)' }}
         >

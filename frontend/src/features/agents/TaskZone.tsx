@@ -15,6 +15,7 @@ import { createElement, useEffect, useRef, useState } from 'react';
 import { Button, IconButton } from '../../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
 import { Tooltip } from '../../components/ui/Tooltip';
+import { type MessageKey, useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { hasFiles, noteDrop, onDroppedPaths } from '../../lib/drops';
 import type { RunOrigin } from '../../lib/events';
@@ -38,23 +39,22 @@ import { clearWorkflow } from './canvas/workflowStore';
 import { DebateDialog } from './DebateDialog';
 
 /** Exécution d'ailleurs en cours : ce qu'en dit le bouton Exécuter */
-const BUSY_ELSEWHERE: Record<Exclude<RunOrigin, 'desktop'>, string> = {
-  mobile: 'Une exécution lancée du téléphone est en cours',
-  scheduled: 'Une tâche planifiée est en cours d’exécution',
+const BUSY_ELSEWHERE: Record<Exclude<RunOrigin, 'desktop'>, MessageKey> = {
+  mobile: 'agents.task.busyMobile',
+  scheduled: 'agents.task.busyScheduled',
 };
-
-const PLACEHOLDER = 'Décrivez la tâche à confier aux agents sélectionnés…';
 
 /** Nom que Chromium donne à une image du presse-papiers (capture d'écran) */
 const CHROMIUM_CLIPBOARD_NAME = 'image.png';
 
 function Chip({ item }: { item: TaskAttachment }) {
+  const t = useT();
   const image = item.type === 'Image';
   const url = useFileUrl(image ? item.path : null);
   return (
     <span
       title={item.path}
-      className="inline-flex h-9 max-w-60 items-center gap-2 rounded-md border border-line bg-bg-3 pr-1 pl-1 text-xs text-fg-2"
+      className="inline-flex h-9 max-w-60 items-center gap-2 rounded-md border border-line bg-bg-3 px-1 text-xs text-fg-2"
     >
       <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-2">
         {image && url ? (
@@ -66,7 +66,7 @@ function Chip({ item }: { item: TaskAttachment }) {
       <span className="truncate">{item.name}</span>
       <button
         type="button"
-        aria-label={`Retirer ${item.name}`}
+        aria-label={t('chat.attachment.remove', { name: item.name })}
         onClick={() => removeTaskAttachment(item.id)}
         className="shrink-0 rounded-xs p-1 text-fg-3 hover:bg-hover hover:text-fg"
       >
@@ -78,6 +78,7 @@ function Chip({ item }: { item: TaskAttachment }) {
 
 /** Menu « + » : les entrées de Tk (PDF, DOCX, Excel / CSV, PowerPoint, Code, Image) */
 function AttachButton() {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const choose = (kind: AttachKind) => {
     if (shell.canPickFiles()) {
@@ -95,14 +96,14 @@ function AttachButton() {
     <>
       <Menu>
         <MenuTrigger asChild>
-          <IconButton label="Joindre un fichier" tooltipSide="top">
+          <IconButton label={t('chat.attach.button')} tooltipSide="top">
             <Plus size={18} />
           </IconButton>
         </MenuTrigger>
-        <MenuContent side="top" label="Joindre">
+        <MenuContent side="top" label={t('chat.attach.menu')}>
           {ATTACH_ENTRIES.map(({ kind, label, icon: Icon }) => (
             <MenuItem key={kind} icon={<Icon size={15} />} onSelect={() => choose(kind)}>
-              {label}
+              {t(label)}
             </MenuItem>
           ))}
         </MenuContent>
@@ -128,6 +129,7 @@ interface TaskZoneProps {
 }
 
 export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
+  const t = useT();
   const task = useAgents((state) => state.task);
   const attachments = useAgents((state) => state.attachments);
   const origin = useAgents((state): RunOrigin | null =>
@@ -147,11 +149,11 @@ export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
   const openDebate = () => {
     const state = useAgents.getState();
     if (state.active || state.busy) {
-      notify('warning', '⏳ Une tâche est déjà en cours');
+      notify('warning', t('agents.task.alreadyRunning'));
       return;
     }
     if (state.builtin.length + state.custom.length < 2) {
-      notify('error', '❌ Il faut au moins 2 agents disponibles');
+      notify('error', t('agents.task.needTwoAgents'));
       return;
     }
     setDebating(true);
@@ -231,8 +233,8 @@ export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
               onExecute();
             }
           }}
-          placeholder={PLACEHOLDER}
-          aria-label="Tâche"
+          placeholder={t('agents.task.placeholder')}
+          aria-label={t('agents.task.label')}
           rows={3}
           className="block max-h-[280px] min-h-20 w-full flex-1 resize-none overflow-y-auto bg-transparent px-4 pt-3 text-chat leading-relaxed text-fg outline-none [field-sizing:content] placeholder:text-fg-3"
         />
@@ -245,20 +247,20 @@ export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
 
       <div className="flex w-48 shrink-0 flex-col gap-2">
         {origin === 'desktop' ? (
-          <Tooltip label="Arrêter l’exécution" shortcut="Échap" side="left">
+          <Tooltip label={t('agents.task.stopTooltip')} shortcut="Escape" side="left">
             <button
               type="button"
               onClick={() => void stopAgentsRun()}
               className="flex h-10 items-center justify-center gap-2 rounded-md bg-fg text-sm font-semibold text-bg transition-colors duration-150 hover:bg-fg-2"
             >
               <Square size={12} fill="currentColor" />
-              Arrêter
+              {t('agents.task.stop')}
             </button>
           </Tooltip>
         ) : (
           <Tooltip
-            label={origin ? BUSY_ELSEWHERE[origin] : 'Exécuter la tâche'}
-            shortcut={origin ? undefined : 'Ctrl+Entrée'}
+            label={origin ? t(BUSY_ELSEWHERE[origin]) : t('agents.task.executeTooltip')}
+            shortcut={origin ? undefined : 'Ctrl+Enter'}
             side="left"
           >
             <span className="flex">
@@ -269,25 +271,25 @@ export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-accent text-sm font-semibold text-on-accent transition-colors duration-150 hover:bg-accent-hover disabled:opacity-70 disabled:hover:bg-accent"
               >
                 <Play size={14} fill="currentColor" />
-                Exécuter
+                {t('agents.task.execute')}
               </button>
             </span>
           </Tooltip>
         )}
         <Button variant="secondary" onClick={() => setCreating(true)}>
           <Plus size={15} className="text-fg-2" />
-          Créer un agent
+          {t('agents.task.createAgent')}
         </Button>
-        <Tooltip label="Débat entre deux agents" side="left">
+        <Tooltip label={t('agents.task.debateTooltip')} side="left">
           <Button variant="secondary" onClick={openDebate}>
             <Swords size={15} className="text-fg-2" />
-            Débat
+            {t('agents.task.debate')}
           </Button>
         </Tooltip>
-        <Tooltip label="Vider le workflow et le canvas" side="left">
+        <Tooltip label={t('agents.task.clearTooltip')} side="left">
           <Button variant="secondary" onClick={clearWorkflow}>
             <Eraser size={15} className="text-fg-2" />
-            Vider
+            {t('agents.task.clear')}
           </Button>
         </Tooltip>
       </div>

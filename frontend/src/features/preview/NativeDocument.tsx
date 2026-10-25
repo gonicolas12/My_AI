@@ -9,6 +9,7 @@
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { useT } from '../../i18n';
 import type { PreviewView } from '../../lib/api';
 import { shell } from '../../lib/shell';
 import { coversNative, deviceRect, nativeAppLabel } from './nativeLayer';
@@ -94,12 +95,13 @@ export function NativeDocument({ view, hidden, onFailed }: NativeDocumentProps) 
   }, [ready, hidden]);
 
   const label = nativeAppLabel(view.path ?? view.title);
+  const t = useT();
   return (
     <div ref={slotRef} className="h-full w-full" data-native-preview={ready ? 'ready' : 'loading'}>
       {ready ? null : (
         <div className="flex h-full items-center justify-center gap-2 text-sm text-fg-2">
           <LoaderCircle size={16} className="spin text-accent" />
-          {label ? `Ouverture de l’aperçu ${label}…` : 'Ouverture de l’aperçu…'}
+          {label ? t('preview.openingApp', { app: label }) : t('preview.opening')}
         </div>
       )}
     </div>

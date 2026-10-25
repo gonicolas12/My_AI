@@ -7,7 +7,8 @@
  * lecture sont retenus, puis appliqués s'ils sont plus récents que lui.
  */
 
-import { applyAgentEvents, refreshAgentsPage, useAgents } from '../stores/agents';
+import { setLocale, useI18n } from '../i18n';
+import { applyAgentEvents, loadAgents, refreshAgentsPage, useAgents } from '../stores/agents';
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
 import { applyModelDone, applyModelLog, applyModelProgress } from '../stores/models';
 import { notify, showScheduledResult, useApp } from '../stores/app';
@@ -154,6 +155,11 @@ export function startSync(): () => void {
           useApp.setState({ relay: (event as ServerEvent<'relay.status'>).payload });
         }
         return;
+      case 'i18n.language': {
+        const { language } = (event as ServerEvent<'i18n.language'>).payload;
+        if (language !== useI18n.getState().locale) void setLocale(language);
+        return;
+      }
       case 'notification': {
         const p = (event as ServerEvent<'notification'>).payload;
         notify(p.level, p.message);
@@ -224,7 +230,16 @@ export function startSync(): () => void {
   });
   socket.start();
 
+  // Langue changée : les textes venus du serveur (description des agents, plannings
+  // des tâches planifiées) sont relus dans la nouvelle langue
+  const unsubscribeLocale = useI18n.subscribe((state, previous) => {
+    if (state.locale === previous.locale) return;
+    if (useAgents.getState().loaded) void loadAgents();
+    if (useSchedule.getState().loaded) void loadSchedule();
+  });
+
   return () => {
+    unsubscribeLocale();
     socket?.stop();
     socket = null;
   };

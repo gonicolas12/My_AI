@@ -11,6 +11,7 @@ import { type ReactNode, useId, useState } from 'react';
 
 import { Button } from '../../../components/ui/Button';
 import { Dialog } from '../../../components/ui/Dialog';
+import { type MessageKey, useT } from '../../../i18n';
 import type { ScheduledTask } from '../../../lib/api';
 import { cn } from '../../../lib/cn';
 import { errorText, useAgents } from '../../../stores/agents';
@@ -28,17 +29,17 @@ import {
 const fieldClass =
   'h-9 rounded-md border border-line bg-bg px-2.5 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-line-2 disabled:text-fg-3';
 
-const SOURCES: [SourceKind, string][] = [
-  ['single', 'Agent seul'],
-  ['workflow', 'Workflow (canvas)'],
-  ['debate', 'Débat'],
+const SOURCES: [SourceKind, MessageKey][] = [
+  ['single', 'schedule.source.single'],
+  ['workflow', 'schedule.source.workflow'],
+  ['debate', 'schedule.source.debate'],
 ];
 
-const SCHEDULES: [ScheduleKind, string][] = [
-  ['daily', 'Quotidien'],
-  ['weekly', 'Hebdo'],
-  ['interval', 'Intervalle'],
-  ['cron', 'Cron'],
+const SCHEDULES: [ScheduleKind, MessageKey][] = [
+  ['daily', 'schedule.type.daily'],
+  ['weekly', 'schedule.type.weekly'],
+  ['interval', 'schedule.type.interval'],
+  ['cron', 'schedule.type.cron'],
 ];
 
 function Label({ htmlFor, children }: { htmlFor?: string; children: ReactNode }) {
@@ -58,9 +59,10 @@ function Choices<T extends string>({
 }: {
   label: string;
   value: T;
-  options: [T, string][];
+  options: [T, MessageKey][];
   onChange: (value: T) => void;
 }) {
+  const t = useT();
   return (
     <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
       {options.map(([key, text]) => (
@@ -77,7 +79,7 @@ function Choices<T extends string>({
               : 'border-line text-fg-2 hover:bg-hover hover:text-fg',
           )}
         >
-          {text}
+          {t(text)}
         </button>
       ))}
     </div>
@@ -107,6 +109,7 @@ interface ScheduleDialogProps {
 
 /** Monté le temps de la saisie : ses champs partent de la tâche à modifier */
 export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
+  const t = useT();
   const builtin = useAgents((state) => state.builtin);
   const custom = useAgents((state) => state.custom);
   const agents = [...builtin, ...custom];
@@ -160,44 +163,44 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
       onOpenChange={(next) => {
         if (!next && !busy) onClose();
       }}
-      title={creating ? 'Nouvelle tâche planifiée' : 'Modifier la tâche'}
+      title={creating ? t('schedule.dialog.new') : t('schedule.dialog.edit')}
       width={560}
       dismissible={!busy}
       footer={
         <>
           <Button variant="secondary" disabled={busy} onClick={onClose}>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" disabled={busy} onClick={() => void submit()}>
-            Enregistrer
+            {t('common.save')}
           </Button>
         </>
       }
     >
       <form
-        className="flex max-h-[min(70vh,640px)] flex-col gap-3 overflow-y-auto pr-1"
+        className="flex max-h-[min(70vh,640px)] flex-col gap-3 overflow-y-auto pe-1"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <Label htmlFor={ids.name}>Nom</Label>
+        <Label htmlFor={ids.name}>{t('common.name')}</Label>
         <input
           id={ids.name}
           value={form.name}
           disabled={busy}
           autoFocus
           maxLength={200}
-          placeholder="Ex : Veille IA matinale"
+          placeholder={t('schedule.field.namePlaceholder')}
           onChange={(event) => set({ name: event.target.value })}
           className={fieldClass}
         />
 
-        <Label>Source</Label>
+        <Label>{t('schedule.field.source')}</Label>
         {creating ? (
           <>
             <Choices
-              label="Source"
+              label={t('schedule.field.source')}
               value={form.source}
               options={SOURCES}
               onChange={(source) => set({ source })}
@@ -205,7 +208,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
             {form.source === 'single' ? (
               <select
                 id={ids.agent}
-                aria-label="Agent"
+                aria-label={t('schedule.field.agent')}
                 value={form.agent}
                 disabled={busy}
                 onChange={(event) => set({ agent: event.target.value })}
@@ -217,19 +220,19 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
             {form.source === 'workflow' ? (
               canvasNodes ? (
                 <p className="text-sm text-fg-2">
-                  Utilise le workflow du canvas ({canvasNodes} nœud{canvasNodes > 1 ? 's' : ''}).
+                  {t('schedule.canvasNodes', { count: canvasNodes })}
                 </p>
               ) : (
                 <p className="flex items-center gap-2 text-sm text-warning">
                   <TriangleAlert size={14} />
-                  Le canvas est vide : déposez des agents d’abord.
+                  {t('schedule.canvasEmpty')}
                 </p>
               )
             ) : null}
             {form.source === 'debate' ? (
               <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
                 <label htmlFor={ids.agentA} className="text-sm text-fg-2">
-                  Proposant
+                  {t('schedule.proposer')}
                 </label>
                 <select
                   id={ids.agentA}
@@ -241,7 +244,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
                   {options}
                 </select>
                 <label htmlFor={ids.agentB} className="text-sm text-fg-2">
-                  Opposant
+                  {t('schedule.opponent')}
                 </label>
                 <select
                   id={ids.agentB}
@@ -253,7 +256,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
                   {options}
                 </select>
                 <label htmlFor={ids.rounds} className="text-sm text-fg-2">
-                  Tours
+                  {t('schedule.rounds')}
                 </label>
                 <input
                   id={ids.rounds}
@@ -271,13 +274,11 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
         ) : (
           <p className="text-sm text-fg-2">
             {task.source}
-            <span className="block text-xs text-fg-3">
-              La source ne change pas : pour en changer, supprimez la tâche et recréez-la.
-            </span>
+            <span className="block text-xs text-fg-3">{t('schedule.sourceFixed')}</span>
           </p>
         )}
 
-        <Label htmlFor={ids.task}>Tâche / Sujet (débat)</Label>
+        <Label htmlFor={ids.task}>{t('schedule.field.task')}</Label>
         <textarea
           id={ids.task}
           value={form.task}
@@ -288,9 +289,9 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
           className="resize-none rounded-md border border-line bg-bg px-3 py-2 text-sm leading-relaxed text-fg outline-none focus:border-line-2"
         />
 
-        <Label>Planning</Label>
+        <Label>{t('schedule.field.planning')}</Label>
         <Choices
-          label="Planning"
+          label={t('schedule.field.planning')}
           value={form.scheduleType}
           options={SCHEDULES}
           onChange={(scheduleType) => set({ scheduleType })}
@@ -299,7 +300,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
               <label htmlFor={ids.at} className="text-sm text-fg-2">
-                Heure
+                {t('schedule.field.time')}
               </label>
               <input
                 id={ids.at}
@@ -311,7 +312,11 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
               />
             </div>
             {form.scheduleType === 'weekly' ? (
-              <div role="group" aria-label="Jours" className="flex flex-wrap gap-1.5">
+              <div
+                role="group"
+                aria-label={t('schedule.field.days')}
+                className="flex flex-wrap gap-1.5"
+              >
                 {DAY_LABELS.map((day, index) => {
                   const checked = form.days.includes(index);
                   return (
@@ -333,7 +338,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
                           : 'border-line text-fg-2 hover:bg-hover hover:text-fg',
                       )}
                     >
-                      {day}
+                      {t(day)}
                     </button>
                   );
                 })}
@@ -344,7 +349,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
         {form.scheduleType === 'interval' ? (
           <div className="flex items-center gap-3">
             <label htmlFor={ids.every} className="text-sm text-fg-2">
-              Toutes les
+              {t('schedule.field.every')}
             </label>
             <input
               id={ids.every}
@@ -357,14 +362,14 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
             />
             <select
               id={ids.unit}
-              aria-label="Unité"
+              aria-label={t('schedule.field.unit')}
               value={form.unit}
               disabled={busy}
               onChange={(event) => set({ unit: event.target.value as TaskForm['unit'] })}
               className={cn(fieldClass, 'w-28')}
             >
-              <option value="minutes">minutes</option>
-              <option value="heures">heures</option>
+              <option value="minutes">{t('schedule.unit.minutes')}</option>
+              <option value="heures">{t('schedule.unit.hours')}</option>
             </select>
           </div>
         ) : null}
@@ -373,16 +378,16 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
             {!croniter ? (
               <p className="flex items-center gap-2 text-sm text-warning">
                 <TriangleAlert size={14} />
-                croniter requis (pip install croniter) pour les expressions cron.
+                {t('schedule.croniterRequired')}
               </p>
             ) : null}
             <input
               id={ids.expr}
-              aria-label="Expression cron"
+              aria-label={t('schedule.field.cron')}
               value={form.expr}
               disabled={busy}
               spellCheck={false}
-              placeholder="min heure jour mois jour_semaine"
+              placeholder={t('schedule.field.cronPlaceholder')}
               onChange={(event) => set({ expr: event.target.value })}
               className={cn(fieldClass, 'font-mono')}
             />
@@ -398,7 +403,7 @@ export function ScheduleDialog({ task, onClose }: ScheduleDialogProps) {
             onChange={(event) => set({ runIfMissed: event.target.checked })}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Rattraper au prochain démarrage si manquée
+          {t('schedule.field.runIfMissed')}
         </label>
         <div className="min-h-5 text-sm text-error" aria-live="polite">
           {error}

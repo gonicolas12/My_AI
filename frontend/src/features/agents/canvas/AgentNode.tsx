@@ -10,6 +10,7 @@ import { Handle, type NodeProps, Position } from '@xyflow/react';
 import { X } from 'lucide-react';
 import { createElement, memo } from 'react';
 
+import { useT } from '../../../i18n';
 import { cn } from '../../../lib/cn';
 import { useAgents } from '../../../stores/agents';
 import { agentColor, agentIcon, NODE_STATUS, QUEUED, tint } from '../agentMeta';
@@ -27,6 +28,7 @@ function useAgentKnown(agentType: string): boolean {
 }
 
 export const AgentNode = memo(function AgentNode({ id, data, selected }: NodeProps<AgentFlowNode>) {
+  const t = useT();
   const status = data.status ?? 'idle';
   const queued = status === 'running' && Boolean(data.queuedBehind);
   const meta = queued ? QUEUED : NODE_STATUS[status];
@@ -49,13 +51,14 @@ export const AgentNode = memo(function AgentNode({ id, data, selected }: NodePro
             ? `0 0 0 2px ${tint(color, 35)}`
             : undefined,
       }}
-      title={`${data.name} — ${
-        !known
-          ? 'agent introuvable'
+      title={t('canvas.node.title', {
+        name: data.name,
+        status: !known
+          ? t('canvas.node.unknown')
           : queued
-            ? `${meta.label} : le modèle répond d’abord à ${data.queuedBehind}`
-            : meta.label
-      }`}
+            ? t('canvas.node.queued', { label: t(meta.label), name: data.queuedBehind ?? '' })
+            : t(meta.label),
+      })}
     >
       <span
         aria-hidden
@@ -77,16 +80,16 @@ export const AgentNode = memo(function AgentNode({ id, data, selected }: NodePro
               className={cn('h-2 w-2 rounded-full', (running || queued) && 'pulse-soft')}
               style={{ background: meta.color }}
             />
-            {meta.label}
+            {t(meta.label)}
           </div>
         ) : (
-          <div className="text-xs text-error">Agent introuvable</div>
+          <div className="text-xs text-error">{t('canvas.node.unknownTitle')}</div>
         )}
       </div>
       <button
         type="button"
-        aria-label={`Retirer ${data.name} du workflow`}
-        title="Retirer du workflow"
+        aria-label={t('canvas.node.remove', { name: data.name })}
+        title={t('canvas.node.removeTitle')}
         onClick={() => removeNode(id)}
         className="nodrag nopan absolute top-1.5 right-1.5 rounded-xs p-1 text-fg-3 hover:bg-hover hover:text-fg"
       >

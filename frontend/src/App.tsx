@@ -22,6 +22,7 @@ import { installFocusReport } from './lib/focus';
 import { installNavigationGuard, shell } from './lib/shell';
 import { installShortcuts, overlayOpen, ownsEscape, type ShortcutHandlers } from './lib/shortcuts';
 import { startSync } from './lib/sync';
+import { useT } from './i18n';
 import { useApp } from './stores/app';
 import { activeOrigin, stopAgentsRun } from './stores/agents';
 import { useChat } from './stores/chat';
@@ -100,6 +101,7 @@ function useAppEffects() {
 }
 
 export function App() {
+  const t = useT();
   useAppEffects();
   const connection = useApp((state) => state.connection);
   const status = useApp((state) => state.status);
@@ -110,7 +112,7 @@ export function App() {
   if (!getToken()) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center text-fg-2">
-        Jeton de session absent : relancez My_AI.
+        {t('app.tokenMissing')}
       </div>
     );
   }

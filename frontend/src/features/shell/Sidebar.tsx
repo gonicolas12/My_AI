@@ -25,6 +25,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { newConversation, openSession, removeSession, toggleSidebar } from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import type { SessionSummary } from '../../lib/events';
+import { type MessageKey, useT } from '../../i18n';
 import { formatDay } from '../../lib/format';
 import { useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
@@ -45,6 +46,7 @@ function SessionItem({
   current: boolean;
   onDelete: (session: SessionSummary) => void;
 }) {
+  const t = useT();
   return (
     <li className="group/item relative">
       <button
@@ -52,7 +54,7 @@ function SessionItem({
         onClick={() => void openSession(session.id)}
         aria-current={current ? 'true' : undefined}
         className={cn(
-          'flex w-full items-center gap-2 rounded-md py-1.5 pr-8 pl-2.5 text-left text-sm transition-colors duration-150',
+          'flex w-full items-center gap-2 rounded-md py-1.5 ps-2.5 pe-8 text-start text-sm transition-colors duration-150',
           current ? 'bg-active text-fg' : 'text-fg-2 hover:bg-hover hover:text-fg',
         )}
       >
@@ -63,9 +65,9 @@ function SessionItem({
       </button>
       <button
         type="button"
-        aria-label={`Supprimer « ${session.name} »`}
+        aria-label={t('sidebar.deleteNamed', { name: session.name })}
         onClick={() => onDelete(session)}
-        className="absolute top-1/2 right-1.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-fg-3 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100 hover:bg-hover hover:text-error focus-visible:opacity-100"
+        className="absolute end-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-fg-3 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100 hover:bg-hover hover:text-error focus-visible:opacity-100"
       >
         <Trash2 size={14} />
       </button>
@@ -74,18 +76,19 @@ function SessionItem({
 }
 
 /** Panneaux ouverts depuis le bas de la barre latérale (aussi par la palette Ctrl+K) */
-const PANEL_BUTTONS: { id: PanelId; icon: LucideIcon; label: string; shortcut?: string }[] = [
-  { id: 'relay', icon: Radio, label: 'Relay', shortcut: 'Ctrl+R' },
-  { id: 'settings', icon: Settings, label: 'Réglages', shortcut: 'Ctrl+,' },
-  { id: 'memory', icon: Brain, label: 'Mémoire' },
-  { id: 'prompts', icon: BookText, label: 'Prompts' },
+const PANEL_BUTTONS: { id: PanelId; icon: LucideIcon; label: MessageKey; shortcut?: string }[] = [
+  { id: 'relay', icon: Radio, label: 'sidebar.panel.relay', shortcut: 'Ctrl+R' },
+  { id: 'settings', icon: Settings, label: 'sidebar.panel.settings', shortcut: 'Ctrl+,' },
+  { id: 'memory', icon: Brain, label: 'sidebar.panel.memory' },
+  { id: 'prompts', icon: BookText, label: 'sidebar.panel.prompts' },
 ];
 
 function PanelButton({ id, icon: Icon, label, shortcut }: (typeof PANEL_BUTTONS)[number]) {
+  const t = useT();
   const open = usePanels((state) => state.open === id);
   return (
     <IconButton
-      label={label}
+      label={t(label)}
       shortcut={shortcut}
       tooltipSide="top"
       active={open}
@@ -97,10 +100,11 @@ function PanelButton({ id, icon: Icon, label, shortcut }: (typeof PANEL_BUTTONS)
 }
 
 function AutoreadButton() {
+  const t = useT();
   const autoread = useVoice((state) => state.autoread);
   return (
     <IconButton
-      label={autoread ? 'Lecture automatique : activée' : 'Lecture automatique : désactivée'}
+      label={autoread ? t('sidebar.autoread.on') : t('sidebar.autoread.off')}
       tooltipSide="top"
       aria-pressed={autoread}
       active={autoread}
@@ -113,6 +117,7 @@ function AutoreadButton() {
 }
 
 export function Sidebar() {
+  const t = useT();
   const open = useApp((state) => state.sidebarOpen);
   const sessions = useApp((state) => state.sessions);
   const currentId = useChat((state) => state.conversationId);
@@ -128,19 +133,19 @@ export function Sidebar() {
 
   return (
     <aside
-      aria-label="Barre latérale"
+      aria-label={t('sidebar.label')}
       aria-hidden={!open}
       inert={!open}
       className={cn(
-        'h-full shrink-0 overflow-hidden border-r bg-bg-2 transition-[width,border-color] duration-200 ease-out',
-        open ? 'w-[var(--sidebar-width)] border-line' : 'w-0 border-r-0',
+        'h-full shrink-0 overflow-hidden border-e bg-bg-2 transition-[width,border-color] duration-200 ease-out',
+        open ? 'w-[var(--sidebar-width)] border-line' : 'w-0 border-e-0',
       )}
     >
       <div className="flex h-full w-[var(--sidebar-width)] flex-col">
         <div className="flex h-[var(--header-height)] shrink-0 items-center justify-between px-3">
-          <span className="pl-1.5 text-lg font-bold text-accent">My_AI</span>
-          <IconButton label="Masquer la barre latérale" shortcut="Ctrl+B" onClick={toggleSidebar}>
-            <PanelLeftClose size={18} />
+          <span className="ps-1.5 text-lg font-bold text-accent">My_AI</span>
+          <IconButton label={t('sidebar.hide')} shortcut="Ctrl+B" onClick={toggleSidebar}>
+            <PanelLeftClose size={18} className="rtl:-scale-x-100" />
           </IconButton>
         </div>
 
@@ -152,8 +157,8 @@ export function Sidebar() {
             className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-fg transition-colors duration-150 hover:bg-hover disabled:text-fg-3 disabled:hover:bg-transparent"
           >
             <SquarePen size={16} className="text-accent" />
-            Nouvelle conversation
-            <kbd className="ml-auto font-sans text-2xs text-fg-3">Ctrl+N</kbd>
+            {t('sidebar.newConversation')}
+            <kbd className="ms-auto font-sans text-2xs text-fg-3">Ctrl+N</kbd>
           </button>
           <SearchBox />
         </div>
@@ -165,7 +170,7 @@ export function Sidebar() {
             <>
               <div className="flex items-center gap-2 px-4 pb-1.5 text-2xs font-semibold tracking-wide text-fg-3 uppercase">
                 <MessagesSquare size={13} />
-                Conversations
+                {t('sidebar.conversations')}
               </div>
               <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
                 {sessions.length ? (
@@ -178,7 +183,7 @@ export function Sidebar() {
                     />
                   ))
                 ) : (
-                  <li className="px-2.5 py-1.5 text-sm text-fg-3">Aucune conversation</li>
+                  <li className="px-2.5 py-1.5 text-sm text-fg-3">{t('sidebar.noConversation')}</li>
                 )}
               </ul>
             </>
@@ -204,12 +209,12 @@ export function Sidebar() {
         onOpenChange={(value) => {
           if (!value) setToDelete(null);
         }}
-        title="Supprimer la conversation ?"
-        description={toDelete ? `« ${toDelete.name} » sera supprimée définitivement.` : ''}
+        title={t('sidebar.deleteTitle')}
+        description={toDelete ? t('sidebar.deleteDescription', { name: toDelete.name }) : ''}
         footer={
           <>
             <Button variant="secondary" onClick={() => setToDelete(null)}>
-              Annuler
+              {t('common.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -218,7 +223,7 @@ export function Sidebar() {
                 setToDelete(null);
               }}
             >
-              Supprimer
+              {t('common.delete')}
             </Button>
           </>
         }

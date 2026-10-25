@@ -1,15 +1,17 @@
 import { ChevronRight, CircleAlert, LoaderCircle } from 'lucide-react';
 import { createElement, useState } from 'react';
 
+import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import type { ToolCallView } from '../../lib/events';
 import { toolIcon, toolOutcome, toolText } from './tools';
 
 /** Appel d'outil en ligne compacte : « Recherche sur internet : « … » · 3 sources » */
 export function ToolRow({ tool, running }: { tool: ToolCallView; running: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const failed = tool.ok === false;
-  const outcome = toolOutcome(tool);
+  const outcome = toolOutcome(tool, t);
   const details = tool.summary && (failed || tool.name !== 'web_search') ? tool.summary : '';
 
   return (
@@ -20,7 +22,7 @@ export function ToolRow({ tool, running }: { tool: ToolCallView; running: boolea
         onClick={() => setOpen(!open)}
         aria-expanded={details ? open : undefined}
         className={cn(
-          'group inline-flex max-w-full items-center gap-2 rounded-sm py-0.5 text-left text-sm text-fg-2',
+          'group inline-flex max-w-full items-center gap-2 rounded-sm py-0.5 text-start text-sm text-fg-2',
           details && 'hover:text-fg',
         )}
       >
@@ -36,12 +38,15 @@ export function ToolRow({ tool, running }: { tool: ToolCallView; running: boolea
         {details ? (
           <ChevronRight
             size={14}
-            className={cn('shrink-0 transition-transform duration-150', open && 'rotate-90')}
+            className={cn(
+              'shrink-0 transition-transform duration-150 rtl:-scale-x-100',
+              open && 'rotate-90 rtl:-rotate-90',
+            )}
           />
         ) : null}
       </button>
       {open && details ? (
-        <div className="mt-1 ml-[23px] border-l-2 border-line pl-3 text-sm text-fg-3">
+        <div className="ms-[23px] mt-1 border-s-2 border-line ps-3 text-sm text-fg-3">
           {details}
         </div>
       ) : null}

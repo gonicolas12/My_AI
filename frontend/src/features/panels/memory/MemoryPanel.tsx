@@ -33,6 +33,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Button, IconButton } from '../../../components/ui/Button';
 import { Dialog } from '../../../components/ui/Dialog';
 import { Tooltip } from '../../../components/ui/Tooltip';
+import { type MessageKey, type Translate, useT } from '../../../i18n';
 import { ApiError, api, type MemoryItem, type MemoryPage, type MemoryTab } from '../../../lib/api';
 import { cn } from '../../../lib/cn';
 import { notify } from '../../../stores/app';
@@ -41,15 +42,30 @@ import { PanelDialog } from '../PanelDialog';
 
 const errorText = (error: unknown) => (error instanceof ApiError ? error.message : String(error));
 
-const TABS: { id: MemoryTab; label: string; icon: LucideIcon }[] = [
-  { id: 'facts', label: 'Faits', icon: Pin },
-  { id: 'document', label: 'Documents', icon: FileText },
-  { id: 'conversation', label: 'Conversations', icon: MessagesSquare },
+const TABS: { id: MemoryTab; label: MessageKey; icon: LucideIcon }[] = [
+  { id: 'facts', label: 'memory.tab.facts', icon: Pin },
+  { id: 'document', label: 'memory.tab.documents', icon: FileText },
+  { id: 'conversation', label: 'memory.tab.conversations', icon: MessagesSquare },
 ];
 
 /** Catégories d'un fait (memory.py), « Toutes » en tête du filtre */
 const CATEGORIES = ['general', 'preference', 'decision', 'person', 'procedure', 'technical'];
-const ALL = 'Toutes';
+const ALL = '';
+
+const CATEGORY_LABELS: Record<string, MessageKey> = {
+  general: 'memory.category.general',
+  preference: 'memory.category.preference',
+  decision: 'memory.category.decision',
+  person: 'memory.category.person',
+  procedure: 'memory.category.procedure',
+  technical: 'memory.category.technical',
+};
+
+/** Nom affiché d'une catégorie (une catégorie inconnue garde le sien) */
+function categoryLabel(name: string, t: Translate): string {
+  const key = CATEGORY_LABELS[name];
+  return key ? t(key) : name;
+}
 
 /** Couleur d'une catégorie (jetons --memory-*) */
 const CATEGORY_CLASS: Record<string, string> = {
@@ -74,16 +90,18 @@ function preview(text: string, limit: number) {
 }
 
 function Badge({ item }: { item: MemoryItem }) {
-  let label = 'document';
+  const t = useT();
+  let label = t('memory.badge.document');
   let Icon: LucideIcon | null = FileText;
   let tone = 'bg-warning-soft text-warning';
   if (item.kind === 'fact') {
-    label = item.category ?? 'general';
+    const category = item.category ?? 'general';
+    label = categoryLabel(category, t);
     Icon = null;
-    tone = CATEGORY_CLASS[label] ?? 'bg-memory-general/15 text-memory-general';
+    tone = CATEGORY_CLASS[category] ?? 'bg-memory-general/15 text-memory-general';
   } else if (item.collection === 'conversation') {
     const user = item.metadata?.role === 'user';
-    label = user ? 'vous' : 'assistant';
+    label = user ? t('memory.badge.you') : t('memory.badge.assistant');
     Icon = user ? User : Bot;
     tone = user ? 'bg-success-soft text-success' : 'bg-info-soft text-info';
   }
@@ -124,6 +142,7 @@ function Row({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const content = contentOf(item);
   return (
     <li className="rounded-md border border-line bg-bg px-3 py-2">
@@ -136,12 +155,19 @@ function Row({
             </span>
           }
         >
-          <p className="min-w-0 flex-1 truncate text-sm">{preview(content, 120) || '(vide)'}</p>
+          <p className="min-w-0 flex-1 truncate text-sm">
+            {preview(content, 120) || t('common.empty')}
+          </p>
         </Tooltip>
-        <IconButton label="Modifier" size="sm" onClick={onEdit}>
+        <IconButton label={t('common.edit')} size="sm" onClick={onEdit}>
           <Pencil size={14} />
         </IconButton>
-        <IconButton label="Supprimer" size="sm" onClick={onDelete} className="hover:text-error!">
+        <IconButton
+          label={t('common.delete')}
+          size="sm"
+          onClick={onDelete}
+          className="hover:text-error!"
+        >
           <Trash2 size={14} />
         </IconButton>
       </div>
@@ -161,6 +187,7 @@ function EditRow({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(() => contentOf(item));
   const [saving, setSaving] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -176,7 +203,7 @@ function EditRow({
   const save = async () => {
     const value = text.trim();
     if (!value) {
-      notify('info', '⚠️ Le contenu ne peut pas être vide');
+      notify('info', t('memory.edit.empty'));
       return;
     }
     setSaving(true);
@@ -206,22 +233,22 @@ function EditRow({
           }
         }}
         rows={4}
-        aria-label="Modifier le contenu"
+        aria-label={t('memory.edit.label')}
         className="block w-full resize-y rounded-md border border-line bg-bg-3 px-2.5 py-2 text-sm leading-relaxed text-fg focus:border-accent focus:outline-none"
       />
       <div className="mt-2 flex items-center gap-2">
         <Button size="sm" variant="primary" onClick={() => void save()} disabled={saving}>
           {saving ? <LoaderCircle size={14} className="spin" /> : <Save size={14} />}
-          Enregistrer
+          {t('common.save')}
         </Button>
         <Button size="sm" onClick={onCancel} disabled={saving}>
-          <X size={14} /> Annuler
+          <X size={14} /> {t('common.cancel')}
         </Button>
       </div>
       {tab === 'conversation' ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-fg-2">
           <Info size={13} className="shrink-0" />
-          La modification réécrit le message d'origine dans la conversation.
+          {t('memory.edit.conversationNote')}
         </p>
       ) : null}
     </li>
@@ -239,6 +266,7 @@ function DeleteDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const [atSource, setAtSource] = useState(true);
   const conversation = item.kind === 'vector' && item.collection === 'conversation';
 
@@ -258,21 +286,21 @@ function DeleteDialog({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title="Confirmation de suppression"
-      description="Supprimer définitivement cet élément ?"
+      title={t('chat.confirmDelete.title')}
+      description={t('memory.delete.description')}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} autoFocus>
-            Non, annuler
+            {t('chat.confirmDelete.no')}
           </Button>
           <Button variant="danger" onClick={() => void remove()}>
-            Oui, supprimer
+            {t('chat.confirmDelete.yes')}
           </Button>
         </>
       }
     >
       <p className="rounded-md border border-line bg-bg px-3 py-2 font-mono text-xs font-semibold break-words text-accent">
-        {preview(contentOf(item), 70) || '(vide)'}
+        {preview(contentOf(item), 70) || t('common.empty')}
       </p>
       {conversation ? (
         <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-fg-2">
@@ -283,8 +311,8 @@ function DeleteDialog({
             className="mt-1 accent-[var(--accent)]"
           />
           <span>
-            Supprimer aussi le message d'origine
-            <span className="block text-xs text-fg-3">(sinon réapparaît au prochain réindex)</span>
+            {t('memory.delete.atSource')}
+            <span className="block text-xs text-fg-3">{t('memory.delete.atSourceNote')}</span>
           </span>
         </label>
       ) : null}
@@ -293,6 +321,7 @@ function DeleteDialog({
 }
 
 function AddFactDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const t = useT();
   const [category, setCategory] = useState('general');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -318,16 +347,16 @@ function AddFactDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () 
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title="Nouveau fait"
+      title={t('memory.add.title')}
       width={520}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" onClick={() => void add()} disabled={empty || busy}>
             {busy ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}
-            Ajouter
+            {t('common.add')}
           </Button>
         </>
       }
@@ -335,7 +364,7 @@ function AddFactDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () 
       <div className="space-y-3">
         <div className="flex items-center gap-3">
           <label htmlFor={categoryId} className="w-24 text-sm text-fg-2">
-            Catégorie
+            {t('memory.category.label')}
           </label>
           <select
             id={categoryId}
@@ -345,14 +374,14 @@ function AddFactDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () 
           >
             {CATEGORIES.map((name) => (
               <option key={name} value={name}>
-                {name}
+                {categoryLabel(name, t)}
               </option>
             ))}
           </select>
         </div>
         <div>
           <label htmlFor={contentId} className="mb-1.5 block text-sm text-fg-2">
-            Contenu
+            {t('memory.add.content')}
           </label>
           <textarea
             id={contentId}
@@ -386,6 +415,7 @@ interface Loaded {
 }
 
 export default function MemoryPanel() {
+  const t = useT();
   const [tab, setTab] = useState<MemoryTab>('facts');
   const [query, setQuery] = useState('');
   /** Recherche appliquée (Entrée, bouton, catégorie, rafraîchir) */
@@ -457,15 +487,11 @@ export default function MemoryPanel() {
   } else if (!view) {
     body = (
       <Notice>
-        <LoaderCircle size={14} className="spin text-accent" /> Chargement…
+        <LoaderCircle size={14} className="spin text-accent" /> {t('common.loading')}
       </Notice>
     );
   } else if (!view.items.length) {
-    body = (
-      <Notice>
-        {search ? 'Aucun résultat pour cette recherche.' : 'Rien ici pour le moment.'}
-      </Notice>
-    );
+    body = <Notice>{search ? t('memory.noMatch') : t('memory.nothing')}</Notice>;
   } else {
     body = (
       <ul className="space-y-2">
@@ -508,14 +534,17 @@ export default function MemoryPanel() {
         }
       }}
       icon={Brain}
-      title="Mémoire locale"
+      title={t('memory.title')}
       description={
         <>
-          Contrôle total sur ce que l'IA sait de vous — tout est stocké localement.
+          {t('memory.description')}
           {stats ? (
             <span className="mt-0.5 block text-xs text-fg-3">
-              {stats.facts} fait(s) · {stats.documents} chunk(s) document · {stats.conversations}{' '}
-              entrée(s) conversation
+              {[
+                t('memory.stats.facts', { count: stats.facts }),
+                t('memory.stats.documents', { count: stats.documents }),
+                t('memory.stats.conversations', { count: stats.conversations }),
+              ].join(' · ')}
             </span>
           ) : null}
         </>
@@ -525,18 +554,18 @@ export default function MemoryPanel() {
       footer={
         <div className="flex w-full items-center justify-between">
           <Button size="sm" onClick={() => goTo(current - 1)} disabled={!view || current <= 0}>
-            <ChevronLeft size={15} /> Précédent
+            <ChevronLeft size={15} className="rtl:-scale-x-100" /> {t('common.previous')}
           </Button>
           <span className="text-sm text-fg-2 tabular-nums" role="status">
-            Page {Math.min(current + 1, pages)} / {pages}{' '}
-            <span className="ml-1 text-fg-3">({view?.total ?? 0})</span>
+            {t('memory.page', { page: Math.min(current + 1, pages), pages })}{' '}
+            <span className="ms-1 text-fg-3">({view?.total ?? 0})</span>
           </span>
           <Button
             size="sm"
             onClick={() => goTo(current + 1)}
             disabled={!view || current >= pages - 1}
           >
-            Suivant <ChevronRight size={15} />
+            {t('common.next')} <ChevronRight size={15} className="rtl:-scale-x-100" />
           </Button>
         </div>
       }
@@ -544,7 +573,7 @@ export default function MemoryPanel() {
       <Tabs.Root value={tab} onValueChange={selectTab} className="flex h-full flex-col">
         <div className="shrink-0 space-y-3 border-b border-line px-5 pt-4 pb-3">
           <Tabs.List
-            aria-label="Contenu de la mémoire"
+            aria-label={t('memory.tabsLabel')}
             className="flex gap-1 rounded-md bg-bg-3 p-1"
           >
             {TABS.map(({ id, label, icon: Icon }) => (
@@ -557,7 +586,7 @@ export default function MemoryPanel() {
                   'data-[state=active]:bg-accent data-[state=active]:text-on-accent',
                 )}
               >
-                <Icon size={15} /> {label}
+                <Icon size={15} /> {t(label)}
               </Tabs.Trigger>
             ))}
           </Tabs.List>
@@ -568,12 +597,12 @@ export default function MemoryPanel() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') runSearch();
               }}
-              placeholder="Rechercher…"
-              aria-label="Rechercher dans la mémoire"
+              placeholder={t('common.searchEllipsis')}
+              aria-label={t('memory.search.label')}
               spellCheck={false}
               className={cn(inputClass, 'min-w-0 flex-1')}
             />
-            <IconButton label="Rechercher" shortcut="Entrée" size="lg" onClick={runSearch}>
+            <IconButton label={t('common.search')} shortcut="Enter" size="lg" onClick={runSearch}>
               <Search size={16} />
             </IconButton>
             {tab === 'facts' ? (
@@ -586,12 +615,12 @@ export default function MemoryPanel() {
                     setPage(0);
                     setEditing(null);
                   }}
-                  aria-label="Catégorie"
+                  aria-label={t('memory.category.label')}
                   className={cn(inputClass, 'w-36')}
                 >
                   {[ALL, ...CATEGORIES].map((name) => (
                     <option key={name} value={name}>
-                      {name}
+                      {name === ALL ? t('memory.category.all') : categoryLabel(name, t)}
                     </option>
                   ))}
                 </select>
@@ -600,12 +629,12 @@ export default function MemoryPanel() {
                   onClick={() => setAdding(true)}
                   disabled={Boolean(shown?.error)}
                 >
-                  <Plus size={15} /> Ajouter
+                  <Plus size={15} /> {t('common.add')}
                 </Button>
               </>
             ) : null}
             <IconButton
-              label="Rafraîchir"
+              label={t('common.refresh')}
               size="lg"
               onClick={() => {
                 setSearch(query.trim());

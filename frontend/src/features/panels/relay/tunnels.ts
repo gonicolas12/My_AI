@@ -6,6 +6,7 @@
  * ne le peut pas), et le panneau le signale.
  */
 
+import { type MessageKey, t as translate, type Translate } from '../../../i18n';
 import type { RelayStatus, TunnelState } from '../../../lib/events';
 
 export interface TunnelView {
@@ -19,25 +20,25 @@ export interface TunnelView {
   others: { name: string; label: string }[];
 }
 
-const LABEL: Record<Exclude<TunnelState, 'ok'>, string> = {
-  checking: 'vérification…',
-  dead: 'ne répond pas',
+const LABEL: Record<Exclude<TunnelState, 'ok'>, MessageKey> = {
+  checking: 'relay.tunnel.checking',
+  dead: 'relay.tunnel.dead',
 };
 
-export function tunnelView(relay: RelayStatus): TunnelView {
+export function tunnelView(relay: RelayStatus, t: Translate = translate): TunnelView {
   const names = Object.keys(relay.tunnels).sort();
   const states = relay.tunnel_states ?? {};
   const state = (name: string): TunnelState => states[name] ?? 'checking';
   const reachable = names.filter((name) => state(name) === 'ok');
   const others = names
     .filter((name) => state(name) !== 'ok')
-    .map((name) => ({ name, label: LABEL[state(name) as Exclude<TunnelState, 'ok'>] }));
+    .map((name) => ({ name, label: t(LABEL[state(name) as Exclude<TunnelState, 'ok'>]) }));
   const ready = Boolean(relay.url) && names.length > 0;
 
   if (ready && reachable.length) {
     return {
       ready,
-      status: `Tunnels actifs : ${reachable.join(', ')}`,
+      status: t('relay.tunnels.active', { list: reachable.join(', ') }),
       tone: 'success',
       busy: false,
       others,
@@ -46,7 +47,7 @@ export function tunnelView(relay: RelayStatus): TunnelView {
   if (ready) {
     return {
       ready,
-      status: 'Aucun tunnel ne répond depuis ce PC : le QR code les reprend tous, sans garantie',
+      status: t('relay.tunnels.noneFromPc'),
       tone: 'warning',
       busy: false,
       others,
@@ -54,7 +55,7 @@ export function tunnelView(relay: RelayStatus): TunnelView {
   }
   return {
     ready,
-    status: names.length ? 'Vérification des tunnels…' : 'Tunnels en cours de connexion…',
+    status: names.length ? t('relay.tunnels.checking') : t('relay.tunnels.connecting'),
     tone: 'warning',
     busy: true,
     others,

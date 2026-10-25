@@ -20,6 +20,7 @@ import { type ReactNode, useState } from 'react';
 import { IconButton } from '../../../components/ui/Button';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import type { FolderView, HistoryEntry } from '../../../lib/api';
+import { useT } from '../../../i18n';
 import { cn } from '../../../lib/cn';
 import { setTab } from '../../../stores/app';
 import { setDraft } from '../../../stores/composer';
@@ -60,14 +61,17 @@ function Section({
       >
         <ChevronRight
           size={14}
-          className={cn('shrink-0 transition-transform duration-150', open && 'rotate-90')}
+          className={cn(
+            'shrink-0 transition-transform duration-150 rtl:-scale-x-100',
+            open && 'rotate-90 rtl:-rotate-90',
+          )}
         />
         <Icon size={15} className="shrink-0" />
-        <span className="flex-1 text-left">{title}</span>
+        <span className="flex-1 text-start">{title}</span>
         {count ? <span className="text-2xs text-fg-3 tabular-nums">{count}</span> : null}
       </button>
       {open ? (
-        <div className="mt-0.5 mb-1 max-h-56 overflow-y-auto pr-0.5 pl-6">{children}</div>
+        <div className="mt-0.5 mb-1 max-h-56 overflow-y-auto ps-6 pe-0.5">{children}</div>
       ) : null}
     </div>
   );
@@ -80,6 +84,7 @@ const Empty = ({ children }: { children: ReactNode }) => (
 // ── Dossiers projet ─────────────────────────────────────────────────────────
 
 function FolderRow({ folder }: { folder: FolderView }) {
+  const t = useT();
   const job = useSidebar((state) => state.jobs[folder.path]);
   const [confirming, setConfirming] = useState(false);
   return (
@@ -91,7 +96,7 @@ function FolderRow({ folder }: { folder: FolderView }) {
         </span>
         <span className="text-2xs text-fg-3 tabular-nums">({folder.file_count})</span>
         <IconButton
-          label="Réindexer"
+          label={t('sidebar.folders.reindex')}
           size="sm"
           tooltipSide="top"
           disabled={Boolean(job)}
@@ -101,7 +106,7 @@ function FolderRow({ folder }: { folder: FolderView }) {
           <RefreshCw size={12} />
         </IconButton>
         <IconButton
-          label="Détacher"
+          label={t('sidebar.folders.detach')}
           size="sm"
           tooltipSide="top"
           disabled={Boolean(job)}
@@ -115,9 +120,9 @@ function FolderRow({ folder }: { folder: FolderView }) {
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Détacher le dossier"
-        message={`Détacher « ${folder.name} » du projet ? Son index sera supprimé.`}
-        confirmLabel="Détacher"
+        title={t('sidebar.folders.detachTitle')}
+        message={t('sidebar.folders.detachMessage', { name: folder.name })}
+        confirmLabel={t('sidebar.folders.detach')}
         danger
         onConfirm={() => void detachFolder(folder.path)}
       />
@@ -126,9 +131,10 @@ function FolderRow({ folder }: { folder: FolderView }) {
 }
 
 function FolderProgress({ verb, done, total }: { verb: string; done: number; total: number }) {
+  const t = useT();
   const ratio = total ? Math.min(1, done / total) : 0;
   return (
-    <div className="mt-1 pl-5" role="status" aria-live="polite">
+    <div className="mt-1 ps-5" role="status" aria-live="polite">
       <div className="h-1 overflow-hidden rounded-full bg-bg-3">
         <div
           className={cn(
@@ -139,14 +145,14 @@ function FolderProgress({ verb, done, total }: { verb: string; done: number; tot
         />
       </div>
       <p className="mt-0.5 text-2xs text-fg-3 tabular-nums">
-        {verb}
-        {total ? ` : ${done}/${total}` : '…'}
+        {total ? t('sidebar.folders.progress', { verb, done, total }) : `${verb}…`}
       </p>
     </div>
   );
 }
 
 export function FoldersSection() {
+  const t = useT();
   const status = useSidebar((state) => state.folders);
   const jobs = useSidebar((state) => state.jobs);
   const folders = status?.folders ?? [];
@@ -155,21 +161,26 @@ export function FoldersSection() {
     (job) => !folders.some((folder) => folder.path === job.path),
   );
   return (
-    <Section id="folders" icon={FolderOpen} title="Dossiers du projet" count={folders.length}>
+    <Section
+      id="folders"
+      icon={FolderOpen}
+      title={t('sidebar.folders.title')}
+      count={folders.length}
+    >
       <button
         type="button"
         onClick={() => void attachProjectFolder()}
         className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs text-fg-2 transition-colors duration-150 hover:bg-hover hover:text-fg"
       >
         <FolderPlus size={13} className="text-accent" />
-        Attacher un dossier
+        {t('sidebar.folders.attach')}
       </button>
       {!status ? null : !status.available ? (
-        <Empty>(indexeur indisponible)</Empty>
+        <Empty>{t('sidebar.folders.unavailable')}</Empty>
       ) : !status.session && !pending.length ? (
-        <Empty>Aucune session active</Empty>
+        <Empty>{t('sidebar.folders.noSession')}</Empty>
       ) : !folders.length && !pending.length ? (
-        <Empty>Aucun dossier attaché</Empty>
+        <Empty>{t('sidebar.folders.none')}</Empty>
       ) : (
         <ul className="space-y-0.5">
           {folders.map((folder) => (
@@ -205,18 +216,19 @@ function reuse(entry: HistoryEntry) {
   setTab('chat');
   setDraft(entry.query);
   requestAnimationFrame(() => {
-    const box = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Message"]');
+    const box = document.querySelector<HTMLTextAreaElement>('textarea[data-composer-input]');
     box?.focus();
     box?.setSelectionRange(entry.query.length, entry.query.length);
   });
 }
 
 export function HistorySection() {
+  const t = useT();
   const entries = useSidebar((state) => state.history);
   const query = useSidebar((state) => state.historyQuery);
   const favoritesOnly = useSidebar((state) => state.favoritesOnly);
   return (
-    <Section id="history" icon={History} title="Historique">
+    <Section id="history" icon={History} title={t('sidebar.history.title')}>
       <label className="mb-1 flex h-7 items-center gap-1.5 rounded-md border border-line bg-bg px-2 text-xs focus-within:border-line-2">
         <Search size={12} className="shrink-0 text-fg-3" />
         <input
@@ -229,8 +241,8 @@ export function HistorySection() {
             }
           }}
           data-own-escape={query ? 'true' : undefined}
-          placeholder="Rechercher..."
-          aria-label="Rechercher dans l’historique"
+          placeholder={t('sidebar.history.search')}
+          aria-label={t('sidebar.history.searchLabel')}
           className="min-w-0 flex-1 bg-transparent text-fg outline-none placeholder:text-fg-3"
         />
       </label>
@@ -241,18 +253,22 @@ export function HistorySection() {
           onChange={(event) => setFavoritesOnly(event.target.checked)}
           className="accent-[var(--accent)]"
         />
-        Favoris uniquement
+        {t('sidebar.history.favoritesOnly')}
       </label>
       {entries.length ? (
         <ul className="space-y-0.5">
           {entries.map((entry) => (
             <li
               key={entry.id}
-              className="group/entry flex items-center gap-1 rounded-md pr-1 hover:bg-hover"
+              className="group/entry flex items-center gap-1 rounded-md pe-1 hover:bg-hover"
             >
               <button
                 type="button"
-                aria-label={entry.is_favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                aria-label={
+                  entry.is_favorite
+                    ? t('sidebar.history.unfavorite')
+                    : t('sidebar.history.favorite')
+                }
                 aria-pressed={entry.is_favorite}
                 onClick={() => void toggleFavorite(entry.id)}
                 className="shrink-0 rounded-xs p-1"
@@ -266,13 +282,13 @@ export function HistorySection() {
                 type="button"
                 onClick={() => reuse(entry)}
                 title={entry.query}
-                className="min-w-0 flex-1 truncate py-1 text-left text-xs text-fg-2 hover:text-fg"
+                className="min-w-0 flex-1 truncate py-1 text-start text-xs text-fg-2 hover:text-fg"
               >
                 {preview(entry.query)}
               </button>
               <button
                 type="button"
-                aria-label="Supprimer de l’historique"
+                aria-label={t('sidebar.history.delete')}
                 onClick={() => void deleteHistoryEntry(entry.id)}
                 className="shrink-0 rounded-xs p-1 text-fg-3 opacity-0 group-hover/entry:opacity-100 hover:text-error focus-visible:opacity-100"
               >
@@ -282,7 +298,7 @@ export function HistorySection() {
           ))}
         </ul>
       ) : (
-        <Empty>Aucun résultat</Empty>
+        <Empty>{t('common.noResult')}</Empty>
       )}
     </Section>
   );

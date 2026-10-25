@@ -1,3 +1,5 @@
+import { intlLocale, t } from '../i18n';
+
 /**
  * Emoji de tête d'un message du serveur (« ✅ … », format de l'interface Tk) :
  * dans une notification, l'icône du niveau le remplace
@@ -13,23 +15,23 @@ export function formatTime(iso: string | null | undefined): string {
   if (!iso) return '';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Durée lisible : « 850 ms », « 12 s », « 1 min 05 s » */
+/** Durée lisible : « 850 ms », « 12 s », « 1 min 05 s » (unités de la langue) */
 export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return '';
-  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 1000) return t('format.ms', { n: Math.round(ms) });
   const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `${seconds} s`;
+  if (seconds < 60) return t('format.seconds', { n: seconds });
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
-  return `${minutes} min ${String(rest).padStart(2, '0')} s`;
+  return t('format.minutesSeconds', { m: minutes, s: String(rest).padStart(2, '0') });
 }
 
-/** Nombre à virgule française : 72,4 */
+/** Nombre décimal dans la langue de l'interface : 72,4 en français, 72.4 en anglais */
 export function formatDecimal(value: number, digits = 1): string {
-  return value.toLocaleString('fr-FR', {
+  return value.toLocaleString(intlLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   });
@@ -42,10 +44,10 @@ export function formatDay(iso: string | null | undefined, now: Date = new Date()
   if (Number.isNaN(date.getTime())) return '';
   const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((startOf(now) - startOf(date)) / 86_400_000);
-  if (days === 0) return "Aujourd'hui";
-  if (days === 1) return 'Hier';
-  if (days > 1 && days < 7) return date.toLocaleDateString('fr-FR', { weekday: 'long' });
-  return date.toLocaleDateString('fr-FR', {
+  if (days === 0) return t('format.today');
+  if (days === 1) return t('format.yesterday');
+  if (days > 1 && days < 7) return date.toLocaleDateString(intlLocale(), { weekday: 'long' });
+  return date.toLocaleDateString(intlLocale(), {
     day: 'numeric',
     month: 'short',
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),

@@ -4,6 +4,7 @@
  * n'ont pas encore commencé, ou que l'arrêt a empêchés.
  */
 
+import { t as translate, type Translate } from '../../../i18n';
 import type { RunSection, RunView, SectionId } from '../../../lib/events';
 
 export interface ThreadItem {
@@ -23,7 +24,7 @@ function same(a: SectionId, b: SectionId): boolean {
   return String(a) === String(b);
 }
 
-export function threadItems(run: RunView): ThreadItem[] {
+export function threadItems(run: RunView, t: Translate = translate): ThreadItem[] {
   const items: ThreadItem[] = [];
   const used = new Set<string>();
   const ended = run.status !== 'running';
@@ -47,12 +48,16 @@ export function threadItems(run: RunView): ThreadItem[] {
     const steps = run.plan.steps;
     const single = run.kind === 'agent' || run.plan.mode === 'single';
     steps.forEach((step, index) => {
-      let label = `Étape ${index + 1}/${steps.length}${step.length > 1 ? ' · parallèle' : ''}`;
+      const position = { n: index + 1, total: steps.length };
+      let label = t(
+        step.length > 1 ? 'agents.thread.stepParallel' : 'agents.thread.step',
+        position,
+      );
       if (single) label = '';
-      else if (steps.length === 1) label = 'En parallèle';
+      else if (steps.length === 1) label = t('agents.thread.parallel');
       for (const id of step) add(id, label);
     });
-    for (const id of run.plan.isolated) add(id, 'Agent isolé');
+    for (const id of run.plan.isolated) add(id, t('agents.thread.isolated'));
   }
   // Sections hors du plan (tours d'un débat…), dans leur ordre d'arrivée
   for (const section of run.sections) {
@@ -87,32 +92,36 @@ export function queuedBehind(run: RunView | undefined): Record<string, string> {
 }
 
 /** Débat en une ligne : « Proposant : A · Opposant : B · 3 tours » */
-export function debateSummary(run: RunView): string {
+export function debateSummary(run: RunView, t: Translate = translate): string {
   if (run.kind !== 'debate') return '';
   const [first, second] = run.nodes;
   const rounds = run.debate?.rounds ?? 0;
   const parts = [];
-  if (first) parts.push(`Proposant : ${first.name}`);
-  if (second) parts.push(`Opposant : ${second.name}`);
-  if (rounds) parts.push(`${rounds} tour${rounds > 1 ? 's' : ''}`);
+  if (first) parts.push(t('agents.thread.proposer', { name: first.name }));
+  if (second) parts.push(t('agents.thread.opponent', { name: second.name }));
+  if (rounds) parts.push(t('agents.thread.rounds', { count: rounds }));
   return parts.join(' · ');
 }
 
 /** Plan en une ligne : « Étape 1 : A · Étape 2, en parallèle : B, C · Agents isolés : D » */
-export function planSummary(run: RunView): string {
+export function planSummary(run: RunView, t: Translate = translate): string {
   if (run.kind !== 'workflow') return '';
   const name = (id: SectionId) => run.nodes.find((node) => same(node.id, id))?.name ?? String(id);
   const steps = run.plan.steps;
   const parts = steps.map((step, index) => {
     const names = step.map(name).join(', ');
-    if (steps.length === 1) return `En parallèle : ${names}`;
-    return step.length > 1
-      ? `Étape ${index + 1}, en parallèle : ${names}`
-      : `Étape ${index + 1} : ${names}`;
+    if (steps.length === 1) return t('agents.plan.parallel', { names });
+    return t(step.length > 1 ? 'agents.plan.stepParallel' : 'agents.plan.step', {
+      n: index + 1,
+      names,
+    });
   });
   if (run.plan.isolated.length) {
     parts.push(
-      `Agent${run.plan.isolated.length > 1 ? 's' : ''} isolé${run.plan.isolated.length > 1 ? 's' : ''} : ${run.plan.isolated.map(name).join(', ')}`,
+      t('agents.plan.isolated', {
+        count: run.plan.isolated.length,
+        names: run.plan.isolated.map(name).join(', '),
+      }),
     );
   }
   return parts.join(' · ');

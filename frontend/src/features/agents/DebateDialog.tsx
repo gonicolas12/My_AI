@@ -9,6 +9,7 @@ import { useId, useState } from 'react';
 
 import { Button } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
+import { useT } from '../../i18n';
 import { errorText, startDebate, useAgents } from '../../stores/agents';
 
 const fieldClass =
@@ -22,6 +23,7 @@ interface DebateDialogProps {
 
 /** Monté le temps du choix : il part des deux premiers agents de la grille, comme Tk */
 export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
+  const t = useT();
   const builtin = useAgents((state) => state.builtin);
   const custom = useAgents((state) => state.custom);
   const agents = [...builtin, ...custom];
@@ -39,11 +41,11 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
   const submit = async () => {
     // Contrôles de Tk (_open_debate_dialog), dans son ordre
     if (!agentA || !agentB || agentA === agentB) {
-      setError('❌ Choisis deux agents différents');
+      setError(t('agents.debate.differentAgents'));
       return;
     }
     if (!topic.trim()) {
-      setError('❌ Sujet requis');
+      setError(t('agents.debate.topicRequired'));
       return;
     }
     const parsed = Number.parseInt(rounds, 10);
@@ -73,17 +75,17 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
       onOpenChange={(next) => {
         if (!next && !busy) onClose();
       }}
-      title="Mode Débat entre deux agents"
-      description="Le proposant ouvre chaque tour, l’opposant lui répond. Le débat s’écrit dans un fil, un tour par section."
+      title={t('agents.debate.title')}
+      description={t('agents.debate.description')}
       width={520}
       dismissible={!busy}
       footer={
         <>
           <Button variant="secondary" disabled={busy} onClick={onClose}>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button variant="primary" disabled={busy} onClick={() => void submit()}>
-            Démarrer le débat
+            {t('agents.debate.start')}
           </Button>
         </>
       }
@@ -96,7 +98,7 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
         }}
       >
         <label htmlFor={aId} className="text-sm font-semibold text-fg">
-          Agent A — Proposant
+          {t('agents.debate.agentA')}
         </label>
         <select
           id={aId}
@@ -108,7 +110,7 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
           {options}
         </select>
         <label htmlFor={bId} className="mt-1 text-sm font-semibold text-fg">
-          Agent B — Opposant
+          {t('agents.debate.agentB')}
         </label>
         <select
           id={bId}
@@ -120,7 +122,7 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
           {options}
         </select>
         <label htmlFor={topicId} className="mt-1 text-sm font-semibold text-fg">
-          Sujet du débat
+          {t('agents.debate.topic')}
         </label>
         <textarea
           id={topicId}
@@ -129,7 +131,7 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
           autoFocus
           rows={3}
           maxLength={100_000}
-          placeholder="Ex : Faut-il réécrire le moteur en Rust ?"
+          placeholder={t('agents.debate.topicPlaceholder')}
           onChange={(event) => setTopic(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -141,7 +143,7 @@ export function DebateDialog({ onClose, onStarted }: DebateDialogProps) {
         />
         <div className="mt-1 flex items-center gap-3">
           <label htmlFor={roundsId} className="text-sm font-semibold text-fg">
-            Nombre de tours :
+            {t('agents.debate.rounds')}
           </label>
           <input
             id={roundsId}

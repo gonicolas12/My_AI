@@ -7,6 +7,7 @@ import {
   applyFoldersChanged,
   clearSearch,
   runSearch,
+  searchStatusText,
   setQuery,
   useSidebar,
 } from './sidebar';
@@ -42,13 +43,14 @@ describe('recherche globale', () => {
     setQuery('  tuples ');
     await runSearch();
     expect(api.search).toHaveBeenCalledWith('tuples');
-    expect(useSidebar.getState().searchStatus).toBe('1 résultat(s)');
+    const status = () => searchStatusText(useSidebar.getState().searchStatus);
+    expect(status()).toBe('1 résultat');
     api.search.mockResolvedValueOnce({ available: true, results: [] });
     await runSearch();
-    expect(useSidebar.getState().searchStatus).toBe('Aucun résultat');
+    expect(status()).toBe('Aucun résultat');
     api.search.mockResolvedValueOnce({ available: false, results: [] });
     await runSearch();
-    expect(useSidebar.getState().searchStatus).toBe('Recherche sémantique indisponible');
+    expect(status()).toBe('Recherche sémantique indisponible');
   });
 
   it('retrouve le message d’un résultat par son texte, sinon par sa position', () => {
