@@ -138,6 +138,13 @@ Tapez simplement, dans le chat desktop ou mobile :
 - « **crée un logo** pour ma startup »
 - « **crée une illustration de** forêt enchantée »
 
+Les demandes sont reconnues dans les 12 langues de l'interface : « *generate an
+image of an astronaut cat* », « *genera una imagen de…* », « *erstelle ein Bild
+von…* », « *猫の画像を生成して* »… ([`core/image_intent.py`](../core/image_intent.py)).
+Comme en français, il faut un verbe de création suivi d'un nom d'image :
+« *create an image resizer* » reste une demande de code, « *draw me a diagram* »
+un schéma.
+
 L'image s'affiche dans la conversation (clic = taille réelle) et est sauvegardée
 dans `outputs/img_AAAAMMJJ_HHMMSS_<slug>.png`.
 

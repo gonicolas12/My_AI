@@ -18,6 +18,12 @@ Contenu principal
 - `agent_orchestrator.py` — `AgentOrchestrator` : coordonne les agents IA spécialisés (page Agents). Gère la création à la demande des agents (`get_or_create_agent`), l'historique des tâches et l'exécution de workflows multi-agents. **Distinct** de `ChatOrchestrator` (usage exclusif page Agents).
 - `mcp_client.py` — Client MCP (Model Context Protocol). Expose les outils locaux au format MCP standardisé et permet la connexion à des serveurs MCP externes via le transport `stdio`. Utilisé par `AIEngine` pour étendre les capacités d'Ollama.
 
+### Langue
+
+- `i18n.py` — Langue de l'interface (12 langues) et `tr()` : les textes que le serveur envoie à la fenêtre et à la page mobile (étapes du lancement, notifications, erreurs, outils, agents, tâches planifiées, exports, mentions des documents générés), un catalogue JSON par langue dans `locales/`. Changement à chaud par `set_language()` ; `is_rtl()` pour l'arabe.
+- `language_detector.py` — Langue d'un message (`langdetect`, cache LRU) et consigne de langue des réponses ; un message court ou ambigu prend la langue par défaut des Réglages.
+- `image_intent.py` — Demandes d'image dans les 11 autres langues (« generate an image of… ») ; le français reste dans `ai_engine.py`.
+
 ### Configuration & Données
 
 - `config.py` — Configuration par défaut (dictionnaires `AI_CONFIG`, `FILE_CONFIG`, `UI_CONFIG`) et la classe `Config` pour charger/sauvegarder `config.yaml`. La clé `llm.local.default_model` est la **source unique** du nom de modèle.

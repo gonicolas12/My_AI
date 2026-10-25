@@ -46,10 +46,12 @@ Seedées au **premier lancement** (vous pouvez les éditer ou les supprimer ensu
 |---|---|
 | `/code` | Génère un programme complet, commenté et prêt à l'emploi |
 | `/résume` | Résumé fidèle + points clés du texte ou du sujet fourni |
-| `/traduis` | Traduit le texte (langue cible déduite, anglais par défaut) |
+| `/traduis` | Traduit le texte (langue cible indiquée, sinon la langue de l'interface) |
 | `/explique` | Explication simple et pédagogique, avec analogie et exemple |
 | `/corrige` | Corrige orthographe/grammaire/ponctuation sans changer le sens |
 | `/reformule` | Reformule pour plus de clarté + variante plus concise |
+
+Dans une autre langue de l'interface (⚙️ Réglages → Langue), ces commandes et leurs prompts sont traduits : `/summarize`, `/translate`, `/explain`… en anglais, `/resume`, `/traduce`, `/explica`… en espagnol. Les noms français restent acceptés, et un prompt personnalisé garde sa commande quelle que soit la langue.
 
 ---
 

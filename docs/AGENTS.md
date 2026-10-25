@@ -13,6 +13,11 @@ Un agent est une instance d'Ollama avec :
 - **Une mémoire contextuelle** de ses tâches
 - **Des statistiques** de performance
 
+Il répond dans la langue de la tâche : celle de votre demande dans un workflow
+(chaque agent de la chaîne garde cette langue), celle du sujet dans un débat ;
+pour une tâche trop courte pour la reconnaître, la langue choisie dans
+⚙️ Réglages → Langue.
+
 ### Orchestrateur
 Coordonne les agents pour :
 - Exécuter des tâches simples (1 agent)

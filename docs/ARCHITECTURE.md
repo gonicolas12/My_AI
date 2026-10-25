@@ -15,6 +15,7 @@ My Personal AI v9.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Multi-Workspaces** : Sessions isolées avec sauvegarde automatique et persistance JSON
 - **Export Multi-Format** : Conversations exportables en Markdown, HTML et PDF
 - **Détection de Langue** : 12 langues détectées automatiquement, réponse adaptée
+- **Interface en 12 langues** : fenêtre et page mobile traduites (catalogues JSON de `core/locales/`, `frontend/src/i18n/locales/` et `relay/static/locales/`), langue changée à chaud, arabe de droite à gauche ; exports et documents générés dans toutes les écritures (`utils/pdf_text.py`)
 - **Cache Web Persistant** : Cache disque avec TTL pour les recherches internet
 - **Historique des Commandes** : Suivi complet avec favoris, recherche et statistiques
 - **Reconnaissance d'intentions avancée** : Analyse linguistique multi-niveaux
@@ -360,8 +361,11 @@ Fonctionnalités:
 ```python
 Formats:
 ├─ Markdown (.md) avec métadonnées header
-├─ HTML (.html) avec thème sombre CSS embarqué
-├─ PDF (.pdf) via ReportLab avec styles par rôle
+├─ HTML (.html) avec thème sombre CSS embarqué, lang et dir de l'interface,
+│  chaque message dans le sens de son texte (dir="auto")
+├─ PDF (.pdf) via ReportLab avec styles par rôle ; police de chaque écriture,
+│  arabe lié et de droite à gauche (utils/pdf_text.py)
+├─ Libellés (date, modèle, rôles, pied de page) dans la langue de l'interface
 └─ Blocs de code préservés dans tous les formats
 ```
 
@@ -397,6 +401,25 @@ Capacités:
 ├─ Bibliothèque langdetect (avec fallback)
 ├─ Cache LRU (128 entrées)
 └─ Génération automatique suffix prompt système
+```
+
+**`core/i18n.py`** - Langue de l'interface
+```python
+├─ 12 langues (language.supported de config.yaml), la langue choisie dans
+│  language.default ; premier lancement : celle du système, l'anglais sinon
+├─ tr(clé, **params) : un catalogue JSON par langue (core/locales/), clés à
+│  points, {paramètres}, pluriels CLDR ({count}), repli anglais puis français
+├─ set_language() à chaud (Réglages, assistant) : fenêtre et mobile suivent
+└─ is_rtl() : arabe de droite à gauche (fenêtre, page mobile, exports)
+```
+
+**`core/image_intent.py`** - Demandes d'image dans les autres langues
+```python
+├─ is_image_request(texte) : « generate an image of… », « 猫の画像を生成して »…
+│  dans les 11 autres langues (le français reste à AIEngine._IMAGE_GEN_RE)
+├─ Un verbe de création suivi d'un nom d'image : « create an image resizer »
+│  reste du code, « draw me a diagram » un schéma
+└─ strip_image_request(texte) : le sujet de l'image, sans la demande
 ```
 
 **`core/session_manager.py`** - Workspaces
@@ -626,7 +649,9 @@ Architecture:
 │   │   trycloudflare.com (pas de « nom inexistant » gardé en cache)
 │   ├─ Liste des tunnels jamais servie sans token
 │   └─ Téléchargement auto cloudflared si absent (GitHub releases)
-├─ QR Code SVG via qrcode.image.svg, encode {urls, token, key}
+├─ QR Code SVG via qrcode.image.svg, encode {urls, token, key, lang} :
+│   lang, la langue de My_AI, est celle de la page de routage
+│   (docs/router.html, textes des 12 langues dans la page)
 │   en base64url dans le fragment d'une URL GitHub Pages
 └─ Interface login HTML embarquée (servie si token absent)
 ```
@@ -868,6 +893,7 @@ ImageGenerator (sortie multimodale, miroir de la vision en entrée) :
 └─ Sauvegarde outputs/img_AAAAMMJJ_HHMMSS_<slug>.png
 
 Routage : core/ai_engine.is_image_generation_request() / extract_image_prompt()
+          (+ core/image_intent.py pour les 11 autres langues)
           → court-circuit prioritaire sur MCP, callbacks on_image / on_image_progress
           → « tableau » seul = tableau de données : il ne déclenche l'image
             qu'avec un style pictural (impressionniste, à l'huile…)
@@ -1075,10 +1101,15 @@ generate_document(brief, fmt, title, content, filename, research)
 ├─ markdown_document.parse_markdown() → blocs (Heading, ListBlock, Table…)
 ├─ Un backend par format :
 │   ├─ docx : python-docx (listes imbriquées, tableaux, sommaire TOC)
-│   ├─ pdf  : reportlab platypus (styles, tableaux, numérotation)
+│   ├─ pdf  : reportlab platypus (styles, tableaux, numérotation), police de
+│   │         chaque écriture, arabe de droite à gauche (utils/pdf_text.py)
 │   ├─ pptx : python-pptx (une diapo par section, découpe > 9 puces)
 │   ├─ xlsx : openpyxl (un onglet par tableau, filtre, vrais nombres)
 │   └─ md / txt / csv / html
+├─ Mentions fixes (Généré le, Sommaire, Page, feuilles) dans la langue du
+│  document : écriture propre à une langue, sinon langdetect (≥ 200 lettres),
+│  sinon la langue de l'interface ; arabe de droite à gauche dans Word,
+│  PowerPoint et Excel aussi
 └─ outputs/documents/ → {success, file_path, format, title, size, outline}
 
 Exposé au chat par l'outil MCP generate_document (AIEngine._setup_local_tools)
@@ -1388,6 +1419,16 @@ utils/path_links.py:
 │  (les chemins Windows contiennent des espaces)
 ├─ Lecteurs locaux seulement : un lecteur réseau déconnecté figerait l'UI
 └─ reveal_in_file_manager(path) : explorateur, fichier sélectionné
+
+utils/pdf_text.py (export des conversations et documents générés) :
+├─ pdf_fonts(texte) : Helvetica (latin), police CID d'Adobe (chinois, japonais),
+│  police du système intégrée (coréen, cyrillique, grec, arabe, hébreu)
+├─ word_wrap() : lignes du chinois et du japonais coupées entre deux caractères
+├─ paragraph_markup() / runs_markup() : arabe et hébreu coupés en lignes dans
+│  l'ordre de lecture, façonnés (arabic-reshaper) puis mis dans l'ordre
+│  d'affichage (python-bidi, algorithme Python : parenthèses retournées),
+│  gras, italique, liens et code suivant leurs mots
+└─ aligned() / rtl_style() : paragraphe de droite à gauche aligné à droite
 
 utils/intelligent_calculator.py:
 ├─ Évaluation expressions

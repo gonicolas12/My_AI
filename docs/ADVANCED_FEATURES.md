@@ -750,6 +750,13 @@ exporter.export_html(messages, filename="rapport_analyse")
 exporter.export_pdf(messages, metadata={"session": "debug_api"})
 ```
 
+Libellés (date, modèle, rôles, pied de page) dans la langue de l'interface. Le
+PDF choisit sa police d'après tout son texte (Helvetica pour l'alphabet latin,
+police CID d'Adobe pour le chinois et le japonais, police du système intégrée
+pour le coréen, le cyrillique et l'arabe) ; l'arabe y est lié et se lit de
+droite à gauche (voir `utils/pdf_text.py` ci-dessous). La page HTML porte
+`lang` et `dir`, et chaque message `dir="auto"`.
+
 ### 🧠 Base de Connaissances (`core/knowledge_base_manager.py`)
 
 Stockage structuré de faits avec extraction automatique :
@@ -796,8 +803,41 @@ name = detector.get_language_name("en")  # → "English"
 
 # Suffix pour le system prompt
 suffix = detector.get_system_prompt_suffix("en")
-# → "Respond in English."
+# → "Always respond in English."
 ```
+
+### 🗣️ Langue de l'interface (`core/i18n.py`)
+
+12 langues pour les textes que le serveur envoie à l'interface (étapes du
+lancement, notifications, erreurs, outils, agents, tâches planifiées, page
+mobile du Relay, exports, mentions des documents générés). Un catalogue JSON
+par langue dans `core/locales/` : clé à points → texte et ses `{paramètres}`,
+formes du pluriel CLDR pour `{count}`. Clé absente : l'anglais, puis le français.
+
+```python
+from core.i18n import current_language, is_rtl, set_language, tr
+
+set_language("de")                       # à chaud, sans redémarrage
+tr("export.role.user")                   # → "Benutzer"
+tr("document.page", _lang="ja", n=3)     # → "3 ページ" (une autre langue que l'interface)
+is_rtl("ar")                             # → True
+```
+
+### 📄 Texte des PDF (`utils/pdf_text.py`)
+
+Partagé par l'export des conversations et le générateur de documents :
+
+- `pdf_fonts(texte)` → `(police, police grasse)` qui écrivent tout le texte ;
+  `code_font()` garde Courier pour le code en alphabet latin ; `word_wrap()`
+  coupe les lignes du chinois et du japonais entre deux caractères.
+- `paragraph_markup()` (texte brut) et `runs_markup()` (fragments stylés :
+  gras, italique, lien, code) : sans arabe ni hébreu, le balisage habituel,
+  ReportLab coupant les lignes ; sinon, les lignes coupées dans l'ordre de
+  lecture, façonnées par `arabic-reshaper` et mises dans l'ordre d'affichage
+  par `python-bidi`, chaque fragment gardant ses balises.
+- `aligned(style, texte)` aligne à droite un paragraphe de droite à gauche ;
+  `visual(ligne)` met une ligne seule dans l'ordre d'affichage (cellule,
+  numéro de page).
 
 ### 💼 Workspaces (`core/session_manager.py`)
 

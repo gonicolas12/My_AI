@@ -600,6 +600,11 @@ IA> La version modifiée est enregistrée dans outputs/documents/rapport_modifie
 > fichier dans son application. Détails : [DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md)
 > et [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md).
 
+> **Toutes les langues :** le document est rédigé dans la langue de la demande, et ses
+> mentions fixes (« Généré le », sommaire, numéros de page, noms des feuilles Excel) suivent
+> sa langue. Le PDF prend la police de son écriture (chinois, japonais, coréen, cyrillique,
+> arabe…) ; un document en arabe se lit de droite à gauche dans tous les formats.
+
 ---
 
 ## 📁 Traitement de Fichiers
@@ -1309,6 +1314,11 @@ exporter.export(messages, output_format="pdf", filename="archive")
 
 Les fichiers sont sauvegardés dans `outputs/exports/` avec horodatage automatique.
 
+Les libellés (date, modèle, rôles, pied de page) suivent la langue de l'interface. Le PDF
+prend la police qu'il faut pour chaque écriture (chinois, japonais, coréen, cyrillique,
+arabe…) : l'arabe y a ses lettres liées et se lit de droite à gauche, paragraphe par
+paragraphe, le code restant de gauche à droite. L'export HTML fait de même avec le navigateur.
+
 ### 🧠 Base de Connaissances Structurée
 
 Demandez à l'IA de retenir une information : elle l'enregistre comme fait (panneau Mémoire, onglet Faits) et s'en sert dans les conversations suivantes :
@@ -1342,11 +1352,18 @@ Toutes vos requêtes sont enregistrées avec :
 - **Statistiques** : total, répartition par agent, plage de dates
 - **Nettoyage automatique** des anciennes entrées (les favoris sont préservés)
 
-### 🌍 Détection Automatique de Langue
+### 🌍 Langue de l'interface et des réponses
 
-L'IA détecte automatiquement la langue de votre message et répond dans la même langue :
-- 12 langues supportées : français, anglais, espagnol, allemand, italien, portugais, néerlandais, russe, chinois, japonais, coréen, arabe
-- Cache LRU pour cohérence dans une conversation
+12 langues : français, anglais, espagnol, allemand, italien, portugais (Brésil), néerlandais, russe, chinois (simplifié), japonais, coréen, arabe.
+
+- **Choix de la langue** : ⚙️ Réglages → **Langue**, la palette **Ctrl+K** (« Changer de langue »), ou l'assistant de premier lancement. La fenêtre et la page mobile du Relay changent de langue **tout de suite**, sans redémarrage ; l'arabe s'affiche de droite à gauche.
+- **Premier lancement** : My_AI prend la langue de Windows si elle fait partie des 12, l'anglais sinon.
+- **Réponses** : l'IA détecte la langue de votre message et répond dans la même langue ; un message court ou ambigu (« ok ») reçoit une réponse dans la langue choisie. Cache LRU pour la cohérence dans une conversation.
+- **Commandes des prompts** dans la langue choisie (`/summarize`, `/translate`… en anglais) ; les noms français restent acceptés.
+- **Demandes d'images** reconnues dans les 12 langues (« generate an image of… », « 猫の画像を生成して »…).
+- **Exports et documents** : libellés de l'export dans la langue de l'interface, mentions des documents générés dans la langue du document ; police de chaque écriture dans les PDF, arabe lié et de droite à gauche.
+- **Aperçu des documents** : chaque paragraphe, liste ou tableau se lit dans le sens de son propre texte, quelle que soit la langue de l'interface.
+- **Page de routage du QR code** (GitHub Pages) : dans la langue de My_AI, transmise par le lien, sinon dans celle du téléphone.
 
 ### 📎 Pièces Jointes aux Agents
 
@@ -1365,7 +1382,7 @@ My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS o
 
 1. Cliquez sur **Relay** en bas de la **barre latérale** (ou **Ctrl+R**, ou la palette Ctrl+K) : le panneau Relay s'ouvre et démarre le Relay s'il ne tourne pas
 2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared et localhost.run ; serveo en option) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics. Le PC vérifie chaque tunnel annoncé : le panneau montre l'état de chacun (« Vérification des tunnels… », « ne répond pas »). Si aucun ne répond au PC dans les 30 s, le panneau affiche « Aucun tunnel ne répond depuis ce PC » et le QR code les reprend tous, sans garantie : le PC peut être sur un réseau qui filtre ces domaines, pas le téléphone
-3. Un **QR code** s'affiche dans le panneau Relay dès qu'un tunnel répond (en quelques secondes avec localhost.run ; cloudflared le rejoint 15 à 20 s après le démarrage, et le QR code se met alors à jour) — scannez-le avec votre téléphone. Le QR ne contient que les tunnels joignables et pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui les ping et redirige automatiquement vers le premier qui répond, en général le plus rapide
+3. Un **QR code** s'affiche dans le panneau Relay dès qu'un tunnel répond (en quelques secondes avec localhost.run ; cloudflared le rejoint 15 à 20 s après le démarrage, et le QR code se met alors à jour) — scannez-le avec votre téléphone. Le QR ne contient que les tunnels joignables et pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui les ping et redirige automatiquement vers le premier qui répond, en général le plus rapide. Elle parle la langue de My_AI, que le lien lui transmet, comme la page mobile qui suit
 4. Le téléphone demande le **code d'accès** affiché sous le QR code dans le panneau Relay (6 chiffres, nouveau à chaque démarrage du Relay). Le navigateur du téléphone retient la session qu'il ouvre tant que le Relay tourne : ni un rechargement de la page, ni le navigateur fermé puis rouvert ne le redemandent. Un autre navigateur ou un autre appareil le demande, et le redémarrage du Relay aussi (nouveau lien, nouveau code). Après 5 codes erronés, le Relay n'en accepte plus aucun jusqu'à son redémarrage (nouveau QR code, nouveau code), et la fenêtre du PC signale chaque code erroné
 5. L'interface mobile s'ouvre sur deux onglets en haut — **💬 Chat** et **🤖 Agents** — qui reprennent la navigation de la fenêtre du PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents.
 
@@ -1447,7 +1464,7 @@ Pour la fluidité du chat, la différence ne se voit pas : la réponse arrive en
 
 #### Page de routage GitHub Pages (forkers du projet)
 
-Le QR code encode une URL de la forme `https://gonicolas12.github.io/My_AI/router.html#d=<base64>` — la page de routage est servie depuis le **GitHub Pages du repo officiel**. Si vous **forkez** le projet et changez l'URL dans `relay/relay_server.py` (constante `_ROUTER_PAGE_URL`), pensez à activer GitHub Pages sur **votre fork** : Settings → Pages → Source = `Deploy from a branch` → Branch = `main` / `/docs` → Save. Les utilisateurs en aval n'ont rien à configurer : ils clonent et ça marche.
+Le QR code encode une URL de la forme `https://gonicolas12.github.io/My_AI/router.html#d=<base64>` — la page de routage est servie depuis le **GitHub Pages du repo officiel**, donc depuis `docs/router.html` de la branche `main` : une modification de la page n'est en ligne qu'une fois fusionnée dans `main`. Elle parle les 12 langues de My_AI : celle du PC, transmise dans le lien (champ `lang`), sinon celle du téléphone (lien d'une version plus ancienne), sinon l'anglais ; ses textes sont dans la page même, qui ne peut rien lire du PC avant d'être connectée. Si vous **forkez** le projet et changez l'URL dans `relay/relay_server.py` (constante `_ROUTER_PAGE_URL`), pensez à activer GitHub Pages sur **votre fork** : Settings → Pages → Source = `Deploy from a branch` → Branch = `main` / `/docs` → Save. Les utilisateurs en aval n'ont rien à configurer : ils clonent et ça marche.
 
 #### Accès réseau local (sans tunnel)
 

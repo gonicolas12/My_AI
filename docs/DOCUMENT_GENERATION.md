@@ -160,7 +160,7 @@ Deux comportements volontaires, hérités de l'usage technique :
 | Format | Bibliothèque | Rendu |
 |---|---|---|
 | **docx** | python-docx | Titres H1–H4, gras/italique/code, listes à puces et numérotées **imbriquées**, tableaux stylés, blocs de code tramés, pied de page « Page N », sommaire (champ `TOC`) dès 3 titres |
-| **pdf** | reportlab | Styles de titres, listes, tableaux à en-tête coloré et lignes alternées, code préformaté, filets, numérotation de page |
+| **pdf** | reportlab | Styles de titres, listes, tableaux à en-tête coloré et lignes alternées, code préformaté, filets, numérotation de page ; police de chaque écriture, arabe lié et de droite à gauche |
 | **pptx** | python-pptx | Couverture, une diapo par `##`, puces hiérarchisées, tableaux natifs, **découpe automatique** au-delà de 9 puces (`Section (2)`, `(3)`…) |
 | **xlsx** | openpyxl | Un onglet par tableau (nommé d'après la section), en-tête figé + filtre auto, largeurs ajustées, **nombres convertis en nombres**, onglet « Notes » pour la prose |
 | **md / txt / html / csv** | — | Markdown canonique, texte à colonnes alignées, page HTML autonome, CSV `;` |
@@ -178,6 +178,55 @@ backend passe par `_cell_inlines()` pour restituer gras, italique et code —
 sans quoi les astérisques apparaissaient tels quels dans le document. Une
 cellule Excel n'ayant qu'un style, elle passe en gras quand elle l'est
 entièrement ; CSV et texte reçoivent le texte sans marqueurs.
+
+### Langue du document
+
+Le document est rédigé dans la langue de la demande, et ses **mentions fixes**
+la suivent : « Généré le … à … » sous le titre, « Sommaire » et son aide,
+« Page N », noms des feuilles Excel (« Notes », « Données »), en-tête du CSV,
+guillemets des citations, date de la couverture PowerPoint. Leur langue est
+déduite du texte du document (titre, paragraphes, cellules ; pas le code) :
+
+- une écriture propre à une seule des 12 langues (arabe, cyrillique, hangul,
+  kana, idéogrammes) la donne dès qu'elle écrit la majorité des lettres, même
+  pour un document court ;
+- en alphabet latin, `langdetect` tranche à partir de 200 lettres ; en dessous
+  (un titre et deux tableaux de chiffres), la langue de l'interface s'applique.
+
+### Polices et écritures du PDF
+
+Helvetica, police standard du PDF, n'écrit que l'alphabet latin : un document
+russe ou chinois n'en montrait que des carrés. La police est choisie d'après
+tout le texte du document, mentions fixes comprises
+([`utils/pdf_text.py`](../utils/pdf_text.py), partagé avec l'export des
+conversations) :
+
+| Écriture | Police |
+|---|---|
+| Latin | Helvetica (Courier pour le code), comme avant |
+| Chinois, japonais | Police CID d'Adobe (`STSong-Light`, `HeiseiKakuGo-W5`), connue des lecteurs de PDF ; lignes coupées entre deux caractères |
+| Coréen | Malgun Gothic (Windows) ou NanumGothic, intégrée au PDF |
+| Cyrillique, grec, arabe, hébreu | Arial (Windows) ou DejaVu Sans (Linux, matplotlib), intégrée au PDF |
+
+Le code reste en Courier tant qu'il est en alphabet latin.
+
+ReportLab écrit les caractères dans l'ordre logique, de gauche à droite et sous
+leur forme isolée : l'arabe sortait à l'envers, en lettres détachées. Un
+paragraphe en arabe ou en hébreu est donc coupé en lignes par My_AI, dans
+l'ordre de lecture, puis chaque ligne est **façonnée** (`arabic-reshaper` :
+formes initiale, médiane et finale, ligature lam-alif) et mise dans l'**ordre
+d'affichage** (`python-bidi` : nombres et mots latins gardés de gauche à droite,
+parenthèses et crochets retournés). Le gras, l'italique, les liens et le code en
+ligne suivent leurs mots. Le paragraphe est aligné à droite ; les puces et les
+numéros ouvrent la ligne, à droite ; un tableau dont l'en-tête est en arabe met
+sa première colonne à droite. Les blocs de code restent de gauche à droite. Les
+voyelles brèves (harakat) ne sont pas écrites : ReportLab ne sait pas les placer
+sur leur lettre.
+
+Word, PowerPoint et Excel lient l'arabe eux-mêmes ; il leur faut seulement le
+sens : paragraphes `w:bidi` (gras arabe par `w:bCs`) et tableaux `bidiVisual`
+dans Word, paragraphes `rtl` alignés à droite et tableaux `rtl` dans
+PowerPoint, feuilles de droite à gauche dans Excel.
 
 ## 🔧 Les deux outils MCP
 
@@ -286,10 +335,12 @@ Desktop uniquement : le mobile Relay ne peut pas ouvrir l'explorateur du PC.
 
 ## 📦 Dépendances
 
-Aucune nouvelle : `python-docx`, `reportlab`, `python-pptx` et `openpyxl`
-étaient déjà dans [`requirements.txt`](../requirements.txt). L'aperçu natif
-des documents Office utilise `comtypes`, déjà installé sous Windows avec
-`pyttsx3` (lecture vocale) ; sans lui, l'aperçu retombe sur le rendu HTML.
+`python-docx`, `reportlab`, `python-pptx` et `openpyxl`, dans
+[`requirements.txt`](../requirements.txt), ainsi que `arabic-reshaper` et
+`python-bidi` pour l'arabe des PDF : sans eux, il reste en lettres isolées et à
+l'envers (un avertissement le signale dans le journal). L'aperçu natif des
+documents Office utilise `comtypes`, déjà installé sous Windows avec `pyttsx3`
+(lecture vocale) ; sans lui, l'aperçu retombe sur le rendu HTML.
 
 ## 🐛 Dépannage
 
@@ -300,6 +351,9 @@ des documents Office utilise `comtypes`, déjà installé sous Windows avec
 | « Je vais créer le document… », puis rien | Le modèle a ignoré la relance automatique (une seule par demande) : renvoyez la demande |
 | Document pauvre ou hors sujet | Limite du modèle local, pas du générateur — essayez un modèle plus capable |
 | Sommaire Word vide | Normal : ouvrez le document et appuyez sur **F9** |
+| Carrés à la place du texte d'un PDF (russe, arabe…) | Aucune police Unicode trouvée : Arial sous Windows, `fonts-dejavu` sous Linux (matplotlib en fournit une aussi) |
+| Arabe d'un PDF à l'envers, en lettres détachées | `arabic-reshaper` ou `python-bidi` manquant → `pip install -r requirements.txt` |
+| Mentions (« Généré le », « Page ») dans une autre langue que le document | Document court en alphabet latin : sa langue n'est pas reconnue, celle de l'interface s'applique |
 | « Aucune opération n'a pu être appliquée » | Le texte cherché n'existe pas tel quel dans le document |
 | Génération très lente (plusieurs minutes) | Inférence sur CPU. Vérifiez avec `ollama ps` : un `size_vram` à 0 signifie que le modèle tourne en RAM. Quatre appels au modèle sont nécessaires par document (voir *Coût en passes de modèle*). |
 
@@ -308,6 +362,7 @@ des documents Office utilise `comtypes`, déjà installé sous Windows avec
 ```bash
 python -m pytest tests/test_markdown_document.py \
                  tests/test_document_generator.py \
+                 tests/test_pdf_text.py \
                  tests/test_document_editor.py \
                  tests/test_document_routing.py \
                  tests/test_pptx_processor.py \
