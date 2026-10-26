@@ -20,7 +20,7 @@ In 12 languages. Your conversations, files and memory stay on your machine.
 
 [🚀 Quick start](#-quick-start) · [⚡ Features](#-features) · [🤖 Agents](#-ai-agents) · [📡 Mobile access](#-my_ai-relay--mobile-access) · [🧩 VS Code extension](#-vs-code-extension) · [📖 Documentation](#-documentation)
 
-<img src="docs/images/en/chat.png" alt="My_AI answering with its reasoning, a web search and cited sources" width="900">
+<img src="docs/images/en/chat.gif" alt="My_AI answering a question: reasoning, web search, then an answer with cited sources" width="900">
 
 </div>
 
