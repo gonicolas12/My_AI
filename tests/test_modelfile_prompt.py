@@ -357,17 +357,16 @@ def test_vision_answer_gets_the_identity_and_the_answer_context():
 
 
 def test_vision_pipeline_writes_with_the_given_system_prompt():
+    """Modèle de chat sans vision : un modèle dédié décrit, my_ai rédige."""
     written = {}
     llm = LocalLLM.__new__(LocalLLM)  # sans __init__ : aucun appel à Ollama
     llm.is_ollama_available = True
-    llm.conversation_history = []
-    llm.max_history_length = 50
-    llm.gen_num_ctx = 32768  # le résumé glissant démarre à la moitié de la fenêtre
+    llm.model = "my_ai"
     llm._get_vision_model = lambda: "minicpm-v"
     llm._get_vision_description = lambda _model, _prompt, _image: "Un chat roux sur un canapé."
 
-    def generate_stream(prompt, system_prompt=None, **_kwargs):
-        written.update(prompt=prompt, system=system_prompt)
+    def generate_stream(prompt, system_prompt=None, **kwargs):
+        written.update(prompt=prompt, system=system_prompt, **kwargs)
         return "Je vois un chat roux."
 
     llm.generate_stream = generate_stream
@@ -377,3 +376,5 @@ def test_vision_pipeline_writes_with_the_given_system_prompt():
     assert answer == "Je vois un chat roux."
     assert written["system"] == "CONSIGNE"
     assert "Un chat roux sur un canapé." in written["prompt"]
+    assert written["history_prompt"] == "[Image jointe] Que vois-tu ?"
+    assert "images" not in written

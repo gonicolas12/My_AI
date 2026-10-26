@@ -59,6 +59,12 @@ class LocalLLM:
     # aux documents et à la réponse
     _SUMMARY_CONTEXT_SHARE = 0.5
 
+    # Modèles vision par ordre de préférence, quand le modèle de chat ne voit
+    # pas les images. Sans « : », toutes les étiquettes du modèle conviennent
+    _VISION_MODELS = (
+        "qwen3.5:4b", "qwen3.5", "minicpm-v", "llama3.2-vision", "llava", "bakllava", "moondream",
+    )
+
     # Fin du dernier flux de réponse lu : eval_count et eval_duration (ns)
     # renvoyés par Ollama, et le moment du relevé (time.perf_counter). Lecture
     # seule pour le service de chat (tokens/s des réponses sans outils, comme
@@ -322,6 +328,8 @@ class LocalLLM:
         on_thinking_token: Optional[Callable] = None,
         on_thinking_complete: Optional[Callable] = None,
         stop: Optional[List[str]] = None,
+        images: Optional[List[str]] = None,
+        history_prompt: Optional[str] = None,
     ) -> str:
         """
         Génère une réponse en streaming réel depuis Ollama.
@@ -330,6 +338,9 @@ class LocalLLM:
         début ne sont streamés. Ollama les cherche aussi dans la réflexion
         native : avec on_thinking_token, une réflexion qui en contient une
         s'arrête là, sans réponse (cf. _cut_at_stop dans chat_orchestrator).
+        ``images`` : images en base64 jointes au message, pour un modèle qui
+        les voit (qwen3.5). ``history_prompt`` : texte gardé dans l'historique
+        à la place de ``prompt`` (« [Image jointe] … », sans l'image).
 
         Si on_thinking_token est fourni, active le thinking natif Qwen3.5 :
           - "think": True dans la requête → Ollama streame les tokens de
@@ -345,7 +356,10 @@ class LocalLLM:
 
         messages: List[Dict] = self._system_messages(system_prompt)
         messages.extend(self.conversation_history)
-        messages.append({"role": "user", "content": prompt})
+        user_message: Dict[str, Any] = {"role": "user", "content": prompt}
+        if images:
+            user_message["images"] = images
+        messages.append(user_message)
 
         # Activer le thinking natif Qwen3.5 uniquement quand le widget est disponible
         native_thinking = on_thinking_token is not None
@@ -415,7 +429,7 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] generate_stream exception: {exc}")
 
         if full_response:
-            self.add_to_history("user", prompt)
+            self.add_to_history("user", history_prompt or prompt)
             self.add_to_history("assistant", full_response)
         return full_response
 
@@ -1319,12 +1333,13 @@ class LocalLLM:
             "prompt": full_prompt,
             "images": [image_base64],
             "stream": False,
+            "think": False,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
             "options": {
                 "temperature": 0.0,
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
-                "num_ctx": 2048,
+                "num_ctx": self._vision_num_ctx(vision_model, 2048),
                 "num_predict": 400,
                 "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
@@ -1355,19 +1370,25 @@ class LocalLLM:
     def generate_stream_with_image(self, prompt, image_base64, system_prompt=None, on_token=None,
                                     on_thinking_token=None, on_thinking_complete=None):
         """
-        Pipeline vision en 2 étapes :
-          1. minicpm-v analyse l'image → description factuelle brute (non streamée)
-          2. qwen3.5 rédige la réponse finale à partir de la description (streamée)
+        Réponse streamée à une question sur une image.
 
-        Cela garantit que la réponse a le même style et formatage que
-        les réponses textuelles (Modelfile respecté).
+        Si le modèle de chat voit les images (qwen3.5, et my_ai qui en part),
+        il reçoit l'image avec la question et répond directement : pas de
+        second modèle en mémoire, et la réponse part de l'image elle-même.
+        Sinon, pipeline en 2 étapes :
+          1. un modèle vision dédié (minicpm-v, llava…) décrit l'image (non streamée)
+          2. le modèle de chat rédige la réponse à partir de la description (streamée)
+
+        Dans les deux cas, la réponse a le même style et formatage que les
+        réponses textuelles (Modelfile respecté). L'historique garde
+        « [Image jointe] » et la question, sans l'image.
 
         Args:
             prompt: Le message de l'utilisateur
             image_base64: L'image encodée en base64
-            system_prompt: Prompt système de la rédaction (étape 2), qui doit
-                           partir du Modelfile (with_modelfile) ; None : le
-                           SYSTEM du Modelfile seul
+            system_prompt: Prompt système de la réponse, qui doit partir du
+                           Modelfile (with_modelfile) ; None : le SYSTEM du
+                           Modelfile seul
             on_token: Callback pour chaque token de la réponse finale
             on_thinking_token: Callback pour le thinking Qwen3.5
             on_thinking_complete: Callback quand le thinking est terminé
@@ -1382,51 +1403,51 @@ class LocalLLM:
         if not vision_model:
             return None
 
-        # ── Étape 1 : Description brute par le modèle vision (NON streamée) ──
-        description = self._get_vision_description(vision_model, prompt, image_base64)
-        if not description:
-            return None
+        image_turn = f"[Image jointe] {prompt}"
+        if vision_model == self.model:
+            print(f"🖼️ [LocalLLM] {self.model} voit l'image : réponse directe")
+            result = self.generate_stream(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                on_token=on_token,
+                on_thinking_token=on_thinking_token,
+                on_thinking_complete=on_thinking_complete,
+                images=[image_base64],
+                history_prompt=image_turn,
+            )
+        else:
+            # ── Étape 1 : Description brute par le modèle vision (NON streamée) ──
+            description = self._get_vision_description(vision_model, prompt, image_base64)
+            if not description:
+                return None
 
-        print(f"📝 [LocalLLM] Description vision obtenue ({len(description)} chars)")
+            print(f"📝 [LocalLLM] Description vision obtenue ({len(description)} chars)")
 
-        # ── Étape 2 : Rédaction par le modèle texte (streamée) ──
-        redaction_prompt = (
-            f"L'utilisateur t'a envoyé une image. Voici la description détaillée "
-            f"de ce que contient cette image :\n\n"
-            f"---\n{description}\n---\n\n"
-            f"Question de l'utilisateur : {prompt}\n\n"
-            f"Réponds à la question en te basant sur la description ci-dessus. "
-            f"Utilise ton format habituel (gras, puces, emojis, structure claire)."
-        )
-
-        # Ajouter le contexte image à l'historique AVANT la génération texte
-        self.add_to_history("user", f"[Image jointe] {prompt}")
-
-        result = self.generate_stream(
-            prompt=redaction_prompt,
-            system_prompt=system_prompt,
-            on_token=on_token,
-            on_thinking_token=on_thinking_token,
-            on_thinking_complete=on_thinking_complete,
-        )
+            # ── Étape 2 : Rédaction par le modèle texte (streamée) ──
+            redaction_prompt = (
+                f"L'utilisateur t'a envoyé une image. Voici la description détaillée "
+                f"de ce que contient cette image :\n\n"
+                f"---\n{description}\n---\n\n"
+                f"Question de l'utilisateur : {prompt}\n\n"
+                f"Réponds à la question en te basant sur la description ci-dessus. "
+                f"Utilise ton format habituel (gras, puces, emojis, structure claire)."
+            )
+            result = self.generate_stream(
+                prompt=redaction_prompt,
+                system_prompt=system_prompt,
+                on_token=on_token,
+                on_thinking_token=on_thinking_token,
+                on_thinking_complete=on_thinking_complete,
+                history_prompt=image_turn,
+            )
 
         if result:
-            # L'historique est déjà géré par generate_stream (ajoute la réponse)
-            # mais on a ajouté le user manuellement, donc on corrige :
-            # generate_stream ajoute {"user": redaction_prompt} et {"assistant": result}
-            # On veut garder {"user": "[Image jointe] prompt"} et {"assistant": result}
-            # Retirer les 2 dernières entrées ajoutées par generate_stream
-            if len(self.conversation_history) >= 2:
-                self.conversation_history.pop()  # assistant
-                self.conversation_history.pop()  # user (redaction_prompt)
-            # Ajouter seulement la réponse (le user est déjà dans l'historique)
-            self.add_to_history("assistant", result)
             print(f"✅ [LocalLLM] Réponse vision pipeline OK ({len(result)} chars)")
-
         return result
 
     def describe_image(self, image_base64: str, prompt: str = "Décris ce que tu vois sur cette image.") -> str | None:
-        """API publique : décrit une image via le modèle vision disponible.
+        """API publique : décrit une image via le modèle vision disponible
+        (le modèle de chat s'il voit les images, cf. _get_vision_model).
 
         Encapsule _get_vision_model() + _get_vision_description() pour les
         appelants externes (ex: AgentsInterface) sans exposer les méthodes privées.
@@ -1484,12 +1505,15 @@ class LocalLLM:
             "prompt": full_prompt,
             "images": [image_base64],
             "stream": False,
+            # Une description : la réflexion de qwen3.5 ne ferait que la
+            # retarder (false est accepté aussi sans réflexion, pas true)
+            "think": False,
             "keep_alive": "1h",  # [OPTIM] Persistance modèle vision en VRAM
             "options": {
                 "temperature": 0.4,
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
-                "num_ctx": 4096,
+                "num_ctx": self._vision_num_ctx(vision_model, 4096),
                 "num_predict": 800,
                 "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
@@ -1504,34 +1528,61 @@ class LocalLLM:
             print(f"⚠️ [LocalLLM] Exception retry vision: {e}")
             return None
 
-    def _get_vision_model(self):
-        """Détecte et retourne un modèle vision disponible dans Ollama"""
-        vision_models = ["minicpm-v", "llama3.2-vision", "llava", "llava:13b", "llava:7b", "bakllava", "moondream"]
+    def _vision_num_ctx(self, vision_model: str, dedicated: int) -> int:
+        """Fenêtre d'un appel vision : celle du chat pour le modèle de chat
+        (Ollama le rechargerait pour une autre, et perdrait la conversation
+        déjà lue), ``dedicated`` pour un modèle vision à part."""
+        return self.gen_num_ctx if vision_model == self.model else dedicated
 
+    @staticmethod
+    def _is_model(name: str, wanted: str) -> bool:
+        """``name`` (de /api/tags) désigne ``wanted`` : même nom, ou toute
+        étiquette d'un modèle donné sans « : » (my_ai → my_ai:latest)."""
+        return name == wanted or (":" not in wanted and name.split(":", 1)[0] == wanted)
+
+    def _get_vision_model(self):
+        """
+        Modèle Ollama qui analyse les images.
+
+        Le modèle de chat d'abord, s'il voit les images (qwen3.5, et my_ai qui
+        en part) : il répond lui-même, sans second modèle en mémoire. Sinon
+        (Modelfile sur une base sans vision), le premier modèle installé de
+        _VISION_MODELS, puis tout autre modèle qui voit. Les capacités
+        viennent de /api/tags ; un Ollama trop ancien pour les donner ne
+        garde que les noms de _VISION_MODELS.
+        """
         try:
             response = requests.get(
                 self.ollama_url.replace("/api/generate", "/api/tags"), timeout=5
             )
-            if response.status_code == 200:
-                models = response.json().get("models", [])
-                available_names = [m.get("name", "").split(":", maxsplit=1)[0] for m in models]
-
-                for vm in vision_models:
-                    base_name = vm.split(":", maxsplit=1)[0]
-                    if base_name in available_names:
-                        # Retourner le nom exact du modèle trouvé
-                        for m in models:
-                            if m.get("name", "").startswith(base_name):
-                                print(f"🖼️ [LocalLLM] Modèle vision trouvé: {m['name']}")
-                                return m["name"]
-
-                print("⚠️ [LocalLLM] Aucun modèle vision trouvé.")
-                print("   💡 Installez-en un avec: ollama pull minicpm-v")
-                print(f"   📋 Modèles supportés: {', '.join(vision_models)}")
+            if response.status_code != 200:
                 return None
+            models = response.json().get("models", [])
         except Exception as e:
             print(f"⚠️ [LocalLLM] Erreur détection modèle vision: {e}")
             return None
+
+        for m in models:
+            if self._is_model(m.get("name", ""), self.model) and "vision" in (
+                m.get("capabilities") or []
+            ):
+                return self.model
+
+        # Capacités inconnues (ancien Ollama) : seul le nom compte
+        seeing = [m for m in models if "vision" in (m.get("capabilities") or ["vision"])]
+        for wanted in self._VISION_MODELS:
+            for m in seeing:
+                if self._is_model(m.get("name", ""), wanted):
+                    print(f"🖼️ [LocalLLM] Modèle vision trouvé: {m['name']}")
+                    return m["name"]
+        for m in seeing:
+            if m.get("capabilities"):
+                print(f"🖼️ [LocalLLM] Modèle vision trouvé: {m['name']}")
+                return m["name"]
+
+        print("⚠️ [LocalLLM] Aucun modèle vision trouvé.")
+        print("   💡 qwen3.5:4b, le modèle de My_AI, voit les images : ollama pull qwen3.5:4b")
+        return None
 
     def clear_history(self):
         """Efface l'historique de conversation"""

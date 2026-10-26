@@ -555,7 +555,7 @@ class AgentRelayService:
                 sections.append(
                     f"--- Image jointe : {fname} ---\n"
                     f"[Aucun modèle vision disponible. "
-                    f"Installez-en un : ollama pull minicpm-v]"
+                    f"Installez-en un : ollama pull qwen3.5:4b]"
                 )
         for fp in file_paths or []:
             if not fp or not os.path.isfile(fp):

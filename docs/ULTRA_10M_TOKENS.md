@@ -12,7 +12,7 @@ Le système Ultra de My Personal AI implémente une **mémoire vectorielle inter
 
 ### 🎯 Chiffres Clés
 - **10 000 000 tokens** de capacité de stockage en mémoire vectorielle interne
-- **Fenêtre LLM effective** : 32 768 tokens (défaut `Modelfile` et `local_llm.py`), réduit à 8 192 pour les appels simples et 4 096 pour l'analyse d'images
+- **Fenêtre LLM effective** : 32 768 tokens (défaut `Modelfile` et `local_llm.py`, 65 536 en option dans ⚙️ Réglages), la même pour tous les appels au modèle, analyse d'images comprise ; 4 096 seulement pour un modèle vision dédié
 - **Compression intelligente** : 2.4:1 à 52:1 selon le contenu
 - **Persistance ChromaDB (SQLite + Parquet)** optimisée pour les gros volumes
 - **Recherche sémantique** ultra-rapide (HNSW + cosinus + reranking CrossEncoder)
@@ -158,7 +158,7 @@ stats = memory.get_stats()
 print(f"""
 🚀 STATISTIQUES MÉMOIRE VECTORIELLE :
    📊 Tokens en mémoire interne : {stats['current_tokens']:,} / {stats['max_tokens']:,}
-   ⚠️  Fenêtre LLM effective (Ollama) : 32 768 tokens (principal), 8 192 (appels simples), 4 096 (vision)
+   ⚠️  Fenêtre LLM effective (Ollama) : 32 768 tokens (tous les appels), 4 096 (modèle vision dédié)
    📄 Documents traités : {stats.get('documents_processed', 'N/A')}
    🧩 Chunks créés : {stats.get('chunks_created', 'N/A')}
    🗜️  Ratio compression : {stats.get('compression_ratio', 'N/A')}

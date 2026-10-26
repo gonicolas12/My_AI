@@ -1,7 +1,7 @@
 # 🎨 Génération d'images locale (texte → image)
 
-My_AI gère l'**entrée vision** depuis longtemps (décrire une image via Ollama
-`minicpm-v`/`llava`). Ce module ajoute la **sortie image** : demandez une image,
+My_AI gère l'**entrée vision** depuis longtemps (qwen3.5 voit les images, via
+Ollama). Ce module ajoute la **sortie image** : demandez une image,
 l'IA la génère, l'affiche dans le chat (desktop **et** mobile) et la sauvegarde
 dans `outputs/`. **100% local, hors-ligne.**
 

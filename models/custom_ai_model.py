@@ -636,12 +636,14 @@ class CustomAIModel(
                     )
                     return response
                 else:
-                    # Erreur vision (pas de modèle vision installé)
+                    # Aucun modèle qui voit les images, ou analyse en échec
                     error_msg = (
-                        "⚠️ **Aucun modèle vision n'est installé dans Ollama.**\n\n"
-                        "Pour analyser des images, installez un modèle vision :\n"
-                        "```bash\nollama pull minicpm-v\n```\n\n"
-                        "Modèles supportés : `minicpm-v` (recommandé), `llava`, `llama3.2-vision`, `bakllava`, `moondream`"
+                        "⚠️ **L'image n'a pas pu être analysée.**\n\n"
+                        "Il faut un modèle qui voit les images dans Ollama. Celui de "
+                        "My_AI, `qwen3.5:4b`, les voit :\n"
+                        "```bash\nollama pull qwen3.5:4b\n```\n\n"
+                        "Autres modèles vision reconnus : `minicpm-v`, `llama3.2-vision`, "
+                        "`llava`, `bakllava`, `moondream`"
                     )
                     if on_token:
                         on_token(error_msg)

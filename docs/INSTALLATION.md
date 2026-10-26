@@ -72,20 +72,20 @@ ollama pull qwen3.5:9b
 ollama pull qwen3.5:4b
 ```
 
-**Étape 2b : Installer un modèle Vision (Optionnel pour l'analyse d'images)**
-```bash
-# Modèle vision recommandé (3 GB) — meilleur rapport qualité/vitesse
-ollama pull minicpm-v
+**Étape 2b : Analyse d'images (rien à installer avec qwen3.5)**
 
-# OU autres modèles vision disponibles
-ollama pull minicpm-v            # Bonne qualité (4.7 GB)
+qwen3.5 voit les images : `my_ai`, qui en part, répond lui-même aux questions sur une image jointe, sans second modèle à télécharger ni à garder en mémoire.
+
+Un modèle vision dédié ne sert que si le `Modelfile` part d'un modèle qui ne voit pas les images (mistral, llama3.2…) :
+```bash
+ollama pull minicpm-v            # Bonne qualité (5.5 GB)
 ollama pull llama3.2-vision      # Haute qualité mais lourd (7.9 GB)
 ollama pull llava:13b            # Plus performant mais plus lourd
 ollama pull bakllava             # Alternative
 ollama pull moondream            # Plus léger
 ```
 
-> **Note:** Le support d'images nécessite au moins un modèle vision installé. L'IA détectera automatiquement le premier modèle disponible parmi : llava, llama3.2-vision, bakllava, moondream.
+> **Note :** My_AI prend le modèle de chat s'il voit les images ; sinon le premier installé parmi qwen3.5, minicpm-v, llama3.2-vision, llava, bakllava et moondream, puis tout autre modèle qu'Ollama déclare capable de voir. Le modèle dédié décrit l'image, puis `my_ai` rédige la réponse.
 
 **Étape 3 : Créer le modèle personnalisé**
 ```bash
