@@ -5,6 +5,14 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.2] — 2026-10-26
+
+Marketplace listing only: no change to how the extension works.
+
+### Changed
+- **Keywords.** The extension now shows up in Marketplace searches for
+  `ollama`, `local-llm`, `agent`, `offline` and `privacy`.
+
 ## [1.5.1] — 2026-10-24
 
 Wording update, released with a change to the host's Relay panel: no change

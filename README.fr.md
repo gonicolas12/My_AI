@@ -20,7 +20,7 @@ En 12 langues. Vos conversations, vos fichiers et votre mémoire restent sur vot
 
 [🚀 Démarrage rapide](#-démarrage-rapide) · [⚡ Fonctionnalités](#-fonctionnalités) · [🤖 Agents](#-agents-ia) · [📡 Accès mobile](#-my_ai-relay--accès-mobile) · [🧩 Extension VS Code](#-extension-vs-code) · [📖 Documentation](#-documentation)
 
-<img src="docs/images/fr/chat.png" alt="My_AI répond avec sa réflexion, une recherche web et des sources citées" width="900">
+<img src="docs/images/fr/chat.gif" alt="My_AI répond à une question : réflexion, recherche web, puis une réponse avec ses sources" width="900">
 
 </div>
 
