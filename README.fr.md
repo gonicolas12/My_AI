@@ -75,19 +75,16 @@ Au **tout premier lancement**, My_AI s'affiche dans la langue de Windows (l'une 
 <summary><b>Installation manuelle des modèles</b></summary>
 
 ```bash
-# Modèle texte (choisir selon votre RAM)
+# Modèle (choisir selon votre RAM) : il lit le texte et les images
 ollama pull qwen3.5:2b       # Ultra léger — réponses concises (4 GB RAM)
 ollama pull qwen3.5:4b       # Recommandé — léger et rapide (8 GB RAM)
 ollama pull qwen3.5:9b       # Plus lourd — réponses détaillées (16 GB RAM)
-
-# Modèle vision pour l'analyse d'images
-ollama pull minicpm-v        # Recommandé — meilleur rapport qualité/vitesse (3 GB)
-ollama pull llava            # Alternative (4.7 GB)
 
 # Créer le modèle personnalisé
 .\create_custom_model.bat
 ```
 
+- 🖼️ **Images** : qwen3.5 les voit, donc `my_ai` répond lui-même aux questions sur une image, sans second modèle à télécharger ni à garder en mémoire. Un modèle vision dédié (`ollama pull minicpm-v`, `llava`...) ne prend le relais que si le `Modelfile` part d'un modèle qui ne voit pas les images.
 - 🔄 **`Modelfile` modifié ?** (à la main, par un `git pull` ou par ⚙️ Réglages) : `my_ai` est **recréé automatiquement au lancement suivant**, inutile de relancer `create_custom_model.bat`. Le lancement ne fait rien de plus tant que le `Modelfile` ne change pas.
 - **Changer de modèle** : le plus simple est le **panneau Réglages** (en bas de la barre latérale, ou Ctrl+virgule) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez My_AI : `my_ai` est recréé au lancement.
 
@@ -228,7 +225,7 @@ Si vous observez des comportements inattendus ou des erreurs après plusieurs la
 
 ### 🦙 Intégration Ollama — LLM 100% local
 
-- **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...).
+- **Multi-modèles** : `qwen3.5:2b`, `qwen3.5:4b`, `qwen3.5:9b` (texte **et** images), `mistral`... ; un modèle vision dédié (`minicpm-v`, `llava`, `llama3.2-vision`...) ne prend les images que si le modèle choisi ne les voit pas.
 - **Placement automatique** : au lancement, My_AI regarde où Ollama place le modèle. Resté sur le processeur, il mesure si le GPU intégré va plus vite et garde le plus rapide ; quand le modèle déborde de la carte graphique (ou du GPU intégré), son contexte passe en 8 bits s'il va plus vite. Le choix est gardé, et remesuré après une mise à jour d'Ollama ou un changement de matériel.
 - **Une seule fenêtre de contexte** (32 768 tokens, 65 536 en option) pour tous les appels : Ollama ne recharge plus le modèle d'une étape à l'autre et reprend la conversation déjà lue.
 - **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`.

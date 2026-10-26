@@ -71,7 +71,7 @@ pendant que le moteur calcule.
 - ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à une autre pièce jointe, ou déjà chargé avant cette pièce jointe
 - 📝 **Génération de documents** Word/PDF/PowerPoint/Excel, avec aperçu au format natif — voir *Génération de Documents* plus bas
 - 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur
-- 🖼️ **Analyse d'images** avec modèles vision (minicpm-v, llava, llama3.2-vision)
+- 🖼️ **Analyse d'images** par le modèle lui-même (qwen3.5 voit les images), ou par un modèle vision dédié (minicpm-v, llava…) si le `Modelfile` part d'un modèle qui ne les voit pas
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
 - 🔊 **Sortie vocale locale** (pyttsx3) — lecture des réponses, voix par langue, lecture auto
@@ -107,7 +107,7 @@ IA: [Résumé basé sur rapport.pdf]
 
 ### 🖼️ Analyse d'Images
 
-L'IA peut analyser des images avec les modèles vision Ollama:
+L'IA peut analyser des images : qwen3.5, et donc `my_ai`, voit l'image et répond directement à la question, dans le même style que ses autres réponses.
 
 **Méthodes de chargement:**
 ```bash
@@ -139,7 +139,7 @@ Vous: "Explique-moi ce diagramme"
 Vous: "Quel texte est visible ?"
 ```
 
-> **Note:** Nécessite un modèle vision installé (`ollama pull llava`). L'image est automatiquement redimensionnée à 1024px max.
+> **Note :** Rien à installer avec qwen3.5. Si le `Modelfile` part d'un modèle qui ne voit pas les images (mistral, llama3.2…), installez un modèle vision dédié (`ollama pull minicpm-v`) : il décrit l'image, puis `my_ai` rédige la réponse. L'image est automatiquement redimensionnée à 1024px max.
 
 ### 🎨 Génération d'Images (texte → image)
 
