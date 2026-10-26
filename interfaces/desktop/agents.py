@@ -613,14 +613,14 @@ class AgentsService:
             if item["type"] != "Image" or run.stop_requested:
                 continue
             name = os.path.basename(item["path"])
-            # Même pipeline que le GUI (minicpm-v), partagé avec le mobile
+            # Même description que le chat (LocalLLM.describe_image), partagée avec le mobile
             description = executor._describe_image(item["path"])  # pylint: disable=protected-access
             if description:
                 sections.append(f"--- Image jointe : {name} ---\nDescription de l'image :\n"
                                 f"{description}")
             else:
                 sections.append(f"--- Image jointe : {name} ---\n[Aucun modèle vision disponible. "
-                                "Installez-en un : ollama pull minicpm-v]")
+                                "Installez-en un : ollama pull qwen3.5:4b]")
         return run.task + "\n\n" + "\n\n".join(sections) if sections else run.task
 
     def _on_event(self, run: Run, event: Dict[str, Any]) -> None:

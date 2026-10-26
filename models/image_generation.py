@@ -2,7 +2,7 @@
 Génération d'images locale (texte → image), 100% offline.
 
 Ferme la symétrie multimodale du projet : l'ENTRÉE vision existe déjà
-(models/local_llm.py → describe_image via Ollama minicpm-v/llava), ce module
+(models/local_llm.py : qwen3.5 voit les images, via Ollama), ce module
 ajoute la SORTIE image.
 
 Architecture calquée sur LocalLLM : on parle à un backend Stable Diffusion

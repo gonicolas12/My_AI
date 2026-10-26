@@ -148,11 +148,11 @@ generation:
 # ====================================
 # GÉNÉRATION D'IMAGES (texte → image, 100% local)
 # ====================================
-# Ferme la symétrie multimodale : l'ENTRÉE vision existe déjà (Ollama
-# minicpm-v/llava), cette section ajoute la SORTIE image. Calque le pattern
-# Ollama : on parle à un backend Stable Diffusion LOCAL en HTTP (localhost),
-# avec dégradation propre si aucun backend (message clair, comme le fallback
-# Ollama). Voir models/image_generation.py.
+# Ferme la symétrie multimodale : l'ENTRÉE vision existe déjà (qwen3.5
+# voit les images, via Ollama), cette section ajoute la SORTIE image. Calque
+# le pattern Ollama : on parle à un backend Stable Diffusion LOCAL en HTTP
+# (localhost), avec dégradation propre si aucun backend (message clair, comme
+# le fallback Ollama). Voir models/image_generation.py.
 image_generation:
   # Active la fonctionnalité (intention "génère une image de…").
   enabled: true
