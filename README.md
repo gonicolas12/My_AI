@@ -1,438 +1,124 @@
 ﻿<div align="center">
 
-# 🤖 My AI — Une IA personnelle, confidentielle et locale
+<img src="frontend/public/favicon.svg" alt="My_AI" width="96">
 
-**Puissante · Locale · Extensible**
+# My_AI
 
+### Your private AI assistant, running 100% on your computer
+
+Chat, agents, documents, images and voice, powered by [Ollama](https://ollama.com).<br>
+In 12 languages. Your conversations, files and memory stay on your machine.
+
+[![GitHub stars](https://img.shields.io/github/stars/gonicolas12/My_AI?style=for-the-badge&logo=github&color=ff6b47)](https://github.com/gonicolas12/My_AI/stargazers)
+[![Release](https://img.shields.io/github/v/release/gonicolas12/My_AI?style=for-the-badge&color=ff6b47)](https://github.com/gonicolas12/My_AI/releases)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Ollama](https://img.shields.io/badge/Ollama-LLM%20Local-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/download)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)](https://github.com/gonicolas12/My_AI)
+[![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/download)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)](#-quick-start)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Context](https://img.shields.io/badge/M%C3%A9moire%20Vectorielle-10M%20Tokens-ff6b47?style=for-the-badge)](docs/ULTRA_10M_TOKENS.md)
 
-*Une IA qui tourne entièrement sur votre machine. Vos données ne quittent jamais votre ordinateur.*
+**English** · [Français](README.fr.md)
 
-[🚀 Démarrage rapide](#-démarrage-rapide) · [🤖 Agents IA](#-système-dagents-ia-spécialisés) · [📡 My_AI Relay](#-my_ai-relay--accès-mobile) · [🧩 Extension VS Code](#-extension-vs-code) · [📖 Documentation](#-documentation-complète)
+[🚀 Quick start](#-quick-start) · [⚡ Features](#-features) · [🤖 Agents](#-ai-agents) · [📡 Mobile access](#-my_ai-relay--mobile-access) · [🧩 VS Code extension](#-vs-code-extension) · [📖 Documentation](#-documentation)
+
+<img src="docs/images/en/chat.png" alt="My_AI answering with its reasoning, a web search and cited sources" width="900">
 
 </div>
 
----
+## ✨ Why My_AI?
 
-## ✨ Points Forts
+- 🔒 **Private by design.** The model runs on your PC through Ollama. Conversations, documents and memory are stored locally (ChromaDB + SQLite). Once the models are downloaded, everything except web search and mobile access works offline.
+- 🧩 **Everything in one window.** Chat with reasoning and cited web search, 9 specialized agents and a visual workflow editor, Word, PDF, Excel and PowerPoint generation, local image generation, voice input and output, scheduled tasks.
+- 📱 **Wherever you work.** Talk to the AI running on your PC from your phone, through an end-to-end encrypted relay, or let it read and edit your project from VS Code.
+- 🌍 **12 languages.** The interface, the answers, the voice and the generated documents follow your language: English, French, Spanish, German, Italian, Portuguese, Dutch, Russian, Chinese, Japanese, Korean and Arabic (right to left).
+- 🪶 **Made for ordinary hardware.** On first launch, the setup wizard detects your RAM and GPU, then downloads the right model (2 to 9 billion parameters). My_AI checks whether your integrated GPU runs it faster and keeps the quickest option.
+
+## 🖥️ Screenshots
 
 <table>
 <tr>
-<td width="50%">
-
-**💾 Mémoire Vectorielle Étendue**  
-Jusqu'à 10 485 760 tokens stockés en mémoire interne (ChromaDB + SQLite).
-
-**🤖 9 Agents IA Spécialisés**  
-Code, Debug, Web, Sécurité... et création d'agents personnalisés avec interface style n8n.
-
-**🧠 Mode Thinking**  
-Pour les requêtes complexes, l'IA réfléchit étape par étape avant de répondre.
-
-**🔌 Intégration MCP (Model Context Protocol)**  
-Connexion standardisée à des outils locaux et serveurs externes (fichiers, git, bases de données).
-
-**📅 Tâches Planifiées (proactif)**  
-Planifiez vos agents et workflows en récurrence, exécution même l'application fermée.
-
-</td>
-<td width="50%">
-
-**🔍 Recherche Internet**  
-Informations en temps réel via DuckDuckGo (Yahoo et Wikipédia en secours).
-
-**📄 Génération et traitement de Documents**  
-PDF, DOCX, PowerPoint, Excel, CSV, Code, images, analyse contextuelle ultra-étendue.
-
-**📡 Accès Mobile**  
-Discutez avec votre IA depuis votre téléphone, où que vous soyez, via un tunnel sécurisé.
-
-**💻 Extension VS Code agentique**  
-Lecture, édition, création de fichiers... le tout via le tunnel chiffré.
-
-**🎙️ Voix locale**  
-Dictée via faster-whisper dans toutes les zones de saisie, et lecture vocale des réponses.
-
-</td>
+<td width="57%"><img src="docs/images/en/agents.png" alt="The Agents page: 9 specialized agents and the task box"></td>
+<td rowspan="2"><img src="docs/images/en/relay.png" alt="My_AI Relay: QR code and access code for the phone"></td>
+</tr>
+<tr>
+<td><img src="docs/images/en/workflow.png" alt="A visual workflow: PlannerAgent, then CodeAgent and SecurityAgent in parallel, then DebugAgent"></td>
+</tr>
+<tr>
+<td align="center"><b>Agents and visual workflows</b></td>
+<td align="center"><b>Mobile access with the Relay</b></td>
 </tr>
 </table>
 
----
+## 🚀 Quick start
 
-## 🖥️ Interface Utilisateur
-
-<div align="center">
-
-### Chat — Interface moderne
-
-![Interface Chat](docs/images/chatScreen.png)
-
-| Fonctionnalité | Détail |
-|---|---|
-| 🧠 **Mode Thinking** | Bloc « Réflexion » repliable : texte animé pendant la génération |
-| 🧭 **Barre latérale** | Conversations, recherche globale, dossiers du projet, historique... |
-| 🎓 **Feedback RLHF** | Notation 1-5 étoiles sous chaque réponse |
-| 🎙️ **Saisie vocale** | Bouton micro dans chaque zone de saisie, transcription locale |
-| 🔊 **Lecture vocale** | Bouton sous chaque réponse + mode lecture auto |
-| 🎨 **Aperçu Artifacts** | Volet de rendu live HTML/CSS/SVG et des documents générés |
-| ⚡ **Slash commands** | Tapez `/` : autocomplétion de prompts réutilisables |
-| 🎹 **Palette de commandes** | Ctrl+K : toutes les actions de l'appli au clavier |
-
-### Agents — Interface dédiée
-
-![Interface Agents](docs/images/agentsScreen1.png)
-![Interface Workflow](docs/images/agentsScreen2.png)
-
-| Fonctionnalité | Détail |
-|---|---|
-| 🤖 **Vue d'ensemble** | Grille de tous les agents avec descriptions |
-| 🧩 **Création d'agents personnalisés** | Prompt système rédigé par le modèle local |
-| 🔄 **Canvas de workflow visuel** | Nœuds connectables, zoom/pan, grille, minimap |
-| 🧵 **Fils d'exécution** | Chaque exécution est un fil rouvrable |
-| 🎭 **Mode Débat** | Confrontation argumentée entre deux agents |
-| 📊 **Statistiques et monitoring ressources** | CPU, RAM, GPU, VRAM, temps d'inférence et tokens/s |
-| 📅 **Tâches planifiées** | Agents en récurrence, même l'appli fermée |
-| 🔔 **Notifications desktop** | Notification système à la fin d'une tâche longue |
-
-</div>
-
----
-
-## ⚡ Fonctionnalités Principales
-
-### 🤖 Système d'Agents IA Spécialisés
-
-| Agent | Rôle |
-|---|---|
-| 🐍 **CodeAgent** | Génération et debug de code multi-langages |
-| 🔍 **WebAgent** | Recherche Internet & Fact-Checking |
-| 📊 **AnalystAgent** | Analyse de données et insights |
-| ✨ **CreativeAgent** | Rédaction et contenu créatif |
-| 🐛 **DebugAgent** | Détection et correction d'erreurs |
-| 📋 **PlannerAgent** | Planification de projets complexes |
-| 🛡️ **SecurityAgent** | Audit de sécurité & vulnérabilités |
-| ⚡ **OptimizerAgent** | Optimisation & Performance |
-| 🧬 **DataScienceAgent** | Data Science & Machine Learning |
-
-### 🦙 Intégration Ollama — LLM 100% Local
-
-- **Confidentialité totale** : aucune donnée envoyée sur internet
-- **Fallback intelligent** : sans Ollama, l'IA bascule automatiquement en mode patterns/règles
-- **Modèle personnalisable** : température, contexte, system prompt via le `Modelfile`
-- **Multi-modèles** : texte (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) et vision (`minicpm-v`, `llava`, `llama3.2-vision`...)
-- **Placement automatique** : au lancement, My_AI regarde où Ollama place le modèle. Resté sur le processeur, il mesure si le GPU intégré va plus vite et garde le plus rapide ; quand le modèle déborde de la carte graphique (ou du GPU intégré), son contexte passe en 8 bits s'il va plus vite. Le choix est gardé, et remesuré après une mise à jour d'Ollama ou un changement de matériel.
-- **Une seule fenêtre de contexte** (32 768 tokens, 65 536 en option) pour tous les appels : Ollama ne recharge plus le modèle d'une étape à l'autre et reprend la conversation déjà lue.
-
-### 🎨 Génération d'images locale (texte → image)
-
-- **Symétrie multimodale** : l'IA *voit* (vision Ollama) **et** *dessine*. Demandez « *génère une image de…* », « *dessine-moi…* », « *crée un logo…* ».
-- **Installation automatique (zéro config)** : à la première demande sans backend, My_AI télécharge et lance **ComfyUI portable** tout seul (Windows : build NVIDIA, AMD ou Intel Arc selon le GPU, sinon sur le CPU ; Python+torch embarqués) + un modèle par défaut — comme l'assistant de premier lancement pour Ollama.
-- **100% local** via un backend **Stable Diffusion** en HTTP : **ComfyUI** (auto-installé), **AUTOMATIC1111 / Forge**, ou **diffusers** (optionnel, tous GPU + CPU), configurable dans `config.yaml` → `image_generation:`.
-
-### 📝 Génération & modification de documents
-
-- **Documents bureautiques** : « *génère moi un docx sur les baleines* », « *fais-moi un PDF de synthèse* », « *crée une présentation PowerPoint…* », « *un tableur Excel comparant…* ». Le modèle local rédige, python-docx, reportlab, python-pptx et openpyxl mettent en forme : titres, listes imbriquées, tableaux stylés, sommaire Word, découpe automatique des diapos, onglets Excel avec filtre.
-- **Dans la langue du document** : mentions « Généré le », sommaire, numéros de page et noms de feuilles suivent la langue du texte. Le PDF prend la police qu'il faut (chinois, japonais, coréen, cyrillique, arabe).
-- **Modification des pièces jointes** (docx, xlsx, pptx, md, pdf…) : remplacer un texte, réécrire une section, ajouter une ligne ou une diapo. **Le fichier d'origine n'est jamais touché** : la copie modifiée est écrite dans `outputs/documents/`.
-- **Aperçu au format natif** dans le volet latéral, ouvert automatiquement : visionneuses Word, PowerPoint et Excel de l'Explorateur Windows, lecteur PDF d'Edge. Rendu HTML de repli ailleurs, et sur le mobile Relay.
-
-### 🔌 Accès à tout le PC (Root System) via MCP Local
-- Outils locaux pour **lire, écrire, déplacer des fichiers** et **créer des dossiers**
-- Vérification rigoureuse des **chemins complets** retournés par les outils pour garantir une **gestion précise** des fichiers
-- Capacité à **organiser les espaces de travail** de manière autonome
-- Dialogue de **confirmation** avant toute **suppression de fichier** (sécurité utilisateur)
-
-### ⚡ Slash commands & Bibliothèque de prompts
-
-- **Tapez `/`** en début de saisie : autocomplétion des **prompts réutilisables** (`/code`, `/résume`, `/traduis`, `/explique`, `/corrige`, `/reformule`…), navigables au clavier.
-- **Prompt engineering, pas du texte pré-rempli** : une **commande courte** (`/code un jeu de morpion`) est **expansée à l'envoi** en un prompt détaillé pour le modèle — la bulle de chat, elle, garde la commande courte.
-- **Gérez votre bibliothèque** : créez, nommez, éditez et supprimez vos templates (placeholder `{arguments}` pour injecter le texte saisi).
-- Disponible **partout** : GUI desktop, **mobile** (Relay, via `GET /api/prompts` chiffré) et **extension VS Code**.
-
-### 📁 Contexte projet « @codebase » (RAG persistant)
-
-- **Attachez un dossier entier** (codebase ou dossier de docs) à un workspace : l'IA garde ce contexte **disponible en permanence** pour toutes les questions — plus besoin de re-glisser les fichiers.
-- **Indexation incrémentale 100% local** : réutilise la mémoire vectorielle (collection `codebase`) et les processeurs existants ; **respecte `.gitignore`** et exclut `node_modules`, `.git`, `.venv`, `dist`… Seuls les fichiers modifiés sont retraités au réindex.
-- **Récupération au moment de la question** (RAG) + **court-circuit déterministe** pour les questions *sur* le dossier (chemin, liste de fichiers).
-- **Fenêtre** : section « Dossiers du projet » de la barre latérale. **VS Code** : menu **`@`** pour attacher fichiers/dossiers, un seul contexte `@codebase` par projet.
-
-### 🎙️ Saisie Vocale (Voice Mode)
-
-- **Bouton micro** dans chaque zone de saisie (accueil, conversation, onglet Agents)
-- **Toggle** : 1er clic démarre l'écoute, 2ème clic stoppe et lance la transcription
-- **100% local** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — modèle `small` (~150 Mo) chargé à la demande
-- **Langue auto-détectée** (99+ langues supportées par Whisper)
-- **Insertion au curseur** de la zone active — pratique pour dicter des prompts longs sans interrompre sa frappe
-
-### 📅 Tâches Planifiées (assistant proactif)
-
-- Planifiez l'exécution **récurrente** d'un **agent**, d'un **workflow** (canvas n8n) ou d'un **débat** : *quotidien*, *hebdomadaire*, *intervalle* ou **cron** — ex. « chaque matin 8h, WebAgent sur l'actu IA et résume »
-- **Exécution même l'application fermée** (option) via le **Planificateur de tâches Windows** — session ouverte, sans droits admin ni mot de passe stocké
-- **Rattrapage** des tâches manquées au redémarrage, **notifications** (toast OS + entrée GUI + message mobile), rapports `.md` dans `outputs/scheduled/`
-- 100% local, **réutilise l'orchestrateur d'agents existant**.
-
-### 🧠 Contrôle total de la mémoire (confidentialité)
-
-- **« Retiens que… »** dans le chat : le fait est vraiment enregistré (onglet Faits du panneau Mémoire), et les faits utiles accompagnent ensuite chaque réponse.
-- Un panneau **Mémoire** pour **voir, éditer et supprimer** ce que l'IA sait de vous — **vraies** opérations CRUD, 100% local, **sans mock**.
-- **3 onglets** : **Faits** (SQLite), **Documents** et **Conversations** (vecteurs ChromaDB), avec **recherche, filtre par catégorie, pagination et provenance** (quelle session / quel document).
-- **Édition inline** et **suppression confirmée** (dialogue cohérent avec la confirmation MCP). Pour les conversations, option **« supprimer à la source »** = suppression **durable** (le message d'origine est retiré du workspace puis réindexé, il ne réapparaît pas).
-- La suppression d'une entrée vectorielle est une **vraie suppression dans ChromaDB** (`collection.delete`).
-
----
-
-## 💥 Capacités Techniques
-
-
-| Capacité | Valeur |
-|---|---|
-| **💾 Mémoire vectorielle interne** | jusqu'à **10 485 760 tokens** |
-| **📝 Résumé glissant** | automatique à la moitié de la fenêtre de contexte (16k tokens sur 32k) |
-| **🔍 Recherche sémantique** | sentence-transformers + HNSW cosinus |
-| **🗃️ Base vectorielle** | ChromaDB (local) |
-
-
-- **Chunking intelligent** avec chevauchement configurable (chunk 256 tokens, overlap 32)
-- **Auto-optimisation** de la mémoire selon l'usage (éviction FIFO)
-- **Métriques de chunking exposées** : overhead de chevauchement, taille moyenne des chunks
-
----
-
-## 🏗️ Architecture du Projet
-
-```
-my_ai/
-├── core/                                # Cœur de l'IA
-│   ├── locales/                         # Textes du serveur traduits (un JSON par langue)
-│   ├── __init__.py
-│   ├── agent_orchestrator.py            # Orchestrateur d'agents
-│   ├── agentic_executor.py              # Exécuteur agentique (outils distants via Relay)
-│   ├── ai_engine.py                     # Moteur principal IA
-│   ├── api_server.py                    # Serveur API REST (FastAPI)
-│   ├── chat_orchestrator.py             # Orchestrateur de chat (ReAct + Plan & Execute)
-│   ├── chat_service.py                  # Service de chat sans interface (fenêtre et mobile)
-│   ├── command_history.py               # Historique des commandes utilisateur
-│   ├── compression_monitor.py           # Moniteur de compression (ratios, métriques)
-│   ├── config.py                        # Gestion de la configuration
-│   ├── conversation_exporter.py         # Export conversations (MD/HTML/PDF)
-│   ├── conversation.py                  # Gestion des conversations
-│   ├── conversation_search.py           # Recherche sémantique globale cross-conversations
-│   ├── data_preprocessing.py            # Prétraitement des données
-│   ├── document_passages.py             # Passages d'un long document selon la question
-│   ├── error_analysis.py                # Analyse des erreurs et feedback RLHF
-│   ├── evaluation.py                    # Évaluation des performances
-│   ├── folder_indexer.py                # Indexeur incrémental de dossier rattaché au workspace
-│   ├── i18n.py                          # Langue de l'interface et traductions (12 langues)
-│   ├── image_intent.py                  # Demandes d'image dans les 12 langues
-│   ├── knowledge_base_manager.py        # Base de connaissances structurée
-│   ├── language_detector.py             # Détection automatique de langue
-│   ├── mcp_client.py                    # Client Model Context Protocol (Outils)
-│   ├── memory_store.py                  # Couche d'accès CRUD unifiée mémoire (faits + vecteurs)
-│   ├── modelfile.py                     # SYSTEM du Modelfile en tête des prompts système
-│   ├── network.py                       # Gestion des connexions réseau et proxys
-│   ├── optimization.py                  # Optimisation des performances
-│   ├── passage_embeddings.py            # Modèle multilingue des passages (téléchargé au lancement)
-│   ├── platform_paths.py                # Exemples de chemins adaptés à l'OS (prompts)
-│   ├── prompt_library.py                # Bibliothèque de prompts / slash commands
-│   ├── rlhf_manager.py                  # RLHF intégré (feedback automatique)
-│   ├── scheduler.py                     # Scheduler proactif (tâches planifiées récurrentes)
-│   ├── scheduler_runner.py              # Runner headless + Planificateur de tâches Windows
-│   ├── session_manager.py               # Gestionnaire de workspaces/sessions
-│   ├── shared.py                        # Modules partagés
-│   ├── training_manager.py              # Training Manager moderne (pipeline complet)
-│   ├── training_pipeline.py             # Pipeline d'entraînement local
-│   ├── validation.py                    # Validation des entrées utilisateur
-│   └── web_cache.py                     # Cache web persistant (diskcache)
-├── data/                                # Données persistantes
-│   ├── knowledge_base/                  # Base de faits (SQLite)
-│   ├── web_cache/                       # Cache des recherches web
-│   └── workspaces/                      # Espaces de travail sauvegardés
-├── docs/                                # Documentations
-├── examples/                            # Exemples d'utilisation
-│   └── advanced_features_demo.py        # Démonstration des fonctionnalités avancées
-├── generators/                          # Générateurs de contenu
-│   ├── __init__.py
-│   ├── code_generator.py                # Génération code avec analyse ultra
-│   ├── document_editor.py               # Modification de documents joints (toujours sur une copie)
-│   ├── document_generator.py            # Documents Word/PDF/PowerPoint/Excel rédigés par le LLM
-│   └── markdown_document.py             # Parseur Markdown → blocs, socle des backends de rendu
-├── frontend/                            # Interface web (React + TypeScript, Vite)
-│   ├── src/
-│   │   ├── features/                    # Pages Chat et Agents, panneaux, aperçu, palette, assistant
-│   │   ├── i18n/                        # Traductions de l'interface (12 langues)
-│   │   ├── lib/                         # Client REST, WebSocket, pont vers la fenêtre (shell)
-│   │   ├── stores/                      # État de l'interface (Zustand)
-│   │   └── styles/tokens.css            # Couleurs, typographie, rayons (jetons de l'interface)
-│   ├── scripts/                         # Vérifications Playwright (développement)
-│   └── dist/                            # Build versionné : Node n'est pas requis pour lancer l'appli
-├── interfaces/                          # Interfaces utilisateur
-│   ├── desktop/                         # Fenêtre de l'appli et son serveur local
-│   │   ├── __init__.py
-│   │   ├── _whisper_worker.py           # Transcription isolée (contournement OpenMP macOS)
-│   │   ├── agents.py                    # Page Agents : fils d'exécution, workflows, débat...
-│   │   ├── api_*.py                     # Routes REST
-│   │   ├── devserver.py                 # Serveur Vite du mode développement (--dev)
-│   │   ├── dpi_host.py                  # Fenêtre hôte DPI par écran, repli des visionneuses
-│   │   ├── events.py                    # Protocole d'événements du WebSocket (Pydantic)
-│   │   ├── files.py                     # Fichiers locaux : liens signés, ouverture, Explorateur
-│   │   ├── folders.py                   # Dossiers du projet de la session
-│   │   ├── lifecycle.py                 # Étapes du lancement, moteur, Relay, scheduler
-│   │   ├── memory.py                    # Panneau Mémoire (faits/documents/conversations)
-│   │   ├── model_setup.py               # Modèles Ollama et assistant de premier lancement
-│   │   ├── native_viewer.py             # Visionneuses Office dans le volet d'aperçu
-│   │   ├── preview_handler.py           # Visionneuses natives Word/PowerPoint/Excel
-│   │   ├── previews.py                  # Pages d'aperçu : artifacts HTML/SVG et documents
-│   │   ├── prompts.py                   # Bibliothèque de prompts
-│   │   ├── qr.py                        # QR code du Relay
-│   │   ├── resources.py                 # Moniteur de ressources (CPU/RAM/GPU) de la page Agents
-│   │   ├── routing.py                   # Aides communes aux routes
-│   │   ├── schedule.py                  # Tâches planifiées de la page Agents
-│   │   ├── server.py                    # Serveur FastAPI local (127.0.0.1, jeton)
-│   │   ├── settings.py                  # Réglages (config.yaml, commentaires préservés)
-│   │   ├── shell_api.py                 # Fonctions de la fenêtre exposées à la page (dialogues…)
-│   │   ├── voice.py                     # Voix : saisie (Whisper) et lecture (pyttsx3)
-│   │   ├── voice_input.py               # Saisie vocale (faster-whisper + sounddevice)
-│   │   ├── voice_output.py              # Sortie vocale / TTS (pyttsx3, voix par langue)
-│   │   └── window.py                    # Fenêtre native (pywebview), repli sur le navigateur
-│   ├── __init__.py
-│   ├── artifacts.py                     # Détection/préparation des artifacts (HTML, SVG, documents)
-│   ├── cli.py                           # Interface ligne de commande
-│   ├── document_preview.py              # Rendu HTML des documents (aperçu de repli, mobile)
-│   ├── onboarding.py                    # Fonctions de l'assistant de premier lancement
-│   └── resource_monitor.py              # Monitoring ressources système (CPU/RAM/GPU)
-├── vscode_extension/                    # Extension VS Code (client Relay distant)
-│   ├── package.json                     # Manifest extension + commandes
-│   ├── src/                             # Code TypeScript (extension Node.js host)
-│   ├── media/                           # Webview UI (HTML/CSS/JS)
-│   └── README.md                        # Doc Marketplace
-├── memory/                              # Mémoire vectorielle
-│   ├── vector_store/chroma_db/          # Base de données ChromaDB
-│   ├── __init__.py
-│   └── vector_memory.py                 # Mémoire vectorielle avec ChromaDB
-├── models/                              # Modèles d'IA
-│   ├── mixins/                          # Mixins (recherche internet, etc.)
-│   ├── training_runs/                   # Enregistrements des runs d'entraînement
-│   ├── weights/                         # Poids de modèles entraînés localement
-│   ├── __init__.py
-│   ├── advanced_code_generator.py       # Générateur de code avancé
-│   ├── ai_agents.py                     # Agents IA spécialisés
-│   ├── base_ai.py                       # Interface de base
-│   ├── conversation_memory.py           # Mémoire conversationnelle avancée
-│   ├── comfyui_manager.py               # Auto-installation/gestion de ComfyUI portable (image)
-│   ├── custom_ai_model.py               # Modèle IA principal avec intentions
-│   ├── image_generation.py              # Génération d'images locale (texte → image, SD)
-│   ├── intelligent_code_orchestrator.py # Orchestrateur pour la génération de code
-│   ├── intelligent_document_analyzer.py # Analyseur de documents intelligent
-│   ├── internet_search.py               # Moteur de recherche internet
-│   ├── knowledge_base.py                # Base de connaissances locale
-│   ├── linguistic_patterns.py           # Reconnaissance d'intentions et patterns
-│   ├── local_llm.py                     # Gestionnaire Ollama (détection + fallback)
-│   ├── real_web_code_generator.py       # Générateur de Code Basé sur Recherche Web Pure
-│   ├── smart_code_searcher.py           # Recherche de code intelligente
-│   └── smart_web_searcher.py            # Système de Recherche Web Intelligent pour Code
-├── outputs/                             # Fichiers générés par l'IA
-│   ├── documents/                       # Documents générés ou modifiés (docx, pdf, pptx, xlsx…)
-│   └── exports/                         # Conversations exportées (MD/HTML/PDF)
-├── processors/                          # Processeurs de fichiers
-│   ├── __init__.py
-│   ├── attachments.py                   # Lecture des pièces jointes des agents (fenêtre + mobile)
-│   ├── code_processor.py                # Traitement de code avec analyse sémantique
-│   ├── docx_processor.py                # Traitement DOCX avec compression
-│   ├── excel_processor.py               # Traitement Excel (.xlsx, .xls) et CSV
-│   ├── ocr.py                           # OCR des pages PDF scannées (RapidOCR)
-│   ├── path_resolution.py               # Résolution des chemins OneDrive (partagée docx/pptx)
-│   ├── pdf_processor.py                 # Traitement PDF avec chunking intelligent
-│   └── pptx_processor.py                # Lecture PowerPoint (titres, puces, tableaux, notes)
-├── relay/                               # My_AI Relay (accès mobile)
-│   ├── __init__.py
-│   ├── relay_bridge.py                  # Pont de synchronisation appli ↔ mobile
-│   ├── relay_server.py                  # Serveur FastAPI + WebSocket + tunnel
-│   ├── agent_relay.py                   # Service Agents serveur (workflow/débat/CRUD)
-│   └── static/
-│       ├── index.html                   # Interface mobile PWA (onglets Chat/Agents)
-│       ├── style.css                    # Styles de l'interface mobile
-│       ├── app.js                       # Logique WebSocket et chat
-│       ├── agents.js                    # Page Agents mobile (grille, canvas n8n, débat)
-│       ├── i18n.js                      # Traductions de la page mobile, langue changée à chaud
-│       └── locales/                     # Textes de la page mobile (un JSON par langue)
-├── tests/                               # Tests unitaires
-├── tools/                               # Outils (cloudflared pour le Relay)
-│   ├── interface_web/                   # Serveur de démonstration de la fenêtre, sans Ollama
-│   ├── __init__.py
-│   ├── clean_broken_dist_info.py        # Répare un environnement après un pip interrompu
-│   ├── local_tools.py                   # Outils locaux
-│   └── measure_energy.py                # Empreinte énergétique et carbone d'une session
-├── utils/                               # Utilitaires
-│   ├── __init__.py
-│   ├── citations.py                     # Citations web numérotées cliquables ([n] → url)
-│   ├── desktop_notify.py                # Notifications desktop natives (winotify/plyer)
-│   ├── file_manager.py                  # Gestion fichiers
-│   ├── file_processor.py                # Gestion traitement fichiers
-│   ├── intelligent_calculator.py        # Calculateur intelligent
-│   ├── logger.py                        # Gestion des logs
-│   ├── ollama_placement.py              # Placement du modèle (carte, GPU intégré, processeur)
-│   ├── path_links.py                    # Chemins de fichiers cliquables dans les réponses
-│   ├── pdf_text.py                      # Texte des PDF : police par écriture
-│   └── requirements_sync.py             # Installe au lancement les dépendances ajoutées (git pull)
-├── main.py                              # Point d'entrée principal (CLI ; fenêtre avec --mode gui)
-├── launch_unified.py                    # Point d'entrée de la fenêtre
-├── Modelfile                            # Configuration modèle Ollama
-├── requirements.txt                     # Dépendances
-├── launch.bat                           # Script pour lancer le programme (Windows)
-├── launch.sh                            # Script pour lancer le programme (macOS / Linux)
-├── clean_project.bat                    # Script pour supprimer les fichiers temporaires
-├── create_custom_model.bat              # Script pour créer un modèle personnalisé Ollama (manuel)
-└── config.yaml                          # Configuration
-```
-
----
-
-## 🚀 Démarrage Rapide
-
-### 1 · Cloner le dépôt
+**Requirements:** Python 3.10+ and [Ollama](https://ollama.com/download).
 
 ```bash
 git clone https://github.com/gonicolas12/My_AI
 cd My_AI
-```
-
-### 2 · Installer les dépendances
-
-```bash
 pip install -r requirements.txt
 ```
 
-> ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de
-> build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à
-> Python 3.12. Sous Python 3.13+, l'installation échoue. `launch.sh` vérifie ce
-> point au démarrage. Apple Silicon, Windows et Linux ne sont pas concernés.
-
-#### 🎮 Monitoring GPU *(Optionnel)*
-
-Le suivi GPU dans l'onglet Agents nécessite des packages supplémentaires **selon votre carte graphique** :
+Then launch the app and choose **option 1 (graphical interface)**:
 
 ```bash
-# NVIDIA (nécessite les drivers NVIDIA installés)
+.\launch.bat      # Windows
+./launch.sh       # macOS / Linux
+```
+
+On the **very first launch**, My_AI opens in your system language (one of the 12, English otherwise, and you can change it in the wizard), detects your hardware (RAM, CPU cores, GPU VRAM), **recommends and downloads** the right model, then creates `my_ai` for you. The window opens at once on a loading screen that names each step (Ollama, model, placement, engine), then switches to the chat.
+
+> ⚠️ **Intel Mac (x86_64): Python 3.12 maximum.** PyTorch no longer publishes x86_64 builds after version 2.2.2, whose wheels stop at Python 3.12. On Python 3.13+, the installation fails. `launch.sh` checks this at startup. Apple Silicon, Windows and Linux are not affected.
+
+> 💡 Without a launcher, `python launch_unified.py` (window + Ollama setup) and `python main.py --mode gui` (window only, with Ollama already running) work on all three systems. On Linux, the window needs GTK or Qt (`pip install "pywebview[qt]"`); without them, the interface opens in your browser.
+
+<details>
+<summary><b>Manual model setup</b></summary>
+
+```bash
+# Text model (pick one for your RAM)
+ollama pull qwen3.5:2b       # Ultra light, concise answers (4 GB RAM)
+ollama pull qwen3.5:4b       # Recommended, light and fast (8 GB RAM)
+ollama pull qwen3.5:9b       # Heavier, more detailed answers (16 GB RAM)
+
+# Vision model for image analysis
+ollama pull minicpm-v        # Recommended, best quality/speed ratio (3 GB)
+ollama pull llava            # Alternative (4.7 GB)
+
+# Create the custom model
+.\create_custom_model.bat
+```
+
+- 🔄 **`Modelfile` changed?** (by hand, by a `git pull` or from ⚙️ Settings): `my_ai` is **recreated automatically at the next launch**, so there is no need to run `create_custom_model.bat` again. Launches do nothing more as long as the `Modelfile` doesn't change.
+- **Switching models:** the easiest way is the **Settings panel** (bottom of the sidebar, or Ctrl+comma) → *Ollama models* → pick the model → *Apply* (regenerates `my_ai`, system prompt kept). By hand: change `llm.local.default_model` in `config.yaml` **and** the `FROM` line of the `Modelfile`, then restart My_AI: `my_ai` is recreated at launch.
+
+</details>
+
+<details>
+<summary><b>🎮 GPU monitoring (optional)</b></summary>
+
+GPU monitoring in the Agents tab needs extra packages **depending on your graphics card**:
+
+```bash
+# NVIDIA (needs the NVIDIA drivers)
 pip install pynvml GPUtil
 
-# AMD (nécessite ROCm ou les drivers AMDGPU + Microsoft C++ Build Tools)
+# AMD (needs ROCm or the AMDGPU drivers + Microsoft C++ Build Tools)
 pip install pyamdgpuinfo
 
-# Windows — tout GPU (infos basiques : nom, VRAM totale)
+# Windows, any GPU (basic info: name, total VRAM)
 pip install wmi
 ```
 
-> **Sans ces packages**, l'application fonctionne normalement — les métriques GPU affichent simplement "N/A".
+**Without these packages**, the app works normally: GPU metrics simply show "N/A".
 
-#### 🌐 Réseaux avec Proxy *(Optionnel)*
+</details>
 
-Le projet supporte les proxys standards via variables d'environnement **et** via `config.yaml` (section `network`).
+<details>
+<summary><b>🌐 Networks with a proxy (optional)</b></summary>
 
-Exemples (PowerShell):
+The project supports standard proxies through environment variables **and** through `config.yaml` (`network` section).
+
+Examples (PowerShell):
 
 ```powershell
 $env:HTTP_PROXY="http://proxy.company.com:8080"
@@ -440,7 +126,7 @@ $env:HTTPS_PROXY="http://proxy.company.com:8080"
 $env:NO_PROXY="localhost,127.0.0.1,::1"
 ```
 
-Exemples (Linux/macOS):
+Examples (Linux/macOS):
 
 ```bash
 export HTTP_PROXY="http://proxy.company.com:8080"
@@ -448,238 +134,267 @@ export HTTPS_PROXY="http://proxy.company.com:8080"
 export NO_PROXY="localhost,127.0.0.1,::1"
 ```
 
-Si votre proxy intercepte TLS, renseignez aussi `network.ca_bundle` dans `config.yaml` avec le chemin de votre certificat racine (PEM).
+If your proxy intercepts TLS, also set `network.ca_bundle` in `config.yaml` to the path of your root certificate (PEM). The `network.allow_insecure_ssl: true` mode exists as a last resort, but it is not recommended in production.
 
-> Le mode `network.allow_insecure_ssl: true` existe en dernier recours, mais il est déconseillé en production.
+</details>
 
-### 3 · Installer Ollama
-
-```bash
-# Télécharger depuis https://ollama.com/download, puis :
-
-# Modèle texte (choisir selon votre RAM)
-ollama pull qwen3.5:2b       # Ultra léger — réponses concises (4 GB RAM) 
-ollama pull qwen3.5:4b       # Recommandé — léger et rapide (8 GB RAM)
-ollama pull qwen3.5:9b       # Plus lourd — réponses détaillées (16 GB RAM)
-
-# Modèle vision pour l'analyse d'images
-ollama pull minicpm-v        # Recommandé — meilleur rapport qualité/vitesse (3 GB)
-ollama pull llava            # Alternative (4.7 GB)
-
-# Créer le modèle personnalisé
-.\create_custom_model.bat
-```
-
-> 💡 **Plus simple — l'assistant de configuration s'en charge.** Au **tout premier lancement**, My_AI s'affiche dans la langue de Windows (l'une des 12, l'anglais sinon, changeable dès l'assistant), détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. Les commandes ci-dessus ne servent que pour une installation manuelle.
-
-> 🔄 **`Modelfile` modifié ?** (à la main, par un `git pull` ou par ⚙️ Réglages) : `my_ai` est **recréé automatiquement au lancement suivant**, inutile de relancer `create_custom_model.bat`. Le lancement ne fait rien de plus tant que le `Modelfile` ne change pas.
-
-> **Changer de modèle** : le plus simple est le **panneau Réglages** (en bas de la barre latérale, ou Ctrl+virgule) → *Modèles Ollama* → choisir le modèle → *Appliquer* (régénère `my_ai` automatiquement, system prompt préservé). Manuellement : modifiez `llm.local.default_model` dans `config.yaml` **et** la ligne `FROM` du `Modelfile`, puis relancez My_AI : `my_ai` est recréé au lancement.
-
-### 4 · Lancer l'application
-
-**Windows :**
-
-```bash
-.\launch.bat
-```
-
-**macOS / Linux :**
-
-```bash
-./launch.sh
-```
-
-Sélectionnez **l'option 1 (Interface Graphique)** : la fenêtre s'ouvre tout de suite sur un
-écran de chargement qui nomme chaque étape (Ollama, modèle, placement, moteur), puis passe au Chat.
-
-> 💡 Sans passer par un lanceur, `python launch_unified.py` (fenêtre + configuration
-> d'Ollama) et `python main.py --mode gui` (fenêtre seule, avec l'Ollama déjà lancé)
-> fonctionnent sur les trois systèmes. Sous Linux, la fenêtre demande GTK ou Qt
-> (`pip install "pywebview[qt]"`) ; sans eux, l'interface s'ouvre dans le navigateur.
-
-### 🧹 Nettoyage en cas de problème
+<details>
+<summary><b>🧹 Clean-up if something goes wrong</b></summary>
 
 ```bash
 .\clean_project.bat
 ```
 
-Si vous observez des comportements inattendus ou des erreurs après plusieurs lancements, ce script supprime tous les fichiers temporaires (logs, caches, historiques) pour repartir sur une base propre.
+If you notice unexpected behavior or errors after several launches, this script deletes all temporary files (logs, caches, histories) so you can start again from a clean slate.
 
----
+</details>
 
-## 📡 My_AI Relay — Accès Mobile
+## ⚡ Features
 
-Parlez à votre IA depuis votre téléphone (iOS/Android), où que vous soyez, tant que l'application tourne sur votre PC.
+### 💬 Chat
 
-### Fonctionnement
-
-1. Cliquez sur **Relay** en bas de la barre latérale (ou Ctrl+R)
-2. My_AI Relay démarre un serveur WebSocket et ouvre des tunnels sécurisés en parallèle (cloudflared et localhost.run)
-3. Scannez le QR code ou copiez l'URL sur votre téléphone, puis saisissez le **code d'accès** affiché sous le QR code
-4. L'interface mobile propose deux onglets en haut, **💬 Chat** et **🤖 Agents** (comme le GUI PC) :
-   - **Chat** — discutez en temps réel ; les messages apparaissent aussi sur le PC. Le bouton d'envoi devient un **bouton Stop** pendant la génération, et les liens `[titre](url)` s'affichent en bleu cliquable.
-   - **Agents** — toute la page Agents du PC en version tactile : grille d'agents, **création/édition/suppression d'agents personnalisés**, **workflow visuel n8n** (glisser des nœuds, relier les ports), **Mode Débat** et exécution streamée.
-5. Joignez images, PDF, DOCX, PowerPoint, Excel ou fichiers de code via le bouton **+** (sur le Chat **et** sur la page Agents) : ils sont traités par les mêmes processeurs que le PC (modèle vision pour les images, contexte vectoriel pour les documents)
-6. Demandez un document (« *génère un pdf sur…* ») : son aperçu s'ouvre automatiquement dans la modale, avec un bouton 💾 pour télécharger le fichier
-
-### Caractéristiques
-
-| Fonctionnalité | Détail |
+| Feature | Details |
 |---|---|
-| 📱 **Interface mobile** | PWA responsive, thème sombre, onglets Chat / Agents |
-| 🤖 **Page Agents** | 9 agents spécialisés + agents personnalisés, workflow visuel (séquentiel / parallèle / DAG), Mode Débat — exécutés côté PC (Ollama local), streamés au mobile |
-| 🔒 **Authentification** | Jeton aléatoire dans le lien du QR code, nouveau à chaque démarrage, plus un **code d'accès** à 6 chiffres affiché sous le QR code mais absent du lien : un lien qui fuite ne suffit pas (5 essais, puis Relay verrouillé jusqu'à son redémarrage) |
-| 🛡️ **Chiffrement E2EE** | AES-256-GCM applicatif au-dessus du tunnel : ni les services de tunnel (Cloudflare, localhost.run), ni GitHub Pages ne peuvent lire le contenu (clé éphémère partagée par QR code) |
-| 🌐 **Multi-tunnel** | cloudflared + localhost.run en parallèle (serveo en option), chacun vérifié depuis le PC : seuls les joignables entrent dans le QR code ; failover côté client |
-| 🔄 **Synchronisation** | Messages du chat visibles en temps réel sur PC et mobile |
-| ⚡ **WebSocket** | Communication instantanée, streaming, indicateur de frappe, bouton Stop |
-| 📎 **Pièces jointes** | Chat + Agents : images + documents (PDF, DOCX, PPTX, XLSX, CSV, code) jusqu'à 25 Mo, chiffrés bout-en-bout, routés vers vision + contexte |
-| 📥 **Auto-install** | cloudflared est téléchargé automatiquement si absent |
+| 🧠 **Thinking mode** | For complex requests, the AI reasons step by step before answering: collapsible "Reasoning" block, animated while it generates |
+| 🔍 **Web search** | Real-time information through DuckDuckGo (Yahoo and Wikipedia as fallbacks), with numbered, clickable sources `[n]` |
+| 🎨 **Artifacts preview** | Side panel with a live rendering of HTML/CSS/SVG and of generated documents |
+| ⚡ **Slash commands** | Type `/` at the start of a message to autocomplete reusable prompts; a short command is expanded into a detailed prompt when sent, while the chat bubble keeps the short command |
+| 🎹 **Command palette** | Ctrl+K: every action of the app from the keyboard |
+| 🧭 **Sidebar** | Conversations, global semantic search across all conversations, project folders, history |
+| 💼 **Workspaces** | Isolated sessions saved automatically, export to Markdown, HTML and PDF in every language |
+| 🎓 **RLHF feedback** | 1-5 star rating under each answer, automatic learning from your feedback |
+
+### 🤖 AI agents
+
+| Agent | Role |
+|---|---|
+| 🐍 **CodeAgent** | Code generation and debugging, in many languages |
+| 🔍 **WebAgent** | Web search and fact-checking |
+| 📊 **AnalystAgent** | Data analysis and insights |
+| ✨ **CreativeAgent** | Writing and creative content |
+| 🐛 **DebugAgent** | Error detection and fixing |
+| 📋 **PlannerAgent** | Planning of complex projects |
+| 🛡️ **SecurityAgent** | Security and vulnerability audit |
+| ⚡ **OptimizerAgent** | Optimization and performance |
+| 🧬 **DataScienceAgent** | Data science and machine learning |
+
+- 🧩 **Custom agents**: describe the agent you need, and the local model writes its system prompt.
+- 🔄 **Visual workflow canvas** (n8n style): connectable nodes, zoom/pan, grid, minimap; sequential, parallel or DAG execution.
+- 🧵 **Run threads**: every run is a thread you can reopen.
+- 🎭 **Debate mode**: two agents argue a topic against each other.
+- 📊 **Statistics and resource monitoring**: CPU, RAM, GPU, VRAM, inference time and tokens/s.
+- 📅 **Scheduled tasks**: run an agent, a workflow or a debate **on a schedule**, *daily*, *weekly*, at an *interval* or with **cron** (e.g. "every morning at 8, WebAgent on AI news, then summarize"). Optionally runs even when the app is closed, through the **Windows Task Scheduler**, with no admin rights and no stored password. Missed tasks catch up at restart, with notifications (OS toast + in-app entry + mobile message) and `.md` reports in `outputs/scheduled/`.
+- 🔔 **Desktop notifications** when a long task finishes.
+
+### 📝 Documents
+
+- **Office documents**: "*generate a docx about whales*", "*make me a summary PDF*", "*create a PowerPoint presentation…*", "*a spreadsheet comparing…*". The local model writes, and python-docx, reportlab, python-pptx and openpyxl lay it out: headings, nested lists, styled tables, Word table of contents, automatic slide splitting, Excel sheets with filters.
+- **In the document's language**: the "Generated on" line, table of contents, page numbers and sheet names follow the language of the text. The PDF picks the right font (Chinese, Japanese, Korean, Cyrillic, Arabic).
+- **Editing attachments** (docx, xlsx, pptx, md, pdf…): replace a text, rewrite a section, add a row or a slide. **The original file is never touched**: the modified copy is written to `outputs/documents/`.
+- **Native preview** in the side panel, opened automatically: the Word, PowerPoint and Excel viewers of Windows Explorer, and Edge's PDF reader. HTML rendering as a fallback elsewhere, and on the mobile Relay.
+- **Reading files**: PDF (with OCR for scanned pages), DOCX, PowerPoint, Excel, CSV and code, with smart chunking for very long documents.
+
+### 🎨 Local image generation (text → image)
+
+- **Multimodal both ways**: the AI *sees* (Ollama vision) **and** *draws*. Ask "*generate an image of…*", "*draw me…*", "*create a logo…*".
+- **Zero-config install**: on the first request without a backend, My_AI downloads and starts **portable ComfyUI** by itself (Windows: NVIDIA, AMD or Intel Arc build depending on the GPU, otherwise on the CPU; Python + torch embedded) plus a default model, just like the first-launch wizard does for Ollama.
+- **100% local** through a **Stable Diffusion** HTTP backend: **ComfyUI** (auto-installed), **AUTOMATIC1111 / Forge**, or **diffusers** (optional, any GPU + CPU), set in `config.yaml` → `image_generation:`.
+
+### 🎙️ Voice
+
+- **Microphone button** in every input (home, conversation, Agents tab): the first click starts listening, the second one stops and transcribes, and the text is inserted at the cursor.
+- **100% local** with [faster-whisper](https://github.com/SYSTRAN/faster-whisper): `small` model (~150 MB) loaded on demand, **language detected automatically** (99+ languages supported by Whisper).
+- **Read aloud**: a button under each answer and an automatic reading mode, with a voice per language.
+
+### 🧠 Memory you control
+
+- **Vector memory of up to 10,485,760 tokens** (ChromaDB + SQLite), semantic search (sentence-transformers + cosine HNSW), smart chunking with overlap (256-token chunks, 32 overlap), automatic rolling summary at half of the context window (16k tokens out of 32k).
+- **"Remember that…"** in the chat: the fact is really saved (Facts tab of the Memory panel), and useful facts then come with every answer.
+- A **Memory** panel to **see, edit and delete** what the AI knows about you, with **real** CRUD operations, 100% local. **3 tabs**: **Facts** (SQLite), **Documents** and **Conversations** (ChromaDB vectors), with search, category filter, pagination and provenance (which session, which document).
+- Deleting a vector entry is a **real deletion in ChromaDB** (`collection.delete`). For conversations, the **"delete at the source"** option removes the original message from the workspace for good.
+
+### 📁 "@codebase" project context (persistent RAG)
+
+- **Attach a whole folder** (a codebase or a docs folder) to a workspace: the AI keeps that context **available for every question**, with no need to drop the files again.
+- **100% local incremental indexing**: reuses the vector memory (`codebase` collection) and the existing processors; **respects `.gitignore`** and skips `node_modules`, `.git`, `.venv`, `dist`… Only changed files are processed again when reindexing.
+- **Retrieval at question time** (RAG), plus a **deterministic shortcut** for questions *about* the folder (path, list of files).
+- **Window**: "Project folders" section of the sidebar. **VS Code**: the **`@`** menu attaches files and folders, one `@codebase` context per project.
+
+### 🔌 MCP and full PC access
+
+- **MCP (Model Context Protocol) integration**: standardized connection to local tools and external servers (files, git, databases).
+- Local tools to **read, write and move files** and **create folders**, with the **full paths** returned by the tools checked carefully, so the AI can **organize workspaces** on its own.
+- A **confirmation** dialog before any **file deletion**.
+
+### 🦙 Ollama integration: 100% local LLM
+
+- **Multiple models**: text (`qwen3.5:2b`, `qwen3.5:4b`, `mistral`...) and vision (`minicpm-v`, `llava`, `llama3.2-vision`...).
+- **Automatic placement**: at launch, My_AI checks where Ollama puts the model. If it stays on the processor, My_AI measures whether the integrated GPU is faster and keeps the quicker one; when the model overflows the graphics card (or the integrated GPU), its context switches to 8 bits if that is faster. The choice is kept, and measured again after an Ollama update or a hardware change.
+- **A single context window** (32,768 tokens, 65,536 as an option) for every call: Ollama no longer reloads the model from one step to the next and resumes the conversation it has already read.
+- **Customizable model**: temperature, context and system prompt through the `Modelfile`.
+- **Smart fallback**: without Ollama, the AI automatically switches to a patterns/rules mode.
+
+### 🌐 And also
+
+- 🌐 **REST API**: built-in FastAPI server for external integrations.
+- 🎓 **RLHF, training pipeline and compression**: learning from feedback, fine-tuning with monitoring, detailed compression ratios ([advanced features](docs/ADVANCED_FEATURES.md)).
+- 💻 **Cross-platform**: Windows · macOS · Linux.
+
+## 📡 My_AI Relay — mobile access
+
+Talk to your AI from your phone (iOS/Android), wherever you are, as long as the app is running on your PC.
+
+### How it works
+
+1. Click **Relay** at the bottom of the sidebar (or Ctrl+R)
+2. My_AI Relay starts a WebSocket server and opens secure tunnels in parallel (cloudflared and localhost.run)
+3. Scan the QR code or copy the URL to your phone, then enter the **access code** shown under the QR code
+4. The mobile interface has two tabs at the top, **💬 Chat** and **🤖 Agents** (like the desktop app):
+   - **Chat**: chat in real time; messages also appear on the PC. The send button turns into a **Stop button** during generation, and `[title](url)` links show up as clickable blue links.
+   - **Agents**: the whole Agents page of the PC, made for touch: agent grid, **creating/editing/deleting custom agents**, **n8n-style visual workflow** (drag nodes, link ports), **Debate mode** and streamed runs.
+5. Attach images, PDF, DOCX, PowerPoint, Excel or code files with the **+** button (in the Chat **and** on the Agents page): they go through the same processors as on the PC (vision model for images, vector context for documents)
+6. Ask for a document ("*generate a pdf about…*"): its preview opens automatically in the modal, with a 💾 button to download the file
+
+### Features
+
+| Feature | Details |
+|---|---|
+| 📱 **Mobile interface** | Responsive PWA, dark theme, Chat / Agents tabs |
+| 🤖 **Agents page** | 9 specialized agents + custom agents, visual workflow (sequential / parallel / DAG), Debate mode, run on the PC (local Ollama) and streamed to the phone |
+| 🔒 **Authentication** | Random token in the QR code link, new at every start, plus a 6-digit **access code** shown under the QR code but not included in the link: a leaked link is not enough (5 attempts, then the Relay locks until it restarts) |
+| 🛡️ **E2EE encryption** | Application-level AES-256-GCM on top of the tunnel: neither the tunnel services (Cloudflare, localhost.run) nor GitHub Pages can read the content (ephemeral key shared through the QR code) |
+| 🌐 **Multi-tunnel** | cloudflared + localhost.run in parallel (serveo as an option), each one checked from the PC: only reachable tunnels go into the QR code; failover on the client side |
+| 🔄 **Synchronization** | Chat messages visible in real time on the PC and the phone |
+| ⚡ **WebSocket** | Instant communication, streaming, typing indicator, Stop button |
+| 📎 **Attachments** | Chat + Agents: images + documents (PDF, DOCX, PPTX, XLSX, CSV, code) up to 25 MB, end-to-end encrypted, routed to vision + context |
+| 📥 **Auto-install** | cloudflared is downloaded automatically if missing |
 
 ### Configuration (`config.yaml`)
 
 ```yaml
 relay:
-  auto_start: false      # Démarrage auto au lancement du GUI
-  port: 8765             # Port du serveur Relay
-  response_timeout: 500  # Délai max de réponse IA (secondes)
-  tunnel: true           # Activer les tunnels (tunnel_providers)
-  tunnel_providers: ["cloudflared", "localhost.run"]  # "serveo" en option, voir docs/USAGE.md
-  host: "0.0.0.0"        # Adresse d'écoute
+  auto_start: false      # Start automatically with the GUI
+  port: 8765             # Relay server port
+  response_timeout: 500  # Maximum AI response time (seconds)
+  tunnel: true           # Enable the tunnels (tunnel_providers)
+  tunnel_providers: ["cloudflared", "localhost.run"]  # "serveo" as an option, see docs/USAGE.md
+  host: "0.0.0.0"        # Listening address
 ```
 
-> **Sans tunnel** (`tunnel: false`, ou aucun fournisseur joignable), le Relay reste accessible sur le réseau local uniquement.
+> **Without a tunnel** (`tunnel: false`, or no reachable provider), the Relay is only available on your local network.
 
----
+## 🧩 VS Code extension
 
-## 🧩 Extension VS Code
+**My_AI Relay** is also available as an extension on the [**VS Code Marketplace**](https://marketplace.visualstudio.com/items?itemName=gonicolas12.my-ai). It does more than relay the chat: it offers an **agentic mode** where the local LLM (on the host PC) can read, edit and create files, run shell commands and search your VS Code workspace, with every action visible and approvable in the chat.
 
-**My_AI Relay** est aussi disponible comme extension officielle sur le **Marketplace VS Code**. Elle ne se contente pas seulement de relayer le chat : elle expose un **mode agentique** où le LLM local (sur le PC hôte) peut lire, modifier, créer des fichiers, lancer des commandes shell et chercher dans votre workspace VS Code — chaque action visible et approuvable dans le chat.
+### How it works
 
-### Fonctionnement
+1. On the host PC: start the Relay (**Relay** at the bottom of the sidebar, or Ctrl+R) → as soon as a tunnel answers, click **Copy** in the panel: the connection string is the QR code link
+2. In VS Code: install the **My_AI Relay** extension from the Marketplace → open its view in the sidebar → **Paste the connection string** → enter the **access code** shown under the QR code
+3. Once connected, the extension identifies itself as a `vscode` client to the Relay and turns on the agentic mode. Ask for example *"scaffold a Vite + React project with a router and a Header component"*: you will see each `write_file` / `run_command` appear as an expandable card in the chat, with an approval request for destructive operations.
 
-1. Sur le PC hôte : démarrez le Relay (**Relay** en bas de la barre latérale, ou Ctrl+R) → dès qu'un tunnel répond, cliquez sur **Copier** dans le panneau : la chaîne de connexion est le lien du QR code
-2. Dans VS Code : installez l'extension **My_AI Relay** depuis le Marketplace → ouvrez la vue dans la sidebar → **Coller la chaîne de connexion** → saisissez le **code d'accès** affiché sous le QR code
-3. À la connexion, l'extension s'identifie comme client `vscode` auprès du Relay et active le mode agentique. Demandez par exemple *« scaffold un projet Vite + React avec un router et un composant Header »* : vous verrez chaque `write_file` / `run_command` apparaître comme une carte dépliable dans le chat, avec demande d'approbation pour les opérations destructives.
+> The phone and the desktop app keep using the classic pipeline with the full local MCP tools: the agentic mode is exclusive to VS Code clients.
 
-> Le mobile et le GUI desktop continuent à utiliser le pipeline classique avec les MCP locaux complets — le mode agentique est exclusif aux clients VS Code.
+### Features
 
-### Caractéristiques
-
-| Fonctionnalité | Détail |
+| Feature | Details |
 |---|---|
-| 🤖 **Mode agentique** | 9 outils exposés au LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) avec boucle de raisonnement multi-étapes |
-| 📎 **Menu `@`** | Taper `@` attache un fichier au message, ou un **dossier** comme contexte **@codebase** persistant (indexé côté hôte, un seul contexte par projet) |
-| ⚡ **Slash commands** | Autocomplétion `/` des prompts My_AI, expansés en prompt détaillé à l'envoi (la bulle garde la commande courte) |
-| ⏹️ **Bouton STOP** | Interrompt en un clic toute la génération du tour : LLM **et** boucle d'outils agentique (appels en attente compris). **Clear** (« Effacer ») pendant une génération l'arrête aussi |
-| 🛟 **Garde-fou anti-boucle** | Détection des réécritures répétées du même fichier pour éviter qu'un agent ne tourne en rond |
-| 🛡️ **Sandbox workspace** | Tous les chemins sont résolus à partir du workspace VS Code ouvert. Toute sortie hors workspace nécessite une approbation modale par chemin |
-| ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* |
-| 🎴 **Cartes d'outils inline** | Chaque appel d'outil rendu comme carte pliable (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé) |
-| 🧠 **Mémoire de session** | Le contexte agentique est conservé pour toute la session WS (« édite le fichier que tu viens de lire » fonctionne) |
-| 🔧 **Marche avec n'importe quel modèle Ollama** | Format `<tool_use>{...}</tool_use>` parsé côté hôte — pas besoin de l'API tools native d'Ollama |
-| 🔐 **Chiffrement E2EE** | AES-256-GCM identique au mobile — le tunnel ne voit que du ciphertext |
-| 🌐 **Failover multi-tunnel** | cloudflared / localhost.run (serveo en option) pingés côté client, bascule auto |
-| 💾 **Persistance** | Identifiants chiffrés dans le SecretStorage de VS Code (keychain OS) |
-| 🔄 **Auto-reconnexion** | Détection arrêt du Relay hôte, reconnexion auto au redémarrage |
-| 🌍 **Bilingue** | UI, prompts d'approbation et doc en français quand VS Code est en FR, en anglais sinon |
-| 🆓 **Open source** | Code dans [`vscode_extension/`](vscode_extension/) — MIT |
+| 🤖 **Agentic mode** | 9 tools exposed to the LLM (`read_file`, `write_file`, `edit_file`, `list_dir`, `glob`, `grep`, `run_command`, `get_active_editor`, `open_file`) with a multi-step reasoning loop |
+| 📎 **`@` menu** | Typing `@` attaches a file to the message, or a **folder** as a persistent **@codebase** context (indexed on the host, one context per project) |
+| ⚡ **Slash commands** | `/` autocompletion of the My_AI prompts, expanded into a detailed prompt when sent (the bubble keeps the short command) |
+| ⏹️ **STOP button** | Stops the whole turn in one click: the LLM **and** the agentic tool loop (pending calls included). **Clear** during a generation stops it too |
+| 🛟 **Loop guard** | Detects repeated rewrites of the same file so an agent doesn't go round in circles |
+| 🛡️ **Workspace sandbox** | Every path is resolved from the open VS Code workspace. Going outside the workspace needs a modal approval per path |
+| ✋ **Granular approvals** | Reads approved automatically, writes and shell commands behind a modal with *Once* / *For this file* / *Allow everything for this tool this session* |
+| 🎴 **Inline tool cards** | Each tool call rendered as a collapsible card (orange = running · indigo = awaiting approval · green = OK · red = error · grey = denied) |
+| 🧠 **Session memory** | The agentic context is kept for the whole WS session ("edit the file you just read" works) |
+| 🔧 **Works with any Ollama model** | `<tool_use>{...}</tool_use>` format parsed on the host, no need for Ollama's native tools API |
+| 🔐 **E2EE encryption** | Same AES-256-GCM as the phone: the tunnel only sees ciphertext |
+| 🌐 **Multi-tunnel failover** | cloudflared / localhost.run (serveo as an option) pinged from the client, automatic switch |
+| 💾 **Persistence** | Credentials encrypted in VS Code's SecretStorage (OS keychain) |
+| 🔄 **Auto-reconnect** | Detects when the host Relay stops, reconnects automatically when it restarts |
+| 🌍 **Bilingual** | UI, approval prompts and docs in French when VS Code is in French, in English otherwise |
+| 🆓 **Open source** | Code in [`vscode_extension/`](vscode_extension/), MIT license |
 
 ### Installation
 
 ```
-# Depuis VS Code : Extensions (Ctrl+Shift+X) → recherche "My_AI Relay" → Install
-# OU en ligne de commande :
+# From VS Code: Extensions (Ctrl+Shift+X) → search "My_AI Relay" → Install
+# OR from the command line:
 code --install-extension gonicolas12.my-ai
 ```
 
-> Voir [`vscode_extension/README.md`](vscode_extension/README.md) (anglais) ou [`vscode_extension/README.fr.md`](vscode_extension/README.fr.md) (français) pour la doc complète, la liste exhaustive des outils, et les détails du flux d'approbation.
+> See [`vscode_extension/README.md`](vscode_extension/README.md) (English) or [`vscode_extension/README.fr.md`](vscode_extension/README.fr.md) (French) for the full documentation, the complete list of tools and the details of the approval flow.
 
----
+## 📖 Documentation
 
-<div align="center">
-
-## 📖 Documentation Complète
+The detailed guides are written in French for now.
 
 | Document | Description |
 |---|---|
-| [🏗️ Architecture](docs/ARCHITECTURE.md) | Structure technique détaillée |
-| [📦 Installation](docs/INSTALLATION.md) | Guide d'installation complet |
-| [🔍 Recherche Internet](docs/INTERNET_SEARCH.md) | Guide complet sur la recherche web |
-| [⚡ Optimisation](docs/OPTIMIZATION.md) | Conseils et techniques d'optimisation locale |
-| [💾 Mémoire Vectorielle 10M](docs/ULTRA_10M_TOKENS.md) | Détails sur la gestion de la mémoire interne étendue |
-| [🧠 Mémoire (contrôle)](docs/MEMORY.md) | Voir / éditer / supprimer ce que l'IA sait (faits + vecteurs) |
-| [🔎 Recherche globale](docs/CONVERSATION_SEARCH.md) | Recherche sémantique sur toutes les conversations |
-| [⚡ Bibliothèque de prompts](docs/PROMPT_LIBRARY.md) | Slash commands |
-| [📁 Contexte @codebase](docs/CODEBASE.md) | Attacher un dossier projet entier en RAG persistant |
-| [📋 Usage](docs/USAGE.md) | Exemples d'utilisation et workflows |
-| [📝 Changelog](docs/CHANGELOG.md) | Historique des mises à jour |
-| [❓ FAQ](docs/FAQ.md) | Questions fréquentes et réponses détaillées |
-| [📄 Génération de Fichiers](docs/FILE_GENERATION.md) | Guide sur la génération de fichiers via l'IA |
-| [📄 Génération de Documents](docs/DOCUMENT_GENERATION.md) | Word/PDF/PowerPoint/Excel : création, modification, aperçu |
-| [🎨 Génération d'Images](docs/IMAGE_GENERATION.md) | Texte → image 100% local (backends, auto-install, GPU) |
-| [🤖 Agents IA](docs/AGENTS.md) | Documentation complète sur les agents spécialisés |
-| [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide de l'interface graphique agents |
-| [🎨 Aperçu Artifacts](docs/ARTIFACTS_PREVIEW.md) | Volet de rendu live HTML/CSS/SVG et documents |
-| [📅 Tâches planifiées](docs/SCHEDULER.md) | Scheduler proactif : agents/workflows récurrents (cron) |
-| [🔌 Intégration MCP](docs/MCP_INTEGRATION.md) | Guide sur le Model Context Protocol |
-| [🎓 Fonctionnalités Avancées](docs/ADVANCED_FEATURES.md) | RLHF, Training, Compression |
-| [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | Notation 1-5 étoiles des réponses dans la fenêtre |
-| [🧩 Extension VS Code](vscode_extension/README.md) | Doc complète de l'extension VS Code (EN) — [version FR](vscode_extension/README.fr.md) |
+| [🏗️ Architecture](docs/ARCHITECTURE.md) | Detailed technical structure, full file tree |
+| [📦 Installation](docs/INSTALLATION.md) | Complete installation guide |
+| [🔍 Web search](docs/INTERNET_SEARCH.md) | Everything about web search |
+| [⚡ Optimization](docs/OPTIMIZATION.md) | Tips and techniques for local performance |
+| [💾 10M vector memory](docs/ULTRA_10M_TOKENS.md) | How the extended internal memory works |
+| [🧠 Memory (control)](docs/MEMORY.md) | See / edit / delete what the AI knows (facts + vectors) |
+| [🔎 Global search](docs/CONVERSATION_SEARCH.md) | Semantic search across all conversations |
+| [⚡ Prompt library](docs/PROMPT_LIBRARY.md) | Slash commands |
+| [📁 @codebase context](docs/CODEBASE.md) | Attaching a whole project folder as persistent RAG |
+| [📋 Usage](docs/USAGE.md) | Usage examples and workflows |
+| [📝 Changelog](docs/CHANGELOG.md) | Update history |
+| [❓ FAQ](docs/FAQ.md) | Frequently asked questions with detailed answers |
+| [📄 File generation](docs/FILE_GENERATION.md) | Generating files with the AI |
+| [📄 Document generation](docs/DOCUMENT_GENERATION.md) | Word/PDF/PowerPoint/Excel: creation, editing, preview |
+| [🎨 Image generation](docs/IMAGE_GENERATION.md) | 100% local text → image (backends, auto-install, GPU) |
+| [🤖 AI agents](docs/AGENTS.md) | Full documentation of the specialized agents |
+| [🎨 Agents GUI](docs/AGENTS_GUI.md) | Guide to the agents interface |
+| [🎨 Artifacts preview](docs/ARTIFACTS_PREVIEW.md) | Live HTML/CSS/SVG and document rendering panel |
+| [📅 Scheduled tasks](docs/SCHEDULER.md) | Proactive scheduler: recurring agents/workflows (cron) |
+| [🔌 MCP integration](docs/MCP_INTEGRATION.md) | Guide to the Model Context Protocol |
+| [🎓 Advanced features](docs/ADVANCED_FEATURES.md) | RLHF, training, compression |
+| [💬 Feedback GUI](docs/GUI_RLHF_FEEDBACK.md) | 1-5 star rating of answers in the window |
+| [🧩 VS Code extension](vscode_extension/README.md) | Full documentation of the VS Code extension (in English), [French version](vscode_extension/README.fr.md) |
 
+## 🏗️ Architecture
 
-## 🔧 Caractéristiques Techniques
+```
+My_AI/
+├── core/              # AI engine, chat and agent orchestration, memory, scheduler, REST API
+├── frontend/          # Web interface (React + TypeScript, Vite), built into frontend/dist
+├── interfaces/        # Native window (pywebview) and its local server, CLI
+├── models/            # Agents, Ollama manager, web search, image generation
+├── processors/        # Readers for PDF (OCR), DOCX, PowerPoint, Excel and code
+├── generators/        # Word/PDF/PowerPoint/Excel generation and editing
+├── memory/            # Vector memory (ChromaDB)
+├── relay/             # My_AI Relay: mobile access server and PWA
+├── vscode_extension/  # VS Code extension (Relay client, agentic mode)
+├── utils/ · tools/    # Utilities, model placement, cloudflared, demo server
+├── main.py · launch_unified.py · launch.bat · launch.sh
+└── config.yaml · Modelfile
+```
 
+The file-by-file tree and the processing flows are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-| Caractéristique | Description |
-|---|---|
-| 🎓 **RLHF** | Apprentissage automatique depuis le feedback utilisateur |
-| 🔁 **Pipeline d'entraînement** | Fine-tuning moderne avec monitoring temps réel |
-| 📦 **Compression intelligente** | Ratios détaillés et métriques exposées |
-| 🔀 **Hybride Local/Internet** | IA locale avec recherche internet optionnelle |
-| 🖥️ **Interface web native** | React + TypeScript dans une fenêtre pywebview |
-| 🌐 **API REST** | Serveur FastAPI intégré pour intégrations externes |
-| 🔎 **Recherche globale** | Recherche sémantique cross-conversations |
-| ⚡ **Slash commands** | Bibliothèque de prompts |
-| 📁 **Contexte @codebase** | Dossier projet attaché en RAG persistant |
-| 🎹 **Command palette** | Ctrl+K + raccourcis clavier globaux |
-| 🔗 **Citations web** | Sources numérotées `[n]` cliquables (desktop + mobile) |
-| 🧠 **Contrôle mémoire** | Voir/éditer/supprimer faits + vecteurs, avec provenance |
-| 💼 **Multi-workspaces** | Sessions isolées avec sauvegarde automatique |
-| 📤 **Export multi-format** | Markdown, HTML et PDF avec métadonnées, dans toutes les langues |
-| 🌍 **12 langues** | Interface (fenêtre et mobile Relay) dans la langue choisie, réponses dans la langue de chaque message |
-| 🎙️ **Saisie vocale locale** | Dictée intégrée, langue auto, transcription au curseur |
-| 🔊 **Sortie vocale locale** | Lecture des réponses, voix par langue, lecture auto |
-| 🖼️ **Génération d'images** | Texte → image 100% local, backend SD auto-installé |
-| 📝 **Génération de documents** | Word/PDF/PowerPoint/Excel rédigés en local |
-| 🎨 **Aperçu Artifacts** | Rendu live HTML/CSS/SVG + documents au format natif |
-| 📅 **Scheduler proactif** | Agents/workflows planifiés (cron), même l'appli fermée |
-| ⚙️ **Réglages intégrés** | Gestion des modèles Ollama + paramètres |
-| 🧭 **Onboarding assisté** | Détection matérielle → modèle recommandé |
-| 💻 **Multiplateforme** | Windows · macOS · Linux |
-| 🪶 **Léger** | Fonctionnement optimal sur machines modestes |
-| 🦙 **Placement automatique** | GPU intégré essayé quand le modèle reste sur le processeur |
-| 📡 **Relay** | Accès mobile (Chat + Agents) via tunnel sécurisé |
-| 🧩 **Extension VS Code** | Mode agentique sur LLM local |
-| 🔩 **Extensible** | Architecture modulaire |
-| 🔒 **Sécurisé** | Données locales protégées |
+## 🗺️ Roadmap
 
-</div>
+- 🔊 **Voice**: voice output on mobile/Relay and a hands-free conversation mode (dictation → answer → read aloud, in a loop)
+- 🧩 **VS Code extension**: integration with VS Code diagnostics (Problems panel), before/after diffs for edits, dedicated terminals for `run_command`
+- 🧠 **Better reasoning engine** (Thinking mode)
+- 🔗 **Third-party API integrations**
 
----
+## 🤝 Contributing
 
-## ✨ Évolutions Futures
+Issues and pull requests are welcome. For a large change, please open an issue first so we can discuss it. A bug report with steps to reproduce helps a lot.
 
-- 🔊 **Voix** : sortie vocale sur mobile/Relay et mode conversation mains-libres (dictée → réponse → lecture en boucle)
-- 🧩 **Extension VS Code** : intégration aux diagnostics VS Code (problems panel), application de diffs avant/après pour les éditions, terminaux dédiés pour `run_command`
-- 🧠 **Amélioration du moteur de raisonnement** (mode Thinking)
-- 🔗 **Intégrations API tierces**
+If My_AI is useful to you, a ⭐ on GitHub helps other people find it.
 
----
+## 📄 License
+
+[MIT](LICENSE)
 
 <div align="center">
 
-*Construit avec ❤️ pour rester local, privé et puissant.*
+*Built with ❤️ to stay local, private and powerful.*
 
 </div>
