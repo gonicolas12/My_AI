@@ -137,7 +137,12 @@ IA: "Je vois une capture d'écran montant..."
 Vous: "Que vois-tu sur cette image ?"
 Vous: "Explique-moi ce diagramme"
 Vous: "Quel texte est visible ?"
+
+Vous: [Charge une deuxième image]
+Vous: "Et dans celle-là ?"
 ```
+
+Un message envoyé avec une image porte toujours sur elle, même sans le mot « image », et dans n'importe quelle langue. Seule exception : un message qui ne fait que demander de retenir quelque chose (« retiens que… ») part sans l'image.
 
 > **Note :** Rien à installer avec qwen3.5. Si le `Modelfile` part d'un modèle qui ne voit pas les images (mistral, llama3.2…), installez un modèle vision dédié (`ollama pull minicpm-v`) : il décrit l'image, puis `my_ai` rédige la réponse. L'image est automatiquement redimensionnée à 1024px max.
 
