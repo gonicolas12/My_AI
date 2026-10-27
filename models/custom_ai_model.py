@@ -560,36 +560,6 @@ class CustomAIModel(
             )
             return error_response
 
-    @staticmethod
-    def _question_concerns_image(user_input: str) -> bool:
-        """
-        Détecte si la question de l'utilisateur concerne une image.
-        
-        Args:
-            user_input: La question de l'utilisateur
-            
-        Returns:
-            True si la question concerne l'image, False sinon
-        """
-        user_lower = user_input.lower().strip()
-
-        # Mots-clés qui indiquent que la question concerne l'image
-        image_keywords = [
-            'image', 'photo', 'capture', 'écran', 'screenshot', 'screen',
-            'picture', 'pic', 'img', 'illustration', 'figure',
-            'que vois-tu', 'que voit', 'tu vois', 'vois-tu', 'ce que tu vois',
-            'sur cette image', 'sur la photo', 'dans l\'image', 'dans la photo',
-            'sur l\'image', 'sur cette photo', 'dans cette image',
-            'décris', 'analyse l\'image', 'explique l\'image', 'montre',
-            'cette image', 'cette photo', 'cette capture',
-            'l\'image', 'la photo', 'la capture',
-            'qu\'y a-t-il', 'que représente', 'qu\'est-ce',
-            'visible sur', 'qui est visible', 'qu\'on voit', 'qu\'est ce qui',
-            'que contient', 'ce qui est', 'what do you see', 'describe this'
-        ]
-
-        return any(keyword in user_lower for keyword in image_keywords)
-
     def generate_response_stream(
         self, user_input: str, on_token=None, context: Optional[Dict[str, Any]] = None,
         image_base64: Optional[str] = None,
@@ -618,9 +588,10 @@ class CustomAIModel(
             user_lower = user_input.lower().strip()
 
             # ============================================================
-            # 🖼️ PRIORITÉ 0 : IMAGE - Si une image est jointe ET la question concerne l'image
+            # 🖼️ PRIORITÉ 0 : IMAGE - Une image jointe : la question porte sur
+            # elle (AIEngine envoie une simple mémorisation au chemin texte)
             # ============================================================
-            if image_base64 and self.local_llm and self.local_llm.is_ollama_available and self._question_concerns_image(user_input):
+            if image_base64 and self.local_llm and self.local_llm.is_ollama_available:
                 print("🖼️ [VISION] Image détectée - pipeline vision → texte")
                 response = self.local_llm.generate_stream_with_image(
                     user_input, image_base64,
