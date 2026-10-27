@@ -343,7 +343,6 @@ def test_vision_answer_gets_the_identity_and_the_answer_context():
 
     model = types.SimpleNamespace(
         local_llm=_VisionLLM(),
-        _question_concerns_image=CustomAIModel._question_concerns_image,
         conversation_memory=types.SimpleNamespace(add_conversation=lambda *_a: None),
     )
 

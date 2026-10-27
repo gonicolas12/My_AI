@@ -16,6 +16,7 @@ avec un faux Ollama (_resilient_post remplacé) et une base de faits temporaire.
 """
 
 import asyncio
+import functools
 import json
 import logging
 import types
@@ -517,9 +518,8 @@ def test_remember_request_with_a_document_attached(kb, ollama):
 
 
 def _with_vision(engine):
-    """Branche le vrai filtre d'image de CustomAIModel et enregistre ses appels."""
+    """Enregistre les appels à la réponse vision de CustomAIModel."""
     calls = []
-    engine.local_ai._question_concerns_image = CustomAIModel._question_concerns_image
 
     def generate_response_stream(user_input, **kwargs):
         calls.append((user_input, kwargs))
@@ -549,9 +549,10 @@ def test_image_question_receives_the_facts_and_the_memorization(kb):
     assert "L'utilisateur : son chat s'appelle Félix" in kwargs["answer_context"]
 
 
-def test_image_unrelated_to_the_question_takes_the_text_path(kb):
-    """« Souviens-toi que… » avec une image : CustomAIModel ignorait l'image et
-    son aiguillage envoyait le message (tiret compris) vers le calcul."""
+def test_image_with_a_bare_memorization_takes_the_text_path(kb):
+    """« Souviens-toi que… » avec une image : rien à voir sur l'image, le chemin
+    texte confirme la mémorisation (CustomAIModel envoyait le message, tiret
+    compris, vers le calcul)."""
     engine = _engine(kb)
     calls = _with_vision(engine)
 
@@ -562,6 +563,39 @@ def test_image_unrelated_to_the_question_takes_the_text_path(kb):
     assert [fact["value"] for fact in kb.get_all_facts()] == ["je suis Nicolas Gouy"]
     assert not calls
     assert "MÉMORISATION" in engine.local_ai.local_llm.streamed_systems[0]
+
+
+@pytest.mark.parametrize("question", [
+    "et dans celle là ?",  # deuxième image de la conversation
+    "Explique-moi ce diagramme",  # exemples de docs/USAGE.md
+    "Quel texte est visible ?",
+    "Beschreibe dieses Bild im Detail.",  # demande par défaut du mobile, en allemand
+])
+def test_any_question_sent_with_an_image_is_about_it(kb, question):
+    """Une liste de mots-clés français (« image », « tu vois »…) décidait si la
+    question portait sur l'image jointe. « Et dans celle là ? », avec une
+    deuxième image, partait sans elle par le chemin texte : le modèle
+    redécrivait la première d'après l'historique, puis la cherchait sur le web."""
+    engine = _engine(kb)
+    llm = engine.local_ai.local_llm
+    seen = []
+
+    def generate_stream_with_image(prompt, image_base64, **_kwargs):
+        seen.append((prompt, image_base64))
+        return "Je vois un voilier."
+
+    llm.generate_stream_with_image = generate_stream_with_image
+    engine.local_ai.conversation_memory.add_conversation = lambda *_args: None
+    # La vraie réponse de CustomAIModel, qui filtrait aussi par mots-clés
+    engine.local_ai.generate_response_stream = functools.partial(
+        CustomAIModel.generate_response_stream, engine.local_ai
+    )
+
+    answer = engine.process_query_stream(question, image_base64="aW1hZ2U=", on_token=lambda _t: None)
+
+    assert answer == "Je vois un voilier."
+    assert seen == [(question, "aW1hZ2U=")]
+    assert not llm.streamed_prompts
 
 
 def test_auto_extract_false_disables_chat_memory(kb, monkeypatch):

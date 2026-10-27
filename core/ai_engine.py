@@ -3298,8 +3298,12 @@ Que voulez-vous que je fasse pour vous ?""",
         # 1. Vision (ENTRÉE image)
         # ----------------------------------------------------------------
         if image_base64:
-            concerns_image = getattr(self.local_ai, "_question_concerns_image", None)
-            if concerns_image is None or concerns_image(user_input):
+            # L'image est jointe à ce message : il porte sur elle, même sans le
+            # mot « image ». Une liste de mots-clés français (« image », « tu
+            # vois »…) envoyait « et dans celle-là ? » ou « Beschreibe dieses
+            # Bild » vers le chemin texte, sans l'image : le modèle redécrivait
+            # alors l'image précédente d'après l'historique.
+            if not (memorized and is_only_remember_request(user_input, memorized)):
                 return self.local_ai.generate_response_stream(
                     user_input,
                     on_token=on_token,
@@ -3310,11 +3314,9 @@ Que voulez-vous que je fasse pour vous ?""",
                     # Faits mémorisés et mémorisation du tour, pour la rédaction
                     answer_context=self._answer_context(user_input),
                 )
-            # Question sans rapport avec l'image : CustomAIModel l'ignorait et
-            # répondait par son ancien aiguillage, sans les faits ni les outils
-            # (« souviens-toi que… » partait même vers le calcul, à cause du
-            # tiret). Elle suit le chemin texte normal.
-            self.logger.info("🖼️ Image jointe sans rapport avec la question : chemin texte")
+            # Simple « souviens-toi que… » : rien à voir sur l'image, le chemin
+            # texte confirme la mémorisation sans faire lire l'image au modèle
+            self.logger.info("🖼️ Image jointe à une simple mémorisation : chemin texte")
 
         # ----------------------------------------------------------------
         # 1.b. Génération d'image (SORTIE image) — symétrie multimodale.
