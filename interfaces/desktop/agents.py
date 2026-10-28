@@ -1116,7 +1116,7 @@ def workflow_markdown(workflow: Dict[str, Any], run: Optional[Dict[str, Any]] = 
     nodes = workflow.get("nodes") or {}
     connections = workflow.get("connections") or []
     lines = ["# Workflow Export", "",
-             f"**Version**: {workflow.get('version', '9.0.0')}",
+             f"**Version**: {workflow.get('version', '9.1.0')}",
              f"**Nodes**: {len(nodes)}",
              f"**Connections**: {len(connections)}", ""]
     lines += [f"## {tr('export.workflow.task')}", "",

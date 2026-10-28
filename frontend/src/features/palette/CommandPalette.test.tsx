@@ -39,10 +39,11 @@ beforeEach(() => {
 const shown = () => translateCommands(PALETTE_COMMANDS, t);
 
 describe('filterCommands', () => {
-  it('garde les 14 commandes de Tk, dans son ordre, plus la langue', () => {
-    expect(PALETTE_COMMANDS).toHaveLength(15);
+  it('garde les 14 commandes de Tk, dans son ordre, plus la page Code et la langue', () => {
+    expect(PALETTE_COMMANDS).toHaveLength(16);
     expect(shown()[0]?.text).toBe('Nouveau chat');
-    expect(shown()[8]?.text).toBe('Changer de langue');
+    expect(shown()[6]?.text).toBe('Aller à la page Code (VS Code)');
+    expect(shown()[9]?.text).toBe('Changer de langue');
     expect(shown().at(-1)?.text).toBe('Aide');
   });
 
@@ -55,7 +56,7 @@ describe('filterCommands', () => {
     ]);
     expect(labels('ctrl+r')).toEqual(['Relay (accès mobile)']);
     expect(labels('f1')).toEqual(['Aide']);
-    expect(labels('')).toHaveLength(15);
+    expect(labels('')).toHaveLength(16);
     expect(labels('introuvable')).toEqual([]);
   });
 
@@ -74,7 +75,7 @@ describe('CommandPalette', () => {
     act(() => togglePalette());
 
     const input = await screen.findByRole('combobox');
-    expect(screen.getAllByRole('option')).toHaveLength(15);
+    expect(screen.getAllByRole('option')).toHaveLength(16);
     expect(screen.getByRole('option', { name: /Nouveau chat/ })).toHaveAttribute(
       'aria-selected',
       'true',

@@ -1,5 +1,78 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🚀 Version 9.1.0 — 12 langues & conversation Code partagée (28 Octobre 2026)
+
+### My_AI parle 12 langues, la conversation de VS Code s'ouvre sur le PC et le téléphone, et qwen3.5 regarde lui-même les images
+
+My_AI ne parlait que français. Il parle maintenant **12 langues**, dans la fenêtre, sur le téléphone, dans l'extension VS Code et dans les documents qu'il produit (arabe de droite à gauche compris). La conversation de l'**extension VS Code** n'est plus mêlée au chat du téléphone : elle a sa **page Code** sur le PC et sa **vue Code** sur le téléphone, d'où l'on peut faire agir My_AI dans le projet ouvert dans VS Code. Le modèle `my_ai` (qwen3.5) **répond lui-même aux questions sur une image**, sans second modèle. Le **Relay** demande un **code d'accès** en plus du lien du QR code, les réponses ne citent plus que leurs **sources utilisées**, et la **génération d'images** tourne sur le GPU de la machine, NVIDIA ou non.
+
+## 🌍 12 langues — `core/i18n.py`, `core/locales/`, `frontend/src/i18n/`, `relay/static/locales/` (nouveaux)
+
+- Français, anglais, espagnol, allemand, italien, portugais (Brésil), néerlandais, russe, chinois (simplifié), japonais, coréen et **arabe**, choisis dans ⚙️ Réglages, la palette **Ctrl+K** (« Changer de langue ») ou l'assistant de premier lancement, et **appliqués à chaud**, sans redémarrage. Au tout premier lancement, la langue du système (l'anglais si My_AI ne la parle pas).
+- **Fenêtre** : tous les textes (chat, agents, panneaux, palette, assistant, écran de chargement), pluriels et dates au format de la langue ; en arabe, la page passe de droite à gauche et le volet d'aperçu glisse depuis la gauche.
+- **Serveur** : étapes du lancement, notifications, erreurs, outils, agents, tâches planifiées, placement d'Ollama.
+- **Téléphone** : la page du Relay prend la langue du PC et la suit à chaud ; la **page de routage du QR code** (`docs/router.html`) aussi, transmise par le lien, sinon celle du téléphone.
+- **Réponses** dans la langue de chaque message (celle choisie pour un message court ou ambigu), agents dans la langue de la tâche ; commandes des prompts par défaut traduites (`/summarize`, `/translate`…), les noms français restant acceptés ; demandes d'image reconnues dans les 12 langues (`core/image_intent.py`).
+- **Documents et exports** (`utils/pdf_text.py`, nouveau) : un PDF russe ou chinois ne montre plus des carrés, l'arabe n'y sort plus à l'envers en lettres détachées (police selon l'écriture, `arabic-reshaper` et `python-bidi`) ; Word, PowerPoint et Excel de droite à gauche en arabe ; « Généré le », sommaire, « Page N » et noms des feuilles dans la langue du document ; libellés des exports de conversation dans la langue de l'interface. Un document français en PDF reste identique au pixel près.
+
+## 💻 Conversation Code : VS Code, PC et téléphone — `relay/code_hub.py`, `interfaces/desktop/code.py`, `frontend/src/features/code/`, `relay/static/code.js` (nouveaux)
+
+- **Séparée du chat** : l'extension VS Code recevait les réponses du chat du téléphone (le Relay les envoyait à tous ses clients) et chargeait son historique, alors que ses propres échanges n'allaient nulle part ailleurs. Le chat (téléphone + PC) et la conversation Code ne voient plus rien l'un de l'autre.
+- **Page Code du PC** : bouton **Code** en haut de la barre latérale, sous « Nouvelle conversation », avec une pastille verte quand VS Code est connecté. Interface du chat adaptée au code : cartes des appels d'outils de VS Code, dossier ouvert dans VS Code en pied de saisie, bandeau qui dit quoi faire quand VS Code n'est pas connecté. Les onglets Chat et Agents du haut y sont masqués.
+- **Pièces jointes et saisie vocale** sur la page Code, comme dans le chat (menu **+**, Ctrl+V pour une image, fichiers ou dossier glissés, micro) : le modèle lit les documents et le code, le modèle vision décrit les images, et leur texte prend au plus la moitié de la fenêtre de contexte.
+- **Vue Code du téléphone** : bouton `</>` à gauche de **Chat** (Chat et Agents un peu plus étroits), même interface que le chat mobile.
+- Un message tapé à l'un des trois endroits part à l'extension, qui agit dans son workspace ; la réponse arrive **en streaming partout**, cartes d'outils comprises. **Stop** l'arrête d'où qu'elle vienne, **Effacer** commence une nouvelle conversation partout.
+- **Approbations de partout** : pour un message du PC ou du téléphone, une écriture ou une commande attend une réponse donnée par les boutons de sa carte, dans VS Code, sur le PC ou sur le téléphone ; la première compte, sans limite de temps. Un message tapé dans VS Code garde la fenêtre de confirmation de VS Code.
+- Conversation et contexte du modèle gardés dans `data/code_conversation.json` d'un lancement à l'autre ; au-delà de la fenêtre de contexte, les plus anciens échanges partent. Le prompt système ne change qu'avec les dossiers ouverts ou la langue : Ollama reprend la conversation déjà lue.
+
+## 👁️ Vision : qwen3.5 répond lui-même — `models/local_llm.py`
+
+- `my_ai` (FROM qwen3.5:4b) voit les images : l'image part **directement avec la question**, au lieu d'être décrite par minicpm-v puis réécrite. Un seul modèle en mémoire, plus d'erreurs de description dans la réponse. Le modèle de chat est choisi d'après les capacités qu'Ollama annonce (`/api/tags`) ; un Modelfile sur une base sans vision se replie sur qwen3.5, minicpm-v, llava…
+- Images des agents, du Relay et de la conversation Code décrites avec la fenêtre de contexte du chat et sans réflexion : Ollama ne recharge pas `my_ai`.
+
+## 🔐 Relay — `relay/relay_server.py`, `relay/static/`
+
+- **Code d'accès à 6 chiffres**, tiré à chaque démarrage et affiché sous le QR code, demandé en plus du lien : le lien (jeton et clé E2EE) pouvait fuiter sans que l'écran soit vu (historique synchronisé, presse-papiers, appli de lecture de QR code). Le code voyage chiffré par la clé du lien ; après 5 codes erronés, plus aucun n'est accepté jusqu'au redémarrage, et la fenêtre signale chaque essai. La session est gardée par le navigateur tant que le Relay tourne.
+- Retirés : le mot de passe du Relay (`relay.password`, page de connexion, `POST /auth`), la liste des tunnels sans jeton (`GET /api/tunnels`), le bouton « Copier pour l'extension VS Code » (même lien que « Copier », une ligne sous le lien le dit).
+- **serveo n'est plus lancé par défaut** : son nom de tunnel contient l'adresse IP publique du réseau du PC, lisible dans le QR code.
+- **QR code prêt en quelques secondes** : le nom d'un tunnel cloudflared est demandé aux serveurs de trycloudflare.com, sans passer par le DNS du PC qui gardait une minute un « nom inexistant » (1,4 à 7,6 s au lieu de 36 à 92 s) ; les tunnels ssh visent 127.0.0.1 (l'OpenSSH de Windows essayait ::1 et répondait 502 à tout) ; serveo est reconnu sur son nouveau domaine.
+- Logo de My_AI sur la page de routage du QR code ; citations `[n]` cliquables et bloc Sources espacé sur le téléphone.
+
+## 📚 Sources — `utils/citations.py` (nouveau)
+
+- Les réponses appuyées sur une recherche web ne listent plus que les **sources citées**, numéros gardés : le modèle s'arrête au début du bloc Sources et le code l'écrit.
+- Dans la fenêtre, le bloc devient un bouton **Sources** (icônes des trois premières, liste de liens), dans le chat et la page Agents, où les `[n]` sont cliquables. Les icônes passent par le serveur local (`GET /api/favicon`) : la page ne charge aucune image d'ailleurs.
+- WebAgent : plus de « Recherche terminée » en tête de sa sortie ; la page Agents affiche « L'agent cherche sur internet… » pendant l'attente.
+
+## 🎨 Génération d'images — `models/image_generation.py`
+
+- **Sur le GPU de la machine** : sur un PC sans carte NVIDIA, « dessine-moi… » répondait « Génération d'image indisponible ». L'installation automatique de ComfyUI prend maintenant le build du GPU (NVIDIA, AMD ou Intel Arc) et remplace un mauvais build en gardant ses modèles ; un démarrage raté sur le GPU repart sur le CPU. Environ 2 s par image sur un Intel Arc 140T, contre 30 s sur le processeur.
+- **SD-Turbo en 4 étapes sans guidage** : il recevait les réglages d'un modèle classique (25 étapes, CFG 7), image brûlée en 337 s sur le CPU.
+- La réponse donne la raison d'un échec (sortie de ComfyUI dans `logs/comfyui.log`), et ComfyUI s'arrête avec l'appli.
+
+## 🧩 Extension VS Code 1.6.0
+
+- **Conversation Code partagée** avec la page Code du PC et la vue Code du téléphone, approbations par boutons pour les messages venus d'ailleurs ; **Effacer** et **Stop** valent partout ; conversation gardée par l'hôte d'une reconnexion à l'autre (1.6.0).
+- **12 langues** : l'extension parle la langue choisie dans My_AI, transmise par le Relay et retenue ; titres des commandes dans la langue d'affichage de VS Code (1.6.0).
+- **Code d'accès du Relay** demandé après la chaîne de connexion, session gardée avec les identifiants (1.5.0) ; renvoi au bouton « Copier » du panneau Relay (1.5.1) ; mots-clés du Marketplace, dont `ollama` (1.5.2) ; README à jour (1.4.0).
+- Corrigé : les réponses du chat du téléphone s'affichaient dans VS Code ; la fin d'une réponse pouvait manquer ; Stop puis Clear écrivait la réponse arrêtée dans le chat vidé (1.3.9). Détails dans `vscode_extension/CHANGELOG.md`.
+
+## 🐛 Correctifs & divers
+
+- **Chat** : la recherche web échouait souvent, le premier tour de la boucle d'outils revenant vide (ligne des sources du Modelfile réécrite en même temps que les Sources, rétablie : 11 premiers tours vides sur 26, aucun sur 8 après) ; un premier tour vide est refait une fois, et le repli sans outils n'invente plus de sources (`core/chat_orchestrator.py`).
+- **Vision** : une question envoyée avec une image porte toujours sur elle ; « Et dans celle-là ? » avec une deuxième image partait sans elle, et une liste de mots-clés français ratait « Explique-moi ce diagramme » (`core/ai_engine.py`, `models/custom_ai_model.py`).
+- **Mode agentique** : Stop dans VS Code coupe vraiment le flux d'Ollama, qui générait jusqu'au bout en bloquant le message suivant (`core/agentic_executor.py`, `tests/test_agentic_stop.py`).
+- **Relay** : le code d'accès n'est plus redemandé à chaque réouverture de Safari sur iOS.
+
+#### Autres changements
+
+- Version du projet → **9.1.0** (`config.yaml`, lanceurs `launch.bat` / `launch.sh` / `launch_unified.py`, `clean_project.bat`, API REST, exports de conversation, scheduler, sessions, workflows, page Agents, `CustomAIModel`, tests de charge, en-têtes de docs) ; `frontend/dist` reconstruit.
+- Dépendances : `arabic-reshaper` et `python-bidi`, installées au lancement suivant.
+- Nouveaux tests : `test_i18n.py`, `test_pdf_text.py`, `test_image_intent.py`, `test_code_hub.py`, `test_vision.py`, `test_relay_access_code.py`, `test_agentic_stop.py`, `test_comfyui_manager.py`, `test_image_generation.py`.
+- Documentation : **README en anglais** (`README.md`), version française dans `README.fr.md`, captures refaites en anglais et en français sur le serveur de démonstration, GIF du chat, image de partage du dépôt ; USAGE, ARCHITECTURE, INSTALLATION, FAQ, IMAGE_GENERATION, INTERNET_SEARCH et les autres guides à jour. Le suivi de la migration de l'interface quitte le dépôt.
+
+---
+
 # 🚀 Version 9.0.0 — Nouvelle interface desktop & Ollama plus rapide (15 Octobre 2026)
 
 ### Une interface web locale dans une fenêtre native, un modèle placé au mieux sur la machine, une boucle d'outils qui ne fait plus tout relire à Ollama

@@ -10,6 +10,7 @@
 import { setLocale, useI18n } from '../i18n';
 import { applyAgentEvents, loadAgents, refreshAgentsPage, useAgents } from '../stores/agents';
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
+import { applyCodeEvents, loadCode, loadCodeState, useCode } from '../stores/code';
 import { applyModelDone, applyModelLog, applyModelProgress } from '../stores/models';
 import { notify, showScheduledResult, useApp } from '../stores/app';
 import { applyResourceSample, loadResources, useResources } from '../stores/resources';
@@ -27,8 +28,8 @@ import {
   loadVoiceStatus,
 } from '../stores/voice';
 import { ApiError, api, getToken } from './api';
-import type { AnyAgentEvent, AnyServerEvent, ServerEvent } from './events';
-import { isAgentEvent, isChatEvent } from './events';
+import type { AnyAgentEvent, AnyCodeEvent, AnyServerEvent, ServerEvent } from './events';
+import { isAgentEvent, isChatEvent, isCodeEvent } from './events';
 import { dispatchDroppedPaths } from './drops';
 import { createFrameBatcher } from './scheduleFrame';
 import { EventSocket } from './ws';
@@ -69,9 +70,14 @@ export function startSync(): () => void {
     const chatFloor = useChat.getState().seq;
     const chatEvents: ServerEvent[] = [];
     const agentEvents: AnyAgentEvent[] = [];
+    const codeEvents: AnyCodeEvent[] = [];
     for (const event of events) {
       if (isAgentEvent(event)) {
         agentEvents.push(event);
+        continue;
+      }
+      if (isCodeEvent(event)) {
+        codeEvents.push(event);
         continue;
       }
       if (isChatEvent(event.type)) {
@@ -82,6 +88,7 @@ export function startSync(): () => void {
     }
     applyChatEvents(chatEvents);
     applyAgentEvents(agentEvents);
+    applyCodeEvents(codeEvents);
   };
 
   const batcher = createFrameBatcher<AnyServerEvent>(applyBatch);
@@ -110,6 +117,9 @@ export function startSync(): () => void {
         if (useSchedule.getState().loaded) void loadSchedule();
         if (useResources.getState().loaded) void loadResources();
       }
+      // Conversation Code (VS Code) : la page entière si elle a été ouverte,
+      // l'état seul sinon (bouton Code de la barre latérale)
+      void (useCode.getState().loaded ? loadCode() : loadCodeState());
       void loadVoiceStatus();
     } catch {
       // serveur injoignable : la reconnexion relancera la relecture

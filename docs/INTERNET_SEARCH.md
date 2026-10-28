@@ -32,7 +32,7 @@ La recherche n'appelle jamais le modèle elle-même : elle collecte, le modèle 
 Le trafic de la recherche est celui d'un client ordinaire :
 
 - **HTTPS vérifié** : les certificats sont contrôlés avec le magasin du système (paquet `truststore`), celui où un réseau d'entreprise installe la racine de son proxy d'inspection TLS. L'ancienne version désactivait toute vérification.
-- **User-Agent honnête** : `Mozilla/5.0 (compatible; My_AI/9.0.0; +https://github.com/gonicolas12/My_AI)` (version lue dans `config.yaml`), sans rotation d'identité.
+- **User-Agent honnête** : `Mozilla/5.0 (compatible; My_AI/9.1.0; +https://github.com/gonicolas12/My_AI)` (version lue dans `config.yaml`), sans rotation d'identité.
 - **Aucun contournement anti-robot** : plus de `cloudscraper`, plus d'instances SearXNG publiques (domaines exotiques souvent classés « anonymiseurs » par les pare-feu), plus de scraping de Google ni de Brave.
 - **Peu de requêtes** : un moteur à la fois. Un moteur qui renvoie sa page anti-robot est mis en pause 15 minutes au lieu d'être relancé à chaque recherche (1 minute s'il est injoignable). Une recherche déjà faite reste en cache 30 minutes.
 - **Une recherche typique** : 1 page de résultats + 4 pages lues. La météo : 2 appels à Open-Meteo.

@@ -31,10 +31,22 @@ exactement comme avant.
   silencieusement ; `write_file`, `edit_file` et `run_command` demandent
   confirmation, avec des options pour autoriser une fois, autoriser le
   même fichier, ou autoriser l'outil pour le reste de la session.
-- ⏹️ **Stop et Effacer** — pendant la génération, le bouton d'envoi devient
-  Stop : il arrête le modèle et les appels d'outils en attente, et le texte
-  se fige aussitôt. **Effacer** vide la vue (le contexte de la session reste
-  côté hôte) et arrête une réponse en cours.
+- 🔁 **Une conversation, trois endroits** — le chat s'affiche aussi sur la
+  page **Code** de My_AI sur le PC hôte et dans la vue **Code** de sa page
+  mobile. Un message tapé là arrive ici et agit dans votre workspace, la
+  réponse arrive en streaming partout, et une écriture ou une commande
+  qu'elle demande s'approuve depuis n'importe lequel des trois. Le chat
+  classique du téléphone n'apparaît jamais ici.
+- ⏹️ **Stop et Effacer** — pendant la génération, d'où que vienne le
+  message, le bouton d'envoi devient Stop : il arrête le modèle et les
+  appels d'outils en attente, et le texte se fige aussitôt. **Effacer**
+  commence une nouvelle conversation (dans VS Code, sur le PC et sur le
+  téléphone) et arrête une réponse en cours.
+- 🌍 **12 langues** — le chat, les notifications et les saisies parlent la
+  langue choisie dans My_AI (français, anglais, espagnol, allemand,
+  italien, portugais, néerlandais, russe, chinois, japonais, coréen,
+  arabe, de droite à gauche), et la suivent quand elle change. Les titres
+  des commandes et les réglages suivent la langue de VS Code.
 - 🔐 **Chiffrement bout-en-bout** — AES-256-GCM par-dessus le tunnel
   public. Le serveur de tunnel (Cloudflare, localhost.run) ne voit que du
   ciphertext.
@@ -144,7 +156,8 @@ au modèle jusqu'à ce qu'il produise une réponse finale.
 | `get_active_editor` | Lire le fichier actuellement ouvert et la sélection utilisateur. |
 | `open_file` | Ouvrir un fichier du workspace dans l'éditeur (et révéler une ligne optionnelle). |
 
-⚠ = demande l'approbation explicite de l'utilisateur (modal).
+⚠ = demande l'approbation explicite de l'utilisateur (modal, ou boutons
+dans la carte de l'outil pour un message tapé sur le PC ou le téléphone).
 
 ### Sandbox & approbations
 
@@ -163,6 +176,12 @@ au modèle jusqu'à ce qu'il produise une réponse finale.
     pour `run_command`).
   - *Tout autoriser pour `<outil>` dans cette session* — auto-approuve
     l'outil partout jusqu'à la déconnexion.
+- **Demandé là où vous êtes.** Pour un message tapé dans VS Code, le modal
+  pose la question. Pour un message tapé sur la page **Code** de My_AI ou
+  sur le téléphone, vous êtes peut-être loin de VS Code : les mêmes choix
+  s'affichent en boutons dans la carte de l'outil — dans ce chat, sur le
+  PC et sur le téléphone — et la première réponse compte. D'ici là,
+  l'outil attend sans délai d'expiration ; **Stop** l'annule.
 - Les approbations sont réinitialisées à chaque reconnexion.
 
 ### Cartes d'outils dans le chat
@@ -182,10 +201,12 @@ les éditions, etc.).
 
 ### Mémoire de conversation
 
-Le contexte agentique est conservé pour toute la session WebSocket. Vous
-pouvez dire *« maintenant édite le fichier que tu viens de lire »* et le
-modèle se souviendra des appels d'outils précédents. Une reconnexion
-démarre une nouvelle conversation agentique.
+La conversation vit sur l'hôte, partagée par VS Code, la page **Code** de
+My_AI et le téléphone. Vous pouvez dire *« maintenant édite le fichier que
+tu viens de lire »* et le modèle se souviendra des appels d'outils
+précédents, même après une reconnexion ou un redémarrage de My_AI.
+**Effacer** démarre une nouvelle conversation partout. Quand elle dépasse
+la fenêtre de contexte du modèle, ses plus anciens échanges sont retirés.
 
 ## Fonctionnalités espace de travail
 

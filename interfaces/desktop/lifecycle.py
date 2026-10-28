@@ -29,6 +29,7 @@ from core import i18n
 from core.chat_service import ChatError, ChatService
 from core.i18n import tr
 from interfaces.desktop.agents import AgentsService
+from interfaces.desktop.code import CodeService
 from interfaces.desktop.events import EventBus
 from interfaces.desktop.memory import MemoryService
 from interfaces.desktop.model_setup import FirstLaunch, ModelJobs, OllamaSetup
@@ -148,6 +149,7 @@ class DesktopApp:
         self._agents: Optional[AgentsService] = None
         self._resources: Optional[ResourcesService] = None
         self._schedule: Optional[ScheduleService] = None
+        self._code: Optional[CodeService] = None
         # Focus de la fenêtre, signalé par la page : notification de fin d'un fil long
         self.window_focused = True
         self._voice = None
@@ -373,6 +375,8 @@ class DesktopApp:
 
     def _start_services(self) -> None:
         """Relay (relay.auto_start) puis scheduler, comme _init_relay et _init_scheduler."""
+        # Page Code : suit la conversation de l'extension VS Code dès le lancement
+        _ = self.code
         relay_cfg = self.config.get_section("relay") or {}
         if relay_cfg.get("auto_start", False):
             self.start_relay()
@@ -510,6 +514,16 @@ class DesktopApp:
                         "scheduler.background_interval_minutes", 1))
             return self._schedule
 
+    @property
+    def code(self) -> CodeService:
+        """Page Code : la conversation de l'extension VS Code (relay/code_hub.py)."""
+        with self._services_lock:
+            if self._code is None:
+                from relay.code_hub import get_code_hub  # pylint: disable=import-outside-toplevel
+                self._code = CodeService(get_code_hub(), self.bus.publish,
+                                         lambda: self.bus.last_seq)
+            return self._code
+
     def _scheduler_service(self):
         """Scheduler de l'appli ; sans sa boucle (scheduler.enabled = false), le même singleton."""
         if self.scheduler is not None:
@@ -537,6 +551,10 @@ class DesktopApp:
     def agent_attachments(self) -> set:
         """Pièces jointes de la zone de tâche des agents (vignettes), sans créer le service."""
         return self._agents.known_paths() if self._agents is not None else set()
+
+    def code_attachments(self) -> set:
+        """Pièces jointes de la page Code (vignettes), sans créer le service."""
+        return self._code.known_paths() if self._code is not None else set()
 
     def files_dropped(self, paths) -> None:
         """Fichiers déposés sur la fenêtre (fil de pywebview) : la page décide."""

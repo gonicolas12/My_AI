@@ -114,12 +114,44 @@ def test_server_messages_exist_in_the_catalog():
 def test_mobile_page_texts_exist_in_the_catalog():
     """Clés de la page mobile : T('…') des scripts, data-i18n… du HTML."""
     static = ROOT / "relay" / "static"
-    keys = _literal_keys([static / "app.js", static / "agents.js"],
+    keys = _literal_keys([static / "app.js", static / "agents.js", static / "code.js"],
                          re.compile(r"\bT\(\s*'([\w.]+)'"))
     keys |= _literal_keys([static / "index.html"], re.compile(r'data-i18n[\w-]*="([\w.]+)"'))
     assert len(keys) > 80
     missing = sorted(keys - set(_catalog("page mobile", "fr")))
     assert not missing
+
+
+_EXTENSION = ROOT / "vscode_extension"
+# t('…') de l'extension : le texte anglais, clé de chaque catalogue l10n/<langue>.json
+_EXTENSION_TEXT = re.compile(r"(?<![\w.])t\(\s*'((?:\\.|[^'\\])*)'", re.S)
+_ESCAPES = {"\\n": "\n", "\\'": "'", "\\\\": "\\", '\\"': '"'}
+
+
+def _extension_texts():
+    texts = []
+    for path in sorted((_EXTENSION / "src").glob("*.ts")):
+        for match in _EXTENSION_TEXT.finditer(path.read_text(encoding="utf-8")):
+            text = re.sub(r"\\.", lambda m: _ESCAPES.get(m.group(0), m.group(0)), match.group(1))
+            if text not in texts:
+                texts.append(text)
+    return texts
+
+
+@pytest.mark.parametrize("code", [c for c in i18n.SUPPORTED_LANGUAGES if c != "en"])
+def test_vscode_extension_speaks_every_language(code):
+    """L'extension VS Code parle la langue de My_AI (src/i18n.ts) : chaque texte, traduit."""
+    texts = _extension_texts()
+    assert len(texts) > 80
+    catalog = json.loads((_EXTENSION / "l10n" / f"{code}.json").read_text(encoding="utf-8"))
+    assert list(catalog) == texts
+    for text, translated in catalog.items():
+        assert translated.strip(), text
+        assert sorted(re.findall(r"\{\d+\}", translated)) == sorted(re.findall(r"\{\d+\}", text))
+        assert re.findall(r"\$\([\w~-]+\)", translated) == re.findall(r"\$\([\w~-]+\)", text)
+    languages = re.search(r"LANGUAGES = \[([^\]]+)\]",
+                          (_EXTENSION / "src" / "i18n.ts").read_text(encoding="utf-8"))
+    assert tuple(re.findall(r"'(\w+)'", languages.group(1))) == i18n.SUPPORTED_LANGUAGES
 
 
 # ── tr() et langue en cours ──────────────────────────────────────────────────

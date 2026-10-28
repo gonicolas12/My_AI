@@ -334,6 +334,10 @@ function connect() {
     if (window.AgentsUI && typeof window.AgentsUI.onConnect === 'function') {
       window.AgentsUI.onConnect();
     }
+    // (1d) Vue Code déjà ouverte : la conversation entière à nouveau
+    if (window.CodeUI && typeof window.CodeUI.onConnect === 'function') {
+      window.CodeUI.onConnect();
+    }
 
     // (2) Si on était en attente d'une réponse quand la connexion est
     //     tombée, demander au serveur s'il a une réponse en attente pour
@@ -429,6 +433,11 @@ function connect() {
       // (la session du code d'accès et la clé du lien restent)
       if (data.language && data.language !== (window.RelayI18n && window.RelayI18n.lang)) {
         location.reload();
+      }
+    } else if (typeof data.type === 'string' && data.type.indexOf('code_') === 0) {
+      // Conversation Code (extension VS Code) : vue Code, module code.js
+      if (window.CodeUI && typeof window.CodeUI.onMessage === 'function') {
+        window.CodeUI.onMessage(data);
       }
     } else if (typeof data.type === 'string' && data.type.indexOf('agent') === 0) {
       // Messages de la page « Agents » (agents_list_result, agent_section_*,
@@ -999,6 +1008,11 @@ function removeTyping() {
 }
 
 function clearChat() {
+  // Vue Code : nouvelle conversation Code (aussi dans VS Code et sur le PC)
+  if (window.CodeUI && window.CodeUI.isActive()) {
+    window.CodeUI.clear();
+    return;
+  }
   // Remove all messages but keep the welcome element
   var children = Array.from(messagesEl.children);
   for (var i = 0; i < children.length; i++) {
@@ -1574,6 +1588,9 @@ window.RelayCore = {
   uploadEncryptedFile: function (file) { return uploadEncryptedFile(file); },
   e2eReady: function () { return e2eReady; },
   getToken: function () { return TOKEN; },
+  // Vue Code (code.js) : bulles identiques à celles du chat
+  formatTime: formatTime,
+  robotSvg: ROBOT_SVG,
 };
 
 // ═══════════════════════════════════════════════════

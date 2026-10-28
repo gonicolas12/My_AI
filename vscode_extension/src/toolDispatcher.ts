@@ -12,6 +12,10 @@
  *     approved silently afterwards.
  *   - Paths that escape the workspace root are NEVER auto-approvable: the
  *     user is always prompted explicitly.
+ *   - Where the user is asked depends on where the message was typed: in
+ *     VS Code, a modal confirmation dialog; on the PC or the phone (Code
+ *     conversation), buttons in the tool card of the chat view, of the Code
+ *     page of My_AI and of the phone, the first answer counting.
  */
 
 import * as path from 'path';
@@ -22,7 +26,8 @@ import {
   ToolContext,
   ToolOutcome,
 } from './agentTools';
-import { ToolCall, ToolResult } from './types';
+import { t } from './i18n';
+import { ApprovalDecision, ToolCall, ToolResult } from './types';
 
 // ---------------------------------------------------------------------------
 // Approval scope
@@ -67,13 +72,26 @@ export interface DispatchEvent {
   input: Record<string, unknown>;
   result?: ToolOutcome;
   error?: string;
+  // awaiting-approval: answers that the chat view, the PC and the phone may
+  // give (message typed on the PC or the phone). None for a message typed in
+  // VS Code: its modal confirmation dialog answers.
+  options?: ApprovalDecision[];
+  messageId?: string;
 }
 
 export type DispatchListener = (event: DispatchEvent) => void;
 
+interface PendingApproval {
+  messageId?: string;
+  options: ApprovalDecision[];
+  resolve: (decision: ApprovalDecision) => void;
+}
+
 export class ToolDispatcher {
   private policy: ApprovalPolicy = newPolicy();
   private listeners: DispatchListener[] = [];
+  // Approvals asked in the tool cards (message typed on the PC or the phone)
+  private pendingApprovals = new Map<string, PendingApproval>();
 
   onEvent(listener: DispatchListener): vscode.Disposable {
     this.listeners.push(listener);
@@ -84,12 +102,42 @@ export class ToolDispatcher {
 
   resetApprovals(): void {
     this.policy = newPolicy();
+    this.cancelApprovals();
   }
 
-  async dispatch(call: ToolCall): Promise<ToolResult> {
+  /**
+   * Answer to an approval asked in the tool cards, from the chat view, the PC
+   * or the phone: the first one counts. False when nothing waits for it.
+   */
+  resolveApproval(callId: string, decision: string): boolean {
+    const pending = this.pendingApprovals.get(callId);
+    if (!pending || !pending.options.includes(decision as ApprovalDecision)) {
+      return false;
+    }
+    this.pendingApprovals.delete(callId);
+    pending.resolve(decision as ApprovalDecision);
+    return true;
+  }
+
+  /** Reply stopped (or every reply, without id): its pending approvals are denied. */
+  cancelApprovals(messageId?: string): void {
+    for (const [callId, pending] of this.pendingApprovals) {
+      if (!messageId || pending.messageId === messageId) {
+        this.pendingApprovals.delete(callId);
+        pending.resolve('deny');
+      }
+    }
+  }
+
+  /**
+   * `cancelled`: true once the reply was stopped. A modal confirmation can't
+   * be closed from code: answered after the Stop, it must not run the tool.
+   */
+  async dispatch(call: ToolCall, cancelled: () => boolean = () => false): Promise<ToolResult> {
     const callId = call.call_id;
     const name = String(call.name ?? '');
     const input = (call.input && typeof call.input === 'object') ? call.input : {};
+    const remote = call.origin === 'desktop' || call.origin === 'mobile' ? call : null;
 
     this.emit({ kind: 'requested', callId, toolName: name, input });
 
@@ -109,7 +157,7 @@ export class ToolDispatcher {
       return result;
     }
 
-    const ctx = await this.buildContext(name, input);
+    const ctx = await this.buildContext(name, input, remote);
     if (!ctx) {
       const result: ToolResult = {
         call_id: callId,
@@ -127,8 +175,8 @@ export class ToolDispatcher {
       return result;
     }
 
-    const decision = await this.requireApproval(name, input, ctx, callId);
-    if (decision === 'denied') {
+    const decision = await this.requireApproval(name, input, ctx, callId, remote);
+    if (decision === 'denied' || cancelled()) {
       const result: ToolResult = {
         call_id: callId,
         content: 'L\'utilisateur a refusé cette opération.',
@@ -175,6 +223,7 @@ export class ToolDispatcher {
   private async buildContext(
     toolName: string,
     input: Record<string, unknown>,
+    remote: ToolCall | null,
   ): Promise<ToolContext | null> {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
@@ -189,7 +238,7 @@ export class ToolDispatcher {
       const resolved = path.resolve(root, candidatePath);
       const inside = isInsideRoot(resolved, root);
       if (!inside) {
-        const allow = await this.promptOutsideWorkspace(toolName, candidatePath);
+        const allow = await this.promptOutsideWorkspace(toolName, candidatePath, input, remote);
         if (!allow) {
           return null;
         }
@@ -202,13 +251,23 @@ export class ToolDispatcher {
   private async promptOutsideWorkspace(
     toolName: string,
     rawPath: string,
+    input: Record<string, unknown>,
+    remote: ToolCall | null,
   ): Promise<boolean> {
     if (this.policy.approvedOutsidePaths.has(rawPath)) {
       return true;
     }
-    const allowOnce = vscode.l10n.t('Allow once');
+    if (remote) {
+      const decision = await this.askInCards(remote, toolName, input, ['allow-once', 'deny']);
+      if (decision === 'allow-once') {
+        this.policy.approvedOutsidePaths.add(rawPath);
+        return true;
+      }
+      return false;
+    }
+    const allowOnce = t('Allow once');
     const choice = await vscode.window.showWarningMessage(
-      vscode.l10n.t(
+      t(
         'My_AI wants to access "{0}" via {1}, outside the VS Code workspace. Allow?',
         rawPath,
         toolName,
@@ -228,6 +287,7 @@ export class ToolDispatcher {
     input: Record<string, unknown>,
     ctx: ToolContext,
     callId: string,
+    remote: ToolCall | null,
   ): Promise<'approved' | 'denied'> {
     if (isReadOnlyTool(toolName)) {
       return 'approved';
@@ -241,14 +301,21 @@ export class ToolDispatcher {
       return 'approved';
     }
 
-    this.emit({
-      kind: 'awaiting-approval',
-      callId,
-      toolName,
-      input,
-    });
-
-    const decision = await this.showApprovalDialog(toolName, input, ctx);
+    let decision: ApprovalDecision;
+    if (remote) {
+      const options: ApprovalDecision[] = toolName === 'run_command'
+        ? ['allow-once', 'allow-tool', 'deny']
+        : ['allow-once', 'allow-target', 'allow-tool', 'deny'];
+      decision = await this.askInCards(remote, toolName, input, options);
+    } else {
+      this.emit({
+        kind: 'awaiting-approval',
+        callId,
+        toolName,
+        input,
+      });
+      decision = await this.showApprovalDialog(toolName, input, ctx);
+    }
     switch (decision) {
       case 'allow-once':
         return 'approved';
@@ -264,17 +331,41 @@ export class ToolDispatcher {
     }
   }
 
+  /**
+   * Approval asked in the tool cards (chat view, Code page of My_AI, phone)
+   * for a message typed on the PC or the phone: the user may be away from
+   * VS Code. Waits for resolveApproval or cancelApprovals.
+   */
+  private askInCards(
+    call: ToolCall,
+    toolName: string,
+    input: Record<string, unknown>,
+    options: ApprovalDecision[],
+  ): Promise<ApprovalDecision> {
+    return new Promise((resolve) => {
+      this.pendingApprovals.set(call.call_id, { messageId: call.message_id, options, resolve });
+      this.emit({
+        kind: 'awaiting-approval',
+        callId: call.call_id,
+        toolName,
+        input,
+        options,
+        messageId: call.message_id,
+      });
+    });
+  }
+
   private async showApprovalDialog(
     toolName: string,
     input: Record<string, unknown>,
     _ctx: ToolContext,
-  ): Promise<'allow-once' | 'allow-target' | 'allow-tool' | 'deny'> {
+  ): Promise<ApprovalDecision> {
     const summary = describeToolForApproval(toolName, input);
-    const allowOnce = vscode.l10n.t('Allow once');
+    const allowOnce = t('Allow once');
     const allowTarget = toolName === 'run_command'
       ? null
-      : vscode.l10n.t('Allow for this file');
-    const allowTool = vscode.l10n.t('Allow all {0} this session', toolName);
+      : t('Allow for this file');
+    const allowTool = t('Allow all {0} this session', toolName);
 
     const buttons: string[] = [allowOnce];
     if (allowTarget) {
@@ -284,7 +375,7 @@ export class ToolDispatcher {
 
     const choice = await vscode.window.showWarningMessage(
       summary,
-      { modal: true, detail: vscode.l10n.t('Default: deny') },
+      { modal: true, detail: t('Default: deny') },
       ...buttons,
     );
 
@@ -357,25 +448,25 @@ function describeToolForApproval(
 ): string {
   switch (toolName) {
     case 'write_file':
-      return vscode.l10n.t(
+      return t(
         'My_AI wants to WRITE file "{0}". Continue?',
         String(input.path ?? '?'),
       );
     case 'edit_file':
-      return vscode.l10n.t(
+      return t(
         'My_AI wants to EDIT "{0}". Continue?',
         String(input.path ?? '?'),
       );
     case 'run_command': {
       const cmd = String(input.command ?? '');
       const preview = cmd.length > 200 ? cmd.slice(0, 200) + '…' : cmd;
-      return vscode.l10n.t(
+      return t(
         'My_AI wants to run a shell command:\n\n{0}\n\nContinue?',
         preview,
       );
     }
     default:
-      return vscode.l10n.t(
+      return t(
         'My_AI wants to use the "{0}" tool. Continue?',
         toolName,
       );

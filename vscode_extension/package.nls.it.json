@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "Chat agentica con il tuo assistente My_AI self-hosted: legge, modifica e crea file, esegue comandi e cerca nel tuo workspace. L'LLM locale resta sul tuo PC host; tutto passa da un tunnel cifrato end-to-end. La conversazione compare anche nella pagina Code di My_AI e sul tuo telefono.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "Chat",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "Connetti",
+  "command.disconnect": "Disconnetti",
+  "command.forgetCredentials": "Dimentica la connessione salvata",
+  "command.sendSelection": "Invia la selezione a My_AI",
+  "command.sendActiveFile": "Invia il file attivo a My_AI",
+  "command.attachCodebase": "Allega la cartella come @codebase",
+  "command.reindexCodebase": "Reindicizza la cartella @codebase",
+  "command.toggleAutoAttach": "Attiva/disattiva l'allegato automatico del file attivo",
+  "command.focusChat": "Apri la chat",
+  "command.moveToSecondarySidebar": "Sposta la chat nella barra laterale secondaria (destra)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "Alla prima attivazione, propone di spostare la vista My_AI Relay nella barra laterale secondaria (a destra, come Copilot Chat). Disattivalo se preferisci la posizione standard a sinistra. VS Code ricorda i tuoi spostamenti manuali dopo il primo.",
+  "configuration.healthCheckIntervalSeconds.description": "Intervallo tra due controlli di stato del Relay (secondi). Serve a rilevare quando l'host arresta il Relay e a disconnettere automaticamente.",
+  "configuration.autoReconnect.description": "Se attivo, l'estensione continua a controllare i tunnel dopo una disconnessione e si riconnette automaticamente appena il Relay torna disponibile.",
+  "configuration.requestTimeoutSeconds.description": "Timeout per richiesta HTTP (stato, codice di accesso, prompt, caricamento file), in secondi."
+}

@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "セルフホストの My_AI アシスタントとのエージェント型チャット: ファイルの読み取り・編集・作成、コマンドの実行、ワークスペースの検索ができます。ローカル LLM はホスト PC 上にとどまり、すべてエンドツーエンドで暗号化されたトンネルを通ります。会話は My_AI の Code ページとスマホにも表示されます。",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "チャット",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "接続",
+  "command.disconnect": "切断",
+  "command.forgetCredentials": "保存された接続を削除",
+  "command.sendSelection": "選択範囲を My_AI に送信",
+  "command.sendActiveFile": "アクティブなファイルを My_AI に送信",
+  "command.attachCodebase": "フォルダーを @codebase として添付",
+  "command.reindexCodebase": "@codebase フォルダーを再インデックス",
+  "command.toggleAutoAttach": "アクティブなファイルの自動添付を切り替え",
+  "command.focusChat": "チャットを開く",
+  "command.moveToSecondarySidebar": "チャットをセカンダリ サイド バー (右側) に移動",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "初回の有効化時に、My_AI Relay ビューをセカンダリ サイド バー (右側、Copilot Chat と同じ場所) へ移動するか確認します。左側の標準の位置がよい場合はオフにしてください。最初の移動後は、手動で変更した位置を VS Code が記憶します。",
+  "configuration.healthCheckIntervalSeconds.description": "Relay の状態確認の間隔 (秒)。ホストが Relay を停止したことを検出して自動的に切断します。",
+  "configuration.autoReconnect.description": "オンにすると、切断後もトンネルの確認を続け、Relay が再び利用可能になると自動的に再接続します。",
+  "configuration.requestTimeoutSeconds.description": "HTTP リクエストごとのタイムアウト (状態、アクセスコード、プロンプト、アップロード)、秒単位。"
+}

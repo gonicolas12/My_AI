@@ -5,7 +5,7 @@
  */
 
 import { t } from '../i18n';
-import { notify, useApp } from '../stores/app';
+import { notify, setTab, useApp } from '../stores/app';
 import { followNewTurn } from '../stores/chat';
 import { api, type ExportFormat } from './api';
 import { baseName } from './artifacts';
@@ -100,7 +100,13 @@ export async function answerConfirm(confirmId: string, accepted: boolean): Promi
   );
 }
 
+/** Le chat, pas la page Code : une conversation s'ouvre là où elle s'affiche */
+function showChat(): void {
+  if (useApp.getState().tab === 'code') setTab('chat');
+}
+
 export async function newConversation(): Promise<void> {
+  showChat();
   await attempt(() => api.newConversation());
 }
 
@@ -114,6 +120,7 @@ export async function saveConversation(): Promise<void> {
 }
 
 export async function openSession(id: string): Promise<void> {
+  showChat();
   await attempt(() => api.loadSession(id));
 }
 

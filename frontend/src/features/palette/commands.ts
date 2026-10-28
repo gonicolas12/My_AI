@@ -58,6 +58,7 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
   { label: 'palette.toggleSidebar', hint: 'Ctrl+B', run: sidebar },
   { label: 'palette.goChat', hint: '', run: () => setTab('chat') },
   { label: 'palette.goAgents', hint: '', run: () => setTab('agents') },
+  { label: 'palette.goCode', hint: '', keywords: 'vscode code', run: () => setTab('code') },
   { label: 'palette.relay', hint: 'Ctrl+R', run: () => openPanel('relay') },
   { label: 'palette.settings', hint: 'Ctrl+,', run: () => openPanel('settings') },
   {

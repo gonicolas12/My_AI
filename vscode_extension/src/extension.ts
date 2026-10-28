@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ChatViewProvider } from './chatViewProvider';
 import { ConnectionManager } from './connectionManager';
 import { InvalidConnectionStringError } from './connectionString';
+import { initI18n, onDidChangeLanguage, t } from './i18n';
 import { WorkspaceBridge } from './workspaceBridge';
 
 let manager: ConnectionManager | null = null;
@@ -10,6 +11,8 @@ let viewProvider: ChatViewProvider | null = null;
 let statusBarItem: vscode.StatusBarItem | null = null;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  // My_AI's language, remembered from the last connection (the Relay gives it)
+  initI18n(context);
   manager = new ConnectionManager(context);
   bridge = new WorkspaceBridge(context, manager);
   viewProvider = new ChatViewProvider(context, manager, bridge);
@@ -27,6 +30,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(statusBarItem);
   manager.on('state-changed', updateStatusBar);
   updateStatusBar(manager.getState());
+  context.subscriptions.push(onDidChangeLanguage(() => {
+    if (manager) {
+      updateStatusBar(manager.getState());
+    }
+  }));
 
   context.subscriptions.push(
     vscode.commands.registerCommand('myai-relay.connect', () => connectCommand()),
@@ -52,8 +60,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const next = await bridge!.toggleAutoAttach();
       vscode.window.showInformationMessage(
         next
-          ? vscode.l10n.t('My_AI Relay: auto-attach enabled.')
-          : vscode.l10n.t('My_AI Relay: auto-attach disabled.'),
+          ? t('My_AI Relay: auto-attach enabled.')
+          : t('My_AI Relay: auto-attach disabled.'),
       );
     }),
     vscode.commands.registerCommand('myai-relay.focusChat', async () => {
@@ -87,9 +95,9 @@ async function connectCommand(): Promise<void> {
     return;
   }
   const value = await vscode.window.showInputBox({
-    title: vscode.l10n.t('My_AI Relay — Connect'),
-    prompt: vscode.l10n.t(
-      'Paste the connection string from My_AI (Relay panel → "Copier", the QR code link)',
+    title: t('My_AI Relay — Connect'),
+    prompt: t(
+      'Paste the connection string from My_AI (Relay panel → "Copy", the QR code link)',
     ),
     placeHolder: 'https://gonicolas12.github.io/My_AI/router.html#d=…',
     password: true,
@@ -103,7 +111,7 @@ async function connectCommand(): Promise<void> {
   } catch (err) {
     if (err instanceof InvalidConnectionStringError) {
       vscode.window.showErrorMessage(
-        vscode.l10n.t('My_AI Relay: {0}', err.message),
+        t('My_AI Relay: {0}', err.message),
       );
     } else {
       showError(err as Error);
@@ -115,9 +123,9 @@ async function forgetCommand(): Promise<void> {
   if (!manager) {
     return;
   }
-  const forgetLabel = vscode.l10n.t('Forget');
+  const forgetLabel = t('Forget');
   const choice = await vscode.window.showWarningMessage(
-    vscode.l10n.t(
+    t(
       'Forget the saved My_AI Relay connection? You will need to paste the connection string again.',
     ),
     { modal: true },
@@ -128,7 +136,7 @@ async function forgetCommand(): Promise<void> {
   }
   await manager.disconnect(true);
   vscode.window.showInformationMessage(
-    vscode.l10n.t('My_AI Relay: saved connection removed.'),
+    t('My_AI Relay: saved connection removed.'),
   );
 }
 
@@ -138,29 +146,29 @@ function updateStatusBar(state: ReturnType<ConnectionManager['getState']>): void
   }
   switch (state.kind) {
     case 'connected':
-      statusBarItem.text = vscode.l10n.t('$(robot) My_AI: connected');
-      statusBarItem.tooltip = vscode.l10n.t('My_AI Relay connected via {0}', state.baseUrl);
+      statusBarItem.text = t('$(robot) My_AI: connected');
+      statusBarItem.tooltip = t('My_AI Relay connected via {0}', state.baseUrl);
       statusBarItem.backgroundColor = undefined;
       break;
     case 'connecting':
-      statusBarItem.text = vscode.l10n.t('$(sync~spin) My_AI: connecting…');
-      statusBarItem.tooltip = vscode.l10n.t('My_AI Relay connecting');
+      statusBarItem.text = t('$(sync~spin) My_AI: connecting…');
+      statusBarItem.tooltip = t('My_AI Relay connecting');
       statusBarItem.backgroundColor = undefined;
       break;
     case 'reconnecting':
-      statusBarItem.text = vscode.l10n.t('$(sync~spin) My_AI: reconnecting…');
-      statusBarItem.tooltip = vscode.l10n.t('My_AI Relay lost connection — reconnecting');
+      statusBarItem.text = t('$(sync~spin) My_AI: reconnecting…');
+      statusBarItem.tooltip = t('My_AI Relay lost connection — reconnecting');
       statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
       break;
     case 'disconnected':
-      statusBarItem.text = vscode.l10n.t('$(robot) My_AI: offline');
-      statusBarItem.tooltip = vscode.l10n.t('My_AI Relay disconnected: {0}', state.reason);
+      statusBarItem.text = t('$(robot) My_AI: offline');
+      statusBarItem.tooltip = t('My_AI Relay disconnected: {0}', state.reason);
       statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
       break;
     case 'idle':
     default:
-      statusBarItem.text = vscode.l10n.t('$(robot) My_AI: not connected');
-      statusBarItem.tooltip = vscode.l10n.t('Click to open My_AI Relay');
+      statusBarItem.text = t('$(robot) My_AI: not connected');
+      statusBarItem.tooltip = t('Click to open My_AI Relay');
       statusBarItem.backgroundColor = undefined;
       break;
   }
@@ -168,7 +176,7 @@ function updateStatusBar(state: ReturnType<ConnectionManager['getState']>): void
 }
 
 function showError(err: Error): void {
-  vscode.window.showErrorMessage(vscode.l10n.t('My_AI Relay: {0}', err.message));
+  vscode.window.showErrorMessage(t('My_AI Relay: {0}', err.message));
 }
 
 const SIDEBAR_PROMPT_KEY = 'myaiRelay.secondarySidebarPrompted.v1';
@@ -187,10 +195,10 @@ async function maybeAutoMoveToSecondarySidebar(
   }
   // Mark BEFORE prompting so the user sees this only once.
   await context.globalState.update(SIDEBAR_PROMPT_KEY, true);
-  const moveLabel = vscode.l10n.t('Move now');
-  const keepLabel = vscode.l10n.t('Keep on the left');
+  const moveLabel = t('Move now');
+  const keepLabel = t('Keep on the left');
   const choice = await vscode.window.showInformationMessage(
-    vscode.l10n.t(
+    t(
       'My_AI Relay: open the chat in the Secondary Side Bar (right side, like Copilot Chat)?',
     ),
     moveLabel,

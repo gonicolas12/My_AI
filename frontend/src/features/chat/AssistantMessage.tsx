@@ -48,7 +48,8 @@ function activityOf(live: LiveTurn | null, t: Translate): string | null {
   return null;
 }
 
-function Activity({ label, progress }: { label: string; progress?: number | null }) {
+/** Ce que fait l'IA, robot animé (aussi sur la page Code) */
+export function Activity({ label, progress }: { label: string; progress?: number | null }) {
   return (
     <div className="my-1.5 flex items-center gap-2 text-sm" role="status" aria-live="polite">
       <RobotLogo size={16} className="pulse-soft shrink-0 text-accent" />

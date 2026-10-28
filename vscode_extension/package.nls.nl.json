@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "Agentische chat met je zelfgehoste My_AI-assistent: bestanden lezen, bewerken en maken, opdrachten uitvoeren en je werkruimte doorzoeken. Het lokale LLM blijft op je host-pc; alles gaat via een end-to-end versleutelde tunnel. Het gesprek staat ook op de Code-pagina van My_AI en op je telefoon.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "Chat",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "Verbinden",
+  "command.disconnect": "Verbinding verbreken",
+  "command.forgetCredentials": "Opgeslagen verbinding vergeten",
+  "command.sendSelection": "Selectie naar My_AI sturen",
+  "command.sendActiveFile": "Actief bestand naar My_AI sturen",
+  "command.attachCodebase": "Map als @codebase bijvoegen",
+  "command.reindexCodebase": "@codebase-map opnieuw indexeren",
+  "command.toggleAutoAttach": "Automatisch bijvoegen van het actieve bestand aan/uit",
+  "command.focusChat": "Chat openen",
+  "command.moveToSecondarySidebar": "Chat naar de secundaire zijbalk verplaatsen (rechts)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "Biedt bij de eerste activering aan om de weergave My_AI Relay naar de secundaire zijbalk te verplaatsen (rechts, zoals Copilot Chat). Schakel uit als je de standaardplek links verkiest. VS Code onthoudt je handmatige aanpassingen na de eerste verplaatsing.",
+  "configuration.healthCheckIntervalSeconds.description": "Tijd tussen twee statuscontroles van de Relay (seconden). Detecteert wanneer de host de Relay stopt en verbreekt dan automatisch de verbinding.",
+  "configuration.autoReconnect.description": "Als dit aan staat, blijft de extensie na een verbroken verbinding de tunnels controleren en maakt ze automatisch opnieuw verbinding zodra de Relay weer beschikbaar is.",
+  "configuration.requestTimeoutSeconds.description": "Time-out per HTTP-verzoek (status, toegangscode, prompts, uploaden), in seconden."
+}

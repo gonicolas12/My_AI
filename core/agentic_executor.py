@@ -1,8 +1,11 @@
 """
 Boucle agentique pour le mode "VS Code" du Relay.
 
-Ce module est utilisé EXCLUSIVEMENT quand un client Relay s'identifie comme
-``client_kind == "vscode"``. Il n'a aucun impact sur le flux mobile/GUI :
+Ce module est utilisé EXCLUSIVEMENT par la conversation Code (relay/code_hub.py) :
+celle de l'extension VS Code (``client_kind == "vscode"``), que la page Code de
+la fenêtre desktop et la vue Code du téléphone montrent et alimentent aussi.
+Ses outils s'exécutent toujours dans l'extension. Il n'a aucun impact sur le
+flux mobile/GUI :
 
 - Le mode mobile continue d'utiliser ``RelayBridge.send_to_gui`` puis le
   pipeline complet de ``AIEngine.process_text`` (avec tous ses MCP locaux
@@ -226,7 +229,7 @@ sera prévenu et devra confirmer.
 6. Quand tu réponds en finale (sans tool_use), sois concis. L'utilisateur \
 voit déjà tout ce que tu as fait via les outils — pas besoin de tout \
 résumer.
-7. Réponds dans la langue de l'utilisateur (français par défaut).
+7. Réponds dans la langue de l'utilisateur ({default_language} par défaut).
 8. ANTI-BOUCLE : NE rappelle JAMAIS un outil avec exactement les mêmes \
 arguments dans la même conversation. Si tu vois <tool_result> ou \
 <tool_error> pour un appel donné, ce résultat reste valide pour TOUTE la \
@@ -239,13 +242,31 @@ des <tool_use> et donne ta réponse finale en texte normal.
 """
 
 
-def build_system_prompt(workspace_info: str, tools: Optional[List[Dict[str, Any]]] = None) -> str:
-    """Construit le prompt système complet à partir des infos de workspace et du set d'outils."""
+# Langue des réponses à un message court ou ambigu : celle de My_AI (noms
+# repris de AIEngine._LANGUAGE_NAMES, le prompt système est en français)
+_LANGUAGE_NAMES = {
+    "fr": "français", "en": "anglais", "es": "espagnol", "de": "allemand",
+    "it": "italien", "pt": "portugais", "nl": "néerlandais", "ru": "russe",
+    "zh": "chinois", "ja": "japonais", "ko": "coréen", "ar": "arabe",
+}
+
+
+def build_system_prompt(
+    workspace_info: str,
+    tools: Optional[List[Dict[str, Any]]] = None,
+    language: Optional[str] = None,
+) -> str:
+    """Construit le prompt système complet à partir des infos de workspace et du set d'outils.
+
+    ``language`` : langue de My_AI, celle des réponses à un message court ou
+    ambigu (français par défaut).
+    """
     if tools is None:
         tools = AGENT_TOOLS
     return _SYSTEM_PROMPT_TEMPLATE.format(
         workspace_info=workspace_info or "(workspace inconnu)",
         tools_doc=_format_tools_for_prompt(tools),
+        default_language=_LANGUAGE_NAMES.get(language or "fr", "français"),
     )
 
 
@@ -375,6 +396,11 @@ def _strip_code_fence(text: str) -> str:
 # ===========================================================================
 
 
+# Approbation en attente : intervalle auquel l'attente du résultat d'un outil
+# vérifie si l'utilisateur a répondu
+_APPROVAL_POLL_SECONDS = 1.0
+
+
 class RemoteToolExecutor:
     """Envoie un appel d'outil à l'extension via le Relay et attend la réponse.
 
@@ -382,6 +408,12 @@ class RemoteToolExecutor:
     utilisateur. Elle utilise un dict partagé ``pending_calls`` pour
     associer chaque ``call_id`` à une ``asyncio.Future`` ; le handler WS
     ``tool_result`` résout la future quand l'extension répond.
+
+    ``origin`` dit à l'extension d'où vient la demande (« vscode »,
+    « desktop », « mobile ») : une approbation demandée pour un message du
+    PC ou du téléphone y est répondue aussi, pas seulement dans VS Code.
+    Tant que ``keep_waiting(call_id)`` est vrai (approbation en attente),
+    le délai ne court pas, et il repart de zéro une fois la réponse donnée.
     """
 
     def __init__(
@@ -391,12 +423,16 @@ class RemoteToolExecutor:
         message_id: str,
         loop: asyncio.AbstractEventLoop,
         default_timeout: float = 120.0,
+        origin: str = "vscode",
+        keep_waiting: Optional[Callable[[str], bool]] = None,
     ) -> None:
         self._send = send_fn
         self._pending = pending_calls
         self._message_id = message_id
         self._loop = loop
         self._default_timeout = default_timeout
+        self._origin = origin
+        self._keep_waiting = keep_waiting
 
     async def call(
         self,
@@ -413,6 +449,7 @@ class RemoteToolExecutor:
         """
         fut: "asyncio.Future[Dict[str, Any]]" = self._loop.create_future()
         self._pending[call_id] = fut
+        limit = timeout or self._default_timeout
         try:
             await self._send({
                 "type": "tool_use",
@@ -420,8 +457,21 @@ class RemoteToolExecutor:
                 "name": name,
                 "input": input_data,
                 "message_id": self._message_id,
+                "origin": self._origin,
             })
-            return await asyncio.wait_for(fut, timeout=timeout or self._default_timeout)
+            deadline = self._loop.time() + limit
+            while True:
+                if self._keep_waiting is not None and self._keep_waiting(call_id):
+                    deadline = self._loop.time() + limit
+                    wait = _APPROVAL_POLL_SECONDS
+                else:
+                    wait = deadline - self._loop.time()
+                    if wait <= 0:
+                        raise asyncio.TimeoutError()
+                try:
+                    return await asyncio.wait_for(asyncio.shield(fut), timeout=wait)
+                except asyncio.TimeoutError:
+                    continue
         finally:
             self._pending.pop(call_id, None)
 

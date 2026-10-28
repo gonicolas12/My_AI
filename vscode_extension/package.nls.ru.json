@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "Агентный чат с вашим ассистентом My_AI на собственном ПК: чтение, правка и создание файлов, запуск команд и поиск по рабочей области. Локальная LLM остаётся на вашем ПК-хосте; всё передаётся через туннель со сквозным шифрованием. Разговор также отображается на странице Code в My_AI и на вашем телефоне.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "Чат",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "Подключиться",
+  "command.disconnect": "Отключиться",
+  "command.forgetCredentials": "Забыть сохранённое подключение",
+  "command.sendSelection": "Отправить выделение в My_AI",
+  "command.sendActiveFile": "Отправить активный файл в My_AI",
+  "command.attachCodebase": "Прикрепить папку как @codebase",
+  "command.reindexCodebase": "Переиндексировать папку @codebase",
+  "command.toggleAutoAttach": "Включить/выключить автовложение активного файла",
+  "command.focusChat": "Открыть чат",
+  "command.moveToSecondarySidebar": "Переместить чат во вспомогательную боковую панель (справа)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "При первой активации предлагает переместить представление My_AI Relay во вспомогательную боковую панель (справа, как Copilot Chat). Отключите, если предпочитаете стандартное место слева. VS Code запоминает ваши ручные изменения после первого перемещения.",
+  "configuration.healthCheckIntervalSeconds.description": "Интервал между проверками состояния Relay (в секундах). Позволяет заметить, что хост остановил Relay, и автоматически отключиться.",
+  "configuration.autoReconnect.description": "Если включено, после отключения расширение продолжает проверять туннели и автоматически переподключается, как только Relay снова доступен.",
+  "configuration.requestTimeoutSeconds.description": "Тайм-аут одного HTTP-запроса (состояние, код доступа, промпты, загрузка файлов), в секундах."
+}

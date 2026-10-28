@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "Chat agéntico con tu asistente My_AI autoalojado: lee, edita y crea archivos, ejecuta comandos y busca en tu espacio de trabajo. El LLM local se queda en tu PC anfitrión; todo viaja por un túnel cifrado de extremo a extremo. La conversación también aparece en la página Code de My_AI y en tu teléfono.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "Chat",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "Conectar",
+  "command.disconnect": "Desconectar",
+  "command.forgetCredentials": "Olvidar la conexión guardada",
+  "command.sendSelection": "Enviar la selección a My_AI",
+  "command.sendActiveFile": "Enviar el archivo activo a My_AI",
+  "command.attachCodebase": "Adjuntar carpeta como @codebase",
+  "command.reindexCodebase": "Reindexar la carpeta @codebase",
+  "command.toggleAutoAttach": "Activar o desactivar el adjunto automático del archivo activo",
+  "command.focusChat": "Abrir el chat",
+  "command.moveToSecondarySidebar": "Mover el chat a la barra lateral secundaria (derecha)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "En la primera activación, propone mover la vista My_AI Relay a la barra lateral secundaria (a la derecha, como Copilot Chat). Desactívalo si prefieres la ubicación estándar a la izquierda. VS Code recuerda tus cambios manuales después del primer movimiento.",
+  "configuration.healthCheckIntervalSeconds.description": "Intervalo entre comprobaciones de estado del Relay (segundos). Sirve para detectar cuándo el anfitrión detiene el Relay y desconectar automáticamente.",
+  "configuration.autoReconnect.description": "Si está activado, la extensión sigue comprobando los túneles tras una desconexión y se reconecta automáticamente en cuanto el Relay vuelve a estar disponible.",
+  "configuration.requestTimeoutSeconds.description": "Tiempo de espera por solicitud HTTP (estado, código de acceso, prompts, subida de archivos), en segundos."
+}

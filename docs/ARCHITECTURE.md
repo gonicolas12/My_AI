@@ -1,8 +1,8 @@
-# 🏗️ Architecture - My Personal AI v9.0.0
+# 🏗️ Architecture - My Personal AI v9.1.0
 
 ## 📋 Vue d'Ensemble de l'Architecture
 
-My Personal AI v9.0.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
+My Personal AI v9.1.0 est une **IA locale 100%** avec un système de **Mémoire Vectorielle**, **Météo en temps réel**, une **boucle agentique avancée (ChatOrchestrator)** et des **modules intelligents**, basée sur les principes suivants:
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
@@ -26,7 +26,7 @@ My Personal AI v9.0.0 est une **IA locale 100%** avec un système de **Mémoire 
 - **Interface desktop web** : React + TypeScript (`frontend/`) dans une fenêtre native pywebview (WebView2 sous Windows), reliée au moteur par un serveur FastAPI local (`interfaces/desktop/`, 127.0.0.1, jeton par lancement : REST + WebSocket). Le chat passe par `core/chat_service.py`, sans interface, partagé avec le mobile ; la fenêtre reste fluide pendant que le moteur calcule.
 - **Aperçu Artifacts** : Rendu live du HTML/CSS/SVG généré par l'IA et des documents produits — `<iframe sandbox>` sans `allow-same-origin` dans la fenêtre comme sur le mobile, lecteur PDF de WebView2, visionneuses natives Word/PowerPoint/Excel posées dans le volet d'aperçu (fenêtre enfant DPI par écran). Ouverture automatique en fin de réponse. Détection partagée dans `interfaces/artifacts.py`.
 - **Génération de documents** : outils MCP `generate_document` / `edit_document` — le LLM rédige en Markdown, `generators/markdown_document.py` le découpe en blocs, un backend par format produit le docx, pdf, pptx ou xlsx dans `outputs/documents/`. Les pièces jointes sont modifiées sur une copie, jamais en place.
-- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Le pipeline GUI/mobile reste intact pour les autres clients. UI bilingue FR/EN.
+- **Extension VS Code agentique** : Client TypeScript publié sur le Marketplace VS Code. Branchée sur le Relay via le même tunnel chiffré E2EE (AES-256-GCM) que le mobile, mais avec un **mode agentique** : à la connexion, l'extension s'identifie comme `client_kind: "vscode"` et le Relay aiguille la conversation vers une boucle de raisonnement (`core/agentic_executor.py`) qui appelle Ollama directement. Le LLM peut émettre des appels d'outils (lecture/écriture/édition de fichiers, ripgrep, commandes shell, etc.) qui sont **exécutés côté extension**, sandboxés au workspace VS Code par défaut, avec approbation utilisateur pour les opérations destructives. Cette **conversation Code** (`relay/code_hub.py`) est partagée avec la page **Code** de la fenêtre desktop et la vue **Code** du téléphone : un message tapé là part à l'extension, la réponse arrive partout en streaming, et une approbation se donne de n'importe laquelle des trois. Le chat classique (téléphone + fenêtre) en est isolé dans les deux sens. L'extension parle les 12 langues de My_AI, dans la langue choisie dans My_AI.
 - **Modularité complète** : Composants indépendants avec fallbacks robustes
 
 ## 🚀 Architecture Système Complète
@@ -308,11 +308,13 @@ Architecture:
 └─ Arrêt gracieux via stop()
 ```
 
-**`core/agentic_executor.py`** - Boucle agentique pour clients VS Code
+**`core/agentic_executor.py`** - Boucle agentique de la conversation Code
 ```python
-Activé exclusivement quand un client Relay s'identifie comme
-client_kind: "vscode" (cf. relay/relay_server.py). Le mobile et la fenêtre
-desktop n'utilisent jamais ce module.
+Utilisé exclusivement par la conversation Code (relay/code_hub.py) : celle
+de l'extension VS Code (client_kind: "vscode"), que la page Code de la
+fenêtre et la vue Code du téléphone partagent. Les outils s'exécutent
+toujours dans l'extension. Le chat classique (mobile et fenêtre) n'utilise
+jamais ce module.
 
 Architecture:
 ├─ AGENT_TOOLS              # Schéma déclaratif des 9 outils workspace
@@ -612,10 +614,16 @@ Architecture:
 │   │   fermé en 4003, le client redemande le code)
 │   ├─ Protocole : {"e": "<base64url>"} encapsulant {type, ...}
 │   ├─ chat (mobile) : armé via bridge, attente DÉTACHÉE en tâche pour
-│   │   garder la boucle libre de lire stop_generation pendant la génération
+│   │   garder la boucle libre de lire stop_generation pendant la génération ;
+│   │   sa diffusion (chunk, response, image, document) ne va qu'aux
+│   │   téléphones, jamais à l'extension VS Code
+│   ├─ chat (vscode), code_chat / code_stop / code_clear / code_approve
+│   │   (vue Code du téléphone) → conversation Code (relay/code_hub.py)
 │   ├─ stop_generation : mobile → bridge.request_interrupt() → interrupt_ai()
-│   │   côté GUI ; vscode → annule la tâche agentique (flux Ollama coupé), et
-│   │   renvoie toujours la réponse « interrompue » qui libère le bouton
+│   │   côté GUI ; vscode → arrête la réponse Code en cours (flux Ollama coupé),
+│   │   sinon renvoie la réponse « interrompue » qui libère le bouton
+│   ├─ File d'envoi ordonnée par WS (outbox) : agents, conversation Code,
+│   │   tool_use ; un tool_use ne double jamais le texte qui le précède
 │   └─ Messages page Agents (agents_list, agent_create/edit/delete,
 │       agent_execute, agent_debate, agent_stop) → AgentRelayService,
 │       streamés via une file unique drainée par une seule coroutine
@@ -654,6 +662,28 @@ Architecture:
 │   (docs/router.html, textes des 12 langues dans la page)
 │   en base64url dans le fragment d'une URL GitHub Pages
 └─ Interface login HTML embarquée (servie si token absent)
+```
+
+**`relay/code_hub.py`** - Conversation Code (VS Code, page Code, vue Code du téléphone)
+```python
+Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
+├─ Transcription (questions, réponses découpées en passes du modèle et
+│   appels d'outils) et historique du modèle, gardés dans
+│   data/code_conversation.json ; l'historique est borné à la fenêtre de
+│   contexte, et son prompt système ne change qu'avec les dossiers ouverts
+│   ou la langue (cache d'Ollama)
+├─ send(texte, origine) : une réponse à la fois ; la boucle agentique tourne
+│   sur la boucle asyncio du Relay, ses outils dans l'extension la plus
+│   récemment active (RemoteToolExecutor, avec l'origine du message)
+├─ Approbations : l'extension rapporte awaiting-approval (avec les réponses
+│   possibles hors de VS Code, pour un message du PC ou du téléphone),
+│   running, denied ; approve() transmet la réponse ; pas de délai pendant
+│   l'attente
+├─ stop(), clear() : depuis n'importe quelle surface ; clear arrête la
+│   réponse en cours et efface tout, partout
+└─ Événements (snapshot, state, user, chunk, tool, done, cleared) traduits
+    par vscode_view (protocole de l'extension : ack, chunk, response…),
+    mobile_view (code_*) et interfaces/desktop/code.py (bus « code.* »)
 ```
 
 **`relay/relay_bridge.py`** - Pont appli ↔ mobile (Singleton)
@@ -1351,7 +1381,13 @@ client exécute l'outil dans son `ToolDispatcher` (avec sandbox + approbation)
 puis renvoie le résultat via `tool_result`. Le LLM continue ses itérations
 jusqu'à produire une réponse finale. Le mobile n'envoie pas de
 `client_hello` → il reste sur le pipeline historique (bridge → service de chat
-de l'appli, avec MCP locaux complets).
+de l'appli, avec MCP locaux complets), et ses réponses ne sont jamais
+diffusées à l'extension. La conversation de l'extension est celle de
+`relay/code_hub.py` : elle reçoit aussi les messages de la page Code du PC
+et de la vue Code du téléphone (`code_user`), son état (`code_state`,
+`code_snapshot`) et l'effacement (`code_cleared`). La langue de l'interface
+vient de My_AI (`hello_ack`, message `language`), `src/i18n.ts` et les
+catalogues `l10n/<langue>.json`.
 ```
 
 **`interfaces/resource_monitor.py`** - Monitoring ressources système
@@ -1778,7 +1814,7 @@ elif intent == "new_intent":
 
 ---
 
-**Version**: 9.0.0
+**Version**: 9.1.0
 **Architecture**: Modulaire, extensible, 100% locale
 **Capacité contexte**: 10,485,760 tokens avec recherche sémantique
 **Interfaces**: fenêtre desktop (React + TypeScript, pywebview), CLI, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)

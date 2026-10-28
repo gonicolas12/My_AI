@@ -100,7 +100,8 @@ export const CodeBlock = memo(function CodeBlock({ code, lang, streaming }: Code
           <span>{copied ? t('common.copied') : t('common.copy')}</span>
         </button>
       </div>
-      <pre className="code-body">
+      {/* Le code se lit de gauche à droite, même en arabe */}
+      <pre className="code-body" dir="ltr">
         <code>
           {lines.map((line, index) => {
             const tokens = current && index < current.lines ? current.tokens[index] : null;

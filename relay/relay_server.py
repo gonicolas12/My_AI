@@ -39,13 +39,13 @@ import requests
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from core import i18n
-from core.agentic_executor import AgenticExecutor, RemoteToolExecutor
 from core.config import get_config
 from core.i18n import tr
 from utils.logger import setup_logger
 
 from .relay_bridge import RelayBridge, RelayMessage
 from .agent_relay import AgentRelayService
+from .code_hub import CodeError, CodeHub, VSCodeLink, get_code_hub, mobile_view, vscode_view
 
 # Page de routage statique (GitHub Pages) qui ping les tunnels côté client
 # et redirige vers le premier vivant. Évite que le téléphone soit bloqué
@@ -237,6 +237,7 @@ class RelayServer:
         ai_engine: Optional[Any] = None,
         config: Optional[Dict[str, Any]] = None,
         agent_service: Optional[Any] = None,
+        code_hub: Optional[CodeHub] = None,
     ) -> None:
         # Configuration
         if config is None:
@@ -282,6 +283,11 @@ class RelayServer:
         # une seule exécution d'agents à la fois, desktop, mobile et scheduler.
         self._agent_service: Optional[Any] = agent_service
 
+        # Conversation Code (relay/code_hub.py) : celle de l'extension VS Code,
+        # que la vue Code du téléphone et la page Code du PC partagent. Le chat
+        # du téléphone (bridge) et elle ne se voient pas.
+        self._code_hub: CodeHub = code_hub or get_code_hub()
+
         # État du serveur
         self._server_thread: Optional[threading.Thread] = None
         self._uvicorn_server: Optional[Any] = None
@@ -322,8 +328,10 @@ class RelayServer:
             p.strip().lower() for p in raw_providers if p and p.strip()
         ] or ["cloudflared"]
 
-        # WebSocket clients connectés
+        # WebSocket clients connectés, dont ceux de l'extension VS Code : les
+        # réponses du chat du téléphone ne leur sont jamais diffusées
         self._ws_clients: List[WebSocket] = []
+        self._vscode_ws: set = set()
 
         # Boucle asyncio du serveur (initialisée à l'accept de la première
         # connexion WS) pour broadcaster depuis un thread GUI.
@@ -367,6 +375,11 @@ class RelayServer:
         if self._agent_service is None:
             self._agent_service = AgentRelayService()
         return self._agent_service
+
+    @property
+    def code_hub(self) -> CodeHub:
+        """Conversation Code partagée par VS Code, le téléphone et le PC."""
+        return self._code_hub
 
     @property
     def tunnel_url(self) -> Optional[str]:
@@ -579,6 +592,10 @@ class RelayServer:
         """Liste des clients WebSocket actuellement connectés."""
         return self._ws_clients
 
+    def _chat_clients(self) -> List["WebSocket"]:
+        """Clients du chat du téléphone : tous, sauf les extensions VS Code."""
+        return [ws for ws in self._ws_clients if ws not in self._vscode_ws]
+
     # ------------------------------------------------------------------
     # Authentification
     # ------------------------------------------------------------------
@@ -605,6 +622,7 @@ class RelayServer:
             _STATIC_DIR / "i18n.js",
             _STATIC_DIR / "app.js",
             _STATIC_DIR / "agents.js",
+            _STATIC_DIR / "code.js",
             _STATIC_DIR / "style.css",
             *sorted(_LOCALES_DIR.glob("*.json")),
         ]
@@ -650,6 +668,18 @@ class RelayServer:
                 else:
                     file_paths.append(info["path"])
         return image_path, file_paths
+
+    def consume_uploads(self, file_ids: Any) -> List[Tuple[str, str]]:
+        """Consomme les file_ids d'un message Code : (chemin, nom du fichier envoyé)."""
+        files: List[Tuple[str, str]] = []
+        if not isinstance(file_ids, list):
+            return files
+        with self._uploads_lock:
+            for fid in file_ids:
+                info = self._uploads.pop(str(fid), None)
+                if info:
+                    files.append((info["path"], info.get("filename") or Path(info["path"]).name))
+        return files
 
     # ------------------------------------------------------------------
     # Construction de l'application FastAPI
@@ -996,69 +1026,78 @@ class RelayServer:
                 await websocket.send_text(json.dumps(wrapper, separators=(",", ":")))
 
             # ----------------------------------------------------------------
-            # État par-WS pour le mode agentique "VS Code".
+            # Client « mobile » ou « vscode ».
             #
             # Par défaut un client est "mobile" : pas de tool calling, le flux
             # de chat reste celui d'avant (bridge → GUI desktop → MCP locaux
             # complets). Si l'extension VS Code envoie un `client_hello` avec
-            # `client_kind: "vscode"`, on bascule sur la boucle agentique
-            # (core.agentic_executor) qui DÉLÈGUE l'exécution des outils au
-            # client. Le mode mobile n'est jamais affecté.
+            # `client_kind: "vscode"`, ses messages vont à la conversation
+            # Code (relay/code_hub.py) : boucle agentique qui DÉLÈGUE
+            # l'exécution des outils à l'extension, et que le téléphone (vue
+            # Code) et le PC (page Code) partagent. Les réponses du chat du
+            # téléphone ne sont jamais diffusées à l'extension.
             # ----------------------------------------------------------------
             client_kind: str = "mobile"
-            workspace_info: str = ""
-            pending_tool_calls: Dict[str, "asyncio.Future[Dict[str, Any]]"] = {}
-            # Historique de conversation côté agent (mode VS Code uniquement).
-            # Conservé pour la durée de la connexion WS pour que le modèle
-            # se souvienne des tours précédents (ex: "ouvre X", puis "édite-le").
-            # Le mode mobile n'utilise jamais cette liste.
-            vscode_history: List[Dict[str, str]] = []
-            # Tâches agentiques en cours d'exécution sur ce WS. La boucle
-            # agentique s'exécute en tâche détachée (cf. plus bas) parce
-            # qu'elle awaite des `tool_result` qui n'arrivent que via la
-            # même boucle `while True: receive_text()`. Si on awaitait
-            # _handle_vscode_chat directement, on créerait un deadlock
-            # structurel : le tool_use partirait, le client répondrait,
-            # mais le tool_result resterait en queue WS jamais consommée
-            # car la boucle est bloquée → timeout 120s à chaque outil.
-            # En détachant, le receive loop reste libre de pomper les
-            # tool_result et de résoudre les Futures.
+            # Extension VS Code inscrite à la conversation Code (client_hello)
+            code_link: Optional[VSCodeLink] = None
+            # Abonnement à la conversation Code : l'extension dès son
+            # client_hello, le téléphone quand il ouvre la vue Code
+            code_unsubscribe: Optional[Callable[[], None]] = None
+            # Tâches détachées de ce WS (réponse du chat mobile, indexation
+            # @codebase, agents) : la boucle receive_text() reste libre de
+            # lire un Stop ou un tool_result pendant qu'elles tournent.
             agentic_tasks: List[asyncio.Task] = []
 
             # ----------------------------------------------------------------
-            # Émission sérialisée des événements de la page « Agents ».
+            # File d'envoi ordonnée de ce WS.
             #
-            # Les workflows/débats s'exécutent dans des threads (orchestrateur
-            # bloquant). Plusieurs threads peuvent streamer en parallèle (étape
-            # parallèle d'un workflow). Pour éviter que deux `send_text`
-            # concurrents s'entrelacent sur le même WebSocket, tous les
-            # événements agents transitent par une file unique drainée par une
-            # seule coroutine. Les threads y poussent via call_soon_threadsafe.
+            # Les événements produits ailleurs que dans cette boucle (page
+            # « Agents » : workflows et débats dans des threads ; conversation
+            # Code : texte en streaming, tool_use, approbations) transitent
+            # par une file unique drainée par une seule coroutine : deux
+            # `send_text` concurrents ne s'entrelacent pas, et un tool_use ne
+            # double pas le texte qui le précède. Les threads y poussent via
+            # call_soon_threadsafe.
             # ----------------------------------------------------------------
-            agent_send_queue: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue()
+            outbox: "asyncio.Queue[Dict[str, Any]]" = asyncio.Queue()
             agent_loop = asyncio.get_event_loop()
             # exec_ids des workflows/débats lancés sur ce WS (pour interruption
             # à la déconnexion).
             active_agent_execs: set = set()
 
-            def agent_emit_threadsafe(event: Dict[str, Any]) -> None:
-                """Pousse un événement agent depuis un thread worker."""
+            def outbox_put(event: Optional[Dict[str, Any]]) -> None:
+                """Dépose un message dans la file du WS, depuis n'importe quel fil."""
+                if event is None:
+                    return
                 try:
-                    agent_loop.call_soon_threadsafe(
-                        agent_send_queue.put_nowait, event
-                    )
+                    agent_loop.call_soon_threadsafe(outbox.put_nowait, event)
                 except Exception:
-                    pass
+                    pass  # boucle du Relay fermée
 
-            async def _agent_drainer() -> None:
+            async def _drain_outbox() -> None:
                 while True:
-                    event = await agent_send_queue.get()
+                    event = await outbox.get()
                     try:
                         await _send_encrypted(event)
                     except Exception:
                         # WS mort : on cesse de drainer, le finally nettoiera.
                         break
-            agent_drainer_task = asyncio.create_task(_agent_drainer())
+            outbox_task = asyncio.create_task(_drain_outbox())
+
+            def code_deliver(event: Dict[str, Any]) -> None:
+                """Événement de la conversation Code, dans le protocole de ce client."""
+                if code_link is not None:
+                    outbox_put(vscode_view(event, code_link.id))
+                else:
+                    outbox_put(mobile_view(event))
+
+            def code_subscribe() -> None:
+                """Inscrit ce WS à la conversation Code ; l'état complet arrive d'abord."""
+                nonlocal code_unsubscribe
+                if code_unsubscribe is None:
+                    code_unsubscribe = server.code_hub.subscribe(code_deliver, snapshot=True)
+                else:
+                    server.code_hub.push_snapshot(code_deliver)
 
             try:
                 while True:
@@ -1088,19 +1127,34 @@ class RelayServer:
                     # pour activer le mode agentique. Le mobile n'envoie
                     # jamais ce message : son `client_kind` reste "mobile"
                     # et le flux historique (bridge → GUI) reste utilisé.
+                    # L'extension est alors inscrite à la conversation Code
+                    # (son état complet suit l'accusé de réception) et
+                    # retirée de la diffusion du chat du téléphone.
                     if msg_type == "client_hello":
                         kind = msg_data.get("client_kind", "mobile")
                         if isinstance(kind, str) and kind in ("vscode", "mobile"):
                             client_kind = kind
                         wi = msg_data.get("workspace_info", "")
-                        if isinstance(wi, str):
-                            workspace_info = wi[:4000]  # cap pour éviter prompt-injection démesurée
+                        # cap pour éviter prompt-injection démesurée
+                        workspace_info = wi[:4000] if isinstance(wi, str) else ""
                         await _send_encrypted({
                             "type": "hello_ack",
                             "server": "myai-relay",
                             "client_kind": client_kind,
                             "agentic_enabled": client_kind == "vscode",
+                            # Conversation Code partagée (sinon : Relay d'avant)
+                            "code": True,
+                            # Langue de My_AI : l'extension parle la même
+                            "language": i18n.current_language(),
                         })
+                        if client_kind == "vscode":
+                            server._vscode_ws.add(websocket)
+                            if code_link is None:
+                                code_link = server.code_hub.connect_vscode(
+                                    agent_loop, outbox_put, workspace_info)
+                                code_subscribe()
+                            else:
+                                server.code_hub.update_vscode(code_link, workspace_info)
                         logger.info(
                             "Client identifié : kind=%s, workspace_info=%d chars",
                             client_kind, len(workspace_info),
@@ -1112,14 +1166,7 @@ class RelayServer:
                     # ────────────────────────────────────────────────────
                     if msg_type == "tool_result":
                         call_id = msg_data.get("call_id", "")
-                        if not isinstance(call_id, str) or not call_id:
-                            continue
-                        fut = pending_tool_calls.get(call_id)
-                        if fut is None or fut.done():
-                            logger.debug(
-                                "tool_result reçu pour call_id inconnu ou expiré: %s",
-                                call_id,
-                            )
+                        if not isinstance(call_id, str) or not call_id or code_link is None:
                             continue
                         content = msg_data.get("content", "")
                         if not isinstance(content, str):
@@ -1127,10 +1174,55 @@ class RelayServer:
                                 content = json.dumps(content, ensure_ascii=False)
                             except Exception:
                                 content = str(content)
-                        fut.set_result({
-                            "content": content,
-                            "is_error": bool(msg_data.get("is_error", False)),
-                        })
+                        if not server.code_hub.tool_result(
+                                code_link, call_id, content,
+                                bool(msg_data.get("is_error", False))):
+                            logger.debug(
+                                "tool_result reçu pour call_id inconnu ou expiré: %s",
+                                call_id,
+                            )
+                        continue
+
+                    # ────────────────────────────────────────────────────
+                    # tool_status : approbation demandée, outil lancé ou
+                    # refusé dans l'extension (montré sur le PC et le téléphone)
+                    # ────────────────────────────────────────────────────
+                    if msg_type == "tool_status":
+                        if code_link is not None:
+                            options = msg_data.get("options")
+                            server.code_hub.tool_status(
+                                code_link, str(msg_data.get("call_id", "")),
+                                str(msg_data.get("status", "")),
+                                options if isinstance(options, list) else None,
+                            )
+                        continue
+
+                    # ────────────────────────────────────────────────────
+                    # Conversation Code : vue Code du téléphone, Effacer de
+                    # l'extension (les messages de l'extension arrivent en
+                    # « chat », plus bas)
+                    # ────────────────────────────────────────────────────
+                    if msg_type == "code_subscribe":
+                        code_subscribe()
+                        continue
+                    if msg_type == "code_chat":
+                        try:
+                            server.code_hub.send(
+                                str(msg_data.get("message", "")), "mobile",
+                                files=server.consume_uploads(msg_data.get("file_ids")),
+                            )
+                        except CodeError as exc:
+                            outbox_put({"type": "code_error", "message": str(exc)})
+                        continue
+                    if msg_type == "code_stop":
+                        server.code_hub.stop()
+                        continue
+                    if msg_type == "code_clear":
+                        server.code_hub.clear()
+                        continue
+                    if msg_type == "code_approve":
+                        server.code_hub.approve(str(msg_data.get("call_id", "")),
+                                                str(msg_data.get("decision", "")))
                         continue
 
                     # ────────────────────────────────────────────────────
@@ -1138,8 +1230,8 @@ class RelayServer:
                     # ────────────────────────────────────────────────────
                     # Ces messages s'exécutent côté serveur (orchestrateur
                     # d'agents local, modèle Ollama) et streament leurs
-                    # résultats via la file agent_send_queue. Indépendant du
-                    # flux de chat (qui délègue au GUI desktop via le bridge).
+                    # résultats via la file outbox. Indépendant du flux de
+                    # chat (qui délègue au GUI desktop via le bridge).
                     if msg_type in (
                         "agents_list", "agent_create", "agent_edit",
                         "agent_delete", "agent_execute", "agent_debate",
@@ -1148,8 +1240,8 @@ class RelayServer:
                         await server.handle_agent_message(
                             msg_type=msg_type,
                             msg_data=msg_data,
-                            emit_async=agent_send_queue.put_nowait,
-                            emit_threadsafe=agent_emit_threadsafe,
+                            emit_async=outbox.put_nowait,
+                            emit_threadsafe=outbox_put,
                             loop=agent_loop,
                             tasks=agentic_tasks,
                             active_execs=active_agent_execs,
@@ -1187,26 +1279,20 @@ class RelayServer:
                     # polling (interrupt_ai → réponse partielle « interrompue »).
                     if msg_type == "stop_generation":
                         if client_kind == "vscode":
-                            # Le chat VS Code est une boucle agentique exécutée en
-                            # tâche détachée : on l'annule, ce qui interrompt la
-                            # génération du LLM ET les appels d'outils en cours
-                            # (l'await des tool_result tombe avec la tâche).
-                            stopped_mid = msg_data.get("message_id", "") or ""
-                            for task in list(agentic_tasks):
-                                if not task.done():
-                                    task.cancel()
-                            # Débloquer le bouton STOP du client : réponse finale
-                            # « interrompue » (dédupliquée par message_id côté client
-                            # si la vraie réponse était déjà partie). Envoyée même
-                            # sans tâche à annuler : si la réponse a été perdue (WS
-                            # reconnecté pendant la génération), le client l'attend
-                            # encore et resterait bloqué en mode STOP.
-                            await _send_encrypted({
-                                "type": "response",
-                                "message": tr("relay.interrupted"),
-                                "message_id": stopped_mid,
-                                "timestamp": datetime.now().isoformat(),
-                            })
+                            # Conversation Code : la boucle agentique en cours
+                            # s'arrête (génération du LLM ET appels d'outils), d'où
+                            # que vienne son message ; sa réponse « interrompue »
+                            # arrive par la conversation.
+                            if not server.code_hub.stop():
+                                # Rien en cours : la réponse a pu être perdue (WS
+                                # reconnecté pendant la génération). Le client
+                                # l'attend encore et resterait bloqué en mode STOP.
+                                outbox_put({
+                                    "type": "response",
+                                    "message": tr("relay.interrupted"),
+                                    "message_id": msg_data.get("message_id", "") or "",
+                                    "timestamp": datetime.now().isoformat(),
+                                })
                         else:
                             # Chat mobile : la réponse vient du GUI desktop via le
                             # bridge ; on lui transmet la demande d'interruption.
@@ -1214,28 +1300,26 @@ class RelayServer:
                         continue
 
                     # ────────────────────────────────────────────────────
-                    # chat — branche agentique (VS Code uniquement)
+                    # chat — conversation Code (VS Code uniquement)
                     # ────────────────────────────────────────────────────
+                    # La boucle agentique tourne en tâche détachée (code_hub) :
+                    # elle awaite des `tool_result` qui n'arrivent que par
+                    # cette boucle receive_text(), qui doit rester libre.
                     if msg_type == "chat" and client_kind == "vscode":
-                        # IMPORTANT : tâche détachée, pas `await` direct.
-                        # Voir le commentaire sur `agentic_tasks` plus haut.
-                        task = asyncio.create_task(_handle_vscode_chat(
-                            msg_data,
-                            send_encrypted=_send_encrypted,
-                            pending_tool_calls=pending_tool_calls,
-                            workspace_info=workspace_info,
-                            history=vscode_history,
-                            server=server,
-                        ))
-                        agentic_tasks.append(task)
-                        # Auto-nettoyage : retirer la tâche de la liste
-                        # à sa terminaison pour ne pas leak les Task
-                        # objects sur des conversations longues.
-                        task.add_done_callback(
-                            lambda t, _tasks=agentic_tasks: (
-                                _tasks.remove(t) if t in _tasks else None
+                        files = server.consume_uploads(msg_data.get("file_ids"))
+                        try:
+                            server.code_hub.send(
+                                str(msg_data.get("message", "")), "vscode",
+                                client=code_link.id if code_link else None, files=files,
                             )
-                        )
+                        except CodeError as exc:
+                            outbox_put({
+                                "type": "response",
+                                "message": str(exc),
+                                "message_id": "",
+                                "timestamp": datetime.now().isoformat(),
+                                "status": "error",
+                            })
                         continue
 
                     if msg_type == "chat":
@@ -1366,11 +1450,18 @@ class RelayServer:
                 for task in agentic_tasks:
                     if not task.done():
                         task.cancel()
+                # Conversation Code : plus d'événements vers ce WS ; une
+                # réponse dont l'extension exécutait les outils s'arrête.
+                if code_unsubscribe is not None:
+                    code_unsubscribe()
+                if code_link is not None:
+                    server.code_hub.disconnect_vscode(code_link)
+                server._vscode_ws.discard(websocket)
                 # Interrompre les exécutions d'agents en cours sur ce WS et
-                # arrêter le drainer d'événements agents.
+                # arrêter le drainer de sa file d'envoi.
                 server.interrupt_agent_execs(active_agent_execs)
-                if not agent_drainer_task.done():
-                    agent_drainer_task.cancel()
+                if not outbox_task.done():
+                    outbox_task.cancel()
                 if websocket in server.ws_clients:
                     server.ws_clients.remove(websocket)
                 server.bridge.connected_clients = len(server.ws_clients)
@@ -1649,9 +1740,10 @@ class RelayServer:
     def _broadcast_chunk(self, message_id: str, text: str) -> None:
         """Callback déclenché par le bridge à chaque chunk de streaming.
 
-        Broadcaste l'état courant de la génération à tous les WebSockets
-        connectés, pour que le mobile voie la réponse se construire en
-        direct comme sur le GUI desktop. Le texte est cumulatif.
+        Broadcaste l'état courant de la génération aux WebSockets du chat
+        (téléphones, jamais l'extension VS Code), pour que le mobile voie la
+        réponse se construire en direct comme sur le GUI desktop. Le texte
+        est cumulatif.
         """
         if not self._loop or not self._ws_clients:
             return
@@ -1664,7 +1756,7 @@ class RelayServer:
 
         async def _push():
             dead: List[WebSocket] = []
-            for ws in list(self._ws_clients):
+            for ws in self._chat_clients():
                 try:
                     await ws.send_text(payload)
                 except Exception:
@@ -1683,9 +1775,10 @@ class RelayServer:
     def _broadcast_response(self, message_id: str, text: str) -> None:
         """Callback déclenché par le bridge à chaque réponse IA soumise.
 
-        Broadcaste la réponse à tous les WebSockets actuellement connectés,
-        ce qui permet à un mobile reconnecté pendant la génération de
-        recevoir la réponse même si son WS d'origine est mort.
+        Broadcaste la réponse aux WebSockets du chat actuellement connectés
+        (pas à l'extension VS Code, qui a sa conversation Code), ce qui
+        permet à un mobile reconnecté pendant la génération de recevoir la
+        réponse même si son WS d'origine est mort.
         """
         if not self._loop or not self._ws_clients:
             return
@@ -1699,7 +1792,7 @@ class RelayServer:
 
         async def _push():
             dead: List[WebSocket] = []
-            for ws in list(self._ws_clients):
+            for ws in self._chat_clients():
                 try:
                     await ws.send_text(payload)
                 except Exception:
@@ -1752,7 +1845,7 @@ class RelayServer:
 
         async def _push():
             dead: List[WebSocket] = []
-            for ws in list(self._ws_clients):
+            for ws in self._chat_clients():
                 try:
                     await ws.send_text(payload)
                 except Exception:
@@ -1806,7 +1899,7 @@ class RelayServer:
 
         async def _push():
             dead: List[WebSocket] = []
-            for ws in list(self._ws_clients):
+            for ws in self._chat_clients():
                 try:
                     await ws.send_text(payload)
                 except Exception:
@@ -1875,7 +1968,7 @@ class RelayServer:
 
         async def _push():
             dead: List[WebSocket] = []
-            for ws in list(self._ws_clients):
+            for ws in self._chat_clients():
                 try:
                     await ws.send_text(payload)
                 except Exception:
@@ -1908,6 +2001,8 @@ class RelayServer:
         self._bridge.on_image(self._broadcast_image)
         self._bridge.remove_document_callback(self._broadcast_document)
         self._bridge.on_document(self._broadcast_document)
+        # Conversation Code : le modèle du moteur de ce Relay
+        self._code_hub.set_llm_resolver(lambda: _resolve_ollama_for_agentic(self))
 
         # Démarrer le serveur uvicorn
         config = uvicorn.Config(
@@ -1945,6 +2040,8 @@ class RelayServer:
 
         logger.info("Arrêt du Relay...")
         self._bridge.active = False
+        # Conversation Code : plus d'extension ni de modèle (réponse en cours arrêtée)
+        self._code_hub.relay_stopped()
 
         # Arrêter le tunnel
         self._stop_tunnel()
@@ -2648,17 +2745,17 @@ class RelayServer:
 # Mode agentique (VS Code) — helpers
 # ===========================================================================
 #
-# Ces fonctions n'existent QUE pour le mode "vscode". Elles sont totalement
-# absentes du chemin mobile/GUI et n'utilisent pas le RelayBridge : la
-# boucle "LLM ↔ outils" tourne à 100% côté Relay et délègue l'exécution
-# des outils à l'extension cliente.
+# La conversation Code (relay/code_hub.py) appelle le modèle du moteur de ce
+# Relay : la boucle "LLM ↔ outils" tourne à 100% côté Relay et délègue
+# l'exécution des outils à l'extension VS Code. Absent du chemin mobile/GUI.
 # ---------------------------------------------------------------------------
 
 
 def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any]]:
     """Extrait l'URL Ollama, le modèle et la fenêtre de contexte de l'AIEngine du server.
 
-    Retourne ``{"chat_url": str, "model": str, "num_ctx": int}`` ou ``None``
+    Retourne ``{"chat_url": str, "model": str, "num_ctx": int, "describe_image":
+    callable | None}`` (images jointes décrites par le modèle vision) ou ``None``
     si rien d'utilisable n'est dispo (ex: moteur pas encore initialisé).
     """
     engine = server.ai_engine
@@ -2682,159 +2779,11 @@ def _resolve_ollama_for_agentic(server: "RelayServer") -> Optional[Dict[str, Any
         # Même fenêtre de contexte que le reste de l'appli : une autre ferait
         # recharger le modèle par Ollama à chaque passage d'un mode à l'autre
         num_ctx = int(getattr(local_llm, "gen_num_ctx", 32768))
-        return {"chat_url": str(chat_url), "model": str(model), "num_ctx": num_ctx}
+        return {"chat_url": str(chat_url), "model": str(model), "num_ctx": num_ctx,
+                "describe_image": getattr(local_llm, "describe_image", None)}
     except Exception as exc:
         logger.warning("Impossible de résoudre la config Ollama agentique : %s", exc)
         return None
-
-
-async def _handle_vscode_chat(
-    msg_data: Dict[str, Any],
-    send_encrypted: Callable[[Dict[str, Any]], "asyncio.Future[None]"],
-    pending_tool_calls: Dict[str, "asyncio.Future[Dict[str, Any]]"],
-    workspace_info: str,
-    history: List[Dict[str, str]],
-    server: "RelayServer",
-) -> None:
-    """Exécute la boucle agentique pour un message ``chat`` venant de l'extension.
-
-    Pour chaque message :
-      1. envoie ``ack``
-      2. instancie un ``AgenticExecutor`` + ``RemoteToolExecutor``
-      3. lance la boucle (LLM stream → tool_use → tool_result → ...)
-      4. envoie la réponse finale via ``response``
-    """
-    user_text = msg_data.get("message", "")
-    if not isinstance(user_text, str):
-        user_text = ""
-    user_text = user_text.strip()
-    if not user_text:
-        return
-
-    message_id = f"vscode_{uuid.uuid4().hex}"
-    logger.info(
-        "VS Code chat reçu : message_id=%s, %d chars, history=%d entrées",
-        message_id, len(user_text), len(history),
-    )
-    await send_encrypted({"type": "ack", "message_id": message_id})
-
-    cfg = _resolve_ollama_for_agentic(server)
-    if cfg is None:
-        logger.warning(
-            "VS Code chat : moteur Ollama non prêt, message_id=%s", message_id,
-        )
-        await send_encrypted({
-            "type": "response",
-            "message": tr("relay.engineNotReady"),
-            "message_id": message_id,
-            "timestamp": datetime.now().isoformat(),
-        })
-        return
-
-    executor = AgenticExecutor(
-        ollama_chat_url=cfg["chat_url"],
-        model=cfg["model"],
-        num_ctx=cfg["num_ctx"],
-    )
-    loop = asyncio.get_event_loop()
-    remote_executor = RemoteToolExecutor(
-        send_fn=send_encrypted,
-        pending_calls=pending_tool_calls,
-        message_id=message_id,
-        loop=loop,
-    )
-
-    # Throttling des chunks vers le client (50 ms) pour limiter la charge
-    # WS+tunnel. Le premier chunk d'un NOUVEAU segment est toujours poussé
-    # immédiatement (sinon le client ne saurait pas qu'une nouvelle bulle
-    # doit être créée et collerait le texte de la nouvelle itération à la
-    # bulle précédente).
-    last_chunk_at = 0.0
-    last_segment = -1
-
-    def on_chunk(visible_text: str, segment_index: int = 0) -> None:
-        nonlocal last_chunk_at, last_segment
-        now = time.time()
-        new_segment = segment_index != last_segment
-        if not new_segment and now - last_chunk_at < 0.05:
-            return
-        last_chunk_at = now
-        last_segment = segment_index
-        try:
-            asyncio.run_coroutine_threadsafe(
-                send_encrypted({
-                    "type": "chunk",
-                    "message_id": message_id,
-                    "text": visible_text,
-                    "segment_index": segment_index,
-                    "timestamp": datetime.now().isoformat(),
-                }),
-                loop,
-            )
-        except Exception as exc:
-            logger.debug("Push chunk vers VS Code échoué : %s", exc)
-
-    def on_tool_call_announced(call: Dict[str, Any]) -> None:
-        # Hook réservé : pas d'envoi côté wire pour l'instant, l'extension
-        # apprend l'existence de l'appel via le `tool_use` qui suit
-        # immédiatement (et émet un événement "requested" dans son
-        # dispatcher, ce qui est largement suffisant pour piloter l'UI).
-        logger.debug(
-            "tool_call_announced (local): call_id=%s name=%s",
-            call.get("call_id"), call.get("name"),
-        )
-
-    def on_tool_result(call_id: str, result: Dict[str, Any]) -> None:
-        # On ne renvoie pas le résultat au client (il l'a déjà : c'est lui
-        # qui a exécuté l'outil). Cette callback existe pour permettre
-        # plus tard d'ajouter des hooks (logging, métriques, etc.).
-        logger.debug(
-            "Tool result reçu pour call_id=%s (is_error=%s, %d chars)",
-            call_id,
-            result.get("is_error"),
-            len(result.get("content", "")),
-        )
-
-    started_at = time.time()
-    try:
-        final_text = await executor.run(
-            user_message=user_text,
-            history=history,
-            tool_executor=remote_executor,
-            on_chunk=on_chunk,
-            on_tool_call_announced=on_tool_call_announced,
-            on_tool_result=on_tool_result,
-            workspace_info=workspace_info,
-        )
-    except asyncio.CancelledError:
-        # Tâche annulée : soit le bouton STOP du client (stop_generation), soit
-        # la fermeture du WS (finally du handler). Pas de stacktrace à logger.
-        logger.info(
-            "Boucle agentique annulée (STOP ou WS fermé) : message_id=%s", message_id,
-        )
-        return
-    except Exception as exc:
-        logger.exception("Boucle agentique échouée pour message_id=%s", message_id)
-        final_text = tr("relay.agenticError", error=exc)
-
-    elapsed = time.time() - started_at
-    logger.info(
-        "VS Code chat terminé : message_id=%s, %d chars, %.1fs",
-        message_id, len(final_text), elapsed,
-    )
-
-    try:
-        await send_encrypted({
-            "type": "response",
-            "message": final_text,
-            "message_id": message_id,
-            "timestamp": datetime.now().isoformat(),
-        })
-    except Exception as exc:
-        logger.info(
-            "Réponse VS Code non livrée (WS fermé) : %s (id=%s)",
-            exc, message_id,
-        )
 
 
 # ===========================================================================

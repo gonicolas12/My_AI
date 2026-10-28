@@ -50,8 +50,16 @@
     </div>
   </div>
 
-  <!-- Tab bar : Chat / Agents (façon GUI PC) -->
+  <!-- Tab bar : Code / Chat / Agents (façon GUI PC). Code : la conversation
+       de l'extension VS Code, même icône que le bouton Code du PC -->
   <div class="tab-bar">
+    <button class="tab-btn tab-code" id="tabCode" onclick="switchTab('code')" title="Code"
+            aria-label="Code" data-i18n-title="tab.code" data-i18n-aria-label="tab.code">
+      <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/>
+      </svg>
+    </button>
     <button class="tab-btn active" id="tabChat" onclick="switchTab('chat')">
       <span class="tab-ico">&#x1F4AC;</span> <span data-i18n="tab.chat">Chat</span>
     </button>
@@ -98,6 +106,47 @@
           <textarea id="messageInput" rows="1" placeholder="Tapez votre message..." data-i18n-placeholder="input.placeholder" dir="auto" autocomplete="off" autocorrect="on" autocapitalize="sentences"></textarea>
         </div>
         <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ VUE CODE ════════════════ -->
+  <!-- Conversation de l'extension VS Code (code.js), isolée du chat ; même interface -->
+  <div class="view view-code" id="viewCode">
+    <div class="code-notice" id="codeNotice" style="display:none" role="status"></div>
+    <div class="messages" id="codeMessages">
+      <div class="welcome" id="codeWelcome">
+        <div class="welcome-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/>
+          </svg>
+        </div>
+        <div class="welcome-title" data-i18n="code.title">Code</div>
+        <div class="welcome-text" data-i18n="code.welcome">Votre conversation avec l'extension VS Code : My_AI agit dans votre projet. Elle s'affiche aussi dans VS Code et sur le PC.</div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="attachments" id="codeAttachments"></div>
+      <div class="input-row">
+        <button class="attach-btn" id="codeAttachBtn" title="Joindre un fichier ou une image" data-i18n-title="attach.title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <input type="file" id="codeFileInput" style="display:none"
+               accept="image/*,.pdf,.docx,.doc,.xlsx,.xls,.csv,.pptx,.py,.js,.html,.css,.json,.xml,.md,.txt">
+        <div class="input-wrapper">
+          <textarea id="codeInput" rows="1" placeholder="Message pour VS Code..." data-i18n-placeholder="code.placeholder" dir="auto" autocomplete="off" autocorrect="on" autocapitalize="sentences"></textarea>
+        </div>
+        <button class="send-btn" id="codeSendBtn" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -217,5 +266,6 @@
 <script src="/static/i18n.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/app.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/agents.js?v=%%ASSET_VERSION%%"></script>
+<script src="/static/code.js?v=%%ASSET_VERSION%%"></script>
 </body>
 </html>

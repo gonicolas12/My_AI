@@ -1,13 +1,15 @@
 /*
- * Barre latérale, consacrée à la navigation : nouvelle conversation,
- * recherche, conversations, dossiers projet, historique. Réglages, Mémoire,
- * Prompts, Relay, lecture automatique et Export sont des boutons discrets en
- * bas. Fermée au lancement la première fois, puis retenue (Ctrl+B).
+ * Barre latérale, consacrée à la navigation : nouvelle conversation, page
+ * Code (conversation de l'extension VS Code), recherche, conversations,
+ * dossiers projet, historique. Réglages, Mémoire, Prompts, Relay, lecture
+ * automatique et Export sont des boutons discrets en bas. Fermée au
+ * lancement la première fois, puis retenue (Ctrl+B).
  */
 
 import {
   BookText,
   Brain,
+  CodeXml,
   MessagesSquare,
   PanelLeftClose,
   Radio,
@@ -27,9 +29,10 @@ import { cn } from '../../lib/cn';
 import type { SessionSummary } from '../../lib/events';
 import { type MessageKey, useT } from '../../i18n';
 import { formatDay } from '../../lib/format';
-import { useApp } from '../../stores/app';
+import { setTab, useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
+import { useCode } from '../../stores/code';
 import { openPanel, type PanelId, usePanels } from '../../stores/panels';
 import { refreshFolders, useSidebar } from '../../stores/sidebar';
 import { setAutoread, useVoice } from '../../stores/voice';
@@ -99,6 +102,46 @@ function PanelButton({ id, icon: Icon, label, shortcut }: (typeof PANEL_BUTTONS)
   );
 }
 
+/**
+ * Page Code : la conversation de l'extension VS Code. Sa pastille dit si VS
+ * Code est connecté au Relay, et s'anime pendant une réponse.
+ */
+function CodeButton() {
+  const t = useT();
+  const open = useApp((state) => state.tab === 'code');
+  const vscode = useCode((state) => state.state.vscode);
+  const busy = useCode((state) => state.state.busy);
+  const status = busy
+    ? t('code.status.busy')
+    : vscode
+      ? t('code.status.connected')
+      : t('code.status.offline');
+  return (
+    <button
+      type="button"
+      onClick={() => setTab('code')}
+      aria-current={open ? 'page' : undefined}
+      className={cn(
+        'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors duration-150',
+        open ? 'bg-active text-fg' : 'text-fg hover:bg-hover',
+      )}
+    >
+      <CodeXml size={16} className="text-accent" />
+      {t('code.title')}
+      <span className="ms-auto flex items-center" title={status}>
+        <span className="sr-only">{status}</span>
+        <span
+          aria-hidden
+          className={cn(
+            'h-1.5 w-1.5 rounded-full',
+            busy ? 'pulse-soft bg-accent' : vscode ? 'bg-success' : 'bg-line-2',
+          )}
+        />
+      </span>
+    </button>
+  );
+}
+
 function AutoreadButton() {
   const t = useT();
   const autoread = useVoice((state) => state.autoread);
@@ -120,6 +163,8 @@ export function Sidebar() {
   const t = useT();
   const open = useApp((state) => state.sidebarOpen);
   const sessions = useApp((state) => state.sessions);
+  // Sur la page Code, aucune conversation du chat n'est celle affichée
+  const onCode = useApp((state) => state.tab === 'code');
   const currentId = useChat((state) => state.conversationId);
   const busy = useChat(isGenerating);
   const searching = useSidebar((state) => state.searched !== null);
@@ -160,6 +205,7 @@ export function Sidebar() {
             {t('sidebar.newConversation')}
             <kbd className="ms-auto font-sans text-2xs text-fg-3">Ctrl+N</kbd>
           </button>
+          <CodeButton />
           <SearchBox />
         </div>
 
@@ -178,7 +224,7 @@ export function Sidebar() {
                     <SessionItem
                       key={session.id}
                       session={session}
-                      current={session.id === currentId}
+                      current={!onCode && session.id === currentId}
                       onDelete={setToDelete}
                     />
                   ))

@@ -511,6 +511,68 @@ AGENT_EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
 }
 
 
+# ── Page Code (code.py, relay/code_hub.py) ──────────────────────────────────
+# Conversation de l'extension VS Code, partagée avec la vue Code du téléphone.
+
+CodeOrigin = Literal["vscode", "desktop", "mobile"]
+
+
+class CodeState(_Payload):
+    """VS Code connecté au Relay (et ses dossiers), réponse en cours et son origine."""
+
+    vscode: bool
+    workspace: Optional[str] = None
+    busy: bool = False
+    message_id: Optional[str] = None
+    origin: Optional[CodeOrigin] = None
+
+
+class CodeUser(_Payload):
+    """Message de l'utilisateur (VS Code, PC ou téléphone) ; sa réponse commence."""
+
+    message_id: str
+    role: Literal["user"] = "user"
+    text: str
+    origin: CodeOrigin
+    timestamp: str
+    attachments: List[str] = Field(default_factory=list)
+
+
+class CodeChunk(_Payload):
+    """Texte d'une passe du modèle (segment), en entier."""
+
+    message_id: str
+    segment: int
+    text: str
+
+
+class CodeTool(_Payload):
+    """Appel d'outil exécuté par l'extension, et son état ; options : approbation demandée."""
+
+    message_id: str
+    call_id: str
+    name: str
+    input: Dict[str, Any] = Field(default_factory=dict)
+    status: Literal["requested", "awaiting-approval", "running", "completed", "failed",
+                    "denied", "stopped"]
+    output: Optional[str] = None
+    options: Optional[List[Literal["allow-once", "allow-target", "allow-tool", "deny"]]] = None
+
+
+class CodeDone(_Payload):
+    """Fin de la réponse : terminée, arrêtée ou en échec (text : message d'erreur)."""
+
+    message_id: str
+    text: str = ""
+    status: Literal["done", "stopped", "error"]
+    timestamp: str
+    duration_ms: int = 0
+
+
+class CodeCleared(_Payload):
+    """Conversation effacée (Effacer de VS Code, du PC ou du téléphone)."""
+
+
 # Type d'événement → modèle de sa charge utile
 EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "engine.status": EngineStatus,
@@ -553,6 +615,12 @@ EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "attachment.ready": AttachmentReady,
     "attachment.failed": AttachmentFailed,
     "attachment.removed": AttachmentRemoved,
+    "code.state": CodeState,
+    "code.user": CodeUser,
+    "code.chunk": CodeChunk,
+    "code.tool": CodeTool,
+    "code.done": CodeDone,
+    "code.cleared": CodeCleared,
 }
 
 # Événements de la page Agents : préfixe « agents. » + type d'AgentRelayService

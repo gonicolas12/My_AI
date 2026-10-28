@@ -114,6 +114,7 @@ def test_vscode_mode_uses_the_window_of_the_app():
     server = SimpleNamespace(ai_engine=SimpleNamespace(local_ai=SimpleNamespace(local_llm=llm)))
     assert _resolve_ollama_for_agentic(server) == {
         "chat_url": "http://127.0.0.1:11434/api/chat", "model": "my_ai", "num_ctx": 65536,
+        "describe_image": None,
     }
 
 

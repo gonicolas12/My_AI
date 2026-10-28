@@ -496,3 +496,57 @@ html, body {
   overflow: auto;
   color: var(--text-primary);
 }
+.tool-card.stopped { border-left-color: #6b7280; }
+
+/* Approval asked for a message typed on the PC or the phone: answered here,
+   on the Code page of My_AI or on the phone, the first answer counting */
+.tool-approval {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.tool-approval-prompt {
+  flex-basis: 100%;
+  font-size: 12px; color: var(--text-primary);
+}
+.approval-btn {
+  background: var(--bg-tertiary); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.approval-btn:hover { border-color: var(--accent); }
+.approval-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.approval-btn.deny:hover { border-color: #ef4444; color: #ef4444; }
+.approval-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* Message typed on the Code page of My_AI or on the phone */
+.user-stack {
+  display: flex; flex-direction: column; align-items: flex-end;
+  max-width: 92%;
+}
+.user-stack .bubble { max-width: 100%; }
+.origin-label {
+  font-size: 10px; color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 1px 8px; margin-bottom: 4px;
+}
+.welcome-shared { margin-top: 8px; }
+
+/* Arabic: written right to left */
+[dir="rtl"] .ai-icon { margin-right: 0; margin-left: 6px; }
+[dir="rtl"] .message.user .bubble {
+  border-bottom-right-radius: 14px; border-bottom-left-radius: 4px;
+}
+[dir="rtl"] .message.ai .bubble {
+  border-bottom-left-radius: 14px; border-bottom-right-radius: 4px;
+}
+[dir="rtl"] .tool-card { border-left-width: 1px; border-right-width: 3px; }
+[dir="rtl"] .tool-card.running { border-right-color: #f59e0b; }
+[dir="rtl"] .tool-card.awaiting { border-right-color: #6366f1; }
+[dir="rtl"] .tool-card.ok { border-right-color: #10b981; }
+[dir="rtl"] .tool-card.error { border-right-color: #ef4444; }
+[dir="rtl"] .tool-card.denied,
+[dir="rtl"] .tool-card.stopped { border-right-color: #6b7280; }
+[dir="rtl"] .tool-card-pre,
+[dir="rtl"] .tool-card-title,
+[dir="rtl"] pre { direction: ltr; text-align: left; }

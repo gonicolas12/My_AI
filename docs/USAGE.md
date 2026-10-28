@@ -1,4 +1,4 @@
-# 📚 Guide d'Utilisation - My Personal AI v9.0.0
+# 📚 Guide d'Utilisation - My Personal AI v9.1.0
 
 ## 🚀 Démarrage Rapide
 
@@ -379,7 +379,7 @@ Commandes disponibles:
 ```bash
 Vous> statut
 
-État My Personal AI v9.0.0:
+État My Personal AI v9.1.0:
 - Modèle: CustomAI avec 10M tokens
 - Mémoire: 1,234,567 tokens utilisés / 10,485,760 max
 - Documents: 3 fichiers en mémoire
@@ -963,11 +963,11 @@ python main.py status
 
 # Output:
 ═══════════════════════════════════════════════
-  MY PERSONAL AI - System Status v9.0.0
+  MY PERSONAL AI - System Status v9.1.0
 ═══════════════════════════════════════════════
 
 🤖 AI Model: CustomAIModel
-📊 Version: 9.0.0
+📊 Version: 9.1.0
 💾 Context Manager: VectorMemory
 
 📈 Context Statistics:
@@ -1000,7 +1000,7 @@ python main.py status
 ```bash
 python main.py --version
 
-My Personal AI v9.0.0
+My Personal AI v9.1.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: fenêtre (React + pywebview), CLI
@@ -1421,6 +1421,10 @@ L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du PC**,
 
 > Les workflows/débats s'exécutent **un à la fois** (comme sur le PC). Le mode débat ne prend pas de pièces jointes, comme sur le PC.
 
+#### Bouton `</>` Code
+
+Le bouton `</>`, à gauche de **Chat**, ouvre la **conversation de l'extension VS Code**, isolée du chat, dans la même interface que lui : les messages envoyés et reçus dans VS Code et sur la page Code du PC y sont, et un message tapé là part à l'extension, qui agit dans son workspace (réponse en streaming, appels d'outils, boutons d'approbation pour une écriture ou une commande). Le bandeau du haut dit si VS Code est connecté, et à quel dossier. **Effacer** y commence une nouvelle conversation, aussi dans VS Code et sur le PC (après confirmation). Voir [Extension VS Code](#-extension-vs-code--mode-agentique).
+
 #### 📎 Pièces jointes depuis le mobile
 
 Le bouton **+** permet de joindre une ou plusieurs pièces jointes — **à la fois sur l'onglet Chat** (à gauche du champ de saisie) **et sur l'onglet Agents** (au-dessus des boutons d'action). Les fichiers sont traités **exactement comme sur le PC** :
@@ -1518,7 +1522,16 @@ L'extension officielle **My_AI Relay** est publiée sur le **Marketplace VS Code
 | `edit_file` | Remplacement par correspondance exacte (`replace_all` optionnel) | **Modal** |
 | `run_command` | Commande shell exécutée dans le workspace, sortie capturée | **Modal** |
 
-Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *Autoriser pour ce fichier (mémorisé pour la session)* / *Tout autoriser pour cet outil dans la session* / *Refuser*.
+Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *Autoriser pour ce fichier (mémorisé pour la session)* / *Tout autoriser pour cet outil dans la session* / *Refuser*. Pour un message tapé sur la page **Code** du PC ou dans la vue **Code** du téléphone, pas de modal : les mêmes choix s'affichent en boutons dans la carte de l'outil, dans VS Code, sur le PC et sur le téléphone, et la première réponse compte.
+
+#### Une conversation Code, trois endroits
+
+La conversation de l'extension s'affiche aussi :
+
+- **Sur le PC** : bouton **Code** en haut de la barre latérale (sous « Nouvelle conversation », sa pastille est verte quand VS Code est connecté) ; la page reprend l'interface du chat, avec les appels d'outils de VS Code et le dossier ouvert dans VS Code en pied de saisie. Les pièces jointes du chat y sont aussi (menu **+**, Ctrl+V pour une image, fichiers ou dossier glissés) : elles partent avec le message, le modèle lit les documents et le code, et le modèle vision décrit les images. Le **micro** dicte comme dans le chat (Whisper local). Les onglets **Chat** et **Agents** du haut sont masqués sur cette page : la barre latérale ramène au chat ;
+- **Sur le téléphone** : bouton `</>` à gauche de **Chat** dans la page du Relay ; même interface que le chat mobile.
+
+Un message tapé à l'un de ces endroits part à l'extension, qui agit dans son workspace ; la réponse arrive en streaming partout. **Stop** arrête la réponse en cours d'où qu'elle vienne, **Effacer** commence une nouvelle conversation partout (le téléphone demande confirmation). La conversation est gardée dans `data/code_conversation.json` d'un lancement à l'autre. Le chat classique (téléphone + fenêtre) en reste séparé : rien de lui n'arrive dans VS Code, et inversement.
 
 #### Cartes d'outils dans le chat
 
@@ -1528,7 +1541,7 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 
 - **Limité au workspace par défaut.** Tous les chemins sont résolus relativement au premier dossier workspace ouvert. Toute tentative de sortie déclenche un modal d'approbation par chemin (jamais auto-approuvable).
 - **Aucun accès aux MCP du PC hôte** depuis l'extension. Le mode agentique est **isolé** du pipeline de la fenêtre et du mobile : l'utilisateur côté VS Code ne voit que son workspace.
-- **Mémoire de session.** Le contexte agentique est conservé pour toute la session WebSocket — *« édite le fichier que tu viens de lire »* fonctionne. Une reconnexion redémarre une session vierge.
+- **Mémoire partagée.** Le contexte agentique est celui de la conversation Code, gardé d'une reconnexion et d'un redémarrage à l'autre — *« édite le fichier que tu viens de lire »* fonctionne. **Effacer** repart de zéro ; au-delà de la fenêtre de contexte du modèle, les plus anciens échanges sont retirés.
 
 #### Exemples typiques
 
@@ -1547,11 +1560,11 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 | 📎 **Envoyer le fichier actif à My_AI** | Upload du fichier entier comme pièce jointe (PDF, DOCX, PowerPoint, code, image…) |
 | 🔧 **Insérer au curseur / Copier** | Boutons sur chaque bloc de code des réponses, au survol |
 | ⏹️ **Stop** | Le bouton d'envoi devient Stop pendant la génération : il arrête le modèle et les appels d'outils en attente ; le texte se fige aussitôt |
-| 🧹 **Clear** (« Effacer » en français) | Vide la vue (le contexte de la session reste côté hôte) ; pendant une génération, il l'arrête aussi |
+| 🧹 **Clear** (« Effacer » en français) | Nouvelle conversation, aussi sur la page Code du PC et sur le téléphone ; pendant une génération, il l'arrête aussi |
 | 🔁 **Nouvelle connexion** | Bouton toujours visible dans le header — recoller une nouvelle chaîne si vous avez redémarré le Relay sur le PC hôte |
 | 💾 **SecretStorage** | Identifiants chiffrés par le keychain de l'OS — auto-restauration au prochain lancement de VS Code |
 | 🔄 **Auto-reconnexion** | Détection arrêt du Relay hôte (~30 s), reconnexion automatique au redémarrage |
-| 🌍 **Bilingue FR/EN** | UI, modaux d'approbation et doc Marketplace adaptés à la langue de VS Code (NLS) |
+| 🌍 **12 langues** | Chat, notifications et modaux d'approbation dans la langue choisie dans My_AI (transmise par le Relay, suivie quand elle change) ; titres des commandes et réglages dans la langue de VS Code |
 
 #### Sécurité
 
@@ -1617,7 +1630,7 @@ Chaque tour s'affiche dans une section colorée distincte de la zone de résulta
 
 ---
 
-**Version:** 9.0.0
+**Version:** 9.1.0
 **Interfaces:** fenêtre desktop (React + TypeScript, pywebview), CLI, API REST, Mobile PWA (Relay), Extension VS Code (TypeScript, Marketplace)
 **Capacité Contexte:** 10,485,760 tokens (10M)
 **Architecture:** 100% Locale

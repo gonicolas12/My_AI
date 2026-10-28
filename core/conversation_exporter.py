@@ -14,7 +14,7 @@ from utils.logger import setup_logger
 from utils.pdf_text import aligned, code_font, paragraph_markup, pdf_fonts, visual, word_wrap
 
 # Version de My_AI écrite au pied des exports
-_APP_VERSION = "9.0.0"
+_APP_VERSION = "9.1.0"
 
 
 def _footer() -> str:

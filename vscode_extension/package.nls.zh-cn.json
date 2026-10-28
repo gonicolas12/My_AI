@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "与你自托管的 My_AI 助手进行智能体对话：读取、编辑、创建文件，运行命令并搜索你的工作区。本地 LLM 始终留在你的主机电脑上；所有内容都通过端到端加密隧道传输。对话也会显示在 My_AI 的 Code 页面和你的手机上。",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "聊天",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "连接",
+  "command.disconnect": "断开连接",
+  "command.forgetCredentials": "忘记已保存的连接",
+  "command.sendSelection": "将所选内容发送到 My_AI",
+  "command.sendActiveFile": "将活动文件发送到 My_AI",
+  "command.attachCodebase": "将文件夹附加为 @codebase",
+  "command.reindexCodebase": "重新索引 @codebase 文件夹",
+  "command.toggleAutoAttach": "开关活动文件的自动附加",
+  "command.focusChat": "打开聊天视图",
+  "command.moveToSecondarySidebar": "将聊天移到辅助侧边栏（右侧）",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "首次激活时，提示将 My_AI Relay 视图移到辅助侧边栏（右侧，类似 Copilot Chat）。如果你更喜欢左侧的标准位置，请关闭此项。首次移动后，VS Code 会记住你的手动调整。",
+  "configuration.healthCheckIntervalSeconds.description": "两次 Relay 状态检查之间的间隔（秒）。用于发现主机何时停止 Relay 并自动断开连接。",
+  "configuration.autoReconnect.description": "启用后，扩展在断开连接后会继续检查隧道，并在 Relay 恢复可用时自动重新连接。",
+  "configuration.requestTimeoutSeconds.description": "每个 HTTP 请求（状态、访问码、提示词、上传）的超时时间（秒）。"
+}

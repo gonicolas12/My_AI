@@ -290,7 +290,7 @@ relay:
 2. Dans VS Code : installez l'extension **My_AI Relay** depuis le Marketplace → ouvrez la vue dans la sidebar → **Coller la chaîne de connexion** → saisissez le **code d'accès** affiché sous le QR code
 3. À la connexion, l'extension s'identifie comme client `vscode` auprès du Relay et active le mode agentique. Demandez par exemple *« scaffold un projet Vite + React avec un router et un composant Header »* : vous verrez chaque `write_file` / `run_command` apparaître comme une carte dépliable dans le chat, avec demande d'approbation pour les opérations destructives.
 
-> Le mobile et le GUI desktop continuent à utiliser le pipeline classique avec les MCP locaux complets : le mode agentique est exclusif aux clients VS Code.
+> **Une conversation Code, trois endroits.** La conversation de VS Code s'affiche aussi sur la page **Code** de l'application desktop (bouton **Code** en haut de la barre latérale) et dans la vue **Code** du téléphone (bouton `</>` à gauche de **Chat**) : un message tapé là part à l'extension, qui agit dans son workspace, et la réponse arrive en streaming partout. Sur la page du PC, un message peut porter les pièces jointes du chat (documents, code, images décrites par le modèle vision) et se dicter avec la saisie vocale locale. Une écriture ou une commande shell demandée depuis le PC ou le téléphone attend une approbation, donnée depuis n'importe lequel des trois. Le chat classique (téléphone + desktop) reste séparé : rien de lui n'arrive dans VS Code, et inversement. Il garde le pipeline classique avec les MCP locaux complets : le mode agentique est réservé à la conversation Code.
 
 ### Caractéristiques
 
@@ -302,15 +302,15 @@ relay:
 | ⏹️ **Bouton STOP** | Interrompt en un clic toute la génération du tour : LLM **et** boucle d'outils agentique (appels en attente compris). **Clear** (« Effacer ») pendant une génération l'arrête aussi |
 | 🛟 **Garde-fou anti-boucle** | Détection des réécritures répétées du même fichier pour éviter qu'un agent ne tourne en rond |
 | 🛡️ **Sandbox workspace** | Tous les chemins sont résolus à partir du workspace VS Code ouvert. Toute sortie hors workspace nécessite une approbation modale par chemin |
-| ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* |
+| ✋ **Approbations granulaires** | Lectures auto-approuvées, écritures/commandes shell sous modal avec options *Une fois* / *Pour ce fichier* / *Tout autoriser pour cet outil cette session* ; pour un message tapé sur le PC ou le téléphone, les mêmes choix en boutons dans la carte de l'outil, dans VS Code, sur le PC et sur le téléphone |
 | 🎴 **Cartes d'outils inline** | Chaque appel d'outil rendu comme carte pliable (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé) |
-| 🧠 **Mémoire de session** | Le contexte agentique est conservé pour toute la session WS (« édite le fichier que tu viens de lire » fonctionne) |
+| 🧠 **Mémoire partagée** | Une seule conversation pour VS Code, la page **Code** du desktop et le téléphone, gardée d'une reconnexion et d'un redémarrage à l'autre (« édite le fichier que tu viens de lire » fonctionne) ; **Effacer** en commence une nouvelle partout |
 | 🔧 **Marche avec n'importe quel modèle Ollama** | Format `<tool_use>{...}</tool_use>` parsé côté hôte, pas besoin de l'API tools native d'Ollama |
 | 🔐 **Chiffrement E2EE** | AES-256-GCM identique au mobile : le tunnel ne voit que du ciphertext |
 | 🌐 **Failover multi-tunnel** | cloudflared / localhost.run (serveo en option) pingés côté client, bascule auto |
 | 💾 **Persistance** | Identifiants chiffrés dans le SecretStorage de VS Code (keychain OS) |
 | 🔄 **Auto-reconnexion** | Détection arrêt du Relay hôte, reconnexion auto au redémarrage |
-| 🌍 **Bilingue** | UI, prompts d'approbation et doc en français quand VS Code est en FR, en anglais sinon |
+| 🌍 **12 langues** | L'extension parle la langue de My_AI (choisie dans ses Réglages), comme l'application desktop et le téléphone ; les titres des commandes suivent la langue de VS Code |
 | 🆓 **Open source** | Code dans [`vscode_extension/`](vscode_extension/), licence MIT |
 
 ### Installation

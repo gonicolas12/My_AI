@@ -2,11 +2,10 @@
   "name": "my-ai",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "publisher": "gonicolas12",
   "license": "MIT",
   "icon": "media/extension_logo.png",
-  "l10n": "./l10n",
   "repository": {
     "type": "git",
     "url": "https://github.com/gonicolas12/My_AI.git"
