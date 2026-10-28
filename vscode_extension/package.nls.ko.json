@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "자체 호스팅 My_AI 어시스턴트와의 에이전트 채팅: 파일 읽기·편집·생성, 명령 실행, 작업 영역 검색을 할 수 있습니다. 로컬 LLM은 호스트 PC에 그대로 있고, 모든 데이터는 종단 간 암호화된 터널로 전달됩니다. 대화는 My_AI의 Code 페이지와 휴대폰에도 표시됩니다.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "채팅",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "연결",
+  "command.disconnect": "연결 끊기",
+  "command.forgetCredentials": "저장된 연결 삭제",
+  "command.sendSelection": "선택 영역을 My_AI로 보내기",
+  "command.sendActiveFile": "활성 파일을 My_AI로 보내기",
+  "command.attachCodebase": "폴더를 @codebase로 첨부",
+  "command.reindexCodebase": "@codebase 폴더 다시 색인",
+  "command.toggleAutoAttach": "활성 파일 자동 첨부 켜기/끄기",
+  "command.focusChat": "채팅 열기",
+  "command.moveToSecondarySidebar": "채팅을 보조 사이드바(오른쪽)로 이동",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "처음 활성화할 때 My_AI Relay 보기를 보조 사이드바(오른쪽, Copilot Chat처럼)로 옮길지 묻습니다. 왼쪽의 기본 위치를 원하면 끄세요. 첫 이동 후에는 VS Code가 직접 조정한 위치를 기억합니다.",
+  "configuration.healthCheckIntervalSeconds.description": "Relay 상태 확인 간격(초)입니다. 호스트가 Relay를 중지했는지 감지해 자동으로 연결을 끊습니다.",
+  "configuration.autoReconnect.description": "켜면 연결이 끊긴 뒤에도 터널을 계속 확인하고, Relay가 다시 사용 가능해지는 즉시 자동으로 다시 연결합니다.",
+  "configuration.requestTimeoutSeconds.description": "HTTP 요청별 제한 시간(상태, 접속 코드, 프롬프트, 업로드), 초 단위입니다."
+}

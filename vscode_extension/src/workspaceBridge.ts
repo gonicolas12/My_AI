@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ConnectionManager } from './connectionManager';
+import { t } from './i18n';
 
 const AUTO_ATTACH_KEY = 'myaiRelay.autoAttachActiveFile';
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -64,13 +65,13 @@ export class WorkspaceBridge {
         bytes = new Uint8Array(raw);
       } catch (err) {
         vscode.window.showErrorMessage(
-          vscode.l10n.t('My_AI Relay: cannot read file: {0}', (err as Error).message),
+          t('My_AI Relay: cannot read file: {0}', (err as Error).message),
         );
         return null;
       }
     } else {
       vscode.window.showWarningMessage(
-        vscode.l10n.t('My_AI Relay: unsupported extension "{0}".', ext || 'unknown'),
+        t('My_AI Relay: unsupported extension "{0}".', ext || 'unknown'),
       );
       return null;
     }
@@ -78,7 +79,7 @@ export class WorkspaceBridge {
     if (bytes.length > MAX_FILE_BYTES) {
       if (!options.silentSizeReject) {
         vscode.window.showErrorMessage(
-          vscode.l10n.t(
+          t(
             'My_AI Relay: file too large ({0} MB > 25 MB).',
             String(Math.round(bytes.length / 1024 / 1024)),
           ),
@@ -105,7 +106,7 @@ export class WorkspaceBridge {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
       vscode.window.showWarningMessage(
-        vscode.l10n.t('My_AI Relay: open a folder/workspace first.'),
+        t('My_AI Relay: open a folder/workspace first.'),
       );
       return;
     }
@@ -114,7 +115,7 @@ export class WorkspaceBridge {
     if (folders.length > 1) {
       const pick = await vscode.window.showQuickPick(
         folders.map((f) => ({ label: f.name, description: f.uri.fsPath, folder: f })),
-        { placeHolder: vscode.l10n.t('Which folder to attach as @codebase?') },
+        { placeHolder: t('Which folder to attach as @codebase?') },
       );
       if (!pick) {
         return;
@@ -154,8 +155,8 @@ export class WorkspaceBridge {
   ): Promise<void> {
     const action = reindex ? 'codebase_reindex' : 'codebase_attach';
     const verb = reindex
-      ? vscode.l10n.t('Re-indexing')
-      : vscode.l10n.t('Indexing');
+      ? t('Re-indexing')
+      : t('Indexing');
 
     await vscode.window.withProgress(
       {
@@ -188,7 +189,7 @@ export class WorkspaceBridge {
             }
             if (payload.ok) {
               finish(
-                vscode.l10n.t(
+                t(
                   'My_AI: «{0}» indexed — {1} files, {2} excerpts.',
                   displayName,
                   String(payload.total_files ?? 0),
@@ -197,7 +198,7 @@ export class WorkspaceBridge {
               );
             } else {
               finish(
-                vscode.l10n.t('My_AI: indexing failed: {0}',
+                t('My_AI: indexing failed: {0}',
                   payload.error ?? 'unknown error'),
                 true,
               );
@@ -206,13 +207,13 @@ export class WorkspaceBridge {
 
           // Garde-fou : ne pas laisser la barre tourner indéfiniment.
           const timer = setTimeout(
-            () => finish(vscode.l10n.t('My_AI: indexing timed out.'), true),
+            () => finish(t('My_AI: indexing timed out.'), true),
             5 * 60 * 1000,
           );
 
           this.manager.on('message', onMessage);
           this.manager.sendCodebase(action, folderPath, workspaceRoot).catch((err) => {
-            finish(vscode.l10n.t('My_AI: cannot send request: {0}',
+            finish(t('My_AI: cannot send request: {0}',
               (err as Error).message), true);
           });
         }),
@@ -226,7 +227,7 @@ export class WorkspaceBridge {
   async sendSelection(): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-      vscode.window.showWarningMessage(vscode.l10n.t('My_AI Relay: no active editor.'));
+      vscode.window.showWarningMessage(t('My_AI Relay: no active editor.'));
       return;
     }
     const sel = editor.selection;
@@ -236,8 +237,8 @@ export class WorkspaceBridge {
     const language = editor.document.languageId || '';
     const fence = '```' + language;
     const message = selectionText
-      ? `${vscode.l10n.t('Here is a snippet from `{0}`:', filename)}\n${fence}\n${selectionText}\n\`\`\``
-      : vscode.l10n.t('Please look at `{0}`.', filename);
+      ? `${t('Here is a snippet from `{0}`:', filename)}\n${fence}\n${selectionText}\n\`\`\``
+      : t('Please look at `{0}`.', filename);
 
     await vscode.commands.executeCommand('myai-relay.focusChat');
     await this.manager.sendChat(message);
@@ -246,7 +247,7 @@ export class WorkspaceBridge {
   async sendActiveFile(): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-      vscode.window.showWarningMessage(vscode.l10n.t('My_AI Relay: no active editor.'));
+      vscode.window.showWarningMessage(t('My_AI Relay: no active editor.'));
       return;
     }
     const attached = await this.attachDocument(editor.document);
@@ -255,7 +256,7 @@ export class WorkspaceBridge {
     }
     await vscode.commands.executeCommand('myai-relay.focusChat');
     await this.manager.sendChat(
-      vscode.l10n.t('Please review the attached file `{0}`.', attached.filename),
+      t('Please review the attached file `{0}`.', attached.filename),
       [attached.fileId],
     );
   }
@@ -264,7 +265,7 @@ export class WorkspaceBridge {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
       vscode.window.showWarningMessage(
-        vscode.l10n.t('My_AI Relay: no active editor — open a file to insert code into.'),
+        t('My_AI Relay: no active editor — open a file to insert code into.'),
       );
       return;
     }
@@ -292,7 +293,7 @@ export class WorkspaceBridge {
       return attached ? [attached.fileId] : [];
     } catch (err) {
       vscode.window.showWarningMessage(
-        vscode.l10n.t('My_AI Relay: auto-attach failed: {0}', (err as Error).message),
+        t('My_AI Relay: auto-attach failed: {0}', (err as Error).message),
       );
       return [];
     }

@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "دردشة وكيلية مع مساعد My_AI المستضاف ذاتيًا: قراءة الملفات وتعديلها وإنشاؤها، وتشغيل الأوامر، والبحث في مساحة عملك. يبقى نموذج اللغة المحلي على حاسوبك المضيف، وكل شيء يمر عبر نفق مشفّر من طرف إلى طرف. تظهر المحادثة أيضًا في صفحة Code في My_AI وعلى هاتفك.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "الدردشة",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "اتصال",
+  "command.disconnect": "قطع الاتصال",
+  "command.forgetCredentials": "نسيان الاتصال المحفوظ",
+  "command.sendSelection": "إرسال التحديد إلى My_AI",
+  "command.sendActiveFile": "إرسال الملف النشط إلى My_AI",
+  "command.attachCodebase": "إرفاق المجلد كـ @codebase",
+  "command.reindexCodebase": "إعادة فهرسة مجلد @codebase",
+  "command.toggleAutoAttach": "تشغيل/إيقاف الإرفاق التلقائي للملف النشط",
+  "command.focusChat": "فتح الدردشة",
+  "command.moveToSecondarySidebar": "نقل الدردشة إلى الشريط الجانبي الثانوي (اليمين)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "عند التفعيل الأول، يقترح نقل عرض My_AI Relay إلى الشريط الجانبي الثانوي (على اليمين، مثل Copilot Chat). عطّل هذا الخيار إذا كنت تفضّل الموضع القياسي على اليسار. يتذكر VS Code تعديلاتك اليدوية بعد النقل الأول.",
+  "configuration.healthCheckIntervalSeconds.description": "الفاصل بين فحصين لحالة Relay (بالثواني). يكشف متى يوقف المضيف Relay ويقطع الاتصال تلقائيًا.",
+  "configuration.autoReconnect.description": "عند التفعيل، تواصل الإضافة فحص الأنفاق بعد انقطاع الاتصال وتعيد الاتصال تلقائيًا فور عودة Relay.",
+  "configuration.requestTimeoutSeconds.description": "مهلة كل طلب HTTP (الحالة، رمز الوصول، الموجّهات، رفع الملفات) بالثواني."
+}

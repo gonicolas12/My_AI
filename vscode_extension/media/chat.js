@@ -82,12 +82,30 @@
   // Map call_id → DOM node for the tool card. Used by tool-event handlers
   // to update the card's status and output as the agentic loop progresses.
   const toolCardEls = new Map();
+  // Last event of each tool card: its texts follow a change of language.
+  const toolCardEvents = new Map();
+  // Message typed here, sent, not yet acknowledged by the host: its bubble is
+  // already shown (a message sent by a command — selection, active file — is
+  // shown when its ack arrives).
+  let pendingLocalSend = false;
+  // The host shares this conversation with the Code page of My_AI and the phone.
+  let sharedConversation = false;
+  // Locale of the times (My_AI's language), given with the strings.
+  let timeLocale;
 
-  // Localized strings injected by the extension on startup. The webview
-  // renders nothing visible until applyStrings() runs, so the user never
-  // sees raw English placeholders if their VS Code is in another language.
+  // Localized strings injected by the extension on startup, in My_AI's
+  // language. The webview renders nothing visible until applyStrings()
+  // runs, so the user never sees raw English placeholders.
   let STR = {};
   function t(key) { return (STR && STR[key]) || key; }
+
+  // Language of the page: direction (Arabic is written right to left) and
+  // locale of the times. Sent with the strings, again when it changes.
+  function applyLanguage(lang, dir, locale) {
+    if (lang) document.documentElement.lang = lang;
+    document.documentElement.dir = dir === 'rtl' ? 'rtl' : 'ltr';
+    timeLocale = locale || undefined;
+  }
 
   function applyStrings(strings) {
     STR = strings || {};
@@ -99,6 +117,7 @@
     document.getElementById('connectHint').textContent = t('webview.connect.hint');
     document.getElementById('welcomeTitle').textContent = t('webview.welcome.title');
     document.getElementById('welcomeText').textContent = t('webview.welcome.text');
+    document.getElementById('welcomeShared').textContent = t('webview.welcome.shared');
     document.getElementById('clearBtn').textContent = t('webview.header.clear');
     document.getElementById('clearBtn').title = t('webview.header.clearTooltip');
     document.getElementById('reconnectBtn').textContent = t('webview.header.reconnect');
@@ -107,6 +126,21 @@
     document.getElementById('attachBtn').title = t('webview.input.attachTooltip');
     inputEl.placeholder = t('webview.input.placeholder');
     renderAutoAttachToggle();
+    if (sendBtnMode === 'stop') sendBtn.title = t('webview.send.stopTooltip');
+    // Texts already on screen: tool cards and code block buttons
+    toolCardEls.forEach((card, callId) => {
+      const event = toolCardEvents.get(callId);
+      if (event) updateToolCard(card, event);
+      card.querySelectorAll('.tool-card-section-label').forEach((label) => {
+        label.textContent = t(label.dataset.label);
+      });
+    });
+    messagesEl.querySelectorAll('.code-action').forEach((btn) => {
+      btn.textContent = t(btn.dataset.action === 'insert' ? 'webview.code.insert' : 'webview.code.copy');
+    });
+    messagesEl.querySelectorAll('.origin-label').forEach((label) => {
+      label.textContent = originText(label.dataset.origin);
+    });
   }
 
   // ── EVENT WIRING ─────────────────────────────────────
@@ -122,7 +156,9 @@
     }
   });
   attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'pick-file' }));
-  clearBtn.addEventListener('click', clearChat);
+  // New conversation, also on the Code page of My_AI and on the phone: the view
+  // clears when the host says so (code_cleared), or by itself (clear-local)
+  clearBtn.addEventListener('click', () => vscode.postMessage({ type: 'clear-chat' }));
   reconnectBtn.addEventListener('click', () =>
     vscode.postMessage({ type: 'connect-request' }),
   );
@@ -209,13 +245,23 @@
     if (!msg || typeof msg !== 'object') return;
     switch (msg.type) {
       case 'init-strings':
+        applyLanguage(msg.lang, msg.dir, msg.locale);
         applyStrings(msg.strings);
         break;
       case 'state':
+        sharedConversation = !!msg.shared;
+        document.getElementById('welcomeShared').style.display = sharedConversation ? 'block' : 'none';
         applyState(msg.state, msg.hasCredentials);
         break;
-      case 'history':
-        applyHistory(msg.items || []);
+      case 'clear-local':
+        clearChat();
+        break;
+      case 'send-failed':
+        // Never left VS Code: no reply to wait for
+        pendingLocalSend = false;
+        isWaiting = false;
+        removeTyping();
+        updateSendButton();
         break;
       case 'prompts':
         slashPrompts = Array.isArray(msg.items) ? msg.items : [];
@@ -288,14 +334,17 @@
       '</div>' +
       '<div class="tool-card-body">' +
         '<div class="tool-card-section tool-card-input">' +
-          '<div class="tool-card-section-label">Input</div>' +
+          '<div class="tool-card-section-label" data-label="webview.tool.input"></div>' +
           '<pre class="tool-card-pre"></pre>' +
         '</div>' +
         '<div class="tool-card-section tool-card-output" style="display:none">' +
-          '<div class="tool-card-section-label">Output</div>' +
+          '<div class="tool-card-section-label" data-label="webview.tool.output"></div>' +
           '<pre class="tool-card-pre"></pre>' +
         '</div>' +
       '</div>';
+    card.querySelectorAll('.tool-card-section-label').forEach((label) => {
+      label.textContent = t(label.dataset.label);
+    });
 
     const header = card.querySelector('.tool-card-header');
     const body = card.querySelector('.tool-card-body');
@@ -324,6 +373,7 @@
     const outputPre = card.querySelector('.tool-card-output .tool-card-pre');
 
     titleEl.textContent = describeToolTitle(event.toolName, event.input);
+    toolCardEvents.set(event.callId, event);
 
     let icon = '';
     let statusLabel = '';
@@ -332,44 +382,97 @@
       case 'requested':
       case 'running':
         icon = '⏳';
-        statusLabel = 'en cours';
+        statusLabel = t('webview.tool.running');
         cls = 'running';
         break;
       case 'awaiting-approval':
         icon = '🔒';
-        statusLabel = 'attente d\'approbation';
+        statusLabel = t('webview.tool.awaiting');
         cls = 'awaiting';
         break;
       case 'denied':
         icon = '🚫';
-        statusLabel = 'refusé';
+        statusLabel = t('webview.tool.denied');
         cls = 'denied';
         break;
       case 'completed':
         icon = '✓';
-        statusLabel = 'OK';
+        statusLabel = t('webview.tool.completed');
         cls = 'ok';
         break;
       case 'failed':
         icon = '⚠️';
-        statusLabel = 'erreur';
+        statusLabel = t('webview.tool.failed');
         cls = 'error';
+        break;
+      case 'stopped':
+        icon = '⏹';
+        statusLabel = t('webview.tool.stopped');
+        cls = 'stopped';
         break;
       default:
         icon = '·';
     }
     iconEl.textContent = icon;
     statusEl.textContent = statusLabel;
-    card.classList.remove('running', 'awaiting', 'denied', 'ok', 'error');
+    card.classList.remove('running', 'awaiting', 'denied', 'ok', 'error', 'stopped');
     if (cls) card.classList.add(cls);
 
     inputPre.textContent = formatToolInput(event.input);
 
     if (event.result || event.error) {
       const text = event.result ? event.result.content : (event.error || '');
-      outputPre.textContent = text || '(empty)';
+      outputPre.textContent = text || t('webview.tool.empty');
       outputSection.style.display = 'block';
     }
+    renderApproval(card, event);
+  }
+
+  // Approval of a message typed on the PC or the phone: buttons in the card,
+  // also on the Code page of My_AI and on the phone; the first answer counts.
+  function renderApproval(card, event) {
+    let row = card.querySelector('.tool-approval');
+    const options = event.kind === 'awaiting-approval' && Array.isArray(event.options)
+      ? event.options : [];
+    if (!options.length) {
+      if (row) row.remove();
+      return;
+    }
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'tool-approval';
+      card.appendChild(row);
+    }
+    row.innerHTML = '';
+    const prompt = document.createElement('div');
+    prompt.className = 'tool-approval-prompt';
+    prompt.textContent = t('webview.approval.prompt');
+    row.appendChild(prompt);
+    options.forEach((decision, index) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'approval-btn' + (index === 0 ? ' primary' : '')
+        + (decision === 'deny' ? ' deny' : '');
+      btn.textContent = t('webview.approval.' + decision).replace('{0}', event.toolName || '');
+      btn.addEventListener('click', () => {
+        row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+        vscode.postMessage({ type: 'approve-tool', callId: event.callId, decision });
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  // Tool call of the conversation's state (code_snapshot) as a card event
+  function toolEventFromPart(part) {
+    const event = {
+      kind: part.status || 'requested',
+      callId: part.call_id,
+      toolName: part.name,
+      input: part.input || {},
+      options: part.options,
+    };
+    if (typeof part.output === 'string') event.result = { content: part.output };
+    return event;
   }
 
   function describeToolTitle(name, input) {
@@ -441,32 +544,147 @@
     inputArea.style.display = 'block';
   }
 
-  function applyHistory(items) {
-    if (!items.length) return;
-    if (welcomeEl) welcomeEl.style.display = 'none';
-    items.forEach((m) => {
-      if (!m || typeof m.text !== 'string') return;
-      const mid = m.message_id || '';
-      const key = (m.is_user ? 'user:' : 'ai:') + mid;
-      if (mid && renderedMessageIds.has(key)) return;
-      if (mid) renderedMessageIds.add(key);
-      addMessage(m.text, !!m.is_user, m.timestamp);
+  // ── CODE CONVERSATION (shared with My_AI on the PC and the phone) ──
+  // The host's full state (connection, view reloaded): it replaces the view.
+  function applySnapshot(messages, state) {
+    removeTyping();
+    Array.from(messagesEl.children).forEach((c) => {
+      if (c !== welcomeEl) c.remove();
     });
-    const last = items[items.length - 1];
-    if (last && last.is_user && last.message_id) {
-      lastSentMessageId = last.message_id;
-      isWaiting = true;
-      showTyping();
-      updateSendButton();
+    renderedMessageIds.clear();
+    toolCardEls.clear();
+    toolCardEvents.clear();
+    streamingMessageId = null;
+    streamingMessageEl = null;
+    streamingSegmentIndex = null;
+    pendingLocalSend = false;
+    discardingReply = false;
+    const list = Array.isArray(messages) ? messages : [];
+    list.forEach(renderStoredMessage);
+    if (welcomeEl) welcomeEl.style.display = list.length ? 'none' : 'flex';
+    applyCodeState(state);
+    scrollToBottom();
+  }
+
+  function renderStoredMessage(m) {
+    if (!m || !m.message_id) return;
+    const mid = m.message_id;
+    if (m.role === 'user') {
+      renderedMessageIds.add('user:' + mid);
+      addMessage(userDisplayText(m.text, m.attachments), true, m.timestamp, m.origin);
+      return;
     }
+    const parts = Array.isArray(m.parts) ? m.parts : [];
+    const streaming = m.status === 'streaming';
+    const last = parts[parts.length - 1];
+    let hasText = false;
+    parts.forEach((part) => {
+      if (!part) return;
+      if (part.kind === 'tool') {
+        const event = toolEventFromPart(part);
+        const card = createToolCard(event);
+        messagesEl.appendChild(card);
+        toolCardEls.set(part.call_id, card);
+        updateToolCard(card, event);
+      } else if (part.kind === 'text' && part.text) {
+        hasText = true;
+        if (streaming && part === last) {
+          // Reply in progress: its next chunks continue this bubble
+          updateStreamingBubble(mid, part.text, part.segment);
+        } else {
+          addMessage(part.text, false, m.timestamp);
+        }
+      }
+    });
+    if (streaming) {
+      if (!last || last.kind !== 'text') {
+        // Tools at work: the next chunk opens a new bubble below them
+        streamingMessageId = mid;
+        streamingSegmentIndex = null;
+        streamingMessageEl = null;
+      }
+      return;
+    }
+    renderedMessageIds.add('ai:' + mid);
+    closedMessageIds.add(mid);
+    // Reply without streamed text, or the reason of its failure
+    if (m.text && (!hasText || m.status === 'error')) addMessage(m.text, false, m.timestamp);
+  }
+
+  // Reply in progress or not, wherever its message was typed: the send button
+  // becomes Stop while My_AI works, here as on the PC and the phone.
+  function applyCodeState(state) {
+    if (!state || typeof state !== 'object') return;
+    if (state.busy) {
+      isWaiting = true;
+      if (state.message_id) lastSentMessageId = state.message_id;
+    } else if (!pendingLocalSend) {
+      isWaiting = false;
+      stopRequested = false;
+      removeTyping();
+    }
+    updateSendButton();
+  }
+
+  // Message typed on the Code page of My_AI or on the phone
+  function applyRemoteUser(data) {
+    const mid = data.message_id || '';
+    if (!mid || renderedMessageIds.has('user:' + mid)) return;
+    renderedMessageIds.add('user:' + mid);
+    userPinnedToBottom = true;
+    addMessage(userDisplayText(data.text, data.attachments), true, data.timestamp, data.origin);
+    lastSentMessageId = mid;
+    isWaiting = true;
+    showTyping();
+    updateSendButton();
+  }
+
+  // New conversation (Clear here, on the PC or on the phone)
+  function resetConversation() {
+    removeTyping();
+    Array.from(messagesEl.children).forEach((c) => {
+      if (c !== welcomeEl) c.remove();
+    });
+    if (welcomeEl) welcomeEl.style.display = 'flex';
+    renderedMessageIds.clear();
+    toolCardEls.clear();
+    toolCardEvents.clear();
+    streamingMessageId = null;
+    streamingMessageEl = null;
+    streamingSegmentIndex = null;
+    isWaiting = false;
+    stopRequested = false;
+    discardingReply = false;
+    pendingLocalSend = false;
+    lastSentMessageId = null;
+    updateSendButton();
+  }
+
+  function userDisplayText(text, attachments) {
+    const lines = (Array.isArray(attachments) ? attachments : []).map((name) => '📎 ' + name);
+    return [text || ''].concat(lines).filter((line) => line).join('\n');
+  }
+
+  function originText(origin) {
+    return origin === 'desktop' || origin === 'mobile' ? t('webview.origin.' + origin) : '';
   }
 
   function applyRelayMessage(data) {
     if (!data || typeof data !== 'object') return;
 
-    if (data.type === 'response') {
+    if (data.type === 'code_snapshot') {
+      applySnapshot(data.messages, data.state);
+    } else if (data.type === 'code_state') {
+      applyCodeState(data);
+    } else if (data.type === 'code_user') {
+      applyRemoteUser(data);
+    } else if (data.type === 'code_cleared') {
+      resetConversation();
+    } else if (data.type === 'response') {
       const mid = data.message_id || '';
       if (mid) closedMessageIds.add(mid);
+      // Refused by the host (empty id): the message typed here got no reply
+      pendingLocalSend = false;
       if (discardingReply) {
         // Fin de la réponse arrêtée par Clear : on rend le bouton d'envoi
         // sans rien afficher dans le chat vidé.
@@ -487,7 +705,15 @@
       isWaiting = false;
       stopRequested = false;
       if (mid && mid === lastSentMessageId) lastSentMessageId = null;
-      finalizeStreaming(mid, data.message, data.timestamp);
+      const streamed = mid && streamingMessageId === mid && streamingMessageEl
+        && streamingMessageEl.querySelector('.stream-content').textContent.trim();
+      if (data.status === 'error' && streamed) {
+        // Failure after some text: the text stays, the reason follows it
+        finalizeStreaming(mid, null, data.timestamp);
+        addMessage(data.message || '', false, data.timestamp);
+      } else {
+        finalizeStreaming(mid, data.message, data.timestamp);
+      }
       updateSendButton();
     } else if (data.type === 'chunk') {
       const cmid = data.message_id || '';
@@ -501,6 +727,16 @@
     } else if (data.type === 'ack') {
       if (data.message_id) {
         lastSentMessageId = data.message_id;
+        if (!pendingLocalSend && typeof data.text === 'string'
+          && !renderedMessageIds.has('user:' + data.message_id)) {
+          // Sent by a command (selection, active file), not typed here
+          userPinnedToBottom = true;
+          addMessage(userDisplayText(data.text, data.attachments), true, data.timestamp);
+          isWaiting = true;
+          showTyping();
+          updateSendButton();
+        }
+        pendingLocalSend = false;
         renderedMessageIds.add('user:' + data.message_id);
         // Stop cliqué avant cet ack : la réponse est déjà arrêtée.
         if (stopRequested) closedMessageIds.add(data.message_id);
@@ -529,6 +765,7 @@
     userPinnedToBottom = true;
     addMessage(displayText, true);
 
+    pendingLocalSend = true;
     vscode.postMessage({
       type: 'send-chat',
       text,
@@ -903,12 +1140,20 @@
   }
 
   // ── MESSAGE RENDERING ────────────────────────────────
-  function addMessage(text, isUser, timestamp) {
+  // origin: where a user message was typed ('desktop', 'mobile'), labelled
+  function addMessage(text, isUser, timestamp, origin) {
     if (welcomeEl) welcomeEl.style.display = 'none';
     const msg = document.createElement('div');
     msg.className = 'message ' + (isUser ? 'user' : 'ai');
     const time = formatTime(timestamp ? new Date(timestamp) : new Date());
-    if (isUser) {
+    const label = isUser ? originText(origin) : '';
+    if (label) {
+      msg.innerHTML = '<div class="user-stack">' +
+        '<span class="origin-label" data-origin="' + escapeHtml(origin) + '">' +
+        escapeHtml(label) + '</span>' +
+        '<div class="bubble">' + escapeHtml(text) +
+        '<span class="time">' + time + '</span></div></div>';
+    } else if (isUser) {
       msg.innerHTML = '<div class="bubble">' + escapeHtml(text) +
         '<span class="time">' + time + '</span></div>';
     } else {
@@ -1099,6 +1344,7 @@
     streamingMessageEl = null;
     streamingSegmentIndex = null;
     toolCardEls.clear();
+    toolCardEvents.clear();
   }
 
   function scrollToBottom() {
@@ -1264,7 +1510,7 @@
   }
 
   function formatTime(date) {
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
   }
 
   function setStatus(state, label) {

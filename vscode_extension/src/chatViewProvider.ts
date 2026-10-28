@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ConnectionManager } from './connectionManager';
+import { currentLanguage, isRtl, localeTag, onDidChangeLanguage, t } from './i18n';
 import { ConnectionState, IncomingPayload } from './types';
 import { WorkspaceBridge } from './workspaceBridge';
 
@@ -33,17 +34,27 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     manager.on('state-changed', (state: ConnectionState) => {
       this.postState(state).catch(() => { /* webview may be closed */ });
+      // The conversation itself follows the host's hello_ack (code_snapshot)
       if (state.kind === 'connected') {
-        this.loadHistory();
         this.loadPrompts();
       }
     });
     manager.on('message', (payload: IncomingPayload) => {
       this.post({ type: 'relay-message', payload });
+      if (payload.type === 'hello_ack') {
+        // Shared conversation or not: the welcome text says it
+        this.postState(this.manager.getState()).catch(() => { /* webview may be closed */ });
+      }
     });
     manager.on('tool-event', (event: unknown) => {
       this.post({ type: 'tool-event', event });
     });
+    // My_AI's language changed: the view speaks the new one at once
+    context.subscriptions.push(onDidChangeLanguage(() => {
+      this.post({ type: 'init-strings', ...webviewLanguage() })
+        .then(() => this.postState(this.manager.getState()))
+        .then(undefined, () => { /* webview may be closed */ });
+    }));
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -81,12 +92,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const m = msg as { type: string } & Record<string, unknown>;
     switch (m.type) {
       case 'webview-ready':
-        await this.post({ type: 'init-strings', strings: getWebviewStrings() });
+        await this.post({ type: 'init-strings', ...webviewLanguage() });
         await this.postState(this.manager.getState());
         await this.post({ type: 'auto-attach-state', value: this.bridge.isAutoAttachEnabled() });
         if (this.manager.getState().kind === 'connected') {
-          this.loadHistory();
+          // View reloaded: the whole conversation again, from the host
+          await this.manager.requestConversation().catch(() => { /* reconnecting */ });
           this.loadPrompts();
+        }
+        break;
+      case 'clear-chat':
+        // New conversation everywhere; an older host (or none) only clears this view
+        if (!(await this.manager.clearConversation().catch(() => false))) {
+          await this.post({ type: 'clear-local' });
+        }
+        break;
+      case 'approve-tool':
+        if (typeof m.callId === 'string' && typeof m.decision === 'string') {
+          this.manager.approveTool(m.callId, m.decision);
         }
         break;
       case 'connect-request':
@@ -144,14 +167,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       allFileIds = autoIds.concat(allFileIds);
     } catch (err) {
       vscode.window.showWarningMessage(
-        vscode.l10n.t('My_AI Relay: auto-attach failed: {0}', (err as Error).message),
+        t('My_AI Relay: auto-attach failed: {0}', (err as Error).message),
       );
     }
     try {
       await this.manager.sendChat(text, allFileIds);
     } catch (err) {
+      await this.post({ type: 'send-failed' });
       vscode.window.showErrorMessage(
-        vscode.l10n.t('My_AI Relay: send failed: {0}', (err as Error).message),
+        t('My_AI Relay: send failed: {0}', (err as Error).message),
       );
     }
   }
@@ -159,9 +183,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handlePickFile(): Promise<void> {
     const picks = await vscode.window.showOpenDialog({
       canSelectMany: true,
-      openLabel: vscode.l10n.t('Send to My_AI'),
+      openLabel: t('Send to My_AI'),
       filters: {
-        [vscode.l10n.t('All supported')]: [
+        [t('All supported')]: [
           'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'potx', 'csv',
           'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff', 'tif',
           'py', 'js', 'ts', 'tsx', 'jsx', 'html', 'css', 'json', 'xml', 'md', 'txt',
@@ -345,16 +369,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async loadHistory(): Promise<void> {
-    try {
-      const items = await this.manager.loadHistory();
-      await this.post({ type: 'history', items });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[my-ai-relay] loadHistory failed:', err);
-    }
-  }
-
   private async loadPrompts(): Promise<void> {
     try {
       const items = await this.manager.loadPrompts();
@@ -367,7 +381,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private async postState(state: ConnectionState): Promise<void> {
     const hasCredentials = await this.manager.hasSavedCredentials();
-    await this.post({ type: 'state', state, hasCredentials });
+    await this.post({
+      type: 'state',
+      state,
+      hasCredentials,
+      shared: this.manager.sharesConversation,
+    });
   }
 
   private post(message: unknown): Thenable<boolean> {
@@ -395,51 +414,91 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 }
 
 /**
+ * Strings of the webview in My_AI's language, with what the page needs to
+ * show it: language and direction of the document (Arabic is written right
+ * to left), and the locale of the times. Posted right after `webview-ready`,
+ * and again when My_AI's language changes.
+ */
+function webviewLanguage(): {
+  strings: Record<string, string>;
+  lang: string;
+  dir: 'rtl' | 'ltr';
+  locale: string;
+} {
+  return {
+    strings: getWebviewStrings(),
+    lang: currentLanguage(),
+    dir: isRtl() ? 'rtl' : 'ltr',
+    locale: localeTag(),
+  };
+}
+
+/**
  * Build the bundle of localized strings consumed by the webview. The
  * webview-side keys are stable internal identifiers, but each localized
- * value is produced by `vscode.l10n.t(<English source string>)` so the
- * VS Code l10n bundles (`l10n/bundle.l10n.<locale>.json`) — which key on
- * source strings, NOT abstract identifiers — actually find translations.
- * Posted to the webview right after `webview-ready`.
+ * value is produced by `t(<English source string>)`, whose catalogs
+ * (`l10n/<language>.json`) key on source strings, NOT abstract identifiers.
  */
 function getWebviewStrings(): Record<string, string> {
   return {
-    'webview.status.disconnected': vscode.l10n.t('Disconnected'),
-    'webview.status.connecting': vscode.l10n.t('Connecting…'),
-    'webview.status.reconnecting': vscode.l10n.t('Reconnecting…'),
-    'webview.status.connected': vscode.l10n.t('Connected'),
-    'webview.status.notConnected': vscode.l10n.t('Not connected'),
-    'webview.banner.connectionLost': vscode.l10n.t('Connection lost. Trying to reconnect…'),
-    'webview.connect.title': vscode.l10n.t('Not connected'),
-    'webview.connect.description': vscode.l10n.t(
-      'Start the Relay on your My_AI host PC, click "Copier" in the Relay panel once a tunnel is active, paste the link here, then enter the access code shown under the QR code.',
+    'webview.status.disconnected': t('Disconnected'),
+    'webview.status.connecting': t('Connecting…'),
+    'webview.status.reconnecting': t('Reconnecting…'),
+    'webview.status.connected': t('Connected'),
+    'webview.status.notConnected': t('Not connected'),
+    'webview.banner.connectionLost': t('Connection lost. Trying to reconnect…'),
+    'webview.connect.title': t('Not connected'),
+    'webview.connect.description': t(
+      'Start the Relay on your My_AI host PC, click "Copy" in the Relay panel once a tunnel is active, paste the link here, then enter the access code shown under the QR code.',
     ),
-    'webview.connect.button': vscode.l10n.t('Paste connection string…'),
-    'webview.connect.hint': vscode.l10n.t('Your credentials stay encrypted in VS Code SecretStorage.'),
+    'webview.connect.button': t('Paste connection string…'),
+    'webview.connect.hint': t('Your credentials stay encrypted in VS Code SecretStorage.'),
     'webview.welcome.title': 'My_AI Relay',
-    'webview.welcome.text': vscode.l10n.t(
+    'webview.welcome.text': t(
       'Connected to your self-hosted assistant. Type a message to start.',
     ),
-    'webview.header.autoAttachTooltip': vscode.l10n.t(
+    'webview.welcome.shared': t(
+      'This conversation also shows on the Code page of My_AI and on your phone: a message typed there acts here too.',
+    ),
+    'webview.header.autoAttachTooltip': t(
       'Auto-attach the active editor file to every message',
     ),
-    'webview.header.autoAttachOn': vscode.l10n.t('Auto-attach: on'),
-    'webview.header.autoAttachOff': vscode.l10n.t('Auto-attach: off'),
-    'webview.header.clearTooltip': vscode.l10n.t('Clear chat (local view only)'),
-    'webview.header.clear': vscode.l10n.t('Clear'),
-    'webview.header.reconnect': vscode.l10n.t('New connection'),
-    'webview.header.reconnectTooltip': vscode.l10n.t(
+    'webview.header.autoAttachOn': t('Auto-attach: on'),
+    'webview.header.autoAttachOff': t('Auto-attach: off'),
+    'webview.header.clearTooltip': t(
+      'New conversation: also clears it on the Code page of My_AI and on the phone',
+    ),
+    'webview.header.clear': t('Clear'),
+    'webview.header.reconnect': t('New connection'),
+    'webview.header.reconnectTooltip': t(
       'Paste a new connection string (use this if you restarted the Relay and the token changed)',
     ),
-    'webview.input.placeholder': vscode.l10n.t('Type your message…'),
-    'webview.input.attachTooltip': vscode.l10n.t('Attach a file or image'),
-    'webview.mention.attachFolder': vscode.l10n.t('attach this folder'),
-    'webview.send.stopTooltip': vscode.l10n.t('Stop generation'),
-    'webview.code.insert': vscode.l10n.t('Insert'),
-    'webview.code.copy': vscode.l10n.t('Copy'),
-    'webview.code.inserted': vscode.l10n.t('Inserted!'),
-    'webview.code.copied': vscode.l10n.t('Copied!'),
-    'webview.attachment.remove': vscode.l10n.t('Remove'),
-    'webview.attachment.error': vscode.l10n.t('error'),
+    'webview.input.placeholder': t('Type your message…'),
+    'webview.input.attachTooltip': t('Attach a file or image'),
+    'webview.mention.attachFolder': t('attach this folder'),
+    'webview.send.stopTooltip': t('Stop generation'),
+    'webview.code.insert': t('Insert'),
+    'webview.code.copy': t('Copy'),
+    'webview.code.inserted': t('Inserted!'),
+    'webview.code.copied': t('Copied!'),
+    'webview.attachment.remove': t('Remove'),
+    'webview.attachment.error': t('error'),
+    'webview.tool.input': t('Input'),
+    'webview.tool.output': t('Output'),
+    'webview.tool.empty': t('(empty)'),
+    'webview.tool.running': t('running'),
+    'webview.tool.awaiting': t('waiting for approval'),
+    'webview.tool.denied': t('denied'),
+    'webview.tool.completed': t('done'),
+    'webview.tool.failed': t('error'),
+    'webview.tool.stopped': t('stopped'),
+    'webview.approval.prompt': t('Allow this action?'),
+    'webview.approval.allow-once': t('Allow once'),
+    'webview.approval.allow-target': t('Allow for this file'),
+    // {0}: name of the tool, filled in by the page
+    'webview.approval.allow-tool': t('Allow all {0} this session'),
+    'webview.approval.deny': t('Deny'),
+    'webview.origin.desktop': t('From My_AI on the PC'),
+    'webview.origin.mobile': t('From the phone'),
   };
 }

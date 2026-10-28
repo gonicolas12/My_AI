@@ -5,6 +5,58 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-10-28
+
+The VS Code conversation is shared with My_AI on the PC and on the phone,
+and kept apart from their regular chat. The extension speaks the 12
+languages of My_AI.
+
+### Added
+- **One conversation, three places.** The chat also shows on the new
+  **Code** page of My_AI on the host PC (button at the top of its sidebar)
+  and in the **Code** view of its phone page (`</>` button left of
+  **Chat**). A message typed there lands here and acts in your workspace;
+  the reply streams everywhere, tool cards included. Messages typed
+  elsewhere show where they come from, with the names of their
+  attachments: a message from the PC can carry documents, code and
+  images, read by the model on the host.
+- **Approvals from anywhere.** For a message typed on the PC or the phone,
+  a write or a shell command asks for approval with buttons in its tool
+  card — here, on the PC and on the phone — and the first answer counts;
+  the tool waits without timing out. A message typed in VS Code still asks
+  in the modal dialog.
+- **12 languages.** The chat, notifications and prompts speak the language
+  chosen in My_AI (French, English, Spanish, German, Italian, Portuguese,
+  Dutch, Russian, Chinese, Japanese, Korean, and Arabic, right to left):
+  the Relay gives it on connection and when it changes, and the extension
+  remembers it. Before the first connection: VS Code's language if My_AI
+  speaks it, English otherwise. Command titles and setting descriptions
+  follow VS Code's display language, now in these languages too.
+
+### Changed
+- **Clear** starts a new conversation in VS Code, on the PC and on the
+  phone, and stops a reply in progress. It used to clear this view only.
+- **Memory.** The conversation, and the model's context, live on the host:
+  they survive reconnections and restarts of My_AI. Past the model's
+  context window, the oldest exchanges are dropped.
+- **Stop** stops the reply in progress wherever its message was typed.
+
+### Fixed
+- **Replies of the phone's chat showed in VS Code**, and its history
+  loaded into the view on connection. They no longer do.
+- **The last words of a reply could be missing** (the host dropped the end
+  of a streamed passage). Replies now arrive whole.
+- **"Send selection" and "Send active file"**: the message now shows in
+  the chat, with the typing indicator.
+- **Tool cards** were labelled in French whatever the language.
+- **A failed send** no longer leaves the Stop button stuck.
+- **A modal approval answered after Stop** no longer runs the tool.
+
+### Notes
+- With a host from before this version, the extension works as before,
+  without the shared conversation: it no longer loads the phone's chat
+  history there.
+
 ## [1.5.2] — 2026-10-26
 
 Marketplace listing only: no change to how the extension works.

@@ -7,7 +7,7 @@ import {
   importAesGcmKey,
 } from './crypto';
 import {
-  HistoryItem,
+  ApprovalDecision,
   IncomingPayload,
   PromptTemplate,
   RelayCredentials,
@@ -176,16 +176,6 @@ export class RelayClient extends EventEmitter {
     return (await decryptEnvelope(this.cryptoKey, await res.json())) as UnlockResult;
   }
 
-  async loadHistory(): Promise<HistoryItem[]> {
-    if (!this.cryptoKey || !this.currentBaseUrl) {
-      throw new Error('Relay not connected');
-    }
-    const url = `${this.currentBaseUrl}/api/history?${this.authQuery()}`;
-    const wrapper = await this.fetchJson(url);
-    const decrypted = (await decryptEnvelope(this.cryptoKey, wrapper)) as { history?: HistoryItem[] };
-    return Array.isArray(decrypted?.history) ? decrypted.history : [];
-  }
-
   async loadPrompts(): Promise<PromptTemplate[]> {
     if (!this.cryptoKey || !this.currentBaseUrl) {
       throw new Error('Relay not connected');
@@ -313,6 +303,31 @@ export class RelayClient extends EventEmitter {
   /** Demande au host d'arrêter la génération en cours (LLM + appels d'outils). */
   async sendStop(messageId: string): Promise<void> {
     await this.sendEncrypted({ type: 'stop_generation', message_id: messageId });
+  }
+
+  /**
+   * Code conversation (hosts whose hello_ack has `code: true`): ask for its
+   * full state again (`code_snapshot` follows, in order with what comes next).
+   */
+  async sendCodeSubscribe(): Promise<void> {
+    await this.sendEncrypted({ type: 'code_subscribe' });
+  }
+
+  /** New conversation, on VS Code, the PC and the phone; a reply in progress stops. */
+  async sendCodeClear(): Promise<void> {
+    await this.sendEncrypted({ type: 'code_clear' });
+  }
+
+  /**
+   * State of a tool call in the dispatcher, shown on the PC and the phone:
+   * approval asked (`options`: the answers they may give), running, denied.
+   */
+  async sendToolStatus(
+    callId: string,
+    status: string,
+    options?: ApprovalDecision[],
+  ): Promise<void> {
+    await this.sendEncrypted({ type: 'tool_status', call_id: callId, status, options });
   }
 
   /**

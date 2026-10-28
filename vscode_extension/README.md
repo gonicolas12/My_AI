@@ -29,10 +29,21 @@ exactly as before.
   `edit_file`, and `run_command` ask for confirmation, with options to allow
   once, allow for the same file, or allow the tool for the rest of the
   session.
-- ⏹️ **Stop & Clear** — while a reply is being written, the send button
-  turns into Stop: it stops the model and any pending tool call, and the
-  text freezes at once. **Clear** empties the view (the session context
-  stays on the host) and stops a reply in progress.
+- 🔁 **One conversation, three places** — the chat also shows on the
+  **Code** page of My_AI on the host PC and in the **Code** view of its
+  phone page. A message typed there lands here and acts in your workspace,
+  the reply streams everywhere, and a write or a command it needs can be
+  approved from any of the three. The phone's regular chat never shows here.
+- ⏹️ **Stop & Clear** — while a reply is being written, wherever its
+  message was typed, the send button turns into Stop: it stops the model
+  and any pending tool call, and the text freezes at once. **Clear** starts
+  a new conversation (in VS Code, on the PC and on the phone) and stops a
+  reply in progress.
+- 🌍 **12 languages** — the chat, notifications and prompts speak the
+  language chosen in My_AI (French, English, Spanish, German, Italian,
+  Portuguese, Dutch, Russian, Chinese, Japanese, Korean, Arabic, right to
+  left), and follow it when it changes. Command titles and settings follow
+  VS Code's display language.
 - 🔐 **End-to-end encryption** — AES-256-GCM over the public tunnel. The
   tunnel server (Cloudflare, localhost.run) only ever sees ciphertext.
 - 🔑 **Access code** — when you connect, the extension asks for the 6-digit
@@ -73,7 +84,7 @@ exactly as before.
 
 ### 2. Copy the connection string
 
-In the same Relay panel, click **Copier** (Copy) next to the link: the
+In the same Relay panel, click **Copy** next to the link: the
 connection string is the QR code's link, the one the phone opens. Before a
 tunnel answers, that field shows the PC's local address instead, which the
 extension can't use. The string copied looks like:
@@ -132,7 +143,8 @@ answer.
 | `get_active_editor` | Read the currently open file and the user's selection. |
 | `open_file` | Open a workspace file in the editor (and reveal an optional line). |
 
-⚠ = requires explicit user approval (modal dialog).
+⚠ = requires explicit user approval (modal dialog, or buttons in the tool
+card for a message typed on the PC or the phone).
 
 ### Sandbox & approvals
 
@@ -149,6 +161,12 @@ answer.
     for the rest of the session (not available for `run_command`).
   - *Allow all <tool> this session* — auto-approves the tool everywhere
     until disconnect/reconnect.
+- **Asked where you are.** For a message typed in VS Code, the modal
+  dialog asks. For a message typed on the **Code** page of My_AI or on the
+  phone, you may be away from VS Code: the same choices appear as buttons
+  in the tool card — in this chat, on the PC and on the phone — and the
+  first answer counts. Until then the tool waits, without timing out;
+  **Stop** cancels it.
 - Approvals reset on every reconnect.
 
 ### Tool cards in the chat
@@ -166,9 +184,12 @@ Click the header to expand the input (JSON args) and the output
 
 ### Conversation memory
 
-The agentic context is preserved for the whole WebSocket session. You can
-say *"now edit the file you just read"* and the model will remember the
-previous tool calls. Reconnecting starts a fresh agentic conversation.
+The conversation lives on the host, shared by VS Code, the **Code** page of
+My_AI and the phone. You can say *"now edit the file you just read"* and
+the model will remember the previous tool calls, even after a reconnection
+or a restart of My_AI. **Clear** starts a fresh conversation everywhere.
+When it grows past the model's context window, its oldest exchanges are
+dropped.
 
 ## Workspace features
 

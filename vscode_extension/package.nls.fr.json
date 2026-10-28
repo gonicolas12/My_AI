@@ -1,6 +1,6 @@
 {
   "extension.displayName": "My_AI",
-  "extension.description": "Chat agentique avec votre assistant My_AI auto-hébergé : lecture, édition, création de fichiers, exécution de commandes et recherche dans votre workspace. Le LLM local reste sur votre PC hôte ; tout transite via un tunnel chiffré bout-en-bout.",
+  "extension.description": "Chat agentique avec votre assistant My_AI auto-hébergé : lecture, édition, création de fichiers, exécution de commandes et recherche dans votre workspace. Le LLM local reste sur votre PC hôte ; tout transite via un tunnel chiffré bout-en-bout. La conversation s'affiche aussi sur la page Code de My_AI et sur votre téléphone.",
   "view.container.title": "My_AI Relay",
   "view.chat.name": "Chat",
   "view.chat.contextualTitle": "My_AI Relay",
@@ -19,5 +19,5 @@
   "configuration.openInSecondarySidebar.description": "Au premier lancement, propose de déplacer la vue My_AI Relay vers la barre latérale secondaire (à droite, comme Copilot Chat). Désactivez cette option si vous préférez l'emplacement standard à gauche. VS Code mémorise vos déplacements manuels après le premier choix.",
   "configuration.healthCheckIntervalSeconds.description": "Intervalle entre deux contrôles de santé du Relay (en secondes). Permet de détecter quand le PC hôte arrête le Relay et de déclencher une déconnexion automatique.",
   "configuration.autoReconnect.description": "Lorsque cette option est activée, l'extension continue d'interroger les tunnels après une déconnexion et se reconnecte automatiquement dès que le Relay redevient disponible.",
-  "configuration.requestTimeoutSeconds.description": "Délai d'expiration par requête HTTP (health, history, upload, pending), en secondes."
+  "configuration.requestTimeoutSeconds.description": "Délai d'expiration par requête HTTP (santé, code d'accès, prompts, envoi de fichiers), en secondes."
 }

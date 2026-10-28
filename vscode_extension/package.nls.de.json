@@ -1,0 +1,23 @@
+{
+  "extension.displayName": "My_AI",
+  "extension.description": "Agentischer Chat mit Ihrem selbst gehosteten My_AI-Assistenten: Dateien lesen, bearbeiten und erstellen, Befehle ausführen und Ihren Workspace durchsuchen. Das lokale LLM bleibt auf Ihrem Host-PC; alles läuft über einen Ende-zu-Ende-verschlüsselten Tunnel. Die Unterhaltung erscheint auch auf der Code-Seite von My_AI und auf Ihrem Smartphone.",
+  "view.container.title": "My_AI Relay",
+  "view.chat.name": "Chat",
+  "view.chat.contextualTitle": "My_AI Relay",
+  "command.category": "My_AI Relay",
+  "command.connect": "Verbinden",
+  "command.disconnect": "Trennen",
+  "command.forgetCredentials": "Gespeicherte Verbindung vergessen",
+  "command.sendSelection": "Auswahl an My_AI senden",
+  "command.sendActiveFile": "Aktive Datei an My_AI senden",
+  "command.attachCodebase": "Ordner als @codebase anhängen",
+  "command.reindexCodebase": "@codebase-Ordner neu indizieren",
+  "command.toggleAutoAttach": "Automatisches Anhängen der aktiven Datei umschalten",
+  "command.focusChat": "Chat öffnen",
+  "command.moveToSecondarySidebar": "Chat in die sekundäre Seitenleiste verschieben (rechts)",
+  "configuration.title": "My_AI Relay",
+  "configuration.openInSecondarySidebar.description": "Bei der ersten Aktivierung anbieten, die Ansicht My_AI Relay in die sekundäre Seitenleiste zu verschieben (rechts, wie Copilot Chat). Deaktivieren Sie dies, wenn Sie den üblichen Platz links bevorzugen. VS Code merkt sich Ihre manuellen Änderungen nach der ersten Verschiebung.",
+  "configuration.healthCheckIntervalSeconds.description": "Abstand zwischen zwei Statusprüfungen des Relay (Sekunden). Erkennt, wenn der Host das Relay stoppt, und trennt dann automatisch.",
+  "configuration.autoReconnect.description": "Wenn aktiviert, prüft die Erweiterung die Tunnel nach einer Trennung weiter und verbindet sich automatisch neu, sobald das Relay wieder erreichbar ist.",
+  "configuration.requestTimeoutSeconds.description": "Zeitlimit pro HTTP-Anfrage (Status, Zugangscode, Prompts, Datei-Upload) in Sekunden."
+}
