@@ -1007,12 +1007,21 @@ function removeTyping() {
   }
 }
 
-function clearChat() {
-  // Vue Code : nouvelle conversation Code (aussi dans VS Code et sur le PC)
-  if (window.CodeUI && window.CodeUI.isActive()) {
+// Corbeille de la barre d'onglets : vide la page ouverte, et elle seule
+function clearPage() {
+  if (window.AgentsUI && window.AgentsUI.isActive()) {
+    // Agents : leurs résultats ; le workflow et les deux conversations restent
+    window.AgentsUI.clearResults();
+  } else if (window.CodeUI && window.CodeUI.isActive()) {
+    // Code : nouvelle conversation Code (aussi dans VS Code et sur le PC)
     window.CodeUI.clear();
-    return;
+  } else {
+    clearChat();
   }
+}
+
+// Chat : ses messages à l'écran (la conversation Code a sa propre vue)
+function clearChat() {
   // Remove all messages but keep the welcome element
   var children = Array.from(messagesEl.children);
   for (var i = 0; i < children.length; i++) {

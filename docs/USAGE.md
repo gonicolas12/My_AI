@@ -1389,7 +1389,7 @@ My_AI Relay vous permet de discuter avec votre IA depuis votre smartphone (iOS o
 2. My_AI Relay démarre un serveur WebSocket local et ouvre **plusieurs tunnels en parallèle** (cloudflared et localhost.run ; serveo en option) pour garantir que le téléphone puisse en atteindre au moins un — utile quand un opérateur mobile filtre certains domaines de tunnels publics. Le PC vérifie chaque tunnel annoncé : le panneau montre l'état de chacun (« Vérification des tunnels… », « ne répond pas »). Si aucun ne répond au PC dans les 30 s, le panneau affiche « Aucun tunnel ne répond depuis ce PC » et le QR code les reprend tous, sans garantie : le PC peut être sur un réseau qui filtre ces domaines, pas le téléphone
 3. Un **QR code** s'affiche dans le panneau Relay dès qu'un tunnel répond (en quelques secondes avec localhost.run ; cloudflared le rejoint 15 à 20 s après le démarrage, et le QR code se met alors à jour) — scannez-le avec votre téléphone. Le QR ne contient que les tunnels joignables et pointe vers une **page de routage statique** (hébergée sur GitHub Pages) qui les ping et redirige automatiquement vers le premier qui répond, en général le plus rapide. Elle parle la langue de My_AI, que le lien lui transmet, comme la page mobile qui suit
 4. Le téléphone demande le **code d'accès** affiché sous le QR code dans le panneau Relay (6 chiffres, nouveau à chaque démarrage du Relay). Le navigateur du téléphone retient la session qu'il ouvre tant que le Relay tourne : ni un rechargement de la page, ni le navigateur fermé puis rouvert ne le redemandent. Un autre navigateur ou un autre appareil le demande, et le redémarrage du Relay aussi (nouveau lien, nouveau code). Après 5 codes erronés, le Relay n'en accepte plus aucun jusqu'à son redémarrage (nouveau QR code, nouveau code), et la fenêtre du PC signale chaque code erroné
-5. L'interface mobile s'ouvre sur deux onglets en haut — **💬 Chat** et **🤖 Agents** — qui reprennent la navigation de la fenêtre du PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents.
+5. L'interface mobile s'ouvre sur deux onglets en haut — **Chat** et **Agents**, avec les icônes de la fenêtre du PC — qui reprennent la navigation de la fenêtre du PC. Le Chat est affiché par défaut ; touchez **Agents** pour accéder au système d'agents. De part et d'autre, en orange : `</>` à gauche ouvre la conversation Code (voir plus bas), la **corbeille** à droite vide la page ouverte, et elle seule : le chat, la conversation Code ou les résultats des agents.
 
 #### Onglet 💬 Chat
 
@@ -1406,6 +1406,7 @@ Téléphone                         PC (service de chat de l'appli)
 - La réponse est streamée en direct au mobile (token par token), puis finalisée
 - **Bouton Stop** : pendant la génération, le bouton d'envoi se transforme en bouton Stop (carré noir sur fond blanc). Le toucher interrompt la réponse du téléphone (ou retire son message de la file d'attente) et renvoie la réponse partielle marquée « interrompue »
 - **Liens cliquables** : la syntaxe Markdown `[titre](url)` ainsi que les URLs nues s'affichent en **bleu souligné cliquable** (ouverture dans un nouvel onglet), comme sur le PC
+- **Corbeille** (à droite de la barre d'onglets) : vide les messages du chat sur le téléphone ; la conversation du PC, la conversation Code et les résultats des agents n'en font pas partie
 
 #### Onglet 🤖 Agents
 
@@ -1417,13 +1418,14 @@ L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du PC**,
 - **Exécution** — décrivez la tâche, touchez **▶ Exécuter** : chaque agent apparaît comme une section dépliable qui se remplit en streaming, avec le statut du nœud (En attente / En cours / Terminé / Erreur). Le bouton **▶ Exécuter** devient **■ Stop** pendant l'exécution.
 - **Mode Débat** — bouton **🎭 Mode Débat** : choisissez deux agents, un sujet et un nombre de tours ; les deux agents s'opposent tour par tour, en streaming.
 - **Clear Workflow** — vide le canvas.
+- **Corbeille** (à droite de la barre d'onglets) — vide les **Résultats** ; le workflow reste. Inactive pendant une exécution ou un débat, dont les sections s'écrivent encore.
 - **Pièces jointes** — bouton **+** de la barre d'action (voir ci-dessous) : le contenu des fichiers (ou la description de l'image) est injecté dans la tâche des agents.
 
 > Les workflows/débats s'exécutent **un à la fois** (comme sur le PC). Le mode débat ne prend pas de pièces jointes, comme sur le PC.
 
 #### Bouton `</>` Code
 
-Le bouton `</>`, à gauche de **Chat**, ouvre la **conversation de l'extension VS Code**, isolée du chat, dans la même interface que lui : les messages envoyés et reçus dans VS Code et sur la page Code du PC y sont, et un message tapé là part à l'extension, qui agit dans son workspace (réponse en streaming, appels d'outils, boutons d'approbation pour une écriture ou une commande). Le bandeau du haut dit si VS Code est connecté, et à quel dossier. **Effacer** y commence une nouvelle conversation, aussi dans VS Code et sur le PC (après confirmation). Voir [Extension VS Code](#-extension-vs-code--mode-agentique).
+Le bouton `</>`, à gauche de **Chat**, ouvre la **conversation de l'extension VS Code**, isolée du chat, dans la même interface que lui : les messages envoyés et reçus dans VS Code et sur la page Code du PC y sont, et un message tapé là part à l'extension, qui agit dans son workspace (réponse en streaming, appels d'outils, boutons d'approbation pour une écriture ou une commande). Le bandeau du haut dit si VS Code est connecté, et à quel dossier. La **corbeille** y commence une nouvelle conversation, aussi dans VS Code et sur le PC (après confirmation). Voir [Extension VS Code](#-extension-vs-code--mode-agentique).
 
 #### 📎 Pièces jointes depuis le mobile
 
