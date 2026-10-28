@@ -1,5 +1,6 @@
 /*
- * Glisser-déposer de fichiers sur la page Chat (on_file_drop de Tk).
+ * Glisser-déposer de fichiers sur la page Chat (on_file_drop de Tk), et sur la
+ * page Code, qui fournit ses propres pièces jointes.
  *
  * Tant que des fichiers survolent la fenêtre, la carte de saisie s'éclaire
  * (bordure orange, comme dans Tk). Déposés sur la page, ils deviennent des
@@ -14,23 +15,40 @@ import { shell } from '../../lib/shell';
 import { setDropping } from '../../stores/composer';
 import { attachPaths, droppedFiles, uploadFiles } from './attach';
 
-export function useFileDrop(zone: DropZone) {
+/** Ce que deviennent les fichiers déposés ; un objet stable (constante de module) */
+export interface DropTarget {
+  /** Fichiers déposés dans la fenêtre de l'appli, par leur chemin */
+  onPaths: (paths: string[]) => void;
+  /** Fichiers déposés dans un navigateur : leur contenu */
+  onFiles: (files: File[]) => void;
+  /** Des fichiers survolent la fenêtre : la carte de saisie s'éclaire */
+  setDropping: (dropping: boolean) => void;
+}
+
+const CHAT_TARGET: DropTarget = {
+  onPaths: (paths) => void attachPaths(paths),
+  onFiles: (files) => void uploadFiles(files),
+  setDropping,
+};
+
+export function useFileDrop(zone: DropZone, target: DropTarget = CHAT_TARGET) {
+  const { onPaths, onFiles, setDropping: light } = target;
   // Survol de la fenêtre : entrées et sorties comptées, chaque élément en émet
   useEffect(() => {
     let depth = 0;
     const enter = (event: DragEvent) => {
       if (!hasFiles(event)) return;
       depth += 1;
-      setDropping(true);
+      light(true);
     };
     const leave = (event: DragEvent) => {
       if (!hasFiles(event)) return;
       depth = Math.max(0, depth - 1);
-      if (!depth) setDropping(false);
+      if (!depth) light(false);
     };
     const end = () => {
       depth = 0;
-      setDropping(false);
+      light(false);
     };
     window.addEventListener('dragenter', enter);
     window.addEventListener('dragleave', leave);
@@ -41,11 +59,11 @@ export function useFileDrop(zone: DropZone) {
       window.removeEventListener('dragleave', leave);
       window.removeEventListener('drop', end, true);
       window.removeEventListener('dragend', end);
-      setDropping(false);
+      light(false);
     };
-  }, []);
+  }, [light]);
 
-  useEffect(() => onDroppedPaths(zone, (paths) => void attachPaths(paths)), [zone]);
+  useEffect(() => onDroppedPaths(zone, onPaths), [zone, onPaths]);
 
   return {
     onDragOver(event: React.DragEvent) {
@@ -58,7 +76,7 @@ export function useFileDrop(zone: DropZone) {
       event.preventDefault();
       noteDrop(zone);
       // Navigateur : pas de chemin, le contenu part au serveur
-      if (!shell.isDesktop()) void uploadFiles(droppedFiles(event.dataTransfer));
+      if (!shell.isDesktop()) onFiles(droppedFiles(event.dataTransfer));
     },
   };
 }

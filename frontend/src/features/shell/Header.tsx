@@ -5,10 +5,11 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { clearConversation, toggleSidebar } from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import { type MessageKey, useT } from '../../i18n';
-import { setTab, useApp, type Tab } from '../../stores/app';
+import { hasSidebar, setTab, useApp, type Tab } from '../../stores/app';
 import { openPanel } from '../../stores/panels';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
+import { clearCode, useCode } from '../../stores/code';
 
 const TABS: { id: Tab; label: MessageKey; icon: typeof Bot }[] = [
   { id: 'chat', label: 'header.tab.chat', icon: MessageSquare },
@@ -54,37 +55,41 @@ export function Header() {
   const sidebarOpen = useApp((state) => state.sidebarOpen);
   const hasMessages = useChat((state) => state.messages.length > 0);
   const busy = useChat(isGenerating);
+  const hasCodeMessages = useCode((state) => state.messages.length > 0);
 
   return (
     <header className="relative flex h-[var(--header-height)] shrink-0 items-center px-3">
       <div className="flex w-24 items-center">
-        {tab === 'chat' && !sidebarOpen ? (
+        {hasSidebar(tab) && !sidebarOpen ? (
           <IconButton label={t('header.showSidebar')} shortcut="Ctrl+B" onClick={toggleSidebar}>
             <PanelLeft size={18} className="rtl:-scale-x-100" />
           </IconButton>
         ) : null}
       </div>
 
-      <nav
-        aria-label={t('header.pages')}
-        className="absolute left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-bg-2 p-1"
-      >
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            aria-current={tab === id ? 'page' : undefined}
-            className={cn(
-              'flex h-8 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors duration-150',
-              tab === id ? 'bg-accent text-on-accent' : 'text-fg-2 hover:bg-hover hover:text-fg',
-            )}
-          >
-            <Icon size={15} />
-            {t(label)}
-          </button>
-        ))}
-      </nav>
+      {tab !== 'code' ? (
+        // Pas d'onglets sur la page Code : elle n'a rien des agents, la barre latérale y ramène au chat
+        <nav
+          aria-label={t('header.pages')}
+          className="absolute left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-bg-2 p-1"
+        >
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              aria-current={tab === id ? 'page' : undefined}
+              className={cn(
+                'flex h-8 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors duration-150',
+                tab === id ? 'bg-accent text-on-accent' : 'text-fg-2 hover:bg-hover hover:text-fg',
+              )}
+            >
+              <Icon size={15} />
+              {t(label)}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       <div className="ms-auto flex items-center gap-1">
         {tab === 'chat' && hasMessages ? (
@@ -101,6 +106,12 @@ export function Header() {
           // Comme Tk : à côté d'« Effacer », hors de l'accueil ; F1 ouvre l'aide partout
           <IconButton label={t('header.help')} shortcut="F1" onClick={() => openPanel('help')}>
             <CircleHelp size={17} />
+          </IconButton>
+        ) : null}
+        {tab === 'code' && hasCodeMessages ? (
+          // Nouvelle conversation, aussi dans VS Code et sur le téléphone
+          <IconButton label={t('code.clear')} shortcut="Ctrl+L" onClick={() => void clearCode()}>
+            <Trash2 size={17} />
           </IconButton>
         ) : null}
         <StatusDot />

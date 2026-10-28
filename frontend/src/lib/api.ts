@@ -9,7 +9,10 @@
 import type {
   AgentInfo,
   AgentsList,
+  ApprovalDecision,
   AttachmentView,
+  CodeSnapshot,
+  CodeState,
   ConversationSnapshot,
   EngineStatus,
   RelayStatus,
@@ -415,8 +418,8 @@ export interface RunRequest {
   attachments: { path: string; type: string }[];
 }
 
-/** Fichiers choisis ou déposés pour la zone de tâche des agents */
-export interface AgentAttachmentsResponse {
+/** Fichiers choisis ou déposés, vérifiés (zone de tâche des agents, page Code) */
+export interface CheckedAttachments {
   attachments: RunAttachment[];
   refused: string[];
 }
@@ -618,11 +621,11 @@ export const api = {
   deleteRun: (id: string) => request<{ ok: boolean }>('DELETE', `/api/agents/runs/${enc(id)}`),
   clearRuns: () => request<{ removed: number }>('DELETE', '/api/agents/runs'),
   agentAttachments: (paths: string[]) =>
-    post<AgentAttachmentsResponse>('/api/agents/attachments', { paths }),
+    post<CheckedAttachments>('/api/agents/attachments', { paths }),
   uploadAgentAttachment: (file: Blob, name: string) => {
     const form = new FormData();
     form.append('file', file, name);
-    return post<AgentAttachmentsResponse>('/api/agents/attachments/upload', form);
+    return post<CheckedAttachments>('/api/agents/attachments/upload', form);
   },
   saveWorkflow: (path: string | null, workflow: WorkflowFile) =>
     post<{ path: string }>('/api/agents/workflow/save', { path, workflow }),
@@ -653,6 +656,22 @@ export const api = {
     post<{ registered: boolean; ok: boolean; message: string }>('/api/schedule/background', {
       enabled,
     }),
+
+  code: () => request<CodeSnapshot>('GET', '/api/code'),
+  codeState: () => request<{ state: CodeState; seq: number }>('GET', '/api/code/state'),
+  sendCode: (text: string, files: { path: string; name: string }[] = []) =>
+    post<{ message_id: string }>('/api/code/send', { text, files }),
+  codeAttachments: (paths: string[]) =>
+    post<CheckedAttachments>('/api/code/attachments', { paths }),
+  uploadCodeAttachment: (file: Blob, name: string) => {
+    const form = new FormData();
+    form.append('file', file, name);
+    return post<CheckedAttachments>('/api/code/attachments/upload', form);
+  },
+  stopCode: () => post<{ stopped: boolean }>('/api/code/stop'),
+  clearCode: () => post<{ ok: boolean }>('/api/code/clear'),
+  approveCode: (callId: string, decision: ApprovalDecision) =>
+    post<{ ok: boolean }>('/api/code/approve', { call_id: callId, decision }),
 
   onboarding: () => request<OnboardingInfo>('GET', '/api/onboarding'),
   installModel: (name: string) =>

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import { ChatPage } from './features/chat/ChatPage';
+import { CodePage } from './features/code/CodePage';
 import { useAutoRead } from './features/chat/useAutoRead';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { CommandPalette } from './features/palette/CommandPalette';
@@ -23,9 +24,10 @@ import { installNavigationGuard, shell } from './lib/shell';
 import { installShortcuts, overlayOpen, ownsEscape, type ShortcutHandlers } from './lib/shortcuts';
 import { startSync } from './lib/sync';
 import { useT } from './i18n';
-import { useApp } from './stores/app';
+import { hasSidebar, useApp } from './stores/app';
 import { activeOrigin, stopAgentsRun } from './stores/agents';
 import { useChat } from './stores/chat';
+import { clearCode, stopCode, useCode } from './stores/code';
 import { isGenerating } from './stores/chatReducer';
 import { togglePalette, usePalette } from './stores/palette';
 import { togglePanel } from './stores/panels';
@@ -58,10 +60,12 @@ function useAppEffects() {
         'Ctrl+K': () => togglePalette(),
         ...unlessPalette({
           'Ctrl+B': () => {
-            if (useApp.getState().tab === 'chat') toggleSidebar();
+            if (hasSidebar(useApp.getState().tab)) toggleSidebar();
           },
           'Ctrl+N': () => void newConversation(),
-          'Ctrl+L': () => void clearConversation(),
+          // Sur la page Code, sa conversation (VS Code, PC et téléphone)
+          'Ctrl+L': () =>
+            void (useApp.getState().tab === 'code' ? clearCode() : clearConversation()),
           'Ctrl+S': () => void saveConversation(),
           'Ctrl+,': () => togglePanel('settings'),
           // Relay : démarré à l'ouverture du panneau, jamais arrêté par le raccourci (Tk)
@@ -78,6 +82,12 @@ function useAppEffects() {
             if (activeOrigin() !== 'desktop') return;
             event.preventDefault();
             void stopAgentsRun();
+            return;
+          }
+          if (useApp.getState().tab === 'code') {
+            if (!useCode.getState().state.busy) return;
+            event.preventDefault();
+            void stopCode();
             return;
           }
           if (!isGenerating(useChat.getState())) return;
@@ -123,12 +133,14 @@ export function App() {
     <TooltipProvider delayDuration={450} skipDelayDuration={200} disableHoverableContent>
       {started ? (
         <div className="flex h-full">
-          {tab === 'chat' ? <Sidebar /> : null}
+          {hasSidebar(tab) ? <Sidebar /> : null}
           <div className="flex min-w-0 flex-1 flex-col">
             <Header />
             <main className="flex min-h-0 flex-1 flex-col">
               {tab === 'chat' ? (
                 <ChatPage />
+              ) : tab === 'code' ? (
+                <CodePage />
               ) : (
                 <Suspense fallback={null}>
                   <AgentsPage />

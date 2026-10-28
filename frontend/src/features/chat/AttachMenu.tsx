@@ -1,6 +1,8 @@
 /*
  * Menu « + » de la zone de saisie : les entrées de l'interface Tk (PDF, DOCX,
  * Excel / CSV, PowerPoint, Code, Image, Dossier). Il s'ouvre vers le haut.
+ * Les fichiers choisis deviennent des pièces jointes du chat, ou de la page
+ * qui fournit les siens (page Code).
  */
 
 import { FolderOpen, Plus } from 'lucide-react';
@@ -14,17 +16,25 @@ import { ACCEPT, attachPaths, uploadFiles } from './attach';
 import { ATTACH_ENTRIES } from './attachKinds';
 
 interface AttachMenuProps {
-  /** Dossier (codebase) : section « Dossiers du projet » de la barre latérale */
+  /** Entrée Dossier (codebase) ; sans elle, le menu n'en a pas */
   onAttachFolder?: (() => void) | undefined;
+  /** Fichiers choisis dans le dialogue du système (défaut : pièces jointes du chat) */
+  onPaths?: (paths: string[], kind: AttachKind) => void;
+  /** Fichiers choisis dans un navigateur, sans chemin (défaut : pièces jointes du chat) */
+  onFiles?: (files: File[]) => void;
 }
 
-export function AttachMenu({ onAttachFolder }: AttachMenuProps) {
+export function AttachMenu({
+  onAttachFolder,
+  onPaths = (paths, kind) => void attachPaths(paths, kind),
+  onFiles = (files) => void uploadFiles(files),
+}: AttachMenuProps) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
 
   const choose = (kind: AttachKind) => {
     if (shell.canPickFiles()) {
-      void shell.pickFiles(kind).then((paths) => attachPaths(paths, kind));
+      void shell.pickFiles(kind).then((paths) => onPaths(paths, kind));
       return;
     }
     // Navigateur (repli sans pywebview) : sélecteur de fichiers de la page
@@ -49,14 +59,14 @@ export function AttachMenu({ onAttachFolder }: AttachMenuProps) {
               {t(label)}
             </MenuItem>
           ))}
-          <MenuSeparator />
-          <MenuItem
-            icon={<FolderOpen size={15} />}
-            disabled={!onAttachFolder}
-            onSelect={() => onAttachFolder?.()}
-          >
-            {t('chat.attach.folder')}
-          </MenuItem>
+          {onAttachFolder ? (
+            <>
+              <MenuSeparator />
+              <MenuItem icon={<FolderOpen size={15} />} onSelect={onAttachFolder}>
+                {t('chat.attach.folder')}
+              </MenuItem>
+            </>
+          ) : null}
         </MenuContent>
       </Menu>
       <input
@@ -66,7 +76,7 @@ export function AttachMenu({ onAttachFolder }: AttachMenuProps) {
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = '';
-          void uploadFiles(files);
+          onFiles(files);
         }}
       />
     </>

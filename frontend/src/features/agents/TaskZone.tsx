@@ -9,8 +9,8 @@
  * planifiée, Exécuter attend : son fil a son propre bouton Arrêter.
  */
 
-import { Eraser, Play, Plus, Square, Swords, X } from 'lucide-react';
-import { createElement, useEffect, useRef, useState } from 'react';
+import { Eraser, Play, Plus, Square, Swords } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button, IconButton } from '../../components/ui/Button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu';
@@ -19,7 +19,6 @@ import { type MessageKey, useT } from '../../i18n';
 import { cn } from '../../lib/cn';
 import { hasFiles, noteDrop, onDroppedPaths } from '../../lib/drops';
 import type { RunOrigin } from '../../lib/events';
-import { useFileUrl } from '../../lib/files';
 import { type AttachKind, shell } from '../../lib/shell';
 import { notify } from '../../stores/app';
 import {
@@ -27,12 +26,12 @@ import {
   removeTaskAttachment,
   setTask,
   stopAgentsRun,
-  type TaskAttachment,
   uploadTaskFiles,
   useAgents,
 } from '../../stores/agents';
 import { ACCEPT, CLIPBOARD_IMAGE, clipboardFiles, droppedFiles } from '../chat/attach';
-import { ATTACH_ENTRIES, attachmentIcon } from '../chat/attachKinds';
+import { ATTACH_ENTRIES } from '../chat/attachKinds';
+import { PathChips } from '../chat/AttachmentChips';
 import { MicButton } from '../chat/MessageControls';
 import { AgentDialog } from './AgentDialog';
 import { clearWorkflow } from './canvas/workflowStore';
@@ -46,35 +45,6 @@ const BUSY_ELSEWHERE: Record<Exclude<RunOrigin, 'desktop'>, MessageKey> = {
 
 /** Nom que Chromium donne à une image du presse-papiers (capture d'écran) */
 const CHROMIUM_CLIPBOARD_NAME = 'image.png';
-
-function Chip({ item }: { item: TaskAttachment }) {
-  const t = useT();
-  const image = item.type === 'Image';
-  const url = useFileUrl(image ? item.path : null);
-  return (
-    <span
-      title={item.path}
-      className="inline-flex h-9 max-w-60 items-center gap-2 rounded-md border border-line bg-bg-3 px-1 text-xs text-fg-2"
-    >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-2">
-        {image && url ? (
-          <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
-        ) : (
-          createElement(attachmentIcon(item.type), { size: 15 })
-        )}
-      </span>
-      <span className="truncate">{item.name}</span>
-      <button
-        type="button"
-        aria-label={t('chat.attachment.remove', { name: item.name })}
-        onClick={() => removeTaskAttachment(item.id)}
-        className="shrink-0 rounded-xs p-1 text-fg-3 hover:bg-hover hover:text-fg"
-      >
-        <X size={12} />
-      </button>
-    </span>
-  );
-}
 
 /** Menu « + » : les entrées de Tk (PDF, DOCX, Excel / CSV, PowerPoint, Code, Image) */
 function AttachButton() {
@@ -215,13 +185,7 @@ export function TaskZone({ onExecute, onDebateStarted }: TaskZoneProps) {
           if (!shell.isDesktop()) void uploadTaskFiles(droppedFiles(event.dataTransfer));
         }}
       >
-        {attachments.length ? (
-          <div className="flex flex-wrap gap-1.5 px-3 pt-3">
-            {attachments.map((item) => (
-              <Chip key={item.id} item={item} />
-            ))}
-          </div>
-        ) : null}
+        <PathChips items={attachments} onRemove={removeTaskAttachment} />
         <textarea
           ref={textarea}
           value={task}

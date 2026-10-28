@@ -174,6 +174,77 @@ export interface SchedulerResult {
   os_toast_shown: boolean;
 }
 
+// ── Page Code (interfaces/desktop/code.py, relay/code_hub.py) ─────────────
+// Conversation de l'extension VS Code, partagée avec la vue Code du téléphone.
+
+/** D'où vient un message : VS Code, cette fenêtre ou le téléphone */
+export type CodeOrigin = 'vscode' | 'desktop' | 'mobile';
+
+export interface CodeState {
+  /** Une extension VS Code est connectée au Relay */
+  vscode: boolean;
+  /** Ses dossiers ouverts (« My_AI », « api, web ») */
+  workspace: string | null;
+  /** Réponse en cours, d'où que vienne son message */
+  busy: boolean;
+  message_id: string | null;
+  origin: CodeOrigin | null;
+}
+
+export type CodeToolStatus =
+  'requested' | 'awaiting-approval' | 'running' | 'completed' | 'failed' | 'denied' | 'stopped';
+
+/** Réponses possibles à une demande d'approbation (toolDispatcher.ts de l'extension) */
+export type ApprovalDecision = 'allow-once' | 'allow-target' | 'allow-tool' | 'deny';
+
+export interface CodeToolCall {
+  call_id: string;
+  name: string;
+  /** Arguments, les longs textes coupés */
+  input: Record<string, unknown>;
+  status: CodeToolStatus;
+  /** Sortie, coupée à 4000 caractères */
+  output?: string;
+  /** Approbation demandée : réponses possibles d'ici ; vide = répondue dans VS Code */
+  options?: ApprovalDecision[];
+}
+
+export type CodePart =
+  { kind: 'text'; segment: number; text: string } | ({ kind: 'tool' } & CodeToolCall);
+
+export type CodeReplyStatus = 'streaming' | 'done' | 'stopped' | 'error';
+
+export interface CodeUserMessage {
+  message_id: string;
+  role: 'user';
+  text: string;
+  origin: CodeOrigin;
+  timestamp: string | null;
+  attachments: string[];
+}
+
+export interface CodeAssistantMessage {
+  message_id: string;
+  role: 'assistant';
+  origin: CodeOrigin;
+  timestamp: string | null;
+  /** Texte et appels d'outils, dans l'ordre */
+  parts: CodePart[];
+  /** Texte final, ou raison de l'échec (status error) */
+  text: string;
+  status: CodeReplyStatus;
+  duration_ms?: number;
+}
+
+export type CodeMessage = CodeUserMessage | CodeAssistantMessage;
+
+/** GET /api/code */
+export interface CodeSnapshot {
+  state: CodeState;
+  messages: CodeMessage[];
+  seq: number;
+}
+
 /** Mesure du moniteur de ressources (ResourceMonitor de Tk) ; CPU et RAM d'Ollama seul */
 export interface ResourceMetrics {
   cpu_percent: number;
@@ -265,6 +336,18 @@ export interface EventPayloads {
   'attachment.ready': { id: string };
   'attachment.failed': { id: string; message: string };
   'attachment.removed': { id: string };
+  'code.state': CodeState;
+  'code.user': Omit<CodeUserMessage, 'timestamp'> & { timestamp: string };
+  'code.chunk': { message_id: string; segment: number; text: string };
+  'code.tool': { message_id: string } & CodeToolCall;
+  'code.done': {
+    message_id: string;
+    text: string;
+    status: Exclude<CodeReplyStatus, 'streaming'>;
+    timestamp: string;
+    duration_ms: number;
+  };
+  'code.cleared': Record<string, never>;
 }
 
 export type EventType = keyof EventPayloads;
@@ -511,4 +594,13 @@ export function isChatEvent(type: string): boolean {
 
 export function isAgentEvent(event: AnyServerEvent): event is AnyAgentEvent {
   return event.type.startsWith('agents.');
+}
+
+export type CodeEventType = Extract<EventType, `code.${string}`>;
+
+export type AnyCodeEvent = { [T in CodeEventType]: ServerEvent<T> }[CodeEventType];
+
+/** Événement de la page Code (préfixe « code. ») */
+export function isCodeEvent(event: AnyServerEvent): event is AnyCodeEvent {
+  return event.type.startsWith('code.');
 }

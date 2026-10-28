@@ -9,7 +9,8 @@ import type {
 } from '../lib/events';
 import type { ConnectionState } from '../lib/ws';
 
-export type Tab = 'chat' | 'agents';
+/** Code : conversation de l'extension VS Code, ouverte du bouton de la barre latérale */
+export type Tab = 'chat' | 'agents' | 'code';
 
 export interface Toast {
   id: number;
@@ -96,4 +97,9 @@ export function dismissScheduledToast(id: number): void {
 
 export function setTab(tab: Tab): void {
   useApp.setState({ tab });
+}
+
+/** Onglets qui ont la barre latérale des conversations : le chat, et la page Code qu'elle ouvre */
+export function hasSidebar(tab: Tab): boolean {
+  return tab === 'chat' || tab === 'code';
 }

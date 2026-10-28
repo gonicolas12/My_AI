@@ -3,6 +3,9 @@
  * miniature pour une image, une icône sinon ; un cercle tourne tant que le
  * serveur lit le fichier, et l'envoi attend la fin de la lecture. Retirer une
  * pièce jointe arrête sa lecture (comme add_file_preview dans Tk).
+ *
+ * PathChips : celles qu'une page garde elle-même, par leur chemin (zone de
+ * tâche des agents, page Code), lues au moment de l'envoi.
  */
 
 import { LoaderCircle, X } from 'lucide-react';
@@ -64,6 +67,59 @@ function Chip({ attachment }: { attachment: AttachmentView }) {
         <X size={12} />
       </button>
     </span>
+  );
+}
+
+interface PathItem {
+  id: string;
+  path: string;
+  name: string;
+  type: string;
+}
+
+function PathChip({ item, onRemove }: { item: PathItem; onRemove: (id: string) => void }) {
+  const t = useT();
+  const image = item.type === 'Image';
+  const url = useFileUrl(image ? item.path : null);
+  return (
+    <span
+      title={item.path}
+      className="inline-flex h-9 max-w-60 items-center gap-2 rounded-md border border-line bg-bg-3 px-1 text-xs text-fg-2"
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-2">
+        {image && url ? (
+          <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+        ) : (
+          createElement(attachmentIcon(item.type), { size: 15 })
+        )}
+      </span>
+      <span className="truncate">{item.name}</span>
+      <button
+        type="button"
+        aria-label={t('chat.attachment.remove', { name: item.name })}
+        onClick={() => onRemove(item.id)}
+        className="shrink-0 rounded-xs p-1 text-fg-3 hover:bg-hover hover:text-fg"
+      >
+        <X size={12} />
+      </button>
+    </span>
+  );
+}
+
+export function PathChips({
+  items,
+  onRemove,
+}: {
+  items: PathItem[];
+  onRemove: (id: string) => void;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+      {items.map((item) => (
+        <PathChip key={item.id} item={item} onRemove={onRemove} />
+      ))}
+    </div>
   );
 }
 
