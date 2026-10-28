@@ -290,7 +290,7 @@ relay:
 2. In VS Code: install the **My_AI Relay** extension from the Marketplace → open its view in the sidebar → **Paste the connection string** → enter the **access code** shown under the QR code
 3. Once connected, the extension identifies itself as a `vscode` client to the Relay and turns on the agentic mode. Ask for example *"scaffold a Vite + React project with a router and a Header component"*: you will see each `write_file` / `run_command` appear as an expandable card in the chat, with an approval request for destructive operations.
 
-> The phone and the desktop app keep using the classic pipeline with the full local MCP tools: the agentic mode is exclusive to VS Code clients.
+> **One Code conversation, three places.** The VS Code conversation also shows on the **Code** page of the desktop app (**Code** button at the top of the sidebar) and in the **Code** view of the phone (`</>` button left of **Chat**): messages typed there go to the extension, which acts in its workspace, and the reply streams everywhere. On the desktop page, messages can carry the chat's attachments (documents, code, images described by the vision model) and be dictated with the local voice input. A write or a shell command asked from the PC or the phone waits for an approval that can be given from any of the three. The regular chat (phone + desktop) stays separate: nothing of it reaches VS Code, and the other way round. The regular chat keeps the classic pipeline with the full local MCP tools: the agentic mode is exclusive to the Code conversation.
 
 ### Features
 
@@ -302,15 +302,15 @@ relay:
 | ⏹️ **STOP button** | Stops the whole turn in one click: the LLM **and** the agentic tool loop (pending calls included). **Clear** during a generation stops it too |
 | 🛟 **Loop guard** | Detects repeated rewrites of the same file so an agent doesn't go round in circles |
 | 🛡️ **Workspace sandbox** | Every path is resolved from the open VS Code workspace. Going outside the workspace needs a modal approval per path |
-| ✋ **Granular approvals** | Reads approved automatically, writes and shell commands behind a modal with *Once* / *For this file* / *Allow everything for this tool this session* |
+| ✋ **Granular approvals** | Reads approved automatically, writes and shell commands behind a modal with *Once* / *For this file* / *Allow everything for this tool this session*; for a message typed on the PC or the phone, the same choices as buttons in the tool card, on VS Code, the PC and the phone |
 | 🎴 **Inline tool cards** | Each tool call rendered as a collapsible card (orange = running · indigo = awaiting approval · green = OK · red = error · grey = denied) |
-| 🧠 **Session memory** | The agentic context is kept for the whole WS session ("edit the file you just read" works) |
+| 🧠 **Shared memory** | One conversation for VS Code, the desktop **Code** page and the phone, kept across reconnections and restarts ("edit the file you just read" works); **Clear** starts a new one everywhere |
 | 🔧 **Works with any Ollama model** | `<tool_use>{...}</tool_use>` format parsed on the host, no need for Ollama's native tools API |
 | 🔐 **E2EE encryption** | Same AES-256-GCM as the phone: the tunnel only sees ciphertext |
 | 🌐 **Multi-tunnel failover** | cloudflared / localhost.run (serveo as an option) pinged from the client, automatic switch |
 | 💾 **Persistence** | Credentials encrypted in VS Code's SecretStorage (OS keychain) |
 | 🔄 **Auto-reconnect** | Detects when the host Relay stops, reconnects automatically when it restarts |
-| 🌍 **Bilingual** | UI, approval prompts and docs in French when VS Code is in French, in English otherwise |
+| 🌍 **12 languages** | The extension speaks My_AI's language (chosen in its Settings), like the desktop app and the phone; command titles follow VS Code's display language |
 | 🆓 **Open source** | Code in [`vscode_extension/`](vscode_extension/), MIT license |
 
 ### Installation
