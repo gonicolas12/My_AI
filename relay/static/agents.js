@@ -50,7 +50,6 @@
     el.tabChat = $('tabChat');
     el.tabAgents = $('tabAgents');
     el.tabCode = $('tabCode');
-    el.clearChatBtn = $('clearChatBtn');
     el.grid = $('agentsGrid');
     el.canvas = $('wfCanvas');
     el.world = $('wfWorld');
@@ -103,8 +102,8 @@
     el.tabAgents.classList.toggle('active', toAgents);
     if (el.viewCode) el.viewCode.classList.toggle('active', toCode);
     if (el.tabCode) el.tabCode.classList.toggle('active', toCode);
-    // Le bouton « Effacer » du header : le chat, ou la conversation Code.
-    if (el.clearChatBtn) el.clearChatBtn.style.display = toAgents ? 'none' : '';
+    // Corbeille : elle suit la page ouverte (grisée si celle-ci s'écrit encore)
+    window.RelayCore.updateTrash();
     // Rafraîchir la liste à chaque ouverture de la page Agents pour rester
     // synchrone avec les agents personnalisés éventuellement créés sur le PC.
     if (toAgents) {
@@ -115,6 +114,16 @@
     }
   }
   window.switchTab = switchTab;
+
+  function isActive() {
+    return !!(el.viewAgents && el.viewAgents.classList.contains('active'));
+  }
+
+  // Exécution ou débat en cours : ses sections s'écrivent encore dans les
+  // résultats, que la corbeille (app.js) ne vide pas
+  function isBusy() {
+    return isExecuting;
+  }
 
   // Appelé par app.js quand le WebSocket (re)connecte.
   function onConnect() {
@@ -664,6 +673,7 @@
       if (el.attachBtn) el.attachBtn.disabled = false;
       currentExecId = null;
     }
+    window.RelayCore.updateTrash();
   }
 
   function startDebate(agentA, agentB, topic, rounds) {
@@ -681,6 +691,13 @@
   function clearOutput() {
     el.output.innerHTML = '';
     sections = {};
+  }
+
+  // Corbeille sur la page Agents : les résultats affichés, et leur accueil revient
+  function clearResults() {
+    if (isExecuting) return;
+    clearOutput();
+    el.output.appendChild(el.outputWelcome);
   }
 
   function addOutputHeader(text) {
@@ -965,7 +982,10 @@
   }
 
   // ── Expose ────────────────────────────────────────────
-  window.AgentsUI = { onMessage: onMessage, onConnect: onConnect };
+  window.AgentsUI = {
+    onMessage: onMessage, onConnect: onConnect, isActive: isActive, isBusy: isBusy,
+    clearResults: clearResults,
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
