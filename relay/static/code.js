@@ -620,8 +620,15 @@
     }
   }
 
+  // Réponse en cours (d'où que vienne son message), ou message tout juste envoyé
+  function isBusy() {
+    return state.busy || sending;
+  }
+
   function updateSendButton() {
     if (!el.sendBtn) return;
+    // La corbeille suit le même état : grisée pendant la réponse
+    core().updateTrash();
     if (state.busy) {
       setSendBtnMode('stop');
       el.sendBtn.disabled = false;
@@ -716,6 +723,7 @@
     onConnect: onConnect,
     onShow: onShow,
     isActive: isActive,
+    isBusy: isBusy,
     clear: clear,
     icon: CODE_SVG,
   };

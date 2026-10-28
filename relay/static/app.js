@@ -289,6 +289,7 @@ const welcomeEl = document.getElementById('welcome');
 const attachmentsEl = document.getElementById('attachments');
 const attachBtn = document.getElementById('attachBtn');
 const fileInputEl = document.getElementById('fileInput');
+const trashBtn = document.getElementById('trashBtn');
 
 // ═══════════════════════════════════════════════════
 // WEBSOCKET
@@ -821,6 +822,8 @@ function setSendBtnMode(mode) {
 }
 
 function updateSendButton() {
+  // La corbeille suit le même état : grisée pendant la génération
+  updateTrash();
   // Pendant la génération, le bouton devient un bouton STOP cliquable
   // (carré noir sur fond blanc), comme sur la page Agents.
   if (isWaiting) {
@@ -1004,6 +1007,19 @@ function removeTyping() {
   if (typingEl) {
     typingEl.remove();
     typingEl = null;
+  }
+}
+
+// Corbeille : grisée tant que la page ouverte s'écrit encore (réponse du chat
+// ou de la conversation Code, exécution des agents). Elle revient à la fin,
+// ou une fois la génération arrêtée par Stop.
+function updateTrash() {
+  if (window.AgentsUI && window.AgentsUI.isActive()) {
+    trashBtn.disabled = window.AgentsUI.isBusy();
+  } else if (window.CodeUI && window.CodeUI.isActive()) {
+    trashBtn.disabled = window.CodeUI.isBusy();
+  } else {
+    trashBtn.disabled = isWaiting;
   }
 }
 
@@ -1600,6 +1616,8 @@ window.RelayCore = {
   // Vue Code (code.js) : bulles identiques à celles du chat
   formatTime: formatTime,
   robotSvg: ROBOT_SVG,
+  // État de la corbeille, à revoir quand une page commence ou finit d'écrire
+  updateTrash: updateTrash,
 };
 
 // ═══════════════════════════════════════════════════

@@ -50,7 +50,6 @@
     el.tabChat = $('tabChat');
     el.tabAgents = $('tabAgents');
     el.tabCode = $('tabCode');
-    el.trashBtn = $('trashBtn');
     el.grid = $('agentsGrid');
     el.canvas = $('wfCanvas');
     el.world = $('wfWorld');
@@ -103,7 +102,8 @@
     el.tabAgents.classList.toggle('active', toAgents);
     if (el.viewCode) el.viewCode.classList.toggle('active', toCode);
     if (el.tabCode) el.tabCode.classList.toggle('active', toCode);
-    updateTrash();
+    // Corbeille : elle suit la page ouverte (grisée si celle-ci s'écrit encore)
+    window.RelayCore.updateTrash();
     // Rafraîchir la liste à chaque ouverture de la page Agents pour rester
     // synchrone avec les agents personnalisés éventuellement créés sur le PC.
     if (toAgents) {
@@ -119,10 +119,10 @@
     return !!(el.viewAgents && el.viewAgents.classList.contains('active'));
   }
 
-  // Corbeille (app.js, clearPage) : sur la page Agents, inactive pendant une
-  // exécution, dont les sections s'écrivent encore dans les résultats
-  function updateTrash() {
-    if (el.trashBtn) el.trashBtn.disabled = isExecuting && isActive();
+  // Exécution ou débat en cours : ses sections s'écrivent encore dans les
+  // résultats, que la corbeille (app.js) ne vide pas
+  function isBusy() {
+    return isExecuting;
   }
 
   // Appelé par app.js quand le WebSocket (re)connecte.
@@ -673,7 +673,7 @@
       if (el.attachBtn) el.attachBtn.disabled = false;
       currentExecId = null;
     }
-    updateTrash();
+    window.RelayCore.updateTrash();
   }
 
   function startDebate(agentA, agentB, topic, rounds) {
@@ -983,7 +983,8 @@
 
   // ── Expose ────────────────────────────────────────────
   window.AgentsUI = {
-    onMessage: onMessage, onConnect: onConnect, isActive: isActive, clearResults: clearResults,
+    onMessage: onMessage, onConnect: onConnect, isActive: isActive, isBusy: isBusy,
+    clearResults: clearResults,
   };
 
   if (document.readyState === 'loading') {
