@@ -5,6 +5,38 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] — 2026-10-28
+
+Cleaner replies, drawn like on the phone.
+
+### Changed
+- **One bubble per reply.** A reply used to be a bubble, then a stack of
+  tool cards, then a new bubble. It is now a single bubble: the text of
+  each pass of the model and, after it, its tool calls grouped one line
+  each (*Reading src/app.py*, *Command: npm test*… in My_AI's language),
+  then the text that follows. A line's icon gives its state; a click
+  shows its input and output; the approval buttons sit under the call.
+  The bottom of the bubble says when the reply was stopped or failed,
+  with its time and how long it took.
+- **Same rendering as the phone.** The Code view of the phone draws its
+  replies with the same files (`media/markdown.js`, `media/turn.js`,
+  `media/thread.css`): both look the same.
+- **Code blocks** show their language, and their **Copy** and **Insert**
+  buttons stay visible in their header (they only showed on hover, over
+  the code).
+
+### Fixed
+- **Gray bands behind the code.** VS Code's default webview styles gave
+  every `<code>` a gray background: in a code block, one band per line.
+- **Markdown**: a blank line after each heading, nested lists flattened,
+  a numbered list restarting at 1 after a sub-list or a code block,
+  quotes, links, strikethrough and task lists left as raw text, inline
+  code styled differently in lists and tables. The streaming cursor now
+  follows the last character, instead of sitting alone on the next line.
+- A message on several lines (or with attachments) showed on one line.
+- The view stops following a streaming reply only when you scroll up, not
+  when a long passage grows below the screen.
+
 ## [1.6.0] — 2026-10-28
 
 The VS Code conversation is shared with My_AI on the PC and on the phone,

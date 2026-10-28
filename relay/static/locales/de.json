@@ -38,6 +38,8 @@
   "preview.download": "Dokument herunterladen",
   "preview.openBrowser": "Im Browser öffnen",
   "preview.close": "Schließen",
+  "md.copy": "Kopieren",
+  "md.copied": "Kopiert!",
   "artifact.svg": "SVG #{n}",
   "artifact.html": "HTML-Seite #{n}",
   "agents.title": "Spezialisierte KI-Agenten",

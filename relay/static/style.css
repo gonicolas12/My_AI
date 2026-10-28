@@ -27,6 +27,9 @@ html, body {
   --accent-hover: #ff5730;
   --border: #374151;
   --success: #10b981;
+  /* Blocs de code des réponses (thread.css) */
+  --md-code-size: 13px;
+  --md-mono: 'SF Mono', 'Fira Code', Consolas, monospace;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -90,8 +93,6 @@ html, body {
   display: flex; margin-bottom: 12px;
   animation: fadeIn 0.2s ease-out;
 }
-/* Bulle refaite alors qu'elle était déjà affichée (vue Code) : pas d'apparition */
-.message.no-fade { animation: none; }
 .message.user { justify-content: flex-end; }
 .message.ai { justify-content: flex-start; }
 
@@ -103,10 +104,13 @@ html, body {
 .message.user .bubble {
   background: var(--bg-user); color: #fff;
   border-end-end-radius: 4px;
+  white-space: pre-wrap;
 }
 .message.ai .bubble {
   background: var(--bg-secondary); color: var(--text-primary);
   border-end-start-radius: 4px; border: 1px solid #2d2d2d;
+  /* Toute la place à côté du robot : code, tableaux et outils y tiennent mieux */
+  max-width: calc(100% - 36px); min-width: 0;
 }
 
 .bubble .time {
@@ -150,53 +154,8 @@ html, body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Streaming bubble — curseur clignotant pendant la génération en direct */
-.message.ai.streaming .stream-content { display: inline; }
-.stream-cursor {
-  display: inline-block;
-  width: 8px; height: 14px;
-  margin-inline-start: 2px;
-  vertical-align: text-bottom;
-  background: var(--accent);
-  border-radius: 1px;
-  animation: streamCursorBlink 1s steps(2, start) infinite;
-}
-@keyframes streamCursorBlink {
-  to { visibility: hidden; }
-}
-
-/* ── MARKDOWN IN BUBBLES ──────────────────────────── */
-/* Le code se lit de gauche à droite, même dans une page en arabe */
-.bubble pre, .ag-sec-body pre { direction: ltr; text-align: left; }
-.bubble pre {
-  background: #0f0f0f; border-radius: 8px; padding: 10px 12px;
-  overflow-x: auto; margin: 8px 0; font-size: 13px;
-  border: 1px solid var(--border);
-}
-.bubble code {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 13px;
-}
-.bubble p code {
-  background: rgba(255,255,255,0.08); padding: 2px 6px;
-  border-radius: 4px;
-}
-.bubble p { margin-bottom: 6px; }
-.bubble p:last-child { margin-bottom: 0; }
-.bubble ul, .bubble ol {
-  margin: 6px 0;
-  padding-inline-start: 0;
-  list-style-position: inside;
-}
-.bubble ul { list-style-type: disc; }
-.bubble ol { list-style-type: decimal; }
-.bubble li {
-  margin: 0 0 4px 0;
-  padding-inline-start: 0;
-}
-.bubble li:last-child { margin-bottom: 0; }
-.bubble strong { font-weight: 600; }
-.bubble em { font-style: italic; }
+/* Markdown des réponses (titres, listes, code, tableaux…) : thread.css,
+   la même feuille que dans la vue de l'extension VS Code */
 
 /* ── ARTIFACTS : bouton « Aperçu » + modale de preview ─────────────── */
 .artifact-btn {
@@ -248,53 +207,7 @@ html, body {
 .artifact-frame {
   flex: 1; width: 100%; border: none; background: #fff;
 }
-/* Liens : bleus, soulignés, cliquables (comme le GUI PC) */
-.bubble a, .ag-sec-body a {
-  color: #58a6ff; text-decoration: underline; word-break: break-word;
-}
-.bubble a:active, .ag-sec-body a:active { color: #79b8ff; }
-.bubble h1, .bubble h2, .bubble h3,
-.bubble h4, .bubble h5, .bubble h6 {
-  font-weight: 700; line-height: 1.3;
-  margin: 8px 0 4px; display: block;
-}
-.bubble h1 { font-size: 17px; }
-.bubble h2 { font-size: 16px; }
-.bubble h3 { font-size: 15px; color: var(--accent); }
-.bubble h4 { font-size: 14px; color: var(--accent); }
-.bubble h5, .bubble h6 { font-size: 13px; color: var(--text-secondary); }
-.bubble h1:first-child, .bubble h2:first-child, .bubble h3:first-child,
-.bubble h4:first-child, .bubble h5:first-child, .bubble h6:first-child { margin-top: 2px; }
-
-/* Horizontal rule (markdown ---) */
-.bubble hr {
-  border: 0;
-  border-top: 1px solid var(--border);
-  margin: 12px 0;
-  height: 0;
-  width: 100%;
-}
-
-/* ── TABLES IN BUBBLES ─────────────────────────────── */
-.bubble table {
-  border-collapse: collapse;
-  margin: 8px 0; font-size: 13px;
-  display: block; overflow-x: auto;
-  max-width: 100%;
-}
-.bubble th, .bubble td {
-  border: 1px solid var(--border);
-  padding: 5px 10px; text-align: start;
-  white-space: nowrap;
-}
-.bubble th {
-  background: var(--bg-tertiary);
-  font-weight: 600; color: var(--text-primary);
-}
-.bubble td { color: var(--text-primary); }
-.bubble tr:nth-child(even) td {
-  background: rgba(255,255,255,0.03);
-}
+.md a:active { color: #79b8ff; }
 
 /* ── INPUT AREA ────────────────────────────────────── */
 .input-area {
@@ -521,49 +434,8 @@ html, body {
   font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;
   border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px;
 }
-.code-stopped { font-size: 12px; color: #f59e0b; margin: 0 0 12px 38px; }
-/* Appel d'outil de l'extension : une ligne, son détail au toucher */
-.code-tool { margin: 0 0 10px 38px; font-size: 13px; }
-.code-tool-head {
-  display: flex; align-items: center; gap: 6px; max-width: 100%;
-  background: none; border: none; padding: 2px 0; cursor: pointer;
-  color: var(--text-secondary); font-size: 13px; text-align: start;
-}
-.code-tool-icon { flex-shrink: 0; }
-.code-tool-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.code-tool-status { flex-shrink: 0; color: var(--text-muted); }
-.code-tool-status::before { content: '· '; }
-.code-tool-details {
-  margin-top: 6px; padding-inline-start: 10px; border-inline-start: 2px solid var(--border);
-}
-.code-tool-block { margin-bottom: 6px; }
-.code-tool-block-label {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-muted); margin-bottom: 3px;
-}
-.code-tool-block pre {
-  margin: 0; padding: 6px 8px; max-height: 240px; overflow: auto;
-  background: var(--bg-secondary); border-radius: 6px; font-size: 11px;
-  font-family: 'SF Mono', Menlo, Consolas, monospace; white-space: pre-wrap;
-  word-break: break-word; color: var(--text-primary); text-align: left;
-}
-/* Approbation demandée (écriture, commande) : la première réponse compte */
-.code-approval {
-  margin-top: 6px; padding: 10px 12px; border-radius: 12px;
-  background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3);
-  display: flex; flex-wrap: wrap; gap: 6px;
-}
-.code-approval-prompt { flex-basis: 100%; font-size: 13px; color: var(--text-primary); }
-.code-approval-btn {
-  background: var(--bg-tertiary); color: var(--text-primary);
-  border: 1px solid var(--border); border-radius: 10px;
-  padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
-}
-.code-approval-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.code-approval-btn.deny { background: transparent; color: var(--text-secondary); }
-.code-approval-btn:disabled { opacity: 0.5; }
-[dir="rtl"] .code-stopped,
-[dir="rtl"] .code-tool { margin-left: 0; margin-right: 38px; }
+/* Réponse : une bulle avec, à la suite de son texte, ses appels d'outils et
+   leurs approbations (turn.js, thread.css), comme dans VS Code */
 
 /* ═══════════════════════════════════════════════════ */
 /* AGENTS PAGE                                          */
@@ -698,26 +570,13 @@ html, body {
 .ag-sec.collapsed .ag-sec-arrow { transform: rotate(-90deg); }
 .ag-sec-name { flex: 1; font-size: 13px; font-weight: 700; color: #fff; }
 .ag-sec-state { font-size: 11px; color: var(--text-secondary); }
+/* Sortie d'un agent : Markdown de thread.css (classe md) */
 .ag-sec-body {
   background: var(--bg-primary); border: 1px solid var(--border);
   border-top: none; padding: 10px 12px; font-size: 14px; line-height: 1.45;
   max-height: 320px; overflow-y: auto;
 }
 .ag-sec.collapsed .ag-sec-body { display: none; }
-.ag-sec-body .stream-cursor { background: var(--accent); }
-.ag-sec-body pre {
-  background: #0f0f0f; border: 1px solid var(--border); border-radius: 8px;
-  padding: 10px 12px; overflow-x: auto; margin: 8px 0; font-size: 13px;
-}
-.ag-sec-body code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 13px; }
-.ag-sec-body p code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
-.ag-sec-body p { margin-bottom: 6px; }
-.ag-sec-body p:last-child { margin-bottom: 0; }
-.ag-sec-body ul, .ag-sec-body ol { margin: 6px 0; padding-inline-start: 20px; }
-.ag-sec-body strong { font-weight: 600; }
-.ag-sec-body table { border-collapse: collapse; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }
-.ag-sec-body th, .ag-sec-body td { border: 1px solid var(--border); padding: 5px 10px; text-align: start; white-space: nowrap; }
-.ag-sec-body th { background: var(--bg-tertiary); font-weight: 600; }
 
 /* ── AGENTS ACTION BAR ─────────────────────────────── */
 .agents-actionbar {

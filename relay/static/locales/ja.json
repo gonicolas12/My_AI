@@ -37,6 +37,8 @@
   "preview.download": "ドキュメントをダウンロード",
   "preview.openBrowser": "ブラウザーで開く",
   "preview.close": "閉じる",
+  "md.copy": "コピー",
+  "md.copied": "コピーしました",
   "artifact.svg": "SVG #{n}",
   "artifact.html": "HTML ページ #{n}",
   "agents.title": "専門 AI エージェント",

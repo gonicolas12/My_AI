@@ -42,6 +42,8 @@
   "preview.download": "تنزيل المستند",
   "preview.openBrowser": "فتح في المتصفح",
   "preview.close": "إغلاق",
+  "md.copy": "نسخ",
+  "md.copied": "تم النسخ!",
   "artifact.svg": "SVG رقم {n}",
   "artifact.html": "صفحة HTML رقم {n}",
   "agents.title": "وكلاء ذكاء اصطناعي متخصصون",

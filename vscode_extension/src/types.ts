@@ -54,6 +54,8 @@ export interface IncomingPayload {
   segment_index?: number;
   // response: done | stopped | error (hosts with the Code conversation)
   status?: string;
+  // response: time the reply took, shown under it
+  duration_ms?: number;
   // tool_use
   call_id?: string;
   name?: string;

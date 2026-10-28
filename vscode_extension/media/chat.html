@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src %CSP_SOURCE% 'unsafe-inline'; script-src 'nonce-%NONCE%'; img-src %CSP_SOURCE% data:; font-src %CSP_SOURCE%;">
 <title>My_AI Relay</title>
+<!-- Fil de la conversation (Markdown, réponses) : le même que sur le téléphone -->
+<link rel="stylesheet" href="%THREAD_CSS_URI%">
 <link rel="stylesheet" href="%CHAT_CSS_URI%">
 </head>
 <body>
@@ -83,6 +85,8 @@
   </div>
 </div>
 
+<script nonce="%NONCE%" src="%MARKDOWN_JS_URI%"></script>
+<script nonce="%NONCE%" src="%TURN_JS_URI%"></script>
 <script nonce="%NONCE%" src="%CHAT_JS_URI%"></script>
 </body>
 </html>

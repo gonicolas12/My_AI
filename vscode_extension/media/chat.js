@@ -2,6 +2,9 @@
 /* My_AI Relay — VS Code Webview                       */
 /* All wire-protocol/E2EE happens in the extension; the */
 /* webview just renders messages and posts user intent. */
+/* Replies are drawn by turn.js and markdown.js, the    */
+/* same files as the phone page of the Relay: one       */
+/* bubble per reply, its tool calls inside.             */
 /* ═══════════════════════════════════════════════════ */
 
 (function () {
@@ -52,9 +55,6 @@
   // Clear pendant une génération : la fin de cette réponse n'affiche plus rien.
   let discardingReply = false;
   let pendingAttachments = [];
-  let attachmentCounter = 0;
-  let streamingMessageId = null;
-  let streamingMessageEl = null;
   // Bibliothèque de prompts (slash commands) + état du menu d'autocomplétion.
   let slashPrompts = [];
   let slashItems = [];
@@ -70,20 +70,21 @@
   let mentionDebounce = null;
   // Mode du bouton d'envoi : 'send' (avion) ou 'stop' (carré) pendant la génération.
   let sendBtnMode = 'send';
-  // Index du segment en cours pour le message en streaming. Un segment =
-  // une passe LLM entre deux exécutions d'outils (mode VS Code agentique).
-  // À chaque nouveau segment_index reçu dans un chunk, on "fige" la bulle
-  // courante et on en crée une nouvelle, ce qui permet aux cartes d'outils
-  // (insérées entre-temps via tool-event) d'apparaître inline, dans l'ordre.
-  // null tant qu'aucun chunk n'a été reçu.
-  let streamingSegmentIndex = null;
   let userPinnedToBottom = true;
+  let lastScrollTop = 0;
   let autoAttachActive = false;
-  // Map call_id → DOM node for the tool card. Used by tool-event handlers
-  // to update the card's status and output as the agentic loop progresses.
-  const toolCardEls = new Map();
-  // Last event of each tool card: its texts follow a change of language.
-  const toolCardEvents = new Map();
+  // Replies of the conversation, as the host keeps them (relay/code_hub.py):
+  // message_id → { status, parts, text, timestamp, duration_ms }. Each one is
+  // a bubble (turn.js): the text of every pass of the model and, between two
+  // passes, its tool calls, in order.
+  const replies = new Map();
+  const turns = new Map();
+  // Reply in progress: the tool events of this extension belong to it
+  let activeId = null;
+  // Replies whose text changed since the last frame, drawn at the next one:
+  // the host sends a chunk per token, more often than the screen redraws
+  let dirtyReplies = [];
+  let dirtyFrame = 0;
   // Message typed here, sent, not yet acknowledged by the host: its bubble is
   // already shown (a message sent by a command — selection, active file — is
   // shown when its ack arrives).
@@ -99,12 +100,37 @@
   let STR = {};
   function t(key) { return (STR && STR[key]) || key; }
 
+  // Texts of the replies (turn.js), under the keys of the phone page:
+  // {target}, {tool}… come from the page; {0}, in the extension's texts, is
+  // the first of them
+  function turnText(key, params) {
+    const text = t(key);
+    if (!params) return text;
+    const first = Object.keys(params)[0];
+    return text.replace(/\{(\w+)\}/g, (match, name) => {
+      if (Object.prototype.hasOwnProperty.call(params, name)) return String(params[name]);
+      return name === '0' && first !== undefined ? String(params[first]) : match;
+    });
+  }
+
+  // Bubbles of the replies, the same as on the phone; approvals asked for a
+  // message typed on the PC or the phone are answered here too
+  const turnOptions = {
+    t: turnText,
+    approve: (callId, decision) => vscode.postMessage({ type: 'approve-tool', callId, decision }),
+    robotSvg: ROBOT_SVG,
+    formatTime: formatTime,
+    locale: undefined,
+    codeActions: [],
+  };
+
   // Language of the page: direction (Arabic is written right to left) and
   // locale of the times. Sent with the strings, again when it changes.
   function applyLanguage(lang, dir, locale) {
     if (lang) document.documentElement.lang = lang;
     document.documentElement.dir = dir === 'rtl' ? 'rtl' : 'ltr';
     timeLocale = locale || undefined;
+    turnOptions.locale = timeLocale;
   }
 
   function applyStrings(strings) {
@@ -127,16 +153,14 @@
     inputEl.placeholder = t('webview.input.placeholder');
     renderAutoAttachToggle();
     if (sendBtnMode === 'stop') sendBtn.title = t('webview.send.stopTooltip');
-    // Texts already on screen: tool cards and code block buttons
-    toolCardEls.forEach((card, callId) => {
-      const event = toolCardEvents.get(callId);
-      if (event) updateToolCard(card, event);
-      card.querySelectorAll('.tool-card-section-label').forEach((label) => {
-        label.textContent = t(label.dataset.label);
-      });
-    });
-    messagesEl.querySelectorAll('.code-action').forEach((btn) => {
-      btn.textContent = t(btn.dataset.action === 'insert' ? 'webview.code.insert' : 'webview.code.copy');
+    // Buttons of the code blocks, then the replies already on screen
+    turnOptions.codeActions = [
+      { action: 'copy', label: t('webview.code.copy') },
+      { action: 'insert', label: t('webview.code.insert') },
+    ];
+    turns.forEach((turn, id) => {
+      const reply = replies.get(id);
+      if (reply) turn.refresh(reply);
     });
     messagesEl.querySelectorAll('.origin-label').forEach((label) => {
       label.textContent = originText(label.dataset.origin);
@@ -208,28 +232,31 @@
     }
   });
 
+  // The view follows the reply as long as the user doesn't scroll up; back at
+  // the bottom, it follows it again. Text growing below the view doesn't stop it.
   messagesEl.addEventListener('scroll', () => {
-    const gap = messagesEl.scrollHeight - (messagesEl.scrollTop + messagesEl.clientHeight);
-    userPinnedToBottom = gap < 80;
+    const top = messagesEl.scrollTop;
+    const gap = messagesEl.scrollHeight - (top + messagesEl.clientHeight);
+    if (gap < 80) userPinnedToBottom = true;
+    else if (top < lastScrollTop) userPinnedToBottom = false;
+    lastScrollTop = top;
   }, { passive: true });
 
-  // Capture clicks on injected code-action buttons (event delegation).
+  // Buttons of the code blocks (markdown.js): copy, insert at the cursor
   messagesEl.addEventListener('click', (e) => {
     const target = e.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.classList.contains('code-action')) {
-      const action = target.dataset.action;
-      const wrapper = target.closest('.code-block-wrapper');
-      const pre = wrapper && wrapper.querySelector('pre code');
-      if (!pre) return;
-      const code = pre.textContent || '';
-      if (action === 'insert') {
-        vscode.postMessage({ type: 'insert-at-cursor', code });
-        flashAction(target, t('webview.code.inserted'));
-      } else if (action === 'copy') {
-        vscode.postMessage({ type: 'copy-to-clipboard', text: code });
-        flashAction(target, t('webview.code.copied'));
-      }
+    if (!(target instanceof Element)) return;
+    const button = target.closest('.md-code-btn');
+    const block = button && button.closest('.md-code');
+    const pre = block && block.querySelector('pre code');
+    if (!pre) return;
+    const code = pre.textContent || '';
+    if (button.dataset.action === 'insert') {
+      vscode.postMessage({ type: 'insert-at-cursor', code });
+      flashAction(button, t('webview.code.inserted'));
+    } else if (button.dataset.action === 'copy') {
+      vscode.postMessage({ type: 'copy-to-clipboard', text: code });
+      flashAction(button, t('webview.code.copied'));
     }
   });
 
@@ -243,6 +270,10 @@
   window.addEventListener('message', (event) => {
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
+    // A tool call, the end of a reply… show after the text received before them
+    if (!(msg.type === 'relay-message' && msg.payload && msg.payload.type === 'chunk')) {
+      flushReplies();
+    }
     switch (msg.type) {
       case 'init-strings':
         applyLanguage(msg.lang, msg.dir, msg.locale);
@@ -296,208 +327,163 @@
     }
   });
 
-  // ── TOOL CARDS (agentic mode) ────────────────────────
+  // ── REPLIES (a bubble each, turn.js) ─────────────────
+  const OPEN_TOOL = { requested: true, running: true, 'awaiting-approval': true };
+
+  // Reply on screen: drawn again where it is, or its bubble added at the bottom
+  function showReply(reply) {
+    if (welcomeEl) welcomeEl.style.display = 'none';
+    let turn = turns.get(reply.message_id);
+    if (turn) {
+      turn.update(reply);
+      return;
+    }
+    turn = window.MyAITurn.create(reply, turnOptions);
+    turns.set(reply.message_id, turn);
+    messagesEl.appendChild(turn.el);
+  }
+
+  // Reply begun (message acknowledged, or typed elsewhere): its bubble shows
+  // the typing indicator until the first text or tool call
+  function startReply(mid, timestamp) {
+    let reply = replies.get(mid);
+    if (!reply) {
+      reply = { message_id: mid, status: 'streaming', parts: [], text: '', timestamp };
+      replies.set(mid, reply);
+    }
+    activeId = mid;
+    removeTyping();
+    showReply(reply);
+    scrollToBottom();
+    return reply;
+  }
+
+  function scheduleReply(reply) {
+    if (!dirtyReplies.includes(reply)) dirtyReplies.push(reply);
+    if (!dirtyFrame) dirtyFrame = requestAnimationFrame(flushReplies);
+  }
+
+  // Texts waiting: drawn at the next frame, or before any other event
+  function flushReplies() {
+    if (dirtyFrame) cancelAnimationFrame(dirtyFrame);
+    dirtyFrame = 0;
+    const queued = dirtyReplies;
+    dirtyReplies = [];
+    queued.forEach(showReply);
+    if (queued.length) scrollToBottomStream();
+  }
+
+  // Text of a pass of the model, whole each time (segment_index: the pass)
+  function applyChunk(data) {
+    const mid = data.message_id || '';
+    if (!mid || discardingReply || closedMessageIds.has(mid)) return;
+    if (renderedMessageIds.has('ai:' + mid)) return;
+    const reply = replies.get(mid) || startReply(mid, data.timestamp);
+    // Hosts from before the passes: a single one
+    const segment = typeof data.segment_index === 'number' ? data.segment_index : 0;
+    const text = data.text || '';
+    let part = reply.parts.find((p) => p.kind === 'text' && p.segment === segment);
+    if (!part) {
+      // No empty text: a pass that only writes a tool call
+      if (!text.trim()) return;
+      part = { kind: 'text', segment, text };
+      reply.parts.push(part);
+    } else {
+      part.text = text;
+    }
+    scheduleReply(reply);
+  }
+
+  // Tool call run by this extension (toolDispatcher.ts), for the reply in progress
   function applyToolEvent(event) {
     if (!event || !event.callId || discardingReply) return;
-    let card = toolCardEls.get(event.callId);
-    if (!card) {
-      // Une carte naît de l'événement « requested » de son appel : un outil
-      // encore en cours au moment d'un Clear ne la recrée pas dans le chat vidé.
-      if (event.kind !== 'requested') return;
-      if (welcomeEl) welcomeEl.style.display = 'none';
-      card = createToolCard(event);
-      // Append at the bottom : la carte arrive APRÈS le segment de texte
-      // qui l'a déclenchée (segment N), et AVANT le segment de texte qui
-      // intègre son résultat (segment N+1, créé plus tard quand le LLM
-      // recommence à streamer). Si la bulle de streaming est encore là,
-      // c'est qu'elle est le dernier élément → appendChild la place après.
-      messagesEl.appendChild(card);
-      toolCardEls.set(event.callId, card);
-      // Drop the typing indicator: the agent is clearly working.
-      removeTyping();
+    // The reply begins with its ack; without it, the message still waiting
+    const mid = activeId || (isWaiting && lastSentMessageId) || null;
+    if (!mid || closedMessageIds.has(mid)) return;
+    const reply = replies.get(mid) || startReply(mid);
+    if (reply.status !== 'streaming') return;
+    let part = reply.parts.find((p) => p.kind === 'tool' && p.call_id === event.callId);
+    if (!part) {
+      part = { kind: 'tool', call_id: event.callId };
+      reply.parts.push(part);
     }
-    updateToolCard(card, event);
+    part.name = event.toolName || part.name || 'tool';
+    part.input = event.input || part.input || {};
+    part.status = event.kind;
+    if (event.result) part.output = event.result.content;
+    else if (event.kind === 'failed' && event.error) part.output = event.error;
+    if (Array.isArray(event.options)) part.options = event.options;
+    else delete part.options;
+    showReply(reply);
     scrollToBottomStream();
   }
 
-  function createToolCard(event) {
-    const card = document.createElement('div');
-    card.className = 'tool-card';
-    card.dataset.callId = event.callId;
-    card.dataset.tool = event.toolName || 'tool';
-    card.innerHTML =
-      '<div class="tool-card-header" role="button" tabindex="0">' +
-        '<span class="tool-card-icon"></span>' +
-        '<span class="tool-card-title"></span>' +
-        '<span class="tool-card-status"></span>' +
-        '<span class="tool-card-chev">▾</span>' +
-      '</div>' +
-      '<div class="tool-card-body">' +
-        '<div class="tool-card-section tool-card-input">' +
-          '<div class="tool-card-section-label" data-label="webview.tool.input"></div>' +
-          '<pre class="tool-card-pre"></pre>' +
-        '</div>' +
-        '<div class="tool-card-section tool-card-output" style="display:none">' +
-          '<div class="tool-card-section-label" data-label="webview.tool.output"></div>' +
-          '<pre class="tool-card-pre"></pre>' +
-        '</div>' +
-      '</div>';
-    card.querySelectorAll('.tool-card-section-label').forEach((label) => {
-      label.textContent = t(label.dataset.label);
-    });
-
-    const header = card.querySelector('.tool-card-header');
-    const body = card.querySelector('.tool-card-body');
-    body.style.display = 'none';
-    header.addEventListener('click', () => {
-      const open = body.style.display !== 'none';
-      body.style.display = open ? 'none' : 'block';
-      card.classList.toggle('open', !open);
-    });
-    header.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        header.click();
-      }
-    });
-
-    return card;
-  }
-
-  function updateToolCard(card, event) {
-    const titleEl = card.querySelector('.tool-card-title');
-    const iconEl = card.querySelector('.tool-card-icon');
-    const statusEl = card.querySelector('.tool-card-status');
-    const inputPre = card.querySelector('.tool-card-input .tool-card-pre');
-    const outputSection = card.querySelector('.tool-card-output');
-    const outputPre = card.querySelector('.tool-card-output .tool-card-pre');
-
-    titleEl.textContent = describeToolTitle(event.toolName, event.input);
-    toolCardEvents.set(event.callId, event);
-
-    let icon = '';
-    let statusLabel = '';
-    let cls = '';
-    switch (event.kind) {
-      case 'requested':
-      case 'running':
-        icon = '⏳';
-        statusLabel = t('webview.tool.running');
-        cls = 'running';
-        break;
-      case 'awaiting-approval':
-        icon = '🔒';
-        statusLabel = t('webview.tool.awaiting');
-        cls = 'awaiting';
-        break;
-      case 'denied':
-        icon = '🚫';
-        statusLabel = t('webview.tool.denied');
-        cls = 'denied';
-        break;
-      case 'completed':
-        icon = '✓';
-        statusLabel = t('webview.tool.completed');
-        cls = 'ok';
-        break;
-      case 'failed':
-        icon = '⚠️';
-        statusLabel = t('webview.tool.failed');
-        cls = 'error';
-        break;
-      case 'stopped':
-        icon = '⏹';
-        statusLabel = t('webview.tool.stopped');
-        cls = 'stopped';
-        break;
-      default:
-        icon = '·';
-    }
-    iconEl.textContent = icon;
-    statusEl.textContent = statusLabel;
-    card.classList.remove('running', 'awaiting', 'denied', 'ok', 'error', 'stopped');
-    if (cls) card.classList.add(cls);
-
-    inputPre.textContent = formatToolInput(event.input);
-
-    if (event.result || event.error) {
-      const text = event.result ? event.result.content : (event.error || '');
-      outputPre.textContent = text || t('webview.tool.empty');
-      outputSection.style.display = 'block';
-    }
-    renderApproval(card, event);
-  }
-
-  // Approval of a message typed on the PC or the phone: buttons in the card,
-  // also on the Code page of My_AI and on the phone; the first answer counts.
-  function renderApproval(card, event) {
-    let row = card.querySelector('.tool-approval');
-    const options = event.kind === 'awaiting-approval' && Array.isArray(event.options)
-      ? event.options : [];
-    if (!options.length) {
-      if (row) row.remove();
+  // End of a reply: done, stopped or error (hosts from before: done)
+  function applyResponse(data) {
+    const mid = data.message_id || '';
+    if (mid) closedMessageIds.add(mid);
+    // Refused by the host (empty id): the message typed here got no reply
+    pendingLocalSend = false;
+    if (discardingReply) {
+      // Fin de la réponse arrêtée par Clear : on rend le bouton d'envoi
+      // sans rien afficher dans le chat vidé.
+      if (mid) renderedMessageIds.add('ai:' + mid);
+      discardingReply = false;
+      stopRequested = false;
+      isWaiting = false;
+      lastSentMessageId = null;
+      updateSendButton();
       return;
     }
-    if (!row) {
-      row = document.createElement('div');
-      row.className = 'tool-approval';
-      card.appendChild(row);
-    }
-    row.innerHTML = '';
-    const prompt = document.createElement('div');
-    prompt.className = 'tool-approval-prompt';
-    prompt.textContent = t('webview.approval.prompt');
-    row.appendChild(prompt);
-    options.forEach((decision, index) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'approval-btn' + (index === 0 ? ' primary' : '')
-        + (decision === 'deny' ? ' deny' : '');
-      btn.textContent = t('webview.approval.' + decision).replace('{0}', event.toolName || '');
-      btn.addEventListener('click', () => {
-        row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-        vscode.postMessage({ type: 'approve-tool', callId: event.callId, decision });
-      });
-      row.appendChild(btn);
+    if (mid && renderedMessageIds.has('ai:' + mid)) return;
+    if (mid) renderedMessageIds.add('ai:' + mid);
+    removeTyping();
+    isWaiting = false;
+    stopRequested = false;
+    if (mid && mid === lastSentMessageId) lastSentMessageId = null;
+    if (mid && mid === activeId) activeId = null;
+    const reply = (mid && replies.get(mid)) || { message_id: mid, parts: [] };
+    reply.status = data.status || 'done';
+    reply.text = data.message || '';
+    reply.timestamp = data.timestamp || reply.timestamp;
+    reply.duration_ms = data.duration_ms;
+    reply.parts.forEach((part) => {
+      if (part.kind === 'tool' && OPEN_TOOL[part.status]) {
+        part.status = 'stopped';
+        delete part.options;
+      }
     });
+    if (mid) {
+      replies.set(mid, reply);
+      showReply(reply);
+    } else {
+      // Message refused (VS Code busy…): the reason, in a bubble of its own
+      if (welcomeEl) welcomeEl.style.display = 'none';
+      messagesEl.appendChild(window.MyAITurn.create(reply, turnOptions).el);
+    }
+    updateSendButton();
+    scrollToBottom();
   }
 
-  // Tool call of the conversation's state (code_snapshot) as a card event
-  function toolEventFromPart(part) {
-    const event = {
-      kind: part.status || 'requested',
-      callId: part.call_id,
-      toolName: part.name,
-      input: part.input || {},
-      options: part.options,
-    };
-    if (typeof part.output === 'string') event.result = { content: part.output };
-    return event;
-  }
-
-  function describeToolTitle(name, input) {
-    name = name || 'tool';
-    if (!input || typeof input !== 'object') return name;
-    if (typeof input.path === 'string' && input.path) {
-      return name + '(' + input.path + ')';
+  // Message acknowledged by the host: typed here, or sent by a command
+  // (selection, active file); its reply begins
+  function applyAck(data) {
+    const mid = data.message_id;
+    if (!mid) return;
+    lastSentMessageId = mid;
+    if (!pendingLocalSend && typeof data.text === 'string'
+      && !renderedMessageIds.has('user:' + mid)) {
+      // Sent by a command (selection, active file), not typed here
+      userPinnedToBottom = true;
+      addUserMessage(userDisplayText(data.text, data.attachments), data.timestamp);
+      isWaiting = true;
+      updateSendButton();
     }
-    if (typeof input.command === 'string' && input.command) {
-      const c = input.command;
-      return name + ': ' + (c.length > 60 ? c.slice(0, 60) + '…' : c);
-    }
-    if (typeof input.pattern === 'string' && input.pattern) {
-      return name + ' /' + input.pattern + '/';
-    }
-    return name;
-  }
-
-  function formatToolInput(input) {
-    if (!input || typeof input !== 'object') return '{}';
-    try {
-      return JSON.stringify(input, null, 2);
-    } catch (_e) {
-      return String(input);
-    }
+    pendingLocalSend = false;
+    renderedMessageIds.add('user:' + mid);
+    // Stop cliqué avant cet ack : la réponse est déjà arrêtée.
+    if (stopRequested) closedMessageIds.add(mid);
+    if (!discardingReply && !replies.has(mid)) startReply(mid, data.timestamp);
   }
 
   function applyState(state, hasCredentials) {
@@ -548,15 +534,7 @@
   // The host's full state (connection, view reloaded): it replaces the view.
   function applySnapshot(messages, state) {
     removeTyping();
-    Array.from(messagesEl.children).forEach((c) => {
-      if (c !== welcomeEl) c.remove();
-    });
-    renderedMessageIds.clear();
-    toolCardEls.clear();
-    toolCardEvents.clear();
-    streamingMessageId = null;
-    streamingMessageEl = null;
-    streamingSegmentIndex = null;
+    clearView();
     pendingLocalSend = false;
     discardingReply = false;
     const list = Array.isArray(messages) ? messages : [];
@@ -571,44 +549,38 @@
     const mid = m.message_id;
     if (m.role === 'user') {
       renderedMessageIds.add('user:' + mid);
-      addMessage(userDisplayText(m.text, m.attachments), true, m.timestamp, m.origin);
+      addUserMessage(userDisplayText(m.text, m.attachments), m.timestamp, m.origin);
       return;
     }
-    const parts = Array.isArray(m.parts) ? m.parts : [];
-    const streaming = m.status === 'streaming';
-    const last = parts[parts.length - 1];
-    let hasText = false;
-    parts.forEach((part) => {
-      if (!part) return;
-      if (part.kind === 'tool') {
-        const event = toolEventFromPart(part);
-        const card = createToolCard(event);
-        messagesEl.appendChild(card);
-        toolCardEls.set(part.call_id, card);
-        updateToolCard(card, event);
-      } else if (part.kind === 'text' && part.text) {
-        hasText = true;
-        if (streaming && part === last) {
-          // Reply in progress: its next chunks continue this bubble
-          updateStreamingBubble(mid, part.text, part.segment);
-        } else {
-          addMessage(part.text, false, m.timestamp);
-        }
-      }
+    const reply = {
+      message_id: mid,
+      status: m.status || 'done',
+      text: m.text || '',
+      timestamp: m.timestamp,
+      duration_ms: m.duration_ms,
+      parts: (Array.isArray(m.parts) ? m.parts : []).filter(Boolean).map((part) => Object.assign({}, part)),
+    };
+    replies.set(mid, reply);
+    showReply(reply);
+    if (reply.status === 'streaming') {
+      // Reply in progress: its next chunks and tool calls continue this bubble
+      activeId = mid;
+    } else {
+      renderedMessageIds.add('ai:' + mid);
+      closedMessageIds.add(mid);
+    }
+  }
+
+  // Messages and replies on screen, gone (the welcome stays)
+  function clearView() {
+    Array.from(messagesEl.children).forEach((c) => {
+      if (c !== welcomeEl) c.remove();
     });
-    if (streaming) {
-      if (!last || last.kind !== 'text') {
-        // Tools at work: the next chunk opens a new bubble below them
-        streamingMessageId = mid;
-        streamingSegmentIndex = null;
-        streamingMessageEl = null;
-      }
-      return;
-    }
-    renderedMessageIds.add('ai:' + mid);
-    closedMessageIds.add(mid);
-    // Reply without streamed text, or the reason of its failure
-    if (m.text && (!hasText || m.status === 'error')) addMessage(m.text, false, m.timestamp);
+    renderedMessageIds.clear();
+    replies.clear();
+    turns.clear();
+    activeId = null;
+    dirtyReplies = [];
   }
 
   // Reply in progress or not, wherever its message was typed: the send button
@@ -632,26 +604,18 @@
     if (!mid || renderedMessageIds.has('user:' + mid)) return;
     renderedMessageIds.add('user:' + mid);
     userPinnedToBottom = true;
-    addMessage(userDisplayText(data.text, data.attachments), true, data.timestamp, data.origin);
+    addUserMessage(userDisplayText(data.text, data.attachments), data.timestamp, data.origin);
     lastSentMessageId = mid;
     isWaiting = true;
-    showTyping();
+    startReply(mid, data.timestamp);
     updateSendButton();
   }
 
   // New conversation (Clear here, on the PC or on the phone)
   function resetConversation() {
     removeTyping();
-    Array.from(messagesEl.children).forEach((c) => {
-      if (c !== welcomeEl) c.remove();
-    });
+    clearView();
     if (welcomeEl) welcomeEl.style.display = 'flex';
-    renderedMessageIds.clear();
-    toolCardEls.clear();
-    toolCardEvents.clear();
-    streamingMessageId = null;
-    streamingMessageEl = null;
-    streamingSegmentIndex = null;
     isWaiting = false;
     stopRequested = false;
     discardingReply = false;
@@ -671,76 +635,15 @@
 
   function applyRelayMessage(data) {
     if (!data || typeof data !== 'object') return;
-
-    if (data.type === 'code_snapshot') {
-      applySnapshot(data.messages, data.state);
-    } else if (data.type === 'code_state') {
-      applyCodeState(data);
-    } else if (data.type === 'code_user') {
-      applyRemoteUser(data);
-    } else if (data.type === 'code_cleared') {
-      resetConversation();
-    } else if (data.type === 'response') {
-      const mid = data.message_id || '';
-      if (mid) closedMessageIds.add(mid);
-      // Refused by the host (empty id): the message typed here got no reply
-      pendingLocalSend = false;
-      if (discardingReply) {
-        // Fin de la réponse arrêtée par Clear : on rend le bouton d'envoi
-        // sans rien afficher dans le chat vidé.
-        if (mid) renderedMessageIds.add('ai:' + mid);
-        discardingReply = false;
-        stopRequested = false;
-        isWaiting = false;
-        lastSentMessageId = null;
-        updateSendButton();
-        return;
-      }
-      if (mid && renderedMessageIds.has('ai:' + mid)) {
-        if (streamingMessageId === mid) finalizeStreaming(mid, null, null);
-        return;
-      }
-      if (mid) renderedMessageIds.add('ai:' + mid);
-      removeTyping();
-      isWaiting = false;
-      stopRequested = false;
-      if (mid && mid === lastSentMessageId) lastSentMessageId = null;
-      const streamed = mid && streamingMessageId === mid && streamingMessageEl
-        && streamingMessageEl.querySelector('.stream-content').textContent.trim();
-      if (data.status === 'error' && streamed) {
-        // Failure after some text: the text stays, the reason follows it
-        finalizeStreaming(mid, null, data.timestamp);
-        addMessage(data.message || '', false, data.timestamp);
-      } else {
-        finalizeStreaming(mid, data.message, data.timestamp);
-      }
-      updateSendButton();
-    } else if (data.type === 'chunk') {
-      const cmid = data.message_id || '';
-      if (!cmid || discardingReply || closedMessageIds.has(cmid)) return;
-      if (renderedMessageIds.has('ai:' + cmid)) return;
-      removeTyping();
-      // segment_index : optionnel (ancien protocole = pas de segments).
-      // Si absent, on traite tout comme segment 0.
-      const seg = (typeof data.segment_index === 'number') ? data.segment_index : 0;
-      updateStreamingBubble(cmid, data.text || '', seg);
-    } else if (data.type === 'ack') {
-      if (data.message_id) {
-        lastSentMessageId = data.message_id;
-        if (!pendingLocalSend && typeof data.text === 'string'
-          && !renderedMessageIds.has('user:' + data.message_id)) {
-          // Sent by a command (selection, active file), not typed here
-          userPinnedToBottom = true;
-          addMessage(userDisplayText(data.text, data.attachments), true, data.timestamp);
-          isWaiting = true;
-          showTyping();
-          updateSendButton();
-        }
-        pendingLocalSend = false;
-        renderedMessageIds.add('user:' + data.message_id);
-        // Stop cliqué avant cet ack : la réponse est déjà arrêtée.
-        if (stopRequested) closedMessageIds.add(data.message_id);
-      }
+    switch (data.type) {
+      case 'code_snapshot': applySnapshot(data.messages, data.state); break;
+      case 'code_state': applyCodeState(data); break;
+      case 'code_user': applyRemoteUser(data); break;
+      case 'code_cleared': resetConversation(); break;
+      case 'response': applyResponse(data); break;
+      case 'chunk': applyChunk(data); break;
+      case 'ack': applyAck(data); break;
+      default: break;
     }
   }
 
@@ -763,7 +666,7 @@
     }
 
     userPinnedToBottom = true;
-    addMessage(displayText, true);
+    addUserMessage(displayText);
 
     pendingLocalSend = true;
     vscode.postMessage({
@@ -1140,164 +1043,21 @@
   }
 
   // ── MESSAGE RENDERING ────────────────────────────────
-  // origin: where a user message was typed ('desktop', 'mobile'), labelled
-  function addMessage(text, isUser, timestamp, origin) {
+  // Message of the user; origin: where it was typed ('desktop', 'mobile'), labelled
+  function addUserMessage(text, timestamp, origin) {
     if (welcomeEl) welcomeEl.style.display = 'none';
     const msg = document.createElement('div');
-    msg.className = 'message ' + (isUser ? 'user' : 'ai');
+    msg.className = 'message user';
     const time = formatTime(timestamp ? new Date(timestamp) : new Date());
-    const label = isUser ? originText(origin) : '';
-    if (label) {
-      msg.innerHTML = '<div class="user-stack">' +
+    const label = originText(origin);
+    const bubble = '<div class="bubble">' + escapeHtml(text) +
+      '<span class="time">' + time + '</span></div>';
+    msg.innerHTML = label
+      ? '<div class="user-stack">' +
         '<span class="origin-label" data-origin="' + escapeHtml(origin) + '">' +
-        escapeHtml(label) + '</span>' +
-        '<div class="bubble">' + escapeHtml(text) +
-        '<span class="time">' + time + '</span></div></div>';
-    } else if (isUser) {
-      msg.innerHTML = '<div class="bubble">' + escapeHtml(text) +
-        '<span class="time">' + time + '</span></div>';
-    } else {
-      msg.innerHTML =
-        '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-        '<div class="bubble">' + renderMarkdown(text) +
-        '<span class="time">' + time + '</span></div>';
-    }
+        escapeHtml(label) + '</span>' + bubble + '</div>'
+      : bubble;
     messagesEl.appendChild(msg);
-    enhanceCodeBlocks(msg);
-    scrollToBottom();
-  }
-
-  function balanceMarkdownForStreaming(text) {
-    if (!text) return '';
-    const fenceMatches = text.match(/(^|\n)```/g);
-    const count = fenceMatches ? fenceMatches.length : 0;
-    if (count % 2 === 1) text = text + '\n```';
-    return text;
-  }
-
-  function ensureStreamingBubble(mid, segmentIndex) {
-    if (
-      streamingMessageId === mid
-      && streamingSegmentIndex === segmentIndex
-      && streamingMessageEl
-      && streamingMessageEl.isConnected
-    ) {
-      return streamingMessageEl;
-    }
-    if (welcomeEl) welcomeEl.style.display = 'none';
-    streamingMessageId = mid;
-    streamingSegmentIndex = segmentIndex;
-    const msg = document.createElement('div');
-    msg.className = 'message ai streaming';
-    msg.dataset.segment = String(segmentIndex);
-    msg.innerHTML =
-      '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble">' +
-        '<div class="stream-content"></div>' +
-        '<span class="stream-cursor"></span>' +
-      '</div>';
-    messagesEl.appendChild(msg);
-    streamingMessageEl = msg;
-    return msg;
-  }
-
-  // Fige la bulle de streaming courante (sans la déplacer dans le DOM)
-  // pour qu'elle reste visible quand on passe au segment suivant ou à la
-  // fin de la génération.
-  function promoteCurrentStreamingBubble(timestamp) {
-    if (!streamingMessageEl) return;
-    streamingMessageEl.classList.remove('streaming');
-    const cursor = streamingMessageEl.querySelector('.stream-cursor');
-    if (cursor) cursor.remove();
-    const bubble = streamingMessageEl.querySelector('.bubble');
-    if (bubble && !bubble.querySelector('.time')) {
-      const time = formatTime(timestamp ? new Date(timestamp) : new Date());
-      const timeEl = document.createElement('span');
-      timeEl.className = 'time';
-      timeEl.textContent = time;
-      bubble.appendChild(timeEl);
-    }
-  }
-
-  function updateStreamingBubble(mid, text, segmentIndex) {
-    if (typeof segmentIndex !== 'number') segmentIndex = 0;
-    const trimmedText = (text || '').trim();
-    // Détection d'un nouveau segment (= nouvelle itération LLM) : on
-    // promeut la bulle courante en bulle "finie" et on en crée une
-    // nouvelle, qui apparaîtra APRÈS les cartes d'outils déjà insérées
-    // entre les deux segments. C'est ce qui donne l'ordre :
-    // texte → outils → texte → outils → ...
-    if (
-      streamingMessageId === mid
-      && streamingMessageEl
-      && streamingSegmentIndex !== null
-      && streamingSegmentIndex !== segmentIndex
-    ) {
-      // Si le segment précédent est resté vide (LLM n'a émis qu'un
-      // tool_use sans texte autour), on retire carrément sa bulle pour
-      // ne pas afficher un robot orphelin sans contenu.
-      const prevContent = streamingMessageEl.querySelector('.stream-content');
-      const prevText = prevContent ? prevContent.textContent.trim() : '';
-      if (!prevText) {
-        streamingMessageEl.remove();
-      } else {
-        promoteCurrentStreamingBubble(null);
-      }
-      streamingMessageEl = null;
-    }
-    // Ne pas créer de bulle tant qu'il n'y a pas de contenu visible :
-    // évite les bulles fantômes pour les segments où le LLM n'émet que
-    // des balises <tool_use> (déjà strippées côté hôte).
-    if (!trimmedText) {
-      // On enregistre quand même le segment courant pour détecter la
-      // prochaine transition.
-      streamingMessageId = mid;
-      streamingSegmentIndex = segmentIndex;
-      return;
-    }
-    const bubble = ensureStreamingBubble(mid, segmentIndex);
-    const content = bubble.querySelector('.stream-content');
-    if (content) {
-      content.innerHTML = renderMarkdown(balanceMarkdownForStreaming(text));
-      enhanceCodeBlocks(content);
-    }
-    scrollToBottomStream();
-  }
-
-  function finalizeStreaming(mid, finalText, timestamp) {
-    if (streamingMessageId !== mid) {
-      // Le streaming n'a jamais commencé pour ce message : afficher la
-      // réponse finale d'un coup.
-      if (finalText !== null && finalText !== undefined) {
-        addMessage(finalText, false, timestamp);
-      }
-      return;
-    }
-    // En mode segmenté, la bulle de streaming actuelle contient le DERNIER
-    // segment (pas la réponse complète). On la promeut sans toucher à son
-    // contenu : tous les segments précédents sont déjà des bulles figées
-    // au-dessus, intercalées avec les cartes d'outils. Le finalText reçu
-    // dans le message `response` est la concaténation de tous les segments
-    // (utile si le streaming a été manqué, mais redondant sinon).
-    if (streamingMessageEl) {
-      // Si la bulle de streaming est restée vide (dernier segment sans
-      // texte), on l'efface et on bascule sur le finalText pour que
-      // l'utilisateur voie au moins la réponse complète une fois.
-      const content = streamingMessageEl.querySelector('.stream-content');
-      const currentText = content ? content.textContent.trim() : '';
-      if (!currentText && finalText && finalText.trim()) {
-        streamingMessageEl.remove();
-        addMessage(finalText, false, timestamp);
-      } else {
-        promoteCurrentStreamingBubble(timestamp);
-      }
-    } else if (finalText !== null && finalText !== undefined && finalText.trim()) {
-      // Streaming vide (jamais reçu de chunk visible) → afficher la réponse.
-      addMessage(finalText, false, timestamp);
-    }
-    streamingMessageEl = null;
-    streamingMessageId = null;
-    streamingSegmentIndex = null;
     scrollToBottom();
   }
 
@@ -1335,16 +1095,8 @@
       discardingReply = true;
     }
     removeTyping();
-    Array.from(messagesEl.children).forEach((c) => {
-      if (c !== welcomeEl) c.remove();
-    });
+    clearView();
     if (welcomeEl) welcomeEl.style.display = 'flex';
-    renderedMessageIds.clear();
-    streamingMessageId = null;
-    streamingMessageEl = null;
-    streamingSegmentIndex = null;
-    toolCardEls.clear();
-    toolCardEvents.clear();
   }
 
   function scrollToBottom() {
@@ -1360,147 +1112,6 @@
       if (!userPinnedToBottom) return;
       messagesEl.scrollTop = messagesEl.scrollHeight;
     });
-  }
-
-  // ── CODE BLOCK ACTIONS ───────────────────────────────
-  function enhanceCodeBlocks(root) {
-    root.querySelectorAll('pre').forEach((pre) => {
-      if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) {
-        return;
-      }
-      const wrapper = document.createElement('div');
-      wrapper.className = 'code-block-wrapper';
-      pre.parentNode.insertBefore(wrapper, pre);
-      wrapper.appendChild(pre);
-
-      const actions = document.createElement('div');
-      actions.className = 'code-actions';
-
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'code-action';
-      copyBtn.dataset.action = 'copy';
-      copyBtn.textContent = t('webview.code.copy');
-      actions.appendChild(copyBtn);
-
-      const insertBtn = document.createElement('button');
-      insertBtn.className = 'code-action';
-      insertBtn.dataset.action = 'insert';
-      insertBtn.textContent = t('webview.code.insert');
-      actions.appendChild(insertBtn);
-
-      wrapper.appendChild(actions);
-    });
-  }
-
-  // ── MARKDOWN (light) ─────────────────────────────────
-  function renderMarkdown(text) {
-    if (!text) return '';
-    let html = escapeHtml(text);
-
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang, code) => {
-      return '<pre><code>' + code.trim() + '</code></pre>';
-    });
-
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    // Horizontal rule: a line containing only 3+ identical chars among - _ *
-    // (matches "---", "___", "***", with optional surrounding whitespace).
-    // Must run BEFORE the list transform so that "---" is not interpreted as a bullet.
-    html = html.replace(/^[ \t]*([-_*])\1{2,}[ \t]*$/gm, '<hr>');
-
-    html = html.replace(/^(#{1,6}) (.+)$/gm, (_, hashes, content) => {
-      const lvl = hashes.length;
-      return '<h' + lvl + '>' + content + '</h' + lvl + '>';
-    });
-
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
-
-    html = html.replace(/((?:^\|[^\n]+\n?)+)/gm, (tableBlock) => {
-      const lines = tableBlock.trim().split('\n').filter((l) => l.trim());
-      if (lines.length < 2) return tableBlock;
-      if (!/^\|[\s:\-|]+\|?$/.test(lines[1].trim())) return tableBlock;
-      const parseRow = (line) => line.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
-      const headers = parseRow(lines[0]);
-      let out = '<table><thead><tr>';
-      headers.forEach((h) => { out += '<th>' + h + '</th>'; });
-      out += '</tr></thead><tbody>';
-      for (let i = 2; i < lines.length; i++) {
-        const row = lines[i].trim();
-        if (!row) continue;
-        const cells = parseRow(row);
-        out += '<tr>';
-        cells.forEach((c) => { out += '<td>' + c + '</td>'; });
-        out += '</tr>';
-      }
-      out += '</tbody></table>';
-      return out;
-    });
-
-    html = html.replace(/^\s*(\d+)[\.)]\s+(.+)$/gm, '<oli>$2</oli>');
-    html = html.replace(/^\s*[\-\*]\s+(.+)$/gm, '<uli>$1</uli>');
-
-    html = html.replace(/(?:<oli>[\s\S]*?<\/oli>\n?)+/g, (block) => {
-      const items = block.replace(/<oli>/g, '<li>').replace(/<\/oli>/g, '</li>');
-      return '<ol>' + items + '</ol>';
-    });
-
-    html = html.replace(/(?:<uli>[\s\S]*?<\/uli>\n?)+/g, (block) => {
-      const items = block.replace(/<uli>/g, '<li>').replace(/<\/uli>/g, '</li>');
-      return '<ul>' + items + '</ul>';
-    });
-
-    html = html.replace(/\n\n/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
-    html = '<p>' + html + '</p>';
-
-    html = html.replace(/<p><\/p>/g, '');
-    html = html.replace(/<p>(<pre>)/g, '$1');
-    html = html.replace(/(<\/pre>)<\/p>/g, '$1');
-    html = html.replace(/<p>(<ul>)/g, '$1');
-    html = html.replace(/(<\/ul>)<\/p>/g, '$1');
-    html = html.replace(/<p>(<ol>)/g, '$1');
-    html = html.replace(/(<\/ol>)<\/p>/g, '$1');
-    html = html.replace(/<p>(<h[1-6]>)/g, '$1');
-    html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
-    html = html.replace(/<p>(<table>)/g, '$1');
-    html = html.replace(/(<\/table>)<\/p>/g, '$1');
-
-    html = html.replace(/(<\/li>)<br>(<li>)/g, '$1$2');
-    html = html.replace(/<ul><br>/g, '<ul>');
-    html = html.replace(/<br><\/ul>/g, '</ul>');
-    html = html.replace(/<ol><br>/g, '<ol>');
-    html = html.replace(/<br><\/ol>/g, '</ol>');
-
-    // <hr>: strip surrounding <br> so the rule stands on its own clean line,
-    // then split any wrapping <p>...<hr>...</p> into <p>before</p><hr><p>after</p>
-    // so the HTML stays valid (<hr> is a block element and cannot live inside <p>).
-    // The negative lookaheads `(?!<\/p>)` / `(?!<p>)` keep the match within a
-    // single paragraph so we never swallow neighbouring paragraphs.
-    html = html.replace(/<br>\s*<hr>/g, '<hr>');
-    html = html.replace(/<hr>\s*<br>/g, '<hr>');
-    let _hrIter = 100;
-    while (_hrIter-- > 0) {
-      const next = html.replace(
-        /<p>((?:(?!<\/p>)[^])*?)<hr>((?:(?!<p>)[^])*?)<\/p>/,
-        (_m, before, after) => {
-          let out = '';
-          if (before.trim()) out += '<p>' + before + '</p>';
-          out += '<hr>';
-          if (after.trim()) out += '<p>' + after + '</p>';
-          return out;
-        },
-      );
-      if (next === html) break;
-      html = next;
-    }
-    // Orphan </p> right after <hr> or orphan <p> right before <hr> (left over
-    // when the preceding/following block was already stripped of its <p> wrap,
-    // e.g. a <ul>...</ul>\n\n<hr> sequence): remove them.
-    html = html.replace(/<hr>\s*<\/p>/g, '<hr>');
-    html = html.replace(/<p>\s*<hr>/g, '<hr>');
-
-    return html;
   }
 
   function escapeHtml(text) {

@@ -398,17 +398,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private renderHtml(webview: vscode.Webview): string {
     const mediaRoot = vscode.Uri.joinPath(this.context.extensionUri, 'media');
-    const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'chat.css'));
-    const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'chat.js'));
+    const uri = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, file)).toString();
     const nonce = crypto.randomBytes(16).toString('base64');
 
     const htmlPath = vscode.Uri.joinPath(mediaRoot, 'chat.html').fsPath;
     let html = fs.readFileSync(htmlPath, 'utf-8');
+    // markdown.js, turn.js and thread.css: the same files as the phone page
+    // of the Relay (relay/static/), for the same rendering of the replies
     html = html
       .replace(/%CSP_SOURCE%/g, webview.cspSource)
       .replace(/%NONCE%/g, nonce)
-      .replace(/%CHAT_CSS_URI%/g, cssUri.toString())
-      .replace(/%CHAT_JS_URI%/g, jsUri.toString());
+      .replace(/%THREAD_CSS_URI%/g, uri('thread.css'))
+      .replace(/%CHAT_CSS_URI%/g, uri('chat.css'))
+      .replace(/%MARKDOWN_JS_URI%/g, uri('markdown.js'))
+      .replace(/%TURN_JS_URI%/g, uri('turn.js'))
+      .replace(/%CHAT_JS_URI%/g, uri('chat.js'));
     return html;
   }
 }
@@ -483,22 +487,32 @@ function getWebviewStrings(): Record<string, string> {
     'webview.code.copied': t('Copied!'),
     'webview.attachment.remove': t('Remove'),
     'webview.attachment.error': t('error'),
-    'webview.tool.input': t('Input'),
-    'webview.tool.output': t('Output'),
-    'webview.tool.empty': t('(empty)'),
-    'webview.tool.running': t('running'),
-    'webview.tool.awaiting': t('waiting for approval'),
-    'webview.tool.denied': t('denied'),
-    'webview.tool.completed': t('done'),
-    'webview.tool.failed': t('error'),
-    'webview.tool.stopped': t('stopped'),
-    'webview.approval.prompt': t('Allow this action?'),
-    'webview.approval.allow-once': t('Allow once'),
-    'webview.approval.allow-target': t('Allow for this file'),
-    // {0}: name of the tool, filled in by the page
-    'webview.approval.allow-tool': t('Allow all {0} this session'),
-    'webview.approval.deny': t('Deny'),
     'webview.origin.desktop': t('From My_AI on the PC'),
     'webview.origin.mobile': t('From the phone'),
+    // Replies, drawn by media/turn.js as on the phone: the keys of its page.
+    // {target} (path, pattern or command) and {0} (name of the tool) are
+    // filled in by the page
+    'code.tool.read_file': t('Reading {target}'),
+    'code.tool.write_file': t('Writing {target}'),
+    'code.tool.edit_file': t('Editing {target}'),
+    'code.tool.list_dir': t('Listing {target}'),
+    'code.tool.glob': t('Finding files {target}'),
+    'code.tool.grep': t('Searching “{target}”'),
+    'code.tool.run_command': t('Command: {target}'),
+    'code.tool.get_active_editor': t('File open in VS Code'),
+    'code.tool.open_file': t('Opening {target}'),
+    'code.tool.input': t('Input'),
+    'code.tool.output': t('Output'),
+    'code.tool.empty': t('(empty)'),
+    'code.toolStatus.awaiting': t('waiting for approval'),
+    'code.toolStatus.failed': t('error'),
+    'code.toolStatus.denied': t('denied'),
+    'code.toolStatus.stopped': t('stopped'),
+    'code.approval.prompt': t('Allow this action?'),
+    'code.approval.allowOnce': t('Allow once'),
+    'code.approval.allowTarget': t('Allow for this file'),
+    'code.approval.allowTool': t('Allow all {0} this session'),
+    'code.approval.deny': t('Deny'),
+    'code.stopped': t('Reply interrupted'),
   };
 }

@@ -18,10 +18,10 @@ exactly as before.
 ## Highlights
 
 - 🤖 **Agentic mode** — the model can read, edit, and create files, run
-  shell commands, and search the workspace via nine built-in tools. Every
-  tool call shows up as a foldable card **rendered inline
-  in narration order** (text → tool card → text → tool card → final
-  answer), with status, input, and captured output.
+  shell commands, and search the workspace via nine built-in tools. Each
+  reply is **one bubble, in narration order**: its text, then the tool
+  calls it makes (one line each, with their status; input and captured
+  output on click), then the text that follows.
 - 🛡️ **Workspace sandbox** — all paths are resolved against the open
   workspace folder. Out-of-workspace access requires an explicit modal
   approval per path, never auto-approvable.
@@ -164,23 +164,31 @@ card for a message typed on the PC or the phone).
 - **Asked where you are.** For a message typed in VS Code, the modal
   dialog asks. For a message typed on the **Code** page of My_AI or on the
   phone, you may be away from VS Code: the same choices appear as buttons
-  in the tool card — in this chat, on the PC and on the phone — and the
+  under the tool call — in this chat, on the PC and on the phone — and the
   first answer counts. Until then the tool waits, without timing out;
   **Stop** cancels it.
 - Approvals reset on every reconnect.
 
-### Tool cards in the chat
+### Tool calls in the reply
 
-Each tool call renders as a foldable card with a colored left border:
+A reply is a single bubble: the text of each pass of the model and,
+between two passes, the tool calls it makes, grouped one line each —
+*Reading src/app.py*, *Command: npm test*… Their icon gives their state:
 
-- **Orange** — running.
-- **Indigo** — awaiting approval.
-- **Green** — completed.
-- **Red** — failed.
-- **Gray** — denied by the user.
+- **Spinner** — running.
+- **Lock** — awaiting approval (with its buttons for a message typed on
+  the PC or the phone).
+- **Tool icon** — completed.
+- **Red alert** — failed.
+- **Gray** — denied or stopped.
 
-Click the header to expand the input (JSON args) and the output
-(stdout/stderr for shell commands, file diffs for edits, etc.).
+Click a line to expand its input (JSON args) and its output (stdout/stderr
+for shell commands, result of an edit, etc.). The bottom of the bubble says
+when the reply was stopped or failed, with its time and how long it took.
+Code blocks show their language, with **Copy** and **Insert** (at the
+cursor of the active editor) buttons in their header. The phone's **Code**
+view draws replies the same way: both use the same files (`turn.js`,
+`markdown.js`, `thread.css`).
 
 ### Conversation memory
 
