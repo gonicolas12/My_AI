@@ -2,7 +2,7 @@
  * Fichiers de workflow : format JSON de WorkflowCanvas.to_dict (Tk), pour
  * relire les workflows enregistrés avec l'interface Tk et lui rendre les siens.
  *
- *   { "version": "9.0.0",
+ *   { "version": "9.1.0",
  *     "nodes": { "0": { agent_type, name, color, icon, x, y, status }, … },
  *     "connections": [ { "from": 0, "to": 1 }, … ],
  *     "zoom": 1.0, "pan_x": 0.0, "pan_y": 0.0 }
@@ -15,7 +15,7 @@ import type { WorkflowFile } from '../../../lib/api';
 import type { NodeStatus } from '../../../lib/events';
 import { type Link, MAX_ZOOM, MIN_ZOOM, validLinks } from './graph';
 
-export const WORKFLOW_VERSION = '9.0.0';
+export const WORKFLOW_VERSION = '9.1.0';
 
 export interface WorkflowNode {
   id: number;

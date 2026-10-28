@@ -123,7 +123,7 @@ Toute la configuration du projet et de la limite des tokens se gère via votre f
 ```yaml
 ai:
   name: "My Personal AI"
-  version: "9.0.0"
+  version: "9.1.0"
   
   # Paramètres généraux
   max_tokens: 10485760
