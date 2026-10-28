@@ -1531,13 +1531,13 @@ Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *A
 La conversation de l'extension s'affiche aussi :
 
 - **Sur le PC** : bouton **Code** en haut de la barre latérale (sous « Nouvelle conversation », sa pastille est verte quand VS Code est connecté) ; la page reprend l'interface du chat, avec les appels d'outils de VS Code et le dossier ouvert dans VS Code en pied de saisie. Les pièces jointes du chat y sont aussi (menu **+**, Ctrl+V pour une image, fichiers ou dossier glissés) : elles partent avec le message, le modèle lit les documents et le code, et le modèle vision décrit les images. Le **micro** dicte comme dans le chat (Whisper local). Les onglets **Chat** et **Agents** du haut sont masqués sur cette page : la barre latérale ramène au chat ;
-- **Sur le téléphone** : bouton `</>` à gauche de **Chat** dans la page du Relay ; même interface que le chat mobile.
+- **Sur le téléphone** : bouton `</>` à gauche de **Chat** dans la page du Relay ; même interface que le chat mobile, et réponses dessinées comme dans VS Code (mêmes fichiers `turn.js`, `markdown.js` et `thread.css`).
 
 Un message tapé à l'un de ces endroits part à l'extension, qui agit dans son workspace ; la réponse arrive en streaming partout. **Stop** arrête la réponse en cours d'où qu'elle vienne, **Effacer** commence une nouvelle conversation partout (le téléphone demande confirmation). La conversation est gardée dans `data/code_conversation.json` d'un lancement à l'autre. Le chat classique (téléphone + fenêtre) en reste séparé : rien de lui n'arrive dans VS Code, et inversement.
 
-#### Cartes d'outils dans le chat
+#### Appels d'outils dans la réponse
 
-Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gauche colorée selon l'état (orange = en cours · indigo = en attente d'approbation · vert = OK · rouge = erreur · gris = refusé). Cliquer déplie les arguments JSON et la sortie capturée (stdout/stderr pour les commandes shell, lignes modifiées pour les éditions).
+Une réponse est **une seule bulle** : le texte de chaque passe du modèle et, entre deux passes, ses appels d'outils regroupés, **une ligne chacun** (« Lecture de src/app.py », « Commande : npm test »…), puis le texte qui suit. L'icône de la ligne dit l'état : roue qui tourne = en cours · cadenas = en attente d'approbation (avec ses boutons pour un message du PC ou du téléphone) · icône de l'outil = terminé · alerte rouge = erreur · gris = refusé ou arrêté. Cliquer sur une ligne déplie les arguments JSON et la sortie capturée (stdout/stderr pour les commandes shell, résultat des éditions). Le bas de la bulle dit si la réponse a été arrêtée ou a échoué, avec l'heure et la durée ; les blocs de code montrent leur langage, avec **Copier** et **Insérer** (au curseur de l'éditeur actif) dans leur en-tête.
 
 #### Sandbox & isolation
 
@@ -1549,9 +1549,9 @@ Chaque appel d'outil s'affiche comme une **carte pliable**, avec une bordure gau
 
 > *« Liste tous les fichiers `.ts` du workspace et trouve celui qui a le plus de lignes »* → `glob('**/*.ts')` puis `read_file` sur les candidats, puis réponse synthétique.
 >
-> *« Crée un fichier `src/utils/dateFormat.ts` avec une fonction qui formate les dates ISO en français »* → modal `write_file` puis carte verte ✓.
+> *« Crée un fichier `src/utils/dateFormat.ts` avec une fonction qui formate les dates ISO en français »* → modal `write_file` puis « Écriture de src/utils/dateFormat.ts » terminée dans la réponse.
 >
-> *« Initialise un projet Vite + React + TypeScript dans le dossier courant »* → modal `run_command("npm create vite@latest . -- --template react-ts")` puis modal `npm install` puis cartes ✓.
+> *« Initialise un projet Vite + React + TypeScript dans le dossier courant »* → modal `run_command("npm create vite@latest . -- --template react-ts")` puis modal `npm install`, chaque commande sur sa ligne dans la réponse.
 
 #### Fonctionnalités également dispo
 
