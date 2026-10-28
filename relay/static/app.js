@@ -865,7 +865,7 @@ function addMessage(text, isUser, timestamp, autoOpen) {
   } else {
     msg.innerHTML =
       '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble" dir="auto">' + renderMarkdown(text) +
+      '<div class="bubble"><div class="md" dir="auto">' + renderMarkdown(text) + '</div>' +
       '<span class="time">' + time + '</span></div>';
     attachArtifactButton(msg.querySelector('.bubble'), text, autoOpen);
   }
@@ -911,22 +911,6 @@ function addImageMessage(b64, mime, filename, timestamp) {
 }
 
 // ── STREAMING BUBBLE ────────────────────────────────
-// Ferme provisoirement un bloc de code ``` non terminé pour que le rendu
-// markdown pendant le streaming reste stable (sinon le ``` ouvrant
-// apparaît en texte brut tant que la clôture n'est pas reçue).
-function balanceMarkdownForStreaming(text) {
-  if (!text) return '';
-  // Compter les séquences ``` en début de ligne ou précédées d'un \n.
-  var fenceMatches = text.match(/(^|\n)```/g);
-  var count = fenceMatches ? fenceMatches.length : 0;
-  if (count % 2 === 1) {
-    // Ajouter une fermeture fantôme : le renderer voit un bloc complet,
-    // et la prochaine mise à jour arrivera avec plus de contenu.
-    text = text + '\n```';
-  }
-  return text;
-}
-
 function ensureStreamingBubble(mid) {
   if (streamingMessageId === mid && streamingMessageEl && streamingMessageEl.isConnected) {
     return streamingMessageEl;
@@ -938,20 +922,18 @@ function ensureStreamingBubble(mid) {
   msg.className = 'message ai streaming';
   msg.innerHTML =
     '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-    '<div class="bubble" dir="auto">' +
-      '<div class="stream-content"></div>' +
-      '<span class="stream-cursor"></span>' +
-    '</div>';
+    '<div class="bubble"><div class="md stream-content" dir="auto"></div></div>';
   messagesEl.appendChild(msg);
   streamingMessageEl = msg;
   return msg;
 }
 
+// Texte reçu jusqu'ici, le curseur après son dernier caractère
 function updateStreamingBubble(mid, text) {
   var bubble = ensureStreamingBubble(mid);
   var content = bubble.querySelector('.stream-content');
   if (content) {
-    content.innerHTML = renderMarkdown(balanceMarkdownForStreaming(text));
+    content.innerHTML = renderMarkdown(text, { cursor: true });
   }
   scrollToBottomStream();
 }
@@ -976,7 +958,7 @@ function finalizeStreaming(mid, finalText, timestamp) {
     streamingMessageEl.classList.remove('streaming');
     streamingMessageEl.innerHTML =
       '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble" dir="auto">' + renderMarkdown(finalText) +
+      '<div class="bubble"><div class="md" dir="auto">' + renderMarkdown(finalText) + '</div>' +
       '<span class="time">' + time + '</span></div>';
     attachArtifactButton(streamingMessageEl.querySelector('.bubble'), finalText, true);
   }
@@ -1077,199 +1059,56 @@ messagesEl.addEventListener('scroll', function () {
 }, { passive: true });
 
 // ═══════════════════════════════════════════════════
-// MARKDOWN LIGHT RENDERER
+// MARKDOWN
 // ═══════════════════════════════════════════════════
 
-// Bloc « 📚 Sources » d'une réponse (utils/citations.py) : « [n] [titre](url) »
-// ou « [n] url », comme parseCitationMap dans la fenêtre du PC (links.ts)
-var CITATION_SOURCE_RE = /\[(\d{1,3})\]\s*(?:\[[^\]]*\]\()?(https?:\/\/[^)\s]+)/g;
-
-/** Table n → url des sources numérotées (texte déjà échappé), ou null */
-function citationMap(html) {
-  var sources = null;
-  html.replace(CITATION_SOURCE_RE, function (match, n, url) {
-    sources = sources || {};
-    if (!(n in sources)) sources[n] = url.replace(/[.,;:) ]+$/, '').replace(/"/g, '%22');
-    return match;
-  });
-  return sources;
+// Rendu partagé avec la vue de l'extension VS Code (markdown.js) : titres,
+// listes imbriquées, tableaux, code, liens, citations [n] du bloc 📚 Sources.
+// options.cursor : curseur du streaming après le dernier caractère.
+function renderMarkdown(text, options) {
+  var opts = { codeActions: CODE_ACTIONS };
+  if (options && options.cursor) opts.cursor = true;
+  return window.MyAIMarkdown.render(text, opts);
 }
 
-/**
- * Marqueurs [n] → lien bleu souligné vers leur source, comme dans la fenêtre
- * du PC. Jamais dans le code ni dans un lien déjà posé : seuls les morceaux
- * de texte entre balises sont touchés.
- */
-function linkCitations(html, sources) {
-  if (!sources) return html;
-  var parts = html.split(
-    /(<pre>[\s\S]*?<\/pre>|<code>[\s\S]*?<\/code>|<a [^>]*>[\s\S]*?<\/a>|<[^>]+>)/
-  );
-  return parts.map(function (part, index) {
-    if (index % 2) return part;
-    return part.replace(/\[(\d{1,3})\]/g, function (marker, n) {
-      var url = sources[n];
-      return url
-        ? '<a class="cite" href="' + url + '" target="_blank" rel="noopener noreferrer">' +
-          marker + '</a>'
-        : marker;
-    });
-  }).join('');
-}
+// Bouton « Copier » des blocs de code : chat, vue Code et page Agents
+var CODE_ACTIONS = [{ action: 'copy', label: T('md.copy') }];
 
-function renderMarkdown(text) {
-  if (!text) return '';
-  var html = escapeHtml(text);
-  // Lue avant que les liens du bloc Sources ne deviennent des balises
-  var citations = citationMap(html);
-
-  // Code blocks ``` ... ```
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
-    return '<pre><code>' + code.trim() + '</code></pre>';
-  });
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-  // Liens Markdown [texte](url) → lien bleu souligné cliquable (on n'affiche
-  // que le titre, pas la syntaxe). Exécuté avant le gras/italique pour que
-  // l'URL entre parenthèses ne soit pas altérée.
-  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (_m, label, url) {
-    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' +
-      label + '</a>';
-  });
-
-  // URLs nues http(s):// → liens cliquables. Le groupe `pre` évite de
-  // re-cibler une URL déjà dans un attribut (href=") ou juste après un tag (>).
-  html = html.replace(
-    /(^|[^"'>=\]])(https?:\/\/[^\s<>"]+)/g,
-    function (_m, pre, url) {
-      var trail = '';
-      var tm = url.match(/[.,;:!?)\]]+$/);
-      if (tm) { trail = tm[0]; url = url.slice(0, -trail.length); }
-      return pre + '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' +
-        url + '</a>' + trail;
-    }
-  );
-
-  // Marqueurs de citation [n] : liens vers leur source
-  html = linkCitations(html, citations);
-
-  // Horizontal rule: a line containing only 3+ identical chars among - _ *
-  // ("---", "___", "***", with optional surrounding whitespace). Must run
-  // BEFORE the list transform so "---" is not interpreted as a bullet.
-  html = html.replace(/^[ \t]*([-_*])\1{2,}[ \t]*$/gm, '<hr>');
-
-  // Headings # through ######
-  html = html.replace(/^(#{1,6}) (.+)$/gm, function (_, hashes, content) {
-    var lvl = hashes.length;
-    return '<h' + lvl + '>' + content + '</h' + lvl + '>';
-  });
-
-  // Bold **text**
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
-  // Italic *text*
-  html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
-
-  // Tables  (must run before line-break conversion)
-  html = html.replace(/((?:^\|[^\n]+\n?)+)/gm, function (tableBlock) {
-    var lines = tableBlock.trim().split('\n').filter(function (l) { return l.trim(); });
-    if (lines.length < 2) return tableBlock;
-    // Second line must be a separator row (only |, -, :, spaces)
-    if (!/^\|[\s:\-|]+\|?$/.test(lines[1].trim())) return tableBlock;
-    var parseRow = function (line) {
-      return line.replace(/^\||\|$/g, '').split('|').map(function (c) { return c.trim(); });
-    };
-    var headers = parseRow(lines[0]);
-    var out = '<table><thead><tr>';
-    headers.forEach(function (h) { out += '<th>' + h + '</th>'; });
-    out += '</tr></thead><tbody>';
-    for (var i = 2; i < lines.length; i++) {
-      var row = lines[i].trim();
-      if (!row) continue;
-      var cells = parseRow(row);
-      out += '<tr>';
-      cells.forEach(function (c) { out += '<td>' + c + '</td>'; });
-      out += '</tr>';
-    }
-    out += '</tbody></table>';
-    return out;
-  });
-
-  // Lists (ordered + unordered)
-  // Convert to placeholder tags first, then wrap contiguous blocks.
-  html = html.replace(/^\s*(\d+)[\.)]\s+(.+)$/gm, '<oli>$2</oli>');
-  html = html.replace(/^\s*[\-\*]\s+(.+)$/gm, '<uli>$1</uli>');
-
-  html = html.replace(/(?:<oli>[\s\S]*?<\/oli>\n?)+/g, function (block) {
-    var items = block.replace(/<oli>/g, '<li>').replace(/<\/oli>/g, '</li>');
-    return '<ol>' + items + '</ol>';
-  });
-
-  html = html.replace(/(?:<uli>[\s\S]*?<\/uli>\n?)+/g, function (block) {
-    var items = block.replace(/<uli>/g, '<li>').replace(/<\/uli>/g, '</li>');
-    return '<ul>' + items + '</ul>';
-  });
-
-  // Bloc « 📚 Sources » : une ligne vide de plus le sépare de la réponse
-  html = html.replace(/\n(📚 (?:<strong>)?Sources(?:<\/strong>)?)/g, '\n<br>$1');
-
-  // Line breaks -> paragraphs
-  html = html.replace(/\n\n/g, '</p><p>');
-  html = html.replace(/\n/g, '<br>');
-  html = '<p>' + html + '</p>';
-
-  // Clean up empty paragraphs and nesting issues
-  html = html.replace(/<p><\/p>/g, '');
-  html = html.replace(/<p>(<pre>)/g, '$1');
-  html = html.replace(/(<\/pre>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<ul>)/g, '$1');
-  html = html.replace(/(<\/ul>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<ol>)/g, '$1');
-  html = html.replace(/(<\/ol>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<h[1-6]>)/g, '$1');
-  html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<table>)/g, '$1');
-  html = html.replace(/(<\/table>)<\/p>/g, '$1');
-
-  // Fix spurious <br> inside lists (from \n → <br> applied after <ul> wrapping)
-  html = html.replace(/(<\/li>)<br>(<li>)/g, '$1$2');
-  html = html.replace(/<ul><br>/g, '<ul>');
-  html = html.replace(/<br><\/ul>/g, '</ul>');
-  html = html.replace(/<ol><br>/g, '<ol>');
-  html = html.replace(/<br><\/ol>/g, '</ol>');
-
-  // <hr>: strip surrounding <br> so the rule stands on its own clean line,
-  // then split any wrapping <p>...<hr>...</p> into <p>before</p><hr><p>after</p>
-  // so the HTML stays valid (<hr> is a block element and cannot live inside <p>).
-  // The negative lookaheads `(?!<\/p>)` / `(?!<p>)` keep the match within a
-  // single paragraph so we never swallow neighbouring paragraphs.
-  html = html.replace(/<br>\s*<hr>/g, '<hr>');
-  html = html.replace(/<hr>\s*<br>/g, '<hr>');
-  var _hrIter = 100;
-  while (_hrIter-- > 0) {
-    var next = html.replace(
-      /<p>((?:(?!<\/p>)[^])*?)<hr>((?:(?!<p>)[^])*?)<\/p>/,
-      function (_m, before, after) {
-        var out = '';
-        if (before.trim()) out += '<p>' + before + '</p>';
-        out += '<hr>';
-        if (after.trim()) out += '<p>' + after + '</p>';
-        return out;
-      },
-    );
-    if (next === html) break;
-    html = next;
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
   }
-  // Orphan </p> right after <hr> or orphan <p> right before <hr> (left over
-  // when the preceding/following block was already stripped of its <p> wrap,
-  // e.g. a <ul>...</ul>\n\n<hr> sequence): remove them.
-  html = html.replace(/<hr>\s*<\/p>/g, '<hr>');
-  html = html.replace(/<p>\s*<hr>/g, '<hr>');
-
-  return html;
+  // Page servie en http (réseau local) : l'ancienne copie du navigateur
+  return new Promise(function (resolve, reject) {
+    var area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try {
+      if (document.execCommand('copy')) resolve();
+      else reject(new Error('copy'));
+    } catch (err) {
+      reject(err);
+    } finally {
+      document.body.removeChild(area);
+    }
+  });
 }
+
+document.addEventListener('click', function (event) {
+  var button = event.target instanceof Element ? event.target.closest('.md-code-btn') : null;
+  if (!button || button.dataset.action !== 'copy') return;
+  var code = button.closest('.md-code').querySelector('pre code');
+  copyText(code ? code.textContent : '').then(function () {
+    button.textContent = T('md.copied');
+    setTimeout(function () { button.textContent = T('md.copy'); }, 1200);
+  }).catch(function (err) {
+    console.warn('[Relay] Copie impossible :', err);
+  });
+});
 
 // ═══════════════════════════════════════════════════
 // ARTIFACTS (aperçu live HTML/SVG)
@@ -1609,13 +1448,13 @@ window.RelayCore = {
   isConnected: function () { return !!(ws && ws.readyState === 1); },
   renderMarkdown: renderMarkdown,
   escapeHtml: escapeHtml,
-  balanceMarkdownForStreaming: balanceMarkdownForStreaming,
   uploadEncryptedFile: function (file) { return uploadEncryptedFile(file); },
   e2eReady: function () { return e2eReady; },
   getToken: function () { return TOKEN; },
   // Vue Code (code.js) : bulles identiques à celles du chat
   formatTime: formatTime,
   robotSvg: ROBOT_SVG,
+  codeActions: CODE_ACTIONS,
   // État de la corbeille, à revoir quand une page commence ou finit d'écrire
   updateTrash: updateTrash,
 };

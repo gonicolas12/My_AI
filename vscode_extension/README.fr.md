@@ -20,10 +20,10 @@ exactement comme avant.
 
 - 🤖 **Mode agentique** — le modèle peut lire, modifier et créer des
   fichiers, lancer des commandes shell, et chercher dans le workspace via
-  neuf outils intégrés. Chaque appel d'outil s'affiche dans le chat sous
-  forme de carte pliable, **insérée inline dans l'ordre
-  de narration** (texte → carte outil → texte → carte outil → réponse
-  finale), avec son statut, ses arguments et sa sortie.
+  neuf outils intégrés. Chaque réponse est **une seule bulle, dans
+  l'ordre de narration** : son texte, puis les appels d'outils qu'elle
+  fait (une ligne chacun, avec son état ; arguments et sortie au clic),
+  puis le texte qui suit.
 - 🛡️ **Sandbox du workspace** — tous les chemins sont résolus à partir du
   dossier workspace ouvert. Tout accès en dehors du workspace nécessite
   une approbation modale par chemin, jamais auto-approuvable.
@@ -179,25 +179,33 @@ dans la carte de l'outil pour un message tapé sur le PC ou le téléphone).
 - **Demandé là où vous êtes.** Pour un message tapé dans VS Code, le modal
   pose la question. Pour un message tapé sur la page **Code** de My_AI ou
   sur le téléphone, vous êtes peut-être loin de VS Code : les mêmes choix
-  s'affichent en boutons dans la carte de l'outil — dans ce chat, sur le
+  s'affichent en boutons sous l'appel de l'outil — dans ce chat, sur le
   PC et sur le téléphone — et la première réponse compte. D'ici là,
   l'outil attend sans délai d'expiration ; **Stop** l'annule.
 - Les approbations sont réinitialisées à chaque reconnexion.
 
-### Cartes d'outils dans le chat
+### Appels d'outils dans la réponse
 
-Chaque appel d'outil s'affiche comme une carte pliable avec une bordure
-gauche colorée :
+Une réponse est une seule bulle : le texte de chaque passe du modèle et,
+entre deux passes, les appels d'outils qu'il fait, regroupés, une ligne
+chacun — *Lecture de src/app.py*, *Commande : npm test*… Leur icône dit
+leur état :
 
-- **Orange** — en cours.
-- **Indigo** — en attente d'approbation.
-- **Vert** — terminé.
-- **Rouge** — erreur.
-- **Gris** — refusé par l'utilisateur.
+- **Roue qui tourne** — en cours.
+- **Cadenas** — en attente d'approbation (avec ses boutons pour un message
+  tapé sur le PC ou le téléphone).
+- **Icône de l'outil** — terminé.
+- **Alerte rouge** — erreur.
+- **Gris** — refusé ou arrêté.
 
-Cliquez sur l'en-tête pour déplier les arguments JSON et la sortie
-capturée (stdout/stderr pour les commandes shell, diffs de fichiers pour
-les éditions, etc.).
+Cliquez sur une ligne pour déplier ses arguments JSON et sa sortie
+capturée (stdout/stderr pour les commandes shell, résultat d'une édition,
+etc.). Le bas de la bulle dit si la réponse a été arrêtée ou a échoué,
+avec son heure et sa durée. Les blocs de code montrent leur langage, avec
+les boutons **Copier** et **Insérer** (au curseur de l'éditeur actif) dans
+leur en-tête. La vue **Code** du téléphone dessine les réponses de la même
+façon : les deux utilisent les mêmes fichiers (`turn.js`, `markdown.js`,
+`thread.css`).
 
 ### Mémoire de conversation
 

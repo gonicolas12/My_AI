@@ -21,8 +21,9 @@ My_AI ne parlait que français. Il parle maintenant **12 langues**, dans la fen�
 - **Page Code du PC** : bouton **Code** en haut de la barre latérale, sous « Nouvelle conversation », avec une pastille verte quand VS Code est connecté. Interface du chat adaptée au code : cartes des appels d'outils de VS Code, dossier ouvert dans VS Code en pied de saisie, bandeau qui dit quoi faire quand VS Code n'est pas connecté. Les onglets Chat et Agents du haut y sont masqués.
 - **Pièces jointes et saisie vocale** sur la page Code, comme dans le chat (menu **+**, Ctrl+V pour une image, fichiers ou dossier glissés, micro) : le modèle lit les documents et le code, le modèle vision décrit les images, et leur texte prend au plus la moitié de la fenêtre de contexte.
 - **Vue Code du téléphone** : bouton `</>` orange tout à gauche de la barre d'onglets, même interface que le chat mobile. La réponse s'y écrit sans clignoter : la bulle en cours ne change que de contenu, une fois par image, au lieu d'être recréée (et son apparition rejouée) à chaque token.
-- Un message tapé à l'un des trois endroits part à l'extension, qui agit dans son workspace ; la réponse arrive **en streaming partout**, cartes d'outils comprises. **Stop** l'arrête d'où qu'elle vienne, **Effacer** commence une nouvelle conversation partout.
-- **Approbations de partout** : pour un message du PC ou du téléphone, une écriture ou une commande attend une réponse donnée par les boutons de sa carte, dans VS Code, sur le PC ou sur le téléphone ; la première compte, sans limite de temps. Un message tapé dans VS Code garde la fenêtre de confirmation de VS Code.
+- **Une réponse, une bulle**, dans VS Code comme sur le téléphone : le texte de chaque passe du modèle puis, à la suite, ses appels d'outils regroupés, une ligne chacun (« Lecture de src/app.py », icône de l'état ; arguments et résultat au clic), puis le texte suivant ; en bas, l'arrêt ou l'erreur, l'heure et la durée. Avant : une bulle, une pile de cartes d'outils, une nouvelle bulle. Les deux surfaces partagent le même rendu (`relay/static/turn.js`, `markdown.js`, `thread.css`, copiés dans `vscode_extension/media/`, `tests/test_web_assets.py` vérifie que les copies sont égales).
+- Un message tapé à l'un des trois endroits part à l'extension, qui agit dans son workspace ; la réponse arrive **en streaming partout**, appels d'outils compris. **Stop** l'arrête d'où qu'elle vienne, **Effacer** commence une nouvelle conversation partout.
+- **Approbations de partout** : pour un message du PC ou du téléphone, une écriture ou une commande attend une réponse donnée par les boutons sous son appel, dans VS Code, sur le PC ou sur le téléphone ; la première compte, sans limite de temps. Un message tapé dans VS Code garde la fenêtre de confirmation de VS Code.
 - Conversation et contexte du modèle gardés dans `data/code_conversation.json` d'un lancement à l'autre ; au-delà de la fenêtre de contexte, les plus anciens échanges partent. Le prompt système ne change qu'avec les dossiers ouverts ou la langue : Ollama reprend la conversation déjà lue.
 
 ## 👁️ Vision : qwen3.5 répond lui-même — `models/local_llm.py`
@@ -37,7 +38,8 @@ My_AI ne parlait que français. Il parle maintenant **12 langues**, dans la fen�
 - **serveo n'est plus lancé par défaut** : son nom de tunnel contient l'adresse IP publique du réseau du PC, lisible dans le QR code.
 - **QR code prêt en quelques secondes** : le nom d'un tunnel cloudflared est demandé aux serveurs de trycloudflare.com, sans passer par le DNS du PC qui gardait une minute un « nom inexistant » (1,4 à 7,6 s au lieu de 36 à 92 s) ; les tunnels ssh visent 127.0.0.1 (l'OpenSSH de Windows essayait ::1 et répondait 502 à tout) ; serveo est reconnu sur son nouveau domaine.
 - **Barre d'onglets du téléphone** : **Chat** et **Agents** centrés, avec les icônes de la fenêtre du PC ; `</>` orange tout à gauche, **corbeille** orange tout à droite, à la place du bouton « Effacer » du header. La corbeille vide la page ouverte, et elle seule : le chat, la conversation Code (après confirmation) ou les résultats des agents. Elle est grisée tant que la page s'écrit encore, jusqu'à la fin de la réponse ou au **Stop**.
-- Logo de My_AI sur la page de routage du QR code ; citations `[n]` cliquables et bloc Sources espacé sur le téléphone.
+- **Markdown du téléphone réécrit** (`relay/static/markdown.js`, partagé avec l'extension VS Code), dans le chat, la vue Code et la page Agents : plus de ligne vide après un titre, listes imbriquées, numérotation gardée (une liste coupée par un bloc de code reprend à 2), citations en retrait, cases à cocher, texte barré, liens Markdown, tableaux alignés ; blocs de code avec leur langage et un bouton **Copier** ; curseur du streaming après le dernier caractère ; un message de plusieurs lignes garde ses retours à la ligne. Le texte du modèle reste échappé : seuls les liens http(s) et mailto deviennent des liens.
+- Logo de My_AI sur la page de routage du QR code ; citations `[n]` cliquables et bloc Sources plus discret sur le téléphone.
 
 ## 📚 Sources — `utils/citations.py` (nouveau)
 
@@ -51,12 +53,13 @@ My_AI ne parlait que français. Il parle maintenant **12 langues**, dans la fen�
 - **SD-Turbo en 4 étapes sans guidage** : il recevait les réglages d'un modèle classique (25 étapes, CFG 7), image brûlée en 337 s sur le CPU.
 - La réponse donne la raison d'un échec (sortie de ComfyUI dans `logs/comfyui.log`), et ComfyUI s'arrête avec l'appli.
 
-## 🧩 Extension VS Code 1.6.0
+## 🧩 Extension VS Code 1.6.1
 
 - **Conversation Code partagée** avec la page Code du PC et la vue Code du téléphone, approbations par boutons pour les messages venus d'ailleurs ; **Effacer** et **Stop** valent partout ; conversation gardée par l'hôte d'une reconnexion à l'autre (1.6.0).
 - **12 langues** : l'extension parle la langue choisie dans My_AI, transmise par le Relay et retenue ; titres des commandes dans la langue d'affichage de VS Code (1.6.0).
 - **Code d'accès du Relay** demandé après la chaîne de connexion, session gardée avec les identifiants (1.5.0) ; renvoi au bouton « Copier » du panneau Relay (1.5.1) ; mots-clés du Marketplace, dont `ollama` (1.5.2) ; README à jour (1.4.0).
-- Corrigé : les réponses du chat du téléphone s'affichaient dans VS Code ; la fin d'une réponse pouvait manquer ; Stop puis Clear écrivait la réponse arrêtée dans le chat vidé (1.3.9). Détails dans `vscode_extension/CHANGELOG.md`.
+- **Réponses plus propres** : une bulle par réponse, appels d'outils dedans, comme sur le téléphone ; boutons **Copier** et **Insérer** toujours visibles dans l'en-tête des blocs de code (1.6.1).
+- Corrigé : fond gris derrière chaque ligne de code (styles par défaut des webviews de VS Code sur `<code>`) et Markdown mal rendu (ligne vide après les titres, listes imbriquées aplaties, numérotation qui repartait à 1) (1.6.1) ; les réponses du chat du téléphone s'affichaient dans VS Code ; la fin d'une réponse pouvait manquer ; Stop puis Clear écrivait la réponse arrêtée dans le chat vidé (1.3.9). Détails dans `vscode_extension/CHANGELOG.md`.
 
 ## 🐛 Correctifs & divers
 
@@ -69,7 +72,7 @@ My_AI ne parlait que français. Il parle maintenant **12 langues**, dans la fen�
 
 - Version du projet → **9.1.0** (`config.yaml`, lanceurs `launch.bat` / `launch.sh` / `launch_unified.py`, `clean_project.bat`, API REST, exports de conversation, scheduler, sessions, workflows, page Agents, `CustomAIModel`, tests de charge, en-têtes de docs) ; `frontend/dist` reconstruit.
 - Dépendances : `arabic-reshaper` et `python-bidi`, installées au lancement suivant.
-- Nouveaux tests : `test_i18n.py`, `test_pdf_text.py`, `test_image_intent.py`, `test_code_hub.py`, `test_vision.py`, `test_relay_access_code.py`, `test_agentic_stop.py`, `test_comfyui_manager.py`, `test_image_generation.py`.
+- Nouveaux tests : `test_i18n.py`, `test_pdf_text.py`, `test_image_intent.py`, `test_code_hub.py`, `test_vision.py`, `test_relay_access_code.py`, `test_agentic_stop.py`, `test_comfyui_manager.py`, `test_image_generation.py`, `test_web_assets.py`.
 - Documentation : **README en anglais** (`README.md`), version française dans `README.fr.md`, captures refaites en anglais et en français sur le serveur de démonstration, GIF du chat, image de partage du dépôt ; USAGE, ARCHITECTURE, INSTALLATION, FAQ, IMAGE_GENERATION, INTERNET_SEARCH et les autres guides à jour. Le suivi de la migration de l'interface quitte le dépôt.
 
 ---

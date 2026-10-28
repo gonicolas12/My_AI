@@ -37,6 +37,8 @@
   "preview.download": "문서 다운로드",
   "preview.openBrowser": "브라우저에서 열기",
   "preview.close": "닫기",
+  "md.copy": "복사",
+  "md.copied": "복사됨!",
   "artifact.svg": "SVG #{n}",
   "artifact.html": "HTML 페이지 #{n}",
   "agents.title": "전문 AI 에이전트",

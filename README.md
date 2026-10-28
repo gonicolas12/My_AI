@@ -302,8 +302,8 @@ relay:
 | ⏹️ **STOP button** | Stops the whole turn in one click: the LLM **and** the agentic tool loop (pending calls included). **Clear** during a generation stops it too |
 | 🛟 **Loop guard** | Detects repeated rewrites of the same file so an agent doesn't go round in circles |
 | 🛡️ **Workspace sandbox** | Every path is resolved from the open VS Code workspace. Going outside the workspace needs a modal approval per path |
-| ✋ **Granular approvals** | Reads approved automatically, writes and shell commands behind a modal with *Once* / *For this file* / *Allow everything for this tool this session*; for a message typed on the PC or the phone, the same choices as buttons in the tool card, on VS Code, the PC and the phone |
-| 🎴 **Inline tool cards** | Each tool call rendered as a collapsible card (orange = running · indigo = awaiting approval · green = OK · red = error · grey = denied) |
+| ✋ **Granular approvals** | Reads approved automatically, writes and shell commands behind a modal with *Once* / *For this file* / *Allow everything for this tool this session*; for a message typed on the PC or the phone, the same choices as buttons under the tool call, on VS Code, the PC and the phone |
+| 🎴 **Tool calls inside the reply** | One bubble per reply: its text, then its tool calls one line each (spinner = running · lock = awaiting approval · tool icon = OK · red = error · grey = denied), input and output on click; the same rendering in VS Code and on the phone |
 | 🧠 **Shared memory** | One conversation for VS Code, the desktop **Code** page and the phone, kept across reconnections and restarts ("edit the file you just read" works); **Clear** starts a new one everywhere |
 | 🔧 **Works with any Ollama model** | `<tool_use>{...}</tool_use>` format parsed on the host, no need for Ollama's native tools API |
 | 🔐 **E2EE encryption** | Same AES-256-GCM as the phone: the tunnel only sees ciphertext |

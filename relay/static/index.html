@@ -8,6 +8,8 @@
 <meta name="theme-color" content="#0f0f0f">
 <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;My_AI Relay&quot;,&quot;short_name&quot;:&quot;Relay&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230f0f0f&quot;,&quot;theme_color&quot;:&quot;%230f0f0f&quot;}">
 <title>My_AI Relay</title>
+<!-- Fil de la conversation (Markdown, réponses de la vue Code) : le même que dans VS Code -->
+<link rel="stylesheet" href="/static/thread.css?v=%%ASSET_VERSION%%">
 <link rel="stylesheet" href="/static/style.css?v=%%ASSET_VERSION%%">
 </head>
 <body>
@@ -279,6 +281,8 @@
 <script>window.__RELAY_TOKEN__ = "%%RELAY_TOKEN%%";</script>
 <script type="application/json" id="relayI18n">%%I18N%%</script>
 <script src="/static/i18n.js?v=%%ASSET_VERSION%%"></script>
+<script src="/static/markdown.js?v=%%ASSET_VERSION%%"></script>
+<script src="/static/turn.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/app.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/agents.js?v=%%ASSET_VERSION%%"></script>
 <script src="/static/code.js?v=%%ASSET_VERSION%%"></script>

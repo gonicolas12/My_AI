@@ -7,8 +7,10 @@
 /* tapé ici part à l'extension, qui agit dans son        */
 /* workspace ; la réponse arrive en streaming, avec ses  */
 /* appels d'outils et, pour une écriture ou une          */
-/* commande, les boutons d'approbation. Même interface   */
-/* que le chat (bulles, saisie, bouton Stop).            */
+/* commande, les boutons d'approbation. Même saisie que  */
+/* le chat ; une réponse est une bulle (turn.js), la     */
+/* même que dans VS Code : son texte et, à la suite, ses */
+/* appels d'outils.                                      */
 /*                                                       */
 /* Protocole (relay/code_hub.py) : code_subscribe à la   */
 /* première ouverture (puis à chaque reconnexion), qui   */
@@ -35,28 +37,6 @@
   var STOP_ICON_HTML =
     '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>';
 
-  // Libellé de chaque outil de l'extension (AGENT_TOOLS de core/agentic_executor.py)
-  var TOOL_LABELS = {
-    read_file: function (x) { return T('code.tool.read_file', { target: x }); },
-    write_file: function (x) { return T('code.tool.write_file', { target: x }); },
-    edit_file: function (x) { return T('code.tool.edit_file', { target: x }); },
-    list_dir: function (x) { return T('code.tool.list_dir', { target: x }); },
-    glob: function (x) { return T('code.tool.glob', { target: x }); },
-    grep: function (x) { return T('code.tool.grep', { target: x }); },
-    run_command: function (x) { return T('code.tool.run_command', { target: x }); },
-    get_active_editor: function () { return T('code.tool.get_active_editor'); },
-    open_file: function (x) { return T('code.tool.open_file', { target: x }); },
-  };
-  var TOOL_ICONS = {
-    read_file: '📄', write_file: '📝', edit_file: '✏️', list_dir: '📁', glob: '🔎',
-    grep: '🔍', run_command: '⌨️', get_active_editor: '🗂️', open_file: '↗️',
-  };
-  var APPROVALS = {
-    'allow-once': function () { return T('code.approval.allowOnce'); },
-    'allow-target': function () { return T('code.approval.allowTarget'); },
-    'allow-tool': function (tool) { return T('code.approval.allowTool', { tool: tool }); },
-    deny: function () { return T('code.approval.deny'); },
-  };
   var OPEN_STATUSES = { requested: true, 'awaiting-approval': true, running: true };
 
   var el = {};
@@ -65,7 +45,7 @@
   var state = { vscode: false, workspace: null, busy: false, message_id: null, origin: null };
   // Transcription, comme celle du hub : questions, réponses et leurs morceaux
   var messages = [];
-  // message_id → éléments affichés de sa réponse : conteneur, morceaux, indicateur
+  // message_id → sa réponse à l'écran, une bulle (turn.js, comme dans VS Code)
   var turns = {};
   // Message parti, pas encore revenu (code_user) ni refusé (code_error) ; son
   // texte revient dans la saisie s'il est refusé
@@ -76,9 +56,10 @@
   var userPinnedToBottom = true;
   var lastScrollTop = 0;
   var sendBtnMode = 'send';
-  // Textes reçus depuis la dernière image, affichés à la suivante : le serveur
-  // envoie un code_chunk par token, plus souvent que l'écran ne se redessine
-  var dirtyParts = [];
+  // Réponses dont le texte a changé depuis la dernière image, affichées à la
+  // suivante : le serveur envoie un code_chunk par token, plus souvent que
+  // l'écran ne se redessine
+  var dirtyReplies = [];
   var dirtyFrame = 0;
 
   function $(id) { return document.getElementById(id); }
@@ -220,16 +201,14 @@
       return p.kind === 'text' && p.segment === data.segment;
     })[0];
     if (!part) {
-      // Pas de bulle vide : une passe qui n'écrit qu'un appel d'outil
+      // Pas de texte vide : une passe qui n'écrit qu'un appel d'outil
       if (!(data.text || '').trim()) return;
       part = { kind: 'text', segment: data.segment, text: data.text };
       reply.parts.push(part);
     } else {
       part.text = data.text;
     }
-    if (!dirtyParts.some(function (item) { return item.part === part; })) {
-      dirtyParts.push({ reply: reply, part: part });
-    }
+    if (dirtyReplies.indexOf(reply) === -1) dirtyReplies.push(reply);
     if (!dirtyFrame) dirtyFrame = requestAnimationFrame(flushChunks);
   }
 
@@ -237,9 +216,9 @@
   function flushChunks() {
     if (dirtyFrame) cancelAnimationFrame(dirtyFrame);
     dirtyFrame = 0;
-    var queued = dirtyParts;
-    dirtyParts = [];
-    queued.forEach(function (item) { renderPart(item.reply, item.part); });
+    var queued = dirtyReplies;
+    dirtyReplies = [];
+    queued.forEach(renderReply);
     if (queued.length) scrollToBottomStream();
   }
 
@@ -259,7 +238,7 @@
     } else {
       Object.keys(fields).forEach(function (key) { part[key] = fields[key]; });
     }
-    renderPart(reply, part);
+    renderReply(reply);
     scrollToBottomStream();
   }
 
@@ -269,6 +248,7 @@
     reply.status = data.status;
     reply.text = data.text || '';
     reply.timestamp = data.timestamp || reply.timestamp;
+    reply.duration_ms = data.duration_ms;
     reply.parts.forEach(function (part) {
       if (part.kind === 'tool' && OPEN_STATUSES[part.status]) {
         part.status = 'stopped';
@@ -286,7 +266,7 @@
     updateSendButton();
   }
 
-  // Message refusé (VS Code absent, réponse en cours) : la raison, comme une réponse
+  // Message refusé (VS Code absent, réponse en cours) : la raison, comme une réponse en erreur
   function applyError(data) {
     sending = false;
     if (sentText && !el.input.value) {
@@ -295,13 +275,8 @@
     }
     sentText = '';
     hideWelcome();
-    var msg = document.createElement('div');
-    msg.className = 'message ai';
-    msg.innerHTML =
-      '<div class="ai-icon">' + core().robotSvg + '</div>' +
-      '<div class="bubble" dir="auto">' + core().escapeHtml(data.message || '') +
-      '<span class="time">' + core().formatTime(new Date()) + '</span></div>';
-    el.messages.appendChild(msg);
+    var refused = { status: 'error', parts: [], text: data.message || '' };
+    el.messages.appendChild(window.MyAITurn.create(refused, turnOptions()).el);
     scrollToBottom();
     updateSendButton();
   }
@@ -353,208 +328,37 @@
     el.messages.appendChild(msg);
   }
 
-  // Réponse entière : ses morceaux dans l'ordre, puis l'attente, l'arrêt ou l'erreur
+  // Bulles des réponses, les mêmes que dans la vue de l'extension VS Code (turn.js)
+  var turnOpts = null;
+  function turnOptions() {
+    if (!turnOpts) {
+      turnOpts = {
+        t: T,
+        approve: function (callId, decision) {
+          core().send({ type: 'code_approve', call_id: callId, decision: decision });
+        },
+        robotSvg: core().robotSvg,
+        formatTime: core().formatTime,
+        locale: window.RelayI18n ? window.RelayI18n.locale : undefined,
+        codeActions: core().codeActions,
+        // Message tapé dans VS Code : c'est VS Code qui demande l'accord
+        approvalNote: true,
+      };
+    }
+    return turnOpts;
+  }
+
+  // Réponse : une bulle, créée à sa première apparition, mise à jour ensuite
+  // (texte reçu, appel d'outil, fin) sans être refaite
   function renderReply(reply) {
     var turn = turns[reply.message_id];
-    if (!turn) {
-      turn = { box: document.createElement('div'), parts: {}, tail: null };
-      turn.box.className = 'code-turn';
-      el.messages.appendChild(turn.box);
-      turns[reply.message_id] = turn;
+    if (turn) {
+      turn.update(reply);
+      return;
     }
-    var shown = turn.parts;
-    turn.box.innerHTML = '';
-    turn.parts = {};
-    turn.tail = null;
-    reply.parts.forEach(function (part) { renderPart(reply, part, !!shown[partKey(part)]); });
-    var hasText = reply.parts.some(function (p) { return p.kind === 'text'; });
-    if (reply.status === 'done' && !hasText && reply.text) {
-      turn.box.appendChild(textBubble(reply.text, reply.timestamp, false));
-    } else if (reply.status === 'error' && reply.text) {
-      turn.box.appendChild(textBubble(reply.text, reply.timestamp, false));
-    } else if (reply.status === 'stopped') {
-      var stopped = document.createElement('div');
-      stopped.className = 'code-stopped';
-      stopped.textContent = '⏹️ ' + T('code.stopped');
-      turn.box.appendChild(stopped);
-    }
-    renderTail(reply);
-  }
-
-  function partKey(part) {
-    return part.kind === 'text' ? 't' + part.segment : 'x' + part.call_id;
-  }
-
-  // shown : déjà à l'écran avant que la réponse ne soit refaite
-  function renderPart(reply, part, shown) {
-    var turn = turns[reply.message_id];
-    if (!turn) return;
-    var key = partKey(part);
-    var streaming = reply.status === 'streaming';
-    var previous = turn.parts[key];
-    // Texte qui s'écrit : seul son contenu change, la bulle reste
-    if (!(part.kind === 'text' && streaming && previous && fillStream(previous, part.text))) {
-      var node = part.kind === 'text'
-        ? textBubble(part.text, reply.timestamp, streaming)
-        : toolRow(part);
-      // Une bulle remplacée ne rejoue pas son apparition (fadeIn)
-      if (previous || shown) node.classList.add('no-fade');
-      if (previous) {
-        turn.box.replaceChild(node, previous);
-      } else if (turn.tail && turn.tail.parentNode === turn.box) {
-        turn.box.insertBefore(node, turn.tail);
-      } else {
-        turn.box.appendChild(node);
-      }
-      turn.parts[key] = node;
-    }
-    // Le morceau précédent ne s'écrit plus : son curseur disparaît
-    reply.parts.forEach(function (other) {
-      if (other !== part && other.kind === 'text' && turn.parts[partKey(other)]) {
-        var cursor = turn.parts[partKey(other)].querySelector('.stream-cursor');
-        if (cursor) cursor.remove();
-      }
-    });
-    renderTail(reply);
-  }
-
-  // Réponse en cours sans rien qui bouge à l'écran : les trois points du chat
-  function renderTail(reply) {
-    var turn = turns[reply.message_id];
-    if (!turn) return;
-    var last = reply.parts[reply.parts.length - 1];
-    var waiting = reply.status === 'streaming'
-      && (!last || (last.kind === 'tool' && !OPEN_STATUSES[last.status]));
-    if (waiting && !turn.tail) {
-      turn.tail = document.createElement('div');
-      turn.tail.className = 'message ai';
-      turn.tail.innerHTML =
-        '<div class="ai-icon">' + core().robotSvg + '</div>' +
-        '<div class="bubble"><div class="typing-indicator">' +
-        '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>' +
-        '</div></div>';
-      turn.box.appendChild(turn.tail);
-    } else if (!waiting && turn.tail) {
-      turn.tail.remove();
-      turn.tail = null;
-    }
-  }
-
-  function textBubble(text, timestamp, streaming) {
-    var msg = document.createElement('div');
-    msg.className = 'message ai' + (streaming ? ' streaming' : '');
-    var body = core().renderMarkdown(streaming ? core().balanceMarkdownForStreaming(text) : text);
-    msg.innerHTML =
-      '<div class="ai-icon">' + core().robotSvg + '</div>' +
-      '<div class="bubble" dir="auto">' +
-      (streaming
-        ? '<div class="stream-content">' + body + '</div><span class="stream-cursor"></span>'
-        : body + '<span class="time">' + timeOf(timestamp) + '</span>') +
-      '</div>';
-    return msg;
-  }
-
-  // Nouveau texte d'une bulle en cours d'écriture (false : bulle déjà finie)
-  function fillStream(msg, text) {
-    var content = msg.querySelector('.stream-content');
-    if (!content) return false;
-    content.innerHTML = core().renderMarkdown(core().balanceMarkdownForStreaming(text));
-    return true;
-  }
-
-  function toolTarget(part) {
-    var input = part.input || {};
-    var target = part.name === 'run_command' ? input.command
-      : (part.name === 'glob' || part.name === 'grep') ? input.pattern
-        : (input.path || (part.name === 'list_dir' ? '.' : ''));
-    target = String(target || '').replace(/\s+/g, ' ').trim();
-    return target.length > 60 ? target.slice(0, 60) + '…' : target;
-  }
-
-  function toolStatusText(status) {
-    if (status === 'awaiting-approval') return T('code.toolStatus.awaiting');
-    if (status === 'failed') return T('code.toolStatus.failed');
-    if (status === 'denied') return T('code.toolStatus.denied');
-    if (status === 'stopped') return T('code.toolStatus.stopped');
-    return '';
-  }
-
-  function toolIcon(part) {
-    if (part.status === 'requested' || part.status === 'running') return '⏳';
-    if (part.status === 'awaiting-approval') return '🔒';
-    if (part.status === 'failed') return '⚠️';
-    if (part.status === 'denied') return '🚫';
-    if (part.status === 'stopped') return '⏹️';
-    return TOOL_ICONS[part.name] || '🔧';
-  }
-
-  // Appel d'outil : une ligne, son détail au toucher ; les boutons d'approbation
-  function toolRow(part) {
-    var row = document.createElement('div');
-    row.className = 'code-tool ' + (part.status || '');
-    var label = TOOL_LABELS[part.name] ? TOOL_LABELS[part.name](toolTarget(part)) : part.name;
-    var status = toolStatusText(part.status);
-    var head = document.createElement('button');
-    head.type = 'button';
-    head.className = 'code-tool-head';
-    head.innerHTML =
-      '<span class="code-tool-icon">' + toolIcon(part) + '</span>' +
-      '<span class="code-tool-label">' + core().escapeHtml(label) + '</span>' +
-      (status ? '<span class="code-tool-status">' + core().escapeHtml(status) + '</span>' : '');
-    row.appendChild(head);
-
-    var details = document.createElement('div');
-    details.className = 'code-tool-details';
-    details.style.display = 'none';
-    var input = part.name === 'run_command' && typeof (part.input || {}).command === 'string'
-      ? part.input.command : JSON.stringify(part.input || {}, null, 2);
-    details.appendChild(detailBlock(T('code.tool.input'), input));
-    if (typeof part.output === 'string') {
-      details.appendChild(detailBlock(T('code.tool.output'), part.output || T('code.tool.empty')));
-    }
-    row.appendChild(details);
-    head.addEventListener('click', function () {
-      details.style.display = details.style.display === 'none' ? 'block' : 'none';
-    });
-
-    if (part.status === 'awaiting-approval') {
-      var options = Array.isArray(part.options) ? part.options : [];
-      var box = document.createElement('div');
-      box.className = 'code-approval';
-      var prompt = document.createElement('div');
-      prompt.className = 'code-approval-prompt';
-      prompt.textContent = options.length ? T('code.approval.prompt') : T('code.approval.inVscode');
-      box.appendChild(prompt);
-      options.forEach(function (decision, index) {
-        if (!APPROVALS[decision]) return;
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'code-approval-btn' + (index === 0 ? ' primary' : '') +
-          (decision === 'deny' ? ' deny' : '');
-        btn.textContent = APPROVALS[decision](part.name);
-        btn.addEventListener('click', function () {
-          box.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
-          core().send({ type: 'code_approve', call_id: part.call_id, decision: decision });
-        });
-        box.appendChild(btn);
-      });
-      row.appendChild(box);
-    }
-    return row;
-  }
-
-  function detailBlock(label, text) {
-    var block = document.createElement('div');
-    block.className = 'code-tool-block';
-    var title = document.createElement('div');
-    title.className = 'code-tool-block-label';
-    title.textContent = label;
-    var pre = document.createElement('pre');
-    pre.dir = 'ltr';
-    pre.textContent = text;
-    block.appendChild(title);
-    block.appendChild(pre);
-    return block;
+    turn = window.MyAITurn.create(reply, turnOptions());
+    turns[reply.message_id] = turn;
+    el.messages.appendChild(turn.el);
   }
 
   // VS Code absent : rien ne part, et comment le connecter

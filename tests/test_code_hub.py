@@ -159,6 +159,8 @@ def test_phone_message_streams_to_vscode_and_back(hub, loop):
     response = vscode.of("response")[0]
     assert (response["message_id"], response["message"], response["status"]) == (
         message_id, "Bonjour !", "done")
+    # Sa durée, sous la bulle comme sur le téléphone
+    assert response["duration_ms"] == phone.of("code_done")[0]["duration_ms"] >= 0
     # Le téléphone aussi, dans son protocole
     assert phone.types()[1:] == ["code_user", "code_state", "code_chunk", "code_chunk",
                                  "code_done", "code_state"]

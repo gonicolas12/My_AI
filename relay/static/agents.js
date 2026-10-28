@@ -724,7 +724,7 @@
       '<span class="ag-sec-name">' + esc(data.title || T('section.default')) + '</span>' +
       '<span class="ag-sec-state">' + esc(T('section.running')) + '</span>' +
       '</div>' +
-      '<div class="ag-sec-body" dir="auto"></div>';
+      '<div class="ag-sec-body md" dir="auto"></div>';
     var head = sec.querySelector('.ag-sec-head');
     head.addEventListener('click', function () { sec.classList.toggle('collapsed'); });
     el.output.appendChild(sec);
@@ -741,9 +741,8 @@
     var s = sections[String(data.section_id)];
     if (!s) return;
     s.text = data.text || '';
-    var md = window.RelayCore.renderMarkdown(
-      window.RelayCore.balanceMarkdownForStreaming(s.text));
-    s.body.innerHTML = md + '<span class="stream-cursor"></span>';
+    // Le curseur suit le dernier caractère écrit (markdown.js)
+    s.body.innerHTML = window.RelayCore.renderMarkdown(s.text, { cursor: true });
     s.body.scrollTop = s.body.scrollHeight;
     scrollOutput();
   }

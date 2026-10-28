@@ -719,13 +719,23 @@ RelayMessage (dataclass):
 ├─ style.css   — Thème sombre, layout mobile-first, scrollbar custom
 │                styles onglets, cartes agents, nœuds/ports/liens du canvas,
 │                sections de sortie, modales, bouton Stop (.stopmode), liens
+├─ markdown.js — Markdown des réponses (chat, vue Code, Agents) : blocs
+│                (titres, listes imbriquées, code, tableaux, citations…) puis
+│                en ligne, texte du modèle toujours échappé ; curseur du
+│                streaming ; partagé avec vscode_extension/media/
+├─ turn.js     — Réponse de la conversation Code : une bulle, son texte et ses
+│                appels d'outils (une ligne chacun, approbations), mise à jour
+│                sans être refaite ; partagé avec vscode_extension/media/
+├─ thread.css  — Styles de markdown.js et turn.js, communs au téléphone et à
+│                l'extension VS Code (tests/test_web_assets.py : copies égales)
+├─ code.js     — Vue Code (window.CodeUI) : conversation de l'extension VS Code
 ├─ app.js      — WebSocket client + couche E2EE :
 │                ├─ Import clé AES-GCM depuis location.hash (#k=<b64u>)
 │                ├─ encryptObject() / decryptEnvelope() (Web Crypto)
 │                ├─ wsSendEncrypted() pour tous les envois WS
 │                ├─ uploadEncryptedFile() partagé (Chat + Agents via RelayCore)
-│                ├─ renderMarkdown() : code, tableaux, listes + LIENS
-│                │    ([titre](url) et URLs nues → <a> bleu cliquable)
+│                ├─ renderMarkdown() : markdown.js, bouton Copier des blocs
+│                │    de code (chat, vue Code, Agents)
 │                ├─ Bouton d'envoi ⇄ Stop pendant la génération
 │                │    (stop_generation), routage des messages agent_*
 │                ├─ /api/history et /api/pending : déchiffrement enveloppe
@@ -1367,7 +1377,9 @@ vscode_extension/
 ├─ media/                   # Webview UI (HTML/CSS/JS, no bundling)
 │  ├─ chat.html
 │  ├─ chat.css              # Adapté de relay/static/style.css
-│  ├─ chat.js               # Rendu des messages + cartes d'outils inline
+│  ├─ chat.js               # Messages, saisie ; une réponse = une bulle (turn.js)
+│  ├─ markdown.js, turn.js, thread.css  # Copies de relay/static/ : même rendu
+│  │                        #   des réponses que la vue Code du téléphone
 │  └─ icon-activitybar.svg
 └─ README.md                # Doc Marketplace
 

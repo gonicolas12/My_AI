@@ -615,14 +615,19 @@ class RelayServer:
     def get_static_assets_version(self) -> str:
         """Version de cache-busting des assets statiques du Relay.
 
-        Basée sur le dernier mtime connu de index.html, app.js et style.css.
+        Basée sur le dernier mtime de la page, de ses scripts (dont markdown.js
+        et turn.js, partagés avec l'extension VS Code), de ses feuilles de
+        style et de ses catalogues.
         """
         asset_paths = [
             _STATIC_DIR / "index.html",
             _STATIC_DIR / "i18n.js",
+            _STATIC_DIR / "markdown.js",
+            _STATIC_DIR / "turn.js",
             _STATIC_DIR / "app.js",
             _STATIC_DIR / "agents.js",
             _STATIC_DIR / "code.js",
+            _STATIC_DIR / "thread.css",
             _STATIC_DIR / "style.css",
             *sorted(_LOCALES_DIR.glob("*.json")),
         ]

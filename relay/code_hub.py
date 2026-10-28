@@ -764,7 +764,8 @@ def vscode_view(event: Dict[str, Any], link_id: str) -> Optional[Dict[str, Any]]
     if kind == "done":
         message = tr("relay.interrupted") if event["status"] == "stopped" else event["text"]
         return {"type": "response", "message": message, "message_id": event["message_id"],
-                "timestamp": event["timestamp"], "status": event["status"]}
+                "timestamp": event["timestamp"], "status": event["status"],
+                "duration_ms": event.get("duration_ms")}
     if kind == "cleared":
         return {"type": "code_cleared"}
     return None

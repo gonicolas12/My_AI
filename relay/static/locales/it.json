@@ -38,6 +38,8 @@
   "preview.download": "Scarica il documento",
   "preview.openBrowser": "Apri nel browser",
   "preview.close": "Chiudi",
+  "md.copy": "Copia",
+  "md.copied": "Copiato!",
   "artifact.svg": "SVG n. {n}",
   "artifact.html": "Pagina HTML n. {n}",
   "agents.title": "Agenti IA specializzati",

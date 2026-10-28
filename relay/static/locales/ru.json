@@ -40,6 +40,8 @@
   "preview.download": "Скачать документ",
   "preview.openBrowser": "Открыть в браузере",
   "preview.close": "Закрыть",
+  "md.copy": "Копировать",
+  "md.copied": "Скопировано!",
   "artifact.svg": "SVG № {n}",
   "artifact.html": "HTML-страница № {n}",
   "agents.title": "Специализированные ИИ-агенты",

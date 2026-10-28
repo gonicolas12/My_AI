@@ -37,6 +37,8 @@
   "preview.download": "下载文档",
   "preview.openBrowser": "在浏览器中打开",
   "preview.close": "关闭",
+  "md.copy": "复制",
+  "md.copied": "已复制！",
   "artifact.svg": "SVG #{n}",
   "artifact.html": "HTML 页面 #{n}",
   "agents.title": "专业 AI 智能体",
