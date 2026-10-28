@@ -337,13 +337,13 @@ html, body {
 }
 .input-wrapper:focus-within { border-color: var(--accent); }
 
-#messageInput {
+#messageInput, #codeInput {
   flex: 1; background: none; border: none; color: var(--text-primary);
   font-size: 16px; padding: 10px 0; resize: none;
   outline: none; max-height: 120px; min-height: 20px;
   line-height: 1.4; font-family: inherit;
 }
-#messageInput::placeholder { color: var(--text-muted); }
+#messageInput::placeholder, #codeInput::placeholder { color: var(--text-muted); }
 
 .send-btn {
   width: 40px; height: 40px; border-radius: 50%;
@@ -462,17 +462,20 @@ html, body {
   border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .tab-btn {
-  /* Largeur égale pour les deux onglets : la séparation entre Chat et
-     Agents tombe ainsi exactement au centre de l'écran. */
-  flex: 1 1 0; max-width: 150px;
+  /* Largeur égale pour Chat et Agents, un peu réduite pour laisser sa
+     place au bouton Code, carré, à gauche de Chat. */
+  flex: 1 1 0; max-width: 132px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: var(--bg-tertiary); border: 1px solid transparent;
   color: var(--text-secondary); font-size: 14px; font-weight: 600;
-  padding: 8px 16px; border-radius: 10px; cursor: pointer;
+  padding: 8px 12px; border-radius: 10px; cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 .tab-btn.active { background: var(--accent); color: #fff; }
 .tab-btn .tab-ico { font-size: 15px; }
+/* Code : la conversation de l'extension VS Code, icône seule */
+.tab-btn.tab-code { flex: 0 0 auto; width: 40px; padding: 8px 0; }
+.tab-btn .tab-svg { width: 18px; height: 18px; display: block; }
 
 /* ── VIEW SWITCHING ────────────────────────────────── */
 .view { flex: 1; min-height: 0; flex-direction: column; }
@@ -481,6 +484,71 @@ html, body {
 /* Le wrapper .view-chat est désormais le conteneur flex des messages :
    min-height:0 garantit que .messages scrolle au lieu de déborder. */
 .view-chat .messages { min-height: 0; }
+
+/* ═══════════════════════════════════════════════════ */
+/* VUE CODE (code.js) : mêmes bulles et saisie que le chat */
+/* ═══════════════════════════════════════════════════ */
+.view-code .messages { min-height: 0; }
+.view-code .welcome-icon svg { width: 52px; height: 52px; }
+/* VS Code connecté (et son dossier), ou comment le connecter */
+.code-notice {
+  flex-shrink: 0; padding: 6px 14px; font-size: 12px; line-height: 1.4;
+  color: #fbbf24; background: rgba(245, 158, 11, 0.1);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+}
+.code-notice.ok {
+  color: var(--text-secondary); background: var(--bg-secondary);
+  border-bottom-color: var(--border);
+}
+/* Question tapée dans VS Code ou sur le PC : sa provenance au-dessus */
+.message.user.with-origin { flex-direction: column; align-items: flex-end; }
+.code-origin {
+  font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;
+  border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px;
+}
+.code-stopped { font-size: 12px; color: #f59e0b; margin: 0 0 12px 38px; }
+/* Appel d'outil de l'extension : une ligne, son détail au toucher */
+.code-tool { margin: 0 0 10px 38px; font-size: 13px; }
+.code-tool-head {
+  display: flex; align-items: center; gap: 6px; max-width: 100%;
+  background: none; border: none; padding: 2px 0; cursor: pointer;
+  color: var(--text-secondary); font-size: 13px; text-align: start;
+}
+.code-tool-icon { flex-shrink: 0; }
+.code-tool-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.code-tool-status { flex-shrink: 0; color: var(--text-muted); }
+.code-tool-status::before { content: '· '; }
+.code-tool-details {
+  margin-top: 6px; padding-inline-start: 10px; border-inline-start: 2px solid var(--border);
+}
+.code-tool-block { margin-bottom: 6px; }
+.code-tool-block-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted); margin-bottom: 3px;
+}
+.code-tool-block pre {
+  margin: 0; padding: 6px 8px; max-height: 240px; overflow: auto;
+  background: var(--bg-secondary); border-radius: 6px; font-size: 11px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace; white-space: pre-wrap;
+  word-break: break-word; color: var(--text-primary); text-align: left;
+}
+/* Approbation demandée (écriture, commande) : la première réponse compte */
+.code-approval {
+  margin-top: 6px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3);
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.code-approval-prompt { flex-basis: 100%; font-size: 13px; color: var(--text-primary); }
+.code-approval-btn {
+  background: var(--bg-tertiary); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.code-approval-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.code-approval-btn.deny { background: transparent; color: var(--text-secondary); }
+.code-approval-btn:disabled { opacity: 0.5; }
+[dir="rtl"] .code-stopped,
+[dir="rtl"] .code-tool { margin-left: 0; margin-right: 38px; }
 
 /* ═══════════════════════════════════════════════════ */
 /* AGENTS PAGE                                          */

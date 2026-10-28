@@ -46,8 +46,10 @@
   function init() {
     el.viewChat = $('viewChat');
     el.viewAgents = $('viewAgents');
+    el.viewCode = $('viewCode');
     el.tabChat = $('tabChat');
     el.tabAgents = $('tabAgents');
+    el.tabCode = $('tabCode');
     el.clearChatBtn = $('clearChatBtn');
     el.grid = $('agentsGrid');
     el.canvas = $('wfCanvas');
@@ -92,16 +94,24 @@
   // ════════════════════════════════════════════════════
   function switchTab(tab) {
     var toAgents = tab === 'agents';
-    el.viewChat.classList.toggle('active', !toAgents);
+    // Code : conversation de l'extension VS Code (code.js), isolée du chat
+    var toCode = tab === 'code' && !!el.viewCode;
+    var toChat = !toAgents && !toCode;
+    el.viewChat.classList.toggle('active', toChat);
     el.viewAgents.classList.toggle('active', toAgents);
-    el.tabChat.classList.toggle('active', !toAgents);
+    el.tabChat.classList.toggle('active', toChat);
     el.tabAgents.classList.toggle('active', toAgents);
-    // Le bouton « Effacer » du header ne concerne que le chat.
+    if (el.viewCode) el.viewCode.classList.toggle('active', toCode);
+    if (el.tabCode) el.tabCode.classList.toggle('active', toCode);
+    // Le bouton « Effacer » du header : le chat, ou la conversation Code.
     if (el.clearChatBtn) el.clearChatBtn.style.display = toAgents ? 'none' : '';
     // Rafraîchir la liste à chaque ouverture de la page Agents pour rester
     // synchrone avec les agents personnalisés éventuellement créés sur le PC.
     if (toAgents) {
       requestAgentsList();
+    }
+    if (toCode && window.CodeUI) {
+      window.CodeUI.onShow();
     }
   }
   window.switchTab = switchTab;

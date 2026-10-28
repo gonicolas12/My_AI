@@ -72,9 +72,16 @@ notification du système de fin d'un fil long devient une notification de la
 fenêtre (« Notification du système (démo) : … »). Une exécution « venue du
 téléphone » se lance par POST /api/demo/mobile-run {task, agent | agent_a,
 agent_b, rounds}, jeton compris.
+
+Page Code : la vraie conversation (relay/code_hub.py, dans
+temp/demo_server/PORT/code_conversation.json), avec une boucle agentique
+scénarisée (DemoCodeExecutor) et une extension VS Code simulée, connectée trois
+secondes après le démarrage du Relay simulé (Ctrl+R) : elle exécute les outils,
+et une écriture ou une commande demandée par la page attend son approbation.
 """
 
 import argparse
+import asyncio
 import base64
 import json
 import math
@@ -100,8 +107,10 @@ from core.memory_store import MemoryStore  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
 from core.scheduler import SchedulerService  # noqa: E402
 from relay.agent_relay import AgentRelayService  # noqa: E402
+from relay.code_hub import CodeHub  # noqa: E402
 from relay.relay_server import _ROUTER_PAGE_URL  # noqa: E402
 from interfaces.desktop.agents import AgentsService  # noqa: E402
+from interfaces.desktop.code import CodeService  # noqa: E402
 from interfaces.desktop.lifecycle import DesktopApp, DesktopState  # noqa: E402
 from interfaces.desktop.previews import PreviewStore  # noqa: E402
 from interfaces.desktop.model_setup import OllamaSetup  # noqa: E402
@@ -898,6 +907,141 @@ class DemoRelay:
         return f"http://127.0.0.1:{self.port}/?token={self.auth_token}#k={_b64u(self.key)}"
 
 
+# ── Page Code : extension VS Code simulée ───────────────────────────────────
+
+DEMO_WORKSPACE = ("Workspace folders:\n- demo-api (C:\\dev\\demo-api)\n"
+                  "Active editor: src/app.py (python)\nPlatform: win32 (Windows path style)")
+# Outils sans approbation (toolDispatcher.ts de l'extension)
+DEMO_READ_ONLY = {"read_file", "list_dir", "glob", "grep", "get_active_editor", "open_file"}
+DEMO_TOOL_OUTPUT = {
+    "read_file": "(lignes 1-12 sur 12)\n1\tfrom fastapi import FastAPI\n2\t\n3\tapp = FastAPI()\n"
+                 "4\t\n5\t\n6\t@app.get(\"/livres\")\n7\tdef lister_livres():\n8\t    return []\n",
+    "edit_file": "Fichier modifié : 1 remplacement.",
+    "write_file": "Fichier écrit (14 lignes).",
+    "run_command": "exit_code: 0\nstdout:\n===== 4 passed in 0.31s =====",
+    "list_dir": "src/\ntests/\nREADME.md\npyproject.toml",
+}
+
+
+class DemoVSCode:
+    """Extension VS Code simulée : connectée peu après le Relay simulé, elle exécute
+    les outils de la conversation Code. Une écriture ou une commande demandée pour
+    un message du PC ou du téléphone attend la réponse de la page (approbation),
+    comme le fait la vraie extension ; celle d'un message de VS Code passe."""
+
+    def __init__(self, hub: CodeHub, loop):
+        self.hub = hub
+        self.loop = loop
+        self.link = None
+        # call_id → (nom de l'outil) : approbation demandée à la page
+        self.waiting = {}
+
+    def connect(self):
+        """VS Code se connecte au Relay (client_hello)."""
+        if self.link is None:
+            self.link = self.hub.connect_vscode(self.loop, self.receive, DEMO_WORKSPACE)
+
+    def disconnect(self):
+        """Relay arrêté : VS Code est déconnecté."""
+        if self.link is not None:
+            self.hub.disconnect_vscode(self.link)
+            self.link = None
+        self.waiting.clear()
+
+    def receive(self, message):
+        """Message du Relay pour l'extension (n'importe quel fil)."""
+        self.loop.call_soon_threadsafe(self._handle, message)
+
+    def _handle(self, message):
+        link = self.link
+        if link is None:
+            return
+        kind = message.get("type")
+        call_id = message.get("call_id", "")
+        if kind == "tool_use":
+            name = message.get("name", "")
+            if name in DEMO_READ_ONLY or message.get("origin") not in ("desktop", "mobile"):
+                self._run(link, call_id, name)
+                return
+            options = ["allow-once", "allow-tool", "deny"] if name == "run_command" else [
+                "allow-once", "allow-target", "allow-tool", "deny"]
+            self.waiting[call_id] = name
+            self.hub.tool_status(link, call_id, "awaiting-approval", options)
+        elif kind == "tool_approval" and call_id in self.waiting:
+            name = self.waiting.pop(call_id)
+            if message.get("decision") == "deny":
+                self.hub.tool_status(link, call_id, "denied")
+                self.hub.tool_result(link, call_id, "L'utilisateur a refusé cette opération.", True)
+            else:
+                self._run(link, call_id, name)
+        elif kind == "code_stop":
+            self.waiting.clear()
+
+    def _run(self, link, call_id, name):
+        self.hub.tool_status(link, call_id, "running")
+        self.loop.call_later(0.6, self.hub.tool_result, link, call_id,
+                             DEMO_TOOL_OUTPUT.get(name, "OK"), False)
+
+
+class DemoCodeExecutor:
+    """Boucle agentique scénarisée (AgenticExecutor sans Ollama). Scénarios (mot du message) :
+    « modifie » / « écris » : lecture puis modification d'un fichier (approbation) ;
+    « teste » / « commande » : commande shell (approbation) ; « erreur » : échec ;
+    « attends » : réponse lente, pour le Stop ; autre : lecture d'un fichier, puis réponse."""
+
+    RATE = 40.0  # fragments par seconde
+
+    def __init__(self, **_config):
+        pass
+
+    async def _stream(self, text, segment, on_chunk):
+        shown = ""
+        for piece in chunks(text):
+            shown += piece
+            on_chunk(shown, segment)
+            await asyncio.sleep(1 / self.RATE)
+
+    async def _tool(self, run, name, arguments):
+        call = {"call_id": secrets.token_hex(8), "name": name, "input": arguments}
+        run["on_tool_call_announced"](call)
+        result = await run["tool_executor"].call(call_id=call["call_id"], name=name,
+                                                 input_data=arguments)
+        run["on_tool_result"](call["call_id"], result)
+        return result
+
+    async def run(self, **run):
+        message = run["user_message"].lower()
+        run["history"].append({"role": "user", "content": run["user_message"]})
+        if "erreur" in message:
+            await self._stream("Je lance la recherche…", 0, run["on_chunk"])
+            raise RuntimeError("Ollama ne répond pas (démo)")
+        segments = []
+        intro = "Je regarde d'abord `src/app.py`."
+        await self._stream(intro, 0, run["on_chunk"])
+        segments.append(intro)
+        await self._tool(run, "read_file", {"path": "src/app.py"})
+        if "modifie" in message or "écris" in message or "ajoute" in message:
+            await self._tool(run, "edit_file", {
+                "path": "src/app.py", "old_string": "    return []",
+                "new_string": "    return [{\"id\": 1, \"titre\": \"Dune\"}]"})
+            final = ("C'est fait : `lister_livres` renvoie maintenant un livre d'exemple.\n\n"
+                     "```python\n@app.get(\"/livres\")\ndef lister_livres():\n"
+                     "    return [{\"id\": 1, \"titre\": \"Dune\"}]\n```")
+        elif "teste" in message or "commande" in message:
+            await self._tool(run, "run_command", {"command": "python -m pytest -q"})
+            final = "Les **4 tests** passent (0,31 s)."
+        else:
+            final = ("Le fichier déclare une application **FastAPI** avec une seule route, "
+                     "`GET /livres`, qui renvoie pour l'instant une liste vide.")
+        if "attends" in message:
+            await asyncio.sleep(10)
+        await self._stream(final, 1, run["on_chunk"])
+        segments.append(final)
+        text = "\n\n".join(segments)
+        run["history"].append({"role": "assistant", "content": text})
+        return text
+
+
 AGENT_ANSWERS = {
     "planner": """## Plan de développement
 
@@ -1343,12 +1487,38 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         self.scheduler.add_listener(self._on_scheduled_result)
         self.scheduler.start()
 
+    @property
+    def code(self):
+        """Page Code : conversation dans le dossier temporaire, VS Code simulé."""
+        with self._services_lock:
+            if self._code is None:
+                loop = asyncio.new_event_loop()
+                threading.Thread(target=loop.run_forever, name="demo-code", daemon=True).start()
+                hub = CodeHub(store=self._workspaces.parent / "code_conversation.json",
+                              executor_factory=DemoCodeExecutor)
+                hub.set_llm_resolver(lambda: {
+                    "chat_url": "demo", "model": "my_ai", "num_ctx": 32768,
+                    "describe_image": lambda _image, _question: "Capture d'une page web (démo).",
+                })
+                self._demo_vscode = DemoVSCode(hub, loop)  # pylint: disable=attribute-defined-outside-init
+                self._code = CodeService(hub, self.bus.publish, lambda: self.bus.last_seq)
+            return self._code
+
     def start_relay(self, tunnel=None):
-        """Relay simulé (DemoRelay) : ni serveur ni tunnel réels."""
+        """Relay simulé (DemoRelay) : ni serveur ni tunnel réels ; VS Code s'y connecte."""
         if self.relay is None or not self.relay.is_running():
             self.relay = DemoRelay(tunnels=tunnel is not False)
+            _ = self.code  # conversation et VS Code simulé
+            threading.Timer(3.0, self._demo_vscode.connect).start()
         self._watch_relay_status()
         return self.relay_status()
+
+    def stop_relay(self):
+        """Relay simulé arrêté : VS Code est déconnecté."""
+        status = super().stop_relay()
+        if self._code is not None:
+            self._demo_vscode.disconnect()
+        return status
 
     def _launch(self):
         # engine et chat : posés au lancement, comme DesktopApp._launch

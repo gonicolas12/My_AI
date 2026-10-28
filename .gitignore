@@ -75,6 +75,10 @@ data/.desktop_state.json.tmp
 data/agent_runs.json
 data/agent_runs.json.tmp
 
+# Conversation Code (extension VS Code), gardée d'un lancement à l'autre (relay/code_hub.py)
+data/code_conversation.json
+data/code_conversation.json.tmp
+
 # Fichiers de cache locaux
 data/knowledge_base/
 data/web_cache/
