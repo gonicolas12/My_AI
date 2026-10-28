@@ -70,11 +70,12 @@ html, body {
 }
 
 /* ── MESSAGES AREA ─────────────────────────────────── */
+/* Pas de scroll-behavior: smooth : pendant le streaming, chaque descente
+   au bas relancerait une animation, toujours en retard sur le texte. */
 .messages {
   flex: 1; overflow-y: auto; overflow-x: hidden;
   padding: 16px; padding-bottom: 8px;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
 }
 
 /* Welcome screen */
@@ -96,6 +97,8 @@ html, body {
   display: flex; margin-bottom: 12px;
   animation: fadeIn 0.2s ease-out;
 }
+/* Bulle refaite alors qu'elle était déjà affichée (vue Code) : pas d'apparition */
+.message.no-fade { animation: none; }
 .message.user { justify-content: flex-end; }
 .message.ai { justify-content: flex-start; }
 
@@ -454,17 +457,20 @@ html, body {
 .messages::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
 
 /* ═══════════════════════════════════════════════════ */
-/* TAB BAR (Chat / Agents)                             */
+/* TAB BAR (Code / Chat / Agents)                      */
 /* ═══════════════════════════════════════════════════ */
 .tab-bar {
+  /* Marges égales de part et d'autre : le bouton Code tient dans celle de
+     gauche, Chat et Agents restent centrés sur l'écran. */
+  position: relative;
   display: flex; gap: 6px; justify-content: center;
-  padding: 8px 12px; background: var(--bg-secondary);
+  padding: 8px 52px; background: var(--bg-secondary);
   border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .tab-btn {
-  /* Largeur égale pour Chat et Agents, un peu réduite pour laisser sa
-     place au bouton Code, carré, à gauche de Chat. */
-  flex: 1 1 0; max-width: 132px;
+  /* Largeur égale pour les deux onglets : la séparation entre Chat et
+     Agents tombe ainsi exactement au centre de l'écran. */
+  flex: 1 1 0; max-width: 150px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: var(--bg-tertiary); border: 1px solid transparent;
   color: var(--text-secondary); font-size: 14px; font-weight: 600;
@@ -473,9 +479,18 @@ html, body {
 }
 .tab-btn.active { background: var(--accent); color: #fff; }
 .tab-btn .tab-ico { font-size: 15px; }
-/* Code : la conversation de l'extension VS Code, icône seule */
-.tab-btn.tab-code { flex: 0 0 auto; width: 40px; padding: 8px 0; }
-.tab-btn .tab-svg { width: 18px; height: 18px; display: block; }
+/* Code : la conversation de l'extension VS Code. Le </> orange seul, tout à
+   gauche (aligné sur le logo du header) ; souligné quand la vue est ouverte. */
+.tab-btn.tab-code, .tab-btn.tab-code.active {
+  position: absolute; top: 0; bottom: 0; inset-inline-start: 4px;
+  width: 44px; max-width: none; padding: 0;
+  background: none; border: none; border-radius: 0; color: var(--accent);
+}
+.tab-btn.tab-code.active::after {
+  content: ''; position: absolute; left: 13px; right: 13px; bottom: 6px;
+  height: 2px; border-radius: 1px; background: var(--accent);
+}
+.tab-btn .tab-svg { width: 22px; height: 22px; display: block; }
 
 /* ── VIEW SWITCHING ────────────────────────────────── */
 .view { flex: 1; min-height: 0; flex-direction: column; }
