@@ -74,7 +74,12 @@
   var pendingAttachments = [];
   var attachmentCounter = 0;
   var userPinnedToBottom = true;
+  var lastScrollTop = 0;
   var sendBtnMode = 'send';
+  // Textes reçus depuis la dernière image, affichés à la suivante : le serveur
+  // envoie un code_chunk par token, plus souvent que l'écran ne se redessine
+  var dirtyParts = [];
+  var dirtyFrame = 0;
 
   function $(id) { return document.getElementById(id); }
 
@@ -109,9 +114,14 @@
         sendMessage();
       }
     });
+    // Le défilement suit la réponse tant qu'on ne remonte pas ; revenu en bas,
+    // il la suit à nouveau. Le texte qui s'allonge sous l'écran ne l'arrête pas.
     el.messages.addEventListener('scroll', function () {
-      var gap = el.messages.scrollHeight - (el.messages.scrollTop + el.messages.clientHeight);
-      userPinnedToBottom = gap < 80;
+      var top = el.messages.scrollTop;
+      var gap = el.messages.scrollHeight - (top + el.messages.clientHeight);
+      if (gap < 80) userPinnedToBottom = true;
+      else if (top < lastScrollTop) userPinnedToBottom = false;
+      lastScrollTop = top;
     }, { passive: true });
     renderNotice();
     updateSendButton();
@@ -143,6 +153,8 @@
   }
 
   function onMessage(data) {
+    // Un appel d'outil, la fin… s'affichent après le texte reçu avant eux
+    if (data.type !== 'code_chunk') flushChunks();
     switch (data.type) {
       case 'code_snapshot': applySnapshot(data); break;
       case 'code_state': applyState(data); break;
@@ -215,8 +227,20 @@
     } else {
       part.text = data.text;
     }
-    renderPart(reply, part);
-    scrollToBottomStream();
+    if (!dirtyParts.some(function (item) { return item.part === part; })) {
+      dirtyParts.push({ reply: reply, part: part });
+    }
+    if (!dirtyFrame) dirtyFrame = requestAnimationFrame(flushChunks);
+  }
+
+  // Textes en attente : à l'image suivante, ou avant tout autre événement
+  function flushChunks() {
+    if (dirtyFrame) cancelAnimationFrame(dirtyFrame);
+    dirtyFrame = 0;
+    var queued = dirtyParts;
+    dirtyParts = [];
+    queued.forEach(function (item) { renderPart(item.reply, item.part); });
+    if (queued.length) scrollToBottomStream();
   }
 
   function applyTool(data) {
@@ -338,10 +362,11 @@
       el.messages.appendChild(turn.box);
       turns[reply.message_id] = turn;
     }
+    var shown = turn.parts;
     turn.box.innerHTML = '';
     turn.parts = {};
     turn.tail = null;
-    reply.parts.forEach(function (part) { renderPart(reply, part); });
+    reply.parts.forEach(function (part) { renderPart(reply, part, !!shown[partKey(part)]); });
     var hasText = reply.parts.some(function (p) { return p.kind === 'text'; });
     if (reply.status === 'done' && !hasText && reply.text) {
       turn.box.appendChild(textBubble(reply.text, reply.timestamp, false));
@@ -360,22 +385,29 @@
     return part.kind === 'text' ? 't' + part.segment : 'x' + part.call_id;
   }
 
-  function renderPart(reply, part) {
+  // shown : déjà à l'écran avant que la réponse ne soit refaite
+  function renderPart(reply, part, shown) {
     var turn = turns[reply.message_id];
     if (!turn) return;
     var key = partKey(part);
-    var node = part.kind === 'text'
-      ? textBubble(part.text, reply.timestamp, reply.status === 'streaming' && isLastPart(reply, part))
-      : toolRow(part);
+    var streaming = reply.status === 'streaming';
     var previous = turn.parts[key];
-    if (previous) {
-      turn.box.replaceChild(node, previous);
-    } else if (turn.tail && turn.tail.parentNode === turn.box) {
-      turn.box.insertBefore(node, turn.tail);
-    } else {
-      turn.box.appendChild(node);
+    // Texte qui s'écrit : seul son contenu change, la bulle reste
+    if (!(part.kind === 'text' && streaming && previous && fillStream(previous, part.text))) {
+      var node = part.kind === 'text'
+        ? textBubble(part.text, reply.timestamp, streaming)
+        : toolRow(part);
+      // Une bulle remplacée ne rejoue pas son apparition (fadeIn)
+      if (previous || shown) node.classList.add('no-fade');
+      if (previous) {
+        turn.box.replaceChild(node, previous);
+      } else if (turn.tail && turn.tail.parentNode === turn.box) {
+        turn.box.insertBefore(node, turn.tail);
+      } else {
+        turn.box.appendChild(node);
+      }
+      turn.parts[key] = node;
     }
-    turn.parts[key] = node;
     // Le morceau précédent ne s'écrit plus : son curseur disparaît
     reply.parts.forEach(function (other) {
       if (other !== part && other.kind === 'text' && turn.parts[partKey(other)]) {
@@ -384,10 +416,6 @@
       }
     });
     renderTail(reply);
-  }
-
-  function isLastPart(reply, part) {
-    return reply.parts[reply.parts.length - 1] === part;
   }
 
   // Réponse en cours sans rien qui bouge à l'écran : les trois points du chat
@@ -424,6 +452,14 @@
         : body + '<span class="time">' + timeOf(timestamp) + '</span>') +
       '</div>';
     return msg;
+  }
+
+  // Nouveau texte d'une bulle en cours d'écriture (false : bulle déjà finie)
+  function fillStream(msg, text) {
+    var content = msg.querySelector('.stream-content');
+    if (!content) return false;
+    content.innerHTML = core().renderMarkdown(core().balanceMarkdownForStreaming(text));
+    return true;
   }
 
   function toolTarget(part) {
