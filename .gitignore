@@ -3,7 +3,11 @@ __pycache__/
 **/__pycache__/
 logs/
 .vscode/
-.claude/
+# .claude/ reste local, sauf la skill des vidéos d'annonce (partagée entre les sessions)
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/video-my-ai/
 claudedocs/
 backups/
 context_storage/
