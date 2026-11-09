@@ -1,0 +1,54 @@
+name: Notify portfolio
+
+# Après chaque push sur main, demande à la routine Claude « Portfolio sync »
+# de vérifier si le portfolio (gonicolas12/portfolio) doit être mis à jour.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+      - '**/*.webp'
+      - '**/*.mp4'
+
+# Une rafale de pushes ne déclenche qu'un seul envoi : un nouveau push annule
+# l'envoi encore en attente.
+concurrency:
+  group: notify-portfolio
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait 3 minutes for the burst of pushes to settle
+        run: sleep 180
+
+      - name: Fire the portfolio sync routine
+        env:
+          ROUTINE_URL: ${{ secrets.PORTFOLIO_ROUTINE_URL }}
+          ROUTINE_TOKEN: ${{ secrets.PORTFOLIO_ROUTINE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ROUTINE_URL" ] || [ -z "$ROUTINE_TOKEN" ]; then
+            echo "::warning::Secrets PORTFOLIO_ROUTINE_URL / PORTFOLIO_ROUTINE_TOKEN missing: portfolio not notified."
+            exit 0
+          fi
+          EV="$GITHUB_EVENT_PATH"
+          COMMITS=$(jq -r '.commits[-25:][] | "- \(.id[0:7]) \(.message | split("\n")[0])"' "$EV")
+          TEXT=$(printf 'source_repo: %s\nbranch: main\nbefore: %s\nafter: %s\ncompare: %s\npusher: %s\ncommits of this push (25 last):\n%s\n' \
+            "$GITHUB_REPOSITORY" "$(jq -r '.before' "$EV")" "$GITHUB_SHA" \
+            "$(jq -r '.compare' "$EV")" "$(jq -r '.pusher.name' "$EV")" "$COMMITS")
+          jq -n --arg text "$TEXT" '{text: $text}' > payload.json
+          curl --fail-with-body -sS -X POST "$ROUTINE_URL" \
+            -H "Authorization: Bearer $ROUTINE_TOKEN" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            --data @payload.json | jq .
