@@ -492,7 +492,8 @@ class ChatService:
         self._worker.start()
 
     def close(self) -> None:
-        """Arrête la réponse en cours, le fil de la file d'attente et ComfyUI."""
+        """Arrête la réponse en cours, le fil de la file d'attente, ComfyUI et les
+        serveurs MCP externes."""
         with self._cond:
             self._closed = True
             self._interrupted = True
@@ -502,6 +503,11 @@ class ChatService:
         # Lancé sans fenêtre, il garderait son modèle en mémoire après l'appli
         if self._comfyui is not None:
             self._comfyui.stop()
+        # Serveurs MCP de config.yaml (processus lancés par npx ou uvx)
+        mcp_manager = getattr(self._engine, "mcp_manager", None)
+        disconnect = getattr(mcp_manager, "disconnect_all_sync", None)
+        if callable(disconnect):
+            disconnect(timeout=5.0)
 
     # ── Émission ────────────────────────────────────────────────────────────
 

@@ -11,6 +11,7 @@ Ollama reçoit la liste unifiée des outils et décide lui-même lequel appeler.
 
 import asyncio
 import concurrent.futures
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -65,65 +66,114 @@ class MCPServerConfig:
     enabled: bool = True
 
 
+def _input_schema(tool: Any) -> Dict[str, Any]:
+    """JSON Schema des paramètres d'un outil MCP, quelle que soit la version du SDK.
+
+    Le SDK 1.x expose ``inputSchema`` ; le 2.x n'a plus que ``input_schema``
+    (l'alias camelCase ne sert qu'à la sérialisation). Lire ``inputSchema``
+    levait donc AttributeError sous la 2.x, et chaque serveur MCP activé
+    échouait à la connexion.
+    """
+    schema = getattr(tool, "input_schema", None)
+    if schema is None:
+        schema = getattr(tool, "inputSchema", None)
+    return schema or {"type": "object", "properties": {}}
+
+
+def _run_loop_forever(loop: asyncio.AbstractEventLoop) -> None:
+    """Fil de la boucle des serveurs MCP : tourne jusqu'à disconnect_all_sync()."""
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()
+
+
 # ---------------------------------------------------------------------------
 # Connexion à un serveur MCP externe
 # ---------------------------------------------------------------------------
 
 class _MCPServerConnection:
-    """Gère la connexion à un serveur MCP via stdio."""
+    """Gère la connexion à un serveur MCP via stdio.
+
+    Toute la vie de la connexion tient dans une seule tâche asyncio (_run) :
+    anyio, sous le SDK, exige de refermer stdio_client et ClientSession dans la
+    tâche qui les a ouverts, et la session ne sert que dans sa boucle. Les
+    appels d'outils passent donc par la boucle où la connexion a été ouverte
+    (cf. MCPManager._call_external).
+    """
 
     def __init__(self, config: MCPServerConfig):
         self.config = config
         self.session: Optional[Any] = None  # ClientSession quand connecté
         self.tools: List[ToolSchema] = []
-        self._exit_stack = None
+        self._task: Optional["asyncio.Task[None]"] = None
+        self._stop: Optional[asyncio.Event] = None
 
     async def connect(self) -> bool:
-        """Tente de se connecter au serveur MCP et de découvrir ses outils."""
+        """Lance le serveur MCP et découvre ses outils.
+
+        La connexion reste ouverte jusqu'à disconnect(), dans la boucle courante.
+        """
         if not MCP_SDK_AVAILABLE:
             print(f"⚠️ [MCP] SDK non installé. Ignoré : {self.config.name}")
             return False
 
-        try:
-            self._exit_stack = AsyncExitStack()
-            server_params = StdioServerParameters(
-                command=self.config.command,
-                args=self.config.args,
-                env=self.config.env,
-            )
-            transport = await self._exit_stack.enter_async_context(
-                stdio_client(server_params)
-            )
-            self.session = await self._exit_stack.enter_async_context(
-                ClientSession(transport[0], transport[1])
-            )
-            await self.session.initialize()
+        loop = asyncio.get_running_loop()
+        ready: "asyncio.Future[bool]" = loop.create_future()
+        self._stop = asyncio.Event()
+        self._task = loop.create_task(self._run(ready))
+        # Garde-fou : une sortie imprévue de _run ne doit pas bloquer connect()
+        self._task.add_done_callback(lambda _task: ready.done() or ready.set_result(False))
+        return await ready
 
-            # Découverte des outils exposés par ce serveur
-            response = await self.session.list_tools()
-            self.tools = [
-                ToolSchema(
-                    name=f"{self.config.name}__{t.name}",  # namespace
-                    description=t.description or "",
-                    parameters=t.inputSchema or {"type": "object", "properties": {}},
+    async def _run(self, ready: "asyncio.Future[bool]") -> None:
+        """Ouvre la connexion, signale qu'elle est prête, puis la garde jusqu'à l'arrêt."""
+        try:
+            async with AsyncExitStack() as stack:
+                server_params = StdioServerParameters(
+                    command=self.config.command,
+                    args=self.config.args,
+                    env=self.config.env,
                 )
-                for t in response.tools
-            ]
-            print(
-                f"✅ [MCP] Serveur '{self.config.name}' connecté — "
-                f"{len(self.tools)} outils"
-            )
-            return True
+                transport = await stack.enter_async_context(stdio_client(server_params))
+                self.session = await stack.enter_async_context(
+                    ClientSession(transport[0], transport[1])
+                )
+                await self.session.initialize()
+
+                # Découverte des outils exposés par ce serveur
+                response = await self.session.list_tools()
+                self.tools = [
+                    ToolSchema(
+                        name=f"{self.config.name}__{t.name}",  # namespace
+                        description=t.description or "",
+                        parameters=_input_schema(t),
+                    )
+                    for t in response.tools
+                ]
+                print(
+                    f"✅ [MCP] Serveur '{self.config.name}' connecté — "
+                    f"{len(self.tools)} outils"
+                )
+                ready.set_result(True)
+                await self._stop.wait()
 
         except FileNotFoundError:
             print(
                 f"⚠️ [MCP] Commande introuvable pour '{self.config.name}': "
                 f"{self.config.command}. Serveur ignoré."
             )
-            return False
-        except Exception as exc:
-            print(f"⚠️ [MCP] Connexion échouée '{self.config.name}': {exc}")
-            return False
+        except Exception as exc:  # pylint: disable=broad-except
+            # En sortant du « async with », le serveur est arrêté : rien ne traîne
+            if ready.done():
+                print(f"⚠️ [MCP] Serveur '{self.config.name}' arrêté : {exc}")
+            else:
+                print(f"⚠️ [MCP] Connexion échouée '{self.config.name}': {exc}")
+        finally:
+            self.session = None
+            if not ready.done():
+                ready.set_result(False)
 
     async def call_tool(self, original_tool_name: str, arguments: Dict) -> str:
         """Appelle un outil sur ce serveur MCP avec les arguments donnés."""
@@ -137,12 +187,13 @@ class _MCPServerConnection:
         return ""
 
     async def disconnect(self):
-        """Ferme la connexion au serveur MCP."""
-        if self._exit_stack:
-            try:
-                await self._exit_stack.aclose()
-            except Exception:
-                pass
+        """Ferme la connexion et arrête le serveur MCP (dans la boucle de connect())."""
+        task, self._task = self._task, None
+        if task is None:
+            return
+        if self._stop is not None:
+            self._stop.set()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +222,10 @@ class MCPManager:
         self._server_connections: Dict[str, _MCPServerConnection] = {}
         self._external_tools: Dict[str, tuple] = {}  # name → (server_name, original_name)
         self._connected = False
+        # Boucle asyncio des serveurs ouverts par les wrappers synchrones : elle
+        # tourne dans son propre fil et garde leurs sessions entre deux appels
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Enregistrement des outils locaux
@@ -264,15 +319,33 @@ class MCPManager:
         )
         self._connected = True
 
-    def connect_external_servers_sync(self):
-        """Wrapper synchrone pour connect_external_servers()."""
+    def connect_external_servers_sync(self, timeout: float = 60.0):
+        """Wrapper synchrone pour connect_external_servers().
+
+        Les sessions s'ouvrent dans la boucle des serveurs MCP, qui leur survit.
+        Avec asyncio.run, la boucle se fermait dès la connexion faite : les
+        serveurs étaient arrêtés aussitôt et chaque appel d'outil échouait.
+        """
         try:
-            asyncio.get_running_loop()
-            # On est dans une boucle async — créer une tâche non bloquante
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                pool.submit(asyncio.run, self.connect_external_servers()).result(timeout=30)
-        except RuntimeError:
-            asyncio.run(self.connect_external_servers())
+            self._run_in_loop(self.connect_external_servers(), timeout)
+        except concurrent.futures.TimeoutError:
+            # La connexion continue dans la boucle (premier npx qui télécharge…)
+            print(f"⚠️ [MCP] Serveurs MCP toujours en connexion après {timeout:.0f} s")
+
+    def _servers_loop(self) -> asyncio.AbstractEventLoop:
+        """Boucle asyncio des serveurs MCP, lancée dans son fil au premier besoin."""
+        with self._loop_lock:
+            if self._loop is None:
+                loop = asyncio.new_event_loop()
+                threading.Thread(
+                    target=_run_loop_forever, args=(loop,), name="mcp-servers", daemon=True
+                ).start()
+                self._loop = loop
+            return self._loop
+
+    def _run_in_loop(self, coro, timeout: float):
+        """Exécute une coroutine dans la boucle des serveurs MCP et attend son résultat."""
+        return asyncio.run_coroutine_threadsafe(coro, self._servers_loop()).result(timeout)
 
     # ------------------------------------------------------------------
     # Interface vers Ollama
@@ -320,11 +393,21 @@ class MCPManager:
             conn = self._server_connections.get(server_name)
             if conn:
                 try:
-                    return await conn.call_tool(original_name, arguments)
-                except Exception as exc:
-                    return f"[Erreur serveur MCP '{server_name}'] {exc}"
+                    return await self._call_external(conn, original_name, arguments)
+                except Exception as exc:  # pylint: disable=broad-except
+                    return f"[Erreur serveur MCP '{server_name}'] {exc or type(exc).__name__}"
 
         return f"[Outil inconnu : {tool_name}]"
+
+    async def _call_external(
+        self, conn: _MCPServerConnection, tool_name: str, arguments: Dict
+    ) -> str:
+        """Appel d'outil dans la boucle qui tient la session du serveur."""
+        loop = self._loop
+        if loop is None or loop is asyncio.get_running_loop():
+            return await conn.call_tool(tool_name, arguments)
+        future = asyncio.run_coroutine_threadsafe(conn.call_tool(tool_name, arguments), loop)
+        return await asyncio.wrap_future(future)
 
     def execute_tool_sync(self, tool_name: str, arguments: Dict) -> str:
         """Wrapper synchrone pour execute_tool_async()."""
@@ -359,11 +442,23 @@ class MCPManager:
         return "\n".join(lines)
 
     async def disconnect_all(self):
-        """Déconnecte tous les serveurs MCP."""
+        """Déconnecte tous les serveurs MCP (dans la boucle où ils ont été connectés)."""
         await asyncio.gather(
             *[conn.disconnect() for conn in self._server_connections.values()],
             return_exceptions=True,
         )
+
+    def disconnect_all_sync(self, timeout: float = 10.0) -> None:
+        """Arrête les serveurs connectés par connect_external_servers_sync() et leur boucle."""
+        with self._loop_lock:
+            loop, self._loop = self._loop, None
+        if loop is None:
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(self.disconnect_all(), loop).result(timeout)
+        except Exception:  # pylint: disable=broad-except
+            pass  # fermeture de l'appli : le processus du serveur meurt avec elle
+        loop.call_soon_threadsafe(loop.stop)
 
     def __repr__(self):
         return (

@@ -31,6 +31,8 @@ L'IA a un accès direct encadré à votre PC pour travailler selon ses plans :
 ### 2. Serveurs MCP Externes (MCPServers)
 My AI peut se connecter à des serveurs MCP externes via le transport `stdio`. Cela permet d'étendre les capacités de l'IA de manière infinie en utilisant l'écosystème grandissant des serveurs MCP (ex: serveurs pour GitHub, Slack, bases de données d'entreprise, etc.).
 
+Chaque serveur est un processus lancé par la commande de `config.yaml` (par exemple `npx`). Sa session vit dans une boucle asyncio dédiée (fil `mcp-servers`), d'un appel d'outil à l'autre, jusqu'à la fermeture de l'appli, qui arrête les serveurs. Avant ce correctif, la session s'ouvrait dans une boucle fermée sitôt la connexion faite : le serveur était arrêté aussitôt, ses outils restaient proposés au modèle et chaque appel échouait (« [Erreur serveur MCP '…'] »).
+
 ## 🚀 Comment ça marche ?
 
 1. **Découverte** : Au démarrage, le `mcp_client` recense tous les outils locaux disponibles et se connecte aux serveurs MCP externes configurés pour récupérer leurs outils.
@@ -94,12 +96,17 @@ Pour activer un serveur, passer `enabled: true`. Les serveurs externes nécessit
 
 ## 🛠️ Dépendances
 
-L'intégration MCP utilise le SDK officiel `mcp` pour Python.
+L'intégration MCP utilise le SDK officiel `mcp` pour Python, en **version 1.x à partir de la 1.30.0** (`mcp>=1.30.0,<2` dans `requirements.txt`) :
+- la 1.30.0 corrige GHSA-rwrf-2pqf-9j8j (le client suivait les URL `$ref` choisies par le serveur pour valider les résultats d'outils) et trois autres avis de sécurité ;
+- la 2.x, que `pip install mcp` installe par défaut depuis juillet 2026, change l'API : attributs en snake_case (`tool.input_schema`), `call_tool` qui lève une exception sur une erreur JSON-RPC. `core/mcp_client.py` lit le schéma d'un outil sous ses deux noms, ce qui suffit pour se connecter avec l'une ou l'autre version, mais la borne `<2` reste en place tant que le client n'est pas migré, comme le conseille le guide de migration du SDK. La 1.x reçoit encore les correctifs de sécurité.
+
+Une installation qui a déjà la 2.x repasse en 1.x au lancement suivant (`utils/requirements_sync.py` réinstalle les lignes de `requirements.txt` non satisfaites).
+
 Si le SDK n'est pas installé, My AI gère la situation de manière gracieuse (dégradation gracieuse) et continue de fonctionner avec ses capacités de base.
 
 Pour installer le SDK MCP :
 ```bash
-pip install mcp
+pip install "mcp>=1.30.0,<2"
 ```
 
 ## ⚠️ Confirmation de Suppression

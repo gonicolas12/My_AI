@@ -295,7 +295,12 @@ Responsabilités:
 ```python
 Capacités:
 ├─ Exposition outils locaux au format MCP
-├─ Connexion serveurs MCP externes (stdio)
+├─ Connexion serveurs MCP externes (stdio), SDK mcp 1.30+ (<2) ; schéma des
+│  outils lu en 1.x (inputSchema) comme en 2.x (input_schema)
+├─ Sessions gardées dans une boucle asyncio dédiée (fil « mcp-servers ») : une
+│  tâche par serveur ouvre et referme sa session (exigence d'anyio) ; les
+│  wrappers synchrones y envoient les appels (run_coroutine_threadsafe)
+├─ Serveurs arrêtés à la fermeture (ChatService.close → disconnect_all_sync)
 └─ Dégradation gracieuse si SDK mcp absent
 ```
 

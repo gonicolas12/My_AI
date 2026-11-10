@@ -187,7 +187,13 @@ memory-profiler>=0.60.0
 # ====================================
 # Client MCP pour connecter des serveurs d'outils externes à Ollama
 # Permet le tool-calling natif : le LLM choisit lui-même les outils à appeler
-mcp>=1.0.0
+# 1.30.0 : corrige GHSA-rwrf-2pqf-9j8j (le client suivait les URL $ref choisies
+# par le serveur pour valider les résultats d'outils) et trois autres avis.
+# <2 : la 2.x, que « pip install mcp » installe depuis juillet 2026, change
+# l'API (tool.input_schema en snake_case, call_tool qui lève une exception sur
+# une erreur JSON-RPC). Le guide de migration du SDK conseille cette borne tant
+# que le code n'est pas migré ; la 1.x reçoit encore les correctifs de sécurité.
+mcp>=1.30.0,<2
 
 # ====================================
 # API REST & RELAY
