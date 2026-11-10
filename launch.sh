@@ -64,6 +64,18 @@ else
     echo "[INFO] Mode installation globale"
 fi
 
+# Python 3.11 a 3.14 (cf. utils/python_version.py). En 3.10 et avant, Pillow 13,
+# websockets 17 et PyMuPDF 2 ne s'installent plus ; en 3.15, onnxruntime
+# (chromadb, faster-whisper) n'a pas encore de wheel pour lui.
+if ! "$PYTHON" -c "import sys; sys.exit(0 if (3, 11) <= sys.version_info[:2] <= (3, 14) else 1)"; then
+    pyver="$("$PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+    echo "[ERROR] Python $pyver detecte : My_AI demande Python 3.11 a 3.14."
+    echo "[AIDE]  Installez Python 3.14 (python.org ; 3.12 sur un Mac Intel),"
+    echo "        puis relancez ce script. Avec un venv/ : recreez-le avec ce"
+    echo "        Python, puis pip install -r requirements.txt"
+    exit 1
+fi
+
 # Mac Intel : PyTorch ne publie plus de wheel x86_64 au-dela de 2.2.2, et
 # celle-ci s'arrete a Python 3.12 (comme numpy 1.26.4). Sous Python 3.13+,
 # pip ne trouve aucune version installable et tente une compilation qui echoue.

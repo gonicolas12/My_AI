@@ -11,6 +11,8 @@
   "launch.failed": "启动失败：{error}",
   "launch.firstSetup": "初始设置",
   "launch.ollamaFailed": "Ollama 无法启动：请打开 Ollama 应用或运行“ollama serve”",
+  "launch.pythonUnsupported": "不支持 Python {version}：My_AI 需要 Python {minimum} 至 {maximum}。",
+  "launch.pythonInstall": "请安装 Python {maximum}（python.org），然后重新启动 My_AI。",
   "relay.startFailed": "无法启动 My_AI Relay。",
   "relay.accessLocked": "Relay 已锁定：错误访问码过多。请停止并重新启动它，以获取新的二维码和新的访问码。",
   "relay.accessFailure": "Relay：有人输入了错误的访问码。如果不是你本人操作，请停止 Relay：它的链接已泄露。",

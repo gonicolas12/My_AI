@@ -11,6 +11,8 @@
   "launch.failed": "Opstarten mislukt: {error}",
   "launch.firstSetup": "Eerste configuratie",
   "launch.ollamaFailed": "Ollama kon niet starten: open de Ollama-app of voer 'ollama serve' uit",
+  "launch.pythonUnsupported": "Python {version} wordt niet ondersteund: My_AI heeft Python {minimum} tot en met {maximum} nodig.",
+  "launch.pythonInstall": "Installeer Python {maximum} (python.org) en start My_AI daarna opnieuw.",
   "relay.startFailed": "Kan My_AI Relay niet starten.",
   "relay.accessLocked": "Relay vergrendeld: te veel foute toegangscodes. Stop hem en start hem opnieuw voor een nieuwe QR-code en een nieuwe code.",
   "relay.accessFailure": "Relay: er is een foute toegangscode ingevoerd. Was jij dit niet, stop dan de Relay: de link is uitgelekt.",

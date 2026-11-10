@@ -11,6 +11,8 @@
   "launch.failed": "起動に失敗しました：{error}",
   "launch.firstSetup": "初期設定",
   "launch.ollamaFailed": "Ollama を起動できませんでした。Ollama アプリを開くか、「ollama serve」を実行してください",
+  "launch.pythonUnsupported": "Python {version} はサポートされていません。My_AI には Python {minimum}〜{maximum} が必要です。",
+  "launch.pythonInstall": "Python {maximum}（python.org）をインストールしてから、My_AI を再起動してください。",
   "relay.startFailed": "My_AI Relay を起動できませんでした。",
   "relay.accessLocked": "Relay がロックされました：誤ったアクセスコードが多すぎます。停止してから再起動すると、新しい QR コードと新しいコードが発行されます。",
   "relay.accessFailure": "Relay：誤ったアクセスコードが入力されました。心当たりがない場合は Relay を停止してください。リンクが漏れています。",

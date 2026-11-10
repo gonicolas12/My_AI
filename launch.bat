@@ -41,6 +41,20 @@ if exist "venv\Scripts\activate.bat" (
     echo [INFO] Mode installation globale
 )
 
+REM Python 3.11 a 3.14 (cf. utils/python_version.py). En 3.10 et avant,
+REM Pillow 13, websockets 17 et PyMuPDF 2 ne s'installent plus ; en 3.15,
+REM onnxruntime (chromadb, faster-whisper) n'a pas encore de version pour lui.
+for /f "usebackq delims=" %%V in (`python -c "import sys; print(*sys.version_info[:2], sep='.')"`) do set "PYVER=%%V"
+python -c "import sys; sys.exit(0 if (3, 11) <= sys.version_info[:2] <= (3, 14) else 1)"
+if %errorlevel% neq 0 (
+    echo [ERROR] Python %PYVER% detecte : My_AI demande Python 3.11 a 3.14.
+    echo [AIDE]  Installez Python 3.14 depuis python.org, puis relancez ce script.
+    echo         Avec un venv\ : recreez-le avec ce Python, puis
+    echo         pip install -r requirements.txt
+    pause
+    exit /b 1
+)
+
 REM Verifier/installer dependances critiques
 echo [INFO] Verification des dependances...
 python -c "import click, yaml, rich" 2>nul
