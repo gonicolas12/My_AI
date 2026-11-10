@@ -40,7 +40,7 @@ print(f"Tokens en mémoire : {stats['current_tokens']:,} / {stats['max_tokens']:
 
 #### 2. VectorMemory (`memory/vector_memory.py`)
 
-Module principal de stockage vectoriel — tokenization tiktoken, embeddings sentence-transformers, stockage ChromaDB, chiffrement AES-256 optionnel.
+Module principal de stockage vectoriel — tokenization tiktoken, embeddings multilingues (Granite 107M via sentence-transformers, `core/embedding_engine.py`), stockage ChromaDB (une collection par modèle d'embeddings), chiffrement AES-256 optionnel.
 
 ```python
 from memory.vector_memory import VectorMemory
@@ -48,7 +48,7 @@ from memory.vector_memory import VectorMemory
 # Initialisation
 vector_mem = VectorMemory(
     max_tokens=10_485_760,
-    chunk_size=256,          # Aligné sur all-MiniLM-L6-v2 (256 tokens max)
+    chunk_size=256,          # Défaut : optimization.rag.chunk_size (meilleur rappel qu'à 512)
     chunk_overlap=32,
     storage_dir="memory/vector_store"
 )

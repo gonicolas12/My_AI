@@ -17,7 +17,7 @@ Barre latérale (**Ctrl+B**) → **Recherche globale** : un champ de recherche, 
 ## ⚙️ Comment ça marche
 
 ### Réutilisation de l'existant (aucun doublon)
-La recherche s'appuie sur l'**index ChromaDB** déjà présent (collection `conversations`) et l'**embedding partagé** (`core/shared.py`, `all-MiniLM-L6-v2`). **Aucun second pipeline d'embedding** n'est créé.
+La recherche s'appuie sur l'**index ChromaDB** déjà présent (collection `conversations` du modèle d'embeddings actif) et l'**embedding partagé** (`core/shared.py`, Granite 107M multilingue : une question en français retrouve un message écrit en anglais). **Aucun second pipeline d'embedding** n'est créé.
 
 ### Indexation incrémentale
 Un manifeste `memory/vector_store/conversation_index.json` mémorise le `last_modified` de chaque workspace indexé :
