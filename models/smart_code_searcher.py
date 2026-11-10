@@ -522,12 +522,12 @@ class SmartCodeSearcher:
             return []
 
         # Générer l'embedding de la requête
-        query_embedding = self.embedding_model.encode(query, convert_to_tensor=True)
+        query_embedding = self.embedding_model.encode_query(query, convert_to_tensor=True)
 
         for snippet in snippets:
             # Générer l'embedding du code + description
             text_to_embed = f"{snippet.title} {snippet.description} {snippet.code[:200]}"
-            code_embedding = self.embedding_model.encode(text_to_embed, convert_to_tensor=True)
+            code_embedding = self.embedding_model.encode_document(text_to_embed, convert_to_tensor=True)
 
             # Calculer la similarité sémantique
             similarity = util.pytorch_cos_sim(query_embedding, code_embedding).item()

@@ -40,6 +40,13 @@ except Exception:  # pragma: no cover - config optionnelle
         return None
 
 try:
+    from core.embedding_engine import encode_documents
+except Exception:  # pragma: no cover - moteur optionnel
+    def encode_documents(model, sentences):
+        """Repli : encode() du modèle."""
+        return model.encode(sentences)
+
+try:
     from utils.logger import setup_logger
     logger = setup_logger("folder_indexer")
 except Exception:  # pragma: no cover - logger optionnel
@@ -379,7 +386,7 @@ class FolderIndexer:
         now = datetime.now().isoformat()
         for i, chunk_text in enumerate(chunks):
             ids.append(self._chunk_id(workspace_id, folder_path, rel_path, i))
-            embeddings.append(vm.embedding_model.encode(chunk_text).tolist())
+            embeddings.append(encode_documents(vm.embedding_model, chunk_text).tolist())
             documents.append(chunk_text)
             metadatas.append({
                 "kind": "codebase",

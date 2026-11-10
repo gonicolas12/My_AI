@@ -9,13 +9,16 @@ Le modèle est téléchargé une seule fois, en arrière-plan, au lancement de l
 (prefetch_in_background), puis chargé au premier long document. Tant qu'il
 manque, les passages sont choisis par mots-clés seulement.
 Désactivation : optimization.rag.multilingual_passages: false dans config.yaml.
+
+C'est aussi, par défaut, le modèle de la mémoire vectorielle et du RAG
+(core/embedding_engine.py) : il est alors téléchargé même si la sélection
+multilingue est désactivée, et les deux usages partagent la même instance.
 """
 
 # Imports différés : le module reste importable sans huggingface_hub ni
 # sentence-transformers (le modèle est alors simplement indisponible)
 # pylint: disable=import-outside-toplevel
 
-import os
 import threading
 import warnings
 from collections import OrderedDict
@@ -49,6 +52,8 @@ _lock = threading.Lock()
 _model = None
 _unusable = False
 _vectors: "OrderedDict[str, object]" = OrderedDict()
+_prefetch: Optional[threading.Thread] = None
+_prefetch_lock = threading.Lock()
 
 
 def enabled() -> bool:
@@ -61,6 +66,25 @@ def enabled() -> bool:
         return bool(get_config().get("optimization.rag.multilingual_passages", True))
     except Exception:
         return True
+
+
+def used_for_memory() -> bool:
+    """
+    Indique si c'est le modèle de la mémoire vectorielle (optimization.rag.embedding_model)
+    """
+    try:
+        from core.embedding_engine import configured_model
+
+        return configured_model() == MODEL_ID
+    except Exception:
+        return False
+
+
+def needed() -> bool:
+    """
+    Indique si le modèle doit être téléchargé : longs documents ou mémoire
+    """
+    return enabled() or used_for_memory()
 
 
 def is_downloaded() -> bool:
@@ -79,16 +103,26 @@ def is_downloaded() -> bool:
 
 def ensure_downloaded() -> bool:
     """
-    Télécharge le modèle s'il manque (reprend un téléchargement interrompu)
+    Télécharge le modèle s'il manque et s'il sert (reprend un téléchargement interrompu)
 
     Returns:
         True si le modèle est disponible
     """
-    if not enabled():
+    if not needed():
         return False
     if is_downloaded():
         return True
-    print("📥 Téléchargement du modèle multilingue des longs documents (228 Mo, une seule fois)...")
+    return download()
+
+
+def download() -> bool:
+    """
+    Télécharge les fichiers du modèle qui manquent, qu'il serve ou non
+
+    Returns:
+        True si le modèle est disponible
+    """
+    print("📥 Téléchargement du modèle multilingue Granite (228 Mo, une seule fois)...")
     try:
         from huggingface_hub import hf_hub_download
 
@@ -122,13 +156,16 @@ def prefetch_in_background() -> Optional[threading.Thread]:
     Lance le téléchargement du modèle dans un thread s'il manque
 
     Returns:
-        Le thread lancé, ou None si rien n'est à télécharger
+        Le thread lancé (ou celui déjà en cours), None si rien n'est à télécharger
     """
-    if not enabled() or is_downloaded():
+    global _prefetch  # pylint: disable=global-statement
+    if not needed() or is_downloaded():
         return None
-    thread = threading.Thread(target=ensure_downloaded, name="passage-model-download", daemon=True)
-    thread.start()
-    return thread
+    with _prefetch_lock:
+        if _prefetch is None or not _prefetch.is_alive():
+            _prefetch = threading.Thread(target=ensure_downloaded, name="passage-model-download", daemon=True)
+            _prefetch.start()
+        return _prefetch
 
 
 def similarities(query: str, passages: List[str]) -> Optional[List[float]]:
@@ -165,15 +202,21 @@ def similarities(query: str, passages: List[str]) -> Optional[List[float]]:
 
 
 def _loaded_model():
-    """Modèle chargé au premier usage (≈ 1 s, ≈ 430 Mo de RAM) ; appelé sous _lock."""
+    """
+    Modèle chargé au premier usage (≈ 1 s, ≈ 430 Mo de RAM) ; appelé sous _lock
+
+    Instance partagée avec la mémoire vectorielle quand Granite en est le
+    modèle (core.embedding_engine), avec son verrou : ses calculs ne se
+    croisent jamais avec ceux de la réindexation.
+    """
     global _model, _unusable  # pylint: disable=global-statement
     if _model is None and not _unusable and enabled() and is_downloaded():
         try:
-            from huggingface_hub import try_to_load_from_cache
-            from sentence_transformers import SentenceTransformer
+            from core.embedding_engine import engine_for
 
-            modules = try_to_load_from_cache(MODEL_ID, "modules.json", revision=REVISION)
-            _model = SentenceTransformer(os.path.dirname(modules))
+            _model = engine_for(MODEL_ID)
+            if _model is None:
+                raise RuntimeError("chargement impossible")
         except Exception as exc:
             _unusable = True
             print(f"⚠️ Modèle multilingue inutilisable ({exc}) : passages choisis par mots-clés")

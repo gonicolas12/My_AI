@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.config import get_config
+from core.embedding_engine import encode_documents
 
 try:
     from utils.logger import setup_logger
@@ -206,7 +207,7 @@ class ConversationSearch:
 
         for idx, role, text, timestamp in self._iter_indexable_messages(history):
             ids.append(f"conv_{workspace_id}_{idx}")
-            embeddings.append(model.encode(text).tolist())
+            embeddings.append(encode_documents(model, text).tolist())
             documents.append(text)
             metadatas.append(
                 {
@@ -454,7 +455,7 @@ class ConversationSearch:
     def _filter_by_relevance(self, query: str, raw: List[dict]) -> List[dict]:
         """Ecarte les resultats hors-sujet.
 
-        Le bi-encodeur (MiniLM) ne separe pas bien pertinent/non-pertinent sur
+        Le bi-encodeur (Granite, MiniLM) ne separe pas bien pertinent/non-pertinent sur
         des requetes courtes ; on s'appuie donc sur le CrossEncoder, bien plus
         discriminant : les requetes sans rapport produisent des scores tres bas
         (~ -11) que le seuil elimine. Un resultat est conserve si :

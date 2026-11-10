@@ -17,6 +17,13 @@ import transformers.utils.hub as _tf_hub
 from huggingface_hub import snapshot_download
 
 from core.config import get_config
+from core.embedding_engine import (
+    belongs_to,
+    collection_name,
+    encode_documents,
+    encode_queries,
+)
+from memory.embedding_reindex import MigratingCollection, reindexer_for
 try:
     from core.network import configure_network_environment, build_network_error_help
 except ImportError:
@@ -110,8 +117,8 @@ class VectorMemory:
 
     Fonctionnalités:
     - Tokenization correcte (tiktoken cl100k_base, compatible Llama 3)
-    - Embeddings sémantiques (sentence-transformers)
-    - Stockage vectoriel (ChromaDB/FAISS)
+    - Embeddings sémantiques multilingues (core.embedding_engine, Granite par défaut)
+    - Stockage vectoriel (ChromaDB), une collection par modèle d'embeddings
     - Chiffrement AES-256 (optionnel)
     - Recherche par similarité cosinus
     """
@@ -119,8 +126,8 @@ class VectorMemory:
     def __init__(
         self,
         max_tokens: Optional[int] = None,
-        chunk_size: int = 256,
-        chunk_overlap: int = 32,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
         storage_dir: str = "memory/vector_store",
         enable_encryption: bool = False,
         encryption_key: Optional[str] = None,
@@ -130,8 +137,8 @@ class VectorMemory:
 
         Args:
             max_tokens: Limite maximale de tokens (lit config.yaml par défaut ou 1M)
-            chunk_size: Taille des chunks en tokens
-            chunk_overlap: Chevauchement entre chunks
+            chunk_size: Taille des chunks en tokens (optimization.rag.chunk_size, 256)
+            chunk_overlap: Chevauchement entre chunks (optimization.rag.chunk_overlap, 32)
             storage_dir: Répertoire de stockage
             enable_encryption: Activer le chiffrement AES-256
             encryption_key: Clé de chiffrement (générée si None)
@@ -142,10 +149,15 @@ class VectorMemory:
                 max_tokens = get_config().get("ai.max_tokens", 1000000)
             except Exception:
                 max_tokens = 1000000
+        if chunk_size is None:
+            chunk_size = self._rag_setting("chunk_size", 256)
+        if chunk_overlap is None:
+            chunk_overlap = self._rag_setting("chunk_overlap", 32)
 
         self.max_tokens = max_tokens
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
+        self.chunk_size = max(1, int(chunk_size))
+        # Un chevauchement aussi long que le morceau ferait boucler le découpage
+        self.chunk_overlap = max(0, min(int(chunk_overlap), self.chunk_size - 1))
         self.current_tokens = 0
 
         # Configuration du stockage
@@ -178,30 +190,31 @@ class VectorMemory:
             self._load_reranker()
 
         # Base vectorielle ChromaDB
+        self._reindexer = None
         if CHROMADB_AVAILABLE:
             try:
                 self.chroma_client = chromadb.PersistentClient(
                     path=str(self.storage_dir / "chroma_db")
                 )
+                existing = [
+                    getattr(collection, "name", collection)
+                    for collection in self.chroma_client.list_collections()
+                ]
 
-                # Collections pour différents types de données
-                self.conversation_collection = (
-                    self.chroma_client.get_or_create_collection(
-                        name="conversations", metadata={"hnsw:space": "cosine"}
-                    )
-                )
+                # Collections pour différents types de données, une par modèle
+                # d'embeddings (anciennes recalculées en arrière-plan)
+                self.conversation_collection = self._open_collection("conversations", existing)
 
-                self.document_collection = self.chroma_client.get_or_create_collection(
-                    name="documents", metadata={"hnsw:space": "cosine"}
-                )
+                self.document_collection = self._open_collection("documents", existing)
 
                 # Collection dédiée aux dossiers attachés à un workspace
                 # (codebase / dossiers de docs indexés par core.folder_indexer).
                 # Séparée de "documents" pour ne pas mélanger l'index projet
                 # avec les fichiers attachés ad-hoc ; filtrable par workspace_id.
-                self.codebase_collection = self.chroma_client.get_or_create_collection(
-                    name="codebase", metadata={"hnsw:space": "cosine"}
-                )
+                self.codebase_collection = self._open_collection("codebase", existing)
+
+                if self._reindexer is not None:
+                    self._reindexer.start()
 
                 print("✅ ChromaDB initialisé")
             except Exception as e:
@@ -233,6 +246,108 @@ class VectorMemory:
             self.compression_monitor = None
 
         print(f"✅ VectorMemory initialisé (max: {max_tokens:,} tokens)")
+
+    @staticmethod
+    def _rag_setting(name: str, default: int) -> int:
+        """Réglage entier optimization.rag.<name> de config.yaml."""
+        try:
+            return int(get_config().get(f"optimization.rag.{name}", default))
+        except Exception:
+            return default
+
+    # ------------------------------------------------------------------
+    # Collections par modèle d'embeddings
+    # ------------------------------------------------------------------
+
+    def _collection_name(self, base: str) -> str:
+        """Nom de la collection `base` pour le modèle d'embeddings actif."""
+        model_id = getattr(self.embedding_model, "model_id", None)
+        if not model_id:
+            return base
+        return collection_name(
+            base,
+            model_id,
+            getattr(self.embedding_model, "dimension", 0),
+            getattr(self.embedding_model, "revision", None),
+        )
+
+    def _collection_metadata(self) -> Dict[str, Any]:
+        """Métadonnées d'une collection créée : distance cosinus et modèle des vecteurs."""
+        metadata: Dict[str, Any] = {"hnsw:space": "cosine"}
+        model_id = getattr(self.embedding_model, "model_id", None)
+        if model_id:
+            metadata["embedding_model"] = model_id
+            metadata["embedding_dim"] = int(getattr(self.embedding_model, "dimension", 0) or 0)
+        return metadata
+
+    def _open_collection(self, base: str, existing: List[str]):
+        """
+        Collection `base` du modèle actif, et réindexation des autres modèles
+
+        Une collection `base` d'un autre modèle (MiniLM avant la mise à jour,
+        par exemple) est recalculée en arrière-plan vers celle-ci, puis
+        supprimée. Jamais vers un modèle de repli : la collection du modèle
+        choisi reste intacte en attendant son retour.
+
+        Args:
+            base: "conversations", "documents" ou "codebase"
+            existing: Noms des collections présentes dans la base
+
+        Returns:
+            La collection (enveloppée pendant une réindexation), ou None si
+            son nom désigne les vecteurs d'un autre modèle
+        """
+        name = self._collection_name(base)
+        collection = self.chroma_client.get_or_create_collection(
+            name=name, metadata=self._collection_metadata()
+        )
+        model_id = getattr(self.embedding_model, "model_id", None)
+        recorded = (collection.metadata or {}).get("embedding_model")
+        if model_id and recorded and recorded != model_id:
+            print(f"⚠️ Collection {name} calculée avec {recorded}, pas {model_id} : ignorée")
+            return None
+        if not model_id or getattr(self.embedding_model, "fallback", False):
+            return collection
+        sources = [other for other in existing if other != name and belongs_to(other, base)]
+        if not sources:
+            return collection
+        reindexer = self._get_reindexer()
+        reindexer.add_job(name, sources)
+        return MigratingCollection(collection, reindexer)
+
+    def _get_reindexer(self):
+        """Réindexeur partagé du dossier de stockage et du modèle (un seul par processus)."""
+        if self._reindexer is None:
+            engine = self.embedding_model
+            model_key = getattr(engine, "key", None) or getattr(engine, "model_id", "")
+            self._reindexer = reindexer_for(
+                f"{self.storage_dir.resolve()}|{model_key}",
+                self.chroma_client,
+                lambda texts: encode_documents(engine, texts),
+                self._decrypt_stored,
+            )
+        return self._reindexer
+
+    def _decrypt_stored(self, stored: str) -> str:
+        """
+        Texte en clair d'une entrée chiffrée, pour la recalculer
+
+        La clé est celle du dossier de stockage, même si cette instance ne
+        chiffre pas : une entrée chiffrée d'une ancienne session reste lisible.
+        """
+        cipher = getattr(self, "cipher", None) if self.enable_encryption else None
+        if cipher is None:
+            key_file = self.storage_dir / ".encryption_key"
+            if not ENCRYPTION_AVAILABLE or not key_file.exists():
+                raise ValueError("clé de chiffrement introuvable")
+            cipher = Fernet(key_file.read_bytes())
+        return cipher.decrypt(base64.b64decode(stored.encode())).decode()
+
+    def _embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Vecteurs de passages (un seul calcul pour tous les textes)."""
+        if not texts:
+            return []
+        return [_as_list(vector) for vector in encode_documents(self.embedding_model, texts)]
 
     def _load_reranker(self):
         """[OPTIM] Donne à l'instance le CrossEncoder partagé, chargé au premier besoin."""
@@ -459,9 +574,9 @@ class VectorMemory:
                     metadata=metadata
                 )
 
-            # Générer embeddings et stocker
+            # Générer embeddings (un seul calcul pour tous les morceaux) et stocker
             chunk_ids = []
-            embeddings_list = []
+            embeddings_list = self._embed_documents(chunks) if self.embedding_model else []
 
             for i, chunk_text in enumerate(chunks):
                 chunk_id = f"{doc_id}_chunk_{i}"
@@ -472,12 +587,8 @@ class VectorMemory:
                     self._encrypt(chunk_text) if self.enable_encryption else chunk_text
                 )
 
-                # Générer embedding
-                if self.embedding_model:
-                    embedding = self.embedding_model.encode(chunk_text).tolist()
-                    embeddings_list.append(embedding)
-                else:
-                    embedding = None
+                # Embedding du morceau
+                embedding = embeddings_list[i] if embeddings_list else None
 
                 # Stocker dans ChromaDB
                 if self.document_collection and embedding:
@@ -572,7 +683,7 @@ class VectorMemory:
             fetch_n = n_results * 3 if (rerank and self.reranker) else n_results
 
             # Générer embedding de la requête
-            query_embedding = self.embedding_model.encode(query).tolist()
+            query_embedding = _as_list(encode_queries(self.embedding_model, query))
 
             # Rechercher dans ChromaDB (filtre métadonnées optionnel)
             query_kwargs = {"query_embeddings": [query_embedding], "n_results": fetch_n}
@@ -792,7 +903,7 @@ class VectorMemory:
         stored_text = self._encrypt(new_text) if self.enable_encryption else new_text
         try:
             if self.embedding_model:
-                embedding = self.embedding_model.encode(new_text).tolist()
+                embedding = _as_list(encode_documents(self.embedding_model, new_text))
                 collection.update(
                     ids=[entry_id],
                     documents=[stored_text],
@@ -922,6 +1033,9 @@ class VectorMemory:
             "max_tokens": self.max_tokens,
             "usage_percent": (self.current_tokens / self.max_tokens) * 100,
             "embeddings_enabled": self.embedding_model is not None,
+            "embedding_model": getattr(self.embedding_model, "model_id", None),
+            "embedding_fallback": bool(getattr(self.embedding_model, "fallback", False)),
+            "reindexing": bool(self._reindexer and self._reindexer.is_running()),
             "chromadb_enabled": self.chroma_client is not None,
             "tokenizer": "tiktoken" if self.tokenizer else "fallback",
         }
@@ -941,34 +1055,28 @@ class VectorMemory:
             return "Compression Monitor non disponible"
 
     def clear_all(self):
-        """Vide toute la mémoire"""
-        if self.document_collection:
+        """Vide toute la mémoire, collections des autres modèles d'embeddings comprises"""
+        if self._reindexer is not None:
+            # Plus rien à recalculer : les anciennes collections partent aussi
+            self._reindexer.forget()
+        for base, attribute in (
+            ("documents", "document_collection"),
+            ("conversations", "conversation_collection"),
+            ("codebase", "codebase_collection"),
+        ):
+            if not getattr(self, attribute):
+                continue
             # ChromaDB ne permet pas de clear directement, on supprime et recrée
             try:
-                self.chroma_client.delete_collection("documents")
-                self.document_collection = self.chroma_client.create_collection(
-                    name="documents", metadata={"hnsw:space": "cosine"}
-                )
+                for collection in self.chroma_client.list_collections():
+                    name = getattr(collection, "name", collection)
+                    if belongs_to(name, base):
+                        self.chroma_client.delete_collection(name)
+                setattr(self, attribute, self.chroma_client.create_collection(
+                    name=self._collection_name(base), metadata=self._collection_metadata()
+                ))
             except Exception as e:
-                print(f"⚠️ Erreur clear documents: {e}")
-
-        if self.conversation_collection:
-            try:
-                self.chroma_client.delete_collection("conversations")
-                self.conversation_collection = self.chroma_client.create_collection(
-                    name="conversations", metadata={"hnsw:space": "cosine"}
-                )
-            except Exception as e:
-                print(f"⚠️ Erreur clear conversations: {e}")
-
-        if self.codebase_collection:
-            try:
-                self.chroma_client.delete_collection("codebase")
-                self.codebase_collection = self.chroma_client.create_collection(
-                    name="codebase", metadata={"hnsw:space": "cosine"}
-                )
-            except Exception as e:
-                print(f"⚠️ Erreur clear codebase: {e}")
+                print(f"⚠️ Erreur clear {base}: {e}")
 
         self.documents = {}
         self.current_tokens = 0
@@ -1019,11 +1127,17 @@ class VectorMemory:
         except Exception as e:
             print(f"⚠️ Erreur cleanup VectorMemory: {e}")
 
+
+def _as_list(vector) -> List[float]:
+    """Vecteur numpy (ou liste) en liste de flottants pour ChromaDB."""
+    return vector.tolist() if hasattr(vector, "tolist") else list(vector)
+
+
 if __name__ == "__main__":
     # Tests
     print("🧪 Test VectorMemory")
 
-    memory = VectorMemory(max_tokens=100000, chunk_size=256, enable_encryption=True)
+    memory = VectorMemory(max_tokens=100000, enable_encryption=True)
 
     # Test ajout document
     TEST_CONTENT = (

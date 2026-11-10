@@ -123,10 +123,9 @@ class CustomAIModel(
         # Gestionnaire de mémoire vectorielle (remplace million_token_manager)
         if VECTOR_MEMORY_AVAILABLE:
             try:
+                # Morceaux : optimization.rag.chunk_size / chunk_overlap (256 / 32)
                 self.context_manager = VectorMemory(
                     max_tokens=10_485_760,
-                    chunk_size=256,
-                    chunk_overlap=32,
                     enable_encryption=False,  # Peut être activé via config
                 )
                 self.ultra_mode = True
