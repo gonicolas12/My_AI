@@ -10,6 +10,7 @@ dernier test charge le vrai Granite, s'il est déjà dans le cache.
 import re
 import threading
 import time
+from types import SimpleNamespace
 
 import huggingface_hub
 import numpy as np
@@ -259,23 +260,42 @@ def test_granite_download_is_the_one_of_long_documents(monkeypatch):
     assert ee.download(GRANITE) is True
 
 
-def test_other_models_skip_onnx_and_openvino_weights(monkeypatch):
+def test_other_models_are_fetched_file_by_file_without_duplicates(monkeypatch):
+    """Un fichier à la fois, dans le thread appelant : le pool de snapshot_download
+    échoue sous Windows sans droit de lien symbolique (WinError 1314). Ni ONNX, ni
+    OpenVINO, ni poids .bin en double d'un .safetensors."""
+    files = ["config.json", "model.safetensors", "pytorch_model.bin", "onnx/model.onnx",
+             "openvino/openvino_model.bin", "tokenizer.json", "1_Pooling/config.json",
+             "2_Dense/pytorch_model.bin", "train_script.py", ".gitattributes", "README.md"]
     calls = []
-    monkeypatch.setattr(huggingface_hub, "snapshot_download",
-                        lambda repo_id, **kwargs: calls.append((repo_id, kwargs)))
+    monkeypatch.setattr(huggingface_hub, "HfApi", lambda: SimpleNamespace(
+        list_repo_files=lambda repo_id, revision=None: files))
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", lambda repo_id, filename, revision=None: calls.append(
+        (repo_id, filename, revision, threading.current_thread())))
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", pytest.fail)
     assert ee.download("all-MiniLM-L6-v2") is True
-    (repo_id, kwargs), = calls
-    assert repo_id == ee.FALLBACK_MODEL
-    assert "onnx/*" in kwargs["ignore_patterns"] and "openvino/*" in kwargs["ignore_patterns"]
+    assert [name for _, name, _, _ in calls] == [
+        "config.json", "model.safetensors", "tokenizer.json", "1_Pooling/config.json",
+        "2_Dense/pytorch_model.bin", "README.md",
+    ]
+    assert all(repo == ee.FALLBACK_MODEL and thread is threading.current_thread()
+               for repo, _, _, thread in calls)
 
 
 def test_failed_download_is_reported(monkeypatch, capsys):
     def offline(*_args, **_kwargs):
         raise OSError("réseau injoignable")
 
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", offline)
+    monkeypatch.setattr(huggingface_hub, "HfApi", lambda: SimpleNamespace(list_repo_files=offline))
     assert ee.download("intfloat/multilingual-e5-small") is False
     assert "réseau injoignable" in capsys.readouterr().out
+
+
+def test_distance_threshold_depends_on_the_model():
+    """Granite rapproche bien plus les textes que MiniLM : 0,55 ne filtrait plus rien."""
+    assert ee.max_distance_for(GRANITE) == 0.32
+    assert ee.max_distance_for(ee.FALLBACK_MODEL) == ee.max_distance_for("all-MiniLM-L6-v2") == 0.55
+    assert ee.max_distance_for("org/modele-non-mesure") == ee.max_distance_for(None) == 0.55
 
 
 def test_background_download_of_granite_reuses_the_prefetch(monkeypatch):

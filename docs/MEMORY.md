@@ -38,7 +38,8 @@ La mémoire vectorielle (onglets **Documents** et **Conversations**, outil `sear
 - **Réindexation en arrière-plan** : au premier lancement avec un autre modèle, les entrées existantes sont recalculées depuis leur texte stocké (déchiffré pour le calcul, toujours chiffré dans la base), avec les mêmes identifiants et la même provenance. Pendant ce temps, la recherche ne voit que ce qui est déjà recalculé ; ce que vous supprimez ou modifiez l'est aussi dans l'ancienne collection, et rien ne revient. L'ancienne collection n'est supprimée qu'à la fin : appli fermée avant, la copie reprend au lancement suivant. Comptez quelques minutes pour plusieurs milliers d'entrées.
 - **Repli** : tant que Granite n'est pas téléchargé (il l'est en arrière-plan au lancement), MiniLM sert la session avec l'index MiniLM ; Granite prend le relais au lancement suivant.
 - **Morceaux** : 256 tokens, 32 de chevauchement (`optimization.rag.chunk_size` / `chunk_overlap`). Granite lit jusqu'à 512 tokens, mais retrouve mieux à 256 (76 % contre 62 % à 512).
-- Le **reranking** (CrossEncoder `ms-marco-MiniLM-L-6-v2`) n'a pas changé.
+- **Reranking multilingue** : avec Granite, `mmarco-mMiniLMv2` (14 langues, 470 Mo, téléchargé une fois en arrière-plan) remet les passages candidats dans l'ordre : 86 % de bons passages parmi les 3 retenus, contre 77 % avec Granite seul et 60 % avec l'ancien reranker anglais. Réglage : `optimization.rag.reranker_model` (`"auto"`, `"none"` ou un modèle).
+- **Recherche des conversations** : un message est gardé s'il est assez proche de la question pour Granite (distance ≤ 0,32) ou s'il en contient tous les mots ; 17 questions sur 18 trouvent leur message, souvent écrit dans une autre langue, et une question hors sujet ne ramène rien.
 
 ---
 

@@ -163,6 +163,7 @@ Hugging Face) :
 |---|---|---|
 | `granite-embedding-107m-multilingual` (IBM, Apache 2.0) | 228 Mo | Mémoire et recherche sémantique, passages des longs documents : une question trouve la réponse même dans une autre langue |
 | `all-MiniLM-L6-v2` | 90 Mo | Repli de la mémoire si Granite manque (déjà en cache sur les installations plus anciennes) |
+| `mmarco-mMiniLMv2-L12-H384-v1` (Apache 2.0) | 470 Mo | Reranking multilingue de la mémoire avec Granite, téléchargé en arrière-plan la première fois |
 
 Granite se télécharge au premier lancement. Sur une installation mise à jour
 qui ne l'a pas encore, il se télécharge en arrière-plan : l'app reste utilisable
@@ -251,8 +252,8 @@ tiktoken                 # Token counting (compatible Llama 3 / cl100k_base)
 > **Mac Intel** : PyTorch s'y arrête à 2.2.2, trop ancien pour transformers 5.
 > La pile y reste en transformers 4.57, qui garde six avis de sécurité corrigés
 > seulement en 5.x, surtout du code exécuté depuis un modèle piégé. My_AI ne
-> charge que des modèles connus : MiniLM, ms-marco pour le reranking, Granite à
-> révision figée et Whisper.
+> charge que des modèles connus : MiniLM, ms-marco et mmarco (révision figée)
+> pour le reranking, Granite à révision figée et Whisper.
 
 ### Saisie Vocale / Voice Mode (Requis pour la dictée dans le GUI)
 

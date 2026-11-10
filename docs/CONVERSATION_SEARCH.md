@@ -34,7 +34,7 @@ L'index est **rafraîchi automatiquement** avant chaque recherche (incrémental,
 ### Recherche hybride (précision + rappel)
 1. **Voisins sémantiques** : recherche vectorielle (sur-échantillonnée).
 2. **Filet lexical mot-exact sur tout le corpus** : garantit qu'un message contenant **littéralement** les mots de la requête n'est **jamais manqué**, même hors des plus proches voisins (insensible à la casse → toutes langues).
-3. **Reranking CrossEncoder** (si disponible) pour ordonner finement, avec **seuil de pertinence** qui élimine le bruit hors-sujet. En l'absence de reranker, repli sur un **seuil de distance cosinus**.
+3. **Filtre de pertinence** qui élimine le bruit hors sujet. Avec Granite (modèle par défaut), c'est la **distance cosinus** (`search.max_distance`, 0,32), et le reranker multilingue `mmarco-mMiniLMv2` ne fait qu'**ordonner** les résultats gardés : son score change d'échelle d'une question à l'autre. Avec MiniLM, le **seuil de score** du CrossEncoder anglais `ms-marco-MiniLM-L-6-v2` (`search.min_rerank_score`), ou la distance (0,55) sans reranker. Mesuré sur 18 questions en 9 langues et 10 hors sujet : 17 trouvées et aucun bruit, contre 12 et 2 avec l'ancien filtre (voir [OPTIMIZATION.md](OPTIMIZATION.md#reranking-et-filtre-de-pertinence-mesures-du-lot-5-bis)).
 
 ### Filtres optionnels
 - **rôle** : `user` / `assistant`
@@ -80,15 +80,15 @@ cs.search(
 
 | Clé | Défaut | Rôle |
 |---|---|---|
-| `search.min_rerank_score` | `-7.0` | Score CrossEncoder minimal pour conserver un résultat (élimine le hors-sujet ~ -11) |
-| `search.max_distance` | `0.55` | Distance cosinus maximale, utilisée **uniquement** en repli si aucun reranker n'est disponible |
+| `search.min_rerank_score` | `-7.0` | Score minimal du CrossEncoder anglais (ms-marco, avec MiniLM) pour conserver un résultat (élimine le hors-sujet ~ -11) |
+| `search.max_distance` | `0.32` avec Granite, `0.55` avec MiniLM | Distance cosinus maximale d'un résultat gardé, quand le score du reranker ne sert pas de filtre (Granite, ou pas de reranker) |
 
 ---
 
 ## 📝 Notes & limites
 
 - La **première** recherche après un long ajout de conversations peut déclencher une réindexation un peu plus longue (réembeddings) ; les suivantes sont incrémentales.
-- La qualité du reranking dépend du CrossEncoder (`ms-marco-MiniLM-L-6-v2`) ; le **filet lexical** compense pour les correspondances exactes quel que soit la langue.
+- Le seuil de 0,32 a été mesuré sur des messages courts ; s'il écarte trop de résultats chez vous, montez `search.max_distance` (0,34 gardait les 18 questions, avec un résultat parasite sur 10 questions hors sujet). Le **filet lexical** garde toujours les correspondances exactes, quelle que soit la langue.
 - L'index de conversations est aussi visible et **gérable** depuis le panneau **Mémoire** (onglet *Conversations*) — voir [MEMORY.md](MEMORY.md).
 
 ---

@@ -313,6 +313,12 @@ optimization:
     # ChromaDB par modèle). Repli sur sentence-transformers/all-MiniLM-L6-v2
     # (anglais) tant que le modèle choisi n'est pas téléchargé
     embedding_model: "ibm-granite/granite-embedding-107m-multilingual"
+    # Reranker (CrossEncoder) qui remet les passages candidats dans l'ordre.
+    # "auto" : mmarco-mMiniLMv2 multilingue avec Granite (470 Mo, téléchargé en
+    # arrière-plan la première fois ; ordre de Granite en attendant), ms-marco
+    # (anglais) avec MiniLM. "none" : ordre du modèle d'embeddings. Ou le nom
+    # d'un CrossEncoder du Hub Hugging Face
+    reranker_model: "auto"
     vector_store_path: "./data/vector_store"
     
   # Context Window Optimization

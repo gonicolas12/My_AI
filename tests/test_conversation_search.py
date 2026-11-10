@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from core import conversation_search as cs_module
+from core import embedding_engine as ee
 from core.conversation_search import ConversationSearch
 from core.session_manager import SessionManager
 
@@ -328,3 +330,57 @@ def test_role_and_keyword_filters(env):
     kw = cs.search("deploiement docker", keyword="compose", auto_reindex=False)
     assert kw
     assert all("compose" in r["excerpt"].lower() for r in kw)
+
+
+class _SortingReranker:
+    """Reranker multilingue simule : trie, mais son score ne dit rien de la
+    pertinence (il prefere le message hors sujet sur la cuisine)."""
+
+    def predict(self, pairs):
+        return [10.0 if "cuisine" in passage else -float(len(passage)) for _, passage in pairs]
+
+
+def test_multilingual_reranker_sorts_but_distance_filters():
+    """Avec Granite, la distance separe pertinent et hors sujet ; le score de
+    mmarco change d'echelle d'une question a l'autre : il ne fait que trier."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sm = SessionManager(workspaces_dir=str(tmp / "workspaces"))
+        vm = _FakeVectorMemory(tmp / "vs", with_reranker=False)
+        vm.reranker = _SortingReranker()
+        vm.reranker_filters = False
+        (tmp / "vs").mkdir(parents=True, exist_ok=True)
+        cs = ConversationSearch(session_manager=sm, vector_memory=vm, max_distance=0.4)
+        _make_ws(sm, "Ops", [
+            {"text": "le deploiement docker en production avec compose", "is_user": True},
+            {"text": "deploiement docker", "is_user": False},
+            {"text": "recette de cuisine", "is_user": True},
+        ])
+        cs.reindex(force=True)
+        res = cs.search("deploiement docker production", auto_reindex=False)
+        # distances 0.25 et 0.33 gardees, 1.0 ecartee malgre son score ; ordre du reranker
+        assert [r["excerpt"] for r in res] == [
+            "deploiement docker", "le deploiement docker en production avec compose",
+        ]
+        assert res[0]["score"] == -float(len("deploiement docker"))
+
+
+def test_default_distance_threshold_follows_the_embedding_model(monkeypatch):
+    """0.55 ne filtrait plus rien avec Granite (hors sujet entre 0.31 et 0.42)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sm = SessionManager(workspaces_dir=str(tmp / "workspaces"))
+        vm = _FakeVectorMemory(tmp / "vs")
+        assert ConversationSearch(session_manager=sm, vector_memory=vm).max_distance == 0.55
+        vm.embedding_model.model_id = ee.DEFAULT_MODEL
+        assert ConversationSearch(session_manager=sm, vector_memory=vm).max_distance == 0.32
+        vm.embedding_model.model_id = ee.FALLBACK_MODEL
+        assert ConversationSearch(session_manager=sm, vector_memory=vm).max_distance == 0.55
+
+        class Config:
+            def get(self, key, default=None):
+                return 0.4 if key == "search.max_distance" else default
+
+        monkeypatch.setattr(cs_module, "get_config", Config)
+        vm.embedding_model.model_id = ee.DEFAULT_MODEL
+        assert ConversationSearch(session_manager=sm, vector_memory=vm).max_distance == 0.4

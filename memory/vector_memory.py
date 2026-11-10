@@ -23,6 +23,11 @@ from core.embedding_engine import (
     encode_documents,
     encode_queries,
 )
+from core.reranker import choose as choose_reranker
+from core.reranker import download_in_background as download_reranker_in_background
+from core.reranker import filters_by_score as reranker_filters_by_score
+from core.reranker import is_pinned as reranker_is_pinned
+from core.reranker import local_path as reranker_local_path
 from memory.embedding_reindex import MigratingCollection, reindexer_for
 try:
     from core.network import configure_network_environment, build_network_error_help
@@ -77,6 +82,11 @@ except ImportError:
 # chacune le rechargeait, en interrogeant le Hub (≈ 4 s et 30 requêtes).
 _SHARED_RERANKERS: Dict[str, "_SharedReranker"] = {}
 _RERANKER_LOCK = threading.Lock()
+
+# Candidats relus au plus par le reranker : il lit chaque paire question-passage
+# (≈ 0,1 s par paire de 256 tokens sur CPU avec mmarco). Au-delà de 30, l'ordre
+# du modèle d'embeddings est gardé : 15 morceaux demandés n'en coûtent que 30.
+RERANK_MAX_CANDIDATES = 30
 
 
 class _SharedReranker:
@@ -186,6 +196,8 @@ class VectorMemory:
         # [OPTIM] Cross-Encoder pour reranking sémantique fin (RAG avancé)
         # Stratégie identique à core.shared : offline first, download si nécessaire
         self.reranker = None
+        self.reranker_model = None
+        self.reranker_filters = True
         if CROSSENCODER_AVAILABLE:
             self._load_reranker()
 
@@ -350,16 +362,44 @@ class VectorMemory:
         return [_as_list(vector) for vector in encode_documents(self.embedding_model, texts)]
 
     def _load_reranker(self):
-        """[OPTIM] Donne à l'instance le CrossEncoder partagé, chargé au premier besoin."""
-        reranker_model = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        """
+        [OPTIM] Donne à l'instance le CrossEncoder partagé, chargé au premier besoin
+
+        Lequel : core.reranker (mmarco multilingue avec Granite, ms-marco avec
+        MiniLM, ou aucun). mmarco absent du cache se télécharge en arrière-plan ;
+        l'ordre du modèle d'embeddings sert en attendant.
+        """
+        reranker_model = choose_reranker(self.embedding_model)
+        self.reranker_model = reranker_model
+        # Score utilisable comme seuil de pertinence (ms-marco) ; sinon la
+        # recherche des conversations filtre par distance et trie par score
+        self.reranker_filters = reranker_filters_by_score(reranker_model)
+        if reranker_model is None:
+            return
         with _RERANKER_LOCK:
             shared = _SHARED_RERANKERS.get(reranker_model)
             if shared is None:
-                self._fetch_reranker(reranker_model)
+                if reranker_is_pinned(reranker_model):
+                    self._load_pinned_reranker(reranker_model)
+                else:
+                    self._fetch_reranker(reranker_model)
                 if self.reranker is None:
                     return  # pas de reranking ; nouvel essai à la prochaine instance
                 shared = _SHARED_RERANKERS[reranker_model] = _SharedReranker(self.reranker)
             self.reranker = shared
+
+    def _load_pinned_reranker(self, reranker_model: str):
+        """Reranker à version figée (mmarco) depuis le cache, sinon téléchargé en arrière-plan."""
+        path = reranker_local_path(reranker_model)
+        if path is None:
+            download_reranker_in_background(reranker_model)
+            return
+        try:
+            self.reranker = CrossEncoder(path)
+            print(f"✅ CrossEncoder ({reranker_model.rsplit('/', 1)[-1]}) chargé pour reranking")
+        except Exception as e:
+            print(f"⚠️ Reranker {reranker_model} inutilisable ({e}) : passages triés par le modèle d'embeddings")
+            self.reranker = None
 
     def _fetch_reranker(self, reranker_model: str):
         """
@@ -377,7 +417,7 @@ class VectorMemory:
         # le tokenizer) ; LocalEntryNotFoundError si le modèle n'y est pas
         try:
             self.reranker = CrossEncoder(snapshot_download(reranker_model, local_files_only=True))
-            print("✅ CrossEncoder (ms-marco-MiniLM-L-6-v2) chargé pour reranking")
+            print(f"✅ CrossEncoder ({reranker_model.rsplit('/', 1)[-1]}) chargé pour reranking")
             return
         except Exception:
             pass
@@ -680,7 +720,8 @@ class VectorMemory:
 
         try:
             # [OPTIM] Sur-échantillonnage : récupérer 3x plus de candidats pour le reranking
-            fetch_n = n_results * 3 if (rerank and self.reranker) else n_results
+            fetch_n = (max(n_results, min(n_results * 3, RERANK_MAX_CANDIDATES))
+                       if (rerank and self.reranker) else n_results)
 
             # Générer embedding de la requête
             query_embedding = _as_list(encode_queries(self.embedding_model, query))
@@ -1035,6 +1076,7 @@ class VectorMemory:
             "embeddings_enabled": self.embedding_model is not None,
             "embedding_model": getattr(self.embedding_model, "model_id", None),
             "embedding_fallback": bool(getattr(self.embedding_model, "fallback", False)),
+            "reranker_model": self.reranker_model if self.reranker is not None else None,
             "reindexing": bool(self._reindexer and self._reindexer.is_running()),
             "chromadb_enabled": self.chroma_client is not None,
             "tokenizer": "tiktoken" if self.tokenizer else "fallback",

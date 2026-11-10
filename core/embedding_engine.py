@@ -29,11 +29,12 @@ nouveau modèle.
 # huggingface_hub (aucun moteur n'est alors disponible)
 # pylint: disable=import-outside-toplevel
 
+import fnmatch
 import hashlib
 import os
 import re
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from core import passage_embeddings
 
@@ -42,11 +43,19 @@ FALLBACK_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # Nom court accepté par sentence-transformers pour le même modèle
 _FALLBACK_NAMES = {FALLBACK_MODEL, "all-MiniLM-L6-v2"}
 
-# Formats de poids inutiles à sentence-transformers (PyTorch) : le dépôt de
-# MiniLM, par exemple, pèse près de 1 Go avec ses variantes ONNX et OpenVINO
+# Distance cosinus au-delà de laquelle la recherche des conversations écarte un
+# message, quand aucun score de reranker ne sert de seuil. Granite : mesurée au
+# lot 5 bis (18 questions en 9 langues sur 36 messages : 17 trouvées et aucun
+# résultat pour 10 questions hors sujet à 0,32 ; tout passe à 0,55). MiniLM,
+# et tout modèle non mesuré : 0,55, l'ancien seuil.
+_MAX_DISTANCE = {DEFAULT_MODEL: 0.32, FALLBACK_MODEL: 0.55}
+_DEFAULT_MAX_DISTANCE = 0.55
+
+# Fichiers inutiles à sentence-transformers (PyTorch) : le dépôt de MiniLM, par
+# exemple, pèse près de 1 Go avec ses variantes ONNX et OpenVINO
 _IGNORED_FILES = [
     "onnx/*", "openvino/*", "*.onnx", "*.h5", "*.msgpack", "*.ot", "*.tflite",
-    "coreml/*", "*.mlmodel",
+    "coreml/*", "*.mlmodel", "*.py", ".gitattributes",
 ]
 
 _engines: Dict[str, "EmbeddingEngine"] = {}
@@ -153,6 +162,18 @@ def revision_of(model_id: str) -> Optional[str]:
     return passage_embeddings.REVISION if model_id == passage_embeddings.MODEL_ID else None
 
 
+def max_distance_for(model_id: Optional[str]) -> float:
+    """
+    Distance cosinus maximale d'un résultat pertinent avec ce modèle
+
+    Seuil de la recherche des conversations quand aucun score de reranker ne
+    sert de filtre ; search.max_distance de config.yaml le remplace.
+    """
+    if model_id and is_fallback_model(model_id):
+        model_id = FALLBACK_MODEL
+    return _MAX_DISTANCE.get(model_id or "", _DEFAULT_MAX_DISTANCE)
+
+
 def collection_name(base: str, model_id: str, dimension: int,
                     revision: Optional[str] = None) -> str:
     """
@@ -218,15 +239,39 @@ def download(model_id: str) -> bool:
         return True
     print(f"📥 Téléchargement du modèle d'embeddings {model_id}... (une seule fois)")
     try:
-        from huggingface_hub import snapshot_download
-
-        snapshot_download(_hub_id(model_id), ignore_patterns=_IGNORED_FILES)
+        fetch_files(_hub_id(model_id))
     except Exception as exc:
         print(f"⚠️ Modèle d'embeddings {model_id} non téléchargé : {exc}")
         _print_network_help(exc)
         return False
     print(f"✅ Modèle d'embeddings {model_id} prêt")
     return True
+
+
+def fetch_files(repo_id: str, revision: Optional[str] = None) -> List[str]:
+    """
+    Télécharge les fichiers utiles d'un dépôt du Hub, un à la fois
+
+    Dans le thread appelant, sans snapshot_download : son pool de threads échoue
+    sous Windows sans droit de lien symbolique (WinError 1314) et retient la
+    fermeture de l'appli. Les poids PyTorch en double (.bin à côté d'un
+    .safetensors) et les variantes ONNX, OpenVINO, TensorFlow... sont sautés.
+
+    Returns:
+        Les fichiers téléchargés (ou déjà en cache)
+    """
+    from huggingface_hub import HfApi, hf_hub_download
+
+    names = HfApi().list_repo_files(repo_id, revision=revision)
+    has_safetensors = any(name.endswith(".safetensors") for name in names)
+    wanted = [
+        name for name in names
+        if not any(fnmatch.fnmatch(name, pattern) for pattern in _IGNORED_FILES)
+        and not (has_safetensors and name.endswith(".bin") and "/" not in name)
+    ]
+    for name in wanted:
+        hf_hub_download(repo_id, name, revision=revision)
+    return wanted
 
 
 def download_in_background(model_id: str) -> Optional[threading.Thread]:
