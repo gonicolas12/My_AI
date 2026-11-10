@@ -1,0 +1,48 @@
+name: Publish VS Code extension
+
+# Publie l'extension « My_AI Relay » sur le Visual Studio Marketplace sans
+# jeton stocké (Trusted Publishing) : « vsce publish --oidc » échange le jeton
+# OIDC de GitHub Actions contre une autorisation du Marketplace valable
+# 15 minutes. Les PAT d'Azure DevOps pour « All accessible organizations »,
+# les seuls que « vsce publish » accepte, sont retirés le 1er décembre 2026.
+#
+# Avant le premier lancement, sur la page de gestion de l'éditeur
+# gonicolas12 du Marketplace : Trusted Publishing > Create, avec
+# « Repository owner » gonicolas12, « Repository » My_AI, « Workflow »
+# publish-vscode-extension.yml et « Environment » vide.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Jamais deux publications à la fois ; une publication lancée va à son terme
+concurrency:
+  group: publish-vscode-extension
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: vscode_extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode_extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # vsce lance d'abord « vscode:prepublish » (npm run build)
+      - name: Publish with Trusted Publishing (OIDC)
+        run: npx vsce publish --oidc
