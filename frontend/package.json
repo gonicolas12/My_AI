@@ -45,7 +45,10 @@
     "zustand": "^5.0.15"
   },
   "overrides": {
-    "katex": "$katex"
+    "katex": "$katex",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.5"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

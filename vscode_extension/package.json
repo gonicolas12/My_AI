@@ -182,11 +182,16 @@
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.5.10",
-    "@vscode/vsce": "^2.24.0",
+    "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.20.0",
     "typescript": "^5.3.3"
   },
   "dependencies": {
     "ws": "^8.22.2"
+  },
+  "overrides": {
+    "@vscode/vsce": {
+      "minimatch": "^11.0.5"
+    }
   }
 }
