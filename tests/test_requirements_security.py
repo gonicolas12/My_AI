@@ -83,6 +83,18 @@ def test_intel_macs_keep_their_pinned_ml_stack():
     assert not _line("Mac Intel", "transformers").specifier.contains("5.0.0")
 
 
+@pytest.mark.parametrize("platform_name", ["Windows", "Linux", "Mac Apple Silicon"])
+def test_transformers_5_everywhere_else(platform_name):
+    # 5.10.0 : GHSA-xrqw-3rrv-vx5w, dernier des six avis que la 4.57.6 garde
+    transformers = _line(platform_name, "transformers").specifier
+    assert transformers.contains("5.10.0") and transformers.contains("5.22.2")
+    assert not transformers.contains("5.9.0") and not transformers.contains("4.57.6")
+    # transformers 5.x désactive torch en dessous de 2.6 sans le mettre à jour
+    torch = _line(platform_name, "torch").specifier
+    assert torch.contains("2.6.0") and torch.contains("2.15.0")
+    assert not torch.contains("2.5.1")
+
+
 def test_too_old_installed_versions_are_reinstalled_at_launch(monkeypatch):
     # Ce PC le 09/11/2026 : les lignes concernées repartent dans pip au lancement
     installed = {"pillow": "12.3.0", "aiohttp": "3.14.3", "websockets": "16.1.1"}
