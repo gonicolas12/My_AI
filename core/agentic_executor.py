@@ -671,8 +671,10 @@ class AgenticExecutor:
         Le streaming tourne dans un thread, que l'annulation de la tâche
         (bouton STOP, WS fermé) n'arrête pas : on le prévient via ``stop``.
         Sinon il continuerait de pousser des chunks au client, et Ollama de
-        générer jusqu'au bout en bloquant la requête suivante (un seul slot
-        par modèle).
+        générer jusqu'au bout en occupant l'un des slots du modèle
+        (OLLAMA_NUM_PARALLEL, 4 par défaut dans My_AI) : avec un seul slot
+        (qwen3.5 avant Ollama 0.40.15, ou OLLAMA_NUM_PARALLEL=1), la requête
+        suivante attendrait la fin de la génération abandonnée.
         """
         loop = asyncio.get_event_loop()
         stop = threading.Event()

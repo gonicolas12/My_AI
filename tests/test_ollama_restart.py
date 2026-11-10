@@ -62,6 +62,7 @@ class FakeOllama:
         self.kills = 0
         self.requests = 0
         self.launches = []  # port libre ou non au lancement de chaque « ollama serve »
+        self.server_env = None  # environnement du dernier « ollama serve »
 
     def monotonic(self):
         """time.monotonic du lanceur."""
@@ -95,9 +96,10 @@ class FakeOllama:
             self.answers = False
             self.released_at = self.now + self.release_delay
 
-    def popen(self, command, **_kwargs):
+    def popen(self, command, **kwargs):
         """subprocess.Popen, pour « ollama serve »."""
         assert command == ["ollama", "serve"]
+        self.server_env = kwargs.get("env")
         free = self.port_is_free()
         self.launches.append(free)
         if self.crash or not free:
@@ -136,12 +138,11 @@ def _ollama(launcher, monkeypatch):
 
 @pytest.fixture(name="ensure")
 def _ensure(launcher, ollama, monkeypatch):
-    """_ensure_ollama_parallel, sans écrire dans le registre ni lire le dernier calibrage."""
+    """_ensure_ollama_parallel, sans lire le dernier calibrage ni variable de l'utilisateur."""
     del ollama  # branché sur le lanceur
-    monkeypatch.setattr(launcher, "_persist_env_var", lambda _name, _value: None)
     monkeypatch.setattr(launcher, "saved_env", dict)
     monkeypatch.setattr(launcher, "placement_label", lambda: None)
-    monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "4")  # rétablie après le test
+    monkeypatch.delenv("OLLAMA_NUM_PARALLEL", raising=False)  # rétablie après le test
     return launcher._ensure_ollama_parallel
 
 
@@ -209,6 +210,46 @@ def test_server_still_starting_is_reported(ensure, ollama, capsys):
 
     ensure()
     assert "il démarrera sous peu" in capsys.readouterr().out
+
+
+# ── Requêtes simultanées (OLLAMA_NUM_PARALLEL) ──────────────────────────────
+# Depuis Ollama 0.40.15, qwen3.5 sert plusieurs requêtes à la fois et chaque
+# requête simultanée réserve son contexte (my_ai : 3,9 Gio avec 1, 7,0 Gio avec 4)
+
+
+def test_app_parallelism_reaches_the_server(ensure, ollama, capsys):
+    ensure()
+    assert ollama.server_env["OLLAMA_NUM_PARALLEL"] == "4"
+    assert "parallélisme: 4 requêtes simultanées" in capsys.readouterr().out
+
+
+def test_user_parallelism_wins(ensure, ollama, monkeypatch, capsys):
+    monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "1")  # pour économiser la mémoire
+    ollama.holder, ollama.answers = "ollama", True
+
+    ensure()
+    assert ollama.server_env["OLLAMA_NUM_PARALLEL"] == "1"
+    out = capsys.readouterr().out
+    assert "OLLAMA_NUM_PARALLEL=1" in out
+    assert "parallélisme: 1 requête à la fois" in out
+
+
+def test_unreadable_user_parallelism_falls_back_to_the_app_value(ensure, ollama, monkeypatch):
+    monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "beaucoup")
+
+    ensure()
+    assert ollama.server_env["OLLAMA_NUM_PARALLEL"] == "4"
+
+
+def test_parallelism_is_not_written_for_the_whole_system(ensure, monkeypatch):
+    """Les autres applis qui utilisent Ollama gardent son réglage (une requête à la fois)."""
+    winreg = pytest.importorskip("winreg")
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("variable écrite dans le registre de l'utilisateur")
+
+    monkeypatch.setattr(winreg, "SetValueEx", refuse)
+    ensure()
 
 
 def test_port_is_free_sees_a_listening_server(launcher, monkeypatch):
