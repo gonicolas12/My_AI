@@ -29,6 +29,7 @@ Contenu principal
 - `config.py` — Configuration par défaut (dictionnaires `AI_CONFIG`, `FILE_CONFIG`, `UI_CONFIG`) et la classe `Config` pour charger/sauvegarder `config.yaml`. La clé `llm.local.default_model` est la **source unique** du nom de modèle.
 - `shared.py` — Module anti-import-circulaire. Contient le **moteur d'embeddings partagé** (voir `embedding_engine.py`) chargé une seule fois au démarrage (stratégie offline-first puis online) pour éviter de l'instancier plusieurs fois dans les différents modules.
 - `embedding_engine.py` — Moteur d'embeddings de la mémoire et du RAG : modèle de `optimization.rag.embedding_model` (Granite Embedding 107M multilingue par défaut, même instance que `passage_embeddings.py`), repli sur `all-MiniLM-L6-v2` tant qu'il manque, `encode()` plus `encode_query()` / `encode_document()`, et nom de la collection ChromaDB de chaque modèle (`collection_name`).
+- `reranker.py` — Choix du CrossEncoder de la mémoire (`optimization.rag.reranker_model`) : `mmarco-mMiniLMv2` multilingue avec Granite (version figée, téléchargé une fois en arrière-plan, fichier par fichier), `ms-marco-MiniLM-L-6-v2` avec MiniLM, ou aucun.
 - `validation.py` — Validation Pydantic de toutes les entrées utilisateur. `UserQueryInput` vérifie longueur, caractères dangereux (injections `eval`, `exec`, `os.system`, etc.) et contexte additionnel. `ToolArgumentsInput` valide les arguments des appels d'outils.
 
 ### Gestion du Contexte & Conversation

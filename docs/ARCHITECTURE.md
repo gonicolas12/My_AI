@@ -445,7 +445,8 @@ Rôle:
 ├─ Recherche sémantique sur TOUS les workspaces à la fois
 ├─ Réutilise l'index ChromaDB « conversations » + embedding partagé (aucun 2e pipeline)
 ├─ Indexation incrémentale (manifeste last_modified + schéma de version)
-├─ Hybride : voisins sémantiques + reranking CrossEncoder + filet lexical mot-exact + seuil
+├─ Hybride : voisins sémantiques + filet lexical mot-exact + filtre (distance
+│  Granite ≤ 0,32, ou score ms-marco avec MiniLM) + tri par le reranker
 └─ Filtres rôle / mot-clé / date ; exposé via AIEngine.get_conversation_search()
 ```
 
@@ -840,7 +841,9 @@ Architecture ML:
 │   └─ Comptage précis (vocabulaire aligné avec le LLM)
 ├─ Moteur d'embeddings partagé (core/embedding_engine.py)
 │   └─ Granite 107M multilingue, 384 dimensions (repli all-MiniLM-L6-v2)
-├─ CrossEncoder ms-marco-MiniLM-L-6-v2 (reranking)
+├─ CrossEncoder de reranking (core/reranker.py) : mmarco-mMiniLMv2
+│   multilingue avec Granite (version figée, 30 candidats au plus),
+│   ms-marco-MiniLM-L-6-v2 avec MiniLM
 │   └─ Chargé une fois depuis le cache, sans requête au Hub, et partagé
 │      par toutes les instances (predict sérialisé entre threads)
 ├─ ChromaDB PersistentClient

@@ -195,7 +195,7 @@ optimization:
 
 #### Modèle d'Embeddings (multilingue)
 
-**Fichiers :** `core/embedding_engine.py` (moteur, repli), `memory/embedding_reindex.py` (réindexation)
+**Fichiers :** `core/embedding_engine.py` (moteur, repli), `memory/embedding_reindex.py` (réindexation), `core/reranker.py` (reranker)
 
 Le modèle d'embeddings de la mémoire et du RAG est **Granite Embedding 107M multilingue** (IBM, Apache 2.0, 228 Mo, 384 dimensions), celui de la sélection des passages des longs documents : une seule instance chargée pour les deux. Il remplace `all-MiniLM-L6-v2`, entraîné pour l'anglais, qui ne retrouvait presque rien dès que la question et le document n'étaient pas dans la même langue.
 
@@ -216,8 +216,29 @@ Sur CPU (Core Ultra 7 255H). EmbeddingGemma 2 fait à peine mieux, dix fois plus
 - **Une collection ChromaDB par modèle et par dimension** (`documents__<modèle>-<empreinte>__<dimension>`), jamais de mélange, même à 384 dimensions. MiniLM garde `documents`, `conversations` et `codebase`.
 - **Réindexation en arrière-plan** depuis les textes stockés (déchiffrés pour le calcul), par lots de 16 pour laisser le modèle libre entre deux lots ; l'ancienne collection est gardée jusqu'à la fin, puis supprimée ; reprise au lancement suivant si l'appli est fermée avant. Jamais vers un modèle de repli.
 - **Repli sur MiniLM** pour la session si le modèle choisi n'est pas en cache (Granite se télécharge alors en arrière-plan) ; au tout premier lancement, téléchargement direct du modèle choisi.
-- **Reranking inchangé** : CrossEncoder `ms-marco-MiniLM-L-6-v2` sur les 3× candidats. Entraîné pour l'anglais, il défait une partie du gain : sur les mêmes questions, les 3 passages retenus contiennent la réponse 79 % du temps sans lui avec Granite, 55 % après lui (MiniLM : 38 % → 48 %). Un reranker multilingue reste à mesurer.
-- **Seuil `search.max_distance`** (0,55 ; recherche des conversations, seulement sans reranker) : réglé pour MiniLM. Avec Granite, le meilleur passage d'une question hors sujet est aussi sous 0,55 (0,31 à 0,42) : le seuil ne filtre plus rien. À recalibrer avec le reranker.
+- **Reranker multilingue** (`optimization.rag.reranker_model`, `"auto"` par défaut) : avec Granite, `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (14 langues, Apache 2.0, 470 Mo, version figée) remet dans l'ordre les 3× candidats, 30 au plus ; avec MiniLM, `ms-marco-MiniLM-L-6-v2` (anglais) comme avant ; `"none"` garde l'ordre du modèle d'embeddings. mmarco se télécharge une seule fois, en arrière-plan et fichier par fichier ; l'ordre de Granite sert en attendant.
+- **Recherche des conversations** : avec Granite, le filtre de pertinence est la distance cosinus (`search.max_distance` : 0,32 par défaut avec Granite, 0,55 avec MiniLM) plus le filet des mots exacts ; le reranker ne fait que trier les résultats gardés, car le score de mmarco change d'échelle d'une question à l'autre. Avec MiniLM, le seuil de score de ms-marco (`search.min_rerank_score`, -7) reste le filtre.
+
+#### Reranking et filtre de pertinence (mesures du lot 5 bis)
+
+Le CrossEncoder `ms-marco-MiniLM-L-6-v2`, gardé au lot 5, est entraîné pour l'anglais : il défaisait une partie du gain de Granite. Mesuré le 10/11/2026 sur 35 questions posées à la doc de My_AI (les 29 du lot 5 et 6 en anglais) : Granite donne 9 candidats, chaque méthode en garde 3.
+
+| Tri des passages | Bons passages dans les 3 retenus | hors anglais | anglais → anglais | MRR@9 | Reranking (9 paires, CPU) |
+|---|---|---|---|---|---|
+| ms-marco (anglais, avant) | 0,60 | 16/29 | 5/6 | 0,56 | 0,45 s |
+| Granite seul | 0,77 | 23/29 | 4/6 | 0,66 | — |
+| **mmarco-mMiniLMv2** | **0,86** | **25/29** | **5/6** | **0,76** | 0,84 s |
+
+Filtre de la recherche des conversations : 36 messages courts en 9 langues, 18 questions avec leurs messages pertinents (souvent dans une autre langue) et 10 questions hors sujet.
+
+| Filtre | Questions dont un message pertinent est dans les 5 premiers | Questions hors sujet avec des résultats |
+|---|---|---|
+| Score ms-marco ≥ -7 (avant) | 12/18 | 2/10 |
+| Distance Granite ≤ 0,55 (ancien seuil de repli) | 18/18 | 10/10 |
+| **Distance Granite ≤ 0,32** | **17/18** | **0/10** |
+| Score mmarco ≥ 3,1 (sans bruit) | 10/18 | 0/10 |
+
+Dans l'appli (Granite et mmarco réels, `ConversationSearch`) : 17/18, aucun résultat hors sujet, 126 ms par recherche. Écartés : `BAAI/bge-reranker-v2-m3` (2,1 Go, lent sur CPU), `jinaai/jina-reranker-v2-base-multilingual` (licence non commerciale, code distant), `Alibaba-NLP/gte-multilingual-reranker-base` (code distant).
 
 **Recommandations par RAM:**
 ```yaml
