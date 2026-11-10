@@ -95,6 +95,11 @@ Quand le modèle déborde de la carte graphique (une RTX 3060 Laptop n'a que 6 G
 
 La mesure prend jusqu'à une minute, une seule fois. Elle est refaite après une mise à jour d'Ollama, un changement de modèle, de fenêtre de contexte, de carte graphique ou de pilote. Pour la refaire à la main, supprimez `data/.ollama_placement.json`. La console indique le placement retenu à chaque lancement (« modèle sur le GPU, contexte en 8 bits », par exemple), et `ollama ps` montre la répartition dans sa colonne PROCESSOR.
 
+### Pourquoi `my_ai` occupe-t-il plus de mémoire depuis Ollama 0.40.15 ?
+My_AI lance Ollama avec `OLLAMA_NUM_PARALLEL=4` : jusqu'à 4 requêtes avancent en même temps sur le même modèle, ce qui sert surtout aux agents en parallèle. Avant la 0.40.15, Ollama servait les modèles qwen3.5 une requête à la fois, quelle que soit la variable ; il leur donne maintenant 4 « slots », chacun avec son propre contexte. Avec la fenêtre de 32 768 tokens, `my_ai` passe ainsi de 3,9 à 7,0 Gio (`ollama ps`, colonne SIZE). En échange, 4 agents en parallèle finissent 2,2 à 3,3 fois plus vite ; une requête seule ne va pas plus vite, et la différence mesurée (génération 12 tok/s contre 15 avec un seul slot) reste dans le bruit des mesures. Le détail est dans [OPTIMIZATION.md](OPTIMIZATION.md#requêtes-simultanées-ollama_num_parallel).
+
+Pour économiser cette mémoire, définissez vous-même `OLLAMA_NUM_PARALLEL=1` (ou `2`) dans vos variables d'environnement : My_AI respecte cette valeur. Il ne l'écrit plus pour tout le système ; les versions précédentes enregistraient `OLLAMA_NUM_PARALLEL=4` dans les variables de l'utilisateur (Windows) ou par `launchctl` (macOS). Si vous ne l'avez pas posée vous-même et que d'autres applis utilisent Ollama, vous pouvez la supprimer : sous Windows, `reg delete HKCU\Environment /v OLLAMA_NUM_PARALLEL /f`, puis relancez Ollama.
+
 ### Mes données restent-elles confidentielles avec Ollama ?
 **Oui, 100% !** Ollama exécute le modèle **localement sur votre PC**. Aucune donnée n'est envoyée sur internet. C'est l'avantage principal par rapport à ChatGPT ou Claude.
 

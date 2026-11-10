@@ -482,6 +482,8 @@ tasks = [
 result = orchestrator.execute_parallel_tasks(tasks)
 ```
 
+Les agents d'une même étape n'avancent vraiment ensemble que si Ollama sert plusieurs requêtes à la fois. My_AI le lance avec `OLLAMA_NUM_PARALLEL=4`, dont les modèles qwen3.5 profitent depuis Ollama 0.40.15 (avant, leurs agents passaient l'un après l'autre). Sur un Core Ultra 7 255H (GPU intégré Arc 140T), 4 agents en parallèle finissent 2,2 à 3,3 fois plus vite qu'à la suite ; en échange, `my_ai` réserve 4 contextes (7,0 Gio au lieu de 3,9). Au-delà de 4 agents, les suivants attendent qu'un slot se libère. Voir [OPTIMIZATION.md](OPTIMIZATION.md#requêtes-simultanées-ollama_num_parallel).
+
 ## 📊 Statistiques et Suivi
 
 ### Statistiques d'un Agent
@@ -748,7 +750,7 @@ result = custom_agent.execute_task(
 
 ### 3. Performance
 - Un agent consomme des ressources Ollama (CPU/RAM)
-- Ne créez pas trop d'agents simultanément
+- Ne créez pas trop d'agents simultanément : au-delà de 4 (`OLLAMA_NUM_PARALLEL`), les suivants attendent un slot libre
 - Réutilisez les agents existants (`get_or_create_agent`)
 
 ### 4. Température

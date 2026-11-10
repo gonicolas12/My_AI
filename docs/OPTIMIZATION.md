@@ -78,6 +78,23 @@ L'**assistant de configuration** (premier lancement) et le panneau ⚙️ Régla
 
 > ⚠️ En CPU, un gros modèle (9b/27b) « rentre » en RAM mais génère **trop lentement** pour un usage agréable. Réservez-les à un GPU disposant d'assez de VRAM.
 
+### Requêtes simultanées (OLLAMA_NUM_PARALLEL)
+
+My_AI lance Ollama avec `OLLAMA_NUM_PARALLEL=4` : jusqu'à 4 requêtes avancent en même temps sur le même modèle, ce qui sert surtout aux nœuds parallèles des workflows d'agents. Depuis **Ollama 0.40.15**, les modèles qwen3.5 en profitent aussi ; avant, Ollama les forçait à une requête à la fois, quelle que soit la variable. Chaque requête simultanée réserve son propre contexte : la mémoire du contexte des tableaux ci-dessus est multipliée par le nombre de slots.
+
+Mesures sur un Core Ultra 7 255H (GPU intégré Arc 140T, 32 Go), `my_ai` (qwen3.5:4b) en 32 768 tokens, modèle entièrement sur le GPU dans tous les cas :
+
+| `OLLAMA_NUM_PARALLEL` | Mémoire (`ollama ps`) | 4 agents de 300 tokens, en parallèle | Requête seule de ~2 000 tokens : lecture / génération (médianes) |
+|---|---|---|---|
+| 1 | 3,9 Gio | 117 s (les 4 passent à la suite) | 387 / 14,8 tok/s |
+| 2 | 5,2 Gio | 71 s | — |
+| **4 (défaut)** | 7,0 Gio | 44 à 46 s | 376 / 12,1 tok/s |
+
+- Les workflows ont été mesurés sous Ollama 0.40.15 ; la requête seule sous 0.40.16, en 8 cycles alternés 1 / 4 (serveur relancé à chaque cycle). L'écart de génération n'est pas significatif (Mann-Whitney, p = 0,13) : sur ce PC, la vitesse varie autant d'une requête à l'autre qu'entre 1 et 4 slots.
+- Sur une carte graphique de 6 Go, 4 contextes en 16 bits ne tiennent plus avec `my_ai` : le module de placement essaie alors le contexte en 8 bits ([FAQ](FAQ.md#le-modèle-tourne-t-il-sur-ma-carte-graphique-)). Avec moins de mémoire, `OLLAMA_NUM_PARALLEL=1` ou `2` peut être le meilleur choix.
+
+**Changer la valeur** : définissez `OLLAMA_NUM_PARALLEL` dans vos variables d'environnement (`1` économise 3 Gio avec `my_ai`). Le lanceur la respecte et la passe au serveur qu'il démarre, sans l'écrire pour tout le système : les autres applis qui utilisent Ollama gardent son réglage par défaut (une requête à la fois). La console l'indique à chaque lancement : `✅ Ollama prêt (parallélisme: 4 requêtes simultanées, …)`.
+
 ### Vérification
 
 ```bash
