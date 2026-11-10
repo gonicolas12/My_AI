@@ -97,7 +97,7 @@ tiktoken
 #
 # macOS Intel (x86_64) : PyTorch ne publie plus de wheel x86_64 au-delà de
 # 2.2.2, ce qui plafonne toute la pile. Sans ces bornes, pip installe
-# transformers 5.x (qui exige torch >= 2.5), désactive torch en silence, puis
+# transformers 5.x (qui exige torch >= 2.6), désactive torch en silence, puis
 # échoue sur « NameError: name 'nn' is not defined ». numpy doit rester en 1.x :
 # torch 2.2.2 est compilé contre l'ABI numpy 1.
 #
@@ -110,11 +110,12 @@ tiktoken
 # essayé le 10/11/2026 avec torch 2.2.2, numpy 1.26.4 et transformers 4.57.6
 # (sous Windows, Python 3.11 : mêmes versions, autre OS), mêmes vecteurs et
 # mêmes scores du reranker qu'avec la pile récente. Risque résiduel propre au
-# Mac Intel : torch 2.2.2 garde ses failles connues (dont torch.load, corrigée
-# en 2.6) faute de wheel x86_64 plus récente.
+# Mac Intel, faute de wheel x86_64 plus récente : torch 2.2.2 garde ses failles
+# connues (dont torch.load, corrigée en 2.6), et transformers 4.57.6 les six
+# avis corrigés seulement en 5.x (voir plus bas).
 #
 # Partout ailleurs (Windows, Linux, Apple Silicon) : bornes hautes majeures
-# calées sur la pile validée en local (torch 2.15, transformers 4.57,
+# calées sur la pile validée en local (torch 2.15, transformers 5.22,
 # sentence-transformers 5.7, numpy 2.5) pour qu'une installation neuve ne
 # ramasse pas « la dernière version de tout ».
 # ------------------------------------------------------------------------
@@ -127,11 +128,19 @@ sentence-transformers>=5.6.0,<6; platform_system == "Darwin" and platform_machin
 peft>=0.4.0,<0.14; platform_system == "Darwin" and platform_machine == "x86_64"
 
 # --- Windows / Linux / Apple Silicon ---
-torch>=2.0.0,<3; platform_system != "Darwin" or platform_machine != "x86_64"
+# 2.6.0 : transformers 5.x désactive torch en dessous, sans le mettre à jour
+# (torch ne fait pas partie de ses dépendances déclarées)
+torch>=2.6.0,<3; platform_system != "Darwin" or platform_machine != "x86_64"
 numpy>=1.24.0,<3; platform_system != "Darwin" or platform_machine != "x86_64"
 # transformers est tiré par sentence-transformers ; on l'épingle explicitement
 # car c'est lui qui pilote la contrainte torch de toute la pile.
-transformers>=4.40,<5; platform_system != "Darwin" or platform_machine != "x86_64"
+# 5.10.0 : la 4.57.6, dernière 4.x, garde six avis corrigés seulement en 5.x :
+# code exécuté depuis un modèle ou un checkpoint piégé (GHSA-29pf-2h5f-8g72,
+# GHSA-fgcw-684q-jj6r, GHSA-69w3-r845-3855, PYSEC-2025-217), fichiers écrits
+# sans accord ni contrôle (GHSA-x9r9-c232-4q39 ; GHSA-xrqw-3rrv-vx5w, le
+# dernier corrigé, en 5.10.0). La 5.x tire huggingface-hub 2.x (httpx2 au lieu
+# de requests, voir core/network.py).
+transformers>=5.10.0,<6; platform_system != "Darwin" or platform_machine != "x86_64"
 # 5.6.0 : corrige GHSA-jhr6-gm9c-rqjv (charger un modèle depuis un dossier local
 # pouvait exécuter du Python malgré trust_remote_code=False)
 sentence-transformers>=5.6.0,<6; platform_system != "Darwin" or platform_machine != "x86_64"

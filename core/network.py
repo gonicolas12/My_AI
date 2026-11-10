@@ -96,10 +96,35 @@ def _configure_huggingface_backend(
     Modifie le résultat avec une clé "huggingface_backend_configured" indiquant si
     """
     try:
+        import huggingface_hub  # pylint: disable=import-outside-toplevel
+    except Exception:
+        result["huggingface_backend_configured"] = False
+        return
+
+    if hasattr(huggingface_hub, "set_client_factory"):
+        # huggingface_hub 1.x (httpx) et 2.x (httpx2) : configure_http_backend
+        # n'existe plus. Leur client lit lui-même dans l'environnement, rempli
+        # plus haut, les proxys et le bundle CA (SSL_CERT_FILE) ; reste à lui
+        # passer la vérification TLS demandée (bundle CA ou désactivée).
+        if verify is not None:
+            try:
+                _set_hub_client_verify(huggingface_hub, verify)
+            except Exception as exc:  # bundle CA illisible : le lancement continue
+                result["warnings"].append(f"Hugging Face : vérification TLS non appliquée ({exc})")
+                result["huggingface_backend_configured"] = False
+                return
+            # Les poids des modèles, stockés sur Xet, passent sinon par hf-xet :
+            # son propre client suit le proxy et le magasin du système, mais ni
+            # ce réglage ni SSL_CERT_FILE. Ils prennent alors le client ci-dessus.
+            _disable_xet()
+        result["huggingface_backend_configured"] = True
+        return
+
+    # huggingface_hub 0.x (requests), gardé sur Mac Intel avec transformers 4.x
+    try:
         import requests  # pylint: disable=import-outside-toplevel
-        from huggingface_hub import (  # pylint: disable=import-outside-toplevel
-            configure_http_backend,
-        )
+
+        configure_http_backend = huggingface_hub.configure_http_backend
     except Exception:
         result["huggingface_backend_configured"] = False
         return
@@ -126,6 +151,39 @@ def _configure_huggingface_backend(
 
     configure_http_backend(backend_factory=_backend_factory)
     result["huggingface_backend_configured"] = True
+
+
+def _set_hub_client_verify(huggingface_hub: Any, verify: str | bool) -> None:
+    """
+    Donne au client HTTP de huggingface_hub 1.x et 2.x la vérification TLS
+    demandée : chemin d'un bundle CA, ou False.
+
+    Le client par défaut est recopié (hook du mode hors ligne, redirections,
+    délai) plutôt que réécrit : sans ce hook, HF_HUB_OFFLINE ne bloquerait plus
+    les requêtes.
+    """
+    default = huggingface_hub.get_session()
+    client_class = type(default)
+    options = {
+        "event_hooks": {name: list(hooks) for name, hooks in default.event_hooks.items()},
+        "follow_redirects": default.follow_redirects,
+        "timeout": default.timeout,
+    }
+    # httpx déprécie verify=<chemin> : contexte TLS construit sur le bundle
+    tls = ssl.create_default_context(cafile=verify) if isinstance(verify, str) else verify
+    huggingface_hub.set_client_factory(lambda: client_class(verify=tls, **options))
+
+
+def _disable_xet() -> None:
+    """Téléchargements par hf-xet coupés, dans ce processus (huggingface_hub fige
+    HF_HUB_DISABLE_XET à son import) et dans ses sous-processus (Whisper)."""
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
+    try:
+        from huggingface_hub import constants  # pylint: disable=import-outside-toplevel
+
+        constants.HF_HUB_DISABLE_XET = True
+    except Exception:
+        pass
 
 
 def configure_network_environment(force: bool = False) -> Dict[str, Any]:

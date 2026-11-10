@@ -231,12 +231,24 @@ websockets>=17.4         # WebSocket du Relay, via uvicorn
 
 ### Machine Learning (Requis)
 ```
-torch>=2.0.0             # PyTorch
+torch>=2.6.0             # PyTorch (2.6 : minimum de transformers 5 ; 2.2.2 sur Mac Intel)
+transformers>=5.10.0     # Modèles (5.10.0 : six avis de la 4.x corrigés ; 4.x sur Mac Intel)
 scikit-learn>=1.3.0      # ML algorithms
 sentence-transformers>=5.6.0  # Embeddings (5.6.0 : GHSA-jhr6-gm9c-rqjv)
 rapidfuzz                # Fuzzy matching
 tiktoken                 # Token counting (compatible Llama 3 / cl100k_base)
 ```
+
+> transformers 5 tire huggingface-hub 2.x, qui télécharge les modèles avec
+> httpx2 et hf-xet au lieu de requests. Une installation existante y passe
+> d'elle-même au premier lancement qui suit la mise à jour (synchronisation des
+> dépendances).
+>
+> **Mac Intel** : PyTorch s'y arrête à 2.2.2, trop ancien pour transformers 5.
+> La pile y reste en transformers 4.57, qui garde six avis de sécurité corrigés
+> seulement en 5.x, surtout du code exécuté depuis un modèle piégé. My_AI ne
+> charge que des modèles connus : MiniLM, ms-marco pour le reranking, Granite à
+> révision figée et Whisper.
 
 ### Saisie Vocale / Voice Mode (Requis pour la dictée dans le GUI)
 
@@ -930,10 +942,10 @@ pip install -r requirements.lock.txt
 ```
 
 > Un tel fichier est **spécifique à un OS et à une version de Python** : la pile
-> macOS Intel est plafonnée (torch 2.2.2, numpy 1.x) là où Windows, Linux et
-> Apple Silicon utilisent des versions bien plus récentes. Un lock généré sur une
-> machine n'est pas transposable telle quelle sur une autre — générez-en un par
-> plateforme cible.
+> macOS Intel est plafonnée (torch 2.2.2, numpy 1.x, transformers 4.x) là où
+> Windows, Linux et Apple Silicon utilisent des versions bien plus récentes. Un
+> lock généré sur une machine n'est pas transposable telle quelle sur une
+> autre — générez-en un par plateforme cible.
 
 ### Mise à jour projet
 
@@ -1001,6 +1013,12 @@ network:
   use_system_truststore: true   # magasin de certificats du système (paquet truststore)
   allow_insecure_ssl: false     # dernier recours uniquement
 ```
+
+La même section vaut pour le téléchargement des modèles Hugging Face
+(embeddings, reranking, Whisper) : proxy, `ca_bundle` et `allow_insecure_ssl`
+s'y appliquent. Hors Mac Intel, ces téléchargements vérifient les certificats
+avec le magasin du système : la racine d'un proxy d'entreprise qui y est
+installée suffit, sans `ca_bundle`.
 
 **Note:** La recherche internet est optionnelle. L'IA fonctionne 100% localement sans connexion. Voir [INTERNET_SEARCH.md](INTERNET_SEARCH.md).
 

@@ -2,6 +2,7 @@
 Tests unitaires pour memory/vector_memory.py
 """
 
+import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -390,6 +391,66 @@ class TestEntryCRUD:
             assert mem.update_entry(entry_id, "Secret mis à jour", "document")
             got = mem.get_entry(entry_id, "document")
             assert got["content"] == "Secret mis à jour"
+
+
+class TestRerankerDownload:
+    """Premier téléchargement du CrossEncoder (absent du cache).
+
+    Le mode hors ligne doit être levé le temps du téléchargement, puis rétabli.
+    transformers 4.x en garde une copie, transformers.utils.hub._is_offline_mode,
+    qui n'existe plus en 5.x : y accéder faisait échouer ce téléchargement, et le
+    RAG perdait le reranking.
+    """
+
+    # pylint: disable=protected-access
+    MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+    @pytest.fixture(name="download")
+    def _download(self, monkeypatch):
+        """Hors ligne activé, modèle absent du cache ; le CrossEncoder simulé
+        relève l'état du mode hors ligne au moment où il télécharge."""
+        seen = {}
+
+        def not_in_cache(*_args, **_kwargs):
+            raise OSError("modèle absent du cache")
+
+        def cross_encoder(name):
+            seen.update(
+                name=name,
+                hub=vector_memory._hf_constants.HF_HUB_OFFLINE,
+                transformers=getattr(vector_memory._tf_hub, "_is_offline_mode", "absent"),
+                env=os.environ["HF_HUB_OFFLINE"],
+            )
+            return "reranker"
+
+        monkeypatch.setattr(vector_memory, "configure_network_environment", lambda: {})
+        monkeypatch.setattr(vector_memory, "snapshot_download", not_in_cache)
+        monkeypatch.setattr(vector_memory, "CrossEncoder", cross_encoder)
+        monkeypatch.setattr(vector_memory._hf_constants, "HF_HUB_OFFLINE", True)
+        monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+        monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
+        return VectorMemory.__new__(VectorMemory), seen
+
+    def test_first_download_with_transformers_5(self, download, monkeypatch):
+        monkeypatch.delattr(vector_memory._tf_hub, "_is_offline_mode", raising=False)
+        memory, seen = download
+        memory._fetch_reranker(self.MODEL)
+        assert memory.reranker == "reranker"
+        assert seen == {"name": self.MODEL, "hub": False, "transformers": "absent", "env": "0"}
+        # Hors ligne rétabli, sans copie ajoutée à transformers
+        assert vector_memory._hf_constants.HF_HUB_OFFLINE is True
+        assert os.environ["HF_HUB_OFFLINE"] == "1" and os.environ["TRANSFORMERS_OFFLINE"] == "1"
+        assert not hasattr(vector_memory._tf_hub, "_is_offline_mode")
+
+    def test_first_download_with_transformers_4(self, download, monkeypatch):
+        # Mac Intel, resté en 4.x : sa copie est levée puis rétablie aussi
+        monkeypatch.setattr(vector_memory._tf_hub, "_is_offline_mode", True, raising=False)
+        memory, seen = download
+        memory._fetch_reranker(self.MODEL)
+        assert memory.reranker == "reranker"
+        assert seen == {"name": self.MODEL, "hub": False, "transformers": False, "env": "0"}
+        assert vector_memory._hf_constants.HF_HUB_OFFLINE is True
+        assert vector_memory._tf_hub._is_offline_mode is True
 
 
 if __name__ == "__main__":
