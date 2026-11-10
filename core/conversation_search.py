@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.config import get_config
-from core.embedding_engine import encode_documents
+from core.embedding_engine import encode_documents, max_distance_for
 
 try:
     from utils.logger import setup_logger
@@ -66,8 +66,11 @@ class ConversationSearch:
                 conserve (defaut config `search.min_rerank_score`, sinon -7.0).
                 Les requetes sans rapport produisent des scores ~ -11 ; le seuil
                 par defaut elimine ce bruit tout en gardant les vrais resultats.
-            max_distance: distance cosinus maximale utilisee SEULEMENT en repli
-                si aucun reranker n'est disponible (defaut 0.55).
+            max_distance: distance cosinus maximale d'un resultat garde quand le
+                score du reranker ne sert pas de seuil (pas de reranker, ou
+                reranker multilingue qui ne fait que trier). Defaut config
+                `search.max_distance`, sinon celui du modele d'embeddings
+                (0.32 pour Granite, 0.55 pour MiniLM).
         """
         self.session_manager = session_manager
         self.vector_memory = vector_memory
@@ -77,9 +80,10 @@ class ConversationSearch:
             min_rerank_score if min_rerank_score is not None
             else self._cfg("search.min_rerank_score", -7.0)
         )
+        model_id = getattr(getattr(vector_memory, "embedding_model", None), "model_id", None)
         self.max_distance = (
             max_distance if max_distance is not None
-            else self._cfg("search.max_distance", 0.55)
+            else self._cfg("search.max_distance", max_distance_for(model_id))
         )
 
         # Manifeste d'indexation, range a cote de l'index ChromaDB
@@ -455,22 +459,39 @@ class ConversationSearch:
     def _filter_by_relevance(self, query: str, raw: List[dict]) -> List[dict]:
         """Ecarte les resultats hors-sujet.
 
-        Le bi-encodeur (Granite, MiniLM) ne separe pas bien pertinent/non-pertinent sur
-        des requetes courtes ; on s'appuie donc sur le CrossEncoder, bien plus
-        discriminant : les requetes sans rapport produisent des scores tres bas
-        (~ -11) que le seuil elimine. Un resultat est conserve si :
+        Avec MiniLM, le bi-encodeur ne separe pas bien pertinent/non-pertinent
+        sur des requetes courtes ; on s'appuie donc sur le CrossEncoder anglais
+        (ms-marco), bien plus discriminant : les requetes sans rapport produisent
+        des scores tres bas (~ -11) que le seuil elimine. Un resultat est
+        conserve si :
           - son score CrossEncoder >= seuil, OU
           - il contient litteralement les mots-cles de la requete (filet lexical).
-        En l'absence de reranker, repli sur un seuil de distance cosinus.
+
+        Avec Granite (multilingue), c'est l'inverse : sa distance separe bien
+        (lot 5 bis, 18 questions en 9 langues : 17 trouvees, aucun resultat pour
+        10 questions hors sujet a 0.32), alors que le score de ms-marco rejetait
+        les messages dans une autre langue et que celui de mmarco change
+        d'echelle d'une question a l'autre. Le filtre est alors la distance
+        (plus le filet lexical) et le reranker, s'il y en a un, ne fait que
+        trier. Meme filtre sans reranker.
         """
         reranker = getattr(self.vector_memory, "reranker", None)
 
-        if reranker is None:
+        if reranker is None or not getattr(self.vector_memory, "reranker_filters", True):
             kept = [
                 r for r in raw
                 if (r.get("distance") is None or r["distance"] <= self.max_distance)
                 or self._lexical_match(query, r.get("content", ""))
             ]
+            if reranker is not None and kept:
+                try:
+                    scores = reranker.predict([[query, r.get("content", "")] for r in kept])
+                    for r, s in zip(kept, scores):
+                        r["rerank_score"] = float(s)
+                    kept.sort(key=lambda r: r["rerank_score"], reverse=True)
+                    return kept
+                except Exception as exc:
+                    logger.warning("Reranking recherche echoue: %s", exc)
             kept.sort(key=lambda r: (r.get("distance")
                                      if r.get("distance") is not None else 1.0))
             return kept
