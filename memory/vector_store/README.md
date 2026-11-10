@@ -176,4 +176,4 @@ rm -rf memory/vector_store/chroma_db
 
 **Version** : 1.0.0  
 **Dernière mise à jour** : 17 novembre 2025  
-**Compatibilité** : Python 3.8+
+**Compatibilité** : Python 3.11 à 3.14 (celles de My_AI)

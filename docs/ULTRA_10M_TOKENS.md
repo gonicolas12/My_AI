@@ -211,7 +211,7 @@ pip install chromadb tiktoken sentence-transformers
 - **RAM** : 16 GB minimum pour utilisation intensive
 - **Stockage** : SSD recommandé (base SQLite)
 - **Processeur** : Multi-core pour compression parallèle
-- **Python** : 3.10+ pour performances optimales
+- **Python** : 3.11 à 3.14 (3.12 au plus sur Mac Intel)
 
 #### Bonnes Pratiques
 1. **Chunking adaptatif** : Laisser l'auto-détection

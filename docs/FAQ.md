@@ -110,7 +110,7 @@ La mesure prend jusqu'à une minute, une seule fois. Elle est refaite après une
 
 ### Quels sont les prérequis pour installer l'IA ?
  
-- Python 3.8+ (3.10+ recommandé)
+- Python 3.11 à 3.14 (3.12 au plus sur un Mac Intel)
 - 4 GB RAM minimum (8 GB recommandé)
 - ~100 MB d'espace disque
 - Windows, macOS ou Linux
@@ -133,10 +133,23 @@ ollama pull qwen3.5:4b
 
 ### Que faire si l'installation échoue ?
 Vérifiez :
-1. Version de Python : `python --version` (doit être 3.8+)
+1. Version de Python : `python --version` (entre 3.11 et 3.14 ; 3.12 au plus sur un Mac Intel)
 2. Dépendances : `pip install -r requirements.txt`
 3. Permissions : Exécutez en administrateur si nécessaire
 4. Consultez les logs dans le dossier `logs/`
+
+### Pourquoi Python 3.10 et Python 3.15 ne sont-ils pas pris en charge ?
+- **Python 3.10** est en fin de vie depuis le 1er octobre 2026, et les versions
+  qui corrigent des failles de Pillow, websockets ou PyMuPDF ne s'y installent
+  plus.
+- **Python 3.15** n'a pas encore de version d'onnxruntime, dont dépendent
+  chromadb (mémoire) et faster-whisper (dictée) : `pip install -r
+  requirements.txt` échoue.
+
+Les lanceurs (`launch.bat`, `launch.sh`, `launch_unified.py`, `main.py`)
+s'arrêtent alors avec un message qui dit quelle version installer. Avec un
+dossier `venv/`, recréez-le avec le bon Python (`python -m venv venv`), puis
+réinstallez les dépendances.
 
 ## 💬 Utilisation et Fonctionnalités
 

@@ -9,7 +9,7 @@ My Personal AI v9.1.0 est une **IA 100% locale** avec un système de contexte de
 ### 1. Prérequis Système
 
 **Configuration minimale:**
-- **Python 3.8+** (Python 3.10+ recommandé pour performances optimales)
+- **Python 3.11 à 3.14** (3.12 au plus sur Mac Intel, voir ci-dessous)
 - **4 GB RAM** (8 GB recommandé, 16 GB idéal pour 10M tokens)
 - **500 MB d'espace disque** (1 GB recommandé pour cache et documents)
 - **Windows/Linux/macOS** supportés
@@ -19,10 +19,18 @@ My Personal AI v9.1.0 est une **IA 100% locale** avec un système de contexte de
 > Python 3.12 (idem numpy 1.26.4). Sous Python 3.13+, `pip install` échoue.
 > `launch.sh` vérifie ce point et s'arrête avec un message explicite.
 > Apple Silicon, Windows et Linux ne sont pas concernés.
+
+> ⚠️ **Python 3.10 et 3.15 : non pris en charge.** Python 3.10 est en fin de
+> vie depuis le 1er octobre 2026 : Pillow 13, websockets 17, PyMuPDF 2 et
+> torch 2.15, qui corrigent des failles, ne s'y installent plus. Python 3.15
+> n'a pas encore de version d'onnxruntime (tiré par chromadb et
+> faster-whisper) : `pip install -r requirements.txt` y échoue. Les lanceurs
+> (`launch.bat`, `launch.sh`, `launch_unified.py`, `main.py`) s'arrêtent hors
+> de 3.11 à 3.14 avec un message qui donne la version à installer.
 - **Connexion internet** (installation uniquement, optionnelle ensuite pour recherche web)
 
 **Configuration recommandée:**
-- Python 3.10 ou supérieur
+- Python 3.13 ou 3.14
 - 16 GB RAM
 - 2 GB d'espace disque
 - Processeur multi-core (pour opérations parallèles)
@@ -173,7 +181,7 @@ optimization:
 ### Core Dependencies (Requis)
 ```
 click>=8.0.0              # CLI interface
-aiohttp>=3.8.0            # Async HTTP
+aiohttp>=3.14.4           # Async HTTP (3.14.4 : 8 avis de sécurité corrigés)
 requests>=2.31.0          # HTTP requests
 beautifulsoup4>=4.12.0    # Web scraping
 pyyaml>=6.0               # Configuration
@@ -182,7 +190,7 @@ python-dotenv>=1.0.0      # Environment variables
 
 ### Document Processing (Requis)
 ```
-PyMuPDF>=1.24.3          # PDF processing (primaire)
+PyMuPDF>=1.24.3          # PDF processing (primaire ; <2 sur Mac Intel, sans wheel 2.x)
 PyPDF2>=3.0.0            # PDF processing (fallback)
 rapidocr>=3.9.2          # OCR des PDF scannés (hors ligne)
 python-docx>=0.8.11      # DOCX processing + génération
@@ -206,7 +214,8 @@ pywebview>=6.2           # Fenêtre native (WebView2 sous Windows, GTK ou Qt ail
 pythonnet>=3.1           # Pont .NET de pywebview, Windows (3.1 ou plus pour Python 3.14)
 fastapi>=0.100.0         # Serveur local de la fenêtre (127.0.0.1)
 uvicorn>=0.23.0          # Serveur ASGI
-pillow>=10.0.0           # Image processing
+pillow>=13.0.0           # Image processing (13.0.0 : une quarantaine d'avis corrigés)
+websockets>=17.4         # WebSocket du Relay, via uvicorn
 ```
 
 > L'interface (React + TypeScript) est livrée **déjà construite** dans `frontend/dist/` :
@@ -224,7 +233,7 @@ pillow>=10.0.0           # Image processing
 ```
 torch>=2.0.0             # PyTorch
 scikit-learn>=1.3.0      # ML algorithms
-sentence-transformers>=2.2.0  # Embeddings
+sentence-transformers>=5.6.0  # Embeddings (5.6.0 : GHSA-jhr6-gm9c-rqjv)
 rapidfuzz                # Fuzzy matching
 tiktoken                 # Token counting (compatible Llama 3 / cl100k_base)
 ```

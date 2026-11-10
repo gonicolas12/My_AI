@@ -17,6 +17,12 @@ import time
 from pathlib import Path
 
 if __name__ == "__main__":
+    # Python 3.11 à 3.14 (3.12 sur Mac Intel) : vérifié avant toute installation,
+    # pour un message clair plutôt qu'un échec de pip (cf. utils/python_version.py)
+    from utils.python_version import check_python_version
+
+    check_python_version()
+
     # Paquets ajoutés à requirements.txt depuis le dernier lancement (git pull) :
     # installés avant les imports qui en ont besoin
     from utils.requirements_sync import sync_requirements

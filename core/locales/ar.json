@@ -11,6 +11,8 @@
   "launch.failed": "فشل البدء: {error}",
   "launch.firstSetup": "الإعداد الأولي",
   "launch.ollamaFailed": "تعذّر تشغيل Ollama: افتح تطبيق Ollama أو شغّل «ollama serve»",
+  "launch.pythonUnsupported": "إصدار Python {version} غير مدعوم: يتطلب My_AI إصدار Python من {minimum} إلى {maximum}.",
+  "launch.pythonInstall": "ثبّت Python {maximum} (python.org) ثم أعد تشغيل My_AI.",
   "relay.startFailed": "تعذّر تشغيل My_AI Relay.",
   "relay.accessLocked": "Relay مقفل: رموز وصول خاطئة كثيرة جدًا. أوقفه ثم أعد تشغيله للحصول على رمز QR جديد ورمز جديد.",
   "relay.accessFailure": "Relay: أُدخل رمز وصول خاطئ. إن لم تكن أنت، فأوقف Relay: لقد تسرّب رابطه.",

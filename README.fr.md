@@ -11,7 +11,7 @@ En 12 langues. Vos conversations, vos fichiers et votre mémoire restent sur vot
 
 [![Étoiles GitHub](https://img.shields.io/github/stars/gonicolas12/My_AI?style=for-the-badge&logo=github&color=ff6b47)](https://github.com/gonicolas12/My_AI/stargazers)
 [![Version](https://img.shields.io/github/v/release/gonicolas12/My_AI?style=for-the-badge&color=ff6b47)](https://github.com/gonicolas12/My_AI/releases)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11--3.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Ollama](https://img.shields.io/badge/Ollama-LLM%20Local-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/download)
 [![Plateforme](https://img.shields.io/badge/Plateforme-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)](#-démarrage-rapide)
 [![Licence](https://img.shields.io/badge/Licence-MIT-green?style=for-the-badge)](LICENSE)
@@ -50,7 +50,7 @@ En 12 langues. Vos conversations, vos fichiers et votre mémoire restent sur vot
 
 ## 🚀 Démarrage rapide
 
-**Prérequis :** Python 3.10+ et [Ollama](https://ollama.com/download).
+**Prérequis :** Python 3.11 à 3.14 et [Ollama](https://ollama.com/download).
 
 ```bash
 git clone https://github.com/gonicolas12/My_AI
@@ -66,6 +66,8 @@ Lancez ensuite l'application et choisissez **l'option 1 (Interface Graphique)** 
 ```
 
 Au **tout premier lancement**, My_AI s'affiche dans la langue de Windows (l'une des 12, l'anglais sinon, changeable dès l'assistant), détecte votre matériel (RAM, cœurs CPU, VRAM GPU), **recommande et télécharge** le modèle adapté, puis crée `my_ai` automatiquement. La fenêtre s'ouvre tout de suite sur un écran de chargement qui nomme chaque étape (Ollama, modèle, placement, moteur), puis passe au Chat.
+
+> ⚠️ **Python 3.15 n'est pas encore pris en charge** : onnxruntime, dont ont besoin chromadb (mémoire) et faster-whisper (dictée), n'existe pas encore pour lui, et `pip install -r requirements.txt` échoue. Python 3.10 est en fin de vie depuis le 1er octobre 2026, et les versions qui corrigent des failles de Pillow, websockets et PyMuPDF ne s'y installent plus. Hors de 3.11 à 3.14, les lanceurs s'arrêtent avec un message qui donne la version à installer.
 
 > ⚠️ **Mac Intel (x86_64) : Python 3.12 maximum.** PyTorch ne publie plus de build x86_64 au-delà de la version 2.2.2, dont les wheels s'arrêtent à Python 3.12. Sous Python 3.13+, l'installation échoue. `launch.sh` vérifie ce point au démarrage. Apple Silicon, Windows et Linux ne sont pas concernés.
 

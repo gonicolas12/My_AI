@@ -1,5 +1,14 @@
 # My Personal AI - Dépendances Python
-# Python >= 3.10 recommandé
+# Python 3.11 à 3.14 (3.12 au plus sur Mac Intel) :
+# - 3.10, en fin de vie depuis le 01/10/2026 : Pillow 13, websockets 17,
+#   PyMuPDF 2 et torch 2.15 ne s'y installent plus ;
+# - 3.15 : onnxruntime (tiré par chromadb et faster-whisper) n'y publie encore
+#   aucune wheel, pip échoue. À revoir dès qu'une version cp315 sort.
+# Les lanceurs (launch.bat, launch.sh, launch_unified.py, main.py) s'arrêtent
+# avec un message explicite hors de cet intervalle (utils/python_version.py).
+#
+# Relever une borne minimale met aussi à niveau les installations existantes :
+# au lancement, utils/requirements_sync.py réinstalle les lignes non satisfaites.
 
 # ====================================
 # CORE
@@ -16,20 +25,27 @@ rich>=13.0.0
 # ====================================
 # RÉSEAU & WEB
 # ====================================
-aiohttp>=3.8.0
+# 3.14.4 : 8 avis publiés le 19/10/2026, dont GHSA-2g87-pp6c-29x5 (mémoire ou
+# processeur consommés sans limite)
+aiohttp>=3.14.4
 aiofiles>=23.0.0
 requests>=2.31.0
 tenacity>=8.2.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 # Certificats du magasin système (racine d'un proxy d'entreprise) pour la recherche internet
-truststore>=0.9; python_version >= "3.10"
+truststore>=0.9
 
 # ====================================
 # TRAITEMENT DE DOCUMENTS
 # ====================================
-# PDF
-PyMuPDF>=1.24.3
+# PDF. PyMuPDF 2.x ne publie plus de wheel macOS x86_64 : sur Mac Intel, pip
+# choisirait la 2.x et tenterait de compiler ses sources. Comme pour torch, deux
+# lignes à marqueurs ; le Mac Intel reste en 1.28 (la faille corrigée en 2.0,
+# CVE-2026-82035, ne touche que l'outil en ligne de commande, que My_AI
+# n'utilise pas).
+PyMuPDF>=1.24.3,<2; platform_system == "Darwin" and platform_machine == "x86_64"
+PyMuPDF>=1.24.3; platform_system != "Darwin" or platform_machine != "x86_64"
 PyPDF2>=3.0.0
 pdfplumber
 
@@ -57,7 +73,10 @@ markdown2>=2.4.0
 # ====================================
 # INTERFACE GRAPHIQUE
 # ====================================
-pillow>=10.0.0
+# 13.0.0 : corrige une quarantaine d'avis publiés à partir du 19/10/2026, sans
+# correctif en 12.x (pièces jointes ouvertes par l'appli, envoyées aussi depuis
+# le téléphone par le Relay)
+pillow>=13.0.0
 # Fenêtre de l'interface web (WebView2 sous Windows, GTK ou Qt ailleurs ; sans
 # elle, l'interface s'ouvre dans le navigateur). pythonnet 3.1 ou plus pour Python 3.14
 pywebview>=6.2
@@ -87,9 +106,16 @@ tiktoken
 # Sous 3.13, pip ne trouve rien d'installable et tente une compilation qui
 # echoue. launch.sh verifie ce point et s'arrete avec un message explicite.
 #
+# sentence-transformers 5.6 (GHSA-jhr6-gm9c-rqjv) tourne avec cette pile :
+# essayé le 10/11/2026 avec torch 2.2.2, numpy 1.26.4 et transformers 4.57.6
+# (sous Windows, Python 3.11 : mêmes versions, autre OS), mêmes vecteurs et
+# mêmes scores du reranker qu'avec la pile récente. Risque résiduel propre au
+# Mac Intel : torch 2.2.2 garde ses failles connues (dont torch.load, corrigée
+# en 2.6) faute de wheel x86_64 plus récente.
+#
 # Partout ailleurs (Windows, Linux, Apple Silicon) : bornes hautes majeures
-# calées sur la pile validée en local (torch 2.8, transformers 4.56,
-# sentence-transformers 5.1, numpy 2.3) pour qu'une installation neuve ne
+# calées sur la pile validée en local (torch 2.15, transformers 4.57,
+# sentence-transformers 5.7, numpy 2.5) pour qu'une installation neuve ne
 # ramasse pas « la dernière version de tout ».
 # ------------------------------------------------------------------------
 
@@ -97,7 +123,7 @@ tiktoken
 torch<=2.2.2; platform_system == "Darwin" and platform_machine == "x86_64"
 numpy>=1.24.0,<2; platform_system == "Darwin" and platform_machine == "x86_64"
 transformers>=4.40,<5; platform_system == "Darwin" and platform_machine == "x86_64"
-sentence-transformers>=2.2.0,<4; platform_system == "Darwin" and platform_machine == "x86_64"
+sentence-transformers>=5.6.0,<6; platform_system == "Darwin" and platform_machine == "x86_64"
 peft>=0.4.0,<0.14; platform_system == "Darwin" and platform_machine == "x86_64"
 
 # --- Windows / Linux / Apple Silicon ---
@@ -106,7 +132,9 @@ numpy>=1.24.0,<3; platform_system != "Darwin" or platform_machine != "x86_64"
 # transformers est tiré par sentence-transformers ; on l'épingle explicitement
 # car c'est lui qui pilote la contrainte torch de toute la pile.
 transformers>=4.40,<5; platform_system != "Darwin" or platform_machine != "x86_64"
-sentence-transformers>=2.2.0,<6; platform_system != "Darwin" or platform_machine != "x86_64"
+# 5.6.0 : corrige GHSA-jhr6-gm9c-rqjv (charger un modèle depuis un dossier local
+# pouvait exécuter du Python malgré trust_remote_code=False)
+sentence-transformers>=5.6.0,<6; platform_system != "Darwin" or platform_machine != "x86_64"
 peft>=0.4.0,<1.0; platform_system != "Darwin" or platform_machine != "x86_64"
 
 # Embeddings & RAG
@@ -166,7 +194,11 @@ mcp>=1.0.0
 # ====================================
 fastapi>=0.100.0
 uvicorn>=0.23.0
-websockets>=12.0
+# 17.4 : recv() refuse les messages découpés en plus de 4096 fragments (déni de
+# service par épuisement de la mémoire). Le Relay ne passe pas par recv() :
+# uvicorn y charge son implémentation « websockets-sansio », qui réassemble
+# elle-même les fragments ; la borne vaut pour le reste de la bibliothèque.
+websockets>=17.4
 python-multipart>=0.0.9
 
 # QR Code (pour My_AI Relay)
