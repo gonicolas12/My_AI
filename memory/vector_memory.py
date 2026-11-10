@@ -268,18 +268,22 @@ class VectorMemory:
             pass
 
         # Étape 2 : tenter le téléchargement (premier lancement)
-        # IMPORTANT: huggingface_hub et transformers stockent le flag offline
-        # comme constante au moment de l'import. Changer os.environ ne suffit
-        # pas — il faut aussi patcher les constantes internes des modules.
+        # IMPORTANT: huggingface_hub stocke le flag offline comme constante au
+        # moment de l'import. Changer os.environ ne suffit pas — il faut aussi
+        # patcher cette constante, que lit is_offline_mode() (donc transformers
+        # 5.x). transformers 4.x (gardé sur Mac Intel) en fige en plus sa propre
+        # copie, _is_offline_mode, qui n'existe plus en 5.x.
         saved_offline = os.environ.get('HF_HUB_OFFLINE', '0')
         saved_transformers = os.environ.get('TRANSFORMERS_OFFLINE', '0')
         saved_hf_const = None
         saved_tf_const = None
+        tf_offline_copy = hasattr(_tf_hub, '_is_offline_mode')
         try:
             saved_hf_const = _hf_constants.HF_HUB_OFFLINE
-            saved_tf_const = _tf_hub._is_offline_mode  # pylint: disable=protected-access
             _hf_constants.HF_HUB_OFFLINE = False
-            _tf_hub._is_offline_mode = False  # pylint: disable=protected-access
+            if tf_offline_copy:
+                saved_tf_const = _tf_hub._is_offline_mode  # pylint: disable=protected-access
+                _tf_hub._is_offline_mode = False  # pylint: disable=protected-access
             os.environ['HF_HUB_OFFLINE'] = '0'
             os.environ['TRANSFORMERS_OFFLINE'] = '0'
             print("📥 Téléchargement du CrossEncoder (reranking)... (une seule fois)")
@@ -298,7 +302,8 @@ class VectorMemory:
             os.environ['TRANSFORMERS_OFFLINE'] = saved_transformers
             try:
                 _hf_constants.HF_HUB_OFFLINE = saved_hf_const
-                _tf_hub._is_offline_mode = saved_tf_const  # pylint: disable=protected-access
+                if tf_offline_copy:
+                    _tf_hub._is_offline_mode = saved_tf_const  # pylint: disable=protected-access
             except Exception:
                 pass
 
