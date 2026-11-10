@@ -1462,6 +1462,15 @@ utils/requirements_sync.py:
 ├─ .dist-info vidés par une installation interrompue ignorés
 └─ Désactivation : MY_AI_SKIP_DEPS_SYNC=1 ; ignoré dans un exécutable figé
 
+utils/python_version.py:
+├─ check_python_version() : appelé avant sync_requirements() dans
+│  launch_unified.py et main.py ; bibliothèque standard seule
+├─ Python 3.11 à 3.14 (3.12 au plus sur Mac Intel) : en 3.10, Pillow 13,
+│  websockets 17 et PyMuPDF 2 ne s'installent plus ; en 3.15, onnxruntime
+│  (chromadb, faster-whisper) n'a pas encore de wheel
+└─ Hors de l'intervalle : message launch.pythonUnsupported / pythonInstall
+   (12 langues), puis arrêt ; launch.bat et launch.sh font le même contrôle
+
 utils/path_links.py:
 ├─ find_existing_paths(text) : plus long préfixe qui existe sur le disque
 │  (les chemins Windows contiennent des espaces)
@@ -1715,6 +1724,7 @@ python main.py generate code "desc"   # Génération code
 ```batch
 # Options interface
 # Setup environnement
+# S'arrête hors de Python 3.11 à 3.14 (message et version à installer)
 # Récupération erreurs
 ```
 
@@ -1722,6 +1732,7 @@ python main.py generate code "desc"   # Génération code
 ```bash
 # Équivalent POSIX de launch.bat (même menu)
 # Sous Linux, signale l'absence de GTK ou de Qt (fenêtre) : repli sur le navigateur
+# S'arrête hors de Python 3.11 à 3.14, comme launch.bat
 # Bloque Python 3.13+ sur Mac Intel (torch x86_64 plafonne à 2.2.2)
 ```
 

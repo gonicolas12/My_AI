@@ -1004,7 +1004,7 @@ My Personal AI v9.1.0
 - Architecture: 100% Local
 - Context: 1,048,576 tokens (1M)
 - Interfaces: fenêtre (React + pywebview), CLI
-- Python: 3.10+
+- Python: 3.11 à 3.14 (3.12 au plus sur Mac Intel)
 ```
 
 ---
