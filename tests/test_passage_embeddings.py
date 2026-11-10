@@ -52,10 +52,47 @@ def test_failed_download_keeps_keyword_selection(missing_model, monkeypatch, cap
 
 
 def test_disabled_model_is_never_downloaded(monkeypatch):
+    """Ni les longs documents ni la mémoire (autre modèle d'embeddings) n'en ont besoin."""
     monkeypatch.setattr(pe, "enabled", lambda: False)
+    monkeypatch.setattr(pe, "used_for_memory", lambda: False)
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", pytest.fail)
     assert pe.ensure_downloaded() is False
     assert pe.prefetch_in_background() is None
+
+
+def test_memory_model_is_downloaded_even_without_multilingual_passages(monkeypatch):
+    """Granite est aussi le modèle de la mémoire vectorielle (optimization.rag.embedding_model)."""
+    calls = []
+    monkeypatch.setattr(pe, "enabled", lambda: False)
+    monkeypatch.setattr(pe, "is_downloaded", lambda: False)
+    monkeypatch.setattr("core.embedding_engine.configured_model", lambda: pe.MODEL_ID)
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", lambda *args, **kwargs: calls.append(args))
+    assert pe.ensure_downloaded() is True
+    assert len(calls) == len(pe.MODEL_FILES)
+
+
+def test_prefetch_never_runs_two_downloads_at_once(missing_model, monkeypatch):
+    """Lanceur et repli de la mémoire demandent le même téléchargement."""
+    release = threading.Event()
+    monkeypatch.setattr(pe, "ensure_downloaded", release.wait)
+    monkeypatch.setattr(pe, "_prefetch", None)
+    first = pe.prefetch_in_background()
+    try:
+        assert pe.prefetch_in_background() is first
+    finally:
+        release.set()
+        first.join(5)
+
+
+def test_passages_share_the_memory_engine(monkeypatch):
+    """Une seule instance de Granite (≈ 430 Mo) pour la mémoire et les longs documents."""
+    shared = object()
+    monkeypatch.setattr(pe, "enabled", lambda: True)
+    monkeypatch.setattr(pe, "is_downloaded", lambda: True)
+    monkeypatch.setattr(pe, "_model", None)
+    monkeypatch.setattr(pe, "_unusable", False)
+    monkeypatch.setattr("core.embedding_engine.engine_for", lambda model_id: shared)
+    assert pe._loaded_model() is shared  # pylint: disable=protected-access
 
 
 def test_prefetch_downloads_in_a_background_thread(missing_model, monkeypatch):

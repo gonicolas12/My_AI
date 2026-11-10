@@ -301,12 +301,18 @@ optimization:
   # RAG (Retrieval-Augmented Generation)
   rag:
     enabled: true
-    # Aligné sur la limite d'input de all-MiniLM-L6-v2 (256 tokens)
-    # pour éviter la troncature silencieuse lors du calcul d'embedding
+    # Morceaux de la mémoire vectorielle, en tokens tiktoken. Mesuré sur la
+    # doc de My_AI (29 questions, 9 langues) avec Granite, qui lit jusqu'à
+    # 512 tokens : 3 bons passages retrouvés 76 % du temps à 256, 62 % à 512
     chunk_size: 256
     chunk_overlap: 32
     max_retrieved_chunks: 3
-    embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+    # Modèle des embeddings de la mémoire et du RAG : Granite multilingue (une
+    # question en français retrouve un passage anglais, arabe, chinois...).
+    # Changer de modèle recalcule l'index en arrière-plan (une collection
+    # ChromaDB par modèle). Repli sur sentence-transformers/all-MiniLM-L6-v2
+    # (anglais) tant que le modèle choisi n'est pas téléchargé
+    embedding_model: "ibm-granite/granite-embedding-107m-multilingual"
     vector_store_path: "./data/vector_store"
     
   # Context Window Optimization

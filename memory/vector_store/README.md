@@ -15,7 +15,7 @@ Ce dossier contient la **base de données vectorielle** de votre assistant IA. C
 vector_store/
 ├── chroma_db/              # Base de données ChromaDB (SQLite + vecteurs)
 │   ├── chroma.sqlite3      # Métadonnées et index
-│   ├── *.bin               # Vecteurs d'embeddings (384 dimensions)
+│   ├── *.bin               # Vecteurs d'embeddings (384 dimensions avec Granite)
 │   └── *.parquet           # Collections (conversations, documents)
 └── README.md               # Ce fichier
 ```
@@ -58,10 +58,11 @@ Query: "Développer un service web"
 | Métrique | Valeur |
 |----------|--------|
 | **Capacité maximale** | 1,000,000 tokens |
-| **Taille des chunks** | 512 tokens |
-| **Overlap chunks** | 50 tokens |
+| **Taille des chunks** | 256 tokens |
+| **Overlap chunks** | 32 tokens |
 | **Dimensions vecteur** | 384 |
-| **Modèle embeddings** | all-MiniLM-L6-v2 |
+| **Modèle embeddings** | Granite Embedding 107M multilingue (repli all-MiniLM-L6-v2) |
+| **Collections** | Une par modèle d'embeddings (réindexation en arrière-plan au changement) |
 | **Recherche** | Cosine similarity |
 | **Stockage** | SQLite + Parquet |
 

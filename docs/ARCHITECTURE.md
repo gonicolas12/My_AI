@@ -6,7 +6,7 @@ My Personal AI v9.1.0 est une **IA locale 100%** avec un système de **Mémoire 
 
 - **Mémoire Vectorielle Intelligente** : ChromaDB + embeddings sémantiques (10M tokens réel)
 - **Tokenization Précise** : tiktoken cl100k_base (compatible Llama 3, précision maximale vs 70% approximation)
-- **Recherche Sémantique** : Sentence-transformers (384 dimensions, similarité cosinus)
+- **Recherche Sémantique** : Granite Embedding 107M multilingue via sentence-transformers (384 dimensions, similarité cosinus) : une question trouve la réponse dans une autre langue
 - **Météo Temps Réel** : Open-Meteo intégré (gratuit, sans clé, prévisions sur 7 jours)
 - **ChatOrchestrator** : Boucle agentique ReAct + Plan & Execute + Scratchpad persistant pour le tool-calling
 - **Architecture 100% Locale** : Aucune dépendance cloud obligatoire, persistance locale
@@ -485,7 +485,9 @@ Téléchargement:
 │  fige pas le terminal (reprise au lancement suivant), pas de WinError 1314
 │  (Windows sans droit de lien symbolique)
 ├─ Échec réseau → message + aide proxy (core.network), nouvel essai au lancement suivant
-└─ Désactivation : optimization.rag.multilingual_passages: false (config.yaml)
+├─ Désactivation : optimization.rag.multilingual_passages: false (config.yaml)
+└─ Téléchargé quand même s'il est le modèle de la mémoire vectorielle
+   (core/embedding_engine.py), qui partage la même instance et son verrou
 Utilisation:
 ├─ similarities(query, passages) → cosinus ou None (absent, désactivé, inutilisable)
 ├─ Chargement au premier long document (≈ 1 s, ≈ 430 Mo de RAM)
@@ -529,10 +531,30 @@ Architecture:
 **`core/shared.py`** - Module partagé
 ```python
 Contenu:
-├─ Modèle embeddings partagé (all-MiniLM-L6-v2)
+├─ Moteur d'embeddings partagé (core/embedding_engine.py : Granite 107M
+│  multilingue par défaut, repli all-MiniLM-L6-v2 s'il manque)
 ├─ Offline-first : chargé depuis le dossier du cache, sans aucune requête au
 │  Hub ; téléchargé seulement s'il n'y est pas (premier lancement)
 └─ Évite de charger sentence_transformers 3× au démarrage
+```
+
+**`core/embedding_engine.py`** - Moteur d'embeddings de la mémoire et du RAG
+```python
+Modèle:
+├─ optimization.rag.embedding_model (config.yaml) : Granite 107M multilingue
+│  par défaut, même instance que core/passage_embeddings.py
+├─ Mesuré le 10/11/2026 (29 questions en 9 langues, doc de My_AI) : 3 bons
+│  passages retrouvés 76 % du temps contre 28 % avec all-MiniLM-L6-v2,
+│  à vitesse égale ; EmbeddingGemma 2 (Ollama) 76 à 79 %, 10× plus lent
+Repli:
+├─ Modèle choisi absent du cache → MiniLM pour la session (index MiniLM),
+│  téléchargement en arrière-plan, utilisé au lancement suivant
+└─ Rien en cache (premier lancement) → téléchargement direct du modèle choisi
+Interface:
+├─ encode() comme sentence-transformers, encode_query() / encode_document()
+│  (prompts du modèle s'il en a) ; calculs sérialisés entre threads
+└─ collection_name(base, modèle, dimension) : une collection ChromaDB par
+   modèle et dimension (MiniLM garde documents / conversations / codebase)
 ```
 
 **`core/validation.py`** - Validation Pydantic
@@ -816,20 +838,22 @@ Capacités clés:
 Architecture ML:
 ├─ tiktoken (cl100k_base, compatible Llama 3)
 │   └─ Comptage précis (vocabulaire aligné avec le LLM)
-├─ Sentence-Transformers (all-MiniLM-L6-v2)
-│   └─ Embeddings 384 dimensions
+├─ Moteur d'embeddings partagé (core/embedding_engine.py)
+│   └─ Granite 107M multilingue, 384 dimensions (repli all-MiniLM-L6-v2)
 ├─ CrossEncoder ms-marco-MiniLM-L-6-v2 (reranking)
 │   └─ Chargé une fois depuis le cache, sans requête au Hub, et partagé
 │      par toutes les instances (predict sérialisé entre threads)
 ├─ ChromaDB PersistentClient
-│   ├─ Collections: documents, conversations
+│   ├─ Collections: documents, conversations, codebase, une par modèle
+│   │  d'embeddings (memory/embedding_reindex.py recalcule l'ancienne en
+│   │  arrière-plan au changement de modèle, puis la supprime)
 │   ├─ Backend: SQLite + Parquet
 │   └─ Index: HNSW (similarité cosinus)
 └─ Chiffrement AES-256 (optionnel)
 
 Capacités:
 ├─ Max 10M tokens stockage
-├─ Chunks 256 tokens (overlap 32, aligné all-MiniLM-L6-v2)
+├─ Chunks 256 tokens (overlap 32, optimization.rag ; meilleur rappel qu'à 512)
 ├─ Recherche sémantique ultra-rapide (0.02s)
 ├─ Déduplication automatique
 ├─ Cleanup intelligent (capacité atteinte)
@@ -1769,9 +1793,9 @@ Total typique:            1.3GB - 2.5GB RAM
 Tokenization précision:   tiktoken cl100k_base (compatible Llama 3) vs 70% (approximation mots)
 Context window standard:  32768 tokens
 Context ultra mode:       10,485,760 tokens (10M)
-Chunk size VectorMemory:  256 tokens (aligné all-MiniLM-L6-v2)
+Chunk size VectorMemory:  256 tokens (meilleur rappel qu'à 512 avec Granite)
 Chunk overlap:            32 tokens (~12%, contexte préservé)
-Embedding dimensions:     384 (all-MiniLM-L6-v2)
+Embedding dimensions:     384 (Granite 107M multilingue)
 Search speed:             <20ms pour 10M tokens
 ```
 

@@ -161,18 +161,22 @@ Hugging Face) :
 
 | Modèle | Taille | Usage |
 |---|---|---|
-| `all-MiniLM-L6-v2` | 90 Mo | Mémoire et recherche sémantique |
-| `granite-embedding-107m-multilingual` (IBM, Apache 2.0) | 228 Mo | Passages des longs documents, y compris quand la question et le document ne sont pas dans la même langue |
+| `granite-embedding-107m-multilingual` (IBM, Apache 2.0) | 228 Mo | Mémoire et recherche sémantique, passages des longs documents : une question trouve la réponse même dans une autre langue |
+| `all-MiniLM-L6-v2` | 90 Mo | Repli de la mémoire si Granite manque (déjà en cache sur les installations plus anciennes) |
 
-Le second se télécharge en arrière-plan, au premier lancement comme au premier
-lancement après la mise à jour qui l'introduit. L'app reste utilisable pendant
-ce temps (passages choisis par mots-clés), et un téléchargement interrompu par
-la fermeture de l'app reprend au lancement suivant. Pour s'en passer :
+Granite se télécharge au premier lancement. Sur une installation mise à jour
+qui ne l'a pas encore, il se télécharge en arrière-plan : l'app reste utilisable
+pendant ce temps (mémoire sur MiniLM, passages choisis par mots-clés), puis la
+mémoire passe à Granite au lancement suivant et se réindexe en arrière-plan
+(voir [MEMORY.md](MEMORY.md#-recherche-multilingue)). Un téléchargement
+interrompu par la fermeture de l'app reprend au lancement suivant. Pour s'en
+passer et garder MiniLM :
 
 ```yaml
 # config.yaml
 optimization:
   rag:
+    embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
     multilingual_passages: false
 ```
 

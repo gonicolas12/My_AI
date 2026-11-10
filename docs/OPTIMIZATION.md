@@ -131,7 +131,7 @@ from memory.vector_memory import VectorMemory
 # Initialisation
 context_mgr = VectorMemory(
     max_tokens=10_485_760,    # 10M tokens max
-    chunk_size=256,           # Aligné sur all-MiniLM-L6-v2
+    chunk_size=256,           # Défaut : optimization.rag.chunk_size
     storage_dir="memory/vector_store"
 )
 
@@ -188,9 +188,36 @@ ai:
 
 optimization:
   rag:
-    chunk_size: 256            # Aligné sur all-MiniLM-L6-v2
+    chunk_size: 256            # Meilleur rappel que 512 avec Granite (mesuré)
     chunk_overlap: 32          # ~12% pour continuité
+    embedding_model: "ibm-granite/granite-embedding-107m-multilingual"
 ```
+
+#### Modèle d'Embeddings (multilingue)
+
+**Fichiers :** `core/embedding_engine.py` (moteur, repli), `memory/embedding_reindex.py` (réindexation)
+
+Le modèle d'embeddings de la mémoire et du RAG est **Granite Embedding 107M multilingue** (IBM, Apache 2.0, 228 Mo, 384 dimensions), celui de la sélection des passages des longs documents : une seule instance chargée pour les deux. Il remplace `all-MiniLM-L6-v2`, entraîné pour l'anglais, qui ne retrouvait presque rien dès que la question et le document n'étaient pas dans la même langue.
+
+Mesure du 10/11/2026 : 29 questions en 9 langues (français, anglais, espagnol, allemand, italien, portugais, arabe, chinois, japonais, russe, coréen) sur la documentation française et anglaise de My_AI, découpée comme la mémoire vectorielle.
+
+| Modèle | Morceaux | 3 bons passages retrouvés | MRR@10 | Indexation (283 morceaux) | Question |
+|---|---|---|---|---|---|
+| all-MiniLM-L6-v2 (avant) | 256 | 0,28 | 0,23 | 9,8 s | 6 ms |
+| **Granite 107M multilingue** | **256** | **0,76** | **0,67** | 13,5 s | 7 ms |
+| Granite 107M multilingue | 512 | 0,62 | 0,62 | 13,2 s | 8 ms |
+| EmbeddingGemma 2 (Ollama, 768 dim.) | 256 | 0,76 | 0,72 | 85 s | 73 ms |
+| EmbeddingGemma 2 (Ollama, 768 dim.) | 512 | 0,79 | 0,63 | 34 s | 62 ms |
+
+Sur CPU (Core Ultra 7 255H). EmbeddingGemma 2 fait à peine mieux, dix fois plus lentement, avec 0,5 Go sur le GPU à côté du modèle de chat et un téléchargement de 0,3 Go : non retenu.
+
+- **Morceaux de 256 tokens** : Granite lit jusqu'à 512 tokens, mais retrouve mieux à 256 (0,76 contre 0,62). `chunk_size` et `chunk_overlap` de `config.yaml` sont lus par `VectorMemory`.
+- **Requête et document** : le moteur garde `encode()` et ajoute `encode_query()` / `encode_document()`, qui appliquent les « prompts » d'un modèle qui en a (aucun pour Granite et MiniLM). Ses calculs sont sérialisés (tokenizer rapide non réentrant).
+- **Une collection ChromaDB par modèle et par dimension** (`documents__<modèle>-<empreinte>__<dimension>`), jamais de mélange, même à 384 dimensions. MiniLM garde `documents`, `conversations` et `codebase`.
+- **Réindexation en arrière-plan** depuis les textes stockés (déchiffrés pour le calcul), par lots de 16 pour laisser le modèle libre entre deux lots ; l'ancienne collection est gardée jusqu'à la fin, puis supprimée ; reprise au lancement suivant si l'appli est fermée avant. Jamais vers un modèle de repli.
+- **Repli sur MiniLM** pour la session si le modèle choisi n'est pas en cache (Granite se télécharge alors en arrière-plan) ; au tout premier lancement, téléchargement direct du modèle choisi.
+- **Reranking inchangé** : CrossEncoder `ms-marco-MiniLM-L-6-v2` sur les 3× candidats. Entraîné pour l'anglais, il défait une partie du gain : sur les mêmes questions, les 3 passages retenus contiennent la réponse 79 % du temps sans lui avec Granite, 55 % après lui (MiniLM : 38 % → 48 %). Un reranker multilingue reste à mesurer.
+- **Seuil `search.max_distance`** (0,55 ; recherche des conversations, seulement sans reranker) : réglé pour MiniLM. Avec Granite, le meilleur passage d'une question hors sujet est aussi sous 0,55 (0,31 à 0,42) : le seuil ne filtre plus rien. À recalibrer avec le reranker.
 
 **Recommandations par RAM:**
 ```yaml

@@ -22,6 +22,26 @@ Cliquez sur **Mémoire** en bas de la barre latérale (ou cherchez « Mémoire �
 
 ---
 
+## 🌍 Recherche multilingue
+
+La mémoire vectorielle (onglets **Documents** et **Conversations**, outil `search_memory`, recherche globale, dossiers attachés) cherche par le **sens**, avec un modèle d'embeddings local : **Granite Embedding 107M multilingue** (IBM, Apache 2.0, 228 Mo), celui qui choisit déjà les passages des longs documents. Une question en français retrouve un passage anglais, arabe ou chinois.
+
+| Modèle | 3 bons passages retrouvés | Vitesse |
+|---|---|---|
+| all-MiniLM-L6-v2 (avant, entraîné pour l'anglais) | 28 % | référence |
+| **Granite 107M multilingue** (par défaut) | **76 %** | identique |
+
+*29 questions en 9 langues sur la documentation française et anglaise de My_AI (10/11/2026). EmbeddingGemma 2 via Ollama faisait 76 à 79 %, dix fois plus lentement et 0,5 Go sur le GPU : non retenu.*
+
+- **Réglage** : `optimization.rag.embedding_model` dans `config.yaml` (un modèle sentence-transformers du Hub Hugging Face, ou un dossier local).
+- **Une collection par modèle** : les vecteurs de deux modèles ne se comparent pas, même à dimension égale. Chaque modèle a donc ses collections ChromaDB (`documents__granite-embedding-107m-multiling-8e8c41d0__384`…) ; MiniLM garde les noms historiques (`documents`, `conversations`, `codebase`).
+- **Réindexation en arrière-plan** : au premier lancement avec un autre modèle, les entrées existantes sont recalculées depuis leur texte stocké (déchiffré pour le calcul, toujours chiffré dans la base), avec les mêmes identifiants et la même provenance. Pendant ce temps, la recherche ne voit que ce qui est déjà recalculé ; ce que vous supprimez ou modifiez l'est aussi dans l'ancienne collection, et rien ne revient. L'ancienne collection n'est supprimée qu'à la fin : appli fermée avant, la copie reprend au lancement suivant. Comptez quelques minutes pour plusieurs milliers d'entrées.
+- **Repli** : tant que Granite n'est pas téléchargé (il l'est en arrière-plan au lancement), MiniLM sert la session avec l'index MiniLM ; Granite prend le relais au lancement suivant.
+- **Morceaux** : 256 tokens, 32 de chevauchement (`optimization.rag.chunk_size` / `chunk_overlap`). Granite lit jusqu'à 512 tokens, mais retrouve mieux à 256 (76 % contre 62 % à 512).
+- Le **reranking** (CrossEncoder `ms-marco-MiniLM-L-6-v2`) n'a pas changé.
+
+---
+
 ## 💬 Mémoriser depuis le chat
 
 Dites-le simplement dans la conversation :
@@ -98,7 +118,12 @@ core/memory_store.py  ── MemoryStore  # Façade CRUD unifiée (testable sans
         └─ memory/vector_memory.py          # Vecteurs (ChromaDB) — CRUD par entrée
              ├─ list_entries / get_entry / count_entries
              ├─ update_entry  (ré-embarque)
-             └─ delete_entry  (vraie suppression ChromaDB)
+             ├─ delete_entry  (vraie suppression ChromaDB)
+             └─ memory/embedding_reindex.py  # Changement de modèle : copie en arrière-plan
+
+core/embedding_engine.py           # Modèle d'embeddings (Granite, repli MiniLM) :
+                                   # encode / encode_query / encode_document,
+                                   # nom de collection par modèle
 
 core/ai_engine.py                  # Côté chat
    ├─ _remember_from_message()     # « retiens que… » → KnowledgeBaseManager.remember()
@@ -140,7 +165,10 @@ Oui : le fait apparaît dans l'onglet **Faits** et sert dans les conversations s
 Oui. Les faits sont supprimés de la base SQLite ; les entrées vectorielles via `ChromaDB.delete`. Pour les conversations, l'option « à la source » retire aussi le message du workspace.
 
 **Le chiffrement est-il géré ?**
-Oui. Si le chiffrement AES-256 de la mémoire vectorielle est actif, les entrées sont **déchiffrées** pour l'affichage et **re-chiffrées** à l'édition.
+Oui. Si le chiffrement AES-256 de la mémoire vectorielle est actif, les entrées sont **déchiffrées** pour l'affichage et **re-chiffrées** à l'édition. La réindexation après un changement de modèle déchiffre le texte pour le calcul seulement : il reste chiffré dans la base.
+
+**Après la mise à jour, la recherche ne trouve pas tout ?**
+La mémoire est recalculée avec le nouveau modèle, en arrière-plan, juste après le lancement (« 🔄 Réindexation de la mémoire » dans la console, puis « ✅ Réindexation terminée »). Les entrées apparaissent au fur et à mesure ; rien n'est perdu (voir [Recherche multilingue](#-recherche-multilingue)).
 
 **Est-ce que ça reste local ?**
 Entièrement. Toutes les opérations s'effectuent sur les fichiers locaux (`data/knowledge_base/`, `memory/vector_store/`).

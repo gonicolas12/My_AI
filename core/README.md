@@ -27,7 +27,8 @@ Contenu principal
 ### Configuration & Données
 
 - `config.py` — Configuration par défaut (dictionnaires `AI_CONFIG`, `FILE_CONFIG`, `UI_CONFIG`) et la classe `Config` pour charger/sauvegarder `config.yaml`. La clé `llm.local.default_model` est la **source unique** du nom de modèle.
-- `shared.py` — Module anti-import-circulaire. Contient le **modèle d'embeddings partagé** (`all-MiniLM-L6-v2` via `sentence_transformers`) chargé une seule fois au démarrage (stratégie offline-first puis online) pour éviter de l'instancier plusieurs fois dans les différents modules.
+- `shared.py` — Module anti-import-circulaire. Contient le **moteur d'embeddings partagé** (voir `embedding_engine.py`) chargé une seule fois au démarrage (stratégie offline-first puis online) pour éviter de l'instancier plusieurs fois dans les différents modules.
+- `embedding_engine.py` — Moteur d'embeddings de la mémoire et du RAG : modèle de `optimization.rag.embedding_model` (Granite Embedding 107M multilingue par défaut, même instance que `passage_embeddings.py`), repli sur `all-MiniLM-L6-v2` tant qu'il manque, `encode()` plus `encode_query()` / `encode_document()`, et nom de la collection ChromaDB de chaque modèle (`collection_name`).
 - `validation.py` — Validation Pydantic de toutes les entrées utilisateur. `UserQueryInput` vérifie longueur, caractères dangereux (injections `eval`, `exec`, `os.system`, etc.) et contexte additionnel. `ToolArgumentsInput` valide les arguments des appels d'outils.
 
 ### Gestion du Contexte & Conversation
@@ -91,7 +92,7 @@ Notes et bonnes pratiques
 ------------------------
 
 - **Point d'entrée principal** : `AIEngine` orchestre tous les modules. Tout tool-calling passe par `ChatOrchestrator` (page Chat) ou `AgentOrchestrator` (page Agents) — ces deux orchestrateurs sont **indépendants** et ne se partagent pas.
-- **Modèle partagé** : `shared.py` expose le modèle d'embeddings `all-MiniLM-L6-v2` via `get_shared_embedding_model()` pour éviter de le charger plusieurs fois (important pour les performances de démarrage).
+- **Modèle partagé** : `shared.py` expose le moteur d'embeddings (Granite multilingue, repli MiniLM) via `get_shared_embedding_model()` pour éviter de le charger plusieurs fois (important pour les performances de démarrage).
 - **Source unique du modèle LLM** : Seul `config.yaml` (clé `llm.local.default_model`) définit le modèle Ollama. Ne pas le dupliquer dans d'autres fichiers.
 - **Identité du Modelfile** : Ollama n'applique le SYSTEM du modèle `my_ai` que si la requête ne contient aucun message « system ». Tout prompt système d'une réponse affichée à l'utilisateur doit donc passer par `with_modelfile()` (`modelfile.py`) : sinon il remplace l'identité et le format de My_AI.
 - **Sécurité des entrées** : utiliser `validation.py` (Pydantic) pour valider toutes les entrées utilisateur et les arguments d'outils avant de les transmettre au LLM.

@@ -39,10 +39,12 @@ _EMBEDDINGS_AVAILABLE = False
 
 def _load_embedding_model():
     """
-    Charge le modèle d'embeddings avec stratégie intelligente:
-    1. Essaie d'abord en mode offline (rapide si modèle en cache)
-    2. Si échec, passe en mode online pour télécharger le modèle
-    
+    Charge le moteur d'embeddings de la mémoire et du RAG (core.embedding_engine) :
+    1. le modèle de config.yaml (Granite par défaut), depuis le cache ;
+    2. sinon MiniLM, s'il est en cache, pour cette session (le modèle choisi se
+       télécharge en arrière-plan pour le lancement suivant) ;
+    3. sinon (premier lancement), téléchargement du modèle choisi.
+
     Retourne (model, success) tuple
     """
     global _SHARED_EMBEDDING_MODEL, _EMBEDDINGS_AVAILABLE
@@ -52,91 +54,30 @@ def _load_embedding_model():
     for warning in network_info.get("warnings", []):
         print(f"⚠️ [NETWORK] {warning}")
 
-    model_name = "sentence-transformers/all-MiniLM-L6-v2"
-    try:
-        from core.config import get_config  # pylint: disable=import-outside-toplevel
-
-        model_name = str(
-            get_config().get(
-                "optimization.rag.embedding_model",
-                model_name,
-            )
-        )
-    except Exception:
-        pass
-
-    # Étape 1: Essayer en mode OFFLINE (cache local)
+    # Le reste du processus ne contacte plus le Hub pour des modèles déjà en
+    # cache. Les modèles sont chargés depuis leur dossier, sans aucune requête :
+    # HF_HUB_OFFLINE seul ne suffit pas (huggingface_hub le fige à son import,
+    # déjà fait par configure_network_environment), et même avec
+    # local_files_only, sentence-transformers 5 interroge encore le Hub pour le
+    # tokenizer. Un proxy TLS (Zscaler...) faisait alors échouer un cache
+    # pourtant complet.
     os.environ['HF_HUB_OFFLINE'] = '1'
     os.environ['TRANSFORMERS_OFFLINE'] = '1'
     os.environ['HF_DATASETS_OFFLINE'] = '1'
 
+    print("📦 Chargement du modèle d'embeddings... (Mode offline)")
     try:
-        print("📦 Chargement du modèle d'embeddings... (Mode offline)")
-        from huggingface_hub import snapshot_download  # pylint: disable=import-outside-toplevel
-        from sentence_transformers import SentenceTransformer # pylint: disable=import-outside-toplevel
-        # Chargé depuis le dossier du cache, sans aucune requête : HF_HUB_OFFLINE
-        # seul ne suffit pas (huggingface_hub le fige à son import, déjà fait par
-        # configure_network_environment), et même avec local_files_only,
-        # sentence-transformers 5 interroge encore le Hub pour le tokenizer. Un
-        # proxy TLS (Zscaler...) faisait alors échouer un cache pourtant complet.
-        model_path = (model_name if os.path.isdir(model_name)
-                      else snapshot_download(model_name, local_files_only=True))
-        _SHARED_EMBEDDING_MODEL = SentenceTransformer(model_path)
-        _EMBEDDINGS_AVAILABLE = True
-        print("✅ Modèle d'embeddings chargé depuis le cache")
-        return _SHARED_EMBEDDING_MODEL, True
-    except Exception as offline_error:
-        # Le modèle n'est pas en cache, on doit le télécharger
-        offline_msg = str(offline_error).lower()
-        needs_download = any(x in offline_msg for x in [
-            'offline', 'cache', 'not found', 'connection', 'network',
-            'does not exist', 'no such file', 'ssl', 'certificate'
-        ])
+        from core.embedding_engine import load_engine  # pylint: disable=import-outside-toplevel
 
-        if needs_download:
-            print("📥 Premier lancement détecté - Téléchargement du modèle... (Cela peut prendre plusieurs minutes)")
-            print("   (Cela ne se produira qu'une seule fois)")
-
-            # Étape 2: Désactiver le mode offline et télécharger
-            os.environ['HF_HUB_OFFLINE'] = '0'
-            os.environ['TRANSFORMERS_OFFLINE'] = '0'
-            os.environ['HF_DATASETS_OFFLINE'] = '0'
-
-            try:
-                # Recharger le module pour prendre en compte les nouvelles variables
-                import importlib # pylint: disable=import-outside-toplevel
-                import sentence_transformers # pylint: disable=import-outside-toplevel
-                importlib.reload(sentence_transformers)
-                from sentence_transformers import SentenceTransformer # pylint: disable=import-outside-toplevel
-
-                _SHARED_EMBEDDING_MODEL = SentenceTransformer(model_name)
-                _EMBEDDINGS_AVAILABLE = True
-                print("✅ Modèle téléchargé et prêt (sera en cache pour les prochains lancements)")
-
-                # Remettre en mode offline pour la suite de l'exécution
-                os.environ['HF_HUB_OFFLINE'] = '1'
-                os.environ['TRANSFORMERS_OFFLINE'] = '1'
-                os.environ['HF_DATASETS_OFFLINE'] = '1'
-
-                return _SHARED_EMBEDDING_MODEL, True
-            except Exception as download_error:
-                print(f"⚠️ Impossible de télécharger le modèle: {download_error}")
-                help_msg = build_network_error_help(download_error)
-                if help_msg:
-                    print(help_msg)
-                print("   Vérifiez votre connexion internet et réessayez.")
-                _SHARED_EMBEDDING_MODEL = None
-                _EMBEDDINGS_AVAILABLE = False
-                return None, False
-        else:
-            # Autre erreur (pas liée au mode offline)
-            print(f"⚠️ Modèle d'embeddings non disponible: {offline_error}")
-            help_msg = build_network_error_help(offline_error)
-            if help_msg:
-                print(help_msg)
-            _SHARED_EMBEDDING_MODEL = None
-            _EMBEDDINGS_AVAILABLE = False
-            return None, False
+        _SHARED_EMBEDDING_MODEL = load_engine()
+    except Exception as error:
+        print(f"⚠️ Modèle d'embeddings non disponible: {error}")
+        help_msg = build_network_error_help(error)
+        if help_msg:
+            print(help_msg)
+        _SHARED_EMBEDDING_MODEL = None
+    _EMBEDDINGS_AVAILABLE = _SHARED_EMBEDDING_MODEL is not None
+    return _SHARED_EMBEDDING_MODEL, _EMBEDDINGS_AVAILABLE
 
 
 # Charger le modèle au démarrage
@@ -145,12 +86,15 @@ _load_embedding_model()
 
 def get_shared_embedding_model():
     """
-    Retourne le modèle d'embeddings partagé (déjà chargé au démarrage).
+    Retourne le moteur d'embeddings partagé (déjà chargé au démarrage).
+
+    Un core.embedding_engine.EmbeddingEngine : encode() comme
+    sentence-transformers, plus encode_query() et encode_document().
     Usage:
-        from core.shared import get_SHARED_EMBEDDING_MODEL
-        model = get_SHARED_EMBEDDING_MODEL()
+        from core.shared import get_shared_embedding_model
+        model = get_shared_embedding_model()
         if model:
-            embeddings = model.encode(texts)
+            embeddings = model.encode_document(texts)
     """
     return _SHARED_EMBEDDING_MODEL
 
