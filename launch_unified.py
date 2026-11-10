@@ -3,9 +3,9 @@
 🚀 MY PERSONAL AI - LAUNCHER UNIFIÉ v9.1.0
 Lance l'interface avec CustomAI unifié (support 10M tokens intégré)
 
-Portable Windows / macOS / Linux : les appels propres à un OS (registre,
-taskkill, launchctl…) sont isolés derrière des gardes de plateforme et
-importés paresseusement, pour que ce module reste importable partout.
+Portable Windows / macOS / Linux : les appels propres à un OS (taskkill,
+pkill, osascript…) sont isolés derrière des gardes de plateforme, pour que ce
+module reste importable partout.
 """
 
 import argparse
@@ -52,6 +52,16 @@ OLLAMA_TAGS_URL = f"http://{_OLLAMA_IP}:{_OLLAMA_PORT}/api/tags"
 # Attente maximale, après l'arrêt d'Ollama, que son port soit rendu
 _PORT_RELEASE_TIMEOUT = 10.0
 
+# Requêtes simultanées par modèle (OLLAMA_NUM_PARALLEL) : les nœuds parallèles
+# des workflows d'agents avancent en même temps. Depuis Ollama 0.40.15, qwen3.5
+# en profite aussi (forcé à une requête avant), et chaque requête simultanée
+# réserve son propre contexte : my_ai en 32 768 tokens occupe 7,0 Gio avec 4,
+# contre 3,9 Gio avec 1. Mesuré sur un Core Ultra 7 255H (Arc 140T) : 4 agents
+# en parallèle 2,2 à 3,3 fois plus vite, requête seule sans écart démontré.
+# Une valeur définie par l'utilisateur l'emporte (OLLAMA_NUM_PARALLEL=1 pour
+# économiser la mémoire).
+DEFAULT_NUM_PARALLEL = "4"
+
 
 def _ollama_is_running(timeout: float = 2.0) -> bool:
     """Vrai si un serveur Ollama répond déjà sur le port local."""
@@ -79,55 +89,10 @@ def _port_is_free() -> bool:
     return True
 
 
-def _persist_env_var(name: str, value: str) -> None:
-    """Enregistre la variable pour les prochains lancements, selon l'OS.
-
-    Windows : registre utilisateur (permanent, sans admin).
-    macOS   : ``launchctl setenv`` — vu par l'app Ollama lancée ensuite depuis
-              le Finder, mais remis à zéro à la fin de la session.
-    Linux   : pas de mécanisme utilisateur standard ; on se contente de
-              l'environnement de nos processus enfants.
-    """
-    if IS_WINDOWS:
-        try:
-            import ctypes  # pylint: disable=import-outside-toplevel
-            import winreg  # pylint: disable=import-outside-toplevel
-
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_ALL_ACCESS
-            )
-            try:
-                current, _ = winreg.QueryValueEx(key, name)
-            except FileNotFoundError:
-                current = None
-            if current != value:
-                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
-                print(f"📝 Variable {name}={value} enregistrée (permanent)")
-                # Notifier Windows du changement
-                ctypes.windll.user32.SendMessageTimeoutW(
-                    0xFFFF, 0x001A, 0, "Environment", 0, 1000, None
-                )
-            winreg.CloseKey(key)
-        except Exception as e:
-            print(f"⚠️ Impossible d'écrire la variable registre: {e}")
-        return
-
-    if IS_MACOS:
-        try:
-            subprocess.run(
-                ["launchctl", "setenv", name, value],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                check=False,
-            )
-            print(f"📝 Variable {name}={value} posée via launchctl (session courante)")
-        except FileNotFoundError:
-            print("⚠️ launchctl introuvable — variable posée pour ce processus seulement")
-        return
-
-    print(
-        f"💡 Pour rendre {name}={value} permanent sous Linux, passez par "
-        "'systemctl edit ollama.service' ou votre profil shell"
-    )
+def _num_parallel() -> str:
+    """OLLAMA_NUM_PARALLEL défini par l'utilisateur (un entier), sinon le défaut de l'appli."""
+    value = os.environ.get("OLLAMA_NUM_PARALLEL", "").strip()
+    return value if value.isdigit() else DEFAULT_NUM_PARALLEL
 
 
 def _kill_ollama() -> None:
@@ -209,19 +174,21 @@ def _restart_ollama(placement_env: dict) -> bool:
 
 
 def _ensure_ollama_parallel():
-    """Configure Ollama pour le parallélisme et le redémarre si nécessaire."""
-    num_parallel = "4"
+    """(Re)lance Ollama avec le parallélisme de l'appli et le placement retenu.
 
-    # ── 1. Rendre la variable persistante autant que l'OS le permet ──
-    _persist_env_var("OLLAMA_NUM_PARALLEL", num_parallel)
-
-    # ── 2. Définir pour notre processus aussi ──
+    OLLAMA_NUM_PARALLEL n'est passée qu'au serveur lancé ici. Elle n'est plus
+    écrite pour tout le système (registre, launchctl) : avec Ollama 0.40.15 ou
+    plus, elle ferait réserver plusieurs contextes à chaque modèle des autres
+    applis qui utilisent Ollama.
+    """
+    # ── 1. Valeur de l'utilisateur, sinon celle de l'appli (cf. DEFAULT_NUM_PARALLEL) ──
+    num_parallel = _num_parallel()
     os.environ["OLLAMA_NUM_PARALLEL"] = num_parallel
 
-    # ── 3. (Re)lancer Ollama avec ce parallélisme et le placement du modèle
+    # ── 2. (Re)lancer Ollama avec ce parallélisme et le placement du modèle
     #       retenu au dernier calibrage (GPU ou processeur) ──
     if not _port_is_free():
-        print("🔄 Redémarrage d'Ollama avec OLLAMA_NUM_PARALLEL=4...")
+        print(f"🔄 Redémarrage d'Ollama avec OLLAMA_NUM_PARALLEL={num_parallel}...")
     try:
         ready = _restart_ollama(saved_env())
     except FileNotFoundError:
@@ -238,7 +205,9 @@ def _ensure_ollama_parallel():
         return
     label = placement_label()
     details = f", {label}" if label else ""
-    print(f"✅ Ollama prêt (parallélisme: {num_parallel} requêtes simultanées{details})")
+    parallel = ("1 requête à la fois" if num_parallel == "1"
+                else f"{num_parallel} requêtes simultanées")
+    print(f"✅ Ollama prêt (parallélisme: {parallel}{details})")
 
 # =========================================================================== #
 # NOTE: Le mode offline HuggingFace est géré automatiquement dans core.shared #
