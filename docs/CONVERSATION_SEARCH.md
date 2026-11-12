@@ -26,7 +26,7 @@ Un manifeste `memory/vector_store/conversation_index.json` mémorise le `last_mo
 - les workspaces **supprimés** sont **purgés** de l'index ;
 - un **numéro de schéma** force une réindexation complète quand la logique d'indexation évolue.
 
-L'index est **rafraîchi automatiquement** avant chaque recherche (incrémental, donc rapide). Le bouton **🔄** force une réindexation complète.
+L'index est **rafraîchi automatiquement** avant chaque recherche (incrémental, donc rapide). Le bouton **🔄** force une réindexation complète ; le nombre de messages indexés s'affiche alors quelques secondes sous le champ de recherche.
 
 ### Couverture
 **Chaque message non vide** est indexé — **utilisateur ET assistant**, **sans aucune limite de longueur**. Seuls les types purement techniques (placeholders de génération de fichier, images) sont ignorés.
