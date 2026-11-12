@@ -269,4 +269,11 @@ describe('reduceChat', () => {
     expect(answer?.rating).toBe(4);
     expect(state.messages[0]?.rating).toBeUndefined();
   });
+
+  it('renomme la conversation ouverte, pas une autre', () => {
+    const state = run(event('conversation.renamed', { name: 'Projet X' }));
+    expect(state.name).toBe('Projet X');
+    const other = { ...event('conversation.renamed', { name: 'Autre' }), conversation_id: 'c2' };
+    expect(reduceChat(state, other).name).toBe('Projet X');
+  });
 });

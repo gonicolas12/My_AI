@@ -11,6 +11,11 @@ Principe :
     le `last_modified` de chaque workspace deja indexe. Au reindex, seuls les
     workspaces nouveaux/modifies sont re-traites, et les workspaces supprimes
     sont retires de l'index.
+  - Le nom d'un workspace est recopie dans les metadonnees de ses messages
+    (resultats de recherche, provenance de la Memoire). Un renommage ne change
+    pas `last_modified` : le manifeste garde aussi le nom indexe, et un nom
+    different ne fait que reecrire ces metadonnees, sans recalculer
+    d'embedding (rename_workspace, ou le reindex suivant).
   - La recherche est hybride : similarite semantique (+ reranking CrossEncoder
     si dispo, herite de VectorMemory.search_similar) puis post-filtres optionnels
     mot-cle / role / date.
@@ -21,7 +26,7 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.config import get_config
 from core.embedding_engine import encode_documents, max_distance_for
@@ -123,30 +128,34 @@ class ConversationSearch:
     # Manifeste
     # ------------------------------------------------------------------
 
-    def _load_manifest(self) -> Dict[str, str]:
-        """Charge la table {workspace_id: last_modified}.
+    def _load_manifest(self) -> Tuple[Dict[str, str], Optional[Dict[str, str]]]:
+        """Charge les tables {workspace_id: last_modified} et {workspace_id: nom indexe}.
 
-        Renvoie {} si le schema d'indexation a change, ce qui force une
-        reindexation complete (les regles d'indexation ont evolue).
+        Renvoie ({}, {}) sans manifeste lisible, ou si le schema d'indexation a
+        change, ce qui force une reindexation complete (les regles d'indexation
+        ont evolue). Les noms valent None dans un manifeste d'avant les
+        renommages : ils sont alors relus dans l'index (_indexed_names).
         """
         if not self._manifest_path.is_file():
-            return {}
+            return {}, {}
         try:
             with open(self._manifest_path, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Manifeste de recherche illisible: %s", exc)
-            return {}
+            return {}, {}
         if not isinstance(data, dict) or data.get("schema") != _INDEX_SCHEMA:
-            return {}  # schema obsolete -> tout reindexer
+            return {}, {}  # schema obsolete -> tout reindexer
         workspaces = data.get("workspaces", {})
-        return workspaces if isinstance(workspaces, dict) else {}
+        names = data.get("names")
+        return (workspaces if isinstance(workspaces, dict) else {},
+                names if isinstance(names, dict) else None)
 
-    def _save_manifest(self, manifest: Dict[str, str]) -> None:
+    def _save_manifest(self, manifest: Dict[str, str], names: Dict[str, str]) -> None:
         try:
             self._manifest_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self._manifest_path.with_suffix(".json.tmp")
-            payload = {"schema": _INDEX_SCHEMA, "workspaces": manifest}
+            payload = {"schema": _INDEX_SCHEMA, "workspaces": manifest, "names": names}
             with open(tmp, "w", encoding="utf-8") as fh:
                 json.dump(payload, fh, indent=2, ensure_ascii=False)
             tmp.replace(self._manifest_path)
@@ -186,6 +195,73 @@ class ConversationSearch:
             col.delete(where={"workspace_id": workspace_id})
         except Exception as exc:
             logger.warning("Suppression index workspace '%s' echouee: %s", workspace_id, exc)
+
+    def _indexed_names(self) -> Dict[str, str]:
+        """Nom de chaque workspace tel qu'il figure dans l'index.
+
+        Lu une fois, quand le manifeste ne garde pas encore les noms : une seule
+        lecture des metadonnees, sans les textes ni les embeddings.
+        """
+        col = self._collection
+        if col is None:
+            return {}
+        try:
+            data = col.get(include=["metadatas"])
+        except Exception as exc:
+            logger.warning("Noms des workspaces de l'index illisibles: %s", exc)
+            return {}
+        names: Dict[str, str] = {}
+        for meta in data.get("metadatas") or []:
+            workspace_id = (meta or {}).get("workspace_id")
+            if workspace_id and workspace_id not in names:
+                names[workspace_id] = str(meta.get("workspace_name", ""))
+        return names
+
+    def _set_workspace_name(self, workspace_id: str, name: str) -> Optional[int]:
+        """Reecrit le nom d'un workspace dans les metadonnees de ses messages indexes.
+
+        Ni texte ni embedding ne changent. Retourne le nombre d'entrees
+        reecrites, None en cas d'echec (le reindex suivant reessaie).
+        """
+        col = self._collection
+        if col is None:
+            return None
+        try:
+            data = col.get(where={"workspace_id": workspace_id}, include=["metadatas"])
+            ids = data.get("ids") or []
+            metadatas = [dict(meta or {}, workspace_name=name)
+                         for meta in data.get("metadatas") or []]
+            if ids:
+                col.update(ids=ids, metadatas=metadatas)
+        except Exception as exc:
+            logger.warning("Nom du workspace '%s' non mis a jour dans l'index: %s",
+                           workspace_id, exc)
+            return None
+        return len(ids)
+
+    def rename_workspace(self, workspace_id: str, name: str) -> bool:
+        """Nouveau nom d'un workspace dans l'index, sans recalculer d'embedding.
+
+        A appeler apres SessionManager.rename_workspace. Un echec n'est pas
+        grave : le nom du manifeste reste l'ancien, et le reindex suivant
+        reecrit les metadonnees.
+
+        Returns:
+            True si l'index porte le nouveau nom
+        """
+        if not workspace_id or not self.is_available():
+            return False
+        with self._lock:
+            manifest, names = self._load_manifest()
+            if names is None:
+                names = self._indexed_names()
+            count = self._set_workspace_name(workspace_id, name)
+            if count is None:
+                return False
+            names[workspace_id] = name
+            self._save_manifest(manifest, names)
+        logger.info("Workspace '%s' renomme dans l'index (%d message(s))", workspace_id, count)
+        return True
 
     def _index_workspace(self, workspace_id: str, workspace_name: str) -> int:
         """(Re)indexe un workspace. Retourne le nombre de messages indexes."""
@@ -246,18 +322,21 @@ class ConversationSearch:
                    manifeste.
 
         Returns:
-            {"indexed": n_workspaces, "messages": n_messages, "removed": n_supprimes}
+            {"indexed": n_workspaces, "messages": n_messages, "removed": n_supprimes,
+             "renamed": n_renommes}
         """
         if not self.is_available():
-            return {"indexed": 0, "messages": 0, "removed": 0}
+            return {"indexed": 0, "messages": 0, "removed": 0, "renamed": 0}
 
         with self._lock:
-            manifest = {} if force else self._load_manifest()
+            manifest, names = ({}, {}) if force else self._load_manifest()
             try:
                 workspaces = self.session_manager.list_workspaces()
             except Exception as exc:
                 logger.warning("Liste des workspaces indisponible: %s", exc)
-                return {"indexed": 0, "messages": 0, "removed": 0}
+                return {"indexed": 0, "messages": 0, "removed": 0, "renamed": 0}
+            if names is None:
+                names = self._indexed_names()  # manifeste d'avant les renommages
 
             current_ids = {ws.get("id") for ws in workspaces if ws.get("id")}
 
@@ -268,29 +347,41 @@ class ConversationSearch:
                     self._delete_workspace_entries(old_id)
                     manifest.pop(old_id, None)
                     removed += 1
+            for old_id in [ws_id for ws_id in names if ws_id not in current_ids]:
+                del names[old_id]
 
             indexed = 0
             messages = 0
+            renamed = 0
             for ws in workspaces:
                 ws_id = ws.get("id")
                 if not ws_id:
                     continue
                 last_modified = str(ws.get("last_modified", ""))
-                if not force and manifest.get(ws_id) == last_modified:
-                    continue  # inchange depuis le dernier index
                 ws_name = ws.get("name", ws_id)
+                if not force and manifest.get(ws_id) == last_modified:
+                    # Inchange depuis le dernier index ; renomme depuis : seules
+                    # les metadonnees de ses messages changent
+                    if names.get(ws_id) != ws_name:
+                        count = self._set_workspace_name(ws_id, ws_name)
+                        if count is not None:
+                            names[ws_id] = ws_name
+                            renamed += 1 if count else 0
+                    continue
                 n = self._index_workspace(ws_id, ws_name)
                 manifest[ws_id] = last_modified
+                names[ws_id] = ws_name
                 indexed += 1
                 messages += n
 
-            self._save_manifest(manifest)
-            if indexed or removed:
+            self._save_manifest(manifest, names)
+            if indexed or removed or renamed:
                 logger.info(
-                    "Reindex termine: %d workspace(s), %d message(s), %d supprime(s)",
-                    indexed, messages, removed,
+                    "Reindex termine: %d workspace(s), %d message(s), %d supprime(s), "
+                    "%d renomme(s)", indexed, messages, removed, renamed,
                 )
-            return {"indexed": indexed, "messages": messages, "removed": removed}
+            return {"indexed": indexed, "messages": messages, "removed": removed,
+                    "renamed": renamed}
 
     # ------------------------------------------------------------------
     # Recherche

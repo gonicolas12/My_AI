@@ -93,6 +93,8 @@ FOLDER_ATTACHMENT_LIMIT = 20
 
 # Nom d'une session : début de son premier message
 _SESSION_NAME_MAX = 48
+# Nom choisi en renommant une session (champ de la barre latérale)
+SESSION_RENAME_MAX = 120
 
 # Message de la Mémoire introuvable dans sa session (index de recherche vieilli)
 MESSAGE_GONE = "chat.messageGone"
@@ -1972,6 +1974,51 @@ class ChatService:
         if deleted:
             self._emit("sessions.changed")
         return bool(deleted)
+
+    def rename_session(self, session_id: str, name: str) -> str:
+        """Renomme une session (crayon de la barre latérale) ; renvoie le nom retenu.
+
+        Le nom change sur le disque (metadata.json et state.json), dans la
+        conversation ouverte si c'est elle, puis dans l'index de la recherche
+        globale, d'où viennent aussi les provenances de la Mémoire. Permis
+        pendant une réponse : la sauvegarde qui la termine relit le nom sur le
+        disque, et le verrou du service l'empêche de passer entre la lecture et
+        l'écriture du renommage.
+
+        Raises:
+            ChatError: nom vide, session introuvable
+        """
+        name = " ".join(str(name or "").split())[:SESSION_RENAME_MAX].rstrip()
+        if not name:
+            raise ChatError(tr("chat.renameEmpty"))
+        sessions = self._sessions()
+        if sessions is None or not session_id:
+            raise ChatError(tr("chat.sessionNotFound"))
+        with self._lock:
+            if not sessions.rename_workspace(session_id, name):
+                raise ChatError(tr("chat.sessionNotFound"))
+            if session_id == self._session_id:
+                self._session_name = name
+                self._emit("conversation.renamed", {"name": name})
+            self._emit("sessions.changed")
+        self._rename_in_search(session_id, name)
+        return name
+
+    def _rename_in_search(self, session_id: str, name: str) -> None:
+        """Nouveau nom dans l'index de la recherche globale (sans recalculer d'embedding).
+
+        Hors du verrou : l'index peut prendre un moment. Un échec laisse
+        l'ancien nom dans le manifeste, et la recherche suivante le corrige.
+        """
+        getter = getattr(self._engine, "get_conversation_search", None)
+        try:
+            search = getter() if callable(getter) else None
+            rename = getattr(search, "rename_workspace", None)
+            if callable(rename):
+                rename(session_id, name)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Nom de la session %s non mis à jour dans la recherche : %s",
+                           session_id, exc)
 
     # ── Fichiers, notes, export ─────────────────────────────────────────────
 

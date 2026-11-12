@@ -12,6 +12,7 @@ import {
   CodeXml,
   MessagesSquare,
   PanelLeftClose,
+  Pencil,
   Radio,
   Settings,
   SquarePen,
@@ -20,11 +21,17 @@ import {
   VolumeX,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button, IconButton } from '../../components/ui/Button';
 import { Dialog } from '../../components/ui/Dialog';
-import { newConversation, openSession, removeSession, toggleSidebar } from '../../lib/actions';
+import {
+  newConversation,
+  openSession,
+  removeSession,
+  renameSession,
+  toggleSidebar,
+} from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import type { SessionSummary } from '../../lib/events';
 import { type MessageKey, useT } from '../../i18n';
@@ -40,6 +47,69 @@ import { ExportMenu } from './sidebar/ExportMenu';
 import { SearchBox, SearchResults } from './sidebar/SearchPanel';
 import { FoldersSection, HistorySection } from './sidebar/Sections';
 
+/** Nom d'une conversation renommée : 120 caractères au plus, comme le serveur */
+const SESSION_NAME_MAX = 120;
+
+/** Crayon et corbeille d'une conversation : visibles au survol, ou au clavier dans la ligne */
+const ITEM_ACTION =
+  'flex h-6 w-6 items-center justify-center rounded-sm text-fg-3 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100 group-has-[:focus-visible]/item:opacity-100 hover:bg-hover';
+
+/**
+ * Champ de renommage, à la place du nom : Entrée ou un clic ailleurs
+ * enregistre, Échap annule. Un nom vide ou inchangé ne part pas au serveur.
+ */
+function RenameField({
+  session,
+  onDone,
+}: {
+  session: SessionSummary;
+  onDone: (byKeyboard: boolean) => void;
+}) {
+  const t = useT();
+  const [value, setValue] = useState(session.name);
+  const input = useRef<HTMLInputElement>(null);
+  const finished = useRef(false);
+
+  useEffect(() => {
+    input.current?.focus();
+    input.current?.select();
+  }, []);
+
+  const finish = (save: boolean, byKeyboard: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    const name = value.replace(/\s+/g, ' ').trim();
+    if (save && name && name !== session.name) void renameSession(session.id, name);
+    onDone(byKeyboard);
+  };
+
+  return (
+    <input
+      ref={input}
+      value={value}
+      maxLength={SESSION_NAME_MAX}
+      aria-label={t('sidebar.renameLabel')}
+      // Échap annule le renommage, il n'arrête pas la réponse en cours (App.tsx)
+      data-own-escape="true"
+      onChange={(event) => setValue(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          finish(true, true);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          finish(false, true);
+        }
+      }}
+      onBlur={() => {
+        // Fenêtre quittée (Alt+Tab) : le champ attend son retour
+        if (document.hasFocus()) finish(true, false);
+      }}
+      className="h-8 w-full rounded-md border border-accent bg-bg px-2.5 text-sm text-fg outline-none"
+    />
+  );
+}
+
 function SessionItem({
   session,
   current,
@@ -50,6 +120,30 @@ function SessionItem({
   onDelete: (session: SessionSummary) => void;
 }) {
   const t = useT();
+  const [editing, setEditing] = useState(false);
+  const pencil = useRef<HTMLButtonElement>(null);
+  const refocus = useRef(false);
+
+  // Renommage fini au clavier : le focus revient au crayon
+  useEffect(() => {
+    if (editing || !refocus.current) return;
+    refocus.current = false;
+    pencil.current?.focus();
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <li>
+        <RenameField
+          session={session}
+          onDone={(byKeyboard) => {
+            refocus.current = byKeyboard;
+            setEditing(false);
+          }}
+        />
+      </li>
+    );
+  }
   return (
     <li className="group/item relative">
       <button
@@ -62,18 +156,30 @@ function SessionItem({
         )}
       >
         <span className="min-w-0 flex-1 truncate">{session.name}</span>
-        <span className="shrink-0 text-2xs text-fg-3 group-hover/item:opacity-0">
+        {/* Au moins la largeur du crayon : le nom ne passe jamais dessous */}
+        <span className="min-w-6 shrink-0 text-end text-2xs text-fg-3 group-hover/item:opacity-0 group-has-[:focus-visible]/item:opacity-0">
           {formatDay(session.last_modified)}
         </span>
       </button>
-      <button
-        type="button"
-        aria-label={t('sidebar.deleteNamed', { name: session.name })}
-        onClick={() => onDelete(session)}
-        className="absolute end-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm text-fg-3 opacity-0 transition-opacity duration-150 group-hover/item:opacity-100 hover:bg-hover hover:text-error focus-visible:opacity-100"
-      >
-        <Trash2 size={14} />
-      </button>
+      <div className="absolute end-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+        <button
+          ref={pencil}
+          type="button"
+          aria-label={t('sidebar.renameNamed', { name: session.name })}
+          onClick={() => setEditing(true)}
+          className={cn(ITEM_ACTION, 'hover:text-fg')}
+        >
+          <Pencil size={13} />
+        </button>
+        <button
+          type="button"
+          aria-label={t('sidebar.deleteNamed', { name: session.name })}
+          onClick={() => onDelete(session)}
+          className={cn(ITEM_ACTION, 'hover:text-error')}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     </li>
   );
 }

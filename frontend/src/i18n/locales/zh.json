@@ -31,6 +31,8 @@
   "sidebar.conversations": "对话",
   "sidebar.noConversation": "暂无对话",
   "sidebar.deleteNamed": "删除“{name}”",
+  "sidebar.renameNamed": "重命名“{name}”",
+  "sidebar.renameLabel": "新的对话名称",
   "sidebar.deleteTitle": "删除对话？",
   "sidebar.deleteDescription": "“{name}”将被永久删除。",
   "sidebar.panel.relay": "Relay",

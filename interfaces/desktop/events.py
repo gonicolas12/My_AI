@@ -195,6 +195,12 @@ class ConversationLoaded(_Payload):
     snapshot: Dict[str, Any]
 
 
+class ConversationRenamed(_Payload):
+    """Conversation ouverte renommée (crayon de la barre latérale)."""
+
+    name: str
+
+
 class QueueItem(BaseModel):
     """Message en attente dans la file commune desktop / mobile."""
 
@@ -592,6 +598,7 @@ EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "voice.transcript": VoiceTranscript,
     "voice.output": VoiceOutputState,
     "conversation.loaded": ConversationLoaded,
+    "conversation.renamed": ConversationRenamed,
     "queue.updated": QueueUpdated,
     "message.user": MessageUser,
     "message.rated": MessageRated,

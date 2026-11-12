@@ -31,6 +31,8 @@
   "sidebar.conversations": "대화",
   "sidebar.noConversation": "대화가 없습니다",
   "sidebar.deleteNamed": "'{name}' 삭제",
+  "sidebar.renameNamed": "'{name}' 이름 바꾸기",
+  "sidebar.renameLabel": "새 대화 이름",
   "sidebar.deleteTitle": "대화를 삭제할까요?",
   "sidebar.deleteDescription": "'{name}'이(가) 영구적으로 삭제됩니다.",
   "sidebar.panel.relay": "Relay",

@@ -166,6 +166,8 @@
   "chat.noAnswerToRegenerate": "Dit bericht heeft nog geen antwoord om opnieuw te genereren.",
   "chat.unchanged": "Het bericht is niet gewijzigd.",
   "chat.sessionSaved": "💾 Sessie opgeslagen",
+  "chat.renameEmpty": "De naam van het gesprek mag niet leeg zijn.",
+  "chat.sessionNotFound": "Gesprek niet gevonden.",
   "chat.ratingRange": "De beoordeling gaat van 1 tot 5 sterren.",
   "chat.answerNotFound": "Antwoord niet gevonden.",
   "chat.alreadyRated": "Dit antwoord is al beoordeeld.",

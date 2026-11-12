@@ -31,6 +31,8 @@
   "sidebar.conversations": "Gesprekken",
   "sidebar.noConversation": "Geen gesprekken",
   "sidebar.deleteNamed": "'{name}' verwijderen",
+  "sidebar.renameNamed": "'{name}' hernoemen",
+  "sidebar.renameLabel": "Nieuwe naam van het gesprek",
   "sidebar.deleteTitle": "Gesprek verwijderen?",
   "sidebar.deleteDescription": "'{name}' wordt definitief verwijderd.",
   "sidebar.panel.relay": "Relay",

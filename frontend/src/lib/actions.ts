@@ -11,7 +11,7 @@ import { api, type ExportFormat } from './api';
 import { baseName } from './artifacts';
 import type { ClientMessage } from './events';
 import { shell } from './shell';
-import { getSocket } from './sync';
+import { getSocket, refreshSessions } from './sync';
 import { SocketError } from './ws';
 
 function errorText(error: unknown): string {
@@ -126,6 +126,31 @@ export async function openSession(id: string): Promise<void> {
 
 export async function removeSession(id: string): Promise<void> {
   await attempt(() => api.deleteSession(id));
+}
+
+/** Nom d'une conversation de la liste, changé sur place */
+function showSessionName(id: string, name: string): void {
+  useApp.setState((state) => ({
+    sessions: state.sessions.map((session) => (session.id === id ? { ...session, name } : session)),
+  }));
+}
+
+/**
+ * Renomme une conversation (crayon de la barre latérale) : le nouveau nom
+ * s'affiche tout de suite, la liste relue après sessions.changed le confirme.
+ * Refusé ou en échec : l'ancien nom revient. Vrai si le nom est retenu.
+ */
+export async function renameSession(id: string, name: string): Promise<boolean> {
+  const previous = useApp.getState().sessions.find((session) => session.id === id)?.name;
+  showSessionName(id, name);
+  const result = await attempt(() => api.renameSession(id, name));
+  if (result === undefined) {
+    if (previous !== undefined) showSessionName(id, previous);
+    refreshSessions(0);
+    return false;
+  }
+  if (result.name !== name) showSessionName(id, result.name);
+  return true;
 }
 
 /** Note de 1 à 5 étoiles (RLHF) ; vrai si elle a été enregistrée */

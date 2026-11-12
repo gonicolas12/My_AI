@@ -19,8 +19,8 @@ import pytest
 
 import core.chat_service as chat_service_module
 from core.i18n import tr
-from core.chat_service import (FILE_GENERATION_HISTORY, ChatError, ChatService,
-                               session_name_for)
+from core.chat_service import (FILE_GENERATION_HISTORY, SESSION_RENAME_MAX, ChatError,
+                               ChatService, session_name_for)
 from core.session_manager import SessionManager
 from interfaces.desktop.events import EventBus, validate_event
 from models import comfyui_manager
@@ -1111,6 +1111,118 @@ def test_a_session_saved_by_tk_opens_unchanged(chat):
 
     chat.service.navigate(mid, 0)
     assert texts(chat.service.snapshot()) == ["Lis ce PDF\n📎 rapport.pdf", "Ancienne réponse"]
+
+
+def settle(chat):
+    """Attend la fin du tour en cours, sauvegarde de la session comprise."""
+    with chat.service._op_lock:  # pylint: disable=protected-access
+        pass
+
+
+def on_disk(chat, session_id):
+    """Nom de la session dans metadata.json et dans state.json, puis sa date."""
+    folder = chat.tmp_path / "workspaces" / session_id
+    metadata = json.loads((folder / "metadata.json").read_text(encoding="utf-8"))
+    state = json.loads((folder / "state.json").read_text(encoding="utf-8"))
+    return metadata["name"], state["metadata"]["name"], metadata["last_modified"]
+
+
+def test_renaming_the_open_session_changes_its_name_everywhere(chat):
+    ask(chat, "Question A")
+    settle(chat)
+    session_id = chat.service.session_id
+    modified = on_disk(chat, session_id)[2]
+
+    assert chat.service.rename_session(session_id, "  Mon   projet\n") == "Mon projet"
+
+    # Même date : renommer ne déplace pas la conversation dans la liste
+    assert on_disk(chat, session_id) == ("Mon projet", "Mon projet", modified)
+    assert chat.service.list_sessions()[0]["name"] == "Mon projet"
+    assert chat.service.snapshot()["name"] == "Mon projet"
+    renamed = wait_for(chat.events, "conversation.renamed")[0]
+    validate_event(renamed)
+    assert renamed["payload"] == {"name": "Mon projet"}
+    assert renamed["conversation_id"] == session_id
+    types = [event["type"] for event in chat.events]
+    assert "sessions.changed" in types[types.index("conversation.renamed"):]
+
+    # La sauvegarde du tour suivant relit le nom sur le disque : pas de retour en arrière
+    ask(chat, "Question B")
+    settle(chat)
+    assert on_disk(chat, session_id)[:2] == ("Mon projet", "Mon projet")
+    chat.service.new_conversation()
+    chat.service.load_session(session_id)
+    assert chat.service.snapshot()["name"] == "Mon projet"
+
+
+def test_renaming_another_session_keeps_the_open_one_and_the_order(chat):
+    ask(chat, "Question A")
+    first = chat.service.session_id
+    chat.service.new_conversation()
+    ask(chat, "Question B")
+    settle(chat)
+    second = chat.service.session_id
+
+    assert chat.service.rename_session(first, "Ancienne question") == "Ancienne question"
+
+    sessions = chat.service.list_sessions()
+    assert [item["id"] for item in sessions] == [second, first]
+    assert sessions[1]["name"] == "Ancienne question"
+    assert chat.service.snapshot()["name"] == "Question B"
+    assert not [event for event in chat.events if event["type"] == "conversation.renamed"]
+
+
+def test_rename_refuses_an_empty_name_or_an_unknown_session(chat):
+    ask(chat, "Question A")
+    session_id = chat.service.session_id
+
+    with pytest.raises(ChatError, match="ne peut pas être vide"):
+        chat.service.rename_session(session_id, " \n\t ")
+    with pytest.raises(ChatError, match="Conversation introuvable"):
+        chat.service.rename_session("inconnue-1234", "Nom")
+    assert chat.service.list_sessions()[0]["name"] == "Question A"
+
+    long_name = chat.service.rename_session(session_id, "mot " * 100)
+    assert len(long_name) <= SESSION_RENAME_MAX and not long_name.endswith(" ")
+    assert chat.service.list_sessions()[0]["name"] == long_name
+
+
+def test_a_session_renamed_during_an_answer_keeps_its_new_name(chat):
+    """La sauvegarde de fin de réponse relit l'état sur le disque, sous le même
+    verrou que le renommage : elle ne remet pas l'ancien nom."""
+    ask(chat, "Question A")
+    session_id = chat.service.session_id
+    gate = threading.Event()
+    chat.engine.script = [("token", "En cours"), ("wait", gate)]
+    chat.service.send("Question B")
+    wait_for(chat.events, "assistant.start", 2)
+    assert chat.service.busy
+
+    assert chat.service.rename_session(session_id, "Renommée") == "Renommée"
+    gate.set()
+    wait_for(chat.events, "assistant.done", 2)
+    settle(chat)
+
+    assert on_disk(chat, session_id)[:2] == ("Renommée", "Renommée")
+    assert texts(chat.service.snapshot())[-1] == "En cours"
+
+
+def test_rename_reaches_the_search_index(chat):
+    ask(chat, "Question A")
+    session_id = chat.service.session_id
+    renames = []
+    search = SimpleNamespace(rename_workspace=lambda *args: renames.append(args) or True)
+    chat.engine.get_conversation_search = lambda: search
+
+    chat.service.rename_session(session_id, "Projet X")
+    assert renames == [(session_id, "Projet X")]
+
+    # Index injoignable : la session est renommée quand même
+    def broken():
+        raise RuntimeError("ChromaDB verrouillée")
+    chat.engine.get_conversation_search = broken
+    assert chat.service.rename_session(session_id, "Projet Y") == "Projet Y"
+    assert chat.service.list_sessions()[0]["name"] == "Projet Y"
 
 
 # ── Chat mobile ─────────────────────────────────────────────────────────────

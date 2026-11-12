@@ -293,6 +293,8 @@ export interface EventPayloads {
     reason: 'new' | 'cleared' | 'loaded' | 'restored' | 'edited' | 'navigated';
     snapshot: ConversationSnapshot;
   };
+  /** Conversation ouverte renommée (crayon de la barre latérale) */
+  'conversation.renamed': { name: string };
   'queue.updated': { items: QueueItem[] };
   'message.user': {
     mid: string;

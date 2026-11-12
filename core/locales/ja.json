@@ -161,6 +161,8 @@
   "chat.noAnswerToRegenerate": "このメッセージには再生成できる回答がまだありません。",
   "chat.unchanged": "メッセージは変更されていません。",
   "chat.sessionSaved": "💾 セッションを保存しました",
+  "chat.renameEmpty": "会話の名前は空にできません。",
+  "chat.sessionNotFound": "会話が見つかりません。",
   "chat.ratingRange": "評価は星 1〜5 です。",
   "chat.answerNotFound": "回答が見つかりません。",
   "chat.alreadyRated": "この回答はすでに評価済みです。",

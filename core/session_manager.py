@@ -302,6 +302,12 @@ class SessionManager:
         """
         Renomme un workspace existant sans changer son identifiant.
 
+        Le nom change dans metadata.json (liste des workspaces) et dans les
+        metadonnees de state.json, que save_workspace recopie a chaque
+        sauvegarde : sans cela, la sauvegarde suivante remettrait l'ancien nom.
+        La date de modification ne bouge pas : renommer ne modifie pas la
+        conversation, qui garde sa place dans la liste.
+
         Args:
             workspace_id: Identifiant du workspace a renommer
             new_name: Nouveau nom lisible
@@ -331,13 +337,11 @@ class SessionManager:
 
                 old_name = metadata.get("name", "")
                 metadata["name"] = new_name.strip()
-                metadata["last_modified"] = datetime.now().isoformat()
                 self._write_json(workspace_path / "metadata.json", metadata)
 
                 state = self._read_json(workspace_path / "state.json")
-                if state and "metadata" in state:
+                if state and isinstance(state.get("metadata"), dict):
                     state["metadata"]["name"] = new_name.strip()
-                    state["metadata"]["last_modified"] = metadata["last_modified"]
                     self._write_json(workspace_path / "state.json", state)
 
             logger.info(

@@ -31,6 +31,8 @@
   "sidebar.conversations": "会話",
   "sidebar.noConversation": "会話はありません",
   "sidebar.deleteNamed": "「{name}」を削除",
+  "sidebar.renameNamed": "「{name}」の名前を変更",
+  "sidebar.renameLabel": "会話の新しい名前",
   "sidebar.deleteTitle": "会話を削除しますか？",
   "sidebar.deleteDescription": "「{name}」は完全に削除されます。",
   "sidebar.panel.relay": "Relay",
