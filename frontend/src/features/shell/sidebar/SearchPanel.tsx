@@ -19,6 +19,7 @@ import {
   searchStatusText,
   setQuery,
   useSidebar,
+  visibleSearchStatus,
 } from '../../../stores/sidebar';
 
 async function openResult(result: SearchResult): Promise<void> {
@@ -36,7 +37,7 @@ async function openResult(result: SearchResult): Promise<void> {
 export function SearchBox() {
   const t = useT();
   const query = useSidebar((state) => state.query);
-  const status = useSidebar((state) => state.searchStatus);
+  const status = useSidebar(visibleSearchStatus);
   const searched = useSidebar((state) => state.searched);
   return (
     <div>

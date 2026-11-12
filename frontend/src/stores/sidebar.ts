@@ -27,6 +27,17 @@ export function searchStatusText(status: SearchStatus | null, translate: Transla
   return status.key ? translate(status.key, status.params) : status.text;
 }
 
+/** Durée d'affichage de « Indexé : N messages » après un clic sur Réindexer */
+export const REINDEX_STATUS_MS = 4000;
+
+/** Ligne affichée sous le champ : le résultat du bouton Réindexer, sinon celle de la recherche */
+export function visibleSearchStatus(state: {
+  reindexStatus: SearchStatus | null;
+  searchStatus: SearchStatus | null;
+}): SearchStatus | null {
+  return state.reindexStatus ?? state.searchStatus;
+}
+
 interface SidebarState {
   sections: Record<SidebarSection, boolean>;
   // Recherche globale
@@ -35,6 +46,8 @@ interface SidebarState {
   searched: string | null;
   results: SearchResult[];
   searchStatus: SearchStatus | null;
+  /** Résultat du bouton Réindexer, affiché par-dessus searchStatus (null : rien) */
+  reindexStatus: SearchStatus | null;
   searching: boolean;
   // Dossiers projet
   folders: FoldersStatus | null;
@@ -51,6 +64,7 @@ export const useSidebar = create<SidebarState>()(() => ({
   searched: null,
   results: [],
   searchStatus: null,
+  reindexStatus: null,
   searching: false,
   folders: null,
   jobs: {},
@@ -81,7 +95,13 @@ export function setQuery(query: string): void {
 }
 
 export function clearSearch(): void {
-  useSidebar.setState({ query: '', searched: null, results: [], searchStatus: null });
+  useSidebar.setState({
+    query: '',
+    searched: null,
+    results: [],
+    searchStatus: null,
+    reindexStatus: null,
+  });
 }
 
 export async function runSearch(): Promise<void> {
@@ -90,6 +110,7 @@ export async function runSearch(): Promise<void> {
   useSidebar.setState({
     searching: true,
     searchStatus: { key: 'sidebar.search.running' },
+    reindexStatus: null, // la recherche remplace le résultat d'une réindexation
     searched: query,
   });
   try {
@@ -109,19 +130,35 @@ export async function runSearch(): Promise<void> {
   }
 }
 
+/**
+ * Bouton « Réindexer les conversations ». Son résultat s'affiche à la place
+ * de la ligne de la recherche : « Indexé : N messages » s'efface au bout de
+ * REINDEX_STATUS_MS, et la ligne de la recherche affichée revient ; une
+ * erreur reste jusqu'à la prochaine action.
+ */
 export async function reindexSearch(): Promise<void> {
-  useSidebar.setState({ searchStatus: { key: 'sidebar.search.reindexing' } });
+  const pending: SearchStatus = { key: 'sidebar.search.reindexing' };
+  useSidebar.setState({ reindexStatus: pending });
+  let status: SearchStatus;
+  let indexed = false;
   try {
     const { available, messages } = await api.reindexSearch();
-    useSidebar.setState({
-      searchStatus: available
-        ? { key: 'sidebar.search.indexed', params: { count: messages } }
-        : { key: 'sidebar.search.indexUnavailable' },
-    });
+    indexed = available;
+    status = available
+      ? { key: 'sidebar.search.indexed', params: { count: messages } }
+      : { key: 'sidebar.search.indexUnavailable' };
   } catch (error) {
-    useSidebar.setState({
-      searchStatus: { key: 'common.errorPlain', params: { error: errorText(error) } },
-    });
+    status = { key: 'common.errorPlain', params: { error: errorText(error) } };
+  }
+  // Une recherche, un effacement ou un autre clic est passé entre-temps
+  if (useSidebar.getState().reindexStatus !== pending) return;
+  useSidebar.setState({ reindexStatus: status });
+  if (indexed) {
+    setTimeout(() => {
+      if (useSidebar.getState().reindexStatus === status) {
+        useSidebar.setState({ reindexStatus: null });
+      }
+    }, REINDEX_STATUS_MS);
   }
 }
 
