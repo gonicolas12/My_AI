@@ -161,6 +161,8 @@
   "chat.noAnswerToRegenerate": "这条消息还没有可重新生成的回答。",
   "chat.unchanged": "消息没有变化。",
   "chat.sessionSaved": "💾 会话已保存",
+  "chat.renameEmpty": "对话名称不能为空。",
+  "chat.sessionNotFound": "未找到对话。",
   "chat.ratingRange": "评分范围为 1 到 5 星。",
   "chat.answerNotFound": "未找到回答。",
   "chat.alreadyRated": "这个回答已经评过分了。",

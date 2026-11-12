@@ -186,6 +186,8 @@
   "chat.noAnswerToRegenerate": "لا يوجد لهذه الرسالة رد يمكن إعادة توليده بعد.",
   "chat.unchanged": "لم تتغير الرسالة.",
   "chat.sessionSaved": "💾 تم حفظ الجلسة",
+  "chat.renameEmpty": "لا يمكن أن يكون اسم المحادثة فارغًا.",
+  "chat.sessionNotFound": "لم يُعثر على المحادثة.",
   "chat.ratingRange": "يتراوح التقييم من نجمة إلى 5 نجوم.",
   "chat.answerNotFound": "لم يُعثر على الرد.",
   "chat.alreadyRated": "هذا الرد مُقيَّم بالفعل.",

@@ -166,6 +166,8 @@
   "chat.noAnswerToRegenerate": "Diese Nachricht hat noch keine Antwort, die neu generiert werden könnte.",
   "chat.unchanged": "Die Nachricht hat sich nicht geändert.",
   "chat.sessionSaved": "💾 Sitzung gespeichert",
+  "chat.renameEmpty": "Der Name der Unterhaltung darf nicht leer sein.",
+  "chat.sessionNotFound": "Unterhaltung nicht gefunden.",
   "chat.ratingRange": "Die Bewertung reicht von 1 bis 5 Sternen.",
   "chat.answerNotFound": "Antwort nicht gefunden.",
   "chat.alreadyRated": "Diese Antwort ist bereits bewertet.",

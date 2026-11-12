@@ -182,6 +182,9 @@ function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       const { snapshot } = (event as ServerEvent<'conversation.loaded'>).payload;
       return fromSnapshot(snapshot);
     }
+    case 'conversation.renamed':
+      if (event.conversation_id !== state.conversationId) return state;
+      return { ...state, name: (event as ServerEvent<'conversation.renamed'>).payload.name };
     case 'queue.updated':
       return { ...state, queue: (event as ServerEvent<'queue.updated'>).payload.items };
     case 'message.user': {

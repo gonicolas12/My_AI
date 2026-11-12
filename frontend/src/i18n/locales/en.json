@@ -31,6 +31,8 @@
   "sidebar.conversations": "Conversations",
   "sidebar.noConversation": "No conversations",
   "sidebar.deleteNamed": "Delete “{name}”",
+  "sidebar.renameNamed": "Rename “{name}”",
+  "sidebar.renameLabel": "New conversation name",
   "sidebar.deleteTitle": "Delete conversation?",
   "sidebar.deleteDescription": "“{name}” will be permanently deleted.",
   "sidebar.panel.relay": "Relay",

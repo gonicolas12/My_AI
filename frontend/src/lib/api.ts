@@ -474,6 +474,9 @@ export const api = {
     request<{ ok: boolean }>('POST', `/api/sessions/${encodeURIComponent(id)}/load`),
   deleteSession: (id: string) =>
     request<{ deleted: boolean }>('DELETE', `/api/sessions/${encodeURIComponent(id)}`),
+  /** Nom retenu par le serveur : espaces resserrés, 120 caractères au plus */
+  renameSession: (id: string, name: string) =>
+    request<{ name: string }>('PUT', `/api/sessions/${encodeURIComponent(id)}/name`, { name }),
 
   attachments: () => request<{ attachments: AttachmentView[] }>('GET', '/api/attachments'),
   removeAttachment: (id: string) =>

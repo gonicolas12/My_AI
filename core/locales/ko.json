@@ -161,6 +161,8 @@
   "chat.noAnswerToRegenerate": "이 메시지에는 아직 다시 생성할 답변이 없습니다.",
   "chat.unchanged": "메시지가 바뀌지 않았습니다.",
   "chat.sessionSaved": "💾 세션을 저장했습니다",
+  "chat.renameEmpty": "대화 이름은 비워 둘 수 없습니다.",
+  "chat.sessionNotFound": "대화를 찾을 수 없습니다.",
   "chat.ratingRange": "평가는 별 1~5개입니다.",
   "chat.answerNotFound": "답변을 찾을 수 없습니다.",
   "chat.alreadyRated": "이 답변은 이미 평가했습니다.",

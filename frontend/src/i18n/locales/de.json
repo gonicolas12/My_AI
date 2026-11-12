@@ -31,6 +31,8 @@
   "sidebar.conversations": "Unterhaltungen",
   "sidebar.noConversation": "Keine Unterhaltungen",
   "sidebar.deleteNamed": "„{name}“ löschen",
+  "sidebar.renameNamed": "„{name}“ umbenennen",
+  "sidebar.renameLabel": "Neuer Name der Unterhaltung",
   "sidebar.deleteTitle": "Unterhaltung löschen?",
   "sidebar.deleteDescription": "„{name}“ wird endgültig gelöscht.",
   "sidebar.panel.relay": "Relay",

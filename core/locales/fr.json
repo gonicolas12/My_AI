@@ -166,6 +166,8 @@
   "chat.noAnswerToRegenerate": "Ce message n'a pas encore de réponse à regénérer.",
   "chat.unchanged": "Le message n'a pas changé.",
   "chat.sessionSaved": "💾 Session sauvegardée",
+  "chat.renameEmpty": "Le nom de la conversation ne peut pas être vide.",
+  "chat.sessionNotFound": "Conversation introuvable.",
   "chat.ratingRange": "La note va de 1 à 5 étoiles.",
   "chat.answerNotFound": "Réponse introuvable.",
   "chat.alreadyRated": "Cette réponse est déjà notée.",

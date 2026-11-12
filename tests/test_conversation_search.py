@@ -6,6 +6,7 @@ logique d'indexation incrementale, de purge et de filtrage. Aucun embedding
 reel n'est requis.
 """
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -27,9 +28,13 @@ class _FakeEmbedding(list):
 
 
 class _FakeModel:
+    def __init__(self):
+        self.calls = 0  # embeddings calcules
+
     def encode(self, text):
         # Vecteur factice deterministe (longueur du texte) - non utilise pour le
         # scoring, juste pour respecter l'API encode().tolist().
+        self.calls += 1
         return _FakeEmbedding([float(len(text))])
 
 
@@ -52,13 +57,20 @@ class _FakeCollection:
         for k in to_del:
             del self.store[k]
 
-    def get(self, include=None):
-        ids = list(self.store.keys())
+    def get(self, include=None, where=None):
+        ws = (where or {}).get("workspace_id")
+        ids = [k for k, v in self.store.items()
+               if ws is None or v["metadata"].get("workspace_id") == ws]
         return {
             "ids": ids,
             "documents": [self.store[i]["document"] for i in ids],
             "metadatas": [self.store[i]["metadata"] for i in ids],
         }
+
+    def update(self, ids, metadatas):
+        # Comme ChromaDB : les cles recues remplacent les anciennes, le reste demeure
+        for _id, meta in zip(ids, metadatas):
+            self.store[_id]["metadata"] = {**self.store[_id]["metadata"], **meta}
 
 
 def _overlap(query, content):
@@ -185,6 +197,70 @@ def test_reindex_picks_up_modifications(env):
     stats = cs.reindex(force=False)
     assert stats["indexed"] == 1
     assert len(vm.conversation_collection.store) > count_before
+
+
+def _indexed_names(vm, ws_id):
+    """Noms portes par les messages indexes d'un workspace."""
+    return {entry["metadata"]["workspace_name"]
+            for entry in vm.conversation_collection.store.values()
+            if entry["metadata"]["workspace_id"] == ws_id}
+
+
+def test_rename_rewrites_the_indexed_name_without_reembedding(env):
+    sm, vm, cs = env
+    ws_id = _make_ws(sm, "Ancien nom", [
+        {"text": "Comment configurer un reverse proxy nginx", "is_user": True},
+        {"text": "Avec un bloc server et proxy_pass", "is_user": False},
+    ])
+    other = _make_ws(sm, "Autre", [{"text": "Recette de la tarte aux pommes", "is_user": True}])
+    cs.reindex(force=False)
+    encoded = vm.embedding_model.calls
+
+    assert sm.rename_workspace(ws_id, "Nouveau nom") is True
+    assert cs.rename_workspace(ws_id, "Nouveau nom") is True
+
+    assert _indexed_names(vm, ws_id) == {"Nouveau nom"}
+    assert _indexed_names(vm, other) == {"Autre"}
+    assert vm.embedding_model.calls == encoded
+    results = cs.search("reverse proxy nginx", auto_reindex=False)
+    assert results[0]["workspace_name"] == "Nouveau nom"
+    # Rien a rattraper : last_modified n'a pas bouge, le nom du manifeste est a jour
+    assert cs.reindex(force=False) == {"indexed": 0, "messages": 0, "removed": 0, "renamed": 0}
+
+
+def test_reindex_catches_up_with_a_rename_the_index_missed(env):
+    sm, vm, cs = env
+    ws_id = _make_ws(sm, "Ancien nom", [{"text": "Notes de la reunion de lundi", "is_user": True}])
+    cs.reindex(force=False)
+    encoded = vm.embedding_model.calls
+
+    sm.rename_workspace(ws_id, "Reunion")  # index injoignable a ce moment-la
+    stats = cs.reindex(force=False)
+
+    assert stats["indexed"] == 0 and stats["renamed"] == 1
+    assert _indexed_names(vm, ws_id) == {"Reunion"}
+    assert vm.embedding_model.calls == encoded
+    assert cs.reindex(force=False)["renamed"] == 0
+
+
+def test_manifest_without_names_reads_them_from_the_index(env):
+    """Manifeste ecrit avant les renommages : les noms sont relus dans l'index."""
+    sm, vm, cs = env
+    kept = _make_ws(sm, "Garde", [{"text": "Premier sujet de conversation", "is_user": True}])
+    renamed = _make_ws(sm, "Avant", [{"text": "Second sujet de conversation", "is_user": True}])
+    cs.reindex(force=False)
+    manifest_path = cs._manifest_path  # pylint: disable=protected-access
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["names"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    sm.rename_workspace(renamed, "Apres")
+    stats = cs.reindex(force=False)
+
+    assert stats["indexed"] == 0 and stats["renamed"] == 1
+    assert _indexed_names(vm, renamed) == {"Apres"} and _indexed_names(vm, kept) == {"Garde"}
+    names = json.loads(manifest_path.read_text(encoding="utf-8"))["names"]
+    assert names == {kept: "Garde", renamed: "Apres"}
 
 
 def test_deleted_workspace_is_purged(env):

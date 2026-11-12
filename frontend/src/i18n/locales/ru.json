@@ -31,6 +31,8 @@
   "sidebar.conversations": "Разговоры",
   "sidebar.noConversation": "Нет разговоров",
   "sidebar.deleteNamed": "Удалить «{name}»",
+  "sidebar.renameNamed": "Переименовать «{name}»",
+  "sidebar.renameLabel": "Новое название разговора",
   "sidebar.deleteTitle": "Удалить разговор?",
   "sidebar.deleteDescription": "«{name}» будет удалён без возможности восстановления.",
   "sidebar.panel.relay": "Relay",

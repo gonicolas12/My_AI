@@ -176,6 +176,8 @@
   "chat.noAnswerToRegenerate": "У этого сообщения ещё нет ответа для повторной генерации.",
   "chat.unchanged": "Сообщение не изменилось.",
   "chat.sessionSaved": "💾 Сеанс сохранён",
+  "chat.renameEmpty": "Название разговора не может быть пустым.",
+  "chat.sessionNotFound": "Разговор не найден.",
   "chat.ratingRange": "Оценка — от 1 до 5 звёзд.",
   "chat.answerNotFound": "Ответ не найден.",
   "chat.alreadyRated": "Этот ответ уже оценён.",

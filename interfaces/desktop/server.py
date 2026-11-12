@@ -128,6 +128,12 @@ class RatingBody(BaseModel):
     score: int
 
 
+class SessionNameBody(BaseModel):
+    """PUT /api/sessions/{session_id}/name : nouveau nom d'une conversation."""
+
+    name: str
+
+
 class DesktopServer:
     """Serveur uvicorn de l'appli, dans son propre fil."""
 
@@ -336,6 +342,10 @@ def create_app(app: "DesktopApp", server: DesktopServer) -> FastAPI:
     @api.delete("/api/sessions/{session_id}")
     async def delete_session(session_id: str):
         return {"deleted": await call(chat().delete_session, session_id)}
+
+    @api.put("/api/sessions/{session_id}/name")
+    async def rename_session(session_id: str, body: SessionNameBody):
+        return {"name": await call(chat().rename_session, session_id, body.name)}
 
     # ── Pièces jointes ──────────────────────────────────────────────────────
 

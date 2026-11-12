@@ -166,6 +166,8 @@
   "chat.noAnswerToRegenerate": "Esta mensagem ainda não tem resposta para gerar novamente.",
   "chat.unchanged": "A mensagem não mudou.",
   "chat.sessionSaved": "💾 Sessão salva",
+  "chat.renameEmpty": "O nome da conversa não pode ficar vazio.",
+  "chat.sessionNotFound": "Conversa não encontrada.",
   "chat.ratingRange": "A avaliação vai de 1 a 5 estrelas.",
   "chat.answerNotFound": "Resposta não encontrada.",
   "chat.alreadyRated": "Esta resposta já foi avaliada.",

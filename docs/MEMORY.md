@@ -83,7 +83,7 @@ Le fait est enregistré aussitôt dans l'onglet **Faits** (source : `conversatio
 - **Pagination** (20 entrées/page).
 - **Provenance** affichée sous chaque entrée :
   - Faits → `source` (manuel / conversation / …), `confiance`, date de mise à jour.
-  - Conversations → **session** · rôle (vous / assistant) · horodatage.
+  - Conversations → **session** (son nom actuel : renommer une conversation change aussi celui-ci) · rôle (vous / assistant) · horodatage.
   - Documents → **nom du document** · n° de chunk · date.
 
 ### ✏️ Éditer

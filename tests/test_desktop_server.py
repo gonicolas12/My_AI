@@ -231,6 +231,26 @@ def test_sessions_over_rest(desktop):
     assert desktop.client.get("/api/conversations/autre", headers=AUTH).status_code == 404
 
 
+def test_sessions_are_renamed_over_rest(desktop):
+    desktop.client.post("/api/conversation/send", json={"text": "Question A"}, headers=AUTH)
+    wait_for(desktop.events, "assistant.done")
+    session_id = desktop.client.get("/api/sessions", headers=AUTH).json()["sessions"][0]["id"]
+    url = f"/api/sessions/{session_id}/name"
+
+    response = desktop.client.put(url, json={"name": "  Projet   X "}, headers=AUTH)
+    assert response.status_code == 200 and response.json() == {"name": "Projet X"}
+    assert desktop.client.get("/api/sessions", headers=AUTH).json()["sessions"][0]["name"] == "Projet X"
+    assert desktop.client.get("/api/conversation", headers=AUTH).json()["name"] == "Projet X"
+
+    empty = desktop.client.put(url, json={"name": " "}, headers=AUTH)
+    assert empty.status_code == 409
+    assert empty.json()["detail"] == "Le nom de la conversation ne peut pas être vide."
+    unknown = desktop.client.put("/api/sessions/inconnue/name", json={"name": "Nom"}, headers=AUTH)
+    assert unknown.status_code == 409 and unknown.json()["detail"] == "Conversation introuvable."
+    assert desktop.client.put(url, json={}, headers=AUTH).status_code == 422
+    assert desktop.client.put(url, json={"name": "Sans jeton"}).status_code == 401
+
+
 def test_pasted_image_is_uploaded_as_an_attachment(desktop):
     from io import BytesIO  # pylint: disable=import-outside-toplevel
     from PIL import Image  # pylint: disable=import-outside-toplevel
