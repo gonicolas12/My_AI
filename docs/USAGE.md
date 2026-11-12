@@ -78,7 +78,7 @@ pendant que le moteur calcule.
 - ⚙️ **Panneau Réglages** — gestion des modèles Ollama et paramètres, sans éditer de fichiers
 - 🔎 **Recherche globale** — recherche sémantique sur *toutes* vos conversations (barre latérale) ; un clic ouvre la conversation et surligne le passage — voir [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md)
 - 🧠 **Mémoire** — voir / éditer / supprimer ce que l'IA sait de vous : faits + entrées vectorielles (bouton **Mémoire** en bas de la barre latérale) — voir [MEMORY.md](MEMORY.md)
-- 💾 **Sessions** — chaque conversation est enregistrée après chaque réponse et se rouvre au lancement suivant
+- 💾 **Sessions** — chaque conversation est enregistrée après chaque réponse et se rouvre au lancement suivant ; au survol de sa ligne dans la barre latérale, le crayon ✏️ la renomme et la corbeille la supprime
 
 ### Utilisation Typique
 
@@ -1345,6 +1345,7 @@ Organisez vos conversations en espaces de travail isolés :
 - **Créer** un workspace : chaque workspace a son historique, documents et agents
 - **Sauvegarder** automatiquement toutes les 5 minutes (configurable)
 - **Charger** un workspace précédent pour reprendre le travail
+- **Renommer** une conversation : crayon ✏️ juste à gauche de la corbeille, au survol de sa ligne dans la barre latérale (au clavier, **Tab** depuis la ligne). Le nom devient un champ, déjà sélectionné : **Entrée** ou un clic ailleurs enregistre, **Échap** annule, sans arrêter une réponse en cours. Le nouveau nom vaut partout : liste des conversations, résultats de la recherche globale, provenance dans le panneau Mémoire. La conversation garde sa place et sa date dans la liste
 - **Supprimer** les workspaces obsolètes
 
 Les workspaces sont sauvegardés dans `data/workspaces/`.

@@ -865,6 +865,11 @@ state = sm.load_workspace(ws_id)
 # Lister tous les workspaces
 workspaces = sm.list_workspaces()
 
+# Renommer : metadata.json et state.json, sans changer last_modified (la
+# conversation garde sa place dans la liste). Dans l'appli, ChatService.rename_session
+# prévient aussi la fenêtre et met à jour l'index de la recherche globale
+sm.rename_workspace(ws_id, "Refonte de l'API")
+
 # Auto-save (appelé périodiquement)
 sm.auto_save(ws_id, current_state)
 ```

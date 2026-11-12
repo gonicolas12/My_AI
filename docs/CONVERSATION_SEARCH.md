@@ -9,7 +9,7 @@ Retrouvez **n'importe quel échange passé** par recherche **sémantique** — s
 Barre latérale (**Ctrl+B**) → **Recherche globale** : un champ de recherche, un bouton **Réindexer les conversations**, et la liste des résultats.
 
 - Tapez votre requête, puis **Entrée**.
-- Chaque résultat affiche le **rôle** (vous / assistant), le **nom de la session** et un **extrait**.
+- Chaque résultat affiche le **rôle** (vous / assistant), le **nom de la session** (son nom actuel, même juste après un renommage) et un **extrait**.
 - **Un clic sur un résultat** ouvre la conversation source **et surligne le passage** trouvé (défilement automatique). Le surlignage **disparaît au clic**, comme une vraie sélection.
 
 ---
@@ -20,10 +20,11 @@ Barre latérale (**Ctrl+B**) → **Recherche globale** : un champ de recherche, 
 La recherche s'appuie sur l'**index ChromaDB** déjà présent (collection `conversations` du modèle d'embeddings actif) et l'**embedding partagé** (`core/shared.py`, Granite 107M multilingue : une question en français retrouve un message écrit en anglais). **Aucun second pipeline d'embedding** n'est créé.
 
 ### Indexation incrémentale
-Un manifeste `memory/vector_store/conversation_index.json` mémorise le `last_modified` de chaque workspace indexé :
+Un manifeste `memory/vector_store/conversation_index.json` mémorise le `last_modified` et le nom de chaque workspace indexé :
 
 - au réindex, **seuls les workspaces nouveaux ou modifiés** sont retraités ;
 - les workspaces **supprimés** sont **purgés** de l'index ;
+- un workspace **renommé** (crayon de la barre latérale) garde son `last_modified` : seul le nom porté par ses messages dans l'index est réécrit, **sans réembedding**. Cela se fait au renommage même, ou au réindex suivant si l'index était injoignable à ce moment-là. Un manifeste écrit avant cette version relit une fois les noms dans l'index ;
 - un **numéro de schéma** force une réindexation complète quand la logique d'indexation évolue.
 
 L'index est **rafraîchi automatiquement** avant chaque recherche (incrémental, donc rapide). Le bouton **🔄** force une réindexation complète ; le nombre de messages indexés s'affiche alors quelques secondes sous le champ de recherche.
@@ -63,7 +64,12 @@ cs = ai_engine.get_conversation_search()   # None si dépendances absentes
 cs.is_available()                          # embedding + collection + session_manager prêts ?
 
 cs.reindex(force=False)  # incrémental ; force=True = tout réindexer
-# → {"indexed": n_workspaces, "messages": n_messages, "removed": n_supprimes}
+# → {"indexed": n_workspaces, "messages": n_messages, "removed": n_supprimes,
+#    "renamed": n_renommes}
+
+# Après SessionManager.rename_workspace : nouveau nom dans les métadonnées,
+# sans réembedding (ChatService.rename_session l'appelle)
+cs.rename_workspace(workspace_id, "Nouveau nom")   # → True si l'index le porte
 
 cs.search(
     query,
