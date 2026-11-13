@@ -7,6 +7,7 @@ incrementale (skip si inchange, reindex si modifie, purge si supprime),
 detachement de dossier, filtrage par workspace et statut. Aucun embedding reel.
 """
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -279,3 +280,30 @@ def test_progress_callback(env):
                          progress_cb=lambda d, t, p: seen.append((d, t, p)))
     assert seen
     assert seen[-1][0] == seen[-1][1]  # done == total a la fin
+
+
+def test_refused_workspace_id_indexes_nothing_and_leaves_manifests_alone(env):
+    """Identifiant refuse (core.session_manager.workspace_dir) : rien n'est
+    indexe, et aucun manifeste hors d'un dossier de workspace n'est lu ni
+    reecrit. Workspaces sous tmp/appli/data : rien ne sortirait de tmp."""
+    tmp, vm, _ = env
+    workspaces = tmp / "appli" / "data" / "workspaces"
+    indexer = FolderIndexer(vector_memory=vm, workspaces_dir=str(workspaces))
+    root = _make_project(tmp / "proj")
+    elsewhere = tmp / "ailleurs"
+    lure = json.dumps({"schema": 1, "folders": {"C:/secret": {"files": {"a.py": {}}}}})
+    lured = [workspaces.parent, workspaces, workspaces / "a" / "b", elsewhere]
+    for folder in lured:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "folder_index.json").write_text(lure, encoding="utf-8")
+
+    for bad in ("..", ".", "", "a/b", "a\\b", str(elsewhere)):
+        assert indexer.index_folder(bad, str(root))["status"] == "error"
+        assert indexer.index_path(bad, str(root / "main.py"))["status"] == "error"
+        assert indexer.list_folders(bad) == []
+        assert indexer.get_status(bad)["folders"] == []
+        assert indexer.remove_folder(bad, "C:/secret") is False
+
+    assert vm.codebase_collection.count() == 0
+    for folder in lured:
+        assert (folder / "folder_index.json").read_text(encoding="utf-8") == lure
