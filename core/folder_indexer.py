@@ -33,6 +33,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from core.session_manager import workspace_dir
+
 try:
     from core.config import get_config
 except Exception:  # pragma: no cover - config optionnelle
@@ -200,16 +202,20 @@ class FolderIndexer:
     # Manifeste (mtime/taille/hash par fichier, par workspace)
     # ------------------------------------------------------------------
 
-    def _manifest_path(self, workspace_id: str) -> Path:
-        return self._workspaces_dir / workspace_id / "folder_index.json"
+    def _manifest_path(self, workspace_id: str) -> Optional[Path]:
+        """Manifeste du workspace, ou None si l'identifiant sortirait du dossier
+        des workspaces (meme controle que SessionManager : workspace_dir)."""
+        folder = workspace_dir(self._workspaces_dir, workspace_id)
+        return folder / "folder_index.json" if folder is not None else None
 
     def _load_manifest(self, workspace_id: str) -> Dict[str, Any]:
         """Charge le manifeste d'un workspace : {folder_path: {files: {...}}}.
 
-        Renvoie {} si le schema a change (force une reindexation complete).
+        Renvoie {} si le schema a change (force une reindexation complete), ou
+        si l'identifiant est refuse.
         """
         path = self._manifest_path(workspace_id)
-        if not path.is_file():
+        if path is None or not path.is_file():
             return {}
         try:
             with open(path, "r", encoding="utf-8") as fh:
@@ -224,6 +230,10 @@ class FolderIndexer:
 
     def _save_manifest(self, workspace_id: str, folders: Dict[str, Any]) -> None:
         path = self._manifest_path(workspace_id)
+        if path is None:
+            logger.warning("Manifeste folder non sauvegarde: workspace %.80r refuse",
+                           workspace_id)
+            return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(".json.tmp")
@@ -432,6 +442,10 @@ class FolderIndexer:
         if not self.is_available():
             return {"status": "unavailable", "folder": folder_path,
                     "files_indexed": 0, "chunks": 0}
+        # Identifiant refuse : pas de manifeste possible, donc rien a indexer
+        if self._manifest_path(workspace_id) is None:
+            return {"status": "error", "folder": str(folder_path),
+                    "error": "Workspace invalide", "files_indexed": 0, "chunks": 0}
 
         root = Path(folder_path).expanduser()
         try:
@@ -534,6 +548,9 @@ class FolderIndexer:
         """
         if not self.is_available():
             return {"status": "unavailable", "file": str(file_path), "chunks": 0}
+        if self._manifest_path(workspace_id) is None:
+            return {"status": "error", "file": str(file_path),
+                    "error": "Workspace invalide", "chunks": 0}
 
         p = Path(file_path).expanduser()
         try:

@@ -39,6 +39,36 @@ def _slugify(text: str) -> str:
     return text
 
 
+def workspace_dir(root: Path, workspace_id: Any) -> Optional[Path]:
+    """
+    Dossier d'un workspace sous root, ou None si l'identifiant n'en designe pas un.
+
+    Un identifiant valide est un nom de dossier simple, directement sous root :
+    ni vide, ni "." ou "..", sans separateur (/ ou \\, sur tous les systemes),
+    sans lecteur ni flux NTFS (:), sans caractere de controle. Le chemin resolu
+    doit en plus avoir root pour parent exact : sous Windows, "...", ".. " ou
+    ". ." designent root lui-meme (points et espaces finaux retires), et un
+    lien qui mene ailleurs est ecarte aussi.
+
+    Args:
+        root: Repertoire racine des workspaces
+        workspace_id: Identifiant a verifier (segment d'URL compris)
+
+    Returns:
+        root / workspace_id (que le dossier existe ou non), ou None si refuse
+    """
+    if not isinstance(workspace_id, str) or workspace_id in ("", ".", ".."):
+        return None
+    if any(char in "/\\:" or ord(char) < 32 for char in workspace_id):
+        return None
+    try:
+        base = root.resolve()
+        inside = (base / workspace_id).resolve().parent == base
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return root / workspace_id if inside else None
+
+
 class SessionManager:
     """
     Gestionnaire de workspaces pour l'assistant IA local.
@@ -90,7 +120,11 @@ class SessionManager:
         short_id = uuid.uuid4().hex[:8]
         workspace_id = f"{slug}-{short_id}"
 
-        workspace_path = self._workspaces_dir / workspace_id
+        workspace_path = self._workspace_path(workspace_id)
+        if workspace_path is None:
+            raise ValueError(
+                f"Le nom '{name}' ne produit pas d'identifiant valide"
+            )
         with self._lock:
             workspace_path.mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +168,9 @@ class SessionManager:
         Returns:
             True si la sauvegarde a reussi, False sinon
         """
-        workspace_path = self._workspaces_dir / workspace_id
+        workspace_path = self._workspace_path(workspace_id)
+        if workspace_path is None:
+            return False
         if not workspace_path.is_dir():
             logger.error(
                 "Sauvegarde impossible: workspace '%s' introuvable",
@@ -202,7 +238,9 @@ class SessionManager:
         Returns:
             Dictionnaire de l'etat du workspace, ou None si introuvable/corrompu
         """
-        workspace_path = self._workspaces_dir / workspace_id
+        workspace_path = self._workspace_path(workspace_id)
+        if workspace_path is None:
+            return None
         if not workspace_path.is_dir():
             logger.warning(
                 "Chargement impossible: workspace '%s' introuvable",
@@ -272,7 +310,9 @@ class SessionManager:
         Returns:
             True si la suppression a reussi, False sinon
         """
-        workspace_path = self._workspaces_dir / workspace_id
+        workspace_path = self._workspace_path(workspace_id)
+        if workspace_path is None:
+            return False
         if not workspace_path.is_dir():
             logger.warning(
                 "Suppression impossible: workspace '%s' introuvable",
@@ -321,7 +361,9 @@ class SessionManager:
         if not new_name or not new_name.strip():
             raise ValueError("Le nouveau nom ne peut pas etre vide")
 
-        workspace_path = self._workspaces_dir / workspace_id
+        workspace_path = self._workspace_path(workspace_id)
+        if workspace_path is None:
+            return False
         if not workspace_path.is_dir():
             logger.warning(
                 "Renommage impossible: workspace '%s' introuvable",
@@ -377,12 +419,12 @@ class SessionManager:
             workspace_id: Identifiant du workspace a activer
 
         Raises:
-            ValueError: Si le workspace n'existe pas
+            ValueError: Si le workspace n'existe pas ou si l'identifiant est refuse
         """
-        workspace_path = self._workspaces_dir / workspace_id
-        if not workspace_path.is_dir():
+        workspace_path = self._workspace_path(workspace_id)
+        if workspace_path is None or not workspace_path.is_dir():
             raise ValueError(
-                f"Le workspace '{workspace_id}' n'existe pas"
+                f"Le workspace {workspace_id!r:.80} n'existe pas"
             )
 
         self._current_workspace_id = workspace_id
@@ -423,6 +465,26 @@ class SessionManager:
     # ------------------------------------------------------------------
     # Methodes internes
     # ------------------------------------------------------------------
+
+    def _workspace_path(self, workspace_id: Any) -> Optional[Path]:
+        """
+        Dossier d'un workspace, ou None si l'identifiant est refuse (cf. workspace_dir).
+
+        Toute methode qui recoit un identifiant passe par ici, avant de toucher
+        au disque : les routes du serveur local transmettent le segment d'URL
+        tel quel, et ".." y designait data/, que delete_workspace effacait en
+        entier. Un identifiant refuse se comporte comme un workspace introuvable.
+
+        Args:
+            workspace_id: Identifiant du workspace
+
+        Returns:
+            Chemin du dossier du workspace, ou None si l'identifiant est refuse
+        """
+        path = workspace_dir(self._workspaces_dir, workspace_id)
+        if path is None:
+            logger.warning("Identifiant de workspace refuse: %.80r", workspace_id)
+        return path
 
     @staticmethod
     def _write_json(path: Path, data: Dict[str, Any]) -> None:
