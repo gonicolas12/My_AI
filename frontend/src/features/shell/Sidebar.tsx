@@ -320,11 +320,13 @@ export function Sidebar() {
             <SearchResults />
           ) : (
             <>
-              <div className="flex items-center gap-2 px-4 pb-1.5 text-2xs font-semibold tracking-wide text-fg-3 uppercase">
+              <div className="flex items-center gap-2 px-4 text-2xs font-semibold tracking-wide text-fg-3 uppercase">
                 <MessagesSquare size={13} />
                 {t('sidebar.conversations')}
               </div>
-              <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+              {/* L'espace sous le titre est dans la liste (pt-1.5) : l'anneau de focus
+                  de la première ligne y tient, la liste qui défile le couperait sinon */}
+              <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pt-1.5 pb-2">
                 {sessions.length ? (
                   sessions.map((session) => (
                     <SessionItem
