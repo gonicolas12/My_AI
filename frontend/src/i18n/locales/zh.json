@@ -19,7 +19,6 @@
   "header.status.connectedPlacement": "已连接 · {placement}",
   "header.showSidebar": "显示侧边栏",
   "header.pages": "页面",
-  "header.clearConversation": "清空对话",
   "header.help": "帮助",
   "toast.scheduled.openReport": "打开报告",
   "toast.scheduled.defaultName": "计划任务",

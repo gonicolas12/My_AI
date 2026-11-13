@@ -19,7 +19,6 @@
   "header.status.connectedPlacement": "接続済み · {placement}",
   "header.showSidebar": "サイドバーを表示",
   "header.pages": "ページ",
-  "header.clearConversation": "会話を消去",
   "header.help": "ヘルプ",
   "toast.scheduled.openReport": "レポートを開く",
   "toast.scheduled.defaultName": "スケジュールされたタスク",

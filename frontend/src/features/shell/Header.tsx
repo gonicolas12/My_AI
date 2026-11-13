@@ -2,13 +2,12 @@ import { Bot, CircleHelp, MessageSquare, PanelLeft, Trash2 } from 'lucide-react'
 
 import { IconButton } from '../../components/ui/Button';
 import { Tooltip } from '../../components/ui/Tooltip';
-import { clearConversation, toggleSidebar } from '../../lib/actions';
+import { toggleSidebar } from '../../lib/actions';
 import { cn } from '../../lib/cn';
 import { type MessageKey, useT } from '../../i18n';
 import { hasSidebar, setTab, useApp, type Tab } from '../../stores/app';
 import { openPanel } from '../../stores/panels';
 import { useChat } from '../../stores/chat';
-import { isGenerating } from '../../stores/chatReducer';
 import { clearCode, useCode } from '../../stores/code';
 
 const TABS: { id: Tab; label: MessageKey; icon: typeof Bot }[] = [
@@ -54,7 +53,6 @@ export function Header() {
   const tab = useApp((state) => state.tab);
   const sidebarOpen = useApp((state) => state.sidebarOpen);
   const hasMessages = useChat((state) => state.messages.length > 0);
-  const busy = useChat(isGenerating);
   const hasCodeMessages = useCode((state) => state.messages.length > 0);
 
   return (
@@ -92,18 +90,10 @@ export function Header() {
       ) : null}
 
       <div className="ms-auto flex items-center gap-1">
+        {/* Pas de corbeille pour le chat : elle ne faisait que démarrer une nouvelle
+            conversation, comme « Nouvelle conversation » (Ctrl+N) ; Ctrl+L reste */}
         {tab === 'chat' && hasMessages ? (
-          <IconButton
-            label={t('header.clearConversation')}
-            shortcut="Ctrl+L"
-            disabled={busy}
-            onClick={() => void clearConversation()}
-          >
-            <Trash2 size={17} />
-          </IconButton>
-        ) : null}
-        {tab === 'chat' && hasMessages ? (
-          // Comme Tk : à côté d'« Effacer », hors de l'accueil ; F1 ouvre l'aide partout
+          // Hors de l'accueil, comme dans Tk ; F1 ouvre l'aide partout
           <IconButton label={t('header.help')} shortcut="F1" onClick={() => openPanel('help')}>
             <CircleHelp size={17} />
           </IconButton>

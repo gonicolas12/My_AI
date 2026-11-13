@@ -19,7 +19,6 @@
   "header.status.connectedPlacement": "Подключено · {placement}",
   "header.showSidebar": "Показать боковую панель",
   "header.pages": "Страницы",
-  "header.clearConversation": "Очистить разговор",
   "header.help": "Справка",
   "toast.scheduled.openReport": "Открыть отчёт",
   "toast.scheduled.defaultName": "Запланированная задача",

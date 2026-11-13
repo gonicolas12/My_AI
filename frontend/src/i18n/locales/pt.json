@@ -19,7 +19,6 @@
   "header.status.connectedPlacement": "Conectado · {placement}",
   "header.showSidebar": "Mostrar a barra lateral",
   "header.pages": "Páginas",
-  "header.clearConversation": "Limpar a conversa",
   "header.help": "Ajuda",
   "toast.scheduled.openReport": "Abrir o relatório",
   "toast.scheduled.defaultName": "Tarefa agendada",
