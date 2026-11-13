@@ -19,7 +19,6 @@
   "header.status.connectedPlacement": "연결됨 · {placement}",
   "header.showSidebar": "사이드바 표시",
   "header.pages": "페이지",
-  "header.clearConversation": "대화 지우기",
   "header.help": "도움말",
   "toast.scheduled.openReport": "보고서 열기",
   "toast.scheduled.defaultName": "예약된 작업",
