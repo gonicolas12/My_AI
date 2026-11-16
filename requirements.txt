@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # My Personal AI - Dépendances Python
 # Python 3.11 à 3.14 (3.12 au plus sur Mac Intel) :
 # - 3.10, en fin de vie depuis le 01/10/2026 : Pillow 13, websockets 17,
@@ -9,6 +10,10 @@
 #
 # Relever une borne minimale met aussi à niveau les installations existantes :
 # au lancement, utils/requirements_sync.py réinstalle les lignes non satisfaites.
+#
+# Ligne 1 : sans elle, pip avant la 25.0 (24.0 est fourni avec Python 3.11.9)
+# lit ce fichier dans l'encodage local, cp1252 sous Windows, et « pip install
+# -r » s'arrête sur « ⚠️ » (UnicodeDecodeError). pip 25 lit l'UTF-8 par défaut.
 
 # ====================================
 # CORE

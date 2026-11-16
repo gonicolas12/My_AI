@@ -1,13 +1,15 @@
 """
-Bornes de sécurité de requirements.txt (veille du 09/11/2026).
+Bornes de sécurité de requirements.txt (veilles du 09/11 et du 16/11/2026).
 
 Relever une borne minimale suffit à mettre à niveau les installations
 existantes : au lancement, utils/requirements_sync.py réinstalle les lignes que
 la version installée ne satisfait plus. Ces tests empêchent qu'une édition de
 requirements.txt redescende sous un correctif, et vérifient sur les quatre
 plateformes que les lignes à marqueurs restent exclusives (une seule ligne par
-paquet).
+paquet). Ils vérifient aussi qu'un pip ancien lit le fichier en UTF-8.
 """
+
+import re
 
 import pytest
 from packaging.markers import default_environment
@@ -75,6 +77,17 @@ def test_pymupdf_stays_1x_on_intel_macs_only():
     assert not _line("Mac Intel", "pymupdf").specifier.contains("2.1")
     for platform_name in ("Windows", "Linux", "Mac Apple Silicon"):
         assert _line(platform_name, "pymupdf").specifier.contains("2.1")
+
+
+def test_old_pip_reads_requirements_as_utf8():
+    # pip avant la 25.0 (24.0 est fourni avec Python 3.11.9) lit requirements.txt
+    # dans l'encodage local, cp1252 sous Windows, sauf déclaration PEP 263 dans
+    # les deux premières lignes : sans elle, « pip install -r » s'arrêtait sur
+    # l'octet 0x8F de « ⚠️ » (UnicodeDecodeError). Même expression que pip.
+    first_lines = sync.REQUIREMENTS_FILE.read_bytes().splitlines()[:2]
+    declared = [re.search(rb"coding[:=]\s*([-\w.]+)", line)
+                for line in first_lines if line.startswith(b"#")]
+    assert [found.group(1) for found in declared if found] == [b"utf-8"]
 
 
 def test_intel_macs_keep_their_pinned_ml_stack():
