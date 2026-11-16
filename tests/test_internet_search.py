@@ -9,6 +9,7 @@ entier. Aucun réseau ici : les moteurs et les pages sont simulés.
 """
 
 import re
+import time
 from datetime import date
 
 import pytest
@@ -39,8 +40,9 @@ class _Response:
     """Ce que le module lit d'une réponse requests."""
 
     def __init__(self, status=200, body=b"", url="https://example.org/",
-                 content_type="text/html; charset=utf-8", payload=None):
+                 content_type="text/html; charset=utf-8", payload=None, reason=""):
         self.status_code = status
+        self.reason = reason
         self.content = body if isinstance(body, bytes) else body.encode("utf-8")
         self.url = url
         self.headers = {"Content-Type": content_type}
@@ -326,6 +328,37 @@ def test_moteur_bloque_mis_en_pause(monkeypatch):
     second = ws.search_engines("autre recherche")
     assert second.engine == "Yahoo"
     assert session.hosts().count("html.duckduckgo.com") == 1
+
+
+def _yahoo_500_routes(reason):
+    return {
+        "html.duckduckgo.com": lambda url, **kw: _Response(body="<html></html>"),
+        "search.yahoo.com": lambda url, **kw: _Response(status=500, reason=reason, url=url),
+        "wikipedia.org": lambda url, **kw: _Response(payload={}, content_type="application/json"),
+    }
+
+
+def test_yahoo_refus_inkapi_mis_en_pause(monkeypatch):
+    # La passerelle de Yahoo répond « 500 INKApi Error » à l'empreinte TLS de
+    # Python 3.11 et 3.12 (OpenSSL 3.0) : un refus, pas une panne. Pause d'un
+    # quart d'heure comme une page anti-robot, pas une requête par minute.
+    session = _use(monkeypatch, _yahoo_500_routes("INKApi Error"))
+    first = ws.search_engines("best car brands ranking")
+    assert "Yahoo bloqué (HTTP 500 INKApi Error)" in first.notes
+    remaining = ws._PAUSED_UNTIL["Yahoo"] - time.monotonic()  # pylint: disable=protected-access
+    assert remaining > 10 * 60
+
+    second = ws.search_engines("autre recherche")
+    assert "Yahoo en pause" in second.notes
+    assert session.hosts().count("search.yahoo.com") == 1
+
+
+def test_yahoo_erreur_500_ordinaire_reste_une_panne(monkeypatch):
+    _use(monkeypatch, _yahoo_500_routes("Internal Server Error"))
+    response = ws.search_engines("best car brands ranking")
+    assert "Yahoo injoignable" in response.notes
+    remaining = ws._PAUSED_UNTIL["Yahoo"] - time.monotonic()  # pylint: disable=protected-access
+    assert remaining <= 60
 
 
 def test_aucun_combinateur_descendant_sur_le_html_recu(monkeypatch):
