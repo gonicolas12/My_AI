@@ -10,7 +10,10 @@ se retient d'un lancement à l'autre : taille, position, barre latérale.
 # Les gestionnaires de pywebview remplacés sont privés
 # pylint: disable=protected-access
 
+import os
+import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -26,6 +29,7 @@ from interfaces.desktop.window import (WindowGeometry, app_origins, colorref,
                                        dropped_paths, is_app_url, watch_drops)
 
 APP = "http://127.0.0.1:53211"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ── Liens qui sortent de l'appli ────────────────────────────────────────────
@@ -106,16 +110,38 @@ class FakeNavigation:
         self.handled = value
 
 
+def fake_edgechromium():
+    """Module edgechromium de pywebview réduit aux deux gestionnaires remplacés.
+
+    Le vrai module charge pythonnet (.NET) : à l'arrêt de Python, son unload
+    enchaîne 81 collectes complètes du ramasse-miettes sur tout le tas, soit
+    près d'une minute après la suite complète. La vraie classe est vérifiée
+    dans un processus à part (test_installed_pywebview_is_hardened).
+    """
+    calls = []
+
+    class EdgeChrome:
+        """Gestionnaires d'événements WebView2 d'origine (ils notent leurs appels)."""
+
+        def on_navigation_start(self, _sender, args):
+            calls.append(("navigation", args.get_Uri()))
+
+        def on_new_window_request(self, _sender, args):
+            calls.append(("nouvelle fenêtre", args.get_Uri()))
+
+    return SimpleNamespace(EdgeChrome=EdgeChrome, calls=calls)
+
+
 @pytest.fixture(name="chrome")
 def chrome_fixture(monkeypatch):
     """Gestionnaires de pywebview (WebView2) remplacés par harden_edgechromium."""
-    if not sys.platform.startswith("win"):
-        pytest.skip("WebView2 : Windows seulement")
-    edgechromium = pytest.importorskip("webview.platforms.edgechromium")
+    edgechromium = fake_edgechromium()
+    monkeypatch.setitem(sys.modules, "webview.platforms",
+                        SimpleNamespace(edgechromium=edgechromium))
     opened = []
     monkeypatch.setattr(desktop_window, "open_external", opened.append)
     assert desktop_window.harden_edgechromium(app_origins(APP)) is True
-    return SimpleNamespace(cls=edgechromium.EdgeChrome, opened=opened)
+    return SimpleNamespace(cls=edgechromium.EdgeChrome, calls=edgechromium.calls, opened=opened)
 
 
 def test_navigation_outside_the_app_is_cancelled(chrome):
@@ -123,6 +149,7 @@ def test_navigation_outside_the_app_is_cancelled(chrome):
     chrome.cls.on_navigation_start(SimpleNamespace(pywebview_window=None), None, args)
     assert args.cancel is True
     assert chrome.opened == ["https://example.com/"]
+    assert chrome.calls == []
 
 
 def test_navigation_inside_the_app_goes_on(chrome):
@@ -131,6 +158,8 @@ def test_navigation_inside_the_app_goes_on(chrome):
     chrome.cls.on_navigation_start(page, None, args)
     assert args.cancel is False
     assert chrome.opened == []
+    # Le gestionnaire de pywebview suit son cours
+    assert chrome.calls == [("navigation", f"{APP}/#token=secret")]
 
 
 def test_new_window_never_opens_in_the_app(chrome):
@@ -140,6 +169,52 @@ def test_new_window_never_opens_in_the_app(chrome):
     # open_external refuse lui-même les schémas non web
     assert chrome.opened == ["file:///C:/Windows/System32/calc.exe"]
     assert external_url(chrome.opened[0]) is None
+    assert chrome.calls == []
+
+
+def test_installed_pywebview_is_hardened():
+    """Les deux gestionnaires de la vraie classe WebView2 sont bien remplacés.
+
+    Interpréteur neuf, qui sort par os._exit comme l'appli (launch_unified.py) :
+    chargé dans le processus des tests, pythonnet retardait la fin de la suite.
+    """
+    if not sys.platform.startswith("win"):
+        pytest.skip("WebView2 : Windows seulement")
+    code = (
+        "import os, sys\n"
+        "try:\n"
+        "    from webview.platforms import edgechromium\n"
+        "except Exception as exc:  # pywebview, pythonnet ou WebView2 absent\n"
+        "    print(f'WebView2 indisponible : {exc}', flush=True)\n"
+        "    os._exit(3)\n"
+        "from interfaces.desktop import window\n"
+        "chrome = edgechromium.EdgeChrome\n"
+        "handlers = ('on_navigation_start', 'on_new_window_request')\n"
+        "print(all(name in vars(chrome) for name in handlers))\n"
+        f"print(window.harden_edgechromium(window.app_origins({APP!r})))\n"
+        "for name in handlers:\n"
+        "    print(getattr(chrome, name).__qualname__)\n"
+        "sys.stdout.flush()\n"
+        "os._exit(0)\n"
+    )
+    run = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        timeout=120,
+        check=False,
+    )
+    if run.returncode == 3:
+        pytest.skip(run.stdout.strip())
+    assert run.returncode == 0, run.stderr[-3000:]
+    assert run.stdout.splitlines() == [
+        "True",
+        "True",
+        "harden_edgechromium.<locals>.on_navigation_start",
+        "harden_edgechromium.<locals>.on_new_window_request",
+    ]
 
 
 # ── Barre de titre ──────────────────────────────────────────────────────────
