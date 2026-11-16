@@ -12,6 +12,7 @@ paquet). Ils vérifient aussi qu'un pip ancien lit le fichier en UTF-8.
 import re
 
 import pytest
+from packaging import markers
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
@@ -36,11 +37,16 @@ SECURITY_FLOORS = [
 ]
 
 
-def _active(platform_name, python="3.12"):
-    """Lignes de requirements.txt retenues sur cette plateforme."""
+def _python_markers(python):
+    """Marqueurs python_version et python_full_version d'un Python « x.y.z »."""
+    return {"python_version": python.rsplit(".", 1)[0], "python_full_version": python}
+
+
+def _active(platform_name, python="3.12.0"):
+    """Lignes de requirements.txt retenues sur cette plateforme et ce Python (x.y.z)."""
     env = default_environment()
     env.update(PLATFORMS[platform_name])
-    env.update({"python_version": python, "python_full_version": f"{python}.0"})
+    env.update(_python_markers(python))
     requirements = []
     for raw in TEXT.splitlines():
         line = sync._COMMENT.sub("", raw).strip()  # pylint: disable=protected-access
@@ -52,8 +58,8 @@ def _active(platform_name, python="3.12"):
     return requirements
 
 
-def _line(platform_name, name):
-    (requirement,) = [r for r in _active(platform_name) if r.name.lower() == name]
+def _line(platform_name, name, python="3.12.0"):
+    (requirement,) = [r for r in _active(platform_name, python) if r.name.lower() == name]
     return requirement
 
 
@@ -77,6 +83,45 @@ def test_pymupdf_stays_1x_on_intel_macs_only():
     assert not _line("Mac Intel", "pymupdf").specifier.contains("2.1")
     for platform_name in ("Windows", "Linux", "Mac Apple Silicon"):
         assert _line(platform_name, "pymupdf").specifier.contains("2.1")
+
+
+def test_cryptography_stays_48_on_intel_macs_only():
+    # cryptography 49+ n'a plus de wheel macOS x86_64 : pip compilerait le sdist.
+    # 48.0.1, dernière wheel universal2, corrige GHSA-537c-gmf6-5ccf.
+    intel = _line("Mac Intel", "cryptography").specifier
+    assert intel.contains("48.0.1")
+    assert not intel.contains("48.0.0") and not intel.contains("49.0.0")
+    for platform_name in ("Windows", "Linux", "Mac Apple Silicon"):
+        # 49.0.0 : GHSA-jwv3-5hgf-82ww et GHSA-m2h6-j472-rp4c ; 50.0.0 : GHSA-g6cj-pr64-35w5
+        specifier = _line(platform_name, "cryptography").specifier
+        assert specifier.contains("50.0.0") and specifier.contains("50.0.2")
+        assert not specifier.contains("49.0.0") and not specifier.contains("48.0.1")
+
+
+@pytest.mark.parametrize("platform_name", PLATFORMS)
+def test_soupsieve_4_from_python_3_11_5(platform_name):
+    # GHSA-mmhr-3c5m-f64f corrigé en 4.0 ; les versions 3.0.2 et suivantes
+    # exigent Python 3.11.5
+    for python in ("3.11.5", "3.12.0", "3.14.7"):
+        specifier = _line(platform_name, "soupsieve", python).specifier
+        assert specifier.contains("4.0") and specifier.contains("4.1.1")
+        assert not specifier.contains("3.0.2") and not specifier.contains("2.10")
+    # Sous 3.11.0 à 3.11.4, aucune version corrigée ne s'installe : ligne ignorée
+    for python in ("3.11.0", "3.11.4"):
+        assert "soupsieve" not in [r.name.lower() for r in _active(platform_name, python)]
+
+
+@pytest.mark.parametrize("python, upgraded", [("3.11.4", False), ("3.11.5", True),
+                                              ("3.14.7", True)])
+def test_soupsieve_is_upgraded_at_launch_from_python_3_11_5(monkeypatch, python, upgraded):
+    # Installation existante : beautifulsoup4 avait tiré la 2.10. Le lancement
+    # évalue python_full_version et réinstalle la ligne à partir de 3.11.5.
+    environment = default_environment()
+    environment.update(_python_markers(python))
+    monkeypatch.setattr(markers, "default_environment", lambda: dict(environment))
+    monkeypatch.setattr(sync, "_installed_versions", lambda: {"soupsieve": "2.10"})
+    missing = [line for line in sync.unsatisfied_requirements(TEXT) if line.startswith("soupsieve")]
+    assert missing == (['soupsieve>=4.0; python_full_version >= "3.11.5"'] if upgraded else [])
 
 
 def test_old_pip_reads_requirements_as_utf8():

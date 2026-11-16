@@ -37,6 +37,16 @@ aiofiles>=23.0.0
 requests>=2.31.0
 tenacity>=8.2.0
 beautifulsoup4>=4.12.0
+# soupsieve, moteur des sélecteurs CSS de beautifulsoup4 (qui ne le borne pas).
+# Les quatre avis du 13/11/2026 sont corrigés en 4.0, le dernier étant
+# GHSA-mmhr-3c5m-f64f (CVE-2026-126190 : temps polynomial dans le combinateur
+# descendant, sur du HTML fourni par l'attaquant) ; les trois autres supposent
+# un sélecteur fourni par l'attaquant ou :has(). Les versions 3.0.2 et suivantes
+# exigent Python 3.11.5 : sous 3.11.0 à 3.11.4, la ligne est ignorée et la 2.10
+# reste installée, mais aucun des quatre avis n'y est atteignable : My_AI
+# n'applique plus aucun combinateur descendant au HTML reçu, et ses sélecteurs
+# sont constants, sans :has() (models/internet_search.py).
+soupsieve>=4.0; python_full_version >= "3.11.5"
 lxml>=4.9.0
 # Certificats du magasin système (racine d'un proxy d'entreprise) pour la recherche internet
 truststore>=0.9
@@ -163,7 +173,17 @@ bitsandbytes>=0.40.0,<1.0; platform_system != "Darwin"
 # ====================================
 # SÉCURITÉ
 # ====================================
-cryptography>=41.0.0
+# Fernet (mémoire chiffrée) et AES-GCM (Relay). cryptography 49.0.0 et
+# suivantes ne publient plus de wheel macOS x86_64 (arm64 seulement) : sur Mac
+# Intel, pip choisirait le sdist de la dernière version et devrait le compiler
+# (Rust et OpenSSL). Comme pour PyMuPDF, deux lignes à marqueurs. Le Mac Intel
+# reste en 48.0.1, dernière wheel universal2 (elle corrige GHSA-537c-gmf6-5ccf,
+# OpenSSL vulnérable dans les wheels) ; il y garde trois avis corrigés en 49 et
+# 50 (GHSA-g6cj-pr64-35w5, déchiffrement PKCS#7 ; GHSA-jwv3-5hgf-82ww, chemins
+# de certificats X.509 ; GHSA-m2h6-j472-rp4c, contraintes de noms), dans des
+# fonctions que My_AI n'utilise pas. Ailleurs, 50.0.0 corrige les trois.
+cryptography>=48.0.1,<49; platform_system == "Darwin" and platform_machine == "x86_64"
+cryptography>=50.0.0; platform_system != "Darwin" or platform_machine != "x86_64"
 
 # ====================================
 # BASE DE DONNÉES & CACHE
