@@ -645,11 +645,17 @@ def _search_yahoo(query: str, french: bool) -> List[SearchResult]:
 
     results = []
     for block in soup.select("div.algo"):
-        link = block.select_one("h3 a[href]") or block.select_one("a[href]")
+        # Lien du titre par find() de bs4, pas par le sélecteur « h3 a[href] » :
+        # aucun combinateur descendant sur le HTML reçu (GHSA-mmhr-3c5m-f64f,
+        # soupsieve 2.10 que pip garde sous Python 3.11.0 à 3.11.4)
+        heading = block.find("h3")
+        link = heading.find("a", href=True) if heading is not None else None
+        if link is None:
+            link = block.find("a", href=True)
         if link is None:
             continue
         # aria-label : le titre seul, sans le fil d'Ariane affiché au-dessus
-        title = _clean(link.get("aria-label", "")) or _text(block.select_one("h3"))
+        title = _clean(link.get("aria-label", "")) or _text(heading)
         results.append(SearchResult(
             title=title,
             url=_yahoo_target(link.get("href", "")),
