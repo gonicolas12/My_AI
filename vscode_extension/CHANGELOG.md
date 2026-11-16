@@ -5,6 +5,19 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.3] — 2026-11-16
+
+Security update of the WebSocket library.
+
+### Security
+- **`ws` 8.23.0** (was 8.22.2), bundled into `dist/extension.js`. Fixes
+  GHSA-37g9-w4hg-h9qr (high): a peer sending pings in a burst without
+  reading the connection made the extension keep every automatic pong in
+  memory, until the extension host ran out of memory and crashed. `ws` now
+  closes the connection once 60 automatic pongs are waiting (its default
+  `maxPendingAutoPongs`), and the extension reconnects as after a network
+  loss.
+
 ## [1.6.2] — 2026-11-09
 
 Security update of the WebSocket library.
