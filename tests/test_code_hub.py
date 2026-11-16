@@ -382,8 +382,28 @@ def test_system_prompt_follows_the_workspace_and_the_language(hub, loop):
     assert "(anglais par défaut)" in build_system_prompt("", language="en")
 
 
-def relay_message(ws, server):
-    return server.decrypt_json(json.loads(ws.receive_text()))
+def relay_message(ws, server, timeout=10.0):
+    """Message suivant du Relay, déchiffré.
+
+    receive_text() du TestClient attend sans fin : un message perdu bloquait
+    toute la suite. Ici, il fait échouer le test.
+    """
+    received = {}
+
+    def receive():
+        try:
+            received["text"] = ws.receive_text()
+        except BaseException as exc:  # pylint: disable=broad-exception-caught
+            received["error"] = exc
+
+    reader = threading.Thread(target=receive, daemon=True)
+    reader.start()
+    reader.join(timeout)
+    if reader.is_alive():
+        raise AssertionError(f"aucun message du Relay en {timeout:g} s")
+    if "error" in received:
+        raise received["error"]
+    return server.decrypt_json(json.loads(received["text"]))
 
 
 def relay_send(ws, server, payload):
@@ -396,48 +416,56 @@ def test_relay_keeps_the_phone_chat_away_from_vscode(hub):
     from relay.relay_server import RelayServer  # pylint: disable=import-outside-toplevel
 
     server = RelayServer(config={}, code_hub=hub)
-    client = testclient.TestClient(server._app)  # pylint: disable=protected-access
-    unlocked = server.decrypt_json(client.post(
-        f"/api/unlock?token={server.auth_token}",
-        json=server.encrypt_json({"code": server.access_code})).json())
-    url = f"/ws?token={server.auth_token}&session={unlocked['session']}"
-    with client.websocket_connect(url) as vscode_ws, client.websocket_connect(url) as phone_ws:
-        relay_send(vscode_ws, server, {
-            "type": "client_hello", "client_kind": "vscode",
-            "workspace_info": "Workspace folders:\n- My_AI (C:\\dev\\My_AI)"})
-        hello = relay_message(vscode_ws, server)
-        assert hello["type"] == "hello_ack" and hello["code"] is True
-        assert hello["language"] == "fr"
-        assert relay_message(vscode_ws, server)["type"] == "code_snapshot"
+    # `with` : une seule boucle asyncio pour toutes les connexions, comme uvicorn
+    # dans l'appli. Sans lui, chaque WebSocket du TestClient avait sa boucle, dans
+    # son fil : _broadcast_chunk écrivait au téléphone depuis la boucle de VS Code,
+    # dans un flux mémoire anyio qui n'est pas thread-safe, et le réveil du lecteur
+    # se perdait (le test bloquait 7 fois sur 40).
+    with testclient.TestClient(server._app) as client:  # pylint: disable=protected-access
+        unlocked = server.decrypt_json(client.post(
+            f"/api/unlock?token={server.auth_token}",
+            json=server.encrypt_json({"code": server.access_code})).json())
+        url = f"/ws?token={server.auth_token}&session={unlocked['session']}"
+        with client.websocket_connect(url) as vscode_ws, client.websocket_connect(url) as phone_ws:
+            relay_send(vscode_ws, server, {
+                "type": "client_hello", "client_kind": "vscode",
+                "workspace_info": "Workspace folders:\n- My_AI (C:\\dev\\My_AI)"})
+            hello = relay_message(vscode_ws, server)
+            assert hello["type"] == "hello_ack" and hello["code"] is True
+            assert hello["language"] == "fr"
+            assert relay_message(vscode_ws, server)["type"] == "code_snapshot"
 
-        # Réponse du chat du téléphone (bridge) : au téléphone seulement
-        server._loop = hub._links[-1].loop  # pylint: disable=protected-access
-        server._broadcast_chunk("relay_1", "Tout va bien")  # pylint: disable=protected-access
-        assert relay_message(phone_ws, server)["text"] == "Tout va bien"
-        relay_send(vscode_ws, server, {"type": "ping"})
-        assert relay_message(vscode_ws, server)["type"] == "pong"
+            # Réponse du chat du téléphone (bridge) : au téléphone seulement.
+            # Boucle du Relay : celle du TestClient, où tournent les deux WebSockets
+            loop = client.portal.call(asyncio.get_running_loop)
+            assert hub._links[-1].loop is loop  # pylint: disable=protected-access
+            server._loop = loop  # pylint: disable=protected-access
+            server._broadcast_chunk("relay_1", "Tout va bien")  # pylint: disable=protected-access
+            assert relay_message(phone_ws, server)["text"] == "Tout va bien"
+            relay_send(vscode_ws, server, {"type": "ping"})
+            assert relay_message(vscode_ws, server)["type"] == "pong"
 
-        # Vue Code du téléphone : message à l'extension, réponse aux deux
-        relay_send(phone_ws, server, {"type": "code_subscribe"})
-        snapshot = relay_message(phone_ws, server)
-        assert snapshot["type"] == "code_snapshot"
-        assert snapshot["state"]["workspace"] == "My_AI"
-        relay_send(phone_ws, server, {"type": "code_chat", "message": "Salut"})
-        phone_types = []
-        while "code_done" not in phone_types:
-            phone_types.append(relay_message(phone_ws, server)["type"])
-        assert phone_types[:2] == ["code_user", "code_state"]
-        vscode_messages = []
-        while not any(m["type"] == "response" for m in vscode_messages):
-            vscode_messages.append(relay_message(vscode_ws, server))
-        assert vscode_messages[0]["type"] == "code_user"
-        assert vscode_messages[0]["origin"] == "mobile"
-        assert vscode_messages[-1]["message"] == "Bonjour !"
+            # Vue Code du téléphone : message à l'extension, réponse aux deux
+            relay_send(phone_ws, server, {"type": "code_subscribe"})
+            snapshot = relay_message(phone_ws, server)
+            assert snapshot["type"] == "code_snapshot"
+            assert snapshot["state"]["workspace"] == "My_AI"
+            relay_send(phone_ws, server, {"type": "code_chat", "message": "Salut"})
+            phone_types = []
+            while "code_done" not in phone_types:
+                phone_types.append(relay_message(phone_ws, server)["type"])
+            assert phone_types[:2] == ["code_user", "code_state"]
+            vscode_messages = []
+            while not any(m["type"] == "response" for m in vscode_messages):
+                vscode_messages.append(relay_message(vscode_ws, server))
+            assert vscode_messages[0]["type"] == "code_user"
+            assert vscode_messages[0]["origin"] == "mobile"
+            assert vscode_messages[-1]["message"] == "Bonjour !"
 
-        # L'historique du téléphone reste le sien
-        history = server.decrypt_json(client.get(
-            f"/api/history?token={server.auth_token}&session={unlocked['session']}").json())
-        assert all("Salut" != item["text"] for item in history["history"])
+            # L'historique du téléphone reste le sien
+            history = server.decrypt_json(client.get(
+                f"/api/history?token={server.auth_token}&session={unlocked['session']}").json())
+            assert all("Salut" != item["text"] for item in history["history"])
 
 
 def test_desktop_page_follows_the_conversation_through_the_bus(hub, loop):
