@@ -189,6 +189,7 @@ click>=8.0.0              # CLI interface
 aiohttp>=3.14.4           # Async HTTP (3.14.4 : 8 avis de sécurité corrigés)
 requests>=2.31.0          # HTTP requests
 beautifulsoup4>=4.12.0    # Web scraping
+soupsieve>=4.0            # Sélecteurs CSS de beautifulsoup4 (4.0 : GHSA-mmhr-3c5m-f64f ; Python 3.11.5+)
 pyyaml>=6.0               # Configuration
 python-dotenv>=1.0.0      # Environment variables
 ```
@@ -376,7 +377,7 @@ faiss-cpu>=1.7.4         # Semantic search
 peft>=0.4.0              # LoRA fine-tuning
 bitsandbytes>=0.40.0     # Quantization (hors macOS : aucune wheel publiée)
 sqlalchemy>=2.0.0        # Database ORM
-cryptography>=41.0.0     # Encryption
+cryptography>=50.0.0     # Encryption (50.0.0 : trois avis corrigés ; 48.0.1 sur Mac Intel, sans wheel 49+)
 ```
 
 ### Development Tools (Optionnel)
