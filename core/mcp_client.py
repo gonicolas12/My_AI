@@ -325,7 +325,11 @@ class MCPManager:
         Les sessions s'ouvrent dans la boucle des serveurs MCP, qui leur survit.
         Avec asyncio.run, la boucle se fermait dès la connexion faite : les
         serveurs étaient arrêtés aussitôt et chaque appel d'outil échouait.
+        Sans serveur enregistré, aucune boucle n'est lancée : son fil resterait
+        en vie jusqu'à la fin du processus, sans rien à servir.
         """
+        if not self._server_configs:
+            return
         try:
             self._run_in_loop(self.connect_external_servers(), timeout)
         except concurrent.futures.TimeoutError:
