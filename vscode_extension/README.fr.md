@@ -319,6 +319,10 @@ la fenêtre de contexte du modèle, ses plus anciens échanges sont retirés.
 
 ## Développement
 
+La construction demande Node.js 22 ou plus récent (exigé par `@vscode/vsce`
+4.1). Prenez au moins la 22.23.5, la 24.22.3 ou la 26.13.1, versions de
+sécurité publiées par Node le 11/11/2026.
+
 ```bash
 cd vscode_extension
 npm install
