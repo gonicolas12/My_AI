@@ -1579,13 +1579,18 @@ class AIEngine:
         try:
             cfg = get_config()
             mcp_config = cfg.get_section("mcp") or {}
-            servers = mcp_config.get("servers", {})
-            for server_name, server_conf in servers.items():
-                if server_conf.get("enabled", False):
-                    self.mcp_manager.register_mcp_server_from_dict(
-                        server_name, server_conf
-                    )
-            if servers:
+            servers = mcp_config.get("servers") or {}
+            enabled = [
+                name for name, server_conf in servers.items()
+                if server_conf.get("enabled", False)
+            ]
+            for server_name in enabled:
+                self.mcp_manager.register_mcp_server_from_dict(
+                    server_name, servers[server_name]
+                )
+            # Sans serveur activé (config.yaml par défaut), ni fil ni boucle :
+            # chaque AIEngine en laissait une tourner jusqu'à la fin du processus
+            if enabled:
                 # Connexion asynchrone en arrière-plan
                 def _connect():
                     self.mcp_manager.connect_external_servers_sync()

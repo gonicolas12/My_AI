@@ -154,6 +154,19 @@ def test_app_path_keeps_the_server_alive_between_calls(monkeypatch):
     assert events == ["serveur lancé", "session ouverte", "session fermée", "serveur arrêté"]
 
 
+def test_without_server_no_loop_is_started():
+    """Aucun serveur activé : ni boucle asyncio ni fil « mcp-servers » à arrêter."""
+    manager = mcp_client.MCPManager()
+    manager.register_mcp_server_from_dict("filesystem", {"command": "npx", "enabled": False})
+    before = set(threading.enumerate())
+
+    manager.connect_external_servers_sync()
+
+    assert manager._loop is None  # pylint: disable=protected-access
+    assert not [t for t in set(threading.enumerate()) - before if t.name == "mcp-servers"]
+    manager.disconnect_all_sync()  # sans effet
+
+
 def test_failed_connection_stops_the_server(monkeypatch, capsys):
     class _IncompatibleSession(_FakeSession):
         async def initialize(self):

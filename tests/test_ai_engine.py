@@ -2,12 +2,17 @@
 Tests unitaires pour core/ai_engine.py
 """
 
+import logging
+import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
+from core import ai_engine
 from core.ai_engine import AIEngine
+from core.mcp_client import MCPManager
 
 
 class TestAIEngineInit:
@@ -26,6 +31,36 @@ class TestAIEngineInit:
         assert "documents_processed" in engine.session_context
         assert "code_files_processed" in engine.session_context
         assert isinstance(engine.session_context["documents_processed"], list)
+
+    @pytest.mark.parametrize("enabled", [False, True])
+    def test_mcp_connection_only_with_an_enabled_server(self, monkeypatch, enabled):
+        """Sans serveur MCP activé (config.yaml par défaut), aucun fil de connexion.
+
+        Chaque AIEngine lançait sinon une boucle « mcp-servers » jamais arrêtée :
+        15 fils tournaient encore à la fin de la suite des tests.
+        """
+        real_config = ai_engine.get_config()
+        servers = {"filesystem": {"enabled": enabled, "command": "npx", "args": []},
+                   "git": {"enabled": False, "command": "npx", "args": []}}
+
+        class _Config:  # pylint: disable=too-few-public-methods
+            """config.yaml dont les serveurs MCP sont remplacés."""
+
+            def get_section(self, name):
+                return {"servers": servers} if name == "mcp" else real_config.get_section(name)
+
+        monkeypatch.setattr(ai_engine, "get_config", _Config)
+        monkeypatch.setattr(AIEngine, "_memory_auto_extract", staticmethod(lambda: True))
+        engine = AIEngine.__new__(AIEngine)
+        engine.logger = logging.getLogger(__name__)
+        engine.local_ai = SimpleNamespace(local_llm=None)
+        engine.mcp_manager = MCPManager()
+        connecting = threading.Event()
+        monkeypatch.setattr(engine.mcp_manager, "connect_external_servers_sync", connecting.set)
+
+        engine._setup_mcp_tools()  # pylint: disable=protected-access
+
+        assert connecting.wait(5 if enabled else 0.5) is enabled
 
 
 class TestProcessText:
