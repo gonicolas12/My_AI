@@ -33,7 +33,7 @@ Le trafic de la recherche est celui d'un client ordinaire :
 
 - **HTTPS vérifié** : les certificats sont contrôlés avec le magasin du système (paquet `truststore`), celui où un réseau d'entreprise installe la racine de son proxy d'inspection TLS. L'ancienne version désactivait toute vérification.
 - **User-Agent honnête** : `Mozilla/5.0 (compatible; My_AI/9.1.0; +https://github.com/gonicolas12/My_AI)` (version lue dans `config.yaml`), sans rotation d'identité.
-- **Aucun contournement anti-robot** : plus de `cloudscraper`, plus d'instances SearXNG publiques (domaines exotiques souvent classés « anonymiseurs » par les pare-feu), plus de scraping de Google ni de Brave.
+- **Aucun contournement anti-robot** : plus de `cloudscraper`, plus d'instances SearXNG publiques (domaines exotiques souvent classés « anonymiseurs » par les pare-feu), plus de scraping de Google ni de Brave. La poignée de main TLS est celle du Python installé, jamais retouchée pour passer un filtre : Yahoo refuse le plus souvent celle de Python 3.11 et 3.12 (voir Dépannage).
 - **Peu de requêtes** : un moteur à la fois. Un moteur qui renvoie sa page anti-robot est mis en pause 15 minutes au lieu d'être relancé à chaque recherche (1 minute s'il est injoignable). Une recherche déjà faite reste en cache 30 minutes.
 - **Une recherche typique** : 1 page de résultats + 4 pages lues. La météo : 2 appels à Open-Meteo.
 
@@ -126,6 +126,7 @@ Le reste du temps de réponse est celui du modèle : choisir l'outil, puis rédi
 ### « Aucun résultat trouvé pour … »
 Le message donne l'état de chaque moteur :
 - `DuckDuckGo bloqué (HTTP 202)` : page anti-robot (trop de recherches depuis cette adresse IP). Pause de 15 minutes, Yahoo prend le relais.
+- `Yahoo bloqué (HTTP 500 INKApi Error)` : la passerelle de Yahoo refuse l'empreinte TLS (la poignée de main HTTPS) de clients Python courants, quel que soit le User-Agent : le plus souvent avec OpenSSL 1.1.1 ou 3.0 (Python 3.11 et 3.12 de python.org sous Windows, ou un Python lié à l'OpenSSL 3.0 du système ; presque toujours sur `fr.search.yahoo.com`), le plus souvent aussi avec `network.ca_bundle` (réglages TLS par défaut de requests, refusés même sous Python 3.14, sauf derrière un proxy d'inspection TLS), rarement avec OpenSSL 3.5 (Python 3.13 et 3.14). Pause de 15 minutes, Wikipédia prend le relais ; My_AI ne maquille pas sa poignée de main pour passer. Version d'OpenSSL de votre Python : `python -c "import ssl; print(ssl.OPENSSL_VERSION)"`.
 - `… injoignable` : délai dépassé, DNS ou proxy. Vérifiez la connexion et la section `network` de `config.yaml`.
 - `Wikipédia sans résultat` : aucun article ne reprend assez de mots de la requête.
 

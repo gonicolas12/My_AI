@@ -638,6 +638,14 @@ def _search_yahoo(query: str, french: bool) -> List[SearchResult]:
     )
     if response.status_code in (403, 429, 503):
         raise _Blocked(f"HTTP {response.status_code}")
+    # « 500 INKApi Error » sans contenu : la passerelle de Yahoo refuse
+    # l'empreinte TLS de clients Python courants, quel que soit le
+    # User-Agent : le plus souvent celle d'OpenSSL 1.1.1 et 3.0, donc de
+    # Python 3.11 et 3.12 sous Windows (presque toujours sur
+    # fr.search.yahoo.com). Un refus, pas une panne : même pause qu'une
+    # page anti-robot, et aucune poignée de main maquillée pour passer.
+    if response.status_code == 500 and "INKApi" in (response.reason or ""):
+        raise _Blocked("HTTP 500 INKApi Error")
     response.raise_for_status()
     if "consent." in urlparse(response.url).netloc:
         raise _Blocked("page de consentement")
