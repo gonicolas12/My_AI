@@ -2,7 +2,7 @@
   "name": "my-ai",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "publisher": "gonicolas12",
   "license": "MIT",
   "icon": "media/extension_logo.png",
@@ -187,7 +187,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "ws": "^8.22.2"
+    "ws": "^8.23.0"
   },
   "overrides": {
     "@vscode/vsce": {

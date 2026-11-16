@@ -292,6 +292,10 @@ dropped.
 
 ## Development
 
+Building needs Node.js 22 or later (required by `@vscode/vsce` 4.1). Take
+at least 22.23.5, 24.22.3 or 26.13.1, the Node security releases of
+November 11, 2026.
+
 ```bash
 cd vscode_extension
 npm install

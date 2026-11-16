@@ -362,11 +362,15 @@ Puis : démarrez le Relay sur votre PC hôte (**Relay** en bas de la barre laté
 
 ```bash
 cd vscode_extension
-npm install              # ~185 packages, Node 18+
+npm install              # ~170 packages, Node 22+
 npm run build            # esbuild → dist/extension.js
-npm run package          # → my-ai-relay-X.Y.Z.vsix
-code --install-extension my-ai-relay-X.Y.Z.vsix --force
+npm run package          # → my-ai-X.Y.Z.vsix
+code --install-extension my-ai-X.Y.Z.vsix --force
 ```
+
+> Node 22 ou plus récent : `@vscode/vsce` 4.1, qui empaquette l'extension, l'exige.
+> Prenez au moins la 22.23.5, la 24.22.3 ou la 26.13.1, versions de sécurité
+> publiées par Node le 11/11/2026.
 
 > Voir [`vscode_extension/README.md`](../vscode_extension/README.md) (EN) ou [`vscode_extension/README.fr.md`](../vscode_extension/README.fr.md) (FR) pour la documentation complète, la liste exhaustive des outils, et les détails du flux d'approbation.
 
