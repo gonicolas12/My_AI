@@ -37,6 +37,9 @@ export default defineConfig({
   // Worker de coloration du code : modules ES, pour charger chaque langage à part
   worker: { format: 'es' },
   server: {
+    // Ce PC seulement : ne jamais exposer le serveur de développement au réseau
+    // (option --host, ou server.host sur une autre adresse). C'est le cas que
+    // vise GHSA-p4f5-76q4-ffq7 (code exécuté à distance, corrigé en 8.3.7).
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
