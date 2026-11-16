@@ -8,10 +8,12 @@ requête du modèle était en plus remplacée par une autre, tirée du message
 entier. Aucun réseau ici : les moteurs et les pages sont simulés.
 """
 
+import re
 from datetime import date
 
 import pytest
 import requests
+import soupsieve
 
 from models import internet_search as ws
 from utils.citations import (
@@ -324,6 +326,32 @@ def test_moteur_bloque_mis_en_pause(monkeypatch):
     second = ws.search_engines("autre recherche")
     assert second.engine == "Yahoo"
     assert session.hosts().count("html.duckduckgo.com") == 1
+
+
+def test_aucun_combinateur_descendant_sur_le_html_recu(monkeypatch):
+    # GHSA-mmhr-3c5m-f64f : soupsieve 2.10, que pip garde sous Python 3.11.0 à
+    # 3.11.4, met un temps polynomial à appliquer un combinateur descendant
+    # (« h3 a ») à un HTML hostile. Les pages des moteurs n'en reçoivent aucun.
+    selectors = []
+    for name in ("select", "select_one"):
+        original = getattr(soupsieve, name)
+
+        def spy(pattern, *args, _original=original, **kwargs):
+            selectors.append(pattern)
+            return _original(pattern, *args, **kwargs)
+
+        monkeypatch.setattr(soupsieve, name, spy)
+    _use(monkeypatch, {
+        "html.duckduckgo.com": lambda url, **kw: _Response(body=DDG_PAGE),
+        "search.yahoo.com": lambda url, **kw: _Response(body=YAHOO_PAGE, url=url),
+    })
+    assert ws._search_duckduckgo("marques", True)  # pylint: disable=protected-access
+    yahoo = ws._search_yahoo("marques", True)  # pylint: disable=protected-access
+    assert yahoo[0].url == "https://www.journal.example/auto/marques/"
+    assert selectors
+    # Un blanc entre deux sélecteurs simples est un combinateur descendant (la
+    # virgule d'une liste de sélecteurs n'en est pas un)
+    assert [s for s in selectors if re.search(r"[\w\])*]\s+[\w.#\[:*]", s)] == []
 
 
 def test_wikipedia_ne_garde_que_les_articles_pertinents(monkeypatch):
