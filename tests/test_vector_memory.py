@@ -165,7 +165,8 @@ class TestDocumentManagement:
 
     def test_same_document_after_restart_is_not_copied_again(self, memory, monkeypatch):
         """Les documents de la session repartent de zéro au redémarrage, mais
-        ChromaDB garde leurs morceaux : chaque nouvel ajout les recopiait."""
+        ChromaDB garde leurs morceaux : chaque nouvel ajout les recopiait (et
+        recalculait tous leurs embeddings)."""
         if memory.document_collection is None or memory.embedding_model is None:
             pytest.skip("ChromaDB ou modèle d'embeddings indisponible")
         content = "Fiche de données de sécurité du produit X. " * 20
@@ -174,8 +175,79 @@ class TestDocumentManagement:
 
         self._one_hour_later(monkeypatch)  # redémarrage une heure plus tard
         restarted = VectorMemory(max_tokens=10000, storage_dir=str(memory.storage_dir))
-        assert restarted.add_document(content, "FDS")["status"] == "success"
+        result = restarted.add_document(content, "FDS")
+        assert result["status"] == "duplicate" and result["already_stored"] is True
+        assert result["chunks_created"] == 0
         assert restarted.document_collection.count() == stored
+
+    @staticmethod
+    def _chunks(memory, name):
+        return memory.document_collection.get(where={"document_name": name})["ids"]
+
+    def test_document_stored_before_the_session_survives_its_removal(self, memory):
+        """Un document déjà en mémoire (session précédente, bouton Ajouter),
+        joint de nouveau puis retiré avant l'envoi, était effacé de ChromaDB."""
+        if memory.document_collection is None or memory.embedding_model is None:
+            pytest.skip("ChromaDB ou modèle d'embeddings indisponible")
+        content = "Le code du coffre de l'atelier est 4512. " * 60
+        memory.add_document(content, "note.txt")
+        stored = self._chunks(memory, "note.txt")
+        assert len(stored) > 1
+
+        restarted = VectorMemory(max_tokens=10000, storage_dir=str(memory.storage_dir))
+        restarted.add_document(content, "note.txt")  # pièce jointe dans la nouvelle session
+        assert restarted.remove_document("note.txt") == 0  # retirée avant l'envoi
+        assert not restarted.documents
+        assert self._chunks(restarted, "note.txt") == stored
+
+    def test_document_kept_by_hand_survives_the_removal_of_its_attachment(self, memory):
+        """Pièce jointe pas encore envoyée, puis le même fichier ajouté dans la
+        Mémoire : retirer la pièce jointe ne l'efface plus."""
+        if memory.document_collection is None or memory.embedding_model is None:
+            pytest.skip("ChromaDB ou modèle d'embeddings indisponible")
+        added = memory.add_document("Procédure d'arrêt de la ligne 3. " * 60, "procedure.md")
+        kept = memory.keep_document(added["document_id"])
+        assert kept == len(self._chunks(memory, "procedure.md")) > 1
+        metadata = memory.document_collection.get(where={"document_name": "procedure.md"})
+        assert {meta["source"] for meta in metadata["metadatas"]} == {"manual"}
+
+        assert memory.remove_document("procedure.md") == 0
+        assert len(self._chunks(memory, "procedure.md")) == kept
+        assert memory.keep_document("inconnu") == 0
+
+    def test_image_is_stored_under_the_id_it_is_given(self, memory):
+        """Image : rangée sous l'empreinte de son fichier, sa description changeant
+        d'une fois à l'autre ; une autre description ne la recopie pas."""
+        if memory.document_collection is None or memory.embedding_model is None:
+            pytest.skip("ChromaDB ou modèle d'embeddings indisponible")
+        assert not memory.has_document("image_0123456789abcdef")
+        first = memory.add_document("Description de l'image : un chat roux.", "chat.png",
+                                    metadata={"type": "Image"},
+                                    document_id="image_0123456789abcdef")
+        assert first["status"] == "success"
+        assert self._chunks(memory, "chat.png") == ["image_0123456789abcdef_chunk_0"]
+        assert memory.has_document("image_0123456789abcdef")
+
+        restarted = VectorMemory(max_tokens=10000, storage_dir=str(memory.storage_dir))
+        again = restarted.add_document("Description de l'image : un chat orange.", "copie.png",
+                                       document_id="image_0123456789abcdef")
+        assert again["status"] == "duplicate"
+        assert restarted.document_collection.count() == 1
+
+    def test_document_deleted_from_the_memory_window_is_stored_again(self, memory):
+        """Ses morceaux supprimés dans la Mémoire, le document de la session
+        n'est plus un doublon : le joindre de nouveau le range à nouveau."""
+        if memory.document_collection is None or memory.embedding_model is None:
+            pytest.skip("ChromaDB ou modèle d'embeddings indisponible")
+        content = "Planning des congés de l'équipe. " * 40
+        memory.add_document(content, "conges.txt")
+        for chunk_id in self._chunks(memory, "conges.txt"):
+            memory.delete_entry(chunk_id)
+        assert not self._chunks(memory, "conges.txt")
+        again = memory.add_document(content, "conges.txt")
+        assert again["status"] == "success"
+        assert again["chunks_stored"] == again["chunks_created"] == len(
+            self._chunks(memory, "conges.txt"))
 
     def test_document_stats_updated(self, memory):
         """Test que les statistiques sont mises à jour"""

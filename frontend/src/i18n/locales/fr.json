@@ -351,8 +351,8 @@
     "other": "{count} faits"
   },
   "memory.stats.documents": {
-    "one": "{count} chunk document",
-    "other": "{count} chunks document"
+    "one": "{count} document",
+    "other": "{count} documents"
   },
   "memory.stats.conversations": {
     "one": "{count} entrée conversation",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(sinon réapparaît au prochain réindex)",
   "memory.add.title": "Nouveau fait",
   "memory.add.content": "Contenu",
+  "memory.documents.addHint": "Mettre des fichiers en mémoire : PDF, Word, Excel, PowerPoint, code, image",
+  "memory.documents.drop": "Déposez vos fichiers ou dossiers ici pour les mettre en mémoire",
+  "memory.documents.empty": "Aucun document en mémoire. Les fichiers joints dans le chat arrivent ici d'eux-mêmes ; « Ajouter », ou un dépôt de fichiers ou de dossiers, y range ceux de votre choix (PDF, Word, Excel, PowerPoint, code, image).",
+  "memory.documents.jobsLabel": "Documents en cours de mise en mémoire",
+  "memory.documents.state.queued": "en attente",
+  "memory.documents.state.reading": "lecture du fichier…",
+  "memory.documents.state.describing": "description de l'image…",
+  "memory.documents.folderFiles": {
+    "one": "{count} fichier restant",
+    "other": "{count} fichiers restants"
+  },
+  "memory.documents.folderEmpty": "📁 Aucun fichier à mettre en mémoire dans « {name} »",
+  "memory.documents.folderTooBig": "📁 « {name} » contient plus de {max} fichiers à mettre en mémoire : déposez plutôt ses sous-dossiers, un par un.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 « {name} » : {count} fichier ignoré (format non pris en charge ou trop lourd)",
+    "other": "📁 « {name} » : {count} fichiers ignorés (format non pris en charge ou trop lourds)"
+  },
+  "memory.group.files": {
+    "one": "{count} fichier",
+    "other": "{count} fichiers"
+  },
+  "memory.group.byHand": "ajouté à la main",
+  "memory.group.filesLabel": "Fichiers de « {name} »",
+  "memory.group.deleteDocument": "Supprimer le document",
+  "memory.group.deleteFolder": "Supprimer le dossier",
+  "memory.group.deleteNamed": "Supprimer « {name} »",
+  "memory.group.deleteFolderConfirm": {
+    "one": "Supprimer définitivement ce dossier et son fichier ?",
+    "other": "Supprimer définitivement ce dossier et ses {count} fichiers ?"
+  },
+  "memory.group.deleteDocumentConfirm": "Supprimer définitivement ce document de la mémoire ?",
+  "memory.update.title": "Déjà en mémoire",
+  "memory.update.files": {
+    "one": "Un fichier du même nom est déjà en mémoire. Le mettre à jour avec cette version, ou garder les deux ?",
+    "other": "{count} fichiers portent un nom déjà en mémoire. Les mettre à jour avec ces versions, ou garder les deux ?"
+  },
+  "memory.update.folders": {
+    "one": "Un dossier du même nom est déjà en mémoire. Le mettre à jour, ou garder les deux ?",
+    "other": "{count} dossiers portent un nom déjà en mémoire. Les mettre à jour, ou garder les deux ?"
+  },
+  "memory.update.mixed": "Des fichiers et des dossiers du même nom sont déjà en mémoire. Les mettre à jour avec ces versions, ou garder les deux ?",
+  "memory.update.newest": {
+    "one": "le plus récent des {count}",
+    "other": "le plus récent des {count}"
+  },
+  "memory.update.folderNote": "Mettre à jour un dossier remplace ses fichiers modifiés, ajoute les nouveaux et retire ceux qu'il ne contient plus.",
+  "memory.update.yes": "Mettre à jour",
+  "memory.update.keep": "Garder les deux",
   "memory.noMatch": "Aucun résultat pour cette recherche.",
   "memory.nothing": "Rien ici pour le moment.",
   "memory.page": "Page {page} / {pages}",

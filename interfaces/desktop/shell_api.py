@@ -46,29 +46,43 @@ _CODE_EXTENSIONS = (
     "*.hpp;*.cs;*.java;*.kt;*.go;*.rs;*.rb;*.php;*.lua;*.sql;*.vue;*.svelte;*.dart;*.swift"
 )
 
+_IMAGE_EXTENSIONS = "*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tiff;*.tif"
+
 # Entrées du menu « + » (types de l'interface Tk)
 ATTACH_KINDS = ("PDF", "DOCX", "Excel", "PowerPoint", "Code", "Image")
+# Bouton Ajouter de la Mémoire (onglet Documents) : tous les types à la fois
+ALL_KINDS = "All"
 
 
 def attach_filters(kind: str) -> Tuple[Tuple[str, ...], bool]:
     """Filtres du dialogue d'une entrée du menu « + » (comme Tk), et le choix multiple.
 
     Le multiple est refusé pour l'image : une seule part au modèle de vision.
+    ALL_KINDS : tous les fichiers pris en charge d'abord, puis chaque type, en
+    choix multiple (la Mémoire décrit les images une à une).
     """
     every = _filter("dialog.allFiles", "*.*")
+    pdf = _filter("dialog.pdf", "*.pdf")
+    word = _filter("dialog.word", "*.docx;*.doc")
+    excel = _filter("dialog.excelCsv", "*.xlsx;*.xls;*.csv")
+    powerpoint = _filter("dialog.pptx", "*.pptx;*.potx")
+    code = _filter("dialog.code", _CODE_EXTENSIONS)
+    images = _filter("dialog.images", _IMAGE_EXTENSIONS)
+    supported = _filter("dialog.supported", ";".join((
+        "*.pdf;*.docx;*.doc;*.xlsx;*.xls;*.csv;*.pptx;*.potx", _CODE_EXTENSIONS,
+        _IMAGE_EXTENSIONS)))
     filters = {
-        "PDF": ((_filter("dialog.pdf", "*.pdf"),), True),
-        "DOCX": ((_filter("dialog.word", "*.docx;*.doc"),), True),
-        "Excel": ((_filter("dialog.excelCsv", "*.xlsx;*.xls;*.csv"), "Excel (*.xlsx)",
-                   _filter("dialog.excelOld", "*.xls"), "CSV (*.csv)", every), True),
-        "PowerPoint": ((_filter("dialog.pptx", "*.pptx;*.potx"), "PowerPoint (*.pptx)",
-                        _filter("dialog.potx", "*.potx")), True),
-        "Code": ((_filter("dialog.code", _CODE_EXTENSIONS), _filter("dialog.python", "*.py"),
-                  _filter("dialog.javascript", "*.js"), _filter("dialog.html", "*.html"),
-                  every), True),
-        "Image": ((_filter("dialog.images", "*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.tiff;*.tif"),
-                   "PNG (*.png)", "JPEG (*.jpg;*.jpeg)", "GIF (*.gif)", "BMP (*.bmp)",
+        "PDF": ((pdf,), True),
+        "DOCX": ((word,), True),
+        "Excel": ((excel, "Excel (*.xlsx)", _filter("dialog.excelOld", "*.xls"), "CSV (*.csv)",
+                   every), True),
+        "PowerPoint": ((powerpoint, "PowerPoint (*.pptx)", _filter("dialog.potx", "*.potx")),
+                       True),
+        "Code": ((code, _filter("dialog.python", "*.py"), _filter("dialog.javascript", "*.js"),
+                  _filter("dialog.html", "*.html"), every), True),
+        "Image": ((images, "PNG (*.png)", "JPEG (*.jpg;*.jpeg)", "GIF (*.gif)", "BMP (*.bmp)",
                    "WebP (*.webp)", every), False),
+        ALL_KINDS: ((supported, pdf, word, excel, powerpoint, code, images, every), True),
     }
     return filters.get(kind, ((every,), True))
 

@@ -709,7 +709,10 @@ def test_search_memory_returns_the_matching_facts(kb):
     kb.add_fact("general", key="Mon chat s'appelle Félix", value="Mon chat s'appelle Félix")
     engine = _engine(kb)
     engine.get_vector_memory = lambda: types.SimpleNamespace(
-        search_similar=lambda _query, n_results: [{"content": "Rapport annuel 2025"}]
+        search_similar=lambda _query, n_results: [{
+            "content": "Rapport annuel 2025",
+            "metadata": {"document_id": "r1", "document_name": "rapport.pdf",
+                         "source": "manual", "created": "2026-11-17T11:19:00"}}]
     )
 
     result = engine._search_memory("comment s'appelle mon chat", n_results="3")
@@ -717,7 +720,9 @@ def test_search_memory_returns_the_matching_facts(kb):
     assert result.startswith(
         "Faits mémorisés :\n- [general] L'utilisateur : son chat s'appelle Félix"
     )
-    assert "Documents indexés :\n[1] Rapport annuel 2025" in result
+    # Chaque extrait sous son document : nom, origine, date d'ajout
+    assert ("[1] « rapport.pdf » — ajouté à la main le 17/11/2026 à 11:19\n"
+            "Rapport annuel 2025") in result
 
 
 def test_search_memory_without_anything(kb):

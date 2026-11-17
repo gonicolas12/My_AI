@@ -1445,12 +1445,21 @@ class LocalLLM:
             print(f"✅ [LocalLLM] Réponse vision pipeline OK ({len(result)} chars)")
         return result
 
-    def describe_image(self, image_base64: str, prompt: str = "Décris ce que tu vois sur cette image.") -> str | None:
+    def describe_image(self, image_base64: str,
+                       prompt: str = "Décris ce que tu vois sur cette image.",
+                       instructions: str | None = None, max_tokens: int = 800) -> str | None:
         """API publique : décrit une image via le modèle vision disponible
         (le modèle de chat s'il voit les images, cf. _get_vision_model).
 
         Encapsule _get_vision_model() + _get_vision_description() pour les
         appelants externes (ex: AgentsInterface) sans exposer les méthodes privées.
+
+        Args:
+            prompt: question de l'utilisateur, en contexte de la description détaillée
+            instructions: consigne complète à sa place (mémoire des documents : un
+                paragraphe sobre) ; sans réponse exploitable, la description
+                détaillée prend le relais
+            max_tokens: longueur maximale de la réponse à ``instructions``
 
         Returns:
             Description textuelle de l'image, ou None si aucun modèle vision disponible.
@@ -1458,6 +1467,11 @@ class LocalLLM:
         vision_model = self._get_vision_model()
         if not vision_model:
             return None
+        if instructions:
+            result = self._non_stream_vision_attempt(vision_model, instructions, image_base64, 0,
+                                                     max_tokens=max_tokens)
+            if result and result.strip() and not self._is_vision_refusal(result):
+                return self._sanitize_vision_response(result)
         return self._get_vision_description(vision_model, prompt, image_base64)
 
     def _get_vision_description(self, vision_model, prompt, image_base64):
@@ -1498,7 +1512,8 @@ class LocalLLM:
 
         return None
 
-    def _non_stream_vision_attempt(self, vision_model, full_prompt, image_base64, _attempt):
+    def _non_stream_vision_attempt(self, vision_model, full_prompt, image_base64, _attempt,
+                                   max_tokens: int = 800):
         """Tentative de vision non-streaming via /api/generate (pour retry silencieux)."""
         data = {
             "model": vision_model,
@@ -1514,7 +1529,7 @@ class LocalLLM:
                 "top_p": 0.95,
                 "repeat_penalty": 1.1,
                 "num_ctx": self._vision_num_ctx(vision_model, 4096),
-                "num_predict": 800,
+                "num_predict": max_tokens,
                 "num_keep": -1,  # [OPTIM] Préserver prompt lors de troncature contexte
             },
         }

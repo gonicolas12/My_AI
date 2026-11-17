@@ -259,6 +259,7 @@
   "memory.provenance.you": "🧑 あなた",
   "memory.provenance.assistant": "🤖 アシスタント",
   "memory.provenance.chunk": "断片 {n}",
+  "memory.provenance.byHand": "手動で追加",
   "folders.noSession": "❌ アクティブなセッションがありません",
   "folders.error": "❌ エラー：{error}",
   "folders.detached": "✅ フォルダーを外しました",
@@ -290,6 +291,7 @@
   "launch.engineStarting": "エンジンを起動しています…",
   "dialog.allFiles": "すべてのファイル",
   "dialog.all": "すべて",
+  "dialog.supported": "対応しているファイル",
   "dialog.pdf": "PDF ファイル",
   "dialog.word": "Word ファイル",
   "dialog.excelCsv": "Excel と CSV のファイル",
@@ -320,6 +322,34 @@
   "memory.factAdded": "✅ 事実を追加しました",
   "memory.edited": "✅ 変更しました",
   "memory.deleted": "🗑️ 削除しました",
+  "memory.documents.notFound": "❌ ファイルが見つかりません：{name}",
+  "memory.documents.added": "📄 「{name}」を記憶に保存しました",
+  "memory.documents.updated": "🔄 記憶の「{name}」を更新しました",
+  "memory.documents.already": "ℹ️ 「{name}」は同じ内容で記憶にあります",
+  "memory.documents.failed": "❌ 「{name}」を記憶に保存できませんでした：{error}",
+  "memory.documents.imageEmpty": "保存する内容がありません：説明（画像認識モデルが利用できません）も、画像内の読み取れる文字もありません",
+  "memory.documents.imageDescription": "画像の説明：",
+  "memory.documents.imageText": "画像から読み取った文字：",
+  "memory.documents.visionPrompt": "あとで記憶から見つけられるように、この画像を説明してください。見出し、箇条書き、太字、絵文字、最後の質問なしで、3〜6文の段落を1つだけ書いてください。何が写っているか（主題、物、人、場所、意味のある色）を述べ、画像内の重要な文字はそのまま書き写してください。",
+  "memory.documents.folderSummary": "📁 「{name}」：{parts}。",
+  "memory.documents.listSeparator": "、",
+  "memory.documents.folderAdded": {
+    "other": "{count} 個のファイルを追加"
+  },
+  "memory.documents.folderUpdated": {
+    "other": "{count} 個のファイルを更新"
+  },
+  "memory.documents.folderUnchanged": {
+    "other": "{count} 個はすでに最新"
+  },
+  "memory.documents.folderRemoved": {
+    "other": "{count} 個のファイルを削除"
+  },
+  "memory.documents.folderFailed": {
+    "other": "{count} 個のファイルを保存できませんでした（{names}）"
+  },
+  "memory.documents.folderEmpty": "📁 「{name}」には記憶に保存できるファイルがありません",
+  "memory.documents.folderTooBig": "📁 「{name}」には記憶に保存するファイルが {max} 個を超えています。サブフォルダーを 1 つずつドロップしてください。",
   "agents.workflowSaved": "💾 ワークフローを保存しました",
   "agents.workflowExported": "📤 ワークフローをエクスポートしました",
   "voice.inputUnavailable": "音声入力を利用できません：'faster-whisper' と 'sounddevice' をインストールしてください。",

@@ -2,15 +2,25 @@
  * Grand dialogue d'un panneau (Réglages, Mémoire, Prompts, Relay, Aide) :
  * en-tête avec icône, titre et croix, corps qui défile, pied facultatif.
  * Échap et un clic à l'extérieur le ferment.
+ *
+ * Un panneau peut recevoir des fichiers glissés (onglet Documents de la
+ * Mémoire) : déposés sur lui ou sur le voile qui l'entoure ; pendant le
+ * survol, son contour s'éclaire en orange.
  */
 
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { X, type LucideIcon } from 'lucide-react';
-import { type ReactNode, useRef } from 'react';
+import { type DragEvent, type ReactNode, useRef } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/cn';
+
+/** Gestionnaires d'un dépôt de fichiers (useFileDrop) */
+export interface PanelDropTarget {
+  onDragOver(event: DragEvent): void;
+  onDrop(event: DragEvent): void;
+}
 
 interface PanelDialogProps {
   open: boolean;
@@ -29,6 +39,10 @@ interface PanelDialogProps {
   flush?: boolean;
   /** Échap : event.preventDefault() garde le panneau ouvert (annuler une saisie) */
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
+  /** Fichiers déposés sur le panneau ou sur le voile autour */
+  dropTarget?: PanelDropTarget | undefined;
+  /** Des fichiers survolent la fenêtre : contour orange, halo */
+  glow?: boolean;
 }
 
 export function PanelDialog({
@@ -43,6 +57,8 @@ export function PanelDialog({
   width = 860,
   flush = false,
   onEscapeKeyDown,
+  dropTarget,
+  glow = false,
 }: PanelDialogProps) {
   const t = useT();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -50,14 +66,17 @@ export function PanelDialog({
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay
+          {...dropTarget}
           className="fixed inset-0 z-40 bg-scrim"
           style={{ animation: 'fade-in var(--motion) var(--motion-ease)' }}
         />
         <RadixDialog.Content
+          {...dropTarget}
           className={cn(
             'fixed top-1/2 left-1/2 z-50 flex w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 flex-col',
-            'h-[min(760px,calc(100vh-48px))] rounded-lg border border-line bg-bg-2 text-fg shadow-lg',
-            'focus:outline-none',
+            'h-[min(760px,calc(100vh-48px))] rounded-lg border bg-bg-2 text-fg',
+            'transition-[border-color,box-shadow] duration-150 focus:outline-none',
+            glow ? 'drop-glow border-accent' : 'border-line shadow-lg',
           )}
           style={{ maxWidth: width, animation: 'rise-in var(--motion) var(--motion-ease)' }}
           onEscapeKeyDown={onEscapeKeyDown}

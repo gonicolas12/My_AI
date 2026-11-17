@@ -17,7 +17,7 @@ Cliquez sur **Mémoire** en bas de la barre latérale (ou cherchez « Mémoire �
 | Store | Backend | Contenu | Onglet |
 |---|---|---|---|
 | **Faits structurés** | SQLite (`data/knowledge_base/facts.db`) | Faits catégorisés extraits/ajoutés (préférence, décision, personne, procédure, technique, général) | **Faits** |
-| **Mémoire vectorielle — documents** | ChromaDB (`memory/vector_store/`) | Chunks des documents que vous avez fournis | **Documents** |
+| **Mémoire vectorielle — documents** | ChromaDB (`memory/vector_store/`) | Chunks des documents joints dans le chat ou ajoutés à la main ([détails](#-documents)) | **Documents** |
 | **Mémoire vectorielle — conversations** | ChromaDB | Index de recherche reconstruit depuis vos conversations | **Conversations** |
 
 ---
@@ -63,12 +63,39 @@ Le fait est enregistré aussitôt dans l'onglet **Faits** (source : `conversatio
 
 ---
 
+## 📄 Documents
+
+L'onglet **Documents** garde le texte des documents. Pour la recherche, chaque document est découpé en interne en morceaux de 256 tokens (chunks), que l'onglet ne montre pas : il montre des documents.
+
+- **Joints dans le chat** : chaque fichier joint (PDF, Word, Excel, PowerPoint, code…) y entre de lui-même, dès qu'il est lu, sans rien demander. Une image jointe y entre aussi, une fois son message envoyé et sa réponse finie (sur le PC comme depuis le téléphone) : le modèle de vision sert d'abord la réponse, puis décrit l'image pour la mémoire. Une pièce jointe retirée avant l'envoi n'y reste pas.
+- **Ajoutés à la main** : bouton **➕ Ajouter** de l'onglet (dialogue de fichiers, plusieurs à la fois), ou fichiers **glissés sur le panneau**, d'où qu'ils viennent (Explorateur, pièce jointe d'Outlook, archive ZIP ouverte…) : pendant le survol, sur l'onglet Documents, le contour du panneau Mémoire s'éclaire en orange, et le contenu des fichiers déposés est lu même s'ils n'ont pas de chemin sur le disque. Formats : ceux des pièces jointes (PDF, Word, Excel et CSV, PowerPoint, code et texte, images). Les fichiers sont lus en arrière-plan, un à la fois, et s'affichent en tête de liste pendant leur lecture (« en attente », « lecture du fichier… », « description de l'image… ») ; une notification donne le résultat de chacun. Un format non pris en charge est refusé. Leur ligne porte « ajouté à la main ».
+- **Dossiers déposés** : un dossier glissé sur le panneau (onglet Documents) y entre avec tous ses fichiers lisibles, sous-dossiers compris, rangés sous le nom du dossier : l'onglet le montre comme un dossier à déplier. Comme pour les dossiers du projet, les fichiers et dossiers cachés et les dossiers de dépendances ou de build (`.git`, `node_modules`, `venv`, `dist`…) sont laissés de côté, ainsi que les formats non pris en charge et les fichiers trop lourds (plus de 2 Mo pour un texte ou du code, 50 Mo pour le reste) ; une notification dit combien. Au plus 200 fichiers par dossier : au-delà, rien n'est envoyé, déposez plutôt ses sous-dossiers. Pendant la lecture, la file de l'onglet montre le dossier sur une seule ligne (fichiers restants, fichier en cours), et un seul bilan s'affiche à la fin (« 📁 « site » : 2 fichiers ajoutés, 1 mis à jour, 3 déjà à jour. »).
+- **Images** (ajoutées ou jointes au chat) : le modèle de vision les décrit (le modèle de chat, comme dans le chat ; 30 s à 1 min par image sur le PC de développement, GPU intégré), puis l'OCR lit leur texte visible ; les deux sont rangés, sous les titres « Description de l'image » et « Texte lu dans l'image ». L'un ou l'autre suffit : une photo sans texte reste retrouvable par sa description, une capture d'écran par son texte, même sans Ollama. Une image est reconnue à son contenu, pas à son nom : la même image, rejointe ou ajoutée de nouveau (même sous un autre nom), n'est ni décrite ni rangée une seconde fois. Leur provenance porte 🖼️. Une image du chat avance dans la file de l'onglet sans notification, comme les documents joints.
+
+Un document ajouté à la main est lu par les mêmes lecteurs qu'une pièce jointe du chat : le même fichier, joint ensuite, n'est pas rangé une seconde fois.
+
+**Affichage** : une ligne par document, avec sa date et « ajouté à la main » le cas échéant ; un document ne se déplie pas. Un dossier déposé tient sur une ligne (nombre de fichiers, date) et se déplie sur ses fichiers, rangés par chemin. Du plus récent au plus ancien : un document ajouté apparaît en tête de la première page. La recherche garde les documents dont le nom ou le texte la contient. L'en-tête du panneau compte des documents (un fichier d'un dossier en est un).
+
+**Deux fichiers du même nom** restent deux documents : c'est à vous de vous organiser, leur date d'ajout les distingue. « rapport.pdf » ajouté seul et « projet/rapport.pdf » venu d'un dossier déposé sont toujours deux documents différents ; deux dossiers déposés du même nom aussi.
+
+**Remettre un fichier ou un dossier sous un nom déjà pris** (par « Ajouter » ou par un dépôt) : une fenêtre le signale, avec la date de celui qui est déjà là (le plus récent, s'il y en a plusieurs), une seule fois pour tout ce qui est remis ensemble.
+
+- **Mettre à jour** : il remplace celui-là (« 🔄 mis à jour ») ; même contenu, rien ne change (« à l'identique »). Un dossier garde ses fichiers inchangés sans les relire (une image n'est pas redécrite), remplace les modifiés, ajoute les nouveaux et retire ceux qu'il ne contient plus.
+- **Garder les deux** : il s'ajoute à côté. Un fichier au contenu identique n'est pas recopié.
+- **Annuler** (ou Échap) : il n'est pas envoyé ; les nouveaux, remis en même temps, sont ajoutés.
+
+Un fichier joint au chat ne pose pas de question : même contenu, c'est le même document ; contenu différent, il s'ajoute à côté (« joint au chat »).
+
+**Retirer une pièce jointe** avant l'envoi l'efface de l'onglet, sauf si le document y était déjà avant elle (joint dans une conversation précédente, ou ajouté à la main) : il y reste.
+
+---
+
 ## 📨 Ce que le modèle reçoit
 
 | Onglet | Envoyé au modèle |
 |---|---|
 | **Faits** | Automatiquement, dans le prompt système de chaque réponse, y compris avec un fichier ou une image joints : d'abord les faits qui partagent des mots avec votre message (casse, accents et pluriels ignorés), puis les plus récents, jusqu'à 12 faits ou 2 500 caractères. Ils restent dans la réponse rédigée après un appel d'outil. |
-| **Documents** | Quand le modèle appelle l'outil `search_memory`, qui cherche aussi dans les faits. |
+| **Documents** | Ceux que votre message nomme (« rapport.pdf », « projet/rapport.pdf », ou un nom distinctif sans extension : « le rapport trimestriel ») : leur contenu utile, dans le prompt système, chacun sous son nom, son dossier éventuel et sa date d'ajout. Plusieurs du même nom : tous, numérotés, avec un avertissement (ce sont des fichiers différents) et, après leur contenu, un rappel : répondre pour chacun, l'un après l'autre, sauf si la question dit lequel ; nommer aussi le dossier ne garde que le sien. Un fichier joint à la conversation passe avant celui de la mémoire qui porte son nom. Sinon, quand le modèle appelle l'outil `search_memory` (qui cherche aussi dans les faits) : chaque extrait y indique son document, et l'outil peut se limiter à un document ou à un dossier. |
 | **Conversations** | Jamais : c'est l'index de la recherche globale de la barre latérale. |
 
 **Fichiers et documents générés** (« génère un fichier… », Word, PDF, PowerPoint, Excel) : leur contenu est rédigé à part, et il reçoit les faits **sur vous** seulement quand la demande parle de vous. C'est le cas avec « mon prénom », « mon entreprise », « mon équipe », « mon chat »…, ou pour un CV, une lettre ou une carte de visite. « Génère un fichier qui affiche mon prénom » écrit donc votre prénom, alors qu'un script de tri ou un rapport sur les baleines restent neutres : avec les faits sous les yeux, le modèle les glissait partout. Les consignes pour l'IA (« termine tes réponses par… ») ne s'appliquent qu'au chat.
@@ -77,6 +104,10 @@ Le fait est enregistré aussitôt dans l'onglet **Faits** (source : `conversatio
 
 ## ✨ Ce que vous pouvez faire
 
+### ➕ Ajouter
+- **Faits** : bouton **➕ Ajouter**, catégorie et contenu (source « manual »).
+- **Documents** : bouton **➕ Ajouter**, ou dépôt de fichiers ou de dossiers sur le panneau, onglet Documents ouvert (voir [Documents](#-documents)).
+
 ### 👁️ Voir
 - **3 onglets** : Faits · Documents · Conversations.
 - **Recherche** dans l'onglet courant + **filtre par catégorie** (onglet Faits).
@@ -84,14 +115,15 @@ Le fait est enregistré aussitôt dans l'onglet **Faits** (source : `conversatio
 - **Provenance** affichée sous chaque entrée :
   - Faits → `source` (manuel / conversation / …), `confiance`, date de mise à jour.
   - Conversations → **session** (son nom actuel : renommer une conversation change aussi celui-ci) · rôle (vous / assistant) · horodatage.
-  - Documents → **nom du document** · n° de chunk · date.
+  - Documents → une ligne par **document** (date · « ajouté à la main » le cas échéant) ou par **dossier déposé** (fichiers · date), à déplier sur ses fichiers.
 
 ### ✏️ Éditer
-- Bouton **✏️** : édition **inline** du contenu, puis **💾 Enregistrer** / **✖ Annuler**.
+- Bouton **✏️** (faits et conversations) : édition **inline** du contenu, puis **💾 Enregistrer** / **✖ Annuler**. Un document se met à jour en le remettant (voir [Documents](#-documents)).
 - Pour un **document/conversation**, le texte est **ré-encodé** (nouvel embedding) afin que la recherche reste cohérente.
 
 ### 🗑️ Supprimer
 - Bouton **🗑️** → **dialogue de confirmation** (cohérent avec la confirmation MCP existante).
+- Onglet Documents : le 🗑️ d'un **document** le supprime en entier ; celui d'un **dossier déposé**, avec tous ses fichiers ; celui d'un fichier du dossier déplié, ce fichier seul.
 - La suppression d'une **entrée vectorielle** est une **vraie suppression dans ChromaDB** (`collection.delete`).
 
 #### Cas particulier : les conversations (« supprimer à la source »)
@@ -109,9 +141,15 @@ L'édition d'une entrée de conversation propage de même la modification au **m
 ## 🏗️ Sous le capot
 
 ```
-frontend/src/features/panels/memory/   # Panneau « Mémoire » de la fenêtre
+frontend/src/features/panels/memory/   # Panneau « Mémoire » de la fenêtre ; folders.ts :
+                                      # dossier déposé parcouru dans la page
 interfaces/desktop/memory.py          # Service du panneau (routes : api_memory.py) ;
-        │  appelle                     # message d'origine modifié via le ChatService
+        │  appelle                     # message d'origine modifié via le ChatService ;
+        │                              # documents ajoutés, dossiers déposés (un bilan
+        │                              # par dossier) et images envoyées dans le chat
+        │                              # (on_images_sent) lus en arrière-plan
+        ├─ core/document_memory.py     # Lecture d'un fichier ajouté (lecteurs du chat,
+        │                              # image : description par la vision + OCR)
         ▼
 core/memory_store.py  ── MemoryStore  # Façade CRUD unifiée (testable sans interface)
         │                  exposé par AIEngine.get_memory_store()
@@ -145,8 +183,22 @@ store.delete_fact(fact_id)
 
 # Vecteurs (collection_type = "document" | "conversation")
 items, total = store.list_vectors("document", query="", limit=25, offset=0)
+store.add_document(content, name, {"source": "manual", "type": "PDF"})  # « added » | « duplicate », document_id
 store.update_vector(entry_id, new_text, "document", at_source=True, metadata=None)
 store.delete_vector(entry_id, "conversation", at_source=True, metadata=None)
+
+# Onglet Documents : documents et dossiers déposés (métadonnées « folder », « folder_id »)
+groups, total = store.list_document_groups(query="", limit=20, offset=0)
+index = store.document_index()       # un enregistrement par document (nom, dossier, date…)
+text = store.document_text(document_id)  # texte recomposé de ses morceaux
+store.delete_document(document_id)   # tous ses morceaux (« Mettre à jour » : la cible)
+store.delete_folder(folder_key)      # tous ses fichiers ; un autre dossier du même nom reste
+store.remove_other_versions("site/src/app.py", nouvel_id, folder_id=…)  # ancienne version
+store.prune_folder(folder_key, noms_du_depot)  # dossier mis à jour : fichiers disparus retirés
+
+# Pour le modèle (core/memory_documents.py) : libellés, documents nommés, extraits groupés
+memory_documents_block(question, store, budget, passages)   # contexte de la réponse
+results_block(resultats)                                     # extraits de search_memory
 
 # Vue d'ensemble & provenance
 store.stats()                       # {"facts": n, "documents": n, "conversations": n}
@@ -161,6 +213,21 @@ Pour les conversations, `at_source=True` modifie le message d'origine du workspa
 
 **Si je dis « retiens ceci » dans le chat, est-ce vraiment retenu ?**
 Oui : le fait apparaît dans l'onglet **Faits** et sert dans les conversations suivantes (voir [Mémoriser depuis le chat](#-mémoriser-depuis-le-chat)). Vous pouvez le modifier ou le supprimer comme n'importe quel fait.
+
+**Les fichiers joints dans le chat sont-ils gardés ?**
+Oui : ils entrent d'eux-mêmes dans l'onglet **Documents**, et l'outil `search_memory` les retrouve dans les conversations suivantes. Une image y entre décrite et lue, une fois la réponse à son message finie (voir [Documents](#-documents)). Supprimez-les dans l'onglet pour qu'ils soient oubliés.
+
+**Que se passe-t-il si je remets un fichier dont le nom est déjà en mémoire ?**
+Une fenêtre le signale, avec la date de celui qui est déjà là, et propose de le mettre à jour, de garder les deux, ou d'annuler. Pour un dossier, la mise à jour remplace les fichiers modifiés, ajoute les nouveaux et retire ceux qu'il ne contient plus (voir [Documents](#-documents)).
+
+**Et si je joins au chat un fichier qui porte le nom d'un document de la mémoire ?**
+Aucune question : de même contenu, c'est le même document ; de contenu différent, il s'ajoute à côté (« joint au chat », avec sa date), sans rien remplacer. Dans cette conversation, le modèle lit le fichier joint. Plus tard, une question sur ce nom lui donne les deux, chacun sous son origine et sa date, avec la consigne de ne pas les confondre.
+
+**Avec deux fichiers du même nom, le modèle se trompe-t-il de fichier ?**
+Il reçoit chacun sous son libellé : nom ou chemin dans son dossier, « ajouté à la main », « joint au chat » ou « fichier du dossier … », et sa date. Nommer le dossier (« le rapport.pdf du dossier projet ») ne lui donne que celui-là ; dire « celui que j'ai ajouté à la main » ou sa date suffit aussi. Sinon (« Résume rapport.pdf »), il répond pour chacun, l'un après l'autre, sous un titre qui dit lequel c'est. Dans une conversation où un « rapport.pdf » est joint, c'est de lui qu'on parle, sauf si le message nomme un dossier.
+
+**Peut-on mettre un dossier entier en mémoire ?**
+Oui : glissez-le sur le panneau Mémoire, onglet Documents ouvert. Ses fichiers lisibles y entrent, rangés sous le nom du dossier, jusqu'à 200 fichiers (voir [Documents](#-documents)). Le 🗑️ du dossier le supprime en entier, celui d'un de ses fichiers ce fichier seul.
 
 **La suppression efface-t-elle vraiment les données ?**
 Oui. Les faits sont supprimés de la base SQLite ; les entrées vectorielles via `ChromaDB.delete`. Pour les conversations, l'option « à la source » retire aussi le message du workspace.

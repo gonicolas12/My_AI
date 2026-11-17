@@ -345,7 +345,7 @@
     "other": "{count} 条事实"
   },
   "memory.stats.documents": {
-    "other": "{count} 个文档片段"
+    "other": "{count} 个文档"
   },
   "memory.stats.conversations": {
     "other": "{count} 条对话记录"
@@ -373,6 +373,47 @@
   "memory.delete.atSourceNote": "（否则它会在下次重新索引时恢复）",
   "memory.add.title": "新事实",
   "memory.add.content": "内容",
+  "memory.documents.addHint": "将文件存入记忆：PDF、Word、Excel、PowerPoint、代码、图片",
+  "memory.documents.drop": "将文件或文件夹拖放到这里以存入记忆",
+  "memory.documents.empty": "记忆中还没有文档。在聊天中附加的文件会自动出现在这里；用“添加”，或将文件、文件夹拖放到这里，可保存你选择的文件（PDF、Word、Excel、PowerPoint、代码、图片）。",
+  "memory.documents.jobsLabel": "正在存入记忆的文档",
+  "memory.documents.state.queued": "等待中",
+  "memory.documents.state.reading": "正在读取文件…",
+  "memory.documents.state.describing": "正在描述图片…",
+  "memory.documents.folderFiles": {
+    "other": "剩余 {count} 个文件"
+  },
+  "memory.documents.folderEmpty": "📁 “{name}”中没有可存入记忆的文件",
+  "memory.documents.folderTooBig": "📁 “{name}”中要存入记忆的文件超过 {max} 个：请改为逐个拖放其子文件夹。",
+  "memory.documents.folderSkipped": {
+    "other": "📁 “{name}”：已跳过 {count} 个文件（格式不受支持或文件过大）"
+  },
+  "memory.group.files": {
+    "other": "{count} 个文件"
+  },
+  "memory.group.byHand": "手动添加",
+  "memory.group.filesLabel": "“{name}”中的文件",
+  "memory.group.deleteDocument": "删除文档",
+  "memory.group.deleteFolder": "删除文件夹",
+  "memory.group.deleteNamed": "删除“{name}”",
+  "memory.group.deleteFolderConfirm": {
+    "other": "要永久删除此文件夹及其 {count} 个文件吗？"
+  },
+  "memory.group.deleteDocumentConfirm": "要从记忆中永久删除此文档吗？",
+  "memory.update.title": "已在记忆中",
+  "memory.update.files": {
+    "other": "记忆中已有同名文件（{count} 个）。要用此版本更新，还是两个都保留？"
+  },
+  "memory.update.folders": {
+    "other": "记忆中已有同名文件夹（{count} 个）。要更新，还是两个都保留？"
+  },
+  "memory.update.mixed": "记忆中已有同名的文件和文件夹。要用这些版本更新，还是两个都保留？",
+  "memory.update.newest": {
+    "other": "{count} 个中最新的"
+  },
+  "memory.update.folderNote": "更新文件夹会替换其中已修改的文件、添加新文件，并移除不再包含的文件。",
+  "memory.update.yes": "更新",
+  "memory.update.keep": "两个都保留",
   "memory.noMatch": "没有符合此搜索的结果。",
   "memory.nothing": "这里还没有内容。",
   "memory.page": "第 {page} / {pages} 页",

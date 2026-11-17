@@ -22,7 +22,7 @@ incrémental.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from core.i18n import tr
 
@@ -32,6 +32,163 @@ try:
 except Exception:  # pragma: no cover - logger optionnel
     import logging
     logger = logging.getLogger("memory_store")
+
+
+def _chunk_index(entry: Dict[str, Any]) -> int:
+    try:
+        return int((entry.get("metadata") or {}).get("chunk_index", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def document_key(entry: Dict[str, Any]) -> str:
+    """Identifiant du document d'un morceau (document_id, sinon son nom)."""
+    meta = entry.get("metadata") or {}
+    if meta.get("document_id"):
+        return str(meta["document_id"])
+    if meta.get("document_name"):
+        return f"name:{meta['document_name']}"
+    return f"entry:{entry.get('id')}"
+
+
+def _document_where(key: str) -> Dict[str, Any]:
+    """Filtre ChromaDB des morceaux d'un document (cf. document_key)."""
+    if key.startswith("name:"):
+        return {"document_name": key[len("name:"):]}
+    return {"document_id": key}
+
+
+# Chevauchement des morceaux : 32 tokens (VectorMemory), quelques centaines de caractères
+_OVERLAP_MAX_CHARS = 1500
+_OVERLAP_PROBE = 40
+
+
+def join_chunks(chunks: List[str]) -> str:
+    """Texte d'un document recomposé de ses morceaux, dans l'ordre.
+
+    Deux morceaux voisins se chevauchent (la fin de l'un ouvre le suivant) :
+    le passage commun n'est gardé qu'une fois. Sans passage commun retrouvé,
+    les morceaux sont simplement mis bout à bout.
+    """
+    text = ""
+    for chunk in chunks:
+        if not chunk:
+            continue
+        if not text:
+            text = chunk
+            continue
+        tail = text[-_OVERLAP_MAX_CHARS:]
+        probe = chunk[:_OVERLAP_PROBE]
+        start = tail.find(probe) if len(probe) >= 8 else -1
+        merged = False
+        while start != -1:
+            common = tail[start:]
+            if chunk.startswith(common):
+                text += chunk[len(common):]
+                merged = True
+                break
+            start = tail.find(probe, start + 1)
+        if not merged:
+            text += "\n" + chunk
+    return text
+
+
+def folder_key(meta: Dict[str, Any]) -> str:
+    """Identité d'un dossier déposé : son identifiant (deux dossiers du même nom
+    restent distincts), sinon son nom ; "" hors dossier."""
+    return str(meta.get("folder_id") or meta.get("folder") or "")
+
+
+_DocumentIndex = Tuple[Dict[str, Dict[str, Any]], Dict[str, int]]
+
+
+def _index_documents(entries: List[Dict[str, Any]]) -> _DocumentIndex:
+    """Documents des morceaux donnés (nom, dossier, date, origine), et la position
+    du dernier morceau de chacun dans l'ordre de la base (ordre d'ajout)."""
+    documents: Dict[str, Dict[str, Any]] = {}
+    positions: Dict[str, int] = {}
+    for position, entry in enumerate(entries):
+        meta = entry.get("metadata") or {}
+        key = document_key(entry)
+        doc = documents.get(key)
+        if doc is None:
+            name = str(meta.get("document_name") or "document")
+            folder = str(meta.get("folder") or "") or None
+            label = name[len(folder) + 1:] if folder and name.startswith(f"{folder}/") else name
+            doc = documents[key] = {
+                "kind": "document", "id": key, "name": name, "label": label,
+                "folder": folder, "folder_key": folder_key(meta) or None, "chunks": 0,
+                "created": "", "type": meta.get("type"), "source": None,
+            }
+        doc["chunks"] += 1
+        positions[key] = position
+        doc["created"] = max(doc["created"], str(meta.get("created") or ""))
+        if meta.get("source") == "manual":
+            doc["source"] = "manual"
+    return documents, positions
+
+
+def group_documents(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Documents et dossiers de l'onglet Documents, du plus récent au plus ancien.
+
+    Un document réunit ses morceaux (date du plus récent, type, ajouté à la
+    main) ; un dossier déposé (métadonnées « folder », « folder_id ») réunit ses
+    documents, rangés par chemin. Deux documents, ou deux dossiers, peuvent
+    porter le même nom : leur date les distingue.
+
+    Args:
+        entries: Morceaux {"id", "metadata"…} dans l'ordre de la base (ordre d'ajout)
+
+    Returns:
+        Groupes {"kind": "document" | "folder", …} ; un dossier a sa clé (« key »)
+    """
+    documents, positions = _index_documents(entries)
+    groups: List[Dict[str, Any]] = []
+    folders: Dict[str, Dict[str, Any]] = {}
+    for key, doc in documents.items():
+        fkey = doc["folder_key"]
+        if not doc["folder"] or not fkey:
+            groups.append(doc)
+            continue
+        group = folders.get(fkey)
+        if group is None:
+            group = folders[fkey] = {
+                "kind": "folder", "id": f"folder:{fkey}", "key": fkey, "name": doc["folder"],
+                "files": 0, "chunks": 0, "created": "", "source": None, "documents": [],
+            }
+            groups.append(group)
+            positions[group["id"]] = -1
+        group["documents"].append(doc)
+        group["files"] += 1
+        group["chunks"] += doc["chunks"]
+        group["created"] = max(group["created"], doc["created"])
+        group["source"] = group["source"] or doc["source"]
+        positions[group["id"]] = max(positions[group["id"]], positions[key])
+    for group in folders.values():
+        group["documents"].sort(key=lambda doc: doc["label"].lower())
+    groups.sort(key=lambda group: -positions[group["id"]])
+    return groups
+
+
+def _documents_order(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Entrées de la collection « documents » classées pour l'onglet Documents.
+
+    Documents du plus récent au plus ancien (dernier ajout de leurs morceaux,
+    dans l'ordre de la base), et les morceaux de chacun dans l'ordre du texte.
+
+    Args:
+        entries: Entrées {"id", "metadata"…} dans l'ordre de la base (ordre d'ajout)
+    """
+    groups: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {}
+    for position, entry in enumerate(entries):
+        meta = entry.get("metadata") or {}
+        key = str(meta.get("document_id") or meta.get("document_name") or entry.get("id"))
+        groups.setdefault(key, []).append((position, entry))
+    ordered: List[Dict[str, Any]] = []
+    for chunks in sorted(groups.values(), key=lambda chunks: -chunks[-1][0]):
+        chunks.sort(key=lambda item: (_chunk_index(item[1]), item[0]))
+        ordered.extend(entry for _, entry in chunks)
+    return ordered
 
 
 class MemoryStore:
@@ -57,6 +214,8 @@ class MemoryStore:
         self.vector_memory = vector_memory
         self.session_manager = session_manager
         self.conversation_search = conversation_search
+        # Index des documents (document_index) : (nombre de morceaux, documents)
+        self._index_cache: Optional[Tuple[Optional[int], List[Dict[str, Any]]]] = None
 
     # ------------------------------------------------------------------
     # Faits structurés (SQLite)
@@ -157,10 +316,15 @@ class MemoryStore:
         Sans recherche : pagination native ChromaDB (count + get limit/offset).
         Avec recherche : balayage du corpus + filtre sous-chaîne insensible à la
         casse, puis pagination en mémoire (prévisible, toutes langues).
+
+        Documents : du plus récent au plus ancien, chacun de son premier morceau
+        au dernier (_documents_order). Un document ajouté (bouton Ajouter, pièce
+        jointe) s'affiche donc en tête de la première page, et non à la fin.
         """
         vm = self.vector_memory
         if vm is None:
             return [], 0
+        by_document = collection_type == "document"
         try:
             if query and query.strip():
                 q = query.strip().lower()
@@ -169,8 +333,16 @@ class MemoryStore:
                     e for e in everything
                     if q in (e.get("content", "") or "").lower()
                 ]
+                if by_document:
+                    filtered = _documents_order(filtered)
                 total = len(filtered)
                 page = filtered[offset:offset + limit] if limit else filtered[offset:]
+            elif by_document and hasattr(vm, "list_metadatas") and hasattr(vm, "get_entries"):
+                # Classement sur les seules métadonnées, puis le texte de la page
+                ordered = _documents_order(vm.list_metadatas(collection_type))
+                total = len(ordered)
+                chosen = ordered[offset:offset + limit] if limit else ordered[offset:]
+                page = vm.get_entries([e["id"] for e in chosen], collection_type)
             else:
                 total = vm.count_entries(collection_type)
                 page = vm.list_entries(collection_type, limit=limit, offset=offset)
@@ -183,6 +355,226 @@ class MemoryStore:
             for entry in page
         ]
         return items, total
+
+    def add_document(
+        self,
+        content: str,
+        name: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        document_id: Optional[str] = None,
+        keep: bool = True,
+    ) -> Dict[str, Any]:
+        """Range un document dans la collection « documents » (onglet Documents).
+
+        Même nom et même contenu (ou même image) : il n'est pas recopié ;
+        ajouté à la main (keep), il est gardé comme tel, pour que retirer la
+        pièce jointe qui l'avait rangé ne l'efface pas. Deux fichiers du même
+        nom mais de contenus différents restent deux documents : remplacer
+        l'un par l'autre est le choix de l'utilisateur (delete_document,
+        remove_other_versions).
+
+        Args:
+            document_id: Identifiant imposé (image : empreinte du fichier)
+            keep: Ajout à la main (bouton Ajouter) ; False pour une image du chat
+
+        Returns:
+            {"status": "added" | "duplicate" | "error", "document_id": id,
+            "chunks": n, "error": message}
+        """
+        vm = self.vector_memory
+        if vm is None:
+            return {"status": "error", "document_id": "", "chunks": 0,
+                    "error": tr("memory.unavailable")}
+        result = vm.add_document(content, document_name=name, metadata=metadata,
+                                 document_id=document_id) or {}
+        status = result.get("status")
+        stored_id = str(result.get("document_id") or document_id or "")
+        if status == "duplicate":
+            chunks = self.keep_document(stored_id) if keep else 0
+            self._changed()
+            return {"status": "duplicate", "document_id": stored_id, "chunks": chunks,
+                    "error": ""}
+        # Rangés dans ChromaDB : aucun sans modèle d'embeddings, même découpé
+        stored = result.get("chunks_stored", result.get("chunks_created"))
+        if status != "success" or not stored:
+            error = str(result.get("error") or "") or tr("memory.unavailable")
+            return {"status": "error", "document_id": "", "chunks": 0, "error": error}
+        self._changed()
+        return {"status": "added", "document_id": stored_id, "chunks": int(stored),
+                "error": ""}
+
+    def remove_other_versions(self, name: str, document_id: str,
+                              folder_id: Optional[str] = None) -> int:
+        """Supprime les autres versions d'un fichier d'un dossier déposé : même
+        chemin (« dossier/chemin ») dans le même dossier, autre contenu.
+
+        Sans dossier (folder_id None) : les autres documents de ce nom.
+
+        Returns:
+            Nombre de morceaux supprimés
+        """
+        vm = self.vector_memory
+        if vm is None or not name or not document_id or not hasattr(vm, "delete_where"):
+            return 0
+        where: List[Dict[str, Any]] = [{"document_name": name},
+                                       {"document_id": {"$ne": document_id}}]
+        if folder_id:
+            where.append({"folder_id": folder_id})
+        removed = int(vm.delete_where({"$and": where}, "document") or 0)
+        if removed:
+            self._changed()
+            logger.info("%s : ancienne version remplacée (%d morceaux)", name, removed)
+        return removed
+
+    # ------------------------------------------------------------------
+    # Onglet Documents : documents et dossiers
+    # ------------------------------------------------------------------
+
+    def list_document_groups(
+        self,
+        query: str = "",
+        limit: int = 25,
+        offset: int = 0,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Documents et dossiers (group_documents), paginés.
+
+        Avec recherche : ceux dont le nom, le dossier ou le texte la contient
+        (casse ignorée). Les morceaux (chunks) restent internes : l'onglet n'en
+        montre que les documents.
+
+        Returns:
+            (groupes de la page, nombre total de groupes)
+        """
+        vm = self.vector_memory
+        if vm is None:
+            return [], 0
+        try:
+            q = (query or "").strip().lower()
+            if q:
+                everything = vm.list_entries("document", limit=None, offset=0)
+                keys = {
+                    document_key(entry) for entry in everything
+                    if q in (entry.get("content") or "").lower()
+                    or q in str((entry.get("metadata") or {}).get("document_name") or "").lower()
+                }
+                entries = [entry for entry in everything if document_key(entry) in keys]
+            elif hasattr(vm, "list_metadatas"):
+                entries = vm.list_metadatas("document")
+            else:
+                entries = vm.list_entries("document", limit=None, offset=0)
+        except Exception as exc:
+            logger.warning("Lecture des documents échouée: %s", exc)
+            return [], 0
+        groups = group_documents(entries)
+        page = groups[offset:offset + limit] if limit else groups[offset:]
+        return page, len(groups)
+
+    def delete_document(self, document_id: str) -> int:
+        """Supprime un document entier (tous ses morceaux). Retourne le nombre de morceaux."""
+        vm = self.vector_memory
+        if vm is None or not document_id:
+            return 0
+        if document_id.startswith("entry:"):
+            removed = int(bool(vm.delete_entry(document_id[len("entry:"):], "document")))
+        else:
+            removed = int(vm.delete_where(_document_where(document_id), "document"))
+        if removed:
+            self._changed()
+        return removed
+
+    def delete_folder(self, key: str) -> int:
+        """Supprime un dossier déposé (tous les morceaux de ses documents).
+
+        Args:
+            key: sa clé (folder_key : son identifiant), pas son nom : un autre
+                dossier du même nom reste
+        """
+        vm = self.vector_memory
+        if vm is None or not key:
+            return 0
+        removed = int(vm.delete_where({"folder_id": key}, "document"))
+        if removed:
+            self._changed()
+        return removed
+
+    def _changed(self) -> None:
+        """Contenu de l'onglet Documents modifié : l'index des documents se refait."""
+        self._index_cache = None
+
+    def document_index(self) -> List[Dict[str, Any]]:
+        """Un enregistrement par document de l'onglet Documents, du plus récent au
+        plus ancien : {"id", "name", "label", "folder", "folder_key", "created",
+        "source", "type"} (sans texte).
+
+        Gardé tant que la collection ne change pas : la fenêtre (« déjà en
+        mémoire ? ») et chaque message du chat (documents nommés) le relisent.
+        """
+        vm = self.vector_memory
+        lister = getattr(vm, "list_metadatas", None)
+        if not callable(lister):
+            return []
+        try:
+            count = vm.count_entries("document")
+        except Exception:
+            count = None
+        cached = getattr(self, "_index_cache", None)
+        if cached is not None and count is not None and cached[0] == count:
+            return cached[1]
+        try:
+            documents, _positions = _index_documents(lister("document"))
+        except Exception as exc:
+            logger.warning("Lecture des documents échouée: %s", exc)
+            return []
+        index = sorted(documents.values(), key=lambda doc: doc["created"], reverse=True)
+        self._index_cache = (count, index)
+        return index
+
+    def prune_folder(self, folder_id: str, keep: Iterable[str]) -> int:
+        """Retire d'un dossier déposé les fichiers qu'il ne contient plus (dossier
+        mis à jour : redéposé, un fichier supprimé depuis).
+
+        Args:
+            folder_id: clé du dossier (folder_key)
+            keep: noms (« dossier/chemin ») des fichiers du dernier dépôt
+
+        Returns:
+            Nombre de fichiers retirés
+        """
+        vm = self.vector_memory
+        if vm is None or not folder_id or not hasattr(vm, "delete_where"):
+            return 0
+        kept = set(keep)
+        stale = {doc["name"] for doc in self.document_index()
+                 if doc["folder_key"] == folder_id and doc["name"] not in kept}
+        for name in stale:
+            vm.delete_where({"$and": [{"folder_id": folder_id}, {"document_name": name}]},
+                            "document")
+        if stale:
+            self._changed()
+            logger.info("Dossier %s : %d fichier(s) retiré(s), absents du dépôt", folder_id,
+                        len(stale))
+        return len(stale)
+
+    def document_text(self, document_id: str) -> str:
+        """Texte d'un document, recomposé de ses morceaux (sans leurs chevauchements)."""
+        reader = getattr(self.vector_memory, "document_chunks", None)
+        if not callable(reader) or not document_id:
+            return ""
+        try:
+            return join_chunks(reader(document_id))
+        except Exception as exc:
+            logger.warning("Lecture du document %s échouée: %s", document_id, exc)
+            return ""
+
+    def has_document(self, document_id: str) -> bool:
+        """Le document est-il déjà dans l'onglet Documents (au moins un morceau) ?"""
+        check = getattr(self.vector_memory, "has_document", None)
+        return bool(check(document_id)) if callable(check) else False
+
+    def keep_document(self, document_id: str) -> int:
+        """Garde un document déjà rangé comme ajouté à la main ; ses morceaux gardés."""
+        keep = getattr(self.vector_memory, "keep_document", None)
+        return int(keep(document_id)) if callable(keep) else 0
 
     def update_vector(
         self,
@@ -350,13 +742,20 @@ class MemoryStore:
                 facts = 0
         documents = conversations = 0
         if self.vector_memory is not None:
-            documents = self.vector_memory.count_entries("document")
+            documents = self._count_documents()
             conversations = self.vector_memory.count_entries("conversation")
         return {
             "facts": facts,
             "documents": documents,
             "conversations": conversations,
         }
+
+    def _count_documents(self) -> int:
+        """Documents de l'onglet Documents, et non leurs morceaux (chunks)."""
+        vm = self.vector_memory
+        if not callable(getattr(vm, "list_metadatas", None)):
+            return vm.count_entries("document")
+        return len(self.document_index())
 
     @staticmethod
     def describe_provenance(item: Dict[str, Any]) -> str:
@@ -389,13 +788,15 @@ class MemoryStore:
 
         # Collection « documents »
         name = meta.get("document_name") or "document"
-        parts = [f"📄 {name}"]
+        parts = [f"{'🖼️' if meta.get('type') == 'Image' else '📄'} {name}"]
         chunk = meta.get("chunk_index")
         if chunk is not None:
             parts.append(tr("memory.provenance.chunk", n=chunk))
         created = str(meta.get("created", ""))
         if created:
             parts.append(created[:19].replace("T", " "))
+        if meta.get("source") == "manual":
+            parts.append(tr("memory.provenance.byHand"))
         return "  ·  ".join(parts)
 
     @staticmethod

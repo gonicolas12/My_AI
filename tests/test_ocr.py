@@ -89,6 +89,30 @@ def test_second_read_uses_cache(scanned_pdf, require_ocr, monkeypatch):
     assert len(calls) == 1
 
 
+def test_image_file_is_read(tmp_path, require_ocr):
+    """Image ajoutée à la Mémoire : son texte visible, une ligne par bloc."""
+    page = pymupdf.open()
+    page.new_page(width=420, height=120).insert_textbox(
+        pymupdf.Rect(20, 30, 400, 100), SENTENCE, fontname="helv", fontsize=16
+    )
+    image = tmp_path / "capture.png"
+    image.write_bytes(page[0].get_pixmap(dpi=150).tobytes("png"))
+    page.close()
+    assert EXPECTED_WORDS <= _words(ocr.ocr_image(image))
+
+    blank = pymupdf.open()
+    blank.new_page(width=200, height=200)
+    empty = tmp_path / "vide.png"
+    empty.write_bytes(blank[0].get_pixmap(dpi=72).tobytes("png"))
+    blank.close()
+    assert ocr.ocr_image(empty) == ""
+
+
+def test_image_without_ocr_engine_has_no_text(tmp_path, monkeypatch):
+    monkeypatch.setattr(ocr, "RapidOCR", None)
+    assert ocr.ocr_image(tmp_path / "absente.png") == ""
+
+
 def test_without_ocr_engine_explains_how_to_enable_it(scanned_pdf, monkeypatch):
     monkeypatch.setattr(ocr, "RapidOCR", None)
     assert FileProcessor().process_file(str(scanned_pdf))["error"] == ocr.MISSING_OCR_HINT

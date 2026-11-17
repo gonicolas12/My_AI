@@ -277,6 +277,7 @@
   "memory.provenance.you": "🧑 вы",
   "memory.provenance.assistant": "🤖 ассистент",
   "memory.provenance.chunk": "фрагмент {n}",
+  "memory.provenance.byHand": "добавлено вручную",
   "folders.noSession": "❌ Нет активного сеанса",
   "folders.error": "❌ Ошибка: {error}",
   "folders.detached": "✅ Папка отключена",
@@ -308,6 +309,7 @@
   "launch.engineStarting": "Движок запускается…",
   "dialog.allFiles": "Все файлы",
   "dialog.all": "Все",
+  "dialog.supported": "Поддерживаемые файлы",
   "dialog.pdf": "Файлы PDF",
   "dialog.word": "Файлы Word",
   "dialog.excelCsv": "Файлы Excel и CSV",
@@ -338,6 +340,49 @@
   "memory.factAdded": "✅ Факт добавлен",
   "memory.edited": "✅ Изменено",
   "memory.deleted": "🗑️ Удалено",
+  "memory.documents.notFound": "❌ Файл не найден: {name}",
+  "memory.documents.added": "📄 «{name}» сохранён в памяти",
+  "memory.documents.updated": "🔄 «{name}» обновлён в памяти",
+  "memory.documents.already": "ℹ️ «{name}» уже есть в памяти, без изменений",
+  "memory.documents.failed": "❌ «{name}» не сохранён в памяти: {error}",
+  "memory.documents.imageEmpty": "нечего сохранить: нет ни описания (модель зрения недоступна), ни читаемого текста на изображении",
+  "memory.documents.imageDescription": "Описание изображения:",
+  "memory.documents.imageText": "Текст, распознанный на изображении:",
+  "memory.documents.visionPrompt": "Опиши это изображение так, чтобы его можно было позже найти в памяти. Напиши один абзац из 3–6 предложений, без заголовка, списка, жирного шрифта, эмодзи и вопроса в конце: скажи, что на нём (сюжет, предметы, люди, место, важные цвета), и дословно перепиши важный текст на нём.",
+  "memory.documents.folderSummary": "📁 «{name}»: {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "one": "{count} файл добавлен",
+    "few": "{count} файла добавлено",
+    "many": "{count} файлов добавлено",
+    "other": "{count} файла добавлено"
+  },
+  "memory.documents.folderUpdated": {
+    "one": "{count} файл обновлён",
+    "few": "{count} файла обновлено",
+    "many": "{count} файлов обновлено",
+    "other": "{count} файла обновлено"
+  },
+  "memory.documents.folderUnchanged": {
+    "one": "{count} файл уже актуален",
+    "few": "{count} файла уже актуальны",
+    "many": "{count} файлов уже актуальны",
+    "other": "{count} файла уже актуальны"
+  },
+  "memory.documents.folderRemoved": {
+    "one": "{count} файл удалён",
+    "few": "{count} файла удалено",
+    "many": "{count} файлов удалено",
+    "other": "{count} файла удалено"
+  },
+  "memory.documents.folderFailed": {
+    "one": "{count} файл не сохранён ({names})",
+    "few": "{count} файла не сохранено ({names})",
+    "many": "{count} файлов не сохранено ({names})",
+    "other": "{count} файла не сохранено ({names})"
+  },
+  "memory.documents.folderEmpty": "📁 В «{name}» нет файлов, которые можно сохранить в памяти",
+  "memory.documents.folderTooBig": "📁 В «{name}» больше {max} файлов для сохранения в памяти: перетащите лучше его подпапки по одной.",
   "agents.workflowSaved": "💾 Рабочий процесс сохранён",
   "agents.workflowExported": "📤 Рабочий процесс экспортирован",
   "voice.inputUnavailable": "Голосовой ввод недоступен: установите 'faster-whisper' и 'sounddevice'.",

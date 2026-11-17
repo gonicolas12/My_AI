@@ -8,7 +8,7 @@
  * au serveur, qui le range dans un dossier temporaire.
  */
 
-import { t } from '../../i18n';
+import { type MessageKey, t } from '../../i18n';
 import { api } from '../../lib/api';
 import type { AttachKind } from '../../lib/shell';
 import { notify } from '../../stores/app';
@@ -26,6 +26,9 @@ export const ACCEPT: Record<AttachKind, string> = {
   ].join(','),
   Image: '.png,.jpg,.jpeg,.gif,.bmp,.webp,.tiff,.tif',
 };
+
+/** Tous les types à la fois : bouton Ajouter de la Mémoire, dans un navigateur */
+export const ACCEPT_ALL = Object.values(ACCEPT).join(',');
 
 /** Nom d'une image collée depuis le presse-papiers (celui de l'interface Tk) */
 export const CLIPBOARD_IMAGE = 'clipboard_image.png';
@@ -56,20 +59,46 @@ export async function uploadFiles(files: File[], name?: string): Promise<void> {
   }
 }
 
+const isDirectory = (entry: FileSystemEntry | null): entry is FileSystemDirectoryEntry =>
+  Boolean(entry?.isDirectory);
+
 /**
- * Fichiers déposés dans un navigateur, sans les dossiers : sans chemin, un
- * dossier ne peut pas être lu (dans la fenêtre de l'appli, il joint ses fichiers)
+ * Fichiers et dossiers déposés, à lire pendant l'événement drop : après, la
+ * liste du DataTransfer est vide. Un dossier se parcourt ensuite (Mémoire).
  */
-export function droppedFiles(transfer: DataTransfer): File[] {
-  const items = Array.from(transfer.items).filter((item) => item.kind === 'file');
-  const isFolder = (item: DataTransferItem) => Boolean(item.webkitGetAsEntry()?.isDirectory);
-  if (items.some(isFolder)) {
-    notify('info', t('chat.attach.folderInWindow'));
+export function droppedItems(transfer: DataTransfer): {
+  files: File[];
+  folders: FileSystemDirectoryEntry[];
+} {
+  const files: File[] = [];
+  const folders: FileSystemDirectoryEntry[] = [];
+  for (const item of Array.from(transfer.items)) {
+    if (item.kind !== 'file') continue;
+    const entry = item.webkitGetAsEntry();
+    if (isDirectory(entry)) {
+      folders.push(entry);
+      continue;
+    }
+    const file = item.getAsFile();
+    if (file) files.push(file);
   }
-  return items
-    .filter((item) => !isFolder(item))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => file !== null);
+  return { files, folders };
+}
+
+/**
+ * Fichiers déposés lus par leur contenu, sans les dossiers : sans chemin, un
+ * dossier ne peut pas être joint (dans la fenêtre de l'appli, le chat joint ses
+ * fichiers) ; folderNote le dit à l'utilisateur
+ */
+export function droppedFiles(
+  transfer: DataTransfer,
+  folderNote: MessageKey = 'chat.attach.folderInWindow',
+): File[] {
+  const { files, folders } = droppedItems(transfer);
+  if (folders.length) {
+    notify('info', t(folderNote));
+  }
+  return files;
 }
 
 /** Fichiers du presse-papiers (image copiée, capture d'écran) */

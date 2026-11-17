@@ -47,6 +47,8 @@ en quelques secondes (le premier ne répond pas, seul le second entre dans le QR
 code), puis un appareil. La Mémoire montre des faits et des documents
 fictifs, en mémoire, et les
 messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
+Son bouton Ajouter (onglet Documents) lit les vrais fichiers choisis, l'OCR des
+images compris ; seule leur description par le modèle de vision est simulée (4 s).
 Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
 temp/demo_server/PORT/prompt_templates.json.
 
@@ -83,6 +85,7 @@ et une écriture ou une commande demandée par la page attend son approbation.
 import argparse
 import asyncio
 import base64
+import hashlib
 import json
 import math
 import os
@@ -103,7 +106,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 from fastapi import Request  # noqa: E402
 from core.chat_service import ChatService  # noqa: E402
 from core.i18n import tr  # noqa: E402
-from core.memory_store import MemoryStore  # noqa: E402
+from core.memory_store import MemoryStore, document_key  # noqa: E402
 from core.prompt_library import PromptLibrary  # noqa: E402
 from core.scheduler import SchedulerService  # noqa: E402
 from relay.agent_relay import AgentRelayService  # noqa: E402
@@ -386,9 +389,45 @@ DEMO_DOCUMENTS = [
                          "juillet, panneaux en septembre."),
 ]
 
+# Dossier déposé sur l'onglet Documents : ses fichiers, rangés sous son nom
+DEMO_FOLDER = ("site_vitrine", [
+    ("README.md", "Site vitrine de l'association : pages statiques servies par un simple "
+                  "serveur, formulaire de contact relayé par courriel."),
+    ("src/index.html", "<main> : présentation, agenda des ateliers, plan d'accès et "
+                       "formulaire de contact (nom, courriel, message)."),
+    ("src/style.css", ":root { --accent: #f97316; } Mise en page en grille, deux colonnes "
+                      "au-delà de 900 px, une seule sur téléphone."),
+])
 
-class DemoVectors:  # pylint: disable=too-few-public-methods
-    """VectorMemory de la démonstration : entrées lues par leur identifiant."""
+
+def _where_matches(metadata, where):
+    """Filtre de métadonnées à la ChromaDB : égalité, $ne, $in et $and."""
+    for key, condition in where.items():
+        if key == "$and":
+            if not all(_where_matches(metadata, part) for part in condition):
+                return False
+        elif isinstance(condition, dict) and "$ne" in condition:
+            if metadata.get(key) == condition["$ne"]:
+                return False
+        elif isinstance(condition, dict) and "$in" in condition:
+            if metadata.get(key) not in condition["$in"]:
+                return False
+        elif metadata.get(key) != condition:
+            return False
+    return True
+
+
+def _demo_describe_image(image_base64, prompt="", **options):
+    """Description d'une image ajoutée à la Mémoire : fixe, au bout de 4 s (vision simulée)."""
+    del image_base64, prompt, options
+    time.sleep(4)
+    return ("Image de démonstration : un graphique en barres sur quatre trimestres, "
+            "en hausse, avec une légende en bas à droite.")
+
+
+class DemoVectors:
+    """VectorMemory de la démonstration : de quoi servir l'onglet Documents
+    groupé de MemoryStore (documents, dossiers, morceaux d'un document)."""
 
     def __init__(self, store):
         self.store = store
@@ -398,11 +437,76 @@ class DemoVectors:  # pylint: disable=too-few-public-methods
         return next((entry for entry in self.store.entries(collection_type)
                      if entry["id"] == entry_id), None)
 
+    def list_entries(self, collection_type="document", limit=None, offset=0):
+        """Entrées dans l'ordre d'ajout, les plus anciennes d'abord (comme ChromaDB)."""
+        if collection_type == "document":
+            with self.store.lock:
+                entries = list(reversed(self.store.documents))
+        else:
+            entries = self.store.entries(collection_type)
+        return entries[offset:offset + limit] if limit else entries[offset:]
+
+    def list_metadatas(self, collection_type="document"):
+        """Identifiants et métadonnées, sans le texte."""
+        return [{"id": entry["id"], "metadata": entry["metadata"]}
+                for entry in self.list_entries(collection_type)]
+
+    def get_entries(self, entry_ids, collection_type="document"):
+        """Entrées demandées, dans l'ordre demandé."""
+        found = {entry["id"]: entry for entry in self.list_entries(collection_type)}
+        return [found[entry_id] for entry_id in entry_ids if entry_id in found]
+
+    def count_entries(self, collection_type="document"):
+        """Nombre d'entrées d'une collection."""
+        return len(self.list_entries(collection_type))
+
+    def document_chunks(self, document_id):
+        """Texte des morceaux d'un document, dans l'ordre."""
+        chunks = [entry for entry in self.list_entries("document")
+                  if entry["metadata"].get("document_id") == document_id]
+        chunks.sort(key=lambda entry: entry["metadata"].get("chunk_index", 0))
+        return [entry["content"] for entry in chunks]
+
+    def search_similar(self, query, n_results=5, where=None, **_options):
+        """Recherche « par le sens » de la démonstration : les mots en commun."""
+        words = set(re.findall(r"\w{3,}", str(query).lower()))
+        entries = [entry for entry in self.list_entries("document")
+                   if not where or _where_matches(entry["metadata"], where)]
+        scored = sorted(entries, key=lambda entry: -len(
+            words & set(re.findall(r"\w{3,}", entry["content"].lower()))))
+        return [{"content": entry["content"], "metadata": entry["metadata"]}
+                for entry in scored[:n_results]]
+
+    def delete_where(self, where, collection_type="document"):
+        """Supprime les documents correspondant au filtre ; leur nombre de morceaux."""
+        if collection_type != "document":
+            return 0
+        with self.store.lock:
+            before = len(self.store.documents)
+            self.store.documents = [entry for entry in self.store.documents
+                                    if not _where_matches(entry["metadata"], where)]
+            return before - len(self.store.documents)
+
+    def delete_entry(self, entry_id, collection_type="document"):
+        """Supprime une entrée (un morceau)."""
+        return self.store.delete_vector(entry_id, collection_type)
+
 
 class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
     """MemoryStore en mémoire : faits et documents fictifs, messages des sessions copiées."""
 
     describe_provenance = staticmethod(MemoryStore.describe_provenance)
+    # Onglet Documents groupé : le code de MemoryStore, sur DemoVectors
+    list_document_groups = MemoryStore.list_document_groups
+    delete_document = MemoryStore.delete_document
+    delete_folder = MemoryStore.delete_folder
+    # Fichier ou dossier remis : déjà là ?, anciennes versions, fichiers retirés ;
+    # documents nommés dans le chat (index, texte)
+    _changed = MemoryStore._changed  # pylint: disable=protected-access
+    document_index = MemoryStore.document_index
+    document_text = MemoryStore.document_text
+    remove_other_versions = MemoryStore.remove_other_versions
+    prune_folder = MemoryStore.prune_folder
 
     def __init__(self, sessions, search):
         self.sessions = sessions
@@ -420,6 +524,16 @@ class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
              "metadata": {"document_name": name, "chunk_index": index % 3,
                           "created": "2026-10-08T14:30:00"}}
             for index, (name, content) in enumerate(DEMO_DOCUMENTS)]
+        # Les plus récents en tête : le dossier, déposé avant les documents
+        folder, files = DEMO_FOLDER
+        self.documents += [
+            {"id": f"folder_demo_{index}_chunk_0", "content": content,
+             "metadata": {"document_id": f"folder_demo_{index}",
+                          "document_name": f"{folder}/{relative}", "folder": folder,
+                          "folder_id": "demo_site_vitrine",
+                          "chunk_index": 0, "source": "manual", "type": "Code",
+                          "created": "2026-10-07T18:05:00"}}
+            for index, (relative, content) in enumerate(files)]
         # Messages retirés de l'index seul (« sinon réapparaît au prochain réindex »)
         self.hidden = set()
 
@@ -510,9 +624,45 @@ class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
         self.hidden.add(entry_id)
         return True
 
+    def add_document(self, content, name, metadata=None, document_id=None, keep=True):
+        """Bouton Ajouter, image du chat, dossier déposé : morceaux de 600
+        caractères, en tête de liste (comme MemoryStore) ; même nom et même
+        contenu (ou même image) : doublon. Deux fichiers du même nom restent."""
+        del keep
+        digest = hashlib.sha1(f"{name}\0{content}".encode("utf-8")).hexdigest()[:16]
+        document_id = document_id or f"doc_{digest}"
+        with self.lock:
+            known = self.has_document(document_id)
+            if not known:
+                pieces = [content[start:start + 600] for start in range(0, len(content), 600)]
+                created = time.strftime("%Y-%m-%dT%H:%M:%S")
+                self.documents[:0] = [
+                    {"id": f"{document_id}_chunk_{index}", "content": piece,
+                     "metadata": {"document_id": document_id, "document_name": name,
+                                  "chunk_index": index, "created": created, **(metadata or {})}}
+                    for index, piece in enumerate(pieces)]
+        self._changed()
+        return {"status": "duplicate" if known else "added", "document_id": document_id,
+                "chunks": 1, "error": ""}
+
+    def has_document(self, document_id):
+        """Document déjà rangé (même identifiant) ?"""
+        return any(entry["metadata"].get("document_id") == document_id
+                   for entry in self.documents)
+
+    def keep_document(self, document_id):
+        """Gardé comme ajouté à la main ; ses morceaux."""
+        kept = [entry for entry in self.documents
+                if entry["metadata"].get("document_id") == document_id]
+        for entry in kept:
+            entry["metadata"]["source"] = "manual"
+        return len(kept)
+
     def stats(self):
-        """Compteurs, comme MemoryStore.stats."""
-        return {"facts": len(self.facts), "documents": len(self.documents),
+        """Compteurs, comme MemoryStore.stats : des documents, pas leurs morceaux."""
+        with self.lock:
+            documents = len({document_key(entry) for entry in self.documents})
+        return {"facts": len(self.facts), "documents": documents,
                 "conversations": len(self.entries("conversation"))}
 
 
@@ -532,6 +682,8 @@ class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
         self.search_engine = DemoSearch(self.session_manager)
         self.indexer = DemoIndexer()
         self.memory_store = DemoMemoryStore(self.session_manager, self.search_engine)
+        # Mémoire, image ajoutée : modèle de vision simulé (l'OCR, lui, est réel)
+        self.local_ai.local_llm.describe_image = _demo_describe_image
         # Prompts par défaut, jamais data/prompt_templates.json
         self.prompt_library = PromptLibrary(
             path=str(Path(workspaces_dir).parent / "prompt_templates.json"))
@@ -1551,7 +1703,8 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
         self.chat = ChatService(engine, self.bus.publish, file_processor=FakeFileProcessor(),
                                 ui_connected=lambda: self.bus.subscriber_count > 0,
                                 on_session_change=lambda sid: self.state.set("current_session", sid),
-                                rlhf=FakeRLHF())
+                                rlhf=FakeRLHF(),
+                                on_images_sent=self._remember_chat_images)
         self.chat.start()
         time.sleep(pause)
         self._step("services")

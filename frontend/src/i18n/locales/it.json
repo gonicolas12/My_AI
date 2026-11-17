@@ -351,8 +351,8 @@
     "other": "{count} fatti"
   },
   "memory.stats.documents": {
-    "one": "{count} estratto di documento",
-    "other": "{count} estratti di documenti"
+    "one": "{count} documento",
+    "other": "{count} documenti"
   },
   "memory.stats.conversations": {
     "one": "{count} voce di conversazione",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(altrimenti ritorna alla prossima reindicizzazione)",
   "memory.add.title": "Nuovo fatto",
   "memory.add.content": "Contenuto",
+  "memory.documents.addHint": "Salva file in memoria: PDF, Word, Excel, PowerPoint, codice, immagine",
+  "memory.documents.drop": "Rilascia qui file o cartelle per salvarli in memoria",
+  "memory.documents.empty": "Nessun documento in memoria. I file allegati nella chat arrivano qui da soli; «Aggiungi», o rilasciare qui file o cartelle, salva quelli che scegli (PDF, Word, Excel, PowerPoint, codice, immagine).",
+  "memory.documents.jobsLabel": "Documenti in fase di salvataggio in memoria",
+  "memory.documents.state.queued": "in attesa",
+  "memory.documents.state.reading": "lettura del file…",
+  "memory.documents.state.describing": "descrizione dell'immagine…",
+  "memory.documents.folderFiles": {
+    "one": "{count} file rimanente",
+    "other": "{count} file rimanenti"
+  },
+  "memory.documents.folderEmpty": "📁 Nessun file da salvare in memoria in «{name}»",
+  "memory.documents.folderTooBig": "📁 «{name}» contiene più di {max} file da salvare in memoria: rilascia piuttosto le sue sottocartelle, una alla volta.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 «{name}»: {count} file ignorato (formato non supportato o troppo grande)",
+    "other": "📁 «{name}»: {count} file ignorati (formato non supportato o troppo grandi)"
+  },
+  "memory.group.files": {
+    "one": "{count} file",
+    "other": "{count} file"
+  },
+  "memory.group.byHand": "aggiunto a mano",
+  "memory.group.filesLabel": "File di «{name}»",
+  "memory.group.deleteDocument": "Elimina il documento",
+  "memory.group.deleteFolder": "Elimina la cartella",
+  "memory.group.deleteNamed": "Elimina «{name}»",
+  "memory.group.deleteFolderConfirm": {
+    "one": "Eliminare definitivamente questa cartella e il suo file?",
+    "other": "Eliminare definitivamente questa cartella e i suoi {count} file?"
+  },
+  "memory.group.deleteDocumentConfirm": "Eliminare definitivamente questo documento dalla memoria?",
+  "memory.update.title": "Già in memoria",
+  "memory.update.files": {
+    "one": "Un file con lo stesso nome è già in memoria. Aggiornarlo con questa versione o tenere entrambi?",
+    "other": "{count} file hanno un nome già in memoria. Aggiornarli con queste versioni o tenere entrambi?"
+  },
+  "memory.update.folders": {
+    "one": "Una cartella con lo stesso nome è già in memoria. Aggiornarla o tenere entrambe?",
+    "other": "{count} cartelle hanno un nome già in memoria. Aggiornarle o tenere entrambe?"
+  },
+  "memory.update.mixed": "File e cartelle con gli stessi nomi sono già in memoria. Aggiornarli con queste versioni o tenere entrambi?",
+  "memory.update.newest": {
+    "one": "il più recente di {count}",
+    "other": "il più recente di {count}"
+  },
+  "memory.update.folderNote": "Aggiornare una cartella sostituisce i file modificati, aggiunge quelli nuovi e rimuove quelli che non contiene più.",
+  "memory.update.yes": "Aggiorna",
+  "memory.update.keep": "Tieni entrambi",
   "memory.noMatch": "Nessun risultato per questa ricerca.",
   "memory.nothing": "Qui non c'è ancora niente.",
   "memory.page": "Pagina {page} / {pages}",

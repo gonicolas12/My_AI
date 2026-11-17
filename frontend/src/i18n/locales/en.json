@@ -351,8 +351,8 @@
     "other": "{count} facts"
   },
   "memory.stats.documents": {
-    "one": "{count} document chunk",
-    "other": "{count} document chunks"
+    "one": "{count} document",
+    "other": "{count} documents"
   },
   "memory.stats.conversations": {
     "one": "{count} conversation entry",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(otherwise it comes back at the next reindex)",
   "memory.add.title": "New fact",
   "memory.add.content": "Content",
+  "memory.documents.addHint": "Save files to memory: PDF, Word, Excel, PowerPoint, code, image",
+  "memory.documents.drop": "Drop your files or folders here to save them to memory",
+  "memory.documents.empty": "No documents in memory. Files attached in the chat land here on their own; “Add”, or dropping files or folders here, saves the ones you choose (PDF, Word, Excel, PowerPoint, code, image).",
+  "memory.documents.jobsLabel": "Documents being saved to memory",
+  "memory.documents.state.queued": "waiting",
+  "memory.documents.state.reading": "reading the file…",
+  "memory.documents.state.describing": "describing the image…",
+  "memory.documents.folderFiles": {
+    "one": "{count} file left",
+    "other": "{count} files left"
+  },
+  "memory.documents.folderEmpty": "📁 No files to save to memory in “{name}”",
+  "memory.documents.folderTooBig": "📁 “{name}” contains more than {max} files to save to memory: drop its subfolders one at a time instead.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 “{name}”: {count} file skipped (unsupported format or too large)",
+    "other": "📁 “{name}”: {count} files skipped (unsupported format or too large)"
+  },
+  "memory.group.files": {
+    "one": "{count} file",
+    "other": "{count} files"
+  },
+  "memory.group.byHand": "added by hand",
+  "memory.group.filesLabel": "Files in “{name}”",
+  "memory.group.deleteDocument": "Delete the document",
+  "memory.group.deleteFolder": "Delete the folder",
+  "memory.group.deleteNamed": "Delete “{name}”",
+  "memory.group.deleteFolderConfirm": {
+    "one": "Permanently delete this folder and its file?",
+    "other": "Permanently delete this folder and its {count} files?"
+  },
+  "memory.group.deleteDocumentConfirm": "Permanently delete this document from memory?",
+  "memory.update.title": "Already in memory",
+  "memory.update.files": {
+    "one": "A file with the same name is already in memory. Update it with this version, or keep both?",
+    "other": "{count} files have a name already in memory. Update them with these versions, or keep both?"
+  },
+  "memory.update.folders": {
+    "one": "A folder with the same name is already in memory. Update it, or keep both?",
+    "other": "{count} folders have a name already in memory. Update them, or keep both?"
+  },
+  "memory.update.mixed": "Files and folders with the same names are already in memory. Update them with these versions, or keep both?",
+  "memory.update.newest": {
+    "one": "newest of {count}",
+    "other": "newest of {count}"
+  },
+  "memory.update.folderNote": "Updating a folder replaces its changed files, adds the new ones and removes those it no longer contains.",
+  "memory.update.yes": "Update",
+  "memory.update.keep": "Keep both",
   "memory.noMatch": "No results for this search.",
   "memory.nothing": "Nothing here yet.",
   "memory.page": "Page {page} / {pages}",

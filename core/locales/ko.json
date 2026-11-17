@@ -259,6 +259,7 @@
   "memory.provenance.you": "🧑 나",
   "memory.provenance.assistant": "🤖 비서",
   "memory.provenance.chunk": "조각 {n}",
+  "memory.provenance.byHand": "직접 추가함",
   "folders.noSession": "❌ 활성 세션이 없습니다",
   "folders.error": "❌ 오류: {error}",
   "folders.detached": "✅ 폴더를 분리했습니다",
@@ -290,6 +291,7 @@
   "launch.engineStarting": "엔진을 시작하는 중…",
   "dialog.allFiles": "모든 파일",
   "dialog.all": "전체",
+  "dialog.supported": "지원되는 파일",
   "dialog.pdf": "PDF 파일",
   "dialog.word": "Word 파일",
   "dialog.excelCsv": "Excel 및 CSV 파일",
@@ -320,6 +322,34 @@
   "memory.factAdded": "✅ 사실을 추가했습니다",
   "memory.edited": "✅ 수정했습니다",
   "memory.deleted": "🗑️ 삭제했습니다",
+  "memory.documents.notFound": "❌ 파일을 찾을 수 없습니다: {name}",
+  "memory.documents.added": "📄 “{name}”을(를) 메모리에 저장했습니다",
+  "memory.documents.updated": "🔄 메모리의 “{name}”을(를) 업데이트했습니다",
+  "memory.documents.already": "ℹ️ “{name}”은(는) 같은 내용으로 이미 메모리에 있습니다",
+  "memory.documents.failed": "❌ “{name}”을(를) 메모리에 저장하지 못했습니다: {error}",
+  "memory.documents.imageEmpty": "저장할 내용이 없습니다: 설명(비전 모델을 사용할 수 없음)도, 이미지에서 읽을 수 있는 글자도 없습니다",
+  "memory.documents.imageDescription": "이미지 설명:",
+  "memory.documents.imageText": "이미지에서 읽은 글자:",
+  "memory.documents.visionPrompt": "나중에 메모리에서 다시 찾을 수 있도록 이 이미지를 설명하세요. 제목, 목록, 굵은 글씨, 이모지, 마지막 질문 없이 3~6문장으로 된 문단 하나만 쓰세요. 무엇이 보이는지(주제, 사물, 사람, 장소, 의미 있는 색) 말하고, 이미지 속 중요한 글자는 그대로 옮겨 적으세요.",
+  "memory.documents.folderSummary": "📁 “{name}”: {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "other": "파일 {count}개 추가"
+  },
+  "memory.documents.folderUpdated": {
+    "other": "파일 {count}개 업데이트"
+  },
+  "memory.documents.folderUnchanged": {
+    "other": "파일 {count}개는 이미 최신"
+  },
+  "memory.documents.folderRemoved": {
+    "other": "파일 {count}개 제거"
+  },
+  "memory.documents.folderFailed": {
+    "other": "파일 {count}개 실패({names})"
+  },
+  "memory.documents.folderEmpty": "📁 “{name}”에 메모리에 저장할 수 있는 파일이 없습니다",
+  "memory.documents.folderTooBig": "📁 “{name}”에는 메모리에 저장할 파일이 {max}개를 넘습니다. 하위 폴더를 하나씩 놓으세요.",
   "agents.workflowSaved": "💾 워크플로를 저장했습니다",
   "agents.workflowExported": "📤 워크플로를 내보냈습니다",
   "voice.inputUnavailable": "음성 입력을 사용할 수 없습니다. 'faster-whisper'와 'sounddevice'를 설치하세요.",

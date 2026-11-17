@@ -259,6 +259,7 @@
   "memory.provenance.you": "🧑 你",
   "memory.provenance.assistant": "🤖 助手",
   "memory.provenance.chunk": "片段 {n}",
+  "memory.provenance.byHand": "手动添加",
   "folders.noSession": "❌ 没有活动会话",
   "folders.error": "❌ 错误：{error}",
   "folders.detached": "✅ 文件夹已移除",
@@ -290,6 +291,7 @@
   "launch.engineStarting": "引擎正在启动…",
   "dialog.allFiles": "所有文件",
   "dialog.all": "全部",
+  "dialog.supported": "支持的文件",
   "dialog.pdf": "PDF 文件",
   "dialog.word": "Word 文件",
   "dialog.excelCsv": "Excel 和 CSV 文件",
@@ -320,6 +322,34 @@
   "memory.factAdded": "✅ 事实已添加",
   "memory.edited": "✅ 已修改",
   "memory.deleted": "🗑️ 已删除",
+  "memory.documents.notFound": "❌ 找不到文件：{name}",
+  "memory.documents.added": "📄 已将“{name}”存入记忆",
+  "memory.documents.updated": "🔄 已更新记忆中的“{name}”",
+  "memory.documents.already": "ℹ️ “{name}”已在记忆中，内容相同",
+  "memory.documents.failed": "❌ 未能将“{name}”存入记忆：{error}",
+  "memory.documents.imageEmpty": "没有可保存的内容：既没有描述（视觉模型不可用），图片中也没有可识别的文字",
+  "memory.documents.imageDescription": "图片描述：",
+  "memory.documents.imageText": "图片中识别出的文字：",
+  "memory.documents.visionPrompt": "描述这张图片，以便以后在记忆中找到它。只写一段 3 到 6 句的话，不要标题、列表、粗体、表情符号，结尾也不要提问：说明图片展示了什么（主题、物体、人物、地点、有用的颜色），并原样抄录图中重要的文字。",
+  "memory.documents.folderSummary": "📁 “{name}”：{parts}。",
+  "memory.documents.listSeparator": "，",
+  "memory.documents.folderAdded": {
+    "other": "已添加 {count} 个文件"
+  },
+  "memory.documents.folderUpdated": {
+    "other": "已更新 {count} 个文件"
+  },
+  "memory.documents.folderUnchanged": {
+    "other": "{count} 个文件已是最新"
+  },
+  "memory.documents.folderRemoved": {
+    "other": "已移除 {count} 个文件"
+  },
+  "memory.documents.folderFailed": {
+    "other": "{count} 个文件未能存入（{names}）"
+  },
+  "memory.documents.folderEmpty": "📁 “{name}”中没有可存入记忆的文件",
+  "memory.documents.folderTooBig": "📁 “{name}”中要存入记忆的文件超过 {max} 个：请改为逐个拖放其子文件夹。",
   "agents.workflowSaved": "💾 工作流已保存",
   "agents.workflowExported": "📤 工作流已导出",
   "voice.inputUnavailable": "语音输入不可用：请安装 'faster-whisper' 和 'sounddevice'。",

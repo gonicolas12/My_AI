@@ -142,6 +142,33 @@ class FoldersChanged(_Payload):
     ok: bool = True
 
 
+class MemoryJob(_Payload):
+    """Document ajouté à la Mémoire, pas encore rangé (interfaces/desktop/memory.py).
+
+    Un dossier déposé n'en fait qu'un : folder (son nom), files (fichiers
+    restants) et current (chemin du fichier qui se lit).
+    """
+
+    id: str
+    name: str
+    state: Literal["queued", "reading", "describing"]
+    folder: Optional[str] = None
+    files: Optional[int] = None
+    current: Optional[str] = None
+
+
+class MemoryJobs(_Payload):
+    """File des documents ajoutés : en attente, en lecture, en description (image)."""
+
+    jobs: List[MemoryJob] = Field(default_factory=list)
+
+
+class MemoryChanged(_Payload):
+    """Contenu d'un onglet de la Mémoire changé : le panneau ouvert le relit."""
+
+    tab: Literal["facts", "document", "conversation"]
+
+
 class ModelsProgress(_Payload):
     """Téléchargement d'un modèle : avancée de la couche en cours (Ollama)."""
 
@@ -591,6 +618,8 @@ EVENT_PAYLOADS: Dict[str, Type[BaseModel]] = {
     "files.dropped": FilesDropped,
     "folders.progress": FoldersProgress,
     "folders.changed": FoldersChanged,
+    "memory.jobs": MemoryJobs,
+    "memory.changed": MemoryChanged,
     "models.progress": ModelsProgress,
     "models.log": ModelsLog,
     "models.done": ModelsDone,

@@ -11,6 +11,7 @@ import { setLocale, useI18n } from '../i18n';
 import { applyAgentEvents, loadAgents, refreshAgentsPage, useAgents } from '../stores/agents';
 import { applyChatEvents, setChatSnapshot, useChat } from '../stores/chat';
 import { applyCodeEvents, loadCode, loadCodeState, useCode } from '../stores/code';
+import { applyMemoryChanged, applyMemoryJobs } from '../stores/memory';
 import { applyModelDone, applyModelLog, applyModelProgress } from '../stores/models';
 import { notify, showScheduledResult, useApp } from '../stores/app';
 import { applyResourceSample, loadResources, useResources } from '../stores/resources';
@@ -194,6 +195,12 @@ export function startSync(): () => void {
         return;
       case 'folders.changed':
         applyFoldersChanged((event as ServerEvent<'folders.changed'>).payload.path);
+        return;
+      case 'memory.jobs':
+        applyMemoryJobs((event as ServerEvent<'memory.jobs'>).payload.jobs);
+        return;
+      case 'memory.changed':
+        applyMemoryChanged();
         return;
       case 'files.dropped':
         dispatchDroppedPaths((event as ServerEvent<'files.dropped'>).payload.paths);

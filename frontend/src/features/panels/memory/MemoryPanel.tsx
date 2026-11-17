@@ -4,15 +4,32 @@
  * catégorie, ajout d'un fait, modification, suppression. Un message de
  * conversation modifié, ou supprimé avec son origine, change aussi dans sa
  * conversation (interfaces/desktop/memory.py).
+ *
+ * Onglet Documents : un élément par document, et par dossier déposé, à déplier
+ * pour voir ses fichiers ; chacun se supprime en entier. Les morceaux (chunks)
+ * d'un document servent à la recherche et restent internes. « Ajouter » (ou un
+ * dépôt de fichiers ou de dossiers) met des fichiers en mémoire (adding.ts),
+ * lus en arrière-plan par le serveur, un à la fois ; ceux qui attendent ou se
+ * lisent s'affichent en tête de liste (événement memory.jobs), un dossier sur
+ * une seule ligne. Deux documents du même nom restent, distingués par leur
+ * date ; un fichier ou un dossier remis sous un nom déjà pris : l'utilisateur
+ * choisit de le mettre à jour ou de garder les deux (UpdateDialog).
  */
 
 import * as Tabs from '@radix-ui/react-tabs';
 import {
   Bot,
   Brain,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  FileCode,
+  FileImage,
+  FileSpreadsheet,
   FileText,
+  Folder,
+  FolderOpen,
   Info,
   KeyRound,
   LoaderCircle,
@@ -25,22 +42,65 @@ import {
   Save,
   Search,
   Trash2,
+  Upload,
   User,
   X,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { Button, IconButton } from '../../../components/ui/Button';
 import { Dialog } from '../../../components/ui/Dialog';
 import { Tooltip } from '../../../components/ui/Tooltip';
 import { type MessageKey, type Translate, useT } from '../../../i18n';
-import { ApiError, api, type MemoryItem, type MemoryPage, type MemoryTab } from '../../../lib/api';
+import {
+  ApiError,
+  api,
+  type ExistingItem,
+  type MemoryDocument,
+  type MemoryFolder,
+  type MemoryGroup,
+  type MemoryItem,
+  type MemoryPage,
+  type MemoryTab,
+} from '../../../lib/api';
 import { cn } from '../../../lib/cn';
+import type { MemoryJob } from '../../../lib/events';
+import { formatDay, formatTime } from '../../../lib/format';
+import { shell } from '../../../lib/shell';
 import { notify } from '../../../stores/app';
+import {
+  answerUpdate,
+  applyMemoryJobs,
+  setMemoryDropping,
+  type UpdateQuestion,
+  useMemory,
+} from '../../../stores/memory';
 import { closePanel } from '../../../stores/panels';
+import { ACCEPT_ALL } from '../../chat/attach';
+import { type DropTarget, useFileDrop } from '../../chat/useFileDrop';
 import { PanelDialog } from '../PanelDialog';
+import { addToMemory, baseName } from './adding';
 
 const errorText = (error: unknown) => (error instanceof ApiError ? error.message : String(error));
+
+/**
+ * Fichiers et dossiers déposés sur le panneau (objet stable, cf. useFileDrop) :
+ * par leur contenu, fenêtre de l'appli comprise. La Mémoire n'a pas besoin du
+ * chemin, et un fichier glissé depuis Outlook ou une archive ZIP n'en a pas :
+ * par son chemin, le dépôt ne donnait rien. Un dossier se parcourt dans la
+ * page (folders.ts), ses fichiers rangés sous son nom.
+ */
+const DOCUMENTS_DROP: DropTarget = {
+  onFiles: (files) => void addToMemory({ files }),
+  onFolders: (folders, files) => void addToMemory({ folders, files }),
+  setDropping: setMemoryDropping,
+};
+
+const JOB_STATES: Record<MemoryJob['state'], MessageKey> = {
+  queued: 'memory.documents.state.queued',
+  reading: 'memory.documents.state.reading',
+  describing: 'memory.documents.state.describing',
+};
 
 const TABS: { id: MemoryTab; label: MessageKey; icon: LucideIcon }[] = [
   { id: 'facts', label: 'memory.tab.facts', icon: Pin },
@@ -407,6 +467,321 @@ const Notice = ({ children }: { children: ReactNode }) => (
   <p className="flex items-center gap-2 px-1 py-2 text-sm text-fg-2">{children}</p>
 );
 
+/**
+ * Documents ajoutés pas encore rangés : en attente, puis lus (une image est
+ * décrite). Un dossier déposé tient sur une ligne : ses fichiers restants et
+ * celui qui se lit.
+ */
+function JobRows({ jobs }: { jobs: MemoryJob[] }) {
+  const t = useT();
+  if (!jobs.length) return null;
+  return (
+    <ul aria-label={t('memory.documents.jobsLabel')} aria-live="polite" className="mb-2 space-y-2">
+      {jobs.map((job) => (
+        <li
+          key={job.id}
+          className="flex items-center gap-2.5 rounded-md border border-dashed border-line-2 bg-bg px-3 py-2"
+        >
+          {job.state === 'queued' ? (
+            <Clock size={14} className="shrink-0 text-fg-3" />
+          ) : (
+            <LoaderCircle size={14} className="spin shrink-0 text-accent" />
+          )}
+          {job.folder ? <Folder size={14} className="shrink-0 text-fg-2" /> : null}
+          <span className="min-w-0 shrink-0 truncate text-sm">{job.name}</span>
+          {job.folder ? (
+            <span className="shrink-0 text-xs text-fg-3">
+              {t('memory.documents.folderFiles', { count: job.files ?? 0 })}
+            </span>
+          ) : null}
+          {job.current ? (
+            <span className="min-w-0 truncate font-mono text-xs text-fg-2">{job.current}</span>
+          ) : null}
+          <span className="shrink-0 text-xs text-fg-3">{t(JOB_STATES[job.state])}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── Onglet Documents : documents et dossiers à déplier ─────────────────────
+
+/** Document ou dossier (onglet Documents), et non fait ou message */
+const isGroup = (entry: MemoryItem | MemoryGroup): entry is MemoryGroup =>
+  entry.kind === 'document' || entry.kind === 'folder';
+
+/** Ce que font les lignes des dossiers et des documents, fourni par le panneau */
+interface GroupActions {
+  /** Dossiers dépliés */
+  expanded: ReadonlySet<string>;
+  toggle: (id: string) => void;
+  deleteGroup: (group: MemoryGroup) => void;
+}
+
+const IMAGE_NAME = /\.(png|jpe?g|gif|bmp|webp|tiff?)$/i;
+
+/** Icône d'un document d'après son type (sans type, une image se reconnaît à son nom) */
+function DocumentIcon({ doc }: { doc: MemoryDocument }) {
+  const props = { size: 15, className: 'shrink-0 text-warning' };
+  if (doc.type === 'Image' || (!doc.type && IMAGE_NAME.test(doc.name))) {
+    return <FileImage {...props} />;
+  }
+  if (doc.type === 'Code') return <FileCode {...props} />;
+  if (doc.type === 'Excel') return <FileSpreadsheet {...props} />;
+  return <FileText {...props} />;
+}
+
+/** « Aujourd'hui 14:32 », « 12 oct. 09:05 » */
+function addedOn(iso: string): string {
+  return [formatDay(iso), formatTime(iso)].filter(Boolean).join(' ');
+}
+
+const metaLine = (parts: (string | false | null)[]) => parts.filter(Boolean).join(' · ');
+
+/** Chevron d'un dossier, déplié ou non */
+const Chevron = ({ open }: { open: boolean }) =>
+  open ? (
+    <ChevronDown size={15} className="shrink-0 text-fg-3" />
+  ) : (
+    <ChevronRight size={15} className="shrink-0 text-fg-3 rtl:-scale-x-100" />
+  );
+
+/**
+ * Document : nom, date, ajouté à la main ; il se supprime en entier. Ses
+ * morceaux (chunks) servent à la recherche et restent internes : il ne se
+ * déplie pas.
+ */
+function DocumentRow({
+  doc,
+  onDelete,
+}: {
+  doc: MemoryDocument;
+  onDelete: (doc: MemoryDocument) => void;
+}) {
+  const t = useT();
+  const label = doc.folder ? doc.label : doc.name;
+  return (
+    <li className="flex items-center gap-2 rounded-md border border-line bg-bg py-1 ps-3 pe-1.5">
+      <DocumentIcon doc={doc} />
+      <span className="min-w-0 truncate py-1 text-sm font-medium">{label}</span>
+      <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
+        {metaLine([
+          addedOn(doc.created),
+          !doc.folder && doc.source === 'manual' && t('memory.group.byHand'),
+        ])}
+      </span>
+      <IconButton
+        label={t('memory.group.deleteDocument')}
+        aria-label={t('memory.group.deleteNamed', { name: label })}
+        size="sm"
+        onClick={() => onDelete(doc)}
+        className="hover:text-error!"
+      >
+        <Trash2 size={14} />
+      </IconButton>
+    </li>
+  );
+}
+
+/** Dossier déposé : nom, fichiers, date ; à déplier sur ses fichiers, ou à supprimer */
+function FolderRow({ folder, actions }: { folder: MemoryFolder; actions: GroupActions }) {
+  const t = useT();
+  const listId = useId();
+  const open = actions.expanded.has(folder.id);
+  const Icon = open ? FolderOpen : Folder;
+  return (
+    <li className="rounded-md border border-line bg-bg">
+      <div className="flex items-center gap-1.5 py-1 ps-2 pe-1.5">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          onClick={() => actions.toggle(folder.id)}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-1 py-1 text-start text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        >
+          <Chevron open={open} />
+          <Icon size={15} className="shrink-0 text-accent" />
+          <span className="min-w-0 truncate text-sm font-semibold">{folder.name}</span>
+          <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
+            {metaLine([t('memory.group.files', { count: folder.files }), addedOn(folder.created)])}
+          </span>
+        </button>
+        <IconButton
+          label={t('memory.group.deleteFolder')}
+          aria-label={t('memory.group.deleteNamed', { name: folder.name })}
+          size="sm"
+          onClick={() => actions.deleteGroup(folder)}
+          className="hover:text-error!"
+        >
+          <Trash2 size={14} />
+        </IconButton>
+      </div>
+      {open ? (
+        <ul
+          id={listId}
+          aria-label={t('memory.group.filesLabel', { name: folder.name })}
+          className="space-y-1.5 border-t border-line py-2 ps-6 pe-2"
+        >
+          {folder.documents.map((doc) => (
+            <DocumentRow key={doc.id} doc={doc} onDelete={actions.deleteGroup} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+/** Supprimer un document entier, ou un dossier et tous ses fichiers */
+function DeleteGroupDialog({
+  group,
+  onClose,
+  onDeleted,
+}: {
+  group: MemoryGroup;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const t = useT();
+  const folder = group.kind === 'folder';
+
+  const remove = async () => {
+    onClose();
+    try {
+      if (group.kind === 'folder') await api.deleteMemoryFolder(group.key);
+      else await api.deleteMemoryDocument(group.id);
+      onDeleted();
+    } catch (error) {
+      notify('error', errorText(error));
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={t('chat.confirmDelete.title')}
+      description={
+        group.kind === 'folder'
+          ? t('memory.group.deleteFolderConfirm', { count: group.files })
+          : t('memory.group.deleteDocumentConfirm')
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} autoFocus>
+            {t('chat.confirmDelete.no')}
+          </Button>
+          <Button variant="danger" onClick={() => void remove()}>
+            {t('chat.confirmDelete.yes')}
+          </Button>
+        </>
+      }
+    >
+      <p className="flex items-center gap-2 rounded-md border border-line bg-bg px-3 py-2 font-mono text-xs font-semibold break-all text-accent">
+        {folder ? <Folder size={14} className="shrink-0" /> : null}
+        {group.name}
+      </p>
+    </Dialog>
+  );
+}
+
+/** Un fichier ou dossier déjà en mémoire sous ce nom : sa date, et combien le portent */
+function ExistingRow({ item, folder }: { item: ExistingItem; folder: boolean }) {
+  const t = useT();
+  const Icon = folder ? Folder : FileText;
+  return (
+    <li className="flex items-center gap-2">
+      <Icon size={14} className="shrink-0 text-accent" />
+      <span className="min-w-0 font-mono text-xs font-semibold break-all text-accent">
+        {baseName(item.name)}
+      </span>
+      <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
+        {metaLine([
+          addedOn(item.created),
+          item.count > 1 && t('memory.update.newest', { count: item.count }),
+        ])}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * Fichiers ou dossiers remis (« Ajouter », dépôt) alors qu'un autre porte déjà
+ * leur nom : les mettre à jour (remplacer le plus récent du même nom), garder
+ * les deux, ou ne pas les envoyer ; les nouveaux partent de toute façon
+ * (adding.ts). La date de celui qui est déjà là aide à choisir.
+ */
+function UpdateDialog({ question }: { question: UpdateQuestion }) {
+  const t = useT();
+  const { files, folders } = question;
+  let description: string;
+  if (!folders.length) description = t('memory.update.files', { count: files.length });
+  else if (!files.length) description = t('memory.update.folders', { count: folders.length });
+  else description = t('memory.update.mixed');
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) answerUpdate('cancel');
+      }}
+      title={t('memory.update.title')}
+      description={description}
+      width={520}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => answerUpdate('cancel')} className="me-auto">
+            {t('common.cancel')}
+          </Button>
+          <Button variant="secondary" onClick={() => answerUpdate('keep')}>
+            {t('memory.update.keep')}
+          </Button>
+          <Button variant="primary" onClick={() => answerUpdate('update')} autoFocus>
+            {t('memory.update.yes')}
+          </Button>
+        </>
+      }
+    >
+      <ul className="max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-line bg-bg px-3 py-2">
+        {folders.map((item) => (
+          <ExistingRow key={`folder:${item.name}`} item={item} folder />
+        ))}
+        {files.map((item) => (
+          <ExistingRow key={`file:${item.name}`} item={item} folder={false} />
+        ))}
+      </ul>
+      {folders.length ? (
+        <p className="mt-3 flex items-start gap-1.5 text-xs text-fg-2">
+          <Info size={13} className="mt-0.5 shrink-0" />
+          {t('memory.update.folderNote')}
+        </p>
+      ) : null}
+    </Dialog>
+  );
+}
+
+/**
+ * Onglet Documents : consigne pendant un glisser de fichiers (le panneau
+ * entier les reçoit, son contour s'éclaire), file des documents ajoutés, puis
+ * la liste
+ */
+function DocumentsTab({ children }: { children: ReactNode }) {
+  const t = useT();
+  const dropping = useMemory((state) => state.dropping);
+  const jobs = useMemory((state) => state.jobs);
+  return (
+    <>
+      {dropping ? (
+        <p className="flex items-center gap-2 px-1 pb-2 text-sm font-medium text-accent">
+          <Upload size={15} className="shrink-0" /> {t('memory.documents.drop')}
+        </p>
+      ) : null}
+      <JobRows jobs={jobs} />
+      {children}
+    </>
+  );
+}
+
 interface Loaded {
   key: string;
   tab: MemoryTab;
@@ -426,17 +801,33 @@ export default function MemoryPanel() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<MemoryItem | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<MemoryGroup | null>(null);
   const [adding, setAdding] = useState(false);
+  // Dossiers dépliés (onglet Documents), gardés d'une relecture à l'autre
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  // Changement venu du serveur (document rangé) : la page se relit
+  const revision = useMemory((state) => state.revision);
+  const jobs = useMemory((state) => state.jobs);
+  // Fichiers ou dossiers remis déjà en mémoire : les mettre à jour ?
+  const update = useMemory((state) => state.update);
+  const fileInput = useRef<HTMLInputElement>(null);
+  // Fichiers glissés sur la fenêtre : l'onglet Documents les reçoit, le panneau s'éclaire
+  const drop = useFileDrop('memory', DOCUMENTS_DROP);
+  const dropping = useMemory((state) => state.dropping);
+  const documents = tab === 'document';
 
   const filter = tab === 'facts' && category !== ALL ? category : null;
-  const requestKey = [tab, search, filter, page, tick].join('|');
+  const requestKey = [tab, search, filter, page, tick, revision].join('|');
 
   useEffect(() => {
     let alive = true;
-    const key = [tab, search, filter, page, tick].join('|');
+    const key = [tab, search, filter, page, tick, revision].join('|');
     api.memoryPage(tab, search, filter, page).then(
       (view) => {
-        if (alive) setLoaded({ key, tab, view });
+        if (!alive) return;
+        setLoaded({ key, tab, view });
+        // File relue avec la page : un événement manqué (reconnexion) ne la fige pas
+        if (view.jobs) applyMemoryJobs(view.jobs);
       },
       (error: unknown) => {
         if (alive) setLoaded({ key, tab, error: errorText(error) });
@@ -445,7 +836,10 @@ export default function MemoryPanel() {
     return () => {
       alive = false;
     };
-  }, [tab, search, filter, page, tick]);
+  }, [tab, search, filter, page, tick, revision]);
+
+  // Panneau fermé pendant la question : ceux déjà là ne sont pas envoyés
+  useEffect(() => () => answerUpdate('cancel'), []);
 
   // Page d'un autre onglet : pas affichée en attendant la bonne
   const shown = loaded?.tab === tab ? loaded : null;
@@ -457,6 +851,17 @@ export default function MemoryPanel() {
   const pages = view?.pages ?? 1;
 
   const reload = () => setTick((value) => value + 1);
+
+  const toggle = useCallback((id: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const actions: GroupActions = { expanded, toggle, deleteGroup: setDeletingGroup };
 
   const selectTab = (value: string) => {
     const next = TABS.find((entry) => entry.id === value);
@@ -481,6 +886,15 @@ export default function MemoryPanel() {
     setEditing(null);
   };
 
+  /** « Ajouter » de l'onglet Documents : dialogue du système, ou sélecteur du navigateur */
+  const chooseDocuments = () => {
+    if (shell.canPickFiles()) {
+      void shell.pickFiles('All').then((paths) => addToMemory({ paths }));
+      return;
+    }
+    fileInput.current?.click();
+  };
+
   let body: ReactNode;
   if (shown?.error) {
     body = <Notice>{shown.error}</Notice>;
@@ -491,12 +905,21 @@ export default function MemoryPanel() {
       </Notice>
     );
   } else if (!view.items.length) {
-    body = <Notice>{search ? t('memory.noMatch') : t('memory.nothing')}</Notice>;
+    if (search) body = <Notice>{t('memory.noMatch')}</Notice>;
+    else if (tab !== 'document') body = <Notice>{t('memory.nothing')}</Notice>;
+    // Documents en cours de lecture : ils s'affichent, la liste vide n'est pas annoncée
+    else body = jobs.length ? null : <Notice>{t('memory.documents.empty')}</Notice>;
   } else {
     body = (
       <ul className="space-y-2">
         {view.items.map((item) =>
-          editing === keyOf(item) ? (
+          isGroup(item) ? (
+            item.kind === 'folder' ? (
+              <FolderRow key={item.id} folder={item} actions={actions} />
+            ) : (
+              <DocumentRow key={item.id} doc={item} onDelete={setDeletingGroup} />
+            )
+          ) : editing === keyOf(item) ? (
             <EditRow
               key={keyOf(item)}
               item={item}
@@ -551,6 +974,8 @@ export default function MemoryPanel() {
       }
       width={880}
       flush
+      dropTarget={documents ? drop : undefined}
+      glow={documents && dropping}
       footer={
         <div className="flex w-full items-center justify-between">
           <Button size="sm" onClick={() => goTo(current - 1)} disabled={!view || current <= 0}>
@@ -633,6 +1058,17 @@ export default function MemoryPanel() {
                 </Button>
               </>
             ) : null}
+            {tab === 'document' ? (
+              <Tooltip label={t('memory.documents.addHint')}>
+                <Button
+                  variant="primary"
+                  onClick={chooseDocuments}
+                  disabled={Boolean(shown?.error)}
+                >
+                  <Plus size={15} /> {t('common.add')}
+                </Button>
+              </Tooltip>
+            ) : null}
             <IconButton
               label={t('common.refresh')}
               size="lg"
@@ -651,15 +1087,35 @@ export default function MemoryPanel() {
             value={id}
             className="min-h-0 flex-1 overflow-y-auto px-5 py-3 focus:outline-none"
           >
-            {tab === id ? body : null}
+            {tab !== id ? null : id === 'document' ? <DocumentsTab>{body}</DocumentsTab> : body}
           </Tabs.Content>
         ))}
       </Tabs.Root>
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        accept={ACCEPT_ALL}
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = '';
+          void addToMemory({ files });
+        }}
+      />
       {deleting ? (
         <DeleteDialog
           item={deleting}
           tab={tab}
           onClose={() => setDeleting(null)}
+          onDeleted={reload}
+        />
+      ) : null}
+      {update ? <UpdateDialog question={update} /> : null}
+      {deletingGroup ? (
+        <DeleteGroupDialog
+          group={deletingGroup}
+          onClose={() => setDeletingGroup(null)}
           onDeleted={reload}
         />
       ) : null}

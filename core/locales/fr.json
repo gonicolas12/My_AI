@@ -265,6 +265,7 @@
   "memory.provenance.you": "🧑 vous",
   "memory.provenance.assistant": "🤖 assistant",
   "memory.provenance.chunk": "chunk {n}",
+  "memory.provenance.byHand": "ajouté à la main",
   "folders.noSession": "❌ Aucune session active",
   "folders.error": "❌ Erreur : {error}",
   "folders.detached": "✅ Dossier détaché",
@@ -296,6 +297,7 @@
   "launch.engineStarting": "Le moteur démarre…",
   "dialog.allFiles": "Tous les fichiers",
   "dialog.all": "Tous",
+  "dialog.supported": "Fichiers pris en charge",
   "dialog.pdf": "Fichiers PDF",
   "dialog.word": "Fichiers Word",
   "dialog.excelCsv": "Fichiers Excel et CSV",
@@ -326,6 +328,39 @@
   "memory.factAdded": "✅ Fait ajouté",
   "memory.edited": "✅ Modifié",
   "memory.deleted": "🗑️ Supprimé",
+  "memory.documents.notFound": "❌ Fichier introuvable : {name}",
+  "memory.documents.added": "📄 « {name} » mis en mémoire",
+  "memory.documents.updated": "🔄 « {name} » mis à jour dans la mémoire",
+  "memory.documents.already": "ℹ️ « {name} » est déjà en mémoire, à l'identique",
+  "memory.documents.failed": "❌ « {name} » non mis en mémoire : {error}",
+  "memory.documents.imageEmpty": "rien à retenir : ni description (modèle de vision indisponible), ni texte lisible dans l'image",
+  "memory.documents.imageDescription": "Description de l'image :",
+  "memory.documents.imageText": "Texte lu dans l'image :",
+  "memory.documents.visionPrompt": "Décris cette image pour la retrouver plus tard dans une mémoire. Écris un seul paragraphe de 3 à 6 phrases, sans titre, sans liste, sans gras, sans emoji et sans question à la fin : dis ce qu'elle montre (sujet, objets, personnes, lieu, couleurs utiles) et recopie exactement le texte important qu'on y lit.",
+  "memory.documents.folderSummary": "📁 « {name} » : {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "one": "{count} fichier ajouté",
+    "other": "{count} fichiers ajoutés"
+  },
+  "memory.documents.folderUpdated": {
+    "one": "{count} fichier mis à jour",
+    "other": "{count} fichiers mis à jour"
+  },
+  "memory.documents.folderUnchanged": {
+    "one": "{count} fichier déjà à jour",
+    "other": "{count} fichiers déjà à jour"
+  },
+  "memory.documents.folderRemoved": {
+    "one": "{count} fichier retiré",
+    "other": "{count} fichiers retirés"
+  },
+  "memory.documents.folderFailed": {
+    "one": "{count} fichier en échec ({names})",
+    "other": "{count} fichiers en échec ({names})"
+  },
+  "memory.documents.folderEmpty": "📁 Aucun fichier à mettre en mémoire dans « {name} »",
+  "memory.documents.folderTooBig": "📁 « {name} » contient plus de {max} fichiers à mettre en mémoire : déposez plutôt ses sous-dossiers, un par un.",
   "agents.workflowSaved": "💾 Workflow sauvegardé",
   "agents.workflowExported": "📤 Workflow exporté",
   "voice.inputUnavailable": "Saisie vocale indisponible : installe 'faster-whisper' et 'sounddevice'.",
