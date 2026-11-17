@@ -405,7 +405,12 @@ Rôle:
 ```python
 Capacités:
 ├─ 12 langues : fr, en, es, de, it, pt, nl, ru, zh, ja, ko, ar
-├─ Bibliothèque langdetect (avec fallback)
+├─ Écriture d'abord (kana, idéogrammes, hangul, arabe, cyrillique), même
+│  pour un message de quelques caractères ; un nom latin (« OneDrive ») n'y
+│  change rien
+├─ Alphabet latin : mots-outils de chaque langue, puis langdetect limité aux
+│  sept langues latines (sans lui, l'écriture et les mots-outils seuls)
+├─ Message sans indice (« ok ») ou langue hors des 12 → langue des Réglages
 ├─ Cache LRU (128 entrées)
 └─ Génération automatique suffix prompt système
 ```
