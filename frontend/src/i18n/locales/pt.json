@@ -705,6 +705,8 @@
   "voice.autoreadOff": "Leitura automática em voz alta desativada",
   "agents.run.errorDefault": "Erro",
   "chat.path.reveal": "Mostrar no Explorador de Arquivos: {path}",
+  "chat.memory.open": "Ver “{name}” na Memória",
+  "chat.memory.near": "Também na Memória:",
   "code.title": "Code",
   "code.subtitle": "Sua conversa com a extensão do VS Code: o My_AI lê, edita e cria arquivos e executa comandos no seu projeto. Ela também aparece no VS Code e no seu celular.",
   "code.status.connected": "VS Code conectado",

@@ -705,6 +705,8 @@
   "voice.autoreadOff": "Automatisches Vorlesen aus",
   "agents.run.errorDefault": "Fehler",
   "chat.path.reveal": "Im Datei-Explorer anzeigen: {path}",
+  "chat.memory.open": "„{name}“ im Gedächtnis anzeigen",
+  "chat.memory.near": "Auch im Gedächtnis:",
   "code.title": "Code",
   "code.subtitle": "Ihre Unterhaltung mit der VS Code-Erweiterung: My_AI liest, bearbeitet und erstellt Dateien und führt Befehle in Ihrem Projekt aus. Sie erscheint auch in VS Code und auf Ihrem Smartphone.",
   "code.status.connected": "VS Code verbunden",

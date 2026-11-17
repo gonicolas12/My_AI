@@ -111,8 +111,10 @@
     text-decoration: underline;
   }
 
-  /* Chemin de fichier existant : gras, bleu, souligné, comme dans Tk */
-  .md .md-path {
+  /* Chemin de fichier existant : gras, bleu, souligné, comme dans Tk ; un
+     document ou un dossier de la Mémoire cité, pareil */
+  .md .md-path,
+  .md .md-memory {
     display: inline;
     padding: 0;
     border: 0;
@@ -128,7 +130,8 @@
     cursor: pointer;
   }
 
-  .md .md-path:hover {
+  .md .md-path:hover,
+  .md .md-memory:hover {
     text-decoration-color: var(--link);
   }
 

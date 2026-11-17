@@ -1,12 +1,13 @@
-import { CircleAlert, Eye, OctagonX } from 'lucide-react';
+import { CircleAlert, Eye, FolderOpen, OctagonX } from 'lucide-react';
 import { memo, useMemo } from 'react';
 
 import { RobotLogo } from '../../components/ui/RobotLogo';
 import { type Translate, useLocale, useT } from '../../i18n';
 import { baseName, messageArtifacts } from '../../lib/artifacts';
-import type { MessageView, ToolCallView } from '../../lib/events';
+import type { MessageView, NearFolder, ToolCallView } from '../../lib/events';
 import { formatDecimal, formatDuration, formatTime } from '../../lib/format';
 import type { LiveTurn } from '../../stores/chatReducer';
+import { showInMemory } from '../../stores/memory';
 import { openPreview } from '../../stores/preview';
 import { FileCard, GeneratedImage } from './FileCard';
 import { buildChatLinks, citationKey } from './markdown/links';
@@ -46,6 +47,35 @@ function activityOf(live: LiveTurn | null, t: Translate): string | null {
   if (!live.text) return live.thinking ? t('chat.activity.writing') : t('chat.activity.thinking');
   if (last && live.text.length <= (last.at ?? 0)) return t('chat.activity.thinking');
   return null;
+}
+
+/**
+ * Dossiers de la Mémoire au nom proche de celui de la question (« mon dossier
+ * onedrive » pour « OneDrive_3_06-10-2026 »), que la réponse ne cite pas : peut-être
+ * a-t-elle regardé le disque. Signalés ici plutôt que par le modèle, qui l'oubliait.
+ */
+function NearMemory({ folders }: { folders: NearFolder[] }) {
+  const t = useT();
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-fg-2">
+      <span>{t('chat.memory.near')}</span>
+      {folders.map((folder) => (
+        <button
+          key={folder.name}
+          type="button"
+          onClick={() => showInMemory(folder.name)}
+          title={t('chat.memory.open', { name: folder.name })}
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold text-accent transition-colors duration-150 hover:bg-accent-soft"
+        >
+          <FolderOpen size={14} aria-hidden />
+          {folder.name}
+          <span className="font-normal text-fg-3">
+            ({t('memory.group.files', { count: folder.files })})
+          </span>
+        </button>
+      ))}
+    </p>
+  );
 }
 
 /** Ce que fait l'IA, robot animé (aussi sur la page Code) */
@@ -118,10 +148,12 @@ export const AssistantMessage = memo(function AssistantMessage({
   const thinkingNow = reasoningActive(live);
   const error = Boolean(message?.error);
 
-  // Citations « [n] » et chemins cliquables : références stables tant qu'ils ne changent pas
+  // Citations « [n] », chemins et noms de la Mémoire cliquables : références
+  // stables tant qu'ils ne changent pas
   const citations = useMemo(() => citationKey(text), [text]);
   const paths = message?.paths;
-  const links = useMemo(() => buildChatLinks(citations, paths), [citations, paths]);
+  const memory = message?.memory;
+  const links = useMemo(() => buildChatLinks(citations, paths, memory), [citations, paths, memory]);
 
   // Artefacts (blocs HTML/SVG, documents), une fois la réponse écrite ; leurs
   // titres par défaut suivent la langue
@@ -183,6 +215,10 @@ export const AssistantMessage = memo(function AssistantMessage({
           ),
         )
       )}
+
+      {!streaming && message?.memory_near?.length ? (
+        <NearMemory folders={message.memory_near} />
+      ) : null}
 
       {activity ? (
         <Activity label={activity} progress={live?.kind === 'image' ? live.progress : null} />

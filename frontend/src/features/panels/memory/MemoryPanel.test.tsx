@@ -6,7 +6,13 @@ import { TooltipProvider } from '../../../components/ui/Tooltip';
 import type { MemoryDocument, MemoryFolder, MemoryPage } from '../../../lib/api';
 import { dispatchDroppedPaths } from '../../../lib/drops';
 import { useApp } from '../../../stores/app';
-import { applyMemoryChanged, applyMemoryJobs, useMemory } from '../../../stores/memory';
+import {
+  applyMemoryChanged,
+  applyMemoryJobs,
+  showInMemory,
+  useMemory,
+} from '../../../stores/memory';
+import { usePanels } from '../../../stores/panels';
 import MemoryPanel from './MemoryPanel';
 
 const api = vi.hoisted(() => ({
@@ -168,7 +174,7 @@ beforeEach(() => {
   for (const mock of Object.values(api)) mock.mockReset();
   shell.canPickFiles.mockReturnValue(true);
   shell.isDesktop.mockReturnValue(true);
-  useMemory.setState({ jobs: [], revision: 0, dropping: false, update: null });
+  useMemory.setState({ jobs: [], revision: 0, dropping: false, update: null, focus: null });
   useApp.setState({ toasts: [] });
   api.memoryPage.mockResolvedValue(page());
   api.existingMemoryDocuments.mockResolvedValue({ files: [], folders: [] });
@@ -457,6 +463,26 @@ describe('MemoryPanel, documents et dossiers', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Oui, supprimer' }));
     await waitFor(() => expect(api.deleteMemoryDocument).toHaveBeenCalledWith('rapport_pdf_1'));
     await waitFor(() => expect(api.memoryPage.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it('ouvert par un lien du chat : onglet Documents, cherché sur le nom, dossier déplié', async () => {
+    showInMemory('site');
+    expect(usePanels.getState().open).toBe('memory');
+    api.memoryPage.mockResolvedValue(page({ items: [FOLDER], total: 1 }));
+    render(
+      <TooltipProvider>
+        <MemoryPanel />
+      </TooltipProvider>,
+    );
+    const folder = await screen.findByRole('button', { name: /^site/ });
+    await waitFor(() => expect(folder).toHaveAttribute('aria-expanded', 'true'));
+    expect(screen.getByRole('list', { name: 'Fichiers de « site »' })).toBeInTheDocument();
+    // Directement l'onglet Documents, cherché sur ce nom : jamais les Faits d'abord
+    expect(api.memoryPage.mock.calls).toEqual([['document', 'site', null, 0]]);
+    expect(screen.getByRole('tab', { name: /Documents/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByDisplayValue('site')).toBeInTheDocument();
+    // Nom pris : la prochaine ouverture repart des Faits
+    expect(useMemory.getState().focus).toBeNull();
   });
 
   it('seul un dossier se déplie, sur ses fichiers, chacun à supprimer', async () => {

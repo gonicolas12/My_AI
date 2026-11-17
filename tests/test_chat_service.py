@@ -1430,6 +1430,42 @@ def test_existing_paths_in_an_answer_become_links(chat):
     assert "paths" not in chat.service.snapshot()["messages"][0]
 
 
+def test_memory_documents_cited_in_an_answer_become_links(chat):
+    """Un document ou un dossier de la Mémoire cité : la fenêtre l'ouvre au clic."""
+    index = [{"id": "x", "name": "OneDrive_3_06-10-2026/Data.xlsx",
+              "folder": "OneDrive_3_06-10-2026"}]
+    chat.engine.get_memory_store = lambda: SimpleNamespace(document_index=lambda: index)
+    chat.engine.script = [("token", "Le dossier [OneDrive_3_06-10-2026](memory://one drive) "
+                                    "contient `Data.xlsx`.")]
+    done = ask(chat, "Qu'y a-t-il dans mon dossier OneDrive ?")
+    assert done["memory"] == [
+        {"text": "OneDrive_3_06-10-2026", "kind": "folder", "name": "OneDrive_3_06-10-2026",
+         "strict": False},
+        {"text": "Data.xlsx", "kind": "document", "name": "Data.xlsx", "strict": False},
+    ]
+    messages = chat.service.snapshot()["messages"]
+    assert messages[1]["memory"] == done["memory"] and "memory" not in messages[0]
+    # Mémoire indisponible : aucun lien, sans erreur
+    chat.engine.get_memory_store = lambda: None
+    assert "memory" not in chat.service.snapshot()["messages"][1]
+
+
+def test_a_close_memory_folder_is_signaled_under_an_answer_about_the_disk(chat):
+    """« mon dossier onedrive » sans parler de la mémoire : la réponse a regardé le
+    disque ; le dossier de la Mémoire au nom proche est signalé sous elle."""
+    index = [{"id": "x", "name": "OneDrive_3_06-10-2026/Data.xlsx", "label": "Data.xlsx",
+              "folder": "OneDrive_3_06-10-2026", "folder_key": "f2"}]
+    chat.engine.get_memory_store = lambda: SimpleNamespace(document_index=lambda: index)
+    chat.engine.script = [("token", "Ton OneDrive ne contient que desktop.ini.")]
+    done = ask(chat, "il y a quoi dans mon dossier onedrive ?")
+    assert done["memory_near"] == [{"name": "OneDrive_3_06-10-2026", "files": 1}]
+    # Gardé avec la réponse : la conversation rechargée le montre encore
+    assert chat.service.snapshot()["messages"][1]["memory_near"] == done["memory_near"]
+    # La réponse cite le dossier : rien à signaler
+    chat.engine.script = [("token", "Le dossier OneDrive_3_06-10-2026 contient Data.xlsx.")]
+    assert ask(chat, "et mon dossier onedrive ?")["memory_near"] == []
+
+
 def test_known_paths_cover_attachments_and_produced_files(chat):
     joined = chat.tmp_path / "joint.md"
     joined.write_text("# joint", encoding="utf-8")

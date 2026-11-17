@@ -304,6 +304,25 @@ class PathLink(BaseModel):
     path: str  # chemin absolu normalisé
 
 
+class MemoryLink(BaseModel):
+    """Document ou dossier de la Mémoire cité dans une réponse, rendu cliquable
+    (onglet Documents ouvert sur lui), cf. core.memory_documents.memory_links."""
+
+    text: str  # tel qu'il apparaît dans la réponse
+    kind: Literal["document", "folder"]
+    name: str  # ce que l'onglet Documents cherche
+    strict: bool = False  # nom courant : cliquable seulement dans un lien ou du code
+
+
+class NearFolder(BaseModel):
+    """Dossier de la Mémoire au nom proche de celui de la question, que la réponse ne
+    cite pas : la fenêtre le signale sous elle (« Aussi dans la Mémoire »), cf.
+    core.memory_documents.unmentioned_near_folders."""
+
+    name: str
+    files: int
+
+
 class AssistantDone(_Payload):
     """Réponse terminée."""
 
@@ -312,6 +331,8 @@ class AssistantDone(_Payload):
     duration_ms: int
     tokens_per_s: Optional[float] = None
     paths: List[PathLink] = Field(default_factory=list)
+    memory: List[MemoryLink] = Field(default_factory=list)
+    memory_near: List[NearFolder] = Field(default_factory=list)
 
 
 class AssistantInterrupted(_Payload):
@@ -320,6 +341,8 @@ class AssistantInterrupted(_Payload):
     mid: Optional[str] = None
     text: str = ""
     paths: List[PathLink] = Field(default_factory=list)
+    memory: List[MemoryLink] = Field(default_factory=list)
+    memory_near: List[NearFolder] = Field(default_factory=list)
 
 
 class MessageRated(_Payload):

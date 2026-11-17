@@ -40,6 +40,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from core.i18n import tr
+from core.memory_documents import memory_links, unmentioned_near_folders
 from utils.logger import setup_logger
 from utils.path_links import IS_WINDOWS, find_existing_paths
 
@@ -600,8 +601,9 @@ class ChatService:
 
     def snapshot(self) -> Dict[str, Any]:
         """État complet de la conversation, pour la fenêtre (GET /api/conversation)."""
+        index = self._memory_index()
         with self._lock:
-            messages = [self._view_entry(entry) for entry in self._history]
+            messages = [self._view_entry(entry, index) for entry in self._history]
             return {
                 "conversation_id": self._session_id,
                 "name": self._session_name,
@@ -620,9 +622,24 @@ class ChatService:
                 "busy": self._busy(),
             }
 
+    def _memory_index(self) -> List[Dict[str, Any]]:
+        """Documents de la mémoire (onglet Documents), pour rendre cliquables ceux
+        qu'une réponse cite ; [] sans mémoire."""
+        try:
+            store = self._engine.get_memory_store()
+            return list(store.document_index()) if store is not None else []
+        except Exception:  # pylint: disable=broad-except
+            return []
+
     @staticmethod
-    def _view_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
-        """Message de l'historique vu par la fenêtre."""
+    def _view_entry(entry: Dict[str, Any],
+                    index: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Message de l'historique vu par la fenêtre.
+
+        Args:
+            index: documents de la mémoire (_memory_index), pour les rendre
+                cliquables dans les réponses
+        """
         attachments = []
         for item in entry.get("attachments") or []:
             if isinstance(item, (list, tuple)) and item and isinstance(item[0], str):
@@ -640,13 +657,16 @@ class ChatService:
         }
         for key in ("source", "thinking", "thinking_ms", "tool_calls", "documents",
                     "file_path", "interrupted", "error", "duration_ms", "tokens_per_s",
-                    "rating"):
+                    "rating", "memory_near"):
             if entry.get(key) not in (None, "", [], False):
                 view[key] = entry[key]
         if not entry.get("is_user"):
             paths = answer_paths(view["text"])
             if paths:
                 view["paths"] = paths
+            memory = memory_links(view["text"], index or [])
+            if memory:
+                view["memory"] = memory
         return view
 
     def _view_turn(self) -> Optional[Dict[str, Any]]:
@@ -1116,9 +1136,14 @@ class ChatService:
                      entry_type: str = "text") -> None:
         """Range la réponse dans l'historique et l'annonce (fin, arrêt ou échec)."""
         request = turn.request
+        index = self._memory_index()
         with self._lock:
             interrupted = self._interrupted and not error
             text = turn.text or (error or "")
+            # Dossier de la Mémoire au nom proche de celui de la question (« mon dossier
+            # onedrive »), que la réponse ne cite pas : la fenêtre le signale sous elle
+            near = (unmentioned_near_folders(request.text, text, index)
+                    if text and not error else [])
             now = time.time()
             duration_ms = int((now - turn.started) * 1000)
             tokens_per_s = self._ollama_tokens_per_s(turn) if text and not error else None
@@ -1149,6 +1174,8 @@ class ChatService:
                                            if tool["name"] != "synthesis"]
                 if turn.documents:
                     entry["documents"] = list(turn.documents)
+                if near:
+                    entry["memory_near"] = near
                 if turn.file_path:
                     entry["file_path"] = turn.file_path
                 if tokens_per_s:
@@ -1166,11 +1193,13 @@ class ChatService:
             elif interrupted:
                 self._emit("assistant.interrupted", {
                     "mid": turn.mid, "text": text, "paths": answer_paths(text),
+                    "memory": memory_links(text, index), "memory_near": near,
                 }, message_id=turn.mid)
             else:
                 self._emit("assistant.done", {
                     "mid": turn.mid, "text": text, "duration_ms": duration_ms,
                     "tokens_per_s": tokens_per_s, "paths": answer_paths(text),
+                    "memory": memory_links(text, index), "memory_near": near,
                 }, message_id=turn.mid)
             self._turn = None
 

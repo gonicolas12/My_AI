@@ -705,6 +705,8 @@
   "voice.autoreadOff": "Automatisch voorlezen uit",
   "agents.run.errorDefault": "Fout",
   "chat.path.reveal": "Tonen in Verkenner: {path}",
+  "chat.memory.open": "‘{name}’ in Geheugen tonen",
+  "chat.memory.near": "Ook in Geheugen:",
   "code.title": "Code",
   "code.subtitle": "Je gesprek met de VS Code-extensie: My_AI leest, bewerkt en maakt bestanden en voert opdrachten uit in je project. Het staat ook in VS Code en op je telefoon.",
   "code.status.connected": "VS Code verbonden",

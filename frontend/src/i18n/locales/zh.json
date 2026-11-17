@@ -684,6 +684,8 @@
   "voice.autoreadOff": "自动朗读已关闭",
   "agents.run.errorDefault": "错误",
   "chat.path.reveal": "在文件资源管理器中显示：{path}",
+  "chat.memory.open": "在记忆中查看“{name}”",
+  "chat.memory.near": "记忆中也有：",
   "code.title": "Code",
   "code.subtitle": "你与 VS Code 扩展的对话：My_AI 会在你的项目中读取、编辑、创建文件并运行命令。对话也会显示在 VS Code 和你的手机上。",
   "code.status.connected": "VS Code 已连接",

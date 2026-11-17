@@ -684,6 +684,8 @@
   "voice.autoreadOff": "自動読み上げをオフにしました",
   "agents.run.errorDefault": "エラー",
   "chat.path.reveal": "エクスプローラーで表示：{path}",
+  "chat.memory.open": "記憶で「{name}」を表示",
+  "chat.memory.near": "記憶にもあります：",
   "code.title": "Code",
   "code.subtitle": "VS Code 拡張機能との会話です。My_AI がプロジェクトのファイルを読み取り・編集・作成し、コマンドを実行します。会話は VS Code とスマホにも表示されます。",
   "code.status.connected": "VS Code に接続済み",
