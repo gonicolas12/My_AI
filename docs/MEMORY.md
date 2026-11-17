@@ -88,7 +88,7 @@ Un fichier joint au chat ne pose pas de question : même contenu, c'est le même
 
 **Retirer une pièce jointe** avant l'envoi l'efface de l'onglet, sauf si le document y était déjà avant elle (joint dans une conversation précédente, ou ajouté à la main) : il y reste.
 
-**Dans une réponse**, un document ou un dossier de l'onglet que le modèle cite (« `Data.xlsx` », « projet/rapport.pdf », le dossier « OneDrive_3_06-10-2026 ») est un lien, même collé à du japonais, du chinois ou du coréen (« Data.xlsxには ») : un clic ouvre l'onglet Documents, cherché sur son nom, son dossier déplié. Un lien Markdown que le modèle invente vers l'un d'eux (« [Dossier OneDrive_3_06-10-2026](memory://one drive) ») aussi ; un lien vers un chemin du disque qui existe montre ce fichier dans l'Explorateur. Un nom courant (un dossier « projet ») n'est un lien qu'écrit en `code` ou dans un lien, pas au fil du texte.
+**Dans une réponse**, un document ou un dossier de l'onglet que le modèle cite (« `Data.xlsx` », « projet/rapport.pdf », le dossier « OneDrive_3_06-10-2026 ») est un lien, même collé à du japonais, du chinois ou du coréen (« Data.xlsxには ») : un clic ouvre l'onglet Documents, cherché sur son nom, son dossier déplié ; pour un fichier d'un dossier, c'est tout le dossier qui s'ouvre, déplié, ce fichier en évidence. Un lien Markdown que le modèle invente vers l'un d'eux (« [Dossier OneDrive_3_06-10-2026](memory://one drive) ») aussi ; un lien vers un chemin du disque qui existe montre ce fichier dans l'Explorateur. Un nom courant (un dossier « projet ») n'est un lien qu'écrit en `code` ou dans un lien, pas au fil du texte.
 
 ---
 
@@ -117,7 +117,7 @@ Un fichier joint au chat ne pose pas de question : même contenu, c'est le même
 - **Provenance** affichée sous chaque entrée :
   - Faits → `source` (manuel / conversation / …), `confiance`, date de mise à jour.
   - Conversations → **session** (son nom actuel : renommer une conversation change aussi celui-ci) · rôle (vous / assistant) · horodatage.
-  - Documents → une ligne par **document** (date · « ajouté à la main » le cas échéant) ou par **dossier déposé** (fichiers · date), à déplier sur ses fichiers.
+  - Documents → une ligne par **document** (date · « ajouté à la main » le cas échéant) ou par **dossier déposé** (fichiers · date), à déplier sur ses fichiers. Une recherche qui ne trouve qu'une partie des fichiers d'un dossier n'affiche qu'eux, et le dit : « 1 fichier sur 4 » (videz la recherche pour voir tout le dossier).
 
 ### ✏️ Éditer
 - Bouton **✏️** (faits et conversations) : édition **inline** du contenu, puis **💾 Enregistrer** / **✖ Annuler**. Un document se met à jour en le remettant (voir [Documents](#-documents)).

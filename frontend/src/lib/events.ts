@@ -33,6 +33,8 @@ export interface MemoryLink {
   kind: 'document' | 'folder';
   /** Ce que l'onglet Documents cherche */
   name: string;
+  /** Dossier d'un fichier : l'onglet l'ouvre en entier, ce fichier en évidence */
+  folder?: string | null;
   /** Nom courant (« projet ») : cliquable seulement dans un lien ou du code */
   strict?: boolean;
 }

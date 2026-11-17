@@ -205,13 +205,15 @@ def test_documents_and_folders_cited_in_an_answer():
               "- `Data.xlsx` et le rapport.pdf du dossier projet ; projet/docs/rapport.pdf aussi.")
     assert memory_links(answer, INDEX + [ONEDRIVE]) == [
         {"text": "projet/docs/rapport.pdf", "kind": "document",
-         "name": "projet/docs/rapport.pdf", "strict": False},
+         "name": "projet/docs/rapport.pdf", "folder": "projet", "strict": False},
         {"text": "OneDrive_3_06-10-2026", "kind": "folder", "name": "OneDrive_3_06-10-2026",
+         "folder": None, "strict": False},
+        {"text": "rapport.pdf", "kind": "document", "name": "rapport.pdf", "folder": None,
          "strict": False},
-        {"text": "rapport.pdf", "kind": "document", "name": "rapport.pdf", "strict": False},
-        {"text": "Data.xlsx", "kind": "document", "name": "Data.xlsx", "strict": False},
+        {"text": "Data.xlsx", "kind": "document", "name": "Data.xlsx",
+         "folder": "OneDrive_3_06-10-2026", "strict": False},
         # Un nom courant : cliquable seulement dans un lien ou du code (la fenêtre)
-        {"text": "projet", "kind": "folder", "name": "projet", "strict": True},
+        {"text": "projet", "kind": "folder", "name": "projet", "folder": None, "strict": True},
     ]
 
 

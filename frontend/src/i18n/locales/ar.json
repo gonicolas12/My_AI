@@ -446,6 +446,14 @@
     "many": "{count} ملفًا",
     "other": "{count} ملف"
   },
+  "memory.group.filesOf": {
+    "zero": "الملفات: {count} من {total}",
+    "one": "الملفات: {count} من {total}",
+    "two": "الملفات: {count} من {total}",
+    "few": "الملفات: {count} من {total}",
+    "many": "الملفات: {count} من {total}",
+    "other": "الملفات: {count} من {total}"
+  },
   "memory.group.byHand": "أُضيف يدويًا",
   "memory.group.filesLabel": "ملفات «{name}»",
   "memory.group.deleteDocument": "حذف المستند",

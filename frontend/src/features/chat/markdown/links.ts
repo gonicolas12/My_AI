@@ -112,7 +112,7 @@ function memoryElement(link: MemoryLink, children: HastNode[]): HastNode {
   return {
     type: 'element',
     tagName: 'chat-memory',
-    properties: { kind: link.kind, name: link.name },
+    properties: { kind: link.kind, name: link.name, folder: link.folder ?? '' },
     children,
   };
 }

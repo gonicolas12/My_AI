@@ -402,6 +402,10 @@
     "one": "{count} arquivo",
     "other": "{count} arquivos"
   },
+  "memory.group.filesOf": {
+    "one": "{count} de {total} arquivos",
+    "other": "{count} de {total} arquivos"
+  },
   "memory.group.byHand": "adicionado manualmente",
   "memory.group.filesLabel": "Arquivos de “{name}”",
   "memory.group.deleteDocument": "Excluir o documento",

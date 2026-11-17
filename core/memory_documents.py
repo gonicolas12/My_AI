@@ -529,20 +529,23 @@ def memory_links(text: str, index: Iterable[Dict[str, Any]]) -> List[Dict[str, A
 
     Returns:
         [{"text": tel qu'écrit dans la réponse, "kind": "document" ou "folder",
-          "name": ce que l'onglet cherche, "strict": bool}], les plus longs d'abord
+          "name": ce que l'onglet cherche, "folder": dossier d'un fichier (l'onglet
+          l'ouvre en entier, ce fichier en évidence) ou None, "strict": bool}], les
+          plus longs d'abord
     """
     if not text:
         return []
-    names: Dict[str, Dict[str, str]] = {}
+    names: Dict[str, Dict[str, Any]] = {}
     for doc in index:
         name = str(doc.get("name") or "")
+        folder = str(doc.get("folder") or "") or None
         # Chemin complet, chemin dans son dossier (ce que l'onglet affiche), nom du fichier
         for candidate in (name, str(doc.get("label") or ""), base_name(name)):
             if candidate:
-                names.setdefault(candidate.lower(), {"kind": "document", "name": candidate})
-        folder = str(doc.get("folder") or "")
+                names.setdefault(candidate.lower(),
+                                 {"kind": "document", "name": candidate, "folder": folder})
         if folder:
-            names[folder.lower()] = {"kind": "folder", "name": folder}
+            names[folder.lower()] = {"kind": "folder", "name": folder, "folder": None}
     # « [Data](memory://Data.xlsx) » : le nom compte, pas le schéma inventé
     scan = _SCHEME.sub(" ", text)
     lowered = scan.lower()

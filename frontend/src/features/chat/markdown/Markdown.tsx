@@ -152,10 +152,17 @@ function FilePath({ node, children }: { node?: unknown; children?: React.ReactNo
   );
 }
 
-/** Document ou dossier de la Mémoire cité : ouvre l'onglet Documents sur lui */
+/**
+ * Document ou dossier de la Mémoire cité : ouvre l'onglet Documents sur lui. Un
+ * fichier d'un dossier : tout son dossier, ce fichier en évidence (cherché sur son
+ * seul nom, le dossier n'aurait montré que lui)
+ */
 function MemoryRef({ node, children }: { node?: unknown; children?: React.ReactNode }) {
   const t = useT();
   const name = propertyOf(node, 'name');
+  const folder = propertyOf(node, 'folder');
+  const isDocument = propertyOf(node, 'kind') === 'document';
+  const open = () => (isDocument ? showInMemory(folder || name, name) : showInMemory(name));
   // En ligne, comme un chemin : la ponctuation qui suit ne passe pas seule à la ligne
   return (
     <span
@@ -163,11 +170,11 @@ function MemoryRef({ node, children }: { node?: unknown; children?: React.ReactN
       tabIndex={0}
       className="md-memory"
       title={t('chat.memory.open', { name })}
-      onClick={() => showInMemory(name)}
+      onClick={open}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          showInMemory(name);
+          open();
         }
       }}
     >

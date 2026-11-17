@@ -517,6 +517,16 @@ interface GroupActions {
   expanded: ReadonlySet<string>;
   toggle: (id: string) => void;
   deleteGroup: (group: MemoryGroup) => void;
+  /** Document du lien du chat, mis en évidence (MemoryFocus) */
+  highlight: string | null;
+}
+
+/** Le document du lien du chat ? Par son nom, son chemin dans son dossier, ou son chemin complet */
+function isHighlighted(doc: MemoryDocument, highlight: string | null): boolean {
+  if (!highlight) return false;
+  const wanted = highlight.toLowerCase();
+  const name = doc.name.toLowerCase();
+  return name === wanted || doc.label.toLowerCase() === wanted || name.endsWith(`/${wanted}`);
 }
 
 const IMAGE_NAME = /\.(png|jpe?g|gif|bmp|webp|tiff?)$/i;
@@ -555,14 +565,28 @@ const Chevron = ({ open }: { open: boolean }) =>
 function DocumentRow({
   doc,
   onDelete,
+  highlighted = false,
 }: {
   doc: MemoryDocument;
   onDelete: (doc: MemoryDocument) => void;
+  /** Le document d'un lien du chat : en évidence, et amené à l'écran */
+  highlighted?: boolean;
 }) {
   const t = useT();
   const label = doc.folder ? doc.label : doc.name;
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (highlighted) row.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [highlighted]);
   return (
-    <li className="flex items-center gap-2 rounded-md border border-line bg-bg py-1 ps-3 pe-1.5">
+    <li
+      ref={row}
+      aria-current={highlighted ? 'true' : undefined}
+      className={cn(
+        'flex items-center gap-2 rounded-md border py-1 ps-3 pe-1.5',
+        highlighted ? 'border-accent bg-accent-soft' : 'border-line bg-bg',
+      )}
+    >
       <DocumentIcon doc={doc} />
       <span className="min-w-0 truncate py-1 text-sm font-medium">{label}</span>
       <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
@@ -604,7 +628,13 @@ function FolderRow({ folder, actions }: { folder: MemoryFolder; actions: GroupAc
           <Icon size={15} className="shrink-0 text-accent" />
           <span className="min-w-0 truncate text-sm font-semibold">{folder.name}</span>
           <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
-            {metaLine([t('memory.group.files', { count: folder.files }), addedOn(folder.created)])}
+            {metaLine([
+              // Une recherche n'en montre qu'une partie : combien il en a en tout
+              folder.total
+                ? t('memory.group.filesOf', { count: folder.files, total: folder.total })
+                : t('memory.group.files', { count: folder.files }),
+              addedOn(folder.created),
+            ])}
           </span>
         </button>
         <IconButton
@@ -624,7 +654,12 @@ function FolderRow({ folder, actions }: { folder: MemoryFolder; actions: GroupAc
           className="space-y-1.5 border-t border-line py-2 ps-6 pe-2"
         >
           {folder.documents.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} onDelete={actions.deleteGroup} />
+            <DocumentRow
+              key={doc.id}
+              doc={doc}
+              onDelete={actions.deleteGroup}
+              highlighted={isHighlighted(doc, actions.highlight)}
+            />
           ))}
         </ul>
       ) : null}
@@ -797,9 +832,11 @@ export default function MemoryPanel() {
   const [focus] = useState(() => useMemory.getState().focus);
   const unfold = useRef(focus !== null);
   const [tab, setTab] = useState<MemoryTab>(focus !== null ? 'document' : 'facts');
-  const [query, setQuery] = useState(focus ?? '');
+  const [query, setQuery] = useState(focus?.search ?? '');
   /** Recherche appliquée (Entrée, bouton, catégorie, rafraîchir) */
-  const [search, setSearch] = useState(focus ?? '');
+  const [search, setSearch] = useState(focus?.search ?? '');
+  // Le fichier du lien, en évidence tant que la recherche est celle du lien
+  const highlight = focus && search === focus.search ? focus.highlight : null;
   const [category, setCategory] = useState(ALL);
   const [page, setPage] = useState(0);
   const [tick, setTick] = useState(0);
@@ -877,7 +914,7 @@ export default function MemoryPanel() {
     });
   }, []);
 
-  const actions: GroupActions = { expanded, toggle, deleteGroup: setDeletingGroup };
+  const actions: GroupActions = { expanded, toggle, deleteGroup: setDeletingGroup, highlight };
 
   const selectTab = (value: string) => {
     const next = TABS.find((entry) => entry.id === value);
@@ -933,7 +970,12 @@ export default function MemoryPanel() {
             item.kind === 'folder' ? (
               <FolderRow key={item.id} folder={item} actions={actions} />
             ) : (
-              <DocumentRow key={item.id} doc={item} onDelete={setDeletingGroup} />
+              <DocumentRow
+                key={item.id}
+                doc={item}
+                onDelete={setDeletingGroup}
+                highlighted={isHighlighted(item, highlight)}
+              />
             )
           ) : editing === keyOf(item) ? (
             <EditRow

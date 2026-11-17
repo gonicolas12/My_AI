@@ -311,6 +311,7 @@ class MemoryLink(BaseModel):
     text: str  # tel qu'il apparaît dans la réponse
     kind: Literal["document", "folder"]
     name: str  # ce que l'onglet Documents cherche
+    folder: Optional[str] = None  # dossier d'un fichier : ouvert en entier, fichier en évidence
     strict: bool = False  # nom courant : cliquable seulement dans un lien ou du code
 
 

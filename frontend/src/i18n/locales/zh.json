@@ -391,6 +391,9 @@
   "memory.group.files": {
     "other": "{count} 个文件"
   },
+  "memory.group.filesOf": {
+    "other": "{total} 个文件中的 {count} 个"
+  },
   "memory.group.byHand": "手动添加",
   "memory.group.filesLabel": "“{name}”中的文件",
   "memory.group.deleteDocument": "删除文档",

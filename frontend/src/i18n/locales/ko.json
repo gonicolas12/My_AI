@@ -391,6 +391,9 @@
   "memory.group.files": {
     "other": "파일 {count}개"
   },
+  "memory.group.filesOf": {
+    "other": "파일 {total}개 중 {count}개"
+  },
   "memory.group.byHand": "직접 추가함",
   "memory.group.filesLabel": "“{name}”의 파일",
   "memory.group.deleteDocument": "문서 삭제",
