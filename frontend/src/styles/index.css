@@ -192,6 +192,18 @@
       animation: none;
     }
   }
+
+  /*
+   * Panneau qui reçoit des fichiers glissés (onglet Documents de la Mémoire) :
+   * son contour s'éclaire d'un halo orange. À la place de shadow-lg, que la
+   * couche des utilitaires ferait passer devant.
+   */
+  .drop-glow {
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 0 36px 2px color-mix(in srgb, var(--accent) 45%, transparent),
+      var(--elevation-lg);
+  }
 }
 
 /* Recherche globale : mots trouvés, ou message entier (lib/highlight.ts) */

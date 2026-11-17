@@ -265,6 +265,7 @@
   "memory.provenance.you": "🧑 you",
   "memory.provenance.assistant": "🤖 assistant",
   "memory.provenance.chunk": "chunk {n}",
+  "memory.provenance.byHand": "added by hand",
   "folders.noSession": "❌ No active session",
   "folders.error": "❌ Error: {error}",
   "folders.detached": "✅ Folder detached",
@@ -296,6 +297,7 @@
   "launch.engineStarting": "The engine is starting…",
   "dialog.allFiles": "All files",
   "dialog.all": "All",
+  "dialog.supported": "Supported files",
   "dialog.pdf": "PDF files",
   "dialog.word": "Word files",
   "dialog.excelCsv": "Excel and CSV files",
@@ -326,6 +328,39 @@
   "memory.factAdded": "✅ Fact added",
   "memory.edited": "✅ Updated",
   "memory.deleted": "🗑️ Deleted",
+  "memory.documents.notFound": "❌ File not found: {name}",
+  "memory.documents.added": "📄 “{name}” saved to memory",
+  "memory.documents.updated": "🔄 “{name}” updated in memory",
+  "memory.documents.already": "ℹ️ “{name}” is already in memory, unchanged",
+  "memory.documents.failed": "❌ “{name}” not saved to memory: {error}",
+  "memory.documents.imageEmpty": "nothing to keep: no description (vision model unavailable) and no readable text in the image",
+  "memory.documents.imageDescription": "Image description:",
+  "memory.documents.imageText": "Text read in the image:",
+  "memory.documents.visionPrompt": "Describe this image so it can be found again later in a memory. Write a single paragraph of 3 to 6 sentences, with no heading, no list, no bold, no emoji and no question at the end: say what it shows (subject, objects, people, place, useful colors) and copy exactly the important text it contains.",
+  "memory.documents.folderSummary": "📁 “{name}”: {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "one": "{count} file added",
+    "other": "{count} files added"
+  },
+  "memory.documents.folderUpdated": {
+    "one": "{count} file updated",
+    "other": "{count} files updated"
+  },
+  "memory.documents.folderUnchanged": {
+    "one": "{count} file already up to date",
+    "other": "{count} files already up to date"
+  },
+  "memory.documents.folderRemoved": {
+    "one": "{count} file removed",
+    "other": "{count} files removed"
+  },
+  "memory.documents.folderFailed": {
+    "one": "{count} file failed ({names})",
+    "other": "{count} files failed ({names})"
+  },
+  "memory.documents.folderEmpty": "📁 No files to save to memory in “{name}”",
+  "memory.documents.folderTooBig": "📁 “{name}” contains more than {max} files to save to memory: drop its subfolders one at a time instead.",
   "agents.workflowSaved": "💾 Workflow saved",
   "agents.workflowExported": "📤 Workflow exported",
   "voice.inputUnavailable": "Voice input unavailable: install 'faster-whisper' and 'sounddevice'.",

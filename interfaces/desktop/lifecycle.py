@@ -23,7 +23,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from core import i18n
 from core.chat_service import ChatError, ChatService
@@ -368,6 +368,7 @@ class DesktopApp:
             file_processor=FileProcessor(),
             ui_connected=lambda: self.bus.subscriber_count > 0,
             on_session_change=lambda session_id: self.state.set("current_session", session_id),
+            on_images_sent=self._remember_chat_images,
         )
         self.chat.start()
         # Chat mobile : traité ici, fenêtre ouverte ou non
@@ -439,8 +440,14 @@ class DesktopApp:
         """Mémoire du panneau (faits, documents, conversations)."""
         with self._services_lock:
             if self._memory is None:
-                self._memory = MemoryService(lambda: self.engine, lambda: self.chat)
+                self._memory = MemoryService(lambda: self.engine, lambda: self.chat,
+                                             publish=self.bus.publish)
             return self._memory
+
+    def _remember_chat_images(self, paths: List[str]) -> None:
+        """Images envoyées dans le chat : rangées dans l'onglet Documents, comme
+        les documents joints (décrites une fois la réponse finie)."""
+        self.memory.remember_chat_images(paths)
 
     @property
     def prompts(self) -> PromptsService:

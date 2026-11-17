@@ -351,8 +351,8 @@
     "other": "{count} datos"
   },
   "memory.stats.documents": {
-    "one": "{count} fragmento de documento",
-    "other": "{count} fragmentos de documentos"
+    "one": "{count} documento",
+    "other": "{count} documentos"
   },
   "memory.stats.conversations": {
     "one": "{count} entrada de conversación",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(si no, vuelve en la próxima reindexación)",
   "memory.add.title": "Nuevo dato",
   "memory.add.content": "Contenido",
+  "memory.documents.addHint": "Guardar archivos en la memoria: PDF, Word, Excel, PowerPoint, código, imagen",
+  "memory.documents.drop": "Suelta tus archivos o carpetas aquí para guardarlos en la memoria",
+  "memory.documents.empty": "No hay documentos en la memoria. Los archivos adjuntos en el chat llegan aquí solos; «Añadir», o soltar aquí archivos o carpetas, guarda los que elijas (PDF, Word, Excel, PowerPoint, código, imagen).",
+  "memory.documents.jobsLabel": "Documentos que se están guardando en la memoria",
+  "memory.documents.state.queued": "en espera",
+  "memory.documents.state.reading": "leyendo el archivo…",
+  "memory.documents.state.describing": "describiendo la imagen…",
+  "memory.documents.folderFiles": {
+    "one": "queda {count} archivo",
+    "other": "quedan {count} archivos"
+  },
+  "memory.documents.folderEmpty": "📁 No hay archivos que guardar en la memoria en «{name}»",
+  "memory.documents.folderTooBig": "📁 «{name}» contiene más de {max} archivos para guardar en la memoria: suelta mejor sus subcarpetas, una a una.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 «{name}»: {count} archivo omitido (formato no compatible o demasiado grande)",
+    "other": "📁 «{name}»: {count} archivos omitidos (formato no compatible o demasiado grandes)"
+  },
+  "memory.group.files": {
+    "one": "{count} archivo",
+    "other": "{count} archivos"
+  },
+  "memory.group.byHand": "añadido a mano",
+  "memory.group.filesLabel": "Archivos de «{name}»",
+  "memory.group.deleteDocument": "Eliminar el documento",
+  "memory.group.deleteFolder": "Eliminar la carpeta",
+  "memory.group.deleteNamed": "Eliminar «{name}»",
+  "memory.group.deleteFolderConfirm": {
+    "one": "¿Eliminar definitivamente esta carpeta y su archivo?",
+    "other": "¿Eliminar definitivamente esta carpeta y sus {count} archivos?"
+  },
+  "memory.group.deleteDocumentConfirm": "¿Eliminar definitivamente este documento de la memoria?",
+  "memory.update.title": "Ya en la memoria",
+  "memory.update.files": {
+    "one": "Ya hay un archivo con el mismo nombre en la memoria. ¿Actualizarlo con esta versión o conservar ambos?",
+    "other": "{count} archivos tienen un nombre que ya está en la memoria. ¿Actualizarlos con estas versiones o conservar ambos?"
+  },
+  "memory.update.folders": {
+    "one": "Ya hay una carpeta con el mismo nombre en la memoria. ¿Actualizarla o conservar ambas?",
+    "other": "{count} carpetas tienen un nombre que ya está en la memoria. ¿Actualizarlas o conservar ambas?"
+  },
+  "memory.update.mixed": "Ya hay archivos y carpetas con los mismos nombres en la memoria. ¿Actualizarlos con estas versiones o conservar ambos?",
+  "memory.update.newest": {
+    "one": "el más reciente de {count}",
+    "other": "el más reciente de {count}"
+  },
+  "memory.update.folderNote": "Actualizar una carpeta reemplaza sus archivos modificados, añade los nuevos y quita los que ya no contiene.",
+  "memory.update.yes": "Actualizar",
+  "memory.update.keep": "Conservar ambos",
   "memory.noMatch": "No hay resultados para esta búsqueda.",
   "memory.nothing": "Todavía no hay nada aquí.",
   "memory.page": "Página {page} / {pages}",

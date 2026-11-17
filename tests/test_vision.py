@@ -202,3 +202,46 @@ def test_the_chat_model_describes_in_its_own_window_without_thinking(ollama):
     assert url.endswith("/api/generate") and request["model"] == "my_ai"
     assert request["options"]["num_ctx"] == WINDOW
     assert request["think"] is False
+
+
+class _Answers:
+    """Réponses non streamées successives d'Ollama (/api/generate)."""
+
+    status_code = 200
+
+    def __init__(self, text):
+        self.text = text
+
+    def json(self):
+        return {"response": self.text}
+
+
+def test_memory_instructions_replace_the_detailed_description(ollama, monkeypatch):
+    """Mémoire des documents : sa consigne (un paragraphe sobre) remplace la
+    description détaillée, avec sa propre longueur ; sans réponse exploitable,
+    la description détaillée prend le relais."""
+    ollama["tags"] = [_tag("my_ai:latest", "completion", "vision")]
+    llm = _llm()
+    assert llm.describe_image(IMAGE, instructions="Un paragraphe, sans liste.",
+                              max_tokens=400) == DESCRIPTION
+    ((_url, request),) = ollama["requests"]
+    assert request["prompt"] == "Un paragraphe, sans liste."
+    assert request["options"]["num_predict"] == 400
+    assert request["options"]["num_ctx"] == WINDOW and request["think"] is False
+
+    ollama["requests"].clear()
+    llm.describe_image(IMAGE)  # description détaillée (chat, agents) : inchangée
+    ((_url, request),) = ollama["requests"]
+    assert request["prompt"].startswith("Décris précisément et en détail")
+    assert request["options"]["num_predict"] == 800
+
+    answers = iter(["   ", DESCRIPTION])
+    sent = []
+
+    def post(_url, **kwargs):
+        sent.append(kwargs["json"]["prompt"])
+        return _Answers(next(answers))
+
+    monkeypatch.setattr(local_llm, "_resilient_post", post)
+    assert llm.describe_image(IMAGE, instructions="Un paragraphe.") == DESCRIPTION
+    assert sent[0] == "Un paragraphe." and sent[1].startswith("Décris précisément")

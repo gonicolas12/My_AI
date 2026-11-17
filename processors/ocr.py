@@ -98,6 +98,29 @@ def ocr_page(page) -> str:
         return text
 
 
+def ocr_image(path) -> str:
+    """
+    Reconnaît le texte d'un fichier image (photo, capture d'écran, scan)
+
+    Args:
+        path: Chemin de l'image (PNG, JPEG, WebP…)
+
+    Returns:
+        Texte reconnu, une ligne par bloc de texte détecté ; "" sans texte
+        ou sans moteur OCR
+
+    Raises:
+        OcrInterrupted: Lecture interrompue (cf. interruptible)
+    """
+    if RapidOCR is None:
+        return ""
+    _stop_if_interrupted()
+    with _lock:
+        _stop_if_interrupted()
+        result = _get_engine()(str(path))
+    return "\n".join(getattr(result, "txts", None) or ())
+
+
 def _stop_if_interrupted():
     cancel = getattr(_reading, "cancel", None)
     if cancel is not None and cancel.is_set():

@@ -8,7 +8,7 @@
  * arrive et la zone choisie reçoit les chemins.
  */
 
-export type DropZone = 'chat' | 'agents' | 'code';
+export type DropZone = 'chat' | 'agents' | 'code' | 'memory';
 
 /** Délai maximal entre le dépôt et l'arrivée des chemins (ms) */
 const DROP_WINDOW = 5000;

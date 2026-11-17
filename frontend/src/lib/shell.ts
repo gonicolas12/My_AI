@@ -33,6 +33,9 @@ export interface DeviceRect {
 /** Entrées du menu « + » : types de pièces jointes de l'interface Tk */
 export type AttachKind = 'PDF' | 'DOCX' | 'Excel' | 'PowerPoint' | 'Code' | 'Image';
 
+/** Dialogue de fichiers : un type du menu « + », ou tous (bouton Ajouter de la Mémoire) */
+export type PickKind = AttachKind | 'All';
+
 declare global {
   interface Window {
     pywebview?: { api?: Partial<PywebviewApi> };
@@ -104,8 +107,8 @@ export const shell = {
     return Boolean(api()?.pick_files);
   },
 
-  /** Fichiers à joindre (dialogue du système) ; liste vide si annulé */
-  async pickFiles(kind: AttachKind): Promise<string[]> {
+  /** Fichiers à joindre ou à mettre en mémoire (dialogue du système) ; liste vide si annulé */
+  async pickFiles(kind: PickKind): Promise<string[]> {
     const pick = api()?.pick_files;
     if (!pick) return [];
     try {

@@ -429,6 +429,7 @@ class ChatService:
         ui_connected: Optional[Callable[[], bool]] = None,
         on_session_change: Optional[Callable[[Optional[str]], None]] = None,
         rlhf=None,
+        on_images_sent: Optional[Callable[[List[str]], None]] = None,
     ):
         """
         Args:
@@ -439,6 +440,8 @@ class ChatService:
             ui_connected: vrai si une fenêtre peut répondre à une confirmation
             on_session_change: appelé avec la session courante (persistance)
             rlhf: gestionnaire des notes (core.rlhf_manager, par défaut le partagé)
+            on_images_sent: appelé, après la réponse, avec les images envoyées
+                dans le message (mémoire des documents de la fenêtre)
         """
         self._engine = engine
         self._emit_fn = emit
@@ -447,6 +450,7 @@ class ChatService:
         self._ui_connected = ui_connected or (lambda: False)
         self._on_session_change = on_session_change
         self._rlhf_manager = rlhf
+        self._on_images_sent = on_images_sent
 
         # État et émission sous le même verrou : l'état renvoyé par snapshot()
         # contient exactement les événements de seq inférieur ou égal au sien
@@ -810,6 +814,21 @@ class ChatService:
             with self._lock:
                 self._answering = False
         self._save_current()
+        self._report_images(request)
+
+    def _report_images(self, request: _Request) -> None:
+        """Images envoyées avec le message (PC ou mobile) : signalées une fois la
+        réponse finie, pour la mémoire des documents (on_images_sent)."""
+        if self._on_images_sent is None:
+            return
+        images = [path for path, file_type in request.attachments
+                  if file_type == "Image" and path and os.path.isfile(path)]
+        if not images:
+            return
+        try:
+            self._on_images_sent(images)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Images envoyées non signalées à la mémoire : %s", exc)
 
     def _add_user_entry(self, request: _Request) -> None:
         """Message de l'utilisateur dans l'historique (verrou tenu)."""

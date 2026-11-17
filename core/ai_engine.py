@@ -42,6 +42,7 @@ from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .document_passages import select_passages
+from .memory_documents import memory_documents_block, resolve_documents, results_block
 from .i18n import current_language, tr
 from .image_intent import is_image_request, strip_image_request
 from .mcp_client import MCPManager
@@ -885,6 +886,8 @@ class AIEngine:
                 description=(
                     "Recherche dans la mémoire locale de l'IA : les faits que l'utilisateur "
                     "lui a demandé de retenir et les documents précédemment indexés. "
+                    "Chaque extrait indique son document (nom ou chemin dans son dossier, "
+                    "date d'ajout) : plusieurs documents peuvent porter le même nom. "
                     "N'UTILISE PAS cet outil pour retrouver des fichiers fraîchement créés ou d'actions triviales. "
                     "À utiliser UNIQUEMENT pour retrouver des informations passées lointaines si l'utilisateur en parle."
                 ),
@@ -899,6 +902,14 @@ class AIEngine:
                             "type": "integer",
                             "description": "Nombre de résultats à retourner",
                             "default": 5,
+                        },
+                        "document": {
+                            "type": "string",
+                            "description": (
+                                "Facultatif : nom ou chemin d'un document de la mémoire "
+                                "(ex. « rapport.pdf », « projet/rapport.pdf ») ou nom "
+                                "d'un dossier déposé, pour ne chercher que dedans"
+                            ),
                         },
                     },
                     "required": ["query"],
@@ -2268,10 +2279,17 @@ Que voulez-vous que je fasse pour vous ?""",
             "🧠 Mémoire (onglet Faits)."
         )
 
-    def _search_memory(self, query: str, n_results: int = 5) -> str:
+    def _search_memory(self, query: str, n_results: int = 5, document: str = "") -> str:
         """
         Outil search_memory : les faits mémorisés qui partagent des mots avec
-        la requête, puis les passages les plus proches des documents indexés.
+        la requête, puis les passages les plus proches des documents indexés,
+        groupés par document sous leur libellé (nom ou chemin dans son dossier,
+        origine, date d'ajout) : deux documents du même nom ne se confondent pas.
+
+        Args:
+            document: nom ou chemin d'un document de la mémoire (ou d'un dossier
+                déposé) pour ne chercher que dans celui-ci ; inconnu, toute la
+                mémoire est fouillée, et le modèle le sait
         """
         try:
             n_results = max(1, int(n_results))
@@ -2295,26 +2313,52 @@ Que voulez-vous que je fasse pour vous ?""",
             if facts:
                 parts.append(header + "\n" + "\n".join(kb.format_facts(facts)))
 
+        where, note = self._memory_document_filter(document)
         try:
             # Résolution à l'appel (comme search_codebase) : construire la
             # VectorMemory dès l'enregistrement chargerait ChromaDB et le
             # pipeline d'embeddings au démarrage, pour un outil peut-être
             # jamais utilisé.
-            results = self.get_vector_memory().search_similar(query, n_results=n_results)
+            restrict = {"where": where} if where else {}
+            results = self.get_vector_memory().search_similar(
+                query, n_results=n_results, **restrict)
         except Exception as exc:
             if not parts:
                 return f"Erreur mémoire : {exc}"
             results = []
+        if note:
+            parts.append(note)
         if results:
-            passages = [
-                f"[{i}] {str(r.get('content', r.get('text', r)))[:500]}"
-                for i, r in enumerate(results, 1)
-            ]
-            parts.append("Documents indexés :\n" + "\n\n".join(passages))
+            parts.append(
+                "Documents indexés (extraits, chacun sous le nom de son document, son "
+                "dossier éventuel et sa date d'ajout) :\n" + results_block(results))
 
         if not parts:
             return "Aucun résultat dans la mémoire (faits mémorisés et documents indexés)."
         return "\n\n".join(parts)
+
+    def _memory_document_filter(self, document: str):
+        """Filtre ChromaDB de l'argument « document » de search_memory, et une note
+        pour le modèle (document introuvable : toute la mémoire est fouillée).
+
+        Returns:
+            (where ou None, note ou "")
+        """
+        reference = str(document or "").strip()
+        if not reference:
+            return None, ""
+        try:
+            store = self.get_memory_store()
+            docs = resolve_documents(reference, store.document_index()) if store else []
+        except Exception as exc:  # pylint: disable=broad-except
+            self.logger.warning("Documents de la mémoire indisponibles : %s", exc)
+            docs = []
+        ids = [doc["id"] for doc in docs if not str(doc["id"]).startswith(("name:", "entry:"))]
+        if not ids:
+            return None, (f"Aucun document nommé « {reference} » dans la mémoire : "
+                          "recherche dans toute la mémoire.")
+        where = {"document_id": ids[0]} if len(ids) == 1 else {"document_id": {"$in": ids}}
+        return where, ""
 
     @staticmethod
     def _without_tool(tools: List[Dict], name: str) -> List[Dict]:
@@ -2331,8 +2375,46 @@ Que voulez-vous que je fasse pour vous ?""",
         sa synthèse remplace le prompt de la boucle, et la réponse affichée
         perdait sinon les faits de la fenêtre Mémoire.
         """
-        blocks = (self._knowledge_base_context(query), self._codebase_context(query))
+        blocks = (self._knowledge_base_context(query), self._codebase_context(query),
+                  self._memory_documents_context(query))
         return "".join(f"\n\n{block}" for block in blocks if block)
+
+    def _session_document_names(self) -> set:
+        """Noms des fichiers joints à la conversation affichée (déjà dans le prompt)."""
+        try:
+            stored = self.local_ai.conversation_memory.stored_documents or {}
+        except AttributeError:
+            return set()
+        visible = self._visible_documents
+        return {name for name in stored if visible is None or name in visible}
+
+    def _memory_documents_context(self, query: str) -> str:
+        """
+        Documents et dossiers de la fenêtre Mémoire (onglet Documents) que le
+        message nomme, chacun sous son libellé (nom, dossier, date d'ajout),
+        avec leur contenu utile ; chaîne vide s'il n'en nomme aucun.
+
+        Le modèle sait ainsi quel fichier lire, et ne confond pas deux
+        documents du même nom (« rapport.pdf » ajouté à la main et
+        « projet/rapport.pdf » d'un dossier déposé). Un fichier joint à la
+        conversation passe avant celui de la mémoire qui porte son nom.
+        """
+        if not str(query or "").strip():
+            return ""
+        try:
+            store = self.get_memory_store()
+            if store is None:
+                return ""
+            return memory_documents_block(
+                query, store, self._document_char_budget() // 2,
+                lambda text, question, limit: select_passages(
+                    text, question, limit, passage_similarities),
+                exclude=self._session_document_names(),
+                search=self.get_vector_memory().search_similar,
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            self.logger.warning("Documents de la mémoire indisponibles : %s", exc)
+            return ""
 
     # Ce qui, après « mon / ma / mes / notre / nos », parle de l'utilisateur
     # lui-même ; « mon fichier », « ma liste », « mes données » n'en sont pas

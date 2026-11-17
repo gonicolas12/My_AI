@@ -68,16 +68,16 @@ pendant que le moteur calcule.
   déposé joint ses fichiers (20 au plus)
 - ⏳ **Lecture des pièces jointes** — un indicateur tourne dans la puce tant que le fichier est lu (OCR d'un PDF scanné : 4 à 20 s par page selon la densité du texte) ; l'envoi attend la fin de la lecture, le message reste dans la zone de saisie
 - ⏭️ **File d'attente** : un message envoyé pendant une réponse attend son tour, visible au-dessus de la saisie (retirable)
-- ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à une autre pièce jointe, ou déjà chargé avant cette pièce jointe
+- ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à une autre pièce jointe, ou déjà chargé avant cette pièce jointe ; et il reste dans l'onglet Documents du panneau Mémoire s'il y était déjà (conversation précédente, ajout à la main)
 - 📝 **Génération de documents** Word/PDF/PowerPoint/Excel, avec aperçu au format natif — voir *Génération de Documents* plus bas
 - 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur
-- 🖼️ **Analyse d'images** par le modèle lui-même (qwen3.5 voit les images), ou par un modèle vision dédié (minicpm-v, llava…) si le `Modelfile` part d'un modèle qui ne les voit pas
+- 🖼️ **Analyse d'images** par le modèle lui-même (qwen3.5 voit les images), ou par un modèle vision dédié (minicpm-v, llava…) si le `Modelfile` part d'un modèle qui ne les voit pas ; une fois la réponse finie, l'image est décrite et rangée dans l'onglet Documents du panneau Mémoire, comme les documents joints
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas
 - 🔊 **Sortie vocale locale** (pyttsx3) — lecture des réponses, voix par langue, lecture auto
 - ⚙️ **Panneau Réglages** — gestion des modèles Ollama et paramètres, sans éditer de fichiers
 - 🔎 **Recherche globale** — recherche sémantique sur *toutes* vos conversations (barre latérale) ; un clic ouvre la conversation et surligne le passage — voir [CONVERSATION_SEARCH.md](CONVERSATION_SEARCH.md)
-- 🧠 **Mémoire** — voir / éditer / supprimer ce que l'IA sait de vous : faits + entrées vectorielles (bouton **Mémoire** en bas de la barre latérale) — voir [MEMORY.md](MEMORY.md)
+- 🧠 **Mémoire** — voir / éditer / supprimer ce que l'IA sait de vous : faits + entrées vectorielles (bouton **Mémoire** en bas de la barre latérale), et y ajouter des faits ou des documents (PDF, Word, Excel, PowerPoint, code, image, ou un dossier entier glissé sur le panneau) — voir [MEMORY.md](MEMORY.md)
 - 💾 **Sessions** — chaque conversation est enregistrée après chaque réponse et se rouvre au lancement suivant ; au survol de sa ligne dans la barre latérale, le crayon ✏️ la renomme et la corbeille la supprime
 
 ### Utilisation Typique

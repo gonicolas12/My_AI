@@ -244,13 +244,17 @@ if (wanted('memoire')) {
   await confirm.waitFor({ state: 'detached', timeout: 3000 });
 
   await page.getByRole('tab', { name: 'Documents' }).click();
+  // Un élément par document (ou dossier déposé) ; leurs chunks restent internes
   await page.waitForFunction(() =>
     [...document.querySelectorAll('[role=dialog] li')].some((li) =>
-      li.textContent.includes('document'),
+      li.textContent.includes('rapport_trimestriel.pdf'),
     ),
   );
   const before = await rows.count();
-  await rows.first().getByRole('button', { name: 'Supprimer' }).click();
+  await rows
+    .first()
+    .getByRole('button', { name: /^Supprimer « / })
+    .click();
   await dialog('Confirmation de suppression')
     .getByRole('button', { name: 'Oui, supprimer' })
     .click();

@@ -351,8 +351,8 @@
     "other": "{count} Fakten"
   },
   "memory.stats.documents": {
-    "one": "{count} Dokumentabschnitt",
-    "other": "{count} Dokumentabschnitte"
+    "one": "{count} Dokument",
+    "other": "{count} Dokumente"
   },
   "memory.stats.conversations": {
     "one": "{count} Unterhaltungseintrag",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(sonst kehrt er bei der nächsten Neuindizierung zurück)",
   "memory.add.title": "Neuer Fakt",
   "memory.add.content": "Inhalt",
+  "memory.documents.addHint": "Dateien im Gedächtnis speichern: PDF, Word, Excel, PowerPoint, Code, Bild",
+  "memory.documents.drop": "Dateien oder Ordner hier ablegen, um sie im Gedächtnis zu speichern",
+  "memory.documents.empty": "Keine Dokumente im Gedächtnis. Im Chat angehängte Dateien landen von selbst hier; „Hinzufügen“ oder das Ablegen von Dateien und Ordnern speichert die Dateien Ihrer Wahl (PDF, Word, Excel, PowerPoint, Code, Bild).",
+  "memory.documents.jobsLabel": "Dokumente, die gerade gespeichert werden",
+  "memory.documents.state.queued": "wartet",
+  "memory.documents.state.reading": "Datei wird gelesen…",
+  "memory.documents.state.describing": "Bild wird beschrieben…",
+  "memory.documents.folderFiles": {
+    "one": "noch {count} Datei",
+    "other": "noch {count} Dateien"
+  },
+  "memory.documents.folderEmpty": "📁 Keine Dateien in „{name}“, die sich im Gedächtnis speichern lassen",
+  "memory.documents.folderTooBig": "📁 „{name}“ enthält mehr als {max} Dateien zum Speichern: Legen Sie stattdessen seine Unterordner einzeln ab.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 „{name}“: {count} Datei übersprungen (Format nicht unterstützt oder zu groß)",
+    "other": "📁 „{name}“: {count} Dateien übersprungen (Format nicht unterstützt oder zu groß)"
+  },
+  "memory.group.files": {
+    "one": "{count} Datei",
+    "other": "{count} Dateien"
+  },
+  "memory.group.byHand": "von Hand hinzugefügt",
+  "memory.group.filesLabel": "Dateien in „{name}“",
+  "memory.group.deleteDocument": "Dokument löschen",
+  "memory.group.deleteFolder": "Ordner löschen",
+  "memory.group.deleteNamed": "„{name}“ löschen",
+  "memory.group.deleteFolderConfirm": {
+    "one": "Diesen Ordner und seine Datei endgültig löschen?",
+    "other": "Diesen Ordner und seine {count} Dateien endgültig löschen?"
+  },
+  "memory.group.deleteDocumentConfirm": "Dieses Dokument endgültig aus dem Gedächtnis löschen?",
+  "memory.update.title": "Schon im Gedächtnis",
+  "memory.update.files": {
+    "one": "Eine Datei mit demselben Namen ist schon im Gedächtnis. Mit dieser Version aktualisieren oder beide behalten?",
+    "other": "{count} Dateien tragen einen Namen, der schon im Gedächtnis ist. Mit diesen Versionen aktualisieren oder beide behalten?"
+  },
+  "memory.update.folders": {
+    "one": "Ein Ordner mit demselben Namen ist schon im Gedächtnis. Aktualisieren oder beide behalten?",
+    "other": "{count} Ordner tragen einen Namen, der schon im Gedächtnis ist. Aktualisieren oder beide behalten?"
+  },
+  "memory.update.mixed": "Dateien und Ordner mit denselben Namen sind schon im Gedächtnis. Mit diesen Versionen aktualisieren oder beide behalten?",
+  "memory.update.newest": {
+    "one": "der neueste von {count}",
+    "other": "der neueste von {count}"
+  },
+  "memory.update.folderNote": "Beim Aktualisieren eines Ordners werden geänderte Dateien ersetzt, neue hinzugefügt und nicht mehr enthaltene entfernt.",
+  "memory.update.yes": "Aktualisieren",
+  "memory.update.keep": "Beide behalten",
   "memory.noMatch": "Keine Ergebnisse für diese Suche.",
   "memory.nothing": "Hier ist noch nichts.",
   "memory.page": "Seite {page} / {pages}",

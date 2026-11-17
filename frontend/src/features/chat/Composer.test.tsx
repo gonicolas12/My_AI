@@ -6,6 +6,7 @@ import { TooltipProvider } from '../../components/ui/Tooltip';
 import { dispatchDroppedPaths, noteDrop, onDroppedPaths } from '../../lib/drops';
 import { useApp } from '../../stores/app';
 import { setDraft, useComposer } from '../../stores/composer';
+import { usePanels } from '../../stores/panels';
 import { Composer } from './Composer';
 import { commandText, slashPrefix } from './slash';
 
@@ -139,5 +140,11 @@ describe('pièces jointes', () => {
     act(() => useComposer.setState({ dropping: true }));
     const card = screen.getByRole('textbox', { name: 'Message' }).parentElement;
     expect(card?.className).toContain('border-accent');
+    // Panneau ouvert par-dessus (Mémoire) : c'est lui qui reçoit les fichiers
+    act(() => usePanels.setState({ open: 'memory' }));
+    expect(card?.className).not.toContain('border-accent');
+    act(() => usePanels.setState({ open: null }));
+    expect(card?.className).toContain('border-accent');
+    act(() => useComposer.setState({ dropping: false }));
   });
 });

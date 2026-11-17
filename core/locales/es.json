@@ -265,6 +265,7 @@
   "memory.provenance.you": "🧑 tú",
   "memory.provenance.assistant": "🤖 asistente",
   "memory.provenance.chunk": "fragmento {n}",
+  "memory.provenance.byHand": "añadido a mano",
   "folders.noSession": "❌ No hay ninguna sesión activa",
   "folders.error": "❌ Error: {error}",
   "folders.detached": "✅ Carpeta quitada",
@@ -296,6 +297,7 @@
   "launch.engineStarting": "El motor se está iniciando…",
   "dialog.allFiles": "Todos los archivos",
   "dialog.all": "Todos",
+  "dialog.supported": "Archivos compatibles",
   "dialog.pdf": "Archivos PDF",
   "dialog.word": "Archivos de Word",
   "dialog.excelCsv": "Archivos de Excel y CSV",
@@ -326,6 +328,39 @@
   "memory.factAdded": "✅ Dato añadido",
   "memory.edited": "✅ Modificado",
   "memory.deleted": "🗑️ Eliminado",
+  "memory.documents.notFound": "❌ Archivo no encontrado: {name}",
+  "memory.documents.added": "📄 «{name}» guardado en la memoria",
+  "memory.documents.updated": "🔄 «{name}» actualizado en la memoria",
+  "memory.documents.already": "ℹ️ «{name}» ya está en la memoria, idéntico",
+  "memory.documents.failed": "❌ «{name}» no se guardó en la memoria: {error}",
+  "memory.documents.imageEmpty": "nada que guardar: ni descripción (modelo de visión no disponible) ni texto legible en la imagen",
+  "memory.documents.imageDescription": "Descripción de la imagen:",
+  "memory.documents.imageText": "Texto leído en la imagen:",
+  "memory.documents.visionPrompt": "Describe esta imagen para poder encontrarla más tarde en una memoria. Escribe un solo párrafo de 3 a 6 frases, sin título, sin lista, sin negrita, sin emojis y sin pregunta al final: di lo que muestra (tema, objetos, personas, lugar, colores útiles) y copia exactamente el texto importante que contiene.",
+  "memory.documents.folderSummary": "📁 «{name}»: {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "one": "{count} archivo añadido",
+    "other": "{count} archivos añadidos"
+  },
+  "memory.documents.folderUpdated": {
+    "one": "{count} archivo actualizado",
+    "other": "{count} archivos actualizados"
+  },
+  "memory.documents.folderUnchanged": {
+    "one": "{count} archivo ya al día",
+    "other": "{count} archivos ya al día"
+  },
+  "memory.documents.folderRemoved": {
+    "one": "{count} archivo quitado",
+    "other": "{count} archivos quitados"
+  },
+  "memory.documents.folderFailed": {
+    "one": "{count} archivo con error ({names})",
+    "other": "{count} archivos con error ({names})"
+  },
+  "memory.documents.folderEmpty": "📁 No hay archivos que guardar en la memoria en «{name}»",
+  "memory.documents.folderTooBig": "📁 «{name}» contiene más de {max} archivos para guardar en la memoria: suelta mejor sus subcarpetas, una a una.",
   "agents.workflowSaved": "💾 Flujo de trabajo guardado",
   "agents.workflowExported": "📤 Flujo de trabajo exportado",
   "voice.inputUnavailable": "Entrada de voz no disponible: instala 'faster-whisper' y 'sounddevice'.",

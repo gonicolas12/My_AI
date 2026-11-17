@@ -134,136 +134,16 @@ class ContextManagementMixin:
     def add_file_to_context(self, file_path: str) -> Dict[str, Any]:
         """Ajoute un fichier au contexte en utilisant les processeurs avancés"""
         try:
-            file_name = os.path.basename(file_path)
-            file_ext = os.path.splitext(file_path)[1].lower()
-
-            # Traitement selon le type de fichier
-            content = ""
-            processor_used = "basic"
-
-            if file_ext == ".pdf" and self.pdf_processor:
-                try:
-                    result = self.pdf_processor.read_pdf(file_path)
-                    if result.get("error"):
-                        print(f"⚠️ Erreur PDF: {result['error']}")
-                        content = ""
-                    elif result.get("success"):
-                        # Structure: result["content"]["text"]
-                        content_data = result.get("content", {})
-                        content = content_data.get("text", "")
-                        pages = content_data.get("page_count", 0)
-                        processor_used = "PDF"
-                        print(
-                            f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères"
-                        )
-                    else:
-                        # Structure: result["text"] (fallback)
-                        content = result.get("text", "")
-                        pages = result.get("page_count", 0)
-                        processor_used = "PDF"
-                        print(
-                            f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères"
-                        )
-                except (OSError, ValueError) as e:
-                    print(f"⚠️ Erreur processeur PDF: {e}")
-                    # Fallback vers lecture basique
-                    try:
-                        with open(file_path, "rb") as f:
-                            content = f.read().decode("utf-8", errors="ignore")
-                    except (OSError, UnicodeDecodeError):
-                        content = ""
-
-            elif file_ext in [".docx", ".doc"] and self.docx_processor:
-                try:
-                    result = self.docx_processor.read_docx(file_path)
-                    content_data = result.get("content", {}) if result.get("success") else {}
-                    content = content_data.get("text", "") if isinstance(content_data, dict) else ""
-                    processor_used = "DOCX"
-                    para_count = len(content_data.get("paragraphs", [])) if isinstance(content_data, dict) else 0
-                    print(
-                        f"📄 [DOCX] Traitement DOCX: {para_count} paragraphes"
-                    )
-                except (OSError, ValueError) as e:
-                    print(f"⚠️ Erreur processeur DOCX: {e}")
-                    # Fallback vers lecture basique
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-
-            elif file_ext in [".pptx", ".potx"] and getattr(self, "pptx_processor", None):
-                try:
-                    result = self.pptx_processor.read_pptx(file_path)
-                    content_data = result.get("content", {}) if result.get("success") else {}
-                    content = content_data.get("text", "") if isinstance(content_data, dict) else ""
-                    processor_used = "PPTX"
-                    slide_count = len(content_data.get("slides", [])) if isinstance(content_data, dict) else 0
-                    print(f"📽️ [PPTX] Traitement PPTX: {slide_count} diapositives")
-                except (OSError, ValueError) as e:
-                    print(f"⚠️ Erreur processeur PPTX: {e}")
-                    content = ""
-
-            elif file_ext in [".xlsx", ".xls", ".csv"]:
-                try:
-                    excel_proc = ExcelProcessor()
-                    result = excel_proc.read_excel(file_path)
-                    if result.get("success"):
-                        content = result.get("content", "")
-                        processor_used = "Excel/CSV"
-                        sheets = result.get("sheet_names", [])
-                        total_rows = result.get("total_rows", 0)
-                        print(
-                            f"📊 [EXCEL] Traitement {file_ext.upper()}: "
-                            f"{len(sheets)} feuille(s), {total_rows} lignes"
-                        )
-                    else:
-                        raise ValueError(result.get("error", "Erreur Excel"))
-                except (ImportError, ValueError, OSError) as e:
-                    print(f"⚠️ Erreur processeur Excel: {e}")
-                    content = ""
-
-            elif (
-                file_ext in [
-                    ".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
-                    ".html", ".htm", ".css", ".scss", ".sass", ".less",
-                    ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-                    ".sh", ".bash", ".bat", ".cmd", ".ps1",
-                    ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".kt",
-                    ".go", ".rs", ".rb", ".php", ".lua", ".sql",
-                    ".vue", ".svelte", ".dart", ".swift",
-                    ".md", ".rst", ".txt", ".log",
-                ]
-                and self.code_processor
-            ):
-                try:
-                    result = self.code_processor.analyze_code(file_path)
-                    content = result.get("content", "")
-                    processor_used = "Code"
-                    print(
-                        f"📄 [CODE] Traitement code: {result.get('language', 'unknown')}"
-                    )
-                except (OSError, ValueError) as e:
-                    print(f"⚠️ Erreur processeur Code: {e}")
-                    # Fallback vers lecture basique
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-            else:
-                # Lecture basique
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    processor_used = "basic"
-                except UnicodeDecodeError:
-                    with open(file_path, "r", encoding="latin-1") as f:
-                        content = f.read()
-                    processor_used = "basic-latin1"
-
+            read = self.read_file_for_context(file_path)
+            content = read["content"]
             if not content:
                 return {"success": False, "message": "Contenu vide après traitement"}
 
             # Ajouter au contexte
-            result = self.add_document_to_context(content, file_name)
+            result = self.add_document_to_context(content, os.path.basename(file_path))
             result.update(
                 {
-                    "processor_used": processor_used,
+                    "processor_used": read["processor_used"],
                     "analysis_info": f"Pages: N/A, Caractères: {len(content)}",
                 }
             )
@@ -275,6 +155,144 @@ class ContextManagementMixin:
                 "success": False,
                 "message": f"Erreur lors du traitement du fichier: {str(e)}",
             }
+
+    def read_file_for_context(self, file_path: str) -> Dict[str, Any]:
+        """
+        Texte d'un fichier, lu par les processeurs avancés (PDF, DOCX, PPTX,
+        Excel, code), sans rien ajouter au contexte
+
+        C'est le texte rangé dans la mémoire pour une pièce jointe du chat : la
+        fenêtre Mémoire (bouton Ajouter) le lit de la même façon, pour qu'un
+        même fichier ne soit jamais rangé deux fois.
+
+        Returns:
+            {"content": texte ("" si rien n'a pu être lu), "processor_used": processeur}
+
+        Raises:
+            OSError, UnicodeDecodeError: fichier illisible
+        """
+        file_ext = os.path.splitext(file_path)[1].lower()
+
+        # Traitement selon le type de fichier
+        content = ""
+        processor_used = "basic"
+
+        if file_ext == ".pdf" and self.pdf_processor:
+            try:
+                result = self.pdf_processor.read_pdf(file_path)
+                if result.get("error"):
+                    print(f"⚠️ Erreur PDF: {result['error']}")
+                    content = ""
+                elif result.get("success"):
+                    # Structure: result["content"]["text"]
+                    content_data = result.get("content", {})
+                    content = content_data.get("text", "")
+                    pages = content_data.get("page_count", 0)
+                    processor_used = "PDF"
+                    print(
+                        f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères"
+                    )
+                else:
+                    # Structure: result["text"] (fallback)
+                    content = result.get("text", "")
+                    pages = result.get("page_count", 0)
+                    processor_used = "PDF"
+                    print(
+                        f"📄 [PDF] Traitement PDF: {pages} pages, {len(content)} caractères"
+                    )
+            except (OSError, ValueError) as e:
+                print(f"⚠️ Erreur processeur PDF: {e}")
+                # Fallback vers lecture basique
+                try:
+                    with open(file_path, "rb") as f:
+                        content = f.read().decode("utf-8", errors="ignore")
+                except (OSError, UnicodeDecodeError):
+                    content = ""
+
+        elif file_ext in [".docx", ".doc"] and self.docx_processor:
+            try:
+                result = self.docx_processor.read_docx(file_path)
+                content_data = result.get("content", {}) if result.get("success") else {}
+                content = content_data.get("text", "") if isinstance(content_data, dict) else ""
+                processor_used = "DOCX"
+                para_count = len(content_data.get("paragraphs", [])) if isinstance(content_data, dict) else 0
+                print(
+                    f"📄 [DOCX] Traitement DOCX: {para_count} paragraphes"
+                )
+            except (OSError, ValueError) as e:
+                print(f"⚠️ Erreur processeur DOCX: {e}")
+                # Fallback vers lecture basique
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+        elif file_ext in [".pptx", ".potx"] and getattr(self, "pptx_processor", None):
+            try:
+                result = self.pptx_processor.read_pptx(file_path)
+                content_data = result.get("content", {}) if result.get("success") else {}
+                content = content_data.get("text", "") if isinstance(content_data, dict) else ""
+                processor_used = "PPTX"
+                slide_count = len(content_data.get("slides", [])) if isinstance(content_data, dict) else 0
+                print(f"📽️ [PPTX] Traitement PPTX: {slide_count} diapositives")
+            except (OSError, ValueError) as e:
+                print(f"⚠️ Erreur processeur PPTX: {e}")
+                content = ""
+
+        elif file_ext in [".xlsx", ".xls", ".csv"]:
+            try:
+                excel_proc = ExcelProcessor()
+                result = excel_proc.read_excel(file_path)
+                if result.get("success"):
+                    content = result.get("content", "")
+                    processor_used = "Excel/CSV"
+                    sheets = result.get("sheet_names", [])
+                    total_rows = result.get("total_rows", 0)
+                    print(
+                        f"📊 [EXCEL] Traitement {file_ext.upper()}: "
+                        f"{len(sheets)} feuille(s), {total_rows} lignes"
+                    )
+                else:
+                    raise ValueError(result.get("error", "Erreur Excel"))
+            except (ImportError, ValueError, OSError) as e:
+                print(f"⚠️ Erreur processeur Excel: {e}")
+                content = ""
+
+        elif (
+            file_ext in [
+                ".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+                ".html", ".htm", ".css", ".scss", ".sass", ".less",
+                ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+                ".sh", ".bash", ".bat", ".cmd", ".ps1",
+                ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".kt",
+                ".go", ".rs", ".rb", ".php", ".lua", ".sql",
+                ".vue", ".svelte", ".dart", ".swift",
+                ".md", ".rst", ".txt", ".log",
+            ]
+            and self.code_processor
+        ):
+            try:
+                result = self.code_processor.analyze_code(file_path)
+                content = result.get("content", "")
+                processor_used = "Code"
+                print(
+                    f"📄 [CODE] Traitement code: {result.get('language', 'unknown')}"
+                )
+            except (OSError, ValueError) as e:
+                print(f"⚠️ Erreur processeur Code: {e}")
+                # Fallback vers lecture basique
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+        else:
+            # Lecture basique
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                processor_used = "basic"
+            except UnicodeDecodeError:
+                with open(file_path, "r", encoding="latin-1") as f:
+                    content = f.read()
+                processor_used = "basic-latin1"
+
+        return {"content": content, "processor_used": processor_used}
 
     def search_in_context(self, query: str) -> str:
         """

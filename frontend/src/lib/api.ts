@@ -15,6 +15,7 @@ import type {
   CodeState,
   ConversationSnapshot,
   EngineStatus,
+  MemoryJob,
   RelayStatus,
   ResourceMetrics,
   RunAttachment,
@@ -282,13 +283,71 @@ export interface MemoryItem {
   provenance: string;
 }
 
+/** Document de l'onglet Documents ; ses morceaux (chunks) restent internes */
+export interface MemoryDocument {
+  kind: 'document';
+  id: string;
+  /** Nom dans la mémoire : « dossier/chemin » pour un fichier d'un dossier déposé */
+  name: string;
+  /** Nom affiché : dans un dossier, le chemin du fichier dedans */
+  label: string;
+  folder: string | null;
+  /** Mise en mémoire de sa version actuelle (ISO) */
+  created: string;
+  /** Type de pièce jointe : PDF, Code, Image… */
+  type: string | null;
+  /** « manual » : ajouté à la main (bouton Ajouter, dépôt) */
+  source: string | null;
+}
+
+/** Dossier déposé sur l'onglet Documents, avec ses documents */
+export interface MemoryFolder {
+  kind: 'folder';
+  id: string;
+  /** Son identité : deux dossiers du même nom restent distincts */
+  key: string;
+  name: string;
+  files: number;
+  created: string;
+  source: string | null;
+  documents: MemoryDocument[];
+}
+
+export type MemoryGroup = MemoryDocument | MemoryFolder;
+
 export interface MemoryPage {
-  items: MemoryItem[];
+  /** Faits, messages ; onglet Documents : documents et dossiers */
+  items: (MemoryItem | MemoryGroup)[];
   total: number;
   page: number;
   pages: number;
   stats: { facts: number; documents: number; conversations: number };
   categories: string[];
+  /** Documents ajoutés pas encore rangés */
+  jobs: MemoryJob[];
+}
+
+/** Fichiers (noms) et dossiers déjà en mémoire (POST /api/memory/documents/existing) */
+export interface ExistingItem {
+  /** Nom tel qu'envoyé (un chemin pour le dialogue du système) */
+  name: string;
+  /** Le plus récent du même nom : le document, ou le dossier, qu'il mettrait à jour */
+  target: string;
+  /** Sa date d'ajout (ISO) */
+  created: string;
+  /** Combien de documents, ou de dossiers, portent ce nom */
+  count: number;
+}
+
+export interface ExistingDocuments {
+  files: ExistingItem[];
+  folders: ExistingItem[];
+}
+
+/** Documents ajoutés (POST /api/memory/documents) ; un refus est aussi notifié */
+export interface AddedDocuments {
+  jobs: MemoryJob[];
+  refused: { name: string; message: string }[];
 }
 
 /** Prompt de la bibliothèque (prompts.py) */
@@ -587,6 +646,40 @@ export const api = {
     ),
   addFact: (category: string, text: string) =>
     post<{ id: number }>('/api/memory/facts', { category, text }),
+  /** Fichiers à mettre en mémoire, par leur chemin ; lus en arrière-plan (memory.jobs) */
+  /** targets : nom de fichier → document qu'il met à jour (« Mettre à jour ») */
+  addMemoryDocuments: (paths: string[], targets: Record<string, string> = {}) =>
+    post<AddedDocuments>('/api/memory/documents', { paths, targets }),
+  /** Fichier sans chemin (dépôt, navigateur) : son contenu part au serveur ; replace :
+   * le document qu'il met à jour */
+  uploadMemoryDocument: (file: Blob, name: string, replace?: string) => {
+    const form = new FormData();
+    form.append('file', file, name);
+    if (replace) form.append('replace', replace);
+    return post<AddedDocuments>('/api/memory/documents/upload', form);
+  },
+  /** Dossier déposé : ses fichiers et leur chemin dedans, rangés sous son nom */
+  uploadMemoryFolder: (folder: string, files: { file: File; path: string }[], target?: string) => {
+    const form = new FormData();
+    form.append('folder', folder);
+    if (target) form.append('target', target);
+    for (const { file, path } of files) {
+      form.append('paths', path);
+      form.append('files', file, file.name);
+    }
+    return post<AddedDocuments>('/api/memory/documents/folder', form);
+  },
+  /** Lesquels sont déjà en mémoire : la fenêtre demande s'il faut les mettre à jour */
+  existingMemoryDocuments: (names: string[], folders: string[]) =>
+    post<ExistingDocuments>('/api/memory/documents/existing', { names, folders }),
+  deleteMemoryDocument: (document: string) =>
+    request<{ ok: boolean }>(
+      'DELETE',
+      `/api/memory/documents?document=${encodeURIComponent(document)}`,
+    ),
+  /** Un dossier déposé, par sa clé : un autre dossier du même nom reste */
+  deleteMemoryFolder: (key: string) =>
+    request<{ ok: boolean }>('DELETE', `/api/memory/folders?folder=${encodeURIComponent(key)}`),
   updateMemory: (tab: MemoryTab, id: number | string, text: string) =>
     request<{ ok: boolean }>('PUT', `/api/memory/${tab}/${encodeURIComponent(String(id))}`, {
       text,

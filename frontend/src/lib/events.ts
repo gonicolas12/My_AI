@@ -261,6 +261,19 @@ export interface ResourceMetrics {
   tokens_per_sec: number;
 }
 
+/** Document ajouté à la Mémoire (bouton Ajouter, dépôt) : en attente, lu, décrit (image) */
+export interface MemoryJob {
+  id: string;
+  name: string;
+  state: 'queued' | 'reading' | 'describing';
+  /** Dossier déposé (un seul élément pour tous ses fichiers) : son nom */
+  folder?: string | null;
+  /** Ses fichiers restants */
+  files?: number | null;
+  /** Chemin, dans le dossier, du fichier qui se lit */
+  current?: string | null;
+}
+
 // ── Charges utiles des événements ─────────────────────────────────────────
 
 export interface EventPayloads {
@@ -278,6 +291,10 @@ export interface EventPayloads {
   'files.dropped': { paths: string[] };
   'folders.progress': { path: string; name: string; verb: string; done: number; total: number };
   'folders.changed': { path: string | null; ok: boolean };
+  /** Documents ajoutés à la Mémoire, pas encore rangés */
+  'memory.jobs': { jobs: MemoryJob[] };
+  /** Contenu d'un onglet de la Mémoire changé : le panneau ouvert le relit */
+  'memory.changed': { tab: 'facts' | 'document' | 'conversation' };
   'models.progress': { fraction: number; status: string };
   'models.log': { line: string };
   'models.done': {

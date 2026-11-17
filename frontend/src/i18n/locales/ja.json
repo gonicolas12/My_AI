@@ -345,7 +345,7 @@
     "other": "事実 {count} 件"
   },
   "memory.stats.documents": {
-    "other": "ドキュメントの断片 {count} 件"
+    "other": "ドキュメント {count} 件"
   },
   "memory.stats.conversations": {
     "other": "会話の記録 {count} 件"
@@ -373,6 +373,47 @@
   "memory.delete.atSourceNote": "（削除しない場合、次回の再インデックスで復活します）",
   "memory.add.title": "新しい事実",
   "memory.add.content": "内容",
+  "memory.documents.addHint": "ファイルを記憶に保存：PDF、Word、Excel、PowerPoint、コード、画像",
+  "memory.documents.drop": "ここにファイルやフォルダーをドロップすると記憶に保存されます",
+  "memory.documents.empty": "記憶にドキュメントはありません。チャットに添付したファイルは自動でここに入ります。「追加」か、ファイルやフォルダーをここにドロップすると、好きなファイルを保存できます（PDF、Word、Excel、PowerPoint、コード、画像）。",
+  "memory.documents.jobsLabel": "記憶に保存中のドキュメント",
+  "memory.documents.state.queued": "待機中",
+  "memory.documents.state.reading": "ファイルを読み込み中…",
+  "memory.documents.state.describing": "画像を説明中…",
+  "memory.documents.folderFiles": {
+    "other": "残り {count} ファイル"
+  },
+  "memory.documents.folderEmpty": "📁 「{name}」には記憶に保存できるファイルがありません",
+  "memory.documents.folderTooBig": "📁 「{name}」には記憶に保存するファイルが {max} 個を超えています。サブフォルダーを 1 つずつドロップしてください。",
+  "memory.documents.folderSkipped": {
+    "other": "📁 「{name}」：{count} 個のファイルをスキップしました（未対応の形式、またはサイズが大きすぎます）"
+  },
+  "memory.group.files": {
+    "other": "{count} ファイル"
+  },
+  "memory.group.byHand": "手動で追加",
+  "memory.group.filesLabel": "「{name}」のファイル",
+  "memory.group.deleteDocument": "ドキュメントを削除",
+  "memory.group.deleteFolder": "フォルダーを削除",
+  "memory.group.deleteNamed": "「{name}」を削除",
+  "memory.group.deleteFolderConfirm": {
+    "other": "このフォルダーとファイル {count} 個を完全に削除しますか？"
+  },
+  "memory.group.deleteDocumentConfirm": "このドキュメントを記憶から完全に削除しますか？",
+  "memory.update.title": "すでに記憶にあります",
+  "memory.update.files": {
+    "other": "同じ名前のファイルがすでに記憶にあります（{count} 個）。このバージョンで更新しますか、それとも両方残しますか？"
+  },
+  "memory.update.folders": {
+    "other": "同じ名前のフォルダーがすでに記憶にあります（{count} 個）。更新しますか、それとも両方残しますか？"
+  },
+  "memory.update.mixed": "同じ名前のファイルとフォルダーがすでに記憶にあります。このバージョンで更新しますか、それとも両方残しますか？",
+  "memory.update.newest": {
+    "other": "{count} 件中で最新"
+  },
+  "memory.update.folderNote": "フォルダーを更新すると、変更されたファイルは置き換えられ、新しいファイルは追加され、なくなったファイルは削除されます。",
+  "memory.update.yes": "更新する",
+  "memory.update.keep": "両方残す",
   "memory.noMatch": "この検索に一致する結果はありません。",
   "memory.nothing": "まだ何もありません。",
   "memory.page": "{page} / {pages} ページ",

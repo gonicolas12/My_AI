@@ -265,6 +265,7 @@
   "memory.provenance.you": "🧑 Sie",
   "memory.provenance.assistant": "🤖 Assistent",
   "memory.provenance.chunk": "Abschnitt {n}",
+  "memory.provenance.byHand": "von Hand hinzugefügt",
   "folders.noSession": "❌ Keine aktive Sitzung",
   "folders.error": "❌ Fehler: {error}",
   "folders.detached": "✅ Ordner entfernt",
@@ -296,6 +297,7 @@
   "launch.engineStarting": "Die Engine startet…",
   "dialog.allFiles": "Alle Dateien",
   "dialog.all": "Alle",
+  "dialog.supported": "Unterstützte Dateien",
   "dialog.pdf": "PDF-Dateien",
   "dialog.word": "Word-Dateien",
   "dialog.excelCsv": "Excel- und CSV-Dateien",
@@ -326,6 +328,39 @@
   "memory.factAdded": "✅ Fakt hinzugefügt",
   "memory.edited": "✅ Geändert",
   "memory.deleted": "🗑️ Gelöscht",
+  "memory.documents.notFound": "❌ Datei nicht gefunden: {name}",
+  "memory.documents.added": "📄 „{name}“ im Gedächtnis gespeichert",
+  "memory.documents.updated": "🔄 „{name}“ im Gedächtnis aktualisiert",
+  "memory.documents.already": "ℹ️ „{name}“ ist schon unverändert im Gedächtnis",
+  "memory.documents.failed": "❌ „{name}“ nicht im Gedächtnis gespeichert: {error}",
+  "memory.documents.imageEmpty": "nichts zu behalten: keine Beschreibung (Bildmodell nicht verfügbar) und kein lesbarer Text im Bild",
+  "memory.documents.imageDescription": "Bildbeschreibung:",
+  "memory.documents.imageText": "Im Bild gelesener Text:",
+  "memory.documents.visionPrompt": "Beschreibe dieses Bild so, dass es später in einem Gedächtnis wiedergefunden werden kann. Schreibe einen einzigen Absatz mit 3 bis 6 Sätzen, ohne Überschrift, ohne Liste, ohne Fettdruck, ohne Emoji und ohne Frage am Ende: Sag, was es zeigt (Motiv, Gegenstände, Personen, Ort, nützliche Farben), und übernimm den wichtigen Text darin wörtlich.",
+  "memory.documents.folderSummary": "📁 „{name}“: {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "one": "{count} Datei hinzugefügt",
+    "other": "{count} Dateien hinzugefügt"
+  },
+  "memory.documents.folderUpdated": {
+    "one": "{count} Datei aktualisiert",
+    "other": "{count} Dateien aktualisiert"
+  },
+  "memory.documents.folderUnchanged": {
+    "one": "{count} Datei schon aktuell",
+    "other": "{count} Dateien schon aktuell"
+  },
+  "memory.documents.folderRemoved": {
+    "one": "{count} Datei entfernt",
+    "other": "{count} Dateien entfernt"
+  },
+  "memory.documents.folderFailed": {
+    "one": "{count} Datei fehlgeschlagen ({names})",
+    "other": "{count} Dateien fehlgeschlagen ({names})"
+  },
+  "memory.documents.folderEmpty": "📁 Keine Dateien in „{name}“, die sich im Gedächtnis speichern lassen",
+  "memory.documents.folderTooBig": "📁 „{name}“ enthält mehr als {max} Dateien zum Speichern: Legen Sie stattdessen seine Unterordner einzeln ab.",
   "agents.workflowSaved": "💾 Workflow gespeichert",
   "agents.workflowExported": "📤 Workflow exportiert",
   "voice.inputUnavailable": "Spracheingabe nicht verfügbar: Installieren Sie 'faster-whisper' und 'sounddevice'.",

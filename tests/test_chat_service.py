@@ -727,6 +727,28 @@ def test_image_attachment_goes_to_the_vision_model(chat):
     assert user["text"] == "Que vois-tu ?\n🖼️ schema.png" and user["image_path"] == str(image)
 
 
+def test_images_sent_are_reported_once_the_answer_is_over(chat):
+    """Mémoire des documents : les images du message lui sont signalées après la
+    réponse, chat libre ; un message sans image ne signale rien."""
+    from PIL import Image  # pylint: disable=import-outside-toplevel
+
+    reported = []
+    chat.service._on_images_sent = (  # pylint: disable=protected-access
+        lambda paths: reported.append((paths, chat.service.busy)))
+    image = chat.tmp_path / "tableau.png"
+    Image.new("RGB", (32, 32), (10, 20, 30)).save(image)
+    chat.service.add_attachment(str(image))
+    ask(chat, "Que vois-tu ?")
+    deadline = time.time() + 5
+    while not reported and time.time() < deadline:
+        time.sleep(0.01)
+    assert reported == [([str(image)], False)]
+
+    ask(chat, "Et sans image ?")
+    time.sleep(0.1)
+    assert len(reported) == 1
+
+
 def test_a_new_image_replaces_the_pending_one(chat):
     from PIL import Image  # pylint: disable=import-outside-toplevel
 

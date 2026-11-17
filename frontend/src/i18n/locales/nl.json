@@ -351,8 +351,8 @@
     "other": "{count} feiten"
   },
   "memory.stats.documents": {
-    "one": "{count} documentfragment",
-    "other": "{count} documentfragmenten"
+    "one": "{count} document",
+    "other": "{count} documenten"
   },
   "memory.stats.conversations": {
     "one": "{count} gespreksitem",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(anders komt het terug bij de volgende herindexering)",
   "memory.add.title": "Nieuw feit",
   "memory.add.content": "Inhoud",
+  "memory.documents.addHint": "Bestanden in het geheugen opslaan: pdf, Word, Excel, PowerPoint, code, afbeelding",
+  "memory.documents.drop": "Zet je bestanden of mappen hier neer om ze in het geheugen op te slaan",
+  "memory.documents.empty": "Geen documenten in het geheugen. Bestanden die je in de chat bijvoegt, komen hier vanzelf terecht; ‘Toevoegen’, of bestanden en mappen hier neerzetten, slaat de bestanden van je keuze op (pdf, Word, Excel, PowerPoint, code, afbeelding).",
+  "memory.documents.jobsLabel": "Documenten die worden opgeslagen",
+  "memory.documents.state.queued": "wacht",
+  "memory.documents.state.reading": "bestand wordt gelezen…",
+  "memory.documents.state.describing": "afbeelding wordt beschreven…",
+  "memory.documents.folderFiles": {
+    "one": "nog {count} bestand",
+    "other": "nog {count} bestanden"
+  },
+  "memory.documents.folderEmpty": "📁 Geen bestanden in ‘{name}’ om in het geheugen op te slaan",
+  "memory.documents.folderTooBig": "📁 ‘{name}’ bevat meer dan {max} bestanden om op te slaan: zet liever de submappen één voor één neer.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 ‘{name}’: {count} bestand overgeslagen (niet-ondersteund formaat of te groot)",
+    "other": "📁 ‘{name}’: {count} bestanden overgeslagen (niet-ondersteund formaat of te groot)"
+  },
+  "memory.group.files": {
+    "one": "{count} bestand",
+    "other": "{count} bestanden"
+  },
+  "memory.group.byHand": "handmatig toegevoegd",
+  "memory.group.filesLabel": "Bestanden in ‘{name}’",
+  "memory.group.deleteDocument": "Document verwijderen",
+  "memory.group.deleteFolder": "Map verwijderen",
+  "memory.group.deleteNamed": "‘{name}’ verwijderen",
+  "memory.group.deleteFolderConfirm": {
+    "one": "Deze map en het bestand erin definitief verwijderen?",
+    "other": "Deze map en de {count} bestanden erin definitief verwijderen?"
+  },
+  "memory.group.deleteDocumentConfirm": "Dit document definitief uit het geheugen verwijderen?",
+  "memory.update.title": "Al in het geheugen",
+  "memory.update.files": {
+    "one": "Er staat al een bestand met dezelfde naam in het geheugen. Bijwerken met deze versie of beide houden?",
+    "other": "{count} bestanden hebben een naam die al in het geheugen staat. Bijwerken met deze versies of beide houden?"
+  },
+  "memory.update.folders": {
+    "one": "Er staat al een map met dezelfde naam in het geheugen. Bijwerken of beide houden?",
+    "other": "{count} mappen hebben een naam die al in het geheugen staat. Bijwerken of beide houden?"
+  },
+  "memory.update.mixed": "Er staan al bestanden en mappen met dezelfde namen in het geheugen. Bijwerken met deze versies of beide houden?",
+  "memory.update.newest": {
+    "one": "de nieuwste van {count}",
+    "other": "de nieuwste van {count}"
+  },
+  "memory.update.folderNote": "Een map bijwerken vervangt gewijzigde bestanden, voegt nieuwe toe en verwijdert bestanden die er niet meer in staan.",
+  "memory.update.yes": "Bijwerken",
+  "memory.update.keep": "Beide houden",
   "memory.noMatch": "Geen resultaten voor deze zoekopdracht.",
   "memory.nothing": "Hier staat nog niets.",
   "memory.page": "Pagina {page} / {pages}",

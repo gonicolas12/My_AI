@@ -22,7 +22,7 @@ from core import i18n
 from interfaces.desktop import window as desktop_window
 from interfaces.desktop.devserver import ViteServer
 from interfaces.desktop.lifecycle import UI_DEFAULTS, DesktopApp, DesktopState
-from interfaces.desktop.shell_api import (ATTACH_KINDS, ShellApi, attach_filters,
+from interfaces.desktop.shell_api import (ALL_KINDS, ATTACH_KINDS, ShellApi, attach_filters,
                                           export_filters, external_url, open_external,
                                           workflow_filters)
 from interfaces.desktop.window import (WindowGeometry, app_origins, colorref,
@@ -252,7 +252,7 @@ def test_dialog_filters_follow_the_pywebview_format():
     util = pytest.importorskip("webview.util")
     for language in i18n.SUPPORTED_LANGUAGES:
         i18n.set_language(language)
-        filters = [f for kind in ATTACH_KINDS for f in attach_filters(kind)[0]]
+        filters = [f for kind in (*ATTACH_KINDS, ALL_KINDS) for f in attach_filters(kind)[0]]
         filters += [f for fmt in ("markdown", "html", "pdf", "json") for f in export_filters(fmt)]
         filters += list(workflow_filters())
         for file_type in filters:

@@ -351,8 +351,8 @@
     "other": "{count} fatos"
   },
   "memory.stats.documents": {
-    "one": "{count} trecho de documento",
-    "other": "{count} trechos de documentos"
+    "one": "{count} documento",
+    "other": "{count} documentos"
   },
   "memory.stats.conversations": {
     "one": "{count} entrada de conversa",
@@ -381,6 +381,54 @@
   "memory.delete.atSourceNote": "(caso contrário, ele volta na próxima reindexação)",
   "memory.add.title": "Novo fato",
   "memory.add.content": "Conteúdo",
+  "memory.documents.addHint": "Guardar arquivos na memória: PDF, Word, Excel, PowerPoint, código, imagem",
+  "memory.documents.drop": "Solte seus arquivos ou pastas aqui para guardá-los na memória",
+  "memory.documents.empty": "Nenhum documento na memória. Os arquivos anexados no chat chegam aqui sozinhos; “Adicionar”, ou soltar aqui arquivos ou pastas, guarda os que você escolher (PDF, Word, Excel, PowerPoint, código, imagem).",
+  "memory.documents.jobsLabel": "Documentos sendo guardados na memória",
+  "memory.documents.state.queued": "na fila",
+  "memory.documents.state.reading": "lendo o arquivo…",
+  "memory.documents.state.describing": "descrevendo a imagem…",
+  "memory.documents.folderFiles": {
+    "one": "falta {count} arquivo",
+    "other": "faltam {count} arquivos"
+  },
+  "memory.documents.folderEmpty": "📁 Nenhum arquivo para guardar na memória em “{name}”",
+  "memory.documents.folderTooBig": "📁 “{name}” contém mais de {max} arquivos para guardar na memória: solte as subpastas, uma de cada vez.",
+  "memory.documents.folderSkipped": {
+    "one": "📁 “{name}”: {count} arquivo ignorado (formato não compatível ou grande demais)",
+    "other": "📁 “{name}”: {count} arquivos ignorados (formato não compatível ou grandes demais)"
+  },
+  "memory.group.files": {
+    "one": "{count} arquivo",
+    "other": "{count} arquivos"
+  },
+  "memory.group.byHand": "adicionado manualmente",
+  "memory.group.filesLabel": "Arquivos de “{name}”",
+  "memory.group.deleteDocument": "Excluir o documento",
+  "memory.group.deleteFolder": "Excluir a pasta",
+  "memory.group.deleteNamed": "Excluir “{name}”",
+  "memory.group.deleteFolderConfirm": {
+    "one": "Excluir permanentemente esta pasta e o seu arquivo?",
+    "other": "Excluir permanentemente esta pasta e os seus {count} arquivos?"
+  },
+  "memory.group.deleteDocumentConfirm": "Excluir permanentemente este documento da memória?",
+  "memory.update.title": "Já na memória",
+  "memory.update.files": {
+    "one": "Já há um arquivo com o mesmo nome na memória. Atualizá-lo com esta versão ou manter os dois?",
+    "other": "{count} arquivos têm um nome que já está na memória. Atualizá-los com estas versões ou manter os dois?"
+  },
+  "memory.update.folders": {
+    "one": "Já há uma pasta com o mesmo nome na memória. Atualizá-la ou manter as duas?",
+    "other": "{count} pastas têm um nome que já está na memória. Atualizá-las ou manter as duas?"
+  },
+  "memory.update.mixed": "Já há arquivos e pastas com os mesmos nomes na memória. Atualizá-los com estas versões ou manter os dois?",
+  "memory.update.newest": {
+    "one": "o mais recente de {count}",
+    "other": "o mais recente de {count}"
+  },
+  "memory.update.folderNote": "Atualizar uma pasta substitui os arquivos modificados, adiciona os novos e remove os que ela não contém mais.",
+  "memory.update.yes": "Atualizar",
+  "memory.update.keep": "Manter os dois",
   "memory.noMatch": "Nenhum resultado para esta pesquisa.",
   "memory.nothing": "Ainda não há nada aqui.",
   "memory.page": "Página {page} / {pages}",

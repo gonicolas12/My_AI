@@ -265,6 +265,7 @@
   "memory.provenance.you": "🧑 jij",
   "memory.provenance.assistant": "🤖 assistent",
   "memory.provenance.chunk": "fragment {n}",
+  "memory.provenance.byHand": "handmatig toegevoegd",
   "folders.noSession": "❌ Geen actieve sessie",
   "folders.error": "❌ Fout: {error}",
   "folders.detached": "✅ Map losgekoppeld",
@@ -296,6 +297,7 @@
   "launch.engineStarting": "De engine start op…",
   "dialog.allFiles": "Alle bestanden",
   "dialog.all": "Alle",
+  "dialog.supported": "Ondersteunde bestanden",
   "dialog.pdf": "PDF-bestanden",
   "dialog.word": "Word-bestanden",
   "dialog.excelCsv": "Excel- en CSV-bestanden",
@@ -326,6 +328,39 @@
   "memory.factAdded": "✅ Feit toegevoegd",
   "memory.edited": "✅ Gewijzigd",
   "memory.deleted": "🗑️ Verwijderd",
+  "memory.documents.notFound": "❌ Bestand niet gevonden: {name}",
+  "memory.documents.added": "📄 ‘{name}’ in het geheugen opgeslagen",
+  "memory.documents.updated": "🔄 ‘{name}’ bijgewerkt in het geheugen",
+  "memory.documents.already": "ℹ️ ‘{name}’ staat al ongewijzigd in het geheugen",
+  "memory.documents.failed": "❌ ‘{name}’ niet in het geheugen opgeslagen: {error}",
+  "memory.documents.imageEmpty": "niets om te bewaren: geen beschrijving (beeldmodel niet beschikbaar) en geen leesbare tekst in de afbeelding",
+  "memory.documents.imageDescription": "Beschrijving van de afbeelding:",
+  "memory.documents.imageText": "In de afbeelding gelezen tekst:",
+  "memory.documents.visionPrompt": "Beschrijf deze afbeelding zodat ze later in een geheugen terug te vinden is. Schrijf één alinea van 3 tot 6 zinnen, zonder titel, lijst, vetgedrukte tekst, emoji of vraag aan het einde: zeg wat ze toont (onderwerp, voorwerpen, personen, plaats, nuttige kleuren) en neem de belangrijke tekst erin letterlijk over.",
+  "memory.documents.folderSummary": "📁 ‘{name}’: {parts}.",
+  "memory.documents.listSeparator": ", ",
+  "memory.documents.folderAdded": {
+    "one": "{count} bestand toegevoegd",
+    "other": "{count} bestanden toegevoegd"
+  },
+  "memory.documents.folderUpdated": {
+    "one": "{count} bestand bijgewerkt",
+    "other": "{count} bestanden bijgewerkt"
+  },
+  "memory.documents.folderUnchanged": {
+    "one": "{count} bestand al bijgewerkt",
+    "other": "{count} bestanden al bijgewerkt"
+  },
+  "memory.documents.folderRemoved": {
+    "one": "{count} bestand verwijderd",
+    "other": "{count} bestanden verwijderd"
+  },
+  "memory.documents.folderFailed": {
+    "one": "{count} bestand mislukt ({names})",
+    "other": "{count} bestanden mislukt ({names})"
+  },
+  "memory.documents.folderEmpty": "📁 Geen bestanden in ‘{name}’ om in het geheugen op te slaan",
+  "memory.documents.folderTooBig": "📁 ‘{name}’ bevat meer dan {max} bestanden om op te slaan: zet liever de submappen één voor één neer.",
   "agents.workflowSaved": "💾 Workflow opgeslagen",
   "agents.workflowExported": "📤 Workflow geëxporteerd",
   "voice.inputUnavailable": "Spraakinvoer niet beschikbaar: installeer 'faster-whisper' en 'sounddevice'.",

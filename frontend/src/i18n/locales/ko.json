@@ -345,7 +345,7 @@
     "other": "사실 {count}개"
   },
   "memory.stats.documents": {
-    "other": "문서 조각 {count}개"
+    "other": "문서 {count}개"
   },
   "memory.stats.conversations": {
     "other": "대화 항목 {count}개"
@@ -373,6 +373,47 @@
   "memory.delete.atSourceNote": "(그렇지 않으면 다음 다시 색인 때 되돌아옵니다)",
   "memory.add.title": "새 사실",
   "memory.add.content": "내용",
+  "memory.documents.addHint": "파일을 메모리에 저장: PDF, Word, Excel, PowerPoint, 코드, 이미지",
+  "memory.documents.drop": "파일이나 폴더를 여기에 놓으면 메모리에 저장됩니다",
+  "memory.documents.empty": "메모리에 문서가 없습니다. 채팅에 첨부한 파일은 자동으로 여기에 들어오고, ‘추가’ 또는 파일이나 폴더를 여기에 놓아 원하는 파일을 저장할 수 있습니다(PDF, Word, Excel, PowerPoint, 코드, 이미지).",
+  "memory.documents.jobsLabel": "메모리에 저장 중인 문서",
+  "memory.documents.state.queued": "대기 중",
+  "memory.documents.state.reading": "파일을 읽는 중…",
+  "memory.documents.state.describing": "이미지를 설명하는 중…",
+  "memory.documents.folderFiles": {
+    "other": "남은 파일 {count}개"
+  },
+  "memory.documents.folderEmpty": "📁 “{name}”에 메모리에 저장할 수 있는 파일이 없습니다",
+  "memory.documents.folderTooBig": "📁 “{name}”에는 메모리에 저장할 파일이 {max}개를 넘습니다. 하위 폴더를 하나씩 놓으세요.",
+  "memory.documents.folderSkipped": {
+    "other": "📁 “{name}”: 파일 {count}개를 건너뛰었습니다(지원하지 않는 형식이거나 너무 큼)"
+  },
+  "memory.group.files": {
+    "other": "파일 {count}개"
+  },
+  "memory.group.byHand": "직접 추가함",
+  "memory.group.filesLabel": "“{name}”의 파일",
+  "memory.group.deleteDocument": "문서 삭제",
+  "memory.group.deleteFolder": "폴더 삭제",
+  "memory.group.deleteNamed": "“{name}” 삭제",
+  "memory.group.deleteFolderConfirm": {
+    "other": "이 폴더와 파일 {count}개를 영구적으로 삭제할까요?"
+  },
+  "memory.group.deleteDocumentConfirm": "이 문서를 메모리에서 영구적으로 삭제할까요?",
+  "memory.update.title": "이미 메모리에 있음",
+  "memory.update.files": {
+    "other": "같은 이름의 파일이 이미 메모리에 있습니다({count}개). 이 버전으로 업데이트할까요, 아니면 둘 다 보관할까요?"
+  },
+  "memory.update.folders": {
+    "other": "같은 이름의 폴더가 이미 메모리에 있습니다({count}개). 업데이트할까요, 아니면 둘 다 보관할까요?"
+  },
+  "memory.update.mixed": "같은 이름의 파일과 폴더가 이미 메모리에 있습니다. 이 버전으로 업데이트할까요, 아니면 둘 다 보관할까요?",
+  "memory.update.newest": {
+    "other": "{count}개 중 최신"
+  },
+  "memory.update.folderNote": "폴더를 업데이트하면 변경된 파일은 교체되고, 새 파일은 추가되며, 더 이상 없는 파일은 제거됩니다.",
+  "memory.update.yes": "업데이트",
+  "memory.update.keep": "둘 다 보관",
   "memory.noMatch": "이 검색과 일치하는 결과가 없습니다.",
   "memory.nothing": "아직 아무것도 없습니다.",
   "memory.page": "{page} / {pages} 페이지",

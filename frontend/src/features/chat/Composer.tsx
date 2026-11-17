@@ -21,6 +21,7 @@ import { useApp } from '../../stores/app';
 import { useChat } from '../../stores/chat';
 import { isGenerating } from '../../stores/chatReducer';
 import { setDraft, useComposer } from '../../stores/composer';
+import { usePanels } from '../../stores/panels';
 import { attachProjectFolder } from '../shell/sidebar/folderActions';
 import { CLIPBOARD_IMAGE, clipboardFiles, uploadFiles } from './attach';
 import { AttachmentChips } from './AttachmentChips';
@@ -41,7 +42,10 @@ interface ComposerProps {
 export function Composer({ variant }: ComposerProps) {
   const t = useT();
   const draft = useComposer((state) => state.draft);
-  const dropping = useComposer((state) => state.dropping);
+  const draggedOver = useComposer((state) => state.dropping);
+  // Sous un panneau ouvert (Mémoire…), la carte ne reçoit pas les fichiers : elle reste éteinte
+  const panelOpen = usePanels((state) => state.open !== null);
+  const dropping = draggedOver && !panelOpen;
   const generating = useChat(isGenerating);
   const ready = useApp((state) => state.status?.state === 'ready');
   const textarea = useRef<HTMLTextAreaElement>(null);

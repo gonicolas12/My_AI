@@ -568,6 +568,7 @@ class VectorMemory:
         content: str,
         document_name: str = "",
         metadata: Optional[Dict[str, Any]] = None,
+        document_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Ajoute un document à la mémoire vectorielle
@@ -576,19 +577,48 @@ class VectorMemory:
             content: Contenu du document
             document_name: Nom du document
             metadata: Métadonnées additionnelles
+            document_id: Identifiant imposé (une image : l'empreinte du fichier,
+                sa description changeant d'une fois à l'autre) ; sinon nom + contenu
 
         Returns:
             Informations sur l'ajout
         """
         try:
             # Générer ID unique
-            doc_id = self._generate_document_id(content, document_name)
+            doc_id = document_id or self._generate_document_id(content, document_name)
 
-            # Vérifier doublon
-            if doc_id in self.documents:
+            # Vérifier doublon : ajouté pendant cette session, ou déjà dans
+            # ChromaDB (session précédente, autre instance : bouton Ajouter
+            # de la Mémoire, pièce jointe du chat)
+            stored = self._stored_chunk_ids(doc_id)
+            known = self.documents.get(doc_id)
+            if known is not None and (stored or not self._persists_chunks()):
                 return {
                     "document_id": doc_id,
                     "status": "duplicate",
+                    "chunks_created": 0,
+                    "tokens_added": 0,
+                }
+            if known is not None:
+                # Ses morceaux ont été supprimés depuis (fenêtre Mémoire) : rangé à nouveau
+                self.documents.pop(doc_id)
+                self.current_tokens = max(0, self.current_tokens - known.get("total_tokens", 0))
+            elif stored:
+                # Rangé avant cette session : rien à recopier ni à recalculer, et
+                # le retirer de la session (pièce jointe retirée) ne l'efface pas
+                self.documents[doc_id] = {
+                    "name": document_name or f"Document_{len(self.documents)}",
+                    "chunks": stored,
+                    "total_tokens": 0,
+                    "created": datetime.now().isoformat(),
+                    "stored_before": True,
+                }
+                self.stats["documents_added"] += 1
+                return {
+                    "document_id": doc_id,
+                    "document_name": document_name,
+                    "status": "duplicate",
+                    "already_stored": True,
                     "chunks_created": 0,
                     "tokens_added": 0,
                 }
@@ -616,6 +646,7 @@ class VectorMemory:
 
             # Générer embeddings (un seul calcul pour tous les morceaux) et stocker
             chunk_ids = []
+            stored_chunks = 0  # dans ChromaDB : aucun sans modèle d'embeddings
             embeddings_list = self._embed_documents(chunks) if self.embedding_model else []
 
             for i, chunk_text in enumerate(chunks):
@@ -650,6 +681,7 @@ class VectorMemory:
                         documents=[stored_text],
                         metadatas=[chunk_metadata],
                     )
+                    stored_chunks += 1
 
                 chunk_ids.append(chunk_id)
                 self.current_tokens += chunk_tokens
@@ -673,6 +705,7 @@ class VectorMemory:
                 "document_id": doc_id,
                 "document_name": document_name,
                 "chunks_created": len(chunks),
+                "chunks_stored": stored_chunks,
                 "tokens_added": total_tokens,
                 "status": "success",
             }
@@ -892,6 +925,108 @@ class VectorMemory:
             )
         return entries
 
+    def list_metadatas(self, collection_type: str = "document") -> List[Dict[str, Any]]:
+        """Identifiants et métadonnées de toutes les entrées, sans leur texte.
+
+        Dans l'ordre de la base (ordre d'ajout) : de quoi classer une page
+        sans lire tout le texte de la collection.
+
+        Returns:
+            Liste de dicts {"id", "metadata"}.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection:
+            return []
+        try:
+            data = collection.get(include=["metadatas"])
+        except Exception as e:
+            print(f"⚠️ Erreur list_metadatas: {e}")
+            return []
+        metas = data.get("metadatas") or []
+        return [
+            {"id": entry_id, "metadata": (metas[i] if i < len(metas) else None) or {}}
+            for i, entry_id in enumerate(data.get("ids") or [])
+        ]
+
+    def get_entries(
+        self, entry_ids: List[str], collection_type: str = "document"
+    ) -> List[Dict[str, Any]]:
+        """Entrées demandées, dans l'ordre demandé (déchiffrées si nécessaire).
+
+        Une entrée introuvable est absente du résultat.
+
+        Returns:
+            Liste de dicts {"id", "content", "metadata"}.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection or not entry_ids:
+            return []
+        try:
+            data = collection.get(ids=list(entry_ids), include=["documents", "metadatas"])
+        except Exception as e:
+            print(f"⚠️ Erreur get_entries: {e}")
+            return []
+        found = {entry["id"]: entry for entry in self._decrypted_entries(data)}
+        return [found[entry_id] for entry_id in entry_ids if entry_id in found]
+
+    def document_chunks(self, document_id: str) -> List[str]:
+        """Texte des morceaux d'un document, dans l'ordre du texte (déchiffré)."""
+        if not self.document_collection or not document_id:
+            return []
+        try:
+            data = self.document_collection.get(
+                where={"document_id": document_id}, include=["documents", "metadatas"]
+            )
+        except Exception as e:
+            print(f"⚠️ Erreur document_chunks: {e}")
+            return []
+        entries = self._decrypted_entries(data)
+
+        def position(entry: Dict[str, Any]) -> int:
+            try:
+                return int(entry["metadata"].get("chunk_index", 0))
+            except (TypeError, ValueError):
+                return 0
+
+        return [entry["content"] for entry in sorted(entries, key=position)]
+
+    def _decrypted_entries(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Résultat d'un get() ChromaDB en entrées {"id", "content", "metadata"} déchiffrées."""
+        docs = data.get("documents") or []
+        metas = data.get("metadatas") or []
+        entries = []
+        for i, entry_id in enumerate(data.get("ids") or []):
+            content = docs[i] if i < len(docs) else ""
+            metadata = (metas[i] if i < len(metas) else None) or {}
+            if metadata.get("encrypted"):
+                try:
+                    content = self._decrypt(content)
+                except Exception:
+                    pass
+            entries.append({"id": entry_id, "content": content, "metadata": metadata})
+        return entries
+
+    def delete_where(self, where: Dict[str, Any], collection_type: str = "document") -> int:
+        """Supprime DÉFINITIVEMENT les entrées dont les métadonnées correspondent à ``where``.
+
+        Un document entier ({"document_id": …}), un dossier de la Mémoire
+        ({"folder": …}), les anciennes versions d'un fichier remis ($and, $ne).
+
+        Returns:
+            Nombre d'entrées supprimées.
+        """
+        collection = self._collection_for(collection_type)
+        if not collection or not where:
+            return 0
+        try:
+            ids = list((collection.get(where=where, include=[]) or {}).get("ids") or [])
+            if ids:
+                collection.delete(ids=ids)
+            return len(ids)
+        except Exception as e:
+            print(f"⚠️ Erreur delete_where: {e}")
+            return 0
+
     def get_entry(
         self, entry_id: str, collection_type: str = "document"
     ) -> Optional[Dict[str, Any]]:
@@ -985,6 +1120,10 @@ class VectorMemory:
         persistante et pourrait ressortir dans les recherches, même après un
         redémarrage.
 
+        Un document qui était déjà dans ChromaDB avant cette session, ou gardé
+        à la main (bouton Ajouter de la Mémoire), y reste : seule la session
+        l'oublie.
+
         Args:
             document_name: Nom du document (celui passé à add_document)
 
@@ -998,7 +1137,7 @@ class VectorMemory:
         removed = 0
         for doc_id in doc_ids:
             info = self.documents.pop(doc_id)
-            chunks = info.get("chunks", [])
+            chunks = [] if info.get("stored_before") else self._without_kept(info.get("chunks", []))
             if self.document_collection and chunks:
                 try:
                     self.document_collection.delete(ids=chunks)
@@ -1012,6 +1151,76 @@ class VectorMemory:
             self.stats["total_tokens"] = self.current_tokens
             self.stats["last_updated"] = datetime.now().isoformat()
         return removed
+
+    def _persists_chunks(self) -> bool:
+        """Les morceaux d'un document ajouté vont-ils dans ChromaDB ?"""
+        return bool(self.document_collection) and self.embedding_model is not None
+
+    def _stored_chunk_ids(self, document_id: str) -> List[str]:
+        """Morceaux d'un document déjà dans ChromaDB (ajouté par une session
+        précédente ou par une autre instance)."""
+        if not self.document_collection:
+            return []
+        try:
+            data = self.document_collection.get(
+                where={"document_id": document_id}, include=[]
+            )
+        except Exception as e:
+            print(f"⚠️ Erreur lecture des morceaux: {e}")
+            return []
+        return list(data.get("ids") or [])
+
+    def has_document(self, document_id: str) -> bool:
+        """Le document a-t-il des morceaux dans ChromaDB (onglet Documents) ?"""
+        return bool(document_id) and bool(self._stored_chunk_ids(document_id))
+
+    def _without_kept(self, chunk_ids: List[str]) -> List[str]:
+        """Morceaux à supprimer, sans ceux gardés à la main (source « manual »)."""
+        if not chunk_ids or not self.document_collection:
+            return list(chunk_ids)
+        try:
+            data = self.document_collection.get(ids=list(chunk_ids), include=["metadatas"])
+        except Exception as e:
+            print(f"⚠️ Erreur lecture des morceaux: {e}")
+            return list(chunk_ids)
+        kept = {
+            entry_id
+            for entry_id, metadata in zip(data.get("ids") or [], data.get("metadatas") or [])
+            if (metadata or {}).get("source") == "manual"
+        }
+        return [chunk_id for chunk_id in chunk_ids if chunk_id not in kept]
+
+    def keep_document(self, document_id: str) -> int:
+        """
+        Garde un document déjà rangé comme s'il avait été ajouté à la main
+
+        Pour le bouton Ajouter de la Mémoire quand le document y est déjà
+        (pièce jointe du chat pas encore envoyée, par exemple) : retirer
+        ensuite cette pièce jointe ne l'efface plus (cf. remove_document).
+
+        Args:
+            document_id: Identifiant du document (résultat de add_document)
+
+        Returns:
+            Nombre de morceaux gardés
+        """
+        if not self.document_collection or not document_id:
+            return 0
+        try:
+            data = self.document_collection.get(
+                where={"document_id": document_id}, include=["metadatas"]
+            )
+            ids = list(data.get("ids") or [])
+            if ids:
+                self.document_collection.update(
+                    ids=ids,
+                    metadatas=[{**(metadata or {}), "source": "manual"}
+                               for metadata in data.get("metadatas") or []],
+                )
+            return len(ids)
+        except Exception as e:
+            print(f"⚠️ Erreur keep_document: {e}")
+            return 0
 
     def _generate_document_id(self, content: str, name: str) -> str:
         """Identifiant stable d'un document : même nom et même contenu, même ID.
@@ -1046,6 +1255,9 @@ class VectorMemory:
         for doc_id, doc_info in sorted_docs:
             if self.current_tokens - tokens_freed + tokens_needed <= self.max_tokens:
                 break
+            if doc_info.get("stored_before"):
+                # Rangé avant cette session : ne compte pas, n'est pas effacé
+                continue
 
             # Supprimer chunks de ChromaDB
             if self.document_collection:
