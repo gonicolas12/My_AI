@@ -381,6 +381,20 @@ def test_a_memory_file_read_from_a_path_that_is_not_on_disk():
     assert engine._memory_file_text("absent.txt") == ""
 
 
+def test_the_reply_language_is_recalled_after_the_memory_documents(monkeypatch):
+    """Les blocs de la mémoire, en français, venaient après la consigne de langue :
+    my_ai répondait en français à une question espagnole. Elle est rappelée après eux."""
+    monkeypatch.setattr(ai_engine, "passage_similarities", lambda _query, _passages: None)
+    engine = _engine(_Store())
+    engine._current_lang_instruction = "Responde siempre en español."
+    engine._knowledge_base_context = lambda _query: ""
+    engine._codebase_context = lambda _query: ""
+    context = engine._answer_context("¿Qué dice rapport_trimestriel.pdf?")
+    assert TEXTS["d"] in context and context.endswith("\n\nResponde siempre en español.")
+    # Sans document de la mémoire : rien n'est ajouté
+    assert engine._answer_context("Hola, ¿qué tal?") == ""
+
+
 def test_search_memory_can_be_restricted_to_a_document():
     engine = _engine(_Store(), results=[{"content": "livraison le 28 novembre", "metadata": {
         "document_id": "b", "document_name": "projet/docs/rapport.pdf", "folder": "projet",

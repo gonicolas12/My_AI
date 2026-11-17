@@ -2400,9 +2400,16 @@ Que voulez-vous que je fasse pour vous ?""",
         La boucle d'outils le reçoit aussi à part (ChatOrchestrator.run) :
         sa synthèse remplace le prompt de la boucle, et la réponse affichée
         perdait sinon les faits de la fenêtre Mémoire.
+
+        Les documents de la mémoire viennent en dernier, en français : la
+        consigne de langue est rappelée après eux. Placée avant, my_ai
+        répondait en français à « ¿Qué hay en mi carpeta OneDrive de tu
+        memoria? ».
         """
-        blocks = (self._knowledge_base_context(query), self._codebase_context(query),
-                  self._memory_documents_context(query))
+        documents = self._memory_documents_context(query)
+        if documents:
+            documents += f"\n\n{self._default_lang_instruction()}"
+        blocks = (self._knowledge_base_context(query), self._codebase_context(query), documents)
         return "".join(f"\n\n{block}" for block in blocks if block)
 
     def _session_document_names(self) -> set:
