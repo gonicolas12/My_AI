@@ -13,9 +13,10 @@ import types
 
 from core import ai_engine
 from core.ai_engine import AIEngine
-from core.memory_documents import (MAX_NAMED, document_label, memory_documents_block,
-                                   named_documents, named_folders, resolve_documents,
-                                   results_block)
+from core.memory_documents import (MAX_NAMED, document_label, documents_at, folders_near,
+                                   memory_documents_block, memory_links, named_documents,
+                                   named_folders, resolve_documents, results_block,
+                                   unmentioned_near_folders)
 
 INDEX = [
     {"id": "a", "name": "rapport.pdf", "label": "rapport.pdf", "folder": None,
@@ -103,6 +104,127 @@ def test_a_document_designated_by_the_search_tool():
     assert _ids(resolve_documents("projet", INDEX)) == ["b", "g"]
     assert _ids(resolve_documents("Rapport Trimestriel", INDEX)) == ["d"]
     assert not resolve_documents("inconnu.pdf", INDEX) and not resolve_documents(" ", INDEX)
+
+
+ONEDRIVE = {"id": "x", "name": "OneDrive_3_06-10-2026/Data.xlsx", "label": "Data.xlsx",
+            "folder": "OneDrive_3_06-10-2026", "folder_key": "f2",
+            "created": "2026-11-17T12:00:00", "source": "manual"}
+
+
+def test_a_folder_named_by_part_of_its_name():
+    """Vu avec my_ai : « mon dossier onedrive que tu as en mémoire » ne désignait pas
+    « OneDrive_3_06-10-2026 » ; il listait alors parfois un dossier du disque."""
+    index = INDEX + [ONEDRIVE]
+    for message in ("il y a quoi dans mon dossier onedrive que tu as en mémoire ?",
+                    "Dans ma mémoire, le dossier One Drive contient quoi ?"):
+        assert [folder["key"] for folder in named_folders(message, index)] == ["f2"], message
+    # Sans parler de la mémoire : peut-être un dossier du disque ; un nombre ne suffit pas
+    assert not named_folders("liste mon dossier onedrive", index)
+    assert not named_folders("le dossier 2026 en mémoire", index)
+    # Un fichier nommé avec un bout du nom de son dossier : seulement celui de ce dossier
+    alone = {**ONEDRIVE, "id": "y", "name": "Data.xlsx", "label": "Data.xlsx", "folder": None,
+             "folder_key": None}
+    assert _ids(named_documents("le Data.xlsx du dossier onedrive", index + [alone])) == ["x"]
+
+
+# La question sur le dossier « OneDrive_3_06-10-2026 » de la mémoire, dans chaque langue
+WITH_MEMORY = {
+    "fr": "il y a quoi dans mon dossier onedrive que tu as en mémoire ?",
+    "en": "What's in my OneDrive folder in your memory?",
+    "de": "Was ist in meinem OneDrive-Ordner in deinem Gedächtnis?",
+    "es": "¿Qué hay en mi carpeta OneDrive de tu memoria?",
+    "it": "Cosa c'è nella cartella OneDrive nella tua memoria?",
+    "nl": "Wat zit er in mijn OneDrive-map in je geheugen?",
+    "pt": "O que há na minha pasta OneDrive na sua memória?",
+    "ru": "Что лежит в моей папке OneDrive в твоей памяти?",
+    "ar": "ماذا يوجد في مجلد OneDrive في ذاكرتك؟",
+    "ja": "記憶にあるOneDriveフォルダには何がありますか？",
+    "ko": "기억에 있는 OneDrive 폴더에는 뭐가 있어?",
+    "zh": "你记忆里的OneDrive文件夹里有什么？",
+}
+
+
+def test_folder_and_memory_words_in_the_12_languages():
+    index = INDEX + [ONEDRIVE]
+    for lang, message in WITH_MEMORY.items():
+        assert [folder["key"] for folder in named_folders(message, index)] == ["f2"], lang
+        assert not folders_near(message, index), lang
+
+
+def test_a_folder_with_a_close_name_is_pointed_out():
+    """« mon dossier onedrive » sans parler de la mémoire : peut-être le vrai OneDrive ;
+    le modèle signale celui de la mémoire, sans le confondre avec le disque."""
+    index = INDEX + [ONEDRIVE]
+    for message in ("il y a quoi dans mon dossier onedrive ?", "What's in my OneDrive folder?",
+                    "OneDriveフォルダには何がありますか？"):
+        assert not named_folders(message, index), message
+        assert [folder["key"] for folder in folders_near(message, index)] == ["f2"], message
+    assert _block("il y a quoi dans mon dossier onedrive ?", _Store(index)) == (
+        "À SAVOIR : la mémoire (fenêtre Mémoire, onglet Documents) contient aussi un dossier "
+        "au nom proche de celui de la question : « OneDrive_3_06-10-2026 » (déposé le "
+        "17/11/2026 à 12:00), 1 fichier(s) : Data.xlsx. La question ne dit pas si elle parle de "
+        "lui ou d'un dossier du disque : ne les confonds pas. S'il s'agit de lui, lis-le avec "
+        "l'outil search_memory, document=\"OneDrive_3_06-10-2026\" (sans citer l'outil dans ta "
+        "réponse).")
+    # Son nom entier (il est alors nommé), ou un dossier sans rapport : pas de signal
+    assert not folders_near("le dossier OneDrive_3_06-10-2026", index)
+    assert not folders_near("range ça dans le dossier photos", index)
+
+
+def test_a_close_folder_the_answer_does_not_cite_is_signaled_under_it():
+    """my_ai ne signalait qu'une fois sur trois le dossier de la mémoire après avoir
+    regardé le disque : la fenêtre le fait, sauf si la réponse le cite déjà."""
+    index = INDEX + [ONEDRIVE]
+    question = "il y a quoi dans mon dossier onedrive ?"
+    assert unmentioned_near_folders(question, "Ton OneDrive contient desktop.ini.", index) == [
+        {"name": "OneDrive_3_06-10-2026", "files": 1}]
+    assert not unmentioned_near_folders(
+        question, "Le dossier onedrive_3_06-10-2026 contient des commandes.", index)
+    # Un de ses fichiers cité : la réponse parle déjà de ce dossier de la mémoire
+    assert not unmentioned_near_folders(question, "Ton dossier contient `Data.xlsx`.", index)
+    assert unmentioned_near_folders(question, "Ton dossier contient MyData.xlsx.", index)
+    # La question parle de la mémoire (le dossier est alors nommé), ou pas de réponse
+    assert not unmentioned_near_folders(question + " en mémoire", "desktop.ini", index)
+    assert not unmentioned_near_folders(question, "", index)
+
+
+def test_names_next_to_japanese_chinese_korean():
+    index = [ONEDRIVE]
+    for message in ("Data.xlsxの中身は？", "Data.xlsx를 보여줘", "Data.xlsx里有什么？"):
+        assert _ids(named_documents(message, index)) == ["x"], message
+        assert [link["text"] for link in memory_links(message, index)] == ["Data.xlsx"], message
+    # Collé à un autre mot latin, ou une autre extension : pas ce fichier
+    for message in ("MyData.xlsx", "Data.xlsx.bak", "Data.xlsxs"):
+        assert not named_documents(message, index) and not memory_links(message, index), message
+
+
+def test_documents_and_folders_cited_in_an_answer():
+    """Vu dans l'appli : « [Dossier OneDrive_3_06-10-2026](memory://one drive) » et
+    `Data.xlsx` ; la fenêtre rend cliquables les documents et dossiers cités."""
+    answer = ("📁 **[Dossier OneDrive_3_06-10-2026](memory://one drive)**\n"
+              "- `Data.xlsx` et le rapport.pdf du dossier projet ; projet/docs/rapport.pdf aussi.")
+    assert memory_links(answer, INDEX + [ONEDRIVE]) == [
+        {"text": "projet/docs/rapport.pdf", "kind": "document",
+         "name": "projet/docs/rapport.pdf", "strict": False},
+        {"text": "OneDrive_3_06-10-2026", "kind": "folder", "name": "OneDrive_3_06-10-2026",
+         "strict": False},
+        {"text": "rapport.pdf", "kind": "document", "name": "rapport.pdf", "strict": False},
+        {"text": "Data.xlsx", "kind": "document", "name": "Data.xlsx", "strict": False},
+        # Un nom courant : cliquable seulement dans un lien ou du code (la fenêtre)
+        {"text": "projet", "kind": "folder", "name": "projet", "strict": True},
+    ]
+
+
+def test_a_cited_name_is_whole_and_outside_disk_paths():
+    index = [ONEDRIVE]
+    assert not memory_links(r"Voir C:\Users\moi\Data.xlsx, MyData.xlsx ou Data.xlsx.bak", index)
+    # Casse ignorée, le texte tel qu'écrit ; le schéma d'un lien inventé ne compte pas
+    assert memory_links("le fichier DATA.XLSX", index)[0]["text"] == "DATA.XLSX"
+    assert memory_links("[données](memory://Data.xlsx)", index)[0]["name"] == "Data.xlsx"
+    assert memory_links("", index) == [] and memory_links("Data.xlsx", []) == []
+    # Le chemin d'un fichier dans son dossier, comme l'onglet l'affiche
+    assert [link["text"] for link in memory_links("le fichier `docs/rapport.pdf`", INDEX)] == [
+        "docs/rapport.pdf"]
 
 
 def test_search_results_are_grouped_by_document_with_a_warning():
@@ -198,7 +320,10 @@ def test_a_named_folder_lists_its_files_and_closest_passages():
     block = _block("Que contient le dossier projet ?", search=search)
     assert block.startswith("DOSSIER DE LA MÉMOIRE NOMMÉ DANS LA QUESTION : « projet » "
                             "(déposé le 16/11/2026 à 09:05), 2 fichier(s) : docs/rapport.pdf, "
-                            "src/app.py")
+                            "src/app.py\nIl est dans la mémoire (fenêtre Mémoire, onglet "
+                            "Documents), pas sur le disque : réponds d'après ses fichiers et les "
+                            "extraits ci-dessous ; pour en lire plus : outil search_memory, "
+                            'document="projet" (sans citer l\'outil dans ta réponse).')
     assert calls == [("Que contient le dossier projet ?", 4, {"folder_id": "f1"})]
     assert "[1] « projet/src/app.py »" in block
 
@@ -236,6 +361,38 @@ def test_the_engine_puts_the_named_documents_in_the_answer_context(monkeypatch):
     # Mémoire indisponible : rien, sans erreur
     broken = _engine(None)
     assert broken._memory_documents_context("Résume rapport.pdf") == ""
+
+
+def test_a_memory_file_read_from_a_path_that_is_not_on_disk():
+    """my_ai a essayé read_local_file("OneDrive_3_06-10-2026/Data.xlsx") : ce fichier est
+    dans la mémoire, pas sur le disque ; l'outil le lit là, sous son libellé."""
+    index = INDEX + [ONEDRIVE]
+    assert _ids(documents_at("OneDrive_3_06-10-2026/Data.xlsx", index)) == ["x"]
+    # Chemin inventé : son nom de fichier ; jamais un dossier entier
+    assert _ids(documents_at(r"C:\Users\moi\inventé\data.xlsx", index)) == ["x"]
+    assert _ids(documents_at("file:///C:/x/rapport.pdf", index)) == ["a", "b", "c"]
+    assert not documents_at("projet", index) and not documents_at("", index)
+    engine = _engine(_Store(index))
+    text = engine._memory_file_text("OneDrive_3_06-10-2026/Data.xlsx")
+    assert text.startswith(
+        "Ce fichier n'est pas sur le disque, mais dans la mémoire (fenêtre Mémoire, onglet "
+        "Documents) :\n\n=== « OneDrive_3_06-10-2026/Data.xlsx » — fichier du dossier "
+        "« OneDrive_3_06-10-2026 », déposé le 17/11/2026 à 12:00 ===\nTexte de x.")
+    assert engine._memory_file_text("absent.txt") == ""
+
+
+def test_the_reply_language_is_recalled_after_the_memory_documents(monkeypatch):
+    """Les blocs de la mémoire, en français, venaient après la consigne de langue :
+    my_ai répondait en français à une question espagnole. Elle est rappelée après eux."""
+    monkeypatch.setattr(ai_engine, "passage_similarities", lambda _query, _passages: None)
+    engine = _engine(_Store())
+    engine._current_lang_instruction = "Responde siempre en español."
+    engine._knowledge_base_context = lambda _query: ""
+    engine._codebase_context = lambda _query: ""
+    context = engine._answer_context("¿Qué dice rapport_trimestriel.pdf?")
+    assert TEXTS["d"] in context and context.endswith("\n\nResponde siempre en español.")
+    # Sans document de la mémoire : rien n'est ajouté
+    assert engine._answer_context("Hola, ¿qué tal?") == ""
 
 
 def test_search_memory_can_be_restricted_to_a_document():

@@ -705,6 +705,8 @@
   "voice.autoreadOff": "Auto read-aloud off",
   "agents.run.errorDefault": "Error",
   "chat.path.reveal": "Show in File Explorer: {path}",
+  "chat.memory.open": "Show “{name}” in Memory",
+  "chat.memory.near": "Also in Memory:",
   "code.title": "Code",
   "code.subtitle": "Your conversation with the VS Code extension: My_AI reads, edits and creates files and runs commands in your project. It also shows in VS Code and on your phone.",
   "code.status.connected": "VS Code connected",

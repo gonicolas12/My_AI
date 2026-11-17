@@ -71,6 +71,7 @@ import { notify } from '../../../stores/app';
 import {
   answerUpdate,
   applyMemoryJobs,
+  clearMemoryFocus,
   setMemoryDropping,
   type UpdateQuestion,
   useMemory,
@@ -791,10 +792,14 @@ interface Loaded {
 
 export default function MemoryPanel() {
   const t = useT();
-  const [tab, setTab] = useState<MemoryTab>('facts');
-  const [query, setQuery] = useState('');
+  // Ouvert par un lien du chat (document ou dossier cité) : onglet Documents,
+  // cherché sur son nom, ses dossiers dépliés à l'arrivée de la page
+  const [focus] = useState(() => useMemory.getState().focus);
+  const unfold = useRef(focus !== null);
+  const [tab, setTab] = useState<MemoryTab>(focus !== null ? 'document' : 'facts');
+  const [query, setQuery] = useState(focus ?? '');
   /** Recherche appliquée (Entrée, bouton, catégorie, rafraîchir) */
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(focus ?? '');
   const [category, setCategory] = useState(ALL);
   const [page, setPage] = useState(0);
   const [tick, setTick] = useState(0);
@@ -828,6 +833,12 @@ export default function MemoryPanel() {
         setLoaded({ key, tab, view });
         // File relue avec la page : un événement manqué (reconnexion) ne la fige pas
         if (view.jobs) applyMemoryJobs(view.jobs);
+        // Ouvert par un lien du chat : les dossiers trouvés se déplient, une fois
+        if (unfold.current && tab === 'document') {
+          unfold.current = false;
+          const folders = view.items.filter((item) => item.kind === 'folder');
+          if (folders.length) setExpanded(new Set(folders.map((item) => item.id)));
+        }
       },
       (error: unknown) => {
         if (alive) setLoaded({ key, tab, error: errorText(error) });
@@ -837,6 +848,11 @@ export default function MemoryPanel() {
       alive = false;
     };
   }, [tab, search, filter, page, tick, revision]);
+
+  // Nom pris du lien du chat : la prochaine ouverture du panneau repart des Faits
+  useEffect(() => {
+    if (focus !== null) clearMemoryFocus();
+  }, [focus]);
 
   // Panneau fermé pendant la question : ceux déjà là ne sont pas envoyés
   useEffect(() => () => answerUpdate('cancel'), []);

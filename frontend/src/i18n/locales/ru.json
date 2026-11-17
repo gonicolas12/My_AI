@@ -747,6 +747,8 @@
   "voice.autoreadOff": "Автоматическое чтение вслух выключено",
   "agents.run.errorDefault": "Ошибка",
   "chat.path.reveal": "Показать в проводнике: {path}",
+  "chat.memory.open": "Показать «{name}» в Памяти",
+  "chat.memory.near": "Также в Памяти:",
   "code.title": "Code",
   "code.subtitle": "Ваш разговор с расширением VS Code: My_AI читает, изменяет и создаёт файлы и выполняет команды в вашем проекте. Он также отображается в VS Code и на вашем телефоне.",
   "code.status.connected": "VS Code подключён",

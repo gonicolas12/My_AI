@@ -42,7 +42,8 @@ from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .document_passages import select_passages
-from .memory_documents import memory_documents_block, resolve_documents, results_block
+from .memory_documents import (MAX_NAMED, document_label, documents_at,
+                               memory_documents_block, resolve_documents, results_block)
 from .i18n import current_language, tr
 from .image_intent import is_image_request, strip_image_request
 from .mcp_client import MCPManager
@@ -1056,7 +1057,8 @@ class AIEngine:
 
             fpath = Path(path)
             if not fpath.exists():
-                return f"Fichier introuvable : {path}"
+                # Un fichier d'un dossier déposé dans la Mémoire n'est pas sur le disque
+                return self._memory_file_text(path) or f"Fichier introuvable : {path}"
             ext = fpath.suffix.lower()
             try:
                 if ext == ".pdf":
@@ -2337,6 +2339,30 @@ Que voulez-vous que je fasse pour vous ?""",
             return "Aucun résultat dans la mémoire (faits mémorisés et documents indexés)."
         return "\n\n".join(parts)
 
+    def _memory_file_text(self, path: str) -> str:
+        """
+        Texte d'un document de la fenêtre Mémoire (onglet Documents) qu'un chemin
+        absent du disque désigne : my_ai essaie parfois de lire ainsi un fichier
+        d'un dossier déposé (read_local_file("OneDrive_3_06-10-2026/Data.xlsx")).
+        Chaque document sous son libellé ; "" s'il n'y en a pas.
+        """
+        try:
+            store = self.get_memory_store()
+            docs = documents_at(path, store.document_index()) if store is not None else []
+            sections = []
+            for doc in docs[:MAX_NAMED]:
+                text = store.document_text(doc["id"])
+                if text:
+                    sections.append(f"=== {document_label(doc)} ===\n{text}")
+        except Exception as exc:  # pylint: disable=broad-except
+            self.logger.warning("Documents de la mémoire illisibles : %s", exc)
+            return ""
+        if not sections:
+            return ""
+        return ("Ce fichier n'est pas sur le disque, mais dans la mémoire (fenêtre Mémoire, "
+                "onglet Documents) :\n\n"
+                + self._clip_document("\n\n".join(sections), self._document_char_budget()))
+
     def _memory_document_filter(self, document: str):
         """Filtre ChromaDB de l'argument « document » de search_memory, et une note
         pour le modèle (document introuvable : toute la mémoire est fouillée).
@@ -2374,9 +2400,16 @@ Que voulez-vous que je fasse pour vous ?""",
         La boucle d'outils le reçoit aussi à part (ChatOrchestrator.run) :
         sa synthèse remplace le prompt de la boucle, et la réponse affichée
         perdait sinon les faits de la fenêtre Mémoire.
+
+        Les documents de la mémoire viennent en dernier, en français : la
+        consigne de langue est rappelée après eux. Placée avant, my_ai
+        répondait en français à « ¿Qué hay en mi carpeta OneDrive de tu
+        memoria? ».
         """
-        blocks = (self._knowledge_base_context(query), self._codebase_context(query),
-                  self._memory_documents_context(query))
+        documents = self._memory_documents_context(query)
+        if documents:
+            documents += f"\n\n{self._default_lang_instruction()}"
+        blocks = (self._knowledge_base_context(query), self._codebase_context(query), documents)
         return "".join(f"\n\n{block}" for block in blocks if block)
 
     def _session_document_names(self) -> set:

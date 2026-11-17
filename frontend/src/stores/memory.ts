@@ -1,14 +1,16 @@
 /*
  * Mémoire : documents ajoutés pas encore rangés (événement memory.jobs),
- * révision du contenu (memory.changed), que le panneau ouvert relit, et
+ * révision du contenu (memory.changed), que le panneau ouvert relit,
  * question en cours : que faire de fichiers ou dossiers remis alors qu'un
- * autre porte déjà leur nom ?
+ * autre porte déjà leur nom ? Et document ou dossier à montrer, cité dans une
+ * réponse du chat.
  */
 
 import { create } from 'zustand';
 
 import type { ExistingDocuments } from '../lib/api';
 import type { MemoryJob } from '../lib/events';
+import { openPanel } from './panels';
 
 /** Fichiers et dossiers déjà en mémoire sous ce nom (avec leur date) */
 export type UpdateQuestion = ExistingDocuments;
@@ -32,6 +34,8 @@ interface MemoryState {
   dropping: boolean;
   /** Question affichée par le panneau : les mettre à jour, ou garder les deux ? */
   update: PendingUpdate | null;
+  /** Nom d'un document ou d'un dossier cité dans le chat : le panneau s'ouvre sur lui */
+  focus: string | null;
 }
 
 export const useMemory = create<MemoryState>()(() => ({
@@ -39,7 +43,22 @@ export const useMemory = create<MemoryState>()(() => ({
   revision: 0,
   dropping: false,
   update: null,
+  focus: null,
 }));
+
+/**
+ * Lien du chat vers un document ou un dossier de la Mémoire : le panneau
+ * s'ouvre sur l'onglet Documents, cherché sur ce nom, ses dossiers dépliés
+ */
+export function showInMemory(name: string): void {
+  useMemory.setState({ focus: name });
+  openPanel('memory');
+}
+
+/** Le panneau a pris le nom à montrer : la prochaine ouverture repart des Faits */
+export function clearMemoryFocus(): void {
+  if (useMemory.getState().focus !== null) useMemory.setState({ focus: null });
+}
 
 /** File des documents ajoutés (événement memory.jobs, ou page relue) */
 export function applyMemoryJobs(jobs: MemoryJob[]): void {

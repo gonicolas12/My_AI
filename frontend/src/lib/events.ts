@@ -23,6 +23,30 @@ export interface PathLink {
   path: string;
 }
 
+/**
+ * Document ou dossier de la Mémoire cité dans une réponse : au clic, l'onglet
+ * Documents s'ouvre sur lui (core/memory_documents.py, memory_links)
+ */
+export interface MemoryLink {
+  /** Tel qu'il apparaît dans la réponse */
+  text: string;
+  kind: 'document' | 'folder';
+  /** Ce que l'onglet Documents cherche */
+  name: string;
+  /** Nom courant (« projet ») : cliquable seulement dans un lien ou du code */
+  strict?: boolean;
+}
+
+/**
+ * Dossier de la Mémoire au nom proche de celui de la question (« mon dossier
+ * onedrive »), que la réponse ne cite pas : signalé sous elle (unmentioned_near_folders)
+ */
+export interface NearFolder {
+  name: string;
+  /** Nombre de ses fichiers */
+  files: number;
+}
+
 export interface ToolCallView {
   name: string;
   label: string;
@@ -55,6 +79,10 @@ export interface MessageView {
   rating?: number;
   /** Chemins existants cités (réponses seulement), calculés par le serveur */
   paths?: PathLink[];
+  /** Documents et dossiers de la Mémoire cités (réponses seulement) */
+  memory?: MemoryLink[];
+  /** Dossiers de la Mémoire au nom proche de celui de la question, non cités */
+  memory_near?: NearFolder[];
 }
 
 export type TurnKind = 'chat' | 'file' | 'image';
@@ -340,8 +368,16 @@ export interface EventPayloads {
     duration_ms: number;
     tokens_per_s: number | null;
     paths?: PathLink[];
+    memory?: MemoryLink[];
+    memory_near?: NearFolder[];
   };
-  'assistant.interrupted': { mid: string | null; text: string; paths?: PathLink[] };
+  'assistant.interrupted': {
+    mid: string | null;
+    text: string;
+    paths?: PathLink[];
+    memory?: MemoryLink[];
+    memory_near?: NearFolder[];
+  };
   'assistant.error': { mid: string | null; message: string };
   'tool.call': { name: string; label: string; args: Record<string, unknown>; at: number };
   'tool.result': { name: string; ok: boolean; summary: string; sources: number };

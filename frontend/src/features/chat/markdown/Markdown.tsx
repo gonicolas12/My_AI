@@ -8,7 +8,9 @@
  *   Markdown incomplet du dernier bloc est refermé par remend.
  * - Un saut de ligne simple reste un saut de ligne, comme dans l'interface Tk
  *   et la PWA mobile (bloc « Sources », listes écrites sans ligne vide…).
- * - Citations « [n] » et chemins de fichiers existants cliquables (links.ts).
+ * - Citations « [n] », chemins de fichiers existants et documents ou dossiers
+ *   de la Mémoire cliquables (links.ts), y compris dans un lien Markdown que le
+ *   modèle invente (« [Dossier X](memory://x) »).
  */
 
 import { ImageIcon } from 'lucide-react';
@@ -21,9 +23,10 @@ import remend from 'remend';
 import { useT } from '../../../i18n';
 import { revealPath } from '../../../lib/actions';
 import { externalUrl } from '../../../lib/shell';
+import { showInMemory } from '../../../stores/memory';
 import { BlockSplitter } from './blocks';
 import { CodeBlock } from './CodeBlock';
-import { type ChatLinks, rehypeChatLinks } from './links';
+import { type ChatLinks, prepareLinks, rehypeChatLinks } from './links';
 import { prepareMath } from './math';
 import { useMathPlugins } from './mathPlugins';
 
@@ -149,10 +152,35 @@ function FilePath({ node, children }: { node?: unknown; children?: React.ReactNo
   );
 }
 
+/** Document ou dossier de la Mémoire cité : ouvre l'onglet Documents sur lui */
+function MemoryRef({ node, children }: { node?: unknown; children?: React.ReactNode }) {
+  const t = useT();
+  const name = propertyOf(node, 'name');
+  // En ligne, comme un chemin : la ponctuation qui suit ne passe pas seule à la ligne
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      className="md-memory"
+      title={t('chat.memory.open', { name })}
+      onClick={() => showInMemory(name)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showInMemory(name);
+        }
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 // Éléments propres à l'appli, hors du vocabulaire HTML de react-markdown
 const LINK_COMPONENTS = {
   'chat-cite': Citation,
   'chat-path': FilePath,
+  'chat-memory': MemoryRef,
 } as unknown as Components;
 
 const ALL_COMPONENTS: Components = { ...COMPONENTS, ...LINK_COMPONENTS };
@@ -163,7 +191,8 @@ const REMARK_BASE: NonNullable<Options['remarkPlugins']> = [
 ];
 
 const Block = memo(function Block({ text, links }: { text: string; links: ChatLinks | null }) {
-  const prepared = useMemo(() => prepareMath(text), [text]);
+  const linked = useMemo(() => prepareLinks(text), [text]);
+  const prepared = useMemo(() => prepareMath(linked), [linked]);
   const math = useMathPlugins(prepared.hasMath);
   const remarkPlugins = math ? [...REMARK_BASE, ...math.remark] : REMARK_BASE;
   const rehypePlugins = useMemo(
@@ -176,7 +205,7 @@ const Block = memo(function Block({ text, links }: { text: string; links: ChatLi
       rehypePlugins={rehypePlugins}
       components={ALL_COMPONENTS}
     >
-      {math ? prepared.text : text}
+      {math ? prepared.text : linked}
     </ReactMarkdown>
   );
 });

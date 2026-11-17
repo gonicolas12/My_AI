@@ -684,6 +684,8 @@
   "voice.autoreadOff": "자동 읽어 주기 꺼짐",
   "agents.run.errorDefault": "오류",
   "chat.path.reveal": "파일 탐색기에서 보기: {path}",
+  "chat.memory.open": "메모리에서 “{name}” 보기",
+  "chat.memory.near": "메모리에도 있음:",
   "code.title": "Code",
   "code.subtitle": "VS Code 확장과의 대화입니다. My_AI가 프로젝트에서 파일을 읽고 편집·생성하며 명령을 실행합니다. 대화는 VS Code와 휴대폰에도 표시됩니다.",
   "code.status.connected": "VS Code 연결됨",

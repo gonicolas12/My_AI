@@ -21,7 +21,7 @@ Contenu principal
 ### Langue
 
 - `i18n.py` — Langue de l'interface (12 langues) et `tr()` : les textes que le serveur envoie à la fenêtre et à la page mobile (étapes du lancement, notifications, erreurs, outils, agents, tâches planifiées, exports, mentions des documents générés), un catalogue JSON par langue dans `locales/`. Changement à chaud par `set_language()` ; `is_rtl()` pour l'arabe.
-- `language_detector.py` — Langue d'un message (`langdetect`, cache LRU) et consigne de langue des réponses ; un message court ou ambigu prend la langue par défaut des Réglages.
+- `language_detector.py` — Langue d'un message et consigne de langue des réponses : l'écriture d'abord (kana, idéogrammes, hangul, arabe, cyrillique ; un nom latin comme « OneDrive » n'y change rien), puis, en alphabet latin, les mots-outils de chaque langue et `langdetect` limité aux sept langues latines ; cache LRU. Un message sans indice (« ok ») ou dans une langue hors des 12 prend la langue par défaut des Réglages.
 - `image_intent.py` — Demandes d'image dans les 11 autres langues (« generate an image of… ») ; le français reste dans `ai_engine.py`.
 
 ### Configuration & Données

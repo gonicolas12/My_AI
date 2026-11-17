@@ -814,6 +814,24 @@ class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
             return stream(f"Le fichier de présentation est {readme} et la documentation est "
                           f"dans `{ROOT / 'docs'}`. Ce chemin n'existe pas : "
                           "C:\\inexistant\\x.txt.\n")
+        if "dossier vitrine" in text:
+            # Sans parler de la mémoire : la réponse regarde le disque ; la fenêtre signale
+            # dessous le dossier « site_vitrine » de la Mémoire, au nom proche
+            return stream("Sur le disque, ton dossier vitrine contient `accueil.html` et "
+                          "`logo.png`.\n")
+        if "mémoire" in text:
+            # Comme qwen : un lien inventé vers le dossier (cible avec une espace) et des
+            # noms en code ; la fenêtre les rend cliquables (onglet Documents)
+            kwargs["on_tool_call"]("search_memory", {"query": "dossier"})
+            time.sleep(0.6)
+            kwargs["on_tool_result"]("search_memory", {}, "[1] « site_vitrine/README.md »")
+            kwargs["on_tool_call"]("synthesis", {})
+            return stream("Dans ta mémoire, je trouve un dossier :\n\n"
+                          "📁 **[Dossier site_vitrine](memory://site vitrine)**\n\n"
+                          "- 📄 `README.md` : présentation du site\n"
+                          "- 🎨 `src/style.css` : la mise en page\n\n"
+                          "Et deux documents seuls : rapport_trimestriel.pdf et "
+                          "`note_projet.docx`.\n")
         if "indexe" in text:
             threading.Thread(target=burn, name="indexation-simulee", daemon=True).start()
             return stream(long_answer()[:6000])

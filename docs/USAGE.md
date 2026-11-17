@@ -70,7 +70,7 @@ pendant que le moteur calcule.
 - ⏭️ **File d'attente** : un message envoyé pendant une réponse attend son tour, visible au-dessus de la saisie (retirable)
 - ✕ **Retirer une pièce jointe** avant l'envoi l'oublie : mémoire de session, mémoire vectorielle (base ChromaDB comprise) et analyse. Si sa lecture est en cours, elle s'arrête à la fin de la page en cours d'OCR. Le document reste en mémoire s'il sert encore : joint à un message de la conversation (ou d'une de ses variantes), à une autre pièce jointe, ou déjà chargé avant cette pièce jointe ; et il reste dans l'onglet Documents du panneau Mémoire s'il y était déjà (conversation précédente, ajout à la main)
 - 📝 **Génération de documents** Word/PDF/PowerPoint/Excel, avec aperçu au format natif — voir *Génération de Documents* plus bas
-- 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur
+- 🔗 **Chemins cliquables** — un chemin de fichier ou de dossier dans une réponse ouvre son emplacement dans l'explorateur ; un document ou un dossier de la Mémoire cité ouvre l'onglet Documents sur lui (voir [MEMORY.md](MEMORY.md#-documents))
 - 🖼️ **Analyse d'images** par le modèle lui-même (qwen3.5 voit les images), ou par un modèle vision dédié (minicpm-v, llava…) si le `Modelfile` part d'un modèle qui ne les voit pas ; une fois la réponse finie, l'image est décrite et rangée dans l'onglet Documents du panneau Mémoire, comme les documents joints
 - 📋 **Copier-coller** images depuis presse-papiers (Ctrl+V)
 - 🎙️ **Saisie vocale locale** (faster-whisper) — voir section *Voice Mode* plus bas

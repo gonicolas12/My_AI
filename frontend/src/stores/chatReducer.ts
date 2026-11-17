@@ -306,6 +306,8 @@ function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           duration_ms: p.duration_ms,
           ...(p.tokens_per_s ? { tokens_per_s: p.tokens_per_s } : {}),
           ...(p.paths?.length ? { paths: p.paths } : {}),
+          ...(p.memory?.length ? { memory: p.memory } : {}),
+          ...(p.memory_near?.length ? { memory_near: p.memory_near } : {}),
         }),
       );
     }
@@ -317,6 +319,8 @@ function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         finishedMessage(state.live, p.text, {
           interrupted: true,
           ...(p.paths?.length ? { paths: p.paths } : {}),
+          ...(p.memory?.length ? { memory: p.memory } : {}),
+          ...(p.memory_near?.length ? { memory_near: p.memory_near } : {}),
         }),
       );
     }

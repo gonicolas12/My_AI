@@ -257,15 +257,21 @@ describe('reduceChat', () => {
       }),
       event('assistant.done', {
         mid: 'a1',
-        text: 'Dans C:/out/r.docx',
+        text: 'Dans C:/out/r.docx, comme Data.xlsx de la Mémoire',
         duration_ms: 500,
         tokens_per_s: null,
         paths: [{ text: 'C:/out/r.docx', path: 'C:/out/r.docx' }],
+        memory: [{ text: 'Data.xlsx', kind: 'document', name: 'Data.xlsx', strict: false }],
+        memory_near: [{ name: 'OneDrive_3_06-10-2026', files: 2 }],
       }),
       event('message.rated', { mid: 'a1', rating: 4 }),
     );
     const answer = state.messages[1];
     expect(answer?.paths).toEqual([{ text: 'C:/out/r.docx', path: 'C:/out/r.docx' }]);
+    expect(answer?.memory).toEqual([
+      { text: 'Data.xlsx', kind: 'document', name: 'Data.xlsx', strict: false },
+    ]);
+    expect(answer?.memory_near).toEqual([{ name: 'OneDrive_3_06-10-2026', files: 2 }]);
     expect(answer?.rating).toBe(4);
     expect(state.messages[0]?.rating).toBeUndefined();
   });

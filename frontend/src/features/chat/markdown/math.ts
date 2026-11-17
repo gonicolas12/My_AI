@@ -16,8 +16,8 @@ export interface PreparedMath {
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
-/** Découpe en segments de code (laissés tels quels) et de texte */
-function segments(text: string): { code: boolean; value: string }[] {
+/** Découpe en segments de code (laissés tels quels) et de texte ; sert aussi aux liens (links.ts) */
+export function segments(text: string): { code: boolean; value: string }[] {
   const out: { code: boolean; value: string }[] = [];
   const lines = text.split(/(?<=\n)/);
   let fence: string | null = null;
