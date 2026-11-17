@@ -424,6 +424,12 @@
     "many": "{count} файлов",
     "other": "{count} файла"
   },
+  "memory.group.filesOf": {
+    "one": "{count} из {total} файлов",
+    "few": "{count} из {total} файлов",
+    "many": "{count} из {total} файлов",
+    "other": "{count} из {total} файлов"
+  },
   "memory.group.byHand": "добавлено вручную",
   "memory.group.filesLabel": "Файлы в «{name}»",
   "memory.group.deleteDocument": "Удалить документ",

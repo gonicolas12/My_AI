@@ -257,8 +257,11 @@ class TestVectorDocuments:
         assert store.list_document_groups(limit=1, offset=1)[0] == [rapport]
         # Recherche : dans le texte ou dans le nom
         assert store.list_document_groups(query="conclusion unique")[0] == [rapport]
-        assert store.list_document_groups(query="bonjour")[0][0]["files"] == 1
         assert store.list_document_groups(query="rapport.txt")[1] == 1
+        # Un dossier n'en montre que ses fichiers trouvés, et dit combien il en a en tout
+        found = store.list_document_groups(query="bonjour")[0][0]
+        assert (found["files"], found["total"]) == (1, 2)
+        assert "total" not in store.list_document_groups(query="site/")[0][0]
 
         assert store.delete_document(rapport["id"]) == report["chunks"]
         assert store.delete_folder("site") == 0  # par sa clé, pas par son nom

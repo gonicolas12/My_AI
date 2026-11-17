@@ -391,6 +391,9 @@
   "memory.group.files": {
     "other": "{count} ファイル"
   },
+  "memory.group.filesOf": {
+    "other": "{total} ファイル中 {count}"
+  },
   "memory.group.byHand": "手動で追加",
   "memory.group.filesLabel": "「{name}」のファイル",
   "memory.group.deleteDocument": "ドキュメントを削除",

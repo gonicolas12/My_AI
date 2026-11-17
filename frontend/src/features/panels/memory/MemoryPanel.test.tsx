@@ -485,6 +485,37 @@ describe('MemoryPanel, documents et dossiers', () => {
     expect(useMemory.getState().focus).toBeNull();
   });
 
+  it('un fichier d’un dossier, ouvert par un lien : tout le dossier, ce fichier en évidence', async () => {
+    showInMemory('site', 'README.md');
+    api.memoryPage.mockResolvedValue(page({ items: [FOLDER], total: 1 }));
+    render(
+      <TooltipProvider>
+        <MemoryPanel />
+      </TooltipProvider>,
+    );
+    const files = await screen.findByRole('list', { name: 'Fichiers de « site »' });
+    // Cherché sur le dossier, pas sur le fichier : ses deux fichiers restent visibles
+    expect(api.memoryPage.mock.calls).toEqual([['document', 'site', null, 0]]);
+    const rows = within(files).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveAttribute('aria-current', 'true');
+    expect(rows[0]).toHaveTextContent(/^README\.md/);
+    expect(rows[1]).not.toHaveAttribute('aria-current');
+  });
+
+  it('une recherche qui ne trouve qu’une partie d’un dossier dit combien il en a en tout', async () => {
+    const partial: MemoryFolder = {
+      ...FOLDER,
+      files: 1,
+      total: 5,
+      documents: [FOLDER.documents[0]!],
+    };
+    api.memoryPage.mockResolvedValue(page({ items: [partial], total: 1 }));
+    await openDocuments();
+    const folder = await screen.findByRole('button', { name: /^site/ });
+    expect(folder).toHaveTextContent(/1 fichier sur 5 · /);
+  });
+
   it('seul un dossier se déplie, sur ses fichiers, chacun à supprimer', async () => {
     api.memoryPage.mockResolvedValue(page({ items: [FOLDER, documentGroup()], total: 2 }));
     const user = await openDocuments();

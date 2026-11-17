@@ -80,7 +80,12 @@ const MEMORY_ANSWER = [
 
 const MEMORY: MemoryLink[] = [
   { text: 'OneDrive_3_06-10-2026', kind: 'folder', name: 'OneDrive_3_06-10-2026' },
-  { text: 'modele-xml-cmd.xml', kind: 'document', name: 'modele-xml-cmd.xml' },
+  {
+    text: 'modele-xml-cmd.xml',
+    kind: 'document',
+    name: 'modele-xml-cmd.xml',
+    folder: 'OneDrive_3_06-10-2026',
+  },
   { text: 'Data.xlsx', kind: 'document', name: 'Data.xlsx' },
   { text: 'notes.txt', kind: 'document', name: 'notes.txt' },
   { text: 'projet', kind: 'folder', name: 'projet', strict: true },
@@ -127,10 +132,14 @@ describe('documents et dossiers de la Mémoire cliquables', () => {
       'la page',
     );
 
+    // Un dossier : cherché sur son nom ; un fichier d'un dossier : tout le dossier, ce
+    // fichier en évidence ; un document seul : cherché sur son nom, en évidence
     fireEvent.click(refs[0]!);
     expect(showInMemory).toHaveBeenLastCalledWith('OneDrive_3_06-10-2026');
+    fireEvent.click(refs[1]!);
+    expect(showInMemory).toHaveBeenLastCalledWith('OneDrive_3_06-10-2026', 'modele-xml-cmd.xml');
     fireEvent.keyDown(refs[5]!, { key: 'Enter' });
-    expect(showInMemory).toHaveBeenLastCalledWith('notes.txt');
+    expect(showInMemory).toHaveBeenLastCalledWith('notes.txt', 'notes.txt');
   });
 
   it('un nom collé au japonais ou au coréen est un lien ; collé à un mot latin, non', () => {
@@ -166,6 +175,6 @@ describe('documents et dossiers de la Mémoire cliquables', () => {
     expect(revealPath).toHaveBeenLastCalledWith(path);
     // Chemin absent du disque, mais nom de la Mémoire : la Mémoire
     fireEvent.click(screen.getByRole('link', { name: 'Data' }));
-    expect(showInMemory).toHaveBeenLastCalledWith('Data.xlsx');
+    expect(showInMemory).toHaveBeenLastCalledWith('Data.xlsx', 'Data.xlsx');
   });
 });

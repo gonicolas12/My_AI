@@ -1440,8 +1440,9 @@ def test_memory_documents_cited_in_an_answer_become_links(chat):
     done = ask(chat, "Qu'y a-t-il dans mon dossier OneDrive ?")
     assert done["memory"] == [
         {"text": "OneDrive_3_06-10-2026", "kind": "folder", "name": "OneDrive_3_06-10-2026",
-         "strict": False},
-        {"text": "Data.xlsx", "kind": "document", "name": "Data.xlsx", "strict": False},
+         "folder": None, "strict": False},
+        {"text": "Data.xlsx", "kind": "document", "name": "Data.xlsx",
+         "folder": "OneDrive_3_06-10-2026", "strict": False},
     ]
     messages = chat.service.snapshot()["messages"]
     assert messages[1]["memory"] == done["memory"] and "memory" not in messages[0]

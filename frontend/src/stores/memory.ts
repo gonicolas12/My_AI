@@ -34,8 +34,16 @@ interface MemoryState {
   dropping: boolean;
   /** Question affichée par le panneau : les mettre à jour, ou garder les deux ? */
   update: PendingUpdate | null;
-  /** Nom d'un document ou d'un dossier cité dans le chat : le panneau s'ouvre sur lui */
-  focus: string | null;
+  /** Document ou dossier cité dans le chat : le panneau s'ouvre sur lui */
+  focus: MemoryFocus | null;
+}
+
+/** Ce que le panneau montre à l'ouverture, depuis un lien du chat */
+export interface MemoryFocus {
+  /** Recherche de l'onglet Documents : le nom du dossier, ou du document seul */
+  search: string;
+  /** Document mis en évidence (nom, chemin dans son dossier ou chemin complet) */
+  highlight: string | null;
 }
 
 export const useMemory = create<MemoryState>()(() => ({
@@ -48,10 +56,12 @@ export const useMemory = create<MemoryState>()(() => ({
 
 /**
  * Lien du chat vers un document ou un dossier de la Mémoire : le panneau
- * s'ouvre sur l'onglet Documents, cherché sur ce nom, ses dossiers dépliés
+ * s'ouvre sur l'onglet Documents, cherché sur ce nom, ses dossiers dépliés.
+ * Pour un fichier d'un dossier : cherché sur le dossier, que l'on voie tous ses
+ * fichiers, et ce fichier en évidence (highlight).
  */
-export function showInMemory(name: string): void {
-  useMemory.setState({ focus: name });
+export function showInMemory(search: string, highlight: string | null = null): void {
+  useMemory.setState({ focus: { search, highlight } });
   openPanel('memory');
 }
 

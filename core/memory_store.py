@@ -439,8 +439,10 @@ class MemoryStore:
         """Documents et dossiers (group_documents), paginés.
 
         Avec recherche : ceux dont le nom, le dossier ou le texte la contient
-        (casse ignorée). Les morceaux (chunks) restent internes : l'onglet n'en
-        montre que les documents.
+        (casse ignorée). Un dossier n'y montre que ses fichiers trouvés ; s'il en
+        a d'autres, « total » dit combien il en a en tout (« 1 fichier sur 4 »).
+        Les morceaux (chunks) restent internes : l'onglet n'en montre que les
+        documents.
 
         Returns:
             (groupes de la page, nombre total de groupes)
@@ -448,6 +450,7 @@ class MemoryStore:
         vm = self.vector_memory
         if vm is None:
             return [], 0
+        totals: Dict[str, int] = {}
         try:
             q = (query or "").strip().lower()
             if q:
@@ -458,6 +461,8 @@ class MemoryStore:
                     or q in str((entry.get("metadata") or {}).get("document_name") or "").lower()
                 }
                 entries = [entry for entry in everything if document_key(entry) in keys]
+                totals = {group["key"]: group["files"] for group in group_documents(everything)
+                          if group["kind"] == "folder"}
             elif hasattr(vm, "list_metadatas"):
                 entries = vm.list_metadatas("document")
             else:
@@ -466,6 +471,9 @@ class MemoryStore:
             logger.warning("Lecture des documents échouée: %s", exc)
             return [], 0
         groups = group_documents(entries)
+        for group in groups:
+            if group["kind"] == "folder" and totals.get(group["key"], 0) > group["files"]:
+                group["total"] = totals[group["key"]]
         page = groups[offset:offset + limit] if limit else groups[offset:]
         return page, len(groups)
 

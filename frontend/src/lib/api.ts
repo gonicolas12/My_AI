@@ -308,6 +308,8 @@ export interface MemoryFolder {
   key: string;
   name: string;
   files: number;
+  /** Recherche qui n'en trouve qu'une partie : tous ses fichiers (« 1 fichier sur 4 ») */
+  total?: number;
   created: string;
   source: string | null;
   documents: MemoryDocument[];
