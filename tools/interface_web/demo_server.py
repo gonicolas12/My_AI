@@ -768,6 +768,7 @@ class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
         self.indexer = DemoIndexer()
         # Vrais fichiers des documents fictifs : aperçus PDF et Office
         self.files = demo_files(Path(workspaces_dir).parent / "fichiers")
+        DEMO_FILE_PATHS.update(self.files)
         self.memory_store = DemoMemoryStore(self.session_manager, self.search_engine,
                                             Path(workspaces_dir).parent / "vector_store",
                                             self.files)
@@ -1418,10 +1419,25 @@ def _reviewed(code: str, agent_type: str) -> str:
     return "\n".join(out)
 
 
+# Vrais fichiers des documents de la démonstration (nom → chemin) : un agent en cite un
+DEMO_FILE_PATHS: dict = {}
+
+
 def demo_agent_answer(agent_type: str, task: str) -> str:
     """Réponse scénarisée d'un agent, selon la tâche."""
     if "long" in _user_task(task).lower():
         return long_answer()  # ~5 000 jetons, comme la réponse « long » du chat
+    if "aperçu" in _user_task(task).lower():
+        # Aperçu de la page Agents : pièces jointes nommées, document cité par son
+        # chemin, bloc HTML (bouton « Aperçu »)
+        joined = re.findall(r"--- (?:Fichier joint|Image jointe) : (.+?) ---", task)
+        text = f"J'ai lu {', '.join(joined)}." if joined else "Aucune pièce jointe."
+        cited = next(iter(DEMO_FILE_PATHS.values()), None)
+        if cited:
+            text += f"\n\nLe rapport de référence est dans `{cited}`."
+        return text + ("\n\n```html\n<!DOCTYPE html><html><body><h1>Compteur</h1>"
+                       "<button id=\"b\" onclick=\"this.textContent='Cliqué'\">Clic</button>"
+                       "</body></html>\n```\n")
     code = _provided_code(task)
     if code and agent_type in ("code", "debug", "optimizer", "security"):
         return (f"Voici la version revue du code fourni :\n\n```python\n{_reviewed(code, agent_type)}"

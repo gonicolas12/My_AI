@@ -6,19 +6,26 @@
  * que le modèle n'a pas encore servi « attend son tour » (queuedBehind).
  * Chaque agent terminé affiche sa durée et ses tokens/s ; un fil lancé du
  * téléphone ou par une tâche planifiée le dit, et le second mène à son rapport.
+ * Pièces jointes du fil, fichiers qu'un agent cite ou nomme et blocs HTML/SVG
+ * de son résultat s'ouvrent dans la fenêtre d'aperçu au premier plan : la page
+ * Agents n'a pas de volet de droite.
  */
 
 import { ChevronDown, ChevronRight, FileText, Paperclip, Square } from 'lucide-react';
-import { createElement, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { type Translate, useT } from '../../../i18n';
 import { openFile } from '../../../lib/actions';
+import { detectArtifacts, fileArtifact } from '../../../lib/artifacts';
 import { cn } from '../../../lib/cn';
 import type { RunSummary, RunView } from '../../../lib/events';
 import { formatDecimal, formatDuration } from '../../../lib/format';
 import { stopAgentsRun, useAgents } from '../../../stores/agents';
 import { summaryOf } from '../../../stores/agentsReducer';
+import { openAttachmentPreview, openPreviewWindow } from '../../../stores/attachmentPreview';
 import { CopyButton } from '../../chat/MessageActions';
+import { CodePreview } from '../../chat/markdown/codePreview';
+import { FileOpener } from '../../chat/markdown/fileOpener';
 import { buildChatLinks, citationKey } from '../../chat/markdown/links';
 import { Markdown } from '../../chat/markdown/Markdown';
 import { splitSources } from '../../chat/markdown/sources';
@@ -46,6 +53,11 @@ import {
 
 /** Hauteur maximale d'une sortie avant défilement (Tk : 20 lignes) */
 const SECTION_MAX = 560;
+
+/** Fichier cité par un agent : la fenêtre d'aperçu au premier plan */
+function openInWindow(path: string): void {
+  openPreviewWindow([fileArtifact(path, false)]);
+}
 
 function SectionStatus({ item, behind }: { item: ThreadItem; behind?: string }) {
   const t = useT();
@@ -109,8 +121,20 @@ const Section = memo(function Section({
   // Citations « [n] » du bloc Sources (WebAgent) cliquables, comme dans le chat ;
   // le bloc lui-même passe sous le bouton Sources de l'en-tête
   const citations = useMemo(() => citationKey(text), [text]);
-  const links = useMemo(() => buildChatLinks(citations, undefined), [citations]);
+  // Fichiers que le résultat cite ou nomme (serveur, fin de la section) : cliquables
+  const paths = section?.paths;
+  const links = useMemo(() => buildChatLinks(citations, paths), [citations, paths]);
   const { body: output, sources } = useMemo(() => splitSources(text), [text]);
+  // Blocs HTML et SVG du résultat fini : leur « Aperçu » ouvre la fenêtre sur eux,
+  // les autres blocs à côté (‹ k/n ›)
+  const blocks = useMemo(() => (running ? [] : detectArtifacts(output)), [running, output]);
+  const findPreview = useCallback(
+    (code: string) => {
+      const index = blocks.findIndex((block) => block.code === code.trim());
+      return index >= 0 ? () => openPreviewWindow(blocks, index) : null;
+    },
+    [blocks],
+  );
   // Diff seulement une fois la sortie terminée : pas de calcul à chaque fragment
   const change = useMemo<CodeChange | null>(
     () => (section && section.status !== 'running' ? findCodeChange(text, provided) : null),
@@ -207,7 +231,11 @@ const Section = memo(function Section({
           {shown === 'diff' && change ? (
             <DiffView change={change} />
           ) : output ? (
-            <Markdown text={output} streaming={running} links={links} />
+            <FileOpener.Provider value={openInWindow}>
+              <CodePreview.Provider value={blocks.length ? findPreview : null}>
+                <Markdown text={output} streaming={running} links={links} />
+              </CodePreview.Provider>
+            </FileOpener.Provider>
           ) : running && behind ? (
             <p className="shimmer text-sm">{t('agents.section.queued', { name: behind })}</p>
           ) : running ? (
@@ -330,10 +358,21 @@ function Thread({ run }: { run: RunView }) {
           {run.attachments.length ? (
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-3">
               <Paperclip size={12} />
-              {run.attachments.map((item) => (
-                <span key={item.path} title={item.path}>
+              {run.attachments.map((item, index) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  title={t('chat.file.preview', { name: item.name })}
+                  onClick={() =>
+                    openAttachmentPreview(
+                      run.attachments.map(({ path, name }) => ({ path, name })),
+                      index,
+                    )
+                  }
+                  className="text-link hover:underline"
+                >
                   {item.name}
-                </span>
+                </button>
               ))}
             </p>
           ) : null}

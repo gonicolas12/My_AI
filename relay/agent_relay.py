@@ -28,7 +28,7 @@ import base64
 import io
 
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from PIL import Image
 
@@ -40,6 +40,26 @@ from models.local_llm import LocalLLM
 from utils.logger import setup_logger
 
 from processors.attachments import read_attachment_text
+
+# Liens d'une section : au plus, comme ceux d'une réponse du chat
+_SECTION_LINKS_MAX = 60
+
+
+def section_links(text: str, files: Sequence[str]) -> List[Dict[str, Any]]:
+    """Fichiers qu'une réponse d'agent cite par leur chemin (existants), ou nomme
+    sans leur chemin (pièces jointes de la tâche), comme ceux d'une réponse du
+    chat (core/chat_service.answer_paths, named_file_links) : {"text", "path",
+    "dir", "name"}."""
+    # pylint: disable=import-outside-toplevel
+    from core.chat_service import answer_paths, named_file_links
+
+    named: Dict[str, str] = {}
+    for path in files:
+        name = os.path.basename(path or "")
+        stem, extension = os.path.splitext(name)
+        if stem and len(extension) > 1:
+            named[name.lower()] = path
+    return (answer_paths(text) + named_file_links(text, named))[:_SECTION_LINKS_MAX]
 
 try:
     from core.config import get_default_model as _get_default_model
@@ -471,6 +491,32 @@ class AgentRelayService:
     # Helpers de streaming
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _with_links(emit: Callable[[Dict[str, Any]], None],
+                    files: Sequence[str]) -> Callable[[Dict[str, Any]], None]:
+        """`emit` dont chaque fin de section (agent_section_end) porte les fichiers
+        que son texte cite ou nomme (« links », section_links) : cliquables sur la
+        page Agents, dans la fenêtre comme sur le téléphone. Le texte final d'une
+        section arrive toujours juste avant sa fin (agent_section_chunk)."""
+        texts: Dict[str, str] = {}
+
+        def wrapped(event: Dict[str, Any]) -> None:
+            kind = event.get("type")
+            if kind == "agent_section_chunk":
+                texts[str(event.get("section_id"))] = str(event.get("text") or "")
+            elif kind == "agent_section_end":
+                text = texts.pop(str(event.get("section_id")), "")
+                try:
+                    links = section_links(text, files) if text else []
+                except Exception:  # pylint: disable=broad-except
+                    logger.debug("Liens de la section non calculés", exc_info=True)
+                    links = []
+                if links:
+                    event = {**event, "links": links}
+            emit(event)
+
+        return wrapped
+
     def _make_token_sink(self, emit, exec_id, section_id):
         """Retourne un on_token(delta) qui émet le texte cumulé (throttlé).
 
@@ -590,6 +636,7 @@ class AgentRelayService:
         chiffré sur la boucle asyncio). `image_path`/`file_paths` sont les
         pièces jointes éventuelles (déjà résolues depuis les file_ids).
         """
+        emit = self._with_links(emit, ([image_path] if image_path else []) + list(file_paths or []))
         with self._exec_lock:
             if self._busy:
                 emit({"type": "agent_exec_error", "exec_id": exec_id,
@@ -778,6 +825,7 @@ class AgentRelayService:
         emit: Callable[[Dict[str, Any]], None],
     ) -> None:
         """Exécute un débat et stream les tours via `emit`."""
+        emit = self._with_links(emit, [])
         with self._exec_lock:
             if self._busy:
                 emit({"type": "agent_exec_error", "exec_id": exec_id,

@@ -522,6 +522,8 @@ html, body {
   padding: 20px 10px; border: 1px dashed var(--border); border-radius: 12px;
 }
 .ag-output-head { font-size: 12px; color: var(--text-secondary); padding: 4px 2px; }
+/* Pièces jointes de la tâche lancée, cliquables (thread.css, .file-chip) */
+.ag-output-files .file-chips { margin-top: 0; }
 .ag-sec { border-radius: 10px; overflow: hidden; }
 .ag-sec-head {
   display: flex; align-items: center; gap: 8px; cursor: pointer;

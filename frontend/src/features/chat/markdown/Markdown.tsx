@@ -35,10 +35,10 @@ import { revealPath } from '../../../lib/actions';
 import { relativeImagePath, useMarkdownImage } from '../../../lib/files';
 import { externalUrl } from '../../../lib/shell';
 import { showInMemory } from '../../../stores/memory';
-import { openFilePreview } from '../../../stores/preview';
 import { BlockSplitter } from './blocks';
 import { CodeBlock } from './CodeBlock';
 import { CodePreview } from './codePreview';
+import { FileOpener } from './fileOpener';
 import { type ChatLinks, prepareLinks, rehypeChatLinks } from './links';
 import { prepareMath } from './math';
 import { useMathPlugins } from './mathPlugins';
@@ -209,7 +209,8 @@ function FilePath({ node, children }: { node?: unknown; children?: React.ReactNo
   const t = useT();
   const path = propertyOf(node, 'path');
   const folder = propertyOf(node, 'dir') === 'true';
-  const open = () => (folder ? void revealPath(path) : openFilePreview(path));
+  const openFile = useContext(FileOpener);
+  const open = () => (folder ? void revealPath(path) : openFile(path));
   // Élément en ligne, et non un bouton : un bouton forme une boîte insécable,
   // la ponctuation qui le suit passerait seule à la ligne
   return (

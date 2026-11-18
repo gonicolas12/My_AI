@@ -204,6 +204,7 @@ export function applyAgentEvent(state: RunsState, event: AnyAgentEvent): RunsSta
           finished_at: new Date().toISOString(),
           inference_ms: event.payload.inference_ms ?? null,
           tokens_per_sec: event.payload.tokens_per_sec ?? null,
+          paths: event.payload.links ?? section.paths,
         })),
       );
     }
