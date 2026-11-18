@@ -583,6 +583,27 @@ def test_file_generation_takes_the_tk_path(chat):
     assert answer["type"] == "file_generation" and answer["file_path"] == "C:/out/calc.py"
 
 
+@pytest.mark.parametrize("text, kind", [
+    ("Crée un fichier PDF nommé essai_apercu_poeme avec un court poème de quatre vers "
+     "sur l’automne.", "chat"),
+    ("Crée un fichier Word sur les baleines", "chat"),
+    ("génère un fichier calcul.py", "file"),
+    ("génère un fichier python qui trie une liste", "file"),
+])
+def test_document_files_take_the_document_path(chat, text, kind):
+    """« Crée un fichier PDF… » partait dans la génération de code : un .py et
+    aucun PDF. Un fichier PDF ou Word suit la réponse normale, dont l'outil
+    generate_document écrit les documents ; un fichier de code reste un fichier
+    de code (core/file_intent.py)."""
+    chat.engine.file_result = {"type": "file_generation", "success": True,
+                               "filename": "calcul.py", "file_path": "C:/out/calcul.py"}
+    ask(chat, text)
+
+    assert wait_for(chat.events, "assistant.start")[-1]["payload"]["kind"] == kind
+    assert (("process_query_stream", text) in chat.engine.calls) is (kind == "chat")
+    assert (("process_query", text) in chat.engine.calls) is (kind == "file")
+
+
 def test_image_generation_reports_progress_and_is_remembered(chat):
     progress_seen = []
 

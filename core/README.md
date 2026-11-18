@@ -16,6 +16,7 @@ Contenu principal
   - **Synthèse** : son prompt remplace celui de la boucle mais repart du SYSTEM du Modelfile (`with_modelfile`, sans la section « ## Outils »), puis reprend `answer_context` (faits mémorisés, dossier projet) transmis par `run()`.
 - `modelfile.py` — Lit le bloc SYSTEM du `Modelfile` (identité, format, règles de My_AI). `with_modelfile(consignes, tools=True)` construit le prompt système d'une réponse : le Modelfile d'abord, puis les consignes de l'appel ; `tools=False` retire la section « ## Outils » quand l'appel n'offre aucun outil, et `drop_tools_section()` fait de même sur un prompt déjà construit.
 - `agent_orchestrator.py` — `AgentOrchestrator` : coordonne les agents IA spécialisés (page Agents). Gère la création à la demande des agents (`get_or_create_agent`), l'historique des tâches et l'exécution de workflows multi-agents. **Distinct** de `ChatOrchestrator` (usage exclusif page Agents).
+- `file_intent.py` — « génère/crée un fichier… » : fichier de code ou document. Un fichier dans un format de document (« un fichier PDF », « rapport.docx », « au format Excel ») part vers la génération de documents ; « calcul.py » ou « un fichier python » restent du code. Utilisé par `chat_service.py` et `ai_engine.py`.
 - `mcp_client.py` — Client MCP (Model Context Protocol). Expose les outils locaux au format MCP standardisé et permet la connexion à des serveurs MCP externes via le transport `stdio`. Utilisé par `AIEngine` pour étendre les capacités d'Ollama.
 
 ### Langue

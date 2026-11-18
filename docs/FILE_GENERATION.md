@@ -54,6 +54,15 @@ génère un fichier server.js pour un serveur Express simple
 > modification de pièces jointes font l'objet de leur propre document :
 > [DOCUMENT_GENERATION.md](DOCUMENT_GENERATION.md). La présente page ne traite
 > que de la génération de **fichiers de code**.
+>
+> Un fichier demandé dans un format de document n'en est pas un : « crée un
+> fichier **PDF** nommé essai… », « génère un fichier **Word**… », « un fichier
+> rapport.**docx** » partent vers la génération de documents, qui l'écrit dans
+> ce format. [`core/file_intent.py`](../core/file_intent.py) fait le tri
+> (extension du nom, mot qui suit « fichier », « en PDF », « au format
+> Excel ») ; « génère un fichier calcul.py » ou « un fichier python qui… »
+> restent ici. Avant ce tri, « crée un fichier PDF… » donnait un script Python
+> (`.py`, le langage par défaut).
 
 ## 🚀 Utilisation
 
@@ -131,7 +140,7 @@ Requête Utilisateur
     ↓
 Analyse de la requête (_analyze_query_type)
     ↓
-Détection "génère moi un fichier"
+Détection "génère moi un fichier" (de code : core/file_intent.py)
     ↓
 Extraction du langage et nom de fichier
     ↓

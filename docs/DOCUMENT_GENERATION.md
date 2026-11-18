@@ -20,6 +20,15 @@ Le document est écrit dans `outputs/documents/` et **l'aperçu s'ouvre
 automatiquement** dans le volet latéral (cf.
 [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md)).
 
+> « Crée un **fichier** PDF nommé essai… » est aussi un document. Un fichier
+> demandé dans un format de document (PDF, Word, Excel, PowerPoint, Markdown,
+> CSV, texte) suit ce chemin, et non la génération de fichier de code
+> ([FILE_GENERATION.md](FILE_GENERATION.md)), qui n'écrit que du code : avant
+> ce tri, la demande donnait `essai.py`, un script Python. Le format se lit sur
+> l'extension du nom (« un fichier rapport.pdf »), sur le mot qui suit
+> « fichier » (« un fichier Word », « au format Excel ») ou plus loin (« … en
+> PDF ») : [`core/file_intent.py`](../core/file_intent.py).
+>
 > « Génère un **tableau** excel… » part bien vers un classeur : seul, le mot
 > « tableau » désigne un tableau de données, pas une peinture. La génération
 > d'image ne le prend qu'avec un style pictural (« un tableau impressionniste »,
