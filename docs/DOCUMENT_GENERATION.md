@@ -148,12 +148,17 @@ cette structure. Le parseur couvre ce qu'un LLM produit réellement (titres,
 listes imbriquées, tableaux, fences, gras/italique/code/liens, retours à la
 ligne forcés), pas CommonMark en entier.
 
-Deux comportements volontaires, hérités de l'usage technique :
+Trois comportements volontaires, hérités de l'usage technique :
 
 - `snake_case_comme_ceci` **n'est pas** de l'italique (pas d'emphase intra-mot
   sur les underscores) ;
 - `***texte***` donne bien gras **et** italique, et l'imbrication
-  `*ital **gras** fin*` conserve les deux styles.
+  `*ital **gras** fin*` conserve les deux styles ;
+- une ligne de texte juste après une citation (sans `>`) ou une liste (sans
+  retrait) ouvre un **paragraphe** à sa suite, comme une ligne vide : la
+  continuation paresseuse de CommonMark (la ligne rejoindrait la citation ou la
+  dernière puce) sert au texte coupé à la main, et un LLM écrit chaque
+  paragraphe d'une traite.
 
 Les fins de ligne suivent CommonMark : une ligne qui finit par **deux espaces**
 ou par `\` passe à la ligne sans quitter son paragraphe (les vers d'un poème,
