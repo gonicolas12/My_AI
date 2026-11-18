@@ -187,6 +187,16 @@ def test_markdown_without_html_keeps_its_usual_rendering(tmp_path):
     assert 'class="md-file"' not in page and "2*3" in page
 
 
+def test_markdown_file_joins_plain_line_endings_like_github(tmp_path):
+    """Un fichier Markdown n'est pas une réponse du modèle : comme sur GitHub, une
+    fin de ligne simple vaut une espace ; deux espaces passent à la ligne."""
+    note = tmp_path / "note.md"
+    note.write_bytes("Une phrase coupée\nen deux.\n\nVers un,  \nvers deux.\n".encode("utf-8"))
+    page = build_document_preview(str(note))
+    assert "Une phrase coupée en deux." in page
+    assert "Vers un,<br>vers deux." in page
+
+
 def test_markdown_table_cells_are_rendered_in_preview():
     blocks = parse_markdown("| A | B |\n|---|---|\n| **Taille** | *petite* |")
     html = render_blocks_html(blocks)

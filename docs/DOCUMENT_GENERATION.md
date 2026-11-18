@@ -155,7 +155,7 @@ puces avec un niveau, openpyxl veut des lignes de cellules, python-docx veut
 des runs stylés. Passer par `markdown` → HTML → re-parsing perdrait justement
 cette structure. Le parseur couvre ce qu'un LLM produit réellement (titres,
 listes imbriquées, tableaux, fences, gras/italique/code/liens, retours à la
-ligne forcés), pas CommonMark en entier.
+ligne), pas CommonMark en entier.
 
 Trois comportements volontaires, hérités de l'usage technique :
 
@@ -169,13 +169,24 @@ Trois comportements volontaires, hérités de l'usage technique :
   dernière puce) sert au texte coupé à la main, et un LLM écrit chaque
   paragraphe d'une traite.
 
-Les fins de ligne suivent CommonMark : une ligne qui finit par **deux espaces**
-ou par `\` passe à la ligne sans quitter son paragraphe (les vers d'un poème,
-une adresse) ; toute autre fin de ligne vaut une espace. Le retour forcé est un
-fragment à part (`LINE_BREAK`), rendu `<w:br/>` dans Word, `<br/>` dans le PDF,
-`<a:br>` dans PowerPoint, cellule sur plusieurs lignes dans l'onglet « Notes »
-d'Excel, `<br>` en HTML, et deux espaces en fin de ligne dans le Markdown
-réécrit.
+Les fins de ligne : un LLM écrit chaque paragraphe d'une traite, sur une seule
+ligne. Une fin de ligne au milieu d'un paragraphe, d'une citation ou d'une puce
+y est donc voulue (les vers d'un poème, une adresse) : elle **passe à la
+ligne** sans quitter son paragraphe, comme dans le chat. Le retour forcé de
+CommonMark (deux espaces ou `\` en fin de ligne) aussi. Le 2026-11-18, my_ai a
+écrit les vers d'un poème avec de simples fins de ligne : ils sortaient du PDF
+en un seul paragraphe.
+
+Le texte qui ne vient pas du modèle se lit comme CommonMark
+(`parse_markdown(texte, line_breaks=False)`) : seule une fin de ligne forcée y
+passe à la ligne, les autres valent une espace. C'est le cas du texte extrait
+d'un PDF pour le régénérer (ses lignes sont coupées à la largeur de la page, le
+paragraphe se recoud) et de l'aperçu d'un fichier Markdown, comme sur GitHub.
+
+Le retour à la ligne est un fragment à part (`LINE_BREAK`), rendu `<w:br/>` dans
+Word, `<br/>` dans le PDF, `<a:br>` dans PowerPoint, cellule sur plusieurs lignes
+dans l'onglet « Notes » d'Excel, `<br>` en HTML, et deux espaces en fin de ligne
+dans le Markdown réécrit (lu ainsi par tout moteur Markdown).
 
 ## 🎨 Ce que rend chaque format
 

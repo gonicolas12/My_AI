@@ -293,7 +293,9 @@ def build_document_preview(path: str, name: Optional[str] = None) -> str:
             if _MARKDOWN_HTML.search(source):
                 body = header + render_markdown_with_html(source, file_path.parent)
             else:
-                body = header + render_blocks_html(parse_markdown(source), "")
+                # Fichier Markdown, pas une réponse du modèle : comme sur GitHub, une
+                # fin de ligne simple vaut une espace (generators/markdown_document.py)
+                body = header + render_blocks_html(parse_markdown(source, line_breaks=False), "")
         else:
             body = header + f'<pre dir="auto">{html.escape(_read_text(file_path))}</pre>'
     except Exception as exc:  # noqa: BLE001 - l'aperçu ne doit jamais faire tomber le volet

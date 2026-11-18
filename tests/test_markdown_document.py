@@ -43,10 +43,14 @@ def test_hash_without_space_is_not_a_heading():
 # ── Paragraphes ────────────────────────────────────────────────────────────
 
 
-def test_paragraph_lines_are_joined():
-    blocks = parse_markdown("Première ligne\nsuite de la phrase.\n\nAutre paragraphe.")
+def test_paragraph_lines_stay_in_one_paragraph():
+    """Les lignes d'un paragraphe du modèle y restent des lignes ; en CommonMark
+    (texte qui ne vient pas du modèle), elles se joignent par une espace."""
+    source = "Première ligne\nsuite de la phrase.\n\nAutre paragraphe."
+    blocks = parse_markdown(source)
     assert _types(blocks) == ["Paragraph", "Paragraph"]
-    assert blocks[0].text == "Première ligne suite de la phrase."
+    assert blocks[0].text == "Première ligne\nsuite de la phrase."
+    assert parse_markdown(source, line_breaks=False)[0].text == "Première ligne suite de la phrase."
 
 
 def test_empty_input_gives_no_blocks():
@@ -86,10 +90,27 @@ def test_poem_keeps_its_four_verses():
     assert blocks[1].text.split("\n") == verses
 
 
-def test_plain_line_ending_still_joins_with_a_space():
-    """Une seule espace, une tabulation ou rien en fin de ligne : la phrase continue."""
-    assert parse_markdown("Première ligne \nsuite.")[0].text == "Première ligne suite."
-    assert parse_inlines("a\t\nb") == [("a b", frozenset(), None)]
+def test_plain_line_ending_of_the_model_breaks_the_line():
+    """Contrôle du 2026-11-18 dans l'appli : my_ai a écrit ses vers avec de simples
+    fins de ligne, et le PDF les a joints. Un LLM écrit chaque paragraphe d'une
+    traite : une fin de ligne y est voulue, elle passe à la ligne, comme dans le chat."""
+    verses = ["Les feuilles d'or dansent au vent,", "Le temps des feuilles mortes.",
+              "La brise froide souffle lentement,", "Et l'automne nous fait rêver."]
+    assert parse_markdown("\n".join(verses))[0].text.split("\n") == verses
+    assert parse_markdown("Première ligne \nsuite.")[0].text == "Première ligne\nsuite."
+    assert parse_inlines("a\t\nb") == [("a", frozenset(), None), LINE_BREAK,
+                                       ("b", frozenset(), None)]
+
+
+def test_commonmark_joins_a_plain_line_ending_with_a_space():
+    """Texte qui ne vient pas du modèle (texte extrait d'un PDF, fichier Markdown) :
+    une seule espace, une tabulation ou rien en fin de ligne, la phrase continue ;
+    deux espaces ou « \\ » passent à la ligne."""
+    assert parse_markdown("Première ligne \nsuite.", line_breaks=False)[0].text == (
+        "Première ligne suite.")
+    assert parse_inlines("a\t\nb", line_breaks=False) == [("a b", frozenset(), None)]
+    assert parse_inlines("Vers un,  \nvers deux.", line_breaks=False) == _VERS
+    assert parse_markdown("- Un\n  suite", line_breaks=False)[0].items[0].text == "Un suite"
 
 
 def test_spaces_around_a_line_break_are_dropped():
@@ -141,8 +162,8 @@ def test_list_item_continuation_keeps_breaks_and_styles():
     items = blocks[0].items
     assert [item.text for item in items] == ["Vers un,\nvers deux.", "Autre"]
     assert ("deux", frozenset({"bold"}), None) in items[0].inlines
-    # Une continuation sans retour forcé reste jointe par une espace
-    assert parse_markdown("- Un\n  suite")[0].items[0].text == "Un suite"
+    # Une continuation du modèle, même sans retour forcé, passe à la ligne
+    assert parse_markdown("- Un\n  suite")[0].items[0].text == "Un\nsuite"
 
 
 # ── Listes ─────────────────────────────────────────────────────────────────
@@ -227,7 +248,7 @@ def test_text_right_after_a_quote_comes_after_it():
     blocks = parse_markdown("> Une citation\n> sur deux lignes.\nTexte qui suit.")
     assert _types(blocks) == ["Quote", "Paragraph"]
     assert [block.text for block in blocks] == [
-        "Une citation sur deux lignes.", "Texte qui suit.",
+        "Une citation\nsur deux lignes.", "Texte qui suit.",
     ]
     assert _types(parse_markdown("Avant\n> Une citation\nAprès")) == [
         "Paragraph", "Quote", "Paragraph",

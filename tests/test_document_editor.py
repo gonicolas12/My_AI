@@ -265,6 +265,22 @@ def test_pdf_is_regenerated_and_says_so(editor, source_factory):
     assert "Protection" in text and "Conservation" not in text
 
 
+def test_pdf_text_is_rejoined_into_paragraphs(editor, source_factory, monkeypatch):
+    """Le texte extrait d'un PDF est coupé à la largeur de la page : régénéré, un
+    paragraphe se recoud (CommonMark), il ne garde pas ces coupures comme le ferait
+    le texte du modèle."""
+    from processors.pdf_processor import PDFProcessor
+
+    source = source_factory("pdf")
+    monkeypatch.setattr(PDFProcessor, "extract_text",
+                        lambda self, path: "Une phrase coupée\nà la largeur de la page.")
+    built = []
+    monkeypatch.setattr(editor._generator, "build",  # pylint: disable=protected-access
+                        lambda blocks, *args: built.append(blocks))
+    editor.edit(str(source), [{"action": "replace_text", "find": "phrase", "replace": "ligne"}])
+    assert [block.text for block in built[0]] == ["Une ligne coupée à la largeur de la page."]
+
+
 # ── Erreurs et normalisation ───────────────────────────────────────────────
 
 

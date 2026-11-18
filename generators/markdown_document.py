@@ -6,9 +6,18 @@ génération de documents (DOCX, PDF, PPTX, XLSX) de ``document_generator.py``.
 
 Le but n'est pas de couvrir CommonMark : c'est de convertir fidèlement ce
 qu'un LLM produit réellement (titres ``#``, listes, tableaux, fences ```` ``` ````,
-gras/italique, retours à la ligne forcés d'un poème ou d'une adresse) en une
+gras/italique, retours à la ligne d'un poème ou d'une adresse) en une
 structure que python-docx, reportlab, python-pptx et openpyxl savent chacun
 rendre à leur façon.
+
+Retours à la ligne : un LLM écrit chaque paragraphe d'une traite, sur une ligne.
+Une fin de ligne au milieu d'un paragraphe y est donc voulue (vers d'un poème,
+lignes d'une adresse) : elle reste un retour à la ligne, comme dans le chat
+(remark-breaks dans la fenêtre, markdown.js sur le téléphone). Le texte qui ne
+vient pas du modèle se lit comme CommonMark (``line_breaks=False``) : texte
+extrait d'un PDF, dont les lignes sont coupées à la largeur de la page, et
+aperçu d'un fichier Markdown, comme sur GitHub ; seuls deux espaces ou « \\ »
+en fin de ligne y passent à la ligne.
 
 La convention de fences est la même que le reste du projet
 (cf. ``interfaces/artifacts.py`` et le rendu Markdown de la fenêtre,
@@ -27,9 +36,9 @@ from typing import List, Optional, Tuple
 # styles ⊆ {"bold", "italic", "code"} ; url non vide = lien.
 Inline = Tuple[str, frozenset, Optional[str]]
 
-# Retour à la ligne forcé (deux espaces ou « \ » en fin de ligne, comme dans
-# CommonMark) : un fragment à part, de texte « \n », sans style ni lien. Les
-# autres fragments ne contiennent jamais de « \n ».
+# Retour à la ligne (fin de ligne dans un paragraphe du modèle ; en CommonMark,
+# deux espaces ou « \ » en fin de ligne) : un fragment à part, de texte « \n »,
+# sans style ni lien. Les autres fragments ne contiennent jamais de « \n ».
 LINE_BREAK: Inline = ("\n", frozenset(), None)
 
 
@@ -161,16 +170,17 @@ _MAX_LIST_LEVEL = 4
 # ── Inline ─────────────────────────────────────────────────────────────────
 
 
-def parse_inlines(text: str) -> List[Inline]:
+def parse_inlines(text: str, line_breaks: bool = True) -> List[Inline]:
     """
     Découpe le texte d'un bloc en fragments stylés.
 
     Args:
         text: le Markdown d'un bloc sur une ou plusieurs lignes, sans son
-            préfixe de bloc (« # », « - », « > »). Comme dans CommonMark, une
-            ligne qui finit par deux espaces ou par « \\ » passe à la ligne
-            (fragment ``LINE_BREAK``) ; les autres fins de ligne valent une
-            espace.
+            préfixe de bloc (« # », « - », « > »). Une ligne qui finit par deux
+            espaces ou par « \\ » passe à la ligne (fragment ``LINE_BREAK``).
+        line_breaks: True (texte du modèle) : toute autre fin de ligne aussi.
+            False (CommonMark : texte extrait d'un PDF, fichier Markdown) :
+            elle vaut une espace. Dans du code en ligne, une espace toujours.
 
     Returns:
         La liste des ``(texte, styles, url)`` dans l'ordre d'apparition.
@@ -181,7 +191,7 @@ def parse_inlines(text: str) -> List[Inline]:
         return []
 
     inlines: List[Inline] = []
-    for part, styles, url in _parse_spans(_join_lines(text)):
+    for part, styles, url in _parse_spans(_join_lines(text, line_breaks)):
         # Un retour forcé dans un fragment (gras sur deux vers) : un fragment à part
         for position, piece in enumerate(part.split("\n")):
             if position:
@@ -191,16 +201,17 @@ def parse_inlines(text: str) -> List[Inline]:
     return inlines
 
 
-def _join_lines(text: str) -> str:
+def _join_lines(text: str, line_breaks: bool = True) -> str:
     """
-    Les fins de ligne d'un bloc, comme CommonMark : « \\n » pour un retour
-    forcé, une espace pour un retour simple et dans du code en ligne.
+    Les fins de ligne d'un bloc : « \\n » pour un retour forcé, et pour un
+    retour simple du modèle (line_breaks) ; une espace pour un retour simple en
+    CommonMark, et toujours dans du code en ligne.
     """
     if "\n" not in text:
         return text
 
     def line_end(match: "re.Match[str]") -> str:
-        return "\n" if match.group("hard") else " "
+        return "\n" if line_breaks or match.group("hard") else " "
 
     parts: List[str] = []
     cursor = 0
@@ -282,12 +293,15 @@ def _block_text(lines: List[str]) -> str:
     return "\n".join(line.lstrip() for line in lines).strip()
 
 
-def parse_markdown(text: str) -> List[Block]:
+def parse_markdown(text: str, line_breaks: bool = True) -> List[Block]:
     """
     Convertit du Markdown en liste de blocs de document.
 
     Args:
         text: le contenu Markdown complet.
+        line_breaks: True (texte du modèle) : une fin de ligne dans un
+            paragraphe, une citation ou une puce passe à la ligne. False pour
+            un texte qui ne vient pas du modèle (CommonMark, voir l'en-tête).
 
     Returns:
         La liste des blocs (Heading, Paragraph, ListBlock, Table, CodeBlock,
@@ -312,14 +326,14 @@ def parse_markdown(text: str) -> List[Block]:
         if paragraph:
             joined = _block_text(paragraph)
             if joined:
-                blocks.append(Paragraph(parse_inlines(joined)))
+                blocks.append(Paragraph(parse_inlines(joined, line_breaks)))
             paragraph.clear()
 
     def flush_quote() -> None:
         if quote:
             joined = _block_text(quote)
             if joined:
-                blocks.append(Quote(parse_inlines(joined)))
+                blocks.append(Quote(parse_inlines(joined, line_breaks)))
             quote.clear()
 
     def flush_list() -> None:
@@ -438,7 +452,7 @@ def parse_markdown(text: str) -> List[Block]:
         # ── Continuation d'une entrée de liste (ligne indentée sans puce) ──
         if current_list is not None and line.startswith((" ", "\t")):
             item_lines.append(line)
-            current_list.items[-1].inlines = parse_inlines(_block_text(item_lines))
+            current_list.items[-1].inlines = parse_inlines(_block_text(item_lines), line_breaks)
             index += 1
             continue
 
