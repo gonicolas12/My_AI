@@ -470,10 +470,18 @@ def test_open_window_wires_the_handlers_as_pywebview_calls_them(app, monkeypatch
     monkeypatch.setattr(desktop_window, "harden_edgechromium", lambda origins: origins)
     monkeypatch.delenv(desktop_window.ENV_CDP_PORT, raising=False)
 
-    watched = []
+    watched, steps = [], []
     monkeypatch.setattr(desktop_window, "watch_drops",
                         lambda window, on_paths: watched.append((window, on_paths)))
+    identity = desktop_window.app_identity
+    monkeypatch.setattr(identity, "prepare", lambda: steps.append("prepare"))
+    monkeypatch.setattr(identity, "set_qt_app_id", lambda native: steps.append(("qt", native)))
+    start = fake.start
+    monkeypatch.setattr(fake, "start", lambda **kwargs: (steps.append("start"), start(**kwargs)))
     assert desktop_window.open_window(app, f"{APP}/#token=x") is True
+    # Logo de My_AI : identité posée avant la fenêtre, app_id de Qt avant l'affichage
+    assert steps == ["prepare", "start", ("qt", None)]
+    assert fake.started["icon"] == str(identity.icon_path())
     # Dépôts de fichiers écoutés à chaque chargement de la page
     assert watched == [(fake.window, app.files_dropped)]
     title, url, kwargs = fake.created

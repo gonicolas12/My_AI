@@ -91,8 +91,9 @@ le texte : une vraie dictée se vérifie à la voix.
 
 ## Divers
 
-- `python tools/interface_web/make_icon.py interfaces/desktop/assets/my_ai.ico [APERCU.png]` :
-  icône de la fenêtre, le robot de l'extension VS Code dans la couleur `--accent`.
+- `python tools/interface_web/make_icon.py interfaces/desktop/assets/my_ai.ico [interfaces/desktop/assets/my_ai.png]` :
+  icône de l'appli (Windows en .ico, macOS et Linux en .png), le robot de l'extension VS Code dans
+  la couleur `--accent`.
 - Le banc de rendu Markdown de la phase 2 (react-markdown par blocs, Streamdown, react-markdown
   seul) n'est pas versé : il dépend de Streamdown, retiré des dépendances. Ses résultats sont dans le
   suivi (journal de la phase 2).

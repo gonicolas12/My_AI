@@ -1,9 +1,14 @@
 """
-Icône de la fenêtre : le robot de vscode_extension/media/icon-activitybar.svg,
+Icône de l'appli : le robot de vscode_extension/media/icon-activitybar.svg,
 dans la couleur --accent de frontend/src/styles/tokens.css.
 
+  - my_ai.ico : fenêtre et barre des tâches de Windows, de 16 à 256 px
+  - my_ai.png : Dock de macOS, fenêtre et fichier .desktop sous Linux, 256 px
+    (cf. interfaces/desktop/app_identity.py)
+
 Usage, depuis la racine du dépôt :
-  python tools/interface_web/make_icon.py interfaces/desktop/assets/my_ai.ico [APERCU.png]
+  python tools/interface_web/make_icon.py interfaces/desktop/assets/my_ai.ico \\
+      [interfaces/desktop/assets/my_ai.png]
 """
 
 import sys
@@ -40,14 +45,15 @@ def robot() -> Image.Image:
 
 
 def main():
-    """Écrit l'icône, et l'aperçu PNG s'il est demandé."""
+    """Écrit l'icône Windows, et le PNG de 256 px s'il est demandé."""
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     image = robot()
     image.save(sys.argv[1], format="ICO", sizes=SIZES)
-    if len(sys.argv) > 2:
-        image.save(sys.argv[2])
     print("icône écrite :", sys.argv[1])
+    if len(sys.argv) > 2:
+        image.save(sys.argv[2], format="PNG")
+        print("PNG écrit :", sys.argv[2])
 
 
 if __name__ == "__main__":
