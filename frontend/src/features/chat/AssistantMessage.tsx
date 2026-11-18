@@ -1,5 +1,5 @@
-import { CircleAlert, Eye, FolderOpen, OctagonX } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { CircleAlert, FolderOpen, OctagonX } from 'lucide-react';
+import { memo, useCallback, useMemo } from 'react';
 
 import { RobotLogo } from '../../components/ui/RobotLogo';
 import { type Translate, useLocale, useT } from '../../i18n';
@@ -8,8 +8,9 @@ import type { MessageView, NearFolder, ToolCallView } from '../../lib/events';
 import { formatDecimal, formatDuration, formatTime } from '../../lib/format';
 import type { LiveTurn } from '../../stores/chatReducer';
 import { showInMemory } from '../../stores/memory';
-import { openPreview } from '../../stores/preview';
+import { openFilePreview, openPreview } from '../../stores/preview';
 import { FileCard, GeneratedImage } from './FileCard';
+import { CodePreview } from './markdown/codePreview';
 import { buildChatLinks, citationKey } from './markdown/links';
 import { Markdown } from './markdown/Markdown';
 import { splitSources } from './markdown/sources';
@@ -162,6 +163,19 @@ export const AssistantMessage = memo(function AssistantMessage({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- titres traduits
     [streaming, error, text, documents, locale],
   );
+  // Bloc HTML ou SVG : son bouton « Aperçu » ouvre le volet sur lui (les autres
+  // aperçus de la réponse s'y suivent, ‹ k/n ›)
+  const findPreview = useCallback(
+    (code: string) => {
+      const wanted = code.trim();
+      const index = artifacts.findIndex(
+        (artifact) => artifact.kind !== 'document' && artifact.code === wanted,
+      );
+      return index >= 0 ? () => openPreview(mid, artifacts, index) : null;
+    },
+    [artifacts, mid],
+  );
+  const hasBlocks = artifacts.some((artifact) => artifact.kind !== 'document');
 
   // Fichier généré : sa carte paraît une fois le fichier écrit
   const filePath = live?.file?.path || message?.file_path;
@@ -198,22 +212,24 @@ export const AssistantMessage = memo(function AssistantMessage({
           <span className="whitespace-pre-wrap">{text.replace(/^❌\s*/u, '')}</span>
         </div>
       ) : (
-        parts.map((part, index) =>
-          part.kind === 'text' ? (
-            <Markdown
-              key={part.key}
-              text={part.text}
-              streaming={live !== null && index === lastText && index === parts.length - 1}
-              links={links}
-            />
-          ) : (
-            <ToolRow
-              key={part.key}
-              tool={part.tool}
-              running={live !== null && part.tool.ok === undefined}
-            />
-          ),
-        )
+        <CodePreview.Provider value={hasBlocks ? findPreview : null}>
+          {parts.map((part, index) =>
+            part.kind === 'text' ? (
+              <Markdown
+                key={part.key}
+                text={part.text}
+                streaming={live !== null && index === lastText && index === parts.length - 1}
+                links={links}
+              />
+            ) : (
+              <ToolRow
+                key={part.key}
+                tool={part.tool}
+                running={live !== null && part.tool.ok === undefined}
+              />
+            ),
+          )}
+        </CodePreview.Provider>
       )}
 
       {!streaming && message?.memory_near?.length ? (
@@ -224,11 +240,21 @@ export const AssistantMessage = memo(function AssistantMessage({
         <Activity label={activity} progress={live?.kind === 'image' ? live.progress : null} />
       ) : null}
 
-      {imagePath ? <GeneratedImage path={imagePath} /> : null}
+      {imagePath ? (
+        <GeneratedImage path={imagePath} onPreview={() => openFilePreview(imagePath, true, mid)} />
+      ) : null}
 
-      {filePath ? <FileCard path={filePath} name={live?.file?.name} kind="file" /> : null}
+      {filePath ? (
+        <FileCard
+          path={filePath}
+          name={live?.file?.name}
+          kind="file"
+          onPreview={() => openFilePreview(filePath, true, mid)}
+        />
+      ) : null}
 
       {documents.map((path) => {
+        // Document de la réponse : le volet passe de l'un à l'autre (‹ k/n ›)
         const index = artifacts.findIndex(
           (artifact) => artifact.kind === 'document' && artifact.path === path,
         );
@@ -237,23 +263,12 @@ export const AssistantMessage = memo(function AssistantMessage({
             key={path}
             path={path}
             kind="document"
-            onPreview={index >= 0 ? () => openPreview(mid, artifacts, index) : undefined}
+            onPreview={() =>
+              index >= 0 ? openPreview(mid, artifacts, index) : openFilePreview(path, true, mid)
+            }
           />
         );
       })}
-
-      {artifacts.length ? (
-        <button
-          type="button"
-          onClick={() => openPreview(mid, artifacts, 0)}
-          className="mt-1 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-semibold text-accent transition-colors duration-150 hover:bg-accent-soft"
-        >
-          <Eye size={15} />
-          {artifacts.length > 1
-            ? t('chat.message.previewCount', { count: artifacts.length })
-            : t('common.preview')}
-        </button>
-      ) : null}
 
       {message?.interrupted ? (
         <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-warning">

@@ -37,6 +37,57 @@ export function formatDecimal(value: number, digits = 1): string {
   });
 }
 
+const SIZE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const;
+
+/** Taille d'un fichier dans la langue de l'interface : « 38,4 ko », « 38.4 kB » */
+export function formatSize(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes < 0) return '';
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1000 && unit < SIZE_UNITS.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return new Intl.NumberFormat(intlLocale(), {
+    style: 'unit',
+    unit: SIZE_UNITS[unit],
+    unitDisplay: 'short',
+    maximumFractionDigits: unit === 0 || value >= 100 ? 0 : 1,
+  }).format(value);
+}
+
+/** Unités de la date relative et leur taille dans l'unité suivante (secondes d'abord) */
+const RELATIVE_STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['minute', 60],
+  ['hour', 24],
+  ['day', 7],
+];
+
+/**
+ * Date d'un fichier, relative si elle est proche : « il y a 7 heures », « hier »,
+ * puis « 30 oct. » (comme l'en-tête d'un aperçu de document)
+ */
+export function formatWhen(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const relative = new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'auto' });
+  const seconds = (date.getTime() - now.getTime()) / 1000;
+  if (Math.abs(seconds) < 45) return relative.format(0, 'second');
+  // En minutes, puis en heures, puis en jours
+  let value = seconds / 60;
+  for (const [unit, size] of RELATIVE_STEPS) {
+    const rounded = Math.round(value);
+    if (Math.abs(rounded) < size) return relative.format(rounded || Math.sign(value), unit);
+    value /= size;
+  }
+  return date.toLocaleDateString(intlLocale(), {
+    day: 'numeric',
+    month: 'short',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
+}
+
 /** Date relative pour la liste des conversations : « Aujourd'hui », « Hier », « 12 oct. » */
 export function formatDay(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return '';

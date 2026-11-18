@@ -49,6 +49,12 @@ fictifs, en mémoire, et les
 messages des sessions copiées (modifiés ou supprimés à la source dans ces copies).
 Son bouton Ajouter (onglet Documents) lit les vrais fichiers choisis, l'OCR des
 images compris ; seule leur description par le modèle de vision est simulée (4 s).
+Comme dans l'appli, un fichier ajouté garde sa copie pour l'aperçu (clic sur
+son nom), dans temp/demo_server/PORT/vector_store/originals/. Les documents
+fictifs ont la leur aussi : un vrai PDF et un vrai document Word, créés au
+lancement dans temp/demo_server/PORT/fichiers/ (avec un classeur Excel et une
+présentation PowerPoint, pour les aperçus Office) ; le dossier site_vitrine
+n'en a pas, son aperçu montre le texte en mémoire.
 Les Prompts sont ceux par défaut de la vraie bibliothèque, dans
 temp/demo_server/PORT/prompt_templates.json.
 
@@ -121,6 +127,7 @@ from interfaces.desktop.resources import ResourcesService  # noqa: E402
 from interfaces.desktop.schedule import ScheduleService  # noqa: E402
 from interfaces.desktop.voice import VoiceService  # noqa: E402
 from core.command_history import CommandHistory  # noqa: E402
+from interfaces.desktop.memory_files import ORIGINALS_DIRNAME, OriginalFiles  # noqa: E402
 from test_chat_service import FakeEngine, FakeFileProcessor, FakeRLHF  # noqa: E402
 
 LONG_SECTION = """## Section {n} : architecture du service
@@ -400,6 +407,76 @@ DEMO_FOLDER = ("site_vitrine", [
 ])
 
 
+def demo_files(folder: Path) -> dict:
+    """Vrais fichiers des documents de la démonstration : le rapport en PDF (deux
+    pages), la note en Word, un classeur Excel et une présentation PowerPoint
+    (aperçus PDF et Office). Créés une fois par lancement ; nom → chemin."""
+    # pylint: disable=import-outside-toplevel
+    from docx import Document
+    from openpyxl import Workbook
+    from pptx import Presentation
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    folder.mkdir(parents=True, exist_ok=True)
+    files = {}
+    report = folder / "rapport_trimestriel.pdf"
+    pdf = canvas.Canvas(str(report), pagesize=A4)
+    pages = [[content for name, content in DEMO_DOCUMENTS if name == report.name][:2],
+             [content for name, content in DEMO_DOCUMENTS if name == report.name][2:]]
+    for number, paragraphs in enumerate(pages, start=1):
+        pdf.setFont("Helvetica-Bold", 20)
+        pdf.drawString(60, 780, "Rapport trimestriel" if number == 1 else "Perspectives")
+        pdf.setFont("Helvetica", 11)
+        y = 740
+        for paragraph in paragraphs:
+            for start in range(0, len(paragraph), 90):
+                pdf.drawString(60, y, paragraph[start:start + 90])
+                y -= 18
+            y -= 12
+        pdf.setFont("Helvetica-Oblique", 9)
+        pdf.drawString(60, 40, f"Page {number} / {len(pages)}")
+        pdf.showPage()
+    pdf.save()
+    files[report.name] = report
+
+    note = folder / "note_projet.docx"
+    document = Document()
+    document.add_heading("Note de projet", level=1)
+    for name, content in DEMO_DOCUMENTS:
+        if name == note.name:
+            document.add_paragraph(content)
+    document.add_paragraph("Jalons : maquettes, chat, panneaux.", style="List Bullet")
+    document.save(str(note))
+    files[note.name] = note
+
+    budget = folder / "budget.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Budget"
+    sheet.append(["Poste", "T1", "T2", "T3", "T4"])
+    for row in (["Hébergement", 1200, 1150, 1100, 1050], ["Licences", 800, 800, 820, 820],
+                ["Matériel", 2500, 0, 600, 0]):
+        sheet.append(row)
+    sheet.append(["Total", "=SUM(B2:B4)", "=SUM(C2:C4)", "=SUM(D2:D4)", "=SUM(E2:E4)"])
+    workbook.save(str(budget))
+    files[budget.name] = budget
+
+    slides = folder / "presentation.pptx"
+    deck = Presentation()
+    title = deck.slides.add_slide(deck.slide_layouts[0])
+    title.shapes.title.text = "My_AI : bilan du trimestre"
+    title.placeholders[1].text = "Démonstration de l'aperçu PowerPoint"
+    bullets = deck.slides.add_slide(deck.slide_layouts[1])
+    bullets.shapes.title.text = "Chiffres clés"
+    body = bullets.placeholders[1].text_frame
+    body.text = "Chiffre d'affaires : +12 %"
+    body.add_paragraph().text = "Marge brute : 31 %"
+    deck.save(str(slides))
+    files[slides.name] = slides
+    return files
+
+
 def _where_matches(metadata, where):
     """Filtre de métadonnées à la ChromaDB : égalité, $ne, $in et $and."""
     for key, condition in where.items():
@@ -429,8 +506,10 @@ class DemoVectors:
     """VectorMemory de la démonstration : de quoi servir l'onglet Documents
     groupé de MemoryStore (documents, dossiers, morceaux d'un document)."""
 
-    def __init__(self, store):
+    def __init__(self, store, storage_dir=None):
         self.store = store
+        # Dossier de la base : copies des fichiers ajoutés (aperçu, memory_files.py)
+        self.storage_dir = storage_dir
 
     def get_entry(self, entry_id, collection_type="document"):
         """Entrée d'une collection, ou None."""
@@ -508,10 +587,10 @@ class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
     remove_other_versions = MemoryStore.remove_other_versions
     prune_folder = MemoryStore.prune_folder
 
-    def __init__(self, sessions, search):
+    def __init__(self, sessions, search, storage_dir=None, file_paths=None):
         self.sessions = sessions
         self.conversation_search = search
-        self.vector_memory = DemoVectors(self)
+        self.vector_memory = DemoVectors(self, storage_dir)
         self.lock = threading.Lock()
         self.facts = []
         self.next_id = 1
@@ -536,6 +615,12 @@ class DemoMemoryStore:  # pylint: disable=too-many-instance-attributes
             for index, (relative, content) in enumerate(files)]
         # Messages retirés de l'index seul (« sinon réapparaît au prochain réindex »)
         self.hidden = set()
+        # Leurs fichiers, gardés comme l'appli garde ceux qu'elle lit (aperçu)
+        if storage_dir is not None:
+            originals = OriginalFiles(Path(storage_dir) / ORIGINALS_DIRNAME)
+            for name, path in (file_paths or {}).items():
+                if any(name == document_name for document_name, _content in DEMO_DOCUMENTS):
+                    originals.keep(f"name:{name}", str(path), name)
 
     def _add(self, fact):
         fact.update(kind="fact", id=self.next_id, created_at=fact["updated_at"],
@@ -681,7 +766,11 @@ class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
         self.command_history = CommandHistory(db_path=str(history_db))
         self.search_engine = DemoSearch(self.session_manager)
         self.indexer = DemoIndexer()
-        self.memory_store = DemoMemoryStore(self.session_manager, self.search_engine)
+        # Vrais fichiers des documents fictifs : aperçus PDF et Office
+        self.files = demo_files(Path(workspaces_dir).parent / "fichiers")
+        self.memory_store = DemoMemoryStore(self.session_manager, self.search_engine,
+                                            Path(workspaces_dir).parent / "vector_store",
+                                            self.files)
         # Mémoire, image ajoutée : modèle de vision simulé (l'OCR, lui, est réel)
         self.local_ai.local_llm.describe_image = _demo_describe_image
         # Prompts par défaut, jamais data/prompt_templates.json
@@ -717,14 +806,15 @@ class DemoEngine(FakeEngine):  # pylint: disable=too-many-instance-attributes
                 "file_path": str(target)}
 
     def demo_documents(self):
-        """Documents « produits » : copies des fichiers de test, et une note Markdown."""
+        """Documents « produits » : copies des fichiers de la démonstration (PDF, Word),
+        et une note Markdown."""
         documents = self.outputs / "documents"
         documents.mkdir(parents=True, exist_ok=True)
         produced = []
-        fixtures = ROOT / "temp" / "migration_test_data" / "fichiers"
         for name in ("rapport_trimestriel.pdf", "note_projet.docx"):
-            if (fixtures / name).is_file():
-                shutil.copy2(fixtures / name, documents / name)
+            source = self.files.get(name)
+            if source is not None and source.is_file():
+                shutil.copy2(source, documents / name)
                 produced.append(documents / name)
         note = documents / "synthese.md"
         note.write_text("# Synthèse\n\n- Chiffre d'affaires : **+12 %**\n- Marge : 31 %\n\n"

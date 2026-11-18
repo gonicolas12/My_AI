@@ -1,8 +1,10 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ConnectionManager } from './connectionManager';
+import { buildLocalPreview } from './filePreview';
 import { currentLanguage, isRtl, localeTag, onDidChangeLanguage, t } from './i18n';
 import { ConnectionState, IncomingPayload } from './types';
 import { WorkspaceBridge } from './workspaceBridge';
@@ -12,6 +14,11 @@ interface UploadingEntry {
   filename: string;
   isImage: boolean;
 }
+
+/** Id of a preview asked by the view: the answer carries it back */
+const REQUEST_ID = /^[\w.-]{1,64}$/;
+/** Names of files a reply may cite, looked for in the workspace, at most */
+const LINK_CANDIDATES_MAX = 200;
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'myai-relay.chat';
@@ -157,7 +164,173 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           typeof m.messageId === 'string' ? m.messageId : '',
         );
         break;
+      case 'preview-file':
+        await this.handlePreviewFile(m);
+        break;
+      case 'save-file':
+        await this.handleSaveFile(m);
+        break;
+      case 'open-in-editor':
+        if (typeof m.path === 'string' && m.path) {
+          await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(m.path));
+        }
+        break;
+      case 'open-browser':
+        if (typeof m.html === 'string' && m.html) {
+          await this.openInBrowser(m.html);
+        }
+        break;
+      case 'resolve-links':
+        await this.handleResolveLinks(m);
+        break;
     }
+  }
+
+  // ── Aperçu d'un fichier (modale de la vue, media/preview.js) ──────────────
+
+  /**
+   * Preview asked by the view. A file of this machine (workspace, attachment
+   * picked here) is read here; a file of the PC (attachment sent, file of the
+   * conversation) is asked to the Relay (`file_preview`), whose answer reaches
+   * the view as a relay message. PDF, Word, Excel and PowerPoint files are
+   * rendered by My_AI on the PC, as on the phone: sent there first.
+   */
+  private async handlePreviewFile(m: Record<string, unknown>): Promise<void> {
+    const requestId = typeof m.requestId === 'string' ? m.requestId : '';
+    if (!REQUEST_ID.test(requestId)) {
+      return;
+    }
+    const answer = (payload: Record<string, unknown>) =>
+      this.post({ type: 'file-preview', requestId, payload });
+    try {
+      if (typeof m.localPath === 'string' && m.localPath) {
+        const uri = vscode.Uri.file(m.localPath);
+        const preview = await buildLocalPreview(uri);
+        if (preview.upload) {
+          const data = await vscode.workspace.fs.readFile(uri);
+          const sent = await this.manager.uploadFile(path.basename(uri.fsPath), new Uint8Array(data));
+          await this.manager.requestFilePreview({ request_id: requestId, file_id: sent.fileId });
+          return;
+        }
+        await answer(preview);
+        return;
+      }
+      const request: Record<string, unknown> = { request_id: requestId };
+      if (typeof m.fileId === 'string' && m.fileId) {
+        request.file_id = m.fileId;
+      } else if (typeof m.path === 'string' && m.path) {
+        request.path = m.path;
+      } else {
+        await answer({ ok: false, error: t('File not found.') });
+        return;
+      }
+      if (m.download === true) {
+        request.download = true;
+      }
+      await this.manager.requestFilePreview(request);
+    } catch (err) {
+      await answer({ ok: false, error: (err as Error).message });
+    }
+  }
+
+  /** File of the PC (Download in the preview): saved where the user says */
+  private async handleSaveFile(m: Record<string, unknown>): Promise<void> {
+    if (typeof m.data !== 'string' || !m.data) {
+      return;
+    }
+    const name = path.basename(typeof m.name === 'string' && m.name ? m.name : 'file');
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri
+      ?? vscode.Uri.file(os.homedir());
+    const target = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.joinPath(folder, name),
+      saveLabel: t('Save'),
+    });
+    if (!target) {
+      return;
+    }
+    await vscode.workspace.fs.writeFile(target, Buffer.from(m.data, 'base64'));
+  }
+
+  /** Web page of a reply, in the browser: its scripts run as written there */
+  private async openInBrowser(html: string): Promise<void> {
+    const file = path.join(os.tmpdir(), `my-ai-preview-${crypto.randomBytes(6).toString('hex')}.html`);
+    await fs.promises.writeFile(file, html, 'utf-8');
+    await vscode.env.openExternal(vscode.Uri.file(file));
+  }
+
+  /**
+   * Files of the workspace a finished reply cites (path) or names (file
+   * name alone): clickable in the view, like the files of an answer of
+   * My_AI's chat. A name alone counts when one file only bears it, or one of
+   * those the reply's tools read or wrote.
+   */
+  private async handleResolveLinks(m: Record<string, unknown>): Promise<void> {
+    const messageId = typeof m.messageId === 'string' ? m.messageId : '';
+    if (!messageId) {
+      return;
+    }
+    const candidates = (Array.isArray(m.candidates) ? m.candidates : [])
+      .filter((item): item is string => typeof item === 'string' && item.length > 0 && item.length < 400)
+      .slice(0, LINK_CANDIDATES_MAX);
+    const touched = (Array.isArray(m.touched) ? m.touched : [])
+      .filter((item): item is string => typeof item === 'string' && item.length > 0)
+      .slice(0, 200);
+    const links: { text: string; path: string; whole?: boolean }[] = [];
+    if (candidates.length && vscode.workspace.workspaceFolders?.length) {
+      const seen = new Set<string>();
+      for (const candidate of candidates) {
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        const found = await this.findWorkspaceFile(candidate, touched);
+        if (found) {
+          links.push({ text: candidate, path: found.fsPath, whole: !/[\\/]/.test(candidate) });
+        }
+      }
+    }
+    await this.post({ type: 'links', messageId, links });
+  }
+
+  private async isFile(uri: vscode.Uri): Promise<boolean> {
+    try {
+      return ((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File) !== 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private async findWorkspaceFile(candidate: string, touched: string[]): Promise<vscode.Uri | null> {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const cleaned = candidate.replace(/^\.[\\/]/, '');
+    if (path.isAbsolute(cleaned)) {
+      const uri = vscode.Uri.file(cleaned);
+      return (await this.isFile(uri)) ? uri : null;
+    }
+    const parts = cleaned.split(/[\\/]+/).filter(Boolean);
+    if (!parts.length || parts.includes('..')) {
+      return null;
+    }
+    if (parts.length > 1) {
+      for (const folder of folders) {
+        // Several folders open: « api/src/x.ts » may begin with the folder's name
+        const tries = [parts];
+        if (folders.length > 1 && parts[0] === folder.name) tries.push(parts.slice(1));
+        for (const segments of tries) {
+          const uri = vscode.Uri.joinPath(folder.uri, ...segments);
+          if (await this.isFile(uri)) return uri;
+        }
+      }
+      return null;
+    }
+    // A name alone: one of the files the reply's tools touched, else the only one
+    const name = parts[0].toLowerCase();
+    for (const used of touched) {
+      if (path.basename(used.replace(/\\/g, '/')).toLowerCase() !== name) continue;
+      const found = await this.findWorkspaceFile(used, []);
+      if (found) return found;
+    }
+    const matches = (await this.getWorkspaceFiles())
+      .filter((uri) => path.basename(uri.fsPath).toLowerCase() === name);
+    return matches.length === 1 ? matches[0] : null;
   }
 
   private async handleSendChat(text: string, fileIds: string[]): Promise<void> {
@@ -359,6 +532,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         fileId: result.fileId,
         filename: result.filename,
         isImage: result.isImage,
+        // On this machine: « Open in editor » in its preview
+        path: uri.scheme === 'file' ? uri.fsPath : '',
       });
     } catch (err) {
       await this.post({
@@ -403,8 +578,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     const htmlPath = vscode.Uri.joinPath(mediaRoot, 'chat.html').fsPath;
     let html = fs.readFileSync(htmlPath, 'utf-8');
-    // markdown.js, turn.js and thread.css: the same files as the phone page
-    // of the Relay (relay/static/), for the same rendering of the replies
+    // markdown.js, turn.js, preview.js and thread.css: the same files as the
+    // phone page of the Relay (relay/static/), for the same rendering of the
+    // replies and the same previews
     html = html
       .replace(/%CSP_SOURCE%/g, webview.cspSource)
       .replace(/%NONCE%/g, nonce)
@@ -412,6 +588,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       .replace(/%CHAT_CSS_URI%/g, uri('chat.css'))
       .replace(/%MARKDOWN_JS_URI%/g, uri('markdown.js'))
       .replace(/%TURN_JS_URI%/g, uri('turn.js'))
+      .replace(/%PREVIEW_JS_URI%/g, uri('preview.js'))
       .replace(/%CHAT_JS_URI%/g, uri('chat.js'));
     return html;
   }
@@ -489,6 +666,22 @@ function getWebviewStrings(): Record<string, string> {
     'webview.attachment.error': t('error'),
     'webview.origin.desktop': t('From My_AI on the PC'),
     'webview.origin.mobile': t('From the phone'),
+    // Preview of a file or of an HTML/SVG block (media/preview.js): a modal
+    // over the view. {error} is filled in by the page
+    'webview.preview.button': t('Preview'),
+    'webview.preview.code': t('Code'),
+    'webview.preview.close': t('Close'),
+    'webview.preview.previous': t('Previous'),
+    'webview.preview.next': t('Next'),
+    'webview.preview.download': t('Download'),
+    'webview.preview.openBrowser': t('Open in browser'),
+    'webview.preview.openEditor': t('Open in editor'),
+    'webview.preview.loading': t('Loading the preview…'),
+    'webview.preview.none': t('No preview for this type of file.'),
+    'webview.preview.failed': t('Preview unavailable: {error}'),
+    'webview.preview.truncated': t('Only the beginning of the file is shown.'),
+    'webview.preview.offline': t('Not connected to My_AI.'),
+    'webview.preview.timeout': t('My_AI did not answer in time.'),
     // Replies, drawn by media/turn.js as on the phone: the keys of its page.
     // {target} (path, pattern or command) and {0} (name of the tool) are
     // filled in by the page

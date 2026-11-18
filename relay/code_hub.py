@@ -289,6 +289,15 @@ class CodeHub:
                 return link
         return self._links[-1] if self._links else None
 
+    def known_paths(self) -> set:
+        """Pièces jointes des messages de la conversation (chemins normalisés) :
+        le Relay en montre l'aperçu au téléphone et à VS Code."""
+        with self._lock:
+            paths = [item.get("path") for message in self._messages
+                     for item in message.get("files") or [] if isinstance(item, dict)]
+        return {os.path.normcase(os.path.abspath(path))
+                for path in paths if isinstance(path, str) and path}
+
     # ── Messages ────────────────────────────────────────────────────────────
 
     def send(
@@ -316,7 +325,9 @@ class CodeHub:
             run = _Run(message_id, origin, link, client)
             now = _now()
             user = {"message_id": message_id, "role": "user", "text": text, "origin": origin,
-                    "timestamp": now, "attachments": [name for _, name in files]}
+                    "timestamp": now, "attachments": [name for _, name in files],
+                    # Leurs chemins sur le PC : leur aperçu (file_preview du Relay)
+                    "files": [{"name": name, "path": path} for path, name in files]}
             coroutine = self._run(run, text, files)
             try:
                 run.future = asyncio.run_coroutine_threadsafe(coroutine, link.loop)

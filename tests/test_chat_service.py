@@ -20,7 +20,7 @@ import pytest
 import core.chat_service as chat_service_module
 from core.i18n import tr
 from core.chat_service import (FILE_GENERATION_HISTORY, SESSION_RENAME_MAX, ChatError,
-                               ChatService, session_name_for)
+                               ChatService, message_files, session_name_for)
 from core.session_manager import SessionManager
 from interfaces.desktop.events import EventBus, validate_event
 from models import comfyui_manager
@@ -249,6 +249,7 @@ class FakeBridge:
         self.callbacks = []
         self.chunks = []
         self.responses = []
+        self.links = []
         self.documents = []
         self.interrupt = False
 
@@ -270,8 +271,9 @@ class FakeBridge:
     def submit_ai_chunk(self, text, message_id=None):
         self.chunks.append((message_id, text))
 
-    def submit_ai_response(self, text, message_id=None):
+    def submit_ai_response(self, text, message_id=None, links=None):
         self.responses.append((message_id, text))
+        self.links.append(links)
 
     def submit_ai_document(self, path, message_id=None):
         self.documents.append((message_id, path))
@@ -1281,6 +1283,21 @@ def test_mobile_file_without_text_gets_the_default_request(chat):
     assert chat.engine.local_ai.removed == []
 
 
+def test_mobile_answer_carries_the_files_it_names(chat):
+    """Fichier du téléphone nommé par la réponse : cliquable sur le téléphone aussi."""
+    document = chat.tmp_path / "budget.xlsx"
+    document.write_bytes(b"PK")
+    chat.engine.script = [("token", "Voici le résumé de budget.xlsx (pas de MonBudget.xlsx).")]
+    bridge = FakeBridge()
+    chat.service.attach_bridge(bridge)
+    bridge.deliver(RelayMessage(text="Résume-le", is_user=True, message_id="relay_5",
+                                file_paths=[str(document)]))
+
+    wait_for(chat.events, "assistant.done")
+    assert bridge.links == [[{"text": "budget.xlsx", "path": str(document),
+                              "dir": False, "name": True}]]
+
+
 def test_desktop_answers_are_not_sent_to_the_mobile(chat):
     bridge = FakeBridge()
     chat.service.attach_bridge(bridge)
@@ -1423,11 +1440,66 @@ def test_existing_paths_in_an_answer_become_links(chat):
     target.write_text("x", encoding="utf-8")
     chat.engine.script = [("token", f"Le fichier est dans {target}. Voir aussi C:/absent/x.txt.")]
     done = ask(chat, "Où est le rapport ?")
-    assert done["paths"] == [{"text": str(target), "path": os.path.normpath(str(target))}]
+    assert done["paths"] == [{"text": str(target), "path": os.path.normpath(str(target)),
+                              "dir": False}]
     view = chat.service.snapshot()["messages"][1]
     assert view["paths"] == done["paths"]
     # Les messages de l'utilisateur ne sont pas concernés
     assert "paths" not in chat.service.snapshot()["messages"][0]
+
+
+def test_cited_folders_are_marked_and_conversation_files_named_alone_become_links(chat):
+    """Un dossier cité s'ouvre dans l'Explorateur (dir) ; un fichier de la conversation
+    nommé sans son chemin devient un lien entier (name), jamais dans un autre nom."""
+    folder = chat.tmp_path / "Projets"
+    folder.mkdir()
+    attached = chat.tmp_path / "budget.xlsx"
+    attached.write_text("x", encoding="utf-8")
+    chat.service.add_attachment(str(attached), "Excel")
+    wait_for(chat.events, "attachment.ready")
+    chat.engine.script = [("token", f"Voir {folder} et Budget.XLSX, pas MonBudget.xlsx "
+                                    "ni budget.xlsx.bak.")]
+    done = ask(chat, "Analyse le budget")
+    assert done["paths"] == [
+        {"text": str(folder), "path": os.path.normpath(str(folder)), "dir": True},
+        {"text": "Budget.XLSX", "path": str(attached), "dir": False, "name": True},
+    ]
+    assert chat.service.snapshot()["messages"][1]["paths"] == done["paths"]
+    # Un fichier supprimé depuis n'est plus un lien
+    attached.unlink()
+    assert chat.service.snapshot()["messages"][1]["paths"] == done["paths"][:1]
+
+
+def test_a_document_stored_in_memory_is_signalled_for_its_copy(tmp_path):
+    """Pièce jointe lue et rangée en mémoire : la fenêtre est prévenue (chemin, nom),
+    pour garder la copie du fichier (aperçu de l'onglet Documents)."""
+    engine = FakeEngine(tmp_path / "workspaces")
+    bus = EventBus()
+    events = []
+    bus.subscribe(events.append)
+    stored = []
+    service = ChatService(engine, bus.publish, file_processor=FakeFileProcessor(),
+                          ui_connected=lambda: True,
+                          on_document_stored=lambda path, name: stored.append((path, name)))
+    service.start()
+    try:
+        document = tmp_path / "rapport.pdf"
+        document.write_text("%PDF", encoding="utf-8")
+        service.add_attachment(str(document))
+        wait_for(events, "attachment.ready")
+        assert stored == [(str(document), "rapport.pdf")]
+    finally:
+        service.close()
+
+
+def test_message_files_keep_names_with_an_extension_newest_first():
+    messages = [
+        {"attachments": [["C:/a/rapport.pdf", "PDF"], ["C:/a/Makefile", "Code"]]},
+        {"documents": ["C:/out/Rapport.PDF"], "image_path": "C:/img/photo.png"},
+        {"file_path": "C:/out/.env"},
+    ]
+    assert message_files(messages) == {"rapport.pdf": "C:/out/Rapport.PDF",
+                                       "photo.png": "C:/img/photo.png"}
 
 
 def test_memory_documents_cited_in_an_answer_become_links(chat):

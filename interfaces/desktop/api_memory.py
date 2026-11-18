@@ -16,6 +16,8 @@ Routes de la Mémoire (memory.py)
   POST   /api/memory/documents/folder         ajoute un dossier déposé : ses fichiers et
                                               leur chemin dedans, rangés sous son nom ;
                                               target : le dossier qu'il met à jour
+  POST   /api/memory/documents/preview        aperçu d'un document : la copie de son
+                                              fichier d'origine, sinon son texte en mémoire
   DELETE /api/memory/documents?document=      supprime un document (tous ses morceaux)
   DELETE /api/memory/folders?folder=          supprime un dossier déposé et ses documents
   PUT    /api/memory/{tab}/{entry_id}         nouveau contenu
@@ -80,6 +82,12 @@ class ExistingBody(BaseModel):
     folders: List[str] = Field(default_factory=list, max_length=100)
 
 
+class PreviewBody(BaseModel):
+    """POST /api/memory/documents/preview."""
+
+    document: str = Field(max_length=500)
+
+
 class ContentBody(BaseModel):
     """PUT /api/memory/{tab}/{entry_id}."""
 
@@ -108,6 +116,11 @@ def register(api: FastAPI, app: "DesktopApp") -> None:
     async def existing_documents(body: ExistingBody):
         """Fichiers et dossiers déjà dans l'onglet Documents, avant de les envoyer."""
         return await _run(app.memory.existing, body.names, body.folders)
+
+    @api.post("/api/memory/documents/preview")
+    async def preview_document(body: PreviewBody):
+        """Document de l'onglet à prévisualiser (clic sur son nom)."""
+        return await _run(app.memory.preview, body.document)
 
     @api.delete("/api/memory/documents")
     async def delete_document(document: str):

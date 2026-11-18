@@ -1,7 +1,8 @@
 /*
- * Volet d'aperçu, qui glisse depuis la droite : rendu en direct d'un bloc
- * HTML/SVG d'une réponse (onglets Aperçu et Code), ou d'un document (PDF par
- * le lecteur de WebView2, autres formats en page HTML).
+ * Volet d'aperçu, qui s'élargit depuis la droite : rendu en direct d'un bloc
+ * HTML/SVG d'une réponse (onglets Aperçu et Code), ou d'un fichier cliqué dans
+ * le chat (FilePreview : image, code, Markdown, PDF, Word, Excel…). Il se
+ * referme de même, jamais d'un coup.
  *
  * La page d'aperçu s'affiche dans une iframe isolée, sans allow-same-origin :
  * elle ne peut ni lire l'appli ni appeler son API (cf. interfaces/desktop/previews.py).
@@ -10,15 +11,14 @@
 import {
   ChevronLeft,
   ChevronRight,
-  Code2,
   Eye,
-  FileText,
   FolderOpen,
   Globe,
   LoaderCircle,
+  SquareArrowOutUpRight,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { isRtl, useLocale, useT } from '../../i18n';
@@ -26,9 +26,12 @@ import { openFile, revealPath } from '../../lib/actions';
 import { api } from '../../lib/api';
 import type { Artifact } from '../../lib/artifacts';
 import { cn } from '../../lib/cn';
+import { fileKind, hasSource } from '../../lib/fileKinds';
 import { notify } from '../../stores/app';
 import {
   closePreview,
+  motionMs,
+  PANE_MS,
   PREVIEW_WIDTH,
   setPreviewTab,
   setPreviewWidth,
@@ -36,7 +39,8 @@ import {
   usePreview,
 } from '../../stores/preview';
 import { CodeBlock } from '../chat/markdown/CodeBlock';
-import { NativeDocument } from './NativeDocument';
+import { FileMeta, FilePreview, PreviewTabs } from './FilePreview';
+import { fileIcon } from './fileIcon';
 import { usePreviewPage } from './usePreviewPage';
 
 /** Largeur gardée à la conversation quand le volet s'élargit (px) */
@@ -106,10 +110,11 @@ function ResizeHandle({ onDrag }: { onDrag: (dragging: boolean) => void }) {
   );
 }
 
-function PreviewBody({ artifact, dragging }: { artifact: Artifact; dragging: boolean }) {
+/** Bloc HTML ou SVG d'une réponse : sa page isolée, ou son code */
+function ArtifactBody({ artifact, hidden }: { artifact: Artifact; hidden: boolean }) {
   const t = useT();
   const tab = usePreview((state) => state.tab);
-  const { view, error, fallback } = usePreviewPage(artifact);
+  const { view, error } = usePreviewPage(artifact);
 
   if (tab === 'code' && artifact.kind !== 'document') {
     return (
@@ -122,15 +127,6 @@ function PreviewBody({ artifact, dragging }: { artifact: Artifact; dragging: boo
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-fg-2">
         <span>{error}</span>
-        {artifact.kind === 'document' ? (
-          <button
-            type="button"
-            className="text-link underline-offset-2 hover:underline"
-            onClick={() => void revealPath(artifact.path)}
-          >
-            {t('chat.file.reveal')}
-          </button>
-        ) : null}
       </div>
     );
   }
@@ -142,47 +138,72 @@ function PreviewBody({ artifact, dragging }: { artifact: Artifact; dragging: boo
       </div>
     );
   }
-  if (view.kind === 'native') {
-    return <NativeDocument key={view.id} view={view} hidden={dragging} onFailed={fallback} />;
-  }
   return (
     <iframe
       key={view.id}
       src={view.url}
       title={view.title}
-      // Pas d'allow-same-origin : la page ne peut ni lire l'appli ni appeler son API.
-      // Le PDF n'est pas isolé : le lecteur de WebView2 ne s'affiche pas en bac à sable.
-      sandbox={view.kind === 'pdf' ? undefined : view.kind === 'document' ? '' : ARTIFACT_SANDBOX}
+      // Pas d'allow-same-origin : la page ne peut ni lire l'appli ni appeler son API
+      sandbox={ARTIFACT_SANDBOX}
       referrerPolicy="no-referrer"
-      className={cn('h-full w-full border-0', dragging && 'pointer-events-none')}
+      className={cn('h-full w-full border-0', hidden && 'pointer-events-none')}
     />
   );
 }
 
+function PreviewBody({ artifact, hidden }: { artifact: Artifact; hidden: boolean }) {
+  const tab = usePreview((state) => state.tab);
+  if (artifact.kind === 'document') {
+    return (
+      <FilePreview
+        key={artifact.path}
+        path={artifact.path}
+        tab={tab}
+        hidden={hidden}
+        generated={artifact.generated}
+      />
+    );
+  }
+  return <ArtifactBody artifact={artifact} hidden={hidden} />;
+}
+
+/** Volet en mouvement (ouverture) : la visionneuse Office attend sa place définitive */
+function useSettling(): boolean {
+  const [moving, setMoving] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setMoving(false), motionMs(PANE_MS));
+    return () => clearTimeout(timer);
+  }, []);
+  return moving;
+}
+
 // Infobulles de l'en-tête à gauche : en dessous, elles passeraient sous une visionneuse Office
-export function PreviewPane() {
+function OpenPane() {
   const t = useT();
-  const open = usePreview((state) => state.open);
   const items = usePreview((state) => state.items);
   const index = usePreview((state) => state.index);
   const tab = usePreview((state) => state.tab);
   const width = usePreview((state) => state.width);
+  const closing = usePreview((state) => state.closing);
   const [dragging, setDragging] = useState(false);
-  const { view } = usePreviewPage(open ? items[index] : undefined);
+  const moving = useSettling();
+  const artifact = items[index];
+  const { view } = usePreviewPage(artifact);
 
   // La fenêtre rétrécit : le volet laisse sa place à la conversation
   useEffect(() => {
-    if (!open) return undefined;
     const onResize = () => {
       if (usePreview.getState().width > maxWidth()) setPreviewWidth(maxWidth());
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [open]);
+  }, []);
 
-  const artifact = items[index];
-  if (!open || !artifact) return null;
+  if (!artifact) return null;
   const isDocument = artifact.kind === 'document';
+  const kind = isDocument ? fileKind(artifact.path) : null;
+  const shown = Math.min(width, maxWidth());
+  const hidden = dragging || moving || closing;
 
   const openInBrowser = () => {
     if (!view) return;
@@ -194,109 +215,105 @@ export function PreviewPane() {
   return (
     <aside
       aria-label={t('common.preview')}
-      className="relative flex h-full shrink-0 flex-col border-s border-line bg-bg-2"
-      style={{
-        width: Math.min(width, maxWidth()),
-        animation: 'slide-in-right var(--motion) var(--motion-ease)',
-      }}
+      className={cn(
+        'relative h-full shrink-0 border-s border-line bg-bg-2',
+        closing ? 'pane-close' : 'pane-open',
+        // En mouvement, le contenu à sa largeur finale est rogné ; ensuite, la
+        // poignée déborde de 3 px sur la conversation
+        (moving || closing) && 'overflow-hidden',
+      )}
+      style={{ width: shown }}
     >
-      <ResizeHandle onDrag={setDragging} />
-      <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line ps-3 pe-2">
-        {isDocument ? (
-          <FileText size={16} className="shrink-0 text-accent" />
-        ) : (
-          <Eye size={16} className="shrink-0 text-accent" />
-        )}
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={artifact.title}>
-          {artifact.title}
-        </span>
-        {items.length > 1 ? (
-          <div className="flex items-center text-xs text-fg-2 tabular-nums">
-            <IconButton
-              tooltipSide="left"
-              label={t('preview.previous')}
-              size="sm"
-              disabled={index <= 0}
-              onClick={() => showPreviewItem(index - 1)}
-            >
-              <ChevronLeft size={15} className="rtl:-scale-x-100" />
-            </IconButton>
-            <span className="px-0.5">
-              {index + 1}/{items.length}
+      {/* Contenu à sa largeur finale : il ne se recompose pas pendant que le volet s'élargit */}
+      <div className="relative flex h-full flex-col" style={{ width: shown }}>
+        <ResizeHandle onDrag={setDragging} />
+        <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-line ps-3 pe-2">
+          {isDocument ? (
+            createElement(fileIcon(artifact.path), {
+              size: 16,
+              className: 'shrink-0 text-accent',
+              'aria-hidden': true,
+            })
+          ) : (
+            <Eye size={16} className="shrink-0 text-accent" aria-hidden />
+          )}
+          {/* Nom en entier, détails dessous : le nom n'est pas coupé pour eux */}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm leading-5 font-semibold" title={artifact.title}>
+              {artifact.title}
             </span>
+            {isDocument ? <FileMeta path={artifact.path} className="leading-4" /> : null}
+          </div>
+          {items.length > 1 ? (
+            <div className="flex items-center text-xs text-fg-2 tabular-nums">
+              <IconButton
+                tooltipSide="left"
+                label={t('preview.previous')}
+                size="sm"
+                disabled={index <= 0}
+                onClick={() => showPreviewItem(index - 1)}
+              >
+                <ChevronLeft size={15} className="rtl:-scale-x-100" />
+              </IconButton>
+              <span className="px-0.5">
+                {index + 1}/{items.length}
+              </span>
+              <IconButton
+                tooltipSide="left"
+                label={t('preview.next')}
+                size="sm"
+                disabled={index >= items.length - 1}
+                onClick={() => showPreviewItem(index + 1)}
+              >
+                <ChevronRight size={15} className="rtl:-scale-x-100" />
+              </IconButton>
+            </div>
+          ) : null}
+          {!isDocument || (kind && hasSource(kind)) ? (
+            <PreviewTabs tab={tab} onChange={setPreviewTab} />
+          ) : null}
+          {isDocument && artifact.generated ? (
             <IconButton
               tooltipSide="left"
-              label={t('preview.next')}
-              size="sm"
-              disabled={index >= items.length - 1}
-              onClick={() => showPreviewItem(index + 1)}
+              label={t('preview.openInApp')}
+              onClick={() => void openFile(artifact.path)}
             >
-              <ChevronRight size={15} className="rtl:-scale-x-100" />
+              <SquareArrowOutUpRight size={16} />
             </IconButton>
-          </div>
-        ) : null}
-        {!isDocument ? (
-          <div
-            role="tablist"
-            aria-label={t('preview.display')}
-            className="flex items-center rounded-md border border-line p-0.5"
-          >
-            {(
-              [
-                ['preview', t('common.preview'), Eye],
-                ['code', t('preview.tab.code'), Code2],
-              ] as const
-            ).map(([id, label, Icon]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => setPreviewTab(id)}
-                className={cn(
-                  'flex h-6 items-center gap-1 rounded-sm px-2 text-xs font-medium transition-colors duration-150',
-                  tab === id ? 'bg-active text-fg' : 'text-fg-2 hover:text-fg',
-                )}
-              >
-                <Icon size={13} />
-                {label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {isDocument && artifact.generated ? (
-          <IconButton
-            tooltipSide="left"
-            label={t('preview.openInApp')}
-            onClick={() => void openFile(artifact.path)}
-          >
-            <FolderOpen size={16} />
+          ) : null}
+          {isDocument ? (
+            <IconButton
+              tooltipSide="left"
+              label={t('chat.file.reveal')}
+              onClick={() => void revealPath(artifact.path)}
+            >
+              <FolderOpen size={16} />
+            </IconButton>
+          ) : null}
+          {view ? (
+            <IconButton
+              tooltipSide="left"
+              label={t('preview.openInBrowser')}
+              onClick={openInBrowser}
+            >
+              <Globe size={16} />
+            </IconButton>
+          ) : null}
+          <IconButton tooltipSide="left" label={t('preview.close')} onClick={closePreview}>
+            <X size={17} />
           </IconButton>
-        ) : null}
-        {isDocument && !artifact.generated ? (
-          <IconButton
-            tooltipSide="left"
-            label={t('chat.file.reveal')}
-            onClick={() => void revealPath(artifact.path)}
-          >
-            <FolderOpen size={16} />
-          </IconButton>
-        ) : null}
-        <IconButton
-          tooltipSide="left"
-          label={t('preview.openInBrowser')}
-          disabled={!view}
-          onClick={openInBrowser}
-        >
-          <Globe size={16} />
-        </IconButton>
-        <IconButton tooltipSide="left" label={t('preview.close')} onClick={closePreview}>
-          <X size={17} />
-        </IconButton>
-      </header>
-      <div className="relative min-h-0 flex-1 bg-bg">
-        <PreviewBody artifact={artifact} dragging={dragging} />
+        </header>
+        <div className="relative min-h-0 flex-1 bg-bg">
+          <PreviewBody artifact={artifact} hidden={hidden} />
+        </div>
       </div>
     </aside>
   );
+}
+
+export function PreviewPane() {
+  const open = usePreview((state) => state.open);
+  const items = usePreview((state) => state.items);
+  if (!open || !items.length) return null;
+  return <OpenPane />;
 }

@@ -12,6 +12,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -504,6 +505,24 @@ class TestProvenanceAndGraceful:
         folders = [(group["name"], group["key"]) for group in groups
                    if group["kind"] == "folder"]
         assert folders == [("site", "s9"), ("site", "site")]
+
+    def test_text_of_an_old_document_without_identifier(self):
+        """Ancien document, rangé sans identifiant (« name:… ») : son texte se lit
+        quand même, dans l'ordre de ses morceaux (aperçu de l'onglet Documents)."""
+        entries = [
+            {"id": "a1", "content": "la suite.", "metadata": {
+                "document_name": "ancien.pdf", "chunk_index": 1}},
+            {"id": "x0", "content": "Autre.", "metadata": {"document_name": "autre.pdf"}},
+            {"id": "a0", "content": "Le début,", "metadata": {
+                "document_name": "ancien.pdf", "chunk_index": 0}},
+        ]
+        vectors = SimpleNamespace(
+            document_chunks=lambda document_id: [],
+            list_entries=lambda collection_type, limit=None, offset=0: list(entries))
+        store = MemoryStore(knowledge_base=None, vector_memory=vectors)
+        assert store.document_text("name:ancien.pdf") == "Le début,\nla suite."
+        assert store.document_text("entry:x0") == ""  # « Autre. » a un nom : name:autre.pdf
+        assert store.document_text("name:autre.pdf") == "Autre."
 
     def test_join_chunks_keeps_each_overlap_once(self):
         """Morceaux voisins qui se chevauchent : le passage commun n'est gardé

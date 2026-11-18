@@ -1,37 +1,121 @@
 /*
- * Rendu Markdown des réponses de l'IA.
+ * Rendu Markdown des réponses de l'IA, et des fichiers Markdown en aperçu.
  *
- * - Contenu non fiable : aucun HTML brut (react-markdown l'affiche comme du
- *   texte), URL filtrées, liens ouverts dans le navigateur du système.
+ * - Contenu non fiable : aucun HTML brut dans une réponse (react-markdown
+ *   l'affiche comme du texte), URL filtrées, liens ouverts dans le navigateur
+ *   du système.
+ * - Un fichier Markdown (aperçu, prop file) garde son HTML (<div align>,
+ *   <img>, <br>, <details> d'un README) : lu par rehype-raw puis assaini comme
+ *   sur GitHub (rehype-sanitize : ni script, ni gestionnaire d'événement, ni
+ *   style). Ses images relatives se cherchent dans son dossier ; les images
+ *   distantes restent des liens (appli hors ligne). Il est rendu d'un seul
+ *   tenant, sans saut de ligne forcé, comme sur GitHub.
  * - Streaming : la réponse est découpée en blocs ; seuls les derniers sont
  *   relus et re-rendus, les blocs terminés gardent leur rendu (memo). Le
  *   Markdown incomplet du dernier bloc est refermé par remend.
  * - Un saut de ligne simple reste un saut de ligne, comme dans l'interface Tk
  *   et la PWA mobile (bloc « Sources », listes écrites sans ligne vide…).
- * - Citations « [n] », chemins de fichiers existants et documents ou dossiers
- *   de la Mémoire cliquables (links.ts), y compris dans un lien Markdown que le
+ * - Citations « [n] », chemins de fichiers existants (aperçu dans le volet de
+ *   droite), fichiers de la conversation nommés et documents ou dossiers de la
+ *   Mémoire cliquables (links.ts), y compris dans un lien Markdown que le
  *   modèle invente (« [Dossier X](memory://x) »).
  */
 
 import { ImageIcon } from 'lucide-react';
 import { createContext, memo, useContext, useMemo, useState } from 'react';
 import ReactMarkdown, { type Components, type Options } from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remend from 'remend';
 
 import { useT } from '../../../i18n';
 import { revealPath } from '../../../lib/actions';
+import { relativeImagePath, useMarkdownImage } from '../../../lib/files';
 import { externalUrl } from '../../../lib/shell';
 import { showInMemory } from '../../../stores/memory';
+import { openFilePreview } from '../../../stores/preview';
 import { BlockSplitter } from './blocks';
 import { CodeBlock } from './CodeBlock';
+import { CodePreview } from './codePreview';
 import { type ChatLinks, prepareLinks, rehypeChatLinks } from './links';
 import { prepareMath } from './math';
 import { useMathPlugins } from './mathPlugins';
 
 /** Vrai dans le dernier bloc d'une réponse en cours d'écriture */
 const StreamingBlock = createContext(false);
+
+/** Fichier Markdown en aperçu : ses images relatives se cherchent dans son dossier */
+const MarkdownFile = createContext<string | null>(null);
+
+/** Image d'un fichier Markdown, rangée dans son dossier : par un lien signé du serveur */
+function FolderImage({
+  file,
+  path,
+  alt,
+  width,
+  height,
+}: {
+  file: string;
+  path: string;
+  alt: string;
+  width?: number | string | undefined;
+  height?: number | string | undefined;
+}) {
+  const url = useMarkdownImage(file, path);
+  if (!url) {
+    return (
+      <span className="md-image">
+        <ImageIcon size={14} aria-hidden />
+        {alt}
+      </span>
+    );
+  }
+  return <img src={url} alt={alt} width={width} height={height} className="md-file-image" />;
+}
+
+interface ImageProps {
+  src?: string | Blob | undefined;
+  alt?: string | undefined;
+  width?: number | string | undefined;
+  height?: number | string | undefined;
+}
+
+function MarkdownImage({ src, alt, width, height }: ImageProps) {
+  const file = useContext(MarkdownFile);
+  const label = alt || 'image';
+  const source = typeof src === 'string' ? src : '';
+  const local = file && source ? relativeImagePath(file, source) : null;
+  if (file && local) {
+    return <FolderImage file={file} path={local} alt={label} width={width} height={height} />;
+  }
+  // Les images distantes ne sont pas chargées (appli hors ligne) : un lien à la place
+  const url = source ? externalUrl(source) : null;
+  return url ? (
+    <a href={url} target="_blank" rel="noreferrer noopener" className="md-image" title={url}>
+      <ImageIcon size={14} aria-hidden />
+      {label}
+    </a>
+  ) : (
+    <span className="md-image">
+      <ImageIcon size={14} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+/**
+ * HTML d'un fichier Markdown : assaini comme sur GitHub ; les formules gardent
+ * les classes que KaTeX lit ensuite
+ */
+const FILE_SCHEMA = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [['className', /^language-./, 'math-inline', 'math-display']],
+  },
+};
 
 interface HastText {
   type: 'text';
@@ -70,7 +154,12 @@ function Pre({ node }: { node?: unknown }) {
   );
   // Le dernier saut de ligne d'un bloc de code n'est pas du contenu
   const text = textOf(code).replace(/\n$/, '');
-  return <CodeBlock code={text} lang={languageOf(code)} streaming={streaming} />;
+  // Bloc HTML ou SVG d'une réponse finie : son bouton « Aperçu »
+  const find = useContext(CodePreview);
+  const onPreview = find && !streaming ? find(text) : null;
+  return (
+    <CodeBlock code={text} lang={languageOf(code)} streaming={streaming} onPreview={onPreview} />
+  );
 }
 
 const COMPONENTS: Components = {
@@ -84,22 +173,7 @@ const COMPONENTS: Components = {
       </a>
     );
   },
-  img({ src, alt }) {
-    // Les images distantes ne sont pas chargées (appli hors ligne) : un lien à la place
-    const url = typeof src === 'string' ? externalUrl(src) : null;
-    const label = alt || 'image';
-    return url ? (
-      <a href={url} target="_blank" rel="noreferrer noopener" className="md-image" title={url}>
-        <ImageIcon size={14} aria-hidden />
-        {label}
-      </a>
-    ) : (
-      <span className="md-image">
-        <ImageIcon size={14} aria-hidden />
-        {label}
-      </span>
-    );
-  },
+  img: MarkdownImage,
   table({ children }) {
     return (
       <div className="md-table-wrap">
@@ -127,10 +201,15 @@ function Citation({ node, children }: { node?: unknown; children?: React.ReactNo
   );
 }
 
-/** Chemin existant : montré dans l'Explorateur, jamais ouvert ni exécuté */
+/**
+ * Chemin existant, ou fichier de la conversation nommé : un fichier s'ouvre dans
+ * le volet d'aperçu, un dossier dans l'Explorateur ; jamais exécuté
+ */
 function FilePath({ node, children }: { node?: unknown; children?: React.ReactNode }) {
   const t = useT();
   const path = propertyOf(node, 'path');
+  const folder = propertyOf(node, 'dir') === 'true';
+  const open = () => (folder ? void revealPath(path) : openFilePreview(path));
   // Élément en ligne, et non un bouton : un bouton forme une boîte insécable,
   // la ponctuation qui le suit passerait seule à la ligne
   return (
@@ -138,12 +217,12 @@ function FilePath({ node, children }: { node?: unknown; children?: React.ReactNo
       role="link"
       tabIndex={0}
       className="md-path"
-      title={t('chat.path.reveal', { path })}
-      onClick={() => void revealPath(path)}
+      title={folder ? t('chat.path.reveal', { path }) : t('chat.path.preview', { path })}
+      onClick={open}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          void revealPath(path);
+          open();
         }
       }}
     >
@@ -197,14 +276,37 @@ const REMARK_BASE: NonNullable<Options['remarkPlugins']> = [
   remarkBreaks,
 ];
 
-const Block = memo(function Block({ text, links }: { text: string; links: ChatLinks | null }) {
+/** Fichier Markdown : un saut de ligne simple n'en est pas un, comme sur GitHub */
+const REMARK_FILE: NonNullable<Options['remarkPlugins']> = [[remarkGfm, { singleTilde: false }]];
+
+/** HTML d'un fichier Markdown : lu, puis assaini (avant KaTeX, qui écrit le sien) */
+const REHYPE_FILE: NonNullable<Options['rehypePlugins']> = [
+  rehypeRaw,
+  [rehypeSanitize, FILE_SCHEMA],
+];
+
+const Block = memo(function Block({
+  text,
+  links,
+  file = false,
+}: {
+  text: string;
+  links: ChatLinks | null;
+  /** Fichier Markdown : son HTML est rendu (assaini) */
+  file?: boolean;
+}) {
   const linked = useMemo(() => prepareLinks(text), [text]);
   const prepared = useMemo(() => prepareMath(linked), [linked]);
   const math = useMathPlugins(prepared.hasMath);
-  const remarkPlugins = math ? [...REMARK_BASE, ...math.remark] : REMARK_BASE;
+  const base = file ? REMARK_FILE : REMARK_BASE;
+  const remarkPlugins = math ? [...base, ...math.remark] : base;
   const rehypePlugins = useMemo(
-    () => [...(math?.rehype ?? []), ...(links ? [rehypeChatLinks(links)] : [])],
-    [math, links],
+    () => [
+      ...(file ? REHYPE_FILE : []),
+      ...(math?.rehype ?? []),
+      ...(links ? [rehypeChatLinks(links)] : []),
+    ],
+    [file, math, links],
   );
   return (
     <ReactMarkdown
@@ -224,6 +326,12 @@ interface MarkdownProps {
   className?: string;
   /** Citations et chemins à rendre cliquables (référence stable) */
   links?: ChatLinks | null;
+  /**
+   * Chemin d'un fichier Markdown en aperçu : son HTML est rendu, assaini, et
+   * ses images relatives cherchées dans son dossier ; rendu d'un seul tenant
+   * (une balise ouverte dans un bloc se ferme dans un autre)
+   */
+  file?: string | null;
 }
 
 export const Markdown = memo(function Markdown({
@@ -231,11 +339,21 @@ export const Markdown = memo(function Markdown({
   streaming,
   className,
   links = null,
+  file = null,
 }: MarkdownProps) {
   // Découpe incrémental propre à ce message : le texte en cours ne fait que s'allonger
   const [splitter] = useState(() => new BlockSplitter());
-  const blocks = useMemo(() => splitter.split(text), [splitter, text]);
+  const blocks = useMemo(() => (file ? [] : splitter.split(text)), [splitter, text, file]);
   const last = blocks.length - 1;
+  if (file) {
+    return (
+      <div className={className ? `md ${className}` : 'md'}>
+        <MarkdownFile.Provider value={file}>
+          <Block text={text} links={links} file />
+        </MarkdownFile.Provider>
+      </div>
+    );
+  }
   return (
     <div className={className ? `md ${className}` : 'md'}>
       {blocks.map((block, index) => {

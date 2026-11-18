@@ -29,12 +29,17 @@ export interface DocumentArtifact {
 
 export type Artifact = CodeArtifact | DocumentArtifact;
 
+/** Un fichier dans le volet d'aperçu (cité, joint ou produit) ; son aperçu dépend de son format */
+export function fileArtifact(path: string, generated: boolean, index = 0): DocumentArtifact {
+  return { kind: 'document', path, title: baseName(path), index, generated };
+}
+
 const FENCE = /```([\w+#.-]+)?[ \t]*\n?([\s\S]*?)```/g;
 const HTML_LANGS = new Set(['html', 'htm', 'xhtml']);
 const HTML_HINT = /<!doctype html|<html[\s>]|<body[\s>]|<head[\s>]|<div[\s>]|<table[\s>]/i;
 const SVG_HINT = /<svg[\s>]/i;
 
-/** Formats affichés dans le volet (interfaces/document_preview.py, is_previewable) */
+/** Formats dont le serveur fait la page d'aperçu (interfaces/document_preview.py, is_previewable) */
 const PREVIEWABLE = new Set([
   '.docx',
   '.xlsx',
@@ -151,7 +156,10 @@ export function formatLabel(path: string): string {
   return extension ? t('file.format.other', { ext: extension.slice(1) }) : t('file.format.unknown');
 }
 
-/** Documents affichables, sans doublon (artifacts_from_documents) */
+/**
+ * Documents d'une réponse, sans doublon (artifacts_from_documents) : tous ont
+ * un aperçu, au moins « pas d'aperçu pour ce format » et leurs actions
+ */
 export function documentArtifacts(
   paths: string[],
   start: number,
@@ -161,7 +169,7 @@ export function documentArtifacts(
   const artifacts: DocumentArtifact[] = [];
   for (const path of paths) {
     const key = path.replace(/\\/g, '/').toLowerCase();
-    if (!path || seen.has(key) || !isPreviewable(path)) continue;
+    if (!path || seen.has(key)) continue;
     seen.add(key);
     artifacts.push({
       kind: 'document',

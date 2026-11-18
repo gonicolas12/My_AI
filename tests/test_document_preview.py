@@ -18,6 +18,7 @@ from interfaces.artifacts import (
     detect_artifacts,
     write_artifact_html,
 )
+from interfaces import document_preview
 from interfaces.document_preview import (
     build_document_preview,
     document_summary,
@@ -112,16 +113,78 @@ def test_xlsx_preview_shows_each_sheet(documents):
     assert "Espèces" in html
 
 
-def test_pdf_preview_renders_extracted_text(documents):
+def test_pdf_preview_shows_its_pages_as_images(documents):
+    """Modale du téléphone (iframe sans lecteur PDF) : le PDF garde sa mise en page."""
+    html = build_document_preview(str(documents["pdf"]))
+    assert '<img class="pdf-page"' in html and "data:image/jpeg;base64," in html
+    assert 'alt="Page 1 sur 1"' in html
+    assert "mise en page d'origine" not in html
+
+
+def test_pdf_preview_falls_back_to_its_text_without_pymupdf(documents, monkeypatch):
+    monkeypatch.setattr(document_preview, "_pdf_page_images", lambda path: None)
     html = build_document_preview(str(documents["pdf"]))
     assert "Les baleines" in html
     assert "mise en page d'origine" in html, "l'utilisateur doit savoir que c'est du texte extrait"
+
+
+def test_a_long_pdf_shows_its_first_pages(tmp_path, monkeypatch):
+    from reportlab.pdfgen import canvas  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setattr(document_preview, "_PDF_PAGES_MAX", 2)
+    path = tmp_path / "long.pdf"
+    pdf = canvas.Canvas(str(path))
+    for number in range(3):
+        pdf.drawString(72, 720, f"Page {number + 1}")
+        pdf.showPage()
+    pdf.save()
+    html = build_document_preview(str(path))
+    assert html.count('<img class="pdf-page"') == 2
+    assert "Les 2 premières pages sur 3" in html
 
 
 def test_markdown_preview_is_rendered_not_escaped_wholesale(documents):
     html = build_document_preview(str(documents["md"]))
     assert "<h2" in html or "<h1" in html
     assert "<strong>" in html
+
+
+def test_a_readme_keeps_its_html_like_on_github(tmp_path):
+    """En-tête d'un README (modale du téléphone) : bloc centré, titre Markdown dedans,
+    logo du dossier mis en data:, <br> gardé ; aucune balise affichée en texte."""
+    (tmp_path / "images").mkdir()
+    (tmp_path / "images" / "logo.png").write_bytes(b"\x89PNG fake")
+    (tmp_path / "secret.txt").write_text("mot de passe", encoding="utf-8")
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        '<div align="center">\n  <img src="images/logo.png" alt="Logo" width="96">\n\n'
+        "# Projet\n\nUne ligne.<br>\nLa suite.\n</div>\n\n"
+        '<img src="../secret.txt" alt="hors dossier"> <img src="https://x.org/b.png" alt="badge">\n',
+        encoding="utf-8")
+    page = build_document_preview(str(readme))
+    assert '<div align="center">' in page and "<h1>Projet</h1>" in page
+    assert 'src="data:image/png;base64,' in page and 'width="96"' in page
+    assert "<br/>" in page and "&lt;div" not in page and "&lt;img" not in page
+    # Ni fichier hors du dossier, ni image distante : leur texte de remplacement
+    assert "[hors dossier]" in page and "[badge]" in page and "mot de passe" not in page
+
+
+def test_html_of_a_markdown_file_is_sanitized():
+    clean = document_preview.sanitize_html(
+        '<p onclick="x()">a<script>alert(1)</script><a href="javascript:alert(2)">b</a>'
+        '<a href="https://ex.org">c</a><iframe src="https://ex.org"></iframe>'
+        '<span style="color:red">d</span><svg onload="x()"></svg></p>')
+    assert "onclick" not in clean and "script" not in clean and "javascript" not in clean
+    assert "iframe" not in clean and "style" not in clean and "svg" not in clean
+    assert '<a href="https://ex.org" rel="noopener noreferrer" target="_blank">c</a>' in clean
+    assert ">a<" in clean and ">d<" in clean
+
+
+def test_markdown_without_html_keeps_its_usual_rendering(tmp_path):
+    note = tmp_path / "note.md"
+    note.write_text("# Titre\n\n| a | b |\n|---|---|\n| 2*3 | x |\n", encoding="utf-8")
+    page = build_document_preview(str(note))
+    assert 'class="md-file"' not in page and "2*3" in page
 
 
 def test_markdown_table_cells_are_rendered_in_preview():

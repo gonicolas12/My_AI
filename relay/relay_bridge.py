@@ -7,6 +7,7 @@ entre l'interface mobile (via WebSocket) et le service de chat de l'appli
 """
 
 import asyncio
+import os
 import threading
 import time
 from collections import deque
@@ -31,6 +32,12 @@ _PENDING_RESPONSE_MAX = 50
 _CHUNK_THROTTLE_SEC = 0.05
 # Nombre max de streams actifs conservés (protection mémoire).
 _ACTIVE_STREAM_MAX = 20
+# Liens et fichiers d'une réponse gardés pour un mobile reconnecté (comme les
+# réponses en attente), et fichiers produits d'une réponse pas encore finie
+_RESPONSE_EXTRAS_MAX = 50
+_TURN_FILES_MAX = 20
+# Fichiers produits d'une même réponse, au plus (documents, images)
+_FILES_PER_RESPONSE = 20
 
 
 @dataclass
@@ -47,6 +54,12 @@ class RelayMessage:
     # - file_paths : chemins locaux vers les fichiers (pdf, docx, xlsx, code, ...)
     image_path: Optional[str] = None
     file_paths: List[str] = field(default_factory=list)
+    # Réponse de l'IA : fichiers qu'elle cite ou nomme, rendus cliquables
+    # (chat_service.answer_paths / named_file_links : {"text", "path", "dir",
+    # "name"}), et ceux qu'elle a produits ({"path", "name", "kind": "document"
+    # | "image"}). Le téléphone en demande l'aperçu (file_preview)
+    links: List[Dict[str, Any]] = field(default_factory=list)
+    files: List[Dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.message_id:
@@ -62,7 +75,26 @@ class RelayMessage:
             "message_id": self.message_id,
             "image_path": self.image_path,
             "file_paths": list(self.file_paths),
+            "links": list(self.links),
+            "files": list(self.files),
         }
+
+
+def _clean_links(links: Any) -> List[Dict[str, Any]]:
+    """Liens d'une réponse tels que le téléphone les lit : texte et chemin, au plus 60."""
+    cleaned: List[Dict[str, Any]] = []
+    for link in links if isinstance(links, list) else []:
+        if not isinstance(link, dict):
+            continue
+        shown, path = link.get("text"), link.get("path")
+        if isinstance(shown, str) and shown and isinstance(path, str) and path:
+            cleaned.append({"text": shown, "path": path, "dir": bool(link.get("dir")),
+                            "name": bool(link.get("name"))})
+    return cleaned[:60]
+
+
+def _normalized(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path))
 
 
 class RelayBridge:
@@ -140,6 +172,14 @@ class RelayBridge:
         # Le GUI desktop la consomme dans sa boucle de polling et appelle
         # interrupt_ai(). Thread-safe via un simple flag booléen.
         self._interrupt_requested = False
+
+        # Fichiers produits pendant une réponse (documents, images), rattachés à
+        # elle quand elle est soumise : message_id de la question → fichiers
+        self._turn_files: Dict[str, List[Dict[str, Any]]] = {}
+        # Liens et fichiers des réponses récentes, pour les envois qui suivent
+        # (diffusion, mobile reconnecté) : message_id → {"links", "files"}
+        self._response_extras: Dict[str, Dict[str, Any]] = {}
+        self._extras_lock = threading.Lock()
 
         logger.info("RelayBridge initialisé (singleton)")
 
@@ -239,6 +279,9 @@ class RelayBridge:
         self._history.clear()
         self._gui_queue.clear()
         self._ws_queue.clear()
+        with self._extras_lock:
+            self._turn_files.clear()
+            self._response_extras.clear()
 
     def reset(self):
         """Réinitialise complètement le bridge."""
@@ -330,6 +373,7 @@ class RelayBridge:
         callbacks enregistrés par le serveur Relay via on_image().
         """
         effective_id = message_id or self._latest_message_id
+        self._add_turn_file(effective_id, image_path, "image")
         for cb in list(self._image_callbacks):
             try:
                 cb(effective_id, image_path)
@@ -357,6 +401,7 @@ class RelayBridge:
         WS) est délégué aux callbacks enregistrés par le serveur Relay.
         """
         effective_id = message_id or self._latest_message_id
+        self._add_turn_file(effective_id, file_path, "document")
         for cb in list(self._document_callbacks):
             try:
                 cb(effective_id, file_path)
@@ -377,7 +422,8 @@ class RelayBridge:
             cb for cb in self._document_callbacks if cb != callback
         ]
 
-    def submit_ai_response(self, text: str, message_id: Optional[str] = None) -> None:
+    def submit_ai_response(self, text: str, message_id: Optional[str] = None,
+                           links: Optional[List[Dict[str, Any]]] = None) -> None:
         """
         Soumet la réponse IA au bridge. Appelé par le service de chat
         (core/chat_service.py) quand le streaming est terminé.
@@ -385,14 +431,29 @@ class RelayBridge:
         La réponse est également mise en cache par message_id pour permettre
         à un mobile reconnecté de la récupérer si son WebSocket d'origine
         est mort pendant la génération.
+
+        links : fichiers cités ou nommés par la réponse (cliquables sur le
+        téléphone) ; les documents et images produits pendant la réponse
+        (submit_ai_document, submit_ai_image) lui sont rattachés.
         """
         self._latest_response = text
         # Si le caller n'a pas fourni d'id, on utilise celui enregistré via
         # arm_response(). Backward-compat pour les anciens appels.
         effective_id = message_id or self._latest_message_id
 
+        # Liens et fichiers de la réponse : prêts avant que le WS d'origine ne
+        # l'envoie (wait_for_ai_response) et avant sa diffusion
+        with self._extras_lock:
+            files = self._turn_files.pop(effective_id, []) if effective_id else []
+            extras = {"links": _clean_links(links), "files": files}
+            if effective_id:
+                self._response_extras[effective_id] = extras
+                while len(self._response_extras) > _RESPONSE_EXTRAS_MAX:
+                    self._response_extras.pop(next(iter(self._response_extras)))
+
         # Enregistrer dans l'historique
-        ai_msg = RelayMessage(text=text, is_user=False, source="relay")
+        ai_msg = RelayMessage(text=text, is_user=False, source="relay",
+                              links=extras["links"], files=list(files))
         self._history.append(ai_msg)
 
         # Cacher la réponse pour récupération ultérieure (mobile déconnecté)
@@ -422,6 +483,41 @@ class RelayBridge:
             len(text),
             effective_id or "—",
         )
+
+    def _add_turn_file(self, message_id: Optional[str], path: str, kind: str) -> None:
+        """Document ou image produit pendant la réponse à message_id."""
+        if not message_id or not path:
+            return
+        with self._extras_lock:
+            files = self._turn_files.setdefault(message_id, [])
+            if len(files) < _FILES_PER_RESPONSE and all(f["path"] != path for f in files):
+                files.append({"path": path, "name": os.path.basename(path), "kind": kind})
+            while len(self._turn_files) > _TURN_FILES_MAX:
+                self._turn_files.pop(next(iter(self._turn_files)))
+
+    def response_extras(self, message_id: Optional[str]) -> Dict[str, Any]:
+        """Liens et fichiers produits de la réponse à message_id ({"links", "files"})."""
+        with self._extras_lock:
+            extras = self._response_extras.get(message_id or "")
+            if extras is None:
+                return {"links": [], "files": []}
+            return {"links": list(extras["links"]), "files": list(extras["files"])}
+
+    def known_paths(self) -> set:
+        """Fichiers que la conversation du téléphone montre : ses pièces jointes, les
+        fichiers que les réponses citent ou nomment, ceux qu'elles ont produits.
+        Chemins normalisés : le Relay n'en montre pas d'autres (file_preview)."""
+        paths: List[str] = []
+        for message in list(self._history):
+            if message.image_path:
+                paths.append(message.image_path)
+            paths.extend(message.file_paths)
+            paths.extend(link["path"] for link in message.links if not link.get("dir"))
+            paths.extend(item["path"] for item in message.files)
+        with self._extras_lock:
+            for files in self._turn_files.values():
+                paths.extend(item["path"] for item in files)
+        return {_normalized(path) for path in paths if path}
 
     # ------------------------------------------------------------------
     # Interruption de génération (bouton STOP du chat mobile)

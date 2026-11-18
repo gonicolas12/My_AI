@@ -319,6 +319,15 @@ export class RelayClient extends EventEmitter {
   }
 
   /**
+   * Preview of a file of the PC (attachment sent, file of the conversation),
+   * or the file itself (`download`): the answer is a `file_preview` message
+   * with the same `request_id`.
+   */
+  async sendFilePreview(request: Record<string, unknown>): Promise<void> {
+    await this.sendEncrypted({ ...request, type: 'file_preview' });
+  }
+
+  /**
    * State of a tool call in the dispatcher, shown on the PC and the phone:
    * approval asked (`options`: the answers they may give), running, denied.
    */

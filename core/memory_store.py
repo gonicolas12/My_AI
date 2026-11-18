@@ -564,11 +564,21 @@ class MemoryStore:
         return len(stale)
 
     def document_text(self, document_id: str) -> str:
-        """Texte d'un document, recomposé de ses morceaux (sans leurs chevauchements)."""
-        reader = getattr(self.vector_memory, "document_chunks", None)
+        """Texte d'un document, recomposé de ses morceaux (sans leurs chevauchements).
+
+        Un document rangé sans identifiant (ancien, « name:… » ou « entry:… »,
+        cf. document_key) est retrouvé parmi les morceaux de la collection.
+        """
+        vm = self.vector_memory
+        reader = getattr(vm, "document_chunks", None)
         if not callable(reader) or not document_id:
             return ""
         try:
+            if document_id.startswith(("name:", "entry:")):
+                entries = [entry for entry in vm.list_entries("document", limit=None, offset=0)
+                           if document_key(entry) == document_id]
+                entries.sort(key=_chunk_index)
+                return join_chunks([entry.get("content") or "" for entry in entries])
             return join_chunks(reader(document_id))
         except Exception as exc:
             logger.warning("Lecture du document %s échouée: %s", document_id, exc)

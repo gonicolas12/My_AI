@@ -19,7 +19,8 @@ from interfaces.desktop import files as local_files
 from interfaces.desktop import previews as desktop_previews
 from interfaces.desktop.events import EventBus
 from interfaces.desktop.server import DesktopServer
-from test_chat_service import FakeEngine, FakeFileProcessor, wait_for  # pylint: disable=import-error
+from test_chat_service import (  # pylint: disable=import-error
+    FakeEngine, FakeFileProcessor, ask, wait_for)
 from test_desktop_server import AUTH, BASE, PORT, FakeApp  # pylint: disable=import-error
 
 
@@ -289,6 +290,94 @@ def test_preview_opens_in_the_system_browser(desk, monkeypatch):
     assert written.endswith(".html") and os.path.isfile(written)
     assert opened and opened[0].startswith("file:")
     assert desk.client.post("/api/previews/inconnu/browser", headers=AUTH).status_code == 404
+
+
+# ── Aperçu d'un fichier : texte, taille et date ────────────────────────────
+
+
+def test_text_preview_reads_the_beginning_of_known_text_files(desk, monkeypatch):
+    code = write(desk.outputs / "calcul.py", "print('é')")
+    text = desk.client.post("/api/files/text", json={"path": code}, headers=AUTH).json()
+    assert text == {"text": "print('é')", "truncated": False}
+    # Fichier long : son début seulement, sans caractère coupé en deux
+    monkeypatch.setattr(local_files, "TEXT_PREVIEW_MAX", 5)
+    long = write(desk.outputs / "long.txt", "abcdé" * 10)
+    assert local_files.read_text_preview(long, limit=5) == ("abcd", True)
+    # UTF-16 (BOM) et Windows-1252 se lisent aussi
+    utf16 = desk.outputs / "utf16.txt"
+    utf16.write_bytes("é".encode("utf-16"))
+    assert local_files.read_text_preview(str(utf16)) == ("é", False)
+    latin = desk.outputs / "latin.txt"
+    latin.write_bytes("été".encode("cp1252"))
+    assert local_files.read_text_preview(str(latin)) == ("été", False)
+
+    binary = desk.outputs / "image.bin"
+    binary.write_bytes(b"\x89PNG\x00\x00data")
+    refused = desk.client.post("/api/files/text", json={"path": str(binary)}, headers=AUTH)
+    assert refused.status_code == 415
+    assert refused.json()["detail"] == "Pas d'aperçu : ce fichier n'est pas du texte."
+    # Fichier que la conversation ne connaît pas : rien n'en est lu
+    secret = write(desk.tmp_path / "Documents" / "secret.txt", "mot de passe")
+    assert desk.client.post("/api/files/text", json={"path": secret},
+                            headers=AUTH).status_code == 404
+    assert desk.client.post("/api/files/text", json={"path": secret}).status_code == 401
+
+
+def test_file_info_gives_size_and_date_of_known_files_only(desk):
+    report = write(desk.outputs / "rapport.md", "x" * 1234)
+    info = desk.client.post("/api/files/info", json={"path": report}, headers=AUTH).json()
+    assert info["size"] == 1234 and info["modified"].startswith("20")
+    secret = write(desk.tmp_path / "Documents" / "secret.txt")
+    assert desk.client.post("/api/files/info", json={"path": secret},
+                            headers=AUTH).status_code == 404
+
+
+def test_files_cited_in_an_answer_can_be_previewed(desk):
+    """Un fichier cité par son chemin dans une réponse s'affiche dans le volet ; pas un autre."""
+    cited = write(desk.tmp_path / "Documents" / "budget.csv", "a;b")
+    other = write(desk.tmp_path / "Documents" / "autre.csv", "c;d")
+    desk.chat.send("Où est le budget ?")
+    wait_for(desk.events, "assistant.done", 1)
+    assert desk.client.post("/api/files/text", json={"path": cited},
+                            headers=AUTH).status_code == 404
+
+    desk.chat._engine.script = [("token", f"Le budget est dans {cited}.")]  # pylint: disable=protected-access
+    desk.chat.send("Et maintenant ?")
+    done = wait_for(desk.events, "assistant.done", 2)[-1]["payload"]
+    assert done["paths"] == [{"text": cited, "path": os.path.normpath(cited), "dir": False}]
+    assert desk.client.post("/api/files/text", json={"path": cited},
+                            headers=AUTH).json()["text"] == "a;b"
+    links = desk.client.post("/api/files/links", headers=AUTH,
+                             json={"paths": [cited, other]}).json()["links"]
+    assert links[cited] and links[other] is None
+
+
+def test_a_shown_markdown_file_shows_the_images_of_its_folder_only(desk):
+    """README cité : son logo (une image de son dossier) s'affiche ; ni un autre
+    fichier de ce dossier, ni une image hors de lui, ni pour un Markdown inconnu."""
+    readme = write(desk.tmp_path / "Projet" / "README.md", "# Projet")
+    logo = write(desk.tmp_path / "Projet" / "docs" / "logo.png", "png")
+    secret = write(desk.tmp_path / "Projet" / "secret.txt", "mot de passe")
+    outside = write(desk.tmp_path / "Ailleurs" / "photo.png", "png")
+    desk.chat._engine.script = [("token", f"Le README est {readme}.")]  # pylint: disable=protected-access
+    desk.chat.send("Où est le README ?")
+    wait_for(desk.events, "assistant.done", 1)
+
+    def links(paths, base):
+        return desk.client.post("/api/files/links", headers=AUTH,
+                                json={"paths": paths, "base": base}).json()["links"]
+
+    found = links([logo, secret, outside], readme)
+    assert found[logo] and found[secret] is None and found[outside] is None
+    assert desk.client.get(found[logo]).text == "png"
+    # Sans le Markdown affiché comme base, ou avec un Markdown que la page ne connaît pas
+    assert links([logo], None)[logo] is None
+    unknown = write(desk.tmp_path / "Autre" / "notes.md", "# Notes")
+    write(desk.tmp_path / "Autre" / "image.png", "png")
+    assert links([str(desk.tmp_path / "Autre" / "image.png")], unknown)[
+        str(desk.tmp_path / "Autre" / "image.png")] is None
+    # Une image ne sert pas de base : seulement un fichier Markdown
+    assert links([logo], logo)[logo] is None
 
 
 # ── Envois de la page ───────────────────────────────────────────────────────

@@ -10,6 +10,9 @@
 (function () {
   'use strict';
   const vscode = acquireVsCodeApi();
+  // Nonce of the view's policy: the scripts of a previewed page run with it
+  // (its frame inherits the policy of the view, media/preview.js)
+  const SCRIPT_NONCE = (document.currentScript && document.currentScript.nonce) || '';
 
   // Logo de My_AI (le robot de l'appli, de la barre d'activité et du Marketplace)
   const ROBOT_SVG =
@@ -93,6 +96,14 @@
   let sharedConversation = false;
   // Locale of the times (My_AI's language), given with the strings.
   let timeLocale;
+  // Preview of a file or of an HTML/SVG block (media/preview.js): a modal over
+  // the view, which is too narrow for a pane of its own. Asked previews:
+  // requestId → { resolve, timer }; replies whose files were looked for
+  const previewStrings = {};
+  let preview = null;
+  const previewRequests = new Map();
+  let previewCounter = 0;
+  const linkRequested = new Set();
 
   // Localized strings injected by the extension on startup, in My_AI's
   // language. The webview renders nothing visible until applyStrings()
@@ -153,8 +164,30 @@
     inputEl.placeholder = t('webview.input.placeholder');
     renderAutoAttachToggle();
     if (sendBtnMode === 'stop') sendBtn.title = t('webview.send.stopTooltip');
-    // Buttons of the code blocks, then the replies already on screen
+    Object.assign(previewStrings, {
+      close: t('webview.preview.close'),
+      previous: t('webview.preview.previous'),
+      next: t('webview.preview.next'),
+      download: t('webview.preview.download'),
+      openBrowser: t('webview.preview.openBrowser'),
+      openEditor: t('webview.preview.openEditor'),
+      preview: t('webview.preview.button'),
+      code: t('webview.preview.code'),
+      copy: t('webview.code.copy'),
+      copied: t('webview.code.copied'),
+      loading: t('webview.preview.loading'),
+      none: t('webview.preview.none'),
+      failed: t('webview.preview.failed'),
+      truncated: t('webview.preview.truncated'),
+    });
+    // Buttons of the code blocks, then the replies already on screen: an
+    // HTML or SVG block gets « Preview », as in the chat of My_AI
     turnOptions.codeActions = [
+      {
+        action: 'preview',
+        label: t('webview.preview.button'),
+        accepts: (code, lang) => !!window.MyAIPreview.artifactKind(code, lang),
+      },
       { action: 'copy', label: t('webview.code.copy') },
       { action: 'insert', label: t('webview.code.insert') },
     ];
@@ -242,16 +275,27 @@
     lastScrollTop = top;
   }, { passive: true });
 
-  // Buttons of the code blocks (markdown.js): copy, insert at the cursor
+  // Buttons of the code blocks (markdown.js): preview, copy, insert at the
+  // cursor; a file cited by a reply: its preview
   messagesEl.addEventListener('click', (e) => {
     const target = e.target;
     if (!(target instanceof Element)) return;
+    const link = target.closest('a.md-file');
+    if (link) {
+      e.preventDefault();
+      const filePath = link.getAttribute('data-path') || '';
+      getPreview().open([fileItem({ name: baseName(filePath), localPath: filePath })], 0);
+      return;
+    }
     const button = target.closest('.md-code-btn');
     const block = button && button.closest('.md-code');
     const pre = block && block.querySelector('pre code');
     if (!pre) return;
     const code = pre.textContent || '';
-    if (button.dataset.action === 'insert') {
+    if (button.dataset.action === 'preview') {
+      const lang = block.querySelector('.md-code-lang');
+      openBlockPreview(button, code, lang ? lang.textContent : '');
+    } else if (button.dataset.action === 'insert') {
       vscode.postMessage({ type: 'insert-at-cursor', code });
       flashAction(button, t('webview.code.inserted'));
     } else if (button.dataset.action === 'copy') {
@@ -267,7 +311,28 @@
   }
 
   // ── EXTENSION → WEBVIEW MESSAGES ─────────────────────
+  // A page shown in the preview (its frame, or a frame inside it) can post to
+  // this window: it never speaks for the extension
+  function fromPreviewFrame(source) {
+    if (!source || source === window) return false;
+    const frames = Array.from(document.querySelectorAll('iframe'));
+    let current = source;
+    for (let depth = 0; current && depth < 12; depth++) {
+      if (frames.some((frame) => frame.contentWindow === current)) return true;
+      let up = null;
+      try {
+        up = current.parent;
+      } catch {
+        return false;
+      }
+      if (!up || up === current) return false;
+      current = up;
+    }
+    return false;
+  }
+
   window.addEventListener('message', (event) => {
+    if (fromPreviewFrame(event.source)) return;
     const msg = event.data;
     if (!msg || typeof msg !== 'object') return;
     // A tool call, the end of a reply… show after the text received before them
@@ -307,7 +372,7 @@
         addAttachmentChip(msg.localId, msg.name, msg.isImage, 'uploading');
         break;
       case 'attachment-ready':
-        markAttachmentReady(msg.localId, msg.fileId, msg.filename, msg.isImage);
+        markAttachmentReady(msg.localId, msg.fileId, msg.filename, msg.isImage, msg.path);
         break;
       case 'attachment-error':
         markAttachmentError(msg.localId, msg.error);
@@ -324,8 +389,199 @@
       case 'tool-event':
         applyToolEvent(msg.event);
         break;
+      case 'file-preview':
+        // Read by the extension (file of this machine), or refused before the PC
+        settlePreview(msg.requestId, msg.payload);
+        break;
+      case 'links':
+        applyLinks(msg.messageId, msg.links);
+        break;
     }
   });
+
+  // ── PREVIEW (media/preview.js) ───────────────────────
+  function getPreview() {
+    if (!preview) {
+      preview = window.MyAIPreview.create({
+        strings: previewStrings,
+        locale: timeLocale,
+        request: requestPreview,
+        save: (name, mime, data) => vscode.postMessage({ type: 'save-file', name, mime, data }),
+        copy: (text) => {
+          vscode.postMessage({ type: 'copy-to-clipboard', text });
+          return Promise.resolve();
+        },
+        openBrowser: (html) => vscode.postMessage({ type: 'open-browser', html }),
+        openEditor: (item) => vscode.postMessage({ type: 'open-in-editor', path: item.localPath }),
+        scriptNonce: SCRIPT_NONCE,
+      });
+    }
+    return preview;
+  }
+
+  function baseName(filePath) {
+    return String(filePath || '').split(/[\\/]/).pop() || String(filePath || '');
+  }
+
+  // File → item of the preview. On this machine (localPath): read by the
+  // extension, opened in the editor, nothing to download; sent to the PC
+  // (fileId) or a file of the PC (pcPath): asked to the Relay
+  function fileItem(file) {
+    return {
+      type: 'file',
+      name: file.name || baseName(file.localPath || file.pcPath),
+      fileId: file.fileId || '',
+      localPath: file.localPath || '',
+      pcPath: file.pcPath || '',
+      editable: !!file.localPath,
+      download: file.localPath ? false : undefined,
+      icon: file.isImage ? '🖼️' : '📎',
+    };
+  }
+
+  function canPreview(item) {
+    return !!(item.fileId || item.localPath || item.pcPath);
+  }
+
+  function requestPreview(item, download) {
+    return new Promise((resolve, reject) => {
+      if (!isConnected && !(item.localPath && !item.fileId)) {
+        reject(new Error(t('webview.preview.offline')));
+        return;
+      }
+      const requestId = 'pv' + (++previewCounter) + '_' + Date.now().toString(36);
+      const timer = setTimeout(() => {
+        previewRequests.delete(requestId);
+        reject(new Error(t('webview.preview.timeout')));
+      }, 90000);
+      previewRequests.set(requestId, { resolve, timer });
+      const message = { type: 'preview-file', requestId, download: !!download };
+      if (item.fileId) message.fileId = item.fileId;
+      else if (item.localPath) message.localPath = item.localPath;
+      else message.path = item.pcPath;
+      vscode.postMessage(message);
+    });
+  }
+
+  function settlePreview(requestId, payload) {
+    const pending = previewRequests.get(requestId);
+    if (!pending) return;
+    previewRequests.delete(requestId);
+    clearTimeout(pending.timer);
+    pending.resolve(payload || { ok: false, error: '' });
+  }
+
+  function untitledArtifact(kind, index) {
+    return (kind === 'svg' ? 'SVG' : 'HTML') + ' #' + (index + 1);
+  }
+
+  // Text of a reply: that of each pass of the model
+  function replyText(reply) {
+    const texts = (reply.parts || []).filter((p) => p && p.kind === 'text' && p.text).map((p) => p.text);
+    if (!texts.length && reply.text) texts.push(reply.text);
+    return texts.join('\n\n');
+  }
+
+  function replyOf(element) {
+    for (const [id, turn] of turns) {
+      if (turn.el.contains(element)) return replies.get(id) || null;
+    }
+    return null;
+  }
+
+  // « Preview » of a block: the modal opens on it, the other blocks of the
+  // reply beside it (‹ k/n ›)
+  function openBlockPreview(button, code, lang) {
+    const wanted = code.trim();
+    const reply = replyOf(button);
+    let items = reply ? window.MyAIPreview.detectArtifacts(replyText(reply), untitledArtifact) : [];
+    let index = items.findIndex((item) => item.code === wanted);
+    if (index < 0) {
+      const kind = window.MyAIPreview.artifactKind(wanted, lang);
+      if (!kind) return;
+      items = [{ type: 'artifact', kind, code: wanted, title: untitledArtifact(kind, 0) }];
+      index = 0;
+    }
+    getPreview().open(items, index);
+  }
+
+  // Path or name of a file a reply may cite (`src/app.ts`, C:\x\y.py,
+  // README.md…): the extension keeps those of the workspace
+  const FILE_TOKEN = /(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|[\\/])?(?:[\w@+-][\w@.+-]*[\\/])*[\w@+-][\w@.+-]*\.[A-Za-z0-9]{1,10}\b/g;
+
+  function fileCandidates(text) {
+    const clean = String(text || '').replace(/\bhttps?:\/\/\S+/g, ' ');
+    const found = new Set();
+    let match;
+    FILE_TOKEN.lastIndex = 0;
+    while ((match = FILE_TOKEN.exec(clean)) && found.size < 200) {
+      const token = match[0];
+      // Numbers (1.5, v2.0.1): never files
+      if (token.length < 3 || /^v?\d+(\.\d+)+$/i.test(token)) continue;
+      found.add(token);
+    }
+    return Array.from(found);
+  }
+
+  // Finished reply: the files it cites or names are looked for in the workspace
+  function requestLinks(reply) {
+    if (!reply || !reply.message_id || reply.status === 'streaming') return;
+    if (linkRequested.has(reply.message_id)) return;
+    const candidates = fileCandidates(replyText(reply));
+    if (!candidates.length) return;
+    linkRequested.add(reply.message_id);
+    const touched = (reply.parts || [])
+      .filter((p) => p && p.kind === 'tool' && p.input && typeof p.input.path === 'string')
+      .map((p) => p.input.path);
+    vscode.postMessage({ type: 'resolve-links', messageId: reply.message_id, candidates, touched });
+  }
+
+  function applyLinks(messageId, links) {
+    const reply = replies.get(messageId);
+    if (!reply || !Array.isArray(links) || !links.length) return;
+    reply.links = links.filter((link) => link && link.text && link.path).map((link) => ({
+      text: link.text, path: link.path, whole: !!link.whole,
+    }));
+    showReply(reply);
+  }
+
+  // Attachments of a message, under its bubble: a click opens their preview
+  function fileChips(files) {
+    const items = files.map(fileItem);
+    const box = document.createElement('div');
+    box.className = 'file-chips';
+    items.forEach((item, index) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'file-chip';
+      chip.title = item.name;
+      chip.innerHTML = '<span class="file-chip-icon">' + item.icon + '</span>' +
+        '<span class="file-chip-name" dir="auto">' + escapeHtml(item.name) + '</span>';
+      // Sent before the extension kept their paths: their name only
+      chip.disabled = !canPreview(item);
+      chip.addEventListener('click', () => {
+        const openable = items.filter(canPreview);
+        getPreview().open(openable, openable.indexOf(item));
+      });
+      box.appendChild(chip);
+    });
+    return box;
+  }
+
+  // Attachments of a message of the conversation (host): paths on the PC
+  // (files), or their names only (hosts from before)
+  function userFiles(message) {
+    if (Array.isArray(message.files) && message.files.length) {
+      return message.files.filter((file) => file && file.name).map((file) => ({
+        name: file.name, pcPath: file.path || '', isImage: IMAGE_NAME.test(file.name),
+      }));
+    }
+    return (Array.isArray(message.attachments) ? message.attachments : [])
+      .filter((name) => typeof name === 'string' && name)
+      .map((name) => ({ name, isImage: IMAGE_NAME.test(name) }));
+  }
+
+  const IMAGE_NAME = /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif|tiff?)$/i;
 
   // ── REPLIES (a bubble each, turn.js) ─────────────────
   const OPEN_TOOL = { requested: true, running: true, 'awaiting-approval': true };
@@ -456,6 +712,7 @@
     if (mid) {
       replies.set(mid, reply);
       showReply(reply);
+      requestLinks(reply);
     } else {
       // Message refused (VS Code busy…): the reason, in a bubble of its own
       if (welcomeEl) welcomeEl.style.display = 'none';
@@ -475,7 +732,7 @@
       && !renderedMessageIds.has('user:' + mid)) {
       // Sent by a command (selection, active file), not typed here
       userPinnedToBottom = true;
-      addUserMessage(userDisplayText(data.text, data.attachments), data.timestamp);
+      addUserMessage(data.text || '', data.timestamp, null, userFiles(data));
       isWaiting = true;
       updateSendButton();
     }
@@ -549,7 +806,7 @@
     const mid = m.message_id;
     if (m.role === 'user') {
       renderedMessageIds.add('user:' + mid);
-      addUserMessage(userDisplayText(m.text, m.attachments), m.timestamp, m.origin);
+      addUserMessage(m.text || '', m.timestamp, m.origin, userFiles(m));
       return;
     }
     const reply = {
@@ -568,6 +825,7 @@
     } else {
       renderedMessageIds.add('ai:' + mid);
       closedMessageIds.add(mid);
+      requestLinks(reply);
     }
   }
 
@@ -579,6 +837,7 @@
     renderedMessageIds.clear();
     replies.clear();
     turns.clear();
+    linkRequested.clear();
     activeId = null;
     dirtyReplies = [];
   }
@@ -604,7 +863,7 @@
     if (!mid || renderedMessageIds.has('user:' + mid)) return;
     renderedMessageIds.add('user:' + mid);
     userPinnedToBottom = true;
-    addUserMessage(userDisplayText(data.text, data.attachments), data.timestamp, data.origin);
+    addUserMessage(data.text || '', data.timestamp, data.origin, userFiles(data));
     lastSentMessageId = mid;
     isWaiting = true;
     startReply(mid, data.timestamp);
@@ -624,11 +883,6 @@
     updateSendButton();
   }
 
-  function userDisplayText(text, attachments) {
-    const lines = (Array.isArray(attachments) ? attachments : []).map((name) => '📎 ' + name);
-    return [text || ''].concat(lines).filter((line) => line).join('\n');
-  }
-
   function originText(origin) {
     return origin === 'desktop' || origin === 'mobile' ? t('webview.origin.' + origin) : '';
   }
@@ -643,6 +897,8 @@
       case 'response': applyResponse(data); break;
       case 'chunk': applyChunk(data); break;
       case 'ack': applyAck(data); break;
+      // Preview of a file of the PC, asked by the view (preview-file)
+      case 'file_preview': settlePreview(data.request_id, data); break;
       default: break;
     }
   }
@@ -659,14 +915,10 @@
 
     if (welcomeEl) welcomeEl.style.display = 'none';
 
-    let displayText = text;
-    if (hasAttachments) {
-      const lines = ready.map((a) => (a.isImage ? '🖼️ ' : '📎 ') + a.name).join('\n');
-      displayText = displayText ? text + '\n' + lines : lines;
-    }
-
     userPinnedToBottom = true;
-    addUserMessage(displayText);
+    addUserMessage(text, null, null, ready.map((a) => ({
+      name: a.name, isImage: a.isImage, fileId: a.fileId, localPath: a.localPath,
+    })));
 
     pendingLocalSend = true;
     vscode.postMessage({
@@ -974,12 +1226,13 @@
     updateSendButton();
   }
 
-  function markAttachmentReady(localId, fileId, filename, isImage) {
+  function markAttachmentReady(localId, fileId, filename, isImage, localPath) {
     const a = pendingAttachments.find((x) => x.localId === localId);
     if (!a) return;
     a.fileId = fileId;
     a.name = filename || a.name;
     a.isImage = !!isImage;
+    a.localPath = localPath || '';
     a.status = 'ready';
     renderAttachments();
     updateSendButton();
@@ -1016,11 +1269,20 @@
                        : (a.isImage ? '🖼️' : '📎');
       chip.appendChild(icon);
 
-      const name = document.createElement('span');
-      name.className = 'chip-name';
+      // Ready: its name opens its preview, as in the window of My_AI
+      const ready = a.status === 'ready';
+      const name = document.createElement(ready ? 'button' : 'span');
+      name.className = 'chip-name' + (ready ? ' chip-open' : '');
       name.textContent = a.status === 'error'
         ? (a.name + ' · ' + (a.error || t('webview.attachment.error')))
         : a.name;
+      if (ready) {
+        name.type = 'button';
+        name.addEventListener('click', () => {
+          const openable = pendingAttachments.filter((x) => x.status === 'ready');
+          getPreview().open(openable.map(fileItem), openable.indexOf(a));
+        });
+      }
       chip.appendChild(name);
 
       const rm = document.createElement('button');
@@ -1043,20 +1305,25 @@
   }
 
   // ── MESSAGE RENDERING ────────────────────────────────
-  // Message of the user; origin: where it was typed ('desktop', 'mobile'), labelled
-  function addUserMessage(text, timestamp, origin) {
+  // Message of the user; origin: where it was typed ('desktop', 'mobile'),
+  // labelled; files: its attachments, under the bubble, previewed on a click
+  function addUserMessage(text, timestamp, origin, files) {
     if (welcomeEl) welcomeEl.style.display = 'none';
+    const attachments = Array.isArray(files) ? files : [];
     const msg = document.createElement('div');
     msg.className = 'message user';
     const time = formatTime(timestamp ? new Date(timestamp) : new Date());
     const label = originText(origin);
-    const bubble = '<div class="bubble">' + escapeHtml(text) +
-      '<span class="time">' + time + '</span></div>';
-    msg.innerHTML = label
-      ? '<div class="user-stack">' +
-        '<span class="origin-label" data-origin="' + escapeHtml(origin) + '">' +
-        escapeHtml(label) + '</span>' + bubble + '</div>'
-      : bubble;
+    const bubble = text || !attachments.length
+      ? '<div class="bubble">' + escapeHtml(text) + '<span class="time">' + time + '</span></div>'
+      : '';
+    msg.innerHTML = '<div class="user-stack">' + (label
+      ? '<span class="origin-label" data-origin="' + escapeHtml(origin) + '">' +
+        escapeHtml(label) + '</span>'
+      : '') + bubble + '</div>';
+    if (attachments.length) {
+      msg.firstChild.appendChild(fileChips(attachments));
+    }
     messagesEl.appendChild(msg);
     scrollToBottom();
   }

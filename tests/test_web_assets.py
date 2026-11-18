@@ -2,7 +2,8 @@
 Rendu des réponses commun au téléphone (Relay) et à l'extension VS Code.
 
 markdown.js (Markdown des réponses), turn.js (une réponse de la conversation
-Code : une bulle, ses appels d'outils dedans, dans l'ordre) et thread.css sont
+Code : une bulle, ses appels d'outils dedans, dans l'ordre), preview.js (aperçu
+d'un fichier ou d'un bloc HTML/SVG, dans une modale) et thread.css sont
 copiés tels quels dans relay/static/ et vscode_extension/media/ : les deux
 surfaces ont le même rendu tant que les copies restent identiques. Ce test le
 vérifie, ainsi que le chargement de ces fichiers par les deux pages et leurs
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "relay" / "static"
 MEDIA = ROOT / "vscode_extension" / "media"
 PROVIDER = ROOT / "vscode_extension" / "src" / "chatViewProvider.ts"
-SHARED = ("markdown.js", "turn.js", "thread.css")
+SHARED = ("markdown.js", "turn.js", "preview.js", "thread.css")
 
 
 @pytest.mark.parametrize("name", SHARED)
@@ -46,27 +47,29 @@ def test_both_pages_load_the_shared_files():
         assert f"uri('{name}')" in provider
     # Le rendu avant les scripts qui s'en servent, sa feuille avant celle de la page
     order = [index.index(f"/static/{name}") for name in
-             ("markdown.js", "turn.js", "app.js", "agents.js", "code.js")]
+             ("markdown.js", "turn.js", "preview.js", "app.js", "agents.js", "code.js")]
     assert order == sorted(order)
     assert index.index("/static/thread.css") < index.index("/static/style.css")
-    order = [chat.index(f"%{name}_URI%") for name in ("MARKDOWN_JS", "TURN_JS", "CHAT_JS")]
+    order = [chat.index(f"%{name}_URI%") for name in
+             ("MARKDOWN_JS", "TURN_JS", "PREVIEW_JS", "CHAT_JS")]
     assert order == sorted(order)
     assert chat.index("%THREAD_CSS_URI%") < chat.index("%CHAT_CSS_URI%")
     # Scripts de la vue VS Code : seuls ceux qui portent le nonce s'exécutent
-    assert len(re.findall(r'<script nonce="%NONCE%" src=', chat)) == 3
+    assert len(re.findall(r'<script nonce="%NONCE%" src=', chat)) == 4
 
 
 def test_a_shared_file_changes_the_asset_version(monkeypatch, tmp_path):
-    """Le téléphone recharge markdown.js, turn.js et thread.css quand ils changent."""
+    """Le téléphone recharge markdown.js, turn.js, preview.js et thread.css quand ils changent."""
     for name in ("index.html", "app.js", "style.css") + SHARED:
         path = tmp_path / name
         path.write_text("x", encoding="utf-8")
         os.utime(path, (1000, 1000))
-    for name, stamp in (("thread.css", 3000), ("turn.js", 5000), ("markdown.js", 4000)):
+    for name, stamp in (("thread.css", 3000), ("turn.js", 5000), ("markdown.js", 4000),
+                        ("preview.js", 6000)):
         os.utime(tmp_path / name, (stamp, stamp))
     monkeypatch.setattr(relay_server, "_STATIC_DIR", tmp_path)
     monkeypatch.setattr(relay_server, "_LOCALES_DIR", tmp_path / "locales")
-    assert RelayServer(config={}).get_static_assets_version() == "5000"
+    assert RelayServer(config={}).get_static_assets_version() == "6000"
 
 
 def _turn_keys():
@@ -108,6 +111,18 @@ CASES = {
     "cursor_text": ("Bonjour **toi**", {"cursor": True}),
     "cursor_list": ("- a\n- b", {"cursor": True}),
     "cursor_open_fence": ("Voici :\n```js\nconst a", {"cursor": True}),
+    "file_links": (
+        "Voir C:\\a\\b.pdf et `C:\\a\\dossier`, **c.xlsx** (pas Moc.xlsx ni c.xlsx.bak) [1]."
+        "\n\n📚 **Sources**\n[1] https://ex.org/c.xlsx",
+        {"links": [{"text": "C:\\a\\b.pdf", "path": "C:\\a\\b.pdf"},
+                   {"text": "C:\\a\\dossier", "path": "C:\\a\\dossier", "folder": True},
+                   {"text": "c.xlsx", "path": "C:\\x\\c.xlsx", "whole": True}]},
+    ),
+    "preview_action": (
+        "```html\n<p>x</p>\n```\n```py\nprint(1)\n```",
+        {"codeActions": [{"action": "preview", "label": "Aperçu", "langs": ["html", "svg"]},
+                         {"action": "copy", "label": "Copier"}]},
+    ),
 }
 
 _RENDER_ALL = (
@@ -159,6 +174,25 @@ def test_code_block_has_its_language_and_buttons(html):
     assert "<strong>" not in code
 
 
+def test_files_cited_in_an_answer_become_links(html):
+    """Chemin cité (aussi en code), nom d'un fichier de la conversation, entier ;
+    jamais dans une adresse ni dans un autre nom."""
+    links = html["file_links"]
+    assert '<a href="#" class="md-file" data-path="C:\\a\\b.pdf">C:\\a\\b.pdf</a>' in links
+    assert ('<code><a href="#" class="md-file" data-path="C:\\a\\dossier" data-folder="1">'
+            'C:\\a\\dossier</a></code>') in links
+    assert '<strong><a href="#" class="md-file" data-path="C:\\x\\c.xlsx">c.xlsx</a></strong>' in links
+    assert links.count('class="md-file"') == 3
+    assert 'href="https://ex.org/c.xlsx"' in links
+
+
+def test_a_block_action_can_be_kept_for_some_languages(html):
+    """« Aperçu » sur un bloc HTML, pas sur du Python ; « Copier » sur les deux."""
+    blocks = html["preview_action"].split('<div class="md-code">')[1:]
+    assert 'data-action="preview"' in blocks[0] and 'data-action="copy"' in blocks[0]
+    assert 'data-action="preview"' not in blocks[1] and 'data-action="copy"' in blocks[1]
+
+
 def test_table_cells_are_aligned_and_formatted(html):
     table = html["table"]
     assert '<th style="text-align:left">a</th><th style="text-align:right">b</th>' in table
@@ -191,3 +225,40 @@ def test_streaming_cursor_follows_the_last_character(html):
     assert html["cursor_list"] == f"<ul><li>a</li><li>b{cursor}</li></ul>"
     # Bloc de code pas encore fermé : du code jusqu'à la fin, le curseur dedans
     assert html["cursor_open_fence"].endswith(f"<code>const a{cursor}</code></pre></div>")
+
+
+# ── Aperçu (preview.js, par Node) ────────────────────────────────────────────
+
+_PREVIEW_CHECK = r"""
+const preview = require(process.argv[1]).MyAIPreview;
+const text = [
+  '```html', '<title>Démo</title><p>x</p>', '```', '```py', 'print(1)', '```',
+  '```', '<div class="a">sans langage</div>', '```', '```svg', '<svg viewBox="0 0 2 2"></svg>', '```',
+].join(String.fromCharCode(10));
+console.log(JSON.stringify({
+  kinds: [['<svg></svg>', ''], ['<div>x</div>', ''], ['print(1)', 'py'], ['<p>x</p>', 'html'],
+          ['<table><tr></tr></table>', 'xml'], ['', 'html']].map(c => preview.artifactKind(c[0], c[1])),
+  found: preview.detectArtifacts(text, (kind, index) => kind + '#' + (index + 1))
+    .map(a => [a.type, a.kind, a.title]),
+  doc: preview.artifactDoc({ kind: 'svg', code: '<svg></svg>' }),
+  full: preview.artifactDoc({ kind: 'html', code: '<!DOCTYPE html><html><body>x</body></html>' }),
+  size: preview.formatSize(12345, 'fr'),
+}));
+"""
+
+
+def test_preview_finds_the_blocks_it_can_show():
+    """Blocs HTML et SVG d'une réponse (comme interfaces/artifacts.py), leurs titres."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js absent : preview.js non vérifié")
+    result = subprocess.run([node, "-e", _PREVIEW_CHECK, str(STATIC / "preview.js")],
+                            capture_output=True, text=True, encoding="utf-8", check=True,
+                            timeout=60)
+    checked = json.loads(result.stdout)
+    assert checked["kinds"] == ["svg", "html", None, "html", "html", None]
+    assert checked["found"] == [["artifact", "html", "Démo"], ["artifact", "html", "html#2"],
+                                ["artifact", "svg", "svg#3"]]
+    assert checked["doc"].startswith("<!DOCTYPE html>") and "<svg></svg>" in checked["doc"]
+    assert checked["full"] == "<!DOCTYPE html><html><body>x</body></html>"
+    assert "12,3" in checked["size"]

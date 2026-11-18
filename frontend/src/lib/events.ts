@@ -16,11 +16,18 @@ export interface AttachmentRef {
   type: string;
 }
 
-/** Chemin existant cité dans une réponse, montré dans l'Explorateur au clic */
+/**
+ * Chemin existant cité dans une réponse : au clic, un fichier s'ouvre dans le
+ * volet d'aperçu, un dossier dans l'Explorateur
+ */
 export interface PathLink {
   /** Tel qu'il apparaît dans la réponse */
   text: string;
   path: string;
+  /** Un dossier */
+  dir?: boolean;
+  /** Fichier de la conversation nommé sans son chemin (« rapport.docx ») : cliquable entier */
+  name?: boolean;
 }
 
 /**
@@ -251,6 +258,8 @@ export interface CodeUserMessage {
   origin: CodeOrigin;
   timestamp: string | null;
   attachments: string[];
+  /** Leurs chemins sur le PC (aperçu du téléphone et de VS Code, par le Relay) */
+  files?: { name: string; path: string }[];
 }
 
 export interface CodeAssistantMessage {
