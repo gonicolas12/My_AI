@@ -220,6 +220,25 @@ def test_quote_and_rule():
     assert blocks[0].text == "Une citation"
 
 
+def test_text_right_after_a_quote_comes_after_it():
+    """Régression : sans ligne vide, la ligne qui suit une citation sortait avant
+    elle. Elle ouvre un paragraphe, comme après une liste (pas de continuation
+    paresseuse à la CommonMark : un LLM écrit chaque paragraphe d'une traite)."""
+    blocks = parse_markdown("> Une citation\n> sur deux lignes.\nTexte qui suit.")
+    assert _types(blocks) == ["Quote", "Paragraph"]
+    assert [block.text for block in blocks] == [
+        "Une citation sur deux lignes.", "Texte qui suit.",
+    ]
+    assert _types(parse_markdown("Avant\n> Une citation\nAprès")) == [
+        "Paragraph", "Quote", "Paragraph",
+    ]
+
+
+def test_quote_followed_by_a_list_or_heading_keeps_the_order():
+    assert _types(parse_markdown("> Une citation\n- Une puce")) == ["Quote", "ListBlock"]
+    assert _types(parse_markdown("> Une citation\n## Un titre")) == ["Quote", "Heading"]
+
+
 # ── Fragments inline ───────────────────────────────────────────────────────
 
 
