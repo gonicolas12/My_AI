@@ -521,6 +521,8 @@ class AgentsSectionEnd(_Payload):
     success: bool
     inference_ms: Optional[int] = None
     tokens_per_sec: Optional[float] = None
+    # Fichiers que son résultat cite ou nomme (relay/agent_relay.section_links)
+    links: List[PathLink] = Field(default_factory=list)
 
 
 class AgentsNodeStatus(_Payload):

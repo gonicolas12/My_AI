@@ -11,6 +11,7 @@ statistiques, tokens/s de chaque agent, notification de fin, routes.
 """
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -372,6 +373,51 @@ def test_every_image_is_described_in_order(agents, tmp_path):
     assert task.index("--- Image jointe : a.png ---") < task.index("--- Image jointe : b.jpg ---")
     # Le document est lu par le service, comme pour le mobile
     assert "--- Fichier joint : notes.txt ---\ncontenu du document" in agents.orchestrator.calls[0][1]
+
+
+def test_files_a_result_cites_or_names_become_links(agents, tmp_path):
+    """Comme une réponse du chat : un chemin cité (existant) et le nom d'une pièce
+    jointe du fil (image comprise, décrite par la fenêtre) sont des liens, gardés
+    avec la section ; la page Agents en montre l'aperçu (known_paths)."""
+    report = tmp_path / "rapport.pdf"
+    photo = tmp_path / "photo.png"
+    notes = tmp_path / "notes.txt"
+    for path in (report, photo):
+        path.write_bytes(b"x")
+    notes.write_text("contenu", encoding="utf-8")
+    agents.relay._describe_image = lambda path: "vue"  # pylint: disable=protected-access
+    OUTPUTS["analyst"] = f"Vu photo.png et notes.txt, voir {report} (pas MaPhoto.png)."
+    try:
+        run_id = agents.service.start("Analyse", [node(0, "analyst")], [], [
+            {"path": str(photo), "type": "Image"}, {"path": str(notes)}])
+        run = wait_run_end(agents, run_id)
+    finally:
+        del OUTPUTS["analyst"]
+    paths = {link["text"]: link["path"] for link in run["sections"][0]["paths"]}
+    assert paths == {str(report): str(report), "photo.png": str(photo), "notes.txt": str(notes)}
+    end = next(event for event in agent_events(agents.events)
+               if event["type"] == "agents.agent_section_end")
+    assert {link["text"] for link in end["payload"]["links"]} == set(paths)
+    validate_event(end)
+    known = agents.service.known_paths()
+    for path in (report, photo, notes):
+        assert os.path.normcase(os.path.abspath(str(path))) in known
+    # Gardés avec le fil : relus au prochain lancement
+    saved = json.loads((agents.tmp_path / "agent_runs.json").read_text(encoding="utf-8"))
+    assert {link["text"] for link in saved["runs"][0]["sections"][0]["paths"]} == set(paths)
+
+
+def test_a_debate_turn_links_the_paths_it_cites(tmp_path):
+    """Débat : pas de pièce jointe, mais un chemin cité reste un lien (section_links)."""
+    from relay.agent_relay import section_links  # pylint: disable=import-outside-toplevel
+
+    target = tmp_path / "budget.xlsx"
+    target.write_bytes(b"PK")
+    links = section_links(f"Le fichier {target} et budget.xlsx", [])
+    assert [link["text"] for link in links] == [str(target)]
+    assert section_links("Rien ici.", [str(target)]) == []
+    assert [link["text"] for link in section_links("Voir budget.xlsx.", [str(target)])] == [
+        "budget.xlsx"]
 
 
 def test_code_attachments_are_kept_for_the_diff(agents, tmp_path):

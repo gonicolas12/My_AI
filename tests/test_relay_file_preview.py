@@ -283,3 +283,19 @@ def test_an_upload_keeps_its_name_in_a_folder_of_its_own(server):
     path = server.upload_dir / sent["file_id"] / "Budget_2026.xlsx"
     assert sent["filename"] == "Budget_2026.xlsx" and path.read_bytes() == b"PK contenu"
     assert server.preview_file({"path": str(path)})["name"] == "Budget_2026.xlsx"
+
+
+def test_files_cited_by_an_agent_result_sent_to_the_phone_are_shown(server, tmp_path):
+    """Page Agents du téléphone : la fin d'une section porte les fichiers que son
+    résultat cite ou nomme ; le Relay les montre, pas les dossiers ni le reste."""
+    cited, other = tmp_path / "rapport.pdf", tmp_path / "autre.pdf"
+    for path in (cited, other):
+        path.write_bytes(b"%PDF")
+    assert not server.preview_allowed(str(cited))
+    server.note_agent_links({"type": "agent_section_chunk", "links": [{"path": str(other)}]})
+    server.note_agent_links({"type": "agent_section_end", "section_id": 0, "links": [
+        {"text": "rapport.pdf", "path": str(cited), "name": True},
+        {"text": "dossier", "path": str(tmp_path), "dir": True}, "pas un lien"]})
+    assert server.preview_allowed(str(cited))
+    assert not server.preview_allowed(str(other)) and not server.preview_allowed(str(tmp_path))
+    assert server.preview_file({"path": str(cited)})["ok"] is True

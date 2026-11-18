@@ -1,19 +1,30 @@
 /*
- * Fenêtre d'aperçu d'une pièce jointe pas encore envoyée : au premier plan de
- * l'appli, comme un panneau (Réglages, Mémoire…), un peu plus grande. Elle
- * monte en s'ouvrant et s'efface en se fermant (dialog-rise, index.css) ;
- * Échap ou un clic à côté la ferment. Plusieurs pièces jointes : elle passe de
- * l'une à l'autre (‹ k/n ›).
+ * Fenêtre d'aperçu au premier plan de l'appli, comme un panneau (Réglages,
+ * Mémoire…), un peu plus grande : pièce jointe pas encore envoyée, et tout ce
+ * que la page Agents montre (pièce jointe d'un fil, fichier cité par un agent,
+ * bloc HTML ou SVG de son résultat). Elle monte en s'ouvrant et s'efface en se
+ * fermant (dialog-rise, index.css) ; Échap ou un clic à côté la ferment.
+ * Plusieurs éléments : elle passe de l'un à l'autre (‹ k/n ›).
  */
 
 import * as RadixDialog from '@radix-ui/react-dialog';
-import { ChevronLeft, ChevronRight, FolderOpen, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FolderOpen,
+  Globe,
+  SquareArrowOutUpRight,
+  X,
+} from 'lucide-react';
 import { createElement, useEffect, useRef, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { useT } from '../../i18n';
-import { revealPath } from '../../lib/actions';
+import { openFile, revealPath } from '../../lib/actions';
+import { api } from '../../lib/api';
 import { fileKind, hasSource } from '../../lib/fileKinds';
+import { notify } from '../../stores/app';
 import {
   closeAttachmentPreview,
   setAttachmentPreviewTab,
@@ -21,8 +32,10 @@ import {
   useAttachmentPreview,
 } from '../../stores/attachmentPreview';
 import { motionMs, PANE_MS } from '../../stores/preview';
+import { ArtifactView } from './ArtifactView';
 import { FileMeta, FilePreview, PreviewTabs } from './FilePreview';
 import { fileIcon } from './fileIcon';
+import { usePreviewPage } from './usePreviewPage';
 
 /** Taille de la fenêtre : un peu plus que les Réglages (860 × 760) */
 const DIALOG_WIDTH = 1120;
@@ -41,21 +54,39 @@ function DialogBody() {
   }, []);
 
   const item = items[index];
+  // Page d'aperçu d'un bloc HTML/SVG : elle s'ouvre aussi dans le navigateur
+  const { view } = usePreviewPage(item?.kind !== 'document' ? item : undefined);
   if (!item) return null;
-  const kind = fileKind(item.path);
+  const isDocument = item.kind === 'document';
+  const kind = isDocument ? fileKind(item.path) : null;
+  const hidden = moving || !open;
+
+  const openInBrowser = () => {
+    if (!view) return;
+    api.previewInBrowser(view.id).catch((error: unknown) => {
+      notify('error', error instanceof Error ? error.message : String(error));
+    });
+  };
 
   return (
     <>
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line ps-4 pe-2">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
-          {createElement(fileIcon(item.path), { size: 16, 'aria-hidden': true })}
+          {isDocument ? (
+            createElement(fileIcon(item.path), { size: 16, 'aria-hidden': true })
+          ) : (
+            <Eye size={16} aria-hidden />
+          )}
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
-          <RadixDialog.Title className="truncate text-sm leading-5 font-semibold" title={item.path}>
-            {item.name}
+          <RadixDialog.Title
+            className="truncate text-sm leading-5 font-semibold"
+            title={isDocument ? item.path : item.title}
+          >
+            {item.title}
           </RadixDialog.Title>
-          <RadixDialog.Description className="truncate leading-4">
-            <FileMeta path={item.path} />
+          <RadixDialog.Description className="truncate text-xs leading-4 text-fg-2">
+            {isDocument ? <FileMeta path={item.path} /> : item.kind.toUpperCase()}
           </RadixDialog.Description>
         </div>
         {items.length > 1 ? (
@@ -81,14 +112,32 @@ function DialogBody() {
             </IconButton>
           </div>
         ) : null}
-        {hasSource(kind) ? <PreviewTabs tab={tab} onChange={setAttachmentPreviewTab} /> : null}
-        <IconButton
-          tooltipSide="left"
-          label={t('chat.file.reveal')}
-          onClick={() => void revealPath(item.path)}
-        >
-          <FolderOpen size={16} />
-        </IconButton>
+        {!isDocument || (kind && hasSource(kind)) ? (
+          <PreviewTabs tab={tab} onChange={setAttachmentPreviewTab} />
+        ) : null}
+        {isDocument && item.generated ? (
+          <IconButton
+            tooltipSide="left"
+            label={t('preview.openInApp')}
+            onClick={() => void openFile(item.path)}
+          >
+            <SquareArrowOutUpRight size={16} />
+          </IconButton>
+        ) : null}
+        {isDocument ? (
+          <IconButton
+            tooltipSide="left"
+            label={t('chat.file.reveal')}
+            onClick={() => void revealPath(item.path)}
+          >
+            <FolderOpen size={16} />
+          </IconButton>
+        ) : null}
+        {!isDocument && view ? (
+          <IconButton tooltipSide="left" label={t('preview.openInBrowser')} onClick={openInBrowser}>
+            <Globe size={16} />
+          </IconButton>
+        ) : null}
         <RadixDialog.Close asChild>
           <IconButton tooltipSide="left" label={t('preview.close')} shortcut="Escape">
             <X size={18} />
@@ -96,7 +145,17 @@ function DialogBody() {
         </RadixDialog.Close>
       </header>
       <div className="relative min-h-0 flex-1 bg-bg">
-        <FilePreview key={item.path} path={item.path} tab={tab} hidden={moving || !open} />
+        {isDocument ? (
+          <FilePreview
+            key={item.path}
+            path={item.path}
+            tab={tab}
+            hidden={hidden}
+            generated={item.generated}
+          />
+        ) : (
+          <ArtifactView key={`${index}:${item.title}`} artifact={item} tab={tab} hidden={hidden} />
+        )}
       </div>
     </>
   );

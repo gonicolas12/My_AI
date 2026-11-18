@@ -556,7 +556,7 @@
       /\.(png|jpe?g|gif|bmp|webp|tiff?|heic|heif)$/i.test(file.name);
     var entry = {
       localId: localId, fileId: null, name: file.name || 'fichier',
-      isImage: isImage, status: 'uploading', error: null,
+      isImage: isImage, status: 'uploading', error: null, file: file,
     };
     attachments.push(entry);
     renderChips();
@@ -594,10 +594,15 @@
       icon.textContent = a.status === 'uploading' ? '⏳'
         : a.status === 'error' ? '⚠️' : (a.isImage ? '🖼️' : '📎');
       chip.appendChild(icon);
-      var name = document.createElement('span');
-      name.className = 'chip-name';
+      var openable = a.status === 'ready' || (a.isImage && a.file && a.status !== 'error');
+      var name = document.createElement(openable ? 'button' : 'span');
+      name.className = 'chip-name' + (openable ? ' chip-open' : '');
       name.textContent = a.status === 'error'
         ? (a.name + ' · ' + (a.error || T('attach.error'))) : a.name;
+      if (openable) {
+        name.type = 'button';
+        name.onclick = function () { openPending(a.localId); };
+      }
       chip.appendChild(name);
       var rm = document.createElement('button');
       rm.className = 'chip-remove'; rm.type = 'button'; rm.textContent = '×';
@@ -611,6 +616,20 @@
   function clearAttachments() {
     attachments = [];
     renderChips();
+  }
+
+  // Pièces jointes pas encore envoyées : l'aperçu de l'une, les autres à côté
+  function openPending(localId) {
+    var openable = attachments.filter(function (a) {
+      return a.status === 'ready' || (a.isImage && a.file && a.status !== 'error');
+    });
+    var index = -1;
+    for (var i = 0; i < openable.length; i++) {
+      if (openable[i].localId === localId) index = i;
+    }
+    if (index !== -1 && window.RelayCore.openAttachments) {
+      window.RelayCore.openAttachments(openable, index);
+    }
   }
 
   // ════════════════════════════════════════════════════
@@ -628,12 +647,12 @@
       toast(T('toast.uploading'), true);
       return;
     }
-    var fileIds = attachments
-      .filter(function (a) { return a.status === 'ready' && a.fileId; })
-      .map(function (a) { return a.fileId; });
+    var sent = attachments.filter(function (a) { return a.status === 'ready' && a.fileId; });
+    var fileIds = sent.map(function (a) { return a.fileId; });
 
     currentExecId = 'exec_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
     clearOutput();
+    addSentFiles(sent);
     setExecuting(true);
     setStatus(T('status.workflowRunning'), '#f59e0b');
     send({
@@ -700,6 +719,16 @@
     el.output.appendChild(el.outputWelcome);
   }
 
+  // Pièces jointes de la tâche lancée, en tête des résultats (comme l'en-tête
+  // d'un fil sur le PC) : un toucher ouvre leur aperçu
+  function addSentFiles(sent) {
+    if (!sent.length || !window.RelayCore.attachmentChips) return;
+    var head = document.createElement('div');
+    head.className = 'ag-output-head ag-output-files';
+    head.appendChild(window.RelayCore.attachmentChips(sent));
+    el.output.appendChild(head);
+  }
+
   function addOutputHeader(text) {
     var h = document.createElement('div');
     h.className = 'ag-output-head';
@@ -750,7 +779,12 @@
   function onSectionEnd(data) {
     var s = sections[String(data.section_id)];
     if (!s) return;
-    s.body.innerHTML = window.RelayCore.renderMarkdown(s.text);
+    // Fichiers que le résultat cite ou nomme (links) : leur aperçu ; blocs HTML et
+    // SVG : leur bouton « Aperçu », la modale passe aux autres blocs de la section
+    s.body.innerHTML = window.RelayCore.renderMarkdown(s.text, { preview: true, links: data.links });
+    if (window.RelayCore.answerArtifacts) {
+      s.body._previewItems = window.RelayCore.answerArtifacts(s.text);
+    }
     s.stateEl.textContent = data.success ? T('section.done') : T('section.error');
   }
 

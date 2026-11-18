@@ -112,6 +112,8 @@ _DOC_EXTS = {
 _MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 Mo
 # Envois gardés pour leur aperçu (pièce jointe touchée avant ou après l'envoi)
 _UPLOADS_SHOWN_MAX = 500
+# Fichiers cités par les résultats d'agents envoyés au téléphone, gardés au plus
+_AGENT_PATHS_MAX = 500
 # Identifiants d'une demande d'aperçu (file_preview) : bornés
 _PREVIEW_ID = re.compile(r"^[\w.-]{1,64}$")
 
@@ -347,6 +349,9 @@ class RelayServer:
         # ou non (file_preview), les plus anciens oubliés au-delà de _UPLOADS_SHOWN_MAX
         self._uploads_shown: Dict[str, Dict[str, Any]] = {}
         self._uploads_lock = threading.Lock()
+        # Fichiers que les résultats d'agents envoyés au téléphone citent ou
+        # nomment (liens des sections) : leur aperçu (chemins normalisés → None)
+        self._agent_paths: Dict[str, None] = {}
         self._upload_dir = Path(tempfile.gettempdir()) / "my_ai_relay_uploads"
         self._upload_dir.mkdir(exist_ok=True)
 
@@ -718,8 +723,27 @@ class RelayServer:
             pass
         if normalized in self._bridge.known_paths():
             return True
+        with self._uploads_lock:
+            if normalized in self._agent_paths:
+                return True
         known = getattr(self._code_hub, "known_paths", None)
         return bool(callable(known) and normalized in known())
+
+    def note_agent_links(self, event: Any) -> None:
+        """Événement de la page Agents envoyé au téléphone : les fichiers que la
+        fin d'une section cite ou nomme (liens) deviennent montrables."""
+        if not isinstance(event, dict) or event.get("type") != "agent_section_end":
+            return
+        links = event.get("links")
+        if not isinstance(links, list):
+            return
+        with self._uploads_lock:
+            for link in links:
+                path = link.get("path") if isinstance(link, dict) else None
+                if isinstance(path, str) and path and not link.get("dir"):
+                    self._agent_paths[os.path.normcase(os.path.abspath(path))] = None
+            while len(self._agent_paths) > _AGENT_PATHS_MAX:
+                self._agent_paths.pop(next(iter(self._agent_paths)))
 
     def preview_file(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Réponse à une demande d'aperçu (message WS « file_preview »).
@@ -1337,11 +1361,19 @@ class RelayServer:
                         "agent_delete", "agent_execute", "agent_debate",
                         "agent_stop",
                     ):
+                        def agent_emit(event, put=outbox.put_nowait):
+                            server.note_agent_links(event)
+                            put(event)
+
+                        def agent_emit_threadsafe(event):
+                            server.note_agent_links(event)
+                            outbox_put(event)
+
                         await server.handle_agent_message(
                             msg_type=msg_type,
                             msg_data=msg_data,
-                            emit_async=outbox.put_nowait,
-                            emit_threadsafe=outbox_put,
+                            emit_async=agent_emit,
+                            emit_threadsafe=agent_emit_threadsafe,
                             loop=agent_loop,
                             tasks=agentic_tasks,
                             active_execs=active_agent_execs,

@@ -7,6 +7,8 @@ import type { AgentInfo, RunView } from '../../lib/events';
 import { resetAgents, useAgents } from '../../stores/agents';
 import { useApp } from '../../stores/app';
 import { summaryOf } from '../../stores/agentsReducer';
+import { closeAttachmentPreview, useAttachmentPreview } from '../../stores/attachmentPreview';
+import { usePreview } from '../../stores/preview';
 import { resetResources, useResources } from '../../stores/resources';
 import { AgentDialog } from './AgentDialog';
 import { AgentGrid } from './AgentGrid';
@@ -296,6 +298,62 @@ describe('fils d’exécution', () => {
       ['Fiabilité OCU', 'https://automedias.fr/voiture-fiable/'],
     ]);
     expect(items.every((item) => item.querySelector('img'))).toBe(true);
+  });
+
+  it('ouvre dans la fenêtre au premier plan les pièces jointes, les fichiers cités et les blocs HTML d’un fil', async () => {
+    // La page Agents n'a pas de volet de droite : tout s'ouvre au premier plan
+    const user = userEvent.setup();
+    const base = finishedRun().sections[0]!;
+    const run = finishedRun({
+      attachments: [
+        { path: 'C:/docs/plan.pdf', name: 'plan.pdf', type: 'PDF' },
+        { path: 'C:/docs/notes.md', name: 'notes.md', type: 'Code' },
+      ],
+      sections: [
+        {
+          ...base,
+          text: [
+            'Voir **plan.pdf** et `C:/docs/notes.md`.',
+            '',
+            '```html',
+            '<h1>Démo</h1>',
+            '```',
+            '',
+            '```python',
+            'print(1)',
+            '```',
+          ].join('\n'),
+          paths: [
+            { text: 'plan.pdf', path: 'C:/docs/plan.pdf', name: true },
+            { text: 'C:/docs/notes.md', path: 'C:/docs/notes.md' },
+          ],
+        },
+      ],
+    });
+    useAgents.setState({ runs: [summaryOf(run)], details: { exec_1: run }, openRunId: 'exec_1' });
+    wrap(<ThreadView />);
+    const paths = () =>
+      useAttachmentPreview.getState().items.map((item) => (item.kind === 'document' ? item.path : item.kind));
+
+    await user.click(screen.getByRole('button', { name: 'notes.md' }));
+    expect(useAttachmentPreview.getState()).toMatchObject({ open: true, index: 1 });
+    expect(paths()).toEqual(['C:/docs/plan.pdf', 'C:/docs/notes.md']);
+    closeAttachmentPreview();
+
+    await user.click(screen.getByRole('link', { name: 'plan.pdf' }));
+    expect(useAttachmentPreview.getState().open).toBe(true);
+    expect(paths()).toEqual(['C:/docs/plan.pdf']);
+    closeAttachmentPreview();
+    await user.click(screen.getByRole('link', { name: 'C:/docs/notes.md' }));
+    expect(paths()).toEqual(['C:/docs/notes.md']);
+    closeAttachmentPreview();
+
+    // « Aperçu » sur le bloc HTML seulement, pas sur le Python
+    const previews = screen.getAllByRole('button', { name: 'Afficher l’aperçu de ce bloc' });
+    expect(previews).toHaveLength(1);
+    await user.click(previews[0]!);
+    expect(useAttachmentPreview.getState().items[0]).toMatchObject({ kind: 'html', title: 'Démo' });
+    expect(usePreview.getState().open).toBe(false);
   });
 
   it('montre la recherche du WebAgent hors de sa sortie, le temps qu’il écrive', () => {

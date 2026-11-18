@@ -1349,8 +1349,11 @@ function openBlockPreview(button) {
   var codeEl = block ? block.querySelector('pre code') : null;
   if (!codeEl) return;
   var code = codeEl.textContent.trim();
-  var msgEl = button.closest('.message');
-  var items = (msgEl && msgEl._previewItems) || [];
+  // Éléments de la réponse (chat) ou de la section (page Agents) qui le contient
+  var items = [];
+  for (var node = button; node && node !== document; node = node.parentNode) {
+    if (node._previewItems) { items = node._previewItems; break; }
+  }
   var index = -1;
   for (var i = 0; i < items.length; i++) {
     if (items[i].type === 'artifact' && items[i].code === code) { index = i; break; }
@@ -1637,6 +1640,16 @@ window.RelayCore = {
   codeActions: CODE_ACTIONS,
   // État de la corbeille, à revoir quand une page commence ou finit d'écrire
   updateTrash: updateTrash,
+  // Aperçu (page Agents) : pièces jointes [{ name, fileId, isImage, file? }], blocs
+  // HTML/SVG d'un texte, vignettes cliquables
+  openAttachments: function (list, index) { preview.open(list.map(attachmentItem), index); },
+  answerArtifacts: function (text) {
+    return window.MyAIPreview.detectArtifacts(text, untitledArtifact);
+  },
+  attachmentChips: function (list) {
+    var items = list.map(attachmentItem);
+    return fileChips(items, items, 0);
+  },
 };
 
 // ═══════════════════════════════════════════════════

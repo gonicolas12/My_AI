@@ -7,7 +7,11 @@ import { codeLanguage, fileKind, hasSource } from '../../lib/fileKinds';
 import { resetFileLinks } from '../../lib/files';
 import { formatSize, formatWhen } from '../../lib/format';
 import type { MessageView } from '../../lib/events';
-import { openAttachmentPreview, useAttachmentPreview } from '../../stores/attachmentPreview';
+import {
+  openAttachmentPreview,
+  openPreviewWindow,
+  useAttachmentPreview,
+} from '../../stores/attachmentPreview';
 import { useChat } from '../../stores/chat';
 import { closePreview, openFilePreview, usePreview } from '../../stores/preview';
 import { AttachmentChips } from '../chat/AttachmentChips';
@@ -239,5 +243,29 @@ describe('pièces jointes', () => {
   it('la fenêtre s’ouvre aussi depuis la zone de tâche et la page Code', () => {
     openAttachmentPreview([{ path: 'C:/t/a.md', name: 'a.md' }], 4);
     expect(useAttachmentPreview.getState()).toMatchObject({ open: true, index: 0 });
+  });
+
+  it('montre aussi un bloc HTML (page Agents) : sa page, son code, le navigateur', async () => {
+    const user = userEvent.setup();
+    api.artifactPreview.mockResolvedValue({ id: 'p1', url: '/preview/p1', title: 'Démo' });
+    api.previewInBrowser.mockResolvedValue(undefined);
+    openPreviewWindow([
+      { kind: 'html', code: '<h1>Démo</h1>', title: 'Démo', language: 'html', index: 0 },
+    ]);
+    renderUi(<AttachmentPreviewDialog />);
+    const dialog = await screen.findByRole('dialog', { name: 'Démo' });
+    const frame = await waitFor(() => {
+      const element = dialog.querySelector('iframe');
+      expect(element).not.toBeNull();
+      return element!;
+    });
+    expect(frame.getAttribute('src')).toBe('/preview/p1');
+    // Sans allow-same-origin : la page ne lit ni l'appli ni son API
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+    await user.click(within(dialog).getByRole('button', { name: 'Ouvrir dans le navigateur' }));
+    expect(api.previewInBrowser).toHaveBeenCalledWith('p1');
+    await user.click(within(dialog).getByRole('tab', { name: 'Code' }));
+    expect(await within(dialog).findByText('<h1>Démo</h1>')).toBeInTheDocument();
+    expect(usePreview.getState().open).toBe(false);
   });
 });

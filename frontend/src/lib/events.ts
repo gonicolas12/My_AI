@@ -484,6 +484,8 @@ export interface RunSection {
   /** Durée de l'agent (ms) et ses tokens/s (relevé de fin de flux d'Ollama) */
   inference_ms?: number | null;
   tokens_per_sec?: number | null;
+  /** Fichiers que son résultat cite ou nomme : leur aperçu, dans la fenêtre au premier plan */
+  paths?: PathLink[];
 }
 
 /** Débat : proposant, opposant, nombre de tours */
@@ -583,6 +585,8 @@ export interface AgentEventPayloads {
     success: boolean;
     inference_ms?: number | null;
     tokens_per_sec?: number | null;
+    /** Fichiers que son résultat cite ou nomme (relay/agent_relay.section_links) */
+    links?: PathLink[];
   };
   'agents.agent_node_status': { exec_id: string; node_id: SectionId; status: NodeStatus };
   'agents.agent_exec_end': {

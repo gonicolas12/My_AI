@@ -41,7 +41,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from core.chat_service import ChatError, file_type_for, folder_attachment_files
+from core.chat_service import ChatError, file_type_for, folder_attachment_files, named_file_links
 from core.i18n import tr
 from interfaces.desktop import files as local_files
 from utils.logger import setup_logger
@@ -362,9 +362,19 @@ class AgentsService:
             return {"run": self._find(run_id).view(), "seq": seq}
 
     def known_paths(self) -> Set[str]:
-        """Pièces jointes de la zone de tâche (vignettes des images)."""
+        """Fichiers que la page Agents montre (aperçu, vignettes) : pièces jointes
+        de la zone de tâche et des fils, fichiers que leurs résultats citent ou
+        nomment (liens des sections). Chemins normalisés."""
         with self._lock:
-            return set(self._known)
+            known = set(self._known)
+            for run in self._runs:
+                known.update(local_files.normalize(item["path"]) for item in run.attachments
+                             if item.get("path"))
+                for section in run.sections:
+                    known.update(local_files.normalize(link["path"])
+                                 for link in section.get("paths") or []
+                                 if link.get("path") and not link.get("dir"))
+            return known
 
     def _busy(self) -> bool:
         try:
@@ -740,6 +750,20 @@ class AgentsService:
             if section is not None:
                 section["status"] = "done" if payload.get("success") else "error"
                 section["finished_at"] = _now()
+                # Fichiers que le résultat cite ou nomme (AgentRelayService) : cliquables,
+                # et les pièces jointes du fil qu'il nomme (ses images ne passent pas par
+                # le service : la fenêtre les décrit elle-même)
+                links = list(payload.get("links") or [])
+                shown = {link.get("text") for link in links}
+                links += [link for link in named_file_links(section.get("text", ""), {
+                    os.path.basename(item["path"]).lower(): item["path"]
+                    for item in run.attachments
+                    # Un nom sans extension (« notes ») serait trop souvent un simple mot
+                    if item.get("path") and len(os.path.splitext(item["path"])[1]) > 1
+                }) if link["text"] not in shown]
+                section["paths"] = links
+                if links:
+                    payload["links"] = links
                 self._measure(run, section)
         elif kind == "agent_node_status":
             status = payload.get("status")
