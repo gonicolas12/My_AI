@@ -42,6 +42,7 @@ from .chat_orchestrator import ChatOrchestrator
 from .config import get_config
 from .conversation import ConversationManager
 from .document_passages import select_passages
+from .file_intent import is_code_file_request, requested_document
 from .memory_documents import (MAX_NAMED, document_label, documents_at,
                                memory_documents_block, resolve_documents, results_block)
 from .i18n import current_language, tr
@@ -2006,15 +2007,11 @@ Que voulez-vous que je fasse pour vous ?""",
                 self.conversation_manager.add_exchange(query, response)
                 return response
 
-            # 0. Vérifier la génération de fichier en priorité absolue pour court-circuiter MCP
-            query_lower = query.lower()
-            file_keywords = [
-                "génère moi un fichier",
-                "crée moi un fichier",
-                "génère un fichier",
-                "crée un fichier",
-            ]
-            if any(keyword in query_lower for keyword in file_keywords):
+            # 0. Génération de fichier de code en priorité absolue, pour
+            # court-circuiter MCP. « Crée un fichier PDF… » est un document : il
+            # suit la voie des documents (outil generate_document, puis
+            # _analyze_query_type), pas celle du code
+            if is_code_file_request(query):
                 print(f"[AIEngine] Ordre de génération de fichier détecté, court-circuit MCP pour: '{query}'")
                 response = await self._handle_code_generation(query, is_interrupted_callback)
                 self.conversation_manager.add_exchange(query, response)
@@ -2074,6 +2071,12 @@ Que voulez-vous que je fasse pour vous ?""",
             Type de requête identifié
         """
         query_lower = query.lower()
+
+        # PRIORITÉ 0 : fichier demandé dans un format de document (« crée un
+        # fichier PDF… ») : un document, ni du code (« crée ») ni une question
+        # sur les documents en mémoire (« pdf », « fichier »)
+        if requested_document(query) is not None:
+            return "document_generation"
 
         # PRIORITÉ 1 : Vérifier d'abord les questions d'identité/capacités (AVANT documents)
         identity_keywords = [
@@ -4137,17 +4140,11 @@ Que voulez-vous que je fasse pour vous ?""",
             is_interrupted_callback: Fonction pour vérifier si l'opération est interrompue
         """
         try:
-            query_lower = query.lower()
             language = self._detect_code_language(query)
 
             # PRIORITÉ 0: Détection "génère moi un fichier..." -> Utiliser CodeGenerator avec Ollama
-            file_keywords = [
-                "génère moi un fichier",
-                "crée moi un fichier",
-                "génère un fichier",
-                "crée un fichier",
-            ]
-            if any(keyword in query_lower for keyword in file_keywords):
+            # (un fichier de code : un PDF ou un Word n'arrive pas ici, cf. process_query)
+            if is_code_file_request(query):
                 try:
                     self.logger.info("🔧 Détection génération de fichier avec Ollama")
 
@@ -4298,8 +4295,13 @@ Que voulez-vous que je fasse pour vous ?""",
         Gère la génération de documents
         """
         try:
+            # « Crée un fichier PDF nommé essai… » : ce format et ce nom ; sinon
+            # le format se lit dans la demande, le nom vient du titre
+            requested = requested_document(query)
             document = await self.document_generator.generate_document(
-                query, title=(context or {}).get("title", ""),
+                query, fmt=requested.fmt if requested else "",
+                title=(context or {}).get("title", ""),
+                filename=requested.name if requested else "",
                 memory=self._generation_memory(query),
             )
 

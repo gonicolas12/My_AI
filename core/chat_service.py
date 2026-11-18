@@ -39,6 +39,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from core.file_intent import is_code_file_request
 from core.i18n import tr
 from core.memory_documents import memory_links, unmentioned_near_folders
 from utils.logger import setup_logger
@@ -53,13 +54,7 @@ EmitFn = Callable[..., Optional[Dict[str, Any]]]
 # Messages : clés du catalogue (core/locales), traduites à l'envoi
 BUSY_MESSAGE = "chat.busy"
 
-# Génération de fichier : mêmes mots-clés que l'interface Tk et AIEngine
-FILE_GENERATION_KEYWORDS = (
-    "génère moi un fichier",
-    "crée moi un fichier",
-    "génère un fichier",
-    "crée un fichier",
-)
+# Génération de fichier de code (mots-clés : core/file_intent.py, comme AIEngine)
 _FILENAME_RE = re.compile(r"fichier\s+([a-zA-Z0-9_\-]+\.\w+)", re.IGNORECASE)
 
 # Messages variés de fin de génération de fichier (interface Tk)
@@ -887,7 +882,11 @@ class ChatService:
         # Documents injectés : ceux joints à la conversation affichée
         self._sync_visible_documents()
 
-        if any(keyword in user_text.lower() for keyword in FILE_GENERATION_KEYWORDS):
+        # « génère un fichier calcul.py » : un fichier de code. « Crée un fichier
+        # PDF… » est un document : la réponse normale l'écrit avec l'outil
+        # generate_document, comme « rédige un document PDF » (le générateur de
+        # code en faisait un script Python)
+        if is_code_file_request(user_text):
             self._generate_file(request, user_text)
             return
 
