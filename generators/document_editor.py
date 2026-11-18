@@ -275,7 +275,9 @@ class DocumentEditor:
 
         # llm=False : la régénération ne fait que du rendu, inutile de sonder Ollama.
         generator = self._generator or DocumentGenerator(llm=False)
-        generator.build(parse_markdown(text), "pdf", source.stem, destination)
+        # Texte extrait : ses lignes sont coupées à la largeur de la page, un
+        # paragraphe se recoud (CommonMark), il ne garde pas ces coupures
+        generator.build(parse_markdown(text, line_breaks=False), "pdf", source.stem, destination)
 
         return applied, [
             "Un PDF n'est pas modifiable en place : un nouveau PDF a été "

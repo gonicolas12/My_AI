@@ -587,6 +587,24 @@ def test_pdf_poem_keeps_one_verse_per_line(generator, tmp_path):
     assert lines[lines.index("Puce un,") + 1] == "suite de la puce."
 
 
+def test_pdf_poem_with_plain_line_endings_keeps_its_verses(generator, tmp_path):
+    """Contrôle du 2026-11-18 dans l'appli : my_ai a écrit ses vers avec de simples
+    fins de ligne (sans les deux espaces) ; chacun reste sur sa ligne."""
+    fitz = pytest.importorskip("fitz")
+    path = _build(generator, "pdf", tmp_path, title="Poème", content="\n".join(VERSES) + "\n")
+    with fitz.open(str(path)) as document:
+        lines = [line.strip() for line in document[0].get_text().splitlines()]
+    start = lines.index(VERSES[0])
+    assert lines[start:start + 4] == VERSES
+
+
+def test_markdown_document_writes_plain_line_endings_as_hard_breaks(generator, tmp_path):
+    """Document Markdown : les fins de ligne du modèle y deviennent des retours forcés
+    (deux espaces), lus par tout moteur Markdown, CommonMark compris."""
+    path = _build(generator, "md", tmp_path, title="Poème", content="\n".join(VERSES) + "\n")
+    assert "  \n".join(VERSES) in path.read_text(encoding="utf-8")
+
+
 def test_docx_poem_breaks_lines_inside_its_paragraph(generator, tmp_path):
     import docx
     from docx.oxml.ns import qn
