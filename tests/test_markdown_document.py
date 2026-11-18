@@ -6,6 +6,7 @@ régression ici dégrade silencieusement le DOCX, le PDF, le PPTX et le XLSX.
 """
 
 from generators.markdown_document import (
+    LINE_BREAK,
     extract_title,
     parse_inlines,
     parse_markdown,
@@ -51,6 +52,97 @@ def test_paragraph_lines_are_joined():
 def test_empty_input_gives_no_blocks():
     assert parse_markdown("") == []
     assert parse_markdown("   \n\n  ") == []
+
+
+# ── Retours à la ligne forcés ──────────────────────────────────────────────
+#
+# Régression du 2026-11-18 : un poème de quatre vers rédigé par my_ai, deux
+# espaces à la fin de chaque vers comme le veut CommonMark, sortait du PDF en
+# un seul paragraphe, ses vers joints par des espaces.
+
+_VERS = [
+    ("Vers un,", frozenset(), None),
+    LINE_BREAK,
+    ("vers deux.", frozenset(), None),
+]
+
+
+def test_two_trailing_spaces_force_a_line_break():
+    blocks = parse_markdown("Vers un,  \nvers deux.")
+    assert _types(blocks) == ["Paragraph"]
+    assert blocks[0].inlines == _VERS
+    assert blocks[0].text == "Vers un,\nvers deux."
+
+
+def test_trailing_backslash_forces_a_line_break():
+    assert parse_inlines("Vers un,\\\nvers deux.") == _VERS
+
+
+def test_poem_keeps_its_four_verses():
+    verses = ["Les feuilles tombent,", "Le vent les emporte,",
+              "La pluie les rejoint,", "Et l'hiver s'annonce."]
+    blocks = parse_markdown("# Automne\n\n" + "  \n".join(verses) + "\n")
+    assert _types(blocks) == ["Heading", "Paragraph"]
+    assert blocks[1].text.split("\n") == verses
+
+
+def test_plain_line_ending_still_joins_with_a_space():
+    """Une seule espace, une tabulation ou rien en fin de ligne : la phrase continue."""
+    assert parse_markdown("Première ligne \nsuite.")[0].text == "Première ligne suite."
+    assert parse_inlines("a\t\nb") == [("a b", frozenset(), None)]
+
+
+def test_spaces_around_a_line_break_are_dropped():
+    assert parse_inlines("Vers un,    \n    vers deux.") == _VERS
+    assert parse_inlines("Vers un, \\\nvers deux.") == _VERS
+
+
+def test_break_marker_at_the_end_of_a_block_does_not_break():
+    """CommonMark : deux espaces en fin de bloc ne comptent pas, un « \\ » reste du texte."""
+    assert parse_markdown("Fin du paragraphe.  ")[0].inlines == [
+        ("Fin du paragraphe.", frozenset(), None)
+    ]
+    assert parse_markdown("Fin\\")[0].text == "Fin\\"
+
+
+def test_two_breaks_in_a_row_leave_an_empty_line():
+    assert parse_inlines("a  \n\\\nb") == [
+        ("a", frozenset(), None), LINE_BREAK, LINE_BREAK, ("b", frozenset(), None),
+    ]
+
+
+def test_emphasis_spans_a_line_break():
+    assert parse_inlines("*vers un,  \nvers deux*") == [
+        ("vers un,", frozenset({"italic"}), None),
+        LINE_BREAK,
+        ("vers deux", frozenset({"italic"}), None),
+    ]
+    inlines = parse_inlines("**Gras un,  \ngras deux** fin")
+    assert LINE_BREAK in inlines and "*" not in "".join(text for text, _s, _u in inlines)
+
+
+def test_no_line_break_inside_inline_code():
+    """Une fin de ligne dans du code en ligne vaut une espace, deux espaces compris."""
+    assert parse_inlines("`a  \nb` puis c") == [
+        ("a   b", frozenset({"code"}), None), (" puis c", frozenset(), None),
+    ]
+
+
+def test_quote_keeps_its_line_breaks():
+    blocks = parse_markdown("> Vers un,  \n> vers deux.")
+    assert _types(blocks) == ["Quote"]
+    assert blocks[0].inlines == _VERS
+
+
+def test_list_item_continuation_keeps_breaks_and_styles():
+    """La ligne de continuation d'une puce s'analyse avec elle : retour forcé,
+    et son gras, laissé en astérisques jusqu'ici."""
+    blocks = parse_markdown("- Vers un,  \n  vers **deux**.\n- Autre")
+    items = blocks[0].items
+    assert [item.text for item in items] == ["Vers un,\nvers deux.", "Autre"]
+    assert ("deux", frozenset({"bold"}), None) in items[0].inlines
+    # Une continuation sans retour forcé reste jointe par une espace
+    assert parse_markdown("- Un\n  suite")[0].items[0].text == "Un suite"
 
 
 # ── Listes ─────────────────────────────────────────────────────────────────

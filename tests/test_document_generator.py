@@ -10,6 +10,7 @@ Le LLM n'est jamais sollicité : tous les tests fournissent `content`.
 """
 
 import asyncio
+import html
 import re
 
 import pytest
@@ -533,3 +534,126 @@ def test_arabic_xlsx_and_pptx_read_right_to_left(generator, tmp_path):
         for paragraph in shape.text_frame.paragraphs if "برج إيفل" in paragraph.text
     ]
     assert paragraphs and all(p._p.pPr.get("rtl") == "1" for p in paragraphs)
+
+
+# ── Retours à la ligne forcés (poème) ──────────────────────────────────────
+#
+# Régression du 2026-11-18 : les quatre vers d'un poème rédigé par my_ai (deux
+# espaces à la fin de chaque vers) formaient un seul paragraphe dans le PDF.
+
+VERSES = ["Les feuilles tombent,", "Le vent les emporte,",
+          "La pluie les rejoint,", "Et l'hiver s'annonce."]
+POEM = (
+    "## Automne\n\n" + "  \n".join(VERSES) + "\n\n"
+    "> Citation un,  \n> citation deux.\n\n"
+    "- Puce un,  \n  suite de la puce.\n- Puce deux\n"
+)
+
+
+def _poem(generator, fmt, tmp_path):
+    return _build(generator, fmt, tmp_path, title="Poème", content=POEM)
+
+
+def test_pdf_poem_keeps_one_verse_per_line(generator, tmp_path):
+    fitz = pytest.importorskip("fitz")
+    with fitz.open(str(_poem(generator, "pdf", tmp_path))) as document:
+        lines = [line.strip() for line in document[0].get_text().splitlines()]
+    start = lines.index(VERSES[0])
+    assert lines[start:start + 4] == VERSES  # quatre vers, quatre lignes
+    assert lines[lines.index("Citation un,") + 1] == "citation deux."
+    assert lines[lines.index("Puce un,") + 1] == "suite de la puce."
+
+
+def test_docx_poem_breaks_lines_inside_its_paragraph(generator, tmp_path):
+    import docx
+    from docx.oxml.ns import qn
+
+    document = docx.Document(str(_poem(generator, "docx", tmp_path)))
+    poem = next(p for p in document.paragraphs if VERSES[0] in p.text)
+    assert poem.text.split("\n") == VERSES
+    breaks = poem._p.findall(f".//{qn('w:br')}")
+    # Trois sauts de ligne (<w:br/> sans type), pas des sauts de page
+    assert len(breaks) == 3 and all(br.get(qn("w:type")) is None for br in breaks)
+    item = next(p for p in document.paragraphs if p.text.startswith("Puce un,"))
+    assert item.text == "Puce un,\nsuite de la puce." and item.style.name == "List Bullet"
+
+
+def test_pptx_poem_breaks_lines_inside_its_bullet(generator, tmp_path):
+    from pptx import Presentation
+
+    paragraphs = [
+        paragraph
+        for slide in Presentation(str(_poem(generator, "pptx", tmp_path))).slides
+        for shape in slide.shapes if shape.has_text_frame
+        for paragraph in shape.text_frame.paragraphs
+    ]
+    poem = next(p for p in paragraphs if VERSES[0] in p.text)
+    # Une seule puce, ses vers séparés par des sauts de ligne (<a:br>, lus « \v »)
+    assert poem.text.split("\v") == VERSES
+    assert not any(p.text == VERSES[1] for p in paragraphs)
+
+
+def test_xlsx_notes_keep_the_poem_lines(generator, tmp_path):
+    from openpyxl import load_workbook
+
+    sheet = load_workbook(str(_poem(generator, "xlsx", tmp_path)))["Notes"]
+    cells = [cell for cell in sheet["A"] if cell.value]
+    poem = next(cell for cell in cells if cell.value.startswith(VERSES[0]))
+    assert poem.value.split("\n") == VERSES
+    assert poem.alignment.wrap_text  # Excel montre les lignes de la cellule
+    assert "• Puce un,\n  suite de la puce." in [cell.value for cell in cells]
+
+
+def test_txt_poem_keeps_its_lines(generator, tmp_path):
+    text = _poem(generator, "txt", tmp_path).read_text(encoding="utf-8")
+    assert "\n".join(VERSES) in text
+    assert "> Citation un,\n> citation deux." in text
+    assert "- Puce un,\n  suite de la puce." in text
+
+
+def test_markdown_poem_keeps_its_hard_breaks(generator, tmp_path):
+    text = _poem(generator, "md", tmp_path).read_text(encoding="utf-8")
+    assert "  \n".join(VERSES) in text  # deux espaces à la fin de chaque vers
+    assert "> Citation un,  \n> citation deux." in text
+    assert "- Puce un,  \n  suite de la puce." in text
+    # Relu, le Markdown écrit redonne les mêmes blocs (après le titre ajouté)
+    assert parse_markdown(text)[1:] == parse_markdown(POEM)
+
+
+def test_html_poem_uses_line_breaks(generator, tmp_path):
+    text = _poem(generator, "html", tmp_path).read_text(encoding="utf-8")
+    assert "<br>".join(html.escape(verse) for verse in VERSES) in text
+
+
+@pytest.mark.parametrize("fmt", ["docx", "pptx", "xlsx", "md"])
+def test_preview_shows_the_poem_lines(generator, tmp_path, fmt):
+    """L'aperçu relit le fichier écrit : ses sauts de ligne y restent des <br>."""
+    from interfaces.document_preview import build_document_preview
+
+    page = build_document_preview(str(_poem(generator, fmt, tmp_path)))
+    assert "<br>".join(html.escape(verse) for verse in VERSES) in page
+
+
+@pytest.mark.parametrize("verses", [
+    ["الخريف يأتي بهدوء،", "والأوراق تتساقط،", "والريح تحملها بعيدا،", "والشتاء يقترب."],
+    ["העלים נושרים,", "הרוח נושאת אותם,", "הגשם מצטרף,", "והחורף מתקרב."],
+], ids=["arabe", "hebreu"])
+def test_right_to_left_pdf_poem_keeps_one_verse_per_line(generator, tmp_path, verses):
+    """utils/pdf_text.py coupe lui-même les lignes de l'arabe et de l'hébreu : aux
+    retours forcés d'abord, chaque vers aligné à droite, lettres liées."""
+    from utils.pdf_text import shaping_available, system_font
+
+    fitz = pytest.importorskip("fitz")
+    if not shaping_available() or not system_font("sans"):
+        pytest.skip("façonnage de l'arabe ou police Unicode indisponible")
+    path = _build(generator, "pdf", tmp_path, title="", content="  \n".join(verses))
+    with fitz.open(str(path)) as document:
+        page = document[0]
+        text, middle = page.get_text(), page.rect.width / 2
+        boxes = [line["bbox"] for block in page.get_text("dict")["blocks"]
+                 for line in block.get("lines", [])
+                 if line["bbox"][3] < page.rect.height - 40]  # sans le pied de page
+    assert len(boxes) == 4
+    assert all(abs(box[2] - boxes[0][2]) < 1 for box in boxes)  # même bord droit
+    assert boxes[0][2] > middle
+    assert not re.search(r"[ء-ي]", text)  # aucune lettre arabe isolée

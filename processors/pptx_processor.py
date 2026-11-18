@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from pptx import Presentation
+from pptx.oxml.ns import qn
 
 from processors.path_resolution import resolve_onedrive_path
 
@@ -38,6 +39,19 @@ def _open_presentation(path: str):
             target.writestr(item, data)
     buffer.seek(0)
     return Presentation(buffer)
+
+
+def _paragraph_text(paragraph) -> str:
+    """Texte des fragments (runs) d'un paragraphe, ses sauts de ligne (<a:br>) en
+    « \\n » : sans eux, les mots de part et d'autre se collaient (« un,deux »)."""
+    runs = iter(paragraph.runs)
+    parts = []
+    for child in paragraph._p:  # noqa: SLF001 - les <a:br> n'ont pas d'API publique
+        if child.tag == qn("a:r"):
+            parts.append(next(runs).text)
+        elif child.tag == qn("a:br"):
+            parts.append("\n")
+    return "".join(parts)
 
 
 class PPTXProcessor:
@@ -184,7 +198,7 @@ class PPTXProcessor:
                 continue
 
             for paragraph in shape.text_frame.paragraphs:
-                text = "".join(run.text for run in paragraph.runs).strip()
+                text = _paragraph_text(paragraph).strip()
                 if text:
                     bullets.append("    " * paragraph.level + text)
 
