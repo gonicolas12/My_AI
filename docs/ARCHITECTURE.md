@@ -434,6 +434,18 @@ Capacités:
 └─ strip_image_request(texte) : le sujet de l'image, sans la demande
 ```
 
+**`core/file_intent.py`** - « génère un fichier… » : code ou document
+```python
+├─ requested_document(texte) : format (pdf, docx, xlsx, pptx, md, csv, txt) et
+│  nom d'un fichier demandé dans un format de document — extension du nom
+│  (« rapport.pdf »), mot après « fichier » (« un fichier Word », « au format
+│  Excel »), ou plus loin (« … en PDF ») sauf pour un programme
+├─ is_code_file_request(texte) : le reste, la génération de fichier de code
+│  (« calcul.py », « un fichier python qui… »)
+└─ ChatService : un document suit la réponse normale (outil generate_document) ;
+   AIEngine.process_query : idem, puis _analyze_query_type → document_generation
+```
+
 **`core/session_manager.py`** - Workspaces
 ```python
 Fonctionnalités:
@@ -1260,6 +1272,9 @@ Rôle: Pipeline du chat, pour la fenêtre et pour le mobile (fenêtre ouverte ou
 ├─ Mêmes appels au moteur que l'ancienne interface, dans le même ordre : slash
 │  commands, documents visibles, génération de fichier ou d'image, puis
 │  process_query_stream. Ollama reprend ainsi le prompt déjà lu (OPTIMIZATION.md)
+├─ Génération de fichier : un fichier de code seulement ; « crée un fichier
+│  PDF… » passe par process_query_stream et l'outil generate_document
+│  (core/file_intent.py)
 ├─ File d'attente commune desktop / mobile : un message à la fois, Stop arrête
 │  le message en cours
 ├─ Pièces jointes lues en arrière-plan ; envoi refusé tant qu'une lecture dure
