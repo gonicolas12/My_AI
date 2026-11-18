@@ -17,6 +17,9 @@ hériterait de l'API que pywebview expose au JavaScript (shell_api.py).
 D'un lancement à l'autre, la fenêtre retient sa taille, sa position et son
 état agrandi (data/.desktop_state.json, clé « window »).
 
+Le logo de My_AI, et non celui de Python, dans la barre des tâches ou le Dock :
+app_identity.py.
+
 Sans pywebview (paquet absent, WebView2 manquant…), open_window renvoie False
 et le lanceur ouvre l'interface dans le navigateur par défaut.
 """
@@ -25,10 +28,10 @@ import ctypes
 import os
 import re
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Tuple
 from urllib.parse import urlsplit
 
+from interfaces.desktop import app_identity
 from interfaces.desktop.shell_api import ShellApi, open_external
 from utils.logger import setup_logger
 
@@ -48,7 +51,6 @@ DEFAULT_SIZE = (1280, 820)
 # barre de titre, cf. ShellApi.set_title_bar_colors)
 BACKGROUND = "#0f0f0f"
 TITLE_TEXT = "#ffffff"
-ICON_PATH = Path(__file__).resolve().parent / "assets" / "my_ai.ico"
 
 # Variables d'environnement de développement (jamais réglées pour l'utilisateur)
 ENV_DEBUG = "MY_AI_WEBVIEW_DEBUG"  # outils de développement sans --dev
@@ -343,6 +345,8 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
 
     debug = _debug_requested(app.dev)
     enable_per_monitor_dpi()
+    # Avant toute fenêtre : logo de My_AI, et non de Python, dans la barre des tâches
+    app_identity.prepare()
     if IS_WINDOWS:
         harden_edgechromium(app_origins(url, dev_origins))
         _keep_title_bar_dark()
@@ -386,6 +390,7 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
     # pywebview ne passe la fenêtre qu'à un paramètre nommé « window »
     def before_show(window):
         form = getattr(window, "native", None)
+        app_identity.set_qt_app_id(form)  # Qt (Linux), avant l'affichage
         if form is None or not IS_WINDOWS:
             return
         try:
@@ -412,11 +417,13 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
     main_window.events.closing += closing
     main_window.events.loaded += loaded
 
+    # Barre de titre et barre des tâches (Windows), Dock (macOS), fenêtre (Linux)
+    icon = app_identity.icon_path()
     try:
         webview.start(
             debug=debug,
             private_mode=True,
-            icon=str(ICON_PATH) if ICON_PATH.is_file() else None,
+            icon=str(icon) if icon else None,
         )
     except Exception as exc:  # pylint: disable=broad-except
         # WebView2 absent, pythonnet incompatible… : repli sur le navigateur
