@@ -145,8 +145,8 @@ Les backends ont besoin d'une **structure**, pas de HTML : python-pptx veut des
 puces avec un niveau, openpyxl veut des lignes de cellules, python-docx veut
 des runs stylés. Passer par `markdown` → HTML → re-parsing perdrait justement
 cette structure. Le parseur couvre ce qu'un LLM produit réellement (titres,
-listes imbriquées, tableaux, fences, gras/italique/code/liens), pas CommonMark
-en entier.
+listes imbriquées, tableaux, fences, gras/italique/code/liens, retours à la
+ligne forcés), pas CommonMark en entier.
 
 Deux comportements volontaires, hérités de l'usage technique :
 
@@ -154,6 +154,14 @@ Deux comportements volontaires, hérités de l'usage technique :
   sur les underscores) ;
 - `***texte***` donne bien gras **et** italique, et l'imbrication
   `*ital **gras** fin*` conserve les deux styles.
+
+Les fins de ligne suivent CommonMark : une ligne qui finit par **deux espaces**
+ou par `\` passe à la ligne sans quitter son paragraphe (les vers d'un poème,
+une adresse) ; toute autre fin de ligne vaut une espace. Le retour forcé est un
+fragment à part (`LINE_BREAK`), rendu `<w:br/>` dans Word, `<br/>` dans le PDF,
+`<a:br>` dans PowerPoint, cellule sur plusieurs lignes dans l'onglet « Notes »
+d'Excel, `<br>` en HTML, et deux espaces en fin de ligne dans le Markdown
+réécrit.
 
 ## 🎨 Ce que rend chaque format
 
@@ -212,8 +220,9 @@ Le code reste en Courier tant qu'il est en alphabet latin.
 
 ReportLab écrit les caractères dans l'ordre logique, de gauche à droite et sous
 leur forme isolée : l'arabe sortait à l'envers, en lettres détachées. Un
-paragraphe en arabe ou en hébreu est donc coupé en lignes par My_AI, dans
-l'ordre de lecture, puis chaque ligne est **façonnée** (`arabic-reshaper` :
+paragraphe en arabe ou en hébreu est donc coupé en lignes par My_AI (à ses
+retours forcés, puis à la largeur), dans l'ordre de lecture, puis chaque ligne
+est **façonnée** (`arabic-reshaper` :
 formes initiale, médiane et finale, ligature lam-alif) et mise dans l'**ordre
 d'affichage** (`python-bidi` : nombres et mots latins gardés de gauche à droite,
 parenthèses et crochets retournés). Le gras, l'italique, les liens et le code en
