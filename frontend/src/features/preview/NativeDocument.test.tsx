@@ -3,7 +3,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PreviewView } from '../../lib/api';
 import { NativeDocument } from './NativeDocument';
-import { coversNative, deviceRect, nativeAppLabel } from './nativeLayer';
+import {
+  claimNative,
+  coversNative,
+  deviceRect,
+  nativeAppLabel,
+  resetNativeClaims,
+} from './nativeLayer';
 
 const native = vi.hoisted(() => ({
   available: vi.fn(() => Promise.resolve(true)),
@@ -44,6 +50,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetNativeClaims();
   document.body.innerHTML = '';
 });
 
@@ -85,6 +92,43 @@ describe('nativeLayer', () => {
     stubRect(toast, box(20, 64, 320, 44));
     expect(coversNative(SLOT)).toBe(false);
   });
+
+  it('ne se masque pas sous son propre dialogue, ni sous ceux qu’il recouvre', () => {
+    const below = document.createElement('div');
+    below.setAttribute('role', 'dialog');
+    const own = document.createElement('div');
+    own.setAttribute('role', 'dialog');
+    const slot = document.createElement('div');
+    own.append(slot);
+    document.body.append(below, own);
+    // Fenêtre d'aperçu (own) ouverte au-dessus d'un panneau (below)
+    expect(coversNative(SLOT, document, slot)).toBe(false);
+    // Confirmation ouverte par-dessus la fenêtre d'aperçu : masquée
+    const confirm = document.createElement('div');
+    confirm.setAttribute('role', 'alertdialog');
+    document.body.append(confirm);
+    expect(coversNative(SLOT, document, slot)).toBe(true);
+    // Hors de tout dialogue (volet du chat) : tout dialogue la masque
+    expect(coversNative(SLOT, document, document.createElement('div'))).toBe(true);
+  });
+
+  it('une seule visionneuse : le dernier aperçu la prend, le précédent la retrouve', () => {
+    const first = { resume: vi.fn(), suspend: vi.fn() };
+    const second = { resume: vi.fn(), suspend: vi.fn() };
+    const a = claimNative(first);
+    expect(a.owns()).toBe(true);
+    const b = claimNative(second);
+    expect(first.suspend).toHaveBeenCalledTimes(1);
+    expect([a.owns(), b.owns()]).toEqual([false, true]);
+    b.release();
+    expect(first.resume).toHaveBeenCalledTimes(1);
+    expect(native.close).not.toHaveBeenCalled();
+    a.release();
+    // Plus aucun aperçu : la visionneuse se ferme
+    expect(native.close).toHaveBeenCalledTimes(1);
+    a.release();
+    expect(native.close).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('NativeDocument', () => {
@@ -114,6 +158,25 @@ describe('NativeDocument', () => {
     await waitFor(() => expect(native.place).toHaveBeenLastCalledWith(expect.anything(), true));
     rerender(<NativeDocument view={VIEW} hidden onFailed={vi.fn()} />);
     await waitFor(() => expect(native.place).toHaveBeenLastCalledWith(expect.anything(), false));
+  });
+
+  it('un aperçu Office ouvert par-dessus prend la visionneuse, le premier la retrouve ensuite', async () => {
+    const other: PreviewView = { ...VIEW, id: 'apercu-2', path: 'C:/docs/budget.xlsx' };
+    const first = render(<NativeDocument view={VIEW} hidden={false} onFailed={vi.fn()} />);
+    await waitFor(() => expect(native.place).toHaveBeenCalled());
+    const second = render(<NativeDocument view={other} hidden={false} onFailed={vi.fn()} />);
+    await waitFor(() =>
+      expect(native.show).toHaveBeenLastCalledWith('apercu-2', expect.anything()),
+    );
+    // Cédée sans être fermée : le second document s'y charge
+    expect(native.close).not.toHaveBeenCalled();
+    second.unmount();
+    await waitFor(() =>
+      expect(native.show).toHaveBeenLastCalledWith('apercu-1', expect.anything()),
+    );
+    expect(native.close).not.toHaveBeenCalled();
+    first.unmount();
+    expect(native.close).toHaveBeenCalledTimes(1);
   });
 
   it('visionneuse en échec : repli sur l’aperçu HTML', async () => {

@@ -33,6 +33,10 @@ demande quoi en faire (cf. existing). « Mettre à jour » remplace le plus réc
 du même nom (un dossier perd aussi les fichiers qu'il ne contient plus),
 « Garder les deux » l'ajoute à côté. L'onglet montre des documents, jamais
 leurs morceaux (chunks), qui restent internes.
+
+Aperçu d'un document (clic dans l'onglet) : la copie de son fichier d'origine,
+gardée à sa lecture (memory_files.py) et affichée comme une pièce jointe ; à
+défaut (document rangé avant, ou par le chat), le texte gardé en mémoire.
 """
 
 import math
@@ -40,7 +44,8 @@ import os
 import threading
 import time
 import traceback
-from pathlib import PureWindowsPath
+from datetime import datetime
+from pathlib import Path, PureWindowsPath
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -48,6 +53,7 @@ from core.chat_service import ChatError, display_name, file_type_for
 from core.document_memory import (STAGE_READING, DocumentReadError, folder_document_id,
                                   image_document_id, read_document)
 from core.i18n import tr
+from interfaces.desktop.memory_files import ORIGINALS_DIRNAME, OriginalFiles
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopMemory")
@@ -64,6 +70,12 @@ _FAILED_SHOWN = 3
 FACT_CATEGORIES = ("general", "preference", "decision", "person", "procedure", "technical")
 # Clé d'un fait ajouté à la main : sa première ligne (Tk)
 _KEY_MAX = 80
+# Aperçu d'un document sans copie de son fichier : son texte en mémoire, au plus
+PREVIEW_TEXT_MAX = 200_000
+# Copies des documents retirés ailleurs (pièce jointe oubliée…) : relevées au plus toutes les… (s)
+_PRUNE_INTERVAL = 60.0
+# Document joint au chat : rangé à l'instant, et non doublon d'un ancien du même nom (s)
+_CHAT_DOCUMENT_WINDOW = 180.0
 
 
 class MemoryPanelError(Exception):
@@ -152,6 +164,8 @@ class MemoryService:
         self._worker: Optional[threading.Thread] = None
         # Dossiers déposés en cours : bilan de chacun (ajoutés, déjà là, en échec)
         self._batches: Dict[str, Dict[str, Any]] = {}
+        # Dernier relevé des copies de documents retirés ailleurs (time.monotonic)
+        self._pruned_at = 0.0
 
     def _store(self):
         engine = self._engine()
@@ -186,6 +200,8 @@ class MemoryService:
         # Page au-delà de la fin (après une suppression) : la dernière (Tk)
         if page >= pages and total:
             return self.page(tab, query, category, pages - 1)
+        if grouped and time.monotonic() - self._pruned_at > _PRUNE_INTERVAL:
+            self._prune_originals()
         return {
             "items": items if grouped else [self._view(store, item) for item in items],
             "total": total, "page": page, "pages": pages,
@@ -237,19 +253,100 @@ class MemoryService:
         return {"files": files, "folders": found_folders}
 
     def delete_document(self, document_id: str) -> int:
-        """Supprime un document entier ; le nombre de morceaux supprimés."""
+        """Supprime un document entier, et la copie de son fichier ; le nombre de
+        morceaux supprimés."""
         removed = self._store().delete_document(str(document_id))
         if not removed:
             raise MemoryPanelError(tr("memory.deleteFailed"))
+        originals = self._originals()
+        if originals is not None:
+            originals.forget([str(document_id)])
         return removed
 
     def delete_folder(self, key: str) -> int:
         """Supprime un dossier déposé et tous ses documents (par sa clé : un autre
-        dossier du même nom reste)."""
-        removed = self._store().delete_folder(str(key))
+        dossier du même nom reste), et les copies de leurs fichiers."""
+        store = self._store()
+        documents = [doc["id"] for doc in store.document_index()
+                     if doc.get("folder_key") == str(key)]
+        removed = store.delete_folder(str(key))
         if not removed:
             raise MemoryPanelError(tr("memory.deleteFailed"))
+        originals = self._originals()
+        if originals is not None:
+            originals.forget(documents)
         return removed
+
+    # ── Aperçu d'un document ────────────────────────────────────────────────
+
+    def _originals(self) -> Optional[OriginalFiles]:
+        """Copies des fichiers d'origine, à côté de la base vectorielle ; None sans
+        mémoire, ou si elle est chiffrée (une copie en clair la contournerait)."""
+        try:
+            store = self._store()
+        except MemoryPanelError:
+            return None
+        vector_memory = getattr(store, "vector_memory", None)
+        folder = getattr(vector_memory, "storage_dir", None)
+        if folder is None or getattr(vector_memory, "enable_encryption", False):
+            return None
+        return OriginalFiles(Path(os.path.abspath(str(folder))) / ORIGINALS_DIRNAME)
+
+    def originals_root(self) -> Optional[str]:
+        """Dossier des copies, que la fenêtre peut afficher (liens signés)."""
+        originals = self._originals()
+        return str(originals.root) if originals is not None else None
+
+    def _prune_originals(self) -> None:
+        """Supprime les copies des documents retirés de la mémoire ailleurs que par
+        l'onglet (pièce jointe oubliée, version remplacée, dossier mis à jour)."""
+        self._pruned_at = time.monotonic()
+        originals = self._originals()
+        if originals is None or not originals.root.is_dir():
+            return
+
+        def documents() -> List[str]:
+            try:
+                return [doc["id"] for doc in self._store().document_index()]
+            except MemoryPanelError:
+                return []
+
+        originals.prune(documents)
+
+    def preview(self, document_id: str) -> Dict[str, Any]:
+        """Aperçu d'un document de l'onglet : la copie de son fichier d'origine
+        (« path », affichée comme une pièce jointe), sinon son texte en mémoire.
+
+        Returns:
+            {"id", "name", "label", "folder", "type", "created", "path", "size",
+            "text", "truncated"} ; « text » vaut None quand « path » est là
+
+        Raises:
+            MemoryPanelError: document absent de la mémoire
+        """
+        store = self._store()
+        document_id = str(document_id or "")
+        doc = next((item for item in store.document_index() if item["id"] == document_id),
+                   None)
+        if doc is None:
+            raise MemoryPanelError(tr("memory.documentGone"))
+        originals = self._originals()
+        path = originals.find(document_id) if originals is not None else None
+        view: Dict[str, Any] = {
+            "id": doc["id"], "name": doc["name"], "label": doc["label"],
+            "folder": doc.get("folder"), "type": doc.get("type"), "created": doc["created"],
+            "path": path, "size": None, "text": None, "truncated": False,
+        }
+        if path is not None:
+            try:
+                view["size"] = os.path.getsize(path)
+            except OSError:
+                view["path"] = path = None
+        if path is None:
+            text = store.document_text(document_id)
+            view["text"] = text[:PREVIEW_TEXT_MAX]
+            view["truncated"] = len(text) > PREVIEW_TEXT_MAX
+        return view
 
     @staticmethod
     def _view(store, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -489,7 +586,10 @@ class MemoryService:
                 job = next((item for item in self._jobs if item["state"] == "queued"), None)
                 if job is None:
                     self._worker = None
-                    return
+            if job is None:
+                # File vide : les copies des versions remplacées s'en vont
+                self._prune_originals()
+                return
             if job["origin"] == "chat":
                 self._wait_for_chat()  # « en attente » jusqu'à la fin de la réponse
             with self._jobs_lock:
@@ -547,6 +647,8 @@ class MemoryService:
         if document_id and store.has_document(document_id):
             if job["origin"] == "manual":
                 store.keep_document(document_id)
+            # Rangé avant que les fichiers ne soient gardés : il gagne sa copie
+            self._keep_original(job, document_id, replace=False)
             # Même contenu : rien à relire ; la version remplacée s'en va quand même
             return ("updated" if self._replace_previous(store, job, document_id)
                     else "already"), ""
@@ -566,9 +668,46 @@ class MemoryService:
         if status not in ("added", "duplicate"):
             return "failed", str(result.get("error") or tr("memory.unavailable"))
         stored_id = str(result.get("document_id") or document_id or "")
+        # Copie du fichier lu, pour son aperçu (avant l'effacement d'un envoi temporaire)
+        self._keep_original(job, stored_id, replace=status == "added")
         if self._replace_previous(store, job, stored_id):
             return "updated", ""
         return ("added" if status == "added" else "already"), ""
+
+    def keep_chat_document(self, path: str, name: str) -> None:
+        """Document joint au chat, rangé en mémoire par le modèle : la copie de son
+        fichier, pour l'aperçu de l'onglet Documents.
+
+        Le modèle ne dit pas sous quel identifiant il l'a rangé : c'est le plus
+        récent de ce nom, hors dossier, s'il vient d'être rangé. Un doublon d'un
+        document plus ancien (même nom, même contenu) n'est pas retouché : un
+        autre du même nom pourrait sinon recevoir ce fichier.
+        """
+        originals = self._originals()
+        if originals is None or not path or not os.path.isfile(path):
+            return
+        try:
+            index = self._store().document_index()
+        except MemoryPanelError:
+            return
+        doc = next((item for item in index
+                    if item["name"] == name and not item.get("folder")), None)
+        if doc is None:
+            return
+        try:
+            created = datetime.fromisoformat(str(doc.get("created") or ""))
+        except ValueError:
+            return
+        now = datetime.now(created.tzinfo) if created.tzinfo else datetime.now()
+        if abs((now - created).total_seconds()) <= _CHAT_DOCUMENT_WINDOW:
+            originals.keep(doc["id"], path, name, replace=False)
+
+    def _keep_original(self, job: Dict[str, Any], document_id: str, replace: bool) -> None:
+        """Garde une copie du fichier lu pour un document (aperçu de l'onglet)."""
+        originals = self._originals()
+        if originals is not None and document_id:
+            originals.keep(document_id, job["path"], job.get("label") or job["name"],
+                           replace=replace)
 
     @staticmethod
     def _replace_previous(store, job: Dict[str, Any], stored_id: str) -> bool:

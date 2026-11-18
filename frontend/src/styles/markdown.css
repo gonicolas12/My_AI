@@ -142,6 +142,30 @@
     color: var(--text-secondary);
   }
 
+  /* Image d'un fichier Markdown en aperçu (logo, capture d'un README) : à sa
+     largeur demandée (width="96"), jamais plus large que la place */
+  .md .md-file-image {
+    display: inline-block;
+    max-width: 100%;
+    height: auto;
+    vertical-align: middle;
+    border-radius: var(--round-sm);
+  }
+
+  /* HTML d'un fichier Markdown : <div align="center">, <details> d'un README */
+  .md div[align='center'] {
+    text-align: center;
+  }
+
+  .md details {
+    margin: 0 0 0.85em;
+  }
+
+  .md summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
   .md blockquote {
     margin: 0 0 0.85em;
     padding: 0.1em 0 0.1em 1em;
@@ -250,6 +274,22 @@
   .md .code-copy:hover {
     background: var(--surface-hover);
     color: var(--text-primary);
+  }
+
+  /* Boutons de l'en-tête d'un bloc : Aperçu (bloc HTML ou SVG d'une réponse), Copier */
+  .md .code-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15em;
+  }
+
+  .md .code-preview {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .md .code-preview:hover {
+    color: var(--accent-light);
   }
 
   .md .code-body {

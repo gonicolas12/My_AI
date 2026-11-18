@@ -134,6 +134,8 @@
   /* ── Mouvement ────────────────────────────────────────────────────────── */
   --motion-fast: 150ms;
   --motion: 200ms;
+  /* Ouverture et fermeture des volets d'aperçu (stores/preview.ts : PANE_MS) */
+  --motion-pane: 240ms;
   --motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* ── Mise en page ─────────────────────────────────────────────────────── */
@@ -148,5 +150,6 @@
   :root {
     --motion-fast: 0ms;
     --motion: 0ms;
+    --motion-pane: 0ms;
   }
 }

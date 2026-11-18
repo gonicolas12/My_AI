@@ -8,6 +8,7 @@ modifiés ou supprimés à la source passent par le ChatService.
 
 import os
 import time
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +23,7 @@ from interfaces.desktop import files as local_files
 from interfaces.desktop.events import EventBus, payload_model
 from interfaces.desktop.memory import (FOLDER_FILES_MAX, PAGE_SIZE, MemoryPanelError,
                                        MemoryService, clean_folder_name, clean_relative_path)
+from interfaces.desktop.memory_files import OriginalFiles, safe_file_name
 from interfaces.desktop.server import DesktopServer
 from test_desktop_server import AUTH, BASE, PORT, FakeApp  # pylint: disable=import-error
 
@@ -840,3 +842,196 @@ def test_document_routes(documents, monkeypatch, tmp_path):
     upload_gone = client.post("/api/memory/documents/upload", headers=AUTH,
                               files={"file": ("note.md", b"x", "text/markdown")})
     assert upload_gone.status_code == 409 and not list((tmp_path / "envois").rglob("*.*"))
+
+
+# ── Aperçu d'un document : copie de son fichier, sinon son texte ───────────
+
+
+class CopyingStore(FakeStore):
+    """MemoryStore avec une base vectorielle dans un dossier : les fichiers lus y
+    sont gardés (memory_files.py)."""
+
+    def __init__(self, folder, encrypted=False):
+        super().__init__()
+        self.vector_memory.storage_dir = folder
+        self.vector_memory.enable_encryption = encrypted
+
+    def document_text(self, document_id):
+        doc = self.docs.get(document_id)
+        return doc["content"] if doc else ""
+
+    def delete_folder(self, key):
+        gone = [doc_id for doc_id, doc in self.docs.items() if doc["folder_key"] == key]
+        for doc_id in gone:
+            del self.docs[doc_id]
+        return 3 * len(gone)
+
+
+@pytest.fixture(name="copies")
+def copies_fixture(tmp_path):
+    store = CopyingStore(tmp_path / "vector_store")
+    engine = SimpleNamespace(get_memory_store=lambda: store, local_ai=SimpleNamespace(
+        read_file_for_context=lambda path: {"content": f"Contenu de {os.path.basename(path)}",
+                                            "processor_used": "Code"}))
+    service = MemoryService(lambda: engine, lambda: None, publish=lambda kind, payload: None)
+
+    def write(name, text="x"):
+        path = tmp_path / "source" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    return SimpleNamespace(store=store, service=service, write=write, tmp=tmp_path,
+                           root=tmp_path / "vector_store" / "originals")
+
+
+def test_a_document_keeps_a_copy_of_its_file_for_its_preview(copies):
+    note = copies.write("note.md", "# Note")
+    copies.service.add_documents([note])
+    _idle(copies.service)
+    [doc] = copies.store.named("note.md")
+    preview = copies.service.preview(doc["id"])
+    assert preview["text"] is None and preview["size"] == 6
+    assert os.path.basename(preview["path"]) == "note.md"
+    assert open(preview["path"], encoding="utf-8").read() == "# Note"
+    assert copies.service.originals_root() == str(copies.root)
+    # Le fichier d'origine peut disparaître : la copie reste
+    os.remove(note)
+    assert os.path.isfile(copies.service.preview(doc["id"])["path"])
+    # Supprimé de la mémoire : sa copie aussi
+    copies.service.delete_document(doc["id"])
+    assert not os.listdir(copies.root)
+    with pytest.raises(MemoryPanelError, match="n'est plus dans la mémoire"):
+        copies.service.preview(doc["id"])
+
+
+def test_files_sent_by_the_window_and_folders_keep_their_copy(copies):
+    upload = copies.write("envoi/compte-rendu.md", "# Lundi")
+    copies.service.add_documents([upload], temporary=True)
+    _idle(copies.service)
+    assert not os.path.exists(upload)  # l'envoi temporaire est effacé, la copie reste
+    [doc] = copies.store.named("compte-rendu.md")
+    assert open(copies.service.preview(doc["id"])["path"], encoding="utf-8").read() == "# Lundi"
+
+    plan = copies.write("site/sous/plan.py", "print(1)")
+    copies.service.add_folder("site", [(plan, "sous/plan.py")], temporary=False)
+    _idle(copies.service)
+    [inside] = copies.store.named("site/sous/plan.py")
+    assert os.path.basename(copies.service.preview(inside["id"])["path"]) == "plan.py"
+    copies.service.delete_folder(inside["folder_key"])
+    assert sorted(os.listdir(copies.root)) == [
+        OriginalFiles.folder_name(doc["id"])]  # celle du compte rendu seulement
+
+
+def test_a_document_without_copy_shows_its_stored_text(copies, monkeypatch):
+    stored = copies.store.add_document("Texte gardé " * 3, "ancien.pdf", {"type": "PDF"})
+    preview = copies.service.preview(stored["document_id"])
+    assert preview["path"] is None and preview["text"] == "Texte gardé " * 3
+    assert preview["truncated"] is False and preview["type"] == "PDF"
+    monkeypatch.setattr("interfaces.desktop.memory.PREVIEW_TEXT_MAX", 5)
+    assert copies.service.preview(stored["document_id"])["text"] == "Texte"
+    assert copies.service.preview(stored["document_id"])["truncated"] is True
+
+
+def test_copies_of_documents_removed_elsewhere_are_pruned(copies):
+    for name in ("a.md", "b.md"):
+        copies.service.add_documents([copies.write(name)])
+    _idle(copies.service)
+    assert len(os.listdir(copies.root)) == 2
+    # Retiré ailleurs que par l'onglet (pièce jointe du chat oubliée)
+    [gone] = copies.store.named("a.md")
+    del copies.store.docs[gone["id"]]
+    copies.service._prune_originals()  # pylint: disable=protected-access
+    [kept] = copies.store.named("b.md")
+    assert os.listdir(copies.root) == [OriginalFiles.folder_name(kept["id"])]
+    # Mémoire vide (ou illisible) : rien n'est supprimé à l'aveugle
+    copies.store.docs.clear()
+    copies.service._prune_originals()  # pylint: disable=protected-access
+    assert len(os.listdir(copies.root)) == 1
+
+
+def test_a_chat_attachment_stored_just_now_keeps_its_copy(copies, monkeypatch):
+    """Rangé à l'instant par le chat : sa copie ; un doublon d'un ancien document
+    du même nom, ou un fichier d'un dossier, n'en reçoit pas."""
+    attached = copies.write("joint/rapport.pdf", "%PDF récent")
+    stored = copies.store.add_document("Texte du rapport", "rapport.pdf", {"type": "PDF"})
+    fresh = datetime.now().isoformat(timespec="seconds")
+    copies.store.docs[stored["document_id"]]["created"] = fresh
+    copies.service.keep_chat_document(attached, "rapport.pdf")
+    preview = copies.service.preview(stored["document_id"])
+    assert preview["path"] and open(preview["path"], encoding="utf-8").read() == "%PDF récent"
+
+    # Ancien document du même nom (pièce jointe déjà rangée il y a longtemps) : rien
+    old = copies.store.add_document("Ancien texte", "ancien.pdf", {"type": "PDF"})
+    copies.store.docs[old["document_id"]]["created"] = "2026-01-02T10:00:00"
+    copies.service.keep_chat_document(copies.write("joint/ancien.pdf"), "ancien.pdf")
+    assert copies.service.preview(old["document_id"])["path"] is None
+    # Fichier d'un dossier du même nom : pas une pièce jointe du chat
+    inside = copies.store.add_document("Plan", "site/plan.pdf",
+                                       {"folder": "site", "folder_id": "s1"})
+    copies.store.docs[inside["document_id"]].update(created=fresh, name="plan.pdf")
+    copies.service.keep_chat_document(copies.write("joint/plan.pdf"), "plan.pdf")
+    assert copies.service.preview(inside["document_id"])["path"] is None
+    # Fichier disparu entre-temps, ou mémoire sans copies : rien, sans erreur
+    copies.service.keep_chat_document(str(copies.tmp / "absent.pdf"), "rapport.pdf")
+    monkeypatch.setattr(copies.service, "_originals", lambda: None)
+    copies.service.keep_chat_document(attached, "rapport.pdf")
+
+
+def test_an_encrypted_memory_keeps_no_copy(tmp_path):
+    store = CopyingStore(tmp_path / "vector_store", encrypted=True)
+    engine = SimpleNamespace(get_memory_store=lambda: store, local_ai=SimpleNamespace(
+        read_file_for_context=lambda path: {"content": "secret", "processor_used": "Code"}))
+    service = MemoryService(lambda: engine, lambda: None)
+    note = tmp_path / "note.md"
+    note.write_text("secret", encoding="utf-8")
+    service.add_documents([str(note)])
+    _idle(service)
+    assert service.originals_root() is None
+    assert not (tmp_path / "vector_store" / "originals").exists()
+    [doc] = store.named("note.md")
+    assert service.preview(doc["id"])["text"] == "secret"
+
+
+def test_copy_names_are_safe_everywhere(tmp_path):
+    assert safe_file_name("dossier/sous/rap:port?.pdf. ") == "rap_port_.pdf"
+    assert safe_file_name("C:\\x\\note.md") == "note.md"
+    assert safe_file_name("") == "document"
+    files = OriginalFiles(tmp_path / "originals")
+    source = tmp_path / "plan"
+    source.write_text("v1", encoding="utf-8")
+    # Ni le nom ni le fichier lu n'ont d'extension : la copie non plus
+    first = files.keep("doc:1", str(source), "plan")
+    assert os.path.basename(first) == "plan"
+    other = tmp_path / "plan.py"
+    other.write_text("v2", encoding="utf-8")
+    second = files.keep("doc:1", str(other), "projet/plan")
+    assert os.path.basename(second) == "plan.py"
+    # Une seule copie par document ; replace=False garde celle qui est là
+    assert os.listdir(os.path.dirname(second)) == ["plan.py"]
+    assert files.keep("doc:1", str(source), "plan.txt", replace=False) == second
+    assert files.find("doc:inconnu") is None
+    assert files.keep("doc:2", str(tmp_path / "absent.md"), "absent.md") is None
+
+
+def test_document_preview_route(copies):
+    app = FakeApp(None, EventBus())
+    app.memory = copies.service
+    server = DesktopServer(app)
+    server.port = PORT
+    client = TestClient(server.fastapi, base_url=BASE)
+    copies.service.add_documents([copies.write("note.md", "# Note")])
+    _idle(copies.service)
+    [doc] = copies.store.named("note.md")
+    preview = client.post("/api/memory/documents/preview", headers=AUTH,
+                          json={"document": doc["id"]}).json()
+    assert preview["name"] == "note.md" and preview["text"] is None
+    # La copie s'affiche comme une pièce jointe : lien signé, texte lisible
+    links = client.post("/api/files/links", headers=AUTH,
+                        json={"paths": [preview["path"]]}).json()["links"]
+    assert links[preview["path"]]
+    assert client.post("/api/files/text", headers=AUTH,
+                       json={"path": preview["path"]}).json()["text"] == "# Note"
+    gone = client.post("/api/memory/documents/preview", headers=AUTH,
+                       json={"document": "absent"})
+    assert gone.status_code == 409

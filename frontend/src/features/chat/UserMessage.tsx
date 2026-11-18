@@ -2,11 +2,9 @@ import { ChevronLeft, ChevronRight, Smartphone } from 'lucide-react';
 import { createElement, memo, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
-import { Lightbox } from '../../components/ui/Lightbox';
 import { useT } from '../../i18n';
-import { revealPath } from '../../lib/actions';
 import { api } from '../../lib/api';
-import { documentArtifacts } from '../../lib/artifacts';
+import { fileArtifact } from '../../lib/artifacts';
 import type { AttachmentRef, MessageView } from '../../lib/events';
 import { useFileUrl } from '../../lib/files';
 import { formatTime } from '../../lib/format';
@@ -29,50 +27,32 @@ interface UserMessageProps {
 }
 
 /**
- * Pièce jointe d'un message envoyé : une image s'agrandit, un document qui a
- * un aperçu s'ouvre dans le volet, un autre fichier se montre dans l'Explorateur.
+ * Pièce jointe d'un message envoyé : comme un nom de fichier du chat, elle
+ * s'ouvre dans le volet d'aperçu de droite, quel que soit son format (image,
+ * code, PDF…) ; les pièces jointes du message s'y suivent (‹ k/n ›).
  */
-function SentAttachment({ attachment, mid }: { attachment: AttachmentRef; mid: string }) {
+function SentAttachment({ attachment, onOpen }: { attachment: AttachmentRef; onOpen: () => void }) {
+  const t = useT();
   const image = attachment.type === 'Image';
   const url = useFileUrl(image ? attachment.path : null);
-  const [zoom, setZoom] = useState(false);
-  const open = () => {
-    if (image) {
-      setZoom(true);
-      return;
-    }
-    const [artifact] = documentArtifacts([attachment.path], 0, false);
-    if (artifact) openPreview(mid, [artifact]);
-    else void revealPath(attachment.path);
-  };
   return (
-    <>
-      <button
-        type="button"
-        onClick={open}
-        title={attachment.path}
-        className="inline-flex h-9 max-w-64 items-center gap-2 rounded-md border border-line bg-bg-2 ps-1 pe-2.5 text-xs text-fg-2 transition-colors duration-150 hover:border-line-2 hover:text-fg"
-      >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-3">
-          {image && url ? (
-            <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
-          ) : (
-            createElement(attachmentIcon(attachment.type), { size: 14 })
-          )}
-        </span>
-        <span className="truncate">{attachment.name}</span>
-      </button>
-      {image ? (
-        <Lightbox
-          open={zoom}
-          onOpenChange={setZoom}
-          url={url}
-          path={attachment.path}
-          name={attachment.name}
-          generated={false}
-        />
-      ) : null}
-    </>
+    <button
+      type="button"
+      onClick={onOpen}
+      title={t('chat.file.preview', { name: attachment.path })}
+      className="group inline-flex h-9 max-w-64 items-center gap-2 rounded-md border border-line bg-bg-2 ps-1 pe-2.5 text-xs text-fg-2 transition-colors duration-150 hover:border-line-2 hover:text-fg"
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-3">
+        {image && url ? (
+          <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+        ) : (
+          createElement(attachmentIcon(attachment.type), { size: 14 })
+        )}
+      </span>
+      <span className="truncate text-link underline decoration-link/40 underline-offset-2 group-hover:decoration-link">
+        {attachment.name}
+      </span>
+    </button>
   );
 }
 
@@ -108,8 +88,18 @@ export const UserMessage = memo(function UserMessage({
       ) : null}
       {attachments.length ? (
         <div className="mt-1.5 flex max-w-[85%] flex-wrap justify-end gap-1.5">
-          {attachments.map((att) => (
-            <SentAttachment key={att.path} attachment={att} mid={message.mid} />
+          {attachments.map((att, index) => (
+            <SentAttachment
+              key={att.path}
+              attachment={att}
+              onOpen={() =>
+                openPreview(
+                  message.mid,
+                  attachments.map((item, at) => fileArtifact(item.path, false, at)),
+                  index,
+                )
+              }
+            />
           ))}
         </div>
       ) : null}

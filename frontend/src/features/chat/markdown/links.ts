@@ -3,9 +3,11 @@
  * streaming :
  *  - citations numérotées « [n] » de la recherche web, ouvertes dans le
  *    navigateur du système (_apply_inline_citations, utils/citations.py) ;
- *  - chemins de fichiers et de dossiers existants, montrés dans l'Explorateur
- *    (_linkify_file_paths). Le serveur les repère, car lui seul voit le
- *    disque ; jamais dans un bloc de code ;
+ *  - chemins de fichiers et de dossiers existants (_linkify_file_paths) : un
+ *    fichier s'ouvre dans le volet d'aperçu, un dossier dans l'Explorateur.
+ *    Le serveur les repère, car lui seul voit le disque ; jamais dans un bloc
+ *    de code. Un fichier de la conversation (pièce jointe, document produit)
+ *    nommé sans son chemin compte aussi, entier comme un nom de la Mémoire ;
  *  - documents et dossiers de la Mémoire cités, ouverts dans son onglet
  *    Documents. Le serveur les repère aussi (memory_links), lui seul connaît
  *    la mémoire ; un nom courant (« projet ») ne compte que dans du code.
@@ -98,7 +100,7 @@ interface HastNode {
 }
 
 /** Ce qu'un texte repéré par le serveur désigne */
-type Target = { path: string } | { memory: MemoryLink };
+type Target = { path: PathLink } | { memory: MemoryLink };
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -106,6 +108,15 @@ function escapeRegExp(text: string): string {
 
 function element(tagName: string, properties: Record<string, unknown>, text: string): HastNode {
   return { type: 'element', tagName, properties, children: [{ type: 'text', value: text }] };
+}
+
+function pathElement(link: PathLink, children: HastNode[]): HastNode {
+  return {
+    type: 'element',
+    tagName: 'chat-path',
+    properties: { path: link.path, dir: link.dir ? 'true' : '' },
+    children,
+  };
 }
 
 function memoryElement(link: MemoryLink, children: HastNode[]): HastNode {
@@ -142,7 +153,9 @@ function splitText(
       if (url) node = element('chat-cite', { href: url, n: match[1] }, match[0]);
     } else {
       const target = targets.get(match[0]);
-      if (target && 'path' in target) node = element('chat-path', { path: target.path }, match[0]);
+      if (target && 'path' in target) {
+        node = pathElement(target.path, [{ type: 'text', value: match[0] }]);
+      }
       // Nom courant (« projet ») : seulement dans du code, pas au fil du texte
       else if (target && (inCode || !target.memory.strict)) {
         node = memoryElement(target.memory, [{ type: 'text', value: match[0] }]);
@@ -210,8 +223,7 @@ function internalLink(node: HastNode, links: ChatLinks): HastNode | null {
   const path = links.paths.find(
     (item) => samePath(item.path, target) || samePath(item.text, target),
   );
-  if (path)
-    return { type: 'element', tagName: 'chat-path', properties: { path: path.path }, children };
+  if (path) return pathElement(path, children);
   const memory = memoryIn([textOf(node), target], links.memory);
   return memory ? memoryElement(memory, children) : null;
 }
@@ -254,15 +266,16 @@ function transform(
 export function rehypeChatLinks(links: ChatLinks) {
   const targets = new Map<string, Target>();
   for (const item of links.memory) targets.set(item.text, { memory: item });
-  // Un chemin passe avant un nom de la Mémoire écrit pareil
-  for (const item of links.paths) targets.set(item.text, { path: item.path });
+  // Un chemin (ou un fichier de la conversation) passe avant un nom de la Mémoire écrit pareil
+  for (const item of links.paths) targets.set(item.text, { path: item });
   // Du plus long au plus court : « C:\a\b.txt » avant « C:\a », « projet/a.md » avant « a.md ».
   // Un nom de la Mémoire, entier : ni « MyData.xlsx » pour « Data.xlsx », ni dans un
   // chemin ; collé au japonais, au chinois ou au coréen, il compte (WORD)
   const alternatives = [...targets.entries()]
     .sort(([a], [b]) => b.length - a.length)
     .map(([text, target]) =>
-      'path' in target
+      // Chemin complet tel quel ; nom seul (Mémoire, fichier de la conversation) entier
+      'path' in target && !target.path.name
         ? escapeRegExp(text)
         : `(?<![${WORD}./\\\\-])${escapeRegExp(text)}(?![${WORD}-]|\\.[${WORD}])`,
     );

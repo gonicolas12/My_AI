@@ -25,8 +25,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import quote
 
 from core.i18n import tr
@@ -47,6 +48,16 @@ UPLOAD_DIR = Path(tempfile.gettempdir()) / "my_ai_desktop_uploads"
 
 class FileAccessError(Exception):
     """Fichier inconnu ou action refusée ; le message s'affiche à l'utilisateur."""
+
+
+class NotTextError(FileAccessError):
+    """Fichier binaire : pas d'aperçu en texte."""
+
+
+# Aperçu d'un fichier texte (code, Markdown, journal…) : son début, au plus
+TEXT_PREVIEW_MAX = 512 * 1024
+# Octets lus pour reconnaître un fichier binaire (un octet nul)
+_TEXT_SNIFF = 8192
 
 
 def normalize(path: str) -> str:
@@ -148,6 +159,49 @@ def reveal(path: str) -> None:
     if not path or not os.path.exists(path):
         raise FileAccessError(tr("files.pathNotFound"))
     reveal_in_file_manager(path)
+
+
+def read_text_preview(path: str, limit: int = TEXT_PREVIEW_MAX) -> Tuple[str, bool]:
+    """Début d'un fichier texte, décodé, pour le volet d'aperçu.
+
+    UTF-8 (avec ou sans BOM) ou UTF-16 avec BOM ; à défaut, Windows-1252,
+    qui lit tout octet. Un fichier qui contient un octet nul est binaire.
+
+    Returns:
+        (texte, tronqué) : tronqué au-delà de `limit` octets
+
+    Raises:
+        NotTextError: fichier binaire
+        OSError: lecture impossible
+    """
+    with open(path, "rb") as handle:
+        data = handle.read(limit + 1)
+    truncated = len(data) > limit
+    data = data[:limit]
+    if data.startswith(b"\xef\xbb\xbf"):
+        return data[3:].decode("utf-8", errors="replace"), truncated
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16", errors="replace"), truncated
+    if b"\x00" in data[:_TEXT_SNIFF]:
+        raise NotTextError(tr("files.notText"))
+    try:
+        return data.decode("utf-8"), truncated
+    except UnicodeDecodeError as exc:
+        # Coupé au milieu d'un caractère : sans ses derniers octets
+        if truncated and exc.start >= len(data) - 3:
+            return data[:exc.start].decode("utf-8", errors="replace"), truncated
+        return data.decode("cp1252", errors="replace"), truncated
+
+
+def file_info(path: str) -> Dict[str, Any]:
+    """Taille (octets) et date de modification (ISO) d'un fichier, pour l'en-tête de l'aperçu.
+
+    Raises:
+        OSError: fichier introuvable
+    """
+    stat = os.stat(path)
+    return {"size": stat.st_size,
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")}
 
 
 def downloads_dir() -> Path:

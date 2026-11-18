@@ -6,6 +6,8 @@ Routes des fichiers locaux et des aperçus (volet de droite)
   POST /api/files/open           document produit par l'appli → son application
   POST /api/files/reveal         chemin existant → Explorateur, jamais exécuté
   POST /api/files/download       document produit → copie dans Téléchargements
+  POST /api/files/text           début d'un fichier texte (code, Markdown…), pour son aperçu
+  POST /api/files/info           taille et date d'un fichier (en-tête de l'aperçu)
   POST /api/previews/artifact    bloc HTML/SVG d'une réponse → page d'aperçu
   POST /api/previews/document    document → page d'aperçu HTML, ou le PDF lui-même
   POST /api/previews/<id>/browser  aperçu → navigateur du système
@@ -16,7 +18,7 @@ Règles, reprises de utils/path_links.py et de l'interface Tk : voir files.py.
 
 import mimetypes
 import os
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -35,9 +37,16 @@ logger = setup_logger("DesktopFilesApi")
 
 
 class PathsBody(BaseModel):
-    """POST /api/files/links : fichiers à afficher."""
+    """POST /api/files/links : fichiers à afficher ; base : fichier Markdown affiché,
+    dont les images rangées dans son dossier s'affichent aussi (logo d'un README)."""
 
     paths: List[str] = Field(default_factory=list, max_length=500)
+    base: Optional[str] = Field(default=None, max_length=4096)
+
+
+# Images qu'un fichier Markdown affiché peut montrer, si elles sont dans son dossier
+_MARKDOWN = (".md", ".markdown", ".mdx")
+_IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico", ".avif")
 
 
 class PathBody(BaseModel):
@@ -80,10 +89,21 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
     def roots() -> List[str]:
         return local_files.generated_roots(getattr(app, "config", None))
 
+    def memory_originals() -> List[str]:
+        """Copies des documents de la Mémoire (aperçu de l'onglet Documents)."""
+        memory = getattr(app, "memory", None)
+        root = getattr(memory, "originals_root", None)
+        try:
+            folder = root() if callable(root) else None
+        except Exception:  # pylint: disable=broad-except
+            folder = None
+        return [folder] if folder else []
+
     def showable(path: str) -> bool:
         """Fichier que la fenêtre peut afficher : connu de la conversation, de
-        la zone de tâche des agents ou de la page Code, ou produit par
-        l'appli, ou envoyé par la page (image collée)."""
+        la zone de tâche des agents ou de la page Code, produit par l'appli,
+        envoyé par la page (image collée), copie d'un document de la Mémoire,
+        ou fichier qu'une réponse cite par son chemin."""
         if not path or not os.path.isfile(path):
             return False
         normalized = local_files.normalize(path)
@@ -95,8 +115,11 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
             known = getattr(app, name, None)
             if known is not None and normalized in known():
                 return True
-        allowed = roots() + [str(local_files.UPLOAD_DIR)]
-        return any(local_files.is_inside(path, root) for root in allowed)
+        allowed = roots() + [str(local_files.UPLOAD_DIR)] + memory_originals()
+        if any(local_files.is_inside(path, root) for root in allowed):
+            return True
+        cites = getattr(chat, "cites_path", None)
+        return bool(callable(cites) and cites(path))
 
     def generated(path: str) -> str:
         if not local_files.is_generated(path, roots()):
@@ -108,7 +131,19 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
     @api.post("/api/files/links")
     async def file_links(body: PathsBody):
         def build():
-            return {path: (server.links.url(path) if showable(path) else None)
+            # Fichier Markdown affiché : seulement les images de son dossier (et dessous)
+            folder = None
+            if (body.base and body.base.lower().endswith(_MARKDOWN)
+                    and showable(body.base)):
+                folder = os.path.dirname(os.path.abspath(body.base))
+
+            def allowed(path: str) -> bool:
+                if showable(path):
+                    return True
+                return bool(folder and path.lower().endswith(_IMAGES)
+                            and os.path.isfile(path) and local_files.is_inside(path, folder))
+
+            return {path: (server.links.url(path) if allowed(path) else None)
                     for path in dict.fromkeys(body.paths)}
         return {"links": await run_in_threadpool(build)}
 
@@ -152,6 +187,29 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
                                 detail=tr("files.downloadFailed", error=exc)) from exc
         return {"path": target}
 
+    @api.post("/api/files/text")
+    async def file_text(body: PathBody):
+        """Début d'un fichier que la fenêtre peut afficher, s'il est du texte."""
+        if not await run_in_threadpool(showable, body.path):
+            raise HTTPException(status_code=404, detail=tr(_NOT_FOUND))
+        try:
+            text, truncated = await run_in_threadpool(local_files.read_text_preview, body.path)
+        except local_files.NotTextError as exc:
+            raise HTTPException(status_code=415, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=409, detail=tr("files.readFailed", error=exc)) from exc
+        return {"text": text, "truncated": truncated}
+
+    @api.post("/api/files/info")
+    async def file_info(body: PathBody):
+        """Taille et date de modification d'un fichier que la fenêtre peut afficher."""
+        if not await run_in_threadpool(showable, body.path):
+            raise HTTPException(status_code=404, detail=tr(_NOT_FOUND))
+        try:
+            return await run_in_threadpool(local_files.file_info, body.path)
+        except OSError as exc:
+            raise HTTPException(status_code=404, detail=tr(_NOT_FOUND)) from exc
+
     # ── Aperçus ─────────────────────────────────────────────────────────────
 
     def preview_view(preview):
@@ -175,7 +233,8 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
 
     @api.post("/api/previews/document")
     async def document_preview(body: DocumentBody):
-        if not showable(body.path):
+        # Hors de la boucle : un fichier cité se cherche dans les réponses (disque sondé)
+        if not await run_in_threadpool(showable, body.path):
             raise HTTPException(status_code=404, detail=tr(_NOT_FOUND))
         try:
             preview = await run_in_threadpool(server.previews.add_document, body.path,

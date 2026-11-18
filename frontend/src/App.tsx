@@ -7,6 +7,7 @@ import { useAutoRead } from './features/chat/useAutoRead';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { CommandPalette } from './features/palette/CommandPalette';
 import { Panels } from './features/panels/Panels';
+import { AttachmentPreviewDialog } from './features/preview/AttachmentPreviewDialog';
 import { Header } from './features/shell/Header';
 import { Sidebar } from './features/shell/Sidebar';
 import { ScheduledToasts } from './features/shell/ScheduledToasts';
@@ -153,6 +154,7 @@ export function App() {
         <LoadingScreen status={status} connection={connection} />
       )}
       {started ? <Panels /> : null}
+      {started ? <AttachmentPreviewDialog /> : null}
       {started ? <CommandPalette /> : null}
       <Toasts />
       <ScheduledToasts />

@@ -173,6 +173,14 @@ export class ConnectionManager extends EventEmitter {
     return this.client.uploadFile(filename, data);
   }
 
+  /** Preview of a file of the PC: its answer comes as a `file_preview` message */
+  async requestFilePreview(request: Record<string, unknown>): Promise<void> {
+    if (!this.client) {
+      throw new Error('Not connected');
+    }
+    await this.client.sendFilePreview(request);
+  }
+
   /** Attache/réindexe/détache un fichier ou dossier projet (@codebase) côté host. */
   async sendCodebase(
     action: string, folder: string, workspaceRoot?: string,

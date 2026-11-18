@@ -194,6 +194,56 @@
   }
 
   /*
+   * Aperçus (volet de droite, volet de la Mémoire, fenêtre des pièces jointes) :
+   * ils s'ouvrent et se ferment en douceur, jamais d'un coup. Un volet s'élargit
+   * depuis le bord ; la fenêtre monte, puis redescend en s'effaçant. En classe,
+   * pour les couper en mouvement réduit : la fermeture d'un dialogue Radix
+   * attendrait sinon la fin d'un fondu de 0 ms (cf. fade-in-fast).
+   */
+  .pane-open {
+    animation: pane-open var(--motion-pane) var(--motion-ease);
+  }
+
+  .pane-close {
+    animation: pane-close var(--motion-pane) var(--motion-ease) forwards;
+    pointer-events: none;
+  }
+
+  .dialog-scrim[data-state='open'] {
+    animation: fade-in var(--motion) var(--motion-ease);
+  }
+
+  .dialog-scrim[data-state='closed'] {
+    animation: fade-out var(--motion-fast) var(--motion-ease) forwards;
+  }
+
+  .dialog-rise[data-state='open'] {
+    animation: rise-in var(--motion-pane) var(--motion-ease);
+  }
+
+  .dialog-rise[data-state='closed'] {
+    animation: sink-out var(--motion-fast) var(--motion-ease) forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pane-open,
+    .pane-close,
+    .dialog-scrim,
+    .dialog-rise {
+      animation: none;
+    }
+  }
+
+  /* Fond d'une image en aperçu : damier discret, qui montre sa transparence */
+  .preview-checker {
+    background: repeating-conic-gradient(
+        color-mix(in srgb, var(--text-primary) 4%, transparent) 0% 25%,
+        transparent 0% 50%
+      )
+      50% / 20px 20px;
+  }
+
+  /*
    * Panneau qui reçoit des fichiers glissés (onglet Documents de la Mémoire) :
    * son contour s'éclaire d'un halo orange. À la place de shadow-lg, que la
    * couche des utilitaires ferait passer devant.
@@ -260,6 +310,34 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sink-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+/* Volet d'aperçu : il s'élargit depuis 0 jusqu'à sa largeur, et s'y referme */
+@keyframes pane-open {
+  from {
+    width: 0;
+    opacity: 0.4;
+  }
+}
+
+@keyframes pane-close {
+  to {
+    width: 0;
+    opacity: 0;
   }
 }
 

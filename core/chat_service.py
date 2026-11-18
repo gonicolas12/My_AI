@@ -287,11 +287,13 @@ def _tool_summary(tool_name: str, result: Any) -> Dict[str, Any]:
     }
 
 
-def answer_paths(text: str) -> List[Dict[str, str]]:
+def answer_paths(text: str) -> List[Dict[str, Any]]:
     """Chemins existants cités dans une réponse, rendus cliquables (_linkify_file_paths).
 
-    Le disque est sondé à chaque lecture : un fichier créé ou supprimé depuis
-    la réponse change ce qui est cliquable, comme dans Tk au réaffichage.
+    Un fichier s'ouvre dans le volet d'aperçu de la fenêtre, un dossier dans
+    l'Explorateur (« dir »). Le disque est sondé à chaque lecture : un fichier
+    créé ou supprimé depuis la réponse change ce qui est cliquable, comme dans
+    Tk au réaffichage.
     """
     if not text or not any(mark in text for mark in _PATH_MARKS):
         return []
@@ -301,8 +303,75 @@ def answer_paths(text: str) -> List[Dict[str, str]]:
         if match.text in seen:
             continue
         seen.add(match.text)
-        paths.append({"text": match.text, "path": match.path})
+        paths.append({"text": match.text, "path": match.path, "dir": os.path.isdir(match.path)})
     return paths
+
+
+# Nom de fichier cité seul : collé à une lettre ou un chiffre des écritures à espaces
+# (latin, grec, cyrillique), il est le bout d'un autre mot (« MonRapport.docx ») ;
+# même règle que pour les noms de la Mémoire (_WORD_CHARS de core/memory_documents.py)
+_NAME_WORD = "0-9A-Za-z_À-ɏͰ-ϿЀ-ӿḀ-ỿ"
+# Fichiers de la conversation nommés dans une réponse, rendus cliquables, au plus
+_MAX_NAMED_FILES = 40
+
+
+def _file_name_pattern(name: str) -> "re.Pattern[str]":
+    """Un nom de fichier entier, casse ignorée : ni dans un chemin, ni dans un autre nom."""
+    return re.compile(rf"(?<![{_NAME_WORD}./\\-]){re.escape(name)}"
+                      rf"(?![{_NAME_WORD}-]|\.[{_NAME_WORD}])", re.IGNORECASE)
+
+
+def named_file_links(text: str, files: Dict[str, str]) -> List[Dict[str, Any]]:
+    """Fichiers de la conversation qu'une réponse nomme sans leur chemin (« rapport.docx »).
+
+    Pièces jointes, documents et images produits : la fenêtre les rend
+    cliquables comme un chemin cité (volet d'aperçu). « name » lui dit de ne
+    les trouver qu'entiers, comme les noms de la Mémoire.
+
+    Args:
+        files: nom du fichier en minuscules → son chemin (le plus récent)
+
+    Returns:
+        [{"text": tel qu'écrit, "path", "dir": False, "name": True}], un par graphie
+    """
+    if not text or not files:
+        return []
+    lowered = text.lower()
+    links: List[Dict[str, Any]] = []
+    seen = set()
+    for name, path in files.items():
+        if name not in lowered:
+            continue
+        found = [match.group(0) for match in _file_name_pattern(name).finditer(text)]
+        if not found or not os.path.isfile(path):
+            continue
+        for shown in found:
+            if shown not in seen:
+                seen.add(shown)
+                links.append({"text": shown, "path": path, "dir": False, "name": True})
+    return links[:_MAX_NAMED_FILES]
+
+
+def message_files(messages: List[Dict[str, Any]]) -> Dict[str, str]:
+    """Fichiers de messages par nom (minuscules) : pièces jointes, documents et
+    fichiers produits, images ; le plus récent l'emporte.
+
+    Seuls les noms avec une extension comptent : « notes » ou « Makefile »
+    seraient trop souvent un simple mot de la réponse.
+    """
+    files: Dict[str, str] = {}
+    for message in messages:
+        paths = [item[0] for item in message.get("attachments") or []
+                 if isinstance(item, (list, tuple)) and item and isinstance(item[0], str)]
+        paths.extend(p for p in message.get("documents") or [] if isinstance(p, str))
+        paths.extend(message[key] for key in ("file_path", "image_path")
+                     if isinstance(message.get(key), str) and message[key])
+        for path in paths:
+            name = os.path.basename(path)
+            stem, extension = os.path.splitext(name)
+            if stem and len(extension) > 1:
+                files[name.lower()] = path
+    return files
 
 
 def _iso(stamp: Any) -> Optional[str]:
@@ -426,6 +495,7 @@ class ChatService:
         on_session_change: Optional[Callable[[Optional[str]], None]] = None,
         rlhf=None,
         on_images_sent: Optional[Callable[[List[str]], None]] = None,
+        on_document_stored: Optional[Callable[[str, str], None]] = None,
     ):
         """
         Args:
@@ -438,6 +508,9 @@ class ChatService:
             rlhf: gestionnaire des notes (core.rlhf_manager, par défaut le partagé)
             on_images_sent: appelé, après la réponse, avec les images envoyées
                 dans le message (mémoire des documents de la fenêtre)
+            on_document_stored: appelé (chemin, nom) quand un document joint est
+                rangé dans la mémoire : la fenêtre garde la copie de son fichier,
+                pour l'aperçu de l'onglet Documents
         """
         self._engine = engine
         self._emit_fn = emit
@@ -447,6 +520,7 @@ class ChatService:
         self._on_session_change = on_session_change
         self._rlhf_manager = rlhf
         self._on_images_sent = on_images_sent
+        self._on_document_stored = on_document_stored
 
         # État et émission sous le même verrou : l'état renvoyé par snapshot()
         # contient exactement les événements de seq inférieur ou égal au sien
@@ -598,7 +672,8 @@ class ChatService:
         """État complet de la conversation, pour la fenêtre (GET /api/conversation)."""
         index = self._memory_index()
         with self._lock:
-            messages = [self._view_entry(entry, index) for entry in self._history]
+            files = message_files(self._history)
+            messages = [self._view_entry(entry, index, files) for entry in self._history]
             return {
                 "conversation_id": self._session_id,
                 "name": self._session_name,
@@ -628,12 +703,15 @@ class ChatService:
 
     @staticmethod
     def _view_entry(entry: Dict[str, Any],
-                    index: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+                    index: Optional[List[Dict[str, Any]]] = None,
+                    files: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """Message de l'historique vu par la fenêtre.
 
         Args:
             index: documents de la mémoire (_memory_index), pour les rendre
                 cliquables dans les réponses
+            files: fichiers de la conversation par nom (message_files), rendus
+                cliquables quand une réponse les nomme
         """
         attachments = []
         for item in entry.get("attachments") or []:
@@ -656,13 +734,18 @@ class ChatService:
             if entry.get(key) not in (None, "", [], False):
                 view[key] = entry[key]
         if not entry.get("is_user"):
-            paths = answer_paths(view["text"])
+            paths = answer_paths(view["text"]) + named_file_links(view["text"], files or {})
             if paths:
                 view["paths"] = paths
             memory = memory_links(view["text"], index or [])
             if memory:
                 view["memory"] = memory
         return view
+
+    def _answer_links(self, text: str) -> List[Dict[str, Any]]:
+        """Chemins cités dans une réponse, et fichiers de la conversation qu'elle
+        nomme (verrou tenu)."""
+        return answer_paths(text) + named_file_links(text, message_files(self._history))
 
     def _view_turn(self) -> Optional[Dict[str, Any]]:
         turn = self._turn
@@ -1191,13 +1274,13 @@ class ChatService:
                            message_id=turn.mid)
             elif interrupted:
                 self._emit("assistant.interrupted", {
-                    "mid": turn.mid, "text": text, "paths": answer_paths(text),
+                    "mid": turn.mid, "text": text, "paths": self._answer_links(text),
                     "memory": memory_links(text, index), "memory_near": near,
                 }, message_id=turn.mid)
             else:
                 self._emit("assistant.done", {
                     "mid": turn.mid, "text": text, "duration_ms": duration_ms,
-                    "tokens_per_s": tokens_per_s, "paths": answer_paths(text),
+                    "tokens_per_s": tokens_per_s, "paths": self._answer_links(text),
                     "memory": memory_links(text, index), "memory_near": near,
                 }, message_id=turn.mid)
             self._turn = None
@@ -1579,12 +1662,22 @@ class ChatService:
             memory = getattr(custom_ai, "conversation_memory", None)
             if memory is not None and hasattr(memory, "store_document_content"):
                 memory.store_document_content(filename, content)
+            self._document_stored(path, filename)
             return True, ""
         except Exception as exc:  # pylint: disable=broad-except
             if cancel is not None and cancel.is_set():
                 return False, ""  # lecture interrompue : pas d'erreur à signaler
             logger.error("Erreur lors du traitement de %s : %s", filename, exc)
             return False, str(exc)
+
+    def _document_stored(self, path: str, filename: str) -> None:
+        """Document joint rangé en mémoire : la fenêtre garde la copie de son fichier."""
+        if self._on_document_stored is None:
+            return
+        try:
+            self._on_document_stored(path, filename)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Copie du document %s non gardée : %s", filename, exc)
 
     def _document_in_memory(self, name: str) -> bool:
         memory = getattr(self._local_ai(), "conversation_memory", None)
@@ -2098,6 +2191,30 @@ class ChatService:
                     paths.append(message[key])
         return {os.path.normcase(os.path.abspath(path)) for path in paths if path}
 
+    def cites_path(self, path: str) -> bool:
+        """Une réponse de la conversation cite-t-elle ce fichier par son chemin ?
+
+        Un chemin cité est cliquable (answer_paths) : la fenêtre en montre
+        l'aperçu, comme celui d'une pièce jointe. Seules les réponses qui
+        contiennent son nom sont relues.
+        """
+        if not path:
+            return False
+        target = os.path.normcase(os.path.abspath(path))
+        name = os.path.basename(target).lower()
+        if not name:
+            return False
+        with self._lock:
+            texts = [entry.get("text") or "" for entry in self._history
+                     if not entry.get("is_user")]
+        for text in texts:
+            if name not in text.lower():
+                continue
+            if any(os.path.normcase(os.path.abspath(link["path"])) == target
+                   for link in answer_paths(text) if not link["dir"]):
+                return True
+        return False
+
     def _rlhf(self):
         """Gestionnaire des notes : celui passé au service, sinon le partagé (Tk)."""
         if self._rlhf_manager is None:
@@ -2346,8 +2463,13 @@ class ChatService:
     def _relay_submit_response(self, request: _Request, text: str) -> None:
         if request.source != "mobile" or not self._bridge_active():
             return
+        # Fichiers cités ou nommés par la réponse : cliquables sur le téléphone
+        # aussi (aperçu demandé au Relay), comme dans la fenêtre
+        with self._lock:
+            links = self._answer_links(text)
         try:
-            self._bridge.submit_ai_response(text, message_id=request.relay_message_id)
+            self._bridge.submit_ai_response(text, message_id=request.relay_message_id,
+                                            links=links)
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning("Envoi de la réponse au mobile échoué : %s", exc)
 

@@ -1,23 +1,40 @@
 /*
- * Volet d'aperçu de droite (artefacts HTML/SVG, documents) : façon Claude
- * Artifacts, comme le volet de l'interface Tk (artifacts_panel.py).
+ * Volet d'aperçu de droite (artefacts HTML/SVG, documents, fichiers) : façon
+ * Claude Artifacts, comme le volet de l'interface Tk (artifacts_panel.py).
  *
- * Il montre un artefact à la fois parmi ceux d'une réponse ; sa largeur est
- * réglable et retenue d'un lancement à l'autre.
+ * Il montre un artefact à la fois parmi ceux d'une réponse, ou un fichier
+ * cliqué dans le chat (nom cité, carte, image, pièce jointe d'un message
+ * envoyé) ; sa largeur est réglable et retenue d'un lancement à l'autre. Il
+ * s'ouvre et se ferme en douceur : fermé, il reste affiché le temps de se
+ * replier (closing).
  */
 
 import { create } from 'zustand';
 
 import { savePreviewWidth } from '../lib/actions';
-import type { Artifact } from '../lib/artifacts';
+import { type Artifact, fileArtifact } from '../lib/artifacts';
 
 export type PreviewTab = 'preview' | 'code';
 
 /** Largeur par défaut et bornes du volet (Tk : 560, de 320 à 1200 px) */
 export const PREVIEW_WIDTH = { initial: 560, min: 320, max: 1200 };
 
+/** Ouverture et fermeture d'un volet d'aperçu (--motion-pane de tokens.css) */
+export const PANE_MS = 240;
+
+/** Durée d'une animation, nulle en mouvement réduit (tokens.css la coupe aussi) */
+export function motionMs(ms: number): number {
+  const reduced =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return reduced ? 0 : ms;
+}
+
 interface PreviewState {
   open: boolean;
+  /** Fermé, il se replie encore (PANE_MS) */
+  closing: boolean;
   /** Réponse d'origine */
   mid: string | null;
   items: Artifact[];
@@ -28,12 +45,20 @@ interface PreviewState {
 
 export const usePreview = create<PreviewState>()(() => ({
   open: false,
+  closing: false,
   mid: null,
   items: [],
   index: 0,
   tab: 'preview',
   width: PREVIEW_WIDTH.initial,
 }));
+
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelClose(): void {
+  if (closeTimer) clearTimeout(closeTimer);
+  closeTimer = null;
+}
 
 export function clampPreviewWidth(width: number): number {
   return Math.round(Math.min(PREVIEW_WIDTH.max, Math.max(PREVIEW_WIDTH.min, width)));
@@ -42,8 +67,10 @@ export function clampPreviewWidth(width: number): number {
 /** Ouvre le volet sur un artefact d'une réponse */
 export function openPreview(mid: string | null, items: Artifact[], index = 0): void {
   if (!items.length) return;
+  cancelClose();
   usePreview.setState({
     open: true,
+    closing: false,
     mid,
     items,
     index: Math.min(Math.max(index, 0), items.length - 1),
@@ -51,8 +78,31 @@ export function openPreview(mid: string | null, items: Artifact[], index = 0): v
   });
 }
 
+/**
+ * Ouvre le volet sur un fichier cliqué dans le chat (nom cité, carte, image,
+ * pièce jointe d'un message envoyé)
+ *
+ * @param generated produit par l'appli : il s'ouvre aussi dans son application
+ */
+export function openFilePreview(path: string, generated = false, mid: string | null = null): void {
+  if (!path) return;
+  openPreview(mid, [fileArtifact(path, generated)]);
+}
+
 export function closePreview(): void {
-  usePreview.setState({ open: false });
+  const state = usePreview.getState();
+  if (!state.open || state.closing) return;
+  const delay = motionMs(PANE_MS);
+  if (!delay) {
+    usePreview.setState({ open: false });
+    return;
+  }
+  usePreview.setState({ closing: true });
+  cancelClose();
+  closeTimer = setTimeout(() => {
+    closeTimer = null;
+    usePreview.setState({ open: false, closing: false });
+  }, delay);
 }
 
 export function showPreviewItem(index: number): void {

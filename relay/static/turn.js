@@ -156,6 +156,8 @@
    *   formatTime(date)           heure « 14:19 »
    *   locale                     langue de la durée
    *   codeActions                boutons des blocs de code (markdown.js)
+   * reply.links : fichiers cités ou nommés par la réponse finie, cliquables
+   * (markdown.js, options.links)
    *   approvalNote               approbation demandée sans boutons (message
    *                              tapé dans VS Code) : le dire, sous l'appel
    */
@@ -187,6 +189,10 @@
   // ont changé sont refaits, les nouveaux s'ajoutent à la suite
   Turn.prototype.update = function (reply) {
     var streaming = reply.status === 'streaming';
+    // Fichiers que la réponse finie cite ou nomme (reply.links, markdown.js) :
+    // ses textes sont refaits quand ils arrivent
+    this.links = !streaming && Array.isArray(reply.links) && reply.links.length ? reply.links : null;
+    var linkKey = this.links ? JSON.stringify(this.links) : '';
     var parts = (reply.parts || []).filter(function (part) {
       return part && (part.kind === 'tool' || (part.kind === 'text' && part.text));
     });
@@ -206,7 +212,7 @@
     for (var i = 0; i < parts.length; i++) {
       var part = parts[i];
       var cursor = streaming && part === last && part.kind === 'text';
-      var sig = signature(part, cursor);
+      var sig = signature(part, cursor) + (part.kind === 'text' ? '\u0002' + linkKey : '');
       var node = this.shown[i];
       if (!node) {
         node = { key: partKey(part), sig: '', open: false, el: null };
@@ -278,7 +284,7 @@
   Turn.prototype.fill = function (node, part, cursor) {
     if (part.kind === 'text') {
       node.el.innerHTML = root.MyAIMarkdown.render(part.text, {
-        cursor: cursor, codeActions: this.options.codeActions,
+        cursor: cursor, codeActions: this.options.codeActions, links: this.links || undefined,
       });
       return;
     }

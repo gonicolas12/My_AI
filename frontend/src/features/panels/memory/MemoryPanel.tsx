@@ -14,6 +14,10 @@
  * une seule ligne. Deux documents du même nom restent, distingués par leur
  * date ; un fichier ou un dossier remis sous un nom déjà pris : l'utilisateur
  * choisit de le mettre à jour ou de garder les deux (UpdateDialog).
+ *
+ * Un clic sur un document ouvre son aperçu dans un volet à droite du panneau
+ * (MemoryPreview), qui s'élargit en douceur pour lui ; un lien du chat vers un
+ * document l'y ouvre aussi. Échap referme d'abord le volet.
  */
 
 import * as Tabs from '@radix-ui/react-tabs';
@@ -77,10 +81,12 @@ import {
   useMemory,
 } from '../../../stores/memory';
 import { closePanel } from '../../../stores/panels';
+import { motionMs, PANE_MS } from '../../../stores/preview';
 import { ACCEPT_ALL } from '../../chat/attach';
 import { type DropTarget, useFileDrop } from '../../chat/useFileDrop';
 import { PanelDialog } from '../PanelDialog';
 import { addToMemory, baseName } from './adding';
+import { MemoryPreview } from './MemoryPreview';
 
 const errorText = (error: unknown) => (error instanceof ApiError ? error.message : String(error));
 
@@ -519,6 +525,31 @@ interface GroupActions {
   deleteGroup: (group: MemoryGroup) => void;
   /** Document du lien du chat, mis en évidence (MemoryFocus) */
   highlight: string | null;
+  /** Ouvre l'aperçu d'un document */
+  preview: (doc: MemoryDocument) => void;
+  /** Document dont l'aperçu est ouvert */
+  previewed: string | null;
+}
+
+/** En évidence : le document en aperçu, sinon, sans aperçu ouvert, celui du lien du chat */
+function isShown(doc: MemoryDocument, previewed: string | null, highlight: string | null): boolean {
+  if (previewed) return previewed === doc.id;
+  return isHighlighted(doc, highlight);
+}
+
+/** Le document du lien du chat parmi ceux de la page (dossiers compris) */
+function findHighlighted(
+  items: (MemoryItem | MemoryGroup)[],
+  highlight: string | null,
+): MemoryDocument | null {
+  for (const item of items) {
+    if (item.kind === 'document' && isHighlighted(item, highlight)) return item;
+    if (item.kind === 'folder') {
+      const doc = item.documents.find((entry) => isHighlighted(entry, highlight));
+      if (doc) return doc;
+    }
+  }
+  return null;
 }
 
 /** Le document du lien du chat ? Par son nom, son chemin dans son dossier, ou son chemin complet */
@@ -558,18 +589,20 @@ const Chevron = ({ open }: { open: boolean }) =>
   );
 
 /**
- * Document : nom, date, ajouté à la main ; il se supprime en entier. Ses
- * morceaux (chunks) servent à la recherche et restent internes : il ne se
- * déplie pas.
+ * Document : nom, date, ajouté à la main ; un clic sur son nom ouvre son
+ * aperçu, il se supprime en entier. Ses morceaux (chunks) servent à la
+ * recherche et restent internes : il ne se déplie pas.
  */
 function DocumentRow({
   doc,
   onDelete,
+  onPreview,
   highlighted = false,
 }: {
   doc: MemoryDocument;
   onDelete: (doc: MemoryDocument) => void;
-  /** Le document d'un lien du chat : en évidence, et amené à l'écran */
+  onPreview: (doc: MemoryDocument) => void;
+  /** En aperçu, ou document d'un lien du chat : en évidence, et amené à l'écran */
   highlighted?: boolean;
 }) {
   const t = useT();
@@ -587,14 +620,24 @@ function DocumentRow({
         highlighted ? 'border-accent bg-accent-soft' : 'border-line bg-bg',
       )}
     >
-      <DocumentIcon doc={doc} />
-      <span className="min-w-0 truncate py-1 text-sm font-medium">{label}</span>
-      <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
-        {metaLine([
-          addedOn(doc.created),
-          !doc.folder && doc.source === 'manual' && t('memory.group.byHand'),
-        ])}
-      </span>
+      <button
+        type="button"
+        onClick={() => onPreview(doc)}
+        aria-label={t('chat.file.preview', { name: label })}
+        title={t('chat.file.preview', { name: label })}
+        className="group flex min-w-0 flex-1 items-center gap-2 rounded-sm text-start focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+      >
+        <DocumentIcon doc={doc} />
+        <span className="min-w-0 truncate py-1 text-sm font-medium underline decoration-transparent underline-offset-2 transition-colors duration-150 group-hover:text-link group-hover:decoration-link/60">
+          {label}
+        </span>
+        <span className="ms-auto shrink-0 ps-3 text-xs text-fg-3">
+          {metaLine([
+            addedOn(doc.created),
+            !doc.folder && doc.source === 'manual' && t('memory.group.byHand'),
+          ])}
+        </span>
+      </button>
       <IconButton
         label={t('memory.group.deleteDocument')}
         aria-label={t('memory.group.deleteNamed', { name: label })}
@@ -658,7 +701,8 @@ function FolderRow({ folder, actions }: { folder: MemoryFolder; actions: GroupAc
               key={doc.id}
               doc={doc}
               onDelete={actions.deleteGroup}
-              highlighted={isHighlighted(doc, actions.highlight)}
+              onPreview={actions.preview}
+              highlighted={isShown(doc, actions.previewed, actions.highlight)}
             />
           ))}
         </ul>
@@ -845,6 +889,10 @@ export default function MemoryPanel() {
   const [deleting, setDeleting] = useState<MemoryItem | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<MemoryGroup | null>(null);
   const [adding, setAdding] = useState(false);
+  // Document en aperçu, dans le volet de droite ; closing : le volet se replie
+  const [previewed, setPreviewed] = useState<MemoryDocument | null>(null);
+  const [previewClosing, setPreviewClosing] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Dossiers dépliés (onglet Documents), gardés d'une relecture à l'autre
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   // Changement venu du serveur (document rangé) : la page se relit
@@ -870,11 +918,14 @@ export default function MemoryPanel() {
         setLoaded({ key, tab, view });
         // File relue avec la page : un événement manqué (reconnexion) ne la fige pas
         if (view.jobs) applyMemoryJobs(view.jobs);
-        // Ouvert par un lien du chat : les dossiers trouvés se déplient, une fois
+        // Ouvert par un lien du chat : les dossiers trouvés se déplient, une fois,
+        // et le document du lien s'ouvre dans le volet d'aperçu
         if (unfold.current && tab === 'document') {
           unfold.current = false;
           const folders = view.items.filter((item) => item.kind === 'folder');
           if (folders.length) setExpanded(new Set(folders.map((item) => item.id)));
+          const linked = findHighlighted(view.items, focus?.highlight ?? null);
+          if (linked) setPreviewed(linked);
         }
       },
       (error: unknown) => {
@@ -884,7 +935,7 @@ export default function MemoryPanel() {
     return () => {
       alive = false;
     };
-  }, [tab, search, filter, page, tick, revision]);
+  }, [tab, search, filter, page, tick, revision, focus]);
 
   // Nom pris du lien du chat : la prochaine ouverture du panneau repart des Faits
   useEffect(() => {
@@ -893,6 +944,14 @@ export default function MemoryPanel() {
 
   // Panneau fermé pendant la question : ceux déjà là ne sont pas envoyés
   useEffect(() => () => answerUpdate('cancel'), []);
+
+  // Panneau fermé pendant que le volet se repliait
+  useEffect(
+    () => () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
 
   // Page d'un autre onglet : pas affichée en attendant la bonne
   const shown = loaded?.tab === tab ? loaded : null;
@@ -914,11 +973,44 @@ export default function MemoryPanel() {
     });
   }, []);
 
-  const actions: GroupActions = { expanded, toggle, deleteGroup: setDeletingGroup, highlight };
+  /** Ouvre l'aperçu d'un document (un autre déjà ouvert : le volet passe à lui) */
+  const preview = (doc: MemoryDocument) => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+    setPreviewClosing(false);
+    setPreviewed(doc);
+  };
+
+  /** Referme le volet d'aperçu : il se replie, puis disparaît */
+  const closePreview = () => {
+    if (!previewed || closeTimer.current) return;
+    const delay = motionMs(PANE_MS);
+    if (!delay) {
+      setPreviewed(null);
+      return;
+    }
+    setPreviewClosing(true);
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      setPreviewClosing(false);
+      setPreviewed(null);
+    }, delay);
+  };
+
+  const previewedId = previewed && !previewClosing ? previewed.id : null;
+  const actions: GroupActions = {
+    expanded,
+    toggle,
+    deleteGroup: setDeletingGroup,
+    highlight,
+    preview,
+    previewed: previewedId,
+  };
 
   const selectTab = (value: string) => {
     const next = TABS.find((entry) => entry.id === value);
     if (!next) return;
+    closePreview();
     setTab(next.id);
     setPage(0);
     setEditing(null);
@@ -974,7 +1066,8 @@ export default function MemoryPanel() {
                 key={item.id}
                 doc={item}
                 onDelete={setDeletingGroup}
-                highlighted={isHighlighted(item, highlight)}
+                onPreview={preview}
+                highlighted={isShown(item, previewedId, highlight)}
               />
             )
           ) : editing === keyOf(item) ? (
@@ -1007,11 +1100,15 @@ export default function MemoryPanel() {
       onOpenChange={(open) => {
         if (!open) closePanel();
       }}
-      // Échap pendant une modification l'annule, sans fermer le panneau
+      // Échap pendant une modification l'annule, sans fermer le panneau ; le volet
+      // d'aperçu ouvert se referme d'abord
       onEscapeKeyDown={(event) => {
         if (editing) {
           event.preventDefault();
           setEditing(null);
+        } else if (previewed && !previewClosing) {
+          event.preventDefault();
+          closePreview();
         }
       }}
       icon={Brain}
@@ -1034,6 +1131,17 @@ export default function MemoryPanel() {
       flush
       dropTarget={documents ? drop : undefined}
       glow={documents && dropping}
+      aside={
+        previewed ? (
+          <MemoryPreview
+            key={previewed.id}
+            doc={previewed}
+            closing={previewClosing}
+            onClose={closePreview}
+          />
+        ) : undefined
+      }
+      asideClosing={previewClosing}
       footer={
         <div className="flex w-full items-center justify-between">
           <Button size="sm" onClick={() => goTo(current - 1)} disabled={!view || current <= 0}>
@@ -1174,7 +1282,16 @@ export default function MemoryPanel() {
         <DeleteGroupDialog
           group={deletingGroup}
           onClose={() => setDeletingGroup(null)}
-          onDeleted={reload}
+          onDeleted={() => {
+            // Le document en aperçu (ou son dossier) supprimé : le volet se referme
+            const gone =
+              previewed &&
+              (deletingGroup.id === previewed.id ||
+                (deletingGroup.kind === 'folder' &&
+                  deletingGroup.documents.some((doc) => doc.id === previewed.id)));
+            if (gone) closePreview();
+            reload();
+          }}
         />
       ) : null}
       {adding ? (

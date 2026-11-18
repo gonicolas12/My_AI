@@ -1,4 +1,4 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, Eye } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 
 import { useT } from '../../../i18n';
@@ -39,9 +39,16 @@ interface CodeBlockProps {
   lang?: string | undefined;
   /** Bloc encore en cours d'écriture (dernier bloc d'une réponse en streaming) */
   streaming?: boolean;
+  /** Bloc HTML ou SVG d'une réponse : ouvre son aperçu dans le volet de droite */
+  onPreview?: (() => void) | null | undefined;
 }
 
-export const CodeBlock = memo(function CodeBlock({ code, lang, streaming }: CodeBlockProps) {
+export const CodeBlock = memo(function CodeBlock({
+  code,
+  lang,
+  streaming,
+  onPreview,
+}: CodeBlockProps) {
   const t = useT();
   const [highlighted, setHighlighted] = useState<Highlighted | null>(null);
   const [copied, setCopied] = useState(false);
@@ -90,15 +97,28 @@ export const CodeBlock = memo(function CodeBlock({ code, lang, streaming }: Code
     <div className="code-block">
       <div className="code-header">
         <span className="code-lang">{label}</span>
-        <button
-          type="button"
-          className="code-copy"
-          onClick={copy}
-          aria-label={copied ? t('chat.code.copied') : t('chat.code.copy')}
-        >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          <span>{copied ? t('common.copied') : t('common.copy')}</span>
-        </button>
+        <span className="code-actions">
+          {onPreview ? (
+            <button
+              type="button"
+              className="code-copy code-preview"
+              onClick={onPreview}
+              aria-label={t('chat.code.preview')}
+            >
+              <Eye size={14} />
+              <span>{t('common.preview')}</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="code-copy"
+            onClick={copy}
+            aria-label={copied ? t('chat.code.copied') : t('chat.code.copy')}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            <span>{copied ? t('common.copied') : t('common.copy')}</span>
+          </button>
+        </span>
       </div>
       {/* Le code se lit de gauche à droite, même en arabe */}
       <pre className="code-body" dir="ltr">

@@ -81,11 +81,28 @@ class BITMAPINFOHEADER(ctypes.Structure):  # pylint: disable=too-few-public-meth
 
 
 def find():
-    """Fenêtre My_AI (quitte si elle est introuvable)."""
-    hwnd = user32.FindWindowW(None, TITLE)
-    if not hwnd:
+    """Fenêtre My_AI (quitte si elle est introuvable).
+
+    Plusieurs fenêtres peuvent porter ce titre (une fenêtre cachée de 166 × 47
+    px vue le 2026-11-18 : FindWindowW la rendait, et les enfants, le
+    dialogue de fichiers ou la visionneuse n'étaient pas trouvés) : la visible,
+    puis la plus grande.
+    """
+    found = []
+
+    @ENUM_PROC
+    def collect(hwnd, _param):
+        title = ctypes.create_unicode_buffer(512)
+        user32.GetWindowTextW(hwnd, title, 512)
+        if title.value == TITLE:
+            _x, _y, width, height = rect(hwnd)
+            found.append((bool(user32.IsWindowVisible(hwnd)), width * height, hwnd))
+        return True
+
+    user32.EnumWindows(collect, 0)
+    if not found:
         sys.exit("fenêtre introuvable")
-    return hwnd
+    return max(found)[2]
 
 
 def rect(hwnd):

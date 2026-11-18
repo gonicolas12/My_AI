@@ -271,7 +271,13 @@ let streamingMessageEl = null;
 // Documents générés reçus (événements `ai_document`) en attente d'être
 // rattachés à la bulle de réponse. L'outil s'exécute avant que le modèle ne
 // rédige sa synthèse : le document arrive donc AVANT la réponse finale.
+// Chacun est un élément de l'aperçu (preview.js), son contenu déjà reçu.
 let pendingDocuments = [];
+
+// Demandes d'aperçu d'un fichier du PC en cours (file_preview) : request_id →
+// { resolve, reject, timer }
+let previewRequests = {};
+let previewCounter = 0;
 
 // Le scroll auto pendant le streaming ne doit pas se battre contre
 // l'utilisateur qui a fait défiler vers le haut pour relire quelque chose.
@@ -384,7 +390,8 @@ function connect() {
       }
       // Si on était en train de streamer ce message, on finalise la bulle
       // existante au lieu d'en créer une nouvelle (évite le doublon visuel).
-      finalizeStreaming(mid, data.message, data.timestamp);
+      // links : fichiers cités ou nommés, files : documents et images produits
+      finalizeStreaming(mid, data.message, data.timestamp, { links: data.links, files: data.files });
       updateSendButton();
     } else if (data.type === 'chunk') {
       // Chunk de streaming : texte cumulatif courant de la génération.
@@ -415,15 +422,24 @@ function connect() {
       // l'enveloppe WS. `data.html` est l'aperçu rendu côté hôte et
       // `data.data` le fichier réel en base64 pour le téléchargement.
       // On le met en attente : il sera rattaché à la bulle de réponse.
+      var docName = data.filename || 'document';
       pendingDocuments.push({
-        kind: 'document',
-        title: data.title || data.filename || T('doc.default'),
-        filename: data.filename || 'document',
-        label: data.label || T('doc.default'),
-        format: data.format || '',
-        html: data.html || '',
-        data: data.data || ''
+        type: 'file',
+        name: docName,
+        path: data.path || '',
+        payload: {
+          ok: true,
+          kind: 'document',
+          name: docName,
+          label: data.label || T('doc.default'),
+          html: data.html || '',
+          fileData: data.data || '',
+          size: data.data ? Math.floor(data.data.length * 3 / 4) : undefined
+        }
       });
+    } else if (data.type === 'file_preview') {
+      // Aperçu (ou fichier) demandé au PC : la demande en attente le reçoit
+      settlePreview(data);
     } else if (data.type === 'resume_empty') {
       // Le serveur n'a pas de réponse en attente pour notre dernier id.
       // Soit la réponse est déjà arrivée, soit elle n'a pas encore fini
@@ -453,6 +469,8 @@ function connect() {
   ws.onclose = function (event) {
     console.log('[Relay] Connection closed:', event.code, event.reason);
     setStatus('offline');
+    // Les aperçus demandés n'arriveront plus sur ce WS
+    failPreviews();
     if (event.code === 4003) {
       // Session refusée : redemander le code plutôt que de boucler
       saveSession('');
@@ -531,7 +549,9 @@ async function loadHistory() {
       var key = (m.is_user ? 'user:' : 'ai:') + mid;
       if (mid && renderedMessageIds.has(key)) continue;
       if (mid) renderedMessageIds.add(key);
-      addMessage(m.text, !!m.is_user, m.timestamp);
+      addMessage(m.text, !!m.is_user, m.timestamp, false, m.is_user
+        ? { attachments: historyAttachments(m) }
+        : { links: m.links, files: m.files });
     }
     historyLoaded = true;
     // Si le dernier message est un message utilisateur sans réponse,
@@ -605,7 +625,7 @@ async function checkPendingResponse(messageId) {
     removeTyping();
     isWaiting = false;
     if (messageId === lastSentMessageId) lastSentMessageId = null;
-    finalizeStreaming(messageId, data.message, data.timestamp);
+    finalizeStreaming(messageId, data.message, data.timestamp, { links: data.links, files: data.files });
     updateSendButton();
   } catch (e) {
     console.warn('[Relay] checkPendingResponse failed:', e);
@@ -633,18 +653,14 @@ function sendMessage() {
   // Hide welcome
   if (welcomeEl) welcomeEl.style.display = 'none';
 
-  // Construire l'affichage local du message (texte + chips)
-  var attachDisplay = readyAttachments.map(function (a) {
-    return (a.isImage ? '🖼️ ' : '📎 ') + a.name;
-  }).join('\n');
-  var displayText = text;
-  if (attachDisplay) {
-    displayText = displayText ? (text + '\n' + attachDisplay) : attachDisplay;
-  }
-
   // Envoyer un message réinstalle l'intention « suivre la génération »
   userPinnedToBottom = true;
-  addMessage(displayText, true);
+  // Ses pièces jointes, sous la bulle : un toucher ouvre leur aperçu
+  addMessage(text, true, null, false, {
+    attachments: readyAttachments.map(function (a) {
+      return { name: a.name, isImage: a.isImage, fileId: a.fileId, file: a.file };
+    })
+  });
 
   // Envoyer au serveur (inclut les file_ids déjà uploadés)
   var payload = { type: 'chat', message: text };
@@ -737,6 +753,8 @@ async function uploadAttachment(file) {
     isImage: isImage,
     status: 'uploading',
     error: null,
+    // Le fichier lui-même : l'aperçu d'une image ne l'attend pas du PC
+    file: file,
   };
   pendingAttachments.push(entry);
   renderAttachments();
@@ -779,9 +797,15 @@ function renderAttachments() {
                       : (a.isImage ? '🖼️' : '📎');
     chip.appendChild(icon);
 
-    var name = document.createElement('span');
-    name.className = 'chip-name';
+    // Prête (ou image du téléphone) : son nom ouvre l'aperçu, comme dans la fenêtre
+    var openable = a.status === 'ready' || (a.isImage && a.file && a.status !== 'error');
+    var name = document.createElement(openable ? 'button' : 'span');
+    name.className = 'chip-name' + (openable ? ' chip-open' : '');
     name.textContent = a.status === 'error' ? (a.name + ' · ' + (a.error || T('attach.error'))) : a.name;
+    if (openable) {
+      name.type = 'button';
+      name.onclick = function () { openPendingAttachment(a.localId); };
+    }
     chip.appendChild(name);
 
     var rm = document.createElement('button');
@@ -850,8 +874,12 @@ function stopGeneration() {
   }).catch(function () { /* swallow */ });
 }
 
-function addMessage(text, isUser, timestamp, autoOpen) {
+// extra : { attachments } d'un message de l'utilisateur ([{ name, isImage,
+// fileId?, path?, file? }]) ; { links, files } d'une réponse (fichiers cités
+// ou nommés, documents et images produits)
+function addMessage(text, isUser, timestamp, autoOpen, extra) {
   if (welcomeEl) welcomeEl.style.display = 'none';
+  extra = extra || {};
 
   const msg = document.createElement('div');
   msg.className = 'message ' + (isUser ? 'user' : 'ai');
@@ -859,18 +887,28 @@ function addMessage(text, isUser, timestamp, autoOpen) {
   const time = formatTime(timestamp ? new Date(timestamp) : new Date());
 
   if (isUser) {
-    msg.innerHTML =
-      '<div class="bubble" dir="auto">' + escapeHtml(text) +
-      '<span class="time">' + time + '</span></div>';
+    var attachments = extra.attachments || [];
+    if (text || !attachments.length) {
+      msg.innerHTML =
+        '<div class="bubble" dir="auto">' + escapeHtml(text) +
+        '<span class="time">' + time + '</span></div>';
+    }
+    if (attachments.length) {
+      msg.classList.add('with-files');
+      var items = attachments.map(attachmentItem);
+      msg.appendChild(fileChips(items, items, 0));
+    }
   } else {
     msg.innerHTML =
       '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble"><div class="md" dir="auto">' + renderMarkdown(text) + '</div>' +
+      '<div class="bubble"><div class="md" dir="auto">' +
+      renderMarkdown(text, { preview: true, links: extra.links }) + '</div>' +
       '<span class="time">' + time + '</span></div>';
-    attachArtifactButton(msg.querySelector('.bubble'), text, autoOpen);
   }
 
   messagesEl.appendChild(msg);
+  // Dans la page : ses images produites (historique) se placent avant elle
+  if (!isUser) attachAnswerFiles(msg, text, extra.files, autoOpen);
   scrollToBottom();
 }
 
@@ -895,7 +933,14 @@ function addImageMessage(b64, mime, filename, timestamp) {
   img.src = src;
   img.alt = filename || T('image.generated');
   img.loading = 'lazy';
-  img.addEventListener('click', function () { window.open(src, '_blank'); });
+  // Plein écran dans l'aperçu (une adresse data: ne s'ouvre plus dans un onglet)
+  img.addEventListener('click', function () {
+    preview.open([{
+      type: 'file', name: filename || T('image.generated'),
+      payload: { ok: true, kind: 'image', mime: mime || 'image/png', data: b64,
+                 name: filename || T('image.generated'), size: Math.floor(b64.length * 3 / 4) }
+    }], 0);
+  });
 
   bubble.appendChild(img);
 
@@ -940,13 +985,14 @@ function updateStreamingBubble(mid, text) {
 
 // Finalise la bulle de streaming. Si `finalText` est fourni, la bulle est
 // convertie en bulle IA définitive (avec timestamp). Sinon, elle est juste
-// nettoyée (cas de déduplication).
-function finalizeStreaming(mid, finalText, timestamp) {
+// nettoyée (cas de déduplication). extra : { links, files } de la réponse.
+function finalizeStreaming(mid, finalText, timestamp, extra) {
+  extra = extra || {};
   if (streamingMessageId !== mid || !streamingMessageEl) {
     // Pas de bulle de streaming en cours pour ce message : rendu normal.
     // C'est une réponse fraîche → l'aperçu s'ouvre tout seul.
     if (finalText !== null && finalText !== undefined) {
-      addMessage(finalText, false, timestamp, true);
+      addMessage(finalText, false, timestamp, true, extra);
     }
     return;
   }
@@ -958,9 +1004,10 @@ function finalizeStreaming(mid, finalText, timestamp) {
     streamingMessageEl.classList.remove('streaming');
     streamingMessageEl.innerHTML =
       '<div class="ai-icon">' + ROBOT_SVG + '</div>' +
-      '<div class="bubble"><div class="md" dir="auto">' + renderMarkdown(finalText) + '</div>' +
+      '<div class="bubble"><div class="md" dir="auto">' +
+      renderMarkdown(finalText, { preview: true, links: extra.links }) + '</div>' +
       '<span class="time">' + time + '</span></div>';
-    attachArtifactButton(streamingMessageEl.querySelector('.bubble'), finalText, true);
+    attachAnswerFiles(streamingMessageEl, finalText, extra.files, true);
   }
   streamingMessageEl = null;
   streamingMessageId = null;
@@ -1064,15 +1111,35 @@ messagesEl.addEventListener('scroll', function () {
 
 // Rendu partagé avec la vue de l'extension VS Code (markdown.js) : titres,
 // listes imbriquées, tableaux, code, liens, citations [n] du bloc 📚 Sources.
-// options.cursor : curseur du streaming après le dernier caractère.
+// options.cursor : curseur du streaming après le dernier caractère ;
+// options.preview : réponse écrite du chat, ses blocs HTML et SVG portent un
+// bouton « Aperçu » ; options.links : fichiers qu'elle cite ou nomme (PC),
+// cliquables comme dans la fenêtre (les dossiers restent du texte).
 function renderMarkdown(text, options) {
-  var opts = { codeActions: CODE_ACTIONS };
-  if (options && options.cursor) opts.cursor = true;
+  options = options || {};
+  var opts = { codeActions: options.preview && !options.cursor ? CHAT_CODE_ACTIONS : CODE_ACTIONS };
+  if (options.cursor) opts.cursor = true;
+  if (options.links) {
+    opts.links = options.links.filter(function (link) {
+      return link && link.text && link.path && !link.dir;
+    }).map(function (link) {
+      return { text: link.text, path: link.path, whole: !!link.name };
+    });
+  }
   return window.MyAIMarkdown.render(text, opts);
 }
 
 // Bouton « Copier » des blocs de code : chat, vue Code et page Agents
 var CODE_ACTIONS = [{ action: 'copy', label: T('md.copy') }];
+// Réponse du chat : « Aperçu » sur un bloc HTML ou SVG (comme dans la fenêtre)
+var CHAT_CODE_ACTIONS = [
+  {
+    action: 'preview',
+    label: T('preview.button'),
+    accepts: function (code, lang) { return !!window.MyAIPreview.artifactKind(code, lang); }
+  },
+  { action: 'copy', label: T('md.copy') }
+];
 
 function copyText(text) {
   if (navigator.clipboard && window.isSecureContext) {
@@ -1099,7 +1166,21 @@ function copyText(text) {
 }
 
 document.addEventListener('click', function (event) {
-  var button = event.target instanceof Element ? event.target.closest('.md-code-btn') : null;
+  var target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+  // Fichier cité ou nommé par une réponse : son aperçu, demandé au PC
+  var link = target.closest('a.md-file');
+  if (link) {
+    event.preventDefault();
+    var path = link.getAttribute('data-path') || '';
+    preview.open([{ type: 'file', name: baseName(path), path: path }], 0);
+    return;
+  }
+  var button = target.closest('.md-code-btn');
+  if (button && button.dataset.action === 'preview') {
+    openBlockPreview(button);
+    return;
+  }
   if (!button || button.dataset.action !== 'copy') return;
   var code = button.closest('.md-code').querySelector('pre code');
   copyText(code ? code.textContent : '').then(function () {
@@ -1111,169 +1192,268 @@ document.addEventListener('click', function (event) {
 });
 
 // ═══════════════════════════════════════════════════
-// ARTIFACTS (aperçu live HTML/SVG)
-// Détection client-side miroir de interfaces/artifacts.py. Rendu dans une
-// <iframe sandbox> via srcdoc → 100% local, aucune requête réseau.
+// APERÇU (preview.js) : fichiers et blocs HTML/SVG dans une modale plein
+// écran (pas de volet de côté sur un téléphone). Un fichier du PC (pièce
+// jointe, fichier cité, document produit) est demandé au Relay
+// (file_preview), qui ne montre que ceux de la conversation.
 // ═══════════════════════════════════════════════════
 
-var ARTIFACT_FENCE_RE = /```([\w+#.-]+)?[ \t]*\n?([\s\S]*?)```/g;
-var ARTIFACT_HTML_HINT = /<!doctype html|<html[\s>]|<body[\s>]|<head[\s>]|<div[\s>]|<table[\s>]/i;
-var ARTIFACT_SVG_HINT = /<svg[\s>]/i;
-
-function detectArtifacts(text) {
-  if (!text || text.indexOf('```') === -1) return [];
-  var artifacts = [];
-  var m;
-  ARTIFACT_FENCE_RE.lastIndex = 0;
-  while ((m = ARTIFACT_FENCE_RE.exec(text)) !== null) {
-    var lang = (m[1] || '').toLowerCase().trim();
-    var code = (m[2] || '').trim();
-    if (!code) continue;
-    var kind = null;
-    if (lang === 'svg' || (ARTIFACT_SVG_HINT.test(code.slice(0, 300)) && ARTIFACT_SVG_HINT.test(code))) {
-      kind = 'svg';
-    } else if (lang === 'html' || lang === 'htm' || lang === 'xhtml') {
-      kind = 'html';
-    } else if ((lang === 'xml' || lang === '' || ['html', 'htm', 'xhtml'].indexOf(lang) === -1) && ARTIFACT_HTML_HINT.test(code)) {
-      kind = 'html';
-    }
-    if (!kind) continue;
-    artifacts.push({ kind: kind, code: code, title: deriveArtifactTitle(code, kind, artifacts.length) });
+var preview = window.MyAIPreview.create({
+  strings: {
+    close: T('preview.close'),
+    previous: T('preview.previous'),
+    next: T('preview.next'),
+    position: T('preview.position'),
+    download: T('preview.download'),
+    openBrowser: T('preview.openBrowser'),
+    preview: T('preview.button'),
+    code: T('preview.code'),
+    copy: T('md.copy'),
+    copied: T('md.copied'),
+    loading: T('preview.loading'),
+    none: T('preview.none'),
+    failed: T('preview.failed'),
+    truncated: T('preview.truncated')
+  },
+  locale: window.RelayI18n ? window.RelayI18n.locale : undefined,
+  // Le bouton Retour du téléphone ferme l'aperçu au lieu de quitter la page
+  history: true,
+  request: requestFilePreview,
+  save: saveFile,
+  copy: copyText,
+  // Fallback « Ouvrir dans le navigateur » : Blob local, nouvel onglet
+  openBrowser: function (html) {
+    try {
+      var blob = new Blob([html], { type: 'text/html' });
+      window.open(URL.createObjectURL(blob), '_blank', 'noopener');
+    } catch (err) { /* no-op */ }
   }
-  return artifacts;
-}
+});
 
-function deriveArtifactTitle(code, kind, index) {
-  var t = code.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (t && t[1].trim()) return t[1].trim().slice(0, 80);
-  var h = code.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  if (h) {
-    var txt = h[1].replace(/<[^>]+>/g, '').trim();
-    if (txt) return txt.slice(0, 80);
-  }
+function untitledArtifact(kind, index) {
   return T(kind === 'svg' ? 'artifact.svg' : 'artifact.html', { n: index + 1 });
 }
 
-function buildArtifactDoc(art) {
-  var head = art.code.replace(/^\s+/, '').slice(0, 200).toLowerCase();
-  var isFullDoc = head.indexOf('<!doctype') === 0 || head.indexOf('<html') === 0 || head.slice(0, 50).indexOf('<html') !== -1;
-  if (art.kind === 'html' && isFullDoc) return art.code;
-  var body = art.kind === 'svg'
-    ? '<div style="display:flex;justify-content:center">' + art.code + '</div>'
-    : art.code;
-  return '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<style>html,body{margin:0;padding:0}body{background:#212121;color:#fff;' +
-    'font-family:"Segoe UI",system-ui,sans-serif;padding:16px;box-sizing:border-box}</style>' +
-    '</head><body>' + body + '</body></html>';
+function baseName(path) {
+  return String(path || '').split(/[\\/]/).pop() || String(path || '');
 }
 
-// Ajoute un bouton « Aperçu » dans une bulle IA si elle contient un artifact
-// (bloc HTML/SVG) ou si un document a été généré pendant le tour.
-// `autoOpen` ouvre la modale sans clic, comme sur le desktop ; il vaut false
-// au rechargement de l'historique pour ne pas surgir sur chaque ancien message.
-function attachArtifactButton(bubbleEl, text, autoOpen) {
-  if (!bubbleEl) return;
-  var artifacts = detectArtifacts(text);
-  // Les documents en attente appartiennent à la réponse qu'on rend ici.
-  if (pendingDocuments.length) {
-    artifacts = artifacts.concat(pendingDocuments);
+// Envoi du téléphone, rangé sur le PC sous « <identifiant>_<nom> »
+function uploadName(path) {
+  return baseName(path).replace(/^[0-9a-f]{16}_(?=.)/, '');
+}
+
+var IMAGE_NAME = /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif|heic|heif|tiff?)$/i;
+
+// Pièces jointes d'un message de l'historique (chemins sur le PC)
+function historyAttachments(message) {
+  var list = [];
+  if (message.image_path) {
+    list.push({ name: uploadName(message.image_path), path: message.image_path, isImage: true });
+  }
+  (message.file_paths || []).forEach(function (path) {
+    list.push({ name: uploadName(path), path: path, isImage: IMAGE_NAME.test(path) });
+  });
+  return list;
+}
+
+// Pièce jointe → élément de l'aperçu
+function attachmentItem(att) {
+  return {
+    type: 'file', name: att.name, path: att.path || '', fileId: att.fileId || '',
+    file: att.file || null, isImage: !!att.isImage, icon: att.isImage ? '🖼️' : '📎'
+  };
+}
+
+// Vignettes cliquables (pièces jointes, documents) : chacune ouvre l'aperçu
+// sur elle, ‹ k/n › passe aux autres éléments du groupe
+function fileChips(items, group, offset) {
+  var box = document.createElement('div');
+  box.className = 'file-chips';
+  items.forEach(function (item, i) {
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'file-chip';
+    var label = item.payload && item.payload.label;
+    chip.innerHTML =
+      '<span class="file-chip-icon">' + (item.icon || '📄') + '</span>' +
+      '<span class="file-chip-name" dir="auto">' + escapeHtml(item.name) + '</span>' +
+      (label ? '<span class="file-chip-meta">' + escapeHtml(label) + '</span>' : '');
+    chip.title = item.name;
+    chip.onclick = function () { preview.open(group, offset + i); };
+    box.appendChild(chip);
+  });
+  return box;
+}
+
+// Réponse finie : ses blocs HTML/SVG, ses documents (cartes) et, depuis
+// l'historique, ses images produites. Fraîche, l'aperçu s'ouvre tout seul sur
+// son premier élément, comme dans la fenêtre.
+function attachAnswerFiles(msgEl, text, files, fresh) {
+  var bubble = msgEl.querySelector('.bubble');
+  if (!bubble) return;
+  var blocks = window.MyAIPreview.detectArtifacts(text, untitledArtifact);
+  var documents = [];
+  if (fresh && pendingDocuments.length) {
+    documents = pendingDocuments;
     pendingDocuments = [];
   }
-  if (!artifacts.length) return;
-  var first = artifacts[0];
-  var btn = document.createElement('button');
-  btn.className = 'artifact-btn';
-  btn.type = 'button';
-  btn.innerHTML = '&#x1F50D; ' + escapeHtml(artifacts.length > 1
-    ? T('preview.buttonCount', { count: artifacts.length })
-    : T('preview.button'));
-  btn.onclick = function () { openArtifactPreview(first); };
-  bubbleEl.appendChild(btn);
-  if (autoOpen) openArtifactPreview(first);
-}
-
-function ensureArtifactOverlay() {
-  var overlay = document.getElementById('artifactOverlay');
-  if (overlay) return overlay;
-  overlay = document.createElement('div');
-  overlay.className = 'artifact-overlay';
-  overlay.id = 'artifactOverlay';
-  overlay.innerHTML =
-    '<div class="artifact-modal">' +
-      '<div class="artifact-head">' +
-        '<span class="artifact-title" id="artifactTitle">' + escapeHtml(T('preview.button')) + '</span>' +
-        '<div class="artifact-tools">' +
-          '<button class="artifact-tool" id="artifactDownloadBtn" title="' + escapeHtml(T('preview.download')) + '">&#x1F4BE;</button>' +
-          '<button class="artifact-tool" id="artifactOpenBtn" title="' + escapeHtml(T('preview.openBrowser')) + '">&#x1F310;</button>' +
-          '<button class="artifact-tool" id="artifactCloseBtn" title="' + escapeHtml(T('preview.close')) + '">&#x2716;</button>' +
-        '</div>' +
-      '</div>' +
-      '<iframe class="artifact-frame" id="artifactFrame" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>' +
-    '</div>';
-  document.body.appendChild(overlay);
-  overlay.querySelector('#artifactCloseBtn').onclick = closeArtifactPreview;
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) closeArtifactPreview();
+  (files || []).forEach(function (file) {
+    if (!file || !file.path) return;
+    if (file.kind === 'image') {
+      // Réponse en direct : l'image est déjà affichée (ai_image)
+      if (!fresh) historyImage(msgEl, file);
+      return;
+    }
+    if (documents.some(function (doc) { return doc.path === file.path; })) return;
+    documents.push({ type: 'file', name: file.name || baseName(file.path), path: file.path });
   });
-  return overlay;
-}
-
-function openArtifactPreview(art) {
-  var overlay = ensureArtifactOverlay();
-  var isDoc = art.kind === 'document';
-  // Un document arrive déjà rendu en HTML par l'hôte (document_preview.py) ;
-  // un bloc de code est enveloppé ici.
-  var doc = isDoc ? (art.html || '') : buildArtifactDoc(art);
-  overlay.querySelector('#artifactTitle').textContent = art.title || T('preview.button');
-  var frame = overlay.querySelector('#artifactFrame');
-  frame.srcdoc = doc;
-  // Fallback « Ouvrir dans le navigateur » : Blob local, nouvel onglet.
-  overlay.querySelector('#artifactOpenBtn').onclick = function () {
-    try {
-      var blob = new Blob([doc], { type: 'text/html' });
-      window.open(URL.createObjectURL(blob), '_blank', 'noopener');
-    } catch (err) { /* no-op */ }
-  };
-  // 💾 Téléchargement : seulement pour un vrai fichier, reconstruit depuis
-  // le base64 déchiffré (il n'a jamais transité en clair).
-  var dlBtn = overlay.querySelector('#artifactDownloadBtn');
-  if (isDoc && art.data) {
-    dlBtn.style.display = '';
-    dlBtn.onclick = function () { downloadArtifactDocument(art); };
-  } else {
-    dlBtn.style.display = 'none';
-    dlBtn.onclick = null;
+  var items = blocks.concat(documents);
+  msgEl._previewItems = items;
+  if (documents.length) {
+    bubble.insertBefore(fileChips(documents, items, blocks.length), bubble.querySelector('.time'));
   }
-  overlay.classList.add('active');
+  if (fresh && items.length) {
+    setTimeout(function () { if (msgEl.isConnected) preview.open(items, 0); }, 120);
+  }
 }
 
-// Reconstitue le fichier depuis son base64 et déclenche le téléchargement.
-function downloadArtifactDocument(art) {
+// Image produite, depuis l'historique : demandée au PC, puis affichée comme en direct
+function historyImage(msgEl, file) {
+  var holder = document.createElement('div');
+  holder.className = 'message ai';
+  holder.innerHTML = '<div class="ai-icon">&#x1F3A8;</div>';
+  var bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  holder.appendChild(bubble);
+  var item = { type: 'file', name: file.name || baseName(file.path), path: file.path, icon: '🖼️' };
+  bubble.appendChild(fileChips([item], [item], 0));
+  msgEl.parentNode.insertBefore(holder, msgEl);
+  requestFilePreview(item, false).then(function (payload) {
+    if (!payload || payload.ok === false || payload.kind !== 'image') return;
+    item.payload = payload;
+    var img = document.createElement('img');
+    img.className = 'generated-image';
+    img.alt = item.name;
+    img.src = 'data:' + (payload.mime || 'image/png') + ';base64,' + payload.data;
+    img.addEventListener('click', function () { preview.open([item], 0); });
+    bubble.innerHTML = '';
+    bubble.appendChild(img);
+  }).catch(function () { /* la vignette reste */ });
+}
+
+// « Aperçu » d'un bloc : la modale s'ouvre sur lui, les autres éléments de la
+// réponse à côté (‹ k/n ›)
+function openBlockPreview(button) {
+  var block = button.closest('.md-code');
+  var codeEl = block ? block.querySelector('pre code') : null;
+  if (!codeEl) return;
+  var code = codeEl.textContent.trim();
+  var msgEl = button.closest('.message');
+  var items = (msgEl && msgEl._previewItems) || [];
+  var index = -1;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type === 'artifact' && items[i].code === code) { index = i; break; }
+  }
+  if (index === -1) {
+    var langEl = block.querySelector('.md-code-lang');
+    var kind = window.MyAIPreview.artifactKind(code, langEl ? langEl.textContent : '');
+    if (!kind) return;
+    items = [{ type: 'artifact', kind: kind, code: code, title: untitledArtifact(kind, 0) }];
+    index = 0;
+  }
+  preview.open(items, index);
+}
+
+// Pièce jointe pas encore envoyée : son aperçu (les autres prêtes à côté)
+function openPendingAttachment(localId) {
+  var openable = pendingAttachments.filter(function (a) {
+    return a.status === 'ready' || (a.isImage && a.file && a.status !== 'error');
+  });
+  var index = openable.findIndex(function (a) { return a.localId === localId; });
+  if (index === -1) return;
+  preview.open(openable.map(attachmentItem), index);
+}
+
+// Image du téléphone : lue sur place, sans attendre le PC
+function readLocalImage(item) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var url = String(reader.result || '');
+      var comma = url.indexOf(',');
+      resolve({
+        ok: true, kind: 'image', name: item.name, size: item.file.size,
+        mime: item.file.type || 'image/png', data: comma === -1 ? '' : url.slice(comma + 1)
+      });
+    };
+    reader.onerror = function () { reject(reader.error || new Error(T('upload.error'))); };
+    reader.readAsDataURL(item.file);
+  });
+}
+
+// Aperçu (ou fichier, download) d'un fichier du PC : message file_preview,
+// la réponse arrive dans l'enveloppe chiffrée (settlePreview)
+function requestFilePreview(item, download) {
+  if (!download && item.file && item.isImage) return readLocalImage(item);
+  return new Promise(function (resolve, reject) {
+    if (!ws || ws.readyState !== 1) {
+      reject(new Error(T('preview.offline')));
+      return;
+    }
+    var id = 'pv' + (++previewCounter) + '_' + Date.now().toString(36);
+    var request = { type: 'file_preview', request_id: id };
+    if (item.fileId) request.file_id = item.fileId;
+    else request.path = item.path || '';
+    if (download) request.download = true;
+    var timer = setTimeout(function () {
+      delete previewRequests[id];
+      reject(new Error(T('preview.timeout')));
+    }, 90000);
+    previewRequests[id] = { resolve: resolve, reject: reject, timer: timer };
+    wsSendEncrypted(request).catch(function (err) {
+      clearTimeout(timer);
+      delete previewRequests[id];
+      reject(err);
+    });
+  });
+}
+
+function settlePreview(data) {
+  var pending = previewRequests[data.request_id];
+  if (!pending) return;
+  delete previewRequests[data.request_id];
+  clearTimeout(pending.timer);
+  pending.resolve(data);
+}
+
+function failPreviews() {
+  var pending = previewRequests;
+  previewRequests = {};
+  Object.keys(pending).forEach(function (id) {
+    clearTimeout(pending[id].timer);
+    pending[id].reject(new Error(T('preview.offline')));
+  });
+}
+
+// Reconstitue le fichier depuis son base64 et déclenche le téléchargement
+// (il n'a jamais transité en clair).
+function saveFile(name, mime, data) {
   try {
-    var binary = atob(art.data);
+    var binary = atob(data);
     var bytes = new Uint8Array(binary.length);
     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    var url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/octet-stream' }));
     var link = document.createElement('a');
     link.href = url;
-    link.download = art.filename || 'document';
+    link.download = name || 'fichier';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     // Laisser au navigateur le temps de démarrer le téléchargement.
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
   } catch (err) {
-    console.error('[Relay] Téléchargement du document échoué :', err);
-  }
-}
-
-function closeArtifactPreview() {
-  var overlay = document.getElementById('artifactOverlay');
-  if (overlay) {
-    overlay.classList.remove('active');
-    var frame = overlay.querySelector('#artifactFrame');
-    if (frame) frame.srcdoc = '';
+    console.error('[Relay] Téléchargement du fichier échoué :', err);
   }
 }
 

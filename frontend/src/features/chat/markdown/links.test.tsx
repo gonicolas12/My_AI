@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MemoryLink } from '../../../lib/events';
 import { buildChatLinks, citationKey, parseCitationMap, prepareLinks } from './links';
@@ -9,6 +9,12 @@ const revealPath = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock('../../../lib/actions', () => ({ revealPath }));
 const showInMemory = vi.hoisted(() => vi.fn());
 vi.mock('../../../stores/memory', () => ({ showInMemory }));
+const openFilePreview = vi.hoisted(() => vi.fn());
+vi.mock('../../../stores/preview', () => ({ openFilePreview }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const ANSWER = [
   'Python 3.14 apporte un mode sans GIL [1] et les template strings [2].',
@@ -55,8 +61,37 @@ describe('citations et chemins cliquables', () => {
     ]);
     expect(container.querySelector('pre')?.textContent).toContain('Voir [1] et C:\\Users');
 
+    // Un fichier cité s'ouvre dans le volet d'aperçu, jamais dans l'Explorateur
     fireEvent.click(paths[1]!);
-    expect(revealPath).toHaveBeenCalledWith('C:\\Users\\moi\\notes.md');
+    expect(openFilePreview).toHaveBeenCalledWith('C:\\Users\\moi\\notes.md');
+    expect(revealPath).not.toHaveBeenCalled();
+  });
+
+  it('un dossier cité s’ouvre dans l’Explorateur', () => {
+    const folder = 'C:\\Users\\moi\\Projets';
+    const links = buildChatLinks('', [{ text: folder, path: folder, dir: true }]);
+    render(<Markdown text={`Tout est dans ${folder}.`} links={links} />);
+    const link = screen.getByRole('link', { name: folder });
+    expect(link).toHaveAttribute('title', `Afficher dans l’Explorateur : ${folder}`);
+    fireEvent.click(link);
+    expect(revealPath).toHaveBeenLastCalledWith(folder);
+    expect(openFilePreview).not.toHaveBeenCalledWith(folder);
+  });
+
+  it('un fichier de la conversation nommé sans son chemin : cliquable entier, aperçu au clic', () => {
+    const path = 'C:\\Users\\moi\\Téléchargements\\budget.xlsx';
+    const links = buildChatLinks('', [{ text: 'budget.xlsx', path, name: true }]);
+    render(
+      <Markdown
+        text="Dans budget.xlsx (pas MonBudget.xlsx ni budget.xlsx.bak ni D:\\autre\\budget.xlsx), voir `budget.xlsx`."
+        links={links}
+      />,
+    );
+    const named = screen.getAllByRole('link', { name: 'budget.xlsx' });
+    // Le nom au fil du texte et en code ; ni dans un autre nom, ni dans un chemin
+    expect(named).toHaveLength(2);
+    fireEvent.click(named[0]!);
+    expect(openFilePreview).toHaveBeenLastCalledWith(path);
   });
 
   it('ne touche à rien sans table ni chemin', () => {
@@ -162,7 +197,7 @@ describe('documents et dossiers de la Mémoire cliquables', () => {
     ]);
   });
 
-  it('un lien vers un chemin existant le montre dans l’Explorateur', () => {
+  it('un lien vers un fichier existant l’ouvre dans l’aperçu', () => {
     const path = 'C:\\Users\\moi\\Mes rapports\\rapport.docx';
     const links = buildChatLinks('', [{ text: path, path }], MEMORY);
     render(
@@ -172,7 +207,7 @@ describe('documents et dossiers de la Mémoire cliquables', () => {
       />,
     );
     fireEvent.click(screen.getByRole('link', { name: 'le rapport' }));
-    expect(revealPath).toHaveBeenLastCalledWith(path);
+    expect(openFilePreview).toHaveBeenLastCalledWith(path);
     // Chemin absent du disque, mais nom de la Mémoire : la Mémoire
     fireEvent.click(screen.getByRole('link', { name: 'Data' }));
     expect(showInMemory).toHaveBeenLastCalledWith('Data.xlsx', 'Data.xlsx');

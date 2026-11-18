@@ -369,6 +369,7 @@ class DesktopApp:
             ui_connected=lambda: self.bus.subscriber_count > 0,
             on_session_change=lambda session_id: self.state.set("current_session", session_id),
             on_images_sent=self._remember_chat_images,
+            on_document_stored=self._keep_chat_document,
         )
         self.chat.start()
         # Chat mobile : traité ici, fenêtre ouverte ou non
@@ -443,6 +444,11 @@ class DesktopApp:
                 self._memory = MemoryService(lambda: self.engine, lambda: self.chat,
                                              publish=self.bus.publish)
             return self._memory
+
+    def _keep_chat_document(self, path: str, name: str) -> None:
+        """Document joint au chat, rangé en mémoire : la copie de son fichier, pour
+        l'aperçu de l'onglet Documents (comme un document ajouté à la main)."""
+        self.memory.keep_chat_document(path, name)
 
     def _remember_chat_images(self, paths: List[str]) -> None:
         """Images envoyées dans le chat : rangées dans l'onglet Documents, comme

@@ -45,6 +45,10 @@
 
   var CURSOR = '<span class="md-cursor"></span>';
   var SLOT = /\uE000(\d+)\uE001/g;
+  // Lettres et chiffres des écritures à espaces : un nom de fichier collé à l'un
+  // d'eux est le bout d'un autre mot (« MonRapport.pdf »), comme côté PC
+  // (chat_service.named_file_links). Sans lookbehind : Safari < 16.4 n'en a pas
+  var NAME_WORD = '0-9A-Za-z_\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF\\u1E00-\\u1EFF';
 
   function escapeHtml(text) {
     return String(text == null ? '' : text)
@@ -411,6 +415,41 @@
     return { label: src.slice(i + 1, j), url: url, end: k + 1 };
   }
 
+  function regexEscape(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Liens de fichiers d'une réponse (options.links) : un chemin cité, ou le nom
+   * d'un fichier de la conversation (whole : entier seulement). La page gère
+   * leurs clics (a.md-file, data-path ; data-folder pour un dossier).
+   */
+  function fileLinker(links) {
+    var list = (links || []).filter(function (link) {
+      return link && link.text && link.path;
+    }).slice().sort(function (a, b) { return b.text.length - a.text.length; });
+    if (!list.length) return null;
+    var byText = {};
+    var parts = list.map(function (link) {
+      var escaped = escapeHtml(link.text);
+      byText[escaped] = link;
+      var body = regexEscape(escaped);
+      return link.whole ? '(?:' + body + ')(?![' + NAME_WORD + '-]|\\.[' + NAME_WORD + '])' : body;
+    });
+    // Groupe 1 : le caractère d'avant (bord d'un nom entier) ; groupe 2 : le lien
+    var pattern = new RegExp('(^|[\\s\\S])(' + parts.join('|') + ')', 'g');
+    var edge = new RegExp('[' + NAME_WORD + './\\\\-]');
+    return function (html) {
+      return html.replace(pattern, function (match, before, found, offset) {
+        var link = byText[found];
+        if (!link) return match;
+        if (link.whole && before && edge.test(before)) return match;
+        return before + '<a href="#" class="md-file" data-path="' + escapeHtml(link.path) + '"' +
+          (link.folder ? ' data-folder="1"' : '') + '>' + found + '</a>';
+      });
+    };
+  }
+
   function emphasis(html) {
     return html
       .replace(/\*\*\*(?=[^\s*])([\s\S]*?[^\s*])\*\*\*/g, '<strong><em>$1</em></strong>')
@@ -459,7 +498,8 @@
         } else {
           var code = text.slice(i + ticks.length, close).replace(/\n/g, ' ');
           if (/^ [\s\S]* $/.test(code) && code.trim()) code = code.slice(1, -1);
-          html = '<code>' + escapeHtml(code) + '</code>';
+          html = '<code>' + (ctx.files ? ctx.files(escapeHtml(code)) : escapeHtml(code)) +
+            '</code>';
           taken = close + ticks.length - i;
         }
       } else if (!inLink && (ch === '[' || (ch === '!' && text.charAt(i + 1) === '['))) {
@@ -501,6 +541,8 @@
     out += text.slice(last);
 
     var result = emphasis(escapeHtml(out));
+    // Liens de fichiers avant les citations : leurs adresses ne sont pas du texte
+    if (ctx.files && !inLink) result = ctx.files(result);
     if (ctx.citations && !inLink) {
       result = result.replace(/\[(\d{1,3})\]/g, function (marker, n) {
         var source = ctx.citations[n];
@@ -530,7 +572,14 @@
 
   function renderCode(block, ctx) {
     var lang = (block.lang || '').replace(/[^\w+#.\-]/g, '').slice(0, 24);
-    var actions = ctx.codeActions || [];
+    // Une action peut ne valoir que pour certains blocs : langs (html, svg…) ou
+    // accepts(code, langage) (bloc HTML écrit sans langage)
+    var actions = (ctx.codeActions || []).filter(function (action) {
+      // Bloc encore en cours d'écriture : pas d'action réservée à certains blocs
+      if (block.cursor && (action.langs || action.accepts)) return false;
+      if (typeof action.accepts === 'function') return action.accepts(block.text, lang.toLowerCase());
+      return !action.langs || action.langs.indexOf(lang.toLowerCase()) !== -1;
+    });
     var head = '';
     if (lang || actions.length) {
       head = '<div class="md-code-head"><span class="md-code-lang">' + escapeHtml(lang) + '</span>';
@@ -606,14 +655,22 @@
   /**
    * Markdown → HTML.
    * options.cursor : curseur du streaming après le dernier caractère ;
-   * options.codeActions : boutons des blocs de code, [{ action, label }]
-   * (la page gère leurs clics : data-action, texte dans pre > code).
+   * options.codeActions : boutons des blocs de code, [{ action, label, langs?,
+   * accepts? }] (la page gère leurs clics : data-action, texte dans pre > code) ;
+   * langs ou accepts(code, langage) les réservent à certains blocs (Aperçu d'un
+   * bloc HTML ou SVG).
+   * options.links : fichiers à rendre cliquables, [{ text, path, folder?, whole? }]
+   * (a.md-file, data-path) : chemins cités, noms de fichiers de la conversation.
    */
   function render(text, options) {
     options = options || {};
     var source = String(text == null ? '' : text)
       .replace(/[\uE000\uE001]/g, '').replace(/\r\n?/g, '\n');
-    var ctx = { citations: citationMap(source), codeActions: options.codeActions };
+    var ctx = {
+      citations: citationMap(source),
+      codeActions: options.codeActions,
+      files: fileLinker(options.links)
+    };
     var blocks = parseBlocks(source.split('\n').map(expandIndent));
     if (options.cursor && !markLast(blocks)) return '<p>' + CURSOR + '</p>';
     return renderBlocks(blocks, ctx, false);

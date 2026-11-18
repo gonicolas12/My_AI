@@ -15,7 +15,10 @@ Le PDF fait exception : Edge et les navigateurs ont un lecteur PDF natif, donc
 
 from __future__ import annotations
 
+import base64
 import html
+import mimetypes
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -60,6 +63,35 @@ def _text(key: str, **params: Any) -> str:
 # Au-delà, l'aperçu d'une feuille Excel est tronqué (le volet n'est pas un tableur).
 _XLSX_MAX_ROWS = 200
 _XLSX_MAX_COLUMNS = 40
+
+# Markdown qui contient du HTML (en-tête d'un README : <div align>, <img>, <br>) :
+# rendu avec son HTML, assaini comme sur GitHub. Sans HTML, le rendu habituel
+_MARKDOWN_HTML = re.compile(
+    r"<(?:div|img|br|p|span|a|details|summary|table|picture|h[1-6]|sup|sub|kbd)\b",
+    re.IGNORECASE)
+_SAFE_TAGS = frozenset({
+    "a", "abbr", "b", "blockquote", "br", "code", "dd", "del", "details", "div", "dl", "dt",
+    "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd", "li", "ol", "p",
+    "pre", "q", "s", "samp", "section", "span", "strike", "strong", "sub", "summary", "sup",
+    "table", "tbody", "td", "tfoot", "th", "thead", "tr", "tt", "ul", "var"})
+# Retirées avec tout leur contenu (le reste des balises inconnues ne garde que son texte)
+_DROPPED_TAGS = frozenset({"script", "style", "iframe", "object", "embed", "form", "input",
+                           "button", "select", "textarea", "link", "meta", "svg", "math",
+                           "template", "noscript", "frame", "frameset", "base"})
+_SAFE_ATTRIBUTES = frozenset({"align", "alt", "title", "width", "height", "colspan",
+                              "rowspan", "dir", "lang", "open", "valign", "href", "src"})
+_SAFE_LINK = re.compile(r"^(?:https?:|mailto:|#)", re.IGNORECASE)
+# Images du dossier du Markdown, mises dans la page (seules les images data: s'y affichent)
+_INLINE_IMAGE_MAX = 2 * 1024 * 1024
+_INLINE_IMAGES_TOTAL = 4 * 1024 * 1024
+_INLINE_IMAGE_TYPES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg",
+                                 ".ico", ".avif"})
+
+# PDF en images de ses pages (iframe du téléphone, qui ne lit pas les PDF) : les
+# premières pages, à cette largeur, en JPEG
+_PDF_PAGES_MAX = 12
+_PDF_PAGE_WIDTH = 1000
+_PDF_JPEG_QUALITY = 80
 
 
 # ── Page d'enveloppe ───────────────────────────────────────────────────────
@@ -161,6 +193,14 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
     color: var(--muted); font-size: 12.5px;
   }}
   .empty {{ color: var(--muted); font-style: italic; }}
+  .md-file img {{ max-width: 100%; height: auto; vertical-align: middle; }}
+  .md-file div[align="center"], .md-file p[align="center"] {{ text-align: center; }}
+  .md-file summary {{ cursor: pointer; font-weight: 600; }}
+  .pdf-page {{
+    display: block; width: 100%; height: auto; margin: 0 0 16px;
+    border: 1px solid var(--rule); border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
+  }}
   .truncated {{
     color: var(--muted); font-size: 12.5px; font-style: italic; margin-top: 6px;
   }}
@@ -214,12 +254,14 @@ def needs_native_viewer(path: str) -> bool:
     return Path(path).suffix.lower() in _NATIVE_VIEWER
 
 
-def build_document_preview(path: str) -> str:
+def build_document_preview(path: str, name: Optional[str] = None) -> str:
     """
     Construit la page d'aperçu HTML d'un document.
 
     Args:
         path: Chemin du document (docx, xlsx, pptx, csv, md, txt…)
+        name: Nom affiché en tête (pièce jointe du téléphone : celui qu'elle avait
+            à l'envoi), le nom du fichier sinon
 
     Returns:
         Un document HTML complet. En cas d'échec de lecture, une page
@@ -232,7 +274,7 @@ def build_document_preview(path: str) -> str:
     label = tr(key) if key else (suffix.lstrip(".").upper() or tr("file.format.unknown"))
     header = (
         f'<div class="doc-kind">{html.escape(label)}</div>'
-        f'<h1 class="doc-name" dir="auto">{html.escape(file_path.name)}</h1>'
+        f'<h1 class="doc-name" dir="auto">{html.escape(name or file_path.name)}</h1>'
     )
 
     try:
@@ -247,7 +289,11 @@ def build_document_preview(path: str) -> str:
         elif suffix == ".pdf":
             body = header + _render_pdf(str(file_path))
         elif suffix in (".md", ".markdown"):
-            body = header + render_blocks_html(parse_markdown(_read_text(file_path)), "")
+            source = _read_text(file_path)
+            if _MARKDOWN_HTML.search(source):
+                body = header + render_markdown_with_html(source, file_path.parent)
+            else:
+                body = header + render_blocks_html(parse_markdown(source), "")
         else:
             body = header + f'<pre dir="auto">{html.escape(_read_text(file_path))}</pre>'
     except Exception as exc:  # noqa: BLE001 - l'aperçu ne doit jamais faire tomber le volet
@@ -255,7 +301,83 @@ def build_document_preview(path: str) -> str:
             f'<p class="empty">{_text("docpreview.unavailable", error=exc)}</p>'
         )
 
-    return wrap_preview_page(file_path.stem, body)
+    return wrap_preview_page(Path(name).stem if name else file_path.stem, body)
+
+
+# ── Markdown avec du HTML (README) ─────────────────────────────────────────
+
+
+def _inline_image(src: str, folder: Optional[Path], budget: List[int]) -> Optional[str]:
+    """Image relative du dossier du Markdown en data: ; None si elle n'en est pas une."""
+    if folder is None or not src or re.match(r"^[a-z][a-z0-9+.-]*:|^[\\/]", src, re.IGNORECASE):
+        return None
+    from urllib.parse import unquote  # pylint: disable=import-outside-toplevel
+
+    relative = unquote(src.split("#", 1)[0].split("?", 1)[0])
+    try:
+        root = folder.resolve()
+        target = (root / relative).resolve()
+        target.relative_to(root)  # jamais hors du dossier du Markdown
+    except (OSError, ValueError):
+        return None
+    if target.suffix.lower() not in _INLINE_IMAGE_TYPES or not target.is_file():
+        return None
+    size = target.stat().st_size
+    if size > _INLINE_IMAGE_MAX or size > budget[0]:
+        return None
+    budget[0] -= size
+    mime = mimetypes.guess_type(target.name)[0] or "image/png"
+    return f"data:{mime};base64,{base64.b64encode(target.read_bytes()).decode('ascii')}"
+
+
+def sanitize_html(fragment: str, folder: Optional[Path] = None) -> str:
+    """HTML d'un fichier, assaini comme sur GitHub : balises et attributs sûrs seuls,
+    liens web, images du dossier du fichier mises en data: (les autres deviennent
+    leur texte de remplacement). Ni script, ni gestionnaire d'événement, ni style."""
+    from bs4 import BeautifulSoup  # pylint: disable=import-outside-toplevel
+
+    soup = BeautifulSoup(fragment, "html.parser")
+    for tag in soup.find_all(list(_DROPPED_TAGS)):
+        tag.decompose()
+    budget = [_INLINE_IMAGES_TOTAL]
+    for tag in soup.find_all(True):
+        if tag.name not in _SAFE_TAGS:
+            tag.unwrap()
+            continue
+        for name in list(tag.attrs):
+            if name.lower() not in _SAFE_ATTRIBUTES:
+                del tag.attrs[name]
+        href = tag.get("href")
+        if href is not None and (tag.name != "a" or not _SAFE_LINK.match(str(href).strip())):
+            del tag.attrs["href"]
+        if tag.name == "a" and tag.get("href"):
+            tag["target"] = "_blank"
+            tag["rel"] = "noopener noreferrer"
+        if "src" in tag.attrs:
+            inline = _inline_image(str(tag["src"]), folder, budget) if tag.name == "img" else None
+            if inline:
+                tag["src"] = inline
+            elif tag.name == "img":
+                alt = soup.new_tag("span")
+                alt["class"] = "empty"
+                alt.string = f"[{tag.get('alt') or 'image'}]"
+                tag.replace_with(alt)
+            else:
+                del tag.attrs["src"]
+    return str(soup)
+
+
+def render_markdown_with_html(source: str, folder: Optional[Path] = None) -> str:
+    """Markdown d'un fichier, son HTML compris (README de GitHub), en HTML assaini.
+
+    markdown-it suit CommonMark, comme GitHub : du Markdown entre deux balises
+    HTML (un titre dans <div align="center">) reste du Markdown.
+    """
+    from markdown_it import MarkdownIt  # pylint: disable=import-outside-toplevel
+
+    parser = MarkdownIt("commonmark", {"html": True}).enable(["table", "strikethrough"])
+    rendered = parser.render(source)
+    return f'<div class="md-file" dir="auto">{sanitize_html(rendered, folder)}</div>'
 
 
 # ── Rendu depuis des blocs Markdown ────────────────────────────────────────
@@ -577,14 +699,57 @@ def _render_pptx(path: str) -> str:
     return "\n".join(parts)
 
 
+def _pdf_page_images(path: str) -> Optional[str]:
+    """
+    Les premières pages d'un PDF en images (JPEG en data:), ou None sans PyMuPDF.
+
+    Le PDF garde ainsi sa mise en page dans la modale du téléphone, comme dans
+    son lecteur : la politique de la page n'y permet que les images data:.
+    """
+    try:
+        import pymupdf  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        try:
+            import fitz as pymupdf  # pylint: disable=import-outside-toplevel
+        except ImportError:
+            return None
+    import base64  # pylint: disable=import-outside-toplevel
+
+    with pymupdf.open(path) as document:
+        total = document.page_count
+        if not total:
+            return f'<p class="empty">{_text("docpreview.emptyDocument")}</p>'
+        parts = []
+        for number in range(min(total, _PDF_PAGES_MAX)):
+            page = document[number]
+            zoom = _PDF_PAGE_WIDTH / max(page.rect.width, 1)
+            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            data = base64.b64encode(pixmap.tobytes("jpeg", jpg_quality=_PDF_JPEG_QUALITY))
+            label = html.escape(tr("docpreview.pdfPage", page=number + 1, pages=total))
+            parts.append(f'<img class="pdf-page" alt="{label}" title="{label}" '
+                         f'src="data:image/jpeg;base64,{data.decode("ascii")}">')
+        if total > _PDF_PAGES_MAX:
+            parts.append(f'<p class="truncated">'
+                         f'{_text("docpreview.pdfPagesShown", shown=_PDF_PAGES_MAX, pages=total)}'
+                         f'</p>')
+    return "\n".join(parts)
+
+
 def _render_pdf(path: str) -> str:
     """
-    Rend le texte extrait d'un PDF.
+    Rend un PDF : ses pages en images, sinon (sans PyMuPDF) son texte extrait.
 
     Le desktop n'emprunte pas ce chemin (``needs_native_viewer`` renvoie True
     et Edge affiche le PDF lui-même) ; il sert à la modale mobile, dont
     l'iframe ``srcdoc`` ne sait pas afficher un PDF.
     """
+    try:
+        pages = _pdf_page_images(path)
+    except Exception:  # noqa: BLE001 - PDF que PyMuPDF ne lit pas : son texte
+        pages = None
+    if pages is not None:
+        return pages
+
     from processors.pdf_processor import PDFProcessor
 
     text = PDFProcessor().extract_text(path)

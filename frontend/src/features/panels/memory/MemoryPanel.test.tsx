@@ -3,7 +3,12 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TooltipProvider } from '../../../components/ui/Tooltip';
-import type { MemoryDocument, MemoryFolder, MemoryPage } from '../../../lib/api';
+import type {
+  MemoryDocument,
+  MemoryDocumentPreview,
+  MemoryFolder,
+  MemoryPage,
+} from '../../../lib/api';
 import { dispatchDroppedPaths } from '../../../lib/drops';
 import { useApp } from '../../../stores/app';
 import {
@@ -26,6 +31,9 @@ const api = vi.hoisted(() => ({
   deleteMemory: vi.fn(),
   deleteMemoryDocument: vi.fn(),
   deleteMemoryFolder: vi.fn(),
+  memoryDocumentPreview: vi.fn(),
+  fileText: vi.fn(),
+  fileLinks: vi.fn(),
 }));
 vi.mock('../../../lib/api', () => ({ api, ApiError: class ApiError extends Error {} }));
 
@@ -33,6 +41,7 @@ const shell = vi.hoisted(() => ({
   canPickFiles: vi.fn(() => true),
   pickFiles: vi.fn(),
   isDesktop: vi.fn(() => true),
+  nativePreview: { available: vi.fn(() => Promise.resolve(false)) },
 }));
 vi.mock('../../../lib/shell', () => ({ shell }));
 
@@ -45,6 +54,23 @@ function page(overrides: Partial<MemoryPage> = {}): MemoryPage {
     stats: { facts: 0, documents: 0, conversations: 0 },
     categories: [],
     jobs: [],
+    ...overrides,
+  };
+}
+
+/** Aperçu d'un document (MemoryService.preview) : texte en mémoire, sans copie du fichier */
+function storedPreview(overrides: Partial<MemoryDocumentPreview> = {}): MemoryDocumentPreview {
+  return {
+    id: 'rapport_pdf_1',
+    name: 'rapport.pdf',
+    label: 'rapport.pdf',
+    folder: null,
+    type: 'PDF',
+    created: '2026-11-17T14:32:00',
+    path: null,
+    size: null,
+    text: 'Texte du rapport.',
+    truncated: false,
     ...overrides,
   };
 }
@@ -447,7 +473,7 @@ describe('MemoryPanel, documents et dossiers', () => {
       within(row)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label')),
-    ).toEqual(['Supprimer « rapport.pdf »']);
+    ).toEqual(['Aperçu de rapport.pdf', 'Supprimer « rapport.pdf »']);
     expect(screen.getByRole('dialog', { name: 'Mémoire locale' })).not.toHaveTextContent(/chunk/i);
     // L'en-tête compte des documents, plus leurs chunks
     expect(screen.getByText('2 faits · 4 documents · 0 entrée conversation')).toBeInTheDocument();
@@ -485,9 +511,12 @@ describe('MemoryPanel, documents et dossiers', () => {
     expect(useMemory.getState().focus).toBeNull();
   });
 
-  it('un fichier d’un dossier, ouvert par un lien : tout le dossier, ce fichier en évidence', async () => {
+  it('un fichier d’un dossier, ouvert par un lien : tout le dossier, ce fichier en évidence et en aperçu', async () => {
     showInMemory('site', 'README.md');
     api.memoryPage.mockResolvedValue(page({ items: [FOLDER], total: 1 }));
+    api.memoryDocumentPreview.mockResolvedValue(
+      storedPreview({ id: 'folder_a', name: 'site/README.md', label: 'README.md', text: '# Site' }),
+    );
     render(
       <TooltipProvider>
         <MemoryPanel />
@@ -501,6 +530,76 @@ describe('MemoryPanel, documents et dossiers', () => {
     expect(rows[0]).toHaveAttribute('aria-current', 'true');
     expect(rows[0]).toHaveTextContent(/^README\.md/);
     expect(rows[1]).not.toHaveAttribute('aria-current');
+    // Le fichier du lien s'ouvre aussi dans le volet d'aperçu, à droite du panneau
+    const aside = await screen.findByRole('region', { name: 'Aperçu' });
+    expect(api.memoryDocumentPreview).toHaveBeenCalledWith('folder_a');
+    expect(await within(aside).findByRole('heading', { name: 'Site' })).toBeInTheDocument();
+  });
+
+  it('un clic sur un document ouvre son aperçu à droite ; Échap referme le volet, puis le panneau', async () => {
+    api.memoryPage.mockResolvedValue(
+      page({ items: [documentGroup({ id: 'notes_1', name: 'notes.md', label: 'notes.md' })] }),
+    );
+    api.memoryDocumentPreview.mockResolvedValue(
+      storedPreview({
+        id: 'notes_1',
+        name: 'notes.md',
+        label: 'notes.md',
+        text: '# Titre\n\nDu **texte**.',
+      }),
+    );
+    const user = await openDocuments();
+    await user.click(await screen.findByRole('button', { name: 'Aperçu de notes.md' }));
+    const aside = await screen.findByRole('region', { name: 'Aperçu' });
+    expect(api.memoryDocumentPreview).toHaveBeenCalledWith('notes_1');
+    // Pas de copie du fichier : le texte en mémoire, rendu, et dit comme tel
+    expect(await within(aside).findByRole('heading', { name: 'Titre' })).toBeInTheDocument();
+    expect(aside).toHaveTextContent('Fichier d’origine non gardé');
+    expect(
+      screen.getByRole('button', { name: 'Aperçu de notes.md' }).closest('li'),
+    ).toHaveAttribute('aria-current', 'true');
+    // Onglet Code : la source Markdown
+    await user.click(within(aside).getByRole('tab', { name: 'Code' }));
+    expect(within(aside).queryByRole('heading', { name: 'Titre' })).not.toBeInTheDocument();
+    expect(aside).toHaveTextContent('# Titre');
+
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Aperçu' })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('dialog', { name: 'Mémoire locale' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(usePanels.getState().open).toBeNull());
+  });
+
+  it('un document dont la Mémoire garde le fichier : l’aperçu du fichier lui-même', async () => {
+    const copy = 'C:/My_AI/memory/vector_store/originals/abc/photo.png';
+    api.memoryPage.mockResolvedValue(
+      page({
+        items: [
+          documentGroup({ id: 'img_1', name: 'photo.png', label: 'photo.png', type: 'Image' }),
+        ],
+      }),
+    );
+    api.memoryDocumentPreview.mockResolvedValue(
+      storedPreview({
+        id: 'img_1',
+        name: 'photo.png',
+        label: 'photo.png',
+        type: 'Image',
+        path: copy,
+        size: 2048,
+        text: null,
+      }),
+    );
+    api.fileLinks.mockResolvedValue({ links: { [copy]: '/files/sig/tok/photo.png' } });
+    const user = await openDocuments();
+    await user.click(await screen.findByRole('button', { name: 'Aperçu de photo.png' }));
+    const aside = await screen.findByRole('region', { name: 'Aperçu' });
+    const image = await within(aside).findByRole('img', { name: 'photo.png' });
+    expect(image).toHaveAttribute('src', '/files/sig/tok/photo.png');
+    expect(aside).toHaveTextContent('Image PNG');
+    expect(aside).not.toHaveTextContent('Fichier d’origine non gardé');
   });
 
   it('une recherche qui ne trouve qu’une partie d’un dossier dit combien il en a en tout', async () => {

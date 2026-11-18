@@ -110,6 +110,10 @@ _DOC_EXTS = {
     ".py", ".js", ".html", ".css", ".json", ".xml", ".md", ".txt",
 }
 _MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 Mo
+# Envois gardés pour leur aperçu (pièce jointe touchée avant ou après l'envoi)
+_UPLOADS_SHOWN_MAX = 500
+# Identifiants d'une demande d'aperçu (file_preview) : bornés
+_PREVIEW_ID = re.compile(r"^[\w.-]{1,64}$")
 
 # ---------------------------------------------------------------------------
 # Imports optionnels
@@ -339,6 +343,9 @@ class RelayServer:
 
         # Uploads mobiles en attente : file_id -> {"path", "is_image", "filename"}
         self._uploads: Dict[str, Dict[str, Any]] = {}
+        # Les mêmes, gardés après l'envoi : l'aperçu d'une pièce jointe, envoyée
+        # ou non (file_preview), les plus anciens oubliés au-delà de _UPLOADS_SHOWN_MAX
+        self._uploads_shown: Dict[str, Dict[str, Any]] = {}
         self._uploads_lock = threading.Lock()
         self._upload_dir = Path(tempfile.gettempdir()) / "my_ai_relay_uploads"
         self._upload_dir.mkdir(exist_ok=True)
@@ -615,15 +622,16 @@ class RelayServer:
     def get_static_assets_version(self) -> str:
         """Version de cache-busting des assets statiques du Relay.
 
-        Basée sur le dernier mtime de la page, de ses scripts (dont markdown.js
-        et turn.js, partagés avec l'extension VS Code), de ses feuilles de
-        style et de ses catalogues.
+        Basée sur le dernier mtime de la page, de ses scripts (dont markdown.js,
+        turn.js et preview.js, partagés avec l'extension VS Code), de ses
+        feuilles de style et de ses catalogues.
         """
         asset_paths = [
             _STATIC_DIR / "index.html",
             _STATIC_DIR / "i18n.js",
             _STATIC_DIR / "markdown.js",
             _STATIC_DIR / "turn.js",
+            _STATIC_DIR / "preview.js",
             _STATIC_DIR / "app.js",
             _STATIC_DIR / "agents.js",
             _STATIC_DIR / "code.js",
@@ -658,6 +666,9 @@ class RelayServer:
                 "filename": filename,
                 "ts": time.time(),
             }
+            self._uploads_shown[file_id] = self._uploads[file_id]
+            while len(self._uploads_shown) > _UPLOADS_SHOWN_MAX:
+                self._uploads_shown.pop(next(iter(self._uploads_shown)))
 
     def consume_upload_ids(self, file_ids: List[str]) -> tuple[Optional[str], List[str]]:
         """Consomme les file_ids et retourne (image_path, file_paths)."""
@@ -685,6 +696,63 @@ class RelayServer:
                 if info:
                     files.append((info["path"], info.get("filename") or Path(info["path"]).name))
         return files
+
+    # ------------------------------------------------------------------
+    # Aperçu d'un fichier (modale du téléphone et de l'extension VS Code)
+    # ------------------------------------------------------------------
+
+    def preview_allowed(self, path: str) -> bool:
+        """Fichier que le Relay montre : envoyé par le téléphone ou VS Code, ou
+        que leurs conversations montrent (pièce jointe, fichier cité ou nommé
+        par une réponse, document ou image produit). Jamais un autre fichier du PC."""
+        if not path or not os.path.isfile(path):
+            return False
+        normalized = os.path.normcase(os.path.abspath(path))
+        try:
+            real = os.path.realpath(path)
+            uploads = os.path.realpath(str(self._upload_dir))
+            if os.path.commonpath([os.path.normcase(real), os.path.normcase(uploads)]) == \
+                    os.path.normcase(uploads):
+                return True
+        except (OSError, ValueError):
+            pass
+        if normalized in self._bridge.known_paths():
+            return True
+        known = getattr(self._code_hub, "known_paths", None)
+        return bool(callable(known) and normalized in known())
+
+    def preview_file(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Réponse à une demande d'aperçu (message WS « file_preview »).
+
+        request : {"file_id"} (envoi du téléphone ou de VS Code) ou {"path"}
+        (fichier de la conversation), et "download" pour le fichier lui-même.
+        Renvoie {"ok": True, kind, name, size…} (relay/file_preview.py) ou
+        {"ok": False, "error"}, message traduit.
+        """
+        from relay import file_preview  # pylint: disable=import-outside-toplevel
+
+        file_id, raw_path = request.get("file_id"), request.get("path")
+        path, name = None, None
+        if isinstance(file_id, str) and file_id:
+            with self._uploads_lock:
+                info = self._uploads_shown.get(file_id)
+            if info:
+                path, name = info["path"], info.get("filename")
+        elif isinstance(raw_path, str) and 0 < len(raw_path) <= 4096:
+            if self.preview_allowed(raw_path):
+                path = raw_path
+                name = file_preview.display_name(raw_path, str(self._upload_dir))
+        if not path:
+            return {"ok": False, "error": tr("files.notFound")}
+        try:
+            if request.get("download"):
+                return {"ok": True, **file_preview.build_download(path, name)}
+            return {"ok": True, **file_preview.build_preview(path, name)}
+        except file_preview.PreviewError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Aperçu Relay impossible (%s) : %s", path, exc)
+            return {"ok": False, "error": tr("files.previewFailed", error=exc)}
 
     # ------------------------------------------------------------------
     # Construction de l'application FastAPI
@@ -861,6 +929,7 @@ class RelayServer:
                     "message_id": message_id,
                     "message": pending,
                     "timestamp": datetime.now().isoformat(),
+                    **server.bridge.response_extras(message_id),
                 })
             partial = server.bridge.get_active_stream(message_id)
             if partial is not None:
@@ -959,10 +1028,13 @@ class RelayServer:
                     detail=tr("relay.unsupportedFormat", ext=ext or tr("relay.unknownExt")),
                 )
 
-            # 5. Écrire le clair sur disque
+            # 5. Écrire le clair sur disque, un dossier par envoi : le fichier
+            # garde son nom (bulle de la fenêtre, réponse qui le nomme, aperçu),
+            # comme les envois de la fenêtre
             file_id = uuid.uuid4().hex[:16]
-            dest = server.upload_dir / f"{file_id}_{safe_name}"
+            dest = server.upload_dir / file_id / safe_name
             try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 with dest.open("wb") as f:
                     f.write(content)
             except Exception as e:
@@ -1203,6 +1275,29 @@ class RelayServer:
                         continue
 
                     # ────────────────────────────────────────────────────
+                    # file_preview : aperçu d'un fichier montré par la
+                    # conversation (téléphone, VS Code), ou le fichier
+                    # lui-même (download). Lu hors de la boucle : un PDF
+                    # rendu en images prend quelques secondes
+                    # ────────────────────────────────────────────────────
+                    if msg_type == "file_preview":
+                        request_id = msg_data.get("request_id")
+                        if not isinstance(request_id, str) or not _PREVIEW_ID.match(request_id):
+                            continue
+
+                        async def _preview(request=msg_data, rid=request_id):
+                            result = await agent_loop.run_in_executor(
+                                None, server.preview_file, request)
+                            outbox_put({"type": "file_preview", "request_id": rid, **result})
+
+                        preview_task = asyncio.create_task(_preview())
+                        agentic_tasks.append(preview_task)
+                        preview_task.add_done_callback(
+                            lambda t: agentic_tasks.remove(t) if t in agentic_tasks else None
+                        )
+                        continue
+
+                    # ────────────────────────────────────────────────────
                     # Conversation Code : vue Code du téléphone, Effacer de
                     # l'extension (les messages de l'extension arrivent en
                     # « chat », plus bas)
@@ -1379,6 +1474,7 @@ class RelayServer:
                                         "message": response_text,
                                         "message_id": mid,
                                         "timestamp": datetime.now().isoformat(),
+                                        **server.bridge.response_extras(mid),
                                     })
                                 except Exception as send_err:
                                     # WS d'origine mort : la réponse reste en cache
@@ -1411,6 +1507,7 @@ class RelayServer:
                                 "message_id": last_id,
                                 "timestamp": datetime.now().isoformat(),
                                 "resumed": True,
+                                **server.bridge.response_extras(last_id),
                             })
                         else:
                             partial = server.bridge.get_active_stream(last_id)
@@ -1793,6 +1890,7 @@ class RelayServer:
             "message_id": message_id,
             "timestamp": datetime.now().isoformat(),
             "broadcast": True,
+            **self._bridge.response_extras(message_id),
         }), separators=(",", ":"))
 
         async def _push():
@@ -1893,6 +1991,7 @@ class RelayServer:
         payload = json.dumps(self.encrypt_json({
             "type": "ai_document",
             "message_id": message_id,
+            "path": file_path,
             "filename": summary["name"],
             "title": summary["title"],
             "label": summary["label"],

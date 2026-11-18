@@ -298,10 +298,13 @@ class AssistantThinkingDone(_Payload):
 
 
 class PathLink(BaseModel):
-    """Chemin existant cité dans une réponse, rendu cliquable (Explorateur)."""
+    """Chemin existant cité dans une réponse, rendu cliquable : un fichier s'ouvre
+    dans le volet d'aperçu, un dossier dans l'Explorateur."""
 
     text: str  # tel qu'il apparaît dans la réponse
     path: str  # chemin absolu normalisé
+    dir: bool = False  # un dossier
+    name: bool = False  # fichier de la conversation nommé sans son chemin : cliquable entier
 
 
 class MemoryLink(BaseModel):
@@ -584,6 +587,13 @@ class CodeState(_Payload):
     origin: Optional[CodeOrigin] = None
 
 
+class CodeFile(_Payload):
+    """Pièce jointe d'un message de la conversation Code, sur le PC."""
+
+    name: str
+    path: str
+
+
 class CodeUser(_Payload):
     """Message de l'utilisateur (VS Code, PC ou téléphone) ; sa réponse commence."""
 
@@ -593,6 +603,8 @@ class CodeUser(_Payload):
     origin: CodeOrigin
     timestamp: str
     attachments: List[str] = Field(default_factory=list)
+    # Leurs chemins : le Relay en montre l'aperçu au téléphone et à VS Code
+    files: List[CodeFile] = Field(default_factory=list)
 
 
 class CodeChunk(_Payload):

@@ -276,6 +276,13 @@ html, body {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   flex: 1; min-width: 0;
 }
+/* Ready: its name opens its preview */
+.attachment-chip .chip-open {
+  background: none; border: none; padding: 0;
+  color: inherit; font: inherit; text-align: start; cursor: pointer;
+  text-decoration: underline; text-decoration-color: rgba(255, 255, 255, 0.3);
+  text-underline-offset: 2px;
+}
 .attachment-chip .chip-remove {
   background: none; border: none; color: var(--text-secondary);
   cursor: pointer; font-size: 14px; line-height: 1;
@@ -304,6 +311,9 @@ html, body {
   max-width: 92%;
 }
 .user-stack .bubble { max-width: 100%; }
+/* Attachments sent: under the bubble, previewed on a click (thread.css) */
+.user-stack .file-chips { justify-content: flex-end; }
+.user-stack .file-chip { font-size: 12px; min-height: 26px; padding: 3px 8px; }
 .origin-label {
   font-size: 10px; color: var(--text-secondary);
   border: 1px solid var(--border); border-radius: 10px;

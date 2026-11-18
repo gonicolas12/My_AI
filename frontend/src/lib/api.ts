@@ -139,6 +139,20 @@ export interface FolderAttachments {
   images_skipped: number;
 }
 
+/** Début d'un fichier texte, pour son aperçu (POST /api/files/text) */
+export interface FileText {
+  text: string;
+  /** Fichier plus long : seul son début est là */
+  truncated: boolean;
+}
+
+/** Taille et date d'un fichier, pour l'en-tête de son aperçu (POST /api/files/info) */
+export interface FileInfo {
+  size: number;
+  /** Dernière modification (ISO) */
+  modified: string;
+}
+
 export interface PreviewView {
   id: string;
   /** native : visionneuse Office de la fenêtre (shell.nativePreview), sans page */
@@ -316,6 +330,23 @@ export interface MemoryFolder {
 }
 
 export type MemoryGroup = MemoryDocument | MemoryFolder;
+
+/**
+ * Aperçu d'un document de l'onglet Documents : la copie de son fichier
+ * d'origine (path), sinon le texte gardé en mémoire (text)
+ */
+export interface MemoryDocumentPreview {
+  id: string;
+  name: string;
+  label: string;
+  folder: string | null;
+  type: string | null;
+  created: string;
+  path: string | null;
+  size: number | null;
+  text: string | null;
+  truncated: boolean;
+}
 
 export interface MemoryPage {
   /** Faits, messages ; onglet Documents : documents et dossiers */
@@ -562,11 +593,18 @@ export const api = {
       `/api/prompts/commands?prefix=${encodeURIComponent(prefix)}`,
     ),
 
-  fileLinks: (paths: string[]) =>
-    post<{ links: Record<string, string | null> }>('/api/files/links', { paths }),
+  /** base : fichier Markdown affiché, dont les images de son dossier s'affichent aussi */
+  fileLinks: (paths: string[], base?: string) =>
+    post<{ links: Record<string, string | null> }>(
+      '/api/files/links',
+      base ? { paths, base } : { paths },
+    ),
   openFile: (path: string) => post<{ ok: boolean }>('/api/files/open', { path }),
   revealFile: (path: string) => post<{ ok: boolean }>('/api/files/reveal', { path }),
   downloadFile: (path: string) => post<{ path: string }>('/api/files/download', { path }),
+  /** Début d'un fichier texte ; 415 pour un fichier binaire */
+  fileText: (path: string) => post<FileText>('/api/files/text', { path }),
+  fileInfo: (path: string) => post<FileInfo>('/api/files/info', { path }),
 
   artifactPreview: (body: {
     code: string;
@@ -672,6 +710,8 @@ export const api = {
     return post<AddedDocuments>('/api/memory/documents/folder', form);
   },
   /** Lesquels sont déjà en mémoire : la fenêtre demande s'il faut les mettre à jour */
+  memoryDocumentPreview: (document: string) =>
+    post<MemoryDocumentPreview>('/api/memory/documents/preview', { document }),
   existingMemoryDocuments: (names: string[], folders: string[]) =>
     post<ExistingDocuments>('/api/memory/documents/existing', { names, folders }),
   deleteMemoryDocument: (document: string) =>

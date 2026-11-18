@@ -52,14 +52,15 @@ describe('détection des artefacts (miroir de interfaces/artifacts.py)', () => {
 });
 
 describe('documents', () => {
-  it('garde les formats qui ont un aperçu, sans doublon', () => {
+  it('garde tous les fichiers, sans doublon', () => {
     const docs = documentArtifacts(
       ['C:\\out\\rapport.docx', 'c:/out/rapport.docx', 'C:\\out\\script.py', 'C:\\out\\note.pdf'],
       2,
     );
     expect(docs.map((d) => [d.title, d.index, d.generated])).toEqual([
       ['rapport.docx', 2, true],
-      ['note.pdf', 3, true],
+      ['script.py', 3, true],
+      ['note.pdf', 4, true],
     ]);
   });
 
