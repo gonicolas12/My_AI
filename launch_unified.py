@@ -17,20 +17,39 @@ import time
 from pathlib import Path
 
 if __name__ == "__main__":
+    # L'appli lit et écrit config.yaml, data/ et logs/ dans le dossier courant :
+    # celui du lanceur, d'où qu'on le lance (l'épingle de la barre des tâches
+    # de Windows ne garantit aucun dossier)
+    os.chdir(Path(__file__).resolve().parent)
+
+    # Lancé sans console (pythonw, depuis l'épingle) : sorties dans logs/,
+    # commandes sans fenêtre, erreurs du lancement dans une boîte de dialogue
+    from utils import no_console
+
+    no_console.start()
+
     # Python 3.11 à 3.14 (3.12 sur Mac Intel) : vérifié avant toute installation,
     # pour un message clair plutôt qu'un échec de pip (cf. utils/python_version.py)
     from utils.python_version import check_python_version
 
-    check_python_version()
+    check_python_version(report=no_console.show_error)
 
     # Paquets ajoutés à requirements.txt depuis le dernier lancement (git pull) :
-    # installés avant les imports qui en ont besoin
-    from utils.requirements_sync import sync_requirements
+    # installés avant les imports qui en ont besoin. Sans console, une fenêtre
+    # d'attente montre l'installation
+    if no_console.active():
+        from utils.update_window import sync_dependencies
 
-    sync_requirements()
+        sync_dependencies()
+    else:
+        from utils.requirements_sync import sync_requirements
+
+        sync_requirements()
 
 import requests  # pylint: disable=wrong-import-position
 
+from core.i18n import tr  # pylint: disable=wrong-import-position
+from utils import no_console  # pylint: disable=wrong-import-position,ungrouped-imports
 from utils.ollama_placement import (  # pylint: disable=wrong-import-position,ungrouped-imports
     ensure_best_placement,
     placement_label,
@@ -288,6 +307,7 @@ def main():
         print("   1. Installez les dépendances: pip install -r requirements.txt")
         print("   2. Vérifiez que tous les modules sont présents")
         print("   3. Utilisez: python main.py en fallback")
+        no_console.show_error(tr("launch.failed", error=e))
         sys.exit(1)
     run_desktop(sys.modules[__name__], dev=args.dev, port=args.port)
     os._exit(0)

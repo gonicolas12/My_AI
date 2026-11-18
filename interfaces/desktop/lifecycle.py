@@ -38,6 +38,7 @@ from interfaces.desktop.resources import ResourcesService
 from interfaces.desktop.schedule import ScheduleService
 from interfaces.desktop.server import DesktopServer
 from interfaces.desktop.settings import SettingsService
+from utils import no_console
 from utils.desktop_notify import plain_text
 from utils.logger import setup_logger
 
@@ -242,7 +243,7 @@ class DesktopApp:
                 return  # appli fermée pendant l'assistant
 
             self._step("model")
-            launcher.sync_custom_model()
+            launcher.sync_custom_model(on_progress=self._model_update)
 
             self._step("placement")
             launcher.ensure_best_placement(
@@ -262,6 +263,13 @@ class DesktopApp:
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("Lancement en échec")
             self._set_status(state="error", error=tr("launch.failed", error=exc))
+
+    def _model_update(self, detail: str) -> None:
+        """my_ai recréé (Modelfile changé) : l'écran de chargement nomme la mise à jour.
+
+        Le téléchargement du modèle de base, puis la création de my_ai, en détail.
+        """
+        self._set_status(label=tr("launch.modelUpdate"), detail=detail)
 
     # ── Langue ──────────────────────────────────────────────────────────────
 
@@ -800,7 +808,10 @@ def run_desktop(launcher, *, dev: bool = False, port: int = 0) -> None:
             print("🌐 Fenêtre indisponible (pywebview) : interface ouverte dans le navigateur. "
                   "Fermez cette console ou faites Ctrl+C pour quitter.", flush=True)
             webbrowser.open(url)
-            app.wait()
+            # Sans console (épingle de la barre des tâches), rien d'autre ne
+            # permettrait de quitter l'appli : un message à refermer
+            if not no_console.wait_for_dismiss(tr("launch.browserFallback")):
+                app.wait()
     except KeyboardInterrupt:
         pass
     finally:

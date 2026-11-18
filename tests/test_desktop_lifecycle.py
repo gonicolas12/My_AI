@@ -41,8 +41,9 @@ class FakeLauncher:
     def _port_is_free(self):
         return not self.ollama_running
 
-    def sync_custom_model(self):
+    def sync_custom_model(self, on_progress=None):
         self.calls.append("model")
+        self.model_progress = on_progress
 
     def ensure_best_placement(self, restart, on_progress=None):
         assert restart == self._restart_ollama
@@ -204,6 +205,26 @@ def test_launch_steps_follow_the_launcher_order(started):
     details = [e["payload"]["detail"] for e in run.events
                if e["type"] == "engine.status" and e["payload"]["detail"]]
     assert details[0].startswith("🔍 Recherche du meilleur emplacement")
+
+
+def test_a_model_update_is_named_on_the_loading_screen(started):
+    """my_ai recréé (Modelfile changé) : l'écran de chargement nomme la mise à jour."""
+
+    class UpdatingLauncher(FakeLauncher):
+        def sync_custom_model(self, on_progress=None):
+            self.calls.append("model")
+            on_progress("")
+            on_progress(tr("launch.modelDownload", model="qwen3.6:4b", percent=42))
+
+    run = started(UpdatingLauncher())
+    model = [(e["payload"]["label"], e["payload"]["detail"]) for e in run.events
+             if e["type"] == "engine.status" and e["payload"]["step"] == "model"]
+    assert model == [
+        (tr("launch.model"), ""),  # « Vérification du modèle my_ai… »
+        (tr("launch.modelUpdate"), ""),
+        (tr("launch.modelUpdate"), tr("launch.modelDownload", model="qwen3.6:4b", percent=42)),
+    ]
+    assert run.status["state"] == "ready"
 
 
 def test_window_url_carries_the_token_in_its_fragment(started):

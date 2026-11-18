@@ -17,7 +17,7 @@ standard, et une syntaxe que les anciens Python lisent encore.
 
 import platform
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 MINIMUM = (3, 11)
 MAXIMUM = (3, 14)
@@ -75,8 +75,13 @@ def unsupported_message(
         ).format(**params)
 
 
-def check_python_version() -> None:
-    """Arrête le lanceur, avec un message clair, sur une version de Python non prise en charge."""
+def check_python_version(report: Optional[Callable[[str], Any]] = None) -> None:
+    """Arrête le lanceur, avec un message clair, sur une version de Python non prise en charge.
+
+    Args:
+        report: montre aussi le message hors de la console (boîte de dialogue
+            d'un lancement sans console, cf. utils/no_console.py)
+    """
     message = unsupported_message()
     if not message:
         return
@@ -85,4 +90,6 @@ def check_python_version() -> None:
     except UnicodeEncodeError:  # console qui ne connaît pas l'alphabet de la langue
         encoding = getattr(sys.stdout, "encoding", None) or "ascii"
         print(message.encode(encoding, "replace").decode(encoding), flush=True)
+    if report is not None:
+        report(message)
     sys.exit(1)

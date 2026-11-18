@@ -12,6 +12,10 @@ n'est retentée qu'au prochain changement du fichier.
 Ce module tourne avant les imports qui ont besoin de ces paquets : il n'utilise
 que la bibliothèque standard, plus packaging (fourni par pip à défaut).
 Désactivation : variable d'environnement MY_AI_SKIP_DEPS_SYNC=1.
+
+Avec une console, pip y écrit sa progression. Lancé sans console (épingle de
+la barre des tâches, cf. utils/no_console.py), l'installation passe par
+progress, qui la montre dans une fenêtre d'attente (utils/update_window.py).
 """
 
 # Imports différés (packaging, importlib.metadata) : inutiles quand
@@ -27,7 +31,7 @@ import site
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS_FILE = PROJECT_ROOT / "requirements.txt"
@@ -40,8 +44,15 @@ SKIP_ENV = "MY_AI_SKIP_DEPS_SYNC"
 _COMMENT = re.compile(r"(^|\s+)#.*$")
 
 
+Report = Callable[[str], None]
+# progress(install, lignes) : fait tourner install(report) et renvoie son résultat
+Progress = Callable[[Callable[[Report], None], List[str]], None]
+
+
 def sync_requirements(
-    requirements_file: Path = REQUIREMENTS_FILE, state_file: Path = STATE_FILE
+    requirements_file: Path = REQUIREMENTS_FILE,
+    state_file: Path = STATE_FILE,
+    progress: Optional[Progress] = None,
 ) -> List[str]:
     """
     Installe les lignes de requirements.txt non satisfaites
@@ -49,6 +60,9 @@ def sync_requirements(
     Args:
         requirements_file: Fichier de dépendances
         state_file: Mémoire du dernier contrôle et des échecs d'installation
+        progress: Lancement sans console : montre l'installation (lignes à
+            installer) et reçoit chaque ligne de pip ; sans lui, pip écrit
+            dans la console
 
     Returns:
         Lignes toujours non satisfaites (vide si tout est en place)
@@ -59,9 +73,10 @@ def sync_requirements(
         text = requirements_file.read_text(encoding="utf-8")
     except OSError:
         return []
+    python = _python()
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     state = _read_state(state_file)
-    previous = state.get(sys.executable)
+    previous = state.get(python)
     if not isinstance(previous, dict) or previous.get("digest") != digest:
         previous = {}
     elif not previous.get("failed"):
@@ -74,10 +89,17 @@ def sync_requirements(
     failed = missing
     if retry:
         print(f"📦 Dépendances manquantes, installation : {', '.join(retry)}", flush=True)
-        if not _pip_install(retry) and len(retry) > 1:
-            # Une ligne qui échoue ne doit pas empêcher les autres de s'installer
-            for line in retry:
-                _pip_install([line])
+
+        def install(report: Optional[Report] = None) -> None:
+            if not _pip_install(retry, report) and len(retry) > 1:
+                # Une ligne qui échoue ne doit pas empêcher les autres de s'installer
+                for line in retry:
+                    _pip_install([line], report)
+
+        if progress is None:
+            install()
+        else:
+            progress(install, retry)
         _refresh_import_paths()
         still_missing = set(unsatisfied_requirements(text))
         failed = [line for line in missing if line in still_missing]
@@ -85,14 +107,29 @@ def sync_requirements(
     if failed:
         quoted = " ".join(f'"{line}"' for line in failed)
         print(f"⚠️ Dépendances non installées : {', '.join(failed)}")
-        print(f"   Pour voir l'erreur : {sys.executable} -m pip install {quoted}")
+        print(f"   Pour voir l'erreur : {python} -m pip install {quoted}")
         print(
             "   Si une installation précédente a été interrompue : "
             "python tools/clean_broken_dist_info.py"
         )
-    state[sys.executable] = {"digest": digest, "failed": failed}
+    state[python] = {"digest": digest, "failed": failed}
     _write_state(state_file, state)
     return failed
+
+
+def _python() -> str:
+    """Interpréteur de pip : python.exe, même sous pythonw (lancement sans console).
+
+    pip et ses compilations sont des commandes console : sous pythonw, chacune
+    ouvrirait sa propre fenêtre. Même environnement : la mémoire des contrôles
+    (STATE_FILE) reste commune aux deux.
+    """
+    executable = Path(sys.executable)
+    if executable.name.lower() == "pythonw.exe":
+        console = executable.with_name("python.exe")
+        if console.is_file():
+            return str(console)
+    return sys.executable
 
 
 def unsatisfied_requirements(text: str) -> List[str]:
@@ -169,11 +206,31 @@ def _normalize(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def _pip_install(lines: List[str]) -> bool:
-    """Installe des lignes de requirements.txt avec le pip de l'interpréteur courant."""
-    command = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", *lines]
+def _pip_install(lines: List[str], report: Optional[Report] = None) -> bool:
+    """Installe des lignes de requirements.txt avec le pip de l'interpréteur courant.
+
+    Args:
+        lines: Lignes à installer
+        report: Reçoit chaque ligne de pip (fenêtre d'attente), écrite aussi
+            dans les sorties ; sans lui, pip écrit lui-même dans la console
+    """
+    command = [_python(), "-m", "pip", "install", "--disable-pip-version-check", *lines]
     try:
-        return subprocess.run(command, check=False).returncode == 0
+        if report is None:
+            return subprocess.run(command, check=False).returncode == 0
+        with subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        ) as process:
+            for line in process.stdout:
+                print(line, end="", flush=True)
+                if line.strip():
+                    report(line.strip())
+        return process.returncode == 0
     except OSError:
         return False
 

@@ -73,6 +73,8 @@ Au **tout premier lancement**, My_AI s'affiche dans la langue de Windows (l'une 
 
 > 💡 Sans passer par un lanceur, `python launch_unified.py` (fenêtre + configuration d'Ollama) et `python main.py --mode gui` (fenêtre seule, avec l'Ollama déjà lancé) fonctionnent sur les trois systèmes. Sous Linux, la fenêtre demande GTK ou Qt (`pip install "pywebview[qt]"`) ; sans eux, l'interface s'ouvre dans le navigateur.
 
+> 📌 **Épingler My_AI à la barre des tâches de Windows** : pendant qu'il tourne, clic droit sur son bouton → *Épingler à la barre des tâches*. L'épingle lance My_AI sans console : ses messages vont dans `logs/console_AAAAMMJJ.log`, et une petite fenêtre montre une éventuelle mise à jour des dépendances faite avant l'ouverture de l'appli.
+
 <details>
 <summary><b>Installation manuelle des modèles</b></summary>
 
