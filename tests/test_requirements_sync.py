@@ -33,8 +33,11 @@ def _env(monkeypatch, tmp_path):
                  "winotify": "1.1.0", "plyer": "2.1.0"}
     calls = []
 
-    def fake_pip(lines):
+    def fake_pip(lines, report=None):
         calls.append(list(lines))
+        if report is not None:  # comme pip, une ligne par paquet
+            for line in lines:
+                report(f"Collecting {line}")
         if any(line.startswith("paquet-casse") for line in lines):
             return False
         for line in lines:
@@ -110,6 +113,90 @@ def test_unchanged_requirements_are_not_checked_again(env, monkeypatch):
     env["requirements"].write_text(REQUIREMENTS + "nouveau-paquet>=1.0\n", encoding="utf-8")
     with pytest.raises(AssertionError, match="paquets relus"):
         sync.sync_requirements(env["requirements"], env["state"])
+
+
+def test_without_console_pip_runs_under_the_progress_window(env):
+    """Lancement sans console : progress montre l'installation et reçoit les lignes de pip."""
+    shown, lines = [], []
+
+    def progress(install, retry):
+        shown.append(list(retry))
+        install(lines.append)
+
+    env["requirements"].write_text(REQUIREMENTS + "paquet-casse>=1.0\n", encoding="utf-8")
+    failed = sync.sync_requirements(env["requirements"], env["state"], progress=progress)
+    assert failed == ["paquet-casse>=1.0"]
+    assert shown == [["rapidocr>=3.9.2", "PyMuPDF>=1.24.3", "paquet-casse>=1.0"]]
+    # Le second essai, ligne à ligne, passe aussi sous la fenêtre
+    assert len(env["calls"]) == 4
+    assert lines[:3] == ["Collecting rapidocr>=3.9.2", "Collecting PyMuPDF>=1.24.3",
+                         "Collecting paquet-casse>=1.0"]
+
+    # Rien à installer : pas de fenêtre
+    assert sync.sync_requirements(env["requirements"], env["state"], progress=progress) == [
+        "paquet-casse>=1.0"]
+    assert len(shown) == 1
+
+
+class FakePipProcess:
+    """subprocess.Popen de pip, simulé : sa sortie, ligne à ligne."""
+
+    def __init__(self, command, **kwargs):
+        self.command, self.kwargs = command, kwargs
+        self.stdout = iter(["Collecting rapidocr>=3.9.2\n", "\n",
+                            "  Downloading rapidocr-3.9.2-py3-none-any.whl (12 MB)\n",
+                            "Successfully installed rapidocr-3.9.2\n"])
+        self.returncode = 0
+        FakePipProcess.last = self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def test_pip_lines_reach_the_window_and_the_outputs(monkeypatch, capsys):
+    monkeypatch.setattr(sync.subprocess, "Popen", FakePipProcess)
+    lines = []
+    assert sync._pip_install(["rapidocr>=3.9.2"], lines.append) is True
+    assert lines == ["Collecting rapidocr>=3.9.2",
+                     "Downloading rapidocr-3.9.2-py3-none-any.whl (12 MB)",
+                     "Successfully installed rapidocr-3.9.2"]
+    # Écrites aussi telles quelles (logs/ d'un lancement sans console)
+    assert "  Downloading rapidocr-3.9.2" in capsys.readouterr().out
+    process = FakePipProcess.last
+    assert process.command[1:4] == ["-m", "pip", "install"]
+    assert process.kwargs["stdout"] == sync.subprocess.PIPE
+    assert process.kwargs["stderr"] == sync.subprocess.STDOUT
+    assert process.kwargs["env"]["PYTHONIOENCODING"] == "utf-8"
+
+
+def test_pythonw_installs_with_its_python_exe(monkeypatch, tmp_path):
+    """pip est une commande console : sous pythonw, chaque compilation ouvrirait une fenêtre."""
+    (tmp_path / "pythonw.exe").write_bytes(b"")
+    monkeypatch.setattr(sync.sys, "executable", str(tmp_path / "pythonw.exe"))
+    assert sync._python() == str(tmp_path / "pythonw.exe")  # sans python.exe à côté
+    (tmp_path / "python.exe").write_bytes(b"")
+    assert sync._python() == str(tmp_path / "python.exe")
+    monkeypatch.setattr(sync.sys, "executable", str(tmp_path / "python.exe"))
+    assert sync._python() == str(tmp_path / "python.exe")
+
+
+def test_pythonw_and_python_share_the_last_check(env, monkeypatch, tmp_path):
+    """Même environnement : un contrôle fait sous python.exe vaut pour l'épingle (pythonw)."""
+    (tmp_path / "python.exe").write_bytes(b"")
+    (tmp_path / "pythonw.exe").write_bytes(b"")
+    monkeypatch.setattr(sync.sys, "executable", str(tmp_path / "python.exe"))
+    env["installed"].update({"rapidocr": "3.9.2", "pymupdf": "1.28.2"})
+    sync.sync_requirements(env["requirements"], env["state"])
+
+    def no_check():
+        raise AssertionError("paquets relus sous pythonw alors que rien n'a changé")
+
+    monkeypatch.setattr(sync, "_installed_versions", no_check)
+    monkeypatch.setattr(sync.sys, "executable", str(tmp_path / "pythonw.exe"))
+    assert sync.sync_requirements(env["requirements"], env["state"]) == []
 
 
 def test_can_be_disabled(env, monkeypatch):

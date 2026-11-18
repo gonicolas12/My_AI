@@ -410,7 +410,7 @@ def create_custom_model(on_log: Callable[[str], None]) -> None:
     _remember_modelfile(digest)
 
 
-def sync_custom_model() -> bool:
+def sync_custom_model(on_progress: Optional[Callable[[str], None]] = None) -> bool:
     """Recrée 'my_ai' au lancement si le Modelfile a changé depuis sa création.
 
     Modelfile inchangé : aucun appel à Ollama. Ollama injoignable : nouvel essai
@@ -418,6 +418,11 @@ def sync_custom_model() -> bool:
     téléchargé, la création reste le rôle de l'assistant et de ⚙️ Réglages.
     La sortie d'Ollama est masquée : la console n'affiche que le début et
     l'issue de la mise à jour.
+
+    Args:
+        on_progress: reçoit chaque étape de la mise à jour, pour l'écran de
+            chargement (téléchargement du modèle de base, création) ; son
+            premier appel, avec « », annonce la mise à jour
 
     Returns:
         True si le modèle a été recréé
@@ -429,9 +434,12 @@ def sync_custom_model() -> bool:
         synced = ""
     if digest is None or digest == synced or not custom_model_exists():
         return False
+    report = on_progress or (lambda _detail: None)
     print(f"🔄 Mise à jour du modèle '{CUSTOM_MODEL}' depuis le Modelfile…", flush=True)
+    report("")
     try:
-        _pull_base_model()
+        _pull_base_model(report)
+        report(tr("launch.modelCreate", model=CUSTOM_MODEL))
         create_custom_model(lambda _message: None)
     except (RuntimeError, OSError) as exc:  # OSError couvre aussi les erreurs de requests
         print(f"⚠️ Modèle '{CUSTOM_MODEL}' non mis à jour : {exc}")
@@ -441,19 +449,27 @@ def sync_custom_model() -> bool:
     return True
 
 
-def _pull_base_model() -> None:
+def _pull_base_model(report: Optional[Callable[[str], None]] = None) -> None:
     """Télécharge le modèle de la ligne FROM s'il n'est pas encore dans Ollama.
 
     « ollama create » le téléchargerait sinon lui-même, sortie masquée : la
     console resterait muette pendant tout le téléchargement (plusieurs Go).
+
+    Args:
+        report: reçoit la progression, à chaque pour cent (écran de chargement)
     """
     base = current_base_model()
     installed = list_installed_models()
     if base in installed or f"{base}:latest" in installed or (PROJECT_ROOT / base).exists():
         return  # déjà dans Ollama, ou fichier local (GGUF)
+    reported = {"percent": None}
 
     def show(frac: float, _status: str = "") -> None:
         print(f"\r📥 Téléchargement de {base} : {frac:>4.0%}", end="", flush=True)
+        percent = int(frac * 100)
+        if report is not None and percent != reported["percent"]:
+            reported["percent"] = percent
+            report(tr("launch.modelDownload", model=base, percent=percent))
 
     show(0.0)
     try:

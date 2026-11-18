@@ -11,6 +11,7 @@ import subprocess
 
 import pytest
 
+from core import i18n
 from interfaces import onboarding
 
 MODELFILE = 'FROM qwen3.5:4b\nPARAMETER temperature 0.7\nSYSTEM """\nTu es My_AI.\n"""\n'
@@ -137,6 +138,22 @@ def test_new_base_model_is_pulled_with_progress_first(env, capsys):
     assert capsys.readouterr().out.endswith(
         "\r📥 Téléchargement de qwen3.6:4b : 100%\n✅ Modèle 'my_ai' à jour\n"
     )
+
+
+def test_loading_screen_is_told_of_the_update_and_its_progress(env, monkeypatch):
+    """Sans console (épingle), la fenêtre de lancement est seule à pouvoir le dire."""
+    monkeypatch.setitem(i18n._STATE, "language", "fr")  # pylint: disable=protected-access
+    env["modelfile"].write_text(MODELFILE.replace("qwen3.5:4b", "qwen3.6:4b"), encoding="utf-8")
+    steps = []
+    assert onboarding.sync_custom_model(on_progress=steps.append) is True
+    # « » d'abord : la mise à jour commence ; un appel par pour cent du téléchargement
+    assert steps == ["", "Téléchargement de qwen3.6:4b : 0 %",
+                     "Téléchargement de qwen3.6:4b : 98 %",
+                     "Téléchargement de qwen3.6:4b : 100 %", "Création de my_ai…"]
+    # Modelfile inchangé : rien à annoncer
+    steps.clear()
+    assert onboarding.sync_custom_model(on_progress=steps.append) is False
+    assert steps == []
 
 
 def test_failed_pull_creates_nothing_and_is_retried(env, capsys):

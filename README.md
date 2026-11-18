@@ -73,6 +73,8 @@ On the **very first launch**, My_AI opens in your system language (one of the 12
 
 > 💡 Without a launcher, `python launch_unified.py` (window + Ollama setup) and `python main.py --mode gui` (window only, with Ollama already running) work on all three systems. On Linux, the window needs GTK or Qt (`pip install "pywebview[qt]"`); without them, the interface opens in your browser.
 
+> 📌 **Pin My_AI to the Windows taskbar**: while it runs, right-click its taskbar button → *Pin to taskbar*. The pin starts My_AI without a console: its messages go to `logs/console_YYYYMMDD.log`, and a small window shows any dependency update made before the app opens.
+
 <details>
 <summary><b>Manual model setup</b></summary>
 

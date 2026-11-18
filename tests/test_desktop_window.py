@@ -493,6 +493,41 @@ def test_open_window_wires_the_handlers_as_pywebview_calls_them(app, monkeypatch
     assert fake.started["private_mode"] is True and fake.started["debug"] is False
 
 
+def test_taskbar_button_is_named_before_show_until_closing(app, monkeypatch):
+    """Nom « My_AI » et épingle posés avant l'affichage du formulaire, retirés à sa fermeture."""
+    fake = FakeWebview()
+    form = SimpleNamespace(Handle=SimpleNamespace(ToInt32=lambda: 4242), WindowState="Normal",
+                           Bounds=SimpleNamespace(X=10, Y=20, Width=900, Height=600))
+    create = fake.create_window
+
+    def create_window(title, url, **kwargs):
+        window = create(title, url, **kwargs)
+        window.native = form  # formulaire WinForms de pywebview
+        return window
+
+    monkeypatch.setattr(fake, "create_window", create_window)
+    monkeypatch.setitem(sys.modules, "webview", fake)
+    monkeypatch.setattr(desktop_window, "IS_WINDOWS", True)
+    for name in ("enable_per_monitor_dpi", "_keep_title_bar_dark", "harden_edgechromium",
+                 "apply_title_bar", "watch_drops"):
+        monkeypatch.setattr(desktop_window, name, lambda *_a, **_k: None)
+    monkeypatch.setattr(desktop_window.WindowGeometry, "apply", lambda _self, _form: None)
+    monkeypatch.delenv(desktop_window.ENV_CDP_PORT, raising=False)
+    identity = desktop_window.app_identity
+    steps = []
+    monkeypatch.setattr(identity, "prepare", lambda: steps.append("prepare"))
+    monkeypatch.setattr(identity, "set_qt_app_id", lambda _native: False)
+    monkeypatch.setattr(identity, "set_window_identity", lambda hwnd: steps.append(("nom", hwnd)))
+    monkeypatch.setattr(identity, "clear_window_identity",
+                        lambda hwnd: steps.append(("retiré", hwnd)))
+
+    assert desktop_window.open_window(app, f"{APP}/#token=x") is True
+    assert steps == ["prepare", ("nom", 4242), ("retiré", 4242)]
+    # La taille de la fenêtre est toujours retenue à la fermeture
+    assert app.state.get("window") == {"maximized": False, "x": 10, "y": 20,
+                                       "width": 900, "height": 600}
+
+
 def test_without_pywebview_the_interface_opens_in_the_browser(monkeypatch, tmp_path):
     """Repli du §3 : sans fenêtre pywebview, l'URL (jeton compris) part au navigateur."""
     from interfaces.desktop import lifecycle  # pylint: disable=import-outside-toplevel

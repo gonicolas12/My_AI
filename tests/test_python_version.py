@@ -76,4 +76,18 @@ def test_shell_launchers_check_the_same_range():
 def test_python_launchers_check_before_installing_anything():
     for launcher in ("launch_unified.py", "main.py"):
         source = (ROOT / launcher).read_text(encoding="utf-8")
-        assert source.index("check_python_version()") < source.index("sync_requirements()"), launcher
+        # Avec ou sans console (fenêtre d'attente de launch_unified.py)
+        installs = [source.index(call) for call in ("sync_requirements(", "sync_dependencies(")
+                    if call in source]
+        assert installs and source.index("check_python_version(") < min(installs), launcher
+
+
+def test_without_console_the_message_is_also_shown_elsewhere(monkeypatch, capsys):
+    """Lancé depuis l'épingle (pythonw), le message va aussi à une boîte de dialogue."""
+    monkeypatch.setattr(pv.sys, "version_info", (3, 15, 0, "final", 0))
+    shown = []
+    with pytest.raises(SystemExit) as stop:
+        pv.check_python_version(report=shown.append)
+    assert stop.value.code == 1
+    assert len(shown) == 1 and "3.15" in shown[0]
+    assert shown[0] in capsys.readouterr().out  # écrit aussi dans les sorties

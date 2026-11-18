@@ -1,10 +1,11 @@
 """
 Tests du logo de My_AI dans la barre des tâches et le Dock (interfaces/desktop/app_identity.py)
 
-Aucune fenêtre n'est ouverte ici. L'AppUserModelID de Windows vaut pour tout
-le processus : il se vérifie dans un interpréteur neuf. macOS et Linux se
-vérifient avec des modules GTK et Qt simulés, et sur le code de pywebview
-installé, qui pose l'icône qu'on lui passe.
+Aucune fenêtre n'est affichée ici. L'AppUserModelID de Windows vaut pour tout
+le processus : il se vérifie dans un interpréteur neuf, comme les propriétés
+de relance (nom du bouton, épingle), posées sur une vraie fenêtre jamais
+affichée. macOS et Linux se vérifient avec des modules GTK et Qt simulés, et
+sur le code de pywebview installé, qui pose l'icône qu'on lui passe.
 """
 
 # pylint: disable=protected-access
@@ -153,6 +154,180 @@ def test_no_windows_app_id_elsewhere(monkeypatch):
     monkeypatch.setattr(app_identity, "_shell32", lambda: shell32)
     assert app_identity.set_windows_app_id() is False
     assert shell32.calls == []
+
+
+# ── Windows : nom du bouton et épingle (propriétés de la fenêtre) ───────────
+
+
+def command_line(command):
+    """Arguments d'une ligne de commande, lus comme Windows (CommandLineToArgvW)."""
+    import ctypes  # pylint: disable=import-outside-toplevel
+    from ctypes import wintypes  # pylint: disable=import-outside-toplevel
+
+    parse = ctypes.windll.shell32.CommandLineToArgvW
+    parse.restype = ctypes.POINTER(wintypes.LPWSTR)
+    parse.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
+    count = ctypes.c_int()
+    argv = parse(command, ctypes.byref(count))
+    try:
+        return [argv[i] for i in range(count.value)]
+    finally:
+        ctypes.windll.kernel32.LocalFree(argv)
+
+
+def test_a_pinned_my_ai_runs_the_launcher_with_pythonw(tmp_path):
+    """Sans console : pythonw.exe, à côté de python.exe (installation comme venv)."""
+    scripts = tmp_path / "Mes projets" / "venv" / "Scripts"
+    scripts.mkdir(parents=True)
+    python = scripts / "python.exe"
+    python.write_bytes(b"")
+    launcher = tmp_path / "Mes projets" / "My_AI" / "launch_unified.py"
+    # Sans pythonw.exe, python.exe (avec sa console) plutôt que rien
+    assert app_identity.relaunch_command(str(python), launcher) == f'"{python}" "{launcher}"'
+    (scripts / "pythonw.exe").write_bytes(b"")
+    command = app_identity.relaunch_command(str(python), launcher)
+    assert command == f'"{scripts / "pythonw.exe"}" "{launcher}"'
+    if sys.platform.startswith("win"):
+        # Lue comme le shell la lira : les espaces ne coupent pas les chemins
+        assert command_line(command) == [str(scripts / "pythonw.exe"), str(launcher)]
+    assert app_identity.relaunch_command("", launcher) is None
+
+
+def test_by_default_the_pin_relaunches_this_launcher():
+    command = app_identity.relaunch_command()
+    assert command.endswith(f' "{PROJECT_ROOT / "launch_unified.py"}"')
+    windowed = Path(sys.executable).with_name("pythonw.exe")
+    expected = windowed if windowed.is_file() else Path(sys.executable)
+    assert command.startswith(f'"{expected}" ')
+
+
+def test_relaunch_properties_come_before_the_window_app_id():
+    """Ordre demandé par Windows : poser l'AppUserModelID fait relire la fenêtre."""
+    properties = app_identity.window_properties('"pythonw.exe" "launch_unified.py"')
+    assert properties == [
+        (app_identity.PID_RELAUNCH_COMMAND, '"pythonw.exe" "launch_unified.py"'),
+        (app_identity.PID_RELAUNCH_NAME, "My_AI"),  # nom du bouton et de l'épingle
+        (app_identity.PID_RELAUNCH_ICON, f"{app_identity.ICO_PATH},0"),
+        (app_identity.PID_APP_ID, "My_AI"),  # celui du processus et des notifications
+    ]
+    assert [pid for pid, _value in properties] == [2, 4, 3, 5]  # propkey.h
+
+
+class FakeStore:
+    """IPropertyStore d'une fenêtre, simulé : propriétés posées, dans l'ordre."""
+
+    created = []
+
+    def __init__(self, hwnd, fail=None):
+        self.hwnd = hwnd
+        self.fail = fail
+        self.calls = []
+        self.closed = False
+        FakeStore.created.append(self)
+
+    def set(self, pid, value):
+        if self.fail == "set":
+            raise OSError("IPropertyStore::SetValue : HRESULT 0x80070005")
+        self.calls.append((pid, value))
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture(name="stores")
+def stores_fixture(monkeypatch):
+    """Fenêtres de Windows simulées : les IPropertyStore ouverts."""
+    monkeypatch.setattr(app_identity, "IS_WINDOWS", True)
+    monkeypatch.setattr(FakeStore, "created", [])
+    monkeypatch.setattr(app_identity, "WindowPropertyStore", FakeStore)
+    return FakeStore.created
+
+
+def test_window_gets_its_name_then_loses_it_before_closing(stores):
+    assert app_identity.set_window_identity(4242, command='"pythonw.exe" "l.py"') is True
+    assert app_identity.clear_window_identity(4242) is True
+    posed, cleared = stores
+    assert posed.hwnd == cleared.hwnd == 4242
+    assert posed.calls == app_identity.window_properties('"pythonw.exe" "l.py"')
+    # Retirées (VT_EMPTY) avant la fermeture, comme le demande Windows
+    assert cleared.calls == [(2, None), (4, None), (3, None), (5, None)]
+    assert posed.closed and cleared.closed
+
+
+def test_window_relaunch_command_defaults_to_the_launcher(stores):
+    assert app_identity.set_window_identity(4242) is True
+    assert stores[0].calls[0] == (2, app_identity.relaunch_command())
+
+
+@pytest.mark.parametrize("fail", ["store", "set"])
+def test_a_refused_window_property_does_not_stop_the_launch(monkeypatch, stores, fail):
+    def store(hwnd):
+        if fail == "store":
+            raise OSError("SHGetPropertyStoreForWindow : HRESULT 0x80070057")
+        return FakeStore(hwnd, fail)
+
+    monkeypatch.setattr(app_identity, "WindowPropertyStore", store)
+    assert app_identity.set_window_identity(4242, command="c") is False
+    assert app_identity.clear_window_identity(4242) is False
+    assert all(created.closed for created in stores)  # jamais d'IPropertyStore oublié
+
+
+def test_no_window_properties_elsewhere_or_without_window(monkeypatch, stores):
+    assert app_identity.set_window_identity(0, command="c") is False
+    assert app_identity.set_window_identity(4242, command="") is False
+    monkeypatch.setattr(app_identity, "IS_WINDOWS", False)
+    assert app_identity.set_window_identity(4242, command="c") is False
+    assert app_identity.clear_window_identity(4242) is False
+    assert stores == []
+
+
+def test_window_properties_are_set_on_a_real_window():
+    """Le vrai appel de Windows, sur une fenêtre jamais affichée, relu par IPropertyStore."""
+    if not sys.platform.startswith("win"):
+        pytest.skip("propriétés de fenêtre : Windows seulement")
+    code = (
+        "import ctypes\n"
+        "from ctypes import wintypes\n"
+        "from interfaces.desktop import app_identity as ai\n"
+        "user32 = ctypes.windll.user32\n"
+        "user32.CreateWindowExW.restype = wintypes.HWND\n"
+        "user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR,"
+        " wintypes.DWORD] + [ctypes.c_int] * 4 + [wintypes.HWND, wintypes.HMENU,"
+        " wintypes.HINSTANCE, wintypes.LPVOID]\n"
+        # WS_OVERLAPPEDWINDOW, sans WS_VISIBLE : aucun bouton dans la barre des tâches
+        "hwnd = user32.CreateWindowExW(0, 'STATIC', 'My_AI', 0x00CF0000, 0, 0, 200, 100,"
+        " None, None, None, None)\n"
+        "print(ai.set_window_identity(hwnd))\n"
+        "store = ai.WindowPropertyStore(hwnd)\n"
+        "print(store.count())\n"
+        "for pid in (2, 4, 3, 5):\n"
+        "    print(store.get(pid))\n"
+        "store.close()\n"
+        "print(ai.clear_window_identity(hwnd))\n"
+        "store = ai.WindowPropertyStore(hwnd)\n"
+        "print(store.count(), store.get(5))\n"
+        "store.close()\n"
+        "print(bool(user32.DestroyWindow(hwnd)))\n"
+    )
+    run = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        timeout=120,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr[-3000:]
+    assert run.stdout.splitlines() == [
+        "True", "4",
+        app_identity.relaunch_command(sys.executable),
+        "My_AI",
+        f"{app_identity.ICO_PATH},0",
+        "My_AI",
+        "True", "0 None",  # plus rien sur la fenêtre une fois retirées
+        "True",
+    ]
 
 
 # ── Linux : app_id de la fenêtre (GTK, Qt) ──────────────────────────────────

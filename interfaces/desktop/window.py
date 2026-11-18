@@ -17,8 +17,8 @@ hériterait de l'API que pywebview expose au JavaScript (shell_api.py).
 D'un lancement à l'autre, la fenêtre retient sa taille, sa position et son
 état agrandi (data/.desktop_state.json, clé « window »).
 
-Le logo de My_AI, et non celui de Python, dans la barre des tâches ou le Dock :
-app_identity.py.
+Le logo et le nom de My_AI, et non ceux de Python, dans la barre des tâches
+ou le Dock, et ce que lance un My_AI épinglé : app_identity.py.
 
 Sans pywebview (paquet absent, WebView2 manquant…), open_window renvoie False
 et le lanceur ouvre l'interface dans le navigateur par défaut.
@@ -399,6 +399,8 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
             logger.warning("Taille de la fenêtre non restaurée : %s", exc)
         handle["hwnd"] = form.Handle.ToInt32()
         apply_title_bar(handle["hwnd"])
+        # Bouton « My_AI » de la barre des tâches, et ce que lance son épingle
+        app_identity.set_window_identity(handle["hwnd"])
 
     def closing(window):
         form = getattr(window, "native", None)
@@ -408,6 +410,8 @@ def open_window(app: "DesktopApp", url: str, *, dev_origins: Iterable[str] = ())
                 app.state.set("window", geometry.to_dict())
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Taille de la fenêtre non enregistrée : %s", exc)
+            # Avant la fermeture, comme le demande Windows
+            app_identity.clear_window_identity(handle["hwnd"])
 
     def loaded(window):
         # Chaque chargement de la page efface les écouteurs posés par pywebview
