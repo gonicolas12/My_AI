@@ -831,10 +831,11 @@ Partagé par l'export des conversations et le générateur de documents :
   `code_font()` garde Courier pour le code en alphabet latin ; `word_wrap()`
   coupe les lignes du chinois et du japonais entre deux caractères.
 - `paragraph_markup()` (texte brut) et `runs_markup()` (fragments stylés :
-  gras, italique, lien, code) : sans arabe ni hébreu, le balisage habituel,
-  ReportLab coupant les lignes ; sinon, les lignes coupées dans l'ordre de
-  lecture, façonnées par `arabic-reshaper` et mises dans l'ordre d'affichage
-  par `python-bidi`, chaque fragment gardant ses balises.
+  gras, italique, lien, code) : un « \n » (retour à la ligne forcé) y passe à
+  la ligne ; sans arabe ni hébreu, le balisage habituel, ReportLab coupant les
+  lignes ; sinon, les lignes coupées dans l'ordre de lecture, façonnées par
+  `arabic-reshaper` et mises dans l'ordre d'affichage par `python-bidi`, chaque
+  fragment gardant ses balises.
 - `aligned(style, texte)` aligne à droite un paragraphe de droite à gauche ;
   `visual(ligne)` met une ligne seule dans l'ordre d'affichage (cellule,
   numéro de page).

@@ -267,14 +267,23 @@ def _spans(text: str, measure: Callable[[str], float], width: float) -> List[Tup
     return spans
 
 
+def _line_spans(text: str, measure: Callable[[str], float],
+                width: float) -> List[Tuple[int, int]]:
+    """Lignes d'un texte, (début, fin) dans ``text`` : à chaque saut de ligne (une
+    ligne vide entre deux sauts qui se suivent), puis à la largeur donnée."""
+    spans: List[Tuple[int, int]] = []
+    offset = 0
+    for paragraph in text.split("\n"):
+        spans.extend((offset + start, offset + end)
+                     for start, end in _spans(paragraph, measure, width) or [(0, 0)])
+        offset += len(paragraph) + 1
+    return spans
+
+
 def wrap(text: str, font: str, size: float, width: float) -> List[str]:
     """Lignes d'un texte dans l'ordre logique, aux sauts de ligne et à la largeur donnée."""
-    measure = _measure(font, size)
-    lines: List[str] = []
-    for paragraph in (text or "").split("\n"):
-        spans = _spans(paragraph, measure, width) or [(0, 0)]
-        lines.extend(paragraph[start:end] for start, end in spans)
-    return lines
+    text = text or ""
+    return [text[start:end] for start, end in _line_spans(text, _measure(font, size), width)]
 
 
 def escape(text: str) -> str:
@@ -307,6 +316,8 @@ def paragraph_markup(text: str, style: Any, width: float, rtl: Optional[bool] = 
 def _styled_line(chars: Sequence[Tuple[str, int]], runs: Sequence[Run], rtl: bool) -> str:
     """Une ligne de (caractère, rang de son fragment dans ``runs``), façonnée et mise
     dans l'ordre d'affichage, chaque fragment dans ses balises."""
+    if not chars:
+        return ""  # ligne vide : deux retours forcés de suite
     reshape = _shaping()[0]
     shaped: List[Tuple[str, int]] = []
     for owner, piece in groupby(chars, key=lambda item: item[1]):
@@ -326,22 +337,23 @@ def runs_markup(runs: Sequence[Run], style: Any, width: float,
                 rtl: Optional[bool] = None, font: Optional[str] = None) -> str:
     """Balisage d'un Paragraph ReportLab fait de fragments stylés (gras, italique, lien, code).
 
-    Sans arabe ni hébreu : chaque fragment échappé dans ses balises, et
-    ReportLab coupe les lignes. Sinon, comme ``paragraph_markup`` : les lignes
-    coupées ici, mesurées avec ``font`` (la police grasse, la plus large, à
-    défaut celle du style), puis chaque fragment façonné et mis à sa place
-    d'affichage avec ses balises. Les sauts de ligne comptent pour des espaces,
-    comme ReportLab les compte.
+    Un saut de ligne (« \\n », retour à la ligne forcé du Markdown) passe à la
+    ligne, comme dans ``paragraph_markup``. Sans arabe ni hébreu : chaque
+    fragment échappé dans ses balises, sauts de ligne en <br/>, et ReportLab
+    coupe les lignes. Sinon, comme ``paragraph_markup`` : les lignes coupées
+    ici, aux sauts de ligne puis à la largeur, mesurées avec ``font`` (la
+    police grasse, la plus large, à défaut celle du style), puis chaque
+    fragment façonné et mis à sa place d'affichage avec ses balises.
     """
     text = "".join(part for part, _opening, _closing in runs)
     if not has_rtl(text) or not shaping_available():
-        return "".join(f"{opening}{escape(part)}{closing}" for part, opening, closing in runs)
+        return "".join(opening + escape(part).replace("\n", "<br/>") + closing
+                       for part, opening, closing in runs)
     rtl = rtl_paragraph(text) if rtl is None else rtl
-    text = text.replace("\n", " ")
     chars = [(char, index) for index, (part, _opening, _closing) in enumerate(runs)
-             for char in part.replace("\n", " ")]
+             for char in part]
     measure = _measure(font or style.fontName, style.fontSize)
-    spans = _spans(text, measure, _usable_width(style, width)) or [(0, 0)]
+    spans = _line_spans(text, measure, _usable_width(style, width))
     return "<br/>".join(_styled_line(chars[start:end], runs, rtl) for start, end in spans)
 
 

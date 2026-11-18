@@ -544,6 +544,8 @@ class DocumentGenerator:
                 frame.clear()
                 for position, (text, level) in enumerate(chunk):
                     para = frame.paragraphs[0] if position == 0 else frame.add_paragraph()
+                    # python-pptx fait d'un « \n » (retour forcé) un saut de ligne
+                    # (<a:br>) du paragraphe, pas un nouveau paragraphe
                     para.text = text
                     para.level = min(level, 4)
                     para.font.size = Pt(18 if level == 0 else 15)
@@ -605,7 +607,7 @@ class DocumentGenerator:
                 notes.append((0, tr("document.quote", _lang=lang, text=block.text)))
             elif isinstance(block, ListBlock):
                 notes.extend(
-                    (0, f"{'    ' * item.level}• {item.text}") for item in block.items
+                    (0, _hanging(f"{'    ' * item.level}• ", item.text)) for item in block.items
                 )
             elif isinstance(block, CodeBlock):
                 notes.extend((0, line) for line in block.code.splitlines())
@@ -635,7 +637,8 @@ class DocumentGenerator:
 
     def _build_txt(self, blocks: List[Block], title: str, filepath: Path,
                    _lang: str = "") -> None:
-        """Rend les blocs en texte brut indenté."""
+        """Rend les blocs en texte brut indenté ; un retour forcé passe à la ligne
+        (sous le texte de sa puce, après « > » dans une citation)."""
         lines: List[str] = []
         if title:
             lines += [title, "=" * len(title), ""]
@@ -648,7 +651,7 @@ class DocumentGenerator:
             elif isinstance(block, ListBlock):
                 for index, item in enumerate(block.items, start=1):
                     prefix = f"{index}." if block.ordered else "-"
-                    lines.append(f"{'    ' * item.level}{prefix} {item.text}")
+                    lines.append(_hanging(f"{'    ' * item.level}{prefix} ", item.text))
                 lines.append("")
             elif isinstance(block, Table):
                 widths = _table_column_widths(block)
@@ -660,7 +663,7 @@ class DocumentGenerator:
                 lines += ["    " + line for line in block.code.splitlines()]
                 lines.append("")
             elif isinstance(block, Quote):
-                lines += [f"> {block.text}", ""]
+                lines += [_quoted(block.text), ""]
             elif isinstance(block, Rule):
                 lines += ["-" * 60, ""]
         filepath.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -737,10 +740,14 @@ class DocumentGenerator:
 
 
 def _docx_write_inlines(paragraph, inlines: List[Inline]) -> None:
-    """Écrit des fragments stylés dans un paragraphe python-docx."""
+    """Écrit des fragments stylés dans un paragraphe python-docx ; un retour forcé
+    devient un saut de ligne (<w:br/>) du paragraphe."""
     from docx.shared import Pt, RGBColor
 
     for text, styles, url in inlines:
+        if text == "\n":
+            paragraph.add_run().add_break()
+            continue
         run = paragraph.add_run(text)
         run.bold = "bold" in styles
         run.italic = "italic" in styles
@@ -1329,6 +1336,17 @@ def _cell_text(text: str) -> str:
     return inlines_to_text(parse_inlines(text or ""))
 
 
+def _hanging(prefix: str, text: str) -> str:
+    """``prefix`` (puce, numéro) devant ``text``, dont les lignes suivantes
+    (retours forcés) s'alignent sous la première : formats texte et Markdown."""
+    return prefix + text.replace("\n", "\n" + " " * len(prefix))
+
+
+def _quoted(text: str) -> str:
+    """Citation en texte ou en Markdown : « > » devant chacune de ses lignes."""
+    return "\n".join(f"> {line}" for line in text.split("\n"))
+
+
 def _cell_is_bold(text: str) -> bool:
     """True si toute la cellule est en gras (« **Taille** »)."""
     inlines = [item for item in parse_inlines(text or "") if item[0].strip()]
@@ -1453,7 +1471,9 @@ def _txt_table_row(cells: List[str], widths: List[int]) -> str:
 
 
 def _blocks_to_markdown(blocks: List[Block], title: str) -> str:
-    """Réécrit des blocs en Markdown canonique."""
+    """Réécrit des blocs en Markdown canonique. Un retour forcé y reste deux
+    espaces en fin de ligne ; la ligne suivante s'aligne sous le texte de sa
+    puce, ou commence par « > » dans une citation, pour rester dans son bloc."""
     lines: List[str] = []
     if title:
         lines += [f"# {title}", ""]
@@ -1465,7 +1485,8 @@ def _blocks_to_markdown(blocks: List[Block], title: str) -> str:
         elif isinstance(block, ListBlock):
             for index, item in enumerate(block.items, start=1):
                 prefix = f"{index}." if block.ordered else "-"
-                lines.append(f"{'  ' * item.level}{prefix} {_inlines_to_markdown(item.inlines)}")
+                lines.append(_hanging(f"{'  ' * item.level}{prefix} ",
+                                      _inlines_to_markdown(item.inlines)))
             lines.append("")
         elif isinstance(block, Table):
             lines.append("| " + " | ".join(block.header) + " |")
@@ -1475,16 +1496,21 @@ def _blocks_to_markdown(blocks: List[Block], title: str) -> str:
         elif isinstance(block, CodeBlock):
             lines += [f"```{block.language}", block.code, "```", ""]
         elif isinstance(block, Quote):
-            lines += [f"> {_inlines_to_markdown(block.inlines)}", ""]
+            lines += [_quoted(_inlines_to_markdown(block.inlines)), ""]
         elif isinstance(block, Rule):
             lines += ["---", ""]
     return "\n".join(lines).rstrip() + "\n"
 
 
 def _inlines_to_markdown(inlines: List[Inline]) -> str:
-    """Réécrit des fragments stylés en Markdown."""
+    """Réécrit des fragments stylés en Markdown ; un retour forcé en deux espaces
+    et une fin de ligne, la forme lue par tous les moteurs Markdown, invisible
+    dans le fichier brut (un poème s'y lit comme un poème)."""
     parts = []
     for text, styles, url in inlines:
+        if text == "\n":
+            parts.append("  \n")
+            continue
         rendered = text
         if "code" in styles:
             rendered = f"`{rendered}`"

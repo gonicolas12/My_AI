@@ -186,6 +186,17 @@ def test_generated_deck_is_readable(processor, tmp_path):
     assert "Section A" in titles and "Section B" in titles
 
 
+def test_line_breaks_keep_words_apart(processor, tmp_path):
+    """Un saut de ligne (<a:br>) d'une puce : les mots de part et d'autre se
+    collaient (« un,deux »). Le générateur en écrit pour les retours forcés."""
+    markdown = "## Poème\n\nVers un,  \nvers deux."
+    path = tmp_path / "poeme.pptx"
+    DocumentGenerator(llm=False).build(parse_markdown(markdown), "pptx", "Titre", path)
+
+    slides = processor.read_pptx(str(path))["content"]["slides"]
+    assert slides[1]["bullets"] == ["Vers un,\nvers deux."]
+
+
 # ── Intégration avec le pipeline de pièces jointes ────────────────────────
 
 

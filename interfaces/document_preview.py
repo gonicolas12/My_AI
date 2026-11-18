@@ -301,10 +301,19 @@ def render_blocks_html(blocks: List[Block], title: str = "") -> str:
     return "\n".join(parts) or f'<p class="empty">{_text("docpreview.emptyDocument")}</p>'
 
 
+def _escaped_lines(text: str) -> str:
+    """Texte lu dans un fichier, échappé, ses sauts de ligne (Word, Excel ; « \\v »
+    de PowerPoint) en <br> : le HTML les réduisait à des espaces."""
+    return html.escape(text).replace("\v", "\n").replace("\n", "<br>")
+
+
 def _render_inlines(inlines: List[Inline]) -> str:
-    """Convertit des fragments stylés en HTML échappé."""
+    """Convertit des fragments stylés en HTML échappé, un retour forcé en <br>."""
     parts = []
     for text, styles, url in inlines:
+        if text == "\n":
+            parts.append("<br>")
+            continue
         rendered = html.escape(text)
         if "code" in styles:
             rendered = f"<code>{rendered}</code>"
@@ -363,11 +372,11 @@ def _render_table(header: List[str], rows: List[List[str]], note: str = "") -> s
     """Rend un tableau HTML à partir d'un en-tête et de lignes de texte."""
     parts = ['<table dir="auto">']
     if header:
-        cells = "".join(f"<th>{html.escape(str(value))}</th>" for value in header)
+        cells = "".join(f"<th>{_escaped_lines(str(value))}</th>" for value in header)
         parts.append(f"<thead><tr>{cells}</tr></thead>")
     parts.append("<tbody>")
     for row in rows:
-        cells = "".join(f"<td>{html.escape(str(value))}</td>" for value in row)
+        cells = "".join(f"<td>{_escaped_lines(str(value))}</td>" for value in row)
         parts.append(f"<tr>{cells}</tr>")
     parts.append("</tbody></table>")
     if note:
@@ -394,7 +403,7 @@ def _render_docx(path: str) -> str:
     def flush_list() -> None:
         if list_buffer:
             tag = "ol" if list_ordered else "ul"
-            items = "".join(f"<li>{html.escape(text)}</li>" for text in list_buffer)
+            items = "".join(f"<li>{_escaped_lines(text)}</li>" for text in list_buffer)
             parts.append(f'<{tag} dir="auto">{items}</{tag}>')
             list_buffer.clear()
 
@@ -409,7 +418,7 @@ def _render_docx(path: str) -> str:
         if style.startswith("heading") or style in ("title", "subtitle"):
             flush_list()
             level = _docx_heading_level(style)
-            parts.append(f'<h{level} dir="auto">{html.escape(text)}</h{level}>')
+            parts.append(f'<h{level} dir="auto">{_escaped_lines(text)}</h{level}>')
         elif style.startswith(_DOCX_LIST_STYLES):
             ordered = style.startswith("list number")
             if list_buffer and ordered != list_ordered:
@@ -418,10 +427,10 @@ def _render_docx(path: str) -> str:
             list_buffer.append(text)
         elif "quote" in style:
             flush_list()
-            parts.append(f'<blockquote dir="auto">{html.escape(text)}</blockquote>')
+            parts.append(f'<blockquote dir="auto">{_escaped_lines(text)}</blockquote>')
         else:
             flush_list()
-            parts.append(f'<p dir="auto">{html.escape(text)}</p>')
+            parts.append(f'<p dir="auto">{_escaped_lines(text)}</p>')
 
     flush_list()
 
@@ -547,7 +556,7 @@ def _render_pptx(path: str) -> str:
         bullets = slide.get("bullets", [])
         if bullets:
             items = "".join(
-                f"<li>{html.escape(text.strip())}</li>" for text in bullets if text.strip()
+                f"<li>{_escaped_lines(text.strip())}</li>" for text in bullets if text.strip()
             )
             parts.append(f'<ul dir="auto">{items}</ul>')
 

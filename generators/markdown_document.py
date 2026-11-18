@@ -6,8 +6,9 @@ génération de documents (DOCX, PDF, PPTX, XLSX) de ``document_generator.py``.
 
 Le but n'est pas de couvrir CommonMark : c'est de convertir fidèlement ce
 qu'un LLM produit réellement (titres ``#``, listes, tableaux, fences ```` ``` ````,
-gras/italique) en une structure que python-docx, reportlab, python-pptx et
-openpyxl savent chacun rendre à leur façon.
+gras/italique, retours à la ligne forcés d'un poème ou d'une adresse) en une
+structure que python-docx, reportlab, python-pptx et openpyxl savent chacun
+rendre à leur façon.
 
 La convention de fences est la même que le reste du projet
 (cf. ``interfaces/artifacts.py`` et le rendu Markdown de la fenêtre,
@@ -25,6 +26,11 @@ from typing import List, Optional, Tuple
 # Un fragment de texte inline avec ses styles actifs.
 # styles ⊆ {"bold", "italic", "code"} ; url non vide = lien.
 Inline = Tuple[str, frozenset, Optional[str]]
+
+# Retour à la ligne forcé (deux espaces ou « \ » en fin de ligne, comme dans
+# CommonMark) : un fragment à part, de texte « \n », sans style ni lien. Les
+# autres fragments ne contiennent jamais de « \n ».
+LINE_BREAK: Inline = ("\n", frozenset(), None)
 
 
 @dataclass
@@ -126,16 +132,25 @@ _TABLE_SEP_RE = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]*$")
 # - italique : l'ouverture ne doit pas être suivie d'un `*` ni la fermeture
 #   précédée d'un `*`, faute de quoi `*ital **gras** fin*` s'arrêterait sur la
 #   première étoile du gras interne.
+#
+# Le texte analysé n'a plus d'autre « \n » que ses retours forcés : une emphase
+# les enjambe (`*vers un,  ⏎ vers deux*`), comme dans CommonMark (re.DOTALL).
 _INLINE_RE = re.compile(
     r"(?P<code>`+[^`]+`+)"
     r"|(?P<link>\[(?P<link_text>[^\]]*)\]\((?P<link_url>[^)\s]+)[^)]*\))"
-    r"|(?P<bolditalic>\*\*\*(?P<bi_text>[^\n]+?)\*\*\*"
-    r"|(?<!\w)___(?P<bi_text2>[^\n]+?)___(?!\w))"
-    r"|(?P<bold>\*\*(?P<bold_text>[^\n]+?)\*\*(?!\*)"
-    r"|(?<!\w)__(?P<bold_text2>[^\n]+?)__(?!\w))"
-    r"|(?P<italic>\*(?!\*)(?P<italic_text>[^\n]+?)(?<!\*)\*(?!\*)"
-    r"|(?<!\w)_(?!_)(?P<italic_text2>[^\n]+?)(?<!_)_(?!\w))",
+    r"|(?P<bolditalic>\*\*\*(?P<bi_text>.+?)\*\*\*"
+    r"|(?<!\w)___(?P<bi_text2>.+?)___(?!\w))"
+    r"|(?P<bold>\*\*(?P<bold_text>.+?)\*\*(?!\*)"
+    r"|(?<!\w)__(?P<bold_text2>.+?)__(?!\w))"
+    r"|(?P<italic>\*(?!\*)(?P<italic_text>.+?)(?<!\*)\*(?!\*)"
+    r"|(?<!\w)_(?!_)(?P<italic_text2>.+?)(?<!_)_(?!\w))",
+    re.DOTALL,
 )
+# Le code en ligne de _INLINE_RE : une fin de ligne n'y passe pas à la ligne.
+_CODE_SPAN_RE = re.compile(r"`+[^`]+`+")
+# Fin de ligne d'un bloc et les blancs qui l'entourent : retour forcé quand deux
+# espaces ou « \ » la précèdent (groupe « hard »), retour simple sinon.
+_LINE_END_RE = re.compile(r"[ \t]*?(?P<hard> {2}|\\)?\n[ \t]*")
 
 # Indentation (en espaces) correspondant à un niveau de liste.
 _INDENT_PER_LEVEL = 2
@@ -148,10 +163,14 @@ _MAX_LIST_LEVEL = 4
 
 def parse_inlines(text: str) -> List[Inline]:
     """
-    Découpe une ligne en fragments stylés.
+    Découpe le texte d'un bloc en fragments stylés.
 
     Args:
-        text: une ligne de Markdown, sans son préfixe de bloc.
+        text: le Markdown d'un bloc sur une ou plusieurs lignes, sans son
+            préfixe de bloc (« # », « - », « > »). Comme dans CommonMark, une
+            ligne qui finit par deux espaces ou par « \\ » passe à la ligne
+            (fragment ``LINE_BREAK``) ; les autres fins de ligne valent une
+            espace.
 
     Returns:
         La liste des ``(texte, styles, url)`` dans l'ordre d'apparition.
@@ -161,6 +180,41 @@ def parse_inlines(text: str) -> List[Inline]:
     if not text:
         return []
 
+    inlines: List[Inline] = []
+    for part, styles, url in _parse_spans(_join_lines(text)):
+        # Un retour forcé dans un fragment (gras sur deux vers) : un fragment à part
+        for position, piece in enumerate(part.split("\n")):
+            if position:
+                inlines.append(LINE_BREAK)
+            if piece:
+                inlines.append((piece, styles, url))
+    return inlines
+
+
+def _join_lines(text: str) -> str:
+    """
+    Les fins de ligne d'un bloc, comme CommonMark : « \\n » pour un retour
+    forcé, une espace pour un retour simple et dans du code en ligne.
+    """
+    if "\n" not in text:
+        return text
+
+    def line_end(match: "re.Match[str]") -> str:
+        return "\n" if match.group("hard") else " "
+
+    parts: List[str] = []
+    cursor = 0
+    for code in _CODE_SPAN_RE.finditer(text):
+        parts.append(_LINE_END_RE.sub(line_end, text[cursor:code.start()]))
+        parts.append(code.group().replace("\n", " "))
+        cursor = code.end()
+    parts.append(_LINE_END_RE.sub(line_end, text[cursor:]))
+    return "".join(parts)
+
+
+def _parse_spans(text: str) -> List[Inline]:
+    """Fragments stylés d'un texte dont les fins de ligne sont déjà lues
+    (``_join_lines``) : un « \\n » restant, retour forcé, reste dans son fragment."""
     inlines: List[Inline] = []
     cursor = 0
 
@@ -178,16 +232,16 @@ def parse_inlines(text: str) -> List[Inline]:
             inlines.append((label, frozenset(), match.group("link_url")))
         elif match.group("bolditalic"):
             content = match.group("bi_text") or match.group("bi_text2") or ""
-            for part, styles, url in parse_inlines(content):
+            for part, styles, url in _parse_spans(content):
                 inlines.append((part, styles | {"bold", "italic"}, url))
         elif match.group("bold"):
             content = match.group("bold_text") or match.group("bold_text2") or ""
             # Le gras peut contenir de l'italique : on ré-analyse et on fusionne.
-            for part, styles, url in parse_inlines(content):
+            for part, styles, url in _parse_spans(content):
                 inlines.append((part, styles | {"bold"}, url))
         elif match.group("italic"):
             content = match.group("italic_text") or match.group("italic_text2") or ""
-            for part, styles, url in parse_inlines(content):
+            for part, styles, url in _parse_spans(content):
                 inlines.append((part, styles | {"italic"}, url))
 
         cursor = match.end()
@@ -200,7 +254,8 @@ def parse_inlines(text: str) -> List[Inline]:
 
 
 def inlines_to_text(inlines: List[Inline]) -> str:
-    """Aplati une liste de fragments en texte brut (sans marqueurs)."""
+    """Aplati une liste de fragments en texte brut (sans marqueurs), un retour
+    forcé en « \\n »."""
     return "".join(part for part, _styles, _url in inlines)
 
 
@@ -218,6 +273,13 @@ def _list_level(indent: str) -> int:
     """Convertit l'indentation d'une puce en niveau d'imbrication."""
     width = len(indent.replace("\t", " " * _INDENT_PER_LEVEL))
     return min(width // _INDENT_PER_LEVEL, _MAX_LIST_LEVEL)
+
+
+def _block_text(lines: List[str]) -> str:
+    """Les lignes d'un bloc pour ``parse_inlines`` : sans leur retrait, et avec
+    leurs fins de ligne, où il lit les retours forcés. Deux espaces ou « \\ »
+    à la fin du bloc n'y passent pas à la ligne, comme dans CommonMark."""
+    return "\n".join(line.lstrip() for line in lines).strip()
 
 
 def parse_markdown(text: str) -> List[Block]:
@@ -241,18 +303,21 @@ def parse_markdown(text: str) -> List[Block]:
     paragraph: List[str] = []
     quote: List[str] = []
     current_list: Optional[ListBlock] = None
+    # Lignes de la dernière entrée de liste, analysées ensemble à chaque ligne
+    # de continuation (retour forcé, gras sur deux lignes)
+    item_lines: List[str] = []
     table_lines: List[str] = []
 
     def flush_paragraph() -> None:
         if paragraph:
-            joined = " ".join(part.strip() for part in paragraph).strip()
+            joined = _block_text(paragraph)
             if joined:
                 blocks.append(Paragraph(parse_inlines(joined)))
             paragraph.clear()
 
     def flush_quote() -> None:
         if quote:
-            joined = " ".join(part.strip() for part in quote).strip()
+            joined = _block_text(quote)
             if joined:
                 blocks.append(Quote(parse_inlines(joined)))
             quote.clear()
@@ -363,6 +428,7 @@ def parse_markdown(text: str) -> List[Block]:
             if current_list is None or current_list.ordered != is_ordered:
                 flush_list()
                 current_list = ListBlock(ordered=is_ordered)
+            item_lines = [content]
             current_list.items.append(
                 ListItem(inlines=parse_inlines(content.strip()), level=_list_level(indent))
             )
@@ -371,8 +437,8 @@ def parse_markdown(text: str) -> List[Block]:
 
         # ── Continuation d'une entrée de liste (ligne indentée sans puce) ──
         if current_list is not None and line.startswith((" ", "\t")):
-            item = current_list.items[-1]
-            item.inlines = item.inlines + [(" " + line.strip(), frozenset(), None)]
+            item_lines.append(line)
+            current_list.items[-1].inlines = parse_inlines(_block_text(item_lines))
             index += 1
             continue
 

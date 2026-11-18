@@ -157,6 +157,24 @@ def test_bold_follows_its_word_in_arabic():
     assert _masked(markup) == "(Paris) <b>a</b> a"
 
 
+def test_line_break_run_goes_to_the_next_line():
+    """Un fragment « \\n » (retour forcé du Markdown) passe à la ligne : il
+    comptait pour une espace, et les vers d'un poème se suivaient."""
+    runs = [("Vers un,", "<b>", "</b>"), ("\n", "", ""), ("vers deux.", "", "")]
+    assert runs_markup(runs, _style(), 100) == "<b>Vers un,</b><br/>vers deux."
+
+
+@needs_shaping
+def test_arabic_lines_are_cut_at_line_breaks_first():
+    """L'arabe, coupé en lignes ici : chaque retour forcé ouvre une ligne, même
+    large de 400 pt ; deux retours de suite laissent une ligne vide."""
+    font = pdf_fonts("مرحبا")[0]
+    runs = [("مرحبا بكم،", "", ""), ("\n", "", ""), ("في ", "", ""),
+            ("باريس", "<b>", "</b>"), ("\n", "", ""), ("\n", "", ""), ("وداعا", "", "")]
+    lines = runs_markup(runs, _style(font), 400).split("<br/>")
+    assert [_masked(line) for line in lines] == ["a a", "<b>a</b> a", "", "a"]
+
+
 def test_rtl_paragraphs_are_aligned_right():
     left = _style(leftIndent=14)
     rtl = aligned(left, "مرحبا")
