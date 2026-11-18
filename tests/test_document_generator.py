@@ -341,6 +341,29 @@ def test_html_is_a_standalone_page(generator, tmp_path):
     assert "<table" in text and "<strong>" in text
 
 
+# Régression : une ligne de texte juste après une citation, sans ligne vide,
+# sortait avant elle dans le document.
+_QUOTE_THEN_TEXT = "> Une citation.\nLe texte qui la suit."
+
+
+def test_docx_text_after_a_quote_stays_after_it(generator, tmp_path):
+    import docx
+
+    path = _build(generator, "docx", tmp_path, content=_QUOTE_THEN_TEXT)
+    paragraphs = [p for p in docx.Document(str(path)).paragraphs if p.text]
+    texts = [p.text for p in paragraphs]
+    assert texts.index("Une citation.") < texts.index("Le texte qui la suit.")
+    assert paragraphs[texts.index("Une citation.")].style.name == "Intense Quote"
+
+
+def test_pdf_text_after_a_quote_stays_after_it(generator, tmp_path):
+    fitz = pytest.importorskip("fitz")
+    path = _build(generator, "pdf", tmp_path, content=_QUOTE_THEN_TEXT)
+    with fitz.open(str(path)) as document:
+        lines = [line.strip() for line in document[0].get_text().splitlines()]
+    assert lines.index("Une citation.") < lines.index("Le texte qui la suit.")
+
+
 def test_csv_exports_the_first_table(generator, tmp_path):
     path = _build(generator, "csv", tmp_path)
     lines = path.read_text(encoding="utf-8-sig").splitlines()

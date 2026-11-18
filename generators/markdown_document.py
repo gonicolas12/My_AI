@@ -443,7 +443,14 @@ def parse_markdown(text: str) -> List[Block]:
             continue
 
         # ── Texte courant ──
+        # Une ligne de texte (ni « > », ni puce, ni retrait sous une puce) ferme
+        # la liste ou la citation en cours, comme une ligne vide. La
+        # continuation paresseuse de CommonMark (la ligne rejoindrait la
+        # citation) sert au texte coupé à la main ; un LLM écrit chaque
+        # paragraphe d'une traite. Sans cela, la ligne sortait avant la
+        # citation : flush_all() vide le paragraphe en premier.
         flush_list()
+        flush_quote()
         paragraph.append(line)
         index += 1
 
