@@ -112,6 +112,10 @@ le fil ouvert à droite, comme dans l'app Codex.
   « Attend son tour » et écrira ensuite
 - **Diff** : quand un agent modifie un code fourni (fichier joint ou bloc de la tâche), sa
   sortie s'ouvre en **Diff** (lignes ajoutées et retirées), **Sortie** montrant la réponse entière
+- **Aperçus** : les pièces jointes en tête du fil, les fichiers qu'un résultat cite ou nomme
+  et ses blocs HTML ou SVG (bouton **Aperçu**) s'ouvrent dans une **fenêtre d'aperçu au
+  premier plan**, comme une pièce jointe de la zone de tâche avant le lancement ; cette page
+  n'a pas de volet de droite
 - **Rouvrables** : les 50 derniers fils sont gardés d'un lancement à l'autre
   (`data/agent_runs.json`) ; **Effacer l'historique** les supprime
 - Les exécutions lancées **du téléphone** (« Lancé du téléphone ») et les **tâches planifiées**
@@ -561,7 +565,7 @@ Vous pouvez attacher des fichiers aux tâches envoyées aux agents.
 | **PDF** | PDFProcessor (extraction texte + métadonnées, OCR des pages scannées) |
 | **DOCX** | DOCXProcessor (paragraphes + tables) |
 | **PPTX, POTX** | PPTXProcessor (titres, puces, tableaux, notes) |
-| **XLSX, XLS, CSV** | ExcelProcessor (feuilles en tableau texte, 200 lignes max par feuille) |
+| **XLSX, XLS, CSV** | ExcelProcessor (feuilles en tableau Markdown, cellules entières, 200 000 caractères au plus ; encodage et séparateur du CSV détectés) |
 | **TXT, MD, JSON** | Lecture directe (200 000 caractères max) |
 | **Code** (.py, .js, .ts, .java...) | Lecture directe |
 | **Images** | Décrites par le modèle de vision, chacune |

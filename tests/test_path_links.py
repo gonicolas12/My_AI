@@ -3,7 +3,7 @@ Tests des chemins cliquables du chat (utils/path_links.py). Leur rendu dans la
 fenêtre est vérifié par Vitest (features/chat/markdown/links.test.tsx).
 
 Les chemins sont créés dans un dossier temporaire, avec des espaces comme
-« OneDrive - Pierre Fabre SA » : c'est le cas réel qui rend la détection
+« OneDrive - Contoso SA » : c'est le cas réel qui rend la détection
 difficile.
 """
 
@@ -22,7 +22,7 @@ def _tree(tmp_path, monkeypatch):
     if not path_links.IS_WINDOWS:
         # Hors Windows, seuls les chemins du dossier personnel sont sondés.
         monkeypatch.setenv("HOME", str(tmp_path))
-    folder = tmp_path / "OneDrive - Pierre Fabre SA" / "My AI"
+    folder = tmp_path / "OneDrive - Contoso SA" / "My AI"
     folder.mkdir(parents=True)
     document = folder / "rapport final.docx"
     document.write_bytes(b"x")

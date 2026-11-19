@@ -467,9 +467,9 @@ def clean_query(query: str, user_message: str = "") -> str:
     """
     Requête prête pour le moteur, à partir de celle qu'a choisie le modèle.
 
-    Le modèle ne connaît pas la date du jour : il ajoute les années de son
-    apprentissage (« meilleures marques de voitures 2024 2025 »), et le
-    moteur remonte alors des pages périmées. Ces années récentes sont
+    Le modèle ajoute les années de son apprentissage (« meilleures marques
+    de voitures 2024 2025 »), même en connaissant la date du jour (prompt
+    système), et le moteur remonte alors des pages périmées. Ces années récentes sont
     retirées quand l'utilisateur ne les a pas écrites lui-même ; une année
     ancienne (« construction tour Eiffel 1889 ») reste, elle est voulue.
 

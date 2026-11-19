@@ -715,8 +715,8 @@ Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
 ├─ Transcription (questions, réponses découpées en passes du modèle et
 │   appels d'outils) et historique du modèle, gardés dans
 │   data/code_conversation.json ; l'historique est borné à la fenêtre de
-│   contexte, et son prompt système ne change qu'avec les dossiers ouverts
-│   ou la langue (cache d'Ollama)
+│   contexte, et son prompt système ne change qu'avec les dossiers ouverts,
+│   la langue ou le jour (cache d'Ollama)
 ├─ send(texte, origine) : une réponse à la fois ; la boucle agentique tourne
 │   sur la boucle asyncio du Relay, ses outils dans l'extension la plus
 │   récemment active (RemoteToolExecutor, avec l'origine du message)
@@ -970,7 +970,9 @@ Configuration Modelfile:
 ├─ Modèle de base: qwen3.5:4b (ou autre selon choix)
 ├─ Temperature: 0.7
 ├─ Context window: 32768 tokens
-└─ System prompt personnalisé français
+├─ System prompt personnalisé français
+└─ + date du jour (core/modelfile.today_note, au jour près pour le cache
+   d'Ollama) : chat, réflexion, agents, conversation Code
 ```
 
 **`models/image_generation.py`** - Génération d'images (texte → image)
@@ -1118,12 +1120,13 @@ Output:
 Librairies:
 ├─ openpyxl  - Fichiers .xlsx (format moderne)
 ├─ xlrd      - Fichiers .xls (ancien format)
-└─ csv       - Fichiers .csv (stdlib Python)
+└─ csv       - Fichiers .csv (stdlib Python, via utils/csv_table.py)
 
 Processing:
 ├─ Lecture multi-feuilles (.xlsx, .xls)
-├─ Détection encodage automatique (.csv)
-├─ Formatage tableau texte (max 200 lignes, 30 chars/cellule)
+├─ CSV : encodage, séparateur et guillemets détectés (utils/csv_table.py)
+├─ Texte pour le modèle : tableau Markdown, cellules entières, 200 000
+│  caractères au plus
 ├─ Fallback openpyxl → xlrd pour .xls
 └─ Error handling par format
 
@@ -1603,7 +1606,7 @@ Format Detection
     ├─ .docx        → DOCXProcessor
     ├─ .pptx/.potx  → PPTXProcessor
     ├─ .xlsx/.xls   → ExcelProcessor (openpyxl / xlrd)
-    ├─ .csv         → ExcelProcessor (stdlib csv)
+    ├─ .csv         → ExcelProcessor (utils/csv_table.py)
     └─ .py/.js/...  → CodeProcessor
     ↓
 Content Extraction
