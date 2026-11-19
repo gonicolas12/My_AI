@@ -5,6 +5,43 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-11-19
+
+Files open in a preview over the chat, as on the phone.
+
+### Added
+- **File previews.** A click on a file opens it in a preview over the
+  view, with **‹ ›** between the files of a message, **Preview** and
+  **Code** tabs, **Download** and **Open in browser**. What opens:
+  - attachments, before and after sending;
+  - files a reply cites or names, found in your workspace (by their path,
+    or by their name alone when one file has it or the reply's tools
+    touched it), with an **Open in editor** button;
+  - the HTML and SVG blocks of a reply, by the **Preview** button in
+    their header.
+- **Rendering.** Code and text files of the workspace are read by the
+  extension (the first 512 KB of a long file), Markdown is rendered by
+  VS Code with the images of its folder, and images, sound and video show
+  in the preview. PDF, Word, Excel and PowerPoint files are sent to My_AI
+  on the host PC, which shows their pages as images, and a CSV shows as a
+  table, with its source in the **Code** tab. Files of the PC (attachments
+  sent from the PC or the phone, files a reply names there) are asked from
+  the Relay, which only shows the files of its conversations.
+- The scripts of a previewed HTML page run, under the view's content
+  security policy, in a sandboxed frame.
+
+### Security
+- The view ignores the messages previewed pages send to it: a page could
+  otherwise post the view's own commands, for instance the one that
+  empties the chat.
+
+### Notes
+- Files rendered on the PC (PDF, Office, CSV, files of the PC) need
+  My_AI 9.2.0 on the host. With an older host, their preview says that
+  My_AI did not answer in time; code, text, Markdown and images of the
+  workspace still open.
+- Unlike the phone, a new reply never opens its preview by itself.
+
 ## [1.6.3] — 2026-11-16
 
 Security update of the WebSocket library.

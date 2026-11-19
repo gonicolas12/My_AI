@@ -1,8 +1,8 @@
-# 📖 Guide d'Installation - My Personal AI v9.1.0
+# 📖 Guide d'Installation - My Personal AI
 
 ## 🎯 Vue d'Ensemble
 
-My Personal AI v9.1.0 est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
+My Personal AI est une **IA 100% locale** avec un système de contexte de **10 Millions de tokens RÉEL** fonctionnant entièrement sur votre machine sans dépendances cloud obligatoires. Cette installation vous guide pour mettre en place votre IA privée et sécurisée.
 
 ## ⚡ Installation Rapide (5 minutes)
 
@@ -439,7 +439,7 @@ Un fichier `config.yaml` sera créé automatiquement au premier lancement avec l
 # Configuration IA
 ai:
   name: "My Personal AI"
-  version: "9.1.0"
+  version: "9.2.0"
   max_tokens: 10485760      # 10M tokens (capacité VectorMemory)
   temperature: 0.7
   conversation_history_limit: 10
@@ -904,7 +904,7 @@ def test_directories():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  TEST INSTALLATION MY PERSONAL AI v9.1.0")
+    print("  TEST INSTALLATION MY PERSONAL AI v9.2.0")
     print("=" * 50)
 
     tests = [test_imports(), test_gpu(), test_directories()]
@@ -1081,4 +1081,4 @@ Si vous rencontrez des problèmes:
 
 **Bon codage avec My Personal AI! 🚀**
 
-*Version: 9.1.0 | Architecture: 100% locale | Capacité: 10M tokens*
+*Version: 9.2.0 | Architecture: 100% locale | Capacité: 10M tokens*
