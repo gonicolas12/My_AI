@@ -3,6 +3,7 @@ import { ChatViewProvider } from './chatViewProvider';
 import { ConnectionManager } from './connectionManager';
 import { InvalidConnectionStringError } from './connectionString';
 import { initI18n, onDidChangeLanguage, t } from './i18n';
+import { revealInOS } from './reveal';
 import { WorkspaceBridge } from './workspaceBridge';
 
 let manager: ConnectionManager | null = null;
@@ -70,6 +71,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('myai-relay.moveToSecondarySidebar', async () => {
       await moveViewToSecondarySidebar();
     }),
+    // Right-click on a file a reply cites (« webview/context » of package.json):
+    // its data-vscode-context (media/chat.js) carries the path. One command per
+    // system, for VS Code's own wording: Reveal in File Explorer (Windows),
+    // Reveal in Finder (macOS), Open Containing Folder (Linux)
+    ...['myai-relay.revealInOS', 'myai-relay.revealInFinder', 'myai-relay.openContainingFolder'].map(
+      (command) => vscode.commands.registerCommand(command, async (context?: { path?: unknown }) => {
+        await revealInOS(context?.path);
+      }),
+    ),
   );
 
   // Try to silently restore an existing session.

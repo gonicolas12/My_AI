@@ -112,6 +112,21 @@
         "command": "myai-relay.moveToSecondarySidebar",
         "title": "%command.moveToSecondarySidebar%",
         "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.revealInOS",
+        "title": "%command.revealInOS%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.revealInFinder",
+        "title": "%command.revealInFinder%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "myai-relay.openContainingFolder",
+        "title": "%command.openContainingFolder%",
+        "category": "%command.category%"
       }
     ],
     "menus": {
@@ -134,10 +149,39 @@
           "group": "myai@1"
         }
       ],
+      "webview/context": [
+        {
+          "command": "myai-relay.revealInOS",
+          "when": "webviewId == 'myai-relay.chat' && webviewSection == 'file' && isWindows",
+          "group": "myai@1"
+        },
+        {
+          "command": "myai-relay.revealInFinder",
+          "when": "webviewId == 'myai-relay.chat' && webviewSection == 'file' && isMac",
+          "group": "myai@1"
+        },
+        {
+          "command": "myai-relay.openContainingFolder",
+          "when": "webviewId == 'myai-relay.chat' && webviewSection == 'file' && isLinux",
+          "group": "myai@1"
+        }
+      ],
       "commandPalette": [
         {
           "command": "myai-relay.sendSelection",
           "when": "editorHasSelection"
+        },
+        {
+          "command": "myai-relay.revealInOS",
+          "when": "false"
+        },
+        {
+          "command": "myai-relay.revealInFinder",
+          "when": "false"
+        },
+        {
+          "command": "myai-relay.openContainingFolder",
+          "when": "false"
         }
       ]
     },

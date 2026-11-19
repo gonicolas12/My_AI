@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 
 IS_WINDOWS = sys.platform.startswith("win")
@@ -160,5 +161,26 @@ def reveal_in_file_manager(path: str) -> None:
             subprocess.Popen(f'explorer /select,"{path}"')
     elif sys.platform == "darwin":
         subprocess.Popen(["open", path] if is_dir else ["open", "-R", path])
-    else:
+    elif is_dir or not _show_item_linux(path):
+        # xdg-open ne sait pas sélectionner un fichier : son dossier, à défaut
         subprocess.Popen(["xdg-open", path if is_dir else os.path.dirname(path)])
+
+
+def _show_item_linux(path: str) -> bool:
+    """
+    Linux : le fichier sélectionné dans son dossier, par le service FileManager1
+    du bureau (Nautilus, Dolphin, Nemo, Caja…), comme Electron et VS Code.
+    False sans ce service (ou sans dbus-send) : le dossier s'ouvre par xdg-open.
+    """
+    # URI encodée : ni virgule (séparateur des tableaux de dbus-send) ni espace
+    uri = Path(os.path.abspath(path)).as_uri()
+    try:
+        done = subprocess.run(
+            ["dbus-send", "--session", "--print-reply", "--dest=org.freedesktop.FileManager1",
+             "--type=method_call", "/org/freedesktop/FileManager1",
+             "org.freedesktop.FileManager1.ShowItems", f"array:string:{uri}", "string:"],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0

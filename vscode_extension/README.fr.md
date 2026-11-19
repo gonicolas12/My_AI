@@ -42,6 +42,9 @@ exactement comme avant.
   dans un aperçu par-dessus le chat : le code et le Markdown du workspace sont
   lus ici (avec **Ouvrir dans l'éditeur**), les pages des PDF, Word, Excel et
   PowerPoint rendues par My_AI sur le PC hôte, et un CSV s'affiche en tableau.
+  Clic droit sur un fichier cité : **Afficher dans l'Explorateur de fichiers**
+  (**Afficher dans le Finder** sur macOS, **Ouvrir le dossier contenant** sur
+  Linux) ; un dossier cité s'ouvre dans le gestionnaire de fichiers.
 - ⏹️ **Stop et Effacer** — pendant la génération, d'où que vienne le
   message, le bouton d'envoi devient Stop : il arrête le modèle et les
   appels d'outils en attente, et le texte se fige aussitôt. **Effacer**

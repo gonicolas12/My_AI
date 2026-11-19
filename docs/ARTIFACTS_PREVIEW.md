@@ -152,8 +152,31 @@ code, Markdown, PDF, Word, Excel, CSV…). Il s'ouvre selon l'endroit du clic :
 | Téléphone (chat, page Agents, vue Code) et VS Code | pièce jointe (avant et après l'envoi), fichier cité ou nommé, bloc HTML ou SVG | fenêtre par-dessus la vue ([`preview.js`](../relay/static/preview.js)) |
 
 Un chemin cité n'est un lien que s'il existe sur le PC. Un dossier s'ouvre dans
-l'Explorateur ; sur le téléphone et dans VS Code, seuls les fichiers sont des
-liens.
+l'Explorateur (jamais un mot seul comme « docs » : il faut un chemin, « src/lib »
+ou absolu) ; sur le téléphone, seuls les fichiers sont des liens.
+
+**Clic droit sur un fichier cité** : **Afficher dans l'Explorateur**, qui ouvre
+son dossier, le fichier sélectionné ; le clic gauche reste son aperçu, et un
+dossier n'a pas de menu (son clic l'ouvre déjà). Le libellé suit le système
+(`lib/platform.ts`, d'après l'agent de la page) : « Afficher dans le Finder » sur
+macOS, « Afficher dans le gestionnaire de fichiers » sur Linux, pour ce menu
+comme pour les boutons de l'aperçu et des cartes de documents. L'ouverture
+(`utils/path_links.reveal_in_file_manager`) : `explorer /select` sous Windows,
+`open -R` sous macOS, et sous Linux le service `org.freedesktop.FileManager1`
+du bureau (Nautilus, Dolphin, Nemo, Caja…), qui sélectionne le fichier comme
+le font Electron et VS Code ; sans lui, `xdg-open` ouvre son dossier.
+
+- Fenêtre (chat, page Code, page Agents) : un petit menu sous le pointeur
+  (`ContextMenu` et `useContextMenu`, [`components/ui/`](../frontend/src/components/ui/)) ;
+  la fenêtre n'en a pas d'autre, pywebview coupant celui de WebView2 hors du
+  mode debug.
+- VS Code : le menu de VS Code lui-même (`webview/context` de `package.json`),
+  à côté de Couper, Copier, Coller, avec les mots de VS Code : « Afficher dans
+  l'Explorateur de fichiers » sous Windows (`myai-relay.revealInOS`), « Afficher
+  dans le Finder » sous macOS (`myai-relay.revealInFinder`), « Ouvrir le dossier
+  contenant » sous Linux (`myai-relay.openContainingFolder`), une seule selon
+  `isWindows`, `isMac`, `isLinux`. Un dossier cité est un lien
+  là aussi, ouvert dans l'Explorateur de fichiers ([`src/reveal.ts`](../vscode_extension/src/reveal.ts)).
 
 ## Ouverture automatique
 

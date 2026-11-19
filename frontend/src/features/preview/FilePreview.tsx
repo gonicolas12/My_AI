@@ -40,6 +40,7 @@ import {
 } from '../../lib/fileKinds';
 import { useFileInfo, useFileLink, useFileText } from '../../lib/files';
 import { formatSize, formatWhen } from '../../lib/format';
+import { revealLabels } from '../../lib/platform';
 import type { PreviewTab } from '../../stores/preview';
 import { CodeBlock } from '../chat/markdown/CodeBlock';
 import { Markdown } from '../chat/markdown/Markdown';
@@ -92,7 +93,7 @@ function FileFallback({
           </Button>
         ) : null}
         <Button size="sm" onClick={() => void revealPath(path)}>
-          <FolderOpen size={14} /> {t('chat.file.reveal')}
+          <FolderOpen size={14} /> {t(revealLabels().file)}
         </Button>
       </div>
     </Centered>

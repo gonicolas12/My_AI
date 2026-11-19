@@ -284,6 +284,11 @@
     if (link) {
       e.preventDefault();
       const filePath = link.getAttribute('data-path') || '';
+      // A folder: opened in the system's file explorer, as on the PC
+      if (link.hasAttribute('data-folder')) {
+        vscode.postMessage({ type: 'reveal-path', path: filePath });
+        return;
+      }
       getPreview().open([fileItem({ name: baseName(filePath), localPath: filePath })], 0);
       return;
     }
@@ -508,6 +513,9 @@
   // Path or name of a file a reply may cite (`src/app.ts`, C:\x\y.py,
   // README.md…): the extension keeps those of the workspace
   const FILE_TOKEN = /(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|[\\/])?(?:[\w@+-][\w@.+-]*[\\/])*[\w@+-][\w@.+-]*\.[A-Za-z0-9]{1,10}\b/g;
+  // A folder it may cite: a path with a separator at least (« src/lib »,
+  // C:\x\y), as on the PC (relay/code_links.py): a word alone never is one
+  const FOLDER_TOKEN = /(?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|[\\/])?(?:[\w@+-][\w@.+-]*[\\/])+[\w@+-][\w@.+-]*/g;
 
   function fileCandidates(text) {
     const clean = String(text || '').replace(/\bhttps?:\/\/\S+/g, ' ');
@@ -519,6 +527,12 @@
       // Numbers (1.5, v2.0.1): never files
       if (token.length < 3 || /^v?\d+(\.\d+)+$/i.test(token)) continue;
       found.add(token);
+    }
+    FOLDER_TOKEN.lastIndex = 0;
+    while ((match = FOLDER_TOKEN.exec(clean)) && found.size < 200) {
+      // The end of a sentence is not part of the path
+      const token = match[0].replace(/\.+$/, '');
+      if (token.length >= 3) found.add(token);
     }
     return Array.from(found);
   }
@@ -540,9 +554,19 @@
     const reply = replies.get(messageId);
     if (!reply || !Array.isArray(links) || !links.length) return;
     reply.links = links.filter((link) => link && link.text && link.path).map((link) => ({
-      text: link.text, path: link.path, whole: !!link.whole,
+      text: link.text, path: link.path, whole: !!link.whole, folder: !!link.folder,
     }));
     showReply(reply);
+  }
+
+  // Files a reply cites: their right-click menu in VS Code (« webview/context »
+  // of package.json: Reveal in File Explorer, command myai-relay.revealInOS)
+  function markFileLinks(element) {
+    element.querySelectorAll('a.md-file:not([data-folder]):not([data-vscode-context])').forEach((link) => {
+      link.setAttribute('data-vscode-context', JSON.stringify({
+        webviewSection: 'file', path: link.getAttribute('data-path') || '',
+      }));
+    });
   }
 
   // Attachments of a message, under its bubble: a click opens their preview
@@ -592,11 +616,12 @@
     let turn = turns.get(reply.message_id);
     if (turn) {
       turn.update(reply);
-      return;
+    } else {
+      turn = window.MyAITurn.create(reply, turnOptions);
+      turns.set(reply.message_id, turn);
+      messagesEl.appendChild(turn.el);
     }
-    turn = window.MyAITurn.create(reply, turnOptions);
-    turns.set(reply.message_id, turn);
-    messagesEl.appendChild(turn.el);
+    markFileLinks(turn.el);
   }
 
   // Reply begun (message acknowledged, or typed elsewhere): its bubble shows

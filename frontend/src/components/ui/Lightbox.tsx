@@ -3,6 +3,7 @@ import { FolderOpen, SquareArrowOutUpRight, X } from 'lucide-react';
 
 import { useT } from '../../i18n';
 import { openFile, revealPath } from '../../lib/actions';
+import { revealLabels } from '../../lib/platform';
 import { IconButton } from './Button';
 
 interface LightboxProps {
@@ -46,7 +47,7 @@ export function Lightbox({ open, onOpenChange, url, path, name, generated }: Lig
                 <SquareArrowOutUpRight size={16} />
               </IconButton>
             ) : null}
-            <IconButton label={t('chat.file.reveal')} onClick={() => void revealPath(path)}>
+            <IconButton label={t(revealLabels().file)} onClick={() => void revealPath(path)}>
               <FolderOpen size={16} />
             </IconButton>
             <RadixDialog.Close asChild>

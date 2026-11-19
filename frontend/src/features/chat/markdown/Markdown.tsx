@@ -21,7 +21,7 @@
  *   modèle invente (« [Dossier X](memory://x) »).
  */
 
-import { ImageIcon } from 'lucide-react';
+import { FolderOpen, ImageIcon } from 'lucide-react';
 import { createContext, memo, useContext, useMemo, useState } from 'react';
 import ReactMarkdown, { type Components, type Options } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -30,9 +30,13 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remend from 'remend';
 
+import { ContextMenu, MenuItem } from '../../../components/ui/Menu';
+import { useContextMenu } from '../../../components/ui/useContextMenu';
 import { useT } from '../../../i18n';
 import { revealPath } from '../../../lib/actions';
+import { baseName } from '../../../lib/artifacts';
 import { relativeImagePath, useMarkdownImage } from '../../../lib/files';
+import { revealLabels } from '../../../lib/platform';
 import { externalUrl } from '../../../lib/shell';
 import { showInMemory } from '../../../stores/memory';
 import { BlockSplitter } from './blocks';
@@ -203,32 +207,45 @@ function Citation({ node, children }: { node?: unknown; children?: React.ReactNo
 
 /**
  * Chemin existant, ou fichier de la conversation nommé : un fichier s'ouvre dans
- * le volet d'aperçu, un dossier dans l'Explorateur ; jamais exécuté
+ * l'aperçu (clic droit : Afficher dans l'Explorateur), un dossier dans
+ * l'Explorateur ; jamais exécuté
  */
 function FilePath({ node, children }: { node?: unknown; children?: React.ReactNode }) {
   const t = useT();
   const path = propertyOf(node, 'path');
   const folder = propertyOf(node, 'dir') === 'true';
   const openFile = useContext(FileOpener);
+  const menu = useContextMenu();
   const open = () => (folder ? void revealPath(path) : openFile(path));
   // Élément en ligne, et non un bouton : un bouton forme une boîte insécable,
   // la ponctuation qui le suit passerait seule à la ligne
   return (
-    <span
-      role="link"
-      tabIndex={0}
-      className="md-path"
-      title={folder ? t('chat.path.reveal', { path }) : t('chat.path.preview', { path })}
-      onClick={open}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          open();
-        }
-      }}
-    >
-      {children}
-    </span>
+    <>
+      <span
+        role="link"
+        tabIndex={0}
+        className="md-path"
+        title={folder ? t(revealLabels().path, { path }) : t('chat.path.preview', { path })}
+        onClick={open}
+        // Un dossier s'ouvre déjà dans l'Explorateur au clic : pas de menu
+        onContextMenu={folder ? undefined : menu.open}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            open();
+          }
+        }}
+      >
+        {children}
+      </span>
+      {folder ? null : (
+        <ContextMenu at={menu.at} onClose={menu.close} origin={menu.origin} label={baseName(path)}>
+          <MenuItem icon={<FolderOpen size={15} />} onSelect={() => void revealPath(path)}>
+            {t(revealLabels().file)}
+          </MenuItem>
+        </ContextMenu>
+      )}
+    </>
   );
 }
 
