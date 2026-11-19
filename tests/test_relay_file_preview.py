@@ -22,6 +22,15 @@ from relay.relay_server import RelayServer
 testclient = pytest.importorskip("fastapi.testclient")
 
 
+@pytest.fixture(autouse=True)
+def _no_office_export(monkeypatch):
+    """Les documents de ces tests ne passent pas par Word ni Excel (tests/test_office_pdf.py)."""
+    # pylint: disable-next=import-outside-toplevel
+    from interfaces import office_pdf
+
+    monkeypatch.setattr(office_pdf, "office_pdf", lambda path: None)
+
+
 @pytest.fixture(name="bridge")
 def bridge_fixture():
     """Le pont du Relay (singleton), vide avant et après chaque test."""
@@ -103,6 +112,25 @@ def test_markdown_is_rendered_with_its_source(tmp_path):
     assert preview["kind"] == "document" and "<h1>Projet</h1>" in preview["html"]
     assert "&lt;div" not in preview["html"]
     assert preview["text"].startswith('<div align="center">') and preview["language"] == "markdown"
+
+
+def test_a_csv_is_a_table_with_its_source(tmp_path):
+    # Export d'Excel en France : Windows-1252, séparé par « ; »
+    table = tmp_path / "Phrases.csv"
+    table.write_bytes("Code Phrase;Description\r\n251;NE PAS BRÛLER\r\n".encode("cp1252"))
+    preview = file_preview.build_preview(str(table))
+    assert preview["kind"] == "document"
+    assert "<th>Code Phrase</th><th>Description</th>" in preview["html"]
+    assert '<td class="num">251</td><td>NE PAS BRÛLER</td>' in preview["html"]
+    assert preview["text"].startswith("Code Phrase;Description") and preview["language"] == "csv"
+
+
+def test_a_csv_that_is_not_text_keeps_its_table(tmp_path):
+    table = tmp_path / "export.csv"
+    table.write_bytes(b"a;b\x00\n1;2\n")
+    preview = file_preview.build_preview(str(table))
+    assert preview["kind"] == "document" and "<table" in preview["html"]
+    assert "text" not in preview and "language" not in preview
 
 
 def test_a_pdf_is_rendered_by_the_document_preview(tmp_path):

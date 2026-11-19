@@ -7,12 +7,17 @@
  * envoyé) ; sa largeur est réglable et retenue d'un lancement à l'autre. Il
  * s'ouvre et se ferme en douceur : fermé, il reste affiché le temps de se
  * replier (closing).
+ *
+ * Le chat et la page Code ont chacun le leur (page) : un volet ouvert dans
+ * l'une ne paraît pas dans l'autre, et la retrouve en revenant. Il n'y en a
+ * qu'un à la fois : en ouvrir un dans une page ferme celui de l'autre.
  */
 
 import { create } from 'zustand';
 
 import { savePreviewWidth } from '../lib/actions';
 import { type Artifact, fileArtifact } from '../lib/artifacts';
+import { type Tab, useApp } from './app';
 
 export type PreviewTab = 'preview' | 'code';
 
@@ -35,6 +40,8 @@ interface PreviewState {
   open: boolean;
   /** Fermé, il se replie encore (PANE_MS) */
   closing: boolean;
+  /** Page qui le montre (celle d'où il a été ouvert) */
+  page: Tab;
   /** Réponse d'origine */
   mid: string | null;
   items: Artifact[];
@@ -46,6 +53,7 @@ interface PreviewState {
 export const usePreview = create<PreviewState>()(() => ({
   open: false,
   closing: false,
+  page: 'chat',
   mid: null,
   items: [],
   index: 0,
@@ -64,13 +72,23 @@ export function clampPreviewWidth(width: number): number {
   return Math.round(Math.min(PREVIEW_WIDTH.max, Math.max(PREVIEW_WIDTH.min, width)));
 }
 
-/** Ouvre le volet sur un artefact d'une réponse */
-export function openPreview(mid: string | null, items: Artifact[], index = 0): void {
+/**
+ * Ouvre le volet sur un artefact d'une réponse
+ *
+ * @param page page qui le montre : celle affichée, sauf ouverture différée (fin d'une réponse)
+ */
+export function openPreview(
+  mid: string | null,
+  items: Artifact[],
+  index = 0,
+  page: Tab = useApp.getState().tab,
+): void {
   if (!items.length) return;
   cancelClose();
   usePreview.setState({
     open: true,
     closing: false,
+    page,
     mid,
     items,
     index: Math.min(Math.max(index, 0), items.length - 1),
@@ -87,6 +105,11 @@ export function openPreview(mid: string | null, items: Artifact[], index = 0): v
 export function openFilePreview(path: string, generated = false, mid: string | null = null): void {
   if (!path) return;
   openPreview(mid, [fileArtifact(path, generated)]);
+}
+
+/** Ferme le volet s'il est celui de cette page (conversation changée ou effacée) */
+export function closePagePreview(page: Tab): void {
+  if (usePreview.getState().page === page) closePreview();
 }
 
 export function closePreview(): void {

@@ -149,14 +149,16 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
 
     @api.get("/files/{signature}/{token}/{name}")
     async def serve_file(signature: str, token: str, name: str):
-        del name  # nom lisible, pour le titre du lecteur PDF et les téléchargements
+        # name : nom lisible du lien, titre du lecteur PDF et nom du fichier téléchargé
+        # (le PDF d'aperçu d'un document porte celui du document, pas celui de sa copie)
         path = server.links.resolve(signature, token)
         if path is None or not os.path.isfile(path):
             raise HTTPException(status_code=404)
         media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
         headers = {} if media_type == "application/pdf" else {"Content-Security-Policy": _FILE_CSP}
+        shown = os.path.basename(name or "") or os.path.basename(path)
         return FileResponse(path, media_type=media_type, headers=headers,
-                            filename=os.path.basename(path), content_disposition_type="inline")
+                            filename=shown, content_disposition_type="inline")
 
     @api.post("/api/files/open")
     async def open_file(body: PathBody):
@@ -214,7 +216,10 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
 
     def preview_view(preview):
         if preview.kind == "pdf":
-            url = server.links.url(preview.source_path)
+            # PDF tiré d'un document Office : nommé d'après lui (« rapport.pdf »)
+            shown = (f"{os.path.splitext(os.path.basename(preview.document_path))[0]}.pdf"
+                     if preview.document_path else None)
+            url = server.links.url(preview.source_path, shown)
         elif preview.kind == "native":
             url = ""  # visionneuse de la fenêtre (shell_api.native_preview_show)
         else:

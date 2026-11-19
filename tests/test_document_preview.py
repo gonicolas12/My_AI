@@ -18,7 +18,7 @@ from interfaces.artifacts import (
     detect_artifacts,
     write_artifact_html,
 )
-from interfaces import document_preview
+from interfaces import document_preview, office_pdf
 from interfaces.document_preview import (
     build_document_preview,
     document_summary,
@@ -45,6 +45,13 @@ Les baleines sont des **mammifères marins**.
 print("ok")
 ```
 """
+
+
+@pytest.fixture(autouse=True)
+def _slides_as_text(monkeypatch):
+    """Ni Office ni LibreOffice : le rendu HTML des documents, partout pareil (leurs
+    pages en images sont testées par tests/test_office_pdf.py)."""
+    monkeypatch.setattr(office_pdf, "office_pdf", lambda path: None)
 
 
 @pytest.fixture(name="documents")

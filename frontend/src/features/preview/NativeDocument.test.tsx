@@ -153,11 +153,29 @@ describe('NativeDocument', () => {
     expect(native.close).toHaveBeenCalledTimes(1);
   });
 
-  it('reste masquée pendant le redimensionnement du volet', async () => {
+  it('reste masquée pendant que le volet s’ouvre ou se ferme', async () => {
     const { rerender } = render(<NativeDocument view={VIEW} hidden={false} onFailed={vi.fn()} />);
     await waitFor(() => expect(native.place).toHaveBeenLastCalledWith(expect.anything(), true));
     rerender(<NativeDocument view={VIEW} hidden onFailed={vi.fn()} />);
     await waitFor(() => expect(native.place).toHaveBeenLastCalledWith(expect.anything(), false));
+  });
+
+  it('suit sa place quand le volet est redimensionné, sans se masquer', async () => {
+    const { container } = render(
+      <NativeDocument view={VIEW} hidden={false} onFailed={vi.fn()} />,
+    );
+    const slot = container.querySelector('[data-native-preview]');
+    if (!slot) throw new Error('place de la visionneuse absente');
+    stubRect(slot, SLOT);
+    await waitFor(() =>
+      expect(native.place).toHaveBeenLastCalledWith(deviceRect(SLOT), true),
+    );
+    // Le volet s'élargit : la place aussi, la visionneuse s'y recale, toujours visible
+    const wider = box(800, 48, 640, 852);
+    stubRect(slot, wider);
+    act(() => document.body.setAttribute('style', 'cursor: col-resize'));
+    await waitFor(() => expect(native.place).toHaveBeenLastCalledWith(deviceRect(wider), true));
+    expect(native.place).not.toHaveBeenCalledWith(expect.anything(), false);
   });
 
   it('un aperçu Office ouvert par-dessus prend la visionneuse, le premier la retrouve ensuite', async () => {

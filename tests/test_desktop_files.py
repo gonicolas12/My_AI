@@ -24,6 +24,15 @@ from test_chat_service import (  # pylint: disable=import-error
 from test_desktop_server import AUTH, BASE, PORT, FakeApp  # pylint: disable=import-error
 
 
+@pytest.fixture(autouse=True)
+def _no_office_export(monkeypatch):
+    """Les documents de ces tests ne passent pas par Word ni Excel (tests/test_office_pdf.py)."""
+    # pylint: disable-next=import-outside-toplevel
+    from interfaces import office_pdf
+
+    monkeypatch.setattr(office_pdf, "office_pdf", lambda path: None)
+
+
 @pytest.fixture(name="desk")
 def desk_fixture(tmp_path, monkeypatch):
     """Serveur desktop avec un dossier outputs/ et des envois propres au test."""
@@ -278,6 +287,61 @@ def test_office_documents_go_to_the_window_viewer_on_request(desk, monkeypatch):
     note = write(desk.outputs / "documents" / "note.md", "# Note")
     assert desk.client.post("/api/previews/document", headers=AUTH,
                             json={"path": note, "native": True}).json()["kind"] == "document"
+
+
+def test_without_its_viewer_a_document_opens_as_its_pdf(desk, monkeypatch):
+    # pylint: disable=import-outside-toplevel
+    from interfaces import office_pdf
+    from interfaces.desktop import preview_handler
+
+    # Pas d'Office (ou visionneuse en échec), mais un PDF exporté (LibreOffice…)
+    copy = write(desk.tmp_path / "copies" / "5f2e9a.pdf", "%PDF-1.4 rapport")
+    monkeypatch.setattr(preview_handler, "supports_native_preview", lambda path: False)
+    monkeypatch.setattr(office_pdf, "office_pdf", lambda path: copy)
+    monkeypatch.setattr(desktop_previews, "_IS_WINDOWS", True)
+    report = write(desk.outputs / "documents" / "rapport.docx", "docx")
+    created = desk.client.post("/api/previews/document", headers=AUTH,
+                               json={"path": report, "native": True}).json()
+    # Le lecteur PDF de la fenêtre, sous le nom du document
+    assert created["kind"] == "pdf" and created["title"] == "rapport.docx"
+    assert created["url"].startswith("/files/") and created["url"].endswith("/rapport.pdf")
+    served = desk.client.get(created["url"])
+    assert served.content == b"%PDF-1.4 rapport"
+    assert served.headers["content-type"] == "application/pdf"
+    assert 'filename="rapport.pdf"' in served.headers["content-disposition"]
+
+
+def test_a_csv_opens_in_excels_viewer_through_a_copy(desk, monkeypatch):
+    # pylint: disable=import-outside-toplevel
+    from interfaces.desktop import csv_workbook, preview_handler
+
+    # Windows n'a de visionneuse que pour le .xlsx (celle d'Excel), pas pour le CSV
+    monkeypatch.setattr(preview_handler, "supports_native_preview",
+                        lambda path: path.endswith(".xlsx"))
+    monkeypatch.setattr(csv_workbook, "CACHE_DIR", desk.tmp_path / "copies")
+    table = write(desk.outputs / "documents" / "Phrases.csv",
+                  "Code Phrase;Description\n251;NE PAS PERFORER, NI BRULER\n")
+    native = desk.client.post("/api/previews/document", headers=AUTH,
+                              json={"path": table, "native": True}).json()
+    assert native["kind"] == "native" and native["title"] == "Phrases.csv"
+    shown = desk.server.previews.native_source(native["id"])
+    assert shown.endswith(".xlsx") and os.path.dirname(shown) == str(desk.tmp_path / "copies")
+
+    # Le navigateur du système reçoit la page HTML du CSV lui-même
+    monkeypatch.setattr(desktop_previews.webbrowser, "open", lambda _uri: True)
+    written = desk.client.post(f"/api/previews/{native['id']}/browser", headers=AUTH).json()
+    page = open(written["path"], encoding="utf-8").read()
+    assert "<th>Code Phrase</th><th>Description</th>" in page and "NE PAS PERFORER" in page
+
+    # Copie impossible, ou pas de visionneuse d'Excel : la page HTML du tableau
+    monkeypatch.setattr(csv_workbook, "csv_workbook", lambda path: None)
+    assert desk.client.post("/api/previews/document", headers=AUTH,
+                            json={"path": table, "native": True}).json()["kind"] == "document"
+    monkeypatch.setattr(preview_handler, "supports_native_preview", lambda path: False)
+    page = desk.client.post("/api/previews/document", headers=AUTH,
+                            json={"path": table, "native": True}).json()
+    assert page["kind"] == "document"
+    assert '<td class="num">251</td>' in desk.client.get(page["url"]).text
 
 
 def test_preview_opens_in_the_system_browser(desk, monkeypatch):

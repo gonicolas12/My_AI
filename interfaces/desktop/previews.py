@@ -11,7 +11,9 @@ politique de sécurité, qui l'isole aussi si on l'ouvrait hors de l'iframe :
     aucun script.
 
 Un PDF n'a pas de page d'aperçu : la fenêtre l'affiche avec le lecteur de
-WebView2, par un lien signé vers le fichier (files.py).
+WebView2, par un lien signé vers le fichier (files.py). Un document Word, Excel
+ou PowerPoint sans sa visionneuse (pas d'Office, ou elle a échoué) y passe aussi,
+par le PDF qu'Office ou LibreOffice en tire (interfaces/office_pdf.py).
 
 Une origine opaque n'a ni localStorage ni sessionStorage : y toucher lève une
 erreur, et un artefact qui garde son état (compteur, liste de tâches…) s'arrête
@@ -20,6 +22,7 @@ ne vit que le temps de l'aperçu. Ouverte dans un navigateur, elle garde le vrai
 """
 
 import re
+import sys
 import threading
 import time
 import uuid
@@ -30,10 +33,23 @@ from pathlib import Path
 from typing import Optional
 
 from core.i18n import tr
+from interfaces import office_pdf as _office
 from interfaces.artifacts import ARTIFACTS_DIR, Artifact, build_preview_document
 from utils.logger import setup_logger
 
 logger = setup_logger("DesktopPreviews")
+
+_IS_WINDOWS = sys.platform.startswith("win")
+
+
+def office_kind(path: str) -> Optional[str]:
+    """Word, Excel ou PowerPoint (interfaces/office_pdf.py)."""
+    return _office.office_kind(path)
+
+
+def office_pdf(path: str) -> Optional[str]:
+    """PDF du document tel qu'Office ou LibreOffice l'imprime (interfaces/office_pdf.py)."""
+    return _office.office_pdf(path)
 
 PREVIEW_PREFIX = "/preview/"
 
@@ -93,7 +109,8 @@ class Preview:
     kind: str  # html, svg (artefacts), document, pdf, native (visionneuse Office)
     title: str
     html: Optional[str] = None  # page servie ; None pour un PDF ou une visionneuse
-    source_path: Optional[str] = None  # document d'origine
+    source_path: Optional[str] = None  # document montré (pour un CSV : sa copie .xlsx)
+    document_path: Optional[str] = None  # document d'origine, quand une copie est montrée
     language: str = ""
     index: int = 0
 
@@ -161,12 +178,27 @@ class PreviewStore:
                                                  needs_native_viewer)
 
         name = Path(path).name
-        if native and supports_native_preview(path):
+        shown = path
+        if (native and Path(path).suffix.lower() == ".csv"
+                and supports_native_preview("tableau.xlsx")):
+            # Windows n'a pas de visionneuse pour le CSV : sa copie .xlsx, dans celle d'Excel
+            from interfaces.desktop.csv_workbook import csv_workbook
+            shown = csv_workbook(path) or path
+        if native and supports_native_preview(shown):
             return self._add(Preview(id=uuid.uuid4().hex, kind="native", title=name,
-                                     source_path=path))
+                                     source_path=shown,
+                                     document_path=path if shown != path else None))
         if needs_native_viewer(path):
             return self._add(Preview(id=uuid.uuid4().hex, kind="pdf", title=name,
                                      source_path=path))
+        if _IS_WINDOWS and office_kind(path):
+            # Pas de visionneuse (pas d'Office, ou elle a échoué) : le document tel
+            # qu'Office ou LibreOffice l'imprime, dans le lecteur PDF de WebView2. Ailleurs
+            # que sous Windows, la page HTML en montre les pages en images
+            copy = office_pdf(path)
+            if copy:
+                return self._add(Preview(id=uuid.uuid4().hex, kind="pdf", title=name,
+                                         source_path=copy, document_path=path))
         if not is_previewable(path):
             raise ValueError(tr("preview.noPreview", format=Path(path).suffix or name))
         return self._add(Preview(id=uuid.uuid4().hex, kind="document", title=name,
@@ -183,7 +215,7 @@ class PreviewStore:
             # Visionneuse dans la fenêtre ; le navigateur reçoit la page HTML de Tk
             # pylint: disable-next=import-outside-toplevel
             from interfaces.document_preview import build_document_preview
-            preview.html = build_document_preview(preview.source_path)
+            preview.html = build_document_preview(preview.document_path or preview.source_path)
         self._directory.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d_%H%M%S")
         target = self._directory / f"artifact_{stamp}_{preview.index}.html"

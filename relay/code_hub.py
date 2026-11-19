@@ -45,6 +45,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from core import i18n
 from core.agentic_executor import AgenticExecutor, RemoteToolExecutor, build_system_prompt
 from core.i18n import tr
+from relay.code_links import conversation_files, reply_links, workspace_roots
 from utils.logger import setup_logger
 
 logger = setup_logger("CodeHub")
@@ -289,6 +290,24 @@ class CodeHub:
                 return link
         return self._links[-1] if self._links else None
 
+    def workspace_roots(self) -> List[str]:
+        """Dossiers ouverts dans la dernière extension active (le premier : ses outils)."""
+        with self._lock:
+            link = self._links[-1] if self._links else None
+            return workspace_roots(link.workspace_info) if link else []
+
+    def reply_links(self, message_id: str) -> List[Dict[str, Any]]:
+        """Fichiers qu'une réponse cite ou nomme (relay/code_links.py) : la page Code
+        de la fenêtre les rend cliquables, et en montre l'aperçu."""
+        with self._lock:
+            message = self._assistant(message_id)
+            if message is None:
+                return []
+            message = copy.deepcopy(message)
+            files = conversation_files(self._messages)
+        roots = message.get("roots") or self.workspace_roots()
+        return reply_links(message, files, roots)
+
     def known_paths(self) -> set:
         """Pièces jointes des messages de la conversation (chemins normalisés) :
         le Relay en montre l'aperçu au téléphone et à VS Code."""
@@ -338,8 +357,11 @@ class CodeHub:
             self._active = run
             self._append(user)
             self._emit("user", {**user, "client": client})
+            # Dossiers du workspace à ce moment : les chemins relatifs que la réponse
+            # cite y sont cherchés (relay/code_links.py), même VS Code fermé
             self._append({"message_id": message_id, "role": "assistant", "origin": origin,
-                          "timestamp": now, "parts": [], "text": "", "status": "streaming"})
+                          "timestamp": now, "parts": [], "text": "", "status": "streaming",
+                          "roots": workspace_roots(link.workspace_info)})
             self._emit("state", self._state_locked())
         run.future.add_done_callback(lambda future: self._settle(run, future))
         logger.info("Conversation Code : message %s (%s, %d caractères, %d pièce(s) jointe(s))",
@@ -520,9 +542,9 @@ class CodeHub:
     def _prepare_history(self, link: VSCodeLink, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Historique du modèle : prompt système à jour, puis borné à la fenêtre de contexte.
 
-        Le prompt système ne change que si les dossiers ouverts ou la langue
-        changent : un début de prompt modifié fait relire tout l'historique à
-        Ollama. Au-delà du budget, les plus anciens échanges partent.
+        Le prompt système ne change que si les dossiers ouverts, la langue ou
+        le jour changent : un début de prompt modifié fait relire tout
+        l'historique à Ollama. Au-delà du budget, les plus anciens échanges partent.
         """
         system = build_system_prompt(link.workspace_info, language=i18n.current_language())
         with self._lock:

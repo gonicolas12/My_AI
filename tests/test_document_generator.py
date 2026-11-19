@@ -667,10 +667,14 @@ def test_html_poem_uses_line_breaks(generator, tmp_path):
 
 
 @pytest.mark.parametrize("fmt", ["docx", "pptx", "xlsx", "md"])
-def test_preview_shows_the_poem_lines(generator, tmp_path, fmt):
+def test_preview_shows_the_poem_lines(generator, tmp_path, fmt, monkeypatch):
     """L'aperçu relit le fichier écrit : ses sauts de ligne y restent des <br>."""
+    # pylint: disable-next=import-outside-toplevel
+    from interfaces import office_pdf
     from interfaces.document_preview import build_document_preview
 
+    # Le rendu HTML (sans Office) : ce sont ses sauts de ligne qui comptent ici
+    monkeypatch.setattr(office_pdf, "office_pdf", lambda path: None)
     page = build_document_preview(str(_poem(generator, fmt, tmp_path)))
     assert "<br>".join(html.escape(verse) for verse in VERSES) in page
 

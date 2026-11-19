@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
-from core.modelfile import modelfile_system
+from core.modelfile import with_modelfile, with_today
 
 # [OPTIM] Retry résilient sur les appels réseau Ollama
 try:
@@ -244,11 +244,12 @@ class LocalLLM:
         Message « system » placé en tête de requête.
 
         Sans prompt de l'appelant, le SYSTEM du Modelfile est envoyé
-        explicitement. Ollama n'applique celui de my_ai qu'en l'absence de
-        message « system », or le résumé glissant (_compress_old_history) en
-        place un en tête d'historique : il aurait pris la place de l'identité.
+        explicitement (avec la date du jour). Ollama n'applique celui de my_ai
+        qu'en l'absence de message « system », or le résumé glissant
+        (_compress_old_history) en place un en tête d'historique : il aurait
+        pris la place de l'identité.
         """
-        content = system_prompt or modelfile_system()
+        content = system_prompt or with_modelfile()
         return [{"role": "system", "content": content}] if content else []
 
     def generate(self, prompt, system_prompt=None, save_history=True, use_history=True,
@@ -464,7 +465,9 @@ class LocalLLM:
         messages = [
             {
                 "role": "system",
-                "content": "Tu es un assistant qui réfléchit méthodiquement avant de répondre.",
+                # Avec la date : un document daté d'avant aujourd'hui n'y paraît plus « futur »
+                "content": with_today(
+                    "Tu es un assistant qui réfléchit méthodiquement avant de répondre."),
             },
             {"role": "user", "content": thinking_prompt},
         ]

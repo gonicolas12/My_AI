@@ -2,7 +2,7 @@
 
 Affiche un rendu en direct du HTML/CSS/SVG généré par l'IA — ainsi que des
 **documents produits** (docx, pdf, pptx, xlsx…) — à côté du chat. Disponible dans la **fenêtre desktop** (volet d'aperçu à
-droite du chat) et sur l'**interface mobile Relay**.
+droite du chat, et de la page **Code**) et sur l'**interface mobile Relay**.
 
 > 100% local — aucun appel réseau de l'appli. Cohérent avec la promesse de
 > confidentialité du projet.
@@ -18,6 +18,7 @@ droite du chat) et sur l'**interface mobile Relay**.
 | [`interfaces/desktop/preview_handler.py`](../interfaces/desktop/preview_handler.py) | Visionneuses natives Word/PowerPoint/Excel (`IPreviewHandler`) |
 | [`frontend/src/features/preview/`](../frontend/src/features/preview/) | Volet d'aperçu (onglets Aperçu et Code, place réservée aux visionneuses, ouverture automatique) |
 | [`frontend/src/lib/artifacts.ts`](../frontend/src/lib/artifacts.ts) | Détection côté fenêtre (bouton « Aperçu » sous les réponses) |
+| [`relay/code_links.py`](../relay/code_links.py) | Fichiers qu'une réponse de la page Code cite ou nomme, chemins relatifs au workspace de VS Code compris |
 | [`relay/static/app.js`](../relay/static/app.js) | Détection + modale `<iframe sandbox>` côté mobile |
 | [`relay/static/style.css`](../relay/static/style.css) | Styles du bouton et de la modale mobile |
 
@@ -61,9 +62,48 @@ Chaque document est affiché **dans son propre format** :
 
 | Format | Rendu dans le volet |
 |---|---|
-| **docx, pptx, xlsx** (et doc, ppt, xls, xlsm) | **Visionneuse native de Windows** : Word, PowerPoint ou Excel affichent le document eux-mêmes |
+| **docx, pptx, xlsx** (et doc, ppt, xls, xlsm) | **Visionneuse native de Windows** : Word, PowerPoint ou Excel affichent le document eux-mêmes. Sans elle (pas d'Office, ou elle a échoué), le PDF qu'en tire Office ou LibreOffice, dans le lecteur PDF de WebView2 (voir ci-dessous) |
+| **csv** | **Visionneuse d'Excel**, par une copie .xlsx du fichier (voir ci-dessous) ; son texte dans l'onglet Code |
 | **pdf** | Lecteur PDF de WebView2 (`needs_native_viewer()` : le fichier est servi tel quel, dans la page) |
-| md, txt, csv, potx (modèle PowerPoint) | Page HTML produite par `interfaces/document_preview.py` |
+| md, txt | Page HTML produite par `interfaces/document_preview.py` |
+
+**Sans visionneuse native : le document tel qu'il s'imprime.** Les visionneuses
+de la fenêtre sont celles qu'Office installe sous Windows. Sans elles (pas d'Office,
+macOS, Linux), et sur le téléphone ou dans VS Code, un document Word, Excel ou
+PowerPoint passe par un PDF : Word, Excel ou PowerPoint l'exportent (Windows, par
+COM, sans fenêtre), sinon LibreOffice s'il est installé, toutes plateformes
+([`office_pdf.py`](../interfaces/office_pdf.py) ; une copie par version du fichier,
+[`utils/preview_cache.py`](../utils/preview_cache.py)). La fenêtre sous Windows
+l'ouvre dans son lecteur PDF, sous le nom du document ; la page HTML (téléphone,
+VS Code, fenêtre sous macOS et Linux) en montre les pages en images : 12 pages,
+30 diapositives, chaque page d'Excel réduite à son tableau (une page à l'italienne
+en entier serait illisible sur un téléphone). Toucher une page l'agrandit 2,5 fois
+(elle défile alors en largeur), toucher encore la rend à la largeur : une case à
+cocher, la page n'ayant pas de script. Sans Office ni LibreOffice, le rendu HTML
+reste : texte et tableaux pour Word, tableaux pour Excel, une carte par diapositive.
+
+Office ouvre le fichier sans macros (`AutomationSecurity` désactivée) ni dialogue,
+avec un mot de passe factice (un fichier protégé échoue au lieu d'attendre une saisie
+invisible ; il n'est pas réessayé pendant le lancement), au plus 90 s. Word et Excel
+ont une instance à eux pour l'export, quittée ensuite (Word ne part pas seul : sans
+`Quit`, il restait en mémoire) ; Excel imprime chaque feuille sur une page de large,
+à l'italienne, grille et en-têtes de lignes et de colonnes compris, ses 1000
+premières lignes. PowerPoint n'a qu'une instance, que la visionneuse de la fenêtre
+occupe peut-être déjà : une présentation ouverte par l'utilisateur sert à l'export
+sans être fermée, et PowerPoint n'est jamais quitté (lancé pour l'export, il part
+seul quand plus rien ne le retient).
+
+**CSV.** Windows n'a pas de visionneuse pour le CSV. Il est lu comme l'ouvrirait
+un tableur ([`utils/csv_table.py`](../utils/csv_table.py)) : encodage (BOM, UTF-8,
+sinon Windows-1252 comme les exports d'Excel en France), séparateur (« ; », « , »,
+tabulation ou « | », celui qui donne des colonnes régulières), cellules entre
+guillemets (séparateur, guillemets doublés, retours à la ligne). La fenêtre le
+montre dans la visionneuse d'Excel par une copie .xlsx
+([`csv_workbook.py`](../interfaces/desktop/csv_workbook.py) : en-tête en gras et
+figé, colonnes à la largeur de leur texte, nombres en nombres, une copie par version
+du fichier dans le dossier temporaire, effacée après une semaine). La page HTML (repli,
+téléphone, VS Code) en fait un tableau ; ses cellules vont à la ligne après « / »,
+et la feuille s'élargit avec un tableau plus large que l'écran.
 
 Les visionneuses sont celles du **volet d'aperçu de l'Explorateur Windows**
 (interface COM `IPreviewHandler`), qu'Office enregistre pour ses formats :
@@ -113,6 +153,34 @@ Trois garde-fous :
 Côté mobile, `attachArtifactButton()` prend un paramètre `autoOpen`, vrai
 uniquement pour une réponse fraîche et faux au rechargement de l'historique.
 
+### Page Code de la fenêtre
+
+La page Code (conversation de l'extension VS Code) a **son propre volet**, le
+même que celui du chat : un volet ouvert dans l'une ne paraît pas dans
+l'autre, et la retrouve en revenant (`page` du store `preview.ts`). Il n'y en
+a qu'un à la fois : en ouvrir un sur une page ferme celui de l'autre.
+Effacer la conversation Code, d'où que ce soit, le ferme.
+
+S'y ouvrent les pièces jointes des messages envoyés (d'ici, de VS Code ou du
+téléphone), les fichiers que les réponses citent ou nomment et leurs blocs
+HTML ou SVG (bouton « Aperçu »). Les liens sont calculés par le serveur
+([`relay/code_links.py`](../relay/code_links.py)), à la fin de la réponse et à
+chaque lecture de la conversation :
+
+- chemins absolus existants, comme dans le chat ;
+- chemins relatifs au workspace de VS Code (« src/app.ts », « README.md »),
+  cherchés dans les dossiers ouverts au moment du message, gardés avec la
+  réponse : ils restent des liens après un redémarrage, VS Code fermé ;
+- noms seuls (« shell.ts ») des fichiers que les outils de la réponse ont lus,
+  écrits ou ouverts, et des pièces jointes de la conversation.
+
+Un fichier n'est un lien que s'il existe sur ce PC ; un VS Code sur une autre
+machine n'a donc pas de liens. Un dossier s'ouvre dans l'Explorateur.
+
+Le volet ne s'y ouvre **jamais tout seul** : les réponses de VS Code montrent
+souvent du JSX ou des gabarits, que la détection (`<div>` dans le bloc) prend
+pour une page HTML.
+
 ## Rendu dans la fenêtre desktop
 
 ### Artifacts HTML/SVG : une iframe isolée
@@ -150,8 +218,15 @@ entrée dans la barre des tâches ou Alt+Tab.
 - **Superpositions** : rien de HTML ne peut s'afficher par-dessus une fenêtre
   native. La visionneuse est masquée (le volet montre alors son fond) sous la
   palette Ctrl+K, les dialogues, les menus, les infobulles et les notifications
-  qui touchent sa place, et pendant le redimensionnement du volet ; elle
+  qui touchent sa place, et pendant que le volet s'ouvre ou se ferme ; elle
   revient une fois tout immobile.
+- **Redimensionnement** : quand on tire la poignée du volet, la visionneuse
+  reste affichée et suit sa place en direct. Les places partent une à une
+  (pywebview répond à chaque appel dans son propre thread, sans ordre garanti :
+  `shell.ts` n'en envoie une qu'une fois la précédente posée, la plus récente
+  seulement) et le thread COM fond en une seule les demandes de
+  redimensionnement qui attendent (`AsyncNativePreview.resize`) : la visionneuse
+  ne rattrape pas chaque position en retard.
 - **DPI** : le processus de l'appli passe en « DPI par écran » (v2) avant que
   pywebview crée sa fenêtre, et la visionneuse garde ainsi un rendu net à 125 %
   ou 150 %.
@@ -222,7 +297,9 @@ et le rattache à la bulle au moment où elle est rendue.
 ## Limitations connues
 
 - **Visionneuses natives** : fenêtre desktop sous Windows avec Office installé ;
-  ailleurs, et sur le mobile Relay, le document est rendu en HTML.
+  ailleurs, et sur le mobile Relay, le PDF qu'en tire Office ou LibreOffice, sinon
+  le rendu HTML. macOS (Quick Look) et Linux ne sont pas vérifiés sur une vraie
+  machine ; le chemin LibreOffice n'est vérifié que par des tests simulés.
 - **Superpositions** : une visionneuse native est masquée tant qu'un élément
   HTML (menu, dialogue, notification) touche sa place.
 - **Hôte popup** (repli DPI) : comme il flotte au-dessus du volet, un glisser

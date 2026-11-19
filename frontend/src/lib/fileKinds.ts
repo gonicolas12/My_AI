@@ -3,8 +3,9 @@
  * jointes, volet de la Mémoire) :
  *  - image, audio, vidéo : affichés par la fenêtre, par leur lien signé ;
  *  - PDF, Word, Excel, PowerPoint, CSV : page d'aperçu du serveur (lecteur PDF
- *    de WebView2, visionneuses de Windows, ou page HTML), comme avant ;
- *  - Markdown, HTML, SVG : rendus, avec leur source en second onglet ;
+ *    de WebView2, visionneuses de Windows, ou page HTML), comme avant ; un CSV
+ *    s'ouvre dans celle d'Excel (sa copie .xlsx, csv_workbook.py) ;
+ *  - Markdown, HTML, SVG, CSV : rendus, avec leur source en second onglet ;
  *  - code et texte : lus par le serveur (début du fichier), colorés ;
  *  - le reste : lu comme du texte s'il en est, « pas d'aperçu » sinon.
  */
@@ -147,12 +148,13 @@ export function codeLanguage(path: string): string | undefined {
   if (kind === 'markdown') return 'markdown';
   if (kind === 'html') return 'html';
   if (kind === 'svg') return 'xml';
+  if (kind === 'table') return 'csv'; // sans coloration : le nom en tête du bloc
   return CODE[extensionOf(path)] ?? NAMED[nameOf(path)];
 }
 
 /** Formats rendus qui ont aussi leur source à montrer (onglets Aperçu et Code) */
 export function hasSource(kind: FileKind): boolean {
-  return kind === 'markdown' || kind === 'html' || kind === 'svg';
+  return kind === 'markdown' || kind === 'html' || kind === 'svg' || kind === 'table';
 }
 
 /** Formats dont la page d'aperçu vient du serveur (previews.py) */

@@ -594,6 +594,7 @@ class CodeFile(_Payload):
 
     name: str
     path: str
+    type: str = ""  # file_type_for (« Image » : sa vignette dans le message)
 
 
 class CodeUser(_Payload):
@@ -638,6 +639,8 @@ class CodeDone(_Payload):
     status: Literal["done", "stopped", "error"]
     timestamp: str
     duration_ms: int = 0
+    # Fichiers que la réponse cite ou nomme (relay/code_links.py) : leur aperçu
+    paths: List[PathLink] = Field(default_factory=list)
 
 
 class CodeCleared(_Payload):

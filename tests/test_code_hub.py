@@ -603,3 +603,78 @@ def test_code_page_routes_attach_and_send_files(hub, loop, tmp_path):
     wait_until(lambda: vscode.of("response"))
     assert prompts[0].startswith("Regarde les fichiers joints.\n\n[Image jointe « capture.png »")
     app.code.close()
+
+
+def test_desktop_page_links_the_files_a_reply_cites(hub, loop, tmp_path):
+    """Page Code de la fenêtre : comme le chat, les pièces jointes d'un message
+    ont leur type (vignette d'une image) et une réponse terminée les fichiers
+    qu'elle cite ou nomme, chemins relatifs au workspace de VS Code compris ;
+    la fenêtre peut en montrer l'aperçu. Après un redémarrage, VS Code fermé,
+    les liens restent (dossiers gardés avec la réponse). Avant, la page n'avait
+    ni volet d'aperçu ni liens."""
+    workspace = tmp_path / "ws"
+    (workspace / "src" / "lib").mkdir(parents=True)
+    for relative in ("README.md", "src/app.ts", "src/lib/shell.ts"):
+        (workspace / relative).write_text("x", encoding="utf-8")
+    notes = tmp_path / "notes.txt"
+    notes.write_text("Notes", encoding="utf-8")
+
+    async def edit_and_cite(run):
+        run["on_tool_call_announced"]({"call_id": "c1", "name": "edit_file",
+                                       "input": {"path": "src/lib/shell.ts"}})
+        run["on_tool_result"]("c1", {"content": "ok", "is_error": False})
+        text = "J'ai lu src/app.ts et notes.txt, modifié shell.ts ; voir README.md."
+        run["on_chunk"](text, 0)
+        return text
+
+    FakeExecutor.script = edit_and_cite
+    bus = EventBus()
+    seen = []
+    bus.subscribe(seen.append)
+    service = CodeService(hub, bus.publish, lambda: bus.last_seq)
+    surface = Surface()
+    hub.connect_vscode(loop, surface.put,
+                       f"Workspace folders:\n- ws ({workspace})\nPlatform: win32")
+    service.send("Regarde", [(str(notes), "notes.txt")])
+    wait_until(lambda: any(e["type"] == "code.done" for e in seen))
+    for event in seen:
+        validate_event(event)
+    user = next(e for e in seen if e["type"] == "code.user")["payload"]
+    assert user["files"] == [{"name": "notes.txt", "path": str(notes), "type": "Code"}]
+    done = next(e for e in seen if e["type"] == "code.done")["payload"]
+    expected = {
+        "src/app.ts": str(workspace / "src" / "app.ts"),
+        "notes.txt": str(notes),
+        "shell.ts": str(workspace / "src" / "lib" / "shell.ts"),
+        "README.md": str(workspace / "README.md"),
+    }
+    assert {link["text"]: link["path"] for link in done["paths"]} == expected
+    # La fenêtre peut montrer leur aperçu
+    known = service.known_paths()
+    assert all(local_files.normalize(path) in known for path in expected.values())
+
+    # Lecture de la page : mêmes liens, sans les dossiers du workspace
+    snapshot = service.snapshot()
+    reply = snapshot["messages"][1]
+    assert {link["text"] for link in reply["paths"]} == set(expected)
+    assert "roots" not in reply
+    assert snapshot["messages"][0]["files"][0]["type"] == "Code"
+    service.close()
+
+    # Redémarrage, VS Code fermé : les chemins relatifs restent des liens
+    again = CodeHub(store=tmp_path / "code_conversation.json")
+    restarted = CodeService(again, EventBus().publish, lambda: 0)
+    reply = restarted.snapshot()["messages"][1]
+    assert {link["text"] for link in reply["paths"]} == set(expected)
+
+    # Route de la fenêtre : le fichier cité a son lien signé (aperçu, vignette)
+    app = FakeApp(None, EventBus())
+    app.code = restarted
+    app.code_attachments = restarted.known_paths
+    server = DesktopServer(app)
+    server.port = PORT
+    client = TestClient(server.fastapi, base_url=BASE)
+    cited = str(workspace / "src" / "app.ts")
+    links = client.post("/api/files/links", headers=AUTH, json={"paths": [cited]}).json()["links"]
+    assert links[cited]
+    restarted.close()

@@ -369,7 +369,7 @@ function Thread({ run }: { run: RunView }) {
                       index,
                     )
                   }
-                  className="text-link hover:underline"
+                  className="underline-offset-2 hover:text-link hover:underline focus-visible:text-link focus-visible:underline"
                 >
                   {item.name}
                 </button>

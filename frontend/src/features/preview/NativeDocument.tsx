@@ -28,7 +28,7 @@ const CHECK_MS = 500;
 
 interface NativeDocumentProps {
   view: PreviewView;
-  /** Masquée quoi qu'il arrive (volet en cours de redimensionnement ou d'ouverture) */
+  /** Masquée quoi qu'il arrive (volet qui s'ouvre ou se ferme) ; redimensionné, elle le suit */
   hidden: boolean;
   onFailed: () => void;
 }

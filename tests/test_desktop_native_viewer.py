@@ -218,3 +218,36 @@ def test_without_window_there_is_no_host():
     if not NativeViewer.available():
         pytest.skip("visionneuses Windows indisponibles")
     assert viewer.show("C:/docs/rapport.docx", parse_rect(RECT)) is False
+
+
+def test_resizes_asked_while_one_runs_are_merged(monkeypatch):
+    """Volet qui suit la souris : la visionneuse ne rattrape pas chaque position."""
+    # pylint: disable-next=import-outside-toplevel
+    from interfaces.desktop import preview_handler
+
+    if not preview_handler.COMTYPES_AVAILABLE:
+        pytest.skip("comtypes absent")
+    started, release = threading.Event(), threading.Event()
+    calls = []
+
+    class SlowPreview:
+        """Visionneuse qui met du temps à se redimensionner (Excel, Word)."""
+
+        def resize(self):
+            calls.append("resize")
+            started.set()
+            release.wait(5)
+
+        def close(self):
+            calls.append("close")
+
+    monkeypatch.setattr(preview_handler, "NativePreview", SlowPreview)
+    preview = preview_handler.AsyncNativePreview()
+    preview.resize()
+    assert started.wait(5)
+    for _ in range(20):
+        preview.resize()
+    release.set()
+    preview.close(wait=5)
+    # La première, puis une seule pour les vingt suivantes : elle lit la taille du moment
+    assert calls == ["resize", "resize", "close"]

@@ -6,6 +6,11 @@
  * interface que le chat, adaptée au code : appels d'outils de VS Code, leurs
  * approbations, dossier ouvert dans VS Code. Des fichiers déposés sur la page
  * deviennent des pièces jointes du prochain message.
+ *
+ * Comme le chat, la page a son volet d'aperçu à droite (PreviewPane) : les
+ * pièces jointes des messages envoyés, les fichiers que les réponses citent ou
+ * nomment et leurs blocs HTML ou SVG s'y ouvrent. Effacer la conversation (ici,
+ * dans VS Code ou sur le téléphone) le ferme.
  */
 
 import { CodeXml, TriangleAlert } from 'lucide-react';
@@ -23,8 +28,10 @@ import {
 } from '../../stores/code';
 import { openPanel } from '../../stores/panels';
 import { type DropTarget, useFileDrop } from '../chat/useFileDrop';
+import { PreviewPane } from '../preview/PreviewPane';
 import { CodeComposer } from './CodeComposer';
 import { CodeThread } from './CodeThread';
+import { usePaneReset } from './usePaneReset';
 
 const CODE_DROP: DropTarget = {
   onPaths: (paths) => void addCodePaths(paths),
@@ -87,17 +94,22 @@ export function CodePage() {
     void loadCode();
   }, []);
 
+  usePaneReset();
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col" {...drop}>
-      <VscodeBanner />
-      {!loaded ? null : empty ? (
-        <CodeHome />
-      ) : (
-        <>
-          <CodeThread />
-          <CodeComposer variant="dock" />
-        </>
-      )}
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col" {...drop}>
+        <VscodeBanner />
+        {!loaded ? null : empty ? (
+          <CodeHome />
+        ) : (
+          <>
+            <CodeThread />
+            <CodeComposer variant="dock" />
+          </>
+        )}
+      </div>
+      <PreviewPane page="code" />
     </div>
   );
 }

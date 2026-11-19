@@ -86,6 +86,10 @@ temp/demo_server/PORT/code_conversation.json), avec une boucle agentique
 scénarisée (DemoCodeExecutor) et une extension VS Code simulée, connectée trois
 secondes après le démarrage du Relay simulé (Ctrl+R) : elle exécute les outils,
 et une écriture ou une commande demandée par la page attend son approbation.
+Son workspace est un vrai dossier (temp/demo_server/PORT/demo-api) : les
+fichiers que citent les réponses s'ouvrent dans le volet d'aperçu de la page.
+Le mot « aperçu » donne une réponse qui cite des fichiers du workspace, nomme
+les pièces jointes et montre une page HTML (bouton « Aperçu »).
 """
 
 import argparse
@@ -1170,8 +1174,29 @@ class DemoRelay:
 
 # ── Page Code : extension VS Code simulée ───────────────────────────────────
 
-DEMO_WORKSPACE = ("Workspace folders:\n- demo-api (C:\\dev\\demo-api)\n"
-                  "Active editor: src/app.py (python)\nPlatform: win32 (Windows path style)")
+# Workspace du VS Code simulé : un vrai dossier, pour que les fichiers cités s'ouvrent
+DEMO_WORKSPACE_FILES = {
+    "src/app.py": ("from fastapi import FastAPI\n\napp = FastAPI()\n\n\n"
+                   "@app.get(\"/livres\")\ndef lister_livres():\n    return []\n"),
+    "README.md": ("# demo-api\n\nAPI de démonstration : une bibliothèque de livres.\n\n"
+                  "- `GET /livres` : la liste des livres\n"),
+    "static/index.html": ("<!DOCTYPE html>\n<html lang=\"fr\"><head><meta charset=\"utf-8\">"
+                          "<title>Bibliothèque</title></head>\n<body><h1>Bibliothèque</h1>"
+                          "<p>Bienvenue.</p></body></html>\n"),
+}
+
+
+def demo_workspace(folder: Path) -> str:
+    """Crée le workspace du VS Code simulé ; son client_hello (workspace_info)."""
+    for relative, content in DEMO_WORKSPACE_FILES.items():
+        target = folder / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.write_text(content, encoding="utf-8")
+    return (f"Workspace folders:\n- demo-api ({folder})\n"
+            "Active editor: src/app.py (python)\nPlatform: win32 (Windows path style)")
+
+
 # Outils sans approbation (toolDispatcher.ts de l'extension)
 DEMO_READ_ONLY = {"read_file", "list_dir", "glob", "grep", "get_active_editor", "open_file"}
 DEMO_TOOL_OUTPUT = {
@@ -1190,9 +1215,10 @@ class DemoVSCode:
     un message du PC ou du téléphone attend la réponse de la page (approbation),
     comme le fait la vraie extension ; celle d'un message de VS Code passe."""
 
-    def __init__(self, hub: CodeHub, loop):
+    def __init__(self, hub: CodeHub, loop, workspace_info: str):
         self.hub = hub
         self.loop = loop
+        self.workspace_info = workspace_info
         self.link = None
         # call_id → (nom de l'outil) : approbation demandée à la page
         self.waiting = {}
@@ -1200,7 +1226,7 @@ class DemoVSCode:
     def connect(self):
         """VS Code se connecte au Relay (client_hello)."""
         if self.link is None:
-            self.link = self.hub.connect_vscode(self.loop, self.receive, DEMO_WORKSPACE)
+            self.link = self.hub.connect_vscode(self.loop, self.receive, self.workspace_info)
 
     def disconnect(self):
         """Relay arrêté : VS Code est déconnecté."""
@@ -1248,7 +1274,8 @@ class DemoCodeExecutor:
     """Boucle agentique scénarisée (AgenticExecutor sans Ollama). Scénarios (mot du message) :
     « modifie » / « écris » : lecture puis modification d'un fichier (approbation) ;
     « teste » / « commande » : commande shell (approbation) ; « erreur » : échec ;
-    « attends » : réponse lente, pour le Stop ; autre : lecture d'un fichier, puis réponse."""
+    « attends » : réponse lente, pour le Stop ; « aperçu » : fichiers du workspace cités,
+    pièces jointes nommées, page HTML ; autre : lecture d'un fichier, puis réponse."""
 
     RATE = 40.0  # fragments par seconde
 
@@ -1291,6 +1318,16 @@ class DemoCodeExecutor:
         elif "teste" in message or "commande" in message:
             await self._tool(run, "run_command", {"command": "python -m pytest -q"})
             final = "Les **4 tests** passent (0,31 s)."
+        elif "aperçu" in message:
+            # Fichiers du workspace cités (chemin relatif, nom seul), pièces jointes nommées
+            await self._tool(run, "read_file", {"path": "static/index.html"})
+            joined = re.findall(r"(?:Pièce|Image) jointe « (.+?) »", run["user_message"])
+            final = ("La route est dans app.py, la page d'accueil dans static/index.html, "
+                     "et le README.md décrit l'API."
+                     + (f" J'ai aussi lu {', '.join(joined)}." if joined else "")
+                     + "\n\nVoici une page plus complète :\n\n```html\n<!DOCTYPE html>"
+                     "<html><body><h1>Bibliothèque</h1><button onclick=\"this.textContent="
+                     "'Merci'\">Emprunter</button></body></html>\n```")
         else:
             final = ("Le fichier déclare une application **FastAPI** avec une seule route, "
                      "`GET /livres`, qui renvoie pour l'instant une liste vide.")
@@ -1776,7 +1813,9 @@ class DemoApp(DesktopApp):  # pylint: disable=too-few-public-methods
                     "chat_url": "demo", "model": "my_ai", "num_ctx": 32768,
                     "describe_image": lambda _image, _question: "Capture d'une page web (démo).",
                 })
-                self._demo_vscode = DemoVSCode(hub, loop)  # pylint: disable=attribute-defined-outside-init
+                workspace = demo_workspace(self._workspaces.parent / "demo-api")
+                # pylint: disable-next=attribute-defined-outside-init
+                self._demo_vscode = DemoVSCode(hub, loop, workspace)
                 self._code = CodeService(hub, self.bus.publish, lambda: self.bus.last_seq)
             return self._code
 

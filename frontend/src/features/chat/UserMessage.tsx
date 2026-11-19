@@ -1,20 +1,19 @@
 import { ChevronLeft, ChevronRight, Smartphone } from 'lucide-react';
-import { createElement, memo, useState } from 'react';
+import { memo, useState } from 'react';
 
 import { IconButton } from '../../components/ui/Button';
 import { useT } from '../../i18n';
 import { api } from '../../lib/api';
 import { fileArtifact } from '../../lib/artifacts';
-import type { AttachmentRef, MessageView } from '../../lib/events';
-import { useFileUrl } from '../../lib/files';
+import type { MessageView } from '../../lib/events';
 import { formatTime } from '../../lib/format';
 import { notify } from '../../stores/app';
 import { openPreview } from '../../stores/preview';
-import { attachmentIcon } from './attachKinds';
 import { splitAttachmentLines } from './attachments';
 import { EditDialog } from './EditDialog';
 import { CopyButton, MessageActions } from './MessageActions';
 import { EditButton } from './MessageControls';
+import { SentAttachment } from './SentAttachment';
 
 interface UserMessageProps {
   message: MessageView;
@@ -24,36 +23,6 @@ interface UserMessageProps {
   busy: boolean;
   /** Des messages suivent la réponse de ce tour */
   hasFollowing?: boolean;
-}
-
-/**
- * Pièce jointe d'un message envoyé : comme un nom de fichier du chat, elle
- * s'ouvre dans le volet d'aperçu de droite, quel que soit son format (image,
- * code, PDF…) ; les pièces jointes du message s'y suivent (‹ k/n ›).
- */
-function SentAttachment({ attachment, onOpen }: { attachment: AttachmentRef; onOpen: () => void }) {
-  const t = useT();
-  const image = attachment.type === 'Image';
-  const url = useFileUrl(image ? attachment.path : null);
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      title={t('chat.file.preview', { name: attachment.path })}
-      className="group inline-flex h-9 max-w-64 items-center gap-2 rounded-md border border-line bg-bg-2 ps-1 pe-2.5 text-xs text-fg-2 transition-colors duration-150 hover:border-line-2 hover:text-fg"
-    >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-xs bg-bg-3">
-        {image && url ? (
-          <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
-        ) : (
-          createElement(attachmentIcon(attachment.type), { size: 14 })
-        )}
-      </span>
-      <span className="truncate text-link underline decoration-link/40 underline-offset-2 group-hover:decoration-link">
-        {attachment.name}
-      </span>
-    </button>
-  );
 }
 
 function navigate(mid: string, version: number) {

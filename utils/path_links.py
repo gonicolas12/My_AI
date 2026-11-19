@@ -116,6 +116,12 @@ def _resolve(shown: str) -> Optional[str]:
     return expanded
 
 
+def safe_to_probe(path: str) -> bool:
+    """True si tester l'existence du chemin ne risque pas de bloquer : disque
+    local sous Windows, jamais un partage réseau (dossier du workspace de VS Code)."""
+    return _safe_to_probe(os.path.normpath(path), {})
+
+
 def _safe_to_probe(path: str, drive_cache: Dict[str, bool]) -> bool:
     """True si tester l'existence du chemin ne risque pas de bloquer."""
     if not IS_WINDOWS:

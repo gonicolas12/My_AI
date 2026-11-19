@@ -144,4 +144,35 @@ describe('applyCodeEvent', () => {
     expect(cleared.messages).toEqual([]);
     expect(cleared.loaded).toBe(true);
   });
+
+  it('garde les pièces jointes du message et les fichiers que cite la réponse', () => {
+    const files = [{ name: 'a.txt', path: 'C:/docs/a.txt', type: 'Code' }];
+    const paths = [{ text: 'src/app.ts', path: 'C:/ws/src/app.ts', dir: false, name: true }];
+    const conv = replay(withSnapshot(EMPTY_CODE, snapshot()), [
+      event('code.user', { ...USER, attachments: ['a.txt'], files }, 11),
+      event('code.chunk', { message_id: 'code_1', segment: 0, text: 'Vu src/app.ts.' }),
+      event('code.done', {
+        message_id: 'code_1',
+        text: 'Vu src/app.ts.',
+        status: 'done',
+        timestamp: '2026-11-19T09:00:05',
+        duration_ms: 1200,
+        paths,
+      }),
+    ]);
+    expect(conv.messages[0]).toMatchObject({ role: 'user', files });
+    expect(reply(conv).paths).toEqual(paths);
+    // Sans fichier cité : rien d'ajouté
+    const plain = replay(withSnapshot(EMPTY_CODE, snapshot()), [
+      event('code.user', USER, 11),
+      event('code.done', {
+        message_id: 'code_1',
+        text: '',
+        status: 'done',
+        timestamp: '2026-11-19T09:00:05',
+        duration_ms: 10,
+      }),
+    ]);
+    expect(reply(plain)).not.toHaveProperty('paths');
+  });
 });
