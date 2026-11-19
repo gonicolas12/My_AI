@@ -1,5 +1,97 @@
 # 📋 CHANGELOG - My Personal AI
 
+# 🚀 Version 9.2.0 — Aperçu des fichiers partout & Mémoire de documents (19 Novembre 2026)
+
+### Chaque fichier s'ouvre d'un clic dans la fenêtre, sur le téléphone et dans VS Code, la Mémoire range des documents et des dossiers entiers, et elle retrouve leurs passages dans toutes les langues
+
+Un fichier cité par une réponse ne s'ouvrait que dans l'Explorateur de Windows, et pas du tout sur le téléphone ni dans VS Code. Désormais **chaque fichier s'ouvre d'un clic** : dans le volet de droite du chat et de la page Code, dans une fenêtre au premier plan sur la page Agents, dans le volet de la Mémoire, et dans une fenêtre d'aperçu sur le **téléphone** et dans **VS Code**. PDF, Word, Excel, PowerPoint, CSV, Markdown, code, images, sons et vidéos ont chacun leur rendu, natif quand Windows en a un. La **Mémoire** a un onglet **Documents** où l'on dépose des fichiers et des dossiers entiers, que le modèle retrouve et cite par leur nom. Elle cherche avec **Granite**, un modèle d'embeddings **multilingue**, et trie ses résultats avec un reranker multilingue : une question en espagnol retrouve un document français. Les conversations se **renomment**, My_AI a son **nom et son logo dans la barre des tâches** et s'épingle sans console, un fichier PDF demandé est enfin un PDF, et le modèle **connaît la date du jour**. Les dépendances suivent les avis de sécurité de novembre, et la version de Python (3.11 à 3.14) est vérifiée avant toute installation.
+
+## 👁️ Aperçu des fichiers — `frontend/src/features/preview/`, `relay/file_preview.py`, `relay/static/preview.js`, `vscode_extension/src/filePreview.ts` (nouveaux)
+
+- **Dans la fenêtre, selon d'où vient le clic** : les fichiers qu'une réponse cite ou nomme (un fichier de la conversation nommé seul suffit), les images générées et les pièces jointes d'un message envoyé ouvrent le **volet de droite** ; une pièce jointe pas encore envoyée s'ouvre dans une **fenêtre d'aperçu au premier plan**, plus grande que les Réglages ; un document de la Mémoire, dans un volet à droite du panneau.
+- **Rendus** : PDF dans le lecteur de WebView2 ; Word, Excel et PowerPoint dans les visionneuses de Windows, une à la fois ; **CSV dans la visionneuse d'Excel**, à partir d'une copie en xlsx (en-tête figé, nombres convertis, `interfaces/desktop/csv_workbook.py`) ; un README avec son HTML (assaini, schéma de GitHub) et les images de son dossier ; code, texte, images, sons et vidéos. Les blocs HTML et SVG d'une réponse ont un bouton **Aperçu** dans leur en-tête, à la place du bouton « Aperçu (n) » en bas des réponses.
+- **Sans visionneuse native** (téléphone, VS Code, PC sans Office, macOS, Linux) : Word, Excel et PowerPoint montrent leurs pages en images, tirées du PDF qu'exporte Office (automatisation COM) ou, à défaut, LibreOffice (`interfaces/office_pdf.py`) ; les feuilles Excel sont rognées à leur contenu. Une présentation ne montrait que son texte.
+- **Volet de droite** : la visionneuse suit la poignée en direct pendant un redimensionnement, au lieu de devenir noire jusqu'au lâcher.
+- **Page Code** : le même volet, propre à chaque page. S'y ouvrent les pièces jointes envoyées (depuis VS Code et le téléphone compris), les fichiers que les réponses citent ou nomment et ceux que leurs outils ont lus ou écrits (liens calculés par le serveur, `relay/code_links.py`, valables VS Code fermé), et leurs blocs HTML. Pas d'ouverture automatique : du JSX passerait pour une page HTML.
+- **Page Agents** : pas de volet, la fenêtre d'aperçu au premier plan, pour les pièces jointes d'un fil, les fichiers cités par un agent et les blocs HTML/SVG de ses résultats (`links` de chaque section, `relay/agent_relay.py`).
+- **Téléphone (Relay)** : une fenêtre d'aperçu par-dessus la vue (‹ k/n ›, onglets Aperçu et Code, Télécharger, Ouvrir dans le navigateur) ; liens de fichiers dans les réponses, pièces jointes cliquables avant et après l'envoi, cartes des documents produits, image générée en grand, PDF en images de ses pages, CSV en vrai tableau. Le bouton Retour ferme l'aperçu, et une réponse qui vient d'arriver ouvre le sien toute seule, comme dans la fenêtre. Pareil sur la page Agents du téléphone. Les fichiers envoyés gardent leur vrai nom sur le PC (`my_ai_relay_uploads/<id>/<nom>`).
+- **VS Code** (extension 1.7.0) : la même fenêtre d'aperçu ; les fichiers du projet sont lus par l'extension et le Markdown rendu par VS Code, les fichiers cités par une réponse sont retrouvés dans le projet, avec un bouton **Ouvrir dans l'éditeur** ; PDF et Office passent par le PC pour leur rendu.
+- **Sécurité** : le Relay ne montre que les fichiers de ses conversations, avec les règles de la fenêtre, dans l'enveloppe chiffrée ; les pages affichées sont isolées (iframe `sandbox`) ; la vue de VS Code ignore les messages qu'elles lui envoient (sans ce garde, une page pouvait vider le chat).
+- **La Mémoire garde une copie** de chaque fichier qu'elle lit, pour son aperçu (`memory/vector_store/originals/`, ignoré par Git) : la copie part avec le document, et rien n'est copié au-delà de 64 Mo ni quand la Mémoire est chiffrée.
+- **Le modèle lit mieux les CSV et les classeurs** : encodage, séparateur et guillemets reconnus (`utils/csv_table.py`), tableau Markdown aux cellules entières, jusqu'à 200 000 caractères au lieu de 200 lignes (`processors/excel_processor.py`). Un CSV joint lui arrivait en une seule colonne aux cellules coupées.
+
+## 🗂️ Mémoire : onglet Documents — `core/memory_documents.py`, `core/document_memory.py` (nouveaux)
+
+- **Ajouter des fichiers et des dossiers** : bouton **Ajouter** (tous les formats pris en charge à la fois) ou dépôt sur le panneau, avec un halo orange pendant le glisser. PDF, Word, Excel, PowerPoint, code, images ou un dossier entier (sans fichiers cachés ni `node_modules`, `.git` et `dist`, 200 fichiers au plus) ; une file montre les lectures en cours, puis un bilan.
+- **Un document par ligne**, avec sa date, au lieu de ses morceaux ; un dossier tient sur une ligne qui se déplie sur ses fichiers.
+- **Même nom** : deux fichiers du même nom restent deux documents. En remettre un ouvre « Déjà en mémoire » : **Mettre à jour**, **Garder les deux** ou **Annuler** ; un contenu identique n'ajoute rien. Un dossier mis à jour ne relit pas ses fichiers inchangés, remplace les modifiés, ajoute les nouveaux et retire ceux qui n'y sont plus.
+- **Images du chat** rangées dans l'onglet, décrites par le modèle de vision et lues par l'OCR une fois la réponse finie.
+- **Le modèle sait quel fichier lire** : les documents qu'un message nomme (nom, chemin, ou « le rapport trimestriel ») vont dans le prompt avec leur origine et leur date ; des homonymes y sont numérotés, et il répond pour chacun, sauf si la question dit lequel. `search_memory` prend un argument `document`, et `read_local_file` lit le document de la Mémoire que désigne un chemin absent du disque.
+- **Liens vers la Mémoire** dans les réponses : un document ou un dossier cité ouvre l'onglet Documents sur lui, son dossier déplié, le fichier en évidence ; un lien inventé par le modèle (`memory://…`) mène à ce qu'il désigne. Sous une réponse qui a regardé le disque, « Aussi dans la Mémoire : 📁 … » signale un dossier au nom proche. « Dossier » et « mémoire » sont reconnus dans les 12 langues.
+- Une recherche qui ne trouve qu'une partie d'un dossier le dit : « 1 fichier sur 4 ».
+
+## 🌍 Mémoire et RAG multilingues — `core/embedding_engine.py`, `core/reranker.py`, `memory/embedding_reindex.py` (nouveaux)
+
+- **Granite Embedding 107M multilingue** (IBM, Apache 2.0) remplace all-MiniLM-L6-v2, entraîné pour l'anglais : une question dans une autre langue que le document retrouve ses passages. Sur 29 questions en 9 langues, le rappel des 3 bons passages passe de 0,28 à 0,76.
+- **Reranker multilingue** `mmarco-mMiniLMv2` (14 langues) au lieu de ms-marco (anglais) : bons passages dans les 3 retenus, 0,86 au lieu de 0,60. Il se télécharge une fois, en arrière-plan (470 Mo), l'ordre de Granite servant en attendant ; `optimization.rag.reranker_model` le règle.
+- **Recherche des conversations** filtrée par la distance de Granite (0,32) : un message pertinent dans les 5 premiers pour 17 questions sur 18, et plus aucun résultat pour 10 questions hors sujet (avant : 12 sur 18, et 2 sur 10).
+- **Une collection ChromaDB par modèle** : au changement de modèle, la mémoire existante est recalculée en arrière-plan depuis le texte stocké (le chiffré reste chiffré), sans mélange de vecteurs, et la copie reprend au lancement suivant. `chunk_size` et `chunk_overlap` de `config.yaml` sont enfin lus.
+
+## 📝 Documents générés — `core/file_intent.py` (nouveau), `generators/markdown_document.py`
+
+- **Un fichier PDF demandé est un PDF** : « Crée un fichier PDF nommé… » produisait un script `.py`, la demande partant au générateur de code. Le format demandé est maintenant lu (extension, « un fichier Word », « au format Excel », « en PDF ») : PDF, Word, Excel, PowerPoint, Markdown, CSV et texte suivent la réponse normale et son outil `generate_document`, et « génère un fichier calcul.py » reste du code.
+- **Retours à la ligne gardés** : les quatre vers d'un poème sortaient en un seul paragraphe. Un retour forcé (deux espaces ou `\`) comme une fin de ligne simple du modèle passent à la ligne dans chaque format (Word, PDF, PowerPoint, Excel, texte et Markdown, arabe et hébreu compris) ; un texte qui ne vient pas du modèle (PDF régénéré, aperçu d'un `.md`) garde la règle de CommonMark.
+- Le texte qui suit une citation reste après elle, au lieu de sortir avant ; un saut de ligne lu dans un PowerPoint ne colle plus les mots (« Vers un,vers deux »).
+
+## 🖥️ Fenêtre — `interfaces/desktop/app_identity.py`, `utils/no_console.py`, `utils/update_window.py` (nouveaux)
+
+- **Renommer une conversation** : un crayon à gauche de la corbeille de chaque conversation de la barre latérale ; **Entrée** ou un clic ailleurs enregistre, **Échap** annule. Le nom change partout (recherche globale et Mémoire comprises), et la conversation garde sa place et sa date.
+- **Barre des tâches** : le robot de My_AI au lieu du logo de Python, et un bouton nommé « My_AI » ; l'icône aussi dans le Dock de macOS et sous Linux. **My_AI épinglé se relance sans console** (`pythonw`) : ses sorties vont dans `logs/console_AAAAMMJJ.log`, les mises à jour des dépendances s'affichent dans une petite fenêtre et une erreur de lancement dans une boîte de dialogue. Lancé par `launch.bat`, il garde sa console.
+- Quand le Modelfile a changé, l'écran de chargement dit « Mise à jour du modèle my_ai… », téléchargement au pour cent près.
+- Plus de corbeille dans l'en-tête du chat : elle ne supprimait rien, elle démarrait une nouvelle conversation (Ctrl+L et la palette Ctrl+K restent).
+
+## 📅 Date du jour
+
+- Le prompt système du chat, de la réflexion, des agents (débat compris) et de la conversation Code donne la date du jour : un document du 19/10/2026 était dit « futur » le 18/11/2026. Au jour près, pour qu'Ollama ne relise le début d'une conversation qu'une fois par jour.
+
+## 🔐 Sécurité & dépendances — `requirements.txt`, `utils/python_version.py` (nouveau)
+
+- **Identifiants de session vérifiés** : un identifiant `..` désignait le dossier parent de `data/workspaces`, et `DELETE /api/sessions/..` effaçait tout `data/`. Un identifiant qui n'est pas un simple nom de dossier sous `data/workspaces` est refusé avant tout accès au disque (`core/session_manager.py`, `core/folder_indexer.py`).
+- **Python 3.11 à 3.14** (3.12 au plus sur Mac Intel), vérifié par les quatre lanceurs avant toute installation, avec un message dans les 12 langues : la 3.10 est en fin de vie, et la 3.15 n'a pas encore de wheel d'onnxruntime.
+- **Bornes de sécurité** : aiohttp 3.14.4, Pillow 13, websockets 17.4, sentence-transformers 5.6, **transformers 5.10** et torch 2.6 hors Mac Intel (six avis levés), mcp 1.30, cryptography 50 (48.0.1 sur Mac Intel, sans compilation), soupsieve 4.0 ; PyMuPDF reste en 1.x sur Mac Intel. Une installation existante se met à niveau toute seule au lancement suivant.
+- `requirements.txt` déclare son encodage : le pip 24 de Python 3.11.9 s'arrêtait sur le « ⚠️ » d'un commentaire.
+- Interface : vite 8.3.8 pour le serveur de développement, qui n'écoute que sur 127.0.0.1.
+
+## ⚡ Ollama, MCP & recherche web
+
+- **OLLAMA_NUM_PARALLEL** : une valeur posée par l'utilisateur est respectée (`1` économise la mémoire), et My_AI ne l'écrit plus pour tout le système (registre, `launchctl`), où elle faisait réserver plusieurs contextes aux modèles des autres applis. 4 par défaut, mesuré sur un GPU intégré Arc 140T : un workflow de 4 agents en parallèle prend 45 s au lieu de 117 s avec 1, pour 7,0 Gio au lieu de 3,9.
+- **Serveurs MCP externes** (`mcp.servers` de `config.yaml`) enfin utilisables : leur session se fermait sitôt ouverte, et chaque appel d'outil échouait. Chacun vit dans une boucle dédiée, avec le SDK 1.30 et plus ; sans serveur activé, plus de fil ni de boucle.
+- **Recherche web** : le « 500 INKApi Error » de Yahoo est un refus de l'empreinte TLS de Python 3.11 et 3.12, pas une panne. Yahoo est mis en pause 15 minutes au lieu d'être relancé à chaque recherche, sans retouche TLS pour passer. Plus aucun combinateur CSS descendant n'est appliqué aux pages reçues.
+- **Bundle CA** de la section `network` de nouveau appliqué avec huggingface_hub 1.x et 2.x (`core/network.py`), et premier téléchargement du reranker réparé avec transformers 5.
+
+## 🧩 Extension VS Code 1.7.0
+
+- **Aperçu des fichiers** : pièces jointes, fichiers cités ou nommés par une réponse (bouton **Ouvrir dans l'éditeur**), blocs HTML et SVG, dans une fenêtre d'aperçu par-dessus le chat, comme sur le téléphone (1.7.0).
+- **`ws` 8.22.2 puis 8.23.0**, seule dépendance de l'extension à l'exécution : deux avis élevés, dont des pings en rafale qui faisaient tomber l'hôte des extensions (1.6.2, 1.6.3). Construire l'extension demande Node 22.
+- Publication par Trusted Publishing (`.github/workflows/publish-vscode-extension.yml`, lancé à la main). Détails dans `vscode_extension/CHANGELOG.md`.
+
+## 🐛 Correctifs & divers
+
+- **Recherche globale** : « Indexé : N messages » du bouton Réindexer s'efface au bout de 4 secondes, au lieu de rester affiché, faux, jusqu'à la recherche suivante.
+- **Barre latérale** : l'anneau orange du crayon n'est plus rogné en haut de la liste.
+- **Mémoire** : le lien d'un fichier d'un dossier ouvre tout le dossier, ce fichier en évidence, au lieu d'un dossier réduit à lui seul.
+- **Langue des réponses** : un message court est lu à son écriture, puis à ses mots-outils ; « ¿Qué hay en mi carpeta…? » (lu comme du catalan) et une question en chinois (lue comme du norvégien) recevaient une réponse en français (`core/language_detector.py`).
+- **Tests** : `pytest` sort en 5 s au lieu de 51 (pythonnet hors du processus des tests), et le test du Relay qui bloquait une fois sur huit n'a plus qu'une boucle asyncio et une attente bornée.
+
+#### Autres changements
+
+- Version du projet → **9.2.0** (`config.yaml`, lanceurs `launch.bat` / `launch.sh` / `launch_unified.py`, API REST, exports de conversation, scheduler, workflows, page Agents, `CustomAIModel`, tests de charge, docs) ; les numéros de version qui ne servaient à rien quittent les en-têtes (`clean_project.bat`, docstrings, titres des docs) ; `frontend/dist` reconstruit.
+- Dépendances : `soupsieve` devient explicite ; interface : `rehype-raw` et `rehype-sanitize` (HTML des fichiers Markdown).
+- Nouveaux tests : `test_code_links.py`, `test_csv_preview.py`, `test_desktop_app_identity.py`, `test_document_memory.py`, `test_embedding_engine.py`, `test_embedding_reindex.py`, `test_file_intent.py`, `test_language_detector.py`, `test_launch_without_console.py`, `test_mcp_client.py`, `test_memory_documents.py`, `test_network.py`, `test_no_console.py`, `test_office_pdf.py`, `test_python_version.py`, `test_relay_file_preview.py`, `test_requirements_security.py`, `test_reranker.py`, `test_session_manager.py`, `test_update_window.py`.
+- Documentation : ARTIFACTS_PREVIEW, MEMORY, OPTIMIZATION (mesures d'Ollama et du RAG), DOCUMENT_GENERATION, FILE_GENERATION, CONVERSATION_SEARCH, MCP_INTEGRATION, INSTALLATION (bornes, LibreOffice facultatif), USAGE, AGENTS_GUI, ARCHITECTURE et FAQ à jour ; GIF du chat refait (question sur Python 3.15, sans la corbeille) ; un exemple de chemin portant le nom d'une vraie entreprise remplacé par l'entreprise fictive Contoso.
+
+---
+
 # 🚀 Version 9.1.0 — 12 langues & conversation Code partagée (28 Octobre 2026)
 
 ### My_AI parle 12 langues, la conversation de VS Code s'ouvre sur le PC et le téléphone, et qwen3.5 regarde lui-même les images
