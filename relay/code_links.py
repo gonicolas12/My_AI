@@ -1,8 +1,9 @@
 """
 Fichiers qu'une réponse de la conversation Code cite ou nomme, rendus cliquables
 
-La page Code de la fenêtre en montre l'aperçu dans son volet de droite, comme
-le chat (core/chat_service.answer_paths, named_file_links) :
+La page Code de la fenêtre en montre l'aperçu dans son volet de droite, la vue
+Code du téléphone dans sa fenêtre d'aperçu, comme le chat
+(core/chat_service.answer_paths, named_file_links) :
   - chemins absolus existants (« C:\\…\\rapport.docx ») ;
   - chemins relatifs au workspace de VS Code (« src/app.ts », « README.md »),
     ceux qu'emploient l'extension et le modèle ; un dossier s'ouvre dans
@@ -22,6 +23,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from utils.path_links import safe_to_probe
 
+# Réponses dont les fichiers cités deviennent des liens : ni en cours, ni en erreur
+LINKED_STATUSES = ("done", "stopped")
 # Liens d'une réponse : au plus, comme ceux d'une section d'agent (relay/agent_relay.py)
 MAX_LINKS = 60
 # Chemins relatifs essayés par réponse : au plus (chacun sonde le disque)
@@ -201,3 +204,30 @@ def reply_links(
             links.append(link)
             seen.add(link["text"])
     return links[:MAX_LINKS]
+
+
+def link_transcript(messages: List[Dict[str, Any]], current_roots: Sequence[str],
+                    field: str) -> List[Dict[str, Any]]:
+    """Liens des réponses terminées d'une transcription, cherchés sur le disque.
+
+    Modifie `messages` (une copie de celle du hub) : chaque réponse terminée
+    reçoit ses liens sous `field` (« paths » pour la fenêtre, « links » pour le
+    téléphone) et perd ses dossiers du workspace (« roots »), qui ne servent
+    qu'ici ; une réponse sans dossiers gardés prend ceux de VS Code ouvert.
+
+    Returns:
+        Tous les liens trouvés : la surface en montre l'aperçu.
+    """
+    files = conversation_files(messages)
+    cache: Dict[Tuple[str, str], Resolved] = {}
+    found: List[Dict[str, Any]] = []
+    for message in messages:
+        if message.get("role") == "user":
+            continue
+        roots = message.pop("roots", None) or current_roots
+        if message.get("status") in LINKED_STATUSES:
+            links = reply_links(message, files, roots, cache)
+            if links:
+                message[field] = links
+                found.extend(links)
+    return found

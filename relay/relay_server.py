@@ -46,6 +46,7 @@ from utils.logger import setup_logger
 from .relay_bridge import RelayBridge, RelayMessage
 from .agent_relay import AgentRelayService
 from .code_hub import CodeError, CodeHub, VSCodeLink, get_code_hub, mobile_view, vscode_view
+from .code_links import LINKED_STATUSES, link_transcript
 
 # Page de routage statique (GitHub Pages) qui ping les tunnels côté client
 # et redirige vers le premier vivant. Évite que le téléphone soit bloqué
@@ -112,8 +113,9 @@ _DOC_EXTS = {
 _MAX_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 Mo
 # Envois gardés pour leur aperçu (pièce jointe touchée avant ou après l'envoi)
 _UPLOADS_SHOWN_MAX = 500
-# Fichiers cités par les résultats d'agents envoyés au téléphone, gardés au plus
-_AGENT_PATHS_MAX = 500
+# Fichiers cités par les résultats d'agents et les réponses Code envoyés au
+# téléphone, gardés au plus
+_LINKED_PATHS_MAX = 500
 # Identifiants d'une demande d'aperçu (file_preview) : bornés
 _PREVIEW_ID = re.compile(r"^[\w.-]{1,64}$")
 
@@ -349,9 +351,10 @@ class RelayServer:
         # ou non (file_preview), les plus anciens oubliés au-delà de _UPLOADS_SHOWN_MAX
         self._uploads_shown: Dict[str, Dict[str, Any]] = {}
         self._uploads_lock = threading.Lock()
-        # Fichiers que les résultats d'agents envoyés au téléphone citent ou
-        # nomment (liens des sections) : leur aperçu (chemins normalisés → None)
-        self._agent_paths: Dict[str, None] = {}
+        # Fichiers que les résultats d'agents (liens des sections) et les réponses
+        # de la conversation Code envoyés au téléphone citent ou nomment : leur
+        # aperçu (chemins normalisés → None, les plus anciens oubliés)
+        self._linked_paths: Dict[str, None] = {}
         self._upload_dir = Path(tempfile.gettempdir()) / "my_ai_relay_uploads"
         self._upload_dir.mkdir(exist_ok=True)
 
@@ -724,7 +727,7 @@ class RelayServer:
         if normalized in self._bridge.known_paths():
             return True
         with self._uploads_lock:
-            if normalized in self._agent_paths:
+            if normalized in self._linked_paths:
                 return True
         known = getattr(self._code_hub, "known_paths", None)
         return bool(callable(known) and normalized in known())
@@ -734,16 +737,45 @@ class RelayServer:
         fin d'une section cite ou nomme (liens) deviennent montrables."""
         if not isinstance(event, dict) or event.get("type") != "agent_section_end":
             return
-        links = event.get("links")
-        if not isinstance(links, list):
+        self._note_linked_paths(event.get("links"))
+
+    def _note_linked_paths(self, links: Any) -> None:
+        """Fichiers des liens envoyés au téléphone : montrables (jamais un dossier).
+
+        Un lien renvoyé (conversation Code relue) redevient le plus récent : les
+        plus anciens oubliés au-delà de _LINKED_PATHS_MAX sont ceux qu'aucune
+        vue ne montre plus."""
+        if not isinstance(links, list) or not links:
             return
         with self._uploads_lock:
             for link in links:
                 path = link.get("path") if isinstance(link, dict) else None
                 if isinstance(path, str) and path and not link.get("dir"):
-                    self._agent_paths[os.path.normcase(os.path.abspath(path))] = None
-            while len(self._agent_paths) > _AGENT_PATHS_MAX:
-                self._agent_paths.pop(next(iter(self._agent_paths)))
+                    key = os.path.normcase(os.path.abspath(path))
+                    self._linked_paths.pop(key, None)
+                    self._linked_paths[key] = None
+            while len(self._linked_paths) > _LINKED_PATHS_MAX:
+                self._linked_paths.pop(next(iter(self._linked_paths)))
+
+    def code_mobile_view(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Événement de la conversation Code pour la vue Code du téléphone.
+
+        Comme sur la page Code de la fenêtre, chaque réponse terminée porte les
+        fichiers qu'elle cite ou nomme (« links », relay/code_links.py) : à sa fin
+        (code_done) et à chaque lecture de la conversation (code_snapshot). Le
+        Relay en montre alors l'aperçu. Appelé sous le verrou du hub.
+        """
+        view = mobile_view(event)
+        kind = event.get("type")
+        if kind == "snapshot":
+            self._note_linked_paths(link_transcript(
+                view.get("messages") or [], self._code_hub.workspace_roots(), "links"))
+        elif kind == "done" and event.get("status") in LINKED_STATUSES:
+            links = self._code_hub.reply_links(str(event.get("message_id") or ""))
+            if links:
+                view["links"] = links
+                self._note_linked_paths(links)
+        return view
 
     def preview_file(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Réponse à une demande d'aperçu (message WS « file_preview »).
@@ -1190,7 +1222,7 @@ class RelayServer:
                 if code_link is not None:
                     outbox_put(vscode_view(event, code_link.id))
                 else:
-                    outbox_put(mobile_view(event))
+                    outbox_put(server.code_mobile_view(event))
 
             def code_subscribe() -> None:
                 """Inscrit ce WS à la conversation Code ; l'état complet arrive d'abord."""

@@ -28,12 +28,10 @@ from core.chat_service import ChatError, file_type_for, folder_attachment_files
 from core.i18n import tr
 from interfaces.desktop import files as local_files
 from relay.code_hub import CodeHub
-from relay.code_links import conversation_files, reply_links
+from relay.code_links import LINKED_STATUSES, link_transcript
 
 # Champs du hub qui ne concernent que le Relay (lien VS Code d'où part un message)
 _RELAY_ONLY = ("type", "client")
-# Réponses dont la page rend les fichiers cliquables (pas une erreur, ni en cours)
-_LINKED_STATUSES = ("done", "stopped")
 
 
 def _typed(files: Any) -> List[Dict[str, str]]:
@@ -70,7 +68,7 @@ class CodeService:
         payload = {key: value for key, value in event.items() if key not in _RELAY_ONLY}
         if kind == "user":
             payload["files"] = _typed(payload.get("files"))
-        elif kind == "done" and payload.get("status") in _LINKED_STATUSES:
+        elif kind == "done" and payload.get("status") in LINKED_STATUSES:
             links = self._hub.reply_links(payload["message_id"])
             if links:
                 payload["paths"] = links
@@ -90,19 +88,10 @@ class CodeService:
         """
         data = self._hub.snapshot(seq=self._last_seq)
         messages = data.get("messages") or []
-        files = conversation_files(messages)
-        current = self._hub.workspace_roots()
-        cache: Dict[Any, Any] = {}
         for message in messages:
             if message.get("role") == "user":
                 message["files"] = _typed(message.get("files"))
-                continue
-            roots = message.pop("roots", None) or current
-            if message.get("status") in _LINKED_STATUSES:
-                links = reply_links(message, files, roots, cache)
-                if links:
-                    message["paths"] = links
-                    self._remember(links)
+        self._remember(link_transcript(messages, self._hub.workspace_roots(), "paths"))
         return data
 
     def state(self) -> Dict[str, Any]:

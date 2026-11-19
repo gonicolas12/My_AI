@@ -12,6 +12,12 @@
 /* même que dans VS Code : son texte et, à la suite, ses */
 /* appels d'outils.                                      */
 /*                                                       */
+/* Aperçus (preview.js), comme dans le chat : pièces     */
+/* jointes avant et après l'envoi, fichiers qu'une       */
+/* réponse finie cite ou nomme (links, calculés par le   */
+/* Relay), blocs HTML et SVG (bouton « Aperçu »). Rien   */
+/* ne s'ouvre seul, comme sur la page Code du PC.        */
+/*                                                       */
 /* Protocole (relay/code_hub.py) : code_subscribe à la   */
 /* première ouverture (puis à chaque reconnexion), qui   */
 /* renvoie code_snapshot ; ensuite code_state, code_user,*/
@@ -38,6 +44,7 @@
     '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>';
 
   var OPEN_STATUSES = { requested: true, 'awaiting-approval': true, running: true };
+  var IMAGE_NAME = /\.(png|jpe?g|gif|bmp|webp|svg|ico|avif|heic|heif|tiff?)$/i;
 
   var el = {};
   // Inscrit à la conversation (vue ouverte au moins une fois) : ses événements arrivent
@@ -155,6 +162,9 @@
 
   function applySnapshot(data) {
     messages = Array.isArray(data.messages) ? data.messages : [];
+    messages.forEach(function (message) {
+      if (message.role !== 'user' && message.links) message.links = core().fileLinks(message.links);
+    });
     renderAll();
     applyState(data.state || {});
     scrollToBottom();
@@ -180,6 +190,7 @@
     var user = {
       message_id: data.message_id, role: 'user', text: data.text || '',
       origin: data.origin, timestamp: data.timestamp, attachments: data.attachments || [],
+      files: data.files || [],
     };
     var reply = {
       message_id: data.message_id, role: 'assistant', origin: data.origin,
@@ -249,6 +260,8 @@
     reply.text = data.text || '';
     reply.timestamp = data.timestamp || reply.timestamp;
     reply.duration_ms = data.duration_ms;
+    // Fichiers qu'elle cite ou nomme, trouvés sur le PC par le Relay
+    reply.links = core().fileLinks(data.links);
     reply.parts.forEach(function (part) {
       if (part.kind === 'tool' && OPEN_STATUSES[part.status]) {
         part.status = 'stopped';
@@ -312,19 +325,39 @@
     return core().formatTime(iso ? new Date(iso) : new Date());
   }
 
-  // Question : sa provenance si elle n'a pas été tapée sur ce téléphone
+  // Pièces jointes d'un message : leurs chemins sur le PC (files), ou leurs noms
+  // seuls (message d'avant les chemins : vignette grisée)
+  function sentFiles(message) {
+    var files = (Array.isArray(message.files) ? message.files : []).filter(function (file) {
+      return file && file.name;
+    });
+    if (files.length) {
+      return files.map(function (file) {
+        return { name: file.name, path: file.path || '', isImage: IMAGE_NAME.test(file.name) };
+      });
+    }
+    return (Array.isArray(message.attachments) ? message.attachments : []).filter(function (name) {
+      return typeof name === 'string' && name;
+    }).map(function (name) {
+      return { name: name, isImage: IMAGE_NAME.test(name) };
+    });
+  }
+
+  // Question : sa provenance si elle n'a pas été tapée sur ce téléphone, ses
+  // pièces jointes sous la bulle (un toucher ouvre leur aperçu), comme dans le chat
   function renderUser(message) {
-    var lines = [message.text || ''].concat((message.attachments || []).map(function (name) {
-      return '📎 ' + name;
-    })).filter(function (line) { return line; });
+    var files = sentFiles(message);
     var origin = message.origin === 'vscode' ? T('code.origin.vscode')
       : message.origin === 'desktop' ? T('code.origin.desktop') : '';
     var msg = document.createElement('div');
-    msg.className = 'message user' + (origin ? ' with-origin' : '');
-    msg.innerHTML =
-      (origin ? '<span class="code-origin">' + core().escapeHtml(origin) + '</span>' : '') +
-      '<div class="bubble" dir="auto">' + core().escapeHtml(lines.join('\n')) +
-      '<span class="time">' + timeOf(message.timestamp) + '</span></div>';
+    msg.className = 'message user' + (origin ? ' with-origin' : '') + (files.length ? ' with-files' : '');
+    var html = origin ? '<span class="code-origin">' + core().escapeHtml(origin) + '</span>' : '';
+    if (message.text || !files.length) {
+      html += '<div class="bubble" dir="auto">' + core().escapeHtml(message.text || '') +
+        '<span class="time">' + timeOf(message.timestamp) + '</span></div>';
+    }
+    msg.innerHTML = html;
+    if (files.length) msg.appendChild(core().attachmentChips(files));
     el.messages.appendChild(msg);
   }
 
@@ -340,7 +373,8 @@
         robotSvg: core().robotSvg,
         formatTime: core().formatTime,
         locale: window.RelayI18n ? window.RelayI18n.locale : undefined,
-        codeActions: core().codeActions,
+        // « Aperçu » sur un bloc HTML ou SVG fini, « Copier » sur tous
+        codeActions: core().previewActions || core().codeActions,
         // Message tapé dans VS Code : c'est VS Code qui demande l'accord
         approvalNote: true,
       };
@@ -354,11 +388,23 @@
     var turn = turns[reply.message_id];
     if (turn) {
       turn.update(reply);
-      return;
+    } else {
+      turn = window.MyAITurn.create(reply, turnOptions());
+      turns[reply.message_id] = turn;
+      el.messages.appendChild(turn.el);
     }
-    turn = window.MyAITurn.create(reply, turnOptions());
-    turns[reply.message_id] = turn;
-    el.messages.appendChild(turn.el);
+    // Réponse finie : l'« Aperçu » d'un de ses blocs HTML ou SVG montre aussi les
+    // autres (‹ k/n ›, app.js openBlockPreview)
+    turn.el._previewItems = reply.status === 'streaming' ? null
+      : core().answerArtifacts(replyText(reply));
+  }
+
+  // Texte affiché d'une réponse : celui de ses passes, sinon son texte final
+  function replyText(reply) {
+    var texts = (reply.parts || []).filter(function (part) {
+      return part && part.kind === 'text' && part.text;
+    }).map(function (part) { return part.text; });
+    return texts.length ? texts.join('\n\n') : (reply.text || '');
   }
 
   // VS Code absent : rien ne part, et comment le connecter
@@ -451,9 +497,10 @@
   }
 
   async function uploadAttachment(file) {
+    // file : une image s'affiche sans attendre la fin de son envoi
     var entry = {
       localId: 'code_att_' + (++attachmentCounter), fileId: null, name: file.name || 'file',
-      isImage: /^image\//i.test(file.type), status: 'uploading', error: null,
+      isImage: /^image\//i.test(file.type), status: 'uploading', error: null, file: file,
     };
     pendingAttachments.push(entry);
     renderAttachments();
@@ -482,9 +529,15 @@
       icon.className = 'chip-icon';
       icon.textContent = a.status === 'uploading' ? '⏳' : a.status === 'error' ? '⚠️'
         : (a.isImage ? '🖼️' : '📎');
-      var name = document.createElement('span');
-      name.className = 'chip-name';
+      // Prête (ou image du téléphone) : son nom ouvre l'aperçu, comme dans le chat
+      var canOpen = openable(a);
+      var name = document.createElement(canOpen ? 'button' : 'span');
+      name.className = 'chip-name' + (canOpen ? ' chip-open' : '');
       name.textContent = a.status === 'error' ? a.name + ' · ' + (a.error || T('attach.error')) : a.name;
+      if (canOpen) {
+        name.type = 'button';
+        name.onclick = function () { openPending(a); };
+      }
       var rm = document.createElement('button');
       rm.className = 'chip-remove';
       rm.type = 'button';
@@ -500,6 +553,18 @@
       chip.appendChild(rm);
       el.attachments.appendChild(chip);
     });
+  }
+
+  function openable(attachment) {
+    return attachment.status === 'ready' ||
+      (attachment.isImage && attachment.file && attachment.status !== 'error');
+  }
+
+  // Pièce jointe pas encore envoyée : son aperçu, les autres prêtes à côté (‹ k/n ›)
+  function openPending(attachment) {
+    var list = pendingAttachments.filter(openable);
+    var index = list.indexOf(attachment);
+    if (index !== -1) core().openAttachments(list, index);
   }
 
   function scrollToBottom() {
