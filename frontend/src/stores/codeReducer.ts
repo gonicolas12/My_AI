@@ -119,11 +119,13 @@ export function applyCodeEvent<T extends CodeConversation>(conv: T, event: AnyCo
     case 'code.user': {
       const { message_id: messageId, text, origin, timestamp, attachments } = event.payload;
       if (next.messages.some((m) => m.role === 'user' && m.message_id === messageId)) return next;
+      // Pièces jointes avec leur chemin : leur aperçu dans le volet de la page
+      const files = event.payload.files ?? [];
       return {
         ...next,
         messages: [
           ...next.messages,
-          { message_id: messageId, role: 'user', text, origin, timestamp, attachments },
+          { message_id: messageId, role: 'user', text, origin, timestamp, attachments, files },
           {
             message_id: messageId,
             role: 'assistant',
@@ -145,13 +147,15 @@ export function applyCodeEvent<T extends CodeConversation>(conv: T, event: AnyCo
       return updateReply(next, messageId, (reply) => withTool(reply, tool));
     }
     case 'code.done': {
-      const { message_id: messageId, text, status, duration_ms: durationMs } = event.payload;
+      const { message_id: messageId, text, status, duration_ms: durationMs, paths } = event.payload;
       return updateReply(next, messageId, (reply) => ({
         ...reply,
         text,
         status,
         duration_ms: durationMs,
         parts: closeTools(reply.parts),
+        // Fichiers cités ou nommés : cliquables une fois la réponse terminée
+        ...(paths?.length ? { paths } : {}),
       }));
     }
     case 'code.cleared':

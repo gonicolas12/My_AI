@@ -726,9 +726,15 @@ Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
 │   l'attente
 ├─ stop(), clear() : depuis n'importe quelle surface ; clear arrête la
 │   réponse en cours et efface tout, partout
+├─ reply_links(message_id) : fichiers qu'une réponse cite ou nomme
+│   (relay/code_links.py : chemins absolus, chemins relatifs au workspace,
+│   dont les dossiers sont gardés avec la réponse, noms des fichiers de ses
+│   outils et des pièces jointes) ; la page Code de la fenêtre en fait des
+│   liens vers son volet d'aperçu
 └─ Événements (snapshot, state, user, chunk, tool, done, cleared) traduits
     par vscode_view (protocole de l'extension : ack, chunk, response…),
-    mobile_view (code_*) et interfaces/desktop/code.py (bus « code.* »)
+    mobile_view (code_*) et interfaces/desktop/code.py (bus « code.* » ;
+    pièces jointes avec leur type, réponses terminées avec leurs liens)
 ```
 
 **`relay/relay_bridge.py`** - Pont appli ↔ mobile (Singleton)
@@ -1321,6 +1327,10 @@ Rôle: Pipeline du chat, pour la fenêtre et pour le mobile (fenêtre ouverte ou
 │  place que la page réserve (position et taille en pixels physiques) ; masquée
 │  sous les menus, dialogues et notifications ; hôte « popup » DPI par écran
 │  (dpi_host.py) en repli si la fenêtre n'est pas DPI par écran
+├─ CSV : visionneuse d'Excel, par une copie .xlsx (csv_workbook.py ; lu par
+│  utils/csv_table.py : encodage, séparateur, guillemets) ; onglet Code : son texte
+├─ Word, Excel, PowerPoint sans visionneuse (pas d'Office, ou en échec) : le PDF
+│  qu'en tire Office ou LibreOffice (interfaces/office_pdf.py), dans le lecteur PDF
 └─ Ailleurs, ou sans visionneuse : aperçu HTML (interfaces/document_preview.py)
 ```
 
@@ -1381,7 +1391,10 @@ Déclenchement (voice_input.py) :
 ```python
 build_document_preview(path) -> str : docx, xlsx, pptx, md, csv, txt, pdf (texte)
 ├─ Rendu de repli du volet (sans visionneuse native) et contenu de la modale mobile
-└─ Réutilise les processeurs de lecture (DOCX, Excel, PPTX, PDF)
+├─ Réutilise les processeurs de lecture (DOCX, Excel, PPTX, PDF)
+└─ docx, xlsx, pptx : pages en images d'un PDF exporté par Word, Excel, PowerPoint
+   ou LibreOffice (interfaces/office_pdf.py ; Excel réduit à ses tableaux, toucher
+   une page l'agrandit), sinon texte, tableaux et cartes de diapositives
 ```
 
 Détails de l'aperçu : [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md).

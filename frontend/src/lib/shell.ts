@@ -96,6 +96,45 @@ function tokenColor(name: string): string | null {
 
 let nativeAvailable: Promise<boolean> | null = null;
 
+/**
+ * Place de la visionneuse : pywebview exécute chaque appel dans son propre
+ * thread, sans ordre garanti. Pendant que le volet suit la souris, une place
+ * part quand la précédente est posée ; entre-temps, seule la dernière demandée
+ * attend : jamais une ancienne après elle.
+ */
+const PLACE_TIMEOUT_MS = 1500;
+let placing = false;
+let nextPlace: [DeviceRect, boolean] | null = null;
+
+function sendPlace(rect: DeviceRect, visible: boolean): void {
+  const place = api()?.native_preview_place;
+  if (!place) return;
+  placing = true;
+  const done = () => {
+    placing = false;
+    const next = nextPlace;
+    nextPlace = null;
+    if (next) sendPlace(...next);
+  };
+  // Pont muet (fenêtre qui se ferme) : la place suivante part quand même
+  let timer = 0;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = window.setTimeout(() => resolve(false), PLACE_TIMEOUT_MS);
+  });
+  void Promise.race([place(rect, visible), timeout])
+    .catch(() => false)
+    .finally(() => {
+      window.clearTimeout(timer);
+      done();
+    });
+}
+
+/** Pour les tests : aucune place en cours */
+export function resetNativePlacement(): void {
+  placing = false;
+  nextPlace = null;
+}
+
 export const shell = {
   /** Vrai dans la fenêtre pywebview (une fois son pont injecté) */
   isDesktop(): boolean {
@@ -174,10 +213,10 @@ export const shell = {
         return false;
       }
     },
+    /** Recale la visionneuse (dans l'ordre des demandes, la dernière gagne) */
     place(rect: DeviceRect, visible: boolean): void {
-      void api()
-        ?.native_preview_place?.(rect, visible)
-        .catch(() => false);
+      if (placing) nextPlace = [rect, visible];
+      else sendPlace(rect, visible);
     },
     close(): void {
       void api()

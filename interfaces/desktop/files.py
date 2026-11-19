@@ -86,12 +86,17 @@ class FileLinks:
         digest = hmac.new(self._secret, token.encode("ascii"), hashlib.sha256).digest()
         return base64.urlsafe_b64encode(digest[:18]).decode("ascii")
 
-    def url(self, path: str) -> str:
-        """Lien de `path` : /files/<signature>/<chemin encodé>/<nom>."""
+    def url(self, path: str, name: Optional[str] = None) -> str:
+        """Lien de `path` : /files/<signature>/<chemin encodé>/<nom>.
+
+        Args:
+            name: nom montré (titre du lecteur PDF, fichier téléchargé) ; celui du
+                fichier par défaut (une copie d'aperçu porte le nom du document)
+        """
         absolute = os.path.abspath(path)
         token = base64.urlsafe_b64encode(absolute.encode("utf-8")).decode("ascii").rstrip("=")
-        name = quote(os.path.basename(absolute) or "fichier")
-        return f"{FILES_PREFIX}{self._sign(token)}/{token}/{name}"
+        shown = quote(name or os.path.basename(absolute) or "fichier")
+        return f"{FILES_PREFIX}{self._sign(token)}/{token}/{shown}"
 
     def resolve(self, signature: str, token: str) -> Optional[str]:
         """Chemin d'un lien signé, ou None si la signature ne correspond pas."""

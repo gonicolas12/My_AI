@@ -258,8 +258,11 @@ export interface CodeUserMessage {
   origin: CodeOrigin;
   timestamp: string | null;
   attachments: string[];
-  /** Leurs chemins sur le PC (aperçu du téléphone et de VS Code, par le Relay) */
-  files?: { name: string; path: string }[];
+  /**
+   * Leurs chemins sur le PC (aperçu ici, et sur le téléphone et dans VS Code par
+   * le Relay) et leur type (file_type_for : icône, vignette d'une image)
+   */
+  files?: { name: string; path: string; type?: string }[];
 }
 
 export interface CodeAssistantMessage {
@@ -273,6 +276,8 @@ export interface CodeAssistantMessage {
   text: string;
   status: CodeReplyStatus;
   duration_ms?: number;
+  /** Fichiers qu'elle cite ou nomme, une fois terminée (relay/code_links.py) */
+  paths?: PathLink[];
 }
 
 export type CodeMessage = CodeUserMessage | CodeAssistantMessage;
@@ -412,6 +417,7 @@ export interface EventPayloads {
     status: Exclude<CodeReplyStatus, 'streaming'>;
     timestamp: string;
     duration_ms: number;
+    paths?: PathLink[];
   };
   'code.cleared': Record<string, never>;
 }

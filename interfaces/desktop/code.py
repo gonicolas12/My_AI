@@ -12,6 +12,12 @@ que ceux du téléphone.
 Les pièces jointes de la page sont celles du chat (documents, code, images,
 dossier glissé) : la page garde leur liste et les envoie avec le message ; le
 hub les lit, et le modèle vision décrit les images.
+
+Comme dans le chat, la page montre dans son volet de droite l'aperçu des
+pièces jointes d'un message envoyé (d'ici, de VS Code ou du téléphone) et des
+fichiers qu'une réponse cite ou nomme : chacun de ses messages porte le type
+de ses pièces jointes, chaque réponse terminée ses liens (« paths »,
+relay/code_links.py), calculés à la lecture de la conversation et à sa fin.
 """
 
 import os
@@ -22,9 +28,19 @@ from core.chat_service import ChatError, file_type_for, folder_attachment_files
 from core.i18n import tr
 from interfaces.desktop import files as local_files
 from relay.code_hub import CodeHub
+from relay.code_links import conversation_files, reply_links
 
 # Champs du hub qui ne concernent que le Relay (lien VS Code d'où part un message)
 _RELAY_ONLY = ("type", "client")
+# Réponses dont la page rend les fichiers cliquables (pas une erreur, ni en cours)
+_LINKED_STATUSES = ("done", "stopped")
+
+
+def _typed(files: Any) -> List[Dict[str, str]]:
+    """Pièces jointes d'un message avec leur type (icône, vignette d'une image)."""
+    return [{"name": item.get("name") or os.path.basename(item.get("path") or ""),
+             "path": item["path"], "type": file_type_for(item["path"]) or ""}
+            for item in files or [] if isinstance(item, dict) and item.get("path")]
 
 
 class CodeService:
@@ -42,6 +58,8 @@ class CodeService:
         self._lock = threading.Lock()
         # Pièces jointes vérifiées : la fenêtre peut afficher leurs vignettes
         self._known: Set[str] = set()
+        # Fichiers que les réponses citent ou nomment : la fenêtre en montre l'aperçu
+        self._linked: Set[str] = set()
         self._unsubscribe: Optional[Callable[[], None]] = hub.subscribe(self._deliver)
 
     def _deliver(self, event: Dict[str, Any]) -> None:
@@ -50,11 +68,42 @@ class CodeService:
         if kind == "snapshot":
             return
         payload = {key: value for key, value in event.items() if key not in _RELAY_ONLY}
+        if kind == "user":
+            payload["files"] = _typed(payload.get("files"))
+        elif kind == "done" and payload.get("status") in _LINKED_STATUSES:
+            links = self._hub.reply_links(payload["message_id"])
+            if links:
+                payload["paths"] = links
+                self._remember(links)
         self._publish(f"code.{kind}", payload, message_id=payload.get("message_id"))
 
+    def _remember(self, links: List[Dict[str, Any]]) -> None:
+        with self._lock:
+            self._linked.update(local_files.normalize(link["path"]) for link in links
+                                if link.get("path") and not link.get("dir"))
+
     def snapshot(self) -> Dict[str, Any]:
-        """État, messages et seq du dernier événement qu'ils contiennent."""
-        return self._hub.snapshot(seq=self._last_seq)
+        """État, messages et seq du dernier événement qu'ils contiennent.
+
+        Les pièces jointes portent leur type, les réponses terminées leurs liens,
+        cherchés sur le disque à chaque lecture (comme ceux du chat).
+        """
+        data = self._hub.snapshot(seq=self._last_seq)
+        messages = data.get("messages") or []
+        files = conversation_files(messages)
+        current = self._hub.workspace_roots()
+        cache: Dict[Any, Any] = {}
+        for message in messages:
+            if message.get("role") == "user":
+                message["files"] = _typed(message.get("files"))
+                continue
+            roots = message.pop("roots", None) or current
+            if message.get("status") in _LINKED_STATUSES:
+                links = reply_links(message, files, roots, cache)
+                if links:
+                    message["paths"] = links
+                    self._remember(links)
+        return data
 
     def state(self) -> Dict[str, Any]:
         """État seul (barre latérale) et seq de sa lecture."""
@@ -101,9 +150,12 @@ class CodeService:
         return {"attachments": attachments, "refused": refused}
 
     def known_paths(self) -> Set[str]:
-        """Pièces jointes de la page (vignettes des images)."""
+        """Fichiers que la page montre : pièces jointes vérifiées ici, celles des
+        messages de la conversation (envoyées aussi de VS Code ou du téléphone),
+        fichiers que les réponses citent ou nomment."""
         with self._lock:
-            return set(self._known)
+            known = self._known | self._linked
+        return known | self._hub.known_paths()
 
     def stop(self) -> bool:
         return self._hub.stop()

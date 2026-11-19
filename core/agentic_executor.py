@@ -35,6 +35,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import requests
 
+from core.modelfile import with_today
 from utils.logger import setup_logger
 
 logger = setup_logger("AgenticExecutor")
@@ -256,18 +257,19 @@ def build_system_prompt(
     tools: Optional[List[Dict[str, Any]]] = None,
     language: Optional[str] = None,
 ) -> str:
-    """Construit le prompt système complet à partir des infos de workspace et du set d'outils.
+    """Construit le prompt système complet à partir des infos de workspace et du set d'outils,
+    suivi de la date du jour (core/modelfile.py : il change donc une fois par jour).
 
     ``language`` : langue de My_AI, celle des réponses à un message court ou
     ambigu (français par défaut).
     """
     if tools is None:
         tools = AGENT_TOOLS
-    return _SYSTEM_PROMPT_TEMPLATE.format(
+    return with_today(_SYSTEM_PROMPT_TEMPLATE.format(
         workspace_info=workspace_info or "(workspace inconnu)",
         tools_doc=_format_tools_for_prompt(tools),
         default_language=_LANGUAGE_NAMES.get(language or "fr", "français"),
-    )
+    ))
 
 
 # ===========================================================================

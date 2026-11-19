@@ -63,6 +63,12 @@ def _text(key: str, **params: Any) -> str:
 # Au-delà, l'aperçu d'une feuille Excel est tronqué (le volet n'est pas un tableur).
 _XLSX_MAX_ROWS = 200
 _XLSX_MAX_COLUMNS = 40
+# Un CSV n'a qu'un tableau : plus de lignes montrées
+_CSV_MAX_ROWS = 1000
+# Cellule : à la ligne permis après « / » ou « \ » (listes, chemins)
+_CELL_BREAKS = re.compile(r"([/\\])")
+# Cellule numérique (« 12 », « -3,5 », « 1 200,50 », « 15 % ») : alignée à droite
+_NUMBER = re.compile(r"^[-+]?\d[\d \u00a0\u202f]*(?:[.,]\d+)?\s*%?$")
 
 # Markdown qui contient du HTML (en-tête d'un README : <div align>, <img>, <br>) :
 # rendu avec son HTML, assaini comme sur GitHub. Sans HTML, le rendu habituel
@@ -92,6 +98,12 @@ _INLINE_IMAGE_TYPES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp
 _PDF_PAGES_MAX = 12
 _PDF_PAGE_WIDTH = 1000
 _PDF_JPEG_QUALITY = 80
+# Diapositives d'une présentation (plus courtes qu'une page) : jusqu'à
+_SLIDES_MAX = 30
+# Page d'Excel réduite à son tableau : marge gardée autour (points), et agrandissement
+# au plus (un petit tableau ne devient pas énorme)
+_CROP_MARGIN = 8
+_CROP_ZOOM = 2.5
 
 
 # ── Page d'enveloppe ───────────────────────────────────────────────────────
@@ -171,8 +183,11 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   hr {{ border: none; border-top: 1px solid var(--rule); margin: 22px 0; }}
   table {{ border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 13.5px; }}
   th, td {{ border: 1px solid #d8dde3; padding: 7px 10px; text-align: start; vertical-align: top; }}
-  th {{ background: var(--accent); color: #fff; font-weight: 600; }}
+  th {{ background: var(--accent); color: #fff; font-weight: 600; position: sticky; top: 0; }}
+  td.num {{ text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }}
   tbody tr:nth-child(even) {{ background: #f7f9fc; }}
+  /* Tableur plus large que l'écran : la feuille s'élargit avec lui (la page défile) */
+  .sheet:has(> .tabular) {{ min-width: min-content; }}
   .sheet-title {{
     margin: 26px 0 8px; font-size: 13px; font-weight: 650; color: var(--accent);
     text-transform: uppercase; letter-spacing: .05em;
@@ -196,11 +211,21 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   .md-file img {{ max-width: 100%; height: auto; vertical-align: middle; }}
   .md-file div[align="center"], .md-file p[align="center"] {{ text-align: center; }}
   .md-file summary {{ cursor: pointer; font-weight: 600; }}
-  .pdf-page {{
+  .pdf-page, .slide-page, .office-page {{
     display: block; width: 100%; height: auto; margin: 0 0 16px;
     border: 1px solid var(--rule); border-radius: 4px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, .12);
   }}
+  /* Tableau d'Excel découpé dans sa page : à sa taille, sans agrandissement */
+  .office-page.cropped {{ width: auto; max-width: 100%; box-shadow: none; }}
+  /* Toucher une page l'agrandit (le téléphone et VS Code ne zooment pas), encore une
+     fois la rend à la largeur : une case à cocher, la page n'ayant pas de script */
+  .zoom-toggle {{ position: absolute; opacity: 0; pointer-events: none; }}
+  label.zoom {{ display: block; overflow-x: auto; cursor: zoom-in; margin: 0 0 16px; }}
+  label.zoom img {{ margin: 0; }}
+  .zoom-toggle:checked + label.zoom {{ cursor: zoom-out; }}
+  .zoom-toggle:checked + label.zoom img {{ width: 250%; max-width: none; }}
+  .zoom-toggle:focus-visible + label.zoom img {{ outline: 2px solid var(--accent); }}
   .truncated {{
     color: var(--muted); font-size: 12.5px; font-style: italic; margin-top: 6px;
   }}
@@ -281,11 +306,16 @@ def build_document_preview(path: str, name: Optional[str] = None) -> str:
         if not file_path.exists():
             body = header + f'<p class="empty">{_text("docpreview.notFound")}</p>'
         elif suffix == ".docx":
-            body = header + _render_docx(str(file_path))
-        elif suffix in (".xlsx", ".xlsm", ".xls", ".csv"):
+            # Ses pages telles que Word (ou LibreOffice) les imprime, sinon son texte
+            body = header + (_office_pages(str(file_path)) or _render_docx(str(file_path)))
+        elif suffix in (".xlsx", ".xlsm", ".xls"):
+            body = header + (_office_pages(str(file_path))
+                             or _render_spreadsheet(str(file_path)))
+        elif suffix == ".csv":
             body = header + _render_spreadsheet(str(file_path))
         elif suffix in (".pptx", ".potx"):
-            body = header + _render_pptx(str(file_path))
+            body = header + (_office_pages(str(file_path), slides=True)
+                             or _render_pptx_text(str(file_path)))
         elif suffix == ".pdf":
             body = header + _render_pdf(str(file_path))
         elif suffix in (".md", ".markdown"):
@@ -492,15 +522,26 @@ def _render_markdown_table(block: Table) -> str:
     return "".join(parts)
 
 
+def _cell(tag: str, value: Any) -> str:
+    """Cellule d'un tableau : son texte entier, un nombre aligné à droite ; une liste
+    « gaz/vapeurs/aérosols » ou un chemin peut aller à la ligne après « / » ou « \\ »
+    (sans quoi il élargit le tableau au-delà d'un écran de téléphone)."""
+    shown = str(value)
+    numeric = tag == "td" and _NUMBER.match(shown.strip()) is not None
+    attributes = ' class="num"' if numeric else ""
+    content = _CELL_BREAKS.sub(r"\1<wbr>", _escaped_lines(shown))
+    return f"<{tag}{attributes}>{content}</{tag}>"
+
+
 def _render_table(header: List[str], rows: List[List[str]], note: str = "") -> str:
     """Rend un tableau HTML à partir d'un en-tête et de lignes de texte."""
     parts = ['<table dir="auto">']
     if header:
-        cells = "".join(f"<th>{_escaped_lines(str(value))}</th>" for value in header)
+        cells = "".join(_cell("th", value) for value in header)
         parts.append(f"<thead><tr>{cells}</tr></thead>")
     parts.append("<tbody>")
     for row in rows:
-        cells = "".join(f"<td>{_escaped_lines(str(value))}</td>" for value in row)
+        cells = "".join(_cell("td", value) for value in row)
         parts.append(f"<tr>{cells}</tr>")
     parts.append("</tbody></table>")
     if note:
@@ -583,10 +624,15 @@ def _docx_heading_level(style: str) -> int:
 
 
 def _render_spreadsheet(path: str) -> str:
-    """Rend un classeur Excel ou un CSV : une section par feuille."""
+    """Rend un classeur Excel ou un CSV : une section par feuille (un CSV n'en a qu'une,
+    sans titre : celui du fichier suffit)."""
     suffix = Path(path).suffix.lower()
     if suffix in (".xlsx", ".xlsm"):
         sheets = _read_xlsx_sheets(path)
+    elif suffix == ".csv":
+        sheets = _read_csv_sheet(path)
+    elif suffix == ".xls":
+        sheets = _read_xls_sheets(path)
     else:
         sheets = _read_tabular_fallback(path)
 
@@ -595,13 +641,14 @@ def _render_spreadsheet(path: str) -> str:
 
     parts: List[str] = []
     for name, rows, truncated in sheets:
-        parts.append(f'<div class="sheet-title" dir="auto">{html.escape(name)}</div>')
+        if suffix != ".csv":
+            parts.append(f'<div class="sheet-title" dir="auto">{html.escape(name)}</div>')
         if not rows:
             parts.append(f'<p class="empty">{_text("docpreview.emptySheet")}</p>')
             continue
         note = tr("docpreview.truncated") if truncated else ""
         parts.append(_render_table(rows[0], rows[1:], note))
-    return "\n".join(parts)
+    return '<div class="tabular">' + "\n".join(parts) + "</div>"
 
 
 def _read_xlsx_sheets(path: str) -> List[tuple]:
@@ -629,8 +676,62 @@ def _read_xlsx_sheets(path: str) -> List[tuple]:
     return sheets
 
 
+def _read_csv_sheet(path: str) -> List[tuple]:
+    """Lit un CSV comme un tableur (utils/csv_table.py : encodage, séparateur « ; » ou
+    « , »…, guillemets) : son tableau entier, cellules comprises."""
+    from utils.csv_table import read_table
+
+    table = read_table(path, _CSV_MAX_ROWS, _XLSX_MAX_COLUMNS)
+    return [(Path(path).stem, table.rows, table.truncated)]
+
+
+def _xls_value(cell: Any, datemode: int) -> str:
+    """Valeur d'une cellule d'un .xls, écrite comme celles d'un .xlsx (_read_xlsx_sheets)."""
+    import xlrd
+
+    if cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK):
+        return ""
+    if cell.ctype == xlrd.XL_CELL_NUMBER:
+        number = float(cell.value)
+        return str(int(number)) if number.is_integer() else str(number)
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        try:
+            return str(xlrd.xldate_as_datetime(cell.value, datemode))
+        except (ValueError, OverflowError):
+            return str(cell.value)
+    if cell.ctype == xlrd.XL_CELL_BOOLEAN:
+        return str(bool(cell.value))
+    if cell.ctype == xlrd.XL_CELL_ERROR:
+        return xlrd.error_text_from_code.get(cell.value, "#N/A")
+    return str(cell.value)
+
+
+def _read_xls_sheets(path: str) -> List[tuple]:
+    """Lit un .xls (ancien format d'Excel) par xlrd, ses valeurs telles quelles ; à
+    défaut de xlrd, par ExcelProcessor."""
+    try:
+        import xlrd
+    except ImportError:
+        return _read_tabular_fallback(path)
+    book = xlrd.open_workbook(path, on_demand=True)
+    sheets: List[tuple] = []
+    try:
+        for sheet in book.sheets():
+            rows: List[List[str]] = []
+            truncated = sheet.nrows > _XLSX_MAX_ROWS or sheet.ncols > _XLSX_MAX_COLUMNS
+            for index in range(min(sheet.nrows, _XLSX_MAX_ROWS)):
+                cells = [_xls_value(cell, book.datemode)
+                         for cell in sheet.row(index)[:_XLSX_MAX_COLUMNS]]
+                if any(cell.strip() for cell in cells):
+                    rows.append(cells)
+            sheets.append((sheet.name, rows, truncated))
+    finally:
+        book.release_resources()
+    return sheets
+
+
 def _read_tabular_fallback(path: str) -> List[tuple]:
-    """Lit un CSV (ou un .xls) via ExcelProcessor, puis découpe en lignes."""
+    """Lit un .xls via ExcelProcessor (sans xlrd), puis découpe en lignes."""
     from processors.excel_processor import ExcelProcessor
 
     result = ExcelProcessor().read_excel(path)
@@ -654,8 +755,31 @@ def _read_tabular_fallback(path: str) -> List[tuple]:
     return [(Path(path).stem, rows[:_XLSX_MAX_ROWS], truncated)]
 
 
-def _render_pptx(path: str) -> str:
-    """Rend une présentation : une carte par diapositive."""
+def _office_pages(path: str, slides: bool = False) -> Optional[str]:
+    """
+    Pages d'un document Office telles que Word, Excel ou PowerPoint les impriment (son
+    PDF, interfaces/office_pdf.py, sinon celui de LibreOffice), en images ; None sans
+    eux : le rendu HTML (texte, tableaux, cartes) prend le relais.
+    """
+    from interfaces.office_pdf import office_kind, office_pdf
+
+    pdf = office_pdf(path)
+    if not pdf:
+        return None
+    try:
+        if slides:
+            return _pdf_page_images(pdf, _SLIDES_MAX, "slide-page",
+                                    "docpreview.slideImage", "docpreview.slidesShown")
+        # Excel : chaque page réduite à son tableau (sinon un coin d'une page à l'italienne)
+        return _pdf_page_images(pdf, _PDF_PAGES_MAX, "office-page",
+                                "docpreview.pdfPage", "docpreview.pagesShown",
+                                crop=office_kind(path) == "excel")
+    except Exception:  # noqa: BLE001 - PDF illisible : le rendu HTML
+        return None
+
+
+def _render_pptx_text(path: str) -> str:
+    """Rend une présentation sans son image : une carte par diapositive."""
     from processors.pptx_processor import PPTXProcessor
 
     result = PPTXProcessor().read_pptx(path)
@@ -701,13 +825,39 @@ def _render_pptx(path: str) -> str:
     return "\n".join(parts)
 
 
-def _pdf_page_images(path: str) -> Optional[str]:
+def _content_rect(page: Any, pymupdf: Any) -> Any:
+    """Zone de la page où quelque chose est imprimé (texte, traits, images), marge
+    comprise ; la page entière si elle est vide."""
+    area = pymupdf.Rect()
+    for block in page.get_text("blocks"):
+        area |= pymupdf.Rect(block[:4])
+    for drawing in page.get_drawings():
+        area |= drawing["rect"]
+    for image in page.get_image_info():
+        area |= pymupdf.Rect(image["bbox"])
+    if area.is_empty:
+        return page.rect
+    margin = _CROP_MARGIN
+    return (area + (-margin, -margin, margin, margin)) & page.rect
+
+
+def _pdf_page_images(path: str, limit: int = 0, css_class: str = "pdf-page",
+                     label_key: str = "docpreview.pdfPage",
+                     shown_key: str = "docpreview.pdfPagesShown",
+                     crop: bool = False) -> Optional[str]:
     """
     Les premières pages d'un PDF en images (JPEG en data:), ou None sans PyMuPDF.
 
     Le PDF garde ainsi sa mise en page dans la modale du téléphone, comme dans
-    son lecteur : la politique de la page n'y permet que les images data:.
+    son lecteur : la politique de la page n'y permet que les images data:. Une
+    présentation (son PDF) y passe aussi, ses pages nommées « diapositives ».
+
+    Args:
+        crop: chaque page réduite à ce qui y est imprimé (feuille d'Excel : son
+            tableau n'occupe qu'un coin de la page, illisible sur un téléphone),
+            sans être agrandie au-delà de _CROP_ZOOM
     """
+    limit = limit or _PDF_PAGES_MAX
     try:
         import pymupdf  # pylint: disable=import-outside-toplevel
     except ImportError:
@@ -722,17 +872,24 @@ def _pdf_page_images(path: str) -> Optional[str]:
         if not total:
             return f'<p class="empty">{_text("docpreview.emptyDocument")}</p>'
         parts = []
-        for number in range(min(total, _PDF_PAGES_MAX)):
+        for number in range(min(total, limit)):
             page = document[number]
-            zoom = _PDF_PAGE_WIDTH / max(page.rect.width, 1)
-            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            area = _content_rect(page, pymupdf) if crop else page.rect
+            zoom = _PDF_PAGE_WIDTH / max(area.width, 1)
+            if crop:
+                zoom = min(zoom, _CROP_ZOOM)
+            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=area, alpha=False)
             data = base64.b64encode(pixmap.tobytes("jpeg", jpg_quality=_PDF_JPEG_QUALITY))
-            label = html.escape(tr("docpreview.pdfPage", page=number + 1, pages=total))
-            parts.append(f'<img class="pdf-page" alt="{label}" title="{label}" '
-                         f'src="data:image/jpeg;base64,{data.decode("ascii")}">')
-        if total > _PDF_PAGES_MAX:
+            label = html.escape(tr(label_key, page=number + 1, pages=total))
+            classes = f"{css_class} cropped" if crop else css_class
+            toggle = f"zoom-{css_class}-{number + 1}"
+            parts.append(f'<input class="zoom-toggle" type="checkbox" id="{toggle}">'
+                         f'<label class="zoom" for="{toggle}">'
+                         f'<img class="{classes}" alt="{label}" title="{label}" '
+                         f'src="data:image/jpeg;base64,{data.decode("ascii")}"></label>')
+        if total > limit:
             parts.append(f'<p class="truncated">'
-                         f'{_text("docpreview.pdfPagesShown", shown=_PDF_PAGES_MAX, pages=total)}'
+                         f'{_text(shown_key, shown=limit, pages=total)}'
                          f'</p>')
     return "\n".join(parts)
 

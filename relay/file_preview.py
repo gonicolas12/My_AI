@@ -9,8 +9,8 @@ genres suivent ceux de la fenêtre (frontend/src/lib/fileKinds.ts) :
   image     l'image en base64 ; un SVG aussi (affiché en <img>, sans script),
             avec sa source pour l'onglet Code
   document  page HTML d'interfaces/document_preview : PDF en images de ses
-            pages, Word, Excel, PowerPoint, CSV ; Markdown rendu avec son HTML,
-            sa source en plus
+            pages, Word, Excel, PowerPoint, CSV en tableau ; Markdown rendu avec
+            son HTML ; le Markdown et le CSV ont leur source en plus
   html      la source d'une page, rendue par la modale dans une iframe isolée
   text      le début d'un fichier de code ou de texte, et son langage
   audio, video  le fichier en base64, lu par la page
@@ -51,7 +51,8 @@ _VIDEO = {".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
 # Rendus en HTML par interfaces/document_preview (.doc, .ppt : pas lisibles ici)
 _DOCUMENTS = frozenset({".pdf", ".docx", ".xlsx", ".xlsm", ".xls", ".csv", ".pptx", ".potx",
                         ".md", ".markdown"})
-_MARKDOWN = frozenset({".md", ".markdown"})
+# Documents rendus dont la source se lit aussi (onglet Code) : son langage
+_SOURCES = {".md": "markdown", ".markdown": "markdown", ".csv": "csv"}
 _HTML = frozenset({".html", ".htm", ".xhtml"})
 # Extension → langage affiché en tête du bloc de code (comme lib/fileKinds.ts)
 _LANGUAGES = {
@@ -151,8 +152,11 @@ def build_preview(path: str, name: Optional[str] = None) -> Dict[str, Any]:
                 preview.update(kind="document",
                                html=build_document_preview(path, preview["name"]),
                                label=document_summary(path)["label"])
-                if suffix in _MARKDOWN:
-                    preview.update(_text(path), language="markdown")
+                if suffix in _SOURCES:
+                    try:
+                        preview.update(_text(path), language=_SOURCES[suffix])
+                    except PreviewError:
+                        pass  # pas du texte (octet nul) : la page seule
         elif suffix in _HTML:
             preview.update(_text(path), kind="html", language="html")
         else:

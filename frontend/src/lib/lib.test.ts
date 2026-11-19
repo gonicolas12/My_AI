@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { faviconUrl, setToken } from './api';
 import type { AnyServerEvent } from './events';
 import { formatDay, formatDecimal, formatDuration, formatTime } from './format';
-import { cssColorToHex, externalUrl } from './shell';
+import { cssColorToHex, externalUrl, resetNativePlacement, shell } from './shell';
 import { comboOf, isBrowserShortcut } from './shortcuts';
 import { EventSocket, ReplyError, SocketError } from './ws';
 
@@ -55,6 +55,41 @@ describe('liens et couleurs', () => {
     expect(cssColorToHex('rgba(255, 107, 71, 1)')).toBe('#ff6b47');
     expect(cssColorToHex('#FF6B47')).toBe('#ff6b47');
     expect(cssColorToHex('transparent')).toBeNull();
+  });
+});
+
+describe('visionneuse Office', () => {
+  afterEach(() => {
+    delete window.pywebview;
+    resetNativePlacement();
+  });
+
+  it('pose une place à la fois, la dernière demandée après les autres', async () => {
+    // Chaque appel de pywebview répond à part : ici, quand le test le décide
+    const answers: Array<() => void> = [];
+    const place = vi.fn(
+      () => new Promise<boolean>((resolve) => answers.push(() => resolve(true))),
+    );
+    window.pywebview = { api: { native_preview_place: place } };
+    const rect = (width: number) => ({ x: 10, y: 20, width, height: 500 });
+
+    shell.nativePreview.place(rect(600), true);
+    // Le volet suit la souris pendant que la première place est posée
+    shell.nativePreview.place(rect(610), true);
+    shell.nativePreview.place(rect(620), true);
+    shell.nativePreview.place(rect(630), false);
+    expect(place).toHaveBeenCalledTimes(1);
+
+    answers.shift()?.();
+    await vi.waitFor(() => expect(place).toHaveBeenCalledTimes(2));
+    expect(place).toHaveBeenLastCalledWith(rect(630), false);
+    answers.shift()?.();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(place).toHaveBeenCalledTimes(2);
+
+    // Rien en cours : la place part tout de suite
+    shell.nativePreview.place(rect(640), true);
+    expect(place).toHaveBeenCalledTimes(3);
   });
 });
 

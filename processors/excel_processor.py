@@ -3,10 +3,27 @@ Processeur de fichiers Excel et CSV
 Lecture et extraction de contenu pour .xlsx, .xls, .csv
 """
 
-import csv
 import os
 from pathlib import Path
 from typing import Any, Dict, List
+
+from utils.csv_table import read_table
+
+# Texte d'un classeur donné au modèle : au plus autant de caractères, la suite
+# annoncée (un long document passe ensuite par la sélection de passages,
+# core/document_passages.py)
+TEXT_BUDGET = 200_000
+# CSV lu au plus jusque-là
+CSV_MAX_ROWS = 100_000
+CSV_MAX_COLUMNS = 500
+
+
+def _cell_text(value: Any) -> str:
+    """Cellule d'un tableau Markdown : entière, sur une ligne (retours à la ligne en
+    <br>), « | » échappé."""
+    text = "" if value is None else str(value).strip()
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+    return text.replace("|", "\\|")
 
 
 class ExcelProcessor:
@@ -62,24 +79,21 @@ class ExcelProcessor:
     # ------------------------------------------------------------------ #
 
     def _read_csv(self, file_path: str) -> Dict[str, Any]:
-        """Lit un fichier CSV (encodage automatique)."""
-        rows: List[List[str]] = []
-        encoding = "utf-8-sig"
+        """Lit un CSV comme un tableur (utils/csv_table.py) : encodage (UTF-8, sinon
+        Windows-1252 comme les exports d'Excel en France), séparateur (« ; », « , »,
+        tabulation…), cellules entre guillemets (séparateur, retours à la ligne)."""
         try:
-            with open(file_path, newline="", encoding=encoding, errors="replace") as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    rows.append(row)
-        except Exception as exc:
+            table = read_table(file_path, CSV_MAX_ROWS, CSV_MAX_COLUMNS)
+        except Exception as exc:  # pylint: disable=broad-except
             return {"success": False, "error": f"Erreur lecture CSV : {exc}"}
 
-        text = self._rows_to_text("Données CSV", rows)
+        text = self._rows_to_text("Données CSV", table.rows, cut=table.truncated)
         return {
             "success": True,
             "content": text,
-            "sheets": {"CSV": rows},
+            "sheets": {"CSV": table.rows},
             "sheet_names": ["CSV"],
-            "total_rows": len(rows),
+            "total_rows": len(table.rows),
             "processor": "csv-stdlib",
         }
 
@@ -164,45 +178,42 @@ class ExcelProcessor:
     #  Formatage texte                                                      #
     # ------------------------------------------------------------------ #
 
-    def _rows_to_text(self, sheet_name: str, rows: List[List[str]]) -> str:
-        """Convertit une liste de lignes en texte lisible (format table)."""
+    def _rows_to_text(self, sheet_name: str, rows: List[List[str]], cut: bool = False) -> str:
+        """Tableau Markdown pour le modèle : une ligne par ligne du classeur, cellules
+        entières (retours à la ligne en <br>, « | » échappé), sans les lignes vides ni
+        les colonnes vides de la fin, jusqu'à TEXT_BUDGET caractères (la suite est
+        annoncée).
+
+        Args:
+            cut: le fichier n'a pas été lu en entier (CSV trop long)
+        """
+        rows = [[_cell_text(cell) for cell in row] for row in rows]
+        rows = [row for row in rows if any(row)]
         if not rows:
             return f"=== Feuille : {sheet_name} ===\n(vide)"
-
-        # Calculer la largeur max de chaque colonne (limité à 30 chars)
-        ncols = max(len(r) for r in rows) if rows else 0
-        col_widths = [0] * ncols
-        for row in rows:
-            for ci, cell in enumerate(row):
-                col_widths[ci] = min(30, max(col_widths[ci], len(str(cell))))
+        ncols = max(max(index + 1 for index, cell in enumerate(row) if cell) for row in rows)
 
         def fmt_row(row: List[str]) -> str:
-            cells = []
-            for ci in range(ncols):
-                val = str(row[ci]) if ci < len(row) else ""
-                if len(val) > 30:
-                    val = val[:27] + "..."
-                cells.append(val.ljust(col_widths[ci]))
-            return "| " + " | ".join(cells) + " |"
+            return "| " + " | ".join((row + [""] * ncols)[:ncols]) + " |"
 
-        separator = "|-" + "-|-".join("-" * w for w in col_widths) + "-|"
+        lines = [f"=== Feuille : {sheet_name} ===", fmt_row(rows[0])]
+        if len(rows) > 1:
+            lines.append("|" + "|".join(["---"] * ncols) + "|")
+        used = sum(len(line) + 1 for line in lines)
+        shown = 1
+        for row in rows[1:]:
+            line = fmt_row(row)
+            if used + len(line) + 1 > TEXT_BUDGET:
+                break
+            lines.append(line)
+            used += len(line) + 1
+            shown += 1
 
-        lines = [f"=== Feuille : {sheet_name} ==="]
-        max_display = 200  # limite pour éviter de saturer le contexte
-
-        for i, row in enumerate(rows[:max_display]):
-            lines.append(fmt_row(row))
-            if i == 0 and len(rows) > 1:
-                lines.append(separator)
-
-        if len(rows) > max_display:
-            lines.append(
-                f"... ({len(rows) - max_display} lignes supplémentaires non affichées)"
-            )
-
-        lines.append(
-            f"\n📊 Total : {len(rows)} lignes × {ncols} colonnes"
-        )
+        if shown < len(rows):
+            lines.append(f"... ({len(rows) - shown} lignes supplémentaires non affichées)")
+        if cut:
+            lines.append("... (fichier trop long : sa fin n'a pas été lue)")
+        lines.append(f"\n📊 Total : {len(rows)} lignes × {ncols} colonnes")
         return "\n".join(lines)
 
     def is_supported(self, file_path: str) -> bool:

@@ -11,6 +11,7 @@ la compléter.
 
 import logging
 import types
+from datetime import date
 
 import pytest
 
@@ -23,7 +24,9 @@ from core.modelfile import (
     FALLBACK_IDENTITY,
     drop_tools_section,
     modelfile_system,
+    today_note,
     with_modelfile,
+    with_today,
 )
 from models.custom_ai_model import CustomAIModel
 from models.local_llm import LocalLLM
@@ -44,8 +47,32 @@ def test_modelfile_system_is_the_system_block():
     assert "## Format" in system
 
 
-def test_instructions_come_after_the_identity():
-    assert with_modelfile("CONSIGNE") == modelfile_system() + "\n\nCONSIGNE"
+def test_instructions_come_after_the_identity_and_the_date():
+    assert with_modelfile("CONSIGNE") == f"{modelfile_system()}\n\n{today_note()}\n\nCONSIGNE"
+
+
+def test_the_model_is_told_the_date_of_the_day():
+    # Régression : un document daté du 19/10/2026 lui paraissait « futur » le 18/11/2026
+    note = today_note(date(2026, 11, 18))
+    assert note.startswith("## Date du jour\n")
+    assert "Nous sommes le mercredi 18 novembre 2026 (18/11/2026)." in note
+    assert "antérieure à aujourd'hui est passée" in note
+    assert "le mardi 1er décembre 2026 (01/12/2026)" in today_note(date(2026, 12, 1))
+    # Au jour près, sans heure : le prompt ne change qu'une fois par jour
+    assert today_note() == today_note(date.today())
+    # Agents et page Code : leur prompt, puis la date
+    assert with_today("Tu es CodeAgent.") == f"Tu es CodeAgent.\n\n{today_note()}"
+
+
+def test_agents_and_the_code_page_know_the_date_too():
+    # pylint: disable=import-outside-toplevel,protected-access
+    from core.agentic_executor import build_system_prompt
+    from models.ai_agents import AIAgent
+
+    agent = AIAgent.__new__(AIAgent)  # sans __init__ : aucun appel à Ollama
+    agent.system_prompt = "Tu es CodeAgent."
+    assert agent._system() == f"Tu es CodeAgent.\n\n{today_note()}"
+    assert build_system_prompt("C:/projet").endswith(f"\n\n{today_note()}")
 
 
 def test_without_tools_only_the_tools_section_is_dropped():
@@ -80,7 +107,8 @@ def _missing_modelfile(monkeypatch, tmp_path):
 
 def test_missing_modelfile_falls_back_to_a_short_identity(missing_modelfile):
     assert modelfile_system() == ""
-    assert with_modelfile("CONSIGNE", tools=False) == FALLBACK_IDENTITY + "\n\nCONSIGNE"
+    assert with_modelfile("CONSIGNE", tools=False) == (
+        f"{FALLBACK_IDENTITY}\n\n{today_note()}\n\nCONSIGNE")
 
 
 # ── LocalLLM : le résumé glissant ne passe pas devant le Modelfile ──────────
@@ -120,7 +148,8 @@ def test_summarized_history_keeps_the_modelfile_first(monkeypatch):
     llm.generate("Et toi, qui es-tu ?", save_history=False)
 
     messages = sent[0]["messages"]
-    assert messages[0] == {"role": "system", "content": modelfile_system()}
+    assert messages[0] == {"role": "system", "content": with_modelfile()}
+    assert messages[0]["content"].startswith(modelfile_system())
     assert messages[1] == summary
     assert messages[-1] == {"role": "user", "content": "Et toi, qui es-tu ?"}
 

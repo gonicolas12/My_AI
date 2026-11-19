@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -43,7 +43,12 @@ const api = vi.hoisted(() => ({
 vi.mock('../../lib/api', () => ({ api, ApiError }));
 
 const shell = vi.hoisted(() => ({
-  nativePreview: { available: vi.fn(() => Promise.resolve(false)) },
+  nativePreview: {
+    available: vi.fn(() => Promise.resolve(false)),
+    show: vi.fn(() => Promise.resolve(true)),
+    place: vi.fn(),
+    close: vi.fn(),
+  },
 }));
 vi.mock('../../lib/shell', () => ({ shell, externalUrl: (url: string) => url }));
 
@@ -87,7 +92,9 @@ describe('formats', () => {
     expect(codeLanguage('main.py')).toBe('python');
     expect(codeLanguage('app.tsx')).toBe('tsx');
     expect(codeLanguage('logo.svg')).toBe('xml');
+    expect(codeLanguage('Phrases.csv')).toBe('csv');
     expect(hasSource('markdown')).toBe(true);
+    expect(hasSource('table')).toBe(true);
     expect(hasSource('code')).toBe(false);
   });
 
@@ -164,12 +171,37 @@ describe('FilePreview', () => {
     );
     expect(api.documentPreview).toHaveBeenCalledWith('C:/docs/notes.pdf', false);
   });
+
+  it('un CSV : son tableau (page du serveur), ou son texte dans l’onglet Code', async () => {
+    api.documentPreview.mockResolvedValue({
+      id: 'p2',
+      kind: 'document',
+      title: 'Phrases.csv',
+      url: '/preview/p2',
+      path: 'C:/docs/Phrases.csv',
+    });
+    api.fileText.mockResolvedValue({ text: 'Code Phrase;"(GC) Description"', truncated: false });
+    const { container, rerender } = renderUi(<FilePreview path="C:/docs/Phrases.csv" />);
+    await waitFor(() =>
+      expect(container.querySelector('iframe')).toHaveAttribute('src', '/preview/p2'),
+    );
+    expect(api.fileText).not.toHaveBeenCalled();
+    rerender(
+      <TooltipProvider>
+        <FilePreview path="C:/docs/Phrases.csv" tab="code" />
+      </TooltipProvider>,
+    );
+    expect(await screen.findByText('Code Phrase;"(GC) Description"')).toBeInTheDocument();
+    expect(screen.getByText('csv')).toBeInTheDocument();
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(api.fileText).toHaveBeenCalledWith('C:/docs/Phrases.csv');
+  });
 });
 
 describe('volet de droite', () => {
   it('s’ouvre sur un fichier du chat, avec son format, sa taille et sa date, et se replie', async () => {
     api.fileText.mockResolvedValue({ text: 'x = 1', truncated: false });
-    renderUi(<PreviewPane />);
+    renderUi(<PreviewPane page="chat" />);
     act(() => openFilePreview('C:/projet/calcul.py'));
     const pane = await screen.findByRole('complementary', { name: 'Aperçu' });
     expect(within(pane).getByText('calcul.py')).toBeInTheDocument();
@@ -181,6 +213,64 @@ describe('volet de droite', () => {
     await waitFor(() =>
       expect(screen.queryByRole('complementary', { name: 'Aperçu' })).not.toBeInTheDocument(),
     );
+  });
+
+  it('redimensionné à la souris, il garde la visionneuse Office affichée', async () => {
+    shell.nativePreview.available.mockResolvedValue(true);
+    api.documentPreview.mockResolvedValue({
+      id: 'n1',
+      kind: 'native',
+      title: 'tableau.xlsx',
+      url: '',
+      path: 'C:/docs/tableau.xlsx',
+    });
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    // Capture du pointeur (absente de jsdom), rendue ensuite telle qu'elle était
+    const saved = (['setPointerCapture', 'releasePointerCapture'] as const).map(
+      (name) => [name, Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)] as const,
+    );
+    for (const [name] of saved) {
+      Object.defineProperty(HTMLElement.prototype, name, {
+        configurable: true,
+        writable: true,
+        value: vi.fn(),
+      });
+    }
+    try {
+      renderUi(<PreviewPane page="chat" />);
+      act(() => openFilePreview('C:/docs/tableau.xlsx'));
+      const pane = await screen.findByRole('complementary', { name: 'Aperçu' });
+      // Ouverture finie : la visionneuse est posée, visible
+      await waitFor(() =>
+        expect(shell.nativePreview.place).toHaveBeenLastCalledWith(expect.anything(), true),
+      );
+      const body = pane.querySelector('[data-native-preview]')?.closest('.flex-1');
+      const handle = within(pane).getByRole('separator');
+      const start = usePreview.getState().width;
+      shell.nativePreview.place.mockClear();
+
+      fireEvent.pointerDown(handle, { clientX: 600, pointerId: 1 });
+      fireEvent.pointerMove(handle, { clientX: 580, pointerId: 1 });
+      expect(usePreview.getState().width).toBe(start + 20);
+      // Le corps ne prend pas le pointeur, la visionneuse n'est jamais masquée
+      expect(body).toHaveClass('pointer-events-none');
+      await act(() => new Promise((resolve) => setTimeout(resolve, 60)));
+      expect(shell.nativePreview.place).not.toHaveBeenCalledWith(expect.anything(), false);
+
+      fireEvent.pointerUp(handle, { clientX: 580, pointerId: 1 });
+      expect(body).not.toHaveClass('pointer-events-none');
+      expect(actions.savePreviewWidth).toHaveBeenCalled();
+    } finally {
+      for (const [name, descriptor] of saved) {
+        if (descriptor) Object.defineProperty(HTMLElement.prototype, name, descriptor);
+        else Reflect.deleteProperty(HTMLElement.prototype, name);
+      }
+      shell.nativePreview.available.mockResolvedValue(false);
+    }
   });
 });
 
@@ -228,6 +318,15 @@ describe('pièces jointes', () => {
       image_path: null,
     };
     renderUi(<UserMessage message={message} busy={false} />);
+    // Nom gris comme le message, souligné en bleu seulement sous la souris
+    const name = screen.getByText('photo.png');
+    expect(name).not.toHaveClass('text-link');
+    expect(name).toHaveClass('text-fg-2', 'decoration-transparent');
+    expect(name).toHaveClass('group-hover:text-link', 'group-hover:decoration-link');
+    // Sa couleur et son soulignement en fondu, au rythme de celui du bouton
+    const chip = screen.getByRole('button', { name: /photo\.png/ });
+    expect(name).toHaveClass('transition-colors', 'duration-150');
+    expect(chip).toHaveClass('transition-colors', 'duration-150');
     await user.click(screen.getByRole('button', { name: /photo\.png/ }));
     const state = usePreview.getState();
     expect(state.open).toBe(true);

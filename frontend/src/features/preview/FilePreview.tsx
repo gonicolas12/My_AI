@@ -305,9 +305,9 @@ function TextPreview({
 
 interface FilePreviewProps {
   path: string;
-  /** Rendu, ou source (Markdown, HTML, SVG) */
+  /** Rendu, ou source (Markdown, HTML, SVG, CSV) */
   tab?: PreviewTab;
-  /** Volet en mouvement ou redimensionné : visionneuse masquée, iframe sans pointeur */
+  /** Volet en mouvement (ouverture, fermeture) : visionneuse masquée, iframe sans pointeur */
   hidden?: boolean;
   /** Produit par l'appli : il s'ouvre aussi dans son application */
   generated?: boolean;
@@ -326,7 +326,8 @@ export function FilePreview({
   if (kind === 'audio' || kind === 'video') {
     return <MediaPreview path={path} kind={kind} generated={generated} />;
   }
-  if (isServerPreview(kind)) {
+  // CSV : son tableau (Excel, page du serveur), ou son texte (onglet Code)
+  if (isServerPreview(kind) && !(kind === 'table' && tab === 'code')) {
     return <ServerPreview path={path} hidden={hidden} generated={generated} />;
   }
   return <TextPreview path={path} kind={kind} tab={tab} hidden={hidden} generated={generated} />;

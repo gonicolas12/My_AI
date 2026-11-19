@@ -1,8 +1,9 @@
 /*
  * Volet d'aperçu, qui s'élargit depuis la droite : rendu en direct d'un bloc
  * HTML/SVG d'une réponse (onglets Aperçu et Code), ou d'un fichier cliqué dans
- * le chat (FilePreview : image, code, Markdown, PDF, Word, Excel…). Il se
- * referme de même, jamais d'un coup.
+ * le chat ou la page Code (FilePreview : image, code, Markdown, PDF, Word,
+ * Excel…). Il se referme de même, jamais d'un coup. Chacune des deux pages a
+ * le sien (PreviewPane page=…).
  *
  * La page d'aperçu s'affiche dans une iframe isolée, sans allow-same-origin :
  * elle ne peut ni lire l'appli ni appeler son API (cf. interfaces/desktop/previews.py).
@@ -26,7 +27,7 @@ import { api } from '../../lib/api';
 import type { Artifact } from '../../lib/artifacts';
 import { cn } from '../../lib/cn';
 import { fileKind, hasSource } from '../../lib/fileKinds';
-import { notify } from '../../stores/app';
+import { notify, type Tab } from '../../stores/app';
 import {
   closePreview,
   motionMs,
@@ -44,7 +45,6 @@ import { usePreviewPage } from './usePreviewPage';
 
 /** Largeur gardée à la conversation quand le volet s'élargit (px) */
 const CHAT_MIN_WIDTH = 420;
-
 
 function maxWidth(): number {
   return Math.max(PREVIEW_WIDTH.min, window.innerWidth - CHAT_MIN_WIDTH);
@@ -159,7 +159,9 @@ function OpenPane() {
   const isDocument = artifact.kind === 'document';
   const kind = isDocument ? fileKind(artifact.path) : null;
   const shown = Math.min(width, maxWidth());
-  const hidden = dragging || moving || closing;
+  // Ouverture, fermeture : la visionneuse Office attend. Redimensionnement : tout
+  // suit la poignée, elle comprise (le corps ne prend pas le pointeur entre-temps)
+  const hidden = moving || closing;
 
   const openInBrowser = () => {
     if (!view) return;
@@ -259,7 +261,7 @@ function OpenPane() {
             <X size={17} />
           </IconButton>
         </header>
-        <div className="relative min-h-0 flex-1 bg-bg">
+        <div className={cn('relative min-h-0 flex-1 bg-bg', dragging && 'pointer-events-none')}>
           <PreviewBody artifact={artifact} hidden={hidden} />
         </div>
       </div>
@@ -267,9 +269,9 @@ function OpenPane() {
   );
 }
 
-export function PreviewPane() {
-  const open = usePreview((state) => state.open);
-  const items = usePreview((state) => state.items);
-  if (!open || !items.length) return null;
+/** Volet de la page `page` : celui d'une autre page n'y paraît pas */
+export function PreviewPane({ page }: { page: Tab }) {
+  const shown = usePreview((state) => state.open && state.page === page && state.items.length > 0);
+  if (!shown) return null;
   return <OpenPane />;
 }

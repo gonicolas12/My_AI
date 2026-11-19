@@ -245,13 +245,20 @@ class AsyncNativePreview:
     sur le fil de l'interface, ce démarrage gèlerait tout le chat au moment
     précis où l'aperçu s'ouvre. Toutes les commandes sont donc exécutées, dans
     l'ordre, par un fil « appartement monothread » propriétaire de la visionneuse.
+
+    Un redimensionnement lit la taille de l'hôte au moment où il s'exécute : quand
+    le volet suit la souris, une seule demande attend son tour, les suivantes s'y
+    fondent (sans quoi la visionneuse rattraperait chaque position, en retard).
     """
 
     def __init__(self):
         import queue
+        import threading
 
         self._queue: "queue.Queue" = queue.Queue()
         self._thread = None
+        self._resize_lock = threading.Lock()
+        self._resize_waiting = False
 
     def open(self, path: str, hwnd: int, on_result) -> None:
         """
@@ -265,7 +272,12 @@ class AsyncNativePreview:
         self._submit("open", (path, hwnd, on_result))
 
     def resize(self) -> None:
-        """Adapte la visionneuse à la taille courante de sa fenêtre hôte."""
+        """Adapte la visionneuse à la taille courante de sa fenêtre hôte (une demande
+        déjà en attente suffit)."""
+        with self._resize_lock:
+            if self._resize_waiting:
+                return
+            self._resize_waiting = True
         self._submit("resize", None)
 
     def close(self, wait: float = 0.0) -> None:
@@ -305,6 +317,9 @@ class AsyncNativePreview:
                     path, hwnd, on_result = payload
                     on_result(preview.open(path, hwnd))
                 elif command == "resize":
+                    # Une demande faite pendant ce redimensionnement repart ensuite
+                    with self._resize_lock:
+                        self._resize_waiting = False
                     preview.resize()
                 elif command == "close":
                     preview.close()

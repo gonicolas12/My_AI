@@ -41,7 +41,7 @@ export function ChatPage() {
           </>
         )}
       </div>
-      <PreviewPane />
+      <PreviewPane page="chat" />
       <ConfirmDeleteDialog />
     </div>
   );

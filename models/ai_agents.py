@@ -11,6 +11,7 @@ from models.local_llm import LocalLLM
 from models.internet_search import EnhancedInternetSearchEngine, clean_query
 from utils.citations import SOURCES_STOP, sources_block, sources_tail
 from core.i18n import tr
+from core.modelfile import with_today
 from core.language_detector import reply_instruction
 
 # ── Modèle par défaut (lu depuis config.yaml → llm.local.default_model) ────────────
@@ -93,7 +94,7 @@ class AIAgent:
 
             # Générer la réponse
             response = self.llm.generate(
-                prompt=full_prompt, system_prompt=self.system_prompt
+                prompt=full_prompt, system_prompt=self._system()
             )
 
             if response:
@@ -165,7 +166,7 @@ class AIAgent:
 
             # Générer la réponse avec streaming
             response = self.llm.generate_stream(
-                prompt=full_prompt, system_prompt=self.system_prompt, on_token=on_token
+                prompt=full_prompt, system_prompt=self._system(), on_token=on_token
             )
 
             if response:
@@ -206,6 +207,11 @@ class AIAgent:
                 "agent": self.name,
                 "error": str(e),
             }
+
+    def _system(self) -> str:
+        """Prompt système de l'agent, suivi de la date du jour (lue à chaque tâche : un
+        agent vit plus longtemps qu'une journée)."""
+        return with_today(self.system_prompt)
 
     def _build_prompt(self, task: str, context: Optional[Dict]) -> str:
         """Construit le prompt enrichi avec contexte, puis la consigne de langue
@@ -472,7 +478,7 @@ Réponds maintenant ({reply_instruction(task, language)}) :"""
             # il le suit, réduit aux sources citées
             print(f"🧠 Synthèse des résultats avec {self.model}...")
             synthesis = self.llm.generate(
-                prompt=synthesis_prompt, system_prompt=self.system_prompt,
+                prompt=synthesis_prompt, system_prompt=self._system(),
                 stop=SOURCES_STOP,
             )
             sources = sources_tail(synthesis, sources_block(search_results))
@@ -583,7 +589,7 @@ Réponds maintenant ({reply_instruction(task, language)}) :"""
             print(f"🧠 Synthèse streaming avec {self.model}...")
             synthesis = self.llm.generate_stream(
                 prompt=synthesis_prompt,
-                system_prompt=self.system_prompt,
+                system_prompt=self._system(),
                 on_token=on_token,
                 stop=SOURCES_STOP,
             )
