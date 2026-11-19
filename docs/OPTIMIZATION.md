@@ -1,8 +1,8 @@
-# 🚀 Guide d'Optimisation - My Personal AI v9.1.0
+# 🚀 Guide d'Optimisation - My Personal AI
 
 ## 🎯 Vue d'Ensemble
 
-Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI v9.1.0 pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
+Ce document décrit les optimisations et techniques avancées disponibles dans My Personal AI pour maximiser les performances, réduire l'utilisation mémoire, et améliorer la qualité des réponses.
 
 ## 📊 Optimisations Disponibles
 
@@ -1082,6 +1082,6 @@ Le `LanguageDetector` utilise un cache LRU de 128 entrées pour éviter de re-d�
 
 ---
 
-**Version:** 9.1.0
-**Dernière mise à jour:** 15 Octobre 2026
+**Version:** 9.2.0
+**Dernière mise à jour:** 10 Novembre 2026
 **Performance target:** < 1s réponse, < 2GB RAM, 10M tokens context
