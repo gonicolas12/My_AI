@@ -144,6 +144,11 @@ export interface FileText {
   text: string;
   /** Fichier plus long : seul son début est là */
   truncated: boolean;
+  /**
+   * Page web : la même, ses feuilles de style, scripts et images de son dossier
+   * dedans (interfaces/html_page.py), quand elle en a ; text reste la source
+   */
+  page?: string;
 }
 
 /** Taille et date d'un fichier, pour l'en-tête de son aperçu (POST /api/files/info) */

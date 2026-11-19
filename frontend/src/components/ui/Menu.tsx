@@ -1,7 +1,12 @@
 import * as RadixMenu from '@radix-ui/react-dropdown-menu';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
+import { createPortal } from 'react-dom';
 
 import { cn } from '../../lib/cn';
+import type { MenuPoint } from './useContextMenu';
+
+const CONTENT_CLASS =
+  'fade-in-fast z-50 min-w-48 rounded-md border border-line bg-bg-2 p-1 text-sm text-fg shadow-lg';
 
 export const Menu = RadixMenu.Root;
 export const MenuTrigger = RadixMenu.Trigger;
@@ -29,10 +34,7 @@ export function MenuContent({
         align={align}
         sideOffset={6}
         aria-label={label}
-        className={cn(
-          'fade-in-fast z-50 min-w-48 rounded-md border border-line bg-bg-2 p-1 text-sm text-fg shadow-lg',
-          className,
-        )}
+        className={cn(CONTENT_CLASS, className)}
       >
         {children}
       </RadixMenu.Content>
@@ -98,4 +100,59 @@ export function MenuLink({
 
 export function MenuSeparator() {
   return <RadixMenu.Separator className="my-1 h-px bg-line" />;
+}
+
+/**
+ * Menu du clic droit (position : useContextMenu) : le menu déroulant, ancré sur
+ * un point invisible posé sous le pointeur (pas de @radix-ui/react-context-menu) ;
+ * fermé, il rend le focus à l'élément cliqué
+ */
+export function ContextMenu({
+  at,
+  onClose,
+  origin,
+  label,
+  children,
+}: {
+  at: MenuPoint | null;
+  onClose: () => void;
+  origin?: RefObject<HTMLElement | null>;
+  label?: string;
+  children: ReactNode;
+}) {
+  if (!at) return null;
+  return createPortal(
+    <RadixMenu.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <RadixMenu.Trigger asChild>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none fixed size-0"
+          style={{ left: at.x, top: at.y }}
+        />
+      </RadixMenu.Trigger>
+      <RadixMenu.Portal>
+        <RadixMenu.Content
+          side="bottom"
+          align="start"
+          sideOffset={2}
+          aria-label={label}
+          // Nommé par label, pas par l'ancre invisible et vide que Radix lui donnerait
+          aria-labelledby={undefined}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            origin?.current?.focus();
+          }}
+          className={CONTENT_CLASS}
+        >
+          {children}
+        </RadixMenu.Content>
+      </RadixMenu.Portal>
+    </RadixMenu.Root>,
+    document.body,
+  );
 }

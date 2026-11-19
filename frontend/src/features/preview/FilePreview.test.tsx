@@ -147,6 +147,27 @@ describe('FilePreview', () => {
     expect(screen.getByText('markdown')).toBeInTheDocument();
   });
 
+  it('une page web : rendue avec ses fichiers voisins, sa source dans l’onglet Code', async () => {
+    const source = '<link rel="stylesheet" href="style.css"><h1>Catalogue</h1>';
+    const page = '<style data-href="style.css">h1{color:#2b5797}</style><h1>Catalogue</h1>';
+    api.fileText.mockResolvedValue({ text: source, truncated: false, page });
+    api.artifactPreview.mockResolvedValue({ id: 'p2', url: '/preview/p2', title: 'index.html' });
+    const { rerender } = renderUi(<FilePreview path="C:/projet/web/index.html" />);
+    // La page rendue est celle du serveur, feuille de style dedans
+    await waitFor(() =>
+      expect(api.artifactPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'html', code: page }),
+      ),
+    );
+    rerender(
+      <TooltipProvider>
+        <FilePreview path="C:/projet/web/index.html" tab="code" />
+      </TooltipProvider>,
+    );
+    expect(await screen.findByText('html')).toBeInTheDocument();
+    expect(screen.getByText(source)).toBeInTheDocument();
+  });
+
   it('un format inconnu et binaire : pas d’aperçu, l’ouvrir s’il vient de l’appli', async () => {
     api.fileText.mockRejectedValue(new ApiError(415, 'binaire'));
     renderUi(<FilePreview path="C:/out/archive.zip" generated />);

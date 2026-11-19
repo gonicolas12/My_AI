@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MemoryLink } from '../../../lib/events';
@@ -77,6 +78,62 @@ describe('citations et chemins cliquables', () => {
     expect(revealPath).toHaveBeenLastCalledWith(folder);
     expect(openFilePreview).not.toHaveBeenCalledWith(folder);
   });
+
+  it('clic droit sur un fichier cité : « Afficher dans l’Explorateur » ; pas sur un dossier', async () => {
+    const user = userEvent.setup();
+    const file = 'C:\\Users\\moi\\rapport.docx';
+    const folder = 'C:\\Users\\moi\\Projets';
+    const links = buildChatLinks('', [
+      { text: file, path: file },
+      { text: folder, path: folder, dir: true },
+    ]);
+    render(<Markdown text={`Voir ${file} et ${folder}.`} links={links} />);
+    fireEvent.contextMenu(screen.getByRole('link', { name: file }), { clientX: 40, clientY: 60 });
+    const menu = await screen.findByRole('menu', { name: 'rapport.docx' });
+    await user.click(within(menu).getByRole('menuitem', { name: 'Afficher dans l’Explorateur' }));
+    expect(revealPath).toHaveBeenLastCalledWith(file);
+    // L'aperçu, lui, reste au clic gauche
+    expect(openFilePreview).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+    // Un dossier : son clic l'ouvre déjà dans l'Explorateur, pas de menu
+    fireEvent.contextMenu(screen.getByRole('link', { name: folder }), { clientX: 40, clientY: 90 });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['macOS', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 'le Finder'],
+    [
+      'Linux',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15',
+      'le gestionnaire de fichiers',
+    ],
+  ])(
+    '%s : le menu et l’infobulle nomment son gestionnaire de fichiers',
+    async (_os, agent, manager) => {
+      const spy = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(agent);
+      try {
+        const file = '/home/moi/rapport.docx';
+        const folder = '/home/moi/Projets';
+        const links = buildChatLinks('', [
+          { text: file, path: file },
+          { text: folder, path: folder, dir: true },
+        ]);
+        render(<Markdown text={`Voir ${file} et ${folder}.`} links={links} />);
+        expect(screen.getByRole('link', { name: folder })).toHaveAttribute(
+          'title',
+          `Afficher dans ${manager} : ${folder}`,
+        );
+        fireEvent.contextMenu(screen.getByRole('link', { name: file }), {
+          clientX: 40,
+          clientY: 60,
+        });
+        const menu = await screen.findByRole('menu', { name: 'rapport.docx' });
+        expect(within(menu).getByRole('menuitem')).toHaveTextContent(`Afficher dans ${manager}`);
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 
   it('un fichier de la conversation nommé sans son chemin : cliquable entier, aperçu au clic', () => {
     const path = 'C:\\Users\\moi\\Téléchargements\\budget.xlsx';

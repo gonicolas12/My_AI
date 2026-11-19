@@ -387,6 +387,20 @@ def test_text_preview_reads_the_beginning_of_known_text_files(desk, monkeypatch)
     assert desk.client.post("/api/files/text", json={"path": secret}).status_code == 401
 
 
+def test_a_web_page_preview_comes_with_the_style_sheet_of_its_folder(desk):
+    """Rendue dans /preview/<id>, la page n'a plus son adresse : la fenêtre reçoit
+    aussi « page », son style.css dedans ; text reste la source (onglet Code)."""
+    write(desk.outputs / "site" / "style.css", "h1{color:#2b5797}")
+    index = write(desk.outputs / "site" / "index.html",
+                  '<link rel="stylesheet" href="style.css"><h1>Catalogue</h1>')
+    text = desk.client.post("/api/files/text", json={"path": index}, headers=AUTH).json()
+    assert text == {
+        "text": '<link rel="stylesheet" href="style.css"><h1>Catalogue</h1>',
+        "truncated": False,
+        "page": '<style data-href="style.css">h1{color:#2b5797}</style><h1>Catalogue</h1>',
+    }
+
+
 def test_file_info_gives_size_and_date_of_known_files_only(desk):
     report = write(desk.outputs / "rapport.md", "x" * 1234)
     info = desk.client.post("/api/files/info", json={"path": report}, headers=AUTH).json()

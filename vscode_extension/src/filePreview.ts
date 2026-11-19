@@ -1,8 +1,9 @@
 /*
  * Preview of a file of the VS Code workspace in the modal of the chat view
  * (media/preview.js), the same as for a file of the PC (relay/file_preview.py
- * builds those): image, text or code, web page, Markdown rendered with its
- * HTML, sound, video. PDF, Word, Excel and PowerPoint files are rendered by
+ * builds those): image, text or code, web page (with the style sheets,
+ * scripts and images of its folder), Markdown rendered with its HTML, sound,
+ * video. PDF, Word, Excel and PowerPoint files are rendered by
  * My_AI on the PC, as on the phone: `upload: true` tells the provider to send
  * the file there first.
  */
@@ -20,6 +21,9 @@ const READ_MAX = 64 * 1024 * 1024;
 /** Images of a Markdown file put in its page (only data: images show there) */
 const MARKDOWN_IMAGE_MAX = 3 * 1024 * 1024;
 const MARKDOWN_IMAGES_TOTAL = 8 * 1024 * 1024;
+/** Style sheet, script or image of a web page put in it; all of them */
+const PAGE_ASSET_MAX = 3 * 1024 * 1024;
+const PAGE_ASSETS_TOTAL = 8 * 1024 * 1024;
 
 const IMAGES: Record<string, string> = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
@@ -142,6 +146,149 @@ async function inlineImages(html: string, file: vscode.Uri): Promise<string> {
     });
 }
 
+/** Value of an attribute of a tag (quoted or not), or null */
+function attribute(tag: string, name: string): string | null {
+  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'i').exec(tag);
+  return match ? match[1] ?? match[2] ?? match[3] ?? null : null;
+}
+
+/** Attributes of a tag without the named ones (with or without a value) */
+function withoutAttributes(attributes: string, names: string[]): string {
+  return names.reduce((rest, name) => rest.replace(
+    new RegExp(`\\s${name}(?:\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'>]+))?(?=[\\s/>]|$)`, 'gi'), ''),
+  attributes);
+}
+
+/** Text with each match of a global pattern replaced by what swap gives (in order) */
+async function replaceAsync(text: string, pattern: RegExp,
+  swap: (match: RegExpMatchArray) => Promise<string>): Promise<string> {
+  const parts: string[] = [];
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index ?? 0;
+    parts.push(text.slice(last, start), await swap(match));
+    last = start + match[0].length;
+  }
+  parts.push(text.slice(last));
+  return parts.join('');
+}
+
+/** Files of a web page's folder (and below) it points at, within the size limits */
+class PageAssets {
+  readonly folder: string;
+  private budget = PAGE_ASSETS_TOTAL;
+
+  constructor(private readonly file: vscode.Uri) {
+    this.folder = path.dirname(file.fsPath);
+  }
+
+  /** File a relative address (from base) designates, if it is in the page's folder */
+  target(ref: string | null, base: string): string | null {
+    const value = (ref || '').trim();
+    // Never read: a scheme (https:, data:, C:), an absolute path, an anchor
+    if (!value || /^(?:[a-z][a-z0-9+.-]*:|[\\/#])/i.test(value)) return null;
+    let relative = value.split('#')[0].split('?')[0];
+    try {
+      relative = decodeURIComponent(relative);
+    } catch {
+      return null;
+    }
+    if (!relative) return null;
+    const target = path.resolve(base, relative);
+    const inside = path.relative(this.folder, target);
+    return !inside || inside.startsWith('..') || path.isAbsolute(inside) ? null : target;
+  }
+
+  private async read(target: string): Promise<Uint8Array | null> {
+    try {
+      const uri = this.file.with({ path: vscode.Uri.file(target).path });
+      const stat = await vscode.workspace.fs.stat(uri);
+      const room = Math.min(PAGE_ASSET_MAX, this.budget);
+      if (!(stat.type & vscode.FileType.File) || stat.size > room) return null;
+      const data = await vscode.workspace.fs.readFile(uri);
+      if (data.length > room) return null;
+      this.budget -= data.length;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  async text(target: string): Promise<string | null> {
+    const data = await this.read(target);
+    return data ? new TextDecoder('utf-8').decode(data).replace(/^\uFEFF/, '') : null;
+  }
+
+  /** data: address of an image of the page's folder, or null (the address stays) */
+  async image(ref: string | null, base: string): Promise<string | null> {
+    const target = this.target(ref, base);
+    const mime = target ? IMAGES[path.extname(target).toLowerCase()] : undefined;
+    const data = target && mime ? await this.read(target) : null;
+    return data ? `data:${mime};base64,${base64(data)}` : null;
+  }
+
+  /** Style sheet with its relative images (from base) as data: */
+  css(sheet: string, base: string): Promise<string> {
+    return replaceAsync(sheet, /url\(\s*(['"]?)([^'")]+?)\1\s*\)/gi, async (match) => {
+      const url = await this.image(match[2], base);
+      return url ? `url("${url}")` : match[0];
+    });
+  }
+}
+
+/**
+ * A web page of the workspace, as the PC builds it (interfaces/html_page.py):
+ * shown in a frame of the view, it has no address on the disk, so its relative
+ * style sheets, scripts and images would not load (403). Those of its folder,
+ * and below, are put in it: <link rel="stylesheet"> → <style>, <script src> →
+ * <script> (defer or async: at the end of the page, where they would have
+ * run), <img src> and url(…) of a style → data:. Nothing outside its folder is
+ * read; fonts stay out (the view refuses data: fonts).
+ */
+async function pageWithAssets(source: string, file: vscode.Uri): Promise<string> {
+  const assets = new PageAssets(file);
+  const folder = assets.folder;
+  let page = await replaceAsync(source, /(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi,
+    async (match) => match[1] + await assets.css(match[2], folder) + match[3]);
+  page = await replaceAsync(page, /<link\b[^>]*>/gi, async (match) => {
+    const tag = match[0];
+    const href = attribute(tag, 'href');
+    if (!(attribute(tag, 'rel') || '').toLowerCase().split(/\s+/).includes('stylesheet')) return tag;
+    const target = assets.target(href, folder);
+    const sheet = target ? await assets.text(target) : null;
+    if (sheet === null || !target) return tag;
+    const css = (await assets.css(sheet, path.dirname(target))).replace(/<\/style/gi, '<\\/style');
+    const media = attribute(tag, 'media');
+    return `<style data-href="${escapeHtml(href || '')}"${media ? ` media="${escapeHtml(media)}"` : ''}>${css}</style>`;
+  });
+  const deferred: string[] = [];
+  page = await replaceAsync(page, /<script\b([^>]*)>\s*<\/script\s*>/gi, async (match) => {
+    const attributes = match[1];
+    const src = attribute(attributes, 'src');
+    const target = assets.target(src, folder);
+    const code = target ? await assets.text(target) : null;
+    if (code === null) return match[0];
+    const kept = withoutAttributes(attributes, ['src', 'defer', 'async', 'integrity', 'crossorigin']);
+    const tag = `<script${kept} data-src="${escapeHtml(src || '')}">` +
+      `${code.replace(/<\/script/gi, '<\\/script')}</script>`;
+    const module = (attribute(attributes, 'type') || '').trim().toLowerCase() === 'module';
+    if (!module && /\s(?:defer|async)(?=[\s=/>]|$)/i.test(attributes)) {
+      deferred.push(tag);
+      return '';
+    }
+    return tag;
+  });
+  if (deferred.length) {
+    const end = page.search(/<\/body\s*>(?![\s\S]*<\/body\s*>)/i);
+    page = end >= 0 ? page.slice(0, end) + deferred.join('') + page.slice(end) : page + deferred.join('');
+  }
+  return replaceAsync(page, /<img\b[^>]*>/gi, async (match) => {
+    const tag = match[0];
+    const url = await assets.image(attribute(tag, 'src'), folder);
+    return url ? tag.replace(/(\ssrc\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s"'>]+)/i, (_all, start: string) => `${start}"${url}"`) : tag;
+  });
+}
+
 /**
  * Markdown rendered by VS Code (its HTML included, as on GitHub), in a page
  * like those of the PC. The view runs no script of it (sandboxed frame).
@@ -205,7 +352,9 @@ export async function buildLocalPreview(uri: vscode.Uri): Promise<Preview> {
     return { ...preview, ...decoded, kind: 'text', language: 'markdown' };
   }
   if (HTML.has(extension)) {
-    return { ...preview, ...decoded, kind: 'html', language: 'html' };
+    // page: shown in the preview; text: its source, for the Code tab
+    const page = await pageWithAssets(decoded.text, uri);
+    return { ...preview, ...decoded, kind: 'html', language: 'html', ...(page !== decoded.text ? { page } : {}) };
   }
   const language = LANGUAGES[extension] || NAMED[name.toLowerCase()] || '';
   return { ...preview, ...decoded, kind: 'text', language };

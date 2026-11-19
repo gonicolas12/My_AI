@@ -11,7 +11,9 @@ genres suivent ceux de la fenêtre (frontend/src/lib/fileKinds.ts) :
   document  page HTML d'interfaces/document_preview : PDF en images de ses
             pages, Word, Excel, PowerPoint, CSV en tableau ; Markdown rendu avec
             son HTML ; le Markdown et le CSV ont leur source en plus
-  html      la source d'une page, rendue par la modale dans une iframe isolée
+  html      la source d'une page, rendue par la modale dans une iframe isolée ;
+            « page » : la même, ses feuilles de style, scripts et images de son
+            dossier dedans (interfaces/html_page.py), quand elle en a
   text      le début d'un fichier de code ou de texte, et son langage
   audio, video  le fichier en base64, lu par la page
   none      rien d'affichable : nom et taille, le téléchargement reste
@@ -30,6 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.i18n import tr
+from interfaces.html_page import preview_fields
 
 # Image, son ou vidéo mis dans la réponse ; au-delà, seul le téléchargement reste
 INLINE_MAX = 12 * 1024 * 1024
@@ -159,6 +162,7 @@ def build_preview(path: str, name: Optional[str] = None) -> Dict[str, Any]:
                         pass  # pas du texte (octet nul) : la page seule
         elif suffix in _HTML:
             preview.update(_text(path), kind="html", language="html")
+            preview.update(preview_fields(preview["text"], path))
         else:
             # Code, texte, ou tout fichier qui se lit comme du texte
             preview.update(_text(path), kind="text", language=_language(path))

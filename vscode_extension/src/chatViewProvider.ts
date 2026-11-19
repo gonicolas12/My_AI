@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { ConnectionManager } from './connectionManager';
 import { buildLocalPreview } from './filePreview';
 import { currentLanguage, isRtl, localeTag, onDidChangeLanguage, t } from './i18n';
+import { revealInOS } from './reveal';
 import { ConnectionState, IncomingPayload } from './types';
 import { WorkspaceBridge } from './workspaceBridge';
 
@@ -183,6 +184,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       case 'resolve-links':
         await this.handleResolveLinks(m);
         break;
+      case 'reveal-path':
+        // A folder cited by a reply (its link), in the system's file explorer
+        await revealInOS(m.path);
+        break;
     }
   }
 
@@ -262,7 +267,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    * Files of the workspace a finished reply cites (path) or names (file
    * name alone): clickable in the view, like the files of an answer of
    * My_AI's chat. A name alone counts when one file only bears it, or one of
-   * those the reply's tools read or wrote.
+   * those the reply's tools read or wrote. A folder cited by its path
+   * (« src/lib », absolute) too: its click opens the file explorer.
    */
   private async handleResolveLinks(m: Record<string, unknown>): Promise<void> {
     const messageId = typeof m.messageId === 'string' ? m.messageId : '';
@@ -275,7 +281,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const touched = (Array.isArray(m.touched) ? m.touched : [])
       .filter((item): item is string => typeof item === 'string' && item.length > 0)
       .slice(0, 200);
-    const links: { text: string; path: string; whole?: boolean }[] = [];
+    const links: { text: string; path: string; whole?: boolean; folder?: boolean }[] = [];
     if (candidates.length && vscode.workspace.workspaceFolders?.length) {
       const seen = new Set<string>();
       for (const candidate of candidates) {
@@ -284,6 +290,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const found = await this.findWorkspaceFile(candidate, touched);
         if (found) {
           links.push({ text: candidate, path: found.fsPath, whole: !/[\\/]/.test(candidate) });
+          continue;
+        }
+        const folder = await this.findWorkspaceFolder(candidate);
+        if (folder) {
+          links.push({ text: candidate, path: folder.fsPath, folder: true });
         }
       }
     }
@@ -296,6 +307,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     } catch {
       return false;
     }
+  }
+
+  private async isFolder(uri: vscode.Uri): Promise<boolean> {
+    try {
+      return ((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.Directory) !== 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Folder a reply cites by its path: « src/lib », « ./web », absolute; never a
+   * word alone (« docs », « tests » are words too), as on the PC.
+   */
+  private async findWorkspaceFolder(candidate: string): Promise<vscode.Uri | null> {
+    if (!/[\\/]/.test(candidate)) {
+      return null;
+    }
+    const cleaned = candidate.replace(/^\.[\\/]/, '').replace(/[\\/]+$/, '');
+    if (path.isAbsolute(cleaned)) {
+      const uri = vscode.Uri.file(cleaned);
+      return (await this.isFolder(uri)) ? uri : null;
+    }
+    const parts = cleaned.split(/[\\/]+/).filter(Boolean);
+    if (!parts.length || parts.includes('..')) {
+      return null;
+    }
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    for (const folder of folders) {
+      // Several folders open: « api/src » may begin with the folder's name
+      const tries = [parts];
+      if (folders.length > 1 && parts[0] === folder.name && parts.length > 1) tries.push(parts.slice(1));
+      for (const segments of tries) {
+        const uri = vscode.Uri.joinPath(folder.uri, ...segments);
+        if (await this.isFolder(uri)) return uri;
+      }
+    }
+    return null;
   }
 
   private async findWorkspaceFile(candidate: string, touched: string[]): Promise<vscode.Uri | null> {
@@ -321,12 +370,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
       return null;
     }
-    // A name alone: one of the files the reply's tools touched, else the only one
+    // A name alone: the file of that name the reply's tools touched (none when
+    // they touched several: « utils.py » of tests/ and of src/, as on the PC),
+    // else the only one of the workspace
     const name = parts[0].toLowerCase();
-    for (const used of touched) {
-      if (path.basename(used.replace(/\\/g, '/')).toLowerCase() !== name) continue;
-      const found = await this.findWorkspaceFile(used, []);
-      if (found) return found;
+    const used = new Map<string, vscode.Uri>();
+    for (const item of touched) {
+      if (path.basename(item.replace(/\\/g, '/')).toLowerCase() !== name) continue;
+      const found = await this.findWorkspaceFile(item, []);
+      if (found) used.set(found.toString(), found);
+    }
+    if (used.size) {
+      return used.size === 1 ? used.values().next().value ?? null : null;
     }
     const matches = (await this.getWorkspaceFiles())
       .filter((uri) => path.basename(uri.fsPath).toLowerCase() === name);

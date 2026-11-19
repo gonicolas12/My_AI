@@ -24,6 +24,7 @@ import { useT } from '../../i18n';
 import { openFile, revealPath } from '../../lib/actions';
 import { api } from '../../lib/api';
 import { fileKind, hasSource } from '../../lib/fileKinds';
+import { revealLabels } from '../../lib/platform';
 import { notify } from '../../stores/app';
 import {
   closeAttachmentPreview,
@@ -127,7 +128,7 @@ function DialogBody() {
         {isDocument ? (
           <IconButton
             tooltipSide="left"
-            label={t('chat.file.reveal')}
+            label={t(revealLabels().file)}
             onClick={() => void revealPath(item.path)}
           >
             <FolderOpen size={16} />

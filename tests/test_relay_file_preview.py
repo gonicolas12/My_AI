@@ -103,6 +103,19 @@ def test_a_web_page_comes_as_its_source(tmp_path):
     page.write_text("<h1>Bonjour</h1><script>alert(1)</script>", encoding="utf-8")
     preview = file_preview.build_preview(str(page))
     assert preview["kind"] == "html" and "<script>" in preview["text"]
+    assert "page" not in preview  # rien de son dossier à y mettre
+
+
+def test_a_web_page_comes_with_the_style_sheet_of_its_folder(tmp_path):
+    """Sur le téléphone et dans VS Code, la page s'affiche avec son style.css ; text
+    reste sa source (onglet Code)."""
+    (tmp_path / "style.css").write_text("h1{color:#2b5797}", encoding="utf-8")
+    page = tmp_path / "index.html"
+    page.write_text('<link rel="stylesheet" href="style.css"><h1>Catalogue</h1>', encoding="utf-8")
+    preview = file_preview.build_preview(str(page))
+    assert preview["kind"] == "html"
+    assert preview["text"] == '<link rel="stylesheet" href="style.css"><h1>Catalogue</h1>'
+    assert preview["page"] == '<style data-href="style.css">h1{color:#2b5797}</style><h1>Catalogue</h1>'
 
 
 def test_markdown_is_rendered_with_its_source(tmp_path):

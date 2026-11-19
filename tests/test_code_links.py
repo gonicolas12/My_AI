@@ -82,6 +82,27 @@ def test_absolute_paths_tool_files_and_attachments_by_name(workspace, tmp_path):
     assert links[str(workspace / "README.md")]["path"] == str(workspace / "README.md")
 
 
+def test_a_name_two_read_files_bear_stays_text(workspace):
+    """Les outils ont lu deux fichiers du même nom (« utils.py » de tests/ et de src/) :
+    leur nom seul n'en désigne aucun (vu avec le vrai modèle, il menait à l'un des
+    deux), leurs chemins restent des liens. Un même fichier lu deux fois, par son
+    chemin relatif puis absolu, reste un seul fichier."""
+    (workspace / "tests").mkdir()
+    (workspace / "tests" / "utils.py").write_text("x", encoding="utf-8")
+    (workspace / "src" / "utils.py").write_text("x", encoding="utf-8")
+    both = reply("Voici chaque fichier `utils.py` : **tests/utils.py** et **src/utils.py**.",
+                 tools=[("read_file", "tests/utils.py"), ("read_file", "src/utils.py")])
+    links = by_text(reply_links(both, {}, [str(workspace)]))
+    assert "utils.py" not in links
+    assert links["tests/utils.py"]["path"] == str(workspace / "tests" / "utils.py")
+    assert links["src/utils.py"]["path"] == str(workspace / "src" / "utils.py")
+
+    once = reply("Le formatage est dans `utils.py`.",
+                 tools=[("read_file", "src/utils.py"), ("read_file", str(workspace / "src" / "utils.py"))])
+    assert by_text(reply_links(once, {}, [str(workspace)]))["utils.py"]["path"] \
+        == str(workspace / "src" / "utils.py")
+
+
 def test_nothing_from_code_blocks_urls_other_paths_or_outside_the_workspace(workspace, tmp_path):
     (tmp_path / "secret.txt").write_text("x", encoding="utf-8")
     text = "\n".join([

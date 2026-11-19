@@ -1405,6 +1405,15 @@ build_document_preview(path) -> str : docx, xlsx, pptx, md, csv, txt, pdf (texte
    une page l'agrandit), sinon texte, tableaux et cartes de diapositives
 ```
 
+**`interfaces/html_page.py`** - Page web d'un fichier, pour son aperçu
+```python
+page_with_assets(source, page_path) -> str : la page, ses fichiers voisins dedans
+├─ <link rel="stylesheet">, <script src>, <img src>, url(…) : ceux de son dossier
+│   et en dessous seulement (data: ou <style>/<script>), defer/async en fin de page
+└─ « page » de POST /api/files/text (fenêtre) et de relay/file_preview (téléphone,
+   VS Code pour un fichier du PC) ; l'onglet Code garde la source
+```
+
 Détails de l'aperçu : [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md).
 
 **`interfaces/cli.py`** - CLI améliorée

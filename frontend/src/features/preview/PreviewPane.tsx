@@ -27,6 +27,7 @@ import { api } from '../../lib/api';
 import type { Artifact } from '../../lib/artifacts';
 import { cn } from '../../lib/cn';
 import { fileKind, hasSource } from '../../lib/fileKinds';
+import { revealLabels } from '../../lib/platform';
 import { notify, type Tab } from '../../stores/app';
 import {
   closePreview,
@@ -242,7 +243,7 @@ function OpenPane() {
           {isDocument ? (
             <IconButton
               tooltipSide="left"
-              label={t('chat.file.reveal')}
+              label={t(revealLabels().file)}
               onClick={() => void revealPath(artifact.path)}
             >
               <FolderOpen size={16} />

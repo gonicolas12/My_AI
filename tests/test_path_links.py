@@ -8,7 +8,9 @@ difficile.
 """
 
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -106,4 +108,43 @@ def test_reveal_selects_a_file_and_opens_a_folder(tree, monkeypatch):
     elif sys.platform == "darwin":
         assert calls[0] == ["open", "-R", tree["document"]]
         assert calls[1] == ["open", tree["folder"]]
+
+
+def test_reveal_on_linux_selects_the_file_through_the_desktop_service(tree, monkeypatch):
+    """Linux : FileManager1.ShowItems (Nautilus, Dolphin, Nemo…) sélectionne le fichier,
+    comme Electron et VS Code ; sans ce service ni dbus-send, xdg-open ouvre son dossier
+    (il ne sait pas sélectionner). Un dossier s'ouvre toujours par xdg-open."""
+    monkeypatch.setattr(path_links, "IS_WINDOWS", False)
+    monkeypatch.setattr(path_links.sys, "platform", "linux")
+    runs, opened = [], []
+    answers = iter([0, 1])
+
+    def run(command, **_kwargs):
+        runs.append(command)
+        return subprocess.CompletedProcess(command, next(answers))
+
+    monkeypatch.setattr(path_links.subprocess, "run", run)
+    monkeypatch.setattr(path_links.subprocess, "Popen", lambda cmd, *a, **k: opened.append(cmd))
+
+    # Service présent : le fichier sélectionné, rien d'autre
+    reveal_in_file_manager(tree["document"])
+    assert runs[0][:2] == ["dbus-send", "--session"]
+    assert "org.freedesktop.FileManager1.ShowItems" in runs[0]
+    # URI encodée : l'espace de « rapport final.docx » ne coupe pas le tableau de dbus-send
+    assert runs[0][-2] == "array:string:" + Path(tree["document"]).as_uri()
+    assert " " not in runs[0][-2] and opened == []
+
+    # Aucun gestionnaire ne le propose (code 1) : son dossier
+    reveal_in_file_manager(tree["document"])
+    assert opened == [["xdg-open", tree["folder"]]]
+
+    def missing(*_args, **_kwargs):
+        raise FileNotFoundError("dbus-send")
+
+    monkeypatch.setattr(path_links.subprocess, "run", missing)
+    # Pas de dbus-send : son dossier aussi ; un dossier : ouvert, sans le service
+    reveal_in_file_manager(tree["document"])
+    reveal_in_file_manager(tree["folder"])
+    assert opened[1:] == [["xdg-open", tree["folder"]], ["xdg-open", tree["folder"]]]
+    assert len(runs) == 2
 

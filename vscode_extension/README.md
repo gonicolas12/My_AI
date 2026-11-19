@@ -38,7 +38,9 @@ exactly as before.
   reply cites or names and its HTML or SVG blocks open in a preview over the
   chat: workspace code and Markdown are read here (with **Open in editor**),
   PDF, Word, Excel and PowerPoint pages are rendered by My_AI on the host PC,
-  and a CSV shows as a table.
+  and a CSV shows as a table. Right-click a cited file for **Reveal in File
+  Explorer** (**Reveal in Finder** on macOS, **Open Containing Folder** on
+  Linux); a cited folder opens in the file manager.
 - ⏹️ **Stop & Clear** — while a reply is being written, wherever its
   message was typed, the send button turns into Stop: it stops the model
   and any pending tool call, and the text freezes at once. **Clear** starts

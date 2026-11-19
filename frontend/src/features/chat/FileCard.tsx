@@ -22,6 +22,7 @@ import { useT } from '../../i18n';
 import { openFile, revealPath, saveToDownloads } from '../../lib/actions';
 import { baseName, formatLabel } from '../../lib/artifacts';
 import { useFileUrl } from '../../lib/files';
+import { revealLabels } from '../../lib/platform';
 
 interface FileCardProps {
   /** Chemin du fichier ; vide tant qu'il n'est pas encore écrit */
@@ -67,7 +68,11 @@ export function FileCard({ path, name, kind, onPreview }: FileCardProps) {
           >
             <Download size={15} />
           </IconButton>
-          <IconButton label={t('chat.file.reveal')} size="sm" onClick={() => void revealPath(path)}>
+          <IconButton
+            label={t(revealLabels().file)}
+            size="sm"
+            onClick={() => void revealPath(path)}
+          >
             <FolderOpen size={15} />
           </IconButton>
         </div>
