@@ -18,7 +18,7 @@ droite du chat, et de la page **Code**) et sur l'**interface mobile Relay**.
 | [`interfaces/desktop/preview_handler.py`](../interfaces/desktop/preview_handler.py) | Visionneuses natives Word/PowerPoint/Excel (`IPreviewHandler`) |
 | [`frontend/src/features/preview/`](../frontend/src/features/preview/) | Volet d'aperçu (onglets Aperçu et Code, place réservée aux visionneuses, ouverture automatique) |
 | [`frontend/src/lib/artifacts.ts`](../frontend/src/lib/artifacts.ts) | Détection côté fenêtre (bouton « Aperçu » sous les réponses) |
-| [`relay/code_links.py`](../relay/code_links.py) | Fichiers qu'une réponse de la page Code cite ou nomme, chemins relatifs au workspace de VS Code compris |
+| [`relay/code_links.py`](../relay/code_links.py) | Fichiers qu'une réponse de la conversation Code cite ou nomme (page Code du PC, vue Code du téléphone), chemins relatifs au workspace de VS Code compris |
 | [`relay/static/app.js`](../relay/static/app.js) | Détection + modale `<iframe sandbox>` côté mobile |
 | [`relay/static/style.css`](../relay/static/style.css) | Styles du bouton et de la modale mobile |
 
@@ -147,7 +147,7 @@ code, Markdown, PDF, Word, Excel, CSV…). Il s'ouvre selon l'endroit du clic :
 | Zones de saisie du chat et de la page Code, zone de tâche des agents | pièce jointe pas encore envoyée | **fenêtre d'aperçu au premier plan** |
 | Page Agents | pièce jointe d'un fil, fichier cité ou nommé dans un résultat, bloc HTML ou SVG | **fenêtre d'aperçu au premier plan**, jamais de volet de droite |
 | Mémoire, onglet Documents | un document | volet à droite du panneau |
-| Téléphone et VS Code | pièce jointe, fichier cité ou nommé, bloc HTML ou SVG | fenêtre par-dessus la vue ([`preview.js`](../relay/static/preview.js)) |
+| Téléphone (chat, page Agents, vue Code) et VS Code | pièce jointe (avant et après l'envoi), fichier cité ou nommé, bloc HTML ou SVG | fenêtre par-dessus la vue ([`preview.js`](../relay/static/preview.js)) |
 
 Un chemin cité n'est un lien que s'il existe sur le PC. Un dossier s'ouvre dans
 l'Explorateur ; sur le téléphone et dans VS Code, seuls les fichiers sont des
@@ -198,6 +198,18 @@ machine n'a donc pas de liens. Un dossier s'ouvre dans l'Explorateur.
 Le volet ne s'y ouvre **jamais tout seul** : les réponses de VS Code montrent
 souvent du JSX ou des gabarits, que la détection (`<div>` dans le bloc) prend
 pour une page HTML.
+
+### Vue Code du téléphone
+
+La vue Code du téléphone reçoit les mêmes liens, calculés par le Relay
+(`RelayServer.code_mobile_view`, champ `links` de `code_done` et des réponses
+de `code_snapshot`) ; il montre alors l'aperçu de ces fichiers, comme ceux des
+résultats d'agents. S'y ouvrent aussi, dans la fenêtre par-dessus la vue, les
+pièces jointes avant et après l'envoi (d'où que vienne le message : leurs
+chemins sur le PC) et les blocs HTML ou SVG (bouton « Aperçu »). Une pièce
+jointe d'un message d'avant la 9.2.0, gardée par son seul nom, reste grisée.
+Comme sur le PC, rien ne s'y ouvre tout seul. Dans VS Code, l'extension
+trouve elle-même les fichiers cités dans son workspace.
 
 ## Rendu dans la fenêtre desktop
 

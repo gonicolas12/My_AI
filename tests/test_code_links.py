@@ -4,7 +4,8 @@ Fichiers qu'une réponse de la conversation Code cite ou nomme (relay/code_links
 La page Code de la fenêtre n'avait ni volet d'aperçu ni liens : un fichier
 cité par le modèle (« src/app.ts », « shell.ts ») restait du texte. Elle les
 rend cliquables comme le chat, chemins relatifs au workspace de VS Code
-compris, puisque l'extension et le modèle n'emploient presque qu'eux.
+compris, puisque l'extension et le modèle n'emploient presque qu'eux. La vue
+Code du téléphone reçoit les mêmes liens.
 """
 
 import os
@@ -12,7 +13,7 @@ import os
 import pytest
 
 from relay import code_links
-from relay.code_links import conversation_files, reply_links, workspace_roots
+from relay.code_links import conversation_files, link_transcript, reply_links, workspace_roots
 
 
 @pytest.fixture(name="workspace")
@@ -112,3 +113,31 @@ def test_links_are_capped(workspace):
         (workspace / "src" / f"f{i}.ts").write_text("x", encoding="utf-8")
     text = " ".join(f"src/f{i}.ts" for i in range(code_links.MAX_LINKS + 5))
     assert len(reply_links(reply(text), {}, [str(workspace)])) == code_links.MAX_LINKS
+
+
+def test_a_read_transcript_links_its_finished_replies(workspace, tmp_path):
+    """Lecture de la conversation (fenêtre, téléphone) : les réponses terminées ou
+    arrêtées reçoivent leurs liens, cherchés dans les dossiers gardés avec elles
+    (sinon ceux de VS Code ouvert) ; ni une réponse en cours ni une erreur. Les
+    dossiers gardés ne quittent pas le serveur."""
+    other = tmp_path / "autre"
+    other.mkdir()
+    (other / "main.py").write_text("x", encoding="utf-8")
+    error = reply("Voir README.md.")
+    error["status"] = "error"
+    streaming = reply("Voir README.md.")
+    streaming["status"] = "streaming"
+    stopped = reply("Voir main.py.")
+    stopped["status"] = "stopped"
+    messages = [{"role": "user", "text": "Regarde", "files": []},
+                {**reply("Voir src/app.ts."), "roots": [str(workspace)]},
+                {**error, "roots": [str(workspace)]}, streaming, stopped]
+
+    found = link_transcript(messages, [str(other)], "links")
+
+    assert [link["path"] for link in found] == [str(workspace / "src" / "app.ts"),
+                                                str(other / "main.py")]
+    assert [link["text"] for link in messages[1]["links"]] == ["src/app.ts"]
+    assert [link["text"] for link in messages[4]["links"]] == ["main.py"]
+    assert "links" not in messages[2] and "links" not in messages[3]
+    assert all("roots" not in message for message in messages)

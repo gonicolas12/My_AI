@@ -730,11 +730,14 @@ Un hub par processus (get_code_hub), qui survit aux redémarrages du Relay :
 │   (relay/code_links.py : chemins absolus, chemins relatifs au workspace,
 │   dont les dossiers sont gardés avec la réponse, noms des fichiers de ses
 │   outils et des pièces jointes) ; la page Code de la fenêtre en fait des
-│   liens vers son volet d'aperçu
+│   liens vers son volet d'aperçu, la vue Code du téléphone vers sa fenêtre
+│   d'aperçu
 └─ Événements (snapshot, state, user, chunk, tool, done, cleared) traduits
     par vscode_view (protocole de l'extension : ack, chunk, response…),
-    mobile_view (code_*) et interfaces/desktop/code.py (bus « code.* » ;
-    pièces jointes avec leur type, réponses terminées avec leurs liens)
+    mobile_view (code_* ; RelayServer.code_mobile_view y ajoute les liens
+    des réponses terminées, dont le Relay montre alors l'aperçu) et
+    interfaces/desktop/code.py (bus « code.* » ; pièces jointes avec leur
+    type, réponses terminées avec leurs liens)
 ```
 
 **`relay/relay_bridge.py`** - Pont appli ↔ mobile (Singleton)
@@ -779,7 +782,9 @@ RelayMessage (dataclass):
 │                sans être refaite ; partagé avec vscode_extension/media/
 ├─ thread.css  — Styles de markdown.js et turn.js, communs au téléphone et à
 │                l'extension VS Code (tests/test_web_assets.py : copies égales)
-├─ code.js     — Vue Code (window.CodeUI) : conversation de l'extension VS Code
+├─ code.js     — Vue Code (window.CodeUI) : conversation de l'extension VS Code ;
+│                aperçu des pièces jointes, des fichiers cités (links du
+│                Relay) et des blocs HTML/SVG, comme dans le chat
 ├─ app.js      — WebSocket client + couche E2EE :
 │                ├─ Import clé AES-GCM depuis location.hash (#k=<b64u>)
 │                ├─ encryptObject() / decryptEnvelope() (Web Crypto)

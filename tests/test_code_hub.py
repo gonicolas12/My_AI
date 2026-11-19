@@ -636,7 +636,9 @@ def test_desktop_page_links_the_files_a_reply_cites(hub, loop, tmp_path):
     hub.connect_vscode(loop, surface.put,
                        f"Workspace folders:\n- ws ({workspace})\nPlatform: win32")
     service.send("Regarde", [(str(notes), "notes.txt")])
-    wait_until(lambda: any(e["type"] == "code.done" for e in seen))
+    # La conversation est écrite après la fin : le redémarrage plus bas la relit
+    store = tmp_path / "code_conversation.json"
+    wait_until(lambda: any(e["type"] == "code.done" for e in seen) and store.exists())
     for event in seen:
         validate_event(event)
     user = next(e for e in seen if e["type"] == "code.user")["payload"]
@@ -662,7 +664,7 @@ def test_desktop_page_links_the_files_a_reply_cites(hub, loop, tmp_path):
     service.close()
 
     # Redémarrage, VS Code fermé : les chemins relatifs restent des liens
-    again = CodeHub(store=tmp_path / "code_conversation.json")
+    again = CodeHub(store=store)
     restarted = CodeService(again, EventBus().publish, lambda: 0)
     reply = restarted.snapshot()["messages"][1]
     assert {link["text"] for link in reply["paths"]} == set(expected)
@@ -678,3 +680,72 @@ def test_desktop_page_links_the_files_a_reply_cites(hub, loop, tmp_path):
     links = client.post("/api/files/links", headers=AUTH, json={"paths": [cited]}).json()["links"]
     assert links[cited]
     restarted.close()
+
+
+def test_phone_code_view_links_the_files_a_reply_cites(hub, loop, tmp_path):
+    """Vue Code du téléphone : comme la page Code de la fenêtre, une réponse
+    terminée porte les fichiers qu'elle cite ou nomme (« links »), à sa fin et à
+    chaque lecture de la conversation, et le Relay en montre l'aperçu ; ses
+    pièces jointes ont leurs chemins sur le PC. Avant, la vue n'avait aucun
+    aperçu : pièces jointes en texte, fichiers cités sans lien."""
+    from relay.relay_server import RelayServer  # pylint: disable=import-outside-toplevel
+
+    workspace = tmp_path / "ws"
+    (workspace / "src" / "lib").mkdir(parents=True)
+    for relative in ("README.md", "src/app.ts"):
+        (workspace / relative).write_text("x", encoding="utf-8")
+    notes = tmp_path / "notes.txt"
+    notes.write_text("Notes", encoding="utf-8")
+    other = tmp_path / "autre.txt"
+    other.write_text("x", encoding="utf-8")
+    app_ts = str(workspace / "src" / "app.ts")
+
+    async def cite(run):
+        text = "J'ai lu src/app.ts et notes.txt ; voir README.md et le dossier src/lib."
+        run["on_chunk"](text, 0)
+        return text
+
+    FakeExecutor.script = cite
+    server = RelayServer(config={}, code_hub=hub)
+    hub.connect_vscode(loop, Surface().put,
+                       f"Workspace folders:\n- ws ({workspace})\nPlatform: win32")
+    phone = Surface()
+    hub.subscribe(lambda event: phone.put(server.code_mobile_view(event)), snapshot=True)
+    assert not server.preview_allowed(app_ts)
+
+    hub.send("Regarde", "mobile", files=[(str(notes), "notes.txt")])
+    wait_until(lambda: phone.of("code_done"))
+    assert phone.of("code_user")[0]["files"] == [{"name": "notes.txt", "path": str(notes)}]
+    expected = {"src/app.ts": app_ts, "notes.txt": str(notes),
+                "README.md": str(workspace / "README.md"), "src/lib": str(workspace / "src" / "lib")}
+    links = phone.of("code_done")[0]["links"]
+    assert {link["text"]: link["path"] for link in links} == expected
+    assert [link["text"] for link in links if link["dir"]] == ["src/lib"]
+    # Le Relay montre ces fichiers au téléphone : ni un dossier, ni un autre fichier
+    for text in ("src/app.ts", "notes.txt", "README.md"):
+        assert server.preview_allowed(expected[text])
+    assert not server.preview_allowed(expected["src/lib"])
+    assert not server.preview_allowed(str(other))
+    assert server.preview_file({"path": app_ts})["ok"] is True
+
+    # Vue rechargée : mêmes liens, sans les dossiers du workspace gardés avec la réponse
+    reloaded = Surface()
+    hub.subscribe(lambda event: reloaded.put(server.code_mobile_view(event)), snapshot=True)
+    reply = reloaded.of("code_snapshot")[0]["messages"][1]
+    assert {link["text"] for link in reply["links"]} == set(expected)
+    assert "roots" not in reply
+    # Relay redémarré : il apprend ces fichiers à la lecture de la conversation
+    fresh = RelayServer(config={}, code_hub=hub)
+    assert not fresh.preview_allowed(app_ts)
+    hub.push_snapshot(fresh.code_mobile_view)
+    assert fresh.preview_allowed(app_ts)
+
+    # Réponse en erreur : aucun lien
+    async def fail(_run):
+        raise RuntimeError("Ollama absent")
+
+    FakeExecutor.script = fail
+    hub.send("Encore", "mobile")
+    wait_until(lambda: len(phone.of("code_done")) == 2)
+    failed = phone.of("code_done")[1]
+    assert failed["status"] == "error" and "links" not in failed

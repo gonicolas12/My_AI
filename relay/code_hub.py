@@ -298,7 +298,8 @@ class CodeHub:
 
     def reply_links(self, message_id: str) -> List[Dict[str, Any]]:
         """Fichiers qu'une réponse cite ou nomme (relay/code_links.py) : la page Code
-        de la fenêtre les rend cliquables, et en montre l'aperçu."""
+        de la fenêtre et la vue Code du téléphone les rendent cliquables, et en
+        montrent l'aperçu."""
         with self._lock:
             message = self._assistant(message_id)
             if message is None:
@@ -805,7 +806,8 @@ def vscode_view(event: Dict[str, Any], link_id: str) -> Optional[Dict[str, Any]]
 
 
 def mobile_view(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Événement du hub pour la vue Code du téléphone : code_snapshot, code_chunk…"""
+    """Événement du hub pour la vue Code du téléphone : code_snapshot, code_chunk…
+    (le Relay y ajoute les liens des réponses, RelayServer.code_mobile_view)."""
     fields = {key: value for key, value in event.items() if key not in ("type", "client")}
     return {"type": f"code_{event.get('type')}", **fields}
 

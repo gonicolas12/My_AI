@@ -327,3 +327,21 @@ def test_files_cited_by_an_agent_result_sent_to_the_phone_are_shown(server, tmp_
     assert server.preview_allowed(str(cited))
     assert not server.preview_allowed(str(other)) and not server.preview_allowed(str(tmp_path))
     assert server.preview_file({"path": str(cited)})["ok"] is True
+
+
+def test_a_link_sent_again_is_forgotten_last(server, tmp_path, monkeypatch):
+    """Les fichiers montrables sont bornés : un lien renvoyé au téléphone (vue Code
+    relue) redevient le plus récent, les plus anciens sont oubliés d'abord."""
+    # pylint: disable-next=import-outside-toplevel
+    from relay import relay_server as relay_server_module
+
+    monkeypatch.setattr(relay_server_module, "_LINKED_PATHS_MAX", 2)
+    first, second, third = (tmp_path / f"{name}.txt" for name in ("a", "b", "c"))
+    for path in (first, second, third):
+        path.write_text("x", encoding="utf-8")
+    note = server._note_linked_paths  # pylint: disable=protected-access
+    note([{"path": str(first)}, {"path": str(second)}])
+    note([{"path": str(first)}])
+    note([{"path": str(third)}])
+    assert server.preview_allowed(str(first)) and server.preview_allowed(str(third))
+    assert not server.preview_allowed(str(second))

@@ -896,7 +896,7 @@ function addMessage(text, isUser, timestamp, autoOpen, extra) {
     if (attachments.length) {
       msg.classList.add('with-files');
       var items = attachments.map(attachmentItem);
-      msg.appendChild(fileChips(items, items, 0));
+      msg.appendChild(fileChips(items, items));
     }
   } else {
     msg.innerHTML =
@@ -1119,14 +1119,19 @@ function renderMarkdown(text, options) {
   options = options || {};
   var opts = { codeActions: options.preview && !options.cursor ? CHAT_CODE_ACTIONS : CODE_ACTIONS };
   if (options.cursor) opts.cursor = true;
-  if (options.links) {
-    opts.links = options.links.filter(function (link) {
-      return link && link.text && link.path && !link.dir;
-    }).map(function (link) {
-      return { text: link.text, path: link.path, whole: !!link.name };
-    });
-  }
+  if (options.links) opts.links = fileLinks(options.links);
   return window.MyAIMarkdown.render(text, opts);
+}
+
+// Fichiers qu'une réponse cite ou nomme (PC : { text, path, dir, name }) → liens
+// de markdown.js : les fichiers seulement (un dossier reste du texte), un nom
+// seul cliquable quand il est entier (whole)
+function fileLinks(links) {
+  return (Array.isArray(links) ? links : []).filter(function (link) {
+    return link && link.text && link.path && !link.dir;
+  }).map(function (link) {
+    return { text: link.text, path: link.path, whole: !!link.name };
+  });
 }
 
 // Bouton « Copier » des blocs de code : chat, vue Code et page Agents
@@ -1266,11 +1271,12 @@ function attachmentItem(att) {
 }
 
 // Vignettes cliquables (pièces jointes, documents) : chacune ouvre l'aperçu
-// sur elle, ‹ k/n › passe aux autres éléments du groupe
-function fileChips(items, group, offset) {
+// sur elle, ‹ k/n › passe aux autres éléments du groupe. Une vignette hors du
+// groupe reste grisée (pièce jointe connue par son nom seul).
+function fileChips(items, group) {
   var box = document.createElement('div');
   box.className = 'file-chips';
-  items.forEach(function (item, i) {
+  items.forEach(function (item) {
     var chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'file-chip';
@@ -1280,10 +1286,19 @@ function fileChips(items, group, offset) {
       '<span class="file-chip-name" dir="auto">' + escapeHtml(item.name) + '</span>' +
       (label ? '<span class="file-chip-meta">' + escapeHtml(label) + '</span>' : '');
     chip.title = item.name;
-    chip.onclick = function () { preview.open(group, offset + i); };
+    var index = group.indexOf(item);
+    if (index === -1) chip.disabled = true;
+    else chip.onclick = function () { preview.open(group, index); };
     box.appendChild(chip);
   });
   return box;
+}
+
+// Fichier dont l'aperçu peut être demandé : au PC (chemin, envoi du téléphone)
+// ou lu sur place (image du téléphone). Une pièce jointe d'un message Code
+// d'avant les chemins n'a que son nom.
+function canPreview(item) {
+  return !!(item.payload || item.path || item.fileId || (item.file && item.isImage));
 }
 
 // Réponse finie : ses blocs HTML/SVG, ses documents (cartes) et, depuis
@@ -1311,7 +1326,7 @@ function attachAnswerFiles(msgEl, text, files, fresh) {
   var items = blocks.concat(documents);
   msgEl._previewItems = items;
   if (documents.length) {
-    bubble.insertBefore(fileChips(documents, items, blocks.length), bubble.querySelector('.time'));
+    bubble.insertBefore(fileChips(documents, items), bubble.querySelector('.time'));
   }
   if (fresh && items.length) {
     setTimeout(function () { if (msgEl.isConnected) preview.open(items, 0); }, 120);
@@ -1327,7 +1342,7 @@ function historyImage(msgEl, file) {
   bubble.className = 'bubble';
   holder.appendChild(bubble);
   var item = { type: 'file', name: file.name || baseName(file.path), path: file.path, icon: '🖼️' };
-  bubble.appendChild(fileChips([item], [item], 0));
+  bubble.appendChild(fileChips([item], [item]));
   msgEl.parentNode.insertBefore(holder, msgEl);
   requestFilePreview(item, false).then(function (payload) {
     if (!payload || payload.ok === false || payload.kind !== 'image') return;
@@ -1634,21 +1649,25 @@ window.RelayCore = {
   uploadEncryptedFile: function (file) { return uploadEncryptedFile(file); },
   e2eReady: function () { return e2eReady; },
   getToken: function () { return TOKEN; },
-  // Vue Code (code.js) : bulles identiques à celles du chat
+  // Vue Code (code.js) : bulles identiques à celles du chat, « Aperçu » sur les
+  // blocs HTML et SVG, fichiers cités cliquables
   formatTime: formatTime,
   robotSvg: ROBOT_SVG,
   codeActions: CODE_ACTIONS,
+  previewActions: CHAT_CODE_ACTIONS,
+  fileLinks: fileLinks,
   // État de la corbeille, à revoir quand une page commence ou finit d'écrire
   updateTrash: updateTrash,
-  // Aperçu (page Agents) : pièces jointes [{ name, fileId, isImage, file? }], blocs
-  // HTML/SVG d'un texte, vignettes cliquables
+  // Aperçu (pages Agents et Code) : pièces jointes [{ name, fileId | path, isImage,
+  // file? }], blocs HTML/SVG d'un texte, vignettes cliquables (grisées sans
+  // fichier à demander)
   openAttachments: function (list, index) { preview.open(list.map(attachmentItem), index); },
   answerArtifacts: function (text) {
     return window.MyAIPreview.detectArtifacts(text, untitledArtifact);
   },
   attachmentChips: function (list) {
     var items = list.map(attachmentItem);
-    return fileChips(items, items, 0);
+    return fileChips(items, items.filter(canPreview));
   },
 };
 
