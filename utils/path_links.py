@@ -5,7 +5,7 @@ Sert à rendre cliquables, dans les réponses du chat, les chemins que le modèl
 affiche (« Le fichier a été créé dans C:\\Users\\…\\rapport.docx »).
 
 La difficulté est de savoir où un chemin s'arrête : ceux de Windows contiennent
-des espaces (« OneDrive - Pierre Fabre SA ») et se fondent dans la phrase. La
+des espaces (« OneDrive - Contoso SA ») et se fondent dans la phrase. La
 règle retenue est de garder, depuis chaque début de chemin plausible, **le plus
 long préfixe qui existe réellement sur le disque**. Un chemin inventé par le
 modèle n'est donc jamais rendu cliquable.

@@ -57,8 +57,11 @@ pendant que le moteur calcule.
   (Entrée envoie, Maj+Entrée va à la ligne, Échap arrête la réponse)
 - **Actions au survol** sous chaque message : copier, lire à voix haute, régénérer, modifier,
   noter (toujours visibles sous le dernier)
-- **Volet Aperçu** : à droite du chat — pages HTML générées et documents produits, ouvert
-  automatiquement en fin de réponse, à largeur réglable
+- **Volet Aperçu** : à droite du chat — pages HTML générées, documents produits et fichiers
+  cliqués (pièce jointe d'un message envoyé, fichier cité dans une réponse), ouvert
+  automatiquement en fin de réponse, à largeur réglable (une visionneuse Office suit la
+  poignée en direct). Une pièce jointe pas encore envoyée s'ouvre dans une fenêtre d'aperçu
+  au premier plan ; la page Code a le même volet
 
 **Fonctionnalités:**
 - 🎨 **Thème sombre** moderne
@@ -623,7 +626,7 @@ IA> La version modifiée est enregistrée dans outputs/documents/rapport_modifie
 | .pptx, .potx | PPTXProcessor | Titres, puces avec niveaux, tableaux, notes du présentateur |
 | .xlsx | ExcelProcessor | Feuilles multiples, cellules, formatage tableau |
 | .xls | ExcelProcessor | Ancien format Excel (via xlrd) |
-| .csv | ExcelProcessor | Données tabulaires, encodage automatique |
+| .csv | ExcelProcessor | Données tabulaires : encodage et séparateur détectés, lues en tableau |
 | .txt | FileManager | Texte brut |
 | .py, .js, .html, .css | CodeProcessor | Code avec analyse syntaxique |
 | .md | FileManager | Markdown |
@@ -1531,7 +1534,7 @@ Pour chaque opération destructive, le modal propose : *Autoriser une fois* / *A
 
 La conversation de l'extension s'affiche aussi :
 
-- **Sur le PC** : bouton **Code** en haut de la barre latérale (sous « Nouvelle conversation », sa pastille est verte quand VS Code est connecté) ; la page reprend l'interface du chat, avec les appels d'outils de VS Code et le dossier ouvert dans VS Code en pied de saisie. Les pièces jointes du chat y sont aussi (menu **+**, Ctrl+V pour une image, fichiers ou dossier glissés) : elles partent avec le message, le modèle lit les documents et le code, et le modèle vision décrit les images. Le **micro** dicte comme dans le chat (Whisper local). Les onglets **Chat** et **Agents** du haut sont masqués sur cette page : la barre latérale ramène au chat ;
+- **Sur le PC** : bouton **Code** en haut de la barre latérale (sous « Nouvelle conversation », sa pastille est verte quand VS Code est connecté) ; la page reprend l'interface du chat, avec les appels d'outils de VS Code et le dossier ouvert dans VS Code en pied de saisie. Les pièces jointes du chat y sont aussi (menu **+**, Ctrl+V pour une image, fichiers ou dossier glissés) : elles partent avec le message, le modèle lit les documents et le code, et le modèle vision décrit les images. Le **micro** dicte comme dans le chat (Whisper local). Comme dans le chat, un **volet d'aperçu** à droite montre les pièces jointes d'un message envoyé (d'ici, de VS Code ou du téléphone), les fichiers qu'une réponse cite ou nomme (chemins relatifs au workspace de VS Code compris ; un dossier s'ouvre dans l'Explorateur) et ses blocs HTML ou SVG (bouton **Aperçu**) ; il ne s'ouvre jamais tout seul sur cette page. Les onglets **Chat** et **Agents** du haut sont masqués sur cette page : la barre latérale ramène au chat ;
 - **Sur le téléphone** : bouton `</>` à gauche de **Chat** dans la page du Relay ; même interface que le chat mobile, et réponses dessinées comme dans VS Code (mêmes fichiers `turn.js`, `markdown.js` et `thread.css`).
 
 Un message tapé à l'un de ces endroits part à l'extension, qui agit dans son workspace ; la réponse arrive en streaming partout. **Stop** arrête la réponse en cours d'où qu'elle vienne, **Effacer** commence une nouvelle conversation partout (le téléphone demande confirmation). La conversation est gardée dans `data/code_conversation.json` d'un lancement à l'autre. Le chat classique (téléphone + fenêtre) en reste séparé : rien de lui n'arrive dans VS Code, et inversement.

@@ -37,6 +37,11 @@ exactement comme avant.
   réponse arrive en streaming partout, et une écriture ou une commande
   qu'elle demande s'approuve depuis n'importe lequel des trois. Le chat
   classique du téléphone n'apparaît jamais ici.
+- 👁️ **Aperçu des fichiers** — les pièces jointes (avant et après l'envoi),
+  les fichiers qu'une réponse cite ou nomme et ses blocs HTML ou SVG s'ouvrent
+  dans un aperçu par-dessus le chat : le code et le Markdown du workspace sont
+  lus ici (avec **Ouvrir dans l'éditeur**), les pages des PDF, Word, Excel et
+  PowerPoint rendues par My_AI sur le PC hôte, et un CSV s'affiche en tableau.
 - ⏹️ **Stop et Effacer** — pendant la génération, d'où que vienne le
   message, le bouton d'envoi devient Stop : il arrête le modèle et les
   appels d'outils en attente, et le texte se fige aussitôt. **Effacer**

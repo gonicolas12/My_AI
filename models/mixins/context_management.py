@@ -601,9 +601,6 @@ class ContextManagementMixin:
                     location_words = [
                         "lieu",
                         "endroit",
-                        "pierre fabre",
-                        "lavaur",
-                        "cauquillous",
                         "adresse",
                         "localisation",
                     ]

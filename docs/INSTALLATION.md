@@ -212,7 +212,11 @@ python-bidi>=0.4.2       # Arabe des PDF : ordre de droite à gauche
 
 > L'aperçu **natif** des documents Word, PowerPoint et Excel dans le volet
 > latéral passe par `comtypes`, installé sous Windows avec `pyttsx3` (lecture
-> vocale). Sans lui, ou hors Windows, l'aperçu retombe sur un rendu HTML.
+> vocale). Sans visionneuse native (pas d'Office, macOS, Linux), et sur le
+> téléphone ou dans VS Code, l'aperçu montre les pages du PDF qu'en tire Office
+> ou, à défaut, **LibreOffice** (facultatif : `soffice` dans le PATH, ou installé
+> à son emplacement habituel sous Windows et macOS). Sans l'un ni l'autre, il
+> retombe sur un rendu HTML.
 
 ### Interface graphique (Requis pour la fenêtre)
 ```

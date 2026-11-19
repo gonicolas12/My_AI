@@ -114,12 +114,13 @@ avec sa grille et ses onglets. Voir
 - **Non bloquant** : démarrer Office à froid prend quelques secondes (Excel et
   Word ~2 à 5 s mesurées, PowerPoint ~2,5 s). Le pilotage passe par un thread
   COM dédié (`AsyncNativePreview`) : le volet affiche « Ouverture de l'aperçu
-  Word… » et le chat reste utilisable. Au-delà de 45 s, le volet passe au rendu
-  HTML.
+  Word… » et le chat reste utilisable. Au-delà de 45 s, le volet passe au repli
+  ci-dessous.
 - **Repli** : si aucune visionneuse n'est enregistrée (Office absent) ou
-  qu'elle échoue, le document est rendu en HTML — une **feuille de papier**
-  posée sur le fond sombre du volet. C'est aussi ce rendu HTML que reçoit le
-  mobile Relay.
+  qu'elle échoue, le volet montre le PDF qu'en tire Office ou LibreOffice
+  (voir plus haut) ; sans l'un ni l'autre, le document est rendu en HTML — une
+  **feuille de papier** posée sur le fond sombre du volet, comme dans la modale
+  du mobile Relay.
 - **Sens d'écriture** : la page prend le sens de l'interface (de droite à
   gauche en arabe), et chaque titre, paragraphe, liste ou tableau celui de son
   propre texte (`dir="auto"`) : un document arabe se lit de droite à gauche
@@ -134,6 +135,23 @@ avec sa grille et ses onglets. Voir
 
 Le volet porte, pour les documents, les boutons **Ouvrir dans son
 application** et **Afficher dans l'Explorateur**.
+
+## Fichiers cliqués : où s'ouvre leur aperçu
+
+Un fichier que l'on clique a le même aperçu, quel que soit son format (image,
+code, Markdown, PDF, Word, Excel, CSV…). Il s'ouvre selon l'endroit du clic :
+
+| Où | Ce que l'on clique | Où il s'ouvre |
+|---|---|---|
+| Chat et page Code de la fenêtre | pièce jointe d'un message envoyé, fichier cité ou nommé dans une réponse, carte d'un document produit et image générée (chat) | **volet de droite** de la page (‹ k/n › entre les pièces jointes d'un message) |
+| Zones de saisie du chat et de la page Code, zone de tâche des agents | pièce jointe pas encore envoyée | **fenêtre d'aperçu au premier plan** |
+| Page Agents | pièce jointe d'un fil, fichier cité ou nommé dans un résultat, bloc HTML ou SVG | **fenêtre d'aperçu au premier plan**, jamais de volet de droite |
+| Mémoire, onglet Documents | un document | volet à droite du panneau |
+| Téléphone et VS Code | pièce jointe, fichier cité ou nommé, bloc HTML ou SVG | fenêtre par-dessus la vue ([`preview.js`](../relay/static/preview.js)) |
+
+Un chemin cité n'est un lien que s'il existe sur le PC. Un dossier s'ouvre dans
+l'Explorateur ; sur le téléphone et dans VS Code, seuls les fichiers sont des
+liens.
 
 ## Ouverture automatique
 

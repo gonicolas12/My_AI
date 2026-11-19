@@ -145,7 +145,7 @@ temps).
 | [`generators/markdown_document.py`](../generators/markdown_document.py) | Parseur Markdown → blocs (`Heading`, `ListBlock`, `Table`, `CodeBlock`…), **socle commun à tous les backends** |
 | [`generators/document_generator.py`](../generators/document_generator.py) | Orchestration + un backend de rendu par format |
 | [`generators/document_editor.py`](../generators/document_editor.py) | Modification d'un document existant, toujours sur une copie |
-| [`interfaces/document_preview.py`](../interfaces/document_preview.py) | Rendu HTML pour le volet d'aperçu et la modale mobile |
+| [`interfaces/document_preview.py`](../interfaces/document_preview.py) | Page d'aperçu du volet (repli) et de la modale mobile : pages du PDF d'Office ou de LibreOffice ([`office_pdf.py`](../interfaces/office_pdf.py)), sinon rendu HTML |
 | [`processors/pptx_processor.py`](../processors/pptx_processor.py) | Lecture des présentations jointes |
 
 ### Pourquoi un parseur Markdown maison
@@ -347,13 +347,15 @@ pas touché). Ils ne sont en revanche pas modifiables par `edit_document`.
 
 Un chemin de fichier ou de dossier affiché dans une réponse (« Le fichier a
 été créé dans C:\Users\…\rapport.docx ») est rendu **cliquable** (seulement
-s'il existe) ; un clic ouvre son emplacement dans l'explorateur — le fichier
-sélectionné, ou le dossier ouvert —, jamais le fichier lui-même. Le bouton
-**Ouvrir dans son application** du volet d'aperçu ouvre, lui, le document
-produit par l'appli.
+s'il existe) : un fichier s'ouvre dans son aperçu (le volet de droite dans le
+chat et la page Code, la fenêtre d'aperçu au premier plan sur la page Agents,
+cf. [ARTIFACTS_PREVIEW.md](ARTIFACTS_PREVIEW.md)), un dossier dans
+l'Explorateur. Un fichier de la conversation nommé sans son chemin (pièce
+jointe, document produit) l'est aussi. Le bouton **Ouvrir dans son
+application** du volet d'aperçu ouvre, lui, le document produit par l'appli.
 
 La difficulté est de savoir où un chemin s'arrête : ceux de Windows
-contiennent des espaces (« OneDrive - Pierre Fabre SA ») et se fondent dans la
+contiennent des espaces (« OneDrive - Contoso SA ») et se fondent dans la
 phrase. [`utils/path_links.py`](../utils/path_links.py) garde, depuis chaque
 début de chemin, **le plus long préfixe qui existe réellement sur le disque** :
 
@@ -365,7 +367,9 @@ début de chemin, **le plus long préfixe qui existe réellement sur le disque**
   Windows (les partages `\\serveur\…` et lecteurs réseau sont ignorés), et le
   seul dossier personnel sous macOS/Linux.
 
-Desktop uniquement : le mobile Relay ne peut pas ouvrir l'explorateur du PC.
+Sur le téléphone et dans VS Code, seuls les fichiers cités sont des liens :
+ils s'ouvrent dans l'aperçu, par-dessus la vue ; ni l'un ni l'autre n'ouvre
+l'Explorateur du PC.
 
 ## 📦 Dépendances
 

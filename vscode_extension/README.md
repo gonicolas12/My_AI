@@ -34,6 +34,11 @@ exactly as before.
   phone page. A message typed there lands here and acts in your workspace,
   the reply streams everywhere, and a write or a command it needs can be
   approved from any of the three. The phone's regular chat never shows here.
+- 👁️ **File previews** — attachments (before and after sending), files a
+  reply cites or names and its HTML or SVG blocks open in a preview over the
+  chat: workspace code and Markdown are read here (with **Open in editor**),
+  PDF, Word, Excel and PowerPoint pages are rendered by My_AI on the host PC,
+  and a CSV shows as a table.
 - ⏹️ **Stop & Clear** — while a reply is being written, wherever its
   message was typed, the send button turns into Stop: it stops the model
   and any pending tool call, and the text freezes at once. **Clear** starts

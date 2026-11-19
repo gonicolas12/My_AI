@@ -16,7 +16,7 @@ La recherche n'appelle jamais le modèle elle-même : elle collecte, le modèle 
 
 ### 🌤️ Météo
 - **Open-Meteo** : sans clé, données des services météo nationaux (Météo-France pour la France), géocodage multilingue (« Londres », « Saint-Étienne », « São Paulo »).
-- Conditions actuelles (température, ressenti, humidité, vent et sa direction, précipitations) et **prévisions sur 7 jours**, les deux premières marquées « aujourd'hui » et « demain » (date du lieu) : le modèle ne connaît pas la date du jour.
+- Conditions actuelles (température, ressenti, humidité, vent et sa direction, précipitations) et **prévisions sur 7 jours**, les deux premières marquées « aujourd'hui » et « demain » selon la date du lieu, qui peut différer de celle du PC (le modèle connaît celle-ci par son prompt système).
 - Détection stricte : « météo », « weather », « forecast », « quel temps ». « Combien de temps dure… » ou « temps de cuisson » ne partent plus vers la météo.
 - Lieu inconnu d'Open-Meteo (un quartier, une adresse) : recherche web à la place, plutôt qu'un homonyme à l'autre bout du monde.
 
@@ -72,7 +72,7 @@ Le trafic de la recherche est celui d'un client ordinaire :
 
 ### Flux
 1. Le modèle appelle `web_search(query)` depuis la boucle d'outils (`AIEngine` → `ChatOrchestrator`).
-2. `clean_query()` prépare **sa** requête : première ligne seulement, sans « cherche sur internet », sans les années récentes que le modèle ajoute de lui-même (2024, 2025… : il ne connaît pas la date du jour) quand l'utilisateur ne les a pas écrites. Une année ancienne (« construction tour Eiffel 1889 ») ou donnée par l'utilisateur reste.
+2. `clean_query()` prépare **sa** requête : première ligne seulement, sans « cherche sur internet », sans les années récentes que le modèle ajoute de lui-même (2024, 2025… : celles de son apprentissage, qu'il ajoute même en connaissant la date du jour) quand l'utilisateur ne les a pas écrites. Une année ancienne (« construction tour Eiffel 1889 ») ou donnée par l'utilisateur reste.
 3. `search_and_summarize()` : URL → lecture directe ; météo → Open-Meteo ; sinon moteurs puis lecture des pages.
 4. Le résultat revient au modèle. Quand il est assez fourni, l'orchestrateur passe directement à la synthèse streamée.
 5. Le modèle termine par le bloc `📚 **Sources**` qu'on lui demande de recopier : le flux est coupé à son début, et l'orchestrateur écrit lui-même ce bloc sous la réponse, réduit aux sources qu'elle cite, numéros gardés, ou entier si elle n'en cite aucune (`sources_tail`, `utils/citations.py`). Avec plusieurs recherches, chacune numérotée à partir de [1], le modèle garde sa liste. La coupure est faite sur le texte de la réponse (`_cut_at_stop`) et non par l'option `stop` d'Ollama, qui s'applique aussi à la réflexion native : un brouillon du bloc dans la réflexion l'aurait arrêtée avant toute réponse.
