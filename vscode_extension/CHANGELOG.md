@@ -5,6 +5,32 @@ All notable changes to the **My_AI Relay** VS Code extension are documented here
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] — 2026-11-19
+
+A right-click shows a cited file in the system's file manager, and HTML
+pages keep their styles.
+
+### Added
+- **Reveal a cited file.** A right-click on a file a reply cites opens
+  VS Code's own context menu with one entry, in VS Code's words: **Reveal
+  in File Explorer** on Windows, **Reveal in Finder** on macOS, **Open
+  Containing Folder** on Linux. A left click still opens the preview.
+- **Folder links.** A folder a reply cites by its path (`src/lib`, or an
+  absolute path; never a word alone, as on the PC) becomes a link, opened
+  in the system's file manager.
+
+### Fixed
+- **HTML pages with their styles.** In its preview frame, an `.html` file
+  of the workspace had lost its address, so its relative stylesheets,
+  scripts and images did not load. The extension now puts them in the
+  page, read only from the page's folder (no `../`, web address or
+  absolute path), at most 3 MB per file and 8 MB in all. Fonts stay out:
+  the view's content security policy refuses them. The **Code** tab keeps
+  the source.
+- **A name two files share.** "utils.py" alone, when the reply's tools
+  read both `tests/utils.py` and `src/utils.py`, opened the first one. It
+  now stays plain text, and both paths stay links.
+
 ## [1.7.0] — 2026-11-19
 
 Files open in a preview over the chat, as on the phone.
