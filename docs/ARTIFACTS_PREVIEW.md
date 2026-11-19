@@ -13,6 +13,7 @@ droite du chat, et de la page **Code**) et sur l'**interface mobile Relay**.
 |---|---|
 | [`interfaces/artifacts.py`](../interfaces/artifacts.py) | Détection + préparation du document, **partagé** fenêtre/serveur Relay |
 | [`interfaces/document_preview.py`](../interfaces/document_preview.py) | Rendu HTML des documents bureautiques, **partagé** fenêtre/serveur Relay |
+| [`interfaces/html_page.py`](../interfaces/html_page.py) | Page web d'un fichier du disque, avec les feuilles de style, scripts et images de son dossier, **partagé** fenêtre/serveur Relay (VS Code : `src/filePreview.ts`) |
 | [`interfaces/desktop/previews.py`](../interfaces/desktop/previews.py) | Pages d'aperçu de la fenêtre : artifacts HTML/SVG et documents |
 | [`interfaces/desktop/native_viewer.py`](../interfaces/desktop/native_viewer.py) | Visionneuses Office posées dans le volet d'aperçu |
 | [`interfaces/desktop/preview_handler.py`](../interfaces/desktop/preview_handler.py) | Visionneuses natives Word/PowerPoint/Excel (`IPreviewHandler`) |
@@ -66,6 +67,7 @@ Chaque document est affiché **dans son propre format** :
 | **csv** | **Visionneuse d'Excel**, par une copie .xlsx du fichier (voir ci-dessous) ; son texte dans l'onglet Code |
 | **pdf** | Lecteur PDF de WebView2 (`needs_native_viewer()` : le fichier est servi tel quel, dans la page) |
 | md, txt | Page HTML produite par `interfaces/document_preview.py` |
+| html, htm | La page dans une iframe isolée, avec les feuilles de style, scripts et images de son dossier (voir « Page web d'un fichier ») ; sa source dans l'onglet Code |
 
 **Sans visionneuse native : le document tel qu'il s'imprime.** Les visionneuses
 de la fenêtre sont celles qu'Office installe sous Windows. Sans elles (pas d'Office,
@@ -190,7 +192,9 @@ chaque lecture de la conversation :
   cherchés dans les dossiers ouverts au moment du message, gardés avec la
   réponse : ils restent des liens après un redémarrage, VS Code fermé ;
 - noms seuls (« shell.ts ») des fichiers que les outils de la réponse ont lus,
-  écrits ou ouverts, et des pièces jointes de la conversation.
+  écrits ou ouverts, et des pièces jointes de la conversation. Un nom que portent
+  deux de ces fichiers (« utils.py » de `tests/` et de `src/`) n'en désigne aucun :
+  il reste du texte, leurs chemins restent des liens (de même dans VS Code).
 
 Un fichier n'est un lien que s'il existe sur ce PC ; un VS Code sur une autre
 machine n'a donc pas de liens. Un dossier s'ouvre dans l'Explorateur.
@@ -232,6 +236,28 @@ La fenêtre étant un Chromium (WebView2 sous Windows), l'artifact s'affiche
 Comme dans un navigateur, un artifact qui référence une ressource externe
 (CDN, police) la **charge** : c'est le prix du rendu exact. L'IA, elle, reste
 100% locale.
+
+### Page web d'un fichier
+
+Une page `.html` du disque (fichier cité, pièce jointe) s'affiche comme un
+artifact, mais dans son cadre elle n'a plus son adresse : sa feuille de style
+`style.css`, ses scripts et ses images relatifs ne se chargeraient pas (vu avec
+le vrai modèle dans VS Code : titre noir à empattements, erreur 403).
+[`interfaces/html_page.py`](../interfaces/html_page.py) (fenêtre, téléphone) et
+`src/filePreview.ts` (VS Code, qui lit lui-même son workspace) mettent dans la
+page ceux de **son dossier et en dessous** :
+
+- `<link rel="stylesheet">` → `<style>`, ses `url(…)` d'images en `data:` ;
+- `<script src>` → `<script>` ; un script `defer` ou `async` passe en fin de
+  page, là où il se serait exécuté ;
+- `<img src>` et les `url(…)` des `<style>` de la page → `data:`.
+
+Rien d'autre n'est lu : ni un fichier hors du dossier de la page
+(`../secret.css` garde son adresse), ni une adresse web, ni un chemin absolu ;
+au plus 3 Mo par fichier et 8 Mo en tout, comme les images d'un Markdown. Les
+polices restent dehors (la vue de VS Code refuse les polices `data:`). L'onglet
+Code montre la source telle qu'elle est (`text`), l'aperçu la page complétée
+(`page`).
 
 ### Visionneuses Office : une fenêtre enfant posée sur le volet
 

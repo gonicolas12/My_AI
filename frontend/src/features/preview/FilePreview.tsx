@@ -292,7 +292,8 @@ function TextPreview({
   let body: React.ReactNode;
   if (kind === 'markdown' && !source) body = <MarkdownView text={data.text} file={path} />;
   else if (kind === 'html' && !source) {
-    body = <HtmlPreview code={data.text} title={baseName(path)} hidden={hidden} />;
+    // Rendue avec ses fichiers voisins (style.css…) ; l'onglet Code garde la source
+    body = <HtmlPreview code={data.page ?? data.text} title={baseName(path)} hidden={hidden} />;
   } else if (kind === 'text' || kind === 'other') body = <PlainText text={data.text} />;
   else body = <CodeView code={data.text} lang={codeLanguage(path)} />;
   return (

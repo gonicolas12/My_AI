@@ -321,12 +321,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
       return null;
     }
-    // A name alone: one of the files the reply's tools touched, else the only one
+    // A name alone: the file of that name the reply's tools touched (none when
+    // they touched several: « utils.py » of tests/ and of src/, as on the PC),
+    // else the only one of the workspace
     const name = parts[0].toLowerCase();
-    for (const used of touched) {
-      if (path.basename(used.replace(/\\/g, '/')).toLowerCase() !== name) continue;
-      const found = await this.findWorkspaceFile(used, []);
-      if (found) return found;
+    const used = new Map<string, vscode.Uri>();
+    for (const item of touched) {
+      if (path.basename(item.replace(/\\/g, '/')).toLowerCase() !== name) continue;
+      const found = await this.findWorkspaceFile(item, []);
+      if (found) used.set(found.toString(), found);
+    }
+    if (used.size) {
+      return used.size === 1 ? used.values().next().value ?? null : null;
     }
     const matches = (await this.getWorkspaceFiles())
       .filter((uri) => path.basename(uri.fsPath).toLowerCase() === name);

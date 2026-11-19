@@ -6,7 +6,8 @@ Routes des fichiers locaux et des aperçus (volet de droite)
   POST /api/files/open           document produit par l'appli → son application
   POST /api/files/reveal         chemin existant → Explorateur, jamais exécuté
   POST /api/files/download       document produit → copie dans Téléchargements
-  POST /api/files/text           début d'un fichier texte (code, Markdown…), pour son aperçu
+  POST /api/files/text           début d'un fichier texte (code, Markdown…), pour son aperçu ;
+                                 d'une page web, aussi « page » avec ses fichiers voisins
   POST /api/files/info           taille et date d'un fichier (en-tête de l'aperçu)
   POST /api/previews/artifact    bloc HTML/SVG d'une réponse → page d'aperçu
   POST /api/previews/document    document → page d'aperçu HTML, ou le PDF lui-même
@@ -27,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from core.i18n import tr
 from interfaces.desktop import files as local_files
+from interfaces.html_page import HTML_SUFFIXES, preview_fields
 from utils.logger import setup_logger
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -200,7 +202,11 @@ def register(api: FastAPI, app: "DesktopApp", server: "DesktopServer") -> None:
             raise HTTPException(status_code=415, detail=str(exc)) from exc
         except OSError as exc:
             raise HTTPException(status_code=409, detail=tr("files.readFailed", error=exc)) from exc
-        return {"text": text, "truncated": truncated}
+        result = {"text": text, "truncated": truncated}
+        if os.path.splitext(body.path)[1].lower() in HTML_SUFFIXES:
+            # Page web : rendue avec les feuilles de style, scripts et images de son dossier
+            result.update(await run_in_threadpool(preview_fields, text, body.path))
+        return result
 
     @api.post("/api/files/info")
     async def file_info(body: PathBody):

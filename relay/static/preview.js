@@ -367,10 +367,13 @@
           return frame(payload.html || '', 'allow-popups allow-popups-to-escape-sandbox');
         }, page: payload.html || '' });
       } else if (kind === 'html') {
+        // page : la même avec les feuilles de style, scripts et images de son
+        // dossier (le cadre n'a pas son adresse sur le disque) ; text : sa source
+        var webPage = payload.page || payload.text || '';
         list.push({ id: 'preview', render: function () {
-          return frame(scriptable(payload.text || '', options.scriptNonce),
+          return frame(scriptable(webPage, options.scriptNonce),
             'allow-scripts allow-forms allow-modals');
-        }, page: payload.text || '' });
+        }, page: webPage });
       } else if (kind === 'audio' || kind === 'video') {
         list.push({ id: 'preview', render: function () {
           var box = document.createElement('div');

@@ -9,7 +9,8 @@ Code du téléphone dans sa fenêtre d'aperçu, comme le chat
     ceux qu'emploient l'extension et le modèle ; un dossier s'ouvre dans
     l'Explorateur ;
   - noms seuls (« shell.ts ») des fichiers que les outils de la réponse ont
-    lus, écrits ou ouverts, et des pièces jointes de la conversation.
+    lus, écrits ou ouverts (pas un nom que portent deux d'entre eux), et des
+    pièces jointes de la conversation.
 
 Le workspace est celui de VS Code au moment du message (« roots » de la
 réponse, tirés de son client_hello) : seul un fichier qui existe sur ce PC,
@@ -141,8 +142,12 @@ def _candidates(text: str) -> List[str]:
 
 def _tool_files(parts: Iterable[Any], roots: Sequence[str],
                 cache: Dict[Tuple[str, str], Resolved]) -> Dict[str, str]:
-    """Fichiers que les outils de la réponse ont lus, écrits ou ouverts : nom → chemin."""
-    named: Dict[str, str] = {}
+    """Fichiers que les outils de la réponse ont lus, écrits ou ouverts : nom → chemin.
+
+    Un nom porté par plusieurs d'entre eux (« utils.py » de tests/ et de src/)
+    n'en désigne aucun : il reste du texte, comme dans la vue de VS Code.
+    """
+    by_name: Dict[str, Dict[str, str]] = {}
     for part in parts or []:
         if (not isinstance(part, dict) or part.get("kind") != "tool"
                 or part.get("name") not in _FILE_TOOLS):
@@ -161,8 +166,9 @@ def _tool_files(parts: Iterable[Any], roots: Sequence[str],
         name = os.path.basename(found[0])
         stem, extension = os.path.splitext(name)
         if stem and len(extension) > 1:
-            named[name.lower()] = found[0]
-    return named
+            by_name.setdefault(name.lower(), {})[os.path.normcase(found[0])] = found[0]
+    return {name: next(iter(paths.values())) for name, paths in by_name.items()
+            if len(paths) == 1}
 
 
 def reply_links(
