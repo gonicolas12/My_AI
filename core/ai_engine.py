@@ -72,16 +72,14 @@ except ImportError:
     _EXPORTER_AVAILABLE = False
 
 try:
-    from .knowledge_base_manager import VALID_CATEGORIES as _FACT_CATEGORIES
     from .knowledge_base_manager import (
         KnowledgeBaseManager,
-        extract_remember_request,
         fact_for_prompt,
         is_assistant_fact,
-        is_only_remember_request,
         memorization_confirmation,
         reply_language,
     )
+    from .chat_memory import chat_memory_for
     _KB_AVAILABLE = True
 except ImportError:
     _KB_AVAILABLE = False
@@ -316,8 +314,10 @@ class AIEngine:
         # ne reçoivent que les arguments écrits par le modèle
         self._turn_request = ""
         # Information que le message du tour demandait de retenir, déjà
-        # enregistrée (_remember_from_message)
+        # enregistrée (_remember_from_message), et tout ce que sa demande a
+        # changé dans la mémoire (core/chat_memory.py : MemoryUpdate)
         self._turn_memorized: Optional[str] = None
+        self._turn_memory: Any = None
         self.ollama_code_generator = OllamaCodeGenerator(
             llm=llm_instance
         )  # Générateur avec Ollama
@@ -922,44 +922,10 @@ class AIEngine:
         except Exception as exc:
             self.logger.warning("Outil search_memory non disponible : %s", exc)
 
-        # ----------------------------------------------------------------
-        # 2ter. Mémorisation d'un fait (fenêtre Mémoire, onglet Faits)
-        # ----------------------------------------------------------------
-        if _KB_AVAILABLE and self._memory_auto_extract():
-            try:
-                self.mcp_manager.register_local_tool(
-                    name="remember_fact",
-                    description=(
-                        "Enregistre durablement une information que l'utilisateur te demande "
-                        "EXPLICITEMENT de retenir (« retiens », « souviens-toi », "
-                        "« n'oublie pas », « garde en tête »…) : préférence, fait personnel, "
-                        "décision, procédure. "
-                        "Elle reste disponible dans les conversations suivantes. N'enregistre "
-                        "JAMAIS une information que l'utilisateur ne t'a pas demandé de retenir."
-                    ),
-                    parameters={
-                        "type": "object",
-                        "properties": {
-                            "fact": {
-                                "type": "string",
-                                "description": (
-                                    "L'information à retenir, en une phrase compréhensible hors "
-                                    "contexte (ex. « Le chat de l'utilisateur s'appelle Félix »)"
-                                ),
-                            },
-                            "category": {
-                                "type": "string",
-                                "enum": list(_FACT_CATEGORIES),
-                                "description": "Catégorie du fait",
-                                "default": "general",
-                            },
-                        },
-                        "required": ["fact"],
-                    },
-                    callable_fn=self._remember_fact_tool,
-                )
-            except Exception as exc:
-                self.logger.warning("Outil remember_fact non disponible : %s", exc)
+        # (Pas d'outil pour écrire dans la mémoire : My_AI le fait lui-même, à
+        # partir du seul message de l'utilisateur, core/chat_memory.py. Avec un
+        # outil remember_fact, une page web lue pouvait lui faire retenir une
+        # consigne, et la mémoire se doublait.)
 
         # ----------------------------------------------------------------
         # 2bis. Recherche dans le dossier/codebase attaché au workspace
@@ -2237,53 +2203,172 @@ Que voulez-vous que je fasse pour vous ?""",
         except Exception:
             return True
 
+    def _chat_memory(self) -> Any:
+        """Mémoire du chat (core/chat_memory.py), ou None sans base de faits."""
+        if not _KB_AVAILABLE or getattr(self, "knowledge_base", None) is None:
+            return None
+        return chat_memory_for(self)
+
+    def _chat_llm(self) -> Optional[Dict[str, Any]]:
+        """Le modèle du chat, pour lire ce qu'un message change dans la mémoire (même
+        fenêtre de contexte que la réponse : Ollama ne recharge pas le modèle)."""
+        llm = getattr(getattr(self, "local_ai", None), "local_llm", None)
+        if llm is None or not getattr(llm, "is_ollama_available", False):
+            return None
+        return {"chat_url": getattr(llm, "chat_url", None), "model": getattr(llm, "model", None),
+                "num_ctx": getattr(llm, "gen_num_ctx", None)}
+
+    def _recent_chat(self) -> List[Tuple[str, str]]:
+        """Derniers échanges du chat, en texte : de quoi comprendre « retiens ça »."""
+        llm = getattr(getattr(self, "local_ai", None), "local_llm", None)
+        exchanges = []
+        for item in list(getattr(llm, "conversation_history", None) or [])[-4:]:
+            role, text = item.get("role"), str(item.get("content") or "").strip()
+            if role in ("user", "assistant") and text:
+                shown = text if len(text) <= 800 else text[:800] + "…"
+                exchanges.append(("Utilisateur" if role == "user" else "Assistant", shown))
+        return exchanges
+
     def _remember_from_message(self, message: str) -> Optional[str]:
         """
-        Enregistre ce que le message demande explicitement de retenir
-        (« retiens que… », voir extract_remember_request).
+        Ce que le message demande de retenir, de remplacer ou d'oublier (« retiens
+        que… », « oublie que… », « retiens plutôt que… »), fait avant toute
+        génération (core/chat_memory.py : le modèle du chat lit quoi ; sans lui,
+        les règles de extract_remember_request).
 
-        Filet déterministe à côté de l'outil remember_fact : un petit modèle
-        ne l'appelle pas toujours, et les messages conversationnels (« merci,
-        retiens que… ») partent sans outils. L'information est gardée dans
-        _turn_memorized : le prompt du tour la confirme et l'outil n'est pas
-        proposé, faute de quoi elle serait enregistrée deux fois.
+        Gardé pour le tour : _turn_memory (tout ce qui a changé), _turn_memorized
+        (l'information retenue, s'il n'y en a qu'une) ; le prompt du tour le
+        confirme (_knowledge_base_context).
 
         Returns:
-            L'information enregistrée, ou None.
+            L'information retenue s'il n'y en a qu'une, sinon None.
         """
         self._turn_memorized = None
-        kb = getattr(self, "knowledge_base", None)
-        if not _KB_AVAILABLE or kb is None or not self._memory_auto_extract():
-            return None
-        fact = extract_remember_request(message)
-        if not fact:
+        self._turn_memory = None
+        memory = self._chat_memory()
+        if memory is None or not memory.asks(message):
             return None
         try:
-            kb.remember(fact, source="conversation")
+            update = memory.update(message, self._recent_chat(), self._chat_llm(), True)
         except Exception as exc:
-            self.logger.warning("Information non mémorisée : %s", exc)
+            self.logger.warning("Mémoire inchangée : %s", exc)
             return None
-        self.logger.info("🧠 Mémorisé depuis le chat : %s", fact[:80])
-        self._turn_memorized = fact
-        return fact
+        self._turn_memory = update
+        if update is None:
+            return None
+        for item in update.forgotten:
+            self.logger.info("🧠 Oublié depuis le chat : %s", item.fact[:80])
+        for item in update.remembered:
+            self.logger.info("🧠 Mémorisé depuis le chat : %s", item.fact[:80])
+        if len(update.remembered) == 1 and not update.forgotten:
+            self._turn_memorized = update.remembered[0].fact
+        return self._turn_memorized
 
-    def _remember_fact_tool(self, fact: str, category: str = "general") -> str:
-        """Outil remember_fact : enregistre ce que l'utilisateur demande de retenir."""
-        kb = getattr(self, "knowledge_base", None)
-        if kb is None:
-            return "Mémoire indisponible : rien n'a été enregistré."
-        fact = str(fact or "").strip()
-        try:
-            _, created = kb.remember(fact, category=str(category or "general"))
-        except ValueError:
-            return "Rien à mémoriser : l'information est vide."
-        except Exception as exc:
-            return f"Erreur mémoire : {exc}"
-        status = "Mémorisé" if created else "Déjà en mémoire"
-        return (
-            f"{status} : « {fact} ». L'utilisateur le retrouve dans la fenêtre "
-            "🧠 Mémoire (onglet Faits)."
-        )
+    def _memory_change_note(self) -> str:
+        """
+        Bloc MÉMORISATION d'une demande qui n'a pas retenu une seule information
+        (_knowledge_base_context s'en charge alors) : des faits retirés ou
+        remplacés, plusieurs retenus, ou rien, faute de savoir quoi, de trouver
+        le fait à oublier ou de lire ce qu'il fallait retenir. Sans lui, le
+        modèle répondait « c'est noté » de toute façon.
+        """
+        update = getattr(self, "_turn_memory", None)
+        if update is None or not update.asked:
+            return ""
+        then = (". Son message ne demande rien d'autre : ta réponse se limite à cela."
+                if self._turn_alone() else ", puis réponds au reste de son message.")
+        if update.unclear:
+            return ("MÉMORISATION : l'utilisateur demande de retenir quelque chose, mais on ne "
+                    "sait pas quoi : rien n'a été enregistré. Ne dis pas que c'est noté ; "
+                    "demande-lui en une phrase ce qu'il veut que tu retiennes.")
+        if update.missing:
+            return ("MÉMORISATION : l'utilisateur demande d'oublier quelque chose, mais rien de "
+                    "tel n'est dans ta mémoire persistante : rien n'a été retiré. Dis-le-lui "
+                    f"en une phrase{then}")
+        if update.failed:
+            return ("MÉMORISATION : rien n'a pu être enregistré de ce que l'utilisateur demande "
+                    "de retenir. Ne dis pas que c'est noté ; dis-le-lui en une phrase, et "
+                    f"propose-lui de le reformuler{then}")
+        done = []
+        if update.forgotten:
+            done.append("de retirer de ta mémoire persistante : " + " ; ".join(
+                f"« {item.fact} »" for item in update.forgotten))
+        new = [item for item in update.remembered if item.created]
+        if new:
+            done.append("d'enregistrer dans ta mémoire persistante : " + " ; ".join(
+                fact_for_prompt(item.fact) for item in new))
+        if not done:
+            if not update.remembered:
+                return ""
+            return ("MÉMORISATION : c'était déjà dans ta mémoire persistante : " + " ; ".join(
+                fact_for_prompt(item.fact) for item in update.remembered)
+                + f". Dis-le-lui en une phrase{then}")
+        return ("MÉMORISATION : à la demande de l'utilisateur, tu viens " + " et ".join(done)
+                + ". Cela vaut aussi pour les prochaines conversations (fenêtre 🧠 Mémoire, "
+                "onglet Faits). Confirme-le brièvement, en lui parlant à la deuxième personne"
+                + then)
+
+    def _turn_alone(self) -> bool:
+        """Le message du tour ne fait que demander de retenir : une confirmation, sans
+        outils (le modèle rappelait sinon des outils, puis une synthèse suivait)."""
+        update = getattr(self, "_turn_memory", None)
+        return bool(update is not None and update.asked and update.alone)
+
+    @staticmethod
+    def _memory_indicators(update: Any, on_tool_call) -> None:
+        """Ce qu'un message a changé dans la mémoire, signalé à l'interface comme des
+        appels d'outils (indicateurs « 🧠 Oublié », « 🧠 Mémorisé »)."""
+        if update is None or on_tool_call is None:
+            return
+        for item in update.forgotten:
+            on_tool_call("forget_fact", {"fact": item.fact})
+        for item in update.remembered:
+            on_tool_call("remember_fact", {"fact": item.fact})
+
+    def _read_memory_later(self, message: str, is_interrupted_callback=None) -> Any:
+        """
+        Message sans demande : la préférence durable que le modèle du chat en
+        retient (core/chat_memory.py), lue dans un fil pendant la réponse, sans la
+        retarder. Rien n'est écrit si la réponse a été arrêtée entre-temps.
+
+        Returns:
+            (fil, résultat) à attendre en fin de tour (_show_memory_later), ou None.
+        """
+        if not message:
+            return None
+        memory = self._chat_memory()
+        llm = self._chat_llm()
+        if memory is None or llm is None or memory.asks(message):
+            return None
+        result: Dict[str, Any] = {}
+
+        def wanted() -> bool:
+            return not (is_interrupted_callback and is_interrupted_callback())
+
+        def read() -> None:
+            try:
+                result["update"] = memory.update(message, (), llm, False, wanted)
+            except Exception as exc:  # pylint: disable=broad-except
+                self.logger.warning("Mémoire non lue : %s", exc)
+
+        thread = threading.Thread(target=read, name="chat-memory", daemon=True)
+        thread.start()
+        return thread, result
+
+    def _show_memory_later(self, later: Any, on_tool_call) -> None:
+        """Ce que le modèle a retenu d'un message sans demande, signalé en fin de tour."""
+        if later is None:
+            return
+        thread, result = later
+        thread.join(70)
+        update = result.get("update")
+        if update is not None:
+            for item in update.forgotten:
+                self.logger.info("🧠 Oublié depuis le chat (sans demande) : %s", item.fact[:80])
+            for item in update.remembered:
+                self.logger.info("🧠 Mémorisé depuis le chat (sans demande) : %s",
+                                 item.fact[:80])
+            self._memory_indicators(update, on_tool_call)
 
     def _search_memory(self, query: str, n_results: int = 5, document: str = "") -> str:
         """
@@ -2413,11 +2498,6 @@ Que voulez-vous que je fasse pour vous ?""",
                           "recherche dans toute la mémoire.")
         where = {"document_id": ids[0]} if len(ids) == 1 else {"document_id": {"$in": ids}}
         return where, ""
-
-    @staticmethod
-    def _without_tool(tools: List[Dict], name: str) -> List[Dict]:
-        """La liste d'outils Ollama, sans celui qui porte ce nom."""
-        return [t for t in tools if t.get("function", {}).get("name") != name]
 
     def _answer_context(self, query: str) -> str:
         """
@@ -2677,7 +2757,7 @@ Que voulez-vous que je fasse pour vous ?""",
             else:
                 what = "ce fait"
                 how = f"en lui parlant à la deuxième personne{example}"
-            if is_only_remember_request(query, memorized):
+            if self._turn_alone():
                 # « Puis réponds au reste de son message s'il y en a un » : le
                 # modèle cherchait un reste, et ajoutait d'autres faits, voire
                 # du code que personne n'avait demandé
@@ -2690,9 +2770,13 @@ Que voulez-vous que je fasse pour vous ?""",
             block += ("\n\n" if block else "") + (
                 f"MÉMORISATION : à la demande de l'utilisateur, tu viens d'enregistrer {what} "
                 f"dans ta mémoire persistante : {fact_for_prompt(memorized)}. C'est conservé "
-                "pour les prochaines conversations (fenêtre 🧠 Mémoire, onglet Faits) : "
-                f"n'appelle pas remember_fact. Confirme-le brièvement {how}{then}"
+                "pour les prochaines conversations (fenêtre 🧠 Mémoire, onglet Faits). "
+                f"Confirme-le brièvement {how}{then}"
             )
+        else:
+            change = self._memory_change_note()
+            if change:
+                block += ("\n\n" if block else "") + change
 
         # Rappelée en fin de bloc : au milieu du prompt, « Always respond in
         # English. » ne suffisait pas face à une question posée en français.
@@ -3139,9 +3223,6 @@ Que voulez-vous que je fasse pour vous ?""",
         try:
             llm = self.local_ai.local_llm
             tools = self.mcp_manager.get_ollama_tools()
-            if getattr(self, "_turn_memorized", None):
-                # Déjà enregistré par _remember_from_message
-                tools = self._without_tool(tools, "remember_fact")
 
             if not tools:
                 return {"type": "mcp", "message": "", "success": False}
@@ -3411,6 +3492,7 @@ Que voulez-vous que je fasse pour vous ?""",
         on_image_progress=None,
         on_document=None,
         on_tool_result=None,
+        memory_text: Optional[str] = None,
     ) -> str:
         """
         Point d'entrée synchrone et streamé pour la GUI.
@@ -3419,24 +3501,62 @@ Que voulez-vous que je fasse pour vous ?""",
         l'interface le résultat de chaque appel d'outil : il ne change rien aux
         requêtes envoyées au modèle.
 
+        memory_text : ce que la mémoire lit du message quand ce n'est pas
+        user_input, les mots de l'utilisateur ; « » pour rien (une commande
+        « /… » déroulée en prompt de la bibliothèque : ses consignes ne sont pas
+        les siennes).
+
         Stratégie :
           1. Image (vision) → direct
           2. Détection d'intention Python → appel direct de l'outil
              (contourne le bug tool-calling Ollama qui écrit le JSON en texte)
           3. Stream final Ollama avec le résultat de l'outil injecté
           4. Fallback → CustomAIModel
+
+        Mémoire (core/chat_memory.py) : « retiens… », « oublie… » sont faits
+        avant toute génération, quel que soit le chemin de réponse, et signalés
+        comme des appels d'outils ; un message sans demande est lu pendant la
+        réponse, et ce qu'il en reste est signalé à la fin.
         """
+        said = user_input if memory_text is None else memory_text
+        self._remember_from_message(said)
+        self._memory_indicators(self._turn_memory, on_tool_call)
+        later = self._read_memory_later(said, is_interrupted_callback)
+        try:
+            return self._process_query_stream(
+                user_input, on_token=on_token, on_tool_call=on_tool_call,
+                on_thinking_token=on_thinking_token,
+                on_thinking_complete=on_thinking_complete, image_base64=image_base64,
+                context=context, is_interrupted_callback=is_interrupted_callback,
+                on_delete_confirm=on_delete_confirm, on_image=on_image,
+                on_image_progress=on_image_progress, on_document=on_document,
+                on_tool_result=on_tool_result,
+            )
+        finally:
+            self._show_memory_later(later, on_tool_call)
+
+    def _process_query_stream(
+        self,
+        user_input: str,
+        on_token=None,
+        on_tool_call=None,
+        on_thinking_token=None,
+        on_thinking_complete=None,
+        image_base64: Optional[str] = None,
+        context: Optional[Dict] = None,
+        is_interrupted_callback=None,
+        on_delete_confirm=None,
+        on_image=None,
+        on_image_progress=None,
+        on_document=None,
+        on_tool_result=None,
+    ) -> str:
+        """La réponse de process_query_stream, la mémoire du tour déjà faite."""
         # Les documents produits pendant ce tour sont accumulés par
         # _register_document et relayés au GUI depuis tool_executor.
         self._last_documents = []
         self._turn_research = []
         self._turn_request = user_input
-
-        # « Retiens que… » : enregistré avant toute génération, quel que soit
-        # le chemin de réponse, puis signalé comme un appel d'outil.
-        memorized = self._remember_from_message(user_input)
-        if memorized and on_tool_call:
-            on_tool_call("remember_fact", {"fact": memorized})
 
         # Langue de l'utilisateur, sauf consigne de langue en mémoire
         # (y compris celle qui vient d'être enregistrée)
@@ -3451,7 +3571,7 @@ Que voulez-vous que je fasse pour vous ?""",
             # vois »…) envoyait « et dans celle-là ? » ou « Beschreibe dieses
             # Bild » vers le chemin texte, sans l'image : le modèle redécrivait
             # alors l'image précédente d'après l'historique.
-            if not (memorized and is_only_remember_request(user_input, memorized)):
+            if not self._turn_alone():
                 return self.local_ai.generate_response_stream(
                     user_input,
                     on_token=on_token,
@@ -3517,14 +3637,11 @@ Que voulez-vous que je fasse pour vous ?""",
         # ----------------------------------------------------------------
         try:
             tools = self.mcp_manager.get_ollama_tools()
-            if memorized and is_only_remember_request(user_input, memorized):
+            if self._turn_alone():
                 # Rien d'autre à faire que confirmer : sans outils, une seule
-                # génération (le modèle appelait sinon remember_fact quand
-                # même, puis une synthèse)
+                # génération (le modèle « vérifiait » sinon la mémoire avec
+                # search_memory, puis une synthèse)
                 tools = []
-            elif memorized:
-                # Déjà enregistré : un appel de remember_fact le doublerait
-                tools = self._without_tool(tools, "remember_fact")
 
             # Construire le system prompt
             cwd = os.getcwd()

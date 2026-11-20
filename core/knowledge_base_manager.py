@@ -546,8 +546,9 @@ _REMEMBER_VERBS = (
     r"remember|keep\s+in\s+mind|(?:don['’]?t|do\s+not)\s+forget"
 )
 # Le verbe, puis ce qui l'introduit : « que », ou un bloc « ceci : », « : »…
+# (« retiens plutôt que… » : un fait qui en remplace un autre)
 _REMEMBER_RE = re.compile(
-    rf"(?<![\w'’-])(?:{_REMEMBER_VERBS})(?:\s+bien)?"
+    rf"(?<![\w'’-])(?:{_REMEMBER_VERBS})(?:\s+(?:bien|plut[ôo]t|instead))?"
     r"(?:\s+(?:que|that)\s+|\s+qu['’]\s*|"
     r"(?P<block>\s+(?:de\s+)?(?:ceci|[çc]a|cela|this)\s*(?:[:,]\s*|\s+)|\s*:\s*))"
     r"(?P<fact>.+)",
@@ -555,7 +556,7 @@ _REMEMBER_RE = re.compile(
 )
 # Le même verbe en fin de texte : ce qui précède l'information
 _REMEMBER_TAIL_RE = re.compile(
-    rf"(?:{_REMEMBER_VERBS})(?:\s+bien)?"
+    rf"(?:{_REMEMBER_VERBS})(?:\s+(?:bien|plut[ôo]t|instead))?"
     r"(?:\s+(?:que|that)|\s+qu['’]|\s+(?:de\s+)?(?:ceci|[çc]a|cela|this)\s*[:,]?|\s*:)?\s*$",
     re.IGNORECASE,
 )
@@ -566,17 +567,17 @@ _REMEMBER_DIRECT_RE = re.compile(
     r"(?<![\w'’-])(?:retiens|m[ée]morise|memori[sz]e)(?:\s+bien)?\s+(?P<fact>[^\s-].*)",
     re.IGNORECASE | re.DOTALL,
 )
-# Seuls mots admis avant la demande dans sa phrase (« Au fait, retiens que… »).
-# « Je retiens que… », « tu te souviens que… ? » ou une consigne glissée dans
-# une tâche (« écris la fonction et n'oublie pas que… ») ne sont pas des
-# demandes de mémorisation.
+# Seuls mots admis avant la demande dans sa phrase (« Au fait, retiens que… »,
+# « Non, retiens plutôt que… »). « Je retiens que… », « tu te souviens que… ? »
+# ou une consigne glissée dans une tâche (« écris la fonction et n'oublie pas
+# que… ») ne sont pas des demandes de mémorisation.
 _REMEMBER_LEAD_IN_RE = re.compile(
     r"^(?:(?:au\s+fait|ok(?:ay)?|bon|alors|et|aussi|enfin|maintenant|d['’]ailleurs|"
     r"sinon|merci|stp|svp|s['’]il\s+te\s+pla[iî]t|s['’]il\s+vous\s+pla[iî]t|please|"
     r"salut|bonjour|bonsoir|coucou|hello|hi|"
     r"hey|h[ée]|dis(?:[- ]moi)?|tiens|pour\s+info(?:rmation)?|info|important|rappel|"
-    r"petite\s+info|ah|oh|super|parfait|cool|top|nickel|d['’]accord|ouais|oui|"
-    r"est[- ]ce\s+que|yes|so|also|and|btw|by\s+the\s+way)[\s,!:-]*)*$",
+    r"petite\s+info|ah|oh|super|parfait|cool|top|nickel|d['’]accord|ouais|oui|non|"
+    r"est[- ]ce\s+que|yes|no|so|also|and|btw|by\s+the\s+way)[\s,!:-]*)*$",
     re.IGNORECASE,
 )
 _POLITENESS = (
@@ -705,6 +706,32 @@ def extract_remember_request(message: str) -> Optional[str]:
     return None
 
 
+def remember_block(message: str) -> Optional[str]:
+    """
+    Le bloc d'une demande « retiens ceci : … » (« mémorise : … », « remember
+    this: … »), en entier, consignes comprises (une procédure), ou None : une
+    demande « retiens que… », ou un bloc qui n'est qu'une question.
+
+    Le modèle qui lit les demandes (core/code_memory.py, apply_reading) découpait
+    ou reformulait un tel bloc : ce sont les mots de l'utilisateur qui sont retenus.
+    """
+    if not message:
+        return None
+    position = 0
+    while True:
+        match = _REMEMBER_RE.search(message, position)
+        if match is None:
+            return None
+        position = match.start() + 1
+        if not _opens_sentence(message, match.start()):
+            continue
+        marker = match.group("block")
+        if marker is None or ":" not in marker:
+            return None
+        fact = _clean_remembered(match.group("fact"), True)
+        return None if not fact or _is_question(message, fact) else fact
+
+
 def is_only_remember_request(message: str, fact: str) -> bool:
     """
     Le message ne fait-il que demander de retenir fact (extract_remember_request) ?
@@ -725,6 +752,148 @@ def is_only_remember_request(message: str, fact: str) -> bool:
         return False
     prefix = re.sub(r"[^\w'’\s,!:-]", " ", prefix).strip()
     return bool(_REMEMBER_LEAD_IN_RE.match(prefix))
+
+
+# Demande de mémorisation, quoi qu'elle dise ensuite : « retiens que… », mais
+# aussi « retiens-le pour tous mes projets », « retiens ça », « garde-le en
+# tête », que extract_remember_request ne lit pas (rien à recopier)
+_REMEMBER_ASK = (
+    rf"(?:{_REMEMBER_VERBS}|garde[- ](?:le|la|les)\s+en\s+(?:t[êe]te|m[ée]moire)|"
+    r"(?:save|add|put|store)\s+(?:this|that|it)\s+(?:to|in|into)\s+(?:your\s+)?memory)"
+)
+_REMEMBER_ASK_RE = re.compile(rf"(?<![\w'’-]){_REMEMBER_ASK}(?![\w'’])", re.IGNORECASE)
+# Ce qui renvoie à l'information après la demande : « retiens-le », « retiens bien ça »
+_REMEMBER_REFERENCE_RE = re.compile(
+    r"(?:[\s-]+(?:le|la|les|[çc]a|ceci|cela|bien|this|that|it))*", re.IGNORECASE
+)
+_POLITENESS_WORD_RE = re.compile(
+    rf"(?<![\w'’])(?:{_POLITENESS}|ok(?:ay)?|d['’]accord)(?![\w'’])", re.IGNORECASE
+)
+
+
+def _recalls(message: str, match: "re.Match[str]") -> bool:
+    """« Rappelle-toi : quel framework j'utilise ? » demande de se souvenir, pas de
+    retenir : un mot interrogatif suit le verbe, et sa phrase finit par « ? »."""
+    sentence = re.match(r"[^.!?\n]*[.!?]?", message[match.end():]).group(0)
+    question = sentence.lstrip(" \t:,-")
+    return sentence.rstrip().endswith("?") and bool(_QUESTION_START_RE.match(question))
+
+
+def is_rememberable(text: str) -> bool:
+    """
+    Une information à retenir ? Deux mots au moins (« rien », un mot seul, n'en
+    est pas une), pas plus de MAX_REMEMBERED_CHARS, et pas un renvoi à autre
+    chose (« ce que je t'ai dit »).
+    """
+    text = (text or "").strip()
+    return (len(text.split()) >= 2 and len(text) <= MAX_REMEMBERED_CHARS
+            and not _REFERENCE_RE.match(text))
+
+
+def asks_to_remember(message: str) -> bool:
+    """
+    Le message demande-t-il de retenir quelque chose ?
+
+    Le verbe doit ouvrir sa phrase, comme pour extract_remember_request
+    (« Je retiens que… », « écris la fonction et n'oublie pas que… » n'en
+    sont pas), mais ce qui le suit importe peu : « retiens-le pour tous mes
+    projets » renvoie à ce qui précède, et c'est au modèle de lire quoi
+    retenir (core/code_memory.py). Sauf une question : le modèle y répondait,
+    et sa réponse était retenue (« Je n'ai pas d'information sur… »).
+    """
+    for match in _REMEMBER_ASK_RE.finditer(message or ""):
+        if _opens_sentence(message, match.start()) and not _recalls(message, match):
+            return True
+    return False
+
+
+# Demande d'oubli : « oublie que… », « oublie-le », « ne retiens plus… », « retire de
+# ta mémoire… », « forget… ». « N'oublie pas » n'en est pas une (_REMEMBER_VERBS),
+# « oublie pas » (familier) non plus.
+_FORGET_ASK_RE = re.compile(
+    r"(?<![\w'’-])(?:"
+    r"oublie[sz]?(?!\s+pas\b)"
+    r"|(?:(?:peux|pourrais|veux|voudrais)[- ]tu|tu\s+(?:peux|pourrais|veux|voudrais)|"
+    r"merci\s+d['’])\s*oublier"
+    r"|ne\s+(?:retiens|garde|m[ée]morise|te\s+souviens)\s+plus"
+    r"|(?:efface|supprime|retire|enl[èe]ve)\b(?=[^.!?\n]{0,80}\bm[ée]moire\b)"
+    r"|forget"
+    r"|(?:remove|delete|erase)\b(?=[^.!?\n]{0,80}\bmemory\b)"
+    r"|(?:do\s+not|don['’]?t)\s+remember"
+    r")(?![\w'’])",
+    re.IGNORECASE,
+)
+
+
+def asks_to_forget(message: str) -> bool:
+    """
+    Le message demande-t-il d'oublier quelque chose (« oublie que j'utilise
+    unittest », « oublie tout ce que tu as retenu pour ce projet ») ? Le verbe
+    ouvre sa phrase, comme pour asks_to_remember ; « supprime » ou « retire »
+    seulement s'ils parlent de la mémoire (« supprime la fonction » est du code).
+    """
+    for match in _FORGET_ASK_RE.finditer(message or ""):
+        if _opens_sentence(message, match.start()):
+            return True
+    return False
+
+
+# Les propositions d'une demande d'oubli (« oublie que je suis végétarien, et
+# propose-moi une recette » : la seconde demande autre chose)
+_CLAUSE_SPLIT_RE = re.compile(r"\s*(?:[,;]|\b(?:et|puis|ensuite|then|and)\b)\s*", re.IGNORECASE)
+
+
+def only_asks_to_forget(message: str) -> bool:
+    """
+    Le message ne fait-il que demander d'oublier (« oublie que j'habite à Lyon »,
+    « salut, oublie tout ce que tu sais sur moi. Merci ! ») ? Une question ou une
+    autre demande (« …, et propose-moi une recette ») : non. Sa réponse se limite
+    alors à le confirmer, sans outils (le modèle « vérifiait » sinon la mémoire).
+    """
+    if not message or "?" in message:
+        return False
+    for match in _FORGET_ASK_RE.finditer(message):
+        prefix = re.sub(r"[^\w'’\s,!:-]", " ", message[:match.start()]).strip()
+        if not _REMEMBER_LEAD_IN_RE.match(prefix):
+            return False
+        sentences = [part.strip() for part in re.split(r"(?<=[.!])\s+|\n+",
+                                                         message[match.end():])
+                     if part.strip()]
+        if any(not _POLITENESS_SENTENCE_RE.match(sentence) for sentence in sentences[1:]):
+            return False
+        clauses = _CLAUSE_SPLIT_RE.split(sentences[0]) if sentences else []
+        return not any(_REQUEST_START_RE.match(clause) for clause in clauses if clause)
+    return False
+
+
+def content_words(text: str) -> List[str]:
+    """Mots significatifs d'un texte, sans casse, accents, pluriel ni petits mots
+    (« quel », « pour »…) : ceux qui comptent pour comparer deux phrases."""
+    tokens = []
+    for token in re.findall(r"[a-z0-9_]+", _normalize(text)):
+        if len(token) < 3 or token in _NORMALIZED_STOPWORDS:
+            continue
+        if len(token) > 3 and token[-1] in "sx":
+            token = token[:-1]  # « chats » et « chat » se retrouvent
+        tokens.append(token)
+    return tokens
+
+
+def only_asks_to_remember(message: str) -> bool:
+    """
+    Le message ne fait-il que demander de retenir ce qui précède, sans dire quoi
+    ni rien demander d'autre ? « Retiens-le », « ok, retiens bien ça, merci » :
+    oui ; « retiens ça et ajoute une route » : non. La précision « pour tous
+    mes projets » est à retirer avant (core/code_memory.py).
+    """
+    for match in _REMEMBER_ASK_RE.finditer(message or ""):
+        prefix = re.sub(r"[^\w'’\s,!:-]", " ", message[:match.start()]).strip()
+        if not _REMEMBER_LEAD_IN_RE.match(prefix):
+            return False
+        rest = message[match.end():]
+        rest = rest[_REMEMBER_REFERENCE_RE.match(rest).end():]
+        return not re.search(r"\w", _POLITENESS_WORD_RE.sub(" ", rest))
+    return False
 
 
 # Patrons d'extraction automatique de faits depuis du texte libre
@@ -1263,8 +1432,9 @@ class KnowledgeBaseManager:
         Choisit les faits à donner au modèle pour une requête.
 
         D'abord ceux qui partagent des mots avec la requête (casse, accents et
-        pluriels ignorés ; le plus de mots en commun d'abord), puis, avec
-        include_recent, les plus récemment ajoutés ou modifiés : une relance
+        pluriels ignorés ; le plus de mots en commun d'abord ; pour un fait du
+        code, « code » et le nom de son projet en sont, voir _match_text), puis,
+        avec include_recent, les plus récemment ajoutés ou modifiés : une relance
         courte (« et lui ? ») garde ainsi l'essentiel de la mémoire.
 
         Args:
@@ -1284,7 +1454,7 @@ class KnowledgeBaseManager:
         relevant = []
         if wanted:
             for fact in facts:
-                shared = wanted & set(self._match_tokens(f"{fact['key']} {fact['value']}"))
+                shared = wanted & set(self._match_tokens(self._match_text(fact)))
                 if shared:
                     relevant.append((len(shared), fact["updated_at"], fact))
             relevant.sort(key=lambda scored: scored[:2], reverse=True)
@@ -1308,6 +1478,26 @@ class KnowledgeBaseManager:
             selected.append(fact)
             used += size
         return selected
+
+    @staticmethod
+    def _match_text(fact: Dict) -> str:
+        """
+        Texte d'un fait pour la recherche par mots (select_facts) : sa clé et sa
+        valeur, et pour un fait du code, le mot « code » et le nom de son projet.
+
+        Sans eux, « quelles règles de code j'ai données pour My_AI ? », posée
+        dans le chat, ne retrouvait pas « je fais mes tests avec pytest »,
+        retenu pour ce projet : aucun mot commun. L'outil search_memory donnait
+        alors les faits les plus récents, ou le seul fait du chat qui disait
+        « code » (« je code en Python »).
+        """
+        text = f"{fact['key']} {fact['value']}"
+        scope, project = fact_scope(fact)
+        if scope == SCOPE_PROJECT:
+            return f"{text} code {project_name(project)}"
+        if scope == SCOPE_CODE:
+            return f"{text} code"
+        return text
 
     @classmethod
     def format_facts(cls, facts: List[Dict], with_scope: bool = False) -> List[str]:
@@ -1362,15 +1552,8 @@ class KnowledgeBaseManager:
 
     @staticmethod
     def _match_tokens(text: str) -> List[str]:
-        """Mots significatifs d'un texte, sans casse, accents ni pluriel."""
-        tokens = []
-        for token in re.findall(r"[a-z0-9_]+", _normalize(text)):
-            if len(token) < 3 or token in _NORMALIZED_STOPWORDS:
-                continue
-            if len(token) > 3 and token[-1] in "sx":
-                token = token[:-1]  # « chats » et « chat » se retrouvent
-            tokens.append(token)
-        return tokens
+        """Mots significatifs d'un texte, sans casse, accents ni pluriel (content_words)."""
+        return content_words(text)
 
     @classmethod
     def is_about_assistant(cls, fact: Dict) -> bool:

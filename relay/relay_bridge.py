@@ -60,6 +60,9 @@ class RelayMessage:
     # | "image"}). Le téléphone en demande l'aperçu (file_preview)
     links: List[Dict[str, Any]] = field(default_factory=list)
     files: List[Dict[str, Any]] = field(default_factory=list)
+    # Ce que la réponse a retenu ou oublié dans la mémoire (« 🧠 Mémorisé : … »),
+    # montré sous sa bulle
+    memory_notes: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.message_id:
@@ -77,7 +80,15 @@ class RelayMessage:
             "file_paths": list(self.file_paths),
             "links": list(self.links),
             "files": list(self.files),
+            "memory_notes": list(self.memory_notes),
         }
+
+
+def _clean_notes(notes: Any) -> List[str]:
+    """Ce qu'une réponse a retenu ou oublié, tel que le téléphone l'affiche : au plus 10."""
+    if not isinstance(notes, list):
+        return []
+    return [note.strip()[:300] for note in notes if isinstance(note, str) and note.strip()][:10]
 
 
 def _clean_links(links: Any) -> List[Dict[str, Any]]:
@@ -423,7 +434,8 @@ class RelayBridge:
         ]
 
     def submit_ai_response(self, text: str, message_id: Optional[str] = None,
-                           links: Optional[List[Dict[str, Any]]] = None) -> None:
+                           links: Optional[List[Dict[str, Any]]] = None,
+                           memory_notes: Optional[List[str]] = None) -> None:
         """
         Soumet la réponse IA au bridge. Appelé par le service de chat
         (core/chat_service.py) quand le streaming est terminé.
@@ -434,7 +446,8 @@ class RelayBridge:
 
         links : fichiers cités ou nommés par la réponse (cliquables sur le
         téléphone) ; les documents et images produits pendant la réponse
-        (submit_ai_document, submit_ai_image) lui sont rattachés.
+        (submit_ai_document, submit_ai_image) lui sont rattachés. memory_notes :
+        ce qu'elle a retenu ou oublié (« 🧠 Mémorisé : … »), sous sa bulle.
         """
         self._latest_response = text
         # Si le caller n'a pas fourni d'id, on utilise celui enregistré via
@@ -445,7 +458,8 @@ class RelayBridge:
         # l'envoie (wait_for_ai_response) et avant sa diffusion
         with self._extras_lock:
             files = self._turn_files.pop(effective_id, []) if effective_id else []
-            extras = {"links": _clean_links(links), "files": files}
+            extras = {"links": _clean_links(links), "files": files,
+                      "memory_notes": _clean_notes(memory_notes)}
             if effective_id:
                 self._response_extras[effective_id] = extras
                 while len(self._response_extras) > _RESPONSE_EXTRAS_MAX:
@@ -453,7 +467,8 @@ class RelayBridge:
 
         # Enregistrer dans l'historique
         ai_msg = RelayMessage(text=text, is_user=False, source="relay",
-                              links=extras["links"], files=list(files))
+                              links=extras["links"], files=list(files),
+                              memory_notes=list(extras["memory_notes"]))
         self._history.append(ai_msg)
 
         # Cacher la réponse pour récupération ultérieure (mobile déconnecté)
@@ -496,12 +511,14 @@ class RelayBridge:
                 self._turn_files.pop(next(iter(self._turn_files)))
 
     def response_extras(self, message_id: Optional[str]) -> Dict[str, Any]:
-        """Liens et fichiers produits de la réponse à message_id ({"links", "files"})."""
+        """Liens, fichiers produits et notes de mémoire de la réponse à message_id
+        ({"links", "files", "memory_notes"})."""
         with self._extras_lock:
             extras = self._response_extras.get(message_id or "")
             if extras is None:
-                return {"links": [], "files": []}
-            return {"links": list(extras["links"]), "files": list(extras["files"])}
+                return {"links": [], "files": [], "memory_notes": []}
+            return {"links": list(extras["links"]), "files": list(extras["files"]),
+                    "memory_notes": list(extras.get("memory_notes") or [])}
 
     def known_paths(self) -> set:
         """Fichiers que la conversation du téléphone montre : ses pièces jointes, les
