@@ -18,7 +18,8 @@ exactly as before.
 ## Highlights
 
 - 🤖 **Agentic mode** — the model can read, edit, and create files, run
-  shell commands, and search the workspace via nine built-in tools. Each
+  shell commands, and search the workspace via nine built-in tools, and look
+  up My_AI's memory (`search_memory`, run on the PC). Each
   reply is **one bubble, in narration order**: its text, then the tool
   calls it makes (one line each, with their status; input and captured
   output on click), then the text that follows.

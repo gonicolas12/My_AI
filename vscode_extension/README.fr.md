@@ -20,7 +20,8 @@ exactement comme avant.
 
 - 🤖 **Mode agentique** — le modèle peut lire, modifier et créer des
   fichiers, lancer des commandes shell, et chercher dans le workspace via
-  neuf outils intégrés. Chaque réponse est **une seule bulle, dans
+  neuf outils intégrés, et consulter la mémoire de My_AI (`search_memory`,
+  exécuté sur le PC). Chaque réponse est **une seule bulle, dans
   l'ordre de narration** : son texte, puis les appels d'outils qu'elle
   fait (une ligne chacun, avec son état ; arguments et sortie au clic),
   puis le texte qui suit.

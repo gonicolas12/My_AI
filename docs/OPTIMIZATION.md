@@ -1052,9 +1052,10 @@ Le `KnowledgeBaseManager` stocke dans SQLite les faits que vous demandez de rete
 
 - **6 catégories** : preference, decision, person, procedure, technical, general
 - **Score de confiance** : 1.0 pour les faits retenus ou ajoutés à la main, 0.7 pour l'extraction automatique (`extract_facts_from_text`)
-- **Injection dans le prompt** : les faits qui partagent des mots avec la requête, puis les plus récents
+- **Injection dans le prompt** : les faits du chat qui partagent des mots avec la requête, puis les plus récents
+- **Portées** : un fait retenu pour le code (tous les projets, ou un projet) va dans le prompt de la conversation Code, pas dans celui du chat : des conventions de code retenues depuis VS Code ne chassent pas les faits qui vous concernent
 
-**Coût maîtrisé :** quel que soit le nombre de faits, le prompt en reçoit au plus 12 (2 500 caractères).
+**Coût maîtrisé :** quel que soit le nombre de faits, le prompt du chat en reçoit au plus 12 (2 500 caractères). Dans la conversation Code, la section « Mémoire » du prompt système reste telle quelle après un « retiens que… » (le modèle le lit dans l'historique) : Ollama n'a pas à relire toute la conversation. Elle n'est refaite que si un fait du code change ailleurs (panneau Mémoire), avec le dossier, la langue ou le jour, ou quand le début de la conversation part.
 
 ### Détection de Langue
 

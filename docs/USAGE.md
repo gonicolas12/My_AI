@@ -1339,7 +1339,7 @@ Vous : "N'oublie pas que mon manager s'appelle Thomas Dupont"
 → Fait enregistré : [general] mon manager s'appelle Thomas Dupont
 ```
 
-Vous pouvez aussi ajouter, modifier ou supprimer des faits dans le panneau Mémoire. À chaque réponse, les faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Détails : [MEMORY.md](MEMORY.md).
+Vous pouvez aussi ajouter, modifier ou supprimer des faits dans le panneau Mémoire. À chaque réponse du chat, ses faits utiles à votre message (mots en commun, puis les plus récents) sont injectés dans le prompt du modèle. Dans la conversation Code (VS Code, page Code, vue Code du téléphone), « retiens que… » vaut pour le projet ouvert dans VS Code (« retiens pour tous mes projets que… » : pour tous), et ces faits du code vont dans son prompt à elle, pas dans celui du chat. Détails : [MEMORY.md](MEMORY.md).
 
 ### 💼 Workspaces / Sessions
 
@@ -1429,7 +1429,7 @@ L'onglet Agents reprend **toutes les fonctionnalités de la page Agents du PC**,
 
 #### Bouton `</>` Code
 
-Le bouton `</>`, à gauche de **Chat**, ouvre la **conversation de l'extension VS Code**, isolée du chat, dans la même interface que lui : les messages envoyés et reçus dans VS Code et sur la page Code du PC y sont, et un message tapé là part à l'extension, qui agit dans son workspace (réponse en streaming, appels d'outils, boutons d'approbation pour une écriture ou une commande). Le bandeau du haut dit si VS Code est connecté, et à quel dossier. La **corbeille** y commence une nouvelle conversation, aussi dans VS Code et sur le PC (après confirmation) ; elle est grisée pendant qu'une réponse s'écrit, d'où que vienne son message, jusqu'à sa fin ou au **Stop**. Comme dans le chat, un toucher ouvre l'**aperçu**, dans une fenêtre par-dessus la vue : les pièces jointes, avant et après l'envoi (d'où que vienne le message), les fichiers qu'une réponse cite ou nomme (chemins relatifs au workspace de VS Code compris) et ses blocs HTML ou SVG (bouton **Aperçu**) ; rien ne s'y ouvre tout seul. Voir [Extension VS Code](#-extension-vs-code--mode-agentique).
+Le bouton `</>`, à gauche de **Chat**, ouvre la **conversation de l'extension VS Code**, isolée du chat (elle n'en partage que la mémoire de My_AI, cloisonnée : voir [MEMORY.md](MEMORY.md#-dans-la-conversation-code-vs-code-page-code-téléphone)), dans la même interface que lui : les messages envoyés et reçus dans VS Code et sur la page Code du PC y sont, et un message tapé là part à l'extension, qui agit dans son workspace (réponse en streaming, appels d'outils, boutons d'approbation pour une écriture ou une commande). Le bandeau du haut dit si VS Code est connecté, et à quel dossier. La **corbeille** y commence une nouvelle conversation, aussi dans VS Code et sur le PC (après confirmation) ; elle est grisée pendant qu'une réponse s'écrit, d'où que vienne son message, jusqu'à sa fin ou au **Stop**. Comme dans le chat, un toucher ouvre l'**aperçu**, dans une fenêtre par-dessus la vue : les pièces jointes, avant et après l'envoi (d'où que vienne le message), les fichiers qu'une réponse cite ou nomme (chemins relatifs au workspace de VS Code compris) et ses blocs HTML ou SVG (bouton **Aperçu**) ; rien ne s'y ouvre tout seul. Voir [Extension VS Code](#-extension-vs-code--mode-agentique).
 
 #### 📎 Pièces jointes depuis le mobile
 
