@@ -63,6 +63,25 @@ Le fait est enregistré aussitôt dans l'onglet **Faits** (source : `conversatio
 
 ---
 
+## 💻 Dans la conversation Code (VS Code, page Code, téléphone)
+
+La conversation Code partage la mémoire de My_AI, cloisonnée : chaque fait a une **portée**, la conversation qui le reçoit d'office.
+
+| Portée | Reçu d'office par | Retenu par |
+|---|---|---|
+| **Chat** | le chat (fenêtre, téléphone) | le chat, ➕ Ajouter ; tous les faits d'avant les portées |
+| **Code : tous les projets** | la conversation Code, quel que soit le dossier ouvert | « retiens pour tous mes projets que… » dans la conversation Code |
+| **Code : projet X** | la conversation Code, quand le dossier X est ouvert dans VS Code | « retiens que… » dans la conversation Code |
+
+- **Retenir** : « Retiens que j'indente avec des tabulations », tapé dans VS Code, sur la page Code ou dans la vue Code du téléphone, est enregistré pour le premier dossier ouvert dans VS Code (« pour ce projet » revient au même). « Retiens pour tous mes projets que… » (ou « … dans tous mes projets », « remember for all my projects that… ») le fait valoir partout ; le même fait retenu avant pour un projet passe alors à tous. Sans dossier ouvert, il vaut pour tous les projets. Une carte « 🧠 Retenu : … » le montre au début de la réponse, sur les trois surfaces, et le modèle le confirme.
+- **Seul votre message compte** : un fichier du workspace ou un résultat d'outil ne peut rien écrire dans la mémoire, et le modèle n'a pas d'outil pour le faire. Une phrase glissée dans le README d'un dépôt cloné deviendrait sinon une consigne permanente. Si vous lui demandez de retenir autrement, il vous propose d'écrire « retiens que… ».
+- **Ce que le modèle reçoit d'office** : les faits du code (tous les projets, et ceux des dossiers ouverts), dans son prompt système, avec la consigne de les appliquer sans les recopier dans les fichiers. Les faits du chat (vous, vos proches, vos consignes de ton) n'y vont pas : avec eux sous les yeux, le modèle les glissait dans le code. Ce prompt n'est refait que si la mémoire change ailleurs (un fait modifié ou supprimé dans le panneau) ou si le dossier, la langue ou le jour changent : un « retiens que… » de la conversation ne le refait pas, et Ollama n'a pas à relire toute la conversation.
+- **Le reste, à la demande** : l'outil `search_memory`, exécuté sur le PC et jamais par l'extension, cherche dans les faits du chat, du code et des dossiers ouverts (pas ceux des autres projets), puis dans les documents du panneau (cahier des charges, notes…). Le modèle ne s'en sert que si vous parlez de votre mémoire ou d'un document que vous y avez mis ; faute de fait qui corresponde, il ne reçoit que ceux du code. Sa carte « Recherche de « … » dans la mémoire » s'affiche aussi sur les trois surfaces.
+- **Dans le panneau Mémoire** : un fait du code porte sa portée en tête de sa provenance (« 💻 Code : projet My_AI », « 💻 Code : tous les projets »), source `code`. Il se modifie et se supprime comme les autres ; le chat le trouve à la demande (`search_memory`), avec sa portée.
+- **Désactiver** : `knowledge_base.auto_extract: false` arrête aussi les « retiens que… » de la conversation Code.
+
+---
+
 ## 📄 Documents
 
 L'onglet **Documents** garde le texte des documents. Pour la recherche, chaque document est découpé en interne en morceaux de 256 tokens (chunks), que l'onglet ne montre pas : il montre des documents.
@@ -96,7 +115,7 @@ Un fichier joint au chat ne pose pas de question : même contenu, c'est le même
 
 | Onglet | Envoyé au modèle |
 |---|---|
-| **Faits** | Automatiquement, dans le prompt système de chaque réponse, y compris avec un fichier ou une image joints : d'abord les faits qui partagent des mots avec votre message (casse, accents et pluriels ignorés), puis les plus récents, jusqu'à 12 faits ou 2 500 caractères. Ils restent dans la réponse rédigée après un appel d'outil. |
+| **Faits** | Ceux du chat, automatiquement, dans le prompt système de chaque réponse, y compris avec un fichier ou une image joints : d'abord les faits qui partagent des mots avec votre message (casse, accents et pluriels ignorés), puis les plus récents, jusqu'à 12 faits ou 2 500 caractères. Ils restent dans la réponse rédigée après un appel d'outil. Ceux du code vont à la conversation Code (voir [Dans la conversation Code](#-dans-la-conversation-code-vs-code-page-code-téléphone)) ; le chat les trouve à la demande avec `search_memory`. |
 | **Documents** | Ceux que votre message nomme (« rapport.pdf », « projet/rapport.pdf », ou un nom distinctif sans extension : « le rapport trimestriel ») : leur contenu utile, dans le prompt système, chacun sous son nom, son dossier éventuel et sa date d'ajout. Plusieurs du même nom : tous, numérotés, avec un avertissement (ce sont des fichiers différents) et, après leur contenu, un rappel : répondre pour chacun, l'un après l'autre, sauf si la question dit lequel ; nommer aussi le dossier ne garde que le sien. Un fichier joint à la conversation passe avant celui de la mémoire qui porte son nom. Un dossier déposé que le message désigne (« le dossier projet », ou un mot de son nom autour de « dossier » si le message parle de la mémoire : « mon dossier onedrive que tu as en mémoire » pour « OneDrive_3_06-10-2026 ») : la liste de ses fichiers, ses extraits les plus proches de la question, et le rappel qu'il est dans la mémoire, pas sur le disque ; si le modèle essaie quand même de lire l'un de ses fichiers sur le disque (`read_local_file("OneDrive_3_06-10-2026/Data.xlsx")`), l'outil le lit dans la mémoire. Sans parler de la mémoire (« il y a quoi dans mon dossier onedrive ? »), c'est peut-être un dossier du disque : le modèle reçoit seulement un rappel de ce dossier de la mémoire au nom proche, pour ne pas les confondre ; et si sa réponse ne le cite pas, la fenêtre le signale sous elle (« Aussi dans la Mémoire : 📁 OneDrive_3_06-10-2026 (2 fichiers) », cliquable). « Dossier » et « mémoire » sont reconnus dans les 12 langues de l'application (folder et memory, Ordner et Gedächtnis, carpeta et memoria, フォルダ et 記憶…), et un nom de fichier collé au japonais, au chinois ou au coréen (« Data.xlsxの中身 ») compte. Sinon, quand le modèle appelle l'outil `search_memory` (qui cherche aussi dans les faits) : chaque extrait y indique son document, et l'outil peut se limiter à un document ou à un dossier. |
 | **Conversations** | Jamais : c'est l'index de la recherche globale de la barre latérale. |
 
@@ -115,7 +134,7 @@ Un fichier joint au chat ne pose pas de question : même contenu, c'est le même
 - **Recherche** dans l'onglet courant + **filtre par catégorie** (onglet Faits).
 - **Pagination** (20 entrées/page).
 - **Provenance** affichée sous chaque entrée :
-  - Faits → `source` (manuel / conversation / …), `confiance`, date de mise à jour.
+  - Faits → portée d'un fait du code (« 💻 Code : projet My_AI », « 💻 Code : tous les projets »), `source` (manuel / conversation / code / …), `confiance`, date de mise à jour.
   - Conversations → **session** (son nom actuel : renommer une conversation change aussi celui-ci) · rôle (vous / assistant) · horodatage.
   - Documents → une ligne par **document** (date · « ajouté à la main » le cas échéant) ou par **dossier déposé** (fichiers · date), à déplier sur ses fichiers. Une recherche qui ne trouve qu'une partie des fichiers d'un dossier n'affiche qu'eux, et le dit : « 1 fichier sur 4 » (videz la recherche pour voir tout le dossier).
 
@@ -155,7 +174,7 @@ interfaces/desktop/memory.py          # Service du panneau (routes : api_memory.
         ▼
 core/memory_store.py  ── MemoryStore  # Façade CRUD unifiée (testable sans interface)
         │                  exposé par AIEngine.get_memory_store()
-        ├─ core/knowledge_base_manager.py   # Faits (SQLite) — CRUD
+        ├─ core/knowledge_base_manager.py   # Faits (SQLite) — CRUD, portée de chaque fait
         └─ memory/vector_memory.py          # Vecteurs (ChromaDB) — CRUD par entrée
              ├─ list_entries / get_entry / count_entries
              ├─ update_entry  (ré-embarque)
@@ -168,8 +187,13 @@ core/embedding_engine.py           # Modèle d'embeddings (Granite, repli MiniLM
 
 core/ai_engine.py                  # Côté chat
    ├─ _remember_from_message()     # « retiens que… » → KnowledgeBaseManager.remember()
-   ├─ outils remember_fact / search_memory
-   └─ _knowledge_base_context()    # select_facts() → prompt système (et synthèse après outils)
+   ├─ outils remember_fact / search_memory (search_memory() : partagé avec la conversation Code)
+   └─ _knowledge_base_context()    # select_facts() (faits du chat) → prompt système
+
+core/code_memory.py                # Côté conversation Code (relay/code_hub.py) : faits du code
+   ├─ prompt_block()               #   → section « Mémoire » du prompt système
+   ├─ remember()                   # « retiens que… » du message → fait du projet ou de tous
+   └─ search()                     # outil search_memory, exécuté sur le PC
 ```
 
 ### `MemoryStore` (API principale, pour développeurs)
